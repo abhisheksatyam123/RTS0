@@ -16834,8 +16834,9 @@ void Simulation::petra_manage_economy(float dt) {
 
 	// baseManager.js setWorkersIdleByPriority (every 8 s, one switch at most): a gatherer moves
 	// from a less needed resource to a more needed one when, with the wanted rates scaled to the
-	// current total, the gap passes 1.5, or the less needed one is exhausted. switchGatherer
-	// takes a citizen soldier off food and a woman onto it when there is one.
+	// current total, the gap passes 1.5, or the less needed one is exhausted; never toward one a
+	// worker found nothing of in the last 20 s (lastFailedGather). switchGatherer takes a citizen
+	// soldier off food and a woman onto it when there is one.
 	std::vector<uint8_t> gather_type(reassignable_workers.size(), (uint8_t)RES_COUNT); // RES_COUNT: none yet
 	// baseManager.js:604 timeNextIdleCheck = elapsedTime + 8.
 	if ((int)(petra_timer_ / 8.0f) != (int)((petra_timer_ - petra_turn_dt_) / 8.0f)) {
@@ -16880,6 +16881,7 @@ void Simulation::petra_manage_economy(float dt) {
 			const uint8_t less = order[a];
 			for (int b = 0; b < a && !done; ++b) {
 				const uint8_t more = order[b];
+				if (petra_failed_gather_.recent(more, petra_timer_)) continue;
 				if (more != RES_FOOD && exhausted[more]) {
 					if (less != RES_FOOD && exhausted[less]) continue;
 					if (switch_gatherer(more, less)) { done = true; break; }
@@ -16994,14 +16996,18 @@ void Simulation::petra_manage_economy(float dt) {
 	for (size_t w = 0; w < reassignable_workers.size(); ++w) {
 		const size_t widx = reassignable_workers[w];
 		// baseManager.js reassignIdleWorkers: the most needed resource that is not (food aside)
-		// exhausted; a switched gatherer keeps the type it was switched to.
+		// exhausted and that no worker failed to find in the last 20 s; with none the worker
+		// stays idle. A switched gatherer keeps the type it was switched to.
 		uint8_t needed[RES_COUNT];
 		most_needed(needed);
+		auto may_try = [&](uint8_t r) {
+			return (r == RES_FOOD || !exhausted[r]) && !petra_failed_gather_.recent(r, petra_timer_);
+		};
 		uint8_t chosen_res_type = gather_type[w];
 		if (chosen_res_type == RES_COUNT) {
-			chosen_res_type = needed[0];
 			for (uint8_t r : needed)
-				if (r == RES_FOOD || !exhausted[r]) { chosen_res_type = r; break; }
+				if (may_try(r)) { chosen_res_type = r; break; }
+			if (chosen_res_type == RES_COUNT) continue;
 		}
 
 		// worker.js startGathering: any gatherer takes a treasure nearby first, and a food
@@ -17173,11 +17179,16 @@ void Simulation::petra_manage_economy(float dt) {
 				}
 			return false;
 		};
-		// The worker fails and the next pass picks another resource: the others, most needed
-		// first, are tried at once.
-		if (try_resource(chosen_res_type)) continue;
+		// worker.js startGathering finding nothing marks the resource failed (lastFailedGather) and
+		// the next pass picks another: the others, most needed first, are tried at once.
+		auto attempt = [&](uint8_t r) {
+			if (try_resource(r)) return true;
+			petra_failed_gather_.time[r] = petra_timer_;
+			return false;
+		};
+		if (attempt(chosen_res_type)) continue;
 		for (uint8_t r : needed)
-			if (r != chosen_res_type && (r == RES_FOOD || !exhausted[r]) && try_resource(r)) break;
+			if (r != chosen_res_type && may_try(r) && attempt(r)) break;
 	}
 
 	petra_manage_hunters(hunt_scan);
@@ -24757,6 +24768,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_emergency_ = PetraEmergency();
 	petra_defense_build_ = PetraDefenseBuild{};
 	petra_dropsite_check_ = PetraDropsiteCheck{};
+	petra_failed_gather_ = PetraFailedGather{};
 	petra_queues_.reset();
 	petra_transports_.clear();
 	petra_defense_timer_ = 0.0f;
@@ -24975,7 +24987,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -26058,14 +26070,36 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	}
 
 	// 3. Every AI's Petra state.
-	static_assert(sizeof(PetraConfig) == 100, "list the new PetraConfig field below");
+	static_assert(sizeof(PetraConfig) == 88, "list the new PetraConfig field below");
 	auto io_config = [&](PetraConfig &c) {
+		if (Ar::loading && ar.version < Simulation::SAVE_VERSION_PETRA_FAILED_GATHER) {
+			// Before v75 the config also held target_num_workers, target_num_traders and muster_delta.
+			struct Old {
+				uint8_t difficulty, behavior;
+				float aggressive, defensive, cooperative, pop_scaling, gather_rate, build_time;
+				float defense_ratio_own, army_compact_sq;
+				int target_num_workers, target_num_traders, pop_phase2, work_phase3, muster_delta;
+				float garrison_hp_low, garrison_hp_high;
+				float emergency_pop_factor, emergency_struct_factor, emergency_root_factor;
+				int reserved_[6];
+			} o{};
+			static_assert(sizeof(Old) == 100);
+			ar.pod(o);
+			c = PetraConfig{};
+			c.difficulty = o.difficulty; c.behavior = o.behavior; c.aggressive = o.aggressive; c.defensive = o.defensive;
+			c.cooperative = o.cooperative; c.pop_scaling = o.pop_scaling; c.gather_rate = o.gather_rate; c.build_time = o.build_time;
+			c.defense_ratio_own = o.defense_ratio_own; c.army_compact_sq = o.army_compact_sq;
+			c.pop_phase2 = o.pop_phase2; c.work_phase3 = o.work_phase3;
+			c.garrison_hp_low = o.garrison_hp_low; c.garrison_hp_high = o.garrison_hp_high;
+			c.emergency_pop_factor = o.emergency_pop_factor; c.emergency_struct_factor = o.emergency_struct_factor;
+			c.emergency_root_factor = o.emergency_root_factor;
+			return;
+		}
 		ar.padded(c, [](PetraConfig &d, const PetraConfig &v) {
 			d.difficulty = v.difficulty; d.behavior = v.behavior; d.aggressive = v.aggressive; d.defensive = v.defensive;
 			d.cooperative = v.cooperative; d.pop_scaling = v.pop_scaling; d.gather_rate = v.gather_rate; d.build_time = v.build_time;
 			d.defense_ratio_own = v.defense_ratio_own; d.army_compact_sq = v.army_compact_sq;
-			d.target_num_workers = v.target_num_workers; d.target_num_traders = v.target_num_traders;
-			d.pop_phase2 = v.pop_phase2; d.work_phase3 = v.work_phase3; d.muster_delta = v.muster_delta;
+			d.pop_phase2 = v.pop_phase2; d.work_phase3 = v.work_phase3;
 			d.garrison_hp_low = v.garrison_hp_low; d.garrison_hp_high = v.garrison_hp_high;
 			d.emergency_pop_factor = v.emergency_pop_factor; d.emergency_struct_factor = v.emergency_struct_factor;
 			d.emergency_root_factor = v.emergency_root_factor;
@@ -26206,6 +26240,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				ar.pod(old);
 				v.reset();
 			}
+		} else if constexpr (std::is_same_v<T, PetraFailedGather>) {
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_FAILED_GATHER) ar.pod(v);
+			else v = PetraFailedGather{};
 		} else if constexpr (std::is_same_v<T, PetraDropsiteCheck>) {
 			if (ar.version >= SAVE_VERSION_PETRA_DEFENSES) ar.pod(v);
 			else v = PetraDropsiteCheck{};
