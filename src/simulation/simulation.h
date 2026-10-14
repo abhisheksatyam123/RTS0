@@ -420,7 +420,13 @@ public:
 	// "barter" and "phase"): presentation only like AttackedEvent, never saved,
 	// hashed or read by the simulation, at most kMaxSessionNotices between reads.
 	struct SessionNotice {
-		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5 };
+		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5,
+			DEFEATED = 6,   // player is out; tech: the EndReason
+			WON = 7,        // other: the winners' mask; tech: the EndReason
+			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
+		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
+		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
+			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -747,7 +753,7 @@ public:
 	// (IsOwnedByMutualAllyOfEntity) and the unit matches the holder's List (a TurretHolder:
 	// Turretable). Room is not checked.
 	bool structure_accepts_garrison(const Building &b, size_t unit_idx) const;
-	bool structure_accepts_classes(const Building &b, uint64_t classes) const;
+	bool structure_accepts_classes(const Building &b, TechClasses classes) const;
 	bool can_garrison_in(uint32_t unit_id, uint32_t building_id) const;
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
 	bool structure_has_enough_health(const Building &b) const;
@@ -1331,6 +1337,9 @@ public:
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
 	int pop_max_uncapped(uint8_t player) const;
+	// Recounts unit_pop_bonus_ (the units' Population/Bonus per player): at the end of every
+	// tick and after a load or reset, so a unit's bonus counts from the tick after it appears.
+	void refresh_unit_pop_bonus();
 	// The population limit after Player/MaxPopulation modifiers; 0 when unlimited.
 	int pop_limit(uint8_t player) const;
 	// Ownership checks for player commands (0 A.D. Commands.js FilterEntityList).
@@ -1756,6 +1765,8 @@ public:
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
+	// Seconds player p has held a finished wonder (0 when it holds none), for WonderVictory.js's countdowns.
+	float wonder_hold(uint8_t p) const { return p < MAX_PLAYERS ? wonder_hold_[p] : 0.0f; }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<Relic> &relics() const { return relics_; }
 
@@ -1883,6 +1894,7 @@ private:
 		float bld_research_time[BLD_TYPE_COUNT];
 		float bld_batch_time_add[BLD_TYPE_COUNT]; // added to Trainer/BatchTimeModifier (Conscription)
 		float bld_pop_bonus[BLD_TYPE_COUNT];
+		float bld_pop_bonus_add[BLD_TYPE_COUNT]; // added after the multiplier (Wagon Trains: Colony +10)
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
@@ -2176,7 +2188,7 @@ private:
 	void collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b);
 	void check_victory_conditions(float dt);
 	// The match ends with these players as the winners; everyone else has lost.
-	void end_match(uint8_t winners);
+	void end_match(uint8_t winners, uint8_t reason = SessionNotice::END_LAST_ALIVE);
 	void spawn_regicide_heroes();
 
 	struct FaunaStorage {
@@ -2375,6 +2387,7 @@ private:
 		SETUP_FLAGS_ALL = 15;
 	std::vector<Spy> spies_; // VisionSharing spies, oldest first
 	CheatMods cheat_mods_[MAX_PLAYERS] = {};
+	int32_t unit_pop_bonus_[MAX_PLAYERS] = {}; // Population/Bonus of each player's units (refresh_unit_pop_bonus)
 	std::vector<uint8_t> spy_mask_; // tick_fow scratch: per unit index, the players its spies see for
 	void tick_spies(float dt);
 	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);
@@ -2409,7 +2422,7 @@ private:
 	};
 	void balanced_template_composition(const std::vector<TemplateBalance> &groups, int total, std::vector<std::pair<uint16_t, int>> &counts);
 	// maps/random/danubius_triggers.js
-	uint64_t unit_classes_at(size_t i) const; // the unit's 0 A.D. classes (its roster template's, else its class's)
+	TechClasses unit_classes_at(size_t i) const; // the unit's 0 A.D. classes (its roster template's, else its class's)
 	uint32_t danubius_spawn(uint16_t key, float x, float z);
 	bool danubius_is_left(float x, float z) const;
 	void danubius_active_riversides(bool &left, bool &right) const;
