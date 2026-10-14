@@ -443,6 +443,18 @@ static void test_transport() {
 	s.order_disembark_all(ship3);
 	const int32_t iar = idx(s, archer);
 	CHECK(!aboard(s, ship3, archer) && s.units().alive[iar] && s.get_terrain_height(s.units().pos_x[iar], s.units().pos_z[iar]) > 0.15f);
+	// Order.PickupUnit: a walker who can reach the ship from where it lies is waited for (LOADING).
+	{
+		const float sx = s.units().pos_x[idx(s, ship3)], sz = s.units().pos_z[idx(s, ship3)];
+		const uint32_t walker = s.spawn_unit(40.0f, 26.0f, 0, UNIT_ARCHER);
+		s.order_board_transport(&walker, 1, ship3);
+		run(s, 12.0f);
+		const float moved = std::hypot(s.units().pos_x[idx(s, ship3)] - sx, s.units().pos_z[idx(s, ship3)] - sz);
+		std::printf("  pickup of a walker who can reach the ship: ship moved %.2f, walker %s\n", moved,
+				aboard(s, ship3, walker) ? "aboard" : "ashore");
+		CHECK(moved < 1.5f && aboard(s, ship3, walker)); // pushed a little, not sailed off
+		s.order_disembark_all(ship3);
+	}
 	CHECK(s.units().pos_z[idx(s, ship3)] < 16.0f); // the ship stayed on the water
 	// A full load comes ashore spread out: PickSpawnPoint gives each passenger a spot nobody
 	// stands on, so no two bodies overlap as they land.
@@ -522,10 +534,10 @@ static void test_no_wading() {
 	CHECK(!waded);
 	CHECK(std::fabs(s.units().pos_x[w] + 20.0f) < 2.0f && s.units().pos_z[w] > 10.0f && !s.unit_has_order(walker));
 	CHECK(s.units().pos_z[idx(s, ai_walker)] > 10.0f);
-	CHECK(!aboard(s, ship, boarder));
-	// The ship comes in to the beach: the waiting unit boards.
-	s.cmd_move(&ship, 1, -40.0f, 12.0f);
+	// Its own walk done, the ship comes in to the beach for the waiting unit (UnitAI
+	// PushOrderAfterForced("PickupUnit")), which boards.
 	run(s, 10.0f);
+	std::printf("  the ship came for the boarder: %s\n", aboard(s, ship, boarder) ? "aboard" : "still ashore");
 	CHECK(aboard(s, ship, boarder));
 }
 
