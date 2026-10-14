@@ -1779,6 +1779,18 @@ static void test_relic_capture() {
 		near.claimed ? (near.owner_team == 1 ? "taken by AI 1" : "taken by another") : "left", far.claimed ? "taken" : "left alone");
 	CHECK(near.claimed && near.owner_team == 1, "Petra captures a Gaia relic in its territory");
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
+	// abortCaptureGaiaRelic: a relic someone else takes first ends the expedition.
+	const uint32_t taken = s->spawn_relic(tx - 12.0f, tz + 12.0f);
+	const uint32_t seeker = s->spawn_unit(tx - 4.0f, tz + 4.0f, 1, UNIT_SPEARMAN);
+	s->order_capture_relic(&seeker, 1, taken);
+	const int32_t tr = s->lookup_unit(taken), su = s->lookup_unit(seeker);
+	s->units_.team[tr] = 0;
+	for (auto &rel : s->relics_)
+		if (rel.id == taken) { rel.claimed = true; rel.owner_team = 0; }
+	run_ai_turns(*s, 10);
+	std::printf("  relic taken by player 0 first: the AI's capturer %s\n",
+		s->units_.order_kind[su] == ORDER_CAPTURE_RELIC ? "keeps going" : "is called off");
+	CHECK(s->units_.alive[su] && s->units_.order_kind[su] != ORDER_CAPTURE_RELIC, "Petra calls off a capture of a relic an enemy took");
 }
 
 // attackManager.js getRelicEnemyPlayer: in capture the relic, Petra attacks the enemy
@@ -2382,6 +2394,30 @@ static void test_victory_critical_ents() {
 		std::printf("  regicide: %d guard the regicide hero, %d a hero trained later\n", on_hero, on_trained);
 		CHECK(hero != 0 && on_hero >= 4, "the regicide hero is guarded");
 		CHECK(on_trained == 0, "a hero trained later is not a critical entity");
+		// Garrison events: the hero goes into its civic centre; its guards walk up to it.
+		uint32_t tc = 0;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) tc = b.id;
+		std::vector<uint32_t> guards;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.order_kind[i] == ORDER_GUARD && s->units_.order_target[i] == hero)
+				guards.push_back(s->units_.id[i]);
+		s->set_regicide_garrison(true); // Regicide garrison: the hero may go in
+		const bool inside = s->garrison_unit_now(hero, tc);
+		run_ai_turns(*s, 1);
+		int still = 0, near_tc = 0;
+		for (uint32_t g : guards) {
+			const int32_t u = s->lookup_unit(g);
+			still += u >= 0 && s->units_.order_kind[u] == ORDER_GUARD && s->units_.order_target[u] == hero;
+		}
+		run_for(*s, 15.0f); // walking up (once the hero is out again they guard it anew)
+		const auto &tcb = s->buildings_[s->building_id_to_idx_.at(tc)];
+		for (uint32_t g : guards) {
+			const int32_t u = s->lookup_unit(g);
+			if (u >= 0 && s->units_.alive[u]) near_tc += std::hypot(s->units_.pos_x[u] - tcb.x, s->units_.pos_z[u] - tcb.z) < tcb.half_size + 4.0f;
+		}
+		std::printf("  regicide hero garrisoned: %zu guards, %d still guarding, %d by the civic centre\n", guards.size(), still, near_tc);
+		CHECK(inside && !guards.empty() && still == 0 && near_tc > 0, "a garrisoned hero's guards walk to its holder");
 	}
 	{
 		auto s = std::make_unique<Simulation>();
