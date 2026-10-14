@@ -1121,6 +1121,14 @@ void RtsoMain::post_network_chat() {
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
 		chat_window_.append_line(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n");
 	}
+	// NMT_REJOINED, once the rejoiner has loaded (ChatMessageFormatNetwork rejoined).
+	const auto &rejoined = turn_mgr_.rejoined_clients();
+	for (; rejoined_chatted_ < rejoined.size(); ++rejoined_chatted_)
+		for (const auto &e : now)
+			if (e.client == rejoined[rejoined_chatted_] && e.status != rtso::PlayerAssignmentMsg::LEFT) {
+				chat_window_.append_line(sprintf0(tr("%(player)s has rejoined the game."), {{"player", who(e)}}) + "\n");
+				break;
+			}
 }
 
 // 0 A.D. Menu.toggle: the menu slides open over the running game; only its

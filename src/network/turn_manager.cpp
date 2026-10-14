@@ -197,6 +197,8 @@ void TurnManager::apply_peer_left(uint32_t client_id, uint32_t last_turn) {
 void TurnManager::apply_peer_control(const NetCommand &c) {
 	ensure_lockstep_peers();
 	const uint32_t id = c.target_id;
+	if (id != 0 && id == local_client_id_ && c.cmd_type == CMD_PEER_JOINED && c.target_z > 0.5f)
+		rejoined_clients_.push_back(id); // the rejoiner hears it too
 	if (id == 0 || id == local_client_id_) return;
 	if (c.cmd_type == CMD_PEER_LEFT) {
 		apply_peer_left(id, (uint32_t)c.target_x);
@@ -208,6 +210,7 @@ void TurnManager::apply_peer_control(const NetCommand &c) {
 		lockstep_until_.erase(id);
 		left_clients_.erase(id);
 		client_player_[id] = c.param;
+		if (c.target_z > 0.5f) rejoined_clients_.push_back(id);
 		std::cerr << "[TurnManager] client " << id << " takes player " << (unsigned)c.param
 		          << " from turn " << (uint32_t)c.target_x << "\n";
 	}
@@ -415,7 +418,12 @@ void TurnManager::admit_rejoiner(uint32_t client_id) {
 	c.target_id = client_id;
 	c.param = seat;
 	c.target_x = (float)L;
+	// 0 A.D. NMT_REJOINED: everyone hears "has rejoined the game.", except for
+	// the clients of a saved game, which load it at Start as a new game does.
+	const bool rejoined = !saved_waiting_.count(client_id);
+	c.target_z = rejoined ? 1.0f : 0.0f;
 	pending_control_.push_back(c);
+	if (rejoined) rejoined_clients_.push_back(client_id);
 	RejoinMsg in;
 	in.kind = RejoinMsg::LOCKSTEP;
 	in.turn = L;
@@ -570,6 +578,17 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	net_host_->setPeerObserver(client_id, observer);
 	// A player joins the lockstep once it has loaded (admit_rejoiner).
 	if (!observer) rejoin_loading_[client_id] = seat;
+	// 0 A.D. NetServer OnRejoined: the rejoiner is told who is pausing
+	// (it keeps the list through its rejoin reset; later changes reach it as
+	// they reach everyone).
+	for (uint32_t who : paused_clients_) {
+		ClientPausedMsg cpm;
+		cpm.guid = std::to_string(who);
+		cpm.pause = 1;
+		std::vector<uint8_t> payload = NetPacketSerializer::frame_client_paused(cpm);
+		net_host_->sendCommand(client_id,
+				NetPacketSerializer::pack_message(NetMessageType::NMT_CLIENT_PAUSED, current_turn_, payload));
+	}
 
 	RejoinMsg hdr;
 	hdr.kind = RejoinMsg::HEADER;

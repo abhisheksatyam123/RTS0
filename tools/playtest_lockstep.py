@@ -206,7 +206,7 @@ class Peer:
         kw.pop("stdout", None)
         kw.pop("stderr", None)
         kw.pop("text", None)
-        self._out = tempfile.TemporaryFile(mode="w+")
+        self._out = tempfile.NamedTemporaryFile(mode="w+")
         self._proc = subprocess.Popen(args, stdout=self._out, stderr=subprocess.STDOUT, text=True, **kw)
         self._deadline = time.time() + Peer.step_timeout
 
@@ -227,6 +227,12 @@ class Peer:
                 raise
         self._out.seek(0)
         return self._out.read(), None
+
+    def printed(self, text: str) -> bool:
+        """Whether the peer has printed text so far (a second handle, so the
+        peer's own write position is left alone)."""
+        with open(self._out.name) as f:
+            return text in f.read()
 
     def wait(self, timeout=None):
         left = max(1.0, self._deadline - time.time())
@@ -466,7 +472,10 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     def peer(role, log, *more):
         return Peer([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    host = peer("host", logs["host"])
+    # The host pauses at PAUSE for 5 s, and bob comes back during it: as 0.28's
+    # NetServer does, the host must tell him who is pausing.
+    pause = leave + 100
+    host = peer("host", logs["host"], "--pause-turn", str(pause), "--pause-ms", "5000")
     time.sleep(0.3)
     left = peer("join", logs["left"], "--name", "bob", "--quit-turn", str(leave))
     outs, rcs = [], []
@@ -481,9 +490,11 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     finish(left)
     time.sleep(0.5)
     intruder = peer("join", logs["intruder"], "--name", "mallory", "--rejoin", "1")
-    while intruder.poll() is None and not read_hashes(logs["intruder"]):
-        time.sleep(0.1)
-    back = peer("join", logs["back"], "--name", "bob", "--rejoin", "1")
+    while intruder.poll() is None and not intruder.printed("rejoin turn="):
+        time.sleep(0.05)
+    while host.poll() is None and len(read_hashes(logs["host"])) < pause:
+        time.sleep(0.05)
+    back = peer("join", logs["back"], "--name", "bob", "--rejoin", "1", "--pause-turn", str(pause))
     finish(intruder)
     finish(back)
     finish(host)
@@ -491,22 +502,31 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     rep = peer_lines([outs[2]], "rejoin")
     h, b = read_hashes(logs["host"]), read_hashes(logs["back"])
     t0 = int(rep.get("join", {}).get("turn", "0"))
+    # 0 A.D. NMT_REJOINED: the host and bob both hear "has rejoined the game."
+    # (bob's own client id is the one the host lists; mallory only watches).
+    host_rejoined = peer_lines([outs[3]], "rejoined").get("host", {})
+    back_rejoined = peer_lines([outs[2]], "rejoined").get("join", {})
+    back_pause = peer_lines([outs[2]], "pause").get("join", {})
+    rejoined_ok = (back_rejoined.get("me") and host_rejoined.get("clients") == back_rejoined.get("me")
+                   and back_rejoined.get("clients") == back_rejoined.get("me"))
+    pause_ok = back_pause.get("seen") == "1" and back_pause.get("by") == "0"
     after = [t for t in sorted(b) if t > t0]
     bad = next((t for t in after if h.get(t) != b[t]), None)
     ok = (rcs == [0, 0, 0, 0] and t0 >= leave and rep.get("join", {}).get("player") == "1" and len(h) == turns
           and after == list(range(t0 + 1, turns + 1)) and bad is None and intruder_seat == "255"
-          and "in the lockstep from turn" in (outs[2] or ""))
+          and "in the lockstep from turn" in (outs[2] or "") and rejoined_ok and pause_ok)
     if ok:
         joined = re.search(r"in the lockstep from turn (\d+) \(at turn (\d+)\)", outs[2] or "")
         print(f"[net] PASS rejoin: bob came back into player 2 at turn {t0}, then turns {t0 + 1}-{turns} "
               f"matched the host (final hash {h[turns]}); the match ran on while he loaded, and the lockstep "
-              f"took him at turn {joined.group(1)}; mallory, who asked first, could only watch")
+              f"took him at turn {joined.group(1)}; he came back while the host paused and was told so, and both "
+              f"heard that he has rejoined; mallory, who asked first, could only watch")
     else:
         for o in outs:
             for line in (o or "").splitlines():
                 if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
                     print("   " + line)
-        print(f"[net] FAIL rejoin: rc={rcs} rejoin={rep} intruder_seat={intruder_seat} host_turns={len(h)} back_turns={len(b)} first_bad={bad}")
+        print(f"[net] FAIL rejoin: rc={rcs} rejoin={rep} intruder_seat={intruder_seat} rejoined={host_rejoined}/{back_rejoined} back_pause={back_pause} host_turns={len(h)} back_turns={len(b)} first_bad={bad}")
     return ok
 
 
