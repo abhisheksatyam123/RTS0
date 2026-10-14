@@ -69,6 +69,7 @@
 #include "inspector_view.h"
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
+#include "cinema_view.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
 #include "dev_overlay_view.h"
@@ -207,6 +208,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
+	rtso::RtsoCinemaView cinema_view_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
@@ -436,6 +438,9 @@ public:
 	void request_net_player_setting(const String &key, int value);
 	void set_net_ready(int status);
 	void leave_net_game();
+	// 0.28 gamesetup ChatPanel: the chat before Start, shown on the setup page.
+	Dictionary get_setup_chat() const; // {rev, text}: the chat log's bbcode
+	void send_setup_chat(const String &text);
 	// The lockstep state hash this client computed for a turn (0 if not kept).
 	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();
@@ -492,6 +497,10 @@ public:
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
+	// 0.28 gamesetup ChatMessages: joined, left, ready and not ready lines.
+	void post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after);
+	String setup_client_name(const rtso::NetSetupState &n, uint32_t client) const;
+	void post_kick_chat();
 	// gui.session.formationwalkonly: this order takes its units out of their formations.
 	bool order_disbands_formation(uint8_t cmd_type) const;
 	// gui.session.selectformationasone: the unit and the rest of its formation.

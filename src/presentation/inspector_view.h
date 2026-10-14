@@ -35,6 +35,7 @@
 #include "../simulation/simulation.h"
 #include "attack_detection.h"
 #include "display_colors.h"
+#include "fog_mirage.h"
 #include "hotkeys.h"
 #include "l10n.h"
 #include "selection_details.h"
@@ -346,11 +347,17 @@ public:
 			}
 			if (best != (size_t)-1) return pick(INSPECT_FAUNA, fv.id[best]);
 		}
-		for (const auto &b : sim->buildings()) {
-			if (b.team == host_->local_player() || b.wrecked || !explored(b.x, b.z)) continue;
-			const float hr = (b.hu > 0.0f ? std::max(b.hu, b.hv) : b.half_size) + 0.4f;
-			const float dx = b.x - cx, dz = b.z - cz;
-			if (dx * dx + dz * dz <= hr * hr) return pick(INSPECT_BUILDING, b.id);
+		// Structures as the viewer knows them (Fogging.js): live in sight, the mirage in the
+		// fog (it stays selectable after the structure is gone), nothing if never seen.
+		mirages_.update(*sim, vp);
+		for (const auto &m : mirages_.buildings()) {
+			if (m.team == host_->local_player() || m.wrecked) continue;
+			const rtso::Simulation::Building *b = nullptr;
+			for (const auto &lb : sim->buildings())
+				if (lb.id == m.id) { b = &lb; break; }
+			const float hr = (b && b->hu > 0.0f ? std::max(b->hu, b->hv) : m.half_size) + 0.4f;
+			const float dx = m.x - cx, dz = m.z - cz;
+			if (dx * dx + dz * dz <= hr * hr) return pick(INSPECT_BUILDING, m.id);
 		}
 		{
 			auto rv = sim->resources();
@@ -448,7 +455,9 @@ public:
 			d.resistance[0] = fi.hack_armor;
 			d.resistance[1] = fi.pierce_armor;
 			d.resistance[2] = fi.crush_armor;
-			const String attack = rtso::seldet::attack_tooltip(d), resistance = rtso::seldet::resistance_tooltip(d.resistance);
+			const String attack = rtso::seldet::attack_tooltip(d,
+					godot::Dictionary(rtso::portraits::fauna_entry(fv.fauna_type[f]).get("viewer", godot::Dictionary())).get("attacks", godot::Array())),
+					resistance = rtso::seldet::resistance_tooltip(d.resistance);
 			stats_->set_text(rtso::seldet::join_lines({body_lines(attack), body_lines(resistance)}));
 			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance}));
 			// resourceSection: the meat it yields, "Food: 100 / 100".
@@ -458,6 +467,27 @@ public:
 			return true;
 		}
 		if (kind_ == INSPECT_BUILDING) {
+			// Fogging.js AddMiragedEntity: a fogged structure shows its mirage, the Health,
+			// Capturable, Foundation and owner it had when last seen.
+			mirages_.update(*sim, host_->view_player());
+			const rtso::FoggedBuilding *seen = nullptr;
+			for (const auto &m : mirages_.buildings())
+				if (m.id == id_) { seen = &m; break; }
+			if (!seen) return false;
+			if (seen->miraged) {
+				const auto &binfo = rtso::building_type_info(seen->type);
+				portrait_->set_texture(rtso::portraits::structure(seen->civ, seen->type));
+				title_->set_text(String(binfo.name));
+				set_owner(*sim, seen->team);
+				health(seen->hp, seen->max_hp);
+				if (seen->max_capture_points > 0.0f)
+					bar(capture_bar_, capture_label_, true, seen->capture_points, seen->max_capture_points,
+							rtso::seldet::capture(seen->capture_points, seen->max_capture_points));
+				stats_->set_text(seen->build_progress < 1.0f
+						? "Construction: " + String::num((double)(seen->build_progress * 100.0f), 0) + "%" : String());
+				stats_->set_tooltip_text(String());
+				return true;
+			}
 			const rtso::Simulation::Building *found = nullptr;
 			for (const auto &b : sim->buildings())
 				if (b.id == id_) { found = &b; break; }
@@ -904,7 +934,10 @@ private:
 		const int nl = tip.find("\n");
 		if (nl < 0) return tip;
 		String out;
-		for (const String &line : tip.substr(nl + 1).split("\n")) out += String(out.is_empty() ? "" : "\n") + line.strip_edges();
+		for (const String &line : tip.substr(nl + 1).split("\n")) {
+			if (line.begins_with("    ")) continue; // an attack's status and splash lines stay in the tooltip
+			out += String(out.is_empty() ? "" : "\n") + line.strip_edges();
+		}
 		return out;
 	}
 	// displaySingle for a unit: the attack and resistance lines, the detailed tooltip
@@ -913,7 +946,9 @@ private:
 	void fill_unit_details(const rtso::Simulation &sim, size_t u, const String &name) {
 		using namespace rtso::seldet;
 		const rtso::Simulation::UnitDetails d = sim.unit_details(u);
-		const String attack = attack_tooltip(d), resistance = resistance_tooltip(d.resistance);
+		auto uv0 = sim.units();
+		const godot::Dictionary viewer = rtso::portraits::unit_entry(uv0.tmpl ? uv0.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE).get("viewer", godot::Dictionary());
+		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array())), resistance = resistance_tooltip(d.resistance);
 		stats_->set_text(join_lines({body_lines(attack), body_lines(resistance)}));
 		auto uv = sim.units();
 		Amounts loot;
@@ -1048,6 +1083,7 @@ private:
 	godot::Label *stats_ = nullptr;
 	godot::Label *extra_ = nullptr;
 	godot::Button *ungarrison_btn_ = nullptr;
+	rtso::FogMirages mirages_; // the viewer's structures: live in sight, mirages in the fog
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
 	godot::Control *barter_host_ = nullptr;

@@ -217,13 +217,15 @@ def play_setup_leave(args, lobby):
     def said(key):
         return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs["join"]) if f" {key}=" in l), "")
     status = said("setup_status")
-    ok = (host.returncode == 0 and join.returncode == 0
+    moved = said("moved_to_observers")
+    ok = (host.returncode == 0 and join.returncode == 0 and moved == "Observers: bob"
           and status == "Lost connection to the server. | The host has ended the game. reason=2 saw_page=true page=false"
           and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn")
     for role in ("host", "join"):
         for line in gmp_lines(outs[role]):
             print("   " + line)
     if ok:
+        print("[gmp] PASS the host's player assignment made bob an observer; his page listed: Observers: bob")
         print(f"[gmp] PASS the host left the setup; the client's page closed for: {status.split(' reason=')[0]}; "
               f"OK went back to the lobby")
         return True
@@ -345,6 +347,9 @@ def play(args, lobby, leave):
     ok = ok and net_warning.startswith("bob losing connection (")
     ok = ok and said("host", "start_refused") == "true"
     ok = ok and said("join", "refused") == "Another player has that color"
+    # 0.28 gamesetup ChatPanel: the host's setup chat shows bob join, get ready and talk.
+    setup_chat = said("host", "setup_chat")
+    ok = ok and all(t in setup_chat for t in ("bob has joined", "* bob is ready!", "hello from bob"))
     # 0.28 /list on both: the users by seat, and the command is not a chat line.
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
@@ -372,6 +377,7 @@ def play(args, lobby, leave):
         print(f"[gmp] PASS while the client was frozen at the start, the host showed: {waited}; "
               f"network warning: {net_warning}")
         print("[gmp] PASS /list on both read: Users (2): alice, bob")
+        print(f"[gmp] PASS the host's setup chat read: {setup_chat}")
         print(f"[gmp] PASS the host's pause showed on the client as: {paused_by}")
     if ok and leave == "join":
         print(f"[gmp] PASS the client left and the host's chat said: {said('host', 'chat_left')}")
