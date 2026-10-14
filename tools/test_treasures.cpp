@@ -130,6 +130,23 @@ int main() {
 		CHECK(s.units_.order_kind[s.lookup_unit(far_u)] == ORDER_NONE);
 	}
 
+	// 3b. TreasureCollector.js: each collector keeps its own timer, so when the first one leaves the
+	//     second finishes on its own clock instead of starting over.
+	{
+		fresh(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t b = s.spawn_unit(0.0f, 1.0f, 0, UNIT_SPEARMAN);
+		uint32_t t = s.spawn_treasure(1.0f, 0.5f, TREASURE_STONE);
+		s.order_collect_treasure(&a, 1, t);
+		run(s, 0.3f);
+		s.order_collect_treasure(&b, 1, t);
+		run(s, 0.4f);
+		s.order_walk(&a, 1, -10.0f, 0.0f);
+		run(s, 0.75f); // b has collected for ~1.15 s, but only ~0.75 s since a stopped
+		std::printf("collectors: b took the treasure on its own timer: %s\n", s.is_treasure_id(t) ? "no" : "yes");
+		CHECK(!s.is_treasure_id(t));
+	}
+
 	// 4. A queued collect runs after the walk before it (Shift-click).
 	{
 		fresh(s);
