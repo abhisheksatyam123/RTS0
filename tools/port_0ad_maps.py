@@ -1048,6 +1048,7 @@ github_scenarios = {
     "savanna_ravine": ("savanna_ravine", "savanna"),
     "serengeti": ("serengeti", "savanna"),
     "ship_combat_demo": ("ship_combat_demo", "mediterranean"),
+    "third_macedonian_war": ("third_macedonian_war", "mediterranean"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {

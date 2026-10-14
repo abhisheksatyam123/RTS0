@@ -9,6 +9,7 @@
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
+#include <godot_cpp/classes/texture2d.hpp>
 #include <cstdint>
 #include <vector>
 #include "../simulation/simulation.h"
@@ -58,6 +59,8 @@ class RtsoMiniMapView : public Control {
 	// rebuilt only when the grid bytes change. Drawn under the smoothed circle
 	// outlines in _draw(); see ensure_territory_texture() in minimap_view.cpp.
 	Ref<ImageTexture> territory_tex_;
+	enum MinimapIcon { ICON_CIVIL_CENTRE, ICON_WONDER, ICON_OTHER, ICON_STONE, ICON_METAL, ICON_RELIC, ICON_COUNT };
+	Ref<Texture2D> icon_tex_[ICON_COUNT];
 	std::vector<uint8_t> territory_tex_cache_;
 	uint64_t territory_colors_ = 0; // display_colors::key the texture was drawn with
 	bool ensure_territory_texture();

@@ -325,5 +325,22 @@ func _update_overlay() -> void:
 	if cfg.get_bool("overlay.realtime"):
 		var t := Time.get_time_dict_from_system()
 		lines.append("%02d:%02d:%02d" % [t.hour, t.minute, t.second])
+	# OverlayCounterElapsedTime / OverlayCounterRemainingCeasefire, in a match.
+	var scene := get_tree().current_scene
+	if scene != null and scene.has_method("get_overlay_times"):
+		var times: Dictionary = scene.get_overlay_times()
+		if cfg.get_bool("gui.session.timeelapsedcounter"):
+			var speed: float = times.get("speed", 1.0)
+			var elapsed := _time_string(times.get("elapsed", 0.0))
+			lines.append(elapsed if is_equal_approx(speed, 1.0) else "%s (%sx)" % [elapsed, String.num(speed, 2)])
+		if cfg.get_bool("gui.session.ceasefirecounter") and float(times.get("ceasefire", 0.0)) > 0.0:
+			lines.append(_time_string(times["ceasefire"]))
 	_overlay_label.text = "\n".join(lines)
 	_overlay_label.visible = not lines.is_empty()
+
+## 0 A.D. timeToString: "MM:SS", or "H:MM:SS" from an hour on.
+static func _time_string(seconds: float) -> String:
+	var t := int(seconds)
+	if t >= 3600:
+		return "%d:%02d:%02d" % [t / 3600, t / 60 % 60, t % 60]
+	return "%02d:%02d" % [t / 60, t % 60]
