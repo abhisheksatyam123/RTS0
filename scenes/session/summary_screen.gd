@@ -773,7 +773,7 @@ func _update_panel(pd: Dictionary) -> void:
 	var left := 50
 	for hi in headings.size():
 		var h: Dictionary = headings[hi]
-		var cap: String = h.get("header", h["caption"])
+		var cap: String = L10n.t(h.get("header", h["caption"])) # layout.js translate(), before the markup
 		if hi == 0 and not teams.is_empty() and not teams.has(-1):
 			cap = "" # no players without a team: no "Player name" heading
 		var r := _rich("[center][b]%s[/b][/center]" % cap if hi > 0 else "[b]%s[/b]" % cap, 13)
@@ -784,7 +784,7 @@ func _update_panel(pd: Dictionary) -> void:
 			left += h["w"]
 	left = 250
 	for t in pd["titles"]:
-		var r := _rich("[center][b]%s[/b][/center]" % t["caption"], 13)
+		var r := _rich("[center][b]%s[/b][/center]" % L10n.t(t["caption"]), 13)
 		_place(r, _general, Vector2(left, t["y"]), Vector2(t["w"], 20))
 	var row_w := 240
 	for c in counters:
@@ -1183,6 +1183,9 @@ func _input(event: InputEvent) -> void:
 			and event.keycode == KEY_ESCAPE):
 		get_viewport().set_input_as_handled()
 		continue_pressed()
+	elif _fired(event, "lobby") and not gui.get("isInGame", false) and _lobby_signed_in():
+		get_viewport().set_input_as_handled() # summary.xml lobbyButton hotkey="lobby"
+		open_lobby()
 	elif _fired(event, "tab.next") or _fired(event, "tab.prev"):
 		get_viewport().set_input_as_handled()
 		var n := panels.size() + 1
