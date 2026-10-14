@@ -29942,16 +29942,18 @@ void Simulation::set_water_level(float h, float drown_depth) {
 	// (flood_triggers.js riseWaterLevel, extinct_volcano_triggers.js RaiseWaterLevelStep).
 	terrain_water_height_ = h;
 	auto submerged = [&](float x, float z) { return get_terrain_height(x, z) + drown_depth < h; };
-	// Organic units and animals drown (cmpHealth.Kill()); ships, siege and
-	// units inside ships or siege are kept afloat.
+	// Organic units and animals drown (cmpHealth.Kill()); ships float (Position/Floating) with
+	// their passengers. Siege engines aren't Organic: like structures they turn into actors,
+	// which is to say they are lost here, with the troops inside.
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || unit_is_ship(units_.unit_type[i]) || unit_is_siege_engine(units_.unit_type[i])) continue;
+		if (!units_.alive[i] || unit_is_ship(units_.unit_type[i])) continue;
 		if (!submerged(units_.pos_x[i], units_.pos_z[i])) continue;
 		units_.hp[i] = 0.0f;
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		units_.has_order[i] = 0;
 		record_unit_death(i, units_.team[i]);
+		kill_passengers_of(i);
 	}
 	for (size_t f = 0; f < fauna_.count; ++f)
 		if (fauna_.alive[f] && submerged(fauna_.pos_x[f], fauna_.pos_z[f])) {
@@ -29989,6 +29991,10 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		resources_.alive[r] = 0;
 		resources_.amount[r] = 0;
 	}
+	// So do land treasures (shipwrecks and the Argo float): they can't be collected any more.
+	std::erase_if(treasures_, [&](const Treasure &t) {
+		return (t.type < TREASURE_SHIPWRECK || t.type > TREASURE_SPECIAL_ARGO) && submerged(t.x, t.z);
+	});
 	(void)lost_building;
 	rebuild_nav_grid(); // new water cells, and the drowned structures' footprints
 	// The territory cost grid follows the water (CCmpTerritoryManager::OnWaterChanged).
