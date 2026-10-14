@@ -1149,6 +1149,28 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"pickup_test_map": {
+			"keywords": [
+				"demo",
+				"trigger"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"polynesia": {
 			"keywords": [
 				"demo"
