@@ -850,6 +850,7 @@ public:
 	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
 	bool ship_garrison_allowed(size_t ship, size_t unit) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
+	float transport_loading_reach(size_t holder, size_t unit) const;
 	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
 	// this unload are in `taken`), false when there is none; without a passenger, the nearest dry ground.
 	struct SpawnSpot { float x, z, r; };
