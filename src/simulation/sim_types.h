@@ -661,9 +661,6 @@ inline float regrow_interval(uint8_t type, uint8_t subtype) {
 }
 // Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
 constexpr float FISH_GATHER_REACH = 4.0f;
-// ResourceGatherer MaxDistance of land gatherers (2 m, template_unit), from a mine's square past the
-// gatherer's clearance: 0.28 measures range between the two obstructions.
-constexpr float MINE_GATHER_REACH = 2.0f / 4.0f;
 
 // 0 A.D. UnitAI.js g_Stances. Values are saved and sent over the wire; 3 was an
 // invented "hold ground" and is now 0 A.D.'s "violent".
@@ -1042,6 +1039,12 @@ inline constexpr float PUSH_CLEARANCE_PER_RADIUS = 0.8f * PUSH_SCALE / 0.5f;
 inline float unit_push_clearance(uint8_t type) {
 	return unit_collision_radius(type) * PUSH_CLEARANCE_PER_RADIUS;
 }
+// ResourceGatherer MaxDistance of land gatherers (2 m, template_unit) between a gatherer's obstruction
+// and a mine's square: 0.28 measures range between the two obstructions. The gatherers round a mine
+// stand in a crowd, so the gap counts at the crowd scale past the unit's crowd clearance
+// (unit_push_clearance): 0.28's band round a large mine holds its 24 gatherers, and one at the map
+// scale would hold only half of them in RTS0's bigger crowds.
+inline constexpr float MINE_GATHER_REACH = 2.0f * PUSH_SCALE;
 
 // 0 A.D. ResourceDropsite on a unit: the Mauryan worker elephant (template_unit_support_elephant)
 // and the supply wagon (template_unit_support_wagon) take food, wood, stone and metal. Only the

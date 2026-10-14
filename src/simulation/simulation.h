@@ -1899,6 +1899,10 @@ private:
 	// for fish), and for a mine, which no unit stands on, MINE_GATHER_REACH from its square.
 	bool gather_in_reach(size_t i, size_t r, float x, float z) const;
 	bool gathering_mine(size_t i) const; // unit i is gathering from a mine (mine_footprint)
+	bool gather_mine_footprint(size_t i, nav::Footprint &m) const; // and that mine's footprint
+	// Unit i's control group (0 A.D. ControlGroup) for avoid_idle_units and separation: its formation,
+	// or the mine it works (0x80000000 | the mine's id) while it gathers from or returns from one.
+	uint32_t control_group(size_t i) const;
 	// The key of a short path kept round idle units (ShortPathMemo): a short path among this tick's
 	// buildings (short_path_key_) that also went round units.
 	uint32_t idle_path_key() const { const uint32_t k = short_path_key_ ^ 0x5BD1E995u; return k ? k : 1u; }
@@ -2995,13 +2999,23 @@ private:
 		float ux, uz, hu, hv; // Building::ux, uz, hu, hv
 		uint8_t type;
 		bool wrecked;
+		float ext; // nav::footprint_extent, which the steering loops test every obstacle by
 	};
+	static SteerObstacle steer_obstacle(uint32_t id, float x, float z, float ux, float uz, float hu, float hv, uint8_t type) {
+		SteerObstacle o{id, x, z, ux, uz, hu, hv, type, false, 0.0f};
+		o.ext = nav::footprint_extent(nav::Footprint{x, z, ux, uz, hu, hv});
+		return o;
+	}
 	std::vector<SteerObstacle> steer_obstacles_;
 	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
 	// SteerObstacle::type of a Gaia mine (mine_footprint), after the buildings in both lists.
 	static constexpr uint8_t MINE_OBSTACLE = 0xFF;
 	void append_mine_obstacles(std::vector<SteerObstacle> &out) const;
+	// This tick's mines (append_mine_obstacles), listed once for move_units and separation.
+	std::vector<SteerObstacle> mine_obstacles_;
+	uint64_t mine_obstacles_tick_ = ~uint64_t{0};
+	const std::vector<SteerObstacle> &tick_mine_obstacles();
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
