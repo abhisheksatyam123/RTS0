@@ -1869,7 +1869,7 @@ private:
 		// The unit's damage total after technologies over its template's (attack_damage's scale);
 		// each damage type is its own value, x atk_mul + atk_add (Attack/<type>/Damage/<kind>).
 		float attack[UNIT_TYPE_COUNT];
-		float atk_mul[UNIT_TYPE_COUNT][3], atk_add[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
+		float atk_mul[UNIT_TYPE_COUNT][4], atk_add[UNIT_TYPE_COUNT][4]; // hack, pierce, crush, fire
 		float health[UNIT_TYPE_COUNT];
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
@@ -1920,7 +1920,7 @@ private:
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
-			float atk_mul[3], atk_add[3];
+			float atk_mul[4], atk_add[4]; // hack, pierce, crush, fire
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
@@ -2011,8 +2011,8 @@ private:
 	void attack_done(size_t i, bool in_range, float repeat);
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
-	void unit_attack_effects(size_t i, float out[3]) const;
-	void unit_tech_damage(size_t i, float out[3]) const;
+	void unit_attack_effects(size_t i, float out[4]) const; // hack, pierce, crush, fire
+	void unit_tech_damage(size_t i, float out[4]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -2162,7 +2162,9 @@ private:
 	void stat_unit_captured(size_t idx, uint8_t from); // unit idx now belongs to its captor
 	void stat_gathered(uint8_t player, uint8_t res, int amount, bool vegetarian);
 	void tick_statistics();
-	void update_statistics_explored();
+	uint8_t stat_team_mask(uint8_t player) const;
+	float explored_percent(uint8_t players) const;
+	std::array<uint8_t, MAX_PLAYERS> territory_percentages() const;
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
@@ -2477,7 +2479,8 @@ private:
 	std::array<PlayerStatistics, MAX_PLAYERS> stats_{};
 	std::vector<StatisticsSample> stat_samples_;
 	static constexpr size_t MAX_STATISTICS_SAMPLES = 4096; // 34 hours of 30 s rows
-	// Cells each player has seen, STATISTICS_EXPLORE_CELL wide (1 = explored).
+	// Saves before map exploration was read from the LOS grid (los_) kept their own
+	// explored cells here; still in the save layout, no longer filled.
 	int32_t stats_explore_res_ = 0;
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> stats_explored_;
 
@@ -2897,10 +2900,10 @@ private:
 		std::array<uint32_t, MAX_PLAYERS> neighbours;
 		uint32_t neutral; // bordering neutral tiles (Gaia's share of the decay)
 	};
-	Grid<uint16_t> territory_region_;
-	std::vector<TerritoryRegion> territory_regions_;
-	bool territory_regions_dirty_ = true;
-	void ensure_territory_regions();
+	mutable Grid<uint16_t> territory_region_;
+	mutable std::vector<TerritoryRegion> territory_regions_;
+	mutable bool territory_regions_dirty_ = true;
+	void ensure_territory_regions() const;
 	// !IsTerritoryBlinking: the tile at (x, z) is neutral or in a region holding one of its owner's roots.
 	bool territory_connected_at(float x, float z) const;
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
