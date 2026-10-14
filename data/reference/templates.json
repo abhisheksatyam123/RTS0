@@ -21592,7 +21592,8 @@
     20,
     21,
     22,
-    66
+    66,
+    67
    ],
    "viewer": {
     "attacks": [
@@ -21671,7 +21672,8 @@
     20,
     21,
     22,
-    66
+    66,
+    67
    ],
    "viewer": {
     "attacks": [
@@ -21752,7 +21754,8 @@
     20,
     21,
     22,
-    66
+    66,
+    67
    ],
    "viewer": {
     "attacks": [
@@ -21832,7 +21835,8 @@
     20,
     21,
     22,
-    66
+    66,
+    67
    ],
    "viewer": {
     "attacks": [
@@ -22211,7 +22215,8 @@
     20,
     21,
     22,
-    66
+    66,
+    67
    ],
    "viewer": {
     "attacks": [
@@ -22286,7 +22291,8 @@
     20,
     21,
     22,
-    66
+    66,
+    67
    ],
    "viewer": {
     "attacks": [
@@ -22745,6 +22751,58 @@
      "run": 15.865,
      "acceleration": 35
     }
+   }
+  },
+  "germ/support_wagon": {
+   "generic_name": "Mobile Dropsite",
+   "specific_name": "Wagnaz",
+   "tooltip": "Mobile dropsite for all resources.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Wagon",
+    "Dropsite"
+   ],
+   "builds": [],
+   "viewer": {
+    "garrison_size": 1,
+    "speed": {
+     "walk": 5,
+     "run": 8.35,
+     "acceleration": 35
+    },
+    "dropsite": [
+     "food",
+     "wood",
+     "stone",
+     "metal"
+    ]
+   }
+  },
+  "germ/support_wagon_house": {
+   "generic_name": "Mobile Dropsite",
+   "specific_name": "Supply Wagon",
+   "tooltip": "Mobile dropsite for all resources.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Wagon",
+    "Dropsite"
+   ],
+   "builds": [],
+   "viewer": {
+    "garrison_size": 1,
+    "speed": {
+     "walk": 5,
+     "run": 8.35,
+     "acceleration": 35
+    },
+    "dropsite": [
+     "food",
+     "wood",
+     "stone",
+     "metal"
+    ]
    }
   }
  },
@@ -34335,6 +34393,69 @@
       "capacity": 10,
       "buff_heal": 0
      },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "67": {
+    "generic_name": "Wagon Encampment",
+    "specific_name": "",
+    "tooltip": "Buildable in own or neutral territory. Train Citizens and Wagons and research technologies.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Defensive",
+     "Colony",
+     "Encampment"
+    ],
+    "template": "structures/germ/encampment",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 1
+     },
+     "dropsite": [
+      "food",
+      "wood",
+      "stone",
+      "metal"
+     ],
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "68": {
+    "generic_name": "Fortified Wagon Encampment",
+    "specific_name": "",
+    "tooltip": "Buildable in own or neutral territory. Train Citizens and Wagons and research technologies.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Defensive",
+     "Colony",
+     "Encampment",
+     "Fortified"
+    ],
+    "template": "structures/germ/encampment_fortified",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 1
+     },
+     "dropsite": [
+      "food",
+      "wood",
+      "stone",
+      "metal"
+     ],
      "status_resistance": {
       "Poisoned": {
        "block": 1,
