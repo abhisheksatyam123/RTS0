@@ -10064,7 +10064,7 @@
    ],
    "stats": {
     "hp": 800.0,
-    "cooldown": 1.0,
+    "cooldown": 0.8,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
@@ -10079,8 +10079,8 @@
     "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 0.0,
-    "range": 20.0,
+    "damage": 15.0,
+    "range": 9.0,
     "carry": 0
    }
   },
@@ -11308,7 +11308,7 @@
    ],
    "stats": {
     "hp": 800.0,
-    "cooldown": 1.0,
+    "cooldown": 0.8,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
@@ -11323,8 +11323,8 @@
     "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 0.0,
-    "range": 20.0,
+    "damage": 15.0,
+    "range": 9.0,
     "carry": 0
    }
   },
@@ -12447,7 +12447,7 @@
    ],
    "stats": {
     "hp": 800.0,
-    "cooldown": 1.0,
+    "cooldown": 0.8,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
@@ -12462,8 +12462,8 @@
     "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 0.0,
-    "range": 20.0,
+    "damage": 15.0,
+    "range": 9.0,
     "carry": 0
    }
   },
@@ -21216,7 +21216,7 @@
    ],
    "stats": {
     "hp": 800.0,
-    "cooldown": 1.0,
+    "cooldown": 0.8,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
@@ -21231,8 +21231,8 @@
     "pop": 1,
     "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 0.0,
-    "range": 20.0,
+    "damage": 15.0,
+    "range": 9.0,
     "carry": 0
    }
   },
@@ -21260,7 +21260,7 @@
    ],
    "stats": {
     "hp": 800.0,
-    "cooldown": 1.0,
+    "cooldown": 0.8,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
@@ -21275,8 +21275,8 @@
     "pop": 1,
     "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 0.0,
-    "range": 20.0,
+    "damage": 15.0,
+    "range": 9.0,
     "carry": 0
    }
   },
@@ -21304,7 +21304,7 @@
    ],
    "stats": {
     "hp": 800.0,
-    "cooldown": 1.0,
+    "cooldown": 0.8,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
@@ -21319,8 +21319,8 @@
     "pop": 1,
     "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 0.0,
-    "range": 20.0,
+    "damage": 15.0,
+    "range": 9.0,
     "carry": 0
    }
   },
@@ -23589,7 +23589,7 @@
    ],
    "stats": {
     "hp": 800.0,
-    "cooldown": 1.0,
+    "cooldown": 0.8,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
@@ -23604,8 +23604,8 @@
     "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 0.0,
-    "range": 20.0,
+    "damage": 15.0,
+    "range": 9.0,
     "carry": 0
    }
   },
@@ -24159,7 +24159,7 @@
    ],
    "stats": {
     "hp": 800.0,
-    "cooldown": 1.0,
+    "cooldown": 0.8,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
@@ -24174,8 +24174,8 @@
     "pop": 1,
     "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 0.0,
-    "range": 20.0,
+    "damage": 15.0,
+    "range": 9.0,
     "carry": 0
    }
   },
