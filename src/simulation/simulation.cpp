@@ -1887,6 +1887,13 @@ const std::vector<Simulation::SteerObstacle> &Simulation::tick_mine_obstacles() 
 	return mine_obstacles_;
 }
 
+float Simulation::resource_block_half(size_t r) const {
+	const uint8_t t = resources_.type[r];
+	if (resources_.subtype[r] == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD))
+		return flora_obstruction_m(resources_.flora[r], t == RES_FOOD) * 0.125f; // metres to a half extent in world units
+	return 0.375f;
+}
+
 bool Simulation::mine_footprint(size_t r, nav::Footprint &f) const {
 	const uint8_t type = resources_.type[r], sub = resources_.subtype[r];
 	if ((type != RES_GOLD && type != RES_STONE) || (sub != RES_SUB_NONE && sub != RES_SUB_RUINS)) return false;
@@ -1943,11 +1950,12 @@ void Simulation::ensure_resource_block_cells() const {
 				}
 			continue;
 		}
-		// Other Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
-		const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - 0.375f + map_half_) / GRID));
-		const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + 0.375f + map_half_) / GRID));
-		const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - 0.375f + map_half_) / GRID));
-		const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + 0.375f + map_half_) / GRID));
+		// Trees and fruit block their template's square (resource_block_half).
+		const float h = resource_block_half(r);
+		const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - h + map_half_) / GRID));
+		const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + h + map_half_) / GRID));
+		const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - h + map_half_) / GRID));
+		const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + h + map_half_) / GRID));
 		for (int z = gz0; z <= gz1; ++z)
 			for (int x = gx0; x <= gx1; ++x) resource_block_cells_[(size_t)z * w + x] = 1;
 	}
@@ -2116,10 +2124,9 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
 			nav::Footprint o;
 			if (!mine_footprint(r, o)) {
-				// Other Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
 				o.x = resources_.x[r];
 				o.z = resources_.z[r];
-				o.hu = o.hv = 0.375f;
+				o.hu = o.hv = resource_block_half(r);
 			}
 			const float e = nav::footprint_extent(o);
 			if (o.x + e < x0 || o.x - e > x1 || o.z + e < z0 || o.z - e > z1) continue;

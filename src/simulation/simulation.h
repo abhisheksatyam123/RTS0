@@ -509,6 +509,9 @@ public:
 	// temperate_large_02 22 x 14 m (48), template_gaia_ruins 7 x 7 m. Mines block movement,
 	// pathfinding and foundations (template_gaia). False for any other supply.
 	bool mine_footprint(size_t r, nav::Footprint &f) const;
+	// Half the width of any other supply's square foundation obstruction, in world units: a
+	// tree's or fruit's template Obstruction/Static (flora_obstruction_m), else 1.5 m.
+	float resource_block_half(size_t r) const;
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
