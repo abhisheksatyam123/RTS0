@@ -4086,6 +4086,16 @@ bool RtsoMain::inspect_at(const Vector3 &click_pos) {
 		}
 		if (best != (size_t)-1) return pick(INSPECT_RESOURCE, rv.id[best]);
 	}
+	{
+		uint32_t best = 0;
+		float best_d2 = 1.3f * 1.3f;
+		for (const auto &t : sim->treasures()) {
+			if (!explored(t.x, t.z)) continue;
+			const float dx = t.x - cx, dz = t.z - cz, d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
+		}
+		if (best != 0) return pick(INSPECT_TREASURE, best);
+	}
 	inspected_kind_ = INSPECT_NONE;
 	return false;
 }
@@ -4182,6 +4192,25 @@ bool RtsoMain::fill_inspected_details() {
 					"Capture points: " + String::num((double)found->capture_points, 0) + " / " + String::num((double)found->max_capture_points, 0));
 		inspector_stats->set_text(found->build_progress < 1.0f
 				? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : String());
+		return true;
+	}
+	if (inspected_kind_ == INSPECT_TREASURE) {
+		// selection_details.js: the treasure's name and its Treasure/Resources as the reward.
+		const rtso::Simulation::Treasure *found = nullptr;
+		for (const auto &t : sim->treasures())
+			if (t.id == inspected_id_) { found = &t; break; }
+		if (!found) return false;
+		const auto &ti = rtso::treasure_type_info(found->type);
+		static const char *kRes[4] = {"Food", "Wood", "Stone", "Metal"};
+		String reward;
+		for (int k = 0; k < 4; ++k)
+			if (ti.amount[k] > 0) reward += (reward.is_empty() ? "" : ", ") + String::num_int64(ti.amount[k]) + " " + kRes[k];
+		inspector_portrait->set_texture(Ref<Texture2D>());
+		inspector_title->set_text(String::utf8(ti.name));
+		inspector_class->set_text("Gaia");
+		bar(inspector_hp_bar, inspector_hp_label, false);
+		inspector_stats->set_text("Reward: " + reward + "\nCollect time: " + String::num((double)ti.collect_time, 1) + " s");
+		inspector_extra->set_text("Collect treasures for resources.");
 		return true;
 	}
 	// A resource: its kind and what is left (selection_details.js resourceSupply).
