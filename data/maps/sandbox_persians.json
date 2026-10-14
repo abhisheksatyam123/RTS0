@@ -4320,7 +4320,8 @@
       "type": "barracks",
       "player": 1,
       "x": -30.77,
-      "z": 20.04
+      "z": 20.04,
+      "template": "pers/hall"
     },
     {
       "type": "house",

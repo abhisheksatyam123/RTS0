@@ -10,7 +10,7 @@ struct TerritoryInfluenceInfo {
 	bool root; // Root: connects the territory around it
 };
 
-inline constexpr uint8_t TERRITORY_INFLUENCE_ROWS = 78;
+inline constexpr uint8_t TERRITORY_INFLUENCE_ROWS = 85;
 inline const TerritoryInfluenceInfo &territory_influence_info(uint8_t type) {
 	static const TerritoryInfluenceInfo kTable[TERRITORY_INFLUENCE_ROWS + 1] = {
 		{39.2f, 10000, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre (140 m)
@@ -91,6 +91,13 @@ inline const TerritoryInfluenceInfo &territory_influence_info(uint8_t type) {
 		{7.28f, 65535, false}, // BLD_INN: structures/pers/inn (26 m)
 		{0.0f, 0, false}, // BLD_TENT: structures/rome/tent
 		{0.0f, 0, false}, // BLD_TRIUMPHAL_ARCH: structures/rome/arch
+		{10.64f, 40000, false}, // BLD_HALL: structures/pers/hall (38 m)
+		{8.4f, 65535, false}, // BLD_WAREHOUSE: structures/pers/warehouse (30 m)
+		{8.4f, 65535, false}, // BLD_TAVERN: structures/gaul/tavern (30 m)
+		{8.96f, 30000, false}, // BLD_TOWER_DOUBLE: structures/maur/tower_double (32 m)
+		{11.2f, 30000, false}, // BLD_KUSH_SHRINE: structures/kush/shrine (40 m)
+		{22.4f, 40000, false}, // BLD_FORTRESS_OLD: structures/han/fortress_old (80 m)
+		{0.0f, 0, false}, // BLD_LAOZI_GATE: structures/han/laozigate
 		{0.0f, 0, false}, // out of range
 	};
 	return kTable[type < TERRITORY_INFLUENCE_ROWS ? type : TERRITORY_INFLUENCE_ROWS];

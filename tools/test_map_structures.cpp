@@ -69,6 +69,27 @@ int main() {
 	// Conquest: the royal stoa (-ConquestCritical), towers and the arch don't keep a player in.
 	CHECK(!is_conquest_critical(BLD_STOA) && !is_conquest_critical(BLD_TOWER_BOLT) && !is_conquest_critical(BLD_TRIUMPHAL_ARCH));
 	CHECK(is_conquest_critical(BLD_HELLENIC_STOA) && is_conquest_critical(BLD_INN));
+	// The rest of 0.28's map-only structures (egypt_3pv3p, the sandboxes, Delphi, the cinema demo).
+	CHECK(map_structure_template("structures/pers/hall").type == BLD_HALL);
+	CHECK(map_structure_template("structures/pers/warehouse").type == BLD_WAREHOUSE);
+	CHECK(map_structure_template("gaul/tavern").type == BLD_TAVERN && map_structure_template("gaul/tavern").civ == CIV_GAULS);
+	CHECK(map_structure_template("maur/tower_double").type == BLD_TOWER_DOUBLE);
+	CHECK(map_structure_template("kush/shrine").type == BLD_KUSH_SHRINE);
+	CHECK(map_structure_template("han/fortress_old").type == BLD_FORTRESS_OLD);
+	CHECK(map_structure_template("han/laozigate").type == BLD_LAOZI_GATE);
+	CHECK(building_type_info(BLD_HALL).max_hp == 3000.0f && building_type_info(BLD_HALL).garrison_cap == 10);
+	CHECK(building_type_info(BLD_WAREHOUSE).pop_bonus == 5 && building_type_info(BLD_TAVERN).pop_bonus == 10);
+	CHECK(building_phase_class(BLD_TAVERN) == 2 && building_phase_class(BLD_WAREHOUSE) == 1);
+	// maur/tower_double: a stone tower with DefaultArrowCount 2.
+	CHECK(building_ai_info(BLD_TOWER_DOUBLE).default_arrows == 2 && is_defense_tower(BLD_TOWER_DOUBLE));
+	CHECK(building_researches_tech(BLD_TOWER_DOUBLE, TECH_TOWER_WATCH, CIV_MAURYANS));
+	CHECK(building_ai_info(BLD_FORTRESS_OLD).default_arrows == 10);
+	// kush/shrine: a temple with Researcher and Trainer disabled.
+	CHECK(!building_researches_tech(BLD_KUSH_SHRINE, TECH_HEAL_RATE, CIV_KUSHITES));
+	CHECK(building_tech_classes(BLD_KUSH_SHRINE) & TC_TEMPLE);
+	// han/laozigate: Capturable disable="".
+	CHECK(building_type_info(BLD_LAOZI_GATE).capture_max_points == 0.0f);
+	CHECK(!is_conquest_critical(BLD_TOWER_DOUBLE) && is_conquest_critical(BLD_HALL));
 
 	// 2. A Roman player's map structures.
 	static Simulation s;
