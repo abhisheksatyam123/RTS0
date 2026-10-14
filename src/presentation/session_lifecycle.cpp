@@ -226,6 +226,7 @@ void RtsoMain::_ready() {
 			const auto *combos = rtso::hotkeys::table().get(name);
 			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
 		};
+		top_panel_.set_civ_icon_keys(first_key("civinfo"), first_key("structree"));
 		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
 				first_key("session.gui.barter.toggle"),
 				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));

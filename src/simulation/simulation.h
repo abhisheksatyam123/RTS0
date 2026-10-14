@@ -508,6 +508,8 @@ public:
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0,
 			uint8_t flora = 0);
 	void set_resource_flora(uint32_t res_id, uint8_t flora);
+	// Map generation only: moves a resource before the nav grid is built.
+	void set_resource_position(uint32_t res_id, float x, float z);
 	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
 	// less than TREE_WOOD_SUPPLY. A regrowing supply (fruit) moves its Max with it.
 	void set_resource_amount(uint32_t res_id, int32_t amount);
@@ -3266,7 +3268,27 @@ private:
 	void ensure_gaia_obstacles();
 	// Appends to `out` the Gaia obstacles that may reach into the box (x, z) +- reach.
 	void gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const;
+	// Whether the trees in the way matter to a walker at (x, z) heading for (ax, az): one of them
+	// crosses the first `reach` of that line, kept `radius` off, or holds the walker. Only then does
+	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
+	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
+	// Navcells a wood closes to long paths: 1 where trees and bushes leave no way across the cell
+	// (forest_cell_closed). rebuild_nav_grid marks them obstructed. Recomputed when the Gaia
+	// obstacles change (update_forest_cells), and the nav grid rebuilt when a cell opens or closes.
+	std::vector<uint8_t> forest_cells_;
+	uint64_t forest_sig_ = 0;
+	bool forest_removals_only_ = false; // tick_gather felled trees from up-to-date forest_cells_
+	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
+	bool forest_cell_closed(int cx, int cy) const;
+	bool update_forest_cells();
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
+	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
+	// looks only at those under the line (the same answer as nav::line_blocked_by_buildings over
+	// all of them).
+	nav::ObstacleGrid steer_grid_;
+	uint32_t steer_grid_key_ = 0;
+	float steer_grid_half_ = 0.0f;
+	bool steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len, float radius, uint32_t ignore) const;
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
 	struct CaptureTally { int count[MAX_PLAYERS]; float strength[MAX_PLAYERS]; };
