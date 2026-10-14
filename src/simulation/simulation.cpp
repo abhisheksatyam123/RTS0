@@ -7072,16 +7072,30 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 }
 
 uint32_t Simulation::spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank) {
-	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
-	if (template_id && *template_id) {
-		std::string id(template_id), base = id;
-		if (base.size() > 2 && (base.ends_with("_a") || base.ends_with("_e"))) base.back() = 'b';
-		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && tmpl == CIV_UNIT_TEMPLATE_NONE; ++t)
-			if (id == civ_unit_template(t).id) tmpl = t;
-		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && tmpl == CIV_UNIT_TEMPLATE_NONE; ++t)
-			if (base == civ_unit_template(t).id) tmpl = t;
-	}
-	const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, u_type, 0.0f, tmpl);
+	return spawn_map_unit(x, z, GAIA_PLAYER, u_type, template_id, rank);
+}
+
+// A map's 0 A.D. unit template ("athen/infantry_javelineer_a"): its roster row, or for an
+// _a/_e template its _b row with *rank set to 2 or 3 (left as is otherwise).
+uint16_t Simulation::resolve_map_template(const char *template_id, int *rank) {
+	if (!template_id || !*template_id) return CIV_UNIT_TEMPLATE_NONE;
+	const uint16_t exact = civ_unit_template_by_id(template_id);
+	if (exact != CIV_UNIT_TEMPLATE_NONE) return exact;
+	std::string base(template_id);
+	if (base.size() <= 2 || !(base.ends_with("_a") || base.ends_with("_e"))) return CIV_UNIT_TEMPLATE_NONE;
+	const char suffix = base.back();
+	base.back() = 'b';
+	const uint16_t t = civ_unit_template_by_id(base.c_str());
+	if (t != CIV_UNIT_TEMPLATE_NONE && rank && *rank <= 0) *rank = suffix == 'e' ? 3 : 2;
+	return t;
+}
+
+// A map's unit by its 0 A.D. template: resolve_map_template, promoted through the unit's own
+// chain to the template's rank (or the given one), else u_type.
+uint32_t Simulation::spawn_map_unit(float x, float z, uint8_t team, UnitType u_type, const char *template_id, int rank) {
+	const uint16_t tmpl = resolve_map_template(template_id, &rank);
+	if (tmpl != CIV_UNIT_TEMPLATE_NONE) u_type = (UnitType)civ_unit_template(tmpl).unit_type;
+	const uint32_t id = spawn_unit(x, z, team, u_type, 0.0f, tmpl);
 	const int32_t i = lookup_unit(id);
 	// The map's _a/_e template: promote now through the unit's own chain.
 	if (i >= 0)
@@ -9924,6 +9938,11 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		if (!blocked && progress >= OBSTRUCTED_PROGRESS * ww) continue; // slowed, not stopped
 		const bool moved = !blocked && ax * ax + az * az >= OBSTRUCTED_PROGRESS * OBSTRUCTED_PROGRESS * ww;
 		if (moved && m.failed >= OBSTRUCTED_AT) continue;
+		// PathResult's short-path hack: a walk that has followed all of a long path ending short of its
+		// point (MakeGoalReachable moved the goal: out at sea, on another island) gets no closer by a
+		// new path from there (RejectFartherPaths), so UnitMotion sets m_FailedMovements to
+		// MAX_FAILED_MOVEMENTS - 2 and the walk fails two obstructed turns later.
+		if (m.failed < FAILED_AT - 3 && walk_falls_short(i)) m.failed = FAILED_AT - 3;
 		bool move_failed = false;
 		if (++m.failed >= FAILED_AT) {
 			move_failed = true;
@@ -10022,6 +10041,21 @@ bool Simulation::chase_falls_short(size_t i) const {
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
 	return structure_gap(b, ex, ez, unit_clearance_at(i)) > reach;
+}
+
+// A walk, attack-move or patrol leg whose unit has walked all of its long path, which ends short of
+// the point it walks to: find_path stopped it at the nearest navcell the unit can reach
+// (MakeGoalReachable). A player's walk ends there already (beach_goal).
+bool Simulation::walk_falls_short(size_t i) const {
+	const uint8_t kind = units_.order_kind[i], st = units_.action_state[i];
+	if (!((kind == ORDER_WALK && st == ACTION_MOVE) || (kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
+	      (kind == ORDER_PATROL && st == ACTION_PATROL)) ||
+			units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0 || i >= unit_paths_.size())
+		return false;
+	const WaypointPath &wp = unit_paths_[i];
+	if (wp.count == 0 || wp.cur < wp.count || units_.waypoint_count[i] != wp.count) return false;
+	const float dx = wp.xs[wp.count - 1] - units_.target_x[i], dz = wp.zs[wp.count - 1] - units_.target_z[i];
+	return dx * dx + dz * dz > 1.0f;
 }
 
 // ShouldAbandonChase on the COMBAT timer: FinishOrder. A fight the unit picked itself ends and

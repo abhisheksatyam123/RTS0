@@ -20923,46 +20923,60 @@
       "template": "athen/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -229.88,
       "z": 34.88,
-      "template": "brit/cavalry_javelineer_a"
+      "template": "brit/cavalry_javelineer_a",
+      "parents": [
+        "brit/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -225.62,
       "z": 34.88,
       "template": "brit/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -221.38,
       "z": 34.88,
-      "template": "brit/cavalry_javelineer_e"
+      "template": "brit/cavalry_javelineer_e",
+      "parents": [
+        "brit/cavalry_javelineer_a",
+        "brit/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -217.12,
       "z": 34.88,
-      "template": "brit/cavalry_swordsman_a"
+      "template": "brit/cavalry_swordsman_a",
+      "parents": [
+        "brit/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -212.88,
       "z": 34.88,
       "template": "brit/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -208.62,
       "z": 34.88,
-      "template": "brit/cavalry_swordsman_e"
+      "template": "brit/cavalry_swordsman_e",
+      "parents": [
+        "brit/cavalry_swordsman_a",
+        "brit/cavalry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -20986,7 +21000,7 @@
       "template": "brit/hero_boudicca"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -190.62,
       "z": 34.88,
@@ -21067,7 +21081,10 @@
       "player": 1,
       "x": -133.62,
       "z": 34.88,
-      "template": "brit/support_healer_a"
+      "template": "brit/support_healer_a",
+      "parents": [
+        "brit/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -21081,7 +21098,11 @@
       "player": 1,
       "x": -125.12,
       "z": 34.88,
-      "template": "brit/support_healer_e"
+      "template": "brit/support_healer_e",
+      "parents": [
+        "brit/support_healer_a",
+        "brit/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -21098,25 +21119,32 @@
       "template": "brit/war_dog"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -108.0,
       "z": 34.88,
-      "template": "cart/cavalry_javelineer_a"
+      "template": "cart/cavalry_javelineer_a",
+      "parents": [
+        "cart/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -103.75,
       "z": 34.88,
       "template": "cart/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -99.5,
       "z": 34.88,
-      "template": "cart/cavalry_javelineer_e"
+      "template": "cart/cavalry_javelineer_e",
+      "parents": [
+        "cart/cavalry_javelineer_a",
+        "cart/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -21200,7 +21228,10 @@
       "player": 1,
       "x": -36.75,
       "z": 34.88,
-      "template": "cart/siege_ballista_unpacked"
+      "template": "cart/siege_ballista_unpacked",
+      "parents": [
+        "cart/siege_ballista_packed"
+      ]
     },
     {
       "type": "siege_ram",
@@ -21214,7 +21245,10 @@
       "player": 1,
       "x": -17.12,
       "z": 34.88,
-      "template": "cart/support_healer_a"
+      "template": "cart/support_healer_a",
+      "parents": [
+        "cart/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -21228,7 +21262,11 @@
       "player": 1,
       "x": -8.62,
       "z": 34.88,
-      "template": "cart/support_healer_e"
+      "template": "cart/support_healer_e",
+      "parents": [
+        "cart/support_healer_a",
+        "cart/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -21238,49 +21276,63 @@
       "template": "cart/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 4.62,
       "z": 34.88,
-      "template": "gaul/cavalry_javelineer_a"
+      "template": "gaul/cavalry_javelineer_a",
+      "parents": [
+        "gaul/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 8.88,
       "z": 34.88,
       "template": "gaul/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 13.12,
       "z": 34.88,
-      "template": "gaul/cavalry_javelineer_e"
+      "template": "gaul/cavalry_javelineer_e",
+      "parents": [
+        "gaul/cavalry_javelineer_a",
+        "gaul/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 17.38,
       "z": 34.88,
-      "template": "gaul/cavalry_swordsman_a"
+      "template": "gaul/cavalry_swordsman_a",
+      "parents": [
+        "gaul/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 21.62,
       "z": 34.88,
       "template": "gaul/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 25.88,
       "z": 34.88,
-      "template": "gaul/cavalry_swordsman_e"
+      "template": "gaul/cavalry_swordsman_e",
+      "parents": [
+        "gaul/cavalry_swordsman_a",
+        "gaul/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 30.12,
       "z": 34.88,
@@ -21368,7 +21420,10 @@
       "player": 1,
       "x": 91.38,
       "z": 34.88,
-      "template": "gaul/support_healer_a"
+      "template": "gaul/support_healer_a",
+      "parents": [
+        "gaul/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -21382,7 +21437,11 @@
       "player": 1,
       "x": 99.88,
       "z": 34.88,
-      "template": "gaul/support_healer_e"
+      "template": "gaul/support_healer_e",
+      "parents": [
+        "gaul/support_healer_a",
+        "gaul/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -21392,46 +21451,60 @@
       "template": "gaul/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 113.12,
       "z": 34.88,
-      "template": "germ/cavalry_javelineer_a"
+      "template": "germ/cavalry_javelineer_a",
+      "parents": [
+        "germ/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 117.38,
       "z": 34.88,
       "template": "germ/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 121.62,
       "z": 34.88,
-      "template": "germ/cavalry_javelineer_e"
+      "template": "germ/cavalry_javelineer_e",
+      "parents": [
+        "germ/cavalry_javelineer_a",
+        "germ/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 125.88,
       "z": 34.88,
-      "template": "germ/cavalry_spearman_a"
+      "template": "germ/cavalry_spearman_a",
+      "parents": [
+        "germ/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 130.12,
       "z": 34.88,
       "template": "germ/cavalry_spearman_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 134.38,
       "z": 34.88,
-      "template": "germ/cavalry_spearman_e"
+      "template": "germ/cavalry_spearman_e",
+      "parents": [
+        "germ/cavalry_spearman_a",
+        "germ/cavalry_spearman_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -21515,7 +21588,10 @@
       "player": 1,
       "x": 193.5,
       "z": 34.88,
-      "template": "germ/support_healer_a"
+      "template": "germ/support_healer_a",
+      "parents": [
+        "germ/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -21529,7 +21605,11 @@
       "player": 1,
       "x": 202.0,
       "z": 34.88,
-      "template": "germ/support_healer_e"
+      "template": "germ/support_healer_e",
+      "parents": [
+        "germ/support_healer_a",
+        "germ/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -21539,32 +21619,42 @@
       "template": "germ/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 225.75,
       "z": 34.88,
-      "template": "han/cavalry_archer_a"
+      "template": "han/cavalry_archer_a",
+      "parents": [
+        "han/cavalry_archer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -230.4,
       "z": 50.38,
       "template": "han/cavalry_archer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -230.38,
       "z": 50.38,
-      "template": "han/cavalry_archer_e"
+      "template": "han/cavalry_archer_e",
+      "parents": [
+        "han/cavalry_archer_a",
+        "han/cavalry_archer_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -226.12,
       "z": 50.38,
-      "template": "han/cavalry_crossbowman_a"
+      "template": "han/cavalry_crossbowman_a",
+      "parents": [
+        "han/cavalry_crossbowman_b"
+      ]
     },
     {
       "type": "cavalry",
@@ -21578,49 +21668,67 @@
       "player": 1,
       "x": -217.62,
       "z": 50.38,
-      "template": "han/cavalry_crossbowman_e"
+      "template": "han/cavalry_crossbowman_e",
+      "parents": [
+        "han/cavalry_crossbowman_a",
+        "han/cavalry_crossbowman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -213.38,
       "z": 50.38,
-      "template": "han/cavalry_spearman_a"
+      "template": "han/cavalry_spearman_a",
+      "parents": [
+        "han/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -209.12,
       "z": 50.38,
       "template": "han/cavalry_spearman_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -204.88,
       "z": 50.38,
-      "template": "han/cavalry_spearman_e"
+      "template": "han/cavalry_spearman_e",
+      "parents": [
+        "han/cavalry_spearman_a",
+        "han/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -200.62,
       "z": 50.38,
-      "template": "han/cavalry_swordsman_a"
+      "template": "han/cavalry_swordsman_a",
+      "parents": [
+        "han/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -196.38,
       "z": 50.38,
       "template": "han/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -192.12,
       "z": 50.38,
-      "template": "han/cavalry_swordsman_e"
+      "template": "han/cavalry_swordsman_e",
+      "parents": [
+        "han/cavalry_swordsman_a",
+        "han/cavalry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -21725,7 +21833,10 @@
       "player": 1,
       "x": -91.88,
       "z": 50.38,
-      "template": "han/support_healer_a"
+      "template": "han/support_healer_a",
+      "parents": [
+        "han/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -21739,7 +21850,11 @@
       "player": 1,
       "x": -83.38,
       "z": 50.38,
-      "template": "han/support_healer_e"
+      "template": "han/support_healer_e",
+      "parents": [
+        "han/support_healer_a",
+        "han/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -21749,49 +21864,63 @@
       "template": "han/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -65.62,
       "z": 50.38,
-      "template": "iber/cavalry_javelineer_a"
+      "template": "iber/cavalry_javelineer_a",
+      "parents": [
+        "iber/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -61.38,
       "z": 50.38,
       "template": "iber/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -57.12,
       "z": 50.38,
-      "template": "iber/cavalry_javelineer_e"
+      "template": "iber/cavalry_javelineer_e",
+      "parents": [
+        "iber/cavalry_javelineer_a",
+        "iber/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -52.88,
       "z": 50.38,
-      "template": "iber/cavalry_spearman_a"
+      "template": "iber/cavalry_spearman_a",
+      "parents": [
+        "iber/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -48.62,
       "z": 50.38,
       "template": "iber/cavalry_spearman_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -44.38,
       "z": 50.38,
-      "template": "iber/cavalry_spearman_e"
+      "template": "iber/cavalry_spearman_e",
+      "parents": [
+        "iber/cavalry_spearman_a",
+        "iber/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -40.12,
       "z": 50.38,
@@ -21879,7 +22008,10 @@
       "player": 1,
       "x": 20.88,
       "z": 50.38,
-      "template": "iber/support_healer_a"
+      "template": "iber/support_healer_a",
+      "parents": [
+        "iber/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -21893,7 +22025,11 @@
       "player": 1,
       "x": 29.38,
       "z": 50.38,
-      "template": "iber/support_healer_e"
+      "template": "iber/support_healer_e",
+      "parents": [
+        "iber/support_healer_a",
+        "iber/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -21903,49 +22039,63 @@
       "template": "iber/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 42.62,
       "z": 50.38,
-      "template": "kush/cavalry_javelineer_a"
+      "template": "kush/cavalry_javelineer_a",
+      "parents": [
+        "kush/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 46.88,
       "z": 50.38,
       "template": "kush/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 51.12,
       "z": 50.38,
-      "template": "kush/cavalry_javelineer_e"
+      "template": "kush/cavalry_javelineer_e",
+      "parents": [
+        "kush/cavalry_javelineer_a",
+        "kush/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 55.38,
       "z": 50.38,
-      "template": "kush/cavalry_spearman_a"
+      "template": "kush/cavalry_spearman_a",
+      "parents": [
+        "kush/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 59.62,
       "z": 50.38,
       "template": "kush/cavalry_spearman_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 63.88,
       "z": 50.38,
-      "template": "kush/cavalry_spearman_e"
+      "template": "kush/cavalry_spearman_e",
+      "parents": [
+        "kush/cavalry_spearman_a",
+        "kush/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 68.12,
       "z": 50.38,
@@ -22033,7 +22183,10 @@
       "player": 1,
       "x": 132.25,
       "z": 50.38,
-      "template": "kush/support_healer_a"
+      "template": "kush/support_healer_a",
+      "parents": [
+        "kush/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -22047,7 +22200,11 @@
       "player": 1,
       "x": 140.75,
       "z": 50.38,
-      "template": "kush/support_healer_e"
+      "template": "kush/support_healer_e",
+      "parents": [
+        "kush/support_healer_a",
+        "kush/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -22057,28 +22214,35 @@
       "template": "kush/support_trader"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 154.0,
       "z": 50.38,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 158.25,
       "z": 50.38,
       "template": "mace/cavalry_spearman_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 162.5,
       "z": 50.38,
-      "template": "mace/cavalry_spearman_e"
+      "template": "mace/cavalry_spearman_e",
+      "parents": [
+        "mace/cavalry_spearman_a",
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 166.75,
       "z": 50.38,
@@ -22180,7 +22344,10 @@
       "player": 1,
       "x": -203.12,
       "z": 65.38,
-      "template": "mace/support_healer_a"
+      "template": "mace/support_healer_a",
+      "parents": [
+        "mace/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -22194,7 +22361,11 @@
       "player": 1,
       "x": -194.62,
       "z": 65.38,
-      "template": "mace/support_healer_e"
+      "template": "mace/support_healer_e",
+      "parents": [
+        "mace/support_healer_a",
+        "mace/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -22204,46 +22375,60 @@
       "template": "mace/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -180.88,
       "z": 65.38,
-      "template": "maur/cavalry_javelineer_a"
+      "template": "maur/cavalry_javelineer_a",
+      "parents": [
+        "maur/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -176.62,
       "z": 65.38,
       "template": "maur/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -172.38,
       "z": 65.38,
-      "template": "maur/cavalry_javelineer_e"
+      "template": "maur/cavalry_javelineer_e",
+      "parents": [
+        "maur/cavalry_javelineer_a",
+        "maur/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -168.12,
       "z": 65.38,
-      "template": "maur/cavalry_swordsman_a"
+      "template": "maur/cavalry_swordsman_a",
+      "parents": [
+        "maur/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -163.88,
       "z": 65.38,
       "template": "maur/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -159.62,
       "z": 65.38,
-      "template": "maur/cavalry_swordsman_e"
+      "template": "maur/cavalry_swordsman_e",
+      "parents": [
+        "maur/cavalry_swordsman_a",
+        "maur/cavalry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -22264,7 +22449,10 @@
       "player": 1,
       "x": -145.44,
       "z": 65.38,
-      "template": "maur/elephant_archer_a"
+      "template": "maur/elephant_archer_a",
+      "parents": [
+        "maur/elephant_archer_b"
+      ]
     },
     {
       "type": "archer",
@@ -22278,7 +22466,11 @@
       "player": 1,
       "x": -136.19,
       "z": 65.38,
-      "template": "maur/elephant_archer_e"
+      "template": "maur/elephant_archer_e",
+      "parents": [
+        "maur/elephant_archer_a",
+        "maur/elephant_archer_b"
+      ]
     },
     {
       "type": "hero",
@@ -22369,7 +22561,10 @@
       "player": 1,
       "x": -68.0,
       "z": 65.38,
-      "template": "maur/support_healer_a"
+      "template": "maur/support_healer_a",
+      "parents": [
+        "maur/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -22383,7 +22578,11 @@
       "player": 1,
       "x": -59.5,
       "z": 65.38,
-      "template": "maur/support_healer_e"
+      "template": "maur/support_healer_e",
+      "parents": [
+        "maur/support_healer_a",
+        "maur/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -22400,39 +22599,53 @@
       "template": "noldor_warship"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -35.25,
       "z": 65.38,
-      "template": "pers/cavalry_archer_a"
+      "template": "pers/cavalry_archer_a",
+      "parents": [
+        "pers/cavalry_archer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -31.0,
       "z": 65.38,
       "template": "pers/cavalry_archer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -26.75,
       "z": 65.38,
-      "template": "pers/cavalry_archer_e"
+      "template": "pers/cavalry_archer_e",
+      "parents": [
+        "pers/cavalry_archer_a",
+        "pers/cavalry_archer_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -22.5,
       "z": 65.38,
-      "template": "pers/cavalry_axeman_a"
+      "template": "pers/cavalry_axeman_a",
+      "parents": [
+        "pers/cavalry_axeman_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -18.25,
       "z": 65.38,
-      "template": "pers/cavalry_axeman_a_trireme"
+      "template": "pers/cavalry_axeman_a_trireme",
+      "parents": [
+        "pers/cavalry_axeman_a",
+        "pers/cavalry_axeman_b"
+      ]
     },
     {
       "type": "cavalry",
@@ -22446,87 +22659,125 @@
       "player": 1,
       "x": -9.75,
       "z": 65.38,
-      "template": "pers/cavalry_axeman_b_trireme"
+      "template": "pers/cavalry_axeman_b_trireme",
+      "parents": [
+        "pers/cavalry_axeman_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -5.5,
       "z": 65.38,
-      "template": "pers/cavalry_axeman_e"
+      "template": "pers/cavalry_axeman_e",
+      "parents": [
+        "pers/cavalry_axeman_a",
+        "pers/cavalry_axeman_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -1.25,
       "z": 65.38,
-      "template": "pers/cavalry_axeman_e_trireme"
+      "template": "pers/cavalry_axeman_e_trireme",
+      "parents": [
+        "pers/cavalry_axeman_e",
+        "pers/cavalry_axeman_a",
+        "pers/cavalry_axeman_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 3.0,
       "z": 65.38,
-      "template": "pers/cavalry_javelineer_a"
+      "template": "pers/cavalry_javelineer_a",
+      "parents": [
+        "pers/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 7.25,
       "z": 65.38,
-      "template": "pers/cavalry_javelineer_a_trireme"
+      "template": "pers/cavalry_javelineer_a_trireme",
+      "parents": [
+        "pers/cavalry_javelineer_a",
+        "pers/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 11.5,
       "z": 65.38,
       "template": "pers/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 15.75,
       "z": 65.38,
-      "template": "pers/cavalry_javelineer_b_trireme"
+      "template": "pers/cavalry_javelineer_b_trireme",
+      "parents": [
+        "pers/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 20.0,
       "z": 65.38,
-      "template": "pers/cavalry_javelineer_e"
+      "template": "pers/cavalry_javelineer_e",
+      "parents": [
+        "pers/cavalry_javelineer_a",
+        "pers/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 24.25,
       "z": 65.38,
-      "template": "pers/cavalry_javelineer_e_trireme"
+      "template": "pers/cavalry_javelineer_e_trireme",
+      "parents": [
+        "pers/cavalry_javelineer_e",
+        "pers/cavalry_javelineer_a",
+        "pers/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 28.5,
       "z": 65.38,
-      "template": "pers/cavalry_spearman_a"
+      "template": "pers/cavalry_spearman_a",
+      "parents": [
+        "pers/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 32.75,
       "z": 65.38,
       "template": "pers/cavalry_spearman_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 37.0,
       "z": 65.38,
-      "template": "pers/cavalry_spearman_e"
+      "template": "pers/cavalry_spearman_e",
+      "parents": [
+        "pers/cavalry_spearman_a",
+        "pers/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 41.25,
       "z": 65.38,
@@ -22628,7 +22879,10 @@
       "player": 1,
       "x": 113.25,
       "z": 65.38,
-      "template": "pers/support_healer_a"
+      "template": "pers/support_healer_a",
+      "parents": [
+        "pers/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -22642,7 +22896,11 @@
       "player": 1,
       "x": 121.75,
       "z": 65.38,
-      "template": "pers/support_healer_e"
+      "template": "pers/support_healer_e",
+      "parents": [
+        "pers/support_healer_a",
+        "pers/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -22673,28 +22931,35 @@
       "template": "pirates/ship_scout"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 157.5,
       "z": 65.38,
-      "template": "ptol/cavalry_archer_a"
+      "template": "ptol/cavalry_archer_a",
+      "parents": [
+        "ptol/cavalry_archer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 161.75,
       "z": 65.38,
       "template": "ptol/cavalry_archer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 166.0,
       "z": 65.38,
-      "template": "ptol/cavalry_archer_e"
+      "template": "ptol/cavalry_archer_e",
+      "parents": [
+        "ptol/cavalry_archer_a",
+        "ptol/cavalry_archer_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 170.25,
       "z": 65.38,
@@ -22789,7 +23054,10 @@
       "player": 1,
       "x": -195.88,
       "z": 80.88,
-      "template": "ptol/support_healer_a"
+      "template": "ptol/support_healer_a",
+      "parents": [
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -22803,7 +23071,11 @@
       "player": 1,
       "x": -187.38,
       "z": 80.88,
-      "template": "ptol/support_healer_e"
+      "template": "ptol/support_healer_e",
+      "parents": [
+        "ptol/support_healer_a",
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -22813,91 +23085,119 @@
       "template": "ptol/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -174.12,
       "z": 80.88,
-      "template": "rome/cavalry_javelineer_a"
+      "template": "rome/cavalry_javelineer_a",
+      "parents": [
+        "rome/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -169.88,
       "z": 80.88,
-      "template": "rome/cavalry_javelineer_auxiliary_a"
+      "template": "rome/cavalry_javelineer_auxiliary_a",
+      "parents": [
+        "rome/cavalry_javelineer_auxiliary_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -165.62,
       "z": 80.88,
       "template": "rome/cavalry_javelineer_auxiliary_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -161.38,
       "z": 80.88,
-      "template": "rome/cavalry_javelineer_auxiliary_e"
+      "template": "rome/cavalry_javelineer_auxiliary_e",
+      "parents": [
+        "rome/cavalry_javelineer_auxiliary_a",
+        "rome/cavalry_javelineer_auxiliary_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -157.12,
       "z": 80.88,
       "template": "rome/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -152.88,
       "z": 80.88,
-      "template": "rome/cavalry_javelineer_e"
+      "template": "rome/cavalry_javelineer_e",
+      "parents": [
+        "rome/cavalry_javelineer_a",
+        "rome/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -148.62,
       "z": 80.88,
-      "template": "rome/cavalry_spearman_a"
+      "template": "rome/cavalry_spearman_a",
+      "parents": [
+        "rome/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -144.38,
       "z": 80.88,
-      "template": "rome/cavalry_spearman_auxiliary_a"
+      "template": "rome/cavalry_spearman_auxiliary_a",
+      "parents": [
+        "rome/cavalry_spearman_auxiliary_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -140.12,
       "z": 80.88,
       "template": "rome/cavalry_spearman_auxiliary_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -135.88,
       "z": 80.88,
-      "template": "rome/cavalry_spearman_auxiliary_e"
+      "template": "rome/cavalry_spearman_auxiliary_e",
+      "parents": [
+        "rome/cavalry_spearman_auxiliary_a",
+        "rome/cavalry_spearman_auxiliary_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -131.62,
       "z": 80.88,
       "template": "rome/cavalry_spearman_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -127.38,
       "z": 80.88,
-      "template": "rome/cavalry_spearman_e"
+      "template": "rome/cavalry_spearman_e",
+      "parents": [
+        "rome/cavalry_spearman_a",
+        "rome/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -123.12,
       "z": 80.88,
@@ -22915,28 +23215,46 @@
       "player": 1,
       "x": -114.62,
       "z": 80.88,
-      "template": "rome/champion_infantry_swordsman_02"
+      "template": "rome/champion_infantry_swordsman_02",
+      "parents": [
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -110.38,
       "z": 80.88,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -106.12,
       "z": 80.88,
-      "template": "rome/champion_infantry_swordsman_04"
+      "template": "rome/champion_infantry_swordsman_04",
+      "parents": [
+        "rome/champion_infantry_swordsman_03",
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -101.88,
       "z": 80.88,
-      "template": "rome/champion_infantry_swordsman_05"
+      "template": "rome/champion_infantry_swordsman_05",
+      "parents": [
+        "rome/champion_infantry_swordsman_04",
+        "rome/champion_infantry_swordsman_03",
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
@@ -23048,7 +23366,10 @@
       "player": 1,
       "x": -22.75,
       "z": 80.88,
-      "template": "rome/siege_ballista_unpacked"
+      "template": "rome/siege_ballista_unpacked",
+      "parents": [
+        "rome/siege_ballista_packed"
+      ]
     },
     {
       "type": "catapult",
@@ -23062,7 +23383,10 @@
       "player": 1,
       "x": -12.38,
       "z": 80.88,
-      "template": "rome/siege_onager_unpacked"
+      "template": "rome/siege_onager_unpacked",
+      "parents": [
+        "rome/siege_onager_packed"
+      ]
     },
     {
       "type": "siege_ram",
@@ -23076,7 +23400,10 @@
       "player": 1,
       "x": 8.12,
       "z": 80.88,
-      "template": "rome/support_healer_a"
+      "template": "rome/support_healer_a",
+      "parents": [
+        "rome/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -23090,7 +23417,11 @@
       "player": 1,
       "x": 16.62,
       "z": 80.88,
-      "template": "rome/support_healer_e"
+      "template": "rome/support_healer_e",
+      "parents": [
+        "rome/support_healer_a",
+        "rome/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -23100,46 +23431,60 @@
       "template": "rome/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 30.38,
       "z": 80.88,
-      "template": "sele/cavalry_archer_a"
+      "template": "sele/cavalry_archer_a",
+      "parents": [
+        "sele/cavalry_archer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 34.62,
       "z": 80.88,
       "template": "sele/cavalry_archer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 38.88,
       "z": 80.88,
-      "template": "sele/cavalry_archer_e"
+      "template": "sele/cavalry_archer_e",
+      "parents": [
+        "sele/cavalry_archer_a",
+        "sele/cavalry_archer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 43.12,
       "z": 80.88,
-      "template": "sele/cavalry_javelineer_a"
+      "template": "sele/cavalry_javelineer_a",
+      "parents": [
+        "sele/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 47.38,
       "z": 80.88,
       "template": "sele/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 51.62,
       "z": 80.88,
-      "template": "sele/cavalry_javelineer_e"
+      "template": "sele/cavalry_javelineer_e",
+      "parents": [
+        "sele/cavalry_javelineer_a",
+        "sele/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -23237,7 +23582,10 @@
       "player": 1,
       "x": 140.75,
       "z": 80.88,
-      "template": "sele/support_healer_a"
+      "template": "sele/support_healer_a",
+      "parents": [
+        "sele/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -23251,7 +23599,11 @@
       "player": 1,
       "x": 149.25,
       "z": 80.88,
-      "template": "sele/support_healer_e"
+      "template": "sele/support_healer_e",
+      "parents": [
+        "sele/support_healer_a",
+        "sele/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -23261,46 +23613,60 @@
       "template": "sele/support_trader"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 163.0,
       "z": 80.88,
-      "template": "spart/cavalry_javelineer_a"
+      "template": "spart/cavalry_javelineer_a",
+      "parents": [
+        "spart/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 167.25,
       "z": 80.88,
       "template": "spart/cavalry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 171.5,
       "z": 80.88,
-      "template": "spart/cavalry_javelineer_e"
+      "template": "spart/cavalry_javelineer_e",
+      "parents": [
+        "spart/cavalry_javelineer_a",
+        "spart/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 175.75,
       "z": 80.88,
-      "template": "spart/cavalry_spearman_a"
+      "template": "spart/cavalry_spearman_a",
+      "parents": [
+        "spart/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 180.0,
       "z": 80.88,
       "template": "spart/cavalry_spearman_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 184.25,
       "z": 80.88,
-      "template": "spart/cavalry_spearman_e"
+      "template": "spart/cavalry_spearman_e",
+      "parents": [
+        "spart/cavalry_spearman_a",
+        "spart/cavalry_spearman_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -23363,7 +23729,10 @@
       "player": 1,
       "x": -224.38,
       "z": 95.62,
-      "template": "spart/support_healer_a"
+      "template": "spart/support_healer_a",
+      "parents": [
+        "spart/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -23377,7 +23746,11 @@
       "player": 1,
       "x": -215.88,
       "z": 95.62,
-      "template": "spart/support_healer_e"
+      "template": "spart/support_healer_e",
+      "parents": [
+        "spart/support_healer_a",
+        "spart/support_healer_b"
+      ]
     },
     {
       "type": "trader",

@@ -38681,265 +38681,309 @@
       "type": "trireme",
       "player": 1,
       "x": 220.94,
-      "z": 17.34
+      "z": 17.34,
+      "template": "athen/ship_fishing"
     },
     {
       "type": "trireme",
       "player": 2,
       "x": 213.1,
-      "z": 8.28
+      "z": 8.28,
+      "template": "athen/ship_fishing"
     },
     {
       "type": "trireme",
       "player": 3,
       "x": 208.13,
-      "z": 6.28
+      "z": 6.28,
+      "template": "athen/ship_fishing"
     },
     {
       "type": "trireme",
       "player": 4,
       "x": 206.38,
-      "z": 0.53
+      "z": 0.53,
+      "template": "athen/ship_fishing"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -146.79,
-      "z": -139.18
+      "z": -139.18,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -146.33,
-      "z": -138.84
+      "z": -138.84,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -145.93,
-      "z": -138.46
+      "z": -138.46,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -145.59,
-      "z": -138.22
+      "z": -138.22,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -145.17,
-      "z": -137.9
+      "z": -137.9,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -144.63,
-      "z": -137.49
+      "z": -137.49,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -144.15,
-      "z": -136.98
+      "z": -136.98,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -143.76,
-      "z": -136.49
+      "z": -136.49,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -143.41,
-      "z": -136.12
+      "z": -136.12,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -143.11,
-      "z": -135.84
+      "z": -135.84,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 129.09,
-      "z": -135.09
+      "z": -135.09,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 129.45,
-      "z": -134.8
+      "z": -134.8,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 129.66,
-      "z": -134.29
+      "z": -134.29,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 130.05,
-      "z": -133.76
+      "z": -133.76,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 130.3,
-      "z": -133.34
+      "z": -133.34,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 130.78,
-      "z": -132.82
+      "z": -132.82,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 131.17,
-      "z": -132.33
+      "z": -132.33,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 131.53,
-      "z": -131.88
+      "z": -131.88,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 131.93,
-      "z": -131.62
+      "z": -131.62,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 132.42,
-      "z": -131.25
+      "z": -131.25,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 122.72,
-      "z": 131.56
+      "z": 131.56,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 122.94,
-      "z": 131.95
+      "z": 131.95,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 123.14,
-      "z": 132.14
+      "z": 132.14,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 123.33,
-      "z": 132.51
+      "z": 132.51,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 123.5,
-      "z": 132.71
+      "z": 132.71,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 123.73,
-      "z": 132.97
+      "z": 132.97,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 123.95,
-      "z": 133.22
+      "z": 133.22,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 124.15,
-      "z": 133.4
+      "z": 133.4,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 124.35,
-      "z": 133.66
+      "z": 133.66,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 124.72,
-      "z": 134.03
+      "z": 134.03,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -142.51,
-      "z": 127.09
+      "z": 127.09,
+      "template": "mace/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -142.13,
-      "z": 127.51
+      "z": 127.51,
+      "template": "mace/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -141.75,
-      "z": 127.94
+      "z": 127.94,
+      "template": "mace/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -141.39,
-      "z": 128.25
+      "z": 128.25,
+      "template": "mace/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -141.01,
-      "z": 128.57
+      "z": 128.57,
+      "template": "mace/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -140.64,
-      "z": 128.88
+      "z": 128.88,
+      "template": "mace/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -140.29,
-      "z": 129.26
+      "z": 129.26,
+      "template": "mace/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -139.93,
-      "z": 129.62
+      "z": 129.62,
+      "template": "mace/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -139.58,
-      "z": 129.99
+      "z": 129.99,
+      "template": "mace/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -139.22,
-      "z": 130.35
+      "z": 130.35,
+      "template": "mace/support_civilian"
     }
   ],
   "treasures": [

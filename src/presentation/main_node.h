@@ -706,6 +706,10 @@ private:
 	void stop_replay_recording();
 	bool start_pending_replay();
 	bool load_pending_save();
+	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start
+	// then continues it for everyone (host_start_saved_game).
+	String net_saved_game_;
+	void host_start_saved_game();
 	void tick_match_archive();
 	Dictionary statistics_summary() const;
 	Dictionary summary_gui(bool in_game) const;

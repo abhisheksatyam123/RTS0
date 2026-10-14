@@ -506,7 +506,8 @@ static void test_transport() {
 
 // Deep water is impassable for land units (passability classes): a walk out to sea stops
 // on the beach (MakeGoalReachable), a player's or the AI's alike, and a unit boarding a busy ship waits on the shore
-// until the ship comes within LoadingRange.
+// until the ship comes within LoadingRange. The AI's walk keeps its point out at sea, and fails three
+// obstructed turns after the unit reaches the end of its path (PathResult's short-path hack), not 35.
 static void test_no_wading() {
 	static Simulation s;
 	fresh(s);
@@ -524,16 +525,22 @@ static void test_no_wading() {
 	const uint32_t boarder = s.spawn_unit(-40.0f, 30.0f, 0, UNIT_SPEARMAN);
 	s.order_board_transport(&boarder, 1, ship);
 	bool waded = false;
+	int ai_short = -1, ai_done = -1; // ticks: the AI walker's path walked and its step stopped, its walk ended
 	for (int t = 0; t < (int)(15.0f / Simulation::FIXED_STEP); ++t) {
 		s.tick(Simulation::FIXED_STEP);
 		waded = waded || deep(walker) || deep(ai_walker) || (!aboard(s, ship, boarder) && deep(boarder));
+		if (ai_short < 0 && s.walk_falls_short((size_t)idx(s, ai_walker)) && s.units_.motion[idx(s, ai_walker)].failed > 0)
+			ai_short = t;
+		if (ai_done < 0 && !s.unit_has_order(ai_walker)) ai_done = t;
 	}
 	const int32_t w = idx(s, walker);
-	std::printf("  walk to sea stopped at (%.1f, %.1f); boarder waits at z %.1f\n",
-			s.units().pos_x[w], s.units().pos_z[w], s.units().pos_z[idx(s, boarder)]);
+	const float ai_wait = (float)(ai_done - ai_short) * Simulation::FIXED_STEP;
+	std::printf("  walk to sea stopped at (%.1f, %.1f); the AI's walk ended %.2f s after it stopped at the end of its path; boarder waits at z %.1f\n",
+			s.units().pos_x[w], s.units().pos_z[w], ai_wait, s.units().pos_z[idx(s, boarder)]);
 	CHECK(!waded);
 	CHECK(std::fabs(s.units().pos_x[w] + 20.0f) < 2.0f && s.units().pos_z[w] > 10.0f && !s.unit_has_order(walker));
 	CHECK(s.units().pos_z[idx(s, ai_walker)] > 10.0f);
+	CHECK(ai_short >= 0 && ai_done > ai_short && ai_wait <= 0.8f);
 	// Its own walk done, the ship comes in to the beach for the waiting unit (UnitAI
 	// PushOrderAfterForced("PickupUnit")), which boards.
 	run(s, 10.0f);

@@ -1834,6 +1834,8 @@ public:
 	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the
 	// u_type class. rank 2/3 = Advanced/Elite, reached through Promotion xp on the next tick.
 	uint32_t spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank = 1);
+	uint32_t spawn_map_unit(float x, float z, uint8_t team, UnitType u_type, const char *template_id, int rank = 0);
+	static uint16_t resolve_map_template(const char *template_id, int *rank);
 	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
 	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
 	// An "uncapturable|" template (elephantine.js's Kushite towers): no capture points at all.
@@ -1990,6 +1992,7 @@ private:
 	bool chase_goal(size_t i, float &key_x, float &key_z, float &to_x, float &to_z) const;
 	bool chase_path_kept(size_t i) const;
 	bool chase_falls_short(size_t i) const;
+	bool walk_falls_short(size_t i) const;
 	void abandon_chase(size_t i);
 	void give_up_attack(size_t i);
 	void tick_gather(float dt);

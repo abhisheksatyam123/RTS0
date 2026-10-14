@@ -4502,7 +4502,7 @@
   "structures": [],
   "units": [
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -43.05,
       "z": -29.14,
@@ -4576,10 +4576,13 @@
       "player": 1,
       "x": -58.14,
       "z": -52.07,
-      "template": "rome/champion_infantry_swordsman_02"
+      "template": "rome/champion_infantry_swordsman_02",
+      "parents": [
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -64.67,
       "z": -44.59,
@@ -4590,14 +4593,23 @@
       "player": 1,
       "x": -59.53,
       "z": -34.97,
-      "template": "rome/champion_infantry_swordsman_04"
+      "template": "rome/champion_infantry_swordsman_04",
+      "parents": [
+        "rome/champion_infantry_swordsman_03",
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -80.14,
       "z": -28.84,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
