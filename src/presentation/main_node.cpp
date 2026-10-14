@@ -433,7 +433,7 @@ void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
 	RtsoTopPanel::cycle_order();
-	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time);
+	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
 }
 
 // Test hook: destroys the units (Delete's command) without touching the selection,
@@ -458,6 +458,7 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["barter"] = barter ? bool(barter->call("is_open")) : false;
 	d["overlay"] = pause_overlay_ && pause_overlay_->is_visible();
 	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
+	d["overlay_by"] = pause_by_label_ ? pause_by_label_->get_text() : String();
 	d["chat_log"] = chat_window_.log_text();
 	return d;
 }
@@ -983,7 +984,8 @@ void RtsoMain::toggle_pause() {
 }
 
 // PauseOverlay.rebuild: shown for your own pause and while another client
-// pauses; the resume line only for your own; "Paused by" in multiplayer.
+// pauses; the resume line only for your own; "Paused by" in multiplayer, each
+// name in its player's colour (colorizePlayernameByGUID: white for an observer).
 void RtsoMain::update_pause_overlay() {
 	if (!pause_overlay_) return;
 	const bool networked = net_lockstep() && !turn_mgr_.is_replaying();
@@ -993,19 +995,25 @@ void RtsoMain::update_pause_overlay() {
 		for (uint32_t c : turn_mgr_.paused_clients()) {
 			others = others || c != turn_mgr_.local_client_id();
 			String name;
+			uint8_t pl = 0xFF;
 			for (const auto &e : net_host_.playerAssignment())
-				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str());
-			if (name.is_empty()) {
-				const uint8_t pl = turn_mgr_.player_for_client(c);
-				name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
-			}
-			who += (who.is_empty() ? "" : ", ") + name;
+				if (e.client == c) {
+					if (!e.name.empty()) name = String::utf8(e.name.c_str());
+					pl = e.player;
+				}
+			if (pl == 0xFF) pl = turn_mgr_.player_for_client(c);
+			const bool seated = pl < rtso::MAX_PLAYERS;
+			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
+			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
+			who += String(who.is_empty() ? "" : ", ") + "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" +
+					name.replace("[", "[lb]") + "[/color]";
 		}
 	const bool show = hotkey_paused_ || others;
 	if (pause_overlay_->is_visible() != show) pause_overlay_->set_visible(show);
 	if (!show) return;
 	pause_resume_label_->set_visible(hotkey_paused_);
-	const String by = networked && !who.is_empty() ? sprintf0(tr("Paused by %(players)s"), {{"players", who}}) : String();
+	const String by = networked && !who.is_empty()
+			? "[center]" + sprintf0(tr("Paused by %(players)s"), {{"players", who}}) + "[/center]" : String();
 	if (pause_by_label_->get_text() != by) pause_by_label_->set_text(by);
 }
 
@@ -1897,7 +1905,7 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 }
 
 void RtsoMain::update_hud() {
-	top_panel_.update(sim, local_player(), match_elapsed_time);
+	top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
 	// GameSpeedButton is hidden in networked games; a replay's own row has the speed list.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep() && !turn_mgr_.is_replaying());
 }
@@ -3578,6 +3586,14 @@ String RtsoMain::match_settings_player_state() const {
 
 // session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
 // settings close together; opening one of them closes the others first.
+// CivIcon.onPress: a left click on the top panel's civ emblem reopens the
+// reference page last viewed (the Structure Tree at first).
+void RtsoMain::_on_civ_icon_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("open_last");
+}
+
 bool RtsoMain::close_open_dialogs() {
 	bool any = false;
 	if (Node *menu = get_node_or_null(NodePath("PauseMenu")))
