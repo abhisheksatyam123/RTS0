@@ -13295,24 +13295,38 @@ void Simulation::tick_gates(float dt) {
 	gate_timer_ += dt;
 	if (gate_timer_ < 0.2f) return;
 	gate_timer_ = 0.0f;
-	constexpr float PASS_RANGE = 4.0f;
+	// Gate.js: <PassRange>2</PassRange> (stone and palisade gates), measured between the gate's
+	// and the unit's obstructions, so from the footprint edge plus the unit's clearance.
+	constexpr float PASS_RANGE = 2.0f * COMBAT_DISTANCE_SCALE;
 	bool nav_changed = false;
 	for (auto &b : buildings_) {
 		if (!is_gate_type(b.type) || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 		const bool blocked_paths = blocks_pathfinding(b);
 		bool ally_near = false, unit_inside = false;
-		const float reach_u = b.hu + PASS_RANGE, reach_v = b.hv + PASS_RANGE;
-		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i]) continue;
-			const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
+		// Gate.js GetAllies: the owner's own allies, one way (Diplomacy.GetAllies), itself included.
+		auto opens_for = [&](uint8_t p) {
+			return b.team < MAX_PLAYERS && p < MAX_PLAYERS &&
+			       (p == b.team || players_[p].team == players_[b.team].team || diplomacy_[b.team][p] == DIPLO_ALLY);
+		};
+		auto check = [&](float x, float z, float clearance, uint8_t owner, bool can_open) {
+			const nav::Vec2 l = nav::footprint_local(b, x, z);
 			const float dx = std::fabs(l.x), dz = std::fabs(l.y);
-			if (dx > reach_u || dz > reach_v) continue;
-			const float clearance = unit_clearance_at(i);
+			if (dx > b.hu + clearance + PASS_RANGE || dz > b.hv + clearance + PASS_RANGE) return;
 			if (dx < b.hu + clearance && dz < b.hv + clearance) unit_inside = true;
-			if (!ally_near && b.team < MAX_PLAYERS && units_.team[i] < MAX_PLAYERS && is_ally(b.team, units_.team[i])
-			    && units_.action_state[i] != ACTION_DYING)
-				ally_near = true;
-			if (ally_near && unit_inside) break;
+			if (!ally_near && can_open && opens_for(owner)) ally_near = true;
+		};
+		for (size_t i = 0; i < units_.count && !(ally_near && unit_inside); ++i) {
+			if (!units_.alive[i]) continue;
+			// A unit on a turret point is immobile with its obstruction off (Turretable.js): the gate
+			// ignores it (Gate.js OnRangeUpdate skips immobile units).
+			if (!turret_height_.empty() && turret_height_.count(units_.id[i])) continue;
+			check(units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i), units_.team[i], units_.action_state[i] != ACTION_DYING);
+		}
+		// Animals have UnitAI too: owned livestock opens its owner's gates, any animal in the way keeps one open.
+		for (size_t f = 0; f < fauna_.count && !(ally_near && unit_inside); ++f) {
+			if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CARCASS || fauna_.behavior[f] == FAUNA_CORRALLED)
+				continue;
+			check(fauna_.pos_x[f], fauna_.pos_z[f], CLEARANCE_DEFAULT, fauna_owner_[f], true);
 		}
 		const bool should_open = ally_near && !b.gate_locked;
 		if (b.gate_open && !should_open && !unit_inside) b.gate_open = false;

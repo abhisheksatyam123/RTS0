@@ -5,7 +5,9 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_gates.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_gates && /tmp/test_gates
+#define private public
 #include "simulation/simulation.h"
+#undef private
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
@@ -190,6 +192,64 @@ int main() {
 		run(s, 12.5f);
 		CHECK(find_bld(s, w)->type == BLD_GATE);
 		CHECK(!nav_blocked_at(s, 1.0f, 21.0f));
+	}
+
+	// 9. PassRange 2 m (x0.28) from the gate's edge to the unit's: a unit 1.5 units off stays out
+	// of it, one just outside the gate opens it.
+	{
+		uint32_t gate = wall_with_gate(s);
+		const auto *g = find_bld(s, gate);
+		const float edge = g->x - g->hu;
+		uint32_t u = s.spawn_unit(edge - 1.5f, 1.0f, 0, UNIT_SPEARMAN);
+		run(s, 1.0f);
+		CHECK(!find_bld(s, gate)->gate_open);
+		s.units_.remove_at((size_t)s.lookup_unit(u));
+		s.spawn_unit(edge - 0.5f, 1.0f, 0, UNIT_SPEARMAN);
+		run(s, 1.0f);
+		CHECK(find_bld(s, gate)->gate_open);
+	}
+
+	// 10. A soldier on a turret point is immobile with no obstruction: it neither opens the gate
+	// nor stops it closing, so a locked gate stays shut.
+	{
+		uint32_t gate = wall_with_gate(s);
+		const auto *g = find_bld(s, gate);
+		uint32_t u = s.spawn_unit(g->x, g->z, 0, UNIT_ARCHER);
+		auto &gb = const_cast<Simulation::Building &>(*g);
+		gb.garrisoned_units.push_back(u); // on the gate's turret point (tick_turrets keeps it there)
+		run(s, 1.0f);
+		CHECK(s.turret_height_.count(u) && !find_bld(s, gate)->gate_open);
+		gb.garrisoned_units.clear();
+		s.turret_height_.erase(u);
+		const int32_t ui = s.lookup_unit(u);
+		s.units_.pos_x[ui] = g->x;
+		s.units_.pos_z[ui] = g->z;
+		run(s, 0.4f);
+		CHECK(find_bld(s, gate)->gate_open); // the same archer standing in it opens it
+	}
+
+	// 11. Gate.js uses the owner's allies, one way: player 0 allying player 1 lets 1's units
+	// through though player 1 still counts 0 an enemy.
+	{
+		uint32_t gate = wall_with_gate(s);
+		s.set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+		const auto *g = find_bld(s, gate);
+		s.spawn_unit(g->x + g->hu + 0.5f, 1.0f, 1, UNIT_SPEARMAN);
+		run(s, 1.0f);
+		CHECK(!s.is_ally(0, 1) && find_bld(s, gate)->gate_open);
+	}
+
+	// 12. The owner's livestock opens its gate (animals have UnitAI); a Gaia sheep doesn't.
+	{
+		uint32_t gate = wall_with_gate(s);
+		const auto *g = find_bld(s, gate);
+		const uint32_t wild = s.spawn_fauna(g->x - g->hu - 0.5f, 1.0f, FAUNA_SHEEP);
+		run(s, 0.4f);
+		CHECK(!find_bld(s, gate)->gate_open);
+		(void)wild;
+		s.spawn_fauna(g->x + g->hu + 0.5f, 1.0f, FAUNA_SHEEP, 0);
+		run(s, 0.4f);
+		CHECK(find_bld(s, gate)->gate_open);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
