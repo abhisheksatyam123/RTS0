@@ -176,10 +176,10 @@ func run() -> void:
 		"other slots, and our slot's type and AI, are locked")
 	check(not picker(page, 1, 2).disabled and not picker(page, 1, 3).disabled and not picker(page, 1, 6).disabled,
 		"our own civ, team and colour are not")
-	page._on_slot_civ(0, 1)
+	page._on_slot_civ(1, 1) # the first civ by name; 0 is Random
 	page._on_slot_team(3, 1)
 	page._on_slot_color(6, 1)
-	check(client.requests == [["civ", int(page.CIVS[0]["id"])], ["team", 3], ["color", 6]], "picks are asked of the host: " + str(client.requests))
+	check(client.requests == [["civ", int(page.CIVS[page._civ_order()[0]]["id"])], ["team", 3], ["color", 6]], "picks are asked of the host: " + str(client.requests))
 	check(ready_btn.text == "I'm ready" and not ready_btn.disabled, "Ready: I'm ready")
 	ready_btn.pressed.emit()
 	check(client.is_ready == 1 and ready_btn.text == "Stay ready", "pressed: ready, then Stay ready")
