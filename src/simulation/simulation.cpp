@@ -3494,6 +3494,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &c : tm.cost_add) c = 0.0f;
 		for (float &l : tm.loot_mul) l = 1.0f;
 		for (float &l : tm.loot_add) l = 0.0f;
+		for (int16_t &c : tm.carry) c = 0;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
@@ -3597,6 +3598,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_SPREAD: if (ranged) apply(tm.spread); break;
 					case TSTAT_CAPTURE_ATTACK: apply(tm.capture); break;
 					case TSTAT_REQUIRED_XP: apply(tm.required_xp); break;
+					case TSTAT_CARRY_FOOD: tm.carry[RES_FOOD] += (int16_t)e.value; break;
+					case TSTAT_CARRY_WOOD: tm.carry[RES_WOOD] += (int16_t)e.value; break;
+					case TSTAT_CARRY_STONE: tm.carry[RES_STONE] += (int16_t)e.value; break;
+					case TSTAT_CARRY_METAL: tm.carry[RES_GOLD] += (int16_t)e.value; break;
 					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
 						if (!ranged) apply_damage(tm.atk_mul[e.stat - TSTAT_MELEE_HACK], tm.atk_add[e.stat - TSTAT_MELEE_HACK]);
 						break;
@@ -3868,6 +3873,8 @@ void Simulation::refresh_tech_mods(uint8_t player_id) {
 int32_t Simulation::carry_cap(size_t i, uint8_t res) const {
 	uint8_t team = units_.team[i], t = units_.unit_type[i];
 	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT || res >= RES_COUNT) return units_.carry_capacity[i];
+	// A roster unit's techs match its template's own classes (citizen infantry are Workers in 0.28).
+	if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT) return units_.carry_capacity[i] + tech_mods_[team].tmpl[units_.tmpl[i]].carry[res];
 	return units_.carry_capacity[i] + tech_mods_[team].carry[t][res];
 }
 
@@ -4735,9 +4742,10 @@ void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float
 	}
 }
 
-// 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz).
+// 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz), at units only
+// (unit_actions.js g_PatrolTargets ["Unit"]).
 void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
-	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
+	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
 	// Formations patrol as a whole (FORMATIONCONTROLLER PATROL); the rest walk on their own.
 	const std::vector<uint32_t> rest = !queued && !formations_.empty() ? formation_take_patrol(now, tx, tz) : now;
@@ -4747,7 +4755,7 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.action_state[idx] = ACTION_PATROL;
-			set_order(idx, ORDER_PATROL, ORDER_FLAG_FORCE, 0, units_.target_x[idx], units_.target_z[idx]);
+			set_order(idx, ORDER_PATROL, o.flags, 0, units_.target_x[idx], units_.target_z[idx]);
 		}
 	}
 }
@@ -5572,7 +5580,7 @@ std::vector<uint32_t> Simulation::formation_take_patrol(const std::vector<uint32
 		formation_move_members_into(ci, true, true);
 		for (uint32_t id : fc.members) {
 			const int32_t idx = lookup_unit(id);
-			if (idx >= 0) set_order((size_t)idx, ORDER_PATROL, ORDER_FLAG_FORCE, 0, tx, tz);
+			if (idx >= 0) set_order((size_t)idx, ORDER_PATROL, ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY, 0, tx, tz);
 		}
 	}
 	return individual;
@@ -5703,7 +5711,7 @@ void Simulation::tick_formations(float dt) {
 				// points loop and other queued orders run in turn.
 				UnitOrder leg;
 				leg.kind = ORDER_PATROL;
-				leg.flags = ORDER_FLAG_FORCE;
+				leg.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY;
 				leg.x = fc.goal_x;
 				leg.z = fc.goal_z;
 				if (fc.queue.size() < 64) fc.queue.push_back(leg);
@@ -5928,7 +5936,7 @@ static bool is_civilian_class(uint16_t tmpl, uint8_t type) {
 // merchant ships add Support Cavalry Relic, warships Support Soldier Hero Relic (+ Siege).
 bool Simulation::ship_garrison_allowed(size_t ship, size_t unit) const {
 	const uint8_t unit_type = units_.unit_type[unit];
-	const TechClasses c = unit_tech_classes(unit_type);
+	const TechClasses c = unit_classes_at(unit); // the template's own classes (a cavalry hero is no Infantry)
 	if (is_civilian_class(units_.tmpl[unit], unit_type)) return true;
 	TechClasses allowed = TC_INFANTRY | TC_HEALER | TC_DOG;
 	const bool relic = unit_type == UNIT_CATAFALQUE;
@@ -6183,7 +6191,7 @@ bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 	if (unit_is_ship(units_.unit_type[transport_idx]))
 		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, unit_idx);
 	if (is_transport(units_.id[unit_idx])) return false;
-	if (siege_garrison_capacity(transport_idx) > 0 && !siege_garrison_allowed(units_.unit_type[unit_idx])) return false;
+	if (siege_garrison_capacity(transport_idx) > 0 && !(unit_classes_at(unit_idx) & (TC_INFANTRY | TC_CIVILIAN))) return false;
 	// GarrisonHolder.Garrison: a siege engine below its EjectHealth takes nobody in.
 	if (units_.hp[transport_idx] <= std::floor(units_.max_hp[transport_idx] * SIEGE_EJECT_HEALTH)) return false;
 	return true;
@@ -10021,7 +10029,9 @@ void Simulation::tick_gather(float dt) {
 					continue;
 				}
 				fg.slots_taken++;
-				field_efficiency = field_gather_efficiency(std::min(fg.total, FIELD_MAX_GATHERERS));
+				// StartGathering takes the rate before AddActiveGatherer, and APPROACHING.leave has
+				// already removed this farmer: the diminishing returns count the others only.
+				field_efficiency = field_gather_efficiency(std::min(fg.total, FIELD_MAX_GATHERERS) - 1);
 			}
 			float dx = units_.pos_x[i] - resources_.x[ridx];
 			float dz = units_.pos_z[i] - resources_.z[ridx];
@@ -14626,7 +14636,8 @@ uint32_t Simulation::nearest_dropsite(size_t i) const {
 	return best;
 }
 
-void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued) {
+void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued,
+		bool units_only, bool allow_capture) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
 		if (i < 0 || !units_.alive[i]) continue;
@@ -14641,7 +14652,7 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 				q = true;
 			}
 		}
-		order_attack_move(&uid, 1, x, z, q);
+		order_attack_move(&uid, 1, x, z, q, units_only, allow_capture);
 	}
 }
 

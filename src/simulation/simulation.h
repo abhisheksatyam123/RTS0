@@ -689,8 +689,10 @@ public:
 	// the queued ones.
 	void order_remove_guard(const uint32_t *unit_ids, size_t count);
 	// 0 A.D. Commands.js "call-to-arms": Soldiers, Warships, Siege and Healers drop their load
-	// at the nearest dropsite (DropAtNearestDropSite), then attack-walk to (x, z).
-	void order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued = false);
+	// at the nearest dropsite (DropAtNearestDropSite), then attack-walk to (x, z): units only with
+	// session.attackmoveUnit, capturing with session.capture.
+	void order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued = false,
+			bool units_only = false, bool allow_capture = false);
 	// The unit's current order and its Shift-queued ones (empty if none).
 	UnitOrder unit_order(uint32_t unit_id) const;
 	const std::vector<UnitOrder> *unit_order_queue(uint32_t unit_id) const;
@@ -2005,6 +2007,7 @@ private:
 			float cost[RES_COUNT];
 			float cost_add[RES_COUNT]; // Cost/Resources added after the multipliers (Nastasen's Gift of Warships)
 			float loot_mul[RES_COUNT], loot_add[RES_COUNT]; // the unit's own Loot/<res> (Celtic Auxiliaries)
+			int16_t carry[RES_COUNT]; // ResourceGatherer/Capacities added (Wicker Baskets: Worker, infantry too)
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
