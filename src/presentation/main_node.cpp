@@ -7,6 +7,7 @@
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include "simulation/petra_chat.h"
+#include "simulation/rms_generator.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -2071,7 +2072,7 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			// EndGameManager's, WonderVictory.js's and CaptureTheRelic.js's win lines.
 			static const char *kWhy[] = {"lost all critical units and structures", "lost all units", "lost all structures",
 					"lost all civic centers", "lost hero", "", "objective", "last players alive", "wonder victory",
-					"Capture the Relic", "game mode"};
+					"Capture the Relic", "game mode", "lost civic center"};
 			const String why = n.tech < sizeof(kWhy) / sizeof(kWhy[0]) ? String(kWhy[n.tech]) : String("game mode");
 			if (n.kind == N::DEFEATED) {
 				line = sprintf0(tr(n.tech == N::END_RESIGNED ? String("%(player)s has resigned.")
@@ -2184,7 +2185,7 @@ void RtsoMain::update_cursor() {
 						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
 							const uint16_t tm = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
 							healer = healer || rtso::unit_is_healer(tm, uv.unit_type[i]);
-							builder = builder || rtso::unit_can_build(uv.unit_type[i], tm);
+							builder = builder || (rtso::unit_can_build(uv.unit_type[i], tm) && !sim->nonbuilder(uv.id[i]));
 							break;
 						}
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
@@ -4394,6 +4395,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	int h_res = (int)d.get("heightmap_res", 64);
 
 	sim->set_map_half(world_size * 0.5f);
+	// 0.28 ScriptSettings CircularMap ("circular", from port_0ad_maps.py); square when absent.
+	sim->set_circular_map((bool)d.get("circular", false));
 	sim->set_map_info(map_id.utf8().get_data(), name.utf8().get_data(), biome.utf8().get_data());
 
 	Array h_arr = d.get("heightmap", Array());
@@ -4539,9 +4542,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
-		// The map's own roster template when RTS0 has it ("spart/infantry_javelineer_b").
-		const uint16_t tmpl = u.has("template")
-				? rtso::civ_unit_template_by_id(String(u["template"]).utf8().get_data()) : rtso::CIV_UNIT_TEMPLATE_NONE;
+		// The map's own roster template when RTS0 has it ("spart/infantry_javelineer_b"); a
+		// skirmish map's skirmish/units/* becomes the owner's civ unit, or nothing.
+		uint16_t tmpl = rtso::CIV_UNIT_TEMPLATE_NONE;
+		if (u.has("template")) {
+			const CharString t = String(u["template"]).utf8();
+			const int replaced = rtso::skirmish_replace(sim->team_civ(team), t.get_data(), tmpl);
+			if (replaced < 0) continue;
+			if (!replaced) tmpl = rtso::civ_unit_template_by_id(t.get_data());
+		}
 		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
 			unit_ids[i] = sim->spawn_unit(ux, uz, team, (rtso::UnitType)rtso::civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
 			continue;
