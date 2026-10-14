@@ -3191,8 +3191,10 @@ void Simulation::tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type
 	paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
 	paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
 	paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	// TechnologyManager.js Queue: techCostMultiplier.time x researchTime. The AI's Cost/BuildTime
+	// cheat (config.js Cheat) reaches units and structures, not technologies.
 	time = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
-		* (unit ? 1.0f : tech_mods(player_id).bld_research_time[bld_type]) * ai_time_mult(player_id);
+		* (unit ? 1.0f : tech_mods(player_id).bld_research_time[bld_type]);
 }
 
 bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t tech_id) {
@@ -19350,13 +19352,21 @@ void Simulation::petra_build_defenses() {
 	}
 }
 
-// researchManager.js:15 checkPhase: Town at pop >= Economy.popPhase2, City when
-// workers > Economy.workPhase3. While it holds, the phase is the majorTech plan.
+// researchManager.js:15 checkPhase: Town at an accounted population (queued training
+// included) >= Economy.popPhase2, City when workers > Economy.workPhase3, never while a
+// civic centre or wonder is planned. While it holds, the phase is the majorTech plan;
+// headquarters.js phasing ends once that research starts (ResearchPlan.onStart).
 bool Simulation::petra_phasing() const {
 	const uint8_t phase = petra_ps().phase;
-	if (phase == 1) return pop_current(petra_pid_) >= petra_pop_phase2();
-	if (phase == 2) return petra_accounted_workers() > petra_work_phase3();
-	return false;
+	if (phase >= 3) return false;
+	if (research_check(petra_pid_, phase == 1 ? TECH_PHASE_TOWN : TECH_PHASE_CITY) == TECH_ERR_IN_PROGRESS) return false;
+	auto planned = [&](int q) {
+		const PetraQueueAccount &w = petra_queues_.wants[q];
+		return w.food + w.wood + w.gold + w.stone > 0.0f;
+	};
+	if (planned(PETRA_Q_CIVIL_CENTRE) || planned(PETRA_Q_WONDER)) return false;
+	if (phase == 1) return petra_accounted_population() >= petra_pop_phase2();
+	return petra_accounted_workers() > petra_work_phase3();
 }
 
 void Simulation::petra_available_techs(std::vector<uint8_t> &out) const {
@@ -19367,8 +19377,11 @@ void Simulation::petra_available_techs(std::vector<uint8_t> &out) const {
 			has[b.type] = true;
 	for (uint8_t t = 1; t < TECH_COUNT; ++t) {
 		if (t == TECH_PHASE_TOWN || t == TECH_PHASE_CITY) continue; // phases are treated separately
-		const TechInfo &ti = tech_info(t);
-		if (ti.researcher >= BLD_TYPE_COUNT || !has[ti.researcher]) continue;
+		// gameState.findAvailableTech: what any of its finished researchers offers this civ.
+		bool offered = false;
+		for (uint8_t b = 0; b < BLD_TYPE_COUNT && !offered; ++b)
+			offered = has[b] && building_researches_tech(b, t, petra_ps().civ);
+		if (!offered) continue;
 		const ResearchCheck rc = research_check(petra_pid_, t);
 		if (rc == TECH_OK || rc == TECH_ERR_COST) out.push_back(t);
 	}
@@ -19386,7 +19399,7 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 	bool have = false;
 	float best_time = 0.0f;
 	for (auto &b : buildings_) {
-		if (b.team != petra_pid_ || b.type != tinfo.researcher || b.hp <= 0.0f || b.wrecked) continue;
+		if (b.team != petra_pid_ || !building_researches_tech(b.type, tech_id, petra_ps().civ) || b.hp <= 0.0f || b.wrecked) continue;
 		have = true;
 		if (b.build_progress < 1.0f || b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= PRODUCTION_QUEUE_MAX) continue;
 		float t = 0.0f;
@@ -19400,20 +19413,16 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 			petra_place_generic(tinfo.researcher, tinfo.researcher == BLD_FORGE ? PETRA_Q_MILITARY_BUILDING : PETRA_Q_ECONOMIC_BUILDING);
 		return false;
 	}
-	const float *tc = tech_mods(petra_pid_).bld_tech_cost[at->type];
-	const bool phase_tech = tech_id == TECH_PHASE_TOWN || tech_id == TECH_PHASE_CITY;
-	if (!petra_try_pay(phase_tech ? PETRA_Q_MAJOR_TECH : PETRA_Q_MINOR_TECH, tinfo.food_cost * tc[RES_FOOD], tinfo.wood_cost * tc[RES_WOOD],
-	                   tinfo.gold_cost * tc[RES_GOLD], tinfo.stone_cost * tc[RES_STONE]))
-		return false;
+	// The price and time a player pays at this researcher (Researcher.js QueueTechnology).
 	ProductionOrder order;
 	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech_id;
 	order.timer = 0.0f;
-	order.paid[RES_FOOD] = (float)tinfo.food_cost;
-	order.paid[RES_WOOD] = (float)tinfo.wood_cost;
-	order.paid[RES_GOLD] = (float)tinfo.gold_cost;
-	order.paid[RES_STONE] = (float)tinfo.stone_cost;
-	order.duration = tinfo.research_time * 0.75f * tech_mods(petra_pid_).bld_research_time[at->type] * ai_time_mult(petra_pid_);
+	tech_price(petra_pid_, tech_id, at->type, order.paid.data(), order.duration);
+	const bool phase_tech = tech_id == TECH_PHASE_TOWN || tech_id == TECH_PHASE_CITY;
+	if (!petra_try_pay(phase_tech ? PETRA_Q_MAJOR_TECH : PETRA_Q_MINOR_TECH, order.paid[RES_FOOD], order.paid[RES_WOOD],
+	                   order.paid[RES_GOLD], order.paid[RES_STONE]))
+		return false;
 	// researchManager.js plans the next phase as a rush: stopAllProduction(0.45) drops every
 	// item less than 45% done (refunded) before the phase joins the queue.
 	if (tech_id == TECH_PHASE_TOWN || tech_id == TECH_PHASE_CITY)
@@ -19563,9 +19572,8 @@ void Simulation::petra_manage_research(float dt) {
 	petra_available_techs(techs);
 	// Only a researcher with room in its queue can take the technology.
 	auto free_researcher = [&](uint8_t t) {
-		const uint8_t r = tech_info(t).researcher;
 		for (const auto &b : buildings_)
-			if (b.team == petra_pid_ && b.type == r && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
+			if (b.team == petra_pid_ && building_researches_tech(b.type, t, petra_ps().civ) && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
 			    b.upgrade_to == BLD_TYPE_COUNT && b.queue.size() < PRODUCTION_QUEUE_MAX)
 				return true;
 		return false;
@@ -19593,6 +19601,14 @@ void Simulation::petra_manage_research(float dt) {
 	// The picks are deterministic, so a technology waiting for its resources is
 	// picked again until paid for (queueManager keeps the plan queued).
 	auto pick = [&](uint8_t t) { start_tech(t); };
+	// increasePriority: a cheap pick (template cost under 400 in all) waits at twice
+	// minorTech's priority until it starts (queueToReset).
+	auto pick_cheap_first = [&](uint8_t t) {
+		const TechInfo &ti = tech_info(t);
+		if (ti.food_cost + ti.wood_cost + ti.gold_cost + ti.stone_cost < 400)
+			petra_change_priority(PETRA_Q_MINOR_TECH, 2 * petra_queue_base_priority(PETRA_Q_MINOR_TECH), PETRA_Q_MINOR_TECH);
+		pick(t);
+	};
 
 	// researchWantedTechs: champions first, then gather rates (fish on a naval map),
 	// carrying capacities and ranged range.
@@ -19615,9 +19631,12 @@ void Simulation::petra_manage_research(float dt) {
 			return;
 		}
 		if (phase == 1 && too_costly(t)) continue;
-		if ((naval_map && petra_tech_modifies(t, {TSTAT_GATHER_FISH})) ||
-		    petra_tech_modifies(t, {TSTAT_GATHER_FRUIT, TSTAT_GATHER_GRAIN, TSTAT_GATHER_WOOD, TSTAT_CARRY_FOOD,
-		                            TSTAT_CARRY_WOOD, TSTAT_CARRY_STONE, TSTAT_CARRY_METAL, TSTAT_RANGE})) {
+		if ((naval_map && petra_tech_modifies(t, {TSTAT_GATHER_FISH})) || petra_tech_modifies(t, {TSTAT_GATHER_FRUIT, TSTAT_GATHER_WOOD})) {
+			pick_cheap_first(t);
+			return;
+		}
+		if (petra_tech_modifies(t, {TSTAT_GATHER_GRAIN, TSTAT_CARRY_FOOD, TSTAT_CARRY_WOOD, TSTAT_CARRY_STONE,
+		                            TSTAT_CARRY_METAL, TSTAT_RANGE})) {
 			pick(t);
 			return;
 		}
@@ -19627,7 +19646,11 @@ void Simulation::petra_manage_research(float dt) {
 	// researchPreferredTechs: stone and metal rates, tower arrows, health regeneration.
 	for (uint8_t t : techs) {
 		if (phase == 2 && too_costly(t)) continue;
-		if (petra_tech_modifies(t, {TSTAT_GATHER_STONE, TSTAT_GATHER_METAL, TSTAT_ARROWS, TSTAT_REGEN, TSTAT_IDLE_REGEN})) {
+		if (petra_tech_modifies(t, {TSTAT_GATHER_STONE, TSTAT_GATHER_METAL, TSTAT_ARROWS})) {
+			pick_cheap_first(t);
+			return;
+		}
+		if (petra_tech_modifies(t, {TSTAT_REGEN, TSTAT_IDLE_REGEN})) {
 			pick(t);
 			return;
 		}
