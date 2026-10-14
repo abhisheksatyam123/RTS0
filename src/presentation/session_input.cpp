@@ -373,7 +373,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						}
 						const bool queued = rtso::hotkeys::held("session.queue");
 						if (!try_place_wall(click, queued)) {
-							session_audio_.play_invalid_placement(); // "Cannot build wall here!"
+							session_audio_.play_invalid_placement();
+							wall_fail_tip_ = rtso::tr0("Cannot build wall here!");
+							wall_fail_mouse_ = mouse_pos;
 							return;
 						}
 						if (queued) {

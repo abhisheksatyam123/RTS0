@@ -554,6 +554,16 @@ public:
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
+	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
+	// wall can't go where the cursor is, or a wall's cost; wall_fail_tip_ ("Cannot build wall
+	// here!") holds until the cursor moves.
+	Label *placement_tip_ = nullptr;
+	bool placement_tip_error_ = false;
+	String wall_fail_tip_;
+	Vector2 wall_fail_mouse_;
+	void set_placement_tip(const String &text, bool error);
+	String placement_failure_text(int result, uint8_t btype, float x, float z) const;
+	Dictionary debug_placement_tip() const;
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -726,6 +736,7 @@ private:
 	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
 	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)
 	Dictionary debug_selected_building() const;
+	Dictionary debug_queue_slot(int i);
 	Dictionary debug_minimap_panel() const;
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
