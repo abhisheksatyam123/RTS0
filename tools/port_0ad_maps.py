@@ -1019,6 +1019,7 @@ github_skirmishes = {
     "corsica_and_sardinia_4p": ("corsica_and_sardinia", "mediterranean"),
     "crocodilopolis_4p": ("crocodilopolis", "desert"),
     "dueling_cliffs_3pv3p": ("dueling_cliffs", "alpine"),
+    "egypt_3pv3p": ("egypt", "desert"),
     "gallic_highlands_2p": ("gallic_highlands", "temperate"),
     "golden_oasis_2p": ("golden_oasis", "desert"),
     "greek_acropolis_night_2p": ("greek_acropolis_night", "mediterranean"),
