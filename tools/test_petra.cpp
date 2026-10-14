@@ -1891,7 +1891,9 @@ static void test_relic_capture() {
 	run_ai_turns(*s, 10);
 	std::printf("  relic taken by player 0 first: the AI's capturer %s\n",
 		s->units_.order_kind[su] == ORDER_CAPTURE_RELIC ? "keeps going" : "is called off");
-	CHECK(s->units_.alive[su] && s->units_.order_kind[su] != ORDER_CAPTURE_RELIC, "Petra calls off a capture of a relic an enemy took");
+	// Called off, it may go back to work or into the civic centre (garrisoned units are not alive).
+	CHECK((s->units_.alive[su] || s->units_.action_state[su] == ACTION_GARRISONED) &&
+			s->units_.order_kind[su] != ORDER_CAPTURE_RELIC, "Petra calls off a capture of a relic an enemy took");
 }
 
 // attackManager.js getRelicEnemyPlayer: in capture the relic, Petra attacks the enemy

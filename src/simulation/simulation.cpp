@@ -14817,8 +14817,10 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	}
 	const float dx = units_.pos_x[i] - ax, dz = units_.pos_z[i] - az;
 	const float d2 = dx * dx + dz * dz;
-	const bool can_fight = units_.attack_damage[i] > 0.0f && stance != STANCE_PASSIVE;
-	if (!can_fight) {
+	// Only a passive stance flees (respondFlee); any other stance with nothing to fight with
+	// (hero healers, the Seeress) ignores the attacker, as AttackVisibleEntity finds no target.
+	if (stance != STANCE_PASSIVE && units_.attack_damage[i] <= 0.0f) return;
+	if (stance == STANCE_PASSIVE) {
 		if (unit_is_siege_engine(units_.unit_type[i]) || !pack_state_can_move(units_.pack_state[i])) return;
 		// UnitAI Flee (FLEEING enter): get FleeDistance further from the attacker than
 		// it is now, then carry on.

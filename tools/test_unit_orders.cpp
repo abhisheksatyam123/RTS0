@@ -2398,6 +2398,30 @@ static void test_can_patrol() {
 	check(dist(s, woman, 20, 0) < 2.0f, "and stays, not walking back");
 }
 
+static void test_unarmed_aggressive_stays() {
+	std::printf("68. an aggressive unit with no attack ignores attackers; only passive ones flee (UnitAI respondFlee)\n");
+	Simulation s;
+	setup(s);
+	uint32_t hero = s.spawn_unit(0, 0, 0, UNIT_HERO, 0.0f, civ_unit_template_by_id("athen/hero_hippocrates"));
+	uint32_t healer = s.spawn_unit(-40, 40, 0, UNIT_HEALER); // out of the hero's sight, so it isn't healed
+	check(s.units_.stance[idx_of(s, hero)] == STANCE_AGGRESSIVE && s.units_.attack_damage[idx_of(s, hero)] <= 0.0f,
+			"Hippocrates is aggressive with no attack");
+	uint32_t a = s.spawn_unit(1.5f, 0, 1, UNIT_SWORDSMAN);
+	uint32_t b = s.spawn_unit(-38.5f, 40, 1, UNIT_SWORDSMAN);
+	s.order_attack(&a, 1, hero);
+	s.order_attack(&b, 1, healer);
+	bool fled = false;
+	const bool hit = run_until(s, 10.0f, [&] {
+		fled = fled || act_of(s, hero) == ACTION_FLEE;
+		return hp_of(s, hero) < s.units_.max_hp[idx_of(s, hero)];
+	});
+	run(s, 2.0f);
+	fled = fled || act_of(s, hero) == ACTION_FLEE;
+	check(hit, "the hero is hit");
+	check(!fled && dist(s, hero, 0, 0) < 1.5f, "and stays where it is");
+	check(dist(s, healer, -40, 40) > 3.0f, "a passive healer runs off");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2592,6 +2616,7 @@ int main(int argc, char **argv) {
 	test_arakamani_temples();
 	test_range_check_between_hits();
 	test_can_patrol();
+	test_unarmed_aggressive_stays();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
