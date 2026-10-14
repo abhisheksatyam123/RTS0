@@ -140,6 +140,16 @@ int main() {
 		s.order_board_transport(sw.data(), sw.size(), ram2);
 		CHECK(s.get_transport_passenger_count(ram2) == 10);
 		CHECK(alive(s, sw[10]));
+		// The List classes are the template's own: a cavalry hero (Alexander) is no Infantry and
+		// stays out of a siege tower; an infantry hero (Leonidas) gets in.
+		const uint16_t alex = template_id("mace/hero_alexander_iii"), leo = template_id("spart/hero_leonidas");
+		CHECK(alex != CIV_UNIT_TEMPLATE_NONE && leo != CIV_UNIT_TEMPLATE_NONE);
+		uint32_t t2 = s.spawn_unit(-20.0f, 20.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, st_t);
+		uint32_t hc = s.spawn_unit(-19.0f, 20.5f, 0, UNIT_HERO, 0.0f, alex);
+		uint32_t hi = s.spawn_unit(-19.0f, 19.5f, 0, UNIT_HERO, 0.0f, leo);
+		s.order_board_transport(&hc, 1, t2);
+		s.order_board_transport(&hi, 1, t2);
+		CHECK(s.get_transport_passenger_count(t2) == 1 && alive(s, hc) && !alive(s, hi));
 	}
 
 	// 3. Arrows: none when empty, one per garrisoned Infantry.

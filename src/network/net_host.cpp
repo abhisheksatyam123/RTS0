@@ -612,7 +612,15 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 		}
 
 		if (!peer && (hdr.flags & NET_FLAG_CONNECT_REQ)) {
-			if (peers_.size() < static_cast<size_t>(cfg.maxPlayers + cfg.maxObservers)) {
+			// Sessions that left keep their entry (ids stay unique), so count
+			// only the connected ones, as 0 A.D. counts m_Sessions.
+			const size_t live = (size_t)std::count_if(peers_.begin(), peers_.end(),
+					[](const NetPeer &p) { return p.connected; });
+			if (live >= NET_MAX_CLIENTS) {
+				// NDR_SERVER_FULL, in the disconnect's channel byte; sent each
+				// time it asks, since the client resends its connect.
+				send_wire_packet(from_ip, from_port, 0, NET_FLAG_DISCONNECT, NDR_SERVER_FULL, nullptr, 0, false);
+			} else {
 				NetPeer np;
 				np.id = next_peer_id_++;
 				np.address = from_ip;
@@ -662,6 +670,7 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			if (hdr.flags & NET_FLAG_DISCONNECT) {
 				const bool refused = auth_result_ >= 0 && auth_result_ != ARC_OK;
 				lose_host(kicked_self_ ? (banned_self_ ? 7 : 6)
+						: hdr.channel ? hdr.channel // a reason the host named (NDR_SERVER_FULL)
 						: refused && auth_result_ == ARC_BANNED ? 7
 						: refused && auth_result_ == ARC_PASSWORD_INVALID ? 14 : 2);
 			}

@@ -412,11 +412,13 @@ def read_hashes(path: str) -> dict:
 def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
                     timeout: int) -> bool:
     """0 A.D. rejoin: the joiner leaves after turn LEAVE, the host plays on alone,
-    then a new process rejoins into the empty seat from the host's saved world
-    and both must hash the same on every turn after the rejoin."""
+    then a new process signs in under the same name and rejoins into its old seat
+    from the host's saved world, and both must hash the same on every turn after
+    the rejoin. A client with another name that asks first gets no seat: as in
+    0.28's NetServer it may only watch."""
     turns, leave = 500, 200
-    print(f"\n---- rejoin: joiner leaves after turn {leave}, a new client takes its seat ----")
-    logs = {r: os.path.join(out_dir, f"rejoin_{r}.log") for r in ("host", "left", "back")}
+    print(f"\n---- rejoin: joiner leaves after turn {leave}, comes back into its own seat ----")
+    logs = {r: os.path.join(out_dir, f"rejoin_{r}.log") for r in ("host", "left", "intruder", "back")}
     for path in logs.values():
         if os.path.exists(path):
             os.remove(path)  # a stale log from an earlier run must not pass for this one
@@ -426,7 +428,7 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     host = peer("host", logs["host"])
     time.sleep(0.3)
-    left = peer("join", logs["left"], "--quit-turn", str(leave))
+    left = peer("join", logs["left"], "--name", "bob", "--quit-turn", str(leave))
     outs, rcs = [], []
     def finish(p):
         try:
@@ -438,25 +440,33 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
         rcs.append(p.returncode)
     finish(left)
     time.sleep(0.5)
-    back = peer("join", logs["back"], "--rejoin", "1")
+    intruder = peer("join", logs["intruder"], "--name", "mallory", "--rejoin", "1")
+    while intruder.poll() is None and not read_hashes(logs["intruder"]):
+        time.sleep(0.1)
+    back = peer("join", logs["back"], "--name", "bob", "--rejoin", "1")
+    finish(intruder)
     finish(back)
     finish(host)
-    rep = peer_lines(outs, "rejoin")
+    intruder_seat = peer_lines([outs[1]], "rejoin").get("join", {}).get("player")
+    rep = peer_lines([outs[2]], "rejoin")
     h, b = read_hashes(logs["host"]), read_hashes(logs["back"])
     t0 = int(rep.get("join", {}).get("turn", "0"))
     after = [t for t in sorted(b) if t > t0]
     bad = next((t for t in after if h.get(t) != b[t]), None)
-    ok = (rcs == [0, 0, 0] and t0 >= leave and rep.get("join", {}).get("player") == "1" and len(h) == turns
-          and after == list(range(t0 + 1, turns + 1)) and bad is None)
+    ok = (rcs == [0, 0, 0, 0] and t0 >= leave and rep.get("join", {}).get("player") == "1" and len(h) == turns
+          and after == list(range(t0 + 1, turns + 1)) and bad is None and intruder_seat == "255"
+          and "in the lockstep from turn" in (outs[2] or ""))
     if ok:
-        print(f"[net] PASS rejoin: new client took player 2 at turn {t0}, then turns {t0 + 1}-{turns} "
-              f"matched the host (final hash {h[turns]})")
+        joined = re.search(r"in the lockstep from turn (\d+) \(at turn (\d+)\)", outs[2] or "")
+        print(f"[net] PASS rejoin: bob came back into player 2 at turn {t0}, then turns {t0 + 1}-{turns} "
+              f"matched the host (final hash {h[turns]}); the match ran on while he loaded, and the lockstep "
+              f"took him at turn {joined.group(1)}; mallory, who asked first, could only watch")
     else:
         for o in outs:
             for line in (o or "").splitlines():
                 if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
                     print("   " + line)
-        print(f"[net] FAIL rejoin: rc={rcs} rejoin={rep} host_turns={len(h)} back_turns={len(b)} first_bad={bad}")
+        print(f"[net] FAIL rejoin: rc={rcs} rejoin={rep} intruder_seat={intruder_seat} host_turns={len(h)} back_turns={len(b)} first_bad={bad}")
     return ok
 
 

@@ -2226,6 +2226,12 @@ static void test_research_choices() {
 	for (uint8_t t = 1; t < TECH_COUNT; ++t) all3 += s->players_[1].has_tech(t);
 	std::printf("  city phase: %d forge techs (%d techs in all)\n", fights3, all3);
 	CHECK(fights3 >= 2, "researches other technologies at random in the city phase");
+	// Config.unusedNoAllyTechs: Cartography, Diaspora and the international trade bonus
+	// only with an ally.
+	CHECK(s->petra_skips_random_tech(TECH_UNLOCK_SHARED_LOS, false) && s->petra_skips_random_tech(TECH_UNLOCK_SHARED_DROPSITES, false),
+	      "no shared vision or dropsites without an ally");
+	CHECK(!s->petra_skips_random_tech(TECH_UNLOCK_SHARED_LOS, true) && !s->petra_skips_random_tech(TECH_UNLOCK_SHARED_DROPSITES, true),
+	      "both with an ally");
 }
 
 // headquarters.js trainMoreWorkers: the civic centre trains citizen infantry as workers
@@ -2774,12 +2780,23 @@ static void test_defense_armies() {
 	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
 	std::printf("  defense: two groups 18 units apart make %zu armies, %zu with defenders\n", armies.size(), with_defenders);
 	CHECK(armies.size() == 2 && with_defenders == 2, "one army per group of foes, each defended (makeIntoArmy, assignDefenders)");
-	// The western group joins the eastern one.
+	// The western group joins the eastern one where its fight has taken it (a mine beside the
+	// eastern group's spawn point blocks movement, so it can't stay put).
+	float ex = 0.0f, ez = 0.0f;
+	int en = 0;
+	for (uint32_t id : east) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		ex += s->units_.pos_x[i];
+		ez += s->units_.pos_z[i];
+		++en;
+	}
+	if (en) { ex /= (float)en; ez /= (float)en; } else { ex = cx + 10.0f; ez = cz - 7.0f; }
 	for (size_t k = 0; k < west.size(); ++k) {
 		const int32_t i = s->lookup_unit(west[k]);
 		if (i < 0) continue;
-		s->units_.pos_x[i] = cx + 10.0f;
-		s->units_.pos_z[i] = cz - 8.0f + (float)k;
+		s->units_.pos_x[i] = ex + 1.0f;
+		s->units_.pos_z[i] = ez - 1.0f + (float)k;
 	}
 	run_ai_turns(*s, 1);
 	std::printf("  defense: after the groups meet, %zu army\n", armies.size());
@@ -3397,6 +3414,104 @@ static void test_defensive_location() {
 	}
 }
 
+// queueplanTraining.js: each batch Petra queues carries what it is for (a worker, the attack
+// in preparation, the raid); getBestTrainers/start send it to the trainer whose queue ends
+// first, a civic centre 10 s later for soldiers; the attack's soldiers spawn into its army and
+// the worker ones stay workers, wherever they trained; the tag survives a save and load.
+static void test_order_plan_tags() {
+	auto make = [] {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		return s;
+	};
+	auto s = make();
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type)) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	uint32_t barracks = 0; // the starting one, else a new one
+	int n_barracks = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_BARRACKS) { barracks = b.id; ++n_barracks; }
+	if (!barracks) barracks = s->spawn_building_world(cc->x + 14.0f, cc->z, BLD_BARRACKS, 1, 1.0f), ++n_barracks;
+	CHECK(n_barracks == 1, "Petra has one barracks");
+	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t : civ_roster_ids(s->players_[1].civ)) {
+		const CivUnitTemplate &ct = civ_unit_template(t);
+		if (ct.phase > 1 || unit_gather_class(ct.unit_type, t) != GATHER_INFANTRY) continue;
+		if (!s->can_train_at(1, ct.unit_type, BLD_BARRACKS, t) || !s->can_train_at(1, ct.unit_type, BLD_TOWN_CENTER, t)) continue;
+		tmpl = t;
+		break;
+	}
+	CHECK(tmpl != CIV_UNIT_TEMPLATE_NONE, "a citizen soldier trains at both the barracks and the civic centre");
+	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return;
+	const uint8_t type = civ_unit_template(tmpl).unit_type;
+	auto queue_of = [&](uint32_t id) -> std::vector<ProductionOrder> & {
+		return s->buildings_[s->building_id_to_idx_.at(id)].queue;
+	};
+	queue_of(cc_id).clear();
+	queue_of(barracks).clear();
+	CHECK(s->petra_best_trainer(tmpl, type, PRODUCTION_QUEUE_MAX) == barracks, "a soldier trains at the barracks over the civic centre");
+	ProductionOrder busy;
+	busy.unit_type = type;
+	busy.tmpl = tmpl;
+	busy.timer = 0.0f;
+	busy.duration = 12.0f;
+	queue_of(barracks).push_back(busy);
+	CHECK(s->petra_best_trainer(tmpl, type, PRODUCTION_QUEUE_MAX) == cc_id, "and at the civic centre once the barracks has 10 s more to train");
+	queue_of(barracks).clear();
+
+	// One batch for the attack and one for the economy, both at the barracks and about to finish.
+	std::vector<uint32_t> before;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i]) before.push_back(s->units_.id[i]);
+	for (uint8_t plan : {PETRA_ORDER_ATTACK, PETRA_ORDER_WORKER}) {
+		ProductionOrder o;
+		o.unit_type = type;
+		o.tmpl = tmpl;
+		o.duration = 1.0f;
+		o.timer = 0.95f;
+		o.petra_plan = plan;
+		queue_of(barracks).push_back(o);
+	}
+	run_for(*s, 1.0f);
+	int spawned = 0, army = 0;
+	for (size_t i = 0; i < s->units_.count; ++i) {
+		if (!s->units_.alive[i] || s->units_.team[i] != 1 || s->units_.tmpl[i] != tmpl) continue;
+		if (std::find(before.begin(), before.end(), s->units_.id[i]) != before.end()) continue;
+		++spawned;
+		army += !s->petra_is_worker(i);
+	}
+	std::printf("  plan tags: %d soldiers trained at the barracks, %d in the army\n", spawned, army);
+	CHECK(spawned == 2 && army == 1, "the attack's soldier joins the army, the worker one stays a worker");
+
+	// The tag is saved.
+	ProductionOrder raid;
+	raid.unit_type = type;
+	raid.tmpl = tmpl;
+	raid.timer = 0.0f;
+	raid.duration = 60.0f;
+	raid.petra_plan = PETRA_ORDER_RAID;
+	queue_of(barracks).clear();
+	queue_of(barracks).push_back(raid);
+	const char *path = "/tmp/rtso_test_petra_plan_tags.sav";
+	CHECK(s->save_state(path), "saves");
+	auto t = make();
+	CHECK(t->load_state(path), "loads");
+	std::remove(path);
+	auto it = t->building_id_to_idx_.find(barracks);
+	CHECK(it != t->building_id_to_idx_.end() && !t->buildings_[it->second].queue.empty() &&
+	      t->buildings_[it->second].queue.front().petra_plan == PETRA_ORDER_RAID, "a queued batch keeps its plan through a save and load");
+}
+
+
 // attackPlan.js addUnits for a raid: every free FastMoving soldier but two, kept back to hunt.
 static void test_raid_keeps_hunters() {
 	auto s = std::make_unique<Simulation>();
@@ -3511,6 +3626,37 @@ static void test_building_plan_028() {
 	s->units_.gather_res[wi] = 1;
 	s->petra_check_resource_levels(1100); // an empty count looks again 10 turns on
 	CHECK(dc.used[0] == 1, "a gatherer at work is counted");
+
+	// queueplanBuilding.js canStart: one foundation per AI turn (turnCache.buildingBuilt).
+	s->petra_in_turn_ = true;
+	s->petra_turn_built_ = false;
+	const uint32_t f1 = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	const uint32_t f2 = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	CHECK(f1 != 0 && f2 == 0 && !s->petra_place_no_room_, "a second foundation waits for the next AI turn");
+	CHECK(s->petra_place_dropsite(RES_WOOD, 0.0f) == 0, "so does a storehouse");
+	s->petra_turn_built_ = false; // the next turn
+	CHECK(s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) != 0, "the next turn lays one");
+	s->petra_in_turn_ = s->petra_turn_built_ = false;
+	// Played: each AI lays at most one foundation a turn.
+	{
+		auto m = std::make_unique<Simulation>();
+		m->set_sim_seed(7);
+		m->reset();
+		m->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 64.0f);
+		m->set_player_resources(1, 5000, 5000, 5000, 5000);
+		size_t before = m->buildings_.size();
+		int most = 0, turns = 0;
+		for (int t = 0; t < 4 * 60 * 20; ++t) {
+			m->tick(Simulation::FIXED_STEP);
+			int added = 0;
+			for (size_t k = before; k < m->buildings_.size(); ++k) added += m->buildings_[k].team == 1;
+			if (m->buildings_.size() != before) ++turns;
+			most = std::max(most, added);
+			before = m->buildings_.size();
+		}
+		std::printf("  one per turn: %d ticks laid foundations, at most %d in one\n", turns, most);
+		CHECK(turns > 0 && most == 1, "no AI turn lays two foundations");
+	}
 }
 
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking
@@ -3622,7 +3768,9 @@ static void test_personality_draw() {
 	t.set_lock_teams(true);
 	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.3f)) < 1e-5f);
 	t.set_petra_difficulty(2, PETRA_SANDBOX);
-	assert(t.petra_config_for(2).aggressive == 0.85f && t.petra_config_for(2).pop_scaling == 0.5f);
+	// setConfig draws no personality on Sandbox: the default 0.5 whatever the behaviour.
+	assert(t.petra_config_for(2).aggressive == 0.5f && t.petra_config_for(2).defensive == 0.5f &&
+	       t.petra_config_for(2).pop_scaling == 0.5f);
 	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
 }
 
@@ -4008,6 +4156,7 @@ int main(int argc, char **argv) {
 	RUN(test_build_defenses);
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);
+	RUN(test_order_plan_tags);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);
 	RUN(test_food_fields);

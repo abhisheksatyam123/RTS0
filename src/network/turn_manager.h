@@ -398,6 +398,15 @@ private:
 	// Host: the client list last sent as NMT_PLAYER_ASSIGNMENT, and every
 	// client's name as last seen (a client that left keeps it in the list).
 	std::vector<PlayerAssignmentMsg::Entry> sent_assignment_;
+	// Host: rejoining players served a world but not yet loaded (seat by
+	// client). Nobody waits on them until they say they loaded (0 A.D. adds a
+	// rejoiner to the turn manager on NMT_LOADED_GAME), so the match runs on
+	// through the transfer.
+	std::map<uint32_t, uint8_t> rejoin_loading_;
+	// Client: loaded a rejoin world as a player, waiting for the host's LOCKSTEP.
+	bool rejoin_lockstep_wait_ = false;
+	void admit_rejoiner(uint32_t client_id);
+	void send_rejoin_msg(uint32_t to, const RejoinMsg &m);
 	std::unordered_map<uint32_t, std::string> client_names_;
 	void send_player_assignment();
 	bool rejoin_wanted_ = false, rejoin_have_header_ = false, rejoined_ = false;
