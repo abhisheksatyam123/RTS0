@@ -2768,6 +2768,8 @@ private:
 	bool petra_garrison_attacked_unit(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	size_t petra_attacked_unit_holder(size_t unit_idx, bool emergency, const std::vector<int> &incoming) const; // building index or SIZE_MAX
 	// victoryManager.js: regicide heroes and the units guarding them.
+	// victoryManager.js Garrison events: the regicide hero's guards when it is garrisoned.
+	void petra_critical_ent_garrisoned();
 	bool petra_is_critical_ent(size_t unit_idx) const;
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
