@@ -627,11 +627,6 @@ public:
 	static uint8_t researching(const Building &b) { return b.queue.empty() ? TECH_NONE : b.queue.front().tech; }
 	// Whether `tech` is anywhere in one of the player's production queues.
 	bool tech_queued(uint8_t player, uint8_t tech) const;
-	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
-	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
-	// cmd_train (team-0/human only) this honours the building's own team
-	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
-	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
 	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
 	// Units that train (0 A.D. Trainer on a unit: Athenian and Persian triremes, Cyrus II;
 	// unit_trainer_data.h). Each trainer unit keeps its own production queue; the units it
