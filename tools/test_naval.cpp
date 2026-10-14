@@ -1,5 +1,5 @@
 // Naval tests: merchant ships trading dock to dock (0 A.D. Trader.js, Market.js
-// TradeType "naval", Market.js CalculateTraderGain, the Carthaginian ship bonus).
+// TradeType "land naval", Market.js CalculateTraderGain, the Carthaginian ship bonus).
 //   g++ -std=c++20 -O2 -Isrc tools/test_naval.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_naval && /tmp/test_naval
@@ -7,6 +7,7 @@
 #define private public
 #include "simulation/simulation.h"
 #undef private
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -82,16 +83,17 @@ static void test_dock_trade() {
 	CHECK(bw && be && bl && bm);
 	if (!bw || !be || !bl || !bm) return;
 
-	// Market TradeType: ships trade at docks, caravans at markets.
+	// Market TradeType: docks are "land naval", markets "land", so ships trade at
+	// docks and caravans at both.
 	CHECK(s.can_trade_at(0, *bw, UNIT_MERCHANT_SHIP));
-	CHECK(!s.can_trade_at(0, *bw, UNIT_TRADER));
+	CHECK(s.can_trade_at(0, *bw, UNIT_TRADER));
 	CHECK(s.can_trade_at(0, *bm, UNIT_TRADER));
 	CHECK(!s.can_trade_at(0, *bm, UNIT_MERCHANT_SHIP));
 	// The sea docks share a sea, the lake dock doesn't.
 	CHECK(s.dock_sea(*bw) != 0 && s.dock_sea(*bw) == s.dock_sea(*be));
 	CHECK(s.dock_sea(*bl) != 0 && s.dock_sea(*bl) != s.dock_sea(*bw));
 	CHECK(s.has_trade_route(0, UNIT_MERCHANT_SHIP));
-	CHECK(!s.has_trade_route(0, UNIT_TRADER)); // one market only
+	CHECK(s.has_trade_route(0, UNIT_TRADER)); // the market and a dock
 
 	// Gain: Trade.js with Trader/GainMultiplier 0.75 and Carthage's +25% on ships only.
 	const double map_size = 2.0 * HALF * 4.0;
@@ -106,22 +108,40 @@ static void test_dock_trade() {
 
 	// A merchant ship in the sea finds the route itself and is paid on each arrival.
 	const uint32_t ship = s.spawn_unit(-40.0f, 8.0f, 0, UNIT_MERCHANT_SHIP);
-	const uint32_t caravan = s.spawn_unit(-30.0f, -40.0f, 0, UNIT_TRADER);
 	run(s, 240.0f);
 	const int earned = total(s, 0);
 	std::printf("Carthaginian merchant ship earned %d in 240 s\n", earned);
 	CHECK(earned >= cart_ship);
 	CHECK(earned % cart_ship == 0); // only whole dock-to-dock deliveries, never the lake
-	// The caravan has no second market, so it never trades at a dock.
 	const auto &u = s.units();
 	for (size_t i = 0; i < u.count; ++i) {
-		if (u.id[i] == caravan) CHECK(u.action_state[i] != ACTION_TRADE);
 		if (u.id[i] == ship) {
 			CHECK(u.action_state[i] == ACTION_TRADE);
 			auto [cx, cy] = s.nav_grid().world_to_cell(u.pos_x[i], u.pos_z[i]);
 			CHECK(s.nav_grid().is_passable_for(cx, cy, PASS_SHIP)); // stayed on the water
 		}
 	}
+
+	// A caravan on the south shore trades between its market and the dock on the
+	// same shore, never the docks across the sea or on the lake.
+	static Simulation c;
+	fresh(c);
+	c.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0);
+	const uint32_t south = c.spawn_building_world(48.0f, -20.0f, BLD_DOCK, 0);
+	c.spawn_building_world(44.0f, 56.0f, BLD_DOCK, 0);
+	const uint32_t cmarket = c.spawn_building_world(-40.0f, -40.0f, BLD_MARKET, 0);
+	c.spawn_building_world(5.0f, -45.0f, BLD_TOWN_CENTER, 0); // territory, or both decay to Gaia
+	const uint32_t caravan = c.spawn_unit(-30.0f, -40.0f, 0, UNIT_TRADER);
+	run(c, 240.0f);
+	const auto route = c.trader_routes_.find(caravan);
+	CHECK(route != c.trader_routes_.end());
+	if (route != c.trader_routes_.end())
+		CHECK(std::min(route->second.first, route->second.second) == std::min(cmarket, south) &&
+		      std::max(route->second.first, route->second.second) == std::max(cmarket, south));
+	const int caravan_gain = c.calculate_trade_gain(*bld(c, cmarket), *bld(c, south), 0, UNIT_TRADER).trader;
+	const int caravan_earned = total(c, 0);
+	std::printf("caravan between market and dock earned %d in 240 s (%d a trip)\n", caravan_earned, caravan_gain);
+	CHECK(caravan_earned >= caravan_gain && caravan_earned % caravan_gain == 0);
 
 	// An enemy's dock ends the route (Trader.js CanTrade).
 	static Simulation t;
