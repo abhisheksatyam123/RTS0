@@ -13,6 +13,8 @@
   python3 tools/port_0ad_maps.py --walls-only   # turn each ported map's walls, palisades and gates into WallSet pieces
   python3 tools/port_0ad_maps.py --livestock-only DIR  # refresh each ported map's player-owned sheep, goats and
                                                        # other livestock from an unpacked public.zip
+  python3 tools/port_0ad_maps.py --units-only DIR  # refresh each ported map's player units with their 0 A.D.
+                                                 # templates from an unpacked public.zip
   python3 tools/port_0ad_maps.py --supplies-only DIR  # refresh each ported map's resource amounts and
                                                   # gatherer limits from the templates of an unpacked
                                                   # 0 A.D. public.zip at DIR (maps/ and simulation/ under it)
@@ -496,7 +498,8 @@ def apply_player_data(players, settings):
 
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
              terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False,
-             supplies_only=False, walls_only=False, livestock_only=False, structures_only=False):
+             supplies_only=False, walls_only=False, livestock_only=False, structures_only=False,
+             units_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -896,6 +899,22 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     json.dump(old, f, indent=2)
             print(f"  -> {out_path}: {changed} of {len(have)} supplies changed")
             return
+        if units_only:
+            # Keep the existing map; only refresh the players' units, each with its 0 A.D. template
+            # (skirmish maps' skirmish/units/default_* become the owner's civ units at load, as
+            # SkirmishReplacer does).
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            k = old.get("world_size", world_size_m) / world_size_m
+            mine = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in units]
+            if mine != old.get("units", []):
+                old["units"] = mine
+                with open(out_path, "w") as f:
+                    json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: {len(mine)} units")
+            return
         if livestock_only:
             # Keep the existing map; only refresh the players' own livestock (fauna with a player).
             if not os.path.exists(out_path):
@@ -1072,12 +1091,12 @@ if __name__ == "__main__":
                 port_map(mid, xrel, None, source=src, player_data_only=True)
             except FileNotFoundError:
                 print(f"  !! {mid}: no {xrel} in 0 A.D.")
-    elif len(sys.argv) > 2 and sys.argv[1] in ("--supplies-only", "--livestock-only", "--structures-only"):
+    elif len(sys.argv) > 2 and sys.argv[1] in ("--supplies-only", "--livestock-only", "--structures-only", "--units-only"):
         # --structures-only <public.zip> [map ids]: from a 0 A.D. public.zip (or an unpacked one).
         def source():  # port_map closes a ZipFile when done with it
             return zipfile.ZipFile(sys.argv[2]) if sys.argv[2].endswith(".zip") else DirSource(sys.argv[2])
         only = {"--supplies-only": {"supplies_only": True}, "--livestock-only": {"livestock_only": True},
-                "--structures-only": {"structures_only": True}}[sys.argv[1]]
+                "--structures-only": {"structures_only": True}, "--units-only": {"units_only": True}}[sys.argv[1]]
         tables = [(mid, xrel, prel, size, bome, hscale) for mid, xrel, prel, size, bome, hscale in maps_list]
         tables += [(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None)
                    for name, (mid, bome) in github_skirmishes.items()]

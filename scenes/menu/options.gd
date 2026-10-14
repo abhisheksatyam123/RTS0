@@ -70,6 +70,7 @@ const SCHEMA := [
 		["boolean", "sound.notify.gamesetup.join", "New player notification in game setup", "Receive audio notification when a new client joins the game setup."],
 	]],
 	["Game Setup", [
+		["boolean", "gui.gamesetup.enabletips", "Enable game setting tips", "Show tips when setting up a game."],
 		["boolean", "persistmatchsettings", "Persist match settings", "Save and restore match settings for quick reuse when hosting another game."],
 		["dropdown", "gui.gamesetup.aidifficulty", "Default AI difficulty", "Default difficulty of the AI.",
 			[["Sandbox", "0"], ["Very Easy", "1"], ["Easy", "2"], ["Medium", "3"], ["Hard", "4"], ["Very Hard", "5"]]],

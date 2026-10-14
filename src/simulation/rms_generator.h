@@ -109,6 +109,11 @@ public:
 };
 
 // RMS Procedural Map Generator Engine
+// SkirmishReplacer.js for a ported map's unit template ("units/default_cavalry",
+// "units/special_starting_unit"): 1 with out_tmpl set to the civ's unit, -1 when the civ has
+// none (the entity goes), 0 when the template is not a skirmish one.
+int skirmish_replace(uint8_t civ, const char *map_template, uint16_t &out_tmpl);
+
 class RmsGenerator {
 public:
 	struct Config {
