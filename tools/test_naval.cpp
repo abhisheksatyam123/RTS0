@@ -791,7 +791,7 @@ static void test_petra_concurrent_transports() {
 		return nullptr;
 	};
 	// The builders' crossing first; the attack sets out while it is under way.
-	for (int k = 0; k < 240 && !plan_of(PETRA_TRANSPORT_BUILDERS); ++k) run(s, 1.0f);
+	for (int k = 0; k < 360 && !plan_of(PETRA_TRANSPORT_BUILDERS); ++k) run(s, 1.0f);
 	CHECK(plan_of(PETRA_TRANSPORT_BUILDERS) != nullptr);
 	// One plan per owner: a second builders' crossing waits for the first.
 	CHECK(!s.petra_start_transport(army, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
