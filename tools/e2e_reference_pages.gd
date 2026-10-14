@@ -69,7 +69,7 @@ func run() -> void:
 	# 0.28 civinfo: civ bonuses from auto-researched civ techs and player auras besides
 	# {civ}.json, team bonuses from the player auras, (i) info hovers, and only the
 	# techs and structures 0.28 counts as civ specific.
-	check(civinfo._select.get_item_text(0) == "Athenians" and civinfo._select.get_item_text(1) == "Britons", "civs sorted by name")
+	check(Common.civ_code(civinfo._select.get_item_id(0)) == "athen" and Common.civ_code(civinfo._select.get_item_id(1)) == "brit", "civs sorted by name")
 	civinfo._on_civ_selected(civinfo._select.get_item_index(0))
 	var athen: String = civinfo._gameplay.text
 	check(athen.contains("Delian League") and athen.contains("Silver Owls") and athen.contains("Democracy"),
