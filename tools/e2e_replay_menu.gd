@@ -107,8 +107,22 @@ func run() -> void:
 	b.display_replay_list()
 	check(visible_dirs(b) == [NAMES[0]], "every typed name must match")
 	b._players_filter.text = "e2eBe"
+	b._players_filter.caret_column = 5
 	b.autocomplete_player()
-	check(b._players_filter.text == "e2eBeta" and visible_dirs(b) == [NAMES[1]], "Tab completes a player's name")
+	check(b._players_filter.text == "e2eBeta" and b._players_filter.caret_column == 7, "Tab completes a player's name")
+	check(visible_dirs(b) == [NAMES[0]], "the list waits for Enter before re-filtering")
+	b.display_replay_list()
+	check(visible_dirs(b) == [NAMES[1]], "Enter filters by the completed name")
+	b._players_filter.text = "e2e bot"
+	b._players_filter.caret_column = 3
+	b.autocomplete_player()
+	check(b._players_filter.text == "e2e bot", "Tab leaves a word that starts several names")
+	b._players_filter.text = "e2eB bot"
+	b._players_filter.caret_column = 4
+	b.autocomplete_player()
+	check(b._players_filter.text == "e2eBeta bot" and b._players_filter.caret_column == 7, "Tab completes the word at the caret")
+	check(b.hotkey_text({"x": PackedStringArray(["Shift+Delete", "Delete"])}, "x") == "[Delete, Shift+Delete]" and
+		b.hotkey_text({}, "x") == "[Unassigned hotkey: x]", "delete tooltips list every key, shortest first")
 	b._players_filter.text = ""
 	b.display_replay_list()
 	var pick := func(dd: OptionButton, text: String):

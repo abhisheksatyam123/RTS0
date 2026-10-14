@@ -1363,6 +1363,15 @@ inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
 			}
 			break;
 		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) info.wood_cost = 150; break;
+		case BLD_MONUMENT:
+			// germ/totem (Cerannus Totem): 800 health, 150 wood and 100 metal.
+			if (civ == CIV_GERMANS) {
+				info.max_hp = 800.0f;
+				info.wood_cost = 150;
+				info.gold_cost = 100;
+				info.stone_cost = 0;
+			}
+			break;
 		case BLD_FIELD:
 			if (civ == CIV_HAN) {
 				info.wood_cost = 60;
@@ -1498,7 +1507,10 @@ inline float building_half_depth(uint8_t type, float half_w) {
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
 // 2 = phase_town, 3 = phase_city.
-inline uint8_t building_required_phase(uint8_t type) {
+// The civ's own template where it differs: mace/arsenal and maur/elephant_stable are Town phase
+// ("-phase_city phase_town"), as Macedonian siege and Mauryan elephants come a phase early.
+inline uint8_t building_required_phase(uint8_t type, uint8_t civ = 0xFF) {
+	if ((type == BLD_ARSENAL && civ == CIV_MACEDONIANS) || (type == BLD_ELEPHANT_STABLE && civ == CIV_MAURYANS)) return 2;
 	switch (type) {
 		case BLD_TOWER: case BLD_MARKET: case BLD_GATE: case BLD_TEMPLE:
 		case BLD_WALL_SEGMENT: case BLD_FORGE: case BLD_WALL_TOWER: case BLD_EMBASSY:
@@ -2723,6 +2735,7 @@ inline LootInfo structure_loot(uint8_t type, uint8_t civ, float half_w) {
 		case BLD_TEMPLE: if (civ == CIV_BRITONS || civ == CIV_GAULS) set(60, 0); break;
 		case BLD_TOWER: if (civ == CIV_IBERIANS) set(10, 50); break;
 		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) set(30, 0); break;
+		case BLD_MONUMENT: if (civ == CIV_GERMANS) { set(30, 0); l.metal = 20; } break;
 		case BLD_GATE: if (civ == CIV_MAURYANS) set(6, 0); break;
 		case BLD_WALL_TOWER: if (civ == CIV_MAURYANS) set(12, 0); break;
 		default: break;
@@ -2788,6 +2801,19 @@ inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
 // A building type past the table (a civ-unique structure added later) is a generic structure.
 inline const CombatProfile &building_combat(uint8_t type) {
 	return combat_building_table()[type < COMBAT_BUILDING_ROWS ? type : COMBAT_BUILDING_ROWS];
+}
+// A structure's Resistance levels (hack, pierce, crush): its type's template, or the civ's own
+// where it differs (germ/totem 8, 20, 2 against the Iberian monument's 20, 30, 3).
+inline void structure_armour(uint8_t type, uint8_t civ, float out[3]) {
+	const CombatProfile &bc = building_combat(type);
+	out[0] = bc.hack_armor;
+	out[1] = bc.pierce_armor;
+	out[2] = bc.crush_armor;
+	if (type == BLD_MONUMENT && civ == CIV_GERMANS) {
+		out[0] = 8.0f;
+		out[1] = 20.0f;
+		out[2] = 2.0f;
+	}
 }
 // 0 A.D. Attack/<type>/PreferredClasses (preference_data.h, from tools/extract_0ad_preferences.py).
 static_assert(PREF_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_preferences.py");

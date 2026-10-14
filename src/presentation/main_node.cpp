@@ -711,8 +711,11 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 	for (const auto &a : attacks) {
 		// Attacks against other players, or dealt by myself, are not registered.
 		if (a.target_owner != me || a.attacker_owner == me) continue;
-		if (attack_detection_.report(a.x, a.z, match_elapsed_time))
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time)) {
 			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0);
+			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
+			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
+		}
 	}
 }
 
@@ -1774,6 +1777,8 @@ void RtsoMain::update_observer_view_picker() {
 		observer_mode_label_ = memnew(Label);
 		observer_mode_label_->set_text("Observer Mode");
 		row->add_child(observer_mode_label_);
+		observer_follow_box_ = new_follow_player_box();
+		row->add_child(observer_follow_box_);
 		CanvasLayer *layer = memnew(CanvasLayer);
 		layer->set_layer(5);
 		add_child(layer);
@@ -2212,6 +2217,109 @@ void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count
 	}
 	if (sim->cmd_train_template(local_player(), building_id, tmpl, count))
 		play_civ_voice("select");
+}
+
+// FollowPlayer.xml: a "Follow Player" tick box with that tooltip, shown while an
+// observer or replay viewer watches one player (not Observer).
+CheckBox *RtsoMain::new_follow_player_box() {
+	CheckBox *box = memnew(CheckBox);
+	box->set_text("Follow Player");
+	box->set_tooltip_text("Follow Player");
+	box->set_focus_mode(Control::FOCUS_NONE);
+	box->set_pressed_no_signal(follow_player_);
+	box->set_visible(false);
+	box->connect("toggled", Callable(this, "set_follow_player"));
+	return box;
+}
+
+// The player an observer or replay viewer is watching, or -1 (Observer, Gaia, or playing).
+int RtsoMain::followed_view() const {
+	if (turn_mgr_.is_replaying()) return replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
+	if (spectating()) return observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
+	return -1;
+}
+
+void RtsoMain::set_follow_player(bool on) {
+	follow_player_ = on;
+	for (CheckBox *box : {observer_follow_box_, replay_follow_box_})
+		if (box) box->set_pressed_no_signal(on);
+}
+
+// messages.js "playercommand": with Follow Player on, each command the watched player
+// gives moves the camera to it and selects the units it ordered. Commands come from the
+// TurnManager, so these are the commands players gave; Petra's own orders are not
+// commands in RTS0 and only its attacks are followed.
+void RtsoMain::follow_player_tick() {
+	const int view = followed_view();
+	for (CheckBox *box : {observer_follow_box_, replay_follow_box_})
+		if (box) box->set_visible(view >= 0);
+	const bool on = follow_player_ && view >= 0 && sim;
+	turn_mgr_.set_record_applied(on);
+	if (!on) return;
+	for (const auto &a : turn_mgr_.take_applied_commands())
+		if ((int)a.player == view) follow_command(a.cmd);
+}
+
+void RtsoMain::follow_command(const rtso::NetCommand &c) {
+	using rtso::NetCommandType;
+	const auto type = (NetCommandType)c.cmd_type;
+	if (!cam_rig) return;
+	if (type == NetCommandType::NET_CMD_BUILD_REPAIR) {
+		// Focus the structure to build.
+		for (const auto &b : sim->buildings())
+			if (b.id == c.target_id) {
+				cam_rig->set_follow_id(0);
+				cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+				break;
+			}
+	} else if (type != NetCommandType::NET_CMD_TRAIN && type != NetCommandType::NET_CMD_RESEARCH &&
+			type != NetCommandType::NET_CMD_TRAIN_TEMPLATE && type != NetCommandType::NET_CMD_TRAIN_FROM_UNIT &&
+			type != NetCommandType::NET_CMD_RALLY && !c.entity_ids.empty()) {
+		// Focus the commanded entities, but keep the focus when training.
+		follow_focus(c.entity_ids[0], false);
+	}
+	// Select the units the command affected, and its target.
+	if (type == NetCommandType::NET_CMD_RALLY) return;
+	clear_selection();
+	auto uv = sim->units();
+	auto pick = [&](uint32_t id) {
+		if (!id) return;
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == id) {
+				if (uv.alive[i]) selected_ids.push_back((int32_t)id);
+				return;
+			}
+		if (selected_building_id == 0)
+			for (const auto &b : sim->buildings())
+				if (b.id == id && !b.wrecked) selected_building_id = id;
+	};
+	for (uint32_t id : c.entity_ids) pick(id);
+	pick(c.target_id);
+}
+
+// selection_panels_helpers.js setCameraFollow: a unit is followed, a structure looked at.
+void RtsoMain::follow_focus(uint32_t id, bool select) {
+	if (!sim || !cam_rig || !id) return;
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i)
+		if (uv.id[i] == id && uv.alive[i]) {
+			cam_rig->set_follow_id(id);
+			if (select) {
+				clear_selection();
+				selected_ids.push_back((int32_t)id);
+			}
+			return;
+		}
+	for (const auto &b : sim->buildings())
+		if (b.id == id && !b.wrecked) {
+			cam_rig->set_follow_id(0);
+			cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+			if (select) {
+				clear_selection();
+				selected_building_id = id;
+			}
+			return;
+		}
 }
 
 void RtsoMain::clear_selection() {
@@ -3218,7 +3326,7 @@ Dictionary RtsoMain::get_tech_tree() const {
 		Dictionary b;
 		b["id"] = (int)t;
 		b["name"] = String::utf8(bi.name);
-		b["phase"] = (int)rtso::building_required_phase(t);
+		b["phase"] = (int)rtso::building_required_phase(t, civ);
 		blds.push_back(b);
 	}
 	for (int t = 1; t < rtso::TECH_COUNT; ++t) {

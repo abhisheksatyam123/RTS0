@@ -283,6 +283,27 @@ static void test_camps() {
 	CHECK(at(s, 0, -50.0f, 25.0f, BLD_MONUMENT) == Simulation::PLACE_OK);
 	s.spawn_building_world(-50.0f, 25.0f, BLD_MONUMENT, 0, 0.0f);
 	CHECK(at(s, 0, -20.0f, 30.0f, BLD_MONUMENT) == Simulation::PLACE_DISTANCE);
+	// germ/totem keeps only 100 m from another Monument (122 m here).
+	const auto civ0 = s.players_[0].civ;
+	s.players_[0].civ = CIV_GERMANS;
+	CHECK(at(s, 0, -20.0f, 30.0f, BLD_MONUMENT) == Simulation::PLACE_OK);
+	CHECK(at(s, 0, -35.0f, 30.0f, BLD_MONUMENT) == Simulation::PLACE_DISTANCE);
+	s.players_[0].civ = civ0;
+	// Its own template: 800 health, 150 wood and 100 metal, Resistance 8/20/2, Loot 30 wood 20 metal.
+	const BuildingTypeInfo totem = civ_building_type_info(CIV_GERMANS, BLD_MONUMENT);
+	CHECK(totem.max_hp == 800.0f && totem.wood_cost == 150 && totem.gold_cost == 100 && totem.stone_cost == 0);
+	CHECK(civ_building_type_info(CIV_IBERIANS, BLD_MONUMENT).stone_cost == 100);
+	float armour[3];
+	structure_armour(BLD_MONUMENT, CIV_GERMANS, armour);
+	CHECK(armour[0] == 8.0f && armour[1] == 20.0f && armour[2] == 2.0f);
+	structure_armour(BLD_MONUMENT, CIV_IBERIANS, armour);
+	CHECK(armour[0] == 20.0f && armour[1] == 30.0f && armour[2] == 3.0f);
+	const LootInfo loot = structure_loot(BLD_MONUMENT, CIV_GERMANS, 1.0f);
+	CHECK(loot.wood == 30 && loot.metal == 20 && loot.stone == 0);
+	// mace/arsenal and maur/elephant_stable are Town phase; everyone else's are City.
+	CHECK(building_required_phase(BLD_ARSENAL, CIV_MACEDONIANS) == 2 && building_required_phase(BLD_ARSENAL, CIV_ROMANS) == 3);
+	CHECK(building_required_phase(BLD_ELEPHANT_STABLE, CIV_MAURYANS) == 2 &&
+		building_required_phase(BLD_ELEPHANT_STABLE, CIV_KUSHITES) == 3);
 	CHECK(at(s, 0, -20.0f, 30.0f, BLD_PILLAR) == Simulation::PLACE_OK);
 	s.spawn_building_world(-20.0f, 30.0f, BLD_PILLAR, 0, 0.0f);
 	CHECK(at(s, 0, -5.0f, 40.0f, BLD_PILLAR) == Simulation::PLACE_DISTANCE);
