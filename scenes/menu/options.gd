@@ -30,6 +30,7 @@ const SCHEMA := [
 		["dropdown", "renderer.upscale.technique", "Upscale technique", "Technique defines performance and quality of upscaling process.",
 			[["FidelityFX Super Resolution 1.0", "fsr"], ["Bilinear", "bilinear"]]],
 		["boolean", "shadows", "Shadows", "Enable shadows."],
+		["boolean", "silhouettes", "Unit silhouettes", "Show outlines of units behind structures."],
 		["boolean", "particles", "Particles", "Enable particles."],
 		["boolean", "vsync", "VSync", "Run vertical sync to fix screen tearing."],
 		["slider", "adaptivefps.menu", "FPS throttling in menus", "To save CPU workload, throttle render frequency in all menus. Set to maximum to disable throttling.", [20, 360]],

@@ -38,6 +38,7 @@ const Default kDefaults[] = {
 	{"shadowquality", "0"},
 	{"shadowpcf", "true"},
 	{"shadowscutoffdistance", "300.0"},
+	{"silhouettes", "true"},
 	{"particles", "true"},
 	{"vsync", "false"},
 	{"adaptivefps.menu", "60"},

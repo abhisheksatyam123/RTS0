@@ -5453,6 +5453,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.toggleattackrange")) { toggle_overlay("gui.session.attackrange"); return; }
 		if (fired("session.toggleaurasrange")) { toggle_overlay("gui.session.aurasrange"); return; }
 		if (fired("session.togglehealrange")) { toggle_overlay("gui.session.healrange"); return; }
+		// 0 A.D. hotkeys/misc.xml "silhouettes": Renderer_SetSilhouettesEnabled, for this run only.
+		if (fired("silhouettes")) {
+			rtso::user_config::set("silhouettes", rtso::user_config::get_bool("silhouettes") ? "false" : "true");
+			return;
+		}
 
 		if (fired("fps.toggle")) {
 			if (debug_overlay) debug_overlay->set_visible(!debug_overlay->is_visible());

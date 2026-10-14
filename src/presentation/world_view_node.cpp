@@ -3,6 +3,7 @@
 #include "territory_boundary.h"
 #include "terrain_blend.h"
 #include "session_audio.h"
+#include "user_config.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -431,6 +432,7 @@ void RtsoWorldView::_ready() {
 				fauna_mm[f][c] = create_multimesh(fauna_rest[f], false);
 				fauna_mmi[f][c] = memnew(MultiMeshInstance3D);
 				fauna_mmi[f][c]->set_multimesh(fauna_mm[f][c]);
+				if (silhouettes_ && silhouette_mat_.is_valid()) fauna_mmi[f][c]->set_material_overlay(silhouette_mat_);
 				add_child(fauna_mmi[f][c]);
 			}
 		}
@@ -1389,6 +1391,7 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	}
 	v.model_id = model_name;
 	v.player_rgba = -1;
+	v.silhouette_rgba = -1;
 	v.clip = StringName();
 	v.carry_prop = nullptr; // freed with the old model
 	v.carry_clip = 0;
@@ -1592,6 +1595,15 @@ static const char *crowd_key_model(uint8_t civ, uint16_t key) {
 	return model;
 }
 
+// The sea is drawn on the nav water line (grid_nav.h NAV_WATER_MARGIN above
+// water_height()), where cells turn to water: ported maps store 0.28's sea
+// minus the margin, so this is 0.28's own level, and every shore looks the
+// way it behaves. Depth shading, floating ships, fish and naval fauna measure
+// from it too.
+static float drawn_water_height(const rtso::Simulation *sim) {
+	return sim->water_height() + rtso::NAV_WATER_MARGIN;
+}
+
 // A male 0.28 Civilian draws and animates as its civ's citizen_male actor, the villager
 // model (rtso::civilian_is_male); a female one keeps the female citizen model.
 static uint8_t drawn_unit_type(uint8_t utype, uint16_t tmpl, uint32_t id) {
@@ -1631,6 +1643,7 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
 		b.mmi[clip]->set_multimesh(b.mm[clip]);
 		// 0 A.D. unit actors carry <castshadow/>.
 		b.mmi[clip]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
+		if (silhouettes_ && silhouette_mat_.is_valid()) b.mmi[clip]->set_material_overlay(silhouette_mat_);
 		add_child(b.mmi[clip]);
 	}
 	return b.mm[clip].ptr();
@@ -2380,7 +2393,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	rtso::Assets::apply_terrain_biome(terrain->get_material_override(),
 	                                  String(sim->current_map_biome().c_str()));
 	if (Ref<ShaderMaterial> tm = terrain->get_material_override(); tm.is_valid())
-		tm->set_shader_parameter("water_level", sim->water_height() > -0.5f ? sim->water_height() : -1000.0f);
+		tm->set_shader_parameter("water_level", sim->water_height() > -0.5f ? drawn_water_height(sim) : -1000.0f);
 	apply_terrain_tiles(terrain->get_material_override(), sim);
 	paint_dirty_ = true;
 
@@ -2419,7 +2432,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 			bind_los(water_mesh_node->get_material_override());
 		}
 		water_mesh->set_size(Vector2(half * 2.2f, half * 2.2f));
-		water_mesh_node->set_position(Vector3(0.0f, sim->water_height(), 0.0f));
+		water_mesh_node->set_position(Vector3(0.0f, drawn_water_height(sim), 0.0f));
 		// Seabed heights for depth-tinted water and shore foam.
 		Ref<ShaderMaterial> wsm = water_mesh_node->get_material_override();
 		if (wsm.is_valid() && !heights.empty() && res > 1) {
@@ -2431,13 +2444,48 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 			wsm->set_shader_parameter("height_tex", water_height_tex_);
 			// Height samples sit on the cell corners; map them across the full extent.
 			wsm->set_shader_parameter("terrain_half", half * (float)res / (float)(res - 1));
-			wsm->set_shader_parameter("water_level", sim->water_height());
+			wsm->set_shader_parameter("water_level", drawn_water_height(sim));
 		}
 		water_mesh_node->set_visible(true);
 	} else if (water_mesh_node) {
 		water_mesh_node->set_visible(false);
 	}
 	apply_biome_environment(sim->current_map_biome(), sim->current_map_id(), sim->map_daytime());
+}
+
+// The silhouettes option, read again whenever the Options page or its hotkey
+// changes a setting: every unit batch and close-up model gets or drops the overlay.
+void RtsoWorldView::refresh_silhouettes() {
+	if (silhouette_gen_ == rtso::user_config::generation()) return;
+	silhouette_gen_ = rtso::user_config::generation();
+	if (!silhouette_mat_.is_valid()) {
+		Ref<Shader> sh = ResourceLoader::get_singleton()->load("res://shaders/silhouette.gdshader");
+		if (sh.is_valid()) {
+			silhouette_mat_.instantiate();
+			silhouette_mat_->set_shader(sh);
+		}
+	}
+	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid();
+	silhouettes_ = on;
+	const Ref<Material> overlay = on ? Ref<Material>(silhouette_mat_) : Ref<Material>();
+	for (auto &per_civ : crowd_)
+		for (auto &b : per_civ)
+			if (b)
+				for (MultiMeshInstance3D *mmi : b->mmi)
+					if (mmi) mmi->set_material_overlay(overlay);
+	for (auto &per_fauna : fauna_mmi)
+		for (MultiMeshInstance3D *mmi : per_fauna)
+			if (mmi) mmi->set_material_overlay(overlay);
+	for (UnitVis &v : unit_pool) v.silhouette_rgba = -1;
+}
+
+void RtsoWorldView::set_silhouette(Node *n, const Color &c) {
+	if (!n) return;
+	if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n)) {
+		mi->set_material_overlay(silhouettes_ ? Ref<Material>(silhouette_mat_) : Ref<Material>());
+		if (silhouettes_) mi->set_instance_shader_parameter("silhouette_color", c);
+	}
+	for (int i = 0; i < n->get_child_count(); ++i) set_silhouette(n->get_child(i), c);
 }
 
 void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids) {
@@ -2448,10 +2496,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	unit_vis_stamp++;
 	// Map triggers (Flood, Extinct Volcano) raise the water during the match.
 	if (water_mesh_node && water_mesh_node->is_visible() &&
-	    water_mesh_node->get_position().y != sim->water_height()) {
-		water_mesh_node->set_position(Vector3(0.0f, sim->water_height(), 0.0f));
+	    water_mesh_node->get_position().y != drawn_water_height(sim)) {
+		water_mesh_node->set_position(Vector3(0.0f, drawn_water_height(sim), 0.0f));
 	}
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
+	refresh_silhouettes();
 
 	update_fog(sim, delta);
 	if (paint_dirty_ && sim->resources().count > 0) build_ground_paint(sim);
@@ -2633,7 +2682,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
 		const float turret_h = sim->unit_height_offset(i); // turret points stand on walls
-		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : sim->get_terrain_height(x, z)) + entry.y_offset;
+		float ground = sim->get_terrain_height(x, z);
+		// 0 A.D. ships are Position Floating: they ride the water surface, not the seabed.
+		if (rtso::unit_is_ship(utype) && sim->water_height() > -0.5f) ground = std::max(ground, drawn_water_height(sim));
+		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + entry.y_offset;
 		float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
@@ -2679,6 +2731,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.yaw = yaw;
 		attach_unit_model(v, utype_str);
 		push_player_color(v.model, v.player_rgba, player_display_color(sim, uview.team[i]));
+		{
+			const Color sc = player_display_color(sim, uview.team[i]);
+			const int64_t key = silhouettes_ ? (int64_t)sc.to_rgba32() : -2;
+			if (v.silhouette_rgba != key) {
+				set_silhouette(v.model, sc);
+				v.silhouette_rgba = key;
+			}
+		}
 		if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
 			ensure_runtime_clips(v.anim, unit_is_female(utype));
 
@@ -3105,7 +3165,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			// 0 A.D.'s fish shoal swims just under the surface (Position/Floating).
 			// The water has no refraction pass, so the top fish break the
 			// surface to stay visible.
-			ry = std::max(ry, sim->water_height());
+			ry = std::max(ry, drawn_water_height(sim));
 			Transform3D xf(rot, Vector3(rx, ry + 0.3f, rz));
 			fish_mm->set_instance_transform((int)ifish, xf);
 			fish_mm->set_instance_color((int)ifish++, tint);
@@ -3232,7 +3292,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float fx = fview.pos_x[f];
 		float fz = fview.pos_z[f];
 		float fy = sim->get_terrain_height(fx, fz);
-		if (rtso::fauna_type_info(ft).is_naval()) fy = std::max(fy, sim->water_height()); // whales and sharks swim
+		if (rtso::fauna_type_info(ft).is_naval()) fy = std::max(fy, drawn_water_height(sim)); // whales and sharks swim
 		float frot = fview.rot_y[f];
 		const char *fid = rtso::fauna_type_info(ft).model_id;
 		auto fent = rtso::ModelLibrary::get("units", String(fid));
