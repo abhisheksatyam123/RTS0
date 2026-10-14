@@ -14481,8 +14481,15 @@ void Simulation::respond_to_attack(size_t i) {
 		if (bit == building_id_to_idx_.end()) return;
 		const Building &b = buildings_[bit->second];
 		if (b.wrecked || b.hp <= 0.0f || !is_hostile(units_.team[i], b.team)) return;
-		// A soldier at work keeps working (Petra sends its own defence); an idle one answers.
-		if (units_.attack_damage[i] > 0.0f && units_.stance[i] != STANCE_PASSIVE && units_.action_state[i] != ACTION_IDLE) return;
+		// UnitAI "Attacked": a soldier fighting answers only melee (COMBAT), and one busy on a
+		// forced order (a player's or Petra's) keeps at it unless violent (targetAttackersAlways);
+		// an idle one, or one on an order it took itself, answers.
+		if (units_.attack_damage[i] > 0.0f && units_.stance[i] != STANCE_PASSIVE && units_.action_state[i] != ACTION_IDLE) {
+			const bool fighting = units_.action_state[i] == ACTION_ATTACK &&
+					(units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0);
+			if (fighting) return;
+			if (units_.stance[i] != STANCE_VIOLENT && (units_.order_flags[i] & ORDER_FLAG_FORCE)) return;
+		}
 		respond_to_attacker(i, b.id, b.x, b.z, false, true);
 		return;
 	}

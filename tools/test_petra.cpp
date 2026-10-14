@@ -2220,7 +2220,8 @@ static void test_research_choices() {
 	CHECK(mines >= 2, "researches stone and metal rates in the town phase");
 	CHECK(fights == 0, "no random forge techs before the city phase");
 	s->players_[1].phase = 3;
-	for (int k = 0; k < 60; ++k) {
+	// 15 minutes: minorTech's random picks over 10 give one or two forge techs on some seeds.
+	for (int k = 0; k < 90; ++k) {
 		s->set_player_resources(1, 5000, 5000, 5000, 5000);
 		run_for(*s, 10.0f);
 	}
