@@ -266,8 +266,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	void apply_map_player_overrides();
 
 	bool dragging = false;
-	bool paused_via_menu = false;
-	void set_menu_paused(bool paused);
 	// Lockstep gate (2026-10-06 OOS fix): host and joiner boot INDEPENDENT
 	// random worlds, so pre-Start lockstep turns hash divergent state (first
 	// live OOS at turn 1) and reset() at asymmetric wall times offsets the
@@ -354,7 +352,10 @@ public:
 	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
 	static Array speed_choices(bool replay);
-	bool is_game_paused() const { return hotkey_paused_ || paused_via_menu; }
+	bool is_game_paused() const { return hotkey_paused_; }
+	bool can_pause() const;
+	// Engine.HasXmppClient: a game started from the lobby screen.
+	bool has_lobby_client() const { return lobby_btn && lobby_btn->is_visible(); }
 	PopupMenu *speed_menu_ = nullptr;
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
@@ -574,7 +575,7 @@ private:
 	// 0 A.D. selects what the player doesn't own too (another player's unit or
 	// structure, an animal, a tree or a mine) to show its details, with no commands
 	// (EntitySelection; the command panels need the player's own entities).
-	enum InspectKind : uint8_t { INSPECT_NONE, INSPECT_UNIT, INSPECT_BUILDING, INSPECT_FAUNA, INSPECT_RESOURCE };
+	enum InspectKind : uint8_t { INSPECT_NONE, INSPECT_UNIT, INSPECT_BUILDING, INSPECT_FAUNA, INSPECT_RESOURCE, INSPECT_TREASURE };
 	uint8_t inspected_kind_ = INSPECT_NONE;
 	uint32_t inspected_id_ = 0;
 	bool inspect_at(const Vector3 &click_pos);
@@ -649,6 +650,10 @@ private:
 	uint32_t replay_written_turn_ = 0;
 	Label *replay_label_ = nullptr;
 	OptionButton *replay_view_picker_ = nullptr;
+	Label *replay_observer_label_ = nullptr; // PlayerViewControl's "Observer Mode"
+	bool replay_view_gaia_ = false;          // Gaia picked (its view is the observer's)
+	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
+	static constexpr int kReplayViewGaiaId = 100;
 	OptionButton *replay_speed_picker_ = nullptr;
 	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")

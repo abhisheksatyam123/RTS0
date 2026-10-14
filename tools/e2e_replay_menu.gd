@@ -92,6 +92,12 @@ func run() -> void:
 	b.sort_by("popCapacity")
 	var pops: Array = b._replays.filter(func(r): return r.dir.get_file().begins_with("zz_e2e")).map(func(r): return b.population_name(r.pop, r.pop_type))
 	check(pops == ["600 (world)", "150 (player)"] or pops == ["150 (player)", "600 (world)"], "a World Population reads as 0.28's translatePopulationCapacity: " + str(pops))
+	var team: Dictionary = b._entry("x", {"map_id": "acropolis_bay", "settings": {"pop_cap": 200, "team_pop": true}})
+	var team_mp: Dictionary = b._entry("y", {"map_id": "random_oasis", "game_start": "map=random_oasis;popcap=300;teampop=250"})
+	check(b.population_name(team.pop, team.pop_type) == "200 (team)" and b.population_name(team_mp.pop, team_mp.pop_type) == "250 (team)",
+		"a Team Population reads \"N (team)\", single player and multiplayer")
+	check(team.map_type == "Skirmish" and b.map_info("arcadia").type == "Scenario" and team_mp.map_type == "Random",
+		"Map Type is the map's own: Skirmish, Scenario or Random")
 	var first := visible_dirs(b)
 	b.sort_by("popCapacity")
 	check(visible_dirs(b) == [first[1], first[0]], "Population sorts by cap, then type")

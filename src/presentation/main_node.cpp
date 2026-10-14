@@ -56,6 +56,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_game_speed", "speed"), &RtsoMain::set_game_speed);
 	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
 	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
+	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
 	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
 	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
 	ClassDB::bind_method(D_METHOD("_on_replay_speed_selected", "index"), &RtsoMain::_on_replay_speed_selected);
@@ -155,6 +156,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
+	ClassDB::bind_method(D_METHOD("has_lobby_client"), &RtsoMain::has_lobby_client);
 	ClassDB::bind_method(D_METHOD("_on_voice_button_pressed"), &RtsoMain::_on_voice_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_host_pressed"), &RtsoMain::_on_lobby_host_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
@@ -2593,14 +2595,17 @@ void RtsoMain::quickload() {
 	show_notice(load_game(kQuicksavePath) ? "Quickloaded game" : "Quickload failed");
 }
 
+// PauseControl.js canPause(explicit): an observer who is not the host cannot
+// pause a multiplayer match (resuming their own pause stays allowed).
+bool RtsoMain::can_pause() const {
+	return hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying() || local_player() < rtso::MAX_PLAYERS ||
+			net_host_.isHost();
+}
+
 void RtsoMain::toggle_pause() {
-	// PauseControl.js canPause: an observer who is not the host cannot pause a
-	// multiplayer match (resuming their own pause stays allowed).
-	if (!hotkey_paused_ && net_lockstep() && !turn_mgr_.is_replaying() && local_player() >= rtso::MAX_PLAYERS &&
-			!net_host_.isHost())
-		return;
+	if (!can_pause()) return;
 	hotkey_paused_ = !hotkey_paused_;
-	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
+	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_);
 	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
 	update_pause_overlay();
 }
@@ -2732,19 +2737,10 @@ void RtsoMain::post_network_chat() {
 	}
 }
 
+// 0 A.D. Menu.toggle: the menu slides open over the running game; only its
+// Pause button (and the pages it opens in single player) pause.
 void RtsoMain::_on_menu_button_pressed() {
-	Node *pause = get_node_or_null(NodePath("PauseMenu"));
-	if (pause) {
-		pause->call("toggle");
-		set_menu_paused(!paused_via_menu);
-	}
-}
-
-// In a networked match the pause menu pauses every peer (0 A.D.
-// NMT_CLIENT_PAUSED); offline it just stops the local sim.
-void RtsoMain::set_menu_paused(bool paused) {
-	paused_via_menu = paused;
-	if (net_lockstep()) turn_mgr_.set_local_paused(paused || hotkey_paused_);
+	if (Node *pause = get_node_or_null(NodePath("PauseMenu"))) pause->call("toggle");
 }
 
 // Template Viewer for the selection: the selected structure, else the first
@@ -3407,7 +3403,7 @@ void RtsoMain::_process(double delta) {
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
 	}
 	update_pause_overlay();
-	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
+	if (hotkey_paused_ && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
 
@@ -4090,6 +4086,16 @@ bool RtsoMain::inspect_at(const Vector3 &click_pos) {
 		}
 		if (best != (size_t)-1) return pick(INSPECT_RESOURCE, rv.id[best]);
 	}
+	{
+		uint32_t best = 0;
+		float best_d2 = 1.3f * 1.3f;
+		for (const auto &t : sim->treasures()) {
+			if (!explored(t.x, t.z)) continue;
+			const float dx = t.x - cx, dz = t.z - cz, d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
+		}
+		if (best != 0) return pick(INSPECT_TREASURE, best);
+	}
 	inspected_kind_ = INSPECT_NONE;
 	return false;
 }
@@ -4186,6 +4192,25 @@ bool RtsoMain::fill_inspected_details() {
 					"Capture points: " + String::num((double)found->capture_points, 0) + " / " + String::num((double)found->max_capture_points, 0));
 		inspector_stats->set_text(found->build_progress < 1.0f
 				? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : String());
+		return true;
+	}
+	if (inspected_kind_ == INSPECT_TREASURE) {
+		// selection_details.js: the treasure's name and its Treasure/Resources as the reward.
+		const rtso::Simulation::Treasure *found = nullptr;
+		for (const auto &t : sim->treasures())
+			if (t.id == inspected_id_) { found = &t; break; }
+		if (!found) return false;
+		const auto &ti = rtso::treasure_type_info(found->type);
+		static const char *kRes[4] = {"Food", "Wood", "Stone", "Metal"};
+		String reward;
+		for (int k = 0; k < 4; ++k)
+			if (ti.amount[k] > 0) reward += (reward.is_empty() ? "" : ", ") + String::num_int64(ti.amount[k]) + " " + kRes[k];
+		inspector_portrait->set_texture(Ref<Texture2D>());
+		inspector_title->set_text(String::utf8(ti.name));
+		inspector_class->set_text("Gaia");
+		bar(inspector_hp_bar, inspector_hp_label, false);
+		inspector_stats->set_text("Reward: " + reward + "\nCollect time: " + String::num((double)ti.collect_time, 1) + " s");
+		inspector_extra->set_text("Collect treasures for resources.");
 		return true;
 	}
 	// A resource: its kind and what is left (selection_details.js resourceSupply).
@@ -4581,6 +4606,13 @@ void RtsoMain::update_command_panel() {
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
 				if (!rtso::building_researches_tech(found_b->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				// Researcher.js GetTechnologiesList: a chain shows one slot, its next step; a technology
+				// whose superseded one is offered here waits until that one is researched or in progress.
+				if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
+						&& rtso::building_researches_tech(found_b->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+					const rtso::Simulation::ResearchCheck sc = sim->research_check(local_player(), sup, 0);
+					if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
+				}
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
 				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
@@ -4591,10 +4623,14 @@ void RtsoMain::update_command_panel() {
 					if (!cost.is_empty()) cost += ",";
 					cost += String::num_int64(v) + suffix;
 				};
-				add_cost(ti.food_cost, "f");
-				add_cost(ti.wood_cost, "w");
-				add_cost(ti.gold_cost, "g");
-				add_cost(ti.stone_cost, "s");
+				// Researcher.js GetTechnologyData: the price after this researcher's TechCostMultiplier,
+				// team bonuses and the Library of Alexandria, as cmd_research charges it.
+				float paid[rtso::RES_COUNT], rtime = 0.0f;
+				sim->tech_price(local_player(), (uint8_t)t, found_b->type, paid, rtime);
+				add_cost((int)paid[rtso::RES_FOOD], "f");
+				add_cost((int)paid[rtso::RES_WOOD], "w");
+				add_cost((int)paid[rtso::RES_GOLD], "g");
+				add_cost((int)paid[rtso::RES_STONE], "s");
 				btn->set_text(String::utf8(ti.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 				if (t == rtso::TECH_PHASE_TOWN || t == rtso::TECH_PHASE_CITY) {
 					btn->set_button_icon(load_tex(t == rtso::TECH_PHASE_TOWN
@@ -4605,7 +4641,8 @@ void RtsoMain::update_command_panel() {
 				// 0.28 Research panel: names, tooltip, cost, requirements, needed resources.
 				String tip = String::utf8(ti.name);
 				if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
-				const rtso::CostTip tech_cost{ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost, 0, (int64_t)std::ceil(ti.research_time)};
+				const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
+						(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 				const String tech_cost_tip = rtso::cost_tooltip(tech_cost);
 				if (!tech_cost_tip.is_empty()) tip += "\n" + tech_cost_tip;
 				String why;
@@ -4614,7 +4651,9 @@ void RtsoMain::update_command_panel() {
 					case rtso::Simulation::TECH_ERR_PHASE:
 						why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase"); break;
 					case rtso::Simulation::TECH_ERR_PREREQUISITE: {
-						tip += "\n" + requires_text(String::utf8(rtso::tech_info(ti.prerequisite).name));
+						const uint8_t sup = rtso::tech_supersedes((uint8_t)t);
+						const bool need_prev = sup != rtso::TECH_NONE && !sim->player(local_player()).has_tech(sup);
+						tip += "\n" + requires_text(String::utf8(rtso::tech_info(need_prev ? sup : ti.prerequisite).name));
 						btn->set_disabled(true);
 						break;
 					}
@@ -5323,13 +5362,16 @@ bool RtsoMain::update_unit_roster(uint32_t unit_id) {
 			if (!costs.is_empty()) costs += " ";
 			costs += String::num_int64(v) + suffix;
 		};
-		add_cost(ti.food_cost, "f");
-		add_cost(ti.wood_cost, "w");
-		add_cost(ti.stone_cost, "s");
-		add_cost(ti.gold_cost, "m");
+		float paid[rtso::RES_COUNT], rtime = 0.0f;
+		sim->tech_price(pid, t, rtso::BLD_TYPE_COUNT, paid, rtime); // as cmd_research_from_unit charges it
+		add_cost((int)paid[rtso::RES_FOOD], "f");
+		add_cost((int)paid[rtso::RES_WOOD], "w");
+		add_cost((int)paid[rtso::RES_STONE], "s");
+		add_cost((int)paid[rtso::RES_GOLD], "m");
 		const int idx = roster_list->add_item(String::utf8(ti.name) + " (" + costs + ")");
 		roster_list->set_item_metadata(idx, ROSTER_TECH | (int)t);
-		const rtso::CostTip tech_cost{ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost, 0, (int64_t)std::ceil(ti.research_time)};
+		const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
+				(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 		String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\n" + rtso::cost_tooltip(tech_cost);
 		if (check != rtso::Simulation::TECH_OK && check != rtso::Simulation::TECH_ERR_COST) {
 			roster_list->set_item_disabled(idx, true);
@@ -8218,12 +8260,18 @@ Dictionary RtsoMain::get_tech_tree() const {
 		e["desc"] = String::utf8(ti.desc ? ti.desc : "");
 		e["phase"] = (int)ti.required_phase;
 		e["researcher"] = String(rtso::building_type_info(ti.researcher).name);
-		e["food"] = ti.food_cost;
-		e["wood"] = ti.wood_cost;
-		e["metal"] = ti.gold_cost;
-		e["stone"] = ti.stone_cost;
-		e["time"] = ti.research_time;
-		e["prerequisite"] = ti.prerequisite ? String::utf8(rtso::tech_info(ti.prerequisite).name) : String();
+		float paid[rtso::RES_COUNT], rtime = 0.0f;
+		sim->tech_price(local_player(), (uint8_t)t, ti.researcher, paid, rtime); // this player's price
+		e["food"] = (int)paid[rtso::RES_FOOD];
+		e["wood"] = (int)paid[rtso::RES_WOOD];
+		e["metal"] = (int)paid[rtso::RES_GOLD];
+		e["stone"] = (int)paid[rtso::RES_STONE];
+		e["time"] = rtime;
+		// The prerequisite and the technology it supersedes (DeriveTechnologyRequirements).
+		String req = ti.prerequisite ? String::utf8(rtso::tech_info(ti.prerequisite).name) : String();
+		if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE && sup != ti.prerequisite)
+			req += (req.is_empty() ? String() : String(", ")) + String::utf8(rtso::tech_info(sup).name);
+		e["prerequisite"] = req;
 		e["researched"] = sim->player(local_player()).has_tech((uint8_t)t);
 		techs.push_back(e);
 	}
