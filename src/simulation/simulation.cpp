@@ -1762,7 +1762,9 @@ bool Simulation::territory_decay_targets(float x, float z, uint8_t team, bool ne
 		return true;
 	}
 	if (r.connected) return false;
-	// Unconnected territory, anyone's: safe next to a connected mutual ally (or the owner's own
+	// Another player's unconnected territory: all to Gaia (TerritoryDecay.js, #4749 special case).
+	if (gaia || r.owner != b.team) { to_gaia = 1.0f; return true; }
+	// The owner's own unconnected territory: safe next to a connected mutual ally (or the owner's own
 	// connected land), else towards the region's neighbours by bordering tiles, the neutral ones
 	// Gaia's (Capturable.js TimerTick), all to Gaia when it borders nobody.
 	uint32_t total = r.neutral;
