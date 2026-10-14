@@ -197,6 +197,9 @@ struct NavGrid {
     Grid<uint8_t> steep_cells_;
     bool any_steep_ = false;
     float max_slope = LAND_MAX_TERRAIN_SLOPE;
+    // The heightmap's tiles steeper than max_slope (height_cache_.tiles), once
+    // compute_slopes_from_heights has run for the current terrain.
+    bool tiles_ready_ = false;
 
     bool regions_ready_ = false;
 
@@ -213,6 +216,7 @@ struct NavGrid {
         ship_chunk_regions_ = Grid<uint8_t>(res, res, 0);
         steep_cells_ = Grid<uint8_t>(res, res, 0);
         any_steep_ = false;
+        tiles_ready_ = false;
         global_region_map_.clear();
         ship_region_map_.clear();
         regions_ready_ = false;
@@ -619,6 +623,11 @@ struct NavGrid {
         std::vector<uint8_t> water; // NAV_WATER, NAV_SHALLOW or NAV_PASSABLE by centre height
         float water_thresh = 0.0f;
         bool water_valid = false;
+        std::vector<uint8_t> tiles; // per heightmap tile, (h_res - 1) a side: steeper than tiles_max_slope
+        int tiles_w = 0;
+        float tiles_max_slope = 0.0f;
+        bool any_tile = false;
+        bool tiles_valid = false;
     };
     HeightSampleCache height_cache_;
 
@@ -637,6 +646,7 @@ struct NavGrid {
         c.map_half = map_half;
         c.steep_valid = false;
         c.water_valid = false;
+        c.tiles_valid = false;
     }
 
     // Computes slopes for all navcells from heightmap, flagging cells steeper than max_slope.
@@ -656,6 +666,31 @@ struct NavGrid {
             c.steep_max_slope = max_slope;
             c.steep_valid = true;
         }
+        // 0.28's own granularity: CCmpPathfinder gives each 1 m navcell the slope of its 4 m terrain
+        // tile ("exact slopes give kind of weird output"), GetSlopeFixed's highest corner less its
+        // lowest over the tile's size. A heightmap tile is a 0.28 tile, half a navcell a side, so a
+        // steep tile marks the cliff itself where a steep navcell may span the ground at its foot too.
+        if (!c.tiles_valid || !same_bits(c.tiles_max_slope, max_slope)) {
+            const int tw = h_res - 1;
+            const float tile = (map_half * 2.0f) / static_cast<float>(std::max(tw, 1));
+            c.tiles.assign(static_cast<size_t>(std::max(tw, 0)) * static_cast<size_t>(std::max(tw, 0)), 0);
+            c.any_tile = false;
+            for (int j = 0; j < tw; ++j)
+                for (int i = 0; i < tw; ++i) {
+                    const size_t v = static_cast<size_t>(j) * static_cast<size_t>(h_res) + static_cast<size_t>(i);
+                    const float a = heights[v], b = heights[v + 1];
+                    const float d = heights[v + static_cast<size_t>(h_res)], e = heights[v + static_cast<size_t>(h_res) + 1];
+                    const float rise = std::max(std::max(a, b), std::max(d, e)) - std::min(std::min(a, b), std::min(d, e));
+                    if (rise > max_slope * tile) {
+                        c.tiles[static_cast<size_t>(j) * static_cast<size_t>(tw) + static_cast<size_t>(i)] = 1;
+                        c.any_tile = true;
+                    }
+                }
+            c.tiles_w = std::max(tw, 0);
+            c.tiles_max_slope = max_slope;
+            c.tiles_valid = true;
+        }
+        tiles_ready_ = true;
         bool any = false;
         for (int y = 0; y < res; ++y) {
             for (int x = 0; x < res; ++x) {
@@ -686,6 +721,36 @@ struct NavGrid {
 
     // Whether any navcell is steep: no slope to check on a flat map.
     bool any_steep() const { return any_steep_; }
+
+    // Whether the terrain has a tile steeper than max_slope; steep_tile_res() tiles a side.
+    bool any_steep_tile() const { return tiles_ready_ && height_cache_.any_tile; }
+    int steep_tile_res() const { return tiles_ready_ ? height_cache_.tiles_w : 0; }
+    bool tile_steep(int i, int j) const {
+        const HeightSampleCache& c = height_cache_;
+        return i >= 0 && j >= 0 && i < c.tiles_w && j < c.tiles_w &&
+               c.tiles[static_cast<size_t>(j) * static_cast<size_t>(c.tiles_w) + static_cast<size_t>(i)] != 0;
+    }
+    // A tile steeper than max_slope within c of (x, z) each way. CCmpPathfinder makes every navcell
+    // of such a tile impassable to land classes and ExpandImpassableCells grows that by the class
+    // Clearance, in squares.
+    bool near_steep_tile(float x, float z, float c) const {
+        return steep_tile_in(x - c, z - c, x + c, z + c);
+    }
+    // A tile steeper than max_slope touching the box [x0, x1] x [z0, z1].
+    bool steep_tile_in(float x0, float z0, float x1, float z1) const {
+        if (!any_steep_tile()) return false;
+        const HeightSampleCache& h = height_cache_;
+        const int tw = h.tiles_w;
+        const float inv = static_cast<float>(tw) / (map_half * 2.0f);
+        auto tile = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) * inv)), 0, tw - 1); };
+        const int i0 = tile(x0), i1 = tile(x1), j1 = tile(z1);
+        for (int j = tile(z0); j <= j1; ++j) {
+            const uint8_t* row = h.tiles.data() + static_cast<size_t>(j) * static_cast<size_t>(tw);
+            for (int i = i0; i <= i1; ++i)
+                if (row[i]) return true;
+        }
+        return false;
+    }
 
     bool is_steep(int cx, int cy) const {
         if (steep_cells_.blank() || !steep_cells_.inside(cx, cy)) return false;

@@ -36,6 +36,10 @@ inline constexpr float BUILDING_STEER_RANGE = 12.0f;
 inline constexpr float BUILDING_STEER_CULL = BUILDING_STEER_RANGE * 1.6f;
 // How far the aim may move (a chased unit, a nudged waypoint) before a kept short path is searched again.
 inline constexpr float SHORT_PATH_AIM_SLACK = 1.0f;
+// How far a unit whose search found no way may move before it searches again.
+inline constexpr float SHORT_PATH_NO_WAY_SLACK = 0.5f;
+// How far inside a unit's clearance a line may pass a steep tile without counting as blocked.
+inline constexpr float TERRAIN_EDGE_SLACK = 0.01f;
 
 namespace detail {
 
@@ -57,6 +61,75 @@ bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t
 	if (b.wrecked || b.id == ignore_building_id || !building_blocks_movement(b.type)) return false;
 	const Vec2 half(b.hu + radius, b.hv + radius);
 	return !PointIsInSquare(aim - Vec2(b.x, b.z), footprint_u(b), footprint_v(b), half);
+}
+
+// Whether the segment from `a` to `b` comes within `radius` of a terrain tile too steep to stand on
+// (NavGrid::near_steep_tile), tested every quarter tile along it. RTS0's long paths keep off steep
+// navcells only, where 0.28's keep off each steep tile, so a walk that runs into a cliff edge or a
+// rock inside a navcell takes a short path round it. The start doesn't count.
+inline bool segment_near_steep(const NavGrid& nav, Vec2 a, Vec2 b, float radius)
+{
+	if (!nav.any_steep_tile() ||
+	    !nav.steep_tile_in(std::min(a.x, b.x) - radius, std::min(a.y, b.y) - radius,
+	                       std::max(a.x, b.x) + radius, std::max(a.y, b.y) + radius))
+		return false;
+	const Vec2 d = b - a;
+	const float step = 0.5f * nav.map_half / static_cast<float>(nav.steep_tile_res());
+	const int n = std::max(1, static_cast<int>(std::ceil(d.length() / step)));
+	for (int k = 1; k <= n; ++k) {
+		const Vec2 p = a + d * (static_cast<float>(k) / static_cast<float>(n));
+		if (nav.near_steep_tile(p.x, p.y, radius)) return true;
+	}
+	return false;
+}
+
+// segment_near_steep for the line from `pos` towards `aim` within BUILDING_STEER_RANGE, a hair
+// inside the clearance, so a unit stopped at a cliff's margin by land_step_barred, or a short-path
+// waypoint at an expanded corner, doesn't count as on it.
+inline bool line_blocked_by_terrain(const NavGrid& nav, Vec2 pos, Vec2 aim, float radius)
+{
+	const Vec2 to = aim - pos;
+	const float len = to.length();
+	const Vec2 end = len > BUILDING_STEER_RANGE ? pos + to * (BUILDING_STEER_RANGE / len) : aim;
+	return segment_near_steep(nav, pos, end, radius - TERRAIN_EDGE_SLACK);
+}
+
+// Calls fn(rows, cell, origin, w, h) with the short path's terrain grid: rows(i, j, n, out) fills
+// out[0..n) with 1 for ground a land unit may cross and 0 for deep water, steep ground and outside
+// the grid. Building navcells are left to the statics, as the destination building's own navcells
+// must stay open. Without steep terrain tiles the grid is the navcells (deep water alone); with
+// them it is the heightmap's tiles, a navcell's deep water and the tile's own slope
+// (NavGrid::near_steep_tile).
+template <class Fn>
+auto with_terrain_rows(const NavGrid& nav, Fn&& fn)
+{
+	const Vec2 origin(-nav.map_half, -nav.map_half);
+	const Grid<uint8_t>& cells = nav.cells;
+	if (nav.any_steep_tile()) {
+		const int tw = nav.steep_tile_res();
+		const float tile = 2.0f * nav.map_half / static_cast<float>(tw);
+		const float per = static_cast<float>(nav.res) / static_cast<float>(tw); // navcells a tile
+		auto rows = [&nav, &cells, tw, per](int i, int j, int n, uint8_t* out) {
+			const int cy = static_cast<int>((static_cast<float>(j) + 0.5f) * per);
+			for (int k = 0; k < n; ++k) {
+				const int ti = i + k;
+				out[k] = j >= 0 && j < tw && ti >= 0 && ti < tw && !nav.tile_steep(ti, j) &&
+				         cells.at(static_cast<int>((static_cast<float>(ti) + 0.5f) * per), cy) != NAV_WATER;
+			}
+		};
+		return fn(rows, tile, origin, tw, tw);
+	}
+	auto rows = [&cells](int i, int j, int n, uint8_t* out) {
+		if (j >= 0 && j < cells.h && i >= 0 && i + n <= cells.w) {
+			const uint8_t* c = &cells.at(i, j);
+			for (int k = 0; k < n; ++k)
+				out[k] = c[k] != NAV_WATER;
+		} else {
+			for (int k = 0; k < n; ++k)
+				out[k] = cells.inside(i + k, j) && cells.at(i + k, j) != NAV_WATER;
+		}
+	};
+	return fn(rows, 2.0f * nav.map_half / static_cast<float>(nav.res), origin, nav.res, nav.res);
 }
 
 } // namespace detail
@@ -133,24 +206,11 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 	req.goal.center = aim;
 	req.terrain_clearance = radius;
 
-	// Terrain edges: water only, kept `radius` off (0 A.D. expands deep water by the class
-	// clearance). Building navcells are covered by `statics`, and the destination building's own
-	// navcells must stay open. Rows hold 1 for land, 0 for water and outside the grid (cells is
-	// res x res).
-	auto land_rows = [&nav](int i, int j, int n, uint8_t* out) {
-		const Grid<uint8_t>& cells = nav.cells;
-		if (j >= 0 && j < cells.h && i >= 0 && i + n <= cells.w) {
-			const uint8_t* c = &cells.at(i, j);
-			for (int k = 0; k < n; ++k)
-				out[k] = c[k] != NAV_WATER;
-		} else {
-			for (int k = 0; k < n; ++k)
-				out[k] = cells.inside(i + k, j) && cells.at(i + k, j) != NAV_WATER;
-		}
-	};
-	const float cell = 2.0f * nav.map_half / static_cast<float>(nav.res);
-	compute_short_path(req, statics, no_units, land_rows, cell,
-			Vec2(-nav.map_half, -nav.map_half), nav.res, nav.res, scratch, path);
+	// Terrain edges: deep water and steep ground, kept `radius` off (0 A.D. expands impassable
+	// terrain by the class clearance).
+	detail::with_terrain_rows(nav, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
+		return compute_short_path(req, statics, no_units, rows, cell, origin, w, h, scratch, path);
+	});
 	if (path.empty()) return false;
 	out = path.front();
 	return true;
@@ -186,20 +246,9 @@ bool search_short_path_with_units(Vec2 pos, Vec2 aim, const ShortPathGoal& goal,
 	req.unit_clearance_bias = radius - unit_radius; // unit squares grow by unit_radius
 	req.goal = goal;
 	req.terrain_clearance = radius;
-	auto land_rows = [&nav](int i, int j, int n, uint8_t* out) {
-		const Grid<uint8_t>& cells = nav.cells;
-		if (j >= 0 && j < cells.h && i >= 0 && i + n <= cells.w) {
-			const uint8_t* c = &cells.at(i, j);
-			for (int k = 0; k < n; ++k)
-				out[k] = c[k] != NAV_WATER;
-		} else {
-			for (int k = 0; k < n; ++k)
-				out[k] = cells.inside(i + k, j) && cells.at(i + k, j) != NAV_WATER;
-		}
-	};
-	const float cell = 2.0f * nav.map_half / static_cast<float>(nav.res);
-	compute_short_path(req, statics, units, land_rows, cell,
-			Vec2(-nav.map_half, -nav.map_half), nav.res, nav.res, scratch, path);
+	detail::with_terrain_rows(nav, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
+		return compute_short_path(req, statics, units, rows, cell, origin, w, h, scratch, path);
+	});
 	if (path.empty()) return false;
 	out = path.front();
 	next = path.size() > 1 ? path[1] : path[0];
@@ -214,35 +263,52 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
 		const NavGrid& nav, Vec2& out)
 {
-	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id))
+	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id) &&
+	    !detail::line_blocked_by_terrain(nav, pos, aim, radius))
 		return false;
 	return search_short_path(pos, aim, radius, buildings, ignore_building_id, nav, out);
 }
 
+// The memo key of a search that found no way among the obstacles `key` names.
+inline uint32_t no_short_path_key(uint32_t key)
+{
+	const uint32_t k = key ^ 0x9E3779B9u;
+	return k ? k : 4u;
+}
+
 // The same, for a unit that keeps its short path in `memo` between ticks. `key` names the obstacles
-// (buildings and water) this tick; it must not be 0. While the line to `aim` is blocked, the memo's
+// (buildings, water and steep ground) this tick; it must not be 0. While the line to `aim` is blocked, the memo's
 // waypoint is reused if it was found among the same obstacles, for an aim within
 // SHORT_PATH_AIM_SLACK, and the way to it is clear; otherwise a new short path is searched and kept.
-// The caller clears the memo (key = 0) once the unit reaches the waypoint.
+// The caller clears the memo (key = 0) once the unit reaches the waypoint. A search that found no
+// way (a resource up a cliff, a point beyond a ridge) is noted too and not run again while the unit
+// stays within SHORT_PATH_NO_WAY_SLACK of where it ran: the unit walks straight on, the cliff's
+// margin or the building stops it, and motion_feedback ends a walk that gets nowhere.
 template <class Buildings>
 bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
 		const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out)
 {
-	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id)) {
+	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id) &&
+	    !detail::line_blocked_by_terrain(nav, pos, aim, radius)) {
 		memo.key = 0;
 		return false;
 	}
 	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
+	const uint32_t no_way = no_short_path_key(key);
+	if (memo.key == no_way && aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK &&
+	    (pos - Vec2(memo.x, memo.z)).lengthSq() < SHORT_PATH_NO_WAY_SLACK * SHORT_PATH_NO_WAY_SLACK)
+		return false;
 	if (memo.key == key && aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK) {
 		const Vec2 w(memo.x, memo.z);
-		if (!segment_blocked_by_buildings(pos, w, aim, radius, buildings, ignore_building_id)) {
+		if (!segment_blocked_by_buildings(pos, w, aim, radius, buildings, ignore_building_id) &&
+		    !detail::segment_near_steep(nav, pos, w, radius - TERRAIN_EDGE_SLACK)) {
 			out = w;
 			return true;
 		}
 	}
 	if (!search_short_path(pos, aim, radius, buildings, ignore_building_id, nav, out)) {
-		memo.key = 0;
+		memo = ShortPathMemo{pos.x, pos.y, aim.x, aim.y, no_way};
 		return false;
 	}
 	memo = ShortPathMemo{out.x, out.y, aim.x, aim.y, key};

@@ -1577,12 +1577,24 @@ bool Simulation::near_deep_water(float x, float z, float c) const {
 	return false;
 }
 
-// A step may not end within the clearance of deep water. A unit already that close (one unloaded on
-// the beach, or walking in from the water) may move on, but not off dry land into deep water.
+// Ground a land unit keeps its clearance c off: deep water, and terrain tiles steeper than the land
+// classes' MaxTerrainSlope (NavGrid::near_steep_tile), which 0.28 makes impassable and grows by
+// the class Clearance alike.
+bool Simulation::near_impassable_terrain(float x, float z, float c) const {
+	return near_deep_water(x, z, c) || nav_grid_.near_steep_tile(x, z, c);
+}
+
+// A step may not end within the clearance of deep water or of a cliff. A unit already that close to
+// one (unloaded on the beach, walking in from the water, standing on a slope) may move on, but not
+// off passable ground into it.
 bool Simulation::land_step_barred(float x0, float z0, float x1, float z1, float c) const {
-	if (!near_deep_water(x1, z1, c)) return false;
-	if (!near_deep_water(x0, z0, c)) return true;
-	return near_deep_water(x1, z1, 0.0f) && !near_deep_water(x0, z0, 0.0f);
+	auto barred = [&](auto &&near) {
+		if (!near(x1, z1, c)) return false;
+		if (!near(x0, z0, c)) return true;
+		return near(x1, z1, 0.0f) && !near(x0, z0, 0.0f);
+	};
+	return barred([this](float x, float z, float r) { return near_deep_water(x, z, r); }) ||
+	       barred([this](float x, float z, float r) { return nav_grid_.near_steep_tile(x, z, r); });
 }
 
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
@@ -4400,7 +4412,7 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 		if (!nav_grid_.cells.blank()) {
 			const auto [gx, gy] = nav_grid_.world_to_cell(px, pz);
 			if (!nav_grid_.is_passable_for(gx, gy, pass)) return false;
-			if (pass == PASS_INFANTRY && near_deep_water(px, pz, clearance)) return false;
+			if (pass == PASS_INFANTRY && near_impassable_terrain(px, pz, clearance)) return false;
 		}
 		for (size_t j = 0; j < units_.count; ++j) {
 			if (!units_.alive[j] || units_.id[j] == skip_uid) continue;
@@ -6215,7 +6227,7 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 			// The passengers' own passability (PickSpawnPoint): not a cliff a footman can't stand on,
 			// where separation would shove them back into the sea.
 			if (!nav_grid_.cells.blank() && nav_grid_.cells.inside(nx, ny) && !nav_grid_.is_passable_for(nx, ny, PASS_INFANTRY)) continue;
-			if (near_deep_water(cx, cz, pc)) continue;
+			if (near_impassable_terrain(cx, cz, pc)) continue;
 			if (std::any_of(hulls.begin(), hulls.end(), [&](const Hull &h) {
 				    return (h.x - cx) * (h.x - cx) + (h.z - cz) * (h.z - cz) < h.r2; }))
 				continue;
@@ -9962,6 +9974,12 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		// new path from there (RejectFartherPaths), so UnitMotion sets m_FailedMovements to
 		// MAX_FAILED_MOVEMENTS - 2 and the walk fails two obstructed turns later.
 		if (m.failed < FAILED_AT - 3 && walk_falls_short(i)) m.failed = FAILED_AT - 3;
+		// The same hack's end for a unit whose short path search found no way from where it stands
+		// (nav::no_short_path_key): a resource up a cliff or in a pocket its long path can't reach, a
+		// point beyond a ridge. UnitMotion runs the short pathfinder at full range there and fails the
+		// walk two obstructed turns later, where RTS0's unit would push at the cliff's margin.
+		if (m.failed < FAILED_AT - 3 && units_.short_path[i].key == nav::no_short_path_key(short_path_key_))
+			m.failed = FAILED_AT - 3;
 		bool move_failed = false;
 		if (++m.failed >= FAILED_AT) {
 			move_failed = true;
