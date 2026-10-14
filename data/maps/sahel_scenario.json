@@ -12515,7 +12515,7 @@
       "template": "iber/infantry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 4,
       "x": 70.93,
       "z": -64.41,
@@ -12606,7 +12606,7 @@
       "template": "rome/infantry_javelineer_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 67.69,
       "z": 79.5,
@@ -12669,7 +12669,7 @@
       "template": "pers/infantry_spearman_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 3,
       "x": -78.17,
       "z": 71.33,
@@ -12732,7 +12732,7 @@
       "template": "cart/infantry_archer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": -67.67,
       "z": -71.37,

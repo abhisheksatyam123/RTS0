@@ -10144,35 +10144,35 @@
       "template": "rome/champion_infantry_swordsman"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -66.1,
       "z": -16.36,
       "template": "rome/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -66.69,
       "z": -15.83,
       "template": "rome/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -67.0,
       "z": -15.1,
       "template": "rome/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -67.73,
       "z": -14.6,
       "template": "rome/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -68.27,
       "z": -14.08,
@@ -10190,234 +10190,304 @@
       "player": 1,
       "x": -71.94,
       "z": -14.96,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -71.71,
       "z": -14.6,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -71.48,
       "z": -14.3,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -71.27,
       "z": -14.05,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -70.97,
       "z": -13.71,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -71.33,
       "z": -15.46,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -71.05,
       "z": -15.16,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -70.82,
       "z": -14.82,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -70.66,
       "z": -14.55,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -70.42,
       "z": -14.15,
-      "template": "rome/infantry_spearman_e"
+      "template": "rome/infantry_spearman_e",
+      "parents": [
+        "rome/infantry_spearman_a",
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -73.15,
       "z": -14.34,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -72.85,
       "z": -14.02,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -72.64,
       "z": -13.6,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -72.42,
       "z": -13.13,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -72.23,
       "z": -12.74,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -73.85,
       "z": -14.02,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -73.63,
       "z": -13.63,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -73.39,
       "z": -13.23,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -73.08,
       "z": -12.81,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -72.86,
       "z": -12.38,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 65.66,
       "z": -57.92,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 66.42,
       "z": -57.33,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 67.12,
       "z": -56.71,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 67.7,
       "z": -56.06,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 68.3,
       "z": -55.45,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 64.86,
       "z": -57.14,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 65.45,
       "z": -56.71,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 65.9,
       "z": -56.13,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 66.45,
       "z": -55.61,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 67.03,
       "z": -54.93,
       "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -65.81,
       "z": -42.85,
       "template": "cart/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -64.84,
       "z": -41.98,
       "template": "cart/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -64.19,
       "z": -40.89,
       "template": "cart/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -63.35,
       "z": -39.91,
@@ -10540,108 +10610,157 @@
       "player": 2,
       "x": 70.98,
       "z": -52.43,
-      "template": "mace/infantry_archer_e"
+      "template": "mace/infantry_archer_e",
+      "parents": [
+        "mace/infantry_archer_a",
+        "mace/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 71.57,
       "z": -51.75,
-      "template": "mace/infantry_archer_e"
+      "template": "mace/infantry_archer_e",
+      "parents": [
+        "mace/infantry_archer_a",
+        "mace/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 72.24,
       "z": -50.94,
-      "template": "mace/infantry_archer_e"
+      "template": "mace/infantry_archer_e",
+      "parents": [
+        "mace/infantry_archer_a",
+        "mace/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 72.8,
       "z": -50.28,
-      "template": "mace/infantry_archer_e"
+      "template": "mace/infantry_archer_e",
+      "parents": [
+        "mace/infantry_archer_a",
+        "mace/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 73.46,
       "z": -49.56,
-      "template": "mace/infantry_archer_e"
+      "template": "mace/infantry_archer_e",
+      "parents": [
+        "mace/infantry_archer_a",
+        "mace/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 74.14,
       "z": -48.88,
-      "template": "mace/infantry_archer_e"
+      "template": "mace/infantry_archer_e",
+      "parents": [
+        "mace/infantry_archer_a",
+        "mace/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 74.84,
       "z": -48.18,
-      "template": "mace/infantry_archer_e"
+      "template": "mace/infantry_archer_e",
+      "parents": [
+        "mace/infantry_archer_a",
+        "mace/infantry_archer_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -69.21,
       "z": -12.73,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -69.94,
       "z": -12.27,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -70.6,
       "z": -11.88,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -68.39,
       "z": -11.99,
-      "template": "cart/cavalry_spearman_ital_a"
+      "template": "cart/cavalry_spearman_ital_a",
+      "parents": [
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -69.18,
       "z": -11.5,
-      "template": "cart/cavalry_spearman_ital_a"
+      "template": "cart/cavalry_spearman_ital_a",
+      "parents": [
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -70.05,
       "z": -10.96,
-      "template": "cart/cavalry_spearman_ital_a"
+      "template": "cart/cavalry_spearman_ital_a",
+      "parents": [
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -67.31,
       "z": -11.52,
       "template": "cart/cavalry_spearman_ital_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -68.01,
       "z": -10.89,
       "template": "cart/cavalry_spearman_ital_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -68.64,
       "z": -10.05,
@@ -10687,35 +10806,50 @@
       "player": 1,
       "x": -69.8,
       "z": -16.6,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -69.58,
       "z": -16.31,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -69.35,
       "z": -16.08,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -69.14,
       "z": -15.86,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -68.86,
       "z": -15.6,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
@@ -10757,133 +10891,197 @@
       "player": 3,
       "x": -62.71,
       "z": -37.62,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -62.39,
       "z": -37.22,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -62.15,
       "z": -36.72,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -61.96,
       "z": -36.19,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -61.73,
       "z": -35.69,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 62.69,
       "z": -43.35,
-      "template": "mace/infantry_pikeman_e"
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 62.86,
       "z": -43.04,
-      "template": "mace/infantry_pikeman_e"
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 63.04,
       "z": -42.75,
-      "template": "mace/infantry_pikeman_e"
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 63.17,
       "z": -42.45,
-      "template": "mace/infantry_pikeman_e"
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 63.41,
       "z": -42.16,
-      "template": "mace/infantry_pikeman_e"
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 62.53,
       "z": -43.71,
-      "template": "mace/infantry_pikeman_e"
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 62.36,
       "z": -44.0,
-      "template": "mace/infantry_pikeman_e"
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 61.87,
       "z": -43.71,
-      "template": "mace/infantry_pikeman_a"
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 61.99,
       "z": -43.39,
-      "template": "mace/infantry_pikeman_a"
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 62.13,
       "z": -43.14,
-      "template": "mace/infantry_pikeman_a"
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 62.32,
       "z": -42.87,
-      "template": "mace/infantry_pikeman_a"
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 62.51,
       "z": -42.58,
-      "template": "mace/infantry_pikeman_a"
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 62.73,
       "z": -42.29,
-      "template": "mace/infantry_pikeman_a"
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 62.9,
       "z": -41.93,
-      "template": "mace/infantry_pikeman_a"
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
@@ -10935,172 +11133,253 @@
       "template": "mace/infantry_pikeman_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 80.41,
       "z": -44.53,
-      "template": "mace/cavalry_javelineer_a"
+      "template": "mace/cavalry_javelineer_a",
+      "parents": [
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 79.59,
       "z": -44.46,
-      "template": "mace/cavalry_javelineer_a"
+      "template": "mace/cavalry_javelineer_a",
+      "parents": [
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 78.75,
       "z": -43.91,
-      "template": "mace/cavalry_javelineer_a"
+      "template": "mace/cavalry_javelineer_a",
+      "parents": [
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 79.17,
       "z": -43.18,
-      "template": "mace/cavalry_javelineer_a"
+      "template": "mace/cavalry_javelineer_a",
+      "parents": [
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 80.04,
       "z": -43.38,
-      "template": "mace/cavalry_javelineer_a"
+      "template": "mace/cavalry_javelineer_a",
+      "parents": [
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 80.72,
       "z": -43.79,
-      "template": "mace/cavalry_javelineer_a"
+      "template": "mace/cavalry_javelineer_a",
+      "parents": [
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 78.19,
       "z": -44.87,
-      "template": "mace/cavalry_javelineer_e"
+      "template": "mace/cavalry_javelineer_e",
+      "parents": [
+        "mace/cavalry_javelineer_a",
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 78.81,
       "z": -45.22,
-      "template": "mace/cavalry_javelineer_e"
+      "template": "mace/cavalry_javelineer_e",
+      "parents": [
+        "mace/cavalry_javelineer_a",
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 79.05,
       "z": -45.51,
-      "template": "mace/cavalry_javelineer_e"
+      "template": "mace/cavalry_javelineer_e",
+      "parents": [
+        "mace/cavalry_javelineer_a",
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 79.69,
       "z": -45.7,
-      "template": "mace/cavalry_javelineer_e"
+      "template": "mace/cavalry_javelineer_e",
+      "parents": [
+        "mace/cavalry_javelineer_a",
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 80.19,
       "z": -45.77,
-      "template": "mace/cavalry_javelineer_e"
+      "template": "mace/cavalry_javelineer_e",
+      "parents": [
+        "mace/cavalry_javelineer_a",
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 81.05,
       "z": -45.06,
-      "template": "mace/cavalry_javelineer_e"
+      "template": "mace/cavalry_javelineer_e",
+      "parents": [
+        "mace/cavalry_javelineer_a",
+        "mace/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": 74.94,
       "z": -41.2,
-      "template": "mace/cavalry_spearman_e"
+      "template": "mace/cavalry_spearman_e",
+      "parents": [
+        "mace/cavalry_spearman_a",
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": 74.42,
       "z": -40.48,
-      "template": "mace/cavalry_spearman_e"
+      "template": "mace/cavalry_spearman_e",
+      "parents": [
+        "mace/cavalry_spearman_a",
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": 73.2,
       "z": -39.83,
-      "template": "mace/cavalry_spearman_e"
+      "template": "mace/cavalry_spearman_e",
+      "parents": [
+        "mace/cavalry_spearman_a",
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": 74.16,
       "z": -38.89,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": 75.22,
       "z": -39.2,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": 75.98,
       "z": -39.52,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 3,
       "x": -61.27,
       "z": -34.8,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 3,
       "x": -60.85,
       "z": -34.49,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 3,
       "x": -60.37,
       "z": -34.16,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 3,
       "x": -59.93,
       "z": -33.56,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 3,
       "x": -59.36,
       "z": -32.87,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 3,
       "x": -59.08,
       "z": -32.49,
-      "template": "mace/cavalry_spearman_a"
+      "template": "mace/cavalry_spearman_a",
+      "parents": [
+        "mace/cavalry_spearman_b"
+      ]
     }
   ]
 }

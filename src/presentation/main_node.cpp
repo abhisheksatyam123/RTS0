@@ -4540,22 +4540,34 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
-		// The map's own roster template when RTS0 has it ("spart/infantry_javelineer_b"); a
-		// skirmish map's skirmish/units/* becomes the owner's civ unit, or nothing.
-		uint16_t tmpl = rtso::CIV_UNIT_TEMPLATE_NONE;
+		// The map's own roster template when RTS0 has it ("spart/infantry_javelineer_b", an _a/_e
+		// one as its _b row promoted); a skirmish map's skirmish/units/* becomes the owner's civ
+		// unit, or nothing.
+		const rtso::UnitType utype = map_unit_type(utype_str);
 		if (u.has("template")) {
 			const CharString t = String(u["template"]).utf8();
+			uint16_t tmpl = rtso::CIV_UNIT_TEMPLATE_NONE;
 			const int replaced = rtso::skirmish_replace(sim->team_civ(team), t.get_data(), tmpl);
 			if (replaced < 0) continue;
-			if (!replaced) tmpl = rtso::civ_unit_template_by_id(t.get_data());
-		}
-		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
-			unit_ids[i] = sim->spawn_unit(ux, uz, team, (rtso::UnitType)rtso::civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+			if (replaced) {
+				unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, rtso::civ_unit_template(tmpl).id);
+				continue;
+			}
+			// A map-only variant (rome/champion_infantry_swordsman_02) stands in as the nearest
+			// template it inherits from that RTS0 has ("parents"), at the variant's own rank.
+			int rank = 0;
+			CharString pick = t;
+			if (rtso::Simulation::resolve_map_template(t.get_data(), &rank) == rtso::CIV_UNIT_TEMPLATE_NONE) {
+				Array parents = u.get("parents", Array());
+				for (int k = 0; k < parents.size(); ++k) {
+					const CharString pt = String(parents[k]).utf8();
+					if (rtso::Simulation::resolve_map_template(pt.get_data(), &rank) != rtso::CIV_UNIT_TEMPLATE_NONE) { pick = pt; break; }
+				}
+			}
+			unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, pick.get_data(), rank);
 			continue;
 		}
-		const rtso::UnitType utype = map_unit_type(utype_str);
-		const auto &uinfo = rtso::unit_type_info(utype);
-		unit_ids[i] = sim->spawn_unit(ux, uz, team, utype, uinfo.hp);
+		unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, nullptr);
 	}
 	// "garrison_in": index of the ship the unit starts aboard (0 A.D. <Garrison>,
 	// e.g. sicilia_nomad_2p). Passengers sit on the ship, so boarding is instant.

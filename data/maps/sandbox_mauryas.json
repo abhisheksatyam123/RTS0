@@ -4532,691 +4532,925 @@
       "type": "cavalry",
       "player": 1,
       "x": -23.5,
-      "z": -68.56
+      "z": -68.56,
+      "template": "maur/cavalry_javelineer_b"
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -22.34,
-      "z": -68.67
+      "z": -68.67,
+      "template": "maur/cavalry_javelineer_b"
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -23.07,
-      "z": -70.11
+      "z": -70.11,
+      "template": "maur/cavalry_javelineer_b"
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -19.15,
-      "z": -68.29
+      "z": -68.29,
+      "template": "maur/cavalry_javelineer_a",
+      "parents": [
+        "maur/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -17.81,
-      "z": -69.09
+      "z": -69.09,
+      "template": "maur/cavalry_javelineer_a",
+      "parents": [
+        "maur/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -19.39,
-      "z": -70.15
+      "z": -70.15,
+      "template": "maur/cavalry_javelineer_a",
+      "parents": [
+        "maur/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -14.87,
-      "z": -68.59
+      "z": -68.59,
+      "template": "maur/cavalry_javelineer_e",
+      "parents": [
+        "maur/cavalry_javelineer_a",
+        "maur/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -15.73,
-      "z": -69.56
+      "z": -69.56,
+      "template": "maur/cavalry_javelineer_e",
+      "parents": [
+        "maur/cavalry_javelineer_a",
+        "maur/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -14.26,
-      "z": -69.79
+      "z": -69.79,
+      "template": "maur/cavalry_javelineer_e",
+      "parents": [
+        "maur/cavalry_javelineer_a",
+        "maur/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -10.38,
-      "z": -68.88
+      "z": -68.88,
+      "template": "maur/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -9.4,
-      "z": -69.62
+      "z": -69.62,
+      "template": "maur/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -10.78,
-      "z": -69.79
+      "z": -69.79,
+      "template": "maur/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -6.11,
-      "z": -69.03
+      "z": -69.03,
+      "template": "maur/cavalry_swordsman_a",
+      "parents": [
+        "maur/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -5.03,
-      "z": -69.58
+      "z": -69.58,
+      "template": "maur/cavalry_swordsman_a",
+      "parents": [
+        "maur/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -6.49,
-      "z": -70.35
+      "z": -70.35,
+      "template": "maur/cavalry_swordsman_a",
+      "parents": [
+        "maur/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -2.1,
-      "z": -68.96
+      "z": -68.96,
+      "template": "maur/cavalry_swordsman_e",
+      "parents": [
+        "maur/cavalry_swordsman_a",
+        "maur/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -0.91,
-      "z": -69.35
+      "z": -69.35,
+      "template": "maur/cavalry_swordsman_e",
+      "parents": [
+        "maur/cavalry_swordsman_a",
+        "maur/cavalry_swordsman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -2.51,
-      "z": -70.56
+      "z": -70.56,
+      "template": "maur/cavalry_swordsman_e",
+      "parents": [
+        "maur/cavalry_swordsman_a",
+        "maur/cavalry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 5.17,
-      "z": -67.89
+      "z": -67.89,
+      "template": "maur/champion_chariot"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 3.81,
-      "z": -69.88
+      "z": -69.88,
+      "template": "maur/champion_chariot"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 7.36,
-      "z": -69.22
+      "z": -69.22,
+      "template": "maur/champion_chariot"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 14.37,
-      "z": -69.61
+      "z": -69.61,
+      "template": "maur/champion_elephant"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 17.51,
-      "z": -69.41
+      "z": -69.41,
+      "template": "maur/champion_elephant"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 15.12,
-      "z": -71.2
+      "z": -71.2,
+      "template": "maur/champion_elephant"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 22.29,
-      "z": -68.55
+      "z": -68.55,
+      "template": "maur/champion_infantry_maceman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 21.87,
-      "z": -69.31
+      "z": -69.31,
+      "template": "maur/champion_infantry_maceman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 22.68,
-      "z": -69.28
+      "z": -69.28,
+      "template": "maur/champion_infantry_maceman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 23.23,
-      "z": -68.71
+      "z": -68.71,
+      "template": "maur/champion_infantry_maceman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 22.94,
-      "z": -68.04
+      "z": -68.04,
+      "template": "maur/champion_infantry_maceman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 25.19,
-      "z": -68.39
+      "z": -68.39,
+      "template": "maur/champion_maiden"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 25.86,
-      "z": -68.75
+      "z": -68.75,
+      "template": "maur/champion_maiden"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 25.71,
-      "z": -69.73
+      "z": -69.73,
+      "template": "maur/champion_maiden"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 25.02,
-      "z": -69.22
+      "z": -69.22,
+      "template": "maur/champion_maiden"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 27.63,
-      "z": -68.32
+      "z": -68.32,
+      "template": "maur/champion_maiden_archer"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 28.29,
-      "z": -68.75
+      "z": -68.75,
+      "template": "maur/champion_maiden_archer"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 27.75,
-      "z": -69.22
+      "z": -69.22,
+      "template": "maur/champion_maiden_archer"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 27.15,
-      "z": -69.11
+      "z": -69.11,
+      "template": "maur/champion_maiden_archer"
     },
     {
       "type": "archer",
       "player": 1,
       "x": 14.15,
-      "z": -75.19
+      "z": -75.19,
+      "template": "maur/elephant_archer_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": 16.58,
-      "z": -74.94
+      "z": -74.94,
+      "template": "maur/elephant_archer_a",
+      "parents": [
+        "maur/elephant_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": 15.25,
-      "z": -77.96
+      "z": -77.96,
+      "template": "maur/elephant_archer_e",
+      "parents": [
+        "maur/elephant_archer_a",
+        "maur/elephant_archer_b"
+      ]
     },
     {
       "type": "hero",
       "player": 1,
       "x": 4.49,
-      "z": -80.5
+      "z": -80.5,
+      "template": "maur/hero_ashoka"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 7.47,
-      "z": -78.75
+      "z": -78.75,
+      "template": "maur/hero_ashoka"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 6.26,
-      "z": -81.82
+      "z": -81.82,
+      "template": "maur/hero_ashoka_infantry"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 15.0,
-      "z": -81.2
+      "z": -81.2,
+      "template": "maur/hero_chandragupta"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 10.96,
-      "z": -80.58
+      "z": -80.58,
+      "template": "maur/hero_chanakya"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 11.75,
-      "z": -80.55
+      "z": -80.55,
+      "template": "maur/hero_chanakya"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 10.65,
-      "z": -81.57
+      "z": -81.57,
+      "template": "maur/hero_chanakya"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 11.62,
-      "z": -81.62
+      "z": -81.62,
+      "template": "maur/hero_chanakya"
     },
     {
       "type": "archer",
       "player": 1,
       "x": -24.51,
-      "z": -72.94
+      "z": -72.94,
+      "template": "maur/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": -23.84,
-      "z": -72.94
+      "z": -72.94,
+      "template": "maur/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": -24.33,
-      "z": -73.64
+      "z": -73.64,
+      "template": "maur/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": -19.47,
-      "z": -72.84
+      "z": -72.84,
+      "template": "maur/infantry_archer_a",
+      "parents": [
+        "maur/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -18.87,
-      "z": -72.96
+      "z": -72.96,
+      "template": "maur/infantry_archer_a",
+      "parents": [
+        "maur/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -19.68,
-      "z": -73.36
+      "z": -73.36,
+      "template": "maur/infantry_archer_a",
+      "parents": [
+        "maur/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -15.55,
-      "z": -72.79
+      "z": -72.79,
+      "template": "maur/infantry_archer_e",
+      "parents": [
+        "maur/infantry_archer_a",
+        "maur/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -14.77,
-      "z": -72.91
+      "z": -72.91,
+      "template": "maur/infantry_archer_e",
+      "parents": [
+        "maur/infantry_archer_a",
+        "maur/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -15.64,
-      "z": -73.65
+      "z": -73.65,
+      "template": "maur/infantry_archer_e",
+      "parents": [
+        "maur/infantry_archer_a",
+        "maur/infantry_archer_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -11.35,
-      "z": -72.79
+      "z": -72.79,
+      "template": "maur/infantry_swordsman_b"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -10.77,
-      "z": -72.78
+      "z": -72.78,
+      "template": "maur/infantry_swordsman_b"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -11.28,
-      "z": -73.65
+      "z": -73.65,
+      "template": "maur/infantry_swordsman_b"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -6.43,
-      "z": -72.61
+      "z": -72.61,
+      "template": "maur/infantry_swordsman_a",
+      "parents": [
+        "maur/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -5.97,
-      "z": -72.61
+      "z": -72.61,
+      "template": "maur/infantry_swordsman_a",
+      "parents": [
+        "maur/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -6.47,
-      "z": -73.27
+      "z": -73.27,
+      "template": "maur/infantry_swordsman_a",
+      "parents": [
+        "maur/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -2.26,
-      "z": -72.6
+      "z": -72.6,
+      "template": "maur/infantry_swordsman_e",
+      "parents": [
+        "maur/infantry_swordsman_a",
+        "maur/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -1.49,
-      "z": -72.6
+      "z": -72.6,
+      "template": "maur/infantry_swordsman_e",
+      "parents": [
+        "maur/infantry_swordsman_a",
+        "maur/infantry_swordsman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -1.72,
-      "z": -73.32
+      "z": -73.32,
+      "template": "maur/infantry_swordsman_e",
+      "parents": [
+        "maur/infantry_swordsman_a",
+        "maur/infantry_swordsman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -10.83,
-      "z": -76.29
+      "z": -76.29,
+      "template": "maur/infantry_spearman_b"
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -10.18,
-      "z": -76.09
+      "z": -76.09,
+      "template": "maur/infantry_spearman_b"
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -10.65,
-      "z": -77.04
+      "z": -77.04,
+      "template": "maur/infantry_spearman_b"
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -6.5,
-      "z": -76.01
+      "z": -76.01,
+      "template": "maur/infantry_spearman_a",
+      "parents": [
+        "maur/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -5.69,
-      "z": -76.07
+      "z": -76.07,
+      "template": "maur/infantry_spearman_a",
+      "parents": [
+        "maur/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -6.49,
-      "z": -77.11
+      "z": -77.11,
+      "template": "maur/infantry_spearman_a",
+      "parents": [
+        "maur/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -6.01,
-      "z": -77.0
+      "z": -77.0,
+      "template": "maur/infantry_spearman_a",
+      "parents": [
+        "maur/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -2.39,
-      "z": -76.05
+      "z": -76.05,
+      "template": "maur/infantry_spearman_e",
+      "parents": [
+        "maur/infantry_spearman_a",
+        "maur/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -1.75,
-      "z": -76.05
+      "z": -76.05,
+      "template": "maur/infantry_spearman_e",
+      "parents": [
+        "maur/infantry_spearman_a",
+        "maur/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -2.31,
-      "z": -76.84
+      "z": -76.84,
+      "template": "maur/infantry_spearman_e",
+      "parents": [
+        "maur/infantry_spearman_a",
+        "maur/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -1.66,
-      "z": -76.97
+      "z": -76.97,
+      "template": "maur/infantry_spearman_e",
+      "parents": [
+        "maur/infantry_spearman_a",
+        "maur/infantry_spearman_b"
+      ]
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 49.45,
-      "z": -56.81
+      "z": -56.81,
+      "template": "maur/ship_scout"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 57.77,
-      "z": -54.87
+      "z": -54.87,
+      "template": "maur/ship_arrow"
     },
     {
       "type": "siege_ram",
       "player": 1,
       "x": 27.02,
-      "z": -61.22
+      "z": -61.22,
+      "template": "maur/siege_ram"
     },
     {
       "type": "elephant",
       "player": 1,
       "x": -18.59,
-      "z": -81.7
+      "z": -81.7,
+      "template": "maur/support_elephant"
     },
     {
       "type": "elephant",
       "player": 1,
       "x": -16.4,
-      "z": -81.87
+      "z": -81.87,
+      "template": "maur/support_elephant"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -11.9,
-      "z": -83.25
+      "z": -83.25,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -10.56,
-      "z": -81.69
+      "z": -81.69,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -11.58,
-      "z": -82.6
+      "z": -82.6,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -12.45,
-      "z": -84.59
+      "z": -84.59,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -10.2,
-      "z": -82.55
+      "z": -82.55,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -11.03,
-      "z": -83.44
+      "z": -83.44,
+      "template": "maur/support_civilian"
     },
     {
       "type": "healer",
       "player": 1,
       "x": -6.06,
-      "z": -80.81
+      "z": -80.81,
+      "template": "maur/support_healer_b"
     },
     {
       "type": "healer",
       "player": 1,
       "x": -5.33,
-      "z": -80.81
+      "z": -80.81,
+      "template": "maur/support_healer_b"
     },
     {
       "type": "healer",
       "player": 1,
       "x": -6.49,
-      "z": -82.48
+      "z": -82.48,
+      "template": "maur/support_healer_b"
     },
     {
       "type": "healer",
       "player": 1,
       "x": -5.71,
-      "z": -82.13
+      "z": -82.13,
+      "template": "maur/support_healer_b"
     },
     {
       "type": "trader",
       "player": 1,
       "x": -0.57,
-      "z": -81.38
+      "z": -81.38,
+      "template": "maur/support_trader"
     },
     {
       "type": "trader",
       "player": 1,
       "x": -1.66,
-      "z": -83.2
+      "z": -83.2,
+      "template": "maur/support_trader"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 39.98,
-      "z": -64.69
+      "z": -64.69,
+      "template": "maur/ship_fishing"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 43.48,
-      "z": -61.78
+      "z": -61.78,
+      "template": "maur/ship_merchant"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -12.95,
-      "z": -83.72
+      "z": -83.72,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -10.31,
-      "z": -86.23
+      "z": -86.23,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -11.78,
-      "z": -83.86
+      "z": -83.86,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -11.37,
-      "z": -84.38
+      "z": -84.38,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -10.83,
-      "z": -84.48
+      "z": -84.48,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -9.6,
-      "z": -84.73
+      "z": -84.73,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -10.7,
-      "z": -83.32
+      "z": -83.32,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -10.9,
-      "z": -82.64
+      "z": -82.64,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -11.72,
-      "z": -81.22
+      "z": -81.22,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -12.61,
-      "z": -81.74
+      "z": -81.74,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -12.3,
-      "z": -81.48
+      "z": -81.48,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -12.28,
-      "z": -82.99
+      "z": -82.99,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -9.93,
-      "z": -82.56
+      "z": -82.56,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -9.21,
-      "z": -84.74
+      "z": -84.74,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -11.16,
-      "z": -81.31
+      "z": -81.31,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -11.12,
-      "z": -85.11
+      "z": -85.11,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -12.09,
-      "z": -85.26
+      "z": -85.26,
+      "template": "maur/support_civilian"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 13.53,
-      "z": -82.93
+      "z": -82.93,
+      "template": "maur/hero_chandragupta_infantry"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 9.42,
-      "z": -82.78
+      "z": -82.78,
+      "template": "maur/hero_bindusara_infantry"
     }
   ],
   "treasures": [],
