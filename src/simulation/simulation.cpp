@@ -1471,24 +1471,21 @@ static uint8_t unit_ship_pass(uint8_t type) {
 // Whether the straight walk from (x0, z0) to (x1, z1) crosses a navcell no land unit can cross:
 // deep water, or a slope over MaxTerrainSlope; for a ship (ship_pass, its class: unit_ship_pass),
 // one its class can't cross: land or a structure, and for a warship water beside them too (the
-// end cells excepted: a dock, a shoreline resource or a mine on a hillside may sit on one).
+// end cells excepted: a dock, a shoreline resource or a mine on a hillside may sit on one). It
+// tests every navcell the line passes through, as CheckLineMovement walks them (NavGrid::walk_line).
 bool Simulation::line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass) const {
 	const bool ship = ship_pass != 0;
 	if ((terrain_water_height_ < -0.5f && !nav_grid_.any_steep()) || nav_grid_.cells.blank()) return false;
-	auto [cx0, cy0] = nav_grid_.world_to_cell(x0, z0);
-	auto [cx1, cy1] = nav_grid_.world_to_cell(x1, z1);
-	int dx = std::abs(cx1 - cx0), sx = cx0 < cx1 ? 1 : -1;
-	int dy = -std::abs(cy1 - cy0), sy = cy0 < cy1 ? 1 : -1;
-	int err = dx + dy, x = cx0, y = cy0;
-	while (x != cx1 || y != cy1) {
-		if ((x != cx0 || y != cy0) && nav_grid_.cells.inside(x, y) &&
-		    (ship ? !nav_grid_.is_passable_for(x, y, ship_pass)
-		          : nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y))) return true;
-		const int e2 = 2 * err;
-		if (e2 >= dy) { err += dy; x += sx; }
-		if (e2 <= dx) { err += dx; y += sy; }
-	}
-	return false;
+	const std::pair<int, int> c0 = nav_grid_.world_to_cell(x0, z0), c1 = nav_grid_.world_to_cell(x1, z1);
+	const std::pair<float, float> f0 = nav_grid_.world_to_navcells(x0, z0), f1 = nav_grid_.world_to_navcells(x1, z1);
+	bool crosses = false;
+	nav_grid_.walk_line(f0.first, f0.second, f1.first, f1.second, [&](int x, int y) {
+		if ((x == c0.first && y == c0.second) || (x == c1.first && y == c1.second)) return true;
+		crosses = ship ? !nav_grid_.is_passable_for(x, y, ship_pass)
+		               : nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y);
+		return !crosses;
+	});
+	return crosses;
 }
 
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
