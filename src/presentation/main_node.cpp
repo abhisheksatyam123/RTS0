@@ -3630,7 +3630,11 @@ void RtsoMain::_on_lobby_start_pressed() {
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);
 	turn_mgr_.assign_slot_players(setup);
-	apply_game_setup(setup);
+	{
+		// The joiners wait while the host loads the map (0.28 page_loading).
+		rtso::NetHost::KeepAlive keep(net_host_);
+		apply_game_setup(setup);
+	}
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.mark_game_started(sim);
 	start_net_speed(setup.speed);
@@ -3682,7 +3686,11 @@ void RtsoMain::apply_net_game_start() {
 	if (!net_host_.isHost()) my_client = net_host_.getLocalPeerId() ? net_host_.getLocalPeerId() : 1;
 	turn_mgr_.set_net_host(&net_host_, my_client);
 	turn_mgr_.assign_slot_players(setup);
-	apply_game_setup(setup); // after seating, so it selects the local player's units
+	{
+		// The host waits while this joiner loads the map.
+		rtso::NetHost::KeepAlive keep(net_host_);
+		apply_game_setup(setup); // after seating, so it selects the local player's units
+	}
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.note_game_start_applied(sim);
 	start_net_speed(setup.speed);
