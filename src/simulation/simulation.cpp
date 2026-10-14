@@ -17813,8 +17813,17 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		const float drop_d2 = fast ? PETRA_HUNT_DROP_FAST_D2 : (can_flee ? PETRA_HUNT_DROP_FLEE_D2 : PETRA_HUNT_DROP_D2);
 		if (!petra_food_drop_near(scan, land, x, z, drop_d2)) return;
 		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
-		// getLandAccess; a supply on a blocked cell (by a tree, a wreck) is reached from beside it.
-		if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
+		// getLandAccess; a supply on a blocked cell (by a tree, a wreck) is reached from beside it,
+		// so one with no reachable cell beside it either (deep in a circular map's edge) is skipped.
+		if (nav_grid_.is_passable_for(cx, cz, pass)) {
+			if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
+		} else {
+			bool beside = false;
+			for (int dz = -1; dz <= 1 && !beside; ++dz)
+				for (int dx = -1; dx <= 1 && !beside; ++dx)
+					beside = nav_grid_.is_passable_for(cx + dx, cz + dz, pass) && nav_grid_.reachable(ucx, ucz, cx + dx, cz + dz, pass);
+			if (!beside) return;
+		}
 		best_d2 = d2;
 		best = id;
 		live = is_live;

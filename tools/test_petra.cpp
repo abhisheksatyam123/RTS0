@@ -1109,6 +1109,23 @@ static void test_hunters_028() {
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a full carcass is skipped (isSupplyFull)");
 	full.on_carcass[meat] = 0;
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) == meat, "the same carcass with room is picked");
+	// One walled in by blocked cells (deep in a circular map's edge) has no cell to be gathered from.
+	{
+		auto &g = s->nav_grid_;
+		const auto [mx, mz] = g.world_to_cell(px + 8.0f, pz - 8.0f);
+		std::vector<std::pair<size_t, uint8_t>> saved;
+		for (int dz = -2; dz <= 2; ++dz)
+			for (int dx = -2; dx <= 2; ++dx)
+				if (g.cells.inside(mx + dx, mz + dz)) {
+					saved.push_back({(size_t)(mz + dz) * g.res + (mx + dx), g.cells.at(mx + dx, mz + dz)});
+					g.cells.at(mx + dx, mz + dz) = NAV_OBSTRUCTED;
+					g.dirty.at(mx + dx, mz + dz) = 1;
+				}
+		g.rebuild_dirty_regions();
+		CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a carcass no cell beside it reaches is skipped");
+		for (const auto &[k, v] : saved) { g.cells.data[k] = v; g.dirty.data[k] = 1; }
+		g.rebuild_dirty_regions();
+	}
 
 	// getOwnDropsites("food") holds the supply wagon; getAnyDropsites adds a mutual ally's
 	// shared farmstead only once we have Diaspora (hasSharedDropsites).
