@@ -2327,6 +2327,9 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_PATHFINDER_OVERLAY: // PathfinderOverlay: SetPathfinderDebugOverlay
 			debug_overlays_.set(rtso::RtsoDebugOverlays::PATHFINDER, on);
 			break;
+		case D::DEV_HIER_PATHFINDER_OVERLAY: // HierarchicalPathfinderOverlay: SetPathfinderHierDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::HIER_PATHFINDER, on);
+			break;
 		case D::DEV_OBSTRUCTION_OVERLAY: // ObstructionOverlay: SetObstructionDebugOverlay
 			debug_overlays_.set(rtso::RtsoDebugOverlays::OBSTRUCTION, on);
 			break;
@@ -2435,6 +2438,7 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 		using O = rtso::RtsoDebugOverlays;
 		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
+		dev_overlay_.set_checked(D::DEV_HIER_PATHFINDER_OVERLAY, debug_overlays_.on(O::HIER_PATHFINDER));
 		dev_overlay_.set_checked(D::DEV_OBSTRUCTION_OVERLAY, debug_overlays_.on(O::OBSTRUCTION));
 		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
 		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
@@ -2502,6 +2506,7 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["commands"] = commands;
 	using O = rtso::RtsoDebugOverlays;
 	d["pathfinder_drawn"] = debug_overlays_.drawn(O::PATHFINDER);
+	d["hier_pathfinder_drawn"] = debug_overlays_.drawn(O::HIER_PATHFINDER);
 	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
 	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
 	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);

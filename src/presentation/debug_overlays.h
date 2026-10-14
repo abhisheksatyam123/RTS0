@@ -4,7 +4,8 @@
 // The developer overlay's simulation overlays (0 A.D. 0.28
 // gui/session/developer_overlay/DeveloperOverlayControlCheckboxes.js, GPL-2.0-or-later):
 // Pathfinder overlay (CCmpPathfinder's passability grid: the navcells land units can't
-// cross), Obstruction overlay (CCmpObstructionManager::RenderSubmit: static shapes and
+// cross), Hierarchical pathfinder overlay (HierarchicalPathfinder's debug overlay: each
+// chunk region of navcells in a colour of its own), Obstruction overlay (CCmpObstructionManager::RenderSubmit: static shapes and
 // still units blue, moving units magenta, the world bounds yellow), Unit motion overlay
 // (CCmpUnitMotion::RenderSubmit: each unit's long path in white) and Range overlay
 // (CCmpRangeManager::RenderSubmit: each attacker's range ring green, its MinRange ring
@@ -27,7 +28,7 @@ namespace rtso {
 
 class RtsoDebugOverlays {
 public:
-	enum Kind { PATHFINDER, OBSTRUCTION, UNIT_MOTION, RANGE, KIND_COUNT };
+	enum Kind { PATHFINDER, HIER_PATHFINDER, OBSTRUCTION, UNIT_MOTION, RANGE, KIND_COUNT };
 
 	void build(godot::Node *parent) {
 		using namespace godot;
@@ -49,7 +50,11 @@ public:
 
 	void set(Kind k, bool on) { on_[k] = on; }
 	bool on(Kind k) const { return on_[k]; }
-	bool any() const { return on_[PATHFINDER] || on_[OBSTRUCTION] || on_[UNIT_MOTION] || on_[RANGE]; }
+	bool any() const {
+		for (bool b : on_)
+			if (b) return true;
+		return false;
+	}
 	// Shapes drawn by each overlay last update (tests).
 	int drawn(Kind k) const { return drawn_[k]; }
 
@@ -61,6 +66,7 @@ public:
 		if (!sim || !any()) return;
 		sim_ = sim;
 		if (on_[PATHFINDER]) pathfinder();
+		if (on_[HIER_PATHFINDER]) hier_pathfinder();
 		begun_ = false;
 		if (on_[OBSTRUCTION]) obstruction();
 		if (on_[UNIT_MOTION]) unit_motion();
@@ -92,6 +98,34 @@ private:
 				tri(a, b, e, c);
 				tri(a, e, d, c);
 				++drawn_[PATHFINDER];
+			}
+		}
+		if (open) mesh_->surface_end();
+	}
+
+	// Each passable navcell tinted by its chunk region (NavGrid chunk_regions_, 0 A.D.'s
+	// Chunk::m_Regions), a colour hashed from the chunk and the region.
+	void hier_pathfinder() {
+		const NavGrid &g = sim_->nav_grid();
+		if (!g.regions_ready_) return;
+		const float cell = g.map_half * 2.0f / (float)g.res;
+		bool open = false;
+		for (int cy = 0; cy < g.res; ++cy) {
+			for (int cx = 0; cx < g.res; ++cx) {
+				const uint8_t r = g.chunk_regions_.at(cx, cy);
+				if (r == 0) continue;
+				if (!open) {
+					mesh_->surface_begin(godot::Mesh::PRIMITIVE_TRIANGLES);
+					open = true;
+				}
+				uint32_t h = ((uint32_t)(cy / CHUNK_SIZE) * 131u + (uint32_t)(cx / CHUNK_SIZE)) * 2654435761u ^ (uint32_t)r * 40503u;
+				h ^= h >> 15;
+				const Color c((float)(h & 0xFF) / 255.0f, (float)((h >> 8) & 0xFF) / 255.0f, (float)((h >> 16) & 0xFF) / 255.0f, 0.3f);
+				const float x0 = -g.map_half + cx * cell, z0 = -g.map_half + cy * cell;
+				const Vector3 a = ground(x0, z0), b = ground(x0 + cell, z0), d = ground(x0, z0 + cell), e = ground(x0 + cell, z0 + cell);
+				tri(a, b, e, c);
+				tri(a, e, d, c);
+				++drawn_[HIER_PATHFINDER];
 			}
 		}
 		if (open) mesh_->surface_end();
