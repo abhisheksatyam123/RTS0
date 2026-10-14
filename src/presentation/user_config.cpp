@@ -82,6 +82,8 @@ const Default kDefaults[] = {
 	{"lobby.stun.port", "3478"},
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},
+	{"gui.session.formationwalkonly", "true"},
+	{"gui.session.selectformationasone", "true"},
 	{"gui.session.flarelifetime", "6"},
 	{"gui.session.woundedunithotkeythreshold", "33"},
 	{"gui.session.attackrange", "true"},

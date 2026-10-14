@@ -5169,7 +5169,47 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_id = tid;
 	c.param = param;
 	if (spectating()) return; // observers and defeated players order nothing
+	if (ids && n && order_disbands_formation(cmd_type)) {
+		// 0 A.D. AutoFormation.getNull: with gui.session.formationwalkonly every order but
+		// walk and patrol carries the null formation, so the units leave their formations
+		// first (Commands.js GetFormationUnitAIs). Sent ahead in the same turn.
+		std::vector<uint32_t> formed;
+		for (const auto &fc : sim->formations())
+			for (uint32_t m : fc.members)
+				if (std::find(ids, ids + n, m) != ids + n) formed.push_back(m);
+		if (!formed.empty()) {
+			rtso::NetCommand leave;
+			leave.cmd_type = (uint8_t)rtso::NetCommandType::NET_CMD_FORMATION;
+			leave.entity_ids = std::move(formed);
+			leave.param = rtso::FORMATION_NONE;
+			turn_mgr_.post_local_command(leave);
+		}
+	}
 	turn_mgr_.post_local_command(c);
+}
+
+bool RtsoMain::order_disbands_formation(uint8_t cmd_type) const {
+	using T = rtso::NetCommandType;
+	switch ((T)cmd_type) {
+	case T::NET_CMD_ATTACK: case T::NET_CMD_GATHER: case T::NET_CMD_BUILD: case T::NET_CMD_ATTACK_MOVE:
+	case T::NET_CMD_GARRISON: case T::NET_CMD_ATTACK_BUILD: case T::NET_CMD_BUILD_REPAIR: case T::NET_CMD_HUNT:
+	case T::NET_CMD_BOARD: case T::NET_CMD_GUARD: case T::NET_CMD_HEAL: case T::NET_CMD_RETURN_RESOURCE:
+	case T::NET_CMD_SETUP_TRADE_ROUTE: case T::NET_CMD_CALL_TO_ARMS: case T::NET_CMD_BUILD_WALL:
+		return rtso::user_config::get_bool("gui.session.formationwalkonly");
+	default:
+		return false; // walk and patrol keep (or make) formations
+	}
+}
+
+std::vector<int32_t> RtsoMain::formation_mates(int32_t uid) const {
+	// selection.js addFormationMembers: with gui.session.selectformationasone a unit in a
+	// formation is selected with the whole formation, unless selection.singleselection is held.
+	if (sim && rtso::user_config::get_bool("gui.session.selectformationasone") &&
+			!rtso::hotkeys::held("selection.singleselection"))
+		for (const auto &fc : sim->formations())
+			if (std::find(fc.members.begin(), fc.members.end(), (uint32_t)uid) != fc.members.end())
+				return std::vector<int32_t>(fc.members.begin(), fc.members.end());
+	return {uid};
 }
 
 void RtsoMain::_on_lobby_host_pressed() {
