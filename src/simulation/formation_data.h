@@ -515,6 +515,8 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007efu, 0x114u}, // rome/cavalry_javelineer_auxiliary_b
 		{0x007afu, 0x10cu}, // rome/cavalry_spearman_auxiliary_b
 		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_first
+		{0x00000u, 0x000u}, // germ/support_wagon
+		{0x00000u, 0x000u}, // germ/support_wagon_house
 	};
 	return kRows;
 }
