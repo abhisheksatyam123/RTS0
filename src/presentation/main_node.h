@@ -335,6 +335,7 @@ public:
 	void _on_remove_guard_pressed();
 	void _on_call_to_arms_pressed();
 	void _on_template_info_pressed();
+	void _on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ);
 	void _on_alert_pressed(int end);
 	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
