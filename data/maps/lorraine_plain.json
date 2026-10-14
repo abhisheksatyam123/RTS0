@@ -14945,6 +14945,66 @@
       "type": "chicken",
       "x": 19.43,
       "z": -80.65
+    },
+    {
+      "type": "sheep",
+      "x": 15.7,
+      "z": -80.35,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": 19.85,
+      "z": -84.38,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": 35.43,
+      "z": -83.95,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": 35.78,
+      "z": -65.77,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": 16.68,
+      "z": -67.25,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": -25.48,
+      "z": 63.12,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -24.18,
+      "z": 74.69,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -32.67,
+      "z": 87.32,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -40.69,
+      "z": 68.89,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -30.98,
+      "z": 64.14,
+      "player": 1
     }
   ],
   "structures": [

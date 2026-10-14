@@ -1267,6 +1267,369 @@
 			"stronghold"
 		]
 	},
+	"random_biomes": {
+		"african_plains": [
+			"generic/savanna",
+			"generic/sahara",
+			"generic/nubia"
+		],
+		"alpine_lakes": [
+			"alpine/late_spring",
+			"alpine/winter"
+		],
+		"alpine_valley": [
+			"alpine/late_spring",
+			"alpine/winter"
+		],
+		"ambush": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"archipelago": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"cantabrian_highlands": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"canyon": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"coast_range": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"continent": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"corinthian_isthmus": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"empire": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"fields_of_meroe": [
+			"fields_of_meroe/dry",
+			"fields_of_meroe/rainy"
+		],
+		"flood": [
+			"generic/temperate",
+			"generic/arctic",
+			"generic/sahara",
+			"generic/alpine",
+			"generic/aegean",
+			"generic/india",
+			"generic/autumn"
+		],
+		"foothills": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"frontier": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"gear": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"gulf_of_bothnia": [
+			"gulf_of_bothnia/frozen_lake",
+			"gulf_of_bothnia/late_spring",
+			"gulf_of_bothnia/winter"
+		],
+		"harbor": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"hells_pass": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"hyrcanian_shores": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"island_stronghold": [
+			"generic/temperate",
+			"generic/arctic",
+			"generic/sahara",
+			"generic/alpine",
+			"generic/aegean",
+			"generic/india",
+			"generic/autumn"
+		],
+		"islands": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"lake": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"land_grab": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"lions_den": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"mainland": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"migration": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"neareastern_badlands": [
+			"generic/sahara",
+			"generic/nubia",
+			"generic/savanna"
+		],
+		"persian_highlands": [
+			"persian_highlands/spring",
+			"persian_highlands/summer"
+		],
+		"rivers": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"snowflake_searocks": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"stronghold": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"survivalofthefittest": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"unknown": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		],
+		"wild_lake": [
+			"generic/aegean",
+			"generic/alpine",
+			"generic/arctic",
+			"generic/autumn",
+			"generic/india",
+			"generic/nubia",
+			"generic/sahara",
+			"generic/savanna",
+			"generic/steppe",
+			"generic/temperate"
+		]
+	},
 	"random_keywords": {
 		"aegean_sea": [
 			"naval"
