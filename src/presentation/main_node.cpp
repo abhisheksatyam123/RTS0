@@ -1722,9 +1722,9 @@ Dictionary RtsoMain::debug_selection_state() {
 		u["rank"] = (int64_t)uview.rank[i];
 		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
 		u["idle"] = uview.action_state[i] == rtso::ACTION_IDLE;
-		const uint64_t tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
+		const rtso::TechClasses tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
 				: rtso::unit_tech_classes(uview.unit_type[i]);
-		u["civilian"] = (tc & rtso::TC_CIVILIAN) != 0;
+		u["civilian"] = (bool)(tc & rtso::TC_CIVILIAN);
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -2082,12 +2082,12 @@ void RtsoMain::cycle_idle_worker() {
 // selection.offscreen (Alt) selects every idle unit of the kind at once.
 void RtsoMain::find_idle_unit(IdleKind kind) {
 	if (!sim) return;
-	std::vector<uint64_t> classes;
+	std::vector<rtso::TechClasses> classes;
 	switch (kind) {
 		case IDLE_WORKER: classes = {rtso::TC_CIVILIAN, rtso::TC_TRADER, rtso::TC_FISHINGBOAT, rtso::TC_CITIZEN}; break;
 		case IDLE_WARRIOR: classes = {rtso::TC_MELEE, rtso::TC_RANGED}; break;
 		case IDLE_BUILDER: classes = {rtso::TC_WORKER | rtso::TC_CITIZEN}; break;
-		case IDLE_ANY: classes = {~0ull}; break;
+		case IDLE_ANY: classes = {rtso::TechClasses(~0ull, ~0ull)}; break;
 	}
 	const size_t n = classes.size();
 	const bool append = rtso::hotkeys::held("selection.add");
@@ -2109,7 +2109,7 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 		if (append && selected_ids.has((int32_t)uview.id[i])) continue;
 		// The roster row's Identity classes (a female citizen is a villager by UnitType).
 		const uint16_t tmpl = uview.tmpl[i];
-		const uint64_t tc = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).tech_classes
+		const rtso::TechClasses tc = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).tech_classes
 				: rtso::unit_tech_classes(uview.unit_type[i]);
 		size_t bucket = n;
 		for (size_t k = 0; k < n; ++k) {
@@ -4928,7 +4928,7 @@ void RtsoMain::update_command_panel() {
 						if (uview.id[u] != id) continue;
 						const uint8_t ut = uview.unit_type[u];
 						const uint16_t tm = uview.tmpl[u];
-						const uint64_t cls = tm < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tm).tech_classes : rtso::unit_tech_classes(ut);
+						const rtso::TechClasses cls = tm < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tm).tech_classes : rtso::unit_tech_classes(ut);
 						const bool guarding = sim->unit_is_guarding(id);
 						any_guarding = any_guarding || guarding;
 						any_busy = any_busy || (sim->unit_has_order(id) && !guarding); // "stop": not idle, not guarding
@@ -5939,7 +5939,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						if (cam) {
 							for (size_t i = 0; i < uview.count; ++i) {
 								if (!uview.alive[i] || uview.team[i] != local_player()) continue;
-								const uint64_t cls = rtso::unit_tech_classes(uview.unit_type[i]);
+								const rtso::TechClasses cls = rtso::unit_tech_classes(uview.unit_type[i]);
 								const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
 								if ((military_only && !military) || (nonmilitary_only && military)) continue;
 								if (idle_only && uview.action_state[i] != rtso::ACTION_IDLE) continue;
