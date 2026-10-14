@@ -319,7 +319,7 @@ public:
 		if (n >= 1000000) return String::num_int64(n / 1000000) + "M";
 		if (n >= 100000) return String::num_int64(n / 1000) + "k";
 		if (n >= 10000) {
-			const int64_t tenths = n / 100; // toFixed(1) after /1e3, rounded down like the floor above
+			const int64_t tenths = (n + 50) / 100; // toFixed(1) after /1e3 rounds: 12960 is "13k"
 			String s = String::num_int64(tenths / 10);
 			if (tenths % 10) s += "." + String::num_int64(tenths % 10);
 			return s + "k";
