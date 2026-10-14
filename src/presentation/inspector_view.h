@@ -208,6 +208,14 @@ public:
 		make_insp_bar(hp_bar_, hp_label_, 41, Color(0.25f, 0.75f, 0.35f), "HP", "res://assets/textures/ui/icons/insp_health_fg.png");
 		// 2. Capture Points Bar (Cyan / Blue)
 		make_insp_bar(capture_bar_, capture_label_, 54, Color(0.35f, 0.55f, 0.95f), "CP", "res://assets/textures/ui/icons/insp_capture_bar.png");
+		// selection_details.js captureBar[n]: one part per player in their colour at half alpha,
+		// the owner's first, over the bar (whose own fill stays empty).
+		for (ColorRect *&part : capture_parts_) {
+			part = memnew(ColorRect);
+			part->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			part->set_visible(false);
+			capture_bar_->add_child(part);
+		}
 		// 3. Veterancy / Experience XP Bar (Gold / Amber)
 		make_insp_bar(xp_bar_, xp_label_, 67, Color(0.95f, 0.75f, 0.20f), "XP", "res://assets/textures/ui/icons/insp_experience_fg.png");
 		// 4. Stamina / Energy Bar (Teal / Mint)
@@ -302,6 +310,15 @@ public:
 		d["health"] = hp_label_->get_text();
 		d["xp"] = xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
 		d["stats"] = stats_->get_text();
+		godot::Array capture_parts;
+		for (godot::ColorRect *r : capture_parts_)
+			if (r->is_visible()) {
+				godot::Dictionary part;
+				part["color"] = r->get_color();
+				part["width"] = r->get_size().x;
+				capture_parts.push_back(part);
+			}
+		d["capture_parts"] = capture_parts;
 		d["xp_tooltip"] = xp_bar_->get_tooltip_text();
 		d["stats_tooltip"] = stats_->get_tooltip_text();
 		d["extra"] = extra_->get_text();
@@ -482,8 +499,13 @@ public:
 				set_owner(*sim, seen->team);
 				health(seen->hp, seen->max_hp);
 				if (seen->max_capture_points > 0.0f)
+				{
 					bar(capture_bar_, capture_label_, true, seen->capture_points, seen->max_capture_points,
 							rtso::seldet::capture(seen->capture_points, seen->max_capture_points));
+					float pts[rtso::MAX_PLAYERS + 1] = {};
+					pts[seen->team < rtso::MAX_PLAYERS ? seen->team : rtso::MAX_PLAYERS] = seen->capture_points;
+					set_capture_parts(*sim, seen->team, pts, seen->max_capture_points);
+				}
 				stats_->set_text(seen->build_progress < 1.0f
 						? "Construction: " + String::num((double)(seen->build_progress * 100.0f), 0) + "%" : String());
 				stats_->set_tooltip_text(String());
@@ -499,9 +521,11 @@ public:
 			set_owner(*sim, found->team);
 			health(found->hp, found->max_hp);
 			set_structure_extras(*sim, *found);
-			if (found->max_capture_points > 0.0f)
+			if (found->max_capture_points > 0.0f) {
 				bar(capture_bar_, capture_label_, true, found->capture_points, found->max_capture_points,
 						rtso::seldet::capture(found->capture_points, found->max_capture_points));
+				set_structure_capture_parts(*sim, *found);
+			}
 			rtso::Simulation::BuildWork work;
 			String build_tip;
 			if (sim->structure_build_work(*found, work)) {
@@ -650,10 +674,11 @@ public:
 				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health(found_b->hp, found_b->max_hp));
 				set_structure_extras(*sim, *found_b);
 
-				if (found_b->max_capture_points > 0.0f)
+				if (found_b->max_capture_points > 0.0f) {
 					set_bar(capture_bar_, capture_label_, found_b->capture_points, found_b->max_capture_points,
 							rtso::seldet::capture(found_b->capture_points, found_b->max_capture_points));
-				else
+					set_structure_capture_parts(*sim, *found_b);
+				} else
 					show_bar(capture_bar_, capture_label_, false);
 
 				rtso::Simulation::BuildWork work;
@@ -875,8 +900,43 @@ private:
 		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_, xp_bar_}) c->set_tooltip_text("");
 		rank_icon_->set_visible(false);
 		rank_icon_->set_tooltip_text("");
+		for (godot::ColorRect *r : capture_parts_) r->set_visible(false);
 		for (godot::TextureRect *icon : status_icons_) icon->set_visible(false);
 		set_portrait_target(false, 0, 0.0f, 0.0f, String(), -1, 0);
+	}
+
+	// The capture bar's parts: pts[p] for each player p, pts[MAX_PLAYERS] for Gaia; the owner first.
+	void set_capture_parts(const rtso::Simulation &sim, uint8_t owner, const float *pts, float max) {
+		capture_bar_->set_value(0.0f);
+		const float w = capture_bar_->get_size().x, h = capture_bar_->get_size().y;
+		const int owner_slot = owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS;
+		float x = 0.0f;
+		int used = 0;
+		auto part = [&](int slot) {
+			const float frac = max > 0.0f ? std::clamp(pts[slot] / max, 0.0f, 1.0f) : 0.0f;
+			if (frac <= 0.0f || used >= kCaptureParts) return;
+			const uint32_t rgb = slot < rtso::MAX_PLAYERS ? rtso::display_colors::rgb(sim, (uint8_t)slot) : sim.player_color(rtso::GAIA_PLAYER);
+			godot::ColorRect *r = capture_parts_[used++];
+			r->set_color(godot::Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 128.0f / 255.0f));
+			r->set_position(godot::Vector2(x, 0.0f));
+			r->set_size(godot::Vector2(w * frac, h));
+			r->set_visible(true);
+			x += w * frac;
+		};
+		part(owner_slot);
+		for (int slot = 0; slot <= rtso::MAX_PLAYERS; ++slot)
+			if (slot != owner_slot) part(slot);
+		for (int i = used; i < kCaptureParts; ++i) capture_parts_[i]->set_visible(false);
+	}
+	// Capturable.js GetCapturePoints of a structure. A Gaia structure keeps its points in slot 0.
+	void set_structure_capture_parts(const rtso::Simulation &sim, const rtso::Simulation::Building &b) {
+		float pts[rtso::MAX_PLAYERS + 1] = {};
+		for (int p = 0; p < rtso::MAX_PLAYERS; ++p) pts[p] = b.capture_points_by_team[p];
+		if (b.team >= rtso::MAX_PLAYERS) {
+			pts[rtso::MAX_PLAYERS] = b.capture_points;
+			pts[0] = 0.0f;
+		}
+		set_capture_parts(sim, b.team, pts, b.max_capture_points);
 	}
 
 	static String join_spaced(const String &a, const String &b) { return b.is_empty() ? a : a + String("  ") + b; }
@@ -1096,6 +1156,8 @@ private:
 	godot::ProgressBar *hp_bar_ = nullptr;
 	godot::Label *hp_label_ = nullptr;
 	godot::ProgressBar *capture_bar_ = nullptr;
+	static constexpr int kCaptureParts = rtso::MAX_PLAYERS + 1;
+	godot::ColorRect *capture_parts_[kCaptureParts] = {};
 	godot::Label *capture_label_ = nullptr;
 	godot::ProgressBar *xp_bar_ = nullptr;
 	godot::Label *xp_label_ = nullptr;

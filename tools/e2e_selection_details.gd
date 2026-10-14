@@ -67,6 +67,8 @@ func run() -> void:
 	check(String(b["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/structures/"), "a Civic Center shows its template's 0.28 icon")
 	check(String(b["portrait_tooltip"]).ends_with("Left-click to focus. Right-click for more information.") and "Territory root." in String(b["portrait_tooltip"]), "its portrait tooltip gives the template tooltip and the focus click")
 	check(String(b["rank_icon"]) == "", "a structure has no rank glyph")
+	var parts: Array = b["capture_parts"]
+	check(parts.size() == 1 and float(parts[0]["width"]) > 300.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")
 
 	var r: Dictionary = main.debug_inspector("resource")
 	print("resource: ", r)
