@@ -233,17 +233,20 @@ void RtsoMain::_ready() {
 				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
 	}
 
-	time_notification_label_ = memnew(Label);
+	time_notification_label_ = memnew(RichTextLabel);
+	time_notification_label_->set_name("TimeNotificationText");
+	time_notification_label_->set_use_bbcode(true);
+	time_notification_label_->set_fit_content(true);
+	time_notification_label_->set_scroll_active(false);
 	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
 	time_notification_label_->set_anchor(SIDE_RIGHT, 1.0f);
 	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
 	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
 	time_notification_label_->set_offset(SIDE_TOP, 62.0f);
 	time_notification_label_->set_offset(SIDE_BOTTOM, 140.0f);
-	time_notification_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	time_notification_label_->add_theme_font_size_override("font_size", 16);
-	time_notification_label_->add_theme_color_override("font_color", Color(1.0f, 0.92f, 0.6f));
+	time_notification_label_->add_theme_font_size_override("normal_font_size", 16);
+	time_notification_label_->add_theme_color_override("default_color", Color(1.0f, 0.92f, 0.6f));
 	time_notification_label_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
 	time_notification_label_->add_theme_constant_override("outline_size", 4);
 	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -564,7 +567,22 @@ void RtsoMain::_ready() {
 		};
 		caption(tr("Game Paused"), -20.0f, 28);
 		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
-		pause_by_label_ = caption("", 50.0f, 14);
+		// "Paused by" names each client in its player's colour, so it is bbcode.
+		pause_by_label_ = memnew(RichTextLabel);
+		pause_by_label_->set_use_bbcode(true);
+		pause_by_label_->set_fit_content(true);
+		pause_by_label_->set_scroll_active(false);
+		pause_by_label_->set_anchor(SIDE_LEFT, 0.3f);
+		pause_by_label_->set_anchor(SIDE_RIGHT, 0.7f);
+		pause_by_label_->set_anchor(SIDE_TOP, 0.4f);
+		pause_by_label_->set_anchor(SIDE_BOTTOM, 0.4f);
+		pause_by_label_->set_offset(SIDE_TOP, 50.0f);
+		pause_by_label_->set_offset(SIDE_BOTTOM, 72.0f);
+		pause_by_label_->add_theme_font_size_override("normal_font_size", 14);
+		pause_by_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		pause_by_label_->add_theme_constant_override("outline_size", 4);
+		pause_by_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		pause_overlay_->add_child(pause_by_label_);
 	}
 	ui_layer->add_child(pause_overlay_);
 
@@ -1008,15 +1026,19 @@ void RtsoMain::_process(double delta) {
 	update_hud();
 	update_net_delay_overlay(delta);
 	if (sim && time_notification_label_) {
+		// l10n.js timeToString: "mm:ss", or "HH:mm:ss" from an hour on (whole seconds dropped down).
+		auto time_to_string = [](int64_t ms) {
+			const int64_t t = std::max<int64_t>(0, ms) / 1000;
+			return t < 3600 ? vformat("%02d:%02d", t / 60, t % 60) : vformat("%02d:%02d:%02d", t / 3600, t / 60 % 60, t % 60);
+		};
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
 			if (!txt.is_empty()) txt += "\n";
 			// GuiInterface time notifications: %(time)s is the time left (timeToString).
-			String line = String::utf8(n->text);
+			String line = String::utf8(n->text).replace("[", "[lb]"); // a map's text, not markup
 			if (line.contains("%(time)s")) {
 				const uint32_t now = sim->trigger_state().time_ms;
-				const int left_s = n->end_ms > now ? (int)((n->end_ms - now + 999) / 1000) : 0;
-				line = line.replace("%(time)s", vformat("%d:%02d", left_s / 60, left_s % 60));
+				line = line.replace("%(time)s", time_to_string(n->end_ms > now ? (int64_t)(n->end_ms - now) : 0));
 			}
 			txt += line;
 		}
@@ -1033,7 +1055,7 @@ void RtsoMain::_process(double delta) {
 					if (q != p && ((sim->participant_mask() >> q) & 1) && !sim->is_defeated(q) && mutual(p, q)) m |= (uint8_t)(1u << q);
 				return m;
 			};
-			auto clock = [](float s) { const int t = (int)std::ceil(std::max(0.0f, s)); return vformat("%d:%02d", t / 60, t % 60); };
+			auto clock = [&](float s) { return time_to_string((int64_t)(s * 1000.0f)); };
 			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
 			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
 				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
@@ -1068,10 +1090,11 @@ void RtsoMain::_process(double delta) {
 		if (sim->ceasefire_seconds() > 0.0f) {
 			const float left = sim->ceasefire_seconds() - sim->game_time();
 			String line;
-			if (left > 0.0f && left <= 10.0f) line = "You can attack in 0:" + String(left > 9.0f ? "" : "0") + String::num_int64((int64_t)std::ceil(left));
+			if (left > 0.0f && left <= 10.0f) line = "You can attack in " + time_to_string((int64_t)(left * 1000.0f));
 			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
 			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
+		if (!txt.is_empty()) txt = "[center]" + txt + "[/center]";
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
 	if (sim && chat_window_.is_ready()) {
