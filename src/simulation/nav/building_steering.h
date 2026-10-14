@@ -19,6 +19,7 @@
 
 #include "simulation/grid_nav.h"
 #include "simulation/nav/footprint.h"
+#include "simulation/nav/obstacle_grid.h"
 #include "simulation/nav/vertex_pathfinder.h"
 #include "simulation/sim_types.h"
 
@@ -51,7 +52,10 @@ bool within_reach(const B& b, Vec2 pos, float radius, float reach)
 // A building to steer around: standing, blocks movement, not ignored, within `reach` of `pos` on both
 // axes, and not the destination (its footprint expanded by `radius` does not contain `aim`).
 template <class B>
-bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t ignore_building_id, float reach)
+#if defined(__GNUC__)
+[[gnu::always_inline]] // called per obstacle per moving unit, from every loop below
+#endif
+inline bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t ignore_building_id, float reach)
 {
 	if (!within_reach(b, pos, radius, reach)) return false;
 	if (b.wrecked || b.id == ignore_building_id || !building_blocks_movement(b.type)) return false;
@@ -112,23 +116,24 @@ bool segment_blocked_by_buildings(Vec2 pos, Vec2 end, Vec2 aim, float radius,
 template <class Buildings>
 bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
-		const NavGrid& nav, Vec2& out)
+		const NavGrid& nav, Vec2& out, float range = BUILDING_STEER_RANGE)
 {
 	thread_local std::vector<ShortPathSquare> statics;
 	thread_local std::vector<Vec2> path;
 	thread_local ShortPathScratch scratch;
 	static const std::vector<ShortPathSquare> no_units;
 	statics.clear();
+	const float cull = range * (BUILDING_STEER_CULL / BUILDING_STEER_RANGE);
 	for (const auto& b : buildings)
-		if (detail::within_reach(b, pos, radius, BUILDING_STEER_CULL) &&
-		    detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, BUILDING_STEER_CULL))
+		if (detail::within_reach(b, pos, radius, cull) &&
+		    detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, cull))
 			statics.push_back(ShortPathSquare{Vec2(b.x, b.z), footprint_u(b), footprint_v(b),
 					Vec2(b.hu, b.hv)});
 
 	ShortPathRequest req;
 	req.start = pos;
 	req.clearance = radius;
-	req.range = BUILDING_STEER_RANGE;
+	req.range = range;
 	req.goal.type = ShortPathGoal::POINT;
 	req.goal.center = aim;
 	req.terrain_clearance = radius;
@@ -243,6 +248,109 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 	}
 	if (!search_short_path(pos, aim, radius, buildings, ignore_building_id, nav, out)) {
 		memo.key = 0;
+		return false;
+	}
+	memo = ShortPathMemo{out.x, out.y, aim.x, aim.y, key};
+	return true;
+}
+
+// The memo key steer_around_obstacles keeps for a search that found no way, and how far the unit
+// moves before it searches again.
+inline uint32_t no_short_path_key(uint32_t key)
+{
+	const uint32_t k = key ^ 0x9E3779B9u;
+	return k ? k : 4u;
+}
+inline constexpr float NO_SHORT_PATH_MOVE = 0.25f;
+
+// steer_around_buildings with a second, short list of small obstacles near the unit (trees,
+// bushes, treasures: Simulation::gaia_obstacles_near) that only count within `small_range`. A line
+// blocked by a building is searched round both lists within BUILDING_STEER_RANGE; one blocked by
+// small obstacles alone within `small_range`, which is much cheaper, as 0 A.D.'s short paths
+// round a tree are short.
+template <class Buildings, class T>
+bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
+		const Buildings& buildings, const std::vector<T>& small, float small_range, uint32_t ignore_building_id,
+		const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out)
+{
+	if (small.empty())
+		return steer_around_buildings(pos, aim, radius, buildings, ignore_building_id, nav, key, memo, out);
+	const bool by_buildings = line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id);
+	if (!by_buildings && !line_blocked_by_buildings(pos, aim, small_range, radius, small, ignore_building_id)) {
+		memo.key = 0;
+		return false;
+	}
+	const ConcatRange<T> both{buildings, small};
+	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
+	const bool same_aim = aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK;
+	if (memo.key == key && same_aim) {
+		const Vec2 w(memo.x, memo.z);
+		if (!segment_blocked_by_buildings(pos, w, aim, radius, both, ignore_building_id)) {
+			out = w;
+			return true;
+		}
+	}
+	// A search from about here that found no way is not repeated until the unit moves, the aim
+	// moves or the obstacles change (in a wood most failed searches would fail again).
+	const uint32_t failed_key = no_short_path_key(key);
+	if (memo.key == failed_key && same_aim && (pos - Vec2(memo.x, memo.z)).lengthSq() < NO_SHORT_PATH_MOVE * NO_SHORT_PATH_MOVE)
+		return false;
+	// Blocked by small obstacles alone: the short path round one is usually just the way to a
+	// corner of the first one in the way, as the visibility graph would find it. Take the corner
+	// that is shortest to the aim through it and in view, on land; search only when none is.
+	if (!by_buildings) {
+		const Vec2 dir = aim - pos;
+		const float len = dir.length();
+		const Vec2 end = len > small_range ? pos + dir * (small_range / len) : aim;
+		const T* first = nullptr;
+		float first_t = 0.0f;
+		for (const T& b : small) {
+			if (!detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, small_range)) continue;
+			const Vec2 c(b.x, b.z), half(b.hu + radius, b.hv + radius);
+			if (!TestRaySquare(pos - c, end - c, footprint_u(b), footprint_v(b), half)) continue;
+			const float t = (c - pos).dot(dir);
+			if (!first || t < first_t) {
+				first = &b;
+				first_t = t;
+			}
+		}
+		if (first) {
+			constexpr float CORNER_MARGIN = 0.05f; // off the clearance edge, as the vertex pathfinder's delta
+			const Vec2 c(first->x, first->z), u = footprint_u(*first), v = footprint_v(*first);
+			const float hu = first->hu + radius + CORNER_MARGIN, hv = first->hv + radius + CORNER_MARGIN;
+			bool found = false;
+			float best = 0.0f;
+			for (int k = 0; k < 4; ++k) {
+				const Vec2 w = c + u * ((k & 1) ? hu : -hu) + v * ((k & 2) ? hv : -hv);
+				// A unit standing on a corner goes on to the next one, not back to this one.
+				if ((w - pos).lengthSq() < 4.0f * CORNER_MARGIN * CORNER_MARGIN) continue;
+				const auto [ci, cj] = nav.world_to_cell(w.x, w.y);
+				if (!nav.cells.inside(ci, cj) || nav.cells.at(ci, cj) == NAV_WATER) continue;
+				const float cost = (w - pos).length() + (aim - w).length();
+				if (found && cost >= best) continue;
+				if (segment_blocked_by_buildings(pos, w, aim, radius, both, ignore_building_id)) continue;
+				// The corner may lie inside a neighbour's clearance (trees close together).
+				bool inside = false;
+				for (const T& o : small)
+					if (o.id != first->id && detail::within_reach(o, w, radius, 0.0f) &&
+					    PointIsInSquare(w - Vec2(o.x, o.z), footprint_u(o), footprint_v(o), Vec2(o.hu + radius, o.hv + radius))) {
+						inside = true;
+						break;
+					}
+				if (inside) continue;
+				found = true;
+				best = cost;
+				out = w;
+			}
+			if (found) {
+				memo = ShortPathMemo{out.x, out.y, aim.x, aim.y, key};
+				return true;
+			}
+		}
+	}
+	if (!search_short_path(pos, aim, radius, both, ignore_building_id, nav, out,
+			by_buildings ? BUILDING_STEER_RANGE : small_range)) {
+		memo = ShortPathMemo{pos.x, pos.y, aim.x, aim.y, failed_key};
 		return false;
 	}
 	memo = ShortPathMemo{out.x, out.y, aim.x, aim.y, key};

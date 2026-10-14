@@ -127,7 +127,9 @@ def play_saved(args, lobby):
     loaded = "rejoined as client" in outs["join"] and "JOINER consumed NMT_GAME_START" not in outs["join"]
     ok = (host.returncode == 0 and join.returncode == 0 and h and j and hosted and loaded
           and h.get("hash") == j.get("hash") and h.get("hash") not in (None, "00000000")
-          and h.get("seat") == "0" and j.get("seat") == "1")
+          and h.get("seat") == "0" and j.get("seat") == "1"
+          # A saved game's clients load it at Start: nobody "has rejoined".
+          and h.get("rejoined_lines") == "0" and j.get("rejoined_lines") == "0")
     for role in ("host", "join"):
         for line in gmp_lines(outs[role]):
             print("   " + line)

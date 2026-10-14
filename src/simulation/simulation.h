@@ -167,13 +167,14 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 77; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 78; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_TRIGGER_RANGE = 72; // OnRange queries and their collections
+	static constexpr uint32_t SAVE_VERSION_WONDER_TIMERS = 78; // each wonder's own countdown, owner and allies
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -277,6 +278,11 @@ public:
 		// in order; empty: FireArrows picks its own. Saved in save_tick_state (SAVE_VERSION_FOCUS_FIRE).
 		std::vector<uint32_t> focus_targets;
 		bool is_burning = false; // Structure fire under 33% HP
+		// WonderVictory.js wonderVictoryMessages[ent]: this wonder's own countdown, the player it
+		// runs for (255: none) and that player's mutual allies when it started (allied victory).
+		float wonder_hold = 0.0f;
+		uint8_t wonder_owner = 255;
+		uint8_t wonder_allies = 0;
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -2676,7 +2682,9 @@ private:
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
-	float wonder_hold_[MAX_PLAYERS] = {}; // seconds each player has held a finished wonder
+	float wonder_hold_[MAX_PLAYERS] = {}; // the longest countdown of each player's wonders (Building::wonder_hold)
+	// GetPlayersByDiplomacy("IsExclusiveMutualAlly") under allied victory, else nobody.
+	uint8_t wonder_allies_of(uint8_t p) const { return (uint8_t)(side_of(p) & ~(1u << p)); }
 
 	MatchRecord record_;
 	// StatisticsTracker state, saved through tick_state_io (save v19+).
@@ -3198,6 +3206,26 @@ private:
 	std::vector<SteerObstacle> mine_obstacles_;
 	uint64_t mine_obstacles_tick_ = ~uint64_t{0};
 	const std::vector<SteerObstacle> &tick_mine_obstacles();
+	// Trees, fruit bushes and treasures, which block land units' movement (template_gaia_tree,
+	// _fruit and _treasure Obstruction/Static: flora_obstruction_m, TreasureTypeInfo width x depth)
+	// but not paths (RTS0's navcells are wider than a tree). Too many for the per-unit scans of
+	// steer_obstacles_, so units steer round only those near them (gaia_obstacles_near) and
+	// separation() pushes them out of these. Rebuilt with gaia_grid_ when the set changes.
+	static constexpr uint8_t GAIA_OBSTACLE = 0xFE;
+	static constexpr float GAIA_STEER_REACH = 2.5f; // world units round a walker whose trees it steers by
+	std::vector<SteerObstacle> gaia_obstacles_;
+	std::vector<uint32_t> gaia_res_idx_; // each one's supply index in resources_, UINT32_MAX for a treasure
+	std::vector<uint32_t> mine_candidates_; // the supplies that are mines, for append_mine_obstacles
+	// A tree or bush stays listed once cut down (ensure_gaia_obstacles); a treasure leaves at once.
+	bool gaia_obstacle_live(uint32_t k) const {
+		const uint32_t r = gaia_res_idx_[k];
+		return r == UINT32_MAX || (resources_.alive[r] && resources_.amount[r] > 0);
+	}
+	nav::BucketGrid gaia_grid_;
+	uint64_t gaia_obstacles_sig_ = 0;
+	void ensure_gaia_obstacles();
+	// Appends to `out` the Gaia obstacles that may reach into the box (x, z) +- reach.
+	void gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const;
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
