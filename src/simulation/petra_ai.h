@@ -88,6 +88,8 @@ struct PetraConfig {
 			default:
 				aggressive = 0.50f; defensive = 0.50f; cooperative = 0.50f; break;
 		}
+		// Sandbox keeps the default personality whatever the behaviour (setConfig draws above it).
+		if (difficulty == PETRA_SANDBOX) aggressive = defensive = cooperative = 0.5f;
 		if (seed != 0 && difficulty > PETRA_SANDBOX) {
 			uint64_t st = seed;
 			auto rand01 = [&st]() { // splitmix64
@@ -127,7 +129,7 @@ struct PetraConfig {
 		emergency_struct_factor = kEmerg[d];
 		emergency_root_factor = kRoots[d];
 
-		defense_ratio_own = 1.6f + 0.8f * defensive + 0.15f * (float)d;
+		defense_ratio_own = 2.0f; // config.js Defense.defenseRatio.own (ally 1.4 and neutral 1.8 derive from it)
 		// config.js Economy.popPhase2 150 and workPhase3 180 (0.28); from Medium a strongly
 		// aggressive personality goes to the town phase at 50. Below Easy it never cities.
 		pop_phase2 = (d >= PETRA_MEDIUM && aggressive > 0.70f) ? 50 : 150;
