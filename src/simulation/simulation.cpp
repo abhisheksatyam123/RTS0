@@ -28690,6 +28690,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"jebel_barkal_triggers", TRIGGER_ACTION_JEBEL_BARKAL_INIT, TUTORIAL_NONE},
 		{"gallic_fields_3p", TRIGGER_ACTION_GALLIC_FIELDS, TUTORIAL_NONE},
 		{"triggers_demo", TRIGGER_ACTION_TRIGGERS_DEMO_INIT, TUTORIAL_NONE},
+		{"pickup_test_map_triggers", TRIGGER_ACTION_PICKUP_TEST, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -28923,6 +28924,9 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_GALLIC_FIELDS:
 			trigger_gallic_fields(arg != 0.0f);
+			break;
+		case TRIGGER_ACTION_PICKUP_TEST:
+			trigger_pickup_test((int)arg);
 			break;
 		case TRIGGER_ACTION_TRIGGERS_DEMO_RANGE:
 			// RangeAction: warn(uneval(data)). vars 0-2 count what it saw (the demo keeps no state).
@@ -29317,6 +29321,66 @@ void Simulation::trigger_gallic_fields(bool attack) {
 	v[1] = (int32_t)((float)v[1] * rand);
 	v[0] = (int32_t)std::lround((float)v[0] * rand);
 	triggers_.set_timeout((uint32_t)v[1], TRIGGER_ACTION_GALLIC_FIELDS, 1.0f);
+}
+
+void Simulation::trigger_pickup_test(int step) {
+	// maps/scenarios/pickup_test_map_triggers.js: ten garrison experiments, each started
+	// 200 ms in (DoAfterDelay). Its points are A 14-26 in map order, then B 27 and C 28 (the
+	// coasts). QuickSpawn offsets "pos.x + i" are metres: a quarter of a world unit here.
+	// vars 0 the ship of UnitsIntoShipThenAnotherCloseBy.
+	if (step == 0) {
+		triggers_.set_timeout(200, TRIGGER_ACTION_PICKUP_TEST, 1.0f);
+		return;
+	}
+	std::vector<const TriggerPoint *> pt;
+	for (const TriggerPoint &p : triggers_.points) pt.push_back(&p);
+	if (pt.size() < 15) return;
+	enum { PLAZA_NW, PLAZA_NE, PLAZA_SE, PLAZA_SW, ROAD_1, ROAD_2, ROAD_3, ROAD_4, ROAD_5, ISLAND_1, ISLAND_2,
+	       SEA_1, SEA_2, COAST_1, COAST_2 };
+	// UNIT_TEMPLATE is units/athen/infantry_marine_archer_b, the Cretan Mercenary Archer
+	// RTS0's roster has as athen/infantry_archer_b (same stats, minus the Iphicratean requirement).
+	const uint16_t archer = roster_template_named("athen/infantry_archer_b");
+	const uint16_t ship_t = roster_template_named("athen/ship_arrow");
+	const uint16_t ram_t = roster_template_named("brit/siege_ram");
+	if (archer == CIV_UNIT_TEMPLATE_NONE || ship_t == CIV_UNIT_TEMPLATE_NONE || ram_t == CIV_UNIT_TEMPLATE_NONE) return;
+	auto spawn = [&](int point, float dx_m, uint16_t tmpl) -> uint32_t {
+		return spawn_unit(pt[point]->x + dx_m / 4.0f, pt[point]->z, 0, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+	};
+	auto board = [&](uint32_t holder, int point, int n, int other = -1) {
+		for (int i = 0; i < n; ++i)
+			if (const uint32_t u = spawn(other >= 0 && i % 2 ? other : point, (float)i, archer)) order_board_transport(&u, 1, holder);
+	};
+	if (step == 2) {
+		// The PerformGarrison hook: once the first walker is aboard, another from the far coast.
+		const uint32_t ship = (uint32_t)triggers_.vars[0];
+		if (!is_transport(ship)) return;
+		if (get_transport_passenger_count(ship) == 0) {
+			triggers_.set_timeout(200, TRIGGER_ACTION_PICKUP_TEST, 2.0f);
+			return;
+		}
+		if (const uint32_t u = spawn(COAST_2, 0.0f, archer)) order_board_transport(&u, 1, ship);
+		return;
+	}
+	board(spawn(PLAZA_NW, 0.0f, ram_t), PLAZA_NE, 5);                  // UnitsIntoRamClose
+	board(spawn(ROAD_5, 0.0f, ram_t), ROAD_1, 5);                      // UnitsIntoRamFar
+	board(spawn(PLAZA_SW, 0.0f, ram_t), PLAZA_SE, 6, ROAD_1);          // UnitsIntoRamOppositeDir
+	board(spawn(ISLAND_1, 0.0f, ram_t), PLAZA_SE, 3);                  // UnitsIntoRamImpossible
+	board(spawn(SEA_1, 0.0f, ship_t), PLAZA_SE, 6);                    // UnitsIntoShipClose
+	board(spawn(SEA_1, 0.0f, ship_t), ROAD_4, 50);                     // UnitsIntoShipFar
+	const uint32_t two = spawn(SEA_2, 0.0f, ship_t);                   // UnitsIntoShipTwoIslands
+	board(two, ROAD_2, 3);
+	board(two, ISLAND_2, 3);
+	const uint32_t erratic = spawn(SEA_1, 0.0f, ship_t);               // UnitsIntoShipThenAnotherCloseBy
+	if (const uint32_t u = spawn(COAST_1, 0.0f, archer)) order_board_transport(&u, 1, erratic);
+	triggers_.vars[0] = (int32_t)erratic;
+	triggers_.set_timeout(200, TRIGGER_ACTION_PICKUP_TEST, 2.0f);
+	const uint32_t beached = spawn(ROAD_3, 0.0f, ship_t);              // UnitsIntoShipAlreadyInRange
+	for (int i = 0; i < 10; ++i)
+		if (const uint32_t u = spawn(ROAD_3, 0.0f, archer)) order_board_transport(&u, 1, beached);
+	const uint32_t bad = spawn(SEA_2, 0.0f, ship_t);                   // IslandUnitsPlayerGivesBadOrder
+	board(bad, ISLAND_1, 3);
+	// WalkTo(567, 53): 0 A.D. metres from the map corner, 1024 m across.
+	if (bad) order_walk(&bad, 1, (567.0f - 512.0f) / 4.0f, (53.0f - 512.0f) / 4.0f);
 }
 
 void Simulation::trigger_survival_wave() {
