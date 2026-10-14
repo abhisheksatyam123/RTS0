@@ -626,6 +626,7 @@ public:
 				{
 					bool any_guarding = false, any_busy = false, any_work = false, any_fighter = false;
 					bool any_guard = false, any_can_add_guard = false, any_garrison = false, any_deletable = false;
+					bool any_turret = false; // "leave-turret": a selected unit on a turret point
 					int passengers = 0;
 					for (int s = 0; s < selected_ids.size(); ++s) {
 						const uint32_t id = (uint32_t)selected_ids[s];
@@ -645,6 +646,7 @@ public:
 							any_guard = any_guard || can_guard;
 							any_can_add_guard = any_can_add_guard || (can_guard && !guarding);
 							any_garrison = any_garrison || !rtso::unit_is_ship(ut); // Garrisonable
+							any_turret = any_turret || sim->turret_holder_of(id) != 0;
 							if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
 							any_deletable = any_deletable || (ut != rtso::UNIT_CATAFALQUE && !sim->undeletable_unit(id)); // isUndeletable
 							break;
@@ -668,6 +670,9 @@ public:
 					if (any_garrison)
 						add_entity_command("garrison", "Garrison", "session.garrison",
 								"Garrison\nOrder the selected units to garrison in a structure or another unit.", "garrison.png");
+					if (any_turret)
+						add_entity_command("leave-turret", "Unload", "",
+								"Unload\nOrder the selected units to leave their turret points.", "leave-turret.png");
 					if (has_worker)
 						add_entity_command("repair", "Repair", "session.repair",
 								"Repair\nOrder the selected units to repair a structure, ship, or siege engine.", "repair.png");

@@ -167,7 +167,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 75; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 76; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
@@ -396,6 +396,8 @@ public:
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
 	uint32_t turret_holder_of(uint32_t unit_id) const;
+	// Commands.js "leave-turret": `player`'s units among `unit_ids` step down from their turret points.
+	void cmd_leave_turret(uint8_t player, const uint32_t *unit_ids, size_t count);
 	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
 	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
 	// One hit that cost an entity health: 0 A.D.'s MT_Attacked message, read by the
