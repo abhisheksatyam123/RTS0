@@ -14,7 +14,7 @@ const MAPS := [
 	"territory_demo", "test_foundation", "tropical_island", "walls", "we_are_legion",
 	"units_demo", "combat_demo_huge", "vertex_pathfinder_test", "triggers_demo",
 	"pickup_test_map", "unit_chasing_test", "unit_dancing_test",
-	"unit_pushing_test", "unit_motion_integration_test",
+	"unit_pushing_test", "unit_motion_integration_test", "cinema_demo",
 ]
 
 var failures := 0
@@ -69,5 +69,12 @@ func run() -> void:
 		var st: Dictionary = m.get_match_statistics()
 		check(st.get("map_id", "") == map_id, "the match is on " + str(st.get("map_id", "")))
 		check(float(st.get("game_time", 0.0)) >= 10.0, "it runs: %.0f s" % float(st.get("game_time", 0.0)))
+		if map_id == "cinema_demo":
+			# cinema_demo.js plays its 55.5 s "test" path from 6 s behind letterbox bars.
+			var bars = m.get_node_or_null("CinemaOverlay")
+			check(bars != null and bars.visible, "the cinema path plays at 10 s")
+			while float(m.get_match_statistics().get("game_time", 0.0)) < 63.0 and Time.get_ticks_msec() - t1 < 300000:
+				await process_frame
+			check(bars != null and not bars.visible, "and ends by 63 s")
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)

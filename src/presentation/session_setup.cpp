@@ -474,6 +474,29 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		sim->add_trigger_point((uint8_t)ref.unicode_at(0), (float)tp.get("x", 0.0), (float)tp.get("z", 0.0),
 				owner <= 0 ? rtso::GAIA_PLAYER : (uint8_t)std::min(owner - 1, rtso::MAX_PLAYERS - 1));
 	}
+	// The map's <Paths> (MapReader ReadPaths): cinematic camera paths its scripts play.
+	Array cp_arr = d.get("cinema_paths", Array());
+	for (int i = 0; i < cp_arr.size(); ++i) {
+		Dictionary cp = cp_arr[i];
+		rtso::CinemaPath path;
+		const CharString name = String(cp.get("name", "")).utf8();
+		std::strncpy(path.info.name, name.get_data(), sizeof(path.info.name) - 1);
+		path.info.timescale = (float)(double)cp.get("timescale", 1.0);
+		path.info.mode = rtso::cinema_mode_from_name(String(cp.get("mode", "ease_inout")).utf8().get_data());
+		path.info.style = rtso::cinema_style_from_name(String(cp.get("style", "default")).utf8().get_data());
+		path.info.look_at_target = String(cp.get("orientation", "")) == "target" ? 1 : 0;
+		auto nodes = [](const Array &arr, std::vector<rtso::CinemaNode> &out) {
+			for (int k = 0; k < arr.size(); ++k) {
+				const Array n = arr[k];
+				if (n.size() < 4) continue;
+				out.push_back(rtso::CinemaNode{(float)(double)n[0], (float)(double)n[1], (float)(double)n[2], (float)(double)n[3]});
+			}
+		};
+		nodes(cp.get("nodes", Array()), path.nodes);
+		nodes(cp.get("targets", Array()), path.targets);
+		if (path.info.look_at_target && path.targets.empty()) path.info.look_at_target = 0;
+		sim->add_cinema_path(path);
+	}
 	// The map's TriggerScripts (0 A.D. ScriptSettings), ported to C++ (triggers.h).
 	Array trig_arr = d.get("trigger_scripts", Array());
 	for (int i = 0; i < trig_arr.size(); ++i) {
