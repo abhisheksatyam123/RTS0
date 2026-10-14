@@ -42,36 +42,37 @@ func run() -> void:
 	var tree = tabs.get_child(1)
 	var ref: RtsoReference = Common.ref()
 	var civs: Array = ref.get_civs()
-	check(civs.size() == 14, "14 civilizations")
+	check(civs.size() == 15, "15 civilizations (with the Germans)")
 	var empty_history := []
-	for c in civs.size():
-		civinfo._on_civ_selected(c) # as the dropdown does
-		check(tree.civ == c, "%s: the structure tree follows the overview's civ" % civs[c]["name"])
+	for i in civs.size():
+		var c := int(civs[i]["id"]) # the Germans are civ 15, after Gaia
+		civinfo._on_civ_selected(i) # as the dropdown does
+		check(tree.civ == c, "%s: the structure tree follows the overview's civ" % civs[i]["name"])
 		var txt: String = civinfo._gameplay.text
 		var info: Dictionary = ref.get_civ_info(c)
 		check(txt.contains("Civilization Bonus") and txt.contains("Team Bonus") and txt.contains("Hero"),
-			"%s: bonuses, team bonuses and heroes" % civs[c]["name"])
-		check(info["heroes"].size() >= 1, "%s: has heroes (%d)" % [civs[c]["name"], info["heroes"].size()])
+			"%s: bonuses, team bonuses and heroes" % civs[i]["name"])
+		check(info["heroes"].size() >= 1, "%s: has heroes (%d)" % [civs[i]["name"], info["heroes"].size()])
 		if Common.civ_history(c) == "":
-			empty_history.append(civs[c]["code"])
+			empty_history.append(civs[i]["code"])
 		var st: Array = ref.get_structure_tree(c)
 		var boxes := 0
 		for row in tree._rows.get_children():
 			if row is HFlowContainer:
 				boxes += row.get_child_count()
-		check(boxes == st.size() and boxes >= 20, "%s: a box for each of its %d structures" % [civs[c]["name"], st.size()])
+		check(boxes == st.size() and boxes >= 20, "%s: a box for each of its %d structures" % [civs[i]["name"], st.size()])
 		var trains := 0
 		for b in st:
 			trains += b["units"].size()
-		check(trains > 10, "%s: structures train %d units" % [civs[c]["name"], trains])
+		check(trains > 10, "%s: structures train %d units" % [civs[i]["name"], trains])
 	check(empty_history.is_empty(), "every civ has its 0 A.D. history " + str(empty_history))
 
 	print("2. Template Viewer")
 	var bad := []
 	var no_tooltip := 0
 	var units := 0
-	for c in civs.size():
-		for b in ref.get_structure_tree(c):
+	for civ in civs:
+		for b in ref.get_structure_tree(int(civ["id"])):
 			for u in b["units"]:
 				units += 1
 				var d: Dictionary = ref.get_unit(int(u["tmpl"]))
@@ -81,28 +82,41 @@ func run() -> void:
 					no_tooltip += 1
 	check(units > 300 and bad.is_empty(), "%d trainable units have stats %s" % [units, str(bad)])
 	print("  units without a 0 A.D. tooltip: ", no_tooltip)
-	var v = Viewer.open(page, "unit", int(ref.get_civ_info(0)["heroes"][0]["tmpl"]), 0)
+	# The first Athenian hero that fights (Hippocrates heals and has no attack, as in 0.28).
+	var hero := -1
+	for h in ref.get_civ_info(0)["heroes"]:
+		if hero < 0 and ref.get_unit(int(h["tmpl"])).has("attack"):
+			hero = int(h["tmpl"])
+	var v = Viewer.open(page, "unit", hero, 0)
 	await frames(2)
 	check(v._stats.text.contains("Health") and v._stats.text.contains("Attack") and v._stats.text.contains("Resistance"),
 		"a hero shows health, attack and resistance")
 	check(v._info.text.contains("Auras"), "a hero shows its auras")
-	check(v._info.text.contains("Trained at"), "a hero shows where it is trained")
+	check(v._info.text.contains("Trained by"), "a hero shows where it is trained")
 	# Follow a link, then go back.
 	var tc_name: String = ref.get_structure(0, 0)["name"]
 	v.show_template("unit", int(ref.get_structure_tree(0)[0]["units"][0]["tmpl"]), 0)
 	check(v._info.text.contains("[url=structure:"), "a unit links to the structures that train it")
-	check(v._info.text.contains("Builds:") or v._info.text.contains("Trained at"), "a citizen lists what it builds")
+	check(v._info.text.contains("Builds:") or v._info.text.contains("Trained by"), "a citizen lists what it builds")
 	v._on_meta("structure:0")
 	check(v.kind == "structure" and v._name.text.contains(tc_name) or v._name.text.contains("Civic"), "the link opens the civic centre")
 	check(v._info.text.contains("Trains:") and v._info.text.contains("Built by:"), "a civic centre lists what it trains and who builds it")
 	v._go_back()
 	check(v.kind == "unit", "Back returns to the unit")
+	# 0.28 tooltips.js lines: a citizen's speed and gather rates, a tower's arrows.
+	check(v._stats.text.contains("Walk,") and v._stats.text.contains("Gather Rates:"), "a citizen shows its speed and gather rates")
+	v.show_template("structure", 4, 0)
+	check(v._stats.text.contains("Bow[/b]:") and v._stats.text.contains("Projectile Limit") and v._stats.text.contains("Range:[/b] 10 to 60 (+"),
+		"a defense tower shows its bow, arrows and parabolic range")
+	v.show_template("structure", 0, 0)
+	check(v._stats.text.contains("Dropsite for:") and v._stats.text.contains("Rate:[/b] 6 arrows"), "a civic centre is a dropsite with an arrow rate")
 	var bad_bld := []
-	for c in civs.size():
+	for civ in civs:
+		var c := int(civ["id"])
 		for b in ref.get_structure_tree(c):
 			v.show_template("structure", int(b["type"]), c)
 			if not v._stats.text.contains("Health") or v._name.text == "":
-				bad_bld.append("%s/%s" % [civs[c]["code"], b["name"]])
+				bad_bld.append("%s/%s" % [civ["code"], b["name"]])
 	check(bad_bld.is_empty(), "every civ's structures show their stats " + str(bad_bld))
 	var techs := 0
 	var bad_tech := []

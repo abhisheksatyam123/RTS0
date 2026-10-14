@@ -73,6 +73,8 @@ static void test_tribute() {
 	CHECK(s.gold() == 1000 && s.player_resource(1, RES_GOLD) == 1000);
 }
 
+static bool near(float a, float b) { return std::fabs(a - b) < 1e-3f; }
+
 static void test_barter() {
 	static Simulation s;
 	fresh(s);
@@ -89,13 +91,16 @@ static void test_barter() {
 	CHECK(s.barter_quote(RES_WOOD, RES_STONE, 100) == 82);
 	CHECK(s.cmd_barter(0, RES_WOOD, RES_STONE, 100));
 	CHECK(s.wood() == 900 && s.stone() == 1082);
-	CHECK(s.barter_price_diff(RES_WOOD) == -2.0f && s.barter_price_diff(RES_STONE) == 2.0f);
+	// Barter.js (0.28): the prices move 2% per 100 received, here 82 stone.
+	CHECK(near(s.barter_price_diff(RES_WOOD), -1.64f) && near(s.barter_price_diff(RES_STONE), 1.64f));
 	// Only 100 or 500 (DEAL_AMOUNT, BATCH_SIZE deals); the same pair is now dearer.
 	CHECK(!s.cmd_barter(0, RES_WOOD, RES_STONE, 200));
 	CHECK(!s.cmd_barter(0, RES_WOOD, RES_WOOD, 100));
-	CHECK(s.barter_quote(RES_WOOD, RES_STONE, 500) == (int)std::lround(88.0 / 112.0 * 500.0));
+	const int bought = (int)std::lround(88.36 / 111.64 * 500.0); // 396
+	CHECK(s.barter_quote(RES_WOOD, RES_STONE, 500) == bought);
 	CHECK(s.cmd_barter(0, RES_WOOD, RES_STONE, 500));
-	CHECK(s.barter_price_diff(RES_WOOD) == -12.0f && s.barter_price_diff(RES_STONE) == 12.0f);
+	const float moved = 1.64f + 2.0f * (float)bought / 100.0f; // 9.56
+	CHECK(near(s.barter_price_diff(RES_WOOD), -moved) && near(s.barter_price_diff(RES_STONE), moved));
 	// Prices are in the lockstep hash and survive save/load (checked before any
 	// tick: other per-tick state does not round-trip yet).
 	const char *path = "/tmp/rts0_test_trade.sav";
@@ -111,7 +116,7 @@ static void test_barter() {
 
 	// The market is shared: player 1 now sees the moved prices once it has a market.
 	s.spawn_building_world(-40.0f, 30.0f, BLD_MARKET, 1, 1.0f);
-	CHECK(s.barter_quote(RES_STONE, RES_FOOD, 100) == (int)std::lround(102.0 / 110.0 * 100.0));
+	CHECK(s.barter_quote(RES_STONE, RES_FOOD, 100) == (int)std::lround((90.0 + moved) / 110.0 * 100.0));
 	// Can't sell what you don't have.
 	s.set_player_resources(1, 1000, 50, 1000, 1000);
 	CHECK(!s.cmd_barter(1, RES_WOOD, RES_FOOD, 100));
@@ -119,13 +124,14 @@ static void test_barter() {
 
 	// Prices drift back 0.5% every 5 s (Barter.js ProgressTimeout).
 	run(s, 5.05f);
-	CHECK(s.barter_price_diff(RES_WOOD) == -11.5f && s.barter_price_diff(RES_STONE) == 11.5f);
+	CHECK(near(s.barter_price_diff(RES_WOOD), -moved + 0.5f) && near(s.barter_price_diff(RES_STONE), moved - 0.5f));
 	run(s, 5.0f);
-	CHECK(s.barter_price_diff(RES_WOOD) == -11.0f);
+	CHECK(near(s.barter_price_diff(RES_WOOD), -moved + 1.0f));
 
 	// The overall difference never passes +-99%: the dynamic part clamps at 89.
+	// Each deal buys less as the prices part, so the steps shrink on the way.
 	s.set_player_resources(0, 100000, 100000, 100000, 100000);
-	for (int i = 0; i < 30; ++i) CHECK(s.cmd_barter(0, RES_FOOD, RES_GOLD, 500));
+	for (int i = 0; i < 100; ++i) CHECK(s.cmd_barter(0, RES_FOOD, RES_GOLD, 500));
 	CHECK(s.barter_price_diff(RES_FOOD) == -89.0f && s.barter_price_diff(RES_GOLD) == 89.0f);
 	CHECK(s.market_sell_price(RES_FOOD) > 0.0f && s.market_buy_price(RES_GOLD) < 2.0f);
 

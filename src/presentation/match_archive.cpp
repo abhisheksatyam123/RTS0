@@ -102,6 +102,8 @@ Dictionary stats_dict(const rtso::PlayerStatistics &st) {
 	d["enemyUnitsKilled"] = by_class(st.enemy_units_killed, true);
 	d["unitsLostValue"] = (int64_t)st.units_lost_value;
 	d["enemyUnitsKilledValue"] = (int64_t)st.enemy_units_killed_value;
+	d["unitsCaptured"] = by_class(st.units_captured, true);
+	d["unitsCapturedValue"] = (int64_t)st.units_captured_value;
 	d["buildingsConstructed"] = by_class(st.buildings_constructed, false);
 	d["buildingsLost"] = by_class(st.buildings_lost, false);
 	d["enemyBuildingsDestroyed"] = by_class(st.enemy_buildings_destroyed, false);
@@ -145,8 +147,8 @@ int economy_score(const rtso::PlayerStatistics &st) {
 	return (int)std::llround((double)total / 10.0);
 }
 int military_score(const rtso::PlayerStatistics &st) {
-	return (int)std::llround((double)(st.enemy_units_killed_value + st.enemy_buildings_destroyed_value +
-	                                  st.buildings_captured_value) / 10.0);
+	return (int)std::llround((double)(st.enemy_units_killed_value + st.units_captured_value +
+	                                  st.enemy_buildings_destroyed_value + st.buildings_captured_value) / 10.0);
 }
 // RangeManager GetPercentMapExplored is a whole percent in 0 A.D.
 int exploration_score(float percent_explored) { return (int)std::floor(percent_explored) * 10; }
