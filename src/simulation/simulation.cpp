@@ -9159,8 +9159,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (bit != building_id_to_idx_.end()) {
 				const Building &bb = buildings_[bit->second];
 				if (!bb.wrecked && bb.hp > 0.0f) {
-					stand_outside(bb, units_.id[i],
-							px[i], pz[i], &tx[i], &tz[i], unit_clearance_at(i) + kStandMargin);
+					builder_stand_point(i, bb, px[i], pz[i], tx[i], tz[i]);
 					has[i] = 1;
 				}
 			}
@@ -11272,6 +11271,55 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 	cmd_move(&uid, 1, tx, tz);
 	applying_queued_ = was;
 	if (units_.order_kind[i] == ORDER_WALK) units_.order_flags[i] |= ORDER_FLAG_FORCE;
+}
+
+// UnitMotion MoveToTargetRange: the long pathfinder's goal is the whole range round the structure's
+// obstruction, and the path ends on its nearest reachable navcell. stand_outside picks the point
+// on the side the builder comes from; when a neighbour touches the structure there (Petra packs
+// houses corner to corner) that point is shut, and the builder would push at it for good. It then
+// takes the nearest open point of the ring that it can reach instead.
+void Simulation::builder_stand_point(size_t i, const Building &b, float x, float z, float &tx, float &tz) const {
+	const float off = unit_clearance_at(i) + kStandMargin;
+	stand_outside(b, units_.id[i], x, z, &tx, &tz, off);
+	const uint8_t ut = units_.unit_type[i];
+	if (unit_is_ship(ut)) return;
+	const uint8_t pass = (ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT)
+			? PASS_CAVALRY : PASS_INFANTRY;
+	auto [ux, uy] = nav_grid_.world_to_cell(x, z);
+	// Open: on a passable navcell the builder can reach, and its clearance clear of every other
+	// structure touching the ring (a point on a neighbour's edge passes the navcell test).
+	const float clear = unit_clearance_at(i);
+	const float reach = std::max(b.hu, b.hv) + off + clear;
+	std::vector<const Building *> near;
+	for (const Building &o : buildings_)
+		if (&o != &b && o.committed && !o.wrecked && building_blocks_movement(o.type) &&
+				std::fabs(o.x - b.x) < reach + std::max(o.hu, o.hv) + 1.0f && std::fabs(o.z - b.z) < reach + std::max(o.hu, o.hv) + 1.0f)
+			near.push_back(&o);
+	auto open = [&](float wx, float wz) {
+		auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
+		if (!nav_grid_.is_passable_for(cx, cy, pass) || !nav_grid_.reachable(ux, uy, cx, cy, pass)) return false;
+		for (const Building *o : near)
+			if (nav::footprint_contains(*o, wx, wz, clear)) return false;
+		return true;
+	};
+	if (open(tx, tz) || !nav_grid_.is_passable_for(ux, uy, pass)) return;
+	const float eu = b.hu + off, ev = b.hv + off;
+	constexpr float kStep = 0.25f;
+	float best = 1e30f;
+	for (int side = 0; side < 4; ++side) {
+		const float len = side < 2 ? eu : ev; // half this side of the ring: 0-1 run along u, 2-3 along v
+		for (float t = -len; t <= len + 1e-4f; t += kStep) {
+			const float lu = side < 2 ? t : side == 2 ? -eu : eu;
+			const float lv = side < 2 ? (side == 0 ? -ev : ev) : t;
+			const nav::Vec2 w = nav::footprint_world(b, lu, lv);
+			const float d = (w.x - x) * (w.x - x) + (w.y - z) * (w.y - z);
+			if (d < best && open(w.x, w.y)) {
+				best = d;
+				tx = w.x;
+				tz = w.y;
+			}
+		}
+	}
 }
 
 bool Simulation::try_commit_foundation(Building &b) {
