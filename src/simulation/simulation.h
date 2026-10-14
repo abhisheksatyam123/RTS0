@@ -162,9 +162,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 71; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 72; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
+	static constexpr uint32_t SAVE_VERSION_TRIGGER_RANGE = 72; // OnRange queries and their collections
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -2462,6 +2463,7 @@ private:
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
 	void tick_trigger_watches();
+	void tick_trigger_range_queries();
 	void trigger_survival_init();
 	void trigger_survival_wave();
 	void trigger_gallic_fields(bool attack);
