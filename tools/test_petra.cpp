@@ -489,6 +489,29 @@ static void test_diplomacy() {
 		CHECK(!s->is_ally(1, 2), "one AI betrays the other once no enemy is left");
 	}
 
+	// init: a mutual ally at the start is an accepted alliance; PlayerDefeated
+	// drops a defeated player's requests.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(3);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 3, 4, 96.0f);
+		for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p != 0);
+		s->set_mutual_ally(1, 2);
+		run_for(*s, 10.0f);
+		CHECK(s->petra_diplo_.received[2].status == PetraReceivedRequest::ACCEPTED,
+		      "a starting mutual ally is recorded as an accepted alliance");
+		s->petra_diplo_.received[0].status = PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		run_for(*s, 20.0f);
+		std::printf("  init and defeat: defeated %d, ally recorded %d, defeated player's request %d\n", (int)s->is_defeated(0),
+		            (int)s->petra_diplo_.received[2].status, (int)s->petra_diplo_.received[0].status);
+		CHECK(s->is_defeated(0) && s->petra_diplo_.received[0].status == PetraReceivedRequest::NONE,
+		      "a defeated player's request is dropped");
+	}
+
 	// Last Man Standing with unlocked teams: lobby teams only set the starting
 	// alliances, so teammates fall out too once no enemy is left.
 	{
