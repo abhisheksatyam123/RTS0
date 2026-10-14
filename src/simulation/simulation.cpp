@@ -7857,6 +7857,9 @@ void Simulation::tick(float dt) {
 	if (waves_enabled_) tick_waves(dt);
 	// The map's treasures as the match starts, before Petra's first turn looks for them (0 A.D.
 	// places them with the map; startingStrategy.js buildFirstBase counts on a Nomad start's).
+	if (ticks_ == 0 && ally_view())
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+			if (!players_[p].has_tech(TECH_UNLOCK_SHARED_LOS)) complete_research(p, TECH_UNLOCK_SHARED_LOS);
 	if (ticks_ == 0 && !game_over_ && !victory_ && victory_conditions()) {
 		if (disable_treasures_) clear_treasures();
 		if (nomad_start_) spawn_nomad_treasures();

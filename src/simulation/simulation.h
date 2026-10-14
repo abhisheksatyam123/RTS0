@@ -954,6 +954,9 @@ public:
 	// 0 A.D. DisableSpies: Espionage can't be researched, so nobody can bribe.
 	void set_disable_spies(bool on) { set_setup_flag(SETUP_DISABLE_SPIES, on); }
 	bool spies_disabled() const { return setup_flags_ & SETUP_DISABLE_SPIES; }
+	// 0 A.D. AllyView (InitGame.js): every player starts with Diplomacy's SharedLosTech researched.
+	void set_ally_view(bool on) { set_setup_flag(SETUP_ALLY_VIEW, on); }
+	bool ally_view() const { return setup_flags_ & SETUP_ALLY_VIEW; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -2384,7 +2387,7 @@ private:
 	void spawn_nomad_treasures();
 	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
 	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_DISABLE_SPIES = 8,
-		SETUP_FLAGS_ALL = 15;
+		SETUP_ALLY_VIEW = 16, SETUP_FLAGS_ALL = 31;
 	std::vector<Spy> spies_; // VisionSharing spies, oldest first
 	CheatMods cheat_mods_[MAX_PLAYERS] = {};
 	int32_t unit_pop_bonus_[MAX_PLAYERS] = {}; // Population/Bonus of each player's units (refresh_unit_pop_bonus)

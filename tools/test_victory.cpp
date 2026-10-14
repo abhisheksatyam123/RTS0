@@ -975,6 +975,42 @@ int main() {
 		CHECK(parse_game_start_full(format_game_start_full(none), back) && back.team_pop == 0);
 	}
 
+	// 30. Allied View (0 A.D. InitGame.js AllyView): every player starts with Diplomacy's
+	// SharedLosTech (Cartography) researched, so allies see what each other see from the
+	// first turn; the setting rides the save's setup flags and the ally= wire key.
+	{
+		Simulation sim;
+		for (uint8_t p = 0; p < 2; ++p) sim.set_player_active(p, true, false);
+		const uint8_t teams[MAX_PLAYERS] = {1, 1};
+		sim.set_setup_teams(teams);
+		sim.apply_team_diplomacy();
+		sim.tick(0.05f);
+		CHECK(!sim.ally_view() && !sim.shares_los(0, 1));
+		Simulation av;
+		av.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
+		for (uint8_t p = 0; p < 2; ++p) av.set_player_active(p, true, false);
+		av.set_setup_teams(teams);
+		av.apply_team_diplomacy();
+		av.set_ally_view(true);
+		av.tick(0.05f);
+		CHECK(av.ally_view() && av.shares_los(0, 1) && av.shares_los(1, 0));
+		CHECK(av.player(0).has_tech(TECH_UNLOCK_SHARED_LOS) && av.player(1).has_tech(TECH_UNLOCK_SHARED_LOS));
+		const char *apath = "test_victory_ally_view.sav";
+		CHECK(av.save_state(apath));
+		{
+			Simulation loaded;
+			CHECK(loaded.load_state(apath));
+			CHECK(loaded.ally_view());
+			CHECK(loaded.shares_los(0, 1));
+		}
+		std::remove(apath);
+		GameSetupParams gp, back;
+		gp.ally = 1;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.ally == 1);
+		GameSetupParams none;
+		CHECK(format_game_start_full(none).find("ally=") == std::string::npos);
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;
