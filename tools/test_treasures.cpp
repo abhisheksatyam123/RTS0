@@ -326,6 +326,30 @@ int main() {
 		CHECK(fortress >= 20 && ruins == 1 && mainland == 0);
 	}
 
+	// 7b. The island and desert maps that call placePlayerBaseTreasures / shipwrecks in 0.28.
+	{
+		auto count = [&](MapType map, int &wrecks, int &wet_wrecks) {
+			s.generate_random_map(map, 3, 2, 96.0f);
+			wrecks = wet_wrecks = 0;
+			for (const auto &t : s.treasures())
+				if (t.type >= TREASURE_SHIPWRECK && t.type <= TREASURE_SHIPWRECK_SAIL_BOAT_CUT) {
+					++wrecks;
+					wet_wrecks += s.get_terrain_height(t.x, t.z) < s.water_height();
+				}
+			return (int)s.treasures().size();
+		};
+		int w = 0, ww = 0;
+		const int cyc = count(MAP_CYCLADIC_ARCHIPELAGO, w, ww);
+		const int cyc_w = w, cyc_ww = ww;
+		const int arctic = count(MAP_ARCTIC_SUMMER, w, ww);
+		const int oases = count(MAP_SAHARAN_OASES, w, ww);
+		const int islands = count(MAP_ISLANDS, w, ww);
+		std::printf("maps: cycladic %d (%d wrecks, %d in water), arctic %d, oases %d, islands %d\n",
+			cyc, cyc_w, cyc_ww, arctic, oases, islands);
+		CHECK(cyc_w > 0 && cyc_ww == cyc_w);
+		CHECK(arctic > 0 && oases > 0 && islands > 0);
+	}
+
 	// 8. Save/load keeps treasures, ruins caps and the lockstep hash; the Treasures toggle clears them.
 	{
 		// A fresh sim: one reused after generate_random_map loads back different terrain.
