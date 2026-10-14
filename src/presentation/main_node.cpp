@@ -141,6 +141,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
 	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
 	ClassDB::bind_method(D_METHOD("debug_selection_grid", "select_all"), &RtsoMain::debug_selection_grid);
+	ClassDB::bind_method(D_METHOD("debug_inspector", "what"), &RtsoMain::debug_inspector);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
@@ -1552,6 +1553,35 @@ Dictionary RtsoMain::debug_civic_centre_roof() {
 
 // Test hook: with select_all, selects every unit the local player owns; reports
 // the selection size and the selection panel's group icons (global rects).
+// "unit": the first own unit selected; "multi": all own units; "building": the first own
+// structure; "resource" / "fauna": the first tree or mine / animal, inspected as a click would.
+Dictionary RtsoMain::debug_inspector(const String &what) {
+	if (!sim) return Dictionary();
+	clear_selection();
+	inspector_.clear();
+	auto uview = sim->units();
+	if (what == "unit" || what == "multi") {
+		for (size_t i = 0; i < uview.count; ++i)
+			if (uview.alive[i] && uview.team[i] == local_player() && (what == "multi" || uview.unit_type[i] != rtso::UNIT_FEMALE_CITIZEN)) {
+				selected_ids.push_back((int32_t)uview.id[i]);
+				if (what == "unit") break;
+			}
+	} else if (what == "building") {
+		for (const auto &b : sim->buildings())
+			if (b.team == local_player() && rtso::is_civic_centre(b.type)) { selected_building_id = b.id; break; }
+	} else if (what == "resource") {
+		auto rv = sim->resources();
+		for (size_t r = 0; r < rv.count; ++r)
+			if (rv.alive[r] && rv.amount[r] > 0 && rv.type[r] == rtso::RES_WOOD) { inspector_.inspect(RtsoInspectorView::INSPECT_RESOURCE, rv.id[r]); break; }
+	} else if (what == "fauna") {
+		auto fv = sim->fauna();
+		for (size_t f = 0; f < fv.count; ++f)
+			if (fv.alive[f] && fv.food_amount[f] > 0 && fv.behavior[f] != rtso::FAUNA_CORRALLED) { inspector_.inspect(RtsoInspectorView::INSPECT_FAUNA, fv.id[f]); break; }
+	}
+	inspector_.update();
+	return inspector_.debug_state();
+}
+
 Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 	Dictionary d;
 	if (!sim) return d;
@@ -4702,7 +4732,8 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		roster_list->set_visible(roster_list->get_item_count() > 0);
 		return;
 	}
-	for (uint16_t i : rtso::civ_roster_ids(civ)) {
+	// A shrine trains its own civ's Elite Healer (units/{native}/support_healer_e).
+	for (uint16_t i : rtso::civ_roster_ids(b->type == rtso::BLD_SHRINE ? b->civ : civ)) {
 		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
 		// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
@@ -6474,9 +6505,12 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			gaia_structure_ids[i] = spawn_map_wall(*sim, b, rtso::GAIA_PLAYER);
 			continue;
 		}
-		const uint8_t btype = map_building_type(b.get("type", ""));
+		// structures/shrine_* and trading_post_*: their own types, keeping the template's civ.
+		const rtso::GaiaStructureTemplate gt = rtso::gaia_structure_template(String(b.get("template", "")).utf8().get_data());
+		const uint8_t btype = gt.type < rtso::BLD_TYPE_COUNT ? gt.type : map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
+		if (gt.type < rtso::BLD_TYPE_COUNT) sim->set_building_civ(gaia_structure_ids[i], gt.civ);
 	}
 	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
 	Array scenery_arr = d.get("scenery", Array());

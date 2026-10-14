@@ -168,7 +168,8 @@
     "pers/catafalque",
     "pers/champion_infantry_archer_upgrade",
     "pers/support_civilian",
-    "pers/support_civilian_house"
+    "pers/support_civilian_house",
+    "pers/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -236,7 +237,8 @@
     "rome/infantry_spearman_conscript",
     "rome/cavalry_javelineer_auxiliary_b",
     "rome/cavalry_spearman_auxiliary_b",
-    "rome/champion_infantry_swordsman_first"
+    "rome/champion_infantry_swordsman_first",
+    "rome/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -359,7 +361,8 @@
     "mace/champion_infantry_spearman_02",
     "mace/catafalque",
     "mace/support_civilian",
-    "mace/support_civilian_house"
+    "mace/support_civilian_house",
+    "mace/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -462,7 +465,8 @@
     "gaul/catafalque",
     "gaul/ship_fire_fire",
     "gaul/support_civilian",
-    "gaul/support_civilian_house"
+    "gaul/support_civilian_house",
+    "gaul/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -667,7 +671,8 @@
     "ptol/rts0_villager",
     "ptol/catafalque",
     "ptol/support_civilian",
-    "ptol/support_civilian_house"
+    "ptol/support_civilian_house",
+    "ptol/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -761,7 +766,8 @@
     "han/support_minister",
     "han/catafalque",
     "han/support_civilian",
-    "han/support_civilian_house"
+    "han/support_civilian_house",
+    "han/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -2218,10 +2224,12 @@
    "specific_name": "Émporos",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -3341,10 +3349,12 @@
    "specific_name": "Émporos Períoikos",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -4724,10 +4734,12 @@
    "specific_name": "Tamkarum Arami",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -6341,10 +6353,12 @@
    "specific_name": "Mercātor",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -7910,10 +7924,12 @@
    "specific_name": "Mekir",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -9317,10 +9333,12 @@
    "specific_name": "Émporos",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -10427,10 +10445,12 @@
    "specific_name": "Uogition",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -11665,10 +11685,12 @@
    "specific_name": "Uogition",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -12802,10 +12824,12 @@
    "specific_name": "Merkatari",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -14101,10 +14125,12 @@
    "specific_name": "Vaishya",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -15576,11 +15602,13 @@
    "class": "UNIT_HEALER",
    "name": "Priest",
    "specific_name": "Wʿb nsw",
-   "phase": 3,
+   "phase": 2,
    "trainers": [
-    "BLD_TEMPLE_AMUN"
+    "BLD_TEMPLE_AMUN",
+    "BLD_SHRINE"
    ],
    "trained_at_0ad": [
+    "shrine",
     "temple_amun"
    ],
    "flags": [],
@@ -15624,10 +15652,12 @@
    "specific_name": "Rmt sbt",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -17207,10 +17237,12 @@
    "specific_name": "Émporos",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -18771,10 +18803,12 @@
    "specific_name": "Émporos",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -20185,10 +20219,12 @@
    "specific_name": "Shāngrén",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -24008,10 +24044,12 @@
    "specific_name": "Kaupô",
    "phase": 2,
    "trainers": [
-    "BLD_MARKET"
+    "BLD_MARKET",
+    "BLD_TRADING_POST"
    ],
    "trained_at_0ad": [
-    "market"
+    "market",
+    "trading_post"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -24548,6 +24586,282 @@
     "carry": 0
    },
    "pop_bonus": 5
+  },
+  {
+   "id": "pers/support_healer_e",
+   "civ": "pers",
+   "class": "UNIT_HEALER",
+   "name": "Median Magus",
+   "specific_name": "Maguš Māda",
+   "phase": 2,
+   "trainers": [
+    "BLD_SHRINE"
+   ],
+   "trained_at_0ad": [
+    "shrine"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/support_healer_e",
+   "civ": "rome",
+   "class": "UNIT_HEALER",
+   "name": "Doctor",
+   "specific_name": "Medicus",
+   "phase": 2,
+   "trainers": [
+    "BLD_SHRINE"
+   ],
+   "trained_at_0ad": [
+    "shrine"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "mace/support_healer_e",
+   "civ": "mace",
+   "class": "UNIT_HEALER",
+   "name": "Surgeon",
+   "specific_name": "Iatros",
+   "phase": 2,
+   "trainers": [
+    "BLD_SHRINE"
+   ],
+   "trained_at_0ad": [
+    "shrine"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "gaul/support_healer_e",
+   "civ": "gaul",
+   "class": "UNIT_HEALER",
+   "name": "Druid",
+   "specific_name": "Druid",
+   "phase": 2,
+   "trainers": [
+    "BLD_SHRINE"
+   ],
+   "trained_at_0ad": [
+    "shrine"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "ptol/support_healer_e",
+   "civ": "ptol",
+   "class": "UNIT_HEALER",
+   "name": "Surgeon",
+   "specific_name": "Iatros",
+   "phase": 2,
+   "trainers": [
+    "BLD_SHRINE"
+   ],
+   "trained_at_0ad": [
+    "shrine"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/support_healer_e",
+   "civ": "han",
+   "class": "UNIT_HEALER",
+   "name": "Healer",
+   "specific_name": "Yīshī",
+   "phase": 2,
+   "trainers": [
+    "BLD_SHRINE"
+   ],
+   "trained_at_0ad": [
+    "shrine"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
   }
  ],
  "auras": [
