@@ -6364,21 +6364,21 @@
       "player": 1,
       "x": -21.62,
       "z": -67.02,
-      "template": "spart/support_female_citizen"
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -21.82,
       "z": -69.52,
-      "template": "spart/support_female_citizen"
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -20.79,
       "z": -68.41,
-      "template": "spart/support_female_citizen"
+      "template": "spart/support_civilian"
     },
     {
       "type": "archer",
@@ -6392,98 +6392,98 @@
       "player": 2,
       "x": -43.4,
       "z": 31.5,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -41.45,
       "z": 34.51,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -34.48,
       "z": 33.46,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -41.4,
       "z": 31.79,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -40.46,
       "z": 33.93,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -39.14,
       "z": 35.16,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -36.45,
       "z": 34.93,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -42.4,
       "z": 28.72,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -40.98,
       "z": 28.02,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -39.63,
       "z": 26.3,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -37.7,
       "z": 25.91,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -36.13,
       "z": 25.92,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -34.01,
       "z": 26.3,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -33.07,
       "z": 27.13,
-      "template": "athen/support_female_citizen"
+      "template": "athen/support_civilian"
     },
     {
       "type": "swordsman",

@@ -10366,241 +10366,281 @@
       "type": "hero",
       "player": 1,
       "x": 50.52,
-      "z": 64.47
+      "z": 64.47,
+      "template": "units/special_starting_unit"
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": 51.19,
-      "z": 65.48
+      "z": 65.48,
+      "template": "units/default_cavalry"
     },
     {
       "type": "archer",
       "player": 1,
       "x": 58.57,
-      "z": 64.76
+      "z": 64.76,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": 59.52,
-      "z": 63.87
+      "z": 63.87,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 58.64,
-      "z": 55.73
+      "z": 55.73,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 59.47,
-      "z": 56.61
+      "z": 56.61,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": 67.09,
-      "z": -59.03
+      "z": -59.03,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": 66.25,
-      "z": -59.91
+      "z": -59.91,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "archer",
       "player": 2,
       "x": 66.72,
-      "z": -52.04
+      "z": -52.04,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 2,
       "x": 65.77,
-      "z": -51.15
+      "z": -51.15,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "hero",
       "player": 2,
       "x": 57.94,
-      "z": -51.29
+      "z": -51.29,
+      "template": "units/special_starting_unit"
     },
     {
       "type": "cavalry",
       "player": 2,
       "x": 58.6,
-      "z": -50.27
+      "z": -50.27,
+      "template": "units/default_cavalry"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": -57.85,
-      "z": -62.58
+      "z": -62.58,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": -58.68,
-      "z": -63.45
+      "z": -63.45,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": -58.16,
-      "z": -55.43
+      "z": -55.43,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": -59.11,
-      "z": -54.54
+      "z": -54.54,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "hero",
       "player": 3,
       "x": -66.94,
-      "z": -54.68
+      "z": -54.68,
+      "template": "units/special_starting_unit"
     },
     {
       "type": "cavalry",
       "player": 3,
       "x": -66.28,
-      "z": -53.66
+      "z": -53.66,
+      "template": "units/default_cavalry"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -56.67,
-      "z": 55.95
+      "z": 55.95,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -57.51,
-      "z": 55.07
+      "z": 55.07,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "archer",
       "player": 4,
       "x": -57.36,
-      "z": 63.36
+      "z": 63.36,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 4,
       "x": -58.31,
-      "z": 64.25
+      "z": 64.25,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "hero",
       "player": 4,
       "x": -66.14,
-      "z": 64.11
+      "z": 64.11,
+      "template": "units/special_starting_unit"
     },
     {
       "type": "cavalry",
       "player": 4,
       "x": -65.48,
-      "z": 65.13
+      "z": 65.13,
+      "template": "units/default_cavalry"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 50.46,
-      "z": 57.4
+      "z": 57.4,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 51.4,
-      "z": 56.49
+      "z": 56.49,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 52.28,
-      "z": 55.76
+      "z": 55.76,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 53.13,
-      "z": 54.87
+      "z": 54.87,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 57.71,
-      "z": -58.34
+      "z": -58.34,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 58.55,
-      "z": -59.21
+      "z": -59.21,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 59.53,
-      "z": -60.16
+      "z": -60.16,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 60.29,
-      "z": -60.99
+      "z": -60.99,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -67.2,
-      "z": -61.85
+      "z": -61.85,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -66.32,
-      "z": -62.93
+      "z": -62.93,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -65.43,
-      "z": -63.9
+      "z": -63.9,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -64.59,
-      "z": -64.73
+      "z": -64.73,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -66.05,
-      "z": 57.09
+      "z": 57.09,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -65.02,
-      "z": 55.8
+      "z": 55.8,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -64.11,
-      "z": 54.85
+      "z": 54.85,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -63.05,
-      "z": 53.93
+      "z": 53.93,
+      "template": "units/default_support_civilian"
     }
   ],
   "treasures": [

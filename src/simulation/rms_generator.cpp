@@ -3488,6 +3488,19 @@ void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng,
 // Count, 2 tiles apart, 6 tiles out at BUILDING_ORIENTATION - PI * (1 - j / 2).
 // `infantry_only` keeps only the templates naming "infantry" (survivalofthefittest.js).
 // A unit whose spot is under water is pulled in towards the civic centre until it is dry.
+int skirmish_replace(uint8_t civ, const char *map_template, uint16_t &out_tmpl) {
+	out_tmpl = CIV_UNIT_TEMPLATE_NONE;
+	if (std::strncmp(map_template, "units/", 6) != 0) return 0;
+	const char *name = map_template + 6;
+	const SkirmishReplacement *table = skirmish_replacement_table();
+	for (int i = 0; i < SKIRMISH_REPLACEMENT_COUNT; ++i) {
+		if (table[i].civ != civ || std::strcmp(table[i].from, name) != 0) continue;
+		if (*table[i].to) out_tmpl = civ_unit_template_by_id(table[i].to);
+		return out_tmpl != CIV_UNIT_TEMPLATE_NONE ? 1 : -1;
+	}
+	return 0;
+}
+
 static void place_start_entities(Simulation &sim, const HeightmapGrid &hm, uint8_t team, float cx, float cz,
                                  bool infantry_only = false) {
 	constexpr float kDist = 6.0f, kSpace = 2.0f, kOrientation = -0.25f * 3.14159265f;

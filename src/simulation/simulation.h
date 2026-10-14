@@ -1824,6 +1824,7 @@ public:
 	const std::vector<Relic> &relics() const { return relics_; }
 
 	std::vector<uint32_t> get_idle_workers(uint8_t team = 0) const;
+	std::vector<uint32_t> petra_idle_builders() const;
 
 	size_t unit_count() const { return units_.count; }
 	size_t building_count() const { return buildings_.size(); }
