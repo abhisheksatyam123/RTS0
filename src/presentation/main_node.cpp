@@ -430,9 +430,11 @@ Array RtsoMain::debug_command_row() {
 		Label *cnt = Object::cast_to<Label>(btn->find_child("unitUpgradeCount", false, false));
 		e["count"] = cnt ? cnt->get_text().to_int() : 0;
 		e["progress"] = btn->has_meta("progress") ? (int)btn->get_meta("progress") : -1; // pixels left
-		e["grey"] = false;
+		e["grey"] = btn->has_meta("grey");
+		e["masked"] = btn->find_child("resourcesMask", false, false) != nullptr; // resourcesToAlphaMask
 		for (int k = 0; k < btn->get_child_count(); ++k)
-			if (TextureRect *ic = Object::cast_to<TextureRect>(btn->get_child(k))) e["grey"] = ic->get_material().is_valid();
+			if (TextureRect *ic = Object::cast_to<TextureRect>(btn->get_child(k)))
+				if (ic->get_material().is_valid()) e["grey"] = true;
 		out.push_back(e);
 	};
 	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {

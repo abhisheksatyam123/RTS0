@@ -990,10 +990,32 @@ public:
 							bb->set_text(label);
 						}
 						bb->add_theme_font_size_override("font_size", 9);
-						if (need > sim->player_phase(local_player())) {
-							bb->set_disabled(true);
-							tip += "\n" + requires_text(String(kPhaseNames[need]) + " Phase");
+						const bool reqs_failed = need > sim->player_phase(local_player());
+						if (reqs_failed) tip += "\n" + requires_text(String(kPhaseNames[need]) + " Phase");
+						// selection_panels.js Construction: requirements unmet or the entity limit
+						// reached grey the icon; missing resources mask it red and list what is
+						// needed; both disable the button.
+						const uint8_t limit_cat = rtso::BUILDING_LIMIT_CATEGORY[bt];
+						const int limit = limit_cat == rtso::LIMIT_NONE || limit_cat >= rtso::LIMIT_CATEGORY_COUNT ? -1
+								: sim->entity_limit(local_player(), limit_cat);
+						const bool at_limit = limit >= 0 && sim->entity_limit_count(local_player(), limit_cat) >= limit;
+						const auto &ps = sim->player(local_player());
+						bool short_of = false;
+						for (int r = 0; r < rtso::RES_COUNT; ++r) short_of |= ps.res[r] < price[r];
+						if (short_of) tip += "\n" + needed_text(b_cost);
+						if (reqs_failed || at_limit) {
+							bb->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
+							bb->set_meta("grey", true);
+						} else if (short_of) {
+							ColorRect *mask = memnew(ColorRect);
+							mask->set_name("resourcesMask");
+							mask->set_position(Vector2(3, 3));
+							mask->set_size(Vector2(32, 32));
+							mask->set_color(Color(0.8f, 0.0f, 0.0f, 0.45f));
+							mask->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+							bb->add_child(mask);
 						}
+						bb->set_disabled(reqs_failed || at_limit || short_of);
 						bb->set_tooltip_text(tip);
 						bb->connect("pressed", Callable(owner_, "_on_build_btn_pressed").bind(bt));
 						production_bar_->add_child(bb);
