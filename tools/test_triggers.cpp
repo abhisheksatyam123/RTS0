@@ -9,8 +9,8 @@
 //      Deep starts a metre up.
 //   3. Extinct Volcano: Gaia towers start garrisoned, the warning comes a minute
 //      before the Game Setup rise time, then the water climbs a metre at a time.
-//   4. Rising water drowns units, animals, structures and resources, but not
-//      ships or siege.
+//   4. Rising water drowns units, siege, animals, structures, treasures and resources, but not
+//      ships or shipwrecks.
 //   5. Saving mid-rise and loading keeps the lockstep hash and the trigger
 //      state; both copies stay in sync while the water keeps rising; two
 //      identical runs write byte-identical saves.
@@ -34,6 +34,7 @@
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_triggers && /tmp/test_triggers
 // Private access only to register a test trigger and read the trigger state.
+#include <set>
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -163,6 +164,8 @@ static void check_drowning() {
 	const uint32_t tc_id = tc->id;
 	const uint32_t ship = s.spawn_unit(x + 12.0f, z, 0, UNIT_TRIREME);
 	const uint32_t ram = s.spawn_unit(x - 12.0f, z, 0, UNIT_SIEGE_RAM);
+	const uint32_t chest = s.spawn_treasure(x, z + 14.0f, TREASURE_METAL);
+	const uint32_t wreck = s.spawn_treasure(x, z - 14.0f, TREASURE_SHIPWRECK);
 	int organic = 0;
 	for (size_t i = 0; i < s.units().count; ++i)
 		if (s.units().alive[i] && s.units().team[i] == 0 && !unit_is_ship(s.units().unit_type[i]) && !unit_is_siege_engine(s.units().unit_type[i])) ++organic;
@@ -179,10 +182,14 @@ static void check_drowning() {
 	for (const auto &b : s.buildings())
 		if (b.id == tc_id) tc_wrecked = b.wrecked && b.hp <= 0.0f;
 	CHECK(organic > 0 && left == 0, "%d of %d of player 0's units survived the water", left, organic);
-	CHECK(ship_ok && ram_ok, "water sank a ship (%d) or a ram (%d)", ship_ok, ram_ok);
+	// flood_triggers.js: only Organic entities are Kill()ed, anything else with a Visual becomes
+	// an actor; ships, docks and shipwrecks float (pos.y stays at the water).
+	CHECK(ship_ok && !ram_ok, "the ship %s, the ram %s", ship_ok ? "floats" : "sank", ram_ok ? "floats" : "is lost");
+	CHECK(!s.is_treasure_id(chest) && s.is_treasure_id(wreck), "chest %s, shipwreck %s", s.is_treasure_id(chest) ? "collectable" : "gone",
+	      s.is_treasure_id(wreck) ? "floats" : "gone");
 	CHECK(tc_wrecked, "Town Center not lost under water");
 	run_to(s, 2.0f);
-	if (failures == before) std::printf("Rising water drowns %d units and the Town Center; the ship and ram float: ok\n", organic);
+	if (failures == before) std::printf("Rising water drowns %d units, a ram, a chest and the Town Center; the ship and shipwreck float: ok\n", organic);
 }
 
 static std::vector<char> read_file(const char *path) {
@@ -397,6 +404,13 @@ static void check_survival() {
 		      s.get_terrain_height(b.x, b.z) > 25.0f * k, "player %d: seeker at %.1f, civic centre at %.1f", p,
 		      s.get_terrain_height(s.units_.pos_x[u], s.units_.pos_z[u]), s.get_terrain_height(b.x, b.z));
 	}
+	// "nonbuilder|undeletable|": the seeker can't build or be deleted.
+	{
+		const int32_t u = s.lookup_unit(seeker[0]);
+		CHECK(unit_can_build(s.units_.unit_type[u], s.units_.tmpl[u]) && !s.unit_builds((size_t)u), "seeker builds");
+		s.cmd_delete(0, &seeker[0], 1);
+		CHECK(s.units_.alive[u], "seeker deleted");
+	}
 	// 0.28's placement obstructors: no foundation in the low centre, while the plateau round a
 	// civic centre stays open.
 	auto place = [&](uint8_t player, float x, float z, uint8_t type) {
@@ -531,6 +545,7 @@ static void check_tutorials() {
 	CHECK(loaded.tutorial_id() == TUTORIAL_INTRODUCTORY && loaded.tutorial_goal_index() == 4 && tm.compute_sim_hash(loaded) == tm.compute_sim_hash(s),
 	      "tutorial state lost on load (goal %d)", loaded.tutorial_goal_index());
 	CHECK(loaded.trigger_hash() == s.trigger_hash(), "trigger hash differs after load");
+	CHECK(loaded.tutorial_ready_button() == s.tutorial_ready_button(), "Ready %d after load, %d before", loaded.tutorial_ready_button(), s.tutorial_ready_button());
 
 	// Economy walkthrough: five Ready goals, then gathering, hunting, a rally point.
 	static Simulation e;
@@ -857,6 +872,16 @@ static void check_jebel_barkal() {
 		garrisoned += !b.garrisoned_units.empty();
 	}
 	CHECK(holders > 0 && garrisoned > 0, "%d of %d Gaia structures garrisoned", garrisoned, holders);
+	// The Grand Temples of Amun are Temples and the Noba/Blemmye camps Embassies to the script:
+	// each holds its champions (or infantry) and is a spawn point.
+	int amun = 0, amun_full = 0, amun_spawns = 0;
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER || b.type != BLD_TEMPLE_AMUN) continue;
+		++amun;
+		amun_full += (int)b.garrisoned_units.size() == s.get_garrison_capacity(b.id);
+		for (const TriggerWatch &w : s.triggers_.watched) amun_spawns += w.role == 1 && w.id == b.id;
+	}
+	CHECK(amun > 0 && amun_full == amun && amun_spawns == amun, "%d Temples of Amun: %d full, %d spawn points", amun, amun_full, amun_spawns);
 	// The defenders placed with the map (the garrisons and patrols come after the stance is set).
 	std::vector<uint32_t> inside;
 	for (const Simulation::Building &b : s.buildings_) inside.insert(inside.end(), b.garrisoned_units.begin(), b.garrisoned_units.end());
@@ -989,6 +1014,57 @@ static void check_on_range() {
 	if (failures == before) std::printf("OnRange reports units entering and leaving, through a save, and stops when disabled: ok\n");
 }
 
+static void check_engine_events() {
+	// Trigger.js: OnConstructionStarted (Foundation.js Commit), OnDiplomacyChanged
+	// (Diplomacy.js SetDiplomacyIndex), OnPlayerDefeated and OnPlayerWon (Player.js SetState),
+	// each once per change.
+	const int before = failures;
+	static Simulation s;
+	build(s, MAP_MAINLAND);
+	for (uint8_t e : {TRIGGER_ON_CONSTRUCTION_STARTED, TRIGGER_ON_DIPLOMACY_CHANGED, TRIGGER_ON_PLAYER_DEFEATED, TRIGGER_ON_PLAYER_WON})
+		s.triggers_.register_trigger(e, TRIGGER_ACTION_NONE, true);
+	run_to(s, 0.5f);
+	const Simulation::Building *cc = nullptr;
+	std::set<uint32_t> placed; // the map's own structures, committed from the start
+	for (const auto &b : s.buildings_) {
+		if (b.team == 0 && is_civic_centre(b.type)) cc = &b;
+		if (b.committed) placed.insert(b.id);
+	}
+	CHECK(cc != nullptr, "no civic centre for player 0");
+	if (!cc) return;
+	uint32_t builder = 0;
+	for (size_t i = 0; i < s.units_.count && !builder; ++i)
+		if (s.units_.alive[i] && s.units_.team[i] == 0 && unit_can_build(s.units_.unit_type[i], s.units_.tmpl[i])) builder = s.units_.id[i];
+	uint32_t site = 0;
+	for (int k = 0; k < 40 && !site; ++k) {
+		const float a = (float)k * 0.7f, r = 14.0f + (float)(k / 8) * 3.0f;
+		site = s.cmd_build(0, (int)std::floor((cc->x + std::cos(a) * r) / Simulation::GRID), (int)std::floor((cc->z + std::sin(a) * r) / Simulation::GRID), BLD_HOUSE);
+	}
+	CHECK(site && builder, "no house foundation (%u) or builder (%u)", site, builder);
+	if (!site || !builder) return;
+	CHECK(s.trigger_event_calls(TRIGGER_ON_CONSTRUCTION_STARTED) == 0, "construction started before anyone built");
+	s.order_build_or_repair(&builder, 1, site, false, false);
+	run_to(s, 30.0f);
+	// Once per foundation that was committed (the AI builds too), the house among them.
+	uint32_t committed = 0;
+	bool house = false;
+	for (const auto &b : s.buildings_) {
+		committed += b.committed && !placed.count(b.id);
+		house |= b.id == site && b.committed;
+	}
+	CHECK(house && s.trigger_event_calls(TRIGGER_ON_CONSTRUCTION_STARTED) == committed, "OnConstructionStarted %u times for %u committed foundations (house %d)",
+	      s.trigger_event_calls(TRIGGER_ON_CONSTRUCTION_STARTED), committed, house);
+	s.cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
+	CHECK(s.trigger_event_calls(TRIGGER_ON_DIPLOMACY_CHANGED) >= 1, "OnDiplomacyChanged %u times", s.trigger_event_calls(TRIGGER_ON_DIPLOMACY_CHANGED));
+	s.defeat_player(1);
+	s.defeat_player(1);
+	CHECK(s.trigger_event_calls(TRIGGER_ON_PLAYER_DEFEATED) == 1, "OnPlayerDefeated %u times", s.trigger_event_calls(TRIGGER_ON_PLAYER_DEFEATED));
+	s.end_match(s.side_of(0));
+	CHECK(s.trigger_event_calls(TRIGGER_ON_PLAYER_WON) == 1 && s.trigger_event_calls(TRIGGER_ON_PLAYER_DEFEATED) == 1,
+	      "after the win: OnPlayerWon %u, OnPlayerDefeated %u", s.trigger_event_calls(TRIGGER_ON_PLAYER_WON), s.trigger_event_calls(TRIGGER_ON_PLAYER_DEFEATED));
+	if (failures == before) std::printf("Trigger.js events: ConstructionStarted, DiplomacyChanged, PlayerDefeated and PlayerWon fire once each: ok\n");
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
@@ -1008,6 +1084,7 @@ int main() {
 	check_identical_saves();
 	check_disabled_buildings_128();
 	check_tutorials();
+	check_engine_events();
 	check_death_canyon();
 	check_elephantine();
 	check_danubius();

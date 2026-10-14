@@ -95,6 +95,7 @@ func _run() -> void:
 	var main = null
 	var started := false
 	var saw_wait := false
+	var saw_net_warning := false
 	var asked := false
 	var refused := false
 	var ready_for := -1
@@ -114,6 +115,9 @@ func _run() -> void:
 		if not saw_wait and str(st.get("net_status", "")) != "":
 			saw_wait = true
 			_say("waiting=%s %s" % [st.get("net_status", ""), st.get("net_loading", "")])
+		if not saw_net_warning and str(st.get("net_warnings", "")) != "":
+			saw_net_warning = true
+			_say("net_warning=%s" % str(st.get("net_warnings", "")).replace("\n", " | "))
 		if main.is_net_pregame():
 			var ns: Dictionary = main.get_net_setup_state()
 			var slot := int(ns.get("my_slot", -1))

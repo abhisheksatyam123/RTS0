@@ -326,6 +326,13 @@ static void test_patrol() {
 	std::printf("  reached the far end %d times, the start %d times\n", ends_b, ends_a);
 	check(ends_b >= 2 && ends_a >= 2, "walks back and forth between both ends");
 	check(std::fabs(z_of(s, p)) < 2.0f, "on the line between them");
+	// unit_actions.js g_PatrolTargets ["Unit"]: a patrol walks past an enemy structure on its way.
+	const uint32_t house = s.spawn_building_world(0, 3, BLD_HOUSE, 1, 1.0f);
+	const float hp0 = bld(s, house)->hp;
+	check((s.unit_order(p).flags & ORDER_FLAG_UNITS_ONLY) != 0, "a patrol fights units only");
+	run(s, 20.0f);
+	std::printf("  enemy house beside the patrol: %.0f of %.0f hp\n", bld(s, house)->hp, hp0);
+	check(bld(s, house)->hp >= hp0, "and leaves an enemy house beside its way alone");
 }
 
 static void test_women_flee() {
@@ -1412,10 +1419,13 @@ static void test_remove_guard_call_to_arms() {
 		d.entity_ids = {a};
 		d.target_x = 30;
 		d.target_z = 0;
+		d.param = NET_PARAM_UNITS_ONLY; // session.attackmoveUnit held
 		tm.post_local_command(d);
 		for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, l);
 		check(c.cmd_type == 37 && l.unit_order(g).kind == ORDER_NONE, "lockstep remove-guard (37)");
 		check(d.cmd_type == 38 && l.unit_order(a).kind == ORDER_WALK_AND_FIGHT, "lockstep call-to-arms (38)");
+		check((l.unit_order(a).flags & ORDER_FLAG_UNITS_ONLY) && !(l.unit_order(a).flags & ORDER_FLAG_ALLOW_CAPTURE),
+				"call-to-arms with session.attackmoveUnit fights units only, and captures only with session.capture");
 	}
 }
 

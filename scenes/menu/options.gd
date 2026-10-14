@@ -70,6 +70,7 @@ const SCHEMA := [
 		["boolean", "sound.notify.gamesetup.join", "New player notification in game setup", "Receive audio notification when a new client joins the game setup."],
 	]],
 	["Game Setup", [
+		["boolean", "gui.gamesetup.enabletips", "Enable game setting tips", "Show tips when setting up a game."],
 		["boolean", "persistmatchsettings", "Persist match settings", "Save and restore match settings for quick reuse when hosting another game."],
 		["dropdown", "gui.gamesetup.aidifficulty", "Default AI difficulty", "Default difficulty of the AI.",
 			[["Sandbox", "0"], ["Very Easy", "1"], ["Easy", "2"], ["Medium", "3"], ["Hard", "4"], ["Very Hard", "5"]]],
@@ -81,6 +82,12 @@ const SCHEMA := [
 	["Networking / Lobby", [
 		["number", "lobby.history", "Chat backlog", "Number of backlogged messages to load when joining the lobby.", [0, 1000]],
 		["boolean", "lobby.columns.gamerating", "Game rating column", "Show the average rating of the participating players in a column of the gamelist."],
+		["boolean", "overlay.netwarnings", "Network warnings", "Show which player has a bad connection in multiplayer games."],
+		["dropdown", "network.lateobservers", "Late observer joins", "Allow everybody or buddies only to join the game as observer after it started.",
+			[["Everyone", "everyone"], ["Buddies", "buddies"], ["Disabled", "disabled"]]],
+		["number", "network.observerlimit", "Observer limit", "Prevent further observers from joining if the limit is reached.", [0, 32]],
+		["number", "network.observermaxlag", "Max lag for observers", "When hosting, pause the game if observers are lagging more than this many turns. If set to -1, observers are ignored.", [-1, 10000]],
+		["boolean", "network.autocatchup", "(Observer) Speed up when lagging.", "When observing a game, automatically speed up if you start lagging, to catch up with the live match."],
 	]],
 	["Chat & Notifications", [
 		["boolean", "chat.timestamp", "Chat timestamp", "Display the time at which a chat message was posted."],
@@ -95,10 +102,16 @@ const SCHEMA := [
 	["Display", [
 		["dropdown", "gui.session.howtoshownames", "Naming of entities.", "How to show entity names.",
 			[["Specific names first", "0"], ["Generic names first", "1"], ["Only specific names", "2"], ["Only generic names", "3"]]],
+		["boolean", "gui.session.rankabovestatusbar", "Rank icon above status bar", "Show rank icons above status bars."],
+		["boolean", "gui.session.experiencestatusbar", "Experience status bar", "Show an experience status bar above each selected unit."],
 		["dropdown", "gui.session.respoptooltipsort", "Sort resources and population tooltip", "Dynamically sort players in the resources and population tooltip by value.",
 			[["Unordered", "0"], ["Ascending", "-1"], ["Descending", "1"]]],
 		["boolean", "overlay.fps", "FPS overlay", "Show frames per second in top right corner."],
 		["boolean", "overlay.realtime", "Real time overlay", "Show current system time in top right corner."],
+		["boolean", "gui.session.timeelapsedcounter", "Game time overlay", "Show current simulation time in top right corner."],
+		["boolean", "gui.session.ceasefirecounter", "Ceasefire time overlay", "Always show the remaining ceasefire time."],
+		["boolean", "showdetailedtooltips", "Detailed tooltips", "Show detailed tooltips for trainable units in structures."],
+		["boolean", "gui.session.minimap.icons.enabled", "Minimap icons", "Show special icons for some entities on the minimap."],
 		["slider", "gui.session.flarelifetime", "Flare display duration", "How long the flare markers on the minimap are displayed in seconds.", [0, 60]],
 		["boolean", "gui.session.attackrange", "Attack range visualization", "Display the attack range of selected defensive structures. (It can also be toggled with the hotkey during a game)."],
 		["boolean", "gui.session.aurasrange", "Aura range visualization", "Display the range of auras of selected units and structures. (It can also be toggled with the hotkey during a game)."],
@@ -111,6 +124,12 @@ const SCHEMA := [
 	["Gameplay", [
 		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],
 		["number", "gui.session.batchtrainingsize", "Batch training size", "Number of units trained per batch by default.", [1, 20]],
+		["slider", "gui.session.scrollbatchratio", "Scroll batch increment ratio", "Number of times you have to scroll to increase/decrease the batchsize by 1.", [0.1, 30]],
+		["dropdown", "gui.session.disjointcontrolgroups", "Control group membership", "Decide whether units can be part of multiple control groups.",
+			[["Single", "true"], ["Multiple", "false"]]],
+		["dropdown", "gui.session.formationwalkonly", "Formation control", "Decide whether formations are enabled for all orders or only 'Walk' and 'Patrol'.",
+			[["Walk/Patrol Only", "true"], ["No override", "false"]]],
+		["boolean", "gui.session.selectformationasone", "Battalion-style formations", "Whether formations are selected as a whole."],
 	]],
 ]
 

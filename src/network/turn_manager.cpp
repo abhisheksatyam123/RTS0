@@ -1,5 +1,6 @@
 #include "turn_manager.h"
 #include "net_host.h"
+#include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <iostream>
@@ -154,6 +155,8 @@ std::vector<uint32_t> TurnManager::waiting_on() {
 		if (it == received_batches_.end() || std::find(it->second.begin(), it->second.end(), id) == it->second.end())
 			out.push_back(id);
 	}
+	for (const auto &o : observer_turn_)
+		if (lagging_observer(o.first)) out.push_back(o.first);
 	return out;
 }
 
@@ -222,13 +225,35 @@ bool TurnManager::turn_ready(uint32_t turn) {
 		if (it == received_batches_.end() ||
 				std::find(it->second.begin(), it->second.end(), id) == it->second.end()) return false;
 	}
+	for (const auto &o : observer_turn_)
+		if (lagging_observer(o.first)) return false;
 	return true;
+}
+
+// 0 A.D. CNetServerTurnManager::CheckClientsReady: with network.observermaxlag
+// set, the host does not start a turn while an observer is more than that
+// many turns behind it. An observer counts from its first sync check, once it
+// has loaded the world, as 0 A.D. counts it once it finished loading.
+bool TurnManager::lagging_observer(uint32_t client) const {
+	if (observer_max_lag_ < 0 || !net_host_ || !net_host_->isHost()) return false;
+	auto it = observer_turn_.find(client);
+	if (it == observer_turn_.end()) return false;
+	const NetPeer *p = net_host_->getPeer(client);
+	if (!p || !p->connected || !p->is_observer) return false;
+	return current_turn_ > it->second + (uint32_t)observer_max_lag_;
+}
+
+uint32_t TurnManager::turns_behind() {
+	uint32_t n = 0;
+	while (n < 64 && received_batches_.count(current_turn_ + n + 1) && turn_ready(current_turn_ + n + 1)) ++n;
+	return n;
 }
 
 void TurnManager::drop_client(uint32_t client_id) {
 	if (client_id == local_client_id_ || client_id == 0) return;
 	if (net_host_) ensure_lockstep_peers();
 	paused_clients_.erase(client_id);
+	observer_turn_.erase(client_id);
 	if (peer_active(client_id)) {
 		// The last turn whose batch from it is in hand: the lockstep still runs
 		// those (every client gets them through the relay), and no later ones.
@@ -434,7 +459,18 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	}
 	// An observer takes no seat, even a free one.
 	const bool observer = observer_requests_.count(client_id) != 0;
-	if (observer && !allow_late_observers_) { reject(6); net_host_->refusePeer(client_id); return; }
+	if (observer && late_observers_ != LATE_OBSERVERS_EVERYONE) {
+		// 0 A.D. NetServer: lateobservers "buddies" admits the names in the
+		// host's lobby.buddies, "disabled" nobody.
+		const NetPeer *p = net_host_->getPeer(client_id);
+		std::string name = p ? p->player_name : std::string();
+		for (char &ch : name) ch = (char)std::tolower((unsigned char)ch);
+		if (late_observers_ == LATE_OBSERVERS_DISABLED || !buddies_.count(name)) {
+			reject(6);
+			net_host_->refusePeer(client_id);
+			return;
+		}
+	}
 	if (observer) {
 		// 0 A.D. NetServer: the sessions beyond the players may not pass
 		// network.observerlimit once the game runs.
@@ -677,6 +713,7 @@ void TurnManager::reset() {
 	lockstep_since_.clear();
 	rejoin_requests_.clear();
 	observer_requests_.clear();
+	observer_turn_.clear();
 	rejoin_observe_ = false;
 	sent_assignment_.clear();
 	client_names_.clear();
@@ -865,6 +902,13 @@ bool TurnManager::receive_remote_turn_batch(uint32_t turn, uint32_t client_id, c
 void TurnManager::receive_sync_check(uint32_t turn, uint32_t client_id, uint32_t hash) {
 	if (left_clients_.count(client_id)) return;
 	peer_hashes_[turn][client_id] = hash;
+	if (net_host_ && net_host_->isHost() && client_id != 0) {
+		auto cp = client_player_.find(client_id);
+		if (cp != client_player_.end() && cp->second >= MAX_PLAYERS) {
+			uint32_t &t = observer_turn_[client_id];
+			t = std::max(t, turn);
+		}
+	}
 	if (turn <= current_turn_ && turn > 0) {
 		for (const auto &f : turn_history_) {
 			if (f.turn_index == turn) {
@@ -1227,7 +1271,14 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		return false;
 	}
 	turn_timer_ += dt;
-	if (turn_timer_ < TURN_DURATION) return false;
+	if (turn_timer_ < TURN_DURATION) {
+		// 0 A.D. network.autocatchup: an observer behind the host runs the
+		// turns it holds without waiting out each turn length.
+		if (!(auto_catch_up_ && net_game_started() && lockstep_net_active() && !net_host_->isHost() &&
+				is_observer() && turns_behind() > CATCH_UP_TURNS))
+			return false;
+		turn_timer_ = TURN_DURATION;
+	}
 
 	// G8 lockstep gate. Peers that tick before NMT_GAME_START is applied hash
 	// their own INDEPENDENT boot worlds, so turn 1 compares two unrelated
@@ -1446,7 +1497,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 37) { // Remove guard
 			sim.order_remove_guard(ids, n);
 		} else if (c.cmd_type == 38) { // Call to arms — attack-walk to (target_x, target_z).
-			sim.order_call_to_arms(ids, n, c.target_x, c.target_z, queued);
+			sim.order_call_to_arms(ids, n, c.target_x, c.target_z, queued, (c.param & NET_PARAM_UNITS_ONLY) != 0,
+					(c.param & NET_PARAM_CAPTURE) != 0);
 		} else if (c.cmd_type == 41) { // WallSet wall — from the point in target_id to (target_x, target_z);
 			float sx, sz;                 // param's low bits name the WallSetKind (1 palisade).
 			Simulation::unpack_wall_point(c.target_id, sx, sz);
