@@ -8,7 +8,14 @@ they are playing, chat in the lobby room, and see the list of games that hosts
 register (name, host, map, players, state). This server keeps the same data
 behind a small JSON API:
 
-  POST /login     {name}                 -> {token, name}; 409 if the name is in use
+  POST /register  {name, password}       -> {name}; creates an account (0 A.D. prelobby
+                                         Register). 409 if the name is registered, 400 for a
+                                         name that is not 1-20 of a-z 0-9 . _ -
+  POST /login     {name, password}       -> {token, name}; 409 if the name is in use, 401 for
+                                         a registered name with the wrong password (or none)
+                                         or, with --accounts-only, a name with no account.
+                                         Without --accounts-only an unregistered name signs
+                                         in with no password, as a guest
   POST /logout    {token}
   POST /presence  {token, status}        status: available, away or playing
   GET  /players                          -> {players: [{name, status}]}
@@ -33,16 +40,24 @@ behind a small JSON API:
   POST /chat      {token, text}
   POST /report    {token, matchID, players, playerStates, ...}
                   a player's end-of-game report (gui/session/lobby/LobbyRatingReporter.js);
-                  once every player of a 1v1 has reported, both ratings change
-                  (the lobby bot's EcheLOn and elo.py)
+                  once every player has sent the same report, a finished game is
+                  recorded, and a 1v1 with one winner changes both ratings (the
+                  lobby bot's EcheLOn and elo.py; RatingsBot announces it in chat)
   GET  /leaderboard                      -> {players: [{name, rating}]}, best first (boardlist)
   GET  /profile?name=N                   -> {name, rating, highestRating, rank, totalGamesPlayed,
-                                             wins, losses}; 404 if N has no rated game (profile)
+                                             wins, losses}; "-" for the rating fields until
+                                             N's first rated game, 404 if the lobby has no
+                                             game of N's (profile)
 
 A host also sends local_ip and local_port with its game; they are kept out of
 GET /rooms. With --stun-port the server also answers STUN Binding Requests
 (RFC 5389) on UDP, as 0 A.D.'s lobby.stun.server does, so a player learns the
 public address and port its NAT gives the game's socket.
+
+A password is what the client sends, 0 A.D.'s EncryptPassword(password,
+username): the server never sees the typed one, and keeps only a salted SHA-256
+of it. Accounts live as long as the server, or in the JSON file given with
+--accounts.
 
 Players with a rated game carry their "rating" in GET /players. Ratings live as
 long as the server, or in the JSON file given with --ratings.
@@ -51,7 +66,9 @@ A signed-in player or a game that has not been heard from for TIMEOUT seconds
 is dropped, as the XMPP server drops a client that went away.
 """
 import argparse
+import hashlib
 import json
+import re
 import os
 import secrets
 import socket
@@ -76,6 +93,22 @@ STUN_MAGIC_COOKIE = 0x2112A442
 # lobby-bots xpartamupp/elo.py and leaderboard.py.
 LEADERBOARD_DEFAULT_RATING = 1200
 ELO_SURE_WIN_DIFFERENCE = 600.0     # a "sure win": nothing gained or lost
+# 0 A.D. source/lobby/pkcs5_pbkdf2.cpp EncryptPassword: what a client sends as
+# its password. PBKDF2-HMAC-SHA256, 1337 rounds, salted with SHA-256 of a fixed
+# base and the (lower-case) name, as upper-case hex. LobbySession.encrypt_password
+# computes the same in the game; tests check the two agree.
+ENCRYPT_SALT_BASE = bytes([244, 243, 249, 244, 32, 33, 34, 35, 10, 11, 12, 13, 14, 15, 16, 17,
+                           18, 19, 20, 32, 33, 244, 224, 127, 129, 130, 140, 153, 133, 123, 234, 123])
+ENCRYPT_ITERATIONS = 1337
+
+
+def encrypt_password(password, username):
+    salt = hashlib.sha256(ENCRYPT_SALT_BASE + username.lower().encode("utf-8")).digest()
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, ENCRYPT_ITERATIONS).hex().upper()
+
+
+# 0 A.D. prelobby checkUsername for a new account.
+ACCOUNT_NAME = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
 ELO_K_FACTOR_CONSTANT_RATING = 2200.0  # ratings above this move at its rate
 VOLATILITY_CONSTANT = 20.0          # games after which a rating is stable
 ANTI_INFLATION = 0.015
@@ -134,7 +167,8 @@ def _split_list(value):
 
 
 class Lobby:
-    def __init__(self, timeout=TIMEOUT, clock=time.monotonic, ratings_path=None):
+    def __init__(self, timeout=TIMEOUT, clock=time.monotonic, ratings_path=None,
+                 accounts_path=None, accounts_only=False):
         self.timeout = timeout
         self.clock = clock
         self.lock = threading.Lock()
@@ -152,6 +186,16 @@ class Lobby:
                     self.ratings = json.load(f)
             except (OSError, ValueError):
                 self.ratings = {}
+        # name (lower case) -> {name, salt, hash}: hash = sha256(salt + password)
+        self.accounts = {}
+        self.accounts_path = accounts_path
+        self.accounts_only = accounts_only
+        if accounts_path:
+            try:
+                with open(accounts_path, encoding="utf-8") as f:
+                    self.accounts = json.load(f)
+            except (OSError, ValueError):
+                self.accounts = {}
 
     def expire(self):
         now = self.clock()
@@ -172,10 +216,43 @@ class Lobby:
             p["seen"] = self.clock()
         return p
 
-    def login(self, name):
+    @staticmethod
+    def _hash(salt, password):
+        return hashlib.sha256((salt + str(password)).encode("utf-8")).hexdigest()
+
+    def _save_accounts(self):
+        if not self.accounts_path:
+            return
+        tmp = self.accounts_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.accounts, f)
+        os.replace(tmp, self.accounts_path)
+
+    def register_account(self, name, password):
+        """0 A.D. prelobby Register: an XMPP in-band registration."""
+        name = str(name or "").strip()
+        if not ACCOUNT_NAME.match(name):
+            return 400, {"error": "Invalid username"}
+        if not password:
+            return 400, {"error": "Please enter your password"}
+        if name.lower() in self.accounts:
+            return 409, {"error": "Username already taken"}
+        salt = secrets.token_hex(16)
+        self.accounts[name.lower()] = {"name": name, "salt": salt, "hash": self._hash(salt, password)}
+        self._save_accounts()
+        return 200, {"name": name}
+
+    def login(self, name, password=None):
         name = " ".join(str(name or "").split())[:MAX_NAME]
         if not name:
             return 400, {"error": "a name is required"}
+        acct = self.accounts.get(name.lower())
+        if acct:
+            if not password or not secrets.compare_digest(self._hash(acct["salt"], password), acct["hash"]):
+                return 401, {"error": "Wrong username or password"}
+            name = acct["name"]
+        elif password or self.accounts_only:
+            return 401, {"error": "Wrong username or password" if password else "Register an account first"}
         if any(p["name"].lower() == name.lower() for p in self.players.values()):
             return 409, {"error": "that name is in use"}
         token = secrets.token_hex(16)
@@ -204,7 +281,7 @@ class Lobby:
         for p in self.players.values():
             row = {"name": p["name"], "status": p["status"]}
             r = self.ratings.get(p["name"].lower())
-            if r:
+            if r and r.get("rating") is not None:
                 row["rating"] = r["rating"]
             rows.append(row)
         return 200, {"players": sorted(rows, key=lambda r: r["name"].lower())}
@@ -238,6 +315,9 @@ class Lobby:
                 del self.reports[next(iter(self.reports))]
         elif [n.lower() for n in rep["players"]] != [n.lower() for n in names]:
             return 409, {"error": "the players differ from the match's other reports"}
+        elif rep["playerStates"] != states:
+            # EcheLOn's ReportManager drops reports that differ from the match's first.
+            return 409, {"error": "the report differs from the match's other reports"}
         rep["reporters"].add(p["name"].lower())
         if rep.get("done"):
             return 200, {"rated": False}
@@ -246,36 +326,53 @@ class Lobby:
         rep["done"] = True
         return 200, self._rate(rep)
 
+    def _row(self, name):
+        """A player's leaderboard row: rating None until a rated game (EcheLOn's -1);
+        games counts every finished game the lobby recorded (len(player.games))."""
+        r = self.ratings.setdefault(name.lower(), {"name": name, "rating": None, "highestRating": None,
+                                                   "wins": 0, "losses": 0})
+        r["name"] = name
+        r.setdefault("games", r["wins"] + r["losses"])  # rows saved before games was kept
+        return r
+
     def _rate(self, rep):
-        """leaderboard.py rate_game: only 1v1 games change ratings."""
+        """EcheLOn's Leaderboard.add_and_rate_game: a finished game (nobody still
+        active, someone won) is recorded for its players; a 1v1 with exactly one
+        winner also changes both ratings (_verify_game, _rate_game)."""
         names, states = rep["players"], rep["playerStates"]
-        if len(names) != 2 or names[0].lower() == names[1].lower():
-            return {"rated": False}
-        result = {"won": 1, "defeated": -1}.get(states[0], 0)
-        if result == 0 and states[1] not in ("won", "defeated"):
-            return {"rated": False}  # nobody finished: nothing to rate
-        rows = []
-        for n in names:
-            r = self.ratings.setdefault(n.lower(), {"name": n, "rating": LEADERBOARD_DEFAULT_RATING,
-                                                    "highestRating": LEADERBOARD_DEFAULT_RATING,
-                                                    "wins": 0, "losses": 0})
-            r["name"] = n
-            rows.append(r)
-        games = [r["wins"] + r["losses"] for r in rows]
-        change0 = get_rating_adjustment(rows[0]["rating"], rows[1]["rating"], games[0], games[1], result)
-        change1 = get_rating_adjustment(rows[1]["rating"], rows[0]["rating"], games[1], games[0], -result)
-        for r, change, res in ((rows[0], change0, result), (rows[1], change1, -result)):
-            r["rating"] += change
-            r["highestRating"] = max(r["highestRating"], r["rating"])
-            if res == 1:
-                r["wins"] += 1
-            elif res == -1:
+        if "active" in states or "won" not in states:
+            return {"rated": False}  # _add_game: unfinished, or no winner to record
+        rows = [self._row(n) for n in names]
+        for r in rows:
+            r["games"] += 1
+        winner = rows[states.index("won")]
+        winner["wins"] += 1
+        for r, st in zip(rows, states):
+            if r is not winner and st != "won":
                 r["losses"] += 1
+        if len(names) != 2 or names[0].lower() == names[1].lower() or states.count("won") != 1:
+            self._save_ratings()
+            return {"rated": False}
+        result = 1 if winner is rows[0] else -1
+        for r in rows:
+            if r["rating"] is None:
+                r["rating"] = LEADERBOARD_DEFAULT_RATING
+        # Both adjustments from the ratings before the game, each with the games
+        # counted so far, this one included.
+        change0 = get_rating_adjustment(rows[0]["rating"], rows[1]["rating"], rows[0]["games"], rows[1]["games"], result)
+        change1 = get_rating_adjustment(rows[1]["rating"], rows[0]["rating"], rows[1]["games"], rows[0]["games"], -result)
+        self._say("RatingsBot", "A rated game has ended. %s %s against %s. Rating Adjustment: %s (%d -> %d) and %s (%d -> %d)." % (
+            rows[0]["name"], "won" if result == 1 else "lost", rows[1]["name"],
+            rows[0]["name"], rows[0]["rating"], rows[0]["rating"] + change0,
+            rows[1]["name"], rows[1]["rating"], rows[1]["rating"] + change1))
+        for r, change in ((rows[0], change0), (rows[1], change1)):
+            r["rating"] += change
+            r["highestRating"] = max(r["rating"], r["highestRating"] if r["highestRating"] is not None else -1)
         self._save_ratings()
         return {"rated": True, "ratings": {r["name"]: r["rating"] for r in rows}}
 
     def _ranked(self):
-        rated = [r for r in self.ratings.values() if r["wins"] + r["losses"] > 0]
+        rated = [r for r in self.ratings.values() if r.get("rating") is not None]
         return sorted(rated, key=lambda r: (-r["rating"], r["name"].lower()))
 
     def leaderboard(self):
@@ -283,14 +380,19 @@ class Lobby:
         return 200, {"players": board}
 
     def profile(self, name):
-        name = str(name or "").strip().lower()
-        ranked = self._ranked()
-        for rank, r in enumerate(ranked, 1):
-            if r["name"].lower() == name:
-                return 200, {"name": r["name"], "rating": r["rating"], "highestRating": r["highestRating"],
-                             "rank": rank, "totalGamesPlayed": r["wins"] + r["losses"],
-                             "wins": r["wins"], "losses": r["losses"]}
-        return 404, {"error": "player not found"}
+        """EcheLOn's get_profile: rank counts the players rated at least as high;
+        a player with recorded games but no rated one shows "-" for those."""
+        r = self.ratings.get(str(name or "").strip().lower())
+        if r is None:
+            return 404, {"error": "player not found"}
+        games = r.get("games", r["wins"] + r["losses"])
+        out = {"name": r["name"], "totalGamesPlayed": games, "wins": r["wins"], "losses": games - r["wins"]}
+        if r.get("rating") is None:
+            out.update(rating="-", rank="-", highestRating="-")
+        else:
+            out.update(rating=r["rating"], highestRating=r["highestRating"],
+                       rank=sum(1 for o in self._ranked() if o["rating"] >= r["rating"]))
+        return 200, out
 
     def add_punch(self, data):
         """A joiner's STUN endpoint for the host to punch towards (0 A.D.'s
@@ -464,7 +566,9 @@ class LobbyHandler(BaseHTTPRequestHandler):
                 elif path == "/rooms/unregister":
                     code, obj = LOBBY.unregister(data.get("id"))
                 elif path == "/login":
-                    code, obj = LOBBY.login(data.get("name"))
+                    code, obj = LOBBY.login(data.get("name"), data.get("password"))
+                elif path == "/register":
+                    code, obj = LOBBY.register_account(data.get("name"), data.get("password"))
                 elif path == "/logout":
                     code, obj = LOBBY.logout(data.get("token"))
                 elif path == "/presence":
@@ -533,11 +637,15 @@ def main():
                         help="seconds without a request before a player or game is dropped")
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--ratings", help="JSON file that keeps the ratings between runs")
+    parser.add_argument("--accounts", help="JSON file that keeps the accounts between runs")
+    parser.add_argument("--accounts-only", action="store_true",
+                        help="refuse names with no account (0 A.D.'s lobby has no guests)")
     parser.add_argument("--stun-port", type=int, default=3478,
                         help="UDP port that answers STUN Binding Requests (0 A.D. lobby.stun.port); 0 = off")
     args = parser.parse_args()
     global LOBBY
-    LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings)
+    LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings, accounts_path=args.accounts,
+                  accounts_only=args.accounts_only)
     if args.stun_port:
         serve_stun(args.bind, args.stun_port)
     serve(args.bind, args.port, not args.quiet).serve_forever()

@@ -140,6 +140,10 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"barcania": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"battle_for_the_tiber": {
 			"keywords": [],
 			"settings": {
@@ -206,7 +210,199 @@
 			},
 			"type": "scenario"
 		},
+		"bridge_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "gaul",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"butana_steppe": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"campaign_test_map": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": true,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "mace",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "spart",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"campaign_test_map_2_heightmap": {
+			"keywords": [
+				"demo",
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "spart",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "pers",
+						"team": -1
+					},
+					{
+						"civ": "mace",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"caspian_sea": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"cisalpine_winter": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"combat_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"corinthian_isthmus": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"corsica_and_sardinia": {
+			"keywords": [
+				"naval"
+			],
+			"type": "skirmish"
+		},
+		"crocodilopolis": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -270,6 +466,72 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"demo_trading": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "rome",
+						"team": 0
+					},
+					{
+						"civ": "pers",
+						"team": 0
+					},
+					{
+						"civ": "cart",
+						"team": 0
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"dueling_cliffs": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"egypt": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"eire_and_albion": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "brit",
+						"resources": {
+							"food": 100000,
+							"metal": 100000,
+							"stone": 100000,
+							"wood": 100000
+						},
+						"team": -1
+					},
+					{
+						"civ": "rome",
+						"resources": {
+							"food": 100000,
+							"metal": 100000,
+							"stone": 100000,
+							"wood": 100000
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"farmland": {
 			"keywords": [],
 			"type": "skirmish"
@@ -327,6 +589,48 @@
 			},
 			"type": "scenario"
 		},
+		"fishing_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "gaul",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"flight_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"forest_battle": {
 			"keywords": [],
 			"type": "skirmish"
@@ -335,6 +639,10 @@
 			"keywords": [
 				"trigger"
 			],
+			"type": "skirmish"
+		},
+		"gallic_highlands": {
+			"keywords": [],
 			"type": "skirmish"
 		},
 		"gambia_river": {
@@ -372,7 +680,38 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"golden_oasis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"gorge": {
+			"keywords": [
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "pers",
+						"team": -1
+					},
+					{
+						"civ": "cart",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"greek_acropolis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"greek_acropolis_night": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -425,7 +764,15 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"libyan_oasis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"lorraine_plain": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"magadha": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -514,6 +861,69 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"multiplayer_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"napata_reconstruction": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"neareastern_badlands": {
 			"keywords": [],
 			"type": "skirmish"
@@ -577,7 +987,17 @@
 			],
 			"type": "skirmish"
 		},
+		"north_african_savanna": {
+			"keywords": [
+				"demo"
+			],
+			"type": "skirmish"
+		},
 		"northern_island": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"nubian_frontier": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -592,6 +1012,42 @@
 		"oceanside": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"pathfinding_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "brit",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"pathfinding_terrain_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"peloponnese": {
 			"keywords": [],
@@ -674,9 +1130,89 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"polynesia": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "maur",
+						"resources": {
+							"food": 300,
+							"wood": 300
+						},
+						"team": -1
+					},
+					{
+						"civ": "maur",
+						"resources": {
+							"food": 300,
+							"wood": 300
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"punjab": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"reservoir": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"resource_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "gaul",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"road_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"saharan_oases": {
 			"keywords": [],
@@ -963,6 +1499,25 @@
 			},
 			"type": "scenario"
 		},
+		"sandbox_germans": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "germ",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"sandbox_han": {
 			"keywords": [
 				"demo"
@@ -1133,6 +1688,41 @@
 			},
 			"type": "scenario"
 		},
+		"sandbox_ptolemies_02": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "ptol",
+						"resources": {
+							"food": 50000,
+							"metal": 50000,
+							"stone": 50000,
+							"wood": 50000
+						},
+						"team": 0
+					},
+					{
+						"civ": "rome",
+						"team": 1
+					},
+					{
+						"civ": "sele",
+						"team": 2
+					},
+					{
+						"civ": "cart",
+						"team": 3
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"sandbox_romans": {
 			"keywords": [
 				"demo"
@@ -1284,6 +1874,46 @@
 			},
 			"type": "scenario"
 		},
+		"ship_formations": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"shipattacks": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"sicilia": {
 			"keywords": [],
 			"type": "skirmish"
@@ -1345,6 +1975,12 @@
 			},
 			"type": "scenario"
 		},
+		"skirmish_demo": {
+			"keywords": [
+				"demo"
+			],
+			"type": "skirmish"
+		},
 		"sporades_islands": {
 			"keywords": [
 				"naval"
@@ -1367,9 +2003,128 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"temperate_map": {
+			"keywords": [
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"temperate_roadway": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"territory_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"test_foundation": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": true,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "cart",
+						"team": -1
+					},
+					{
+						"civ": "gaul",
+						"team": -1
+					},
+					{
+						"civ": "iber",
+						"team": -1
+					},
+					{
+						"civ": "mace",
+						"team": -1
+					},
+					{
+						"civ": "pers",
+						"team": -1
+					},
+					{
+						"civ": "rome",
+						"team": -1
+					},
+					{
+						"civ": "spart",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"the_massacre_of_delphi": {
 			"keywords": [],
@@ -1476,6 +2231,27 @@
 			},
 			"type": "scenario"
 		},
+		"tropical_island": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": 0
+					},
+					{
+						"civ": "athen",
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"tuscan_acropolis": {
 			"keywords": [],
 			"type": "skirmish"
@@ -1492,9 +2268,102 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"walls": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "cart",
+						"resources": {
+							"food": 300,
+							"metal": 300,
+							"stone": 300,
+							"wood": 300
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 300,
+							"metal": 300,
+							"stone": 300,
+							"wood": 300
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"walltest": {
+			"keywords": [
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"pop": 100000,
+						"resources": {
+							"food": 100000,
+							"metal": 100000,
+							"stone": 100000,
+							"wood": 100000
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"pop": 2,
+						"resources": {
+							"food": 5000,
+							"metal": 5000,
+							"stone": 5000,
+							"wood": 5000
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"watering_holes": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"we_are_legion": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "rome",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"white_cliffs_of_dover": {
 			"keywords": [],

@@ -113,6 +113,9 @@ def test_http():
     check(call("/players")[1]["players"] == [{"name": "carol", "status": "available"}], "HTTP players")
     check(call("/rooms/punch", {"token": me["token"], "id": "r", "ip": "127.0.0.1", "port": 40000})[0] == 200, "HTTP punch")
     check(call("/rooms/punch?id=r&since=0")[1]["endpoints"][0]["port"] == 40000, "HTTP punch list")
+    check(call("/register", {"name": "dave", "password": "ABC"})[0] == 200, "HTTP account registration")
+    check(call("/login", {"name": "dave", "password": "XYZ"})[0] == 401, "HTTP sign in with the wrong password")
+    check(call("/login", {"name": "dave", "password": "ABC"})[0] == 200, "HTTP sign in with the password")
     check(call("/nope")[0] == 404, "unknown path is 404")
     req = urllib.request.Request(base + "/login", data=b"[1]", headers={"Content-Type": "application/json"})
     try:
@@ -146,22 +149,44 @@ def test_ratings():
     check(code == 202 and not obj["rated"], "the game waits for every player's report")
     check("rating" not in lb.player_list()[1]["players"][0], "no rating before a rated game")
     code, obj = lb.report(b["token"], rep)
-    check(code == 200 and obj["rated"] and obj["ratings"] == {"alice": 1278, "bob": 1122},
-          "the 1v1 is rated once both have reported")
+    check(code == 200 and obj["rated"] and obj["ratings"] == {"alice": 1265, "bob": 1135},
+          "the 1v1 is rated once both have reported, each counting this game played (len(player.games))")
+    check(lb.chat[-1]["from"] == "RatingsBot" and lb.chat[-1]["text"] == "A rated game has ended. alice won "
+          "against bob. Rating Adjustment: alice (1200 -> 1265) and bob (1200 -> 1135).", "RatingsBot announces it")
     check(lb.report(b["token"], rep)[1] == {"rated": False}, "a repeated report rates nothing again")
     ratings = {p["name"]: p.get("rating") for p in lb.player_list()[1]["players"]}
-    check(ratings == {"alice": 1278, "bob": 1122, "carol": None}, "the player list carries ratings")
-    check(lb.leaderboard()[1]["players"] == [{"name": "alice", "rating": 1278}, {"name": "bob", "rating": 1122}],
+    check(ratings == {"alice": 1265, "bob": 1135, "carol": None}, "the player list carries ratings")
+    check(lb.leaderboard()[1]["players"] == [{"name": "alice", "rating": 1265}, {"name": "bob", "rating": 1135}],
           "the leaderboard lists rated players best first")
     code, prof = lb.profile("BOB")
-    check(code == 200 and prof == {"name": "bob", "rating": 1122, "highestRating": 1200, "rank": 2,
+    check(code == 200 and prof == {"name": "bob", "rating": 1135, "highestRating": 1135, "rank": 2,
                                    "totalGamesPlayed": 1, "wins": 0, "losses": 1}, "a player's profile")
-    check(lb.profile("carol")[0] == 404, "a player with no rated game has no profile")
+    check(lb.profile("carol")[0] == 404, "a player the lobby has no game of has no profile")
     team = {"matchID": "m2", "players": "alice,bob,carol,", "playerStates": "won,defeated,defeated,"}
     lb.report(a["token"], team)
     lb.report(b["token"], team)
     check(lb.report(c["token"], team)[1] == {"rated": False}, "only 1v1 games are rated")
-    check(lobby_server.Lobby(ratings_path=path).profile("alice")[1]["rating"] == 1278,
+    check(lb.profile("carol")[1] == {"name": "carol", "totalGamesPlayed": 1, "wins": 0, "losses": 1,
+                                     "rating": "-", "rank": "-", "highestRating": "-"},
+          "an unrated game counts in the profile, with no rating yet")
+    check(lb.profile("alice")[1]["totalGamesPlayed"] == 2 and lb.profile("alice")[1]["wins"] == 2,
+          "every finished game counts as played")
+    for mid, states, why in (("m3", "defeated,defeated,", "no winner"), ("m4", "active,won,", "one still playing"),
+                             ("m5", "won,won,", "two winners")):
+        r3 = {"matchID": mid, "players": "alice,bob,", "playerStates": states}
+        lb.report(a["token"], r3)
+        check(lb.report(b["token"], r3)[1] == {"rated": False}, "a 1v1 with %s is not rated" % why)
+    r6 = {"matchID": "m6", "players": "alice,bob,", "playerStates": "won,defeated,"}
+    lb.report(a["token"], r6)
+    check(lb.report(b["token"], dict(r6, playerStates="defeated,won,"))[0] == 409,
+          "a report that differs from the match's first is refused")
+    _, d = lb.login("dave")
+    r7 = {"matchID": "m7", "players": "carol,dave,", "playerStates": "won,defeated,"}
+    lb.report(c["token"], r7)
+    lb.report(d["token"], r7)
+    check([lb.profile(n)[1]["rank"] for n in ("alice", "carol", "bob", "dave")] == [1, 2, 4, 4],
+          "rank counts the players rated at least as high, so bob and dave tie at 4")
+    check(lobby_server.Lobby(ratings_path=path).profile("alice")[1]["rating"] == 1265,
           "ratings outlive the server in the --ratings file")
 
 
@@ -213,7 +238,33 @@ def test_punch():
     sock.close()
 
 
+def test_accounts():
+    import tempfile
+    path = os.path.join(tempfile.mkdtemp(), "accounts.json")
+    lb = lobby_server.Lobby(accounts_path=path)
+    pw = lobby_server.encrypt_password("hunter22", "Alice")
+    check(len(pw) == 64 and pw == pw.upper() and pw == lobby_server.encrypt_password("hunter22", "alice"),
+          "EncryptPassword is 64 upper-case hex digits, salted by the name in any case")
+    check(pw != lobby_server.encrypt_password("hunter22", "bob"), "another name salts the same password differently")
+    check(lb.register_account("Alice", pw)[0] == 200, "register an account")
+    check(lb.register_account("alice", pw)[0] == 409, "the name, in any case, can be registered once")
+    check(lb.register_account("bad name!", pw)[0] == 400, "a name outside a-z 0-9 . _ - is refused")
+    check(lb.register_account("x" * 21, pw)[0] == 400, "a name over 20 characters is refused")
+    check("hunter22" not in open(path).read() and pw not in open(path).read(),
+          "the accounts file keeps neither the password nor what the client sent")
+    check(lb.login("alice", "wrong")[0] == 401, "the wrong password is refused")
+    check(lb.login("alice")[0] == 401, "a registered name needs its password")
+    code, obj = lb.login("alice", pw)
+    check(code == 200 and obj["name"] == "Alice", "the right password signs in, under the registered spelling")
+    check(lb.login("bob", pw)[0] == 401, "a password for a name with no account is refused")
+    check(lb.login("guest")[0] == 200, "a name with no account signs in as a guest")
+    strict = lobby_server.Lobby(accounts_path=path, accounts_only=True)
+    check(strict.login("carol")[0] == 401, "with --accounts-only a name with no account is refused")
+    check(strict.login("ALICE", pw)[0] == 200, "accounts load from the file")
+
+
 if __name__ == "__main__":
+    test_accounts()
     test_object()
     test_punch()
     test_ratings()

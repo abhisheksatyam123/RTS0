@@ -1098,6 +1098,12 @@ inline constexpr float PUSH_CLEARANCE_PER_RADIUS = 0.8f * PUSH_SCALE / 0.5f;
 inline float unit_push_clearance(uint8_t type) {
 	return unit_collision_radius(type) * PUSH_CLEARANCE_PER_RADIUS;
 }
+// ResourceGatherer MaxDistance of land gatherers (2 m, template_unit) between a gatherer's obstruction
+// and a mine's square: 0.28 measures range between the two obstructions. The gatherers round a mine
+// stand in a crowd, so the gap counts at the crowd scale past the unit's crowd clearance
+// (unit_push_clearance): 0.28's band round a large mine holds its 24 gatherers, and one at the map
+// scale would hold only half of them in RTS0's bigger crowds.
+inline constexpr float MINE_GATHER_REACH = 2.0f * PUSH_SCALE;
 
 // 0 A.D. ResourceDropsite on a unit: the Mauryan worker elephant (template_unit_support_elephant)
 // and the supply wagon (template_unit_support_wagon) take food, wood, stone and metal. Only the
