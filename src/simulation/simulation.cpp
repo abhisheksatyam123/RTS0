@@ -160,6 +160,10 @@ struct ScopedUs {
 };
 constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m map)
 // 0 A.D. Builder.GetRange: max ≈ 2 + unit obstruction.
+// Builder.GetRange max = 2 m (x0.28 like LoadingRange) + the builder's obstruction size, from
+// its obstruction (a square of its class clearance) to the structure's.
+constexpr float kBuildRange = 2.0f * 0.28f;
+// Between units (repairing a ram or a ship), RTS0 keeps the units' collision radii.
 constexpr float kBuildReach = 2.20f;
 // An attacker's stand point beside a structure (it stops once within reach on its way there).
 constexpr float kBuildStandOff = 0.80f;
@@ -275,7 +279,9 @@ static bool outside_and_in_build_range(float bx, float bz, float hx, float hz, f
 		return false;
 	float cx = std::clamp(x, minx, maxx);
 	float cz = std::clamp(z, minz, maxz);
-	return std::hypot(x - cx, z - cz) - radius <= kBuildReach; // edge to edge, as structure_gap
+	// Edge to edge, as structure_gap: Builder range plus the obstruction size (`radius`, the
+	// builder's class clearance).
+	return std::hypot(x - cx, z - cz) - radius <= kBuildRange + radius;
 }
 
 // The two above in a building's own frame, so a turned footprint (nav/footprint.h) gets the same
@@ -1141,6 +1147,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "savanna") == 0) cfg.biome = BIOME_SAVANNA;
 	else if (std::strcmp(minfo.biome, "polar") == 0) cfg.biome = BIOME_POLAR;
 	else if (std::strcmp(minfo.biome, "india") == 0) cfg.biome = BIOME_INDIA;
+	else if (std::strcmp(minfo.biome, "autumn") == 0) cfg.biome = BIOME_AUTUMN;
+	else if (std::strcmp(minfo.biome, "nubia") == 0) cfg.biome = BIOME_NUBIA;
 	else if (std::strcmp(minfo.biome, "desert") == 0 || std::strcmp(minfo.biome, "persia") == 0) cfg.biome = BIOME_OASIS;
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
@@ -1169,7 +1177,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	if (biome_pick >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
-				"steppe", "savanna", "polar", "india"};
+				"steppe", "savanna", "polar", "india", "autumn", "nubia"};
 		current_map_biome_ = kBiomeNames[biome_pick];
 	}
 	// 0 A.D. per-tile terrain textures from the final biome.
@@ -4370,48 +4378,66 @@ void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, floa
 			if (idx >= 0) begin_walk_order((size_t)idx);
 		}
 	}
-	if (!individual.empty()) cmd_move_individual(individual.data(), individual.size(), tx, tz);
+	if (!individual.empty()) cmd_move_individual(individual.data(), individual.size(), tx, tz, ctrls.empty());
 }
 
-void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz) {
-	if (count == 0) return;
-
-	// Units not in a formation spread over a square grid around the target, turned to face
-	// the walk (RTS0's group move; 0 A.D. sends them all to the point and lets them push).
-	const float spacing = 1.35f;
-	float centerX = 0.0f, centerZ = 0.0f;
-	int validCount = 0;
+// CCmpPathfinder::DistributeAround: points on a spiral round (x, z), the first ring 1 m out and each
+// next 1.75 m further, 9/pi m (2.9 m) apart along a ring, then handed out so that no swap of two
+// units' points cuts their squared travel (in whole metres, rounded up as fixed ToInt_RoundToInfinity
+// does). Lengths are at the crowd scale (PUSH_SCALE), which keeps 0.28's spacing for RTS0's bigger bodies.
+std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_t *unit_ids, size_t count, float x, float z) const {
+	std::vector<std::pair<float, float>> points;
+	points.reserve(count);
+	constexpr float kPi = 3.14159265f;
+	float angle = 0.0f, radius = 1.0f, step = 9.0f / (kPi * radius);
 	for (size_t i = 0; i < count; ++i) {
-		int32_t idx = lookup_unit(unit_ids[i]);
-		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
-			centerX += units_.pos_x[idx];
-			centerZ += units_.pos_z[idx];
-			++validCount;
+		points.emplace_back(x + radius * std::cos(angle) * PUSH_SCALE, z - radius * std::sin(angle) * PUSH_SCALE);
+		angle += step;
+		if (angle >= 2.0f * kPi) {
+			angle = 0.0f;
+			radius += 1.75f;
+			step = 9.0f / (kPi * radius);
 		}
 	}
-	float cosH = 1.0f, sinH = 0.0f;
-	if (validCount > 0) {
-		centerX /= (float)validCount;
-		centerZ /= (float)validCount;
-		const float heading = atan2f(tz - centerZ, tx - centerX);
-		cosH = cosf(heading);
-		sinH = sinf(heading);
+	std::vector<std::pair<float, float>> at(count);
+	for (size_t i = 0; i < count; ++i) {
+		const int32_t idx = lookup_unit(unit_ids[i]);
+		if (idx < 0 || !units_.alive[idx]) return points;
+		at[i] = {units_.pos_x[idx], units_.pos_z[idx]};
 	}
+	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
+		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
+		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
+		return dx * dx + dz * dz;
+	};
+	bool improved;
+	do {
+		improved = false;
+		for (size_t i = 0; i < count; ++i)
+			for (size_t j = i + 1; j < count; ++j)
+				if (dist2(points[j], at[i]) + dist2(points[i], at[j]) < dist2(points[i], at[i]) + dist2(points[j], at[j])) {
+					std::swap(points[i], points[j]);
+					improved = true;
+				}
+	} while (improved);
+	return points;
+}
+
+void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread) {
+	if (count == 0) return;
+
+	// Commands.js "walk", "attack-walk" and "patrol": units that all walk on their own (none in a
+	// formation) each walk to their own point round the target (DistributeAround); one alone, or the
+	// loose units of a selection with formations in it, walk to the point itself and push.
+	const std::vector<std::pair<float, float>> points =
+			spread && count > 1 ? distribute_around(unit_ids, count, tx, tz) : std::vector<std::pair<float, float>>();
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
 		if (idx < 0 || (size_t)idx >= units_.count || !units_.alive[idx]) continue;
 
-		const int side = std::max(1, (int)std::ceil(std::sqrt((float)count)));
-		const int row = (int)i / side;
-		const int col = (int)i % side;
-		const float ox = (col - (side - 1) * 0.5f) * spacing;
-		const float oz = (row - (side - 1) * 0.5f) * spacing;
-		float rx = ox * cosH - oz * sinH;
-		float rz = ox * sinH + oz * cosH;
-
-		float dest_x = tx + rx;
-		float dest_z = tz + rz;
+		float dest_x = points.empty() ? tx : points[i].first;
+		float dest_z = points.empty() ? tz : points[i].second;
 		dest_x = std::clamp(dest_x, -map_half_ + 1.0f, map_half_ - 1.0f);
 		dest_z = std::clamp(dest_z, -map_half_ + 1.0f, map_half_ - 1.0f);
 		units_.target_x[idx] = dest_x;
@@ -4657,7 +4683,7 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 	// Formations patrol as a whole (FORMATIONCONTROLLER PATROL); the rest walk on their own.
 	const std::vector<uint32_t> rest = !queued && !formations_.empty() ? formation_take_patrol(now, tx, tz) : now;
 	formation_remove_units(rest.data(), rest.size());
-	cmd_move_individual(rest.data(), rest.size(), tx, tz);
+	cmd_move_individual(rest.data(), rest.size(), tx, tz, rest.size() == now.size());
 	for (uint32_t uid : rest) {
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
@@ -6270,10 +6296,9 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 bool Simulation::garrison_in_range(size_t i, const Building &b, float x, float z) const {
 	const nav::Vec2 gap = nav::footprint_gap(b, x, z);
 	const float ex = gap.x, ez = gap.y;
-	// LoadingRange counts from where a unit can stand: its radius plus the navcell
-	// clearance extension around the structure (0 A.D. measures from the obstruction).
-	const float reach = structure_loading_range(b.type, b.civ) + unit_collision_radius(units_.unit_type[i]) +
-			nav::kClearanceExtensionRadius;
+	// LoadingRange counts from the unit's obstruction (a square of its class clearance) to the
+	// structure's (GarrisonHolder.IsInTargetRange).
+	const float reach = structure_loading_range(b.type, b.civ) + unit_clearance_at(i);
 	return ex * ex + ez * ez <= reach * reach;
 }
 
@@ -8829,7 +8854,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	float c_max = 0.0f;
 	for (size_t i = 0; i < n; ++i) {
 		const bool land = units_.alive[i] && !unit_is_ship(units_.unit_type[i]);
-		idle[i] = land && !(walk[i] & WALK_MOVING);
+		// Turretable.OccupyTurret turns a turret unit's obstruction off: it blocks no one.
+		idle[i] = land && !(walk[i] & WALK_MOVING) &&
+				(turret_height_.empty() || !turret_height_.count(units_.id[i]));
 		if (idle[i]) {
 			any_idle = true;
 			c_max = std::max(c_max, unit_push_clearance(units_.unit_type[i]));
@@ -8889,14 +8916,18 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		}
 		if (st == ACTION_BUILD && units_.target_building_id[i] != 0) { // tick_construction
 			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
-			return bit != building_id_to_idx_.end() && square(buildings_[bit->second], kBuildReach);
+			// outside_and_in_build_range: the centre within Builder range plus twice the clearance
+			// (square adds the radius).
+			return bit != building_id_to_idx_.end() &&
+			       square(buildings_[bit->second], kBuildRange + 2.0f * unit_clearance_at(i) - r);
 		}
 		if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) {
-			// garrison_in_range's LoadingRange, which counts from the unit's centre (square adds its radius).
+			// garrison_in_range's LoadingRange plus the clearance, from the unit's centre (square
+			// adds the radius).
 			const auto bit = building_id_to_idx_.find(units_.order_target[i]);
 			return bit != building_id_to_idx_.end() &&
 			       square(buildings_[bit->second], structure_loading_range(buildings_[bit->second].type,
-						buildings_[bit->second].civ) + nav::kClearanceExtensionRadius);
+						buildings_[bit->second].civ) + unit_clearance_at(i) - r);
 		}
 		if (st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) {
 			// The dropsite (tick_gather) or market (the trader tick) at the walk's target, or a
@@ -9073,7 +9104,7 @@ bool Simulation::walk_in_reach(size_t i, float x, float z) const {
 		// within reach, in tick_gather.)
 		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 		return bit != building_id_to_idx_.end() &&
-				outside_and_in_build_range(buildings_[bit->second], x, z, unit_collision_radius(units_.unit_type[i]));
+				outside_and_in_build_range(buildings_[bit->second], x, z, unit_clearance_at(i));
 	}
 	if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) {
 		// The garrison order gets in within LoadingRange.
@@ -10120,7 +10151,7 @@ void Simulation::tick_construction(float dt) {
 			if (bit == building_id_to_idx_.end()) continue;
 			const Building &b = buildings_[bit->second];
 			if (b.build_progress < 1.0f && outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
-				unit_collision_radius(units_.unit_type[i])))
+				unit_clearance_at(i)))
 				builders_per_bld[b.id]++;
 		}
 	}
@@ -10151,7 +10182,7 @@ void Simulation::tick_construction(float dt) {
 		}
 
 		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
-				unit_collision_radius(units_.unit_type[i]))) {
+				unit_clearance_at(i))) {
 			// 0 A.D. Foundation.Commit: the first builder on a clear site starts it; until the
 			// units standing on it have left, nobody builds.
 			if (!b.committed) {
@@ -10272,7 +10303,7 @@ void Simulation::tick_repair(float dt) {
 				const Building &b = buildings_[bit->second];
 				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp &&
 						outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
-				unit_collision_radius(units_.unit_type[i]))) {
+				unit_clearance_at(i))) {
 					repairers_per_bld[b.id]++;
 				}
 			}
@@ -10287,7 +10318,7 @@ void Simulation::tick_repair(float dt) {
 		if (b.build_progress < 1.0f || b.hp <= 0.0f || b.hp >= b.max_hp) continue;
 
 		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
-				unit_collision_radius(units_.unit_type[i]))) {
+				unit_clearance_at(i))) {
 			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio x BuildTime): 2.0, or 4.5 on
 			// stone walls, gates and wall towers (template_structure_defensive_wall.xml).
@@ -11274,9 +11305,10 @@ void Simulation::tick_combat(float dt) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
-				const bool human = ai.prefers_human && unit_combat_at(i).classes.has(CC_HUMAN);
+				const auto &cls = unit_combat_at(i).classes;
+				const bool preferred = (ai.prefers_human && cls.has(CC_HUMAN)) || (ai.prefers_inorganic && !cls.has(CC_ORGANIC));
 				const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
-				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(human ? 0 : 49), dx * dx + dz * dz});
+				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(preferred ? 0 : 49), dx * dx + dz * dz});
 			});
 		}
 		for (const int32_t f : wild) {
@@ -11290,7 +11322,8 @@ void Simulation::tick_combat(float dt) {
 			if (!building_target(buildings_[o])) continue;
 			in_reach = true;
 			const float dx = buildings_[o].x - b.x, dz = buildings_[o].z - b.z;
-			if (seen_structure(buildings_[o].x, buildings_[o].z)) arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, 49, dx * dx + dz * dz});
+			if (seen_structure(buildings_[o].x, buildings_[o].z))
+				arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, (uint8_t)(ai.prefers_inorganic ? 0 : 49), dx * dx + dz * dz});
 		}
 		if (!in_reach) { // FireArrows with no targets cancels the timer
 			b.arrow_timer_on = false;
@@ -25144,6 +25177,21 @@ bool Simulation::load_state(const char *filepath) {
 		projectiles_.clear();
 	}
 
+	// The units on turret points, as the saving game's last tick_turrets left them (move_units reads
+	// them before this tick's tick_turrets).
+	turret_height_.clear();
+	for (const Building &b : buildings_) {
+		const TurretPointSet *pts = b.garrisoned_units.empty() ? nullptr : turret_points_of(b);
+		if (!pts) continue;
+		bool taken[TURRET_POINTS_MAX] = {};
+		for (size_t k = 0; k < b.garrisoned_units.size() && (int)k < pts->count; ++k) {
+			const int32_t u = lookup_unit(b.garrisoned_units[k]);
+			if (u < 0 || !units_.alive[u]) continue;
+			const int pi = nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u], taken);
+			taken[pi] = true;
+			turret_height_[b.garrisoned_units[k]] = pts->pt[pi].y;
+		}
+	}
 	rebuild_all_tech_mods();
 	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones

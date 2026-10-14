@@ -7,7 +7,8 @@ extends CanvasLayer
 ## main.tscn on a loader thread, then adds the match to the tree and follows
 ## RtsoMain's load_progress signal while the map is set up. When the match has
 ## drawn its first frames, the page frees itself (0 A.D.'s reallyStartGame).
-## The tips, quotes and pictures come from tools/extract_0ad_loading.py.
+## The tip is scenes/reference/tip_display.gd; the tips, quotes and pictures
+## come from tools/extract_0ad_loading.py.
 
 const MATCH_SCENE := "res://scenes/main.tscn"
 const DATA := "res://data/reference/loading.json"
@@ -117,13 +118,15 @@ func _read_json(path: String) -> Dictionary:
 	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}
 
 func _pick(data: Dictionary) -> void:
-	var tips: Dictionary = data.get("tips", {})
-	if not tips.is_empty():
-		tip_name = tips.keys().pick_random()
 	var quotes: Array = data.get("quotes", [])
 	if not quotes.is_empty():
 		quote = str(quotes.pick_random())
 	title = _title()
+
+## Engine.HasNetClient(): a multiplayer match weighs the tips by their MP share.
+func _networked() -> bool:
+	var ms = get_node_or_null("/root/MatchSettings")
+	return ms != null and str(ms.net_mode) != ""
 
 ## TitleDisplay.js: "Generating “map”" for random maps, else "Loading “map”".
 func _title() -> String:
@@ -249,63 +252,15 @@ func _build() -> void:
 	_outlined(title_label, 26)
 	root.add_child(title_label)
 
-	# TipDisplay.xml: the picture on the left, the parchment with text on the right.
+	# TipDisplay.xml: one tip from a category weighted for single- or multiplayer.
 	var tip := _centered(root, -452, -196, 452, 196)
 	tip.name = "Tip"
-	if tip_name != "":
-		var tip_data: Dictionary = _read_json(DATA).get("tips", {}).get(tip_name, {})
-		var frame := Panel.new()
-		frame.position = Vector2(0, 0)
-		frame.size = Vector2(520, 392)
-		frame.clip_contents = true
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0, 0, 0, 0.6)
-		sb.set_border_width_all(4)
-		sb.border_color = Color(0.75, 0.66, 0.42)
-		frame.add_theme_stylebox_override("panel", sb)
-		tip.add_child(frame)
-		var img := TextureRect.new()
-		img.name = "TipImage"
-		img.texture = _tex("tips/%s.png" % tip_name)
-		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		img.position = Vector2(4, 4)
-		img.size = Vector2(512, 512)
-		frame.add_child(img)
-		var cover := TextureRect.new()
-		cover.texture = _tex("gradient_tips.png")
-		cover.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		cover.size = Vector2(512, 512)
-		img.add_child(cover)
-		var parchment := TextureRect.new()
-		var region := AtlasTexture.new()
-		region.atlas = _tex("parchment.png")
-		region.region = Rect2(0, 0, 322, 386)
-		parchment.texture = region
-		parchment.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		parchment.position = Vector2(570, 0)
-		parchment.size = Vector2(340, 400)
-		tip.add_child(parchment)
-		var tip_title := Label.new()
-		tip_title.name = "TipTitle"
-		tip_title.text = str(tip_data.get("title", ""))
-		tip_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tip_title.position = Vector2(30, 30)
-		tip_title.size = Vector2(280, 20)
-		tip_title.add_theme_color_override("font_color", Color.BLACK)
-		tip_title.add_theme_font_size_override("font_size", 16)
-		parchment.add_child(tip_title)
-		var tip_text := Label.new()
-		tip_text.name = "TipText"
-		var bullets: PackedStringArray = []
-		for line in tip_data.get("lines", []):
-			bullets.append("• " + str(line)) # TipDisplay.prototype.BulletFormat
-		tip_text.text = "\n\n".join(bullets)
-		tip_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tip_text.position = Vector2(30, 62)
-		tip_text.size = Vector2(280, 320)
-		tip_text.add_theme_color_override("font_color", Color.BLACK)
-		tip_text.add_theme_font_size_override("font_size", 14)
-		parchment.add_child(tip_text)
+	var display = load("res://scenes/reference/tip_display.gd").new()
+	display.name = "TipDisplay"
+	display.loading_screen = true
+	display.networked = _networked()
+	tip.add_child(display)
+	tip_name = display.current_name()
 
 	# QuoteDisplay.xml: under the tip.
 	var quote_label := Label.new()

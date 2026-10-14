@@ -158,7 +158,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// Options page settings the session uses (refresh_user_options).
 	struct UserOptions {
 		uint32_t generation = 0;
-		int batch_size = 5;
+		int batch_size = 5;      // the batch Shift trains: round(batch_scroll), at least 1
+		int batch_default = 5;   // gui.session.batchtrainingsize
+		float batch_scroll = 5;  // g_BatchSize: Shift+wheel over the roster moves it by 1 / scrollbatchratio
 		float wounded_fraction = 0.33f;
 		float flare_time = 6.0f;
 		float drag_delta = 4.0f;
@@ -309,6 +311,7 @@ public:
 	void _on_speed_selected(int id);
 	void set_game_speed(float speed);
 	float get_game_speed() const { return game_speed; }
+	Dictionary get_overlay_times() const;
 	void toggle_pause();
 	void toggle_summary();
 	void quicksave();
@@ -317,7 +320,9 @@ public:
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
 	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
-	static Array speed_choices(bool replay);
+	static String speed_title(float speed);
+	static Array speed_choices(bool fast_forward);
+	bool fast_forward_allowed() const;
 	bool is_game_paused() const { return hotkey_paused_; }
 	bool can_pause() const;
 	// Engine.HasXmppClient: a game started from the lobby screen.
@@ -338,6 +343,7 @@ public:
 	void _on_formation_selected(int formation);
 	void _on_train_pressed(int utype);
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
+	void _on_roster_gui_input(const Ref<InputEvent> &event);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
 	void _on_upgrade_pressed(int choice);
@@ -433,6 +439,11 @@ public:
 	bool chat_local_observer() override;
 	std::vector<std::pair<int, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
+	void notify_setup_joins(uint8_t before, uint8_t after);
+	// gui.session.formationwalkonly: this order takes its units out of their formations.
+	bool order_disbands_formation(uint8_t cmd_type) const;
+	// gui.session.selectformationasone: the unit and the rest of its formation.
+	std::vector<int32_t> formation_mates(int32_t uid) const;
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
@@ -612,6 +623,10 @@ private:
 	// map, or one player's sight and panels. Presentation only.
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
 	OptionButton *observer_view_picker_ = nullptr;
+	Label *observer_mode_label_ = nullptr;
+	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
+	void sync_observer_view_picker();
+	OptionButton *new_player_view_picker() const;
 	void update_observer_view_picker();
 	void set_observer_view(int player);
 	void _on_observer_view_selected(int index);
@@ -637,6 +652,15 @@ private:
 	bool net_disconnected_ = false; // session.js g_Disconnected
 	void update_net_status_overlay();
 	void _on_disconnected_exit_pressed();
+	// 0 A.D. gameStateNotifications (overlay.netwarnings): network.js's
+	// warnings, one per client, each shown for NETWORK_WARNING_SHOW_MS, the
+	// local one ("server") first; checked once a second as NetClient and
+	// NetServer CheckConnection(s) do.
+	RichTextLabel *net_warnings_label_ = nullptr;
+	std::map<std::string, std::pair<uint64_t, String>> net_warnings_; // guid -> (added ms, text)
+	uint64_t net_warnings_checked_ms_ = 0;
+	void update_net_warnings();
+	void apply_net_options();
 	// 0 A.D. ChatMessageFormatNetwork: join, rejoin, left and kick lines.
 	std::vector<rtso::PlayerAssignmentMsg::Entry> chat_assignments_;
 	uint64_t chat_assignments_seen_ = 0;

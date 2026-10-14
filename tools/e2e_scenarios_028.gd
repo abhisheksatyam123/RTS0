@@ -9,6 +9,7 @@ extends SceneTree
 const MAPS := {
 	"azure_coast_2p": 2, "azure_coast_4p": 4, "azure_coast_8p": 8, "belgian_bog_night": 2,
 	"fast_oasis": 4, "peloponnese": 6, "savanna_ravine": 2, "serengeti": 4, "ship_combat_demo": 2,
+	"third_macedonian_war": 3,
 }
 
 var failures := 0

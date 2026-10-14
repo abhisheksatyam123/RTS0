@@ -387,6 +387,8 @@ int main() {
 		      std::fabs(structure_loading_range(BLD_BARRACKS, CIV_ROMANS) - 2.0f * 0.28f) < 1e-4f);
 		fresh(s);
 		s.set_team_civ(0, CIV_BRITONS);
+		// The house's territory: a lone house decays to Gaia (TerritoryDecay) and ejects its units.
+		s.spawn_building_world(-20.0f, -20.0f, BLD_TOWN_CENTER, 0, 1.0f);
 		uint32_t h = s.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 1.0f); // holds 3
 		CHECK(s.get_garrison_capacity(h) == 3);
 		uint32_t in[3];

@@ -2049,7 +2049,9 @@ private:
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
 	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz);
 	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
-	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
+	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread = true);
+	// CCmpPathfinder::DistributeAround: a point round (x, z) for each unit.
+	std::vector<std::pair<float, float>> distribute_around(const uint32_t *unit_ids, size_t count, float x, float z) const;
 	void tick_promotion(float dt);
 	void promote_if_due(size_t i); // Promotion.js IncreaseXp: promote while xp covers RequiredXp
 	void promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank); // Promotion.js Promote

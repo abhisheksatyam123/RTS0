@@ -163,6 +163,11 @@ jobs:
           g++ -std=c++20 -O2 -Isrc tools/test_gaia_shrines.cpp src/simulation/simulation.cpp \
             src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_gaia_shrines
           /tmp/test_gaia_shrines
+      - name: Map-only structures test (bolt and artillery towers, stoas, inn, tent, arch)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_map_structures.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_map_structures
+          /tmp/test_map_structures
       - name: Statistics tests (0 A.D. StatisticsTracker for every player)
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_statistics.cpp src/simulation/simulation.cpp \

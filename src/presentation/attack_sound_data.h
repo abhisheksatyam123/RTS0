@@ -68,7 +68,7 @@ struct EntityAttackSounds {
 
 inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 463;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
-inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 71;
+inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 78;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
 
 // Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).
@@ -650,6 +650,13 @@ inline const EntityAttackSounds &building_attack_sounds(uint8_t type) {
 		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_SHRINE: structures/shrine_greek_01
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TRADING_POST: structures/trading_post_desert
+		{11, 6, 3, ATTACK_SOUND_NONE}, // BLD_TOWER_BOLT: structures/athen/tower_bolt
+		{9, 8, 3, ATTACK_SOUND_NONE}, // BLD_TOWER_ARTILLERY: structures/athen/tower_artillery
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_STOA: structures/athen/royal_stoa
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_HELLENIC_STOA: structures/hellenic_stoa
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_INN: structures/pers/inn
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TENT: structures/rome/tent
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TRIUMPHAL_ARCH: structures/rome/arch
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // default: template_structure
 	};
 	return kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];
