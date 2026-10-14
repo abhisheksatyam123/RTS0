@@ -84,6 +84,13 @@ func _run() -> void:
 			ms.load_save_path = "user://saves/%s.rts0sav" % args["saved"]
 			ms.net_saved_game = true
 		lobby._on_host_pressed()
+	elif args.has("join_addr"):
+		# A typed address nobody answers at.
+		var addr: PackedStringArray = str(args["join_addr"]).split(":")
+		lobby._join_ip.text = addr[0]
+		lobby._join_port.text = addr[1]
+		_say("joining %s" % args["join_addr"])
+		lobby._on_join_pressed()
 	else:
 		var row = null
 		while row == null:
@@ -124,6 +131,16 @@ func _run() -> void:
 		if main == null:
 			continue
 		var st: Dictionary = main.get_lobby_state()
+		if args.has("join_addr"):
+			# 0.28 reportConnectionRequestTimeOut.
+			if st.get("disconnected", false):
+				_say("connect_status=%s reason=%d" % [str(st.get("net_status", "")).replace("\n", " | "),
+						int(st.get("disconnect_reason", -1))])
+				main._on_disconnected_exit_pressed()
+				await _wait(1.0)
+				_say("connect_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
+				break
+			continue
 		if setup_leave:
 			# 0.28 reportDisconnect in the setup: the host leaves before Start, and
 			# the client's page gives way to "Lost connection to the server.".
