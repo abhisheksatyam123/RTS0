@@ -163,6 +163,15 @@ int main() {
 	s.set_player_civ(0);
 	s.set_player_resources(0, 0, 0, 0, 0);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN, tc) == Simulation::TECH_ERR_COST);
+	// The price shown and checked is the one paid: Democracy makes Town Phase 350f/350w, 15 s.
+	{
+		float paid[RES_COUNT], time = 0.0f;
+		s.tech_price(0, TECH_PHASE_TOWN, BLD_TOWN_CENTER, paid, time);
+		CHECK(paid[RES_FOOD] == 350.0f && paid[RES_WOOD] == 350.0f && paid[RES_GOLD] == 0.0f && paid[RES_STONE] == 0.0f);
+		CHECK(std::fabs(time - tech_info(TECH_PHASE_TOWN).research_time * 0.5f) < 0.01f);
+		s.set_player_resources(0, 350, 350, 0, 0);
+		CHECK(s.research_check(0, TECH_PHASE_TOWN, tc) == Simulation::TECH_OK);
+	}
 	s.set_player_resources(0, 5000, 5000, 5000, 5000);
 
 	// Town Phase: 500f/500w, less the Athenian Democracy team bonus on civic centre
@@ -549,7 +558,7 @@ int main() {
 		auto ride = [&](float z) {
 			cav = s.spawn_unit(-20.0f, z, 0, UNIT_CAVALRY);
 			s.cmd_move(&cav, 1, 40.0f, z);
-			run(s, 0.2f);
+			run(s, 0.8f); // up to speed (UnitMotion Acceleration)
 			return second();
 		};
 		const float alone = ride(0.0f);

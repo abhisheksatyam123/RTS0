@@ -7889,6 +7889,54 @@
       "type": "sheep",
       "x": -78.27,
       "z": -14.06
+    },
+    {
+      "type": "sheep",
+      "x": -19.32,
+      "z": 41.69,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -24.44,
+      "z": 47.04,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": 13.57,
+      "z": 83.08,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": 13.94,
+      "z": 78.47,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -4.51,
+      "z": -102.32,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": -5.41,
+      "z": -104.33,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": -40.12,
+      "z": -81.65,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": -1.76,
+      "z": -82.55,
+      "player": 2
     }
   ],
   "structures": [

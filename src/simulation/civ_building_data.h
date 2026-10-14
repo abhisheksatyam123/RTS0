@@ -50,8 +50,10 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Siege Wall Gate", "gate", "gate", 1875.0f, 1, 0, 50, 0, 0, 0, 0, 6.25f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/siege_wall_gate */ \
 		{"Island Settlement", "crannog", "crannog", 3000.0f, 2, 0, 300, 250, 300, 20, 20, 125.0f, 2500.0f, 30.0f, 1.0f, 20.0f}, /* structures/brit/crannog */ \
 		{"Great Hall", "great_hall", "great_hall", 2000.0f, 2, 0, 0, 200, 200, 0, 10, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/germ/great_hall */ \
-		{"Wagon Encampment", "army_camp", "army_camp", 1750.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 2500.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment */ \
-		{"Fortified Wagon Encampment", "army_camp", "army_camp", 2625.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 3000.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment_fortified */ \
+		{"Wagon Encampment", "encampment", "army_camp", 1750.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 2500.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment */ \
+		{"Fortified Wagon Encampment", "encampment_fortified", "army_camp", 2625.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 3000.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment_fortified */ \
+		{"Shrine", "temple", "temple", 1000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 0.0f}, /* structures/shrine_greek_01 */ \
+		{"Trading Post", "market", "market", 1000.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/trading_post_desert */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -99,6 +101,8 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 0, 40, 40}, /* structures/germ/great_hall */ \
 		{0, 0, 40, 40, 30}, /* structures/germ/encampment */ \
 		{0, 0, 40, 40, 30}, /* structures/germ/encampment_fortified */ \
+		{0, 0, 0, 60, 0}, /* structures/shrine_greek_01 */ \
+		{0, 0, 60, 0, 0}, /* structures/trading_post_desert */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -155,6 +159,8 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_GREAT_HALL: return 0x8000; // germ
 		case BLD_WAGON_ENCAMPMENT: return 0x8000; // germ
 		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 0x8000; // germ
+		case BLD_SHRINE: return 0x0000; // 
+		case BLD_TRADING_POST: return 0x0000; // 
 		default: return 0xFFFF;
 	}
 }
@@ -205,6 +211,8 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_GREAT_HALL: return 2;
 		case BLD_WAGON_ENCAMPMENT: return 2;
 		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 2;
+		case BLD_SHRINE: return 2;
+		case BLD_TRADING_POST: return 2;
 		default: return 0;
 	}
 }

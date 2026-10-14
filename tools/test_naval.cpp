@@ -443,6 +443,18 @@ static void test_transport() {
 	s.order_disembark_all(ship3);
 	const int32_t iar = idx(s, archer);
 	CHECK(!aboard(s, ship3, archer) && s.units().alive[iar] && s.get_terrain_height(s.units().pos_x[iar], s.units().pos_z[iar]) > 0.15f);
+	// Order.PickupUnit: a walker who can reach the ship from where it lies is waited for (LOADING).
+	{
+		const float sx = s.units().pos_x[idx(s, ship3)], sz = s.units().pos_z[idx(s, ship3)];
+		const uint32_t walker = s.spawn_unit(40.0f, 26.0f, 0, UNIT_ARCHER);
+		s.order_board_transport(&walker, 1, ship3);
+		run(s, 12.0f);
+		const float moved = std::hypot(s.units().pos_x[idx(s, ship3)] - sx, s.units().pos_z[idx(s, ship3)] - sz);
+		std::printf("  pickup of a walker who can reach the ship: ship moved %.2f, walker %s\n", moved,
+				aboard(s, ship3, walker) ? "aboard" : "ashore");
+		CHECK(moved < 1.5f && aboard(s, ship3, walker)); // pushed a little, not sailed off
+		s.order_disembark_all(ship3);
+	}
 	CHECK(s.units().pos_z[idx(s, ship3)] < 16.0f); // the ship stayed on the water
 	// A full load comes ashore spread out: PickSpawnPoint gives each passenger a spot nobody
 	// stands on, so no two bodies overlap as they land.
@@ -522,11 +534,29 @@ static void test_no_wading() {
 	CHECK(!waded);
 	CHECK(std::fabs(s.units().pos_x[w] + 20.0f) < 2.0f && s.units().pos_z[w] > 10.0f && !s.unit_has_order(walker));
 	CHECK(s.units().pos_z[idx(s, ai_walker)] > 10.0f);
-	CHECK(!aboard(s, ship, boarder));
-	// The ship comes in to the beach: the waiting unit boards.
-	s.cmd_move(&ship, 1, -40.0f, 12.0f);
+	// Its own walk done, the ship comes in to the beach for the waiting unit (UnitAI
+	// PushOrderAfterForced("PickupUnit")), which boards.
 	run(s, 10.0f);
+	std::printf("  the ship came for the boarder: %s\n", aboard(s, ship, boarder) ? "aboard" : "still ashore");
 	CHECK(aboard(s, ship, boarder));
+}
+
+// A task walk's line is tested on every navcell it passes through, as CheckLineMovement walks
+// them: one that clips a deep-water navcell between its ends crosses it, where a Bresenham line
+// from navcell to navcell stepped round that cell.
+static void test_line_clips_water() {
+	static Simulation s;
+	fresh(s);
+	NavGrid &g = s.nav_grid_;
+	const float cell = 2.0f * g.map_half / g.res;
+	const auto [bx, by] = g.world_to_cell(-20.0f, 40.0f); // dry land north of the sea
+	auto wx = [&](float c) { return -g.map_half + cell * c; };
+	const float x0 = wx(bx + 0.5f), z0 = wx(by + 0.5f), x1 = wx(bx + 2.5f), z1 = wx(by + 1.5f);
+	const bool before = s.line_crosses_impassable(x0, z0, x1, z1);
+	g.cells.at(bx + 1, by) = NAV_WATER;
+	const bool after = s.line_crosses_impassable(x0, z0, x1, z1), back = s.line_crosses_impassable(x1, z1, x0, z0);
+	std::printf("  a line clipping one water navcell: crosses %d (both ways %d), %d before the water\n", after, back, before);
+	CHECK(!before && after && back);
 }
 
 // A ship moored beside a house on the shore still sails off: its path starts on
@@ -881,6 +911,31 @@ static void test_petra_ship_treasure() {
 	const auto o = s.unit_order(tri);
 	std::printf("Petra ship treasure: order %d target %u (wreck %u)\n", (int)o.kind, o.target, wreck);
 	CHECK(o.kind == ORDER_COLLECT_TREASURE && o.target == wreck);
+}
+
+// worker.js startFishing: Petra's idle boat takes the fish nearest its dock, not the one
+// nearest itself; with no fish left on its sea the boat is deleted.
+static void test_petra_fishing() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t by_dock = s.spawn_resource_world(-36.0f, 6.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t by_boat = s.spawn_resource_world(24.0f, 4.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t boat = s.spawn_unit(20.0f, 8.0f, 1, UNIT_FISHING_BOAT);
+	s.petra_pid_ = 1;
+	s.petra_manage_naval(2.0f);
+	const uint32_t picked = gather_target(s, boat);
+	std::printf("Petra fishing: picked fish %u (by the dock %u, by the boat %u)\n", picked, by_dock, by_boat);
+	CHECK(picked == by_dock);
+
+	for (size_t r = 0; r < s.resources_.count; ++r)
+		if (s.resources_.subtype[r] == RES_SUB_FISH) s.resources_.amount[r] = 0;
+	s.cmd_stop(&boat, 1);
+	s.petra_manage_naval(2.0f);
+	const int32_t bi = s.lookup_unit(boat);
+	std::printf("Petra fishing: boat on an empty sea %s\n", bi >= 0 && s.units().alive[bi] ? "kept" : "deleted");
+	CHECK(bi < 0 || !s.units().alive[bi]);
 }
 
 // startingStrategy.js configFirstBase: on a starting land under 25000 m² Petra keeps to one
@@ -1257,6 +1312,61 @@ static void test_ships_sail_round_land() {
 	CHECK(prey_hit);
 }
 
+// pathfinder.xml: warships ("ship", Clearance 10 m) keep a navcell of water between them and the
+// shore on their way round the headland (grid_nav.h PASS_WARSHIP), where a fishing boat
+// ("ship-small", 3 m) may sail beside it. Through a channel two navcells wide, which the clearance
+// closes, a warship still gets through on the plain ship path.
+static float channel_at(float x, float z) {
+	return std::fabs(x) < 20.0f && std::fabs(z) > 2.5f ? 3.0f : -3.0f;
+}
+
+static void test_warships_keep_off_shore() {
+	static Simulation s;
+	fresh(s, headland_at);
+	const uint32_t tri = s.spawn_unit(-40.0f, -8.0f, 0, UNIT_TRIREME);
+	const uint32_t boat = s.spawn_unit(-40.0f, -12.0f, 0, UNIT_FISHING_BOAT);
+	s.cmd_move(&tri, 1, 40.0f, -8.0f);
+	s.cmd_move(&boat, 1, 40.0f, -12.0f);
+	const uint32_t ships[2] = {tri, boat};
+	int by_shore[2] = {0, 0}, ashore[2] = {0, 0};
+	bool there[2] = {false, false};
+	for (int t = 0; t < (int)(90.0f / Simulation::FIXED_STEP); ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		for (int k = 0; k < 2; ++k) {
+			const int32_t i = s.lookup_unit(ships[k]);
+			if (i < 0) continue;
+			auto [cx, cy] = s.nav_grid().world_to_cell(s.units().pos_x[i], s.units().pos_z[i]);
+			ashore[k] += !s.nav_grid().is_passable_for(cx, cy, PASS_SHIP);
+			// A navcell beside land: one of its eight neighbours isn't ship water.
+			bool beside = false;
+			for (int dy = -1; dy <= 1; ++dy)
+				for (int dx = -1; dx <= 1; ++dx) beside |= !s.nav_grid().is_passable_for(cx + dx, cy + dy, PASS_SHIP);
+			by_shore[k] += beside;
+			there[k] |= s.units().pos_x[i] > 36.0f;
+		}
+	}
+	std::printf("warships keep off the shore: ticks beside the shore warship %d, fishing boat %d; ashore %d, %d; both round: %s\n",
+			by_shore[0], by_shore[1], ashore[0], ashore[1], there[0] && there[1] ? "yes" : "no");
+	CHECK(by_shore[0] == 0 && ashore[0] == 0 && ashore[1] == 0);
+	CHECK(there[0] && there[1]);
+
+	fresh(s, channel_at);
+	const uint32_t tri2 = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_TRIREME);
+	s.cmd_move(&tri2, 1, 40.0f, 0.0f);
+	bool through = false;
+	int aground = 0;
+	for (int t = 0; t < (int)(90.0f / Simulation::FIXED_STEP) && !through; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t i = s.lookup_unit(tri2);
+		if (i < 0) break;
+		auto [cx, cy] = s.nav_grid().world_to_cell(s.units().pos_x[i], s.units().pos_z[i]);
+		aground += !s.nav_grid().is_passable_for(cx, cy, PASS_SHIP);
+		through = s.units().pos_x[i] > 30.0f;
+	}
+	std::printf("warship through a narrow channel: %s, ticks aground %d\n", through ? "through" : "stuck", aground);
+	CHECK(through && aground == 0);
+}
+
 // template_unit_ship_fishing.xml Harpoon and UnitAI GATHER: a fishing boat ordered onto a
 // whale harpoons it, gathers the carcass (food.fish) to a dock, and when the carcass is
 // eaten goes on to the next whale (FindNearbyResource takes live whales too).
@@ -1314,11 +1424,61 @@ static void test_whale_hunt() {
 	CHECK(on_w2);
 }
 
+// UnitAI GATHER APPROACHING: a walk that fails (MoveFailed, likelyFailure) goes to FINDINGNEWTARGET,
+// which takes the nearest resource of the kind other than the one the unit couldn't reach. A woman
+// sent to berries across the sea stops at the shore, then gathers the berries on her own side.
+static void test_gather_unreachable() {
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0);
+	const uint32_t far_bush = s.spawn_resource_world(0.0f, -26.0f, RES_FOOD, 200);
+	const uint32_t near_bush = s.spawn_resource_world(8.0f, 28.0f, RES_FOOD, 200);
+	const uint32_t woman = s.spawn_unit(0.0f, 30.0f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&woman, 1, far_bush, false, false);
+	run(s, 30.0f);
+	const int32_t i = idx(s, woman);
+	std::printf("  gather across the sea: now on the %s bush, carrying %d\n",
+			gather_target(s, woman) == near_bush ? "near" : gather_target(s, woman) == far_bush ? "far" : "no", s.units().carry[i]);
+	CHECK(gather_target(s, woman) == near_bush && s.units().carry[i] > 0);
+}
+
+// UnitMotion Acceleration (CCmpUnitMotion PerformMove): a fishing boat gains speed at 3.85 m/s^2
+// (template_unit_ship 35 x 0.1, x1.1), so it takes 2.6 s to reach full speed. Ships never stop to turn
+// (InstantTurnAngle 10): one sent back the way it came keeps cos(180 degrees) of its speed, -1, and
+// drifts on for v^2 / 2a before it comes back.
+static void test_ships_accelerate() {
+	static Simulation s;
+	fresh(s);
+	uint32_t boat = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_FISHING_BOAT);
+	const int32_t i = idx(s, boat);
+	const float a = unit_motion(s.units().tmpl[i], UNIT_FISHING_BOAT).acceleration, v = s.unit_move_speed(i);
+	s.cmd_move(&boat, 1, 40.0f, 0.0f);
+	run(s, 1.0f);
+	const float x1 = s.units().pos_x[i] + 40.0f;
+	run(s, 2.0f);
+	const float v3 = std::hypot(s.units().vel_x[i], s.units().vel_z[i]);
+	const float x_back = s.units().pos_x[i];
+	s.cmd_move(&boat, 1, -40.0f, 0.0f);
+	float furthest = x_back;
+	for (int t = 0; t < 160; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		furthest = std::max(furthest, s.units().pos_x[i]);
+	}
+	const float x_end = s.units().pos_x[i];
+	std::printf("  fishing boat: %.3f units/s^2, %.3f after 1 s (%.3f expected), %.3f of %.3f at 3 s; sent back, it"
+	            " drifted on %.2f (%.2f expected) and is at %.2f after 8 s\n",
+	            a, x1, 0.5f * a, v3, v, furthest - x_back, v * v / (2.0f * a), x_end);
+	CHECK(std::fabs(a - 35.0f * 0.1f * 1.1f * 0.356f) < 0.01f && std::fabs(x1 - 0.5f * a) < 0.02f && std::fabs(v3 - v) < 1e-3f);
+	CHECK(std::fabs(furthest - x_back - v * v / (2.0f * a)) < 0.2f && std::fabs(x_end + 40.0f) < 1.0f);
+}
+
 int main() {
+	test_ships_accelerate();
 	test_transport();
 	test_dropsite_own_land();
 	test_dock_takes_all();
 	test_no_wading();
+	test_line_clips_water();
 	test_gather_around_lake();
 	test_dock_trade();
 	test_fishing();
@@ -1327,6 +1487,7 @@ int main() {
 	test_ship_height();
 	test_ship_leaves_shore_house();
 	test_ships_sail_round_land();
+	test_warships_keep_off_shore();
 	test_petra_navy();
 	test_petra_overseas_attack();
 	test_petra_unreachable_target();
@@ -1336,11 +1497,13 @@ int main() {
 	test_petra_cothon();
 	test_ship_treasure();
 	test_petra_ship_treasure();
+	test_petra_fishing();
 	test_petra_small_land_fields();
 	test_petra_dock_position();
 	test_petra_workers_across_water();
 	test_fire_ship();
 	test_whale_hunt();
+	test_gather_unreachable();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

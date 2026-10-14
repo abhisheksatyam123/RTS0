@@ -20171,6 +20171,18 @@
       "type": "crocodile_nile",
       "x": 84.83,
       "z": -24.89
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 41.08,
+      "z": 64.56,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -39.18,
+      "z": -77.72,
+      "player": 1
     }
   ],
   "structures": [

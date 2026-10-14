@@ -124,9 +124,23 @@ static int tree_family_models(const char *id, rtso::ModelLibrary::Entry *out, in
 	return n;
 }
 
+// 0.28 variant_diversity: of an actor's n variations, "none" draws only the first,
+// "limited" at most two, "full" (the default) any of them.
+static int diverse_variants(int n) {
+	static uint32_t gen = ~0u;
+	static int cap = 1 << 30;
+	if (rtso::user_config::generation() != gen) {
+		gen = rtso::user_config::generation();
+		const std::string v = rtso::user_config::get("variant_diversity");
+		cap = v == "none" ? 1 : v == "limited" ? 2 : 1 << 30;
+	}
+	return std::min(n, cap);
+}
+
 // Which of a family's n models a tree draws: a hash of its id, apart from the
 // kind (id % kinds) and the rotation (id % 12) so variants mix within every kind.
 static int tree_variant_of(uint32_t id, int n) {
+	n = diverse_variants(n);
 	return n > 1 ? (int)(((id * 2654435761u) >> 16) % (uint32_t)n) : 0;
 }
 
@@ -395,9 +409,16 @@ void RtsoWorldView::_ready() {
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
 	ruins_mm = create_multimesh(tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh), true);
-	treasure_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "treasure_chest").mesh), true);
 	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
-	treasure_mmi = memnew(MultiMeshInstance3D); treasure_mmi->set_multimesh(treasure_mm); add_child(treasure_mmi);
+	for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) {
+		auto e = rtso::ModelLibrary::get("props", rtso::treasure_type_info((uint8_t)k).model_id);
+		if (!e.mesh.is_valid()) e = rtso::ModelLibrary::get("vegetation", "treasure_chest");
+		treasure_y_offset[k] = e.y_offset;
+		treasure_mm[k] = create_multimesh(tinted(e.mesh), true);
+		treasure_mmi[k] = memnew(MultiMeshInstance3D);
+		treasure_mmi[k]->set_multimesh(treasure_mm[k]);
+		add_child(treasure_mmi[k]);
+	}
 	{
 		Ref<BoxMesh> box;
 		box.instantiate();
@@ -1242,6 +1263,7 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 // unit keeps one by its id: half fall with the second death, and a quarter
 // stand with the second idle (the first is the most frequent in 0 A.D.).
 static WantAnim with_variant(WantAnim w, uint32_t id) {
+	if (diverse_variants(2) < 2) return w; // variant_diversity "none": every unit alike
 	const uint32_t h = id * 2654435761u;
 	if (w.clip == CLIP_DEATH && (h & 0x80000000u)) w.clip = CLIP_DEATH2;
 	else if (w.clip == CLIP_IDLE && (h >> 29) == 3u) w.clip = CLIP_IDLE2;
@@ -3176,21 +3198,24 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 
-	// Treasures sit still, so an explored one stays drawn (darker) in the fog.
+	// Treasures sit still, so an explored one stays drawn (darker) in the fog, and one
+	// taken out of sight stays there as a mirage until the spot is seen again.
 	{
-		const auto &tv = sim->treasures();
-		auto e_chest = rtso::ModelLibrary::get("vegetation", "treasure_chest");
-		int nt = 0;
-		for (const auto &t : tv) if (los_brightness(t.x, t.z) > 0.0f) ++nt;
-		treasure_mm->set_instance_count(nt);
-		int it = 0;
+		const auto &tv = mirages_.treasures();
+		int nt[rtso::TREASURE_TYPE_COUNT] = {};
+		for (const auto &t : tv)
+			if (t.type < rtso::TREASURE_TYPE_COUNT && los_brightness(t.x, t.z) > 0.0f) ++nt[t.type];
+		for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) treasure_mm[k]->set_instance_count(nt[k]);
+		int it[rtso::TREASURE_TYPE_COUNT] = {};
 		for (const auto &t : tv) {
-			const float lit = los_brightness(t.x, t.z);
+			const float lit = t.type < rtso::TREASURE_TYPE_COUNT ? los_brightness(t.x, t.z) : 0.0f;
 			if (lit <= 0.0f) continue;
-			Basis rot(Vector3(0, 1, 0), (float)(t.id % 12) * 0.52f);
-			Transform3D xf(rot, Vector3(t.x, sim->get_terrain_height(t.x, t.z) + e_chest.y_offset, t.z));
-			treasure_mm->set_instance_transform(it, xf);
-			treasure_mm->set_instance_color(it++, Color(lit, lit * 0.85f, lit * 0.4f, 1.0f));
+			// Wrecks and floating cargo sit on the water, the rest on the ground.
+			const float ground = std::max(sim->get_terrain_height(t.x, t.z), sim->water_height());
+			Basis rot(Vector3(0, 1, 0), rtso::Simulation::treasure_angle(t.id));
+			Transform3D xf(rot, Vector3(t.x, ground + treasure_y_offset[t.type], t.z));
+			treasure_mm[t.type]->set_instance_transform(it[t.type], xf);
+			treasure_mm[t.type]->set_instance_color(it[t.type]++, Color(lit, lit, lit, 1.0f));
 		}
 	}
 
@@ -3209,7 +3234,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (los_brightness(sc.x, sc.z) <= 0.0f) continue;
 			auto &kinds = scenery_variants_[sc.type < rtso::SCENERY_TYPE_COUNT ? sc.type : 0];
 			if (kinds.empty()) ++ns;
-			else ++kinds[sc.id % kinds.size()].count;
+			else ++kinds[sc.id % diverse_variants((int)kinds.size())].count;
 		}
 		scenery_mm->set_instance_count(ns);
 		for (auto &kinds : scenery_variants_)
@@ -3225,7 +3250,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const float scale = info.width > 0.0f ? 2.0f * sc.half_w / info.width : 0.25f;
 			auto &kinds = scenery_variants_[sc.type < rtso::SCENERY_TYPE_COUNT ? sc.type : 0];
 			if (!kinds.empty()) {
-				SceneryVariant &k = kinds[sc.id % kinds.size()];
+				SceneryVariant &k = kinds[sc.id % diverse_variants((int)kinds.size())];
 				const Basis b = Basis(Vector3(0, 1, 0), sc.angle).scaled_local(Vector3(scale, scale, scale));
 				k.mm->set_instance_transform(k.count, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z), sc.z)));
 				k.mm->set_instance_color(k.count++, Color(lit, lit, lit, 1.0f));

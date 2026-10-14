@@ -63,7 +63,8 @@
 #include "diplomacy_dialog.h"
 #include "hotkeys_godot.h"
 #include "attack_detection.h"
-#include "selection_grid.h"
+#include "command_queue_view.h"
+#include "inspector_view.h"
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
 #include "range_overlays.h"
@@ -72,7 +73,7 @@
 
 using namespace godot;
 
-class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, public RtsoProductionQueueHost {
+class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, public RtsoProductionQueueHost, public RtsoInspectorHost, public RtsoCommandPanelHost {
 	GDCLASS(RtsoMain, Node3D);
 
 	rtso::Simulation *sim = nullptr;
@@ -151,24 +152,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	std::string lobby_http_host_ = "127.0.0.1";
 	uint16_t lobby_http_port_ = 8088;
 
-	// 2. Bottom Inspector Panel (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
-	Panel *inspector_panel = nullptr;
-	TextureRect *inspector_portrait = nullptr;
-	Label *inspector_title = nullptr;
-	Label *inspector_class = nullptr;
-	ProgressBar *inspector_hp_bar = nullptr;
-	Label *inspector_hp_label = nullptr;
-	ProgressBar *inspector_capture_bar = nullptr;
-	Label *inspector_capture_label = nullptr;
-	ProgressBar *inspector_xp_bar = nullptr;
-	Label *inspector_xp_label = nullptr;
-	ProgressBar *inspector_stamina_bar = nullptr;
-	Label *inspector_stamina_label = nullptr;
-	ProgressBar *inspector_aura_bar = nullptr;
-	Label *inspector_aura_label = nullptr;
-	Label *inspector_stats = nullptr;
-	Label *inspector_extra = nullptr;
-	Button *ungarrison_btn = nullptr;
+	// 2. Bottom Inspector Panel (inspector_view.h)
+	RtsoInspectorView inspector_;
 	Button *template_info_btn_ = nullptr;
 	// Options page settings the session uses (refresh_user_options).
 	struct UserOptions {
@@ -183,27 +168,10 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 		uint8_t phase_notice = 1; // gui.session.notifications.phase: 0 none, 1 completed, 2 all
 	} user_opts_;
 	void refresh_user_options();
-	RtsoSelectionGrid selection_grid_;
-	RtsoSelectionGrid garrison_grid_;
 
-	// 3. Command & Action Panel (Right of Inspector)
-	Panel *command_panel = nullptr;
-	HBoxContainer *stances_bar = nullptr;
-	Button *stance_buttons_[5] = {}; // indexed by UnitStance
-	HBoxContainer *actions_bar = nullptr;
-	// Wraps its buttons; the scroll keeps a long build menu inside the panel.
-	ScrollContainer *production_scroll = nullptr;
-	HFlowContainer *production_bar = nullptr;
-	HBoxContainer *queue_bar = nullptr;
-	Label *command_title = nullptr;
-	// Every civ roster unit and hero the selected building trains (0 A.D. names,
-	// costs after team bonuses), above the command panel. Rebuilt only when
-	// roster_list_key_ changes so hover and tooltips survive between frames.
-	ItemList *roster_list = nullptr;
-	uint64_t roster_list_key_ = ~0ull;
-	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
-
-	RtsoProductionQueue production_queue_;
+	// 3. Command & Action Panel (command_queue_view.h): stances, formations, production
+	// buttons, the roster list and the production queue.
+	RtsoCommandPanelView command_panel_;
 
 	// 4. Banner Overlay
 	Panel *banner_panel = nullptr;
@@ -266,8 +234,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	void apply_map_player_overrides();
 
 	bool dragging = false;
-	bool paused_via_menu = false;
-	void set_menu_paused(bool paused);
 	// Lockstep gate (2026-10-06 OOS fix): host and joiner boot INDEPENDENT
 	// random worlds, so pre-Start lockstep turns hash divergent state (first
 	// live OOS at turn 1) and reset() at asymmetric wall times offsets the
@@ -334,11 +300,9 @@ public:
 	void _on_minimap_order(Vector2 world_pos);
 	void trigger_flare(float x, float z);
 	void _on_flare_requested(Vector2 world_pos);
-	// g_EntityCommands (unit_actions.js): the command row's buttons and their hotkeys.
+	// g_EntityCommands (unit_actions.js): the command row's presses and their hotkeys.
 	void _on_entity_command(const String &name);
 	void request_delete();
-	void add_entity_command(const char *name, const char *label, const char *hotkey, const String &tip,
-			const char *icon, bool enabled = true, int count = 0);
 	void _on_delete_confirmed();
 	void _on_idle_worker_clicked();
 	void _on_speed_button_pressed();
@@ -353,8 +317,13 @@ public:
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
 	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
-	static Array speed_choices(bool replay);
-	bool is_game_paused() const { return hotkey_paused_ || paused_via_menu; }
+	static String speed_title(float speed);
+	static Array speed_choices(bool fast_forward);
+	bool fast_forward_allowed() const;
+	bool is_game_paused() const { return hotkey_paused_; }
+	bool can_pause() const;
+	// Engine.HasXmppClient: a game started from the lobby screen.
+	bool has_lobby_client() const { return lobby_btn && lobby_btn->is_visible(); }
 	PopupMenu *speed_menu_ = nullptr;
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
@@ -400,6 +369,12 @@ public:
 	void _start_menu_net();
 	// For LobbySession's heartbeat: whether we host, how many play, whether it started.
 	Dictionary get_lobby_state() const;
+	// NAT traversal for LobbySession (0 A.D. StunClient + hole punching):
+	// {stun (NetHost::stunState), public_ip, public_port, local_ip, local_port}.
+	Dictionary get_net_nat_state() const;
+	void net_query_stun(const String &server, int port);
+	void net_hole_punch(const String &ip, int port);
+	void net_retarget_host(const String &ip, int port);
 	// Networked Game Setup for scenes/menu/gamesetup.gd: see net_setup_.
 	bool is_net_pregame() const;
 	Dictionary get_net_setup_state() const;
@@ -419,7 +394,7 @@ public:
 	// In a replay it is the player whose panels the viewer follows.
 	// An observer or defeated player who picked a player view follows that
 	// player's panels (0 A.D. g_ViewedPlayer), but orders nothing.
-	uint8_t local_player() const {
+	uint8_t local_player() const override {
 		if (turn_mgr_.is_replaying()) return replay_hud_player_;
 		if (observer_view_ < rtso::MAX_PLAYERS && spectating()) return observer_view_;
 		return seat_player();
@@ -436,7 +411,7 @@ public:
 	// Whose sight the world, minimap and fog show: the local player, or the
 	// perspective a replay viewer or an observer picked (a player, or
 	// rtso::OBSERVER_VIEW, the whole map).
-	uint8_t view_player() const {
+	uint8_t view_player() const override {
 		if (turn_mgr_.is_replaying()) return replay_view_;
 		if (spectating()) return observer_view_;
 		return local_player();
@@ -462,6 +437,8 @@ public:
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
+	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
+	int ui_batch_size() const override { return user_opts_.batch_size; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
 	Dictionary get_trade_dialog_state() const;
 	void _on_trading_goods_requested(const PackedInt32Array &shares);
@@ -515,6 +492,7 @@ public:
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
 	Dictionary debug_selection_grid(bool select_all);
+	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
 	Array debug_command_row();
@@ -565,19 +543,9 @@ private:
 	bool selection_can_garrison(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
-	// 0 A.D. selects what the player doesn't own too (another player's unit or
-	// structure, an animal, a tree or a mine) to show its details, with no commands
-	// (EntitySelection; the command panels need the player's own entities).
-	enum InspectKind : uint8_t { INSPECT_NONE, INSPECT_UNIT, INSPECT_BUILDING, INSPECT_FAUNA, INSPECT_RESOURCE };
-	uint8_t inspected_kind_ = INSPECT_NONE;
-	uint32_t inspected_id_ = 0;
-	bool inspect_at(const Vector3 &click_pos);
-	bool fill_inspected_details();  // false when the inspected entity is gone or out of sight
-	bool fill_livestock_details();  // the player's own selected livestock
 	void prune_selection();
 	uint32_t own_fauna_at(float x, float z) const;
 	void update_command_panel();
-	void keep_command_buttons(Control *bar, int old_count);
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
@@ -590,13 +558,7 @@ private:
 	int train_batch() const;
 	void try_breed(uint32_t building_id, uint8_t ftype, int count = 1);
 	uint32_t scenery_at(float x, float z) const; // Gaia scenery under a ground point, 0 if none
-	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
-	static constexpr int ROSTER_TECH = 0x20000;   // roster_list metadata flag: a training unit's technology
-	void update_roster_list(const rtso::Simulation::Building *b);
-	bool update_unit_roster(uint32_t unit_id);
-	int add_roster_item(uint8_t pid, uint16_t tmpl, String &tip);
 	void try_train_from_unit(uint32_t unit_id, uint16_t tmpl, int count);
-	uint32_t trainer_unit_id_ = 0; // the selected training unit whose roster is shown, else 0
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
@@ -607,8 +569,6 @@ private:
 	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
 	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
 	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
-	String requires_text(const String &what) const;
-	String needed_text(const rtso::CostTip &cost) const;
 	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;
@@ -654,6 +614,10 @@ private:
 	// map, or one player's sight and panels. Presentation only.
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
 	OptionButton *observer_view_picker_ = nullptr;
+	Label *observer_mode_label_ = nullptr;
+	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
+	void sync_observer_view_picker();
+	OptionButton *new_player_view_picker() const;
 	void update_observer_view_picker();
 	void set_observer_view(int player);
 	void _on_observer_view_selected(int index);

@@ -14,6 +14,9 @@
 //  4. NavGrid::find_path reaches exactly the goals Dijkstra reaches, ends at the
 //     goal, and is deterministic across runs.
 //  5. Timing of the JPS queries (informational).
+//  6. String pulling checks its shortcuts with 0 A.D.'s CheckLineMovement: no line it accepts, and
+//     no segment of a find_path path, passes through a blocked navcell, not even diagonally between
+//     two blocked navcells that share a corner (plain Bresenham steps through those).
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/grid_nav.h"
 
@@ -65,6 +68,30 @@ static void build_grid(NavGrid &nav, Rng &rng, int density_pct) {
 			else nav.cells.at(k, at) = NAV_OBSTRUCTED;
 		}
 	}
+}
+
+// Does the segment from (ax, ay) to (bx, by), in navcells, pass through the inside of navcell (cx, cy)?
+static bool segment_meets_cell(double ax, double ay, double bx, double by, int cx, int cy) {
+	double t0 = 0.0, t1 = 1.0;
+	auto clip = [&](double p, double d, double lo, double hi) {
+		if (d == 0.0) return p > lo && p < hi;
+		double ta = (lo - p) / d, tb = (hi - p) / d;
+		if (ta > tb) std::swap(ta, tb);
+		t0 = std::max(t0, ta);
+		t1 = std::min(t1, tb);
+		return true;
+	};
+	if (!clip(ax, bx - ax, cx, cx + 1) || !clip(ay, by - ay, cy, cy + 1)) return false;
+	return t0 < t1;
+}
+
+// The blocked navcells the segment between two points (in navcells) passes through.
+static int blocked_crossed(const NavGrid &nav, double ax, double ay, double bx, double by) {
+	int n = 0;
+	for (int y = (int)std::floor(std::min(ay, by)); y <= (int)std::floor(std::max(ay, by)); ++y)
+		for (int x = (int)std::floor(std::min(ax, bx)); x <= (int)std::floor(std::max(ax, bx)); ++x)
+			if (!nav.is_passable(x, y) && segment_meets_cell(ax, ay, bx, by, x, y)) ++n;
+	return n;
 }
 
 // Independent ground truth: 8-way Dijkstra, no corner cutting.
@@ -121,7 +148,7 @@ static long walk_cost(const NavGrid &nav, const std::vector<std::pair<int, int>>
 
 int main() {
 	std::printf("RTS0 JPS long pathfinder test (src/simulation/nav/long_pathfinder.h)\n");
-	int compared = 0, unreachable = 0;
+	int compared = 0, unreachable = 0, segments_clipping = 0, lines = 0, lines_through_blocked = 0;
 	double t_jps = 0;
 	long steps_jps = 0;
 	for (int seed = 1; seed <= 400; ++seed) {
@@ -171,6 +198,26 @@ int main() {
 				if (p1.xs[k] != p2.xs[k] || p1.zs[k] != p2.zs[k]) fail("find_path not deterministic", seed, sx, sy, tx, ty, k, k);
 			if (r1 && (p1.count == 0 || std::fabs(p1.xs[p1.count - 1] - wx1) > 0.1f || std::fabs(p1.zs[p1.count - 1] - wz1) > 0.1f))
 				fail("find_path does not end at the goal", seed, sx, sy, tx, ty, p1.count, 0);
+			// No segment of the path, from the start, passes through a blocked navcell.
+			double px = sx + 0.5, py = sy + 0.5;
+			for (int k = 0; r1 && k < p1.count; ++k) {
+				const double qx = (p1.xs[k] + 64.0) / 128.0 * RES, qy = (p1.zs[k] + 64.0) / 128.0 * RES;
+				if (blocked_crossed(nav, px, py, qx, qy)) {
+					++segments_clipping;
+					break;
+				}
+				px = qx;
+				py = qy;
+			}
+			// Nor does any line string pulling accepts between passable navcells.
+			for (int k = 0; k < 4; ++k) {
+				int ax, ay, bx, by;
+				do { ax = rng.range(RES); ay = rng.range(RES); } while (!nav.is_passable(ax, ay));
+				do { bx = ax + rng.range(13) - 6; by = ay + rng.range(13) - 6; } while (!nav.is_passable(bx, by));
+				++lines;
+				if (nav.line_clear(ax, ay, bx, by, PASS_INFANTRY) && blocked_crossed(nav, ax + 0.5, ay + 0.5, bx + 0.5, by + 0.5))
+					++lines_through_blocked;
+			}
 		}
 	}
 
@@ -191,6 +238,25 @@ int main() {
 			fail("walled goal partial path gets no closer", 0, 5, 25, 25, 25, cells.back().first * 100 + cells.back().second, 0);
 	}
 
+	// Two navcells blocked corner to corner: the diagonal between them is refused, the way round is open.
+	{
+		NavGrid nav;
+		nav.init(64.f, RES);
+		nav.cells.at(11, 10) = NAV_OBSTRUCTED;
+		nav.cells.at(10, 11) = NAV_OBSTRUCTED;
+		if (nav.line_clear(10, 10, 11, 11, PASS_INFANTRY) || nav.line_clear(11, 11, 10, 10, PASS_INFANTRY) ||
+				nav.line_clear(9, 9, 12, 12, PASS_INFANTRY))
+			fail("a line squeezes between two blocked navcells", 0, 10, 10, 11, 11, 1, 0);
+		if (!nav.line_clear(10, 10, 6, 7, PASS_INFANTRY) || !nav.line_clear(12, 10, 12, 14, PASS_INFANTRY))
+			fail("an open line is refused", 0, 10, 10, 6, 7, 0, 1);
+		// From a blocked navcell a line may leave, but not cross another.
+		if (!nav.line_clear(11, 10, 15, 10, PASS_INFANTRY) || nav.line_clear(9, 11, 12, 11, PASS_INFANTRY))
+			fail("leaving a blocked navcell", 0, 11, 10, 15, 10, 0, 1);
+	}
+	if (segments_clipping) fail("find_path segments pass through blocked navcells", 0, 0, 0, 0, 0, segments_clipping, 0);
+	if (lines_through_blocked) fail("line_clear accepts lines through blocked navcells", 0, 0, 0, 0, 0, lines_through_blocked, lines);
+	std::printf("  string pulling: %d paths with a segment through a blocked navcell, %d of %d lines accepted through one\n",
+			segments_clipping, lines_through_blocked, lines);
 	std::printf("  optimal vs Dijkstra: %d reachable queries, %d unreachable, 400 grids\n", compared, unreachable);
 	std::printf("  avg JPS %.1f us (%.1f pops/query)\n",
 			t_jps / (compared + unreachable), double(steps_jps) / (compared + unreachable));

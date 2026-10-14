@@ -93,7 +93,16 @@ static constexpr float LAND_MAX_WATER_DEPTH = 2.0f * HEIGHT_PER_METRE;
 // PASS_CAVALRY  : mounted units. 0 A.D. gives them "default" too (and siege and elephants
 //                 "large", which differs only in Clearance), so it crosses the same cells and
 //                 shares PASS_INFANTRY's regions.
-// PASS_SHIP     : naval units only — NAV_WATER cells passable, NAV_PASSABLE blocked.
+// PASS_SHIP     : naval units only — NAV_WATER cells passable, NAV_PASSABLE blocked. This is
+//                 0 A.D.'s "ship-small" (fishing and merchant ships): its 3 m Clearance is under
+//                 half an RTS0 navcell, so it blocks no more navcells.
+// PASS_WARSHIP  : PASS_SHIP plus PASS_SHIP_CLEARANCE, 0 A.D.'s "ship" (warships and
+//                 transports), Clearance 10 m. CCmpPathfinder ExpandImpassableCells blocks every
+//                 navcell whose centre lies within the clearance (Chebyshev, in whole navcells) of
+//                 one the class can't cross. RTS0 navcells are 8 m, so that is each water navcell
+//                 with a land or structure navcell among its eight neighbours (the next ring is 16 m
+//                 off). Only long paths use it (NavGrid::find_path): steps, pushes and regions stay
+//                 on PASS_SHIP, so a warship beside a dock or a beach can always sail off.
 //
 // 0 A.D. slope references:
 // - source/simulation2/helpers/Pathfinding.h (PathfinderPassability::IsPassable: steepness < m_MaxSlope)
@@ -105,6 +114,8 @@ static constexpr float LAND_MAX_WATER_DEPTH = 2.0f * HEIGHT_PER_METRE;
 static constexpr uint8_t PASS_INFANTRY = 1;
 static constexpr uint8_t PASS_CAVALRY  = 2;
 static constexpr uint8_t PASS_SHIP     = 4;
+static constexpr uint8_t PASS_SHIP_CLEARANCE = 8;
+static constexpr uint8_t PASS_WARSHIP  = PASS_SHIP | PASS_SHIP_CLEARANCE;
 
 // 0 A.D. slopes are metres of rise per metre. An RTS0 unit is a 4 m tile and heights are
 // HEIGHT_PER_METRE units a metre, so a slope in RTS0 units is 0 A.D.'s x 4 x HEIGHT_PER_METRE
@@ -249,24 +260,66 @@ struct NavGrid {
     bool is_passable_for(int cx, int cy, uint8_t pass) const {
         if (!cells.inside(cx, cy)) return false;
         uint8_t c = cells.at(cx, cy);
-        if (pass == PASS_SHIP || (pass & PASS_SHIP)) return c == NAV_WATER || c == NAV_SHALLOW;
+        if (pass & PASS_SHIP) {
+            if (c != NAV_WATER && c != NAV_SHALLOW) return false;
+            if (!(pass & PASS_SHIP_CLEARANCE)) return true;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    if (!cells.inside(cx + dx, cy + dy)) return false;
+                    const uint8_t n = cells.at(cx + dx, cy + dy);
+                    if (n != NAV_WATER && n != NAV_SHALLOW) return false;
+                }
+            return true;
+        }
         if (c != NAV_PASSABLE && c != NAV_SHALLOW) return false;
         if (is_steep(cx, cy)) return false;
         return true;
     }
 
-    bool line_clear(int x0, int y0, int x1, int y1, uint8_t pass) const {
-        int dx = std::abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-        int dy = -std::abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-        int err = dx + dy;
-        int x = x0, y = y0;
+    // The navcells a line passes through, in order, as Pathfinding::CheckLineMovement (Pathfinding.cpp)
+    // walks them: from the navcell holding the start, it leaves each across the edge the line crosses
+    // (along y at an exact corner) until it reaches the navcell holding the end. Unlike a Bresenham
+    // line it misses no navcell the line touches inside, and never steps diagonally between two.
+    // The ends are in navcells (0 to res); visit(x, y) is called for each until it returns false.
+    template <class Visit>
+    void walk_line(float fx0, float fy0, float fx1, float fy1, Visit &&visit) const {
+        int x = std::clamp(static_cast<int>(std::floor(fx0)), 0, res - 1);
+        int y = std::clamp(static_cast<int>(std::floor(fy0)), 0, res - 1);
+        const int x1 = std::clamp(static_cast<int>(std::floor(fx1)), 0, res - 1);
+        const int y1 = std::clamp(static_cast<int>(std::floor(fy1)), 0, res - 1);
+        const int di = x < x1 ? 1 : x1 < x ? -1 : 0;
+        const int dj = y < y1 ? 1 : y1 < y ? -1 : 0;
+        const float lx = fx1 - fx0, ly = fy1 - fy0;
         while (true) {
-            if (!is_passable_for(x, y, pass)) return false;
-            if (x == x1 && y == y1) return true;
-            int e2 = 2 * err;
-            if (e2 >= dy) { err += dy; x += sx; }
-            if (e2 <= dx) { err += dx; y += sy; }
+            if (!visit(x, y) || (x == x1 && y == y1)) return;
+            if (di == 0 || x == x1) { y += dj; continue; }
+            if (dj == 0 || y == y1) { x += di; continue; }
+            // The edge along y the line heads for, from (x, ey) to (x + 1, ey): the line leaves
+            // across it unless both its ends lie on one side of the line.
+            const float ey = static_cast<float>(y + (dj + 1) / 2) - fy0;
+            const float ea = static_cast<float>(x) - fx0;
+            const float sa = ea * ly - ey * lx, sb = (ea + 1.0f) * ly - ey * lx;
+            if ((sa < 0.0f && sb < 0.0f) || (sa > 0.0f && sb > 0.0f)) x += di;
+            else y += dj;
         }
+    }
+
+    // CheckLineMovement between two navcell centres: no navcell the line passes through is
+    // impassable, except those it starts on (a unit stuck there may leave them).
+    bool line_clear(int x0, int y0, int x1, int y1, uint8_t pass) const {
+        bool on_impassable = true, clear = true;
+        walk_line(x0 + 0.5f, y0 + 0.5f, x1 + 0.5f, y1 + 0.5f, [&](int x, int y) {
+            if (is_passable_for(x, y, pass)) on_impassable = false;
+            else if (!on_impassable) clear = false;
+            return clear;
+        });
+        return clear;
+    }
+
+    // The point (x, z) in navcells (0 to res along each axis).
+    std::pair<float, float> world_to_navcells(float x, float z) const {
+        const float inv = static_cast<float>(res) / (map_half * 2.0f);
+        return {(x + map_half) * inv, (z + map_half) * inv};
     }
 
     void string_pull(std::vector<std::pair<int,int>> &cells, uint8_t pass) const {
@@ -694,8 +747,11 @@ struct NavGrid {
         }
     }
 
-    // Long-range path on the NavGrid: snap, MakeGoalReachable, then JPS with octile 10/14 costs
+    // Long-range path on the NavGrid: snap, MakeGoalReachable, then JPS with octile 10/14 costs.
+    // A warship (PASS_WARSHIP) whose path can't get through on its class (a channel 0 A.D. warships
+    // use can be two 8 m navcells wide, which the clearance closes) takes the PASS_SHIP path.
     bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
+    bool find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const;
 
     // Cell-level search behind find_path. Fills start..goal cells in walking
     // order and returns whether the goal was reached.
@@ -754,6 +810,11 @@ struct WaypointPath {
 // NavGrid::find_path — snap, MakeGoalReachable, JPS, string pull
 // ---------------------------------------------------------------------------
 inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
+    if (!(pass & PASS_SHIP_CLEARANCE)) return find_path_on(sx, sz, tx, tz, out, pass);
+    return find_path_on(sx, sz, tx, tz, out, pass) || find_path_on(sx, sz, tx, tz, out, PASS_SHIP);
+}
+
+inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
     out.clear();
     if (cells.blank()) {
         out.push_back(tx, tz);

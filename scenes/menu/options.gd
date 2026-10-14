@@ -38,16 +38,31 @@ const SCHEMA := [
 		["dropdown", "gui.scale", "GUI scale", "GUI scale",
 			[["75%", "0.75"], ["100%", "1.0"], ["125%", "1.25"], ["150%", "1.5"], ["175%", "1.75"], ["200%", "2.0"], ["225%", "2.25"], ["250%", "2.5"]]],
 		["number", "gui.session.dragdelta", "Mouse drag", "Number of pixels the mouse can move before the action is considered a drag.", [1, 200]],
+		["boolean", "view.drag.inverted", "Mouse pan inverted", "Invert middle-click drag pan direction."],
+		["slider", "view.drag.speed", "Mouse pan speed", "Speed mouse pans the map when holding middle-click and dragging.", [0.01, 0.6]],
 		["boolean", "window.mousegrabinfullscreen", "Mouse grab in fullscreen", "Constrain mouse in the fullscreen mode to the window boundaries. It's used to avoid mouse going out of a display in case of multiple displays."],
 		["boolean", "window.mousegrabinwindowmode", "Mouse grab in window mode", "Constrain mouse in the window mode to the window boundaries."],
 	]],
 	["Graphics (advanced)", [
 		["dropdown", "antialiasing", "Antialiasing", "Reduce aliasing effect on edges.",
 			[["Disabled", "disabled"], ["FXAA", "fxaa"], ["MSAA (2×)", "msaa2"], ["MSAA (4×)", "msaa4"], ["MSAA (8×)", "msaa8"]]],
+		["dropdown", "sharpening", "Sharpening", "Reduce blurry effects.",
+			[["Disabled", "disabled"], ["FidelityFX CAS", "cas"]]],
+		["slider", "sharpness", "Sharpness factor", "The sharpness of the chosen pass.", [0, 1]],
+		["dropdown", "variant_diversity", "Model appearance randomization", "Randomize the appearance of entities. Disabling gives a small performance improvement.",
+			[["None", "none"], ["Limited", "limited"], ["Normal", "full"]]],
 		["dropdown", "shadowquality", "Shadow quality", "Shadow map resolution. High values can crash the game when using a graphics card with low memory!",
 			[["Low", "-1"], ["Medium", "0"], ["High", "1"], ["Very High", "2"]]],
 		["boolean", "shadowpcf", "Shadow filtering", "Smooth shadows."],
+		["boolean", "shadowscovermap", "Cover whole map", "When ON shadows cover the whole map and shadows cutoff distance is ignored. Useful for making screenshots of a whole map."],
 		["slider", "shadowscutoffdistance", "Shadow cutoff distance", "Hides shadows beyond a certain distance from a camera.", [100, 1500]],
+		["boolean", "watereffects", "Water effects", "When OFF, use the lowest settings possible to render water. This makes other settings irrelevant."],
+		["boolean", "waterfancyeffects", "High-quality water effects", "Use higher-quality effects for water, rendering coastal waves, shore foam, and ships trails."],
+		["boolean", "waterreflection", "Water reflections", "Allow water to reflect a mirror image."],
+		["boolean", "waterrefraction", "Water refraction", "Use a real water refraction map and not transparency."],
+		["boolean", "waterrealdepth", "Real water depth", "Use actual water depth in rendering calculations."],
+		["dropdown", "textures.quality", "Texture quality", "Decrease texture quality making them blurrier but increases game performance.",
+			[["Low", "0"], ["Medium", "1"], ["High", "2"]]],
 	]],
 	["Sound", [
 		["slider", "sound.mastergain", "Master volume", "Master audio gain.", [0, 2]],
@@ -86,6 +101,24 @@ const SCHEMA := [
 		["boolean", "gui.session.healrange", "Heal range visualization", "Display the healing range of selected units. (It can also be toggled with the hotkey during a game)."],
 	]],
 ]
+
+## options.json "dependencies": a control is disabled unless every condition holds.
+## A key alone means that boolean is on; [key, op, value] compares the value.
+const DEPENDENCIES := {
+	"renderer.scale": ["postproc"],
+	"renderer.upscale.technique": ["postproc", ["renderer.scale", "<", 1.0]],
+	"antialiasing": ["postproc"],
+	"sharpening": ["postproc"],
+	"sharpness": ["postproc", ["sharpening", "!=", "disabled"]],
+	"shadowquality": ["shadows"],
+	"shadowpcf": ["shadows"],
+	"shadowscovermap": ["shadows"],
+	"shadowscutoffdistance": ["shadows", ["shadowscovermap", "==", "false"]],
+	"waterfancyeffects": ["watereffects"],
+	"waterreflection": ["watereffects"],
+	"waterrefraction": ["watereffects"],
+	"waterrealdepth": ["watereffects", "waterrefraction"],
+}
 
 signal closed
 
@@ -318,6 +351,7 @@ func _load_controls() -> void:
 						idx = i
 				c.select(idx)
 	_updating = false
+	_apply_dependencies()
 
 func _snapshot() -> void:
 	_saved.clear()
@@ -333,6 +367,29 @@ func has_unsaved_changes() -> bool:
 func _changed(key: String, value: String) -> void:
 	if not _updating:
 		cfg.set_value(key, value)
+		_apply_dependencies()
+
+## options.js updateOptionPanel: options whose dependencies fail are disabled.
+func _apply_dependencies() -> void:
+	for key in DEPENDENCIES:
+		if not _controls.has(key):
+			continue
+		var on := true
+		for d in DEPENDENCIES[key]:
+			if d is String:
+				on = on and cfg.get_value(d) == "true"
+			else:
+				var v := cfg.get_value(d[0])
+				match d[1]:
+					"<": on = on and float(v) < float(d[2])
+					"==": on = on and v == str(d[2])
+					"!=": on = on and v != str(d[2])
+		var c: Control = _controls[key][1]
+		match _controls[key][0]:
+			"boolean": c.disabled = not on
+			"dropdown": c.disabled = not on
+			"slider": c.get_child(0).editable = on
+			"number": c.editable = on
 
 func _on_save() -> void:
 	if not cfg.save():

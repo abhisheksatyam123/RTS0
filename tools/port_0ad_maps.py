@@ -6,10 +6,13 @@
   python3 tools/port_0ad_maps.py --github-builtin # the built-in list, fetched from GitHub
   python3 tools/port_0ad_maps.py --github-scenarios [NAME..]  # scenario maps, same way
   python3 tools/port_0ad_maps.py --zip-scenarios ZIP [NAME..]  # scenario maps from a 0 A.D. public.zip
+  python3 tools/port_0ad_maps.py --zip-skirmishes ZIP [NAME..]  # skirmish maps from a 0 A.D. public.zip
   python3 tools/port_0ad_maps.py --github-tutorials [NAME..]  # the tutorials (maps/tutorials/)
   python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
   python3 tools/port_0ad_maps.py --environment-only   # add each ported map's Environment (sun, fog, water) from GitHub
   python3 tools/port_0ad_maps.py --walls-only   # turn each ported map's walls, palisades and gates into WallSet pieces
+  python3 tools/port_0ad_maps.py --livestock-only DIR  # refresh each ported map's player-owned sheep, goats and
+                                                       # other livestock from an unpacked public.zip
   python3 tools/port_0ad_maps.py --supplies-only DIR  # refresh each ported map's resource amounts and
                                                   # gatherer limits from the templates of an unpacked
                                                   # 0 A.D. public.zip at DIR (maps/ and simulation/ under it)
@@ -490,7 +493,7 @@ def apply_player_data(players, settings):
 
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
              terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False,
-             supplies_only=False, walls_only=False):
+             supplies_only=False, walls_only=False, livestock_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -684,6 +687,14 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 # Unit templates (units/, skirmish/units/) never match the structure
                 # names below; "default_infantry_ranged_b" used to match "range".
                 is_unit = "units/" in ltpl
+                if "gaia/fauna_" in ltpl:
+                    # A player's livestock (Isthmus of Corinth's starting sheep).
+                    key, ent = gaia_entity(ltpl, wx, wz)
+                    gaia[key].append(dict(ent, player=ply))
+                    continue
+                if ltpl.startswith("vision_revealers/"):
+                    # A VisionRevealer marker: RTS0 has no such entity.
+                    continue
 
                 # Structures
                 wall = None if is_unit else wall_piece(files, tpl, wx, wz, angle_by_uid.get(uid, 0.0), scale)
@@ -852,6 +863,21 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     json.dump(old, f, indent=2)
             print(f"  -> {out_path}: {changed} of {len(have)} supplies changed")
             return
+        if livestock_only:
+            # Keep the existing map; only refresh the players' own livestock (fauna with a player).
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            k = old.get("world_size", world_size_m) / world_size_m
+            mine = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in gaia["fauna"] if "player" in e]
+            kept = [e for e in old.get("fauna", []) if "player" not in e]
+            if kept + mine != old.get("fauna", []):
+                old["fauna"] = kept + mine
+                with open(out_path, "w") as f:
+                    json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: {len(mine)} livestock")
+            return
         if gaia_only:
             # Keep the existing map; only refresh its Gaia arrays.
             if not os.path.exists(out_path):
@@ -947,6 +973,19 @@ github_skirmishes = {
     "oceanside_2p": ("oceanside", "mediterranean"),
     "watering_holes_4p": ("watering_holes", "savanna"),
     "sicilia_nomad_2p": ("sicilia_nomad", "mediterranean"),
+    # 0.28 skirmishes ported from its public.zip (--zip-skirmishes).
+    "obedska_bog_4p": ("obedska_bog", "temperate"),
+    "obedska_bog_night_4p": ("obedska_bog_night", "temperate"),
+    "sahyadri_buttes_5p": ("sahyadri_buttes", "india"),
+    "scythia_4p": ("scythia", "temperate"),
+    "tarim_basin_2p": ("tarim_basin_2p", "desert"),
+    "tarim_basin_4p": ("tarim_basin_4p", "desert"),
+    "team_oasis_2pv2p": ("team_oasis", "desert"),
+    "temperate_roadway_2p": ("temperate_roadway", "temperate"),
+    "thessalian_plains_4p": ("thessalian_plains", "aegean"),
+    "via_augusta_4p": ("via_augusta", "mediterranean"),
+    "white_cliffs_of_dover_5p": ("white_cliffs_of_dover", "temperate"),
+    "yangtze_2p": ("yangtze", "temperate"),
 }
 
 # 0 A.D. scenario maps (maps/scenarios/) fetched with --github-scenarios: file -> (id, biome).
@@ -966,6 +1005,16 @@ github_scenarios = {
     # skirmish keeps the plain id.
     "sahel": ("sahel_scenario", "savanna"),
     "saharan_oases": ("saharan_oases_scenario", "desert"),
+    # 0.28 scenarios ported from its public.zip (--zip-scenarios).
+    "azure_coast_2p": ("azure_coast_2p", "mediterranean"),
+    "azure_coast_4p": ("azure_coast_4p", "mediterranean"),
+    "azure_coast_8p": ("azure_coast_8p", "mediterranean"),
+    "belgian_bog_night": ("belgian_bog_night", "temperate"),
+    "fast_oasis": ("fast_oasis", "desert"),
+    "peloponnese": ("peloponnese", "aegean"),
+    "savanna_ravine": ("savanna_ravine", "savanna"),
+    "serengeti": ("serengeti", "savanna"),
+    "ship_combat_demo": ("ship_combat_demo", "mediterranean"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
@@ -989,8 +1038,9 @@ if __name__ == "__main__":
                 port_map(mid, xrel, None, source=src, player_data_only=True)
             except FileNotFoundError:
                 print(f"  !! {mid}: no {xrel} in 0 A.D.")
-    elif len(sys.argv) > 2 and sys.argv[1] == "--supplies-only":
+    elif len(sys.argv) > 2 and sys.argv[1] in ("--supplies-only", "--livestock-only"):
         src = DirSource(sys.argv[2])
+        only = {"supplies_only": True} if sys.argv[1] == "--supplies-only" else {"livestock_only": True}
         tables = [(mid, xrel, prel, size, bome, hscale) for mid, xrel, prel, size, bome, hscale in maps_list]
         tables += [(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None)
                    for name, (mid, bome) in github_skirmishes.items()]
@@ -999,7 +1049,7 @@ if __name__ == "__main__":
                    for name, (mid, bome) in table.items()]
         for row in sorted(set(tables)):
             try:
-                port_map(*row, source=src, supplies_only=True)
+                port_map(*row, source=src, **only)
             except FileNotFoundError:
                 print(f"  !! {row[0]}: no {row[1]} in 0 A.D.")
     elif len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only", "--environment-only", "--walls-only"):
@@ -1042,6 +1092,12 @@ if __name__ == "__main__":
         for name in sys.argv[3:] or sorted(github_scenarios):
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))
             port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
+                     source=zipfile.ZipFile(sys.argv[2]))
+    elif len(sys.argv) > 2 and sys.argv[1] == "--zip-skirmishes":
+        # --zip-skirmishes <public.zip> [names]: like --github, from a 0 A.D. public.zip.
+        for name in sys.argv[3:] or sorted(github_skirmishes):
+            mid, bome = github_skirmishes.get(name, (name, "mediterranean"))
+            port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None,
                      source=zipfile.ZipFile(sys.argv[2]))
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-tutorials":
         for name in sys.argv[2:] or sorted(github_tutorials):
