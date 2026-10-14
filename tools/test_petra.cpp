@@ -2774,12 +2774,23 @@ static void test_defense_armies() {
 	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
 	std::printf("  defense: two groups 18 units apart make %zu armies, %zu with defenders\n", armies.size(), with_defenders);
 	CHECK(armies.size() == 2 && with_defenders == 2, "one army per group of foes, each defended (makeIntoArmy, assignDefenders)");
-	// The western group joins the eastern one.
+	// The western group joins the eastern one where its fight has taken it (a mine beside the
+	// eastern group's spawn point blocks movement, so it can't stay put).
+	float ex = 0.0f, ez = 0.0f;
+	int en = 0;
+	for (uint32_t id : east) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		ex += s->units_.pos_x[i];
+		ez += s->units_.pos_z[i];
+		++en;
+	}
+	if (en) { ex /= (float)en; ez /= (float)en; } else { ex = cx + 10.0f; ez = cz - 7.0f; }
 	for (size_t k = 0; k < west.size(); ++k) {
 		const int32_t i = s->lookup_unit(west[k]);
 		if (i < 0) continue;
-		s->units_.pos_x[i] = cx + 10.0f;
-		s->units_.pos_z[i] = cz - 8.0f + (float)k;
+		s->units_.pos_x[i] = ex + 1.0f;
+		s->units_.pos_z[i] = ez - 1.0f + (float)k;
 	}
 	run_ai_turns(*s, 1);
 	std::printf("  defense: after the groups meet, %zu army\n", armies.size());
@@ -3609,6 +3620,37 @@ static void test_building_plan_028() {
 	s->units_.gather_res[wi] = 1;
 	s->petra_check_resource_levels(1100); // an empty count looks again 10 turns on
 	CHECK(dc.used[0] == 1, "a gatherer at work is counted");
+
+	// queueplanBuilding.js canStart: one foundation per AI turn (turnCache.buildingBuilt).
+	s->petra_in_turn_ = true;
+	s->petra_turn_built_ = false;
+	const uint32_t f1 = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	const uint32_t f2 = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	CHECK(f1 != 0 && f2 == 0 && !s->petra_place_no_room_, "a second foundation waits for the next AI turn");
+	CHECK(s->petra_place_dropsite(RES_WOOD, 0.0f) == 0, "so does a storehouse");
+	s->petra_turn_built_ = false; // the next turn
+	CHECK(s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) != 0, "the next turn lays one");
+	s->petra_in_turn_ = s->petra_turn_built_ = false;
+	// Played: each AI lays at most one foundation a turn.
+	{
+		auto m = std::make_unique<Simulation>();
+		m->set_sim_seed(7);
+		m->reset();
+		m->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 64.0f);
+		m->set_player_resources(1, 5000, 5000, 5000, 5000);
+		size_t before = m->buildings_.size();
+		int most = 0, turns = 0;
+		for (int t = 0; t < 4 * 60 * 20; ++t) {
+			m->tick(Simulation::FIXED_STEP);
+			int added = 0;
+			for (size_t k = before; k < m->buildings_.size(); ++k) added += m->buildings_[k].team == 1;
+			if (m->buildings_.size() != before) ++turns;
+			most = std::max(most, added);
+			before = m->buildings_.size();
+		}
+		std::printf("  one per turn: %d ticks laid foundations, at most %d in one\n", turns, most);
+		CHECK(turns > 0 && most == 1, "no AI turn lays two foundations");
+	}
 }
 
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking
@@ -3720,7 +3762,9 @@ static void test_personality_draw() {
 	t.set_lock_teams(true);
 	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.3f)) < 1e-5f);
 	t.set_petra_difficulty(2, PETRA_SANDBOX);
-	assert(t.petra_config_for(2).aggressive == 0.85f && t.petra_config_for(2).pop_scaling == 0.5f);
+	// setConfig draws no personality on Sandbox: the default 0.5 whatever the behaviour.
+	assert(t.petra_config_for(2).aggressive == 0.5f && t.petra_config_for(2).defensive == 0.5f &&
+	       t.petra_config_for(2).pop_scaling == 0.5f);
 	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
 }
 

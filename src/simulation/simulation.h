@@ -167,7 +167,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 74; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 75; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
@@ -501,6 +502,17 @@ public:
 		auto it = res_id_to_idx_.find(res_id);
 		return it == res_id_to_idx_.end() ? 0 : resources_.max_amount[it->second];
 	}
+	// A mine's facing (radians), fixed by its id as a treasure's is: the world view turns each
+	// resource's model by it, and a mine's Obstruction/Static square lies along it.
+	static float mine_angle(uint32_t id) { return (float)(id % 12) * 0.52f; }
+	// Resource r's Obstruction/Static when it is a mine (ore, rock or ruins), turned by mine_angle:
+	// template_gaia_ore and _rock 7 x 7 m, their _large 13 x 13 m (24 gatherers or more),
+	// temperate_large_02 22 x 14 m (48), template_gaia_ruins 7 x 7 m. Mines block movement,
+	// pathfinding and foundations (template_gaia). False for any other supply.
+	bool mine_footprint(size_t r, nav::Footprint &f) const;
+	// Half the width of any other supply's square foundation obstruction, in world units: a
+	// tree's or fruit's template Obstruction/Static (flora_obstruction_m), else 1.5 m.
+	float resource_block_half(size_t r) const;
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
@@ -1919,6 +1931,14 @@ private:
 	// foundation it builds, a unit it attacks, a structure it garrisons in): 0 A.D.'s move to the
 	// target's range is done there.
 	bool walk_in_reach(size_t i, float x, float z) const;
+	// tick_gather's reach of unit i at (x, z) to resource r: 2.5 units from its centre (FISH_GATHER_REACH
+	// for fish), and for a mine, which no unit stands on, MINE_GATHER_REACH from its square.
+	bool gather_in_reach(size_t i, size_t r, float x, float z) const;
+	bool gathering_mine(size_t i) const; // unit i is gathering from a mine (mine_footprint)
+	bool gather_mine_footprint(size_t i, nav::Footprint &m) const; // and that mine's footprint
+	// Unit i's control group (0 A.D. ControlGroup) for avoid_idle_units and separation: its formation,
+	// or the mine it works (0x80000000 | the mine's id) while it gathers from or returns from one.
+	uint32_t control_group(size_t i) const;
 	// The key of a short path kept round idle units (ShortPathMemo): a short path among this tick's
 	// buildings (short_path_key_) that also went round units.
 	uint32_t idle_path_key() const { const uint32_t k = short_path_key_ ^ 0x5BD1E995u; return k ? k : 1u; }
@@ -2180,11 +2200,16 @@ private:
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
+	void explore_territories(); // InitGame.js ExploreTerritories, before the first turn
 	void reset_los();
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
+	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
+	bool near_deep_water(float x, float z, float c) const;
+	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
+	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -2408,6 +2433,13 @@ private:
 	// petra_find_position leaves out every structure's influence for houses (set for one call).
 	bool petra_require_houses_ = false;
 	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
+	// queueplanBuilding.js canStart: one foundation per AI turn (HQ.turnCache.buildingBuilt).
+	// Both are set only inside one AI's turn (tick_petra_ai), so a save between ticks never
+	// holds them (not saved); a call from outside a turn isn't limited.
+	bool petra_in_turn_ = false;
+	bool petra_turn_built_ = false;
+	bool petra_building_built() const { return petra_in_turn_ && petra_turn_built_; }
+	uint32_t petra_spawn_foundation(int cx, int cz, uint8_t btype);
 	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
@@ -2661,6 +2693,7 @@ private:
 	std::vector<PetraFoundationWatch> petra_fnd_watch_;
 	mutable Petra petra_fleets_; // per-sea warship registry (navalManager.seaWarShips)
 	float petra_timer_  = 0.0f;
+	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
 	float petra_econ_timer_ = 0.0f;
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
@@ -2959,7 +2992,8 @@ private:
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
-	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_)
+	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
+	X(petra_failed_gather_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -3048,18 +3082,31 @@ private:
 	int territory_roots_res_ = 0;
 	float territory_roots_half_ = 0.0f;
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
-	// move_units' copy of the buildings that block movement, in buildings_ order, with only the
-	// fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
+	// move_units' copy of the buildings that block movement, in buildings_ order, and the mines, with
+	// only the fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
 	struct SteerObstacle {
 		uint32_t id;
 		float x, z;
 		float ux, uz, hu, hv; // Building::ux, uz, hu, hv
 		uint8_t type;
 		bool wrecked;
+		float ext; // nav::footprint_extent, which the steering loops test every obstacle by
 	};
+	static SteerObstacle steer_obstacle(uint32_t id, float x, float z, float ux, float uz, float hu, float hv, uint8_t type) {
+		SteerObstacle o{id, x, z, ux, uz, hu, hv, type, false, 0.0f};
+		o.ext = nav::footprint_extent(nav::Footprint{x, z, ux, uz, hu, hv});
+		return o;
+	}
 	std::vector<SteerObstacle> steer_obstacles_;
 	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
+	// SteerObstacle::type of a Gaia mine (mine_footprint), after the buildings in both lists.
+	static constexpr uint8_t MINE_OBSTACLE = 0xFF;
+	void append_mine_obstacles(std::vector<SteerObstacle> &out) const;
+	// This tick's mines (append_mine_obstacles), listed once for move_units and separation.
+	std::vector<SteerObstacle> mine_obstacles_;
+	uint64_t mine_obstacles_tick_ = ~uint64_t{0};
+	const std::vector<SteerObstacle> &tick_mine_obstacles();
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
