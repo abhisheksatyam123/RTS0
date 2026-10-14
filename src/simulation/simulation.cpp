@@ -2058,6 +2058,27 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		}
 		return PLACE_OBSTRUCTED;
 	}
+	// Treasures' Obstruction/Static (template_gaia_treasure 1.5 m up to the 21 x 11 m wrecks)
+	// blocks foundations as well.
+	for (const Treasure &t : treasures_) {
+		const auto &ti = treasure_type_info(t.type);
+		const float angle = treasure_angle(t.id);
+		const float hw = ti.width * 0.125f, hd = ti.depth * 0.125f; // metres to half-extents in world units
+		const float c = std::fabs(std::cos(angle)), sn = std::fabs(std::sin(angle));
+		const float ex = c * hw + sn * hd, ez = sn * hw + c * hd;
+		if (!(t.x + ex > x0 && t.x - ex < x1 && t.z + ez > z0 && t.z - ez < z1)) continue;
+		if (exact) {
+			nav::Footprint o;
+			bool swapped;
+			nav::footprint_axis(angle, o.ux, o.uz, swapped);
+			o.x = t.x;
+			o.z = t.z;
+			o.hu = swapped ? hd : hw;
+			o.hv = swapped ? hw : hd;
+			if (!nav::footprints_overlap(piece, o)) continue;
+		}
+		return PLACE_OBSTRUCTED;
+	}
 	if (survival_placement_obstructed(x0, z0, x1, z1)) return PLACE_OBSTRUCTED;
 
 	// 2. Terrain passability class: building-land has no water under the
@@ -2761,7 +2782,8 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
-	if (t.civ != ps.civ) return false;
+	// A shrine trains units/{native}/support_healer_e: its own civ's, whoever holds it.
+	if (t.civ != (b.type == BLD_SHRINE ? b.civ : ps.civ)) return false;
 	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
@@ -3873,7 +3895,7 @@ bool Simulation::can_barter(uint8_t player_id) const {
 	// Player.js CanBarter: the player owns an entity with the Barter class (the Market).
 	if (player_id >= MAX_PLAYERS) return false;
 	for (const auto &b : buildings_)
-		if (b.team == player_id && b.type == BLD_MARKET && b.build_progress >= 1.0f && b.hp > 0.0f) return true;
+		if (b.team == player_id && is_land_market(b.type) && b.build_progress >= 1.0f && b.hp > 0.0f) return true;
 	return false;
 }
 
@@ -4028,7 +4050,7 @@ bool Simulation::can_trade_at(uint8_t trader_owner, const Building &b, uint8_t t
 	// Trader.js CanTrade: a finished market whose owner the trader's owner is not
 	// at war with. Market TradeType: markets are "land", docks "land naval", so
 	// land traders use markets and docks, merchant ships docks only.
-	const bool kind = trader_type == UNIT_MERCHANT_SHIP ? b.type == BLD_DOCK : (b.type == BLD_MARKET || b.type == BLD_DOCK);
+	const bool kind = trader_type == UNIT_MERCHANT_SHIP ? b.type == BLD_DOCK : (is_land_market(b.type) || b.type == BLD_DOCK);
 	return kind && b.build_progress >= 1.0f && b.hp > 0.0f &&
 	       b.team < MAX_PLAYERS && trader_owner < MAX_PLAYERS && !is_hostile(trader_owner, b.team);
 }
@@ -6403,6 +6425,14 @@ int Simulation::structure_garrison_cap(const Building &b) const {
 // Minister seat, and a Han player capturing another civ's structure gains none.
 bool Simulation::structure_accepts_classes(const Building &b, TechClasses classes) const {
 	return garrison_list_matches(structure_garrison_list(b.type, b.civ), classes);
+}
+
+void Simulation::set_building_civ(uint32_t building_id, uint8_t civ) {
+	auto it = building_id_to_idx_.find(building_id);
+	if (it == building_id_to_idx_.end() || civ >= CIV_COUNT) return;
+	Building &b = buildings_[it->second];
+	b.civ = civ;
+	b.garrison_cap = structure_garrison_cap(b);
 }
 
 void Simulation::set_team_civ(uint8_t team, uint8_t civ) {
@@ -11926,6 +11956,7 @@ int32_t Simulation::projectile_hit_structure(const Projectile &p) const {
 // Projectile p hits structure b (Attacking.HandleAttackEffects): its effects against the
 // structure's resistance at impact; a structure brought to nothing is razed.
 void Simulation::projectile_hits_structure(const Projectile &p, Building &b) {
+	if (!structure_has_health(b.type)) return; // Health disabled: arrows bounce off
 	const float dmg = projectile_damage_to_structure(p, b);
 	note_attacked(p.source_id, p.team, b.id, b.team, true, dmg);
 	award_structure_damage_xp(p.source_id, b, dmg);
@@ -12902,7 +12933,7 @@ void Simulation::tick_death_damage(float dt) {
 			record_unit_death(i, owner);
 		}
 		for (Building &b : buildings_) {
-			if (b.wrecked || b.hp <= 0.0f || (b.team < MAX_PLAYERS && !hurts(b.team))) continue;
+			if (b.wrecked || b.hp <= 0.0f || !structure_has_health(b.type) || (b.team < MAX_PLAYERS && !hurts(b.team))) continue;
 			if (b.team >= MAX_PLAYERS && !dd.friendly_fire && !is_hostile(owner, b.team)) continue;
 			const nav::Vec2 gap = nav::footprint_gap(b, ox, oz);
 			const float d2 = gap.x * gap.x + gap.y * gap.y;
@@ -12943,6 +12974,42 @@ void Simulation::unit_resistance(size_t i, float out[3]) const {
 	// +3 hack, pierce and crush resistance.
 	if (!turret_height_.empty() && turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER))
 		for (int k = 0; k < 3; ++k) out[k] += WALL_TURRET_ARMOR;
+}
+
+Simulation::UnitDetails Simulation::unit_details(size_t i) const {
+	// RTS0 scales 0 A.D. distances (ranged x COMBAT_DISTANCE_SCALE, melee reach x0.6) and walk
+	// speeds (x0.356); the details divide them back out, as the reference pages do.
+	constexpr float kMeleeRangeScale = 0.6f, kSpeedScale = 0.356f;
+	UnitDetails d;
+	if (i >= units_.count) return d;
+	const uint8_t ut = units_.unit_type[i];
+	const uint16_t tmpl = units_.tmpl[i];
+	const auto &info = unit_info_at(i);
+	if (info.attack_damage > 0.0f) {
+		unit_attack_effects(i, d.damage);
+		d.interval = info.attack_cooldown;
+		d.ranged = template_has_ranged_attack(tmpl, ut, civ_of(units_.team[i]));
+		d.max_range = units_.attack_range[i] / (d.ranged ? COMBAT_DISTANCE_SCALE : kMeleeRangeScale);
+		d.min_range = d.max_range * unit_min_range_ratio(ut);
+	}
+	d.capture = unit_capture_attack_at(i);
+	unit_resistance(i, d.resistance);
+	d.walk = unit_walk_speed(i) / kSpeedScale;
+	d.run = d.walk * unit_run_multiplier(i);
+	const uint8_t gcls = unit_gather_class(ut, tmpl);
+	if (gcls != GATHER_NONE && units_.team[i] < MAX_PLAYERS && ut < UNIT_TYPE_COUNT) {
+		const UnitTechMods m = unit_tech_mods(units_.team[i], ut, tmpl);
+		for (uint8_t k = 0; k < 7; ++k) d.gather[k] = gather_class_rate(gcls, k) * m.gather[k] * ai_gather_mult(units_.team[i]);
+	}
+	if (units_.res_type_carried[i] < RES_COUNT) d.carry_max = carry_cap(i, units_.res_type_carried[i]);
+	if (unit_is_healer(tmpl, ut)) {
+		d.heal_hp = heal_amount_of(i);
+		d.heal_range = healer_range_of(i) / COMBAT_DISTANCE_SCALE;
+		d.heal_interval = units_.team[i] < MAX_PLAYERS
+			? HEAL_INTERVAL_S * std::max(0.1f, tech_mods(units_.team[i]).heal_interval[UNIT_HEALER]) : HEAL_INTERVAL_S;
+	}
+	d.loot = unit_loot(tmpl, ut);
+	return d;
 }
 
 // 0 A.D. helpers/Attack.js CauseDamageOverArea: every entity of a player the
@@ -13005,7 +13072,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 	}
 	bool nav_changed = false, territory_changed = false;
 	for (Building &b : buildings_) {
-		if (b.wrecked || b.hp <= 0.0f || !hurts(b.team)) continue;
+		if (b.wrecked || b.hp <= 0.0f || !structure_has_health(b.type) || !hurts(b.team)) continue;
 		const nav::Vec2 gap = nav::footprint_gap(b, ox, oz); // the distance to its footprint's edge
 		const float d2 = gap.x * gap.x + gap.y * gap.y;
 		if (d2 >= r2) continue;
@@ -14126,6 +14193,7 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 		if (it == building_id_to_idx_.end()) continue;
 		Building &b = buildings_[it->second];
 		if (b.team != player || b.wrecked) continue;
+		if (!structure_has_health(b.type)) continue; // mixins/shrine.xml, trading_post.xml Identity/Undeletable
 		// Commands.js delete-entities: not while the owner holds under half the capture points.
 		if (b.max_capture_points > 0.0f && b.build_progress >= 1.0f &&
 				b.capture_points_by_team[player] < b.max_capture_points * 0.5f)
@@ -17266,7 +17334,7 @@ void Simulation::petra_check_routes(PetraTradeRoutes &out) const {
 	auto finished = [](const Building &b) { return b.build_progress >= 1.0f; };
 	std::vector<const Building *> own, ally;
 	for (const Building &b : buildings_) {
-		if ((b.type != BLD_MARKET && b.type != BLD_DOCK) || !standing(b) || b.team >= MAX_PLAYERS) continue;
+		if ((!is_land_market(b.type) && b.type != BLD_DOCK) || !standing(b) || b.team >= MAX_PLAYERS) continue;
 		if (b.team == petra_pid_) own.push_back(&b);
 		else if (is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team)) ally.push_back(&b);
 	}
@@ -17315,7 +17383,7 @@ const Simulation::PetraTradeRoute *Simulation::petra_route_for(const PetraTradeR
 int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_gain) const {
 	out_gain = 0;
 	std::vector<const Building *> markets;
-	auto trade = [](const Building &b) { return (b.type == BLD_MARKET || b.type == BLD_DOCK) && b.hp > 0.0f && !b.wrecked; };
+	auto trade = [](const Building &b) { return (is_land_market(b.type) || b.type == BLD_DOCK) && b.hp > 0.0f && !b.wrecked; };
 	for (const Building &b : buildings_)
 		if (trade(b) && b.team < MAX_PLAYERS && b.team != petra_pid_ && is_ally(petra_pid_, b.team) &&
 		    !is_hostile(petra_pid_, b.team))
@@ -23336,11 +23404,17 @@ void Simulation::petra_manage_victory(float dt) {
 	if (has_victory(VK_WONDER) || has_victory(VK_REGICIDE) || has_victory(VK_RELIC)) petra_manage_critical_ent_guards();
 
 	if (has_victory(VK_REGICIDE)) {
-		// A hero back above high health fights again.
+		// A Soldier hero back above high health fights again; any other hero
+		// (a healer hero) stays passive, its stance from init().
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!petra_is_critical_ent(i) || units_.stance[i] == STANCE_AGGRESSIVE) continue;
-			if (units_.max_hp[i] > 0.0f && units_.hp[i] / units_.max_hp[i] <= petra_config_.garrison_hp_high) continue;
+			if (!petra_is_critical_ent(i)) continue;
 			const uint32_t uid = units_.id[i];
+			if (!(unit_classes_at(i) & TC_SOLDIER)) {
+				if (units_.stance[i] != STANCE_PASSIVE) order_set_stance(&uid, 1, STANCE_PASSIVE);
+				continue;
+			}
+			if (units_.stance[i] == STANCE_AGGRESSIVE) continue;
+			if (units_.max_hp[i] > 0.0f && units_.hp[i] / units_.max_hp[i] <= petra_config_.garrison_hp_high) continue;
 			order_set_stance(&uid, 1, STANCE_AGGRESSIVE);
 		}
 		petra_manage_critical_ent_healers();
@@ -23508,10 +23582,10 @@ void Simulation::petra_manage_critical_ent_healers() {
 }
 
 // victoryManager.js update / captureGaiaRelic: go for a Gaia relic in our
-// territory, or one our units can see outside enemy territory, one new
-// relic per update; send the nearest units that can capture it until they beat its regen.
+// territory (then no other new one this update), or any our units can see
+// outside enemy territory; send the nearest units that can capture it until they beat its regen.
 void Simulation::petra_capture_gaia_relics() {
-	bool started = false;
+	bool own_started = false; // a new relic in our territory ends the search for new ones
 	for (const auto &rel : relics_) {
 		const int32_t r = lookup_unit(rel.id);
 		if (!is_relic_unit(r)) continue;
@@ -23541,9 +23615,10 @@ void Simulation::petra_capture_gaia_relics() {
 				capture += unit_capture_attack_at(i);
 		if (capture > RELIC_CAPTURE_POINTS / 50.0f) continue; // enough on the way
 		if (capture <= -(float)RELIC_REGEN_RATE) { // not targeted yet
-			if (started) continue;
+			if (own_started) continue;
 			const int terr = territory_owner_at(rel.x, rel.z);
 			bool go = terr == (int)petra_pid_;
+			own_started = go;
 			if (!go && (terr < 0 || !is_hostile(petra_pid_, (uint8_t)terr))) {
 				for (size_t i = 0; i < units_.count && !go; ++i) {
 					if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
@@ -23553,8 +23628,8 @@ void Simulation::petra_capture_gaia_relics() {
 				}
 			}
 			if (!go) continue;
-			started = true;
 		}
+		const bool fresh = capture <= -(float)RELIC_REGEN_RATE;
 		auto [rx, rz] = nav_grid_.world_to_cell(rel.x, rel.z);
 		const uint16_t land = nav_grid_.global_region_at(rx, rz, PASS_INFANTRY);
 		std::vector<std::pair<float, uint32_t>> near;
@@ -23575,6 +23650,8 @@ void Simulation::petra_capture_gaia_relics() {
 			capture += unit_capture_attack_at((size_t)lookup_unit(near[k].second));
 			expedition.push_back(near[k].second);
 		}
+		// A new expedition too weak to out-capture a hundredth of the points stays home.
+		if (expedition.empty() || (fresh && capture < RELIC_CAPTURE_POINTS / 100.0f)) continue;
 		order_capture_relic(expedition.data(), expedition.size(), rel.id);
 	}
 }
@@ -23601,6 +23678,13 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	if (petra_diplo_timer_ < 8.0f) return;
 	petra_diplo_timer_ = 0.0f;
 	const uint8_t me = petra_pid_;
+
+	// checkEvents PlayerDefeated: a defeated player's requests, received and sent, are dropped.
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if (p != me && is_defeated(p)) {
+			dip.received[p] = PetraReceivedRequest{};
+			petra_sent_diplo_.sent_type[p] = 0;
+		}
 
 	// checkEvents TributeExchanged: a tribute of the asked resource and amount
 	// from a player we are waiting on seals the requested stance.
@@ -23640,6 +23724,13 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	// checkEvents DiplomacyChanged / init: another player's stance toward us
 	// changed. Allying with us or going neutral is a request we answer; RTS0
 	// also answers a declaration of war in kind, so our units fight back.
+	// init: a mutual ally (a teammate too) at the start counts as an accepted alliance.
+	if (!dip.seen_init)
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+			if (p != me && is_ally(me, p) && (players_[p].active || ((participant_mask_ >> p) & 1))) {
+				dip.received[p] = PetraReceivedRequest{};
+				dip.received[p].status = PetraReceivedRequest::ACCEPTED;
+			}
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		if (p == me || players_[p].team == players_[me].team) continue;
 		const uint8_t theirs = get_diplomacy(p, me);
@@ -23921,10 +24012,13 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 		petra_say(PETRA_CHAT_ANSWER_ACCEPT, player, player, type);
 		return;
 	}
-	// Accept for a tribute of the resource we are shortest of.
+	// Accept for a tribute of pickMostNeededResources()[0]: what our queues are
+	// furthest short of.
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
 	uint8_t need = RES_FOOD;
-	for (uint8_t r = 0; r < RES_COUNT; ++r)
-		if (petra_ps().res[r] < petra_ps().res[need]) need = r;
+	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD})
+		if (demand[r] - petra_ps().res[r] > demand[need] - petra_ps().res[need]) need = r;
 	int own_units = 0;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == me) ++own_units;
@@ -27770,7 +27864,7 @@ void Simulation::rebuild_auras() {
 	// Kushite pyramids and Temple of Amun, the Mauryan pillar, the civ temples' healing).
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.team >= MAX_PLAYERS) continue;
-		if (b.type == BLD_TEMPLE) {
+		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE) { // the shrines keep the temple's Auras
 			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
 				b.x, b.z, -1, CC_HUMAN);
 		}

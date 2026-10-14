@@ -10,7 +10,7 @@ struct UnitMotionProfile {
 	float cos_instant_turn; // cos(instant_turn_angle); -2 (no turn stops it) from pi up
 };
 
-inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 457; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 463; // = CIV_UNIT_TEMPLATE_COUNT
 inline const UnitMotionProfile *motion_template_table() {
 	static const UnitMotionProfile kTable[MOTION_TEMPLATE_COUNT] = {
 		{11.214f, 1.5f, 10.0f, 0.0707f}, // athen/cavalry_javelineer_b
@@ -470,6 +470,12 @@ inline const UnitMotionProfile *motion_template_table() {
 		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_first
 		{12.46f, 1.5f, 3.0f, 0.0707f}, // germ/support_wagon
 		{12.46f, 1.5f, 3.0f, 0.0707f}, // germ/support_wagon_house
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/support_healer_e
 	};
 	return kTable;
 }

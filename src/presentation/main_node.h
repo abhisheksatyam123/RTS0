@@ -383,6 +383,12 @@ public:
 	void _start_menu_net();
 	// For LobbySession's heartbeat: whether we host, how many play, whether it started.
 	Dictionary get_lobby_state() const;
+	// NAT traversal for LobbySession (0 A.D. StunClient + hole punching):
+	// {stun (NetHost::stunState), public_ip, public_port, local_ip, local_port}.
+	Dictionary get_net_nat_state() const;
+	void net_query_stun(const String &server, int port);
+	void net_hole_punch(const String &ip, int port);
+	void net_retarget_host(const String &ip, int port);
 	// Networked Game Setup for scenes/menu/gamesetup.gd: see net_setup_.
 	bool is_net_pregame() const;
 	Dictionary get_net_setup_state() const;
@@ -499,6 +505,7 @@ public:
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
 	Dictionary debug_selection_grid(bool select_all);
+	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
 	Array debug_command_row();
