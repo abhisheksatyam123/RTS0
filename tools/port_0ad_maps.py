@@ -186,7 +186,8 @@ def gaia_entity(ltpl, wx, wz):
 
 _TEMPLATE_CACHE = {}
 # Structures only maps place, which RTS0 finds by template (sim_types.h map_structure_template).
-MAP_ONLY_STRUCTURE = re.compile(r"(^|/)(\w+/tower_bolt|\w+/tower_artillery|\w+/royal_stoa|hellenic_stoa|pers/inn|rome/tent|rome/arch)$")
+MAP_ONLY_STRUCTURE = re.compile(r"(^|/)(\w+/tower_bolt|\w+/tower_artillery|\w+/royal_stoa|hellenic_stoa|pers/inn|rome/tent|rome/arch"
+                                r"|pers/hall|pers/warehouse|gaul/tavern|maur/tower_double|kush/shrine|han/fortress_old|han/laozigate)$")
 
 def unit_parents(source, tpl):
     """The units/ templates a unit template inherits from, nearest first

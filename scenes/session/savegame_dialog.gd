@@ -329,17 +329,11 @@ func _fired(event: InputEvent, hotkey: String) -> bool:
 			return true
 	return false
 
-## SavegameDeleter deleteButtonTooltip: the keys bound to the delete hotkeys.
+## SavegameDeleter deleteButtonTooltip: every key bound to the delete hotkeys.
 func _delete_tooltip() -> String:
 	var keys: Dictionary = _hotkeys.call("get_hotkey_map") if _hotkeys else {}
-	var del: PackedStringArray = keys.get("session.savedgames.delete", PackedStringArray())
-	if del.is_empty():
-		return ""
-	var tip := L10n.sprintf(L10n.t("Delete the selected savegame using %(hotkey)s."), {"hotkey": "[%s]" % del[0]})
-	var skip: PackedStringArray = keys.get("session.savedgames.noconfirmation", PackedStringArray())
-	if not skip.is_empty():
-		tip += "\nHold [%s] to skip the confirmation dialog while deleting." % skip[0]
-	return tip
+	return L10n.sprintf(L10n.t("Delete the selected savegame using %(hotkey)s."), {"hotkey": ReplayPage.hotkey_text(keys, "session.savedgames.delete")}) + \
+		"\nHold %s to skip the confirmation dialog while deleting." % ReplayPage.hotkey_text(keys, "session.savedgames.noconfirmation")
 
 ## session.savedgames.noconfirmation held, from the key event's own modifiers when it names one.
 func _skip_confirmation(event: InputEventKey) -> bool:
@@ -461,7 +455,9 @@ func _build() -> void:
 	description.visible = mode == "save"
 	MatchSettings.prepare_line_edit(description)
 	description.text_changed.connect(func(_t): _description_changed = true)
-	description.text_submitted.connect(func(_t): confirm_pressed())
+	# SavegameWriter: Enter in the description always writes a new save; only the
+	# Save button overwrites the selected one.
+	description.text_submitted.connect(func(_t): _save_to(_new_name()))
 	left.add_child(description)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 12)

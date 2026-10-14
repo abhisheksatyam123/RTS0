@@ -41,8 +41,8 @@
 //     armour at impact; one landing on nothing misses; arrows at structures scatter.
 // 16. A ranged hunter shoots arrows at the animal (Attack.js PerformAttack); the one that
 //     kills it gives the archer its Loot xp and the archer goes on to gather the carcass.
-// 17. Poisoned and Burning damage counts as an attack by whoever applied it: the xp, the
-//     kill and the statistics go to them, and the source is saved.
+// 17. Poisoned and Burning damage counts as an attack by whoever applied it: the kill and
+//     the statistics go to them (no xp, as 0.28's HandleAttackEffects), and the source is saved.
 // 18. Germanic hero and champion auras: Boiorix gives his own soldiers within 60 m +5 m
 //     ranged and +2 m melee reach, Lugius costs enemy units and structures within 100 m
 //     20 m vision, the Seeress drains enemies within 15 m by 2 hp/s, down to death.
@@ -903,7 +903,8 @@ static void test_status_credit() {
 	std::printf("      poisoned swordsman dead %d; archer xp %d -> %d; player 0 kills %u -> %u\n", (int)!s.units_.alive[vi],
 			xp0, s.units_.xp[idx(s, archer)], kills0, s.stats_[0].enemy_units_killed[STAT_UNIT_TOTAL]);
 	check(!s.units_.alive[vi], "poison kills the swordsman");
-	check(s.units_.xp[idx(s, archer)] > xp0, "the poisoner gets the xp of the damage it did");
+	// helpers/Attack.js HandleAttackEffects: a StatusEffect's damage gives no xp.
+	check(s.units_.xp[idx(s, archer)] == xp0 && s.units_.xp_partial[idx(s, archer)] == 0.0f, "poison damage gives the poisoner no xp");
 	check(s.stats_[0].enemy_units_killed[STAT_UNIT_TOTAL] == kills0 + 1, "the kill counts for the poisoner's player");
 
 	// Saved and loaded, a status keeps its source.
@@ -919,6 +920,29 @@ static void test_status_credit() {
 	std::remove(path);
 	const int bv = idx(b, a_v);
 	check(bv >= 0 && b.units_.poison_src[bv] == a_arch && b.units_.poison_owner[bv] == 0, "the poison's source survives save and load");
+}
+
+static void test_reach_and_responses() {
+	std::printf("20. CanAttack heights\n");
+	// Attack.js CanAttack: a swordsman can't reach an archer on a wall's turret point (the
+	// height offset is more than its MaxRange), so it never picks that archer, even when shot.
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t wall = s.spawn_building_world(-40.0f, -40.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+		const uint32_t archer = s.spawn_unit(-40.0f, -37.0f, 0, UNIT_ARCHER);
+		s.order_garrison(&archer, 1, wall);
+		for (int k = 0; k < 200; ++k) s.tick(DT);
+		check(s.turret_holder_of(archer) == wall, "the archer stands on the wall");
+		const uint32_t sw = s.spawn_unit(-40.0f, -34.0f, 1, UNIT_SWORDSMAN, 1.0e6f);
+		bool went_for_archer = false;
+		for (int k = 0; k < 200; ++k) {
+			s.tick(DT);
+			if (s.units_.target_unit_id[idx(s, sw)] == archer) went_for_archer = true;
+		}
+		check(!s.unit_can_target((size_t)idx(s, sw), (size_t)idx(s, archer)), "the swordsman can't target the archer on the wall");
+		check(!went_for_archer, "the swordsman never goes for the archer, though it is shot at");
+	}
 }
 
 static void test_germanic_auras() {
@@ -1055,6 +1079,7 @@ int main() {
 	test_status_credit();
 	test_germanic_auras();
 	test_aura_stacking();
+	test_reach_and_responses();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

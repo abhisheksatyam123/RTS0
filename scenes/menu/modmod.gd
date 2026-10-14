@@ -36,6 +36,16 @@ var start_button: Button
 var message: Label
 var _picked := ""  # "enabled" or "disabled"
 
+## 0.28 modmod.js init with HasIncompatibleMods: the Mod Selection, and over
+## it gui/incompatible_mods (page_incompatible_mods.xml, incompatible_mods.txt).
+static func open_incompatible(parent: Node) -> Control:
+	var page := open(parent)
+	var msg := L10n.t("You tried to start the game with incompatible or missing mods!") + "\n\n" \
+		+ L10n.t("Solve the compatibility issue by disabling invalid mods or enabling required dependencies. You can then save & start the game.") + "\n\n" \
+		+ L10n.t("Incompatible mods will appear in red in the list of enabled mods (bottom panel). Dependencies can be added by enabling them in the upper panel.")
+	load("res://scenes/common/msgbox.gd").open(page, 700, 400, msg, L10n.t("Incompatible mods"), [L10n.t("Ok")])
+	return page
+
 static func open(parent: Node) -> Control:
 	var page = load("res://scenes/menu/modmod.gd").new()
 	page.name = "ModSelection"

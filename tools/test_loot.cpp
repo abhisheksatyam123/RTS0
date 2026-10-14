@@ -366,7 +366,9 @@ static void test_structures() {
 	a = res_of(s, 0);
 	s.collect_unit_loot(sw, 0, (size_t)idx_of(s, merc));
 	b = res_of(s, 0);
-	check(gained(a, b, std::floor((ml.food + 5) * rk), std::floor(ml.wood * rk), 0, std::floor(std::floor(ml.metal * 0.5f) * rk)),
+	// Loot.js GetResources: the rank (unit_advanced/unit_elite Loot multiply) and these modifiers
+	// together, multiplications first, floored once.
+	check(gained(a, b, std::floor(ml.food * rk + 5.0f), std::floor(ml.wood * rk), 0, std::floor(ml.metal * rk * 0.5f)),
 			"then its loot is metal x0.5, food +5");
 }
 

@@ -40,6 +40,11 @@
 //     with DistributeAround: a spiral from 1 m out, rings 1.75 m apart, points 9/pi m apart along a
 //     ring (at the crowd scale, PUSH_SCALE), handed out so that no two units would travel less by swapping.
 //     A unit on its own walks to the point itself.
+// 13. HandleObstructedMove on a long path: a walker obstructed within max(ShortPathSearchRange / 3,
+//     8 m) of its next long waypoint drops it for the one after; one further off plans its whole path
+//     again from where it stands on its third failed turn; within 16 m of its goal it does neither.
+//     The pressure speed floor is the template walk speed when that is slower than 1.5 m/s, so a
+//     unit slowed by a modifier still walks at the floor.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -468,6 +473,55 @@ int main() {
 		uint32_t lone = s->spawn_unit(20.0f, 20.0f, 0, UNIT_SPEARMAN, 0.0f);
 		s->cmd_move(&lone, 1, 25.0f, 25.0f);
 		CHECK(s->units_.target_x[idx(*s, lone)] == 25.0f && s->units_.target_z[idx(*s, lone)] == 25.0f, "a unit on its own walks to the point");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		s->spawn_building_world(20.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
+		uint32_t w = s->spawn_unit(0.0f, 0.5f, 0, UNIT_SPEARMAN, 0.0f);
+		s->cmd_move(&w, 1, 40.0f, 0.0f);
+		s->tick(DT);
+		const int wi = idx(*s, w);
+		const WaypointPath &wp = s->unit_paths_[wi];
+		auto put = [&](float x, float z) { s->units_.pos_x[wi] = x; s->units_.pos_z[wi] = z; };
+		const int count = wp.count;
+		const float x0 = wp.xs[0], z0 = wp.zs[0];
+		std::printf("  long path round a barracks: %d waypoints, the first (%.2f, %.2f)\n", count, x0, z0);
+		CHECK(count >= 2 && wp.cur == 0, "a walk round a barracks has a long path of two waypoints or more");
+		// Obstructed 1.5 from its next waypoint (within 8 m): it heads for the one after.
+		put(x0 - 1.5f, z0);
+		s->obstructed_long_path(wi, 1);
+		CHECK(wp.cur == 1 && s->units_.waypoint_cur[wi] == 1, "an obstructed walker drops a waypoint within 8 m");
+		// Obstructed off its path, below the barracks: nothing on turns one and two, a new path from
+		// where it stands on the third.
+		put(0.0f, 0.5f);
+		s->cmd_move(&w, 1, 40.0f, 0.0f);
+		s->tick(DT);
+		const int first_count = wp.count;
+		put(2.0f, -3.0f);
+		s->obstructed_long_path(wi, 1);
+		s->obstructed_long_path(wi, 2);
+		const bool kept = wp.cur == 0 && wp.count == first_count && wp.xs[0] == x0 && wp.zs[0] == z0;
+		s->obstructed_long_path(wi, 3);
+		std::printf("  re-planned from (2, -3): %d waypoints, the first (%.2f, %.2f), the last (%.2f, %.2f)\n",
+		            wp.count, wp.xs[0], wp.zs[0], wp.xs[wp.count - 1], wp.zs[wp.count - 1]);
+		CHECK(kept, "a walker off its path keeps it for two failed turns");
+		CHECK(wp.cur == 0 && wp.zs[0] < 0.0f && s->units_.waypoint_cur[wi] == 0 && s->units_.waypoint_count[wi] == wp.count &&
+		      std::hypot(wp.xs[wp.count - 1] - 40.0f, wp.zs[wp.count - 1]) < 0.5f,
+		      "and plans its path again from where it stands on the third");
+		// Within 16 m of its goal it paths straight there with short searches instead.
+		put(0.0f, 0.5f);
+		s->cmd_move(&w, 1, 40.0f, 0.0f);
+		s->tick(DT);
+		put(37.0f, 2.0f);
+		const int near_cur = wp.cur, near_count = wp.count;
+		s->obstructed_long_path(wi, 3);
+		CHECK(wp.cur == near_cur && wp.count == near_count, "within 16 m of its goal it does neither");
+		// The pressure floor: a walker slowed below 1.5 m/s by a modifier still walks at the floor.
+		s->units_.speed[wi] = 0.3f;
+		s->units_.motion[wi].pressure = 200;
+		std::printf("  a walker at 0.30 under pressure 200 moves at %.3f (floor %.3f)\n", s->unit_move_speed(wi), 1.5f * FORMATION_METRE);
+		CHECK(std::fabs(s->unit_move_speed(wi) - 1.5f * FORMATION_METRE) < 1e-4f, "the pressure floor is the template speed's, not the modified one's");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

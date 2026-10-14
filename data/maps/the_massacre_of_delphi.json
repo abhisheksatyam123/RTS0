@@ -13373,6 +13373,13 @@
       "x": 45.51,
       "z": -44.3,
       "template": "athen/royal_stoa"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -70.8,
+      "z": 55.23,
+      "template": "gaul/tavern"
     }
   ],
   "units": [
