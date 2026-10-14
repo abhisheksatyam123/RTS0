@@ -331,6 +331,16 @@ public:
 		return true;
 	}
 
+	// A message from the local player that isn't typed (the developer overlay's
+	// notices): shown as their chat line, and sent to the other players.
+	void post_own(const String &text) {
+		if (!log_ || !host_) return;
+		const String line = format_line("", host_->chat_user(""), text);
+		log_->append_text(stamp() + line + "\n");
+		post_overlay(stamp() + line);
+		if (host_->net_lockstep()) host_->chat_send_wire(text.utf8().get_data());
+	}
+
 	// Raw bbcode line (Petra log, diplomacy/tribute feedback).
 	void append_line(const String &bbcode) {
 		const String line = bbcode.is_empty() ? bbcode : stamp() + bbcode;

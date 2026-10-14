@@ -115,7 +115,18 @@ func run() -> void:
 	check(Mods.load_enabled_packs(DIR) == ["alpha"], "Alpha's pack loads")
 	check(FileAccess.get_file_as_string("res://rts0_mod_probe.txt") == "alpha", "its file is in the game's files")
 	cfg.set_value(Mods.CONFIG_KEY, "mod public beta")
-	check(Mods.load_enabled_packs(DIR) == [], "Beta without Alpha doesn't load")
+	check(Mods.load_enabled_packs(DIR) == [] and Mods.incompatible == ["beta"], "Beta without Alpha doesn't load, and is incompatible")
+	cfg.set_value(Mods.CONFIG_KEY, "mod public alpha gone")
+	check(Mods.load_enabled_packs(DIR) == [] and Mods.incompatible == ["gone"],
+		"a missing mod loads none of them (CheckAndEnableMods): " + str(Mods.incompatible))
+	var host := Control.new()
+	root.add_child(host)
+	var inc = load("res://scenes/menu/modmod.gd").open_incompatible(host)
+	await process_frame
+	var box = inc.find_child("MsgBox", true, false)
+	check(box != null and box.title == "Incompatible mods" and box.message.begins_with("You tried to start the game with incompatible or missing mods!")
+		and box.captions == ["Ok"], "the Mod Selection opens with the Incompatible mods notice")
+	host.queue_free()
 
 	cfg.set_value(Mods.CONFIG_KEY, saved)
 	cfg.save()

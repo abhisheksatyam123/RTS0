@@ -4327,7 +4327,8 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 // footprint, the first row half a gap out, as far as MaxSpawnDistance (7 m, x0.28); a circle has
 // rings of 6 * (dist + row) points instead of the square's rows. Each row is walked from the point
 // nearest the rally point (the front without one), alternating either way round; the first point
-// whose navcell the unit's passability allows and where no other unit stands wins
+// whose navcell the unit's passability allows, a land unit's class clearance off deep water as on its
+// steps (the expanded grid CheckUnitPlacement tests), and where no other unit stands wins
 // (CheckUnitPlacement). dry_ground also rejects points under the water line (the siege landing rule).
 bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
 		bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
@@ -4392,12 +4393,14 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 				y >= dist_y ? dist_y + r : y <= -dist_y ? -dist_y - r : y);
 	}
 	const uint8_t pass = unit_is_ship(type) ? PASS_SHIP : PASS_INFANTRY;
+	const float clearance = unit_building_clearance(CIV_UNIT_TEMPLATE_COUNT, type);
 	auto free_at = [&](float px, float pz) {
 		if (std::fabs(px) >= map_half_ - rad || std::fabs(pz) >= map_half_ - rad) return false;
 		if (dry_ground && get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) return false;
 		if (!nav_grid_.cells.blank()) {
 			const auto [gx, gy] = nav_grid_.world_to_cell(px, pz);
 			if (!nav_grid_.is_passable_for(gx, gy, pass)) return false;
+			if (pass == PASS_INFANTRY && near_deep_water(px, pz, clearance)) return false;
 		}
 		for (size_t j = 0; j < units_.count; ++j) {
 			if (!units_.alive[j] || units_.id[j] == skip_uid) continue;
@@ -6161,8 +6164,9 @@ bool Simulation::nearest_water_for_ship(size_t ship, float x, float z, float &ou
 	return true;
 }
 
-// PickSpawnPoint for a ship: the nearest dry ground within loading reach of its
-// hull, scanned in a fixed order so every peer picks the same spot. For a passenger it is
+// PickSpawnPoint for a ship: the nearest dry ground within loading reach of its hull, the
+// passenger's class clearance off deep water (CheckUnitPlacement's expanded grid; infantry's when no
+// passenger is named), scanned in a fixed order so every peer picks the same spot. For a passenger it is
 // the nearest such spot where its body overlaps no unit standing ashore and no passenger
 // already set down (`taken`), as Footprint.PickSpawnPoint skips obstructed points; when the
 // shore is full there is none, and the passenger stays aboard.
@@ -6172,6 +6176,7 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 	const float reach = SHIP_LOADING_RANGE + unit_collision_radius(units_.unit_type[ship]) + 0.5f;
 	const bool spread = passenger < units_.count;
 	const float pr = spread ? unit_collision_radius(units_.unit_type[passenger]) : 0.0f;
+	const float pc = spread ? unit_clearance_at(passenger) : CLEARANCE_DEFAULT;
 	std::vector<SpawnSpot> ashore;
 	if (spread) {
 		for (size_t i = 0; i < units_.count; ++i) {
@@ -6210,6 +6215,7 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 			// The passengers' own passability (PickSpawnPoint): not a cliff a footman can't stand on,
 			// where separation would shove them back into the sea.
 			if (!nav_grid_.cells.blank() && nav_grid_.cells.inside(nx, ny) && !nav_grid_.is_passable_for(nx, ny, PASS_INFANTRY)) continue;
+			if (near_deep_water(cx, cz, pc)) continue;
 			if (std::any_of(hulls.begin(), hulls.end(), [&](const Hull &h) {
 				    return (h.x - cx) * (h.x - cx) + (h.z - cz) * (h.z - cz) < h.r2; }))
 				continue;
@@ -7930,15 +7936,21 @@ void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, si
 			unit_is_healer(units_.tmpl[victim], units_.unit_type[victim]))
 		loot.metal = 0;
 	// Loot/<res> technologies of the victim's owner on its roster template (Celtic Auxiliaries).
+	// Loot.js GetResources applies every Loot modifier, the rank's included, then floors once
+	// (multiplications before additions, as GetTechModifiedProperty).
+	float rank_mult = loot_rank_multiplier(units_.rank[victim]);
 	if (owner < MAX_PLAYERS && units_.tmpl[victim] < CIV_UNIT_TEMPLATE_COUNT && !loot_denied_unit(victim)) {
 		const TechMods::Template &tm = tech_mods(owner).tmpl[units_.tmpl[victim]];
-		loot.food = (uint16_t)std::max(0.0f, std::floor(loot.food * tm.loot_mul[RES_FOOD] + tm.loot_add[RES_FOOD]));
-		loot.wood = (uint16_t)std::max(0.0f, std::floor(loot.wood * tm.loot_mul[RES_WOOD] + tm.loot_add[RES_WOOD]));
-		loot.stone = (uint16_t)std::max(0.0f, std::floor(loot.stone * tm.loot_mul[RES_STONE] + tm.loot_add[RES_STONE]));
-		loot.metal = (uint16_t)std::max(0.0f, std::floor(loot.metal * tm.loot_mul[RES_GOLD] + tm.loot_add[RES_GOLD]));
+		auto mod = [&](uint16_t v, int r) {
+			return (uint16_t)std::max(0.0f, std::floor((float)v * rank_mult * tm.loot_mul[r] + tm.loot_add[r]));
+		};
+		loot.food = mod(loot.food, RES_FOOD);
+		loot.wood = mod(loot.wood, RES_WOOD);
+		loot.stone = mod(loot.stone, RES_STONE);
+		loot.metal = mod(loot.metal, RES_GOLD);
+		rank_mult = 1.0f;
 	}
-	collect_loot(looter_id, looter_player, loot, loot_rank_multiplier(units_.rank[victim]),
-			units_.res_type_carried[victim], units_.carry[victim]);
+	collect_loot(looter_id, looter_player, loot, rank_mult, units_.res_type_carried[victim], units_.carry[victim]);
 }
 
 void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
@@ -8494,7 +8506,8 @@ float Simulation::unit_base_walk_speed(size_t i) const {
 
 // CCmpUnitMotion::PerformMove: pushing pressure (separation) slows a unit down, not at all up to
 // 10, to the floor at 175, so crowds move slower. The floor is 1.5 m/s at the rosters' speed scale,
-// or the unit's own walk speed if that is slower.
+// or the unit's template walk speed if that is slower (m_TemplateWalkSpeed: before technologies,
+// auras and running).
 float Simulation::unit_move_speed(size_t i) const {
 	float spd = unit_walk_speed(i);
 	const int pressure = units_.motion[i].pressure;
@@ -8503,7 +8516,7 @@ float Simulation::unit_move_speed(size_t i) const {
 		constexpr float FLOOR_SPEED = 1.5f * FORMATION_METRE;
 		const int slowdown = MAX_SLOWDOWN - std::min(MAX_SLOWDOWN, std::max(0, pressure - MIN_THRESHOLD));
 		spd *= (float)slowdown / (float)MAX_SLOWDOWN;
-		spd = std::max(std::min(units_.speed[i], FLOOR_SPEED), spd);
+		spd = std::max(std::min(unit_info_at(i).speed, FLOOR_SPEED), spd);
 	}
 	return spd;
 }
@@ -9196,6 +9209,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 // that is within the search range, as ComputeGoal shapes it, so a worker finds a free spot beside a
 // tree others already stand at. A walker already within reach of its task (walk_in_reach) stays where
 // it is instead. Ships are left to separation().
+// CCmpUnitMotion::ShortPathSearchRange: 12 m, 4 m more for each failed turn after the first, at
+// most 56 m (map lengths: 4 m a unit).
+static float short_path_search_range(uint8_t failed) {
+	constexpr float RANGE_MIN = 12.0f / 4.0f, RANGE_STEP = 4.0f / 4.0f, RANGE_MAX = 56.0f / 4.0f;
+	return std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1));
+}
+
 void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, const float *aim_x, const float *aim_z,
 		float *npx, float *npz, float *want_x, float *want_z, uint8_t *blocked) {
 	const size_t n = units_.count;
@@ -9224,7 +9244,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	if (!crew) return;
 	for (size_t i = 0; i < n; ++i) crew[i] = control_group(i);
 
-	constexpr float RANGE_MIN = 12.0f / 4.0f, RANGE_STEP = 4.0f / 4.0f, RANGE_MAX = 56.0f / 4.0f; // map lengths: 4 m a unit
+	constexpr float RANGE_MAX = 56.0f / 4.0f; // map lengths: 4 m a unit
 	constexpr float RANGE_CORNER = 32.0f / 4.0f; // a search on from a corner
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(0.2f / dt)); // 0 A.D. turns last 200 ms
 	const uint32_t key = idle_path_key(), corner_key = idle_corner_key(), stuck_key = idle_stuck_key();
@@ -9405,8 +9425,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		// structure beside the units in the way, as 0 A.D.'s nearer subgoals (the next long waypoint,
 		// at most 11 m on) seldom do, a short search finds nothing, turn after turn.
 		const float range = from_corner ? RANGE_CORNER
-				: std::max(no_way ? RANGE_CORNER : 0.0f,
-				           std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1)));
+				: std::max(no_way ? RANGE_CORNER : 0.0f, short_path_search_range(failed));
 		thread_local std::vector<nav::ShortPathSquare> squares;
 		squares.clear();
 		const float cull = range * 1.6f + c_max;
@@ -9947,8 +9966,9 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		if (++m.failed >= FAILED_AT) {
 			move_failed = true;
 			m.failed = 0;
-		} else if (m.failed < OBSTRUCTED_AT) {
-			continue;
+		} else {
+			if (formations_.empty() || formation_group_[i] == 0) obstructed_long_path(i, m.failed);
+			if (m.failed < OBSTRUCTED_AT) continue;
 		}
 		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
 		if (!formations_.empty() && formation_group_[i] != 0) continue;
@@ -10041,6 +10061,40 @@ bool Simulation::chase_falls_short(size_t i) const {
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
 	return structure_gap(b, ex, ez, unit_clearance_at(i)) > reach;
+}
+
+// HandleObstructedMove's fixes for a unit obstructed on its way along a long path, more than
+// LONG_PATH_MIN_DIST (16 m) from where it is going (nearer, 0 A.D. paths straight to the goal, as
+// avoid_idle_units' search does): the next waypoint, when others follow it and it lies within
+// max(ShortPathSearchRange / 3, 8 m), is dropped, since units may stand on it; else on the third
+// failed turn (ShouldAlternatePathfinder) the whole path is planned again from where the unit
+// stands, in case it went down a dead end.
+void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
+	if (i >= unit_paths_.size()) return;
+	WaypointPath &wp = unit_paths_[i];
+	const int cnt = units_.waypoint_count[i], cur = units_.waypoint_cur[i];
+	if (cnt <= 0 || cnt != wp.count || cur < 0 || cur >= cnt) return;
+	const float x = units_.pos_x[i], z = units_.pos_z[i];
+	const float goal_x = wp.has_goal ? wp.goal_x : units_.target_x[i], goal_z = wp.has_goal ? wp.goal_z : units_.target_z[i];
+	constexpr float LONG_PATH_MIN_DIST = 16.0f / 4.0f, SKIP_MIN = 8.0f / 4.0f; // map lengths: 4 m a unit
+	if ((goal_x - x) * (goal_x - x) + (goal_z - z) * (goal_z - z) < LONG_PATH_MIN_DIST * LONG_PATH_MIN_DIST) return;
+	const float skip = std::max(short_path_search_range(failed) / 3.0f, SKIP_MIN);
+	const float wx = wp.xs[cur] - x, wz = wp.zs[cur] - z;
+	if (cur + 1 < cnt && wx * wx + wz * wz < skip * skip) {
+		units_.waypoint_cur[i] = static_cast<int16_t>(cur + 1);
+		wp.cur = cur + 1;
+		return;
+	}
+	if (failed != 3) return; // ALTERNATE_PATH_TYPE_DELAY
+	const uint8_t ut = units_.unit_type[i];
+	const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
+	const bool has_goal = wp.has_goal;
+	find_path(x, z, goal_x, goal_z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : mounted ? PASS_CAVALRY : PASS_INFANTRY);
+	wp.has_goal = has_goal;
+	wp.goal_x = goal_x;
+	wp.goal_z = goal_z;
+	units_.waypoint_cur[i] = static_cast<int16_t>(wp.cur);
+	units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
 }
 
 // A walk, attack-move or patrol leg whose unit has walked all of its long path, which ends short of
@@ -13409,6 +13463,8 @@ void Simulation::tick_trickle(float dt) {
 			} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
 				// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
 				rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
+			} else if (b.type == BLD_TACHARA) {
+				// structures/pers/tachara.xml: every Rate 0, which modifiers can still raise.
 			} else {
 				continue;
 			}
@@ -13426,6 +13482,11 @@ void Simulation::tick_trickle(float dt) {
 					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
 				}
 			}
+			// Global auras with no classes (Macedonian Financial Reorganization, +1 metal) modify
+			// every owned ResourceTrickle that lists the resource: the wonder's and each tachara's
+			// Rates name all four; the ice house's names food only.
+			if (b.type != BLD_ICE_HOUSE)
+				for (int r = 0; r < RES_COUNT; ++r) rate[r] += tech_mods_[b.team].trickle_add[r];
 			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += rate[r];
 		}
 	}
@@ -14858,6 +14919,20 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		return true;
 	case CHEAT_REVEAL_MAP: // "jame jam": SetLosRevealAll(-1)
 		set_reveal_map(true);
+		return true;
+	case CHEAT_DEV_REVEAL_MAP: // Commands.js "reveal-map": SetLosRevealAll(-1, cmd.enable)
+		set_reveal_map(parameter != 0);
+		return true;
+	case CHEAT_DEV_PROMOTE: // Commands.js "promote": each own unit gains the xp its next rank needs (IncreaseXp)
+		for (size_t k = 0; k < count; ++k) {
+			const int32_t i = lookup_unit(selected[k]);
+			if (i < 0 || !units_.alive[i] || units_.team[i] != player) continue;
+			const float need = promotion_required_xp((size_t)i);
+			if (need < 0.0f) continue;
+			units_.xp[i] = (uint16_t)std::min(65535.0f, std::ceil(need));
+			units_.xp_partial[i] = 0.0f;
+			promote_if_due((size_t)i);
+		}
 		return true;
 	case CHEAT_CONVERT_UNITS: { // "wololo": to the given player, else to yourself
 		const uint8_t to = (parameter >= 0 && parameter < MAX_PLAYERS) || parameter == GAIA_PLAYER ? (uint8_t)parameter : player;
@@ -23880,6 +23955,7 @@ void Simulation::petra_manage_defense(float dt) {
 	// checkEnemyUnits: an enemy fighter not yet in an army that isDangerous starts or joins one.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || !petra_foe(units_.team[i]) || army_of_foe(units_.id[i]) >= 0) continue;
+		if (unit_is_ship(units_.unit_type[i])) continue; // "TODO what to do for ships ?": Ships and Traders are skipped
 		if (petra_is_support_unit(units_.unit_type[i]) || (unit_tech_classes(units_.unit_type[i]) & TC_HEALER) ||
 		    (units_.attack_damage[i] <= 0.0f && unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) <= 0.0f)) continue;
 		const int terr = territory_owner_at(units_.pos_x[i], units_.pos_z[i]); // -1 neutral
@@ -23906,14 +23982,20 @@ void Simulation::petra_manage_defense(float dt) {
 		if (dangerous) make_into_army(units_.id[i]);
 	}
 
-	// isDangerous: whoever stands by a structure of the targetList.
+	// isDangerous: in neutral or allied land (checkEnemyUnits skips ships and traders), a
+	// builder of a structure of the targetList, or a fighter within dist2Min of one (6000 m²,
+	// a ranged unit its range + 30 m); support units only while they build.
 	for (const auto &b : buildings_) {
 		if (!defense_target(b)) continue;
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
-			float dx = units_.pos_x[i] - b.x;
-			float dz = units_.pos_z[i] - b.z;
-			if (dx * dx + dz * dz <= 18.0f * 18.0f) make_into_army(units_.id[i]);
+			if (!units_.alive[i] || !petra_foe(units_.team[i]) || unit_is_ship(units_.unit_type[i])) continue;
+			const int owner = territory_owner_at(units_.pos_x[i], units_.pos_z[i]);
+			if (owner >= 0 && (owner >= MAX_PLAYERS || !is_ally(petra_pid_, (uint8_t)owner))) continue;
+			const bool building = units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] == b.id;
+			if (!building && (petra_is_support_unit(units_.unit_type[i]) || (units_.attack_damage[i] <= 0.0f &&
+			    unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) <= 0.0f))) continue;
+			const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+			if (building || dx * dx + dz * dz < danger_reach2(i)) make_into_army(units_.id[i]);
 		}
 	}
 	// checkEnemyUnits on our own turn: with no army about, the first structure of ours not

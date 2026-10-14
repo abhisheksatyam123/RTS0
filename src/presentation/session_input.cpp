@@ -300,6 +300,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			rtso::user_config::save();
 			refresh_user_options();
 		};
+		if (fired("session.devcommands.toggle")) { toggle_dev_overlay(); return; }
 		if (fired("session.toggleattackrange")) { toggle_overlay("gui.session.attackrange"); return; }
 		if (fired("session.toggleaurasrange")) { toggle_overlay("gui.session.aurasrange"); return; }
 		if (fired("session.togglehealrange")) { toggle_overlay("gui.session.healrange"); return; }
