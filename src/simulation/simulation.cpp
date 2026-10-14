@@ -20648,7 +20648,6 @@ void Simulation::petra_set_rushes() {
 	}
 	// startingStrategy.js gameStart: under 6000 wood, saveResources and an earlier town phase.
 	m.save_resources = wood < 6000.0f ? 1 : 0;
-	if (petra_config_.difficulty < PETRA_EASY) return;
 	int allowed = (int)std::ceil((wood - 8500.0f) / 3000.0f);
 	if (ceasefire_remaining() > 900.0f) allowed = 0;
 	else if (ceasefire_remaining() > 600.0f && allowed > 1) allowed = 1;
@@ -21221,8 +21220,9 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// Rushes take infantry and citizen cavalry (attackPlan.js Rush unitStat), no siege.
 			// assignUnits: worker soldiers past the first 8 (popScaling) join a rush. Other attacks
 			// take them only when idle in 0 A.D.; here a new worker stands idle until the economy
-			// gives it work, so they take none.
-			const int keep_workers = (int)std::lround(petra_config_.pop_scaling * 8.0f);
+			// gives it work, so they take none. At Easy and below no plan takes workers.
+			const int keep_workers = petra_config_.difficulty <= PETRA_EASY ? INT32_MAX
+			                         : (int)std::lround(petra_plan_pop_scaling() * 8.0f);
 			int seen_workers = 0;
 			for (size_t i = 0; i < units_.count; ++i) {
 				if (squad.size() >= (size_t)std::max(1, mgr.target_size)) break;
@@ -23412,6 +23412,8 @@ void Simulation::petra_manage_defense(float dt) {
 	// switchDefenseToAttack with uniqueTarget), starting where the army stands.
 	auto switch_to_attack = [&](PetraDefenseArmy &a) {
 		if (petra_army_capturing(a)) return; // only a "default" army
+		// Sandbox runs no attackManager (headquarters.js:2335): such a plan would never march.
+		if (petra_config_.difficulty == PETRA_SANDBOX) return;
 		for (const Building &b : buildings_) {
 			if (!defense_target(b)) continue;
 			const uint16_t land = petra_land_at(b.x, b.z);
