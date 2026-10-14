@@ -50,6 +50,8 @@ public:
 		return client_id < MAX_PLAYERS ? (uint8_t)client_id : (uint8_t)0xFF;
 	}
 	uint8_t local_player() const { return player_for_client(local_client_id_); }
+	// The developer overlay's Change perspective has re-seated this client (offline too).
+	bool perspective_changed() const { return perspective_changed_; }
 	// Seat lockstep clients from NMT_GAME_START: client k takes the k-th human
 	// ('h') slot, so host 0 gets the first one and joiner 1 the second. Both
 	// peers run this on the same setup, so they agree. A client with no human
@@ -350,6 +352,7 @@ public:
 
 private:
 	bool record_applied_ = false;
+	bool perspective_changed_ = false;
 	std::vector<AppliedCommand> applied_cmds_;
 	uint32_t current_turn_ = 0;
 	float turn_timer_ = 0.0f;

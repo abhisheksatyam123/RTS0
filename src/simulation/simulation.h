@@ -699,7 +699,9 @@ public:
 		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META,
 		CHEAT_MAX_POPULATION, CHEAT_CHANGE_MAX_POPULATION, CHEAT_FAST_ACTIONS,
 		// The developer overlay's commands (Commands.js "reveal-map" with its enable flag, "promote").
-		CHEAT_DEV_REVEAL_MAP, CHEAT_DEV_PROMOTE, CHEAT_COUNT
+		// CHEAT_DEV_PERSPECTIVE (Change perspective: Engine.SetPlayerID) is applied by the
+		// TurnManager, which seats the sender as `parameter` (0xFF: observer).
+		CHEAT_DEV_REVEAL_MAP, CHEAT_DEV_PROMOTE, CHEAT_DEV_PERSPECTIVE, CHEAT_COUNT
 	};
 	// Per-player state of the population and fast-actions cheats (padding-free for saves).
 	struct CheatMods {
@@ -1332,6 +1334,7 @@ public:
 		float x, z;     // centre
 		float rot;      // Position angle: a segment's length lies along its u axis
 		float half_w;   // half its length (a segment) or its half size (a tower)
+		uint8_t civ = CIV_COUNT; // the template civ whose WallSet it is from (CIV_COUNT: the generic one)
 	};
 	// The pieces of a `kind` (WallSetKind) wall from (sx, sz) to (ex, ez), in order along it: a
 	// tower at each end, none where that end snaps onto one of `player`'s towers of that WallSet
@@ -1470,6 +1473,10 @@ public:
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
+	// What cmd_build_wall pays for a planned WallSet piece (its length's own cost).
+	void wall_piece_cost(uint8_t player, const WallPiece &p, float out[RES_COUNT]) const {
+		structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), out);
+	}
 	float structure_build_time_for(uint8_t player, uint8_t type) const;
 	int pop_current(uint8_t player = 0) const;
 	int pop_max(uint8_t player = 0) const;
