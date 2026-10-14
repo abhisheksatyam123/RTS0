@@ -535,19 +535,31 @@ func delete_selected() -> void:
 	load_replays()
 	select_replay(mini(index, _replays.size() - 1)) # the replay that took its place
 
-## Tab in the player filter: complete the last word from the players' names.
+## Tab in the player filter (autoCompleteText): complete the word at the caret, only
+## when exactly one player name starts with it. The list re-filters on Enter.
 func autocomplete_player() -> void:
-	var words := _players_filter.text.split(" ")
+	var text := _players_filter.text
+	var caret := _players_filter.caret_column
+	var completed := try_auto_complete(text.substr(0, caret), _player_names)
+	_players_filter.text = completed + text.substr(caret)
+	_players_filter.caret_column = caret + completed.length() - caret
+
+## tryAutoComplete: the last word of text, completed to the only name it starts.
+static func try_auto_complete(text: String, names: Array) -> String:
+	var words := text.split(" ")
 	var last := words[words.size() - 1].to_lower()
 	if last == "":
-		return
-	for n in _player_names:
-		if n.to_lower().begins_with(last):
-			words[words.size() - 1] = n
-			_players_filter.text = " ".join(words)
-			_players_filter.caret_column = _players_filter.text.length()
-			display_replay_list()
-			return
+		return text
+	var matching := []
+	for n in names:
+		if str(n).to_lower().begins_with(last):
+			matching.append(n)
+			if matching.size() > 1:
+				return text
+	if matching.size() != 1:
+		return text
+	words[words.size() - 1] = str(matching[0])
+	return " ".join(words)
 
 # --- Page ------------------------------------------------------------------------------
 
@@ -754,16 +766,20 @@ func _build() -> void:
 	_singleplayer_filter.clear()
 	_refill(_singleplayer_filter, SINGLEPLAYER)
 
-## initHotkeyTooltips: the keys bound to session.savedgames.delete and .noconfirmation.
+## initHotkeyTooltips: colorizeHotkey lists every combination bound to
+## session.savedgames.delete and .noconfirmation, shortest first.
 func _delete_tooltip() -> String:
-	var del := _hotkey_combos("session.savedgames.delete")
-	if del.is_empty():
-		return ""
-	var tip := "Delete the selected replay using [%s]." % del[0]
-	var skip := _hotkey_combos("session.savedgames.noconfirmation")
-	if not skip.is_empty():
-		tip += "\nHold [%s] to skip the confirmation dialog while deleting." % skip[0]
-	return tip
+	var keys: Dictionary = _hotkeys.call("get_hotkey_map") if _hotkeys else {}
+	return "Delete the selected replay using %s." % hotkey_text(keys, "session.savedgames.delete") + \
+		"\nHold %s to skip the confirmation dialog while deleting." % hotkey_text(keys, "session.savedgames.noconfirmation")
+
+## colorizeHotkey: "[Delete, Backspace]", or "[Unassigned hotkey: name]" when nothing is bound.
+static func hotkey_text(keys: Dictionary, hotkey: String) -> String:
+	var combos := Array(keys.get(hotkey, PackedStringArray()))
+	if combos.is_empty():
+		return "[Unassigned hotkey: %s]" % hotkey
+	combos.sort_custom(func(a, b): return str(a).length() < str(b).length())
+	return "[%s]" % ", ".join(PackedStringArray(combos))
 
 func _hotkey_combos(hotkey: String) -> PackedStringArray:
 	return _hotkeys.call("get_hotkey_map").get(hotkey, PackedStringArray()) if _hotkeys else PackedStringArray()
