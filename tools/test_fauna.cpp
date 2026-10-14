@@ -961,6 +961,42 @@ int main() {
 		CHECK(s.find_nearby_prey((size_t)uidx(s, h), -30.0f, 28.0f, 400.0f) == far_deer);
 	}
 
+	{
+		// j. Animals use the long pathfinder (UnitMotion): out of a pocket of houses and round it.
+		auto pocket = [](Simulation &sim) {
+			// A U of houses open to -x: back row at x = 8, arms along z = +-8 back to x = -2.
+			for (int k = -4; k <= 4; ++k) sim.spawn_building_world(8.0f, 2.0f * k, BLD_HOUSE, 0, 1.0f);
+			for (int k = 0; k < 5; ++k) {
+				sim.spawn_building_world(6.0f - 2.0f * k, 8.0f, BLD_HOUSE, 0, 1.0f);
+				sim.spawn_building_world(6.0f - 2.0f * k, -8.0f, BLD_HOUSE, 0, 1.0f);
+			}
+		};
+		fresh(s);
+		pocket(s);
+		uint32_t ewe = s.spawn_fauna(4.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.order_fauna_walk(1, &ewe, 1, 16.0f, 0.0f);
+		run(s, 40.0f);
+		int32_t e = fidx(s, ewe);
+		std::printf("pathing: ewe ended at (%.1f, %.1f) for (16, 0)\n", s.fauna_.pos_x[e], s.fauna_.pos_z[e]);
+		CHECK(std::hypot(s.fauna_.pos_x[e] - 16.0f, s.fauna_.pos_z[e]) < 1.0f);
+		// A wolf in the pocket chases a soldier standing behind it.
+		fresh(s);
+		pocket(s);
+		uint32_t u = s.spawn_unit(16.0f, 0.0f, 1, UNIT_SPEARMAN);
+		s.order_set_stance(&u, 1, STANCE_STAND_GROUND);
+		uint32_t wolf = s.spawn_fauna(4.0f, 0.0f, FAUNA_WOLF);
+		s.fauna_start_attack((size_t)fidx(s, wolf), u);
+		float closest = 1e9f;
+		for (int t = 0; t < 600 && f_alive(s, wolf); ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			const int32_t w = fidx(s, wolf), ui = uidx(s, u);
+			if (w < 0 || ui < 0) break;
+			closest = std::min(closest, std::hypot(s.fauna_.pos_x[w] - s.units_.pos_x[ui], s.fauna_.pos_z[w] - s.units_.pos_z[ui]));
+		}
+		std::printf("pathing: wolf got within %.1f of the spearman\n", closest);
+		CHECK(closest < fauna_type_info(FAUNA_WOLF).attack_range + 1.0f);
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;
