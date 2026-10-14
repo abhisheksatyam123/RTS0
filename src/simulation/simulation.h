@@ -214,6 +214,8 @@ public:
 		if (player < MAX_PLAYERS && ((defeated_mask_ >> player) & 1)) return revealed_fow_.data();
 		// So does a multiplayer observer, which has no player (0xFF).
 		if (player == 0xFF) return revealed_fow_.data();
+		// Player.js: the winners' map is revealed too (SetLosRevealAll).
+		if (player < MAX_PLAYERS && is_victory_for(player) && !revealed_fow_.empty()) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
 		return unexplored_fow_.data();
@@ -512,6 +514,8 @@ public:
 	void set_resource_flora(uint32_t res_id, uint8_t flora);
 	// Map generation only: moves a resource before the nav grid is built.
 	void set_resource_position(uint32_t res_id, float x, float z);
+	// Map generation only: moves an animal (and the spot it roams round).
+	void set_fauna_position(uint32_t fauna_id, float x, float z);
 	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
 	// less than TREE_WOOD_SUPPLY. A regrowing supply (fruit) moves its Max with it.
 	void set_resource_amount(uint32_t res_id, int32_t amount);
