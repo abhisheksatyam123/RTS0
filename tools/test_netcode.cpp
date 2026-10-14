@@ -704,6 +704,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     if (loss > 0.0f) net.set_simulated_loss(loss, seed ^ (host ? 0x1111u : 0x2222u));
     net.setLocalPlayerName(opt.name);
     net.setPassword(opt.password);
+    // Peers not given a --name are all "peer"; 0.28's network.duplicateplayernames
+    // lets them in as "peer (2)" and so on.
+    net.setDuplicatePlayerNames(true);
     bool ok = host ? net.startHost([&] { NetConfig c; c.port = port; return c; }())
                    : net.startClient("127.0.0.1", port);
     if (!ok) { std::fprintf(stderr, "[net-peer] socket start failed\n"); return 3; }
