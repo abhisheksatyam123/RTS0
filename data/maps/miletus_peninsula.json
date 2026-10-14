@@ -19678,6 +19678,78 @@
       "type": "shark",
       "x": -126.68,
       "z": -34.81
+    },
+    {
+      "type": "sheep",
+      "x": -40.4,
+      "z": -47.54,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -41.24,
+      "z": -49.41,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -41.57,
+      "z": -51.03,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -40.54,
+      "z": -50.06,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -40.01,
+      "z": -48.74,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -10.88,
+      "z": 13.6,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": -12.05,
+      "z": 11.36,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": -11.29,
+      "z": 8.97,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": -9.22,
+      "z": 9.76,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": -9.46,
+      "z": 12.44,
+      "player": 2
+    },
+    {
+      "type": "cattle_cow",
+      "x": 6.5,
+      "z": -100.67,
+      "player": 1
+    },
+    {
+      "type": "cattle_cow",
+      "x": 26.2,
+      "z": 77.51,
+      "player": 2
     }
   ],
   "structures": [

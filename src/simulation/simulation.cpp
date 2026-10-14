@@ -1178,7 +1178,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "desert") == 0 || std::strcmp(minfo.biome, "persia") == 0) cfg.biome = BIOME_OASIS;
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
-	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
+	const int biome_pick = map_biome_pick(type);
+	if (biome_pick >= 0) cfg.biome = (BiomeType)biome_pick;
 	cfg.team_placement = team_placement_;
 	cfg.landscape = map_landscape_;
 	cfg.trigger_difficulty = trigger_difficulty_;
@@ -1199,11 +1200,11 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 			map_daytime_ = first ? 1 : 2;
 		}
 	}
-	if (biome_override_ >= 0) {
+	if (biome_pick >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
 				"steppe", "savanna", "polar", "india"};
-		current_map_biome_ = kBiomeNames[biome_override_];
+		current_map_biome_ = kBiomeNames[biome_pick];
 	}
 	// 0 A.D. per-tile terrain textures from the final biome.
 	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
@@ -9434,6 +9435,15 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		}
 		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
 		if (!formations_.empty() && formation_group_[i] != 0) continue;
+		// GATHER APPROACHING MovementUpdate with likelyFailure: FINDINGNEWTARGET, which goes on to
+		// the next order, another resource of the kind nearby (not the one it couldn't reach) or the
+		// dropsite. A boat's fish are on its own sea, so its walks to them don't fail this way.
+		if (move_failed && units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
+				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i])) {
+			m.failed = 0;
+			finish_order(i, true);
+			continue;
+		}
 		// A chase gives up on MoveFailed (UnitAI COMBAT.APPROACHING / CHASING MovementUpdate with
 		// likelyFailure). UnitMotion fails it within two turns once its long path can't reach the
 		// target (the short-path hack sets m_FailedMovements to MAX_FAILED_MOVEMENTS - 2).
@@ -13386,11 +13396,13 @@ void Simulation::patrol_next_leg(size_t i) {
 	apply_order(units_.id[i], back);
 }
 
-void Simulation::finish_order(size_t i) {
+// find_new_target: a gather order whose resource is still there ends as one whose resource is gone
+// (GATHER FINDINGNEWTARGET), as when the walk to it failed.
+void Simulation::finish_order(size_t i, bool find_new_target) {
 	const uint32_t uid = units_.id[i];
 	auto queued = order_queues_.find(uid);
-	if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i)) && queued != order_queues_.end() &&
-			!queued->second.empty()) {
+	const bool finding = units_.order_kind[i] == ORDER_GATHER && (find_new_target || !order_still_valid(i, current_order(i)));
+	if (finding && queued != order_queues_.end() && !queued->second.empty()) {
 		// GATHER FINDINGNEWTARGET: FinishOrder comes first. A unit carrying a load drops it
 		// off before a next order that isn't a ReturnResource or a gather of the same type.
 		const UnitOrder &n = queued->second.front();
@@ -13408,19 +13420,20 @@ void Simulation::finish_order(size_t i) {
 				queued->second.insert(queued->second.begin(), ret);
 			}
 		}
-	} else if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
+	} else if (finding) {
 		// FINDINGNEWTARGET with no orders queued: the same kind of resource, near the unit
 		// (not for a forced order: it may have sent the unit across the map on purpose),
-		// else near where it was.
+		// else near where it was; never the one it had ("previousTarget == ent").
 		const int sub = (units_.order_flags[i] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
 		// UnitAI.js FINDINGNEWTARGET: "type.specific != 'meat' || resourceTemplate == template",
 		// so a hunter goes on only to the animal it was hunting (a carcass or a live one).
 		const uint8_t species = sub == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
+		const uint32_t previous = units_.target_resource_id[i];
 		uint32_t r = 0;
 		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
-			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, 0, species);
+			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
 		if (r == 0)
-			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, 0, species);
+			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
@@ -13659,8 +13672,8 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != res_type) continue;
 		if (subtype >= 0 && resources_.subtype[r] != subtype) continue; // the same kind (type.specific)
 		if (fauna != 0 && resources_.fauna[r] != fauna) continue; // meat: the same template
+		if (resources_.id[r] == skip) continue;
 		if (busy) {
-			if (resources_.id[r] == skip) continue;
 			auto g = busy->find(resources_.id[r]);
 			if (g != busy->end() && g->second.total >= resources_.max_gatherers[r]) continue;
 		}
@@ -19232,8 +19245,10 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 // civic centre, at least 30 m from our towers and fortresses, never within 80 m of an enemy
 // civic centre, fortress or tower, near an invading army or under enemy fire. Towers keep to the
 // narrow frontier (45 m from the border), fortresses take the large one (80 m) too. Without enemy
-// structures, neutral players' count (allied victory: allies never do). Distances here are
-// 0 A.D.'s metres at 4 m per world unit.
+// structures, neutral players' count (allied victory: allies never do). In wonder victory with
+// a wonder of ours up (a foundation too) the frontier rule is dropped: anywhere in our territory
+// at least 50 m beyond the wonder's footprint, weighted 200 x its squared distance to the wonder
+// so the defences ring it. Distances here are 0 A.D.'s metres at 4 m per world unit.
 bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const {
 	const int R = territory_grid_.w;
 	if (territory_grid_.blank() || R <= 0) return false;
@@ -19255,6 +19270,12 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (building_tech_classes(b.type) & (TC_FORTRESS | TC_TOWER)))
 			own.push_back({b.x, b.z});
+
+	const Building *wonder = nullptr;
+	if (has_victory(VK_WONDER))
+		for (const Building &b : buildings_)
+			if (b.team == petra_pid_ && b.type == BLD_WONDER && !b.wrecked && b.hp > 0.0f) { wonder = &b; break; }
+	const float wonder_min = wonder ? 50.0f / 4.0f + wonder->half_size : 0.0f;
 
 	const bool tower = (building_tech_classes(btype) & TC_TOWER) != 0;
 	const BuildingTypeInfo &info = building_type_info(btype);
@@ -19285,14 +19306,20 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 				if (jx < 0 || jx >= R || jz < 0 || jz >= R) continue;
 				if (other(jx, jz)) large = true;
 			}
-			if (!narrow && (!large || tower)) continue;
+			if (!wonder && !narrow && (!large || tower)) continue;
 			const float x = ((float)ix + 0.5f) * cell - map_half_, z = ((float)iz + 0.5f) * cell - map_half_;
+			float dista = 0.0f;
+			if (wonder) {
+				dista = (wonder->x - x) * (wonder->x - x) + (wonder->z - z) * (wonder->z - z);
+				if (dista < wonder_min * wonder_min) continue;
+				dista *= 200.0f;
+			}
 			float min_dist = std::numeric_limits<float>::max();
 			bool bad = false;
 			for (const Site &f : foes) {
 				const float dd = (f.x - x) * (f.x - x) + (f.z - z) * (f.z - z);
 				if (dd < enemy_cut * enemy_cut) { bad = true; break; }
-				if (f.cc) min_dist = std::min(min_dist, dd);
+				if (f.cc) min_dist = std::min(min_dist, dd + dista);
 			}
 			if (bad || min_dist == std::numeric_limits<float>::max() || min_dist > best) continue;
 			for (const auto &o : own)
@@ -23199,14 +23226,27 @@ void Simulation::petra_manage_defense(float dt) {
 
 void Simulation::petra_manage_victory(float dt) {
 	petra_victory_timer_ += dt;
-	if (petra_victory_timer_ < 0.5f) return;
-	petra_victory_timer_ = 0.0f;
+	const bool turn = petra_victory_timer_ >= 0.5f;
+	if (turn) petra_victory_timer_ = 0.0f;
 
 	// victoryManager.js checkEvents (every turn): a hero attacked below high
 	// health retreats to heal; below low health to the closest holder at all.
+	// An Attacked event comes from any hit (towers, fortresses, ships, splash):
+	// attacked_by, set this tick, catches those; every turn the enemy units
+	// targeting it are counted too.
 	if (has_victory(VK_REGICIDE)) {
 		std::vector<size_t> attacked;
-		for (size_t f = 0; f < units_.count; ++f) {
+		const int32_t hero = regicide_hero_[petra_pid_] ? lookup_unit(regicide_hero_[petra_pid_]) : -1;
+		if (hero >= 0 && petra_is_critical_ent((size_t)hero) && units_.attacked_by[hero] != 0) {
+			int32_t a = lookup_unit(units_.attacked_by[hero]);
+			uint8_t by = a >= 0 ? units_.team[a] : GAIA_PLAYER;
+			if (a < 0) {
+				auto bit = building_id_to_idx_.find(units_.attacked_by[hero]);
+				if (bit != building_id_to_idx_.end()) by = buildings_[bit->second].team;
+			}
+			if (petra_foe(by)) attacked.push_back((size_t)hero);
+		}
+		for (size_t f = 0; turn && f < units_.count; ++f) {
 			if (!units_.alive[f] || !petra_foe(units_.team[f]) || units_.target_unit_id[f] == 0) continue;
 			const int32_t t = lookup_unit(units_.target_unit_id[f]);
 			if (t >= 0 && petra_is_critical_ent((size_t)t) && std::find(attacked.begin(), attacked.end(), (size_t)t) == attacked.end())
@@ -23230,6 +23270,7 @@ void Simulation::petra_manage_victory(float dt) {
 			petra_retreat_critical_ent(t, emergency, incoming);
 		}
 	}
+	if (!turn) return;
 
 	// update(): the rest every 10 AI turns.
 	if ((int)(petra_timer_ / 2.0f) == (int)((petra_timer_ - 0.5f) / 2.0f)) return;

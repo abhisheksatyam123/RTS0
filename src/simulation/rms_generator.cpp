@@ -11390,7 +11390,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 // The map script's own terrains and plants, unless game setup chose the biome.
 static const ScriptTerrains *own_terrains(const Simulation &sim, uint8_t type) {
-	return sim.biome_override() < 0 ? script_terrains(map_type_info(type).id) : nullptr;
+	return sim.map_biome_pick(type) < 0 ? script_terrains(map_type_info(type).id) : nullptr;
 }
 
 void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
@@ -12095,7 +12095,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 	// herd one of the script's species by share; a generic-biome script's animals are
 	// the biome's (main hunt twice as often as the secondary), as when the game setup
 	// picks another biome.
-	const bool own_kinds = rc->hunt_kinds[0].name && sim.biome_override() < 0;
+	const bool own_kinds = rc->hunt_kinds[0].name && sim.map_biome_pick(config.map_type) < 0;
 	int hunt_left = target(rc->hunt) - have_hunt;
 	for (int herd = 0; hunt_left > 0; ++herd) {
 		uint8_t ftype = FAUNA_COUNT;

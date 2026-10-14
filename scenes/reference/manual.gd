@@ -8,6 +8,8 @@ extends Control
 const DATA := "res://data/reference/manual.json"
 const ONLINE := "https://trac.wildfiregames.com/wiki/0adManual"
 
+signal closed
+
 var text: RichTextLabel
 
 static func open(parent: Node) -> Control:
@@ -62,7 +64,20 @@ func _ready() -> void:
 	panel.add_child(online)
 
 func close_page() -> void:
+	closed.emit()
 	queue_free()
+
+## The manual over a match (MenuButtons Manual): its own layer above the HUD,
+## working while the game is paused.
+static func open_overlay(parent: Node) -> Control:
+	var layer := CanvasLayer.new()
+	layer.layer = 30
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	parent.add_child(layer)
+	var page = open(layer)
+	page.process_mode = Node.PROCESS_MODE_ALWAYS
+	page.closed.connect(layer.queue_free)
+	return page
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE: # hotkey="cancel"
