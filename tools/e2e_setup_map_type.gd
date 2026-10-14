@@ -135,7 +135,7 @@ func run() -> void:
 		var bio_ids := func(): return range(bio.get_item_count()).map(func(i): return bio.get_item_id(i))
 		select_map(page, "random_african_plains")
 		await frames(2)
-		check(bio_slot.is_visible_in_tree() and bio_ids.call() == [0, 4, 7], "African Plains: Map default, Oasis, Savanna: " + str(bio_ids.call()))
+		check(bio_slot.is_visible_in_tree() and bio_ids.call() == [0, 4, 7, 11], "African Plains: Map default, Oasis, Savanna, Nubia: " + str(bio_ids.call()))
 		bio.select(2)
 		page._on_biome_selected(2)
 		check(page._collect_setup()["biome"] == 7, "Savanna goes to the match")
