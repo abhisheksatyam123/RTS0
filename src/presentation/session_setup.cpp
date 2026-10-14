@@ -82,7 +82,10 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 // A player structure's 0 A.D. template ("athen/field", "spart/gerousia"; port_0ad_maps.py),
 // BLD_TYPE_COUNT when RTS0 has no such building.
 static uint8_t map_building_template(const String &tmpl) {
-	const String n = tmpl.get_slice("/", tmpl.get_slice_count("/") - 1);
+	String n = tmpl.get_slice("/", tmpl.get_slice_count("/") - 1);
+	// skirmish/structures/default_X: SkirmishReplacer.js puts structures/{civ}/X in its place.
+	if (n.begins_with("default_")) n = n.substr(8);
+	if (n == "house_5" || n == "house_10") return rtso::BLD_HOUSE;
 	static const struct { const char *name; uint8_t type; } kNames[] = {
 		{"civil_centre", rtso::BLD_TOWN_CENTER}, {"house", rtso::BLD_HOUSE}, {"barracks", rtso::BLD_BARRACKS},
 		{"storehouse", rtso::BLD_STOREHOUSE}, {"farmstead", rtso::BLD_FARMSTEAD}, {"field", rtso::BLD_FIELD},
@@ -340,13 +343,22 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
+		// SkirmishReplacer.js: a civ's SkirmishReplacements keep one of default_house_5 and
+		// default_house_10 (the size of its own house; Han lists neither) and the empty
+		// replacement destroys the piece (the Spartans' default_wall_*).
+		const String tmpl = b.get("template", "");
+		const uint8_t civ = (uint8_t)sim->player(team).civ;
+		if (tmpl.ends_with("default_house_5") || tmpl.ends_with("default_house_10")) {
+			const int pop = rtso::civ_building_type_info(civ, rtso::BLD_HOUSE).pop_bonus;
+			if (civ == rtso::CIV_HAN || (pop == 5) != tmpl.ends_with("default_house_5")) continue;
+		}
+		if (civ == rtso::CIV_SPARTANS && tmpl.contains("default_wall_")) continue;
 		if (b.has("wallset")) {
 			spawn_map_wall(*sim, b, team);
 			continue;
 		}
 		// The structures only maps place (bolt towers, stoas, tents) by their template, then the
 		// generic and civ structures by template or name.
-		const String tmpl = b.get("template", "");
 		uint8_t btype = rtso::map_structure_template(tmpl.utf8().get_data()).type;
 		if (btype >= rtso::BLD_TYPE_COUNT && !tmpl.is_empty()) btype = map_building_template(tmpl);
 		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(stype_str);

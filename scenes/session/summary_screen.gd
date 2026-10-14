@@ -530,6 +530,8 @@ static func format_value(v: Variant) -> String:
 		return out
 	if v is float and is_inf(v):
 		return INFINITY_SYMBOL
+	if v is float and v == floorf(v):
+		return str(int(v)) # JS prints +(2).toFixed(2) as "2"
 	return str(v)
 
 ## The plain value of one counter for a player (tests and charts).
@@ -550,7 +552,7 @@ func team_value(team: int, panel: int, column: int, index := -1) -> Variant:
 static func time_to_string(seconds: float) -> String:
 	var s := int(seconds)
 	if s >= 3600:
-		return "%d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
+		return "%02d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
 	return "%02d:%02d" % [s / 60, s % 60]
 
 ## initGUILabels.
@@ -741,10 +743,9 @@ func _on_tab_wheel(event: InputEvent) -> void:
 		var n := panels.size() + 1
 		select_panel((panel_index + (1 if event.button_index == MOUSE_BUTTON_WHEEL_DOWN else n - 1)) % n)
 
-## colorizeHotkey: the hotkey's first binding in brackets.
+## colorizeHotkey: every binding, shortest first, or "Unassigned hotkey: name".
 func _hotkey_text(hotkey: String) -> String:
-	var combos: PackedStringArray = _hotkeys.call("get_hotkey_map").get(hotkey, PackedStringArray()) if _hotkeys else PackedStringArray()
-	return "[%s]" % combos[0] if not combos.is_empty() else "[unassigned]"
+	return load("res://scenes/menu/replay_browser.gd").hotkey_text(_hotkeys.call("get_hotkey_map") if _hotkeys else {}, hotkey)
 
 func select_panel(i: int) -> void:
 	panel_index = clampi(i, 0, panels.size())
@@ -772,7 +773,7 @@ func _update_panel(pd: Dictionary) -> void:
 	var left := 50
 	for hi in headings.size():
 		var h: Dictionary = headings[hi]
-		var cap: String = h.get("header", h["caption"])
+		var cap: String = L10n.t(h.get("header", h["caption"])) # layout.js translate(), before the markup
 		if hi == 0 and not teams.is_empty() and not teams.has(-1):
 			cap = "" # no players without a team: no "Player name" heading
 		var r := _rich("[center][b]%s[/b][/center]" % cap if hi > 0 else "[b]%s[/b]" % cap, 13)
@@ -783,7 +784,7 @@ func _update_panel(pd: Dictionary) -> void:
 			left += h["w"]
 	left = 250
 	for t in pd["titles"]:
-		var r := _rich("[center][b]%s[/b][/center]" % t["caption"], 13)
+		var r := _rich("[center][b]%s[/b][/center]" % L10n.t(t["caption"]), 13)
 		_place(r, _general, Vector2(left, t["y"]), Vector2(t["w"], 20))
 	var row_w := 240
 	for c in counters:
@@ -1182,6 +1183,9 @@ func _input(event: InputEvent) -> void:
 			and event.keycode == KEY_ESCAPE):
 		get_viewport().set_input_as_handled()
 		continue_pressed()
+	elif _fired(event, "lobby") and not gui.get("isInGame", false) and _lobby_signed_in():
+		get_viewport().set_input_as_handled() # summary.xml lobbyButton hotkey="lobby"
+		open_lobby()
 	elif _fired(event, "tab.next") or _fired(event, "tab.prev"):
 		get_viewport().set_input_as_handled()
 		var n := panels.size() + 1

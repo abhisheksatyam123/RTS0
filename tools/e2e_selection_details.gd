@@ -39,6 +39,7 @@ func run() -> void:
 	check("Loot: " in tip, "the loot closes the tooltip")
 	check(String(u["stats"]).contains("Damage: "), "the stats lines show the attack and resistance")
 	check(String(u["portrait_tooltip"]).begins_with(String(u["title"]).trim_prefix("Advanced ").trim_prefix("Elite ")) or String(u["portrait_tooltip"]) != "", "the portrait tooltip names the unit")
+	check(String(u["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/units/"), "the portrait is the unit template's 0.28 icon")
 
 	var m: Dictionary = main.debug_inspector("multi")
 	print("multi: ", m)
@@ -49,17 +50,20 @@ func run() -> void:
 	print("building: ", b)
 	check(String(b["stats_tooltip"]).begins_with("Resistance:\n"), "a structure's tooltip gives its resistance")
 	check("Garrison Limit: " in String(b["stats_tooltip"]), "and its garrison limit")
+	check(String(b["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/structures/"), "a Civic Center shows its template's 0.28 icon")
 
 	var r: Dictionary = main.debug_inspector("resource")
 	print("resource: ", r)
 	check(String(r["stats"]).begins_with("Wood: "), "a tree shows \"Wood:\" and its supply")
 	check(String(r["stats"]).split("\n").size() == 2 and " / " in String(r["stats"]).split("\n")[1], "and its gatherers, current / max")
 	check(String(r["stats_tooltip"]) == "Current/max gatherers", "with 0.28's gatherers tooltip")
+	check(String(r["portrait"]) == "res://assets/textures/ui/archive/portraits/gaia/flora_tree_generic.png", "a tree shows template_gaia_tree's icon")
 
 	var f: Dictionary = main.debug_inspector("fauna")
 	print("fauna: ", f)
 	check(String(f["extra"]).begins_with("Food: ") and " / " in String(f["extra"]), "an animal shows its food, amount / max")
 	check(String(f["stats_tooltip"]).contains("Resistance:"), "and its resistance")
+	check(String(f["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/gaia/fauna_"), "an animal shows its template's icon")
 
 	print("e2e_selection_details: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
