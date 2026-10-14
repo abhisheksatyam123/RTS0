@@ -1353,6 +1353,12 @@ void RtsoMain::_process(double delta) {
 	update_observer_view_picker();
 	// Check Victory / Defeat Condition, from the local player's seat
 	if (sim->is_victory_for(seat_player())) {
+		if (!campaign_win_noted_ && !turn_mgr_.is_replaying()) {
+			// CampaignSession.onFinish: a campaign level is completed as soon as it is won.
+			campaign_win_noted_ = true;
+			Ref<Script> summary = ResourceLoader::get_singleton()->load("res://scenes/session/summary_screen.gd");
+			if (summary.is_valid()) summary->call("mark_campaign_won");
+		}
 		banner_panel->set_visible(true);
 		banner_label->set_text("VICTORY!\nYour side has prevailed.");
 		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));
