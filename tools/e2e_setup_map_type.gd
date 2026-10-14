@@ -149,7 +149,7 @@ func run() -> void:
 	var cf: RtsoSafeSelect = node(page, "CeasefireSlot").get_child(0)
 	check(res.disabled and res.text == "Per Player", "starting resources Per Player: " + res.text)
 	check(pop.disabled and cf.disabled and cf.text == "No ceasefire", "population and ceasefire locked")
-	for path in ["LastManStanding", "StartRow/LockTeams", "StartRow/DisableTreasures", "MapVisRow/RevealMap", "MapVisRow/ExploreMap", "MapVisRow/DisableSpies"]:
+	for path in ["LastManStanding", "StartRow/LockTeams", "StartRow/DisableTreasures", "MapVisRow/RevealMap", "MapVisRow/ExploreMap", "MapVisRow/AlliedView", "MapVisRow/DisableSpies"]:
 		check(node(page, path).disabled, path + " locked")
 	check(select_map(page, "sahel_scenario"), "the Sahel scenario")
 	await frames(2)
