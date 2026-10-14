@@ -3164,19 +3164,17 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	// Team bonuses on techs researched here (e.g. Athenian Democracy at the civic centre).
 	const uint8_t civ = civ_of(player_id);
 	const uint16_t allies = ally_civ_mask(player_id);
-	// han_minister_garrison.json (Excellency of Works): each minister garrisoned in a
-	// structure other than the Imperial Ministry cuts its technologies' cost and time by 2%.
-	float ministers = b.type == BLD_MINISTRY ? 1.0f : std::pow(0.98f, (float)garrisoned_ministers(b));
+	float library = 1.0f;
 	// structures/library.json (Library of Alexandria): while the player has a finished
 	// library, its technologies cost 15% less and take 15% less time (not stackable).
 	for (const Building &o : buildings_)
 		if (o.team == player_id && o.type == BLD_LIBRARY && o.build_progress >= 1.0f && !o.wrecked) {
-			ministers *= 0.85f;
+			library *= 0.85f;
 			break;
 		}
 	const float *tc = tech_mods(player_id).bld_tech_cost[b.type]; // Researcher/TechCostMultiplier
 	auto team = [&](uint8_t stat, int8_t r) {
-		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * ministers
+		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * library
 			* (stat == TEAM_BONUS_TECH_COST && r >= 0 ? tc[r] : 1.0f);
 	};
 	// Researcher.js QueueTechnology: paid now, researched when it reaches the queue's front.
@@ -8402,6 +8400,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			round_units = memo.key == idle_path_key() &&
 					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
 			if (round_units) steer = rtso::nav::Vec2(memo.x, memo.z);
+			const ShortPathMemo last = memo;
 			if (round_units || rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
 					unit_clearance_at(i), steer_obstacles_, units_.target_building_id[i],
 					nav_grid_, short_path_key_, memo, steer)) {
@@ -8416,6 +8415,10 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					units_.short_path[i].key = round_units ? idle_corner_key() : 0; // standing on the waypoint
 				}
 			}
+			// avoid_idle_units' note that its last search from here found no way stays while the unit
+			// does, whatever way round buildings it is heading for.
+			const float lx = px[i] - last.x, lz = pz[i] - last.z;
+			if (last.key == idle_stuck_key() && lx * lx + lz * lz < 0.25f) memo = last;
 		}
 
 		float inv = 1.0f / sqrtf(d2);
@@ -8522,10 +8525,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 // there. A unit square is the unit's clearance (unit_push_clearance) on each side, expanded by the
 // walker's; a walker standing in one already may walk out of it, and its target never obstructs it.
 // The search range grows with failed turns as ShortPathSearchRange does (12 m, 4 m more for each
-// turn after the first, at most 56 m), at the map's 4 m a unit. The path leads to the task's range
-// round its target once that is within the search range, as ComputeGoal shapes it, so a worker
-// finds a free spot beside a tree others already stand at. A walker already within reach of its
-// task (walk_in_reach) stays where it is instead. Ships are left to separation().
+// turn after the first, at most 56 m), at the map's 4 m a unit, and one that found no way from where
+// the walker stands looks 32 m round next. The path leads to the task's range round its target once
+// that is within the search range, as ComputeGoal shapes it, so a worker finds a free spot beside a
+// tree others already stand at. A walker already within reach of its task (walk_in_reach) stays where
+// it is instead. Ships are left to separation().
 void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, const float *aim_x, const float *aim_z,
 		float *npx, float *npz, float *want_x, float *want_z, uint8_t *blocked) {
 	const size_t n = units_.count;
@@ -8647,6 +8651,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if (memo.key == corner_key) memo.key = 0;
 		const uint8_t failed = units_.motion[i].failed;
 		const bool obstructed = step_blocked(npx[i], npz[i]);
+		bool no_way = false;
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
 			// move to the target's range would have ended: it works from there without a short path.
@@ -8661,7 +8666,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// one stuck for more than 12 every eighth and one stuck for more than 24 every 16th: units
 			// boxed in by idle ones can wait there for minutes, and their searches cost the most.
 			const float sx = x0 - memo.x, sz = z0 - memo.z;
-			const bool no_way = memo.key == stuck_key && sx * sx + sz * sz < 0.25f &&
+			no_way = memo.key == stuck_key && sx * sx + sz * sz < 0.25f &&
 					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
 			const uint64_t turn_ticks = per_turn * (failed > 24 ? 16 : failed > 12 ? 8 : failed > 4 || no_way ? 4 : 1);
 			if (!from_corner && (ticks_ + units_.id[i]) % turn_ticks != 0) return;
@@ -8675,9 +8680,16 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		}
 
 		// From a corner it looks 32 m round: the unit no longer remembers the range that found the
-		// way to it, and a short one could lead back to where it was stuck.
+		// way to it, and a short one could lead back to where it was stuck. So does one whose last
+		// search from where it stands found no way. 0 A.D. widens the search with each failed turn
+		// instead, but a new order starts that count again (MoveTo), and Petra orders a fleeing unit
+		// home again each time it is hit, so its range stays short. A point to walk to beyond the
+		// search box counts at the box's nearest point to it (vendor 811), and when that lies inside a
+		// structure beside the units in the way, as 0 A.D.'s nearer subgoals (the next long waypoint,
+		// at most 11 m on) seldom do, a short search finds nothing, turn after turn.
 		const float range = from_corner ? RANGE_CORNER
-				: std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1));
+				: std::max(no_way ? RANGE_CORNER : 0.0f,
+				           std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1)));
 		thread_local std::vector<nav::ShortPathSquare> squares;
 		squares.clear();
 		const float cull = range * 1.6f + c_max;
@@ -12433,7 +12445,7 @@ void Simulation::tick_trickle(float dt) {
 	}
 
 	// Structures, every 2 s (their templates' Interval 2000): template_structure_wonder.xml
-	// 1 food, wood, stone and metal; structures/han/ministry.xml 0.1 wood, stone and metal;
+	// 1 food, wood, stone and metal;
 	// structures/pers/ice_house.xml 1 food. Technologies add to a structure's Rates
 	// (Subterranean Aqueducts: ice houses +1 food). A corral's own rate is 0; each
 	// garrisoned animal adds 1, 2 or 3 food every 5 s by its size
@@ -12445,10 +12457,6 @@ void Simulation::tick_trickle(float dt) {
 			float rate[RES_COUNT] = {};
 			if (b.type == BLD_WONDER) {
 				rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
-			} else if (b.type == BLD_MINISTRY) {
-				// han_minister_garrison_ministry.json (Nationalized Industries): +0.1 wood,
-				// stone and metal for each minister garrisoned inside.
-				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f * (1 + garrisoned_ministers(b));
 			} else if (b.type == BLD_ICE_HOUSE) {
 				rate[RES_FOOD] = 1.0f;
 			} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
@@ -12484,15 +12492,6 @@ void Simulation::tick_trickle(float dt) {
 			players_[b.team].res[RES_FOOD] += fauna_corral_food(fauna_.fauna_type[f]);
 		}
 	}
-}
-
-int Simulation::garrisoned_ministers(const Building &b) const {
-	int n = 0;
-	for (uint32_t id : b.garrisoned_units) {
-		const int32_t u = lookup_unit(id);
-		n += u >= 0 && units_.unit_type[u] == UNIT_MINISTER;
-	}
-	return n;
 }
 
 // Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).

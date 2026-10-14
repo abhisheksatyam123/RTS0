@@ -79,14 +79,14 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_STONE: structures/pers/tachara_stone
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_METAL: structures/pers/tachara_metal
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_APARTMENT: structures/cart/apartment
-		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court (the Civic Center's BuildingAI)
-		{8, 10, 1.0f, TC_INFANTRY, 0.0f, 8.0f, 0.0f, 2.8f, 19.6f, 5.6f, 0.4f, 3.5f, true}, // BLD_TOWER_GREAT: structures/han/defense_tower_great (tower x2 arrows, MaxArrowCount 10, +10 m range, Origin Y 20)
+		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court
+		{6, 0, 1.0f, TC_INFANTRY, 0.0f, 8.0f, 0.0f, 2.8f, 19.6f, 5.6f, 0.4f, 3.5f, true}, // BLD_TOWER_GREAT: structures/han/defense_tower_great
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_PALISADE_GATE: structures/palisades_gate
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_EMBASSY_IBERIAN: structures/cart/embassy_iberian
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_EMBASSY_ITALIC: structures/cart/embassy_italic
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SIEGE_WALL: structures/rome/siege_wall_long
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
-		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_CRANNOG: structures/brit/crannog (the Civic Center's BuildingAI)
+		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_CRANNOG: structures/brit/crannog
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_GREAT_HALL: structures/germ/great_hall
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_WAGON_ENCAMPMENT: structures/germ/encampment
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
