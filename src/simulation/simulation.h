@@ -2721,6 +2721,7 @@ private:
 	bool petra_is_critical_ent(size_t unit_idx) const;
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
+	bool petra_is_critical_relic(size_t unit_idx) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
 	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
