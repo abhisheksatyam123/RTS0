@@ -596,6 +596,7 @@ public:
 	void set_placement_tip(const String &text, bool error);
 	String placement_failure_text(int result, uint8_t btype, float x, float z) const;
 	Dictionary debug_placement_tip() const;
+	Dictionary debug_cursor_tip();
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);

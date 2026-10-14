@@ -108,6 +108,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selected_building"), &RtsoMain::debug_selected_building);
 	ClassDB::bind_method(D_METHOD("debug_queue_slot", "i"), &RtsoMain::debug_queue_slot);
 	ClassDB::bind_method(D_METHOD("debug_placement_tip"), &RtsoMain::debug_placement_tip);
+	ClassDB::bind_method(D_METHOD("debug_cursor_tip"), &RtsoMain::debug_cursor_tip);
 	ClassDB::bind_method(D_METHOD("get_summary_gui", "in_game"), &RtsoMain::summary_gui);
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);

@@ -1009,6 +1009,11 @@ public:
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
 	int get_garrison_count(uint32_t building_id) const;
 	int get_garrison_capacity(uint32_t building_id) const;
+	// GarrisonHolder.OccupiedSlots of a structure: its units' Garrisonable sizes.
+	int get_garrison_occupied(uint32_t building_id) const {
+		auto bit = building_id_to_idx_.find(building_id);
+		return bit == building_id_to_idx_.end() ? 0 : occupied_slots(buildings_[bit->second].garrisoned_units);
+	}
 	const std::vector<uint32_t> *get_garrisoned_units(uint32_t building_id) const;
 
 	// Victory Conditions (VictoryManager.js, EndGameManager.js)

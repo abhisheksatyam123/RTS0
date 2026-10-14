@@ -3985,6 +3985,17 @@ Dictionary RtsoMain::debug_placement_tip() const {
 	return d;
 }
 
+// Tests: the action tooltip beside the cursor and the cursor's name.
+Dictionary RtsoMain::debug_cursor_tip() {
+	update_cursor();
+	Dictionary d;
+	d["visible"] = cursor_tip_ && cursor_tip_->is_visible();
+	d["text"] = cursor_tip_ ? cursor_tip_->get_text() : String();
+	d["color"] = cursor_tip_ ? cursor_tip_->get_theme_color("font_color") : Color();
+	d["cursor"] = String(cursor_name_.c_str());
+	return d;
+}
+
 // Tests: production queue slot i as the panel shows it.
 Dictionary RtsoMain::debug_queue_slot(int i) {
 	update_command_panel();
