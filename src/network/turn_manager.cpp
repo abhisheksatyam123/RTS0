@@ -1497,7 +1497,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 37) { // Remove guard
 			sim.order_remove_guard(ids, n);
 		} else if (c.cmd_type == 38) { // Call to arms — attack-walk to (target_x, target_z).
-			sim.order_call_to_arms(ids, n, c.target_x, c.target_z, queued);
+			sim.order_call_to_arms(ids, n, c.target_x, c.target_z, queued, (c.param & NET_PARAM_UNITS_ONLY) != 0,
+					(c.param & NET_PARAM_CAPTURE) != 0);
 		} else if (c.cmd_type == 41) { // WallSet wall — from the point in target_id to (target_x, target_z);
 			float sx, sz;                 // param's low bits name the WallSetKind (1 palisade).
 			Simulation::unpack_wall_point(c.target_id, sx, sz);
