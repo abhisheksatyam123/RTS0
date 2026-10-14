@@ -577,6 +577,8 @@ private:
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
 	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
 	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
+	// messages.js "dialog" notifications: a trigger script's yes-no dialog (triggers_demo).
+	void show_trigger_dialogs(const std::vector<rtso::Simulation::TriggerDialog> &dialogs);
 	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
 	void toggle_diplomacy_colors();
 	void update_cursor();
