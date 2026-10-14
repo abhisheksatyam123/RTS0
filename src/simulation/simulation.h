@@ -878,7 +878,7 @@ public:
 		float min_range = 0.0f, max_range = 0.0f;
 		bool ranged = false;
 		float resistance[3] = {}; // hack, pierce, crush levels
-		float walk = 0.0f, run = 0.0f;
+		float walk = 0.0f, run = 0.0f, acceleration = 0.0f; // m/s, m/s^2
 		float gather[7] = {};     // grain, fruit, meat, fish, wood, stone, metal a second
 		int32_t carry_max = 0;    // what it can carry of the resource it holds
 		float heal_hp = 0.0f, heal_range = 0.0f, heal_interval = 0.0f; // 0 hp: no Heal

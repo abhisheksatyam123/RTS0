@@ -13365,6 +13365,7 @@ Simulation::UnitDetails Simulation::unit_details(size_t i) const {
 	unit_resistance(i, d.resistance);
 	d.walk = unit_walk_speed(i) / kSpeedScale;
 	d.run = d.walk * unit_run_multiplier(i);
+	d.acceleration = unit_motion(tmpl, ut).acceleration / kSpeedScale;
 	const uint8_t gcls = unit_gather_class(ut, tmpl);
 	if (gcls != GATHER_NONE && units_.team[i] < MAX_PLAYERS && ut < UNIT_TYPE_COUNT) {
 		const UnitTechMods m = unit_tech_mods(units_.team[i], ut, tmpl);
