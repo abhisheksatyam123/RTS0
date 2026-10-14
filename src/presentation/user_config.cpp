@@ -82,6 +82,8 @@ const Default kDefaults[] = {
 	{"gui.session.notifications.tribute", "true"},
 	{"gui.session.notifications.barter", "true"},
 	{"gui.session.notifications.phase", "completed"},
+	{"gui.session.notifications.flare", "always"},
+	{"gui.session.respoptooltipsort", "0"},
 	{"gui.session.diplomacycolors.self", "21 55 149"},
 	{"gui.session.diplomacycolors.ally", "86 180 31"},
 	{"gui.session.diplomacycolors.neutral", "231 200 5"},

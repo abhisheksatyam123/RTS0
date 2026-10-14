@@ -467,6 +467,12 @@ void RtsoMain::_ready() {
 				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
 				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
 				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
+				// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
+				// "never", "observer" (only while observing) or "always".
+				const std::string when = rtso::user_config::get("gui.session.notifications.flare");
+				const uint8_t from = chat_player_of(guid);
+				if (from < rtso::MAX_PLAYERS && (when == "always" || (when == "observer" && chat_local_observer())))
+					chat_window_.append_line(colored_player_name(from) + " has sent a flare.\n");
 			}
 			return;
 		}

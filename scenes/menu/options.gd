@@ -13,13 +13,9 @@ extends Control
 const SCHEMA := [
 	["General", [
 		["string", "playername.singleplayer", "Player name (single-player)", "How you want to be addressed in single-player matches."],
-		["boolean", "persistmatchsettings", "Persist match settings", "Save and restore match settings for quick reuse when hosting another game."],
 		["dropdown", "locale", "Language", "Choose the language of the game.", "locales"],
 		["boolean", "pauseonfocusloss", "Background pause", "Pause single-player games when window loses focus."],
-		["boolean", "overlay.fps", "FPS overlay", "Show frames per second in top right corner."],
-		["boolean", "overlay.realtime", "Real time overlay", "Show current system time in top right corner."],
-		["dropdown", "gui.session.howtoshownames", "Naming of entities.", "How to show entity names.",
-			[["Specific names first", "0"], ["Generic names first", "1"], ["Only specific names", "2"], ["Only generic names", "3"]]],
+		["boolean", "gui.splashscreen.enable", "Enable welcome screen", "If you disable it, the welcome screen will still appear once, each time a new version is available. You can always launch it from the main menu."],
 	]],
 	["Graphics (general)", [
 		["boolean", "windowed", "Windowed mode", "Start RTS0 in a window."],
@@ -71,6 +67,7 @@ const SCHEMA := [
 		["slider", "sound.uigain", "UI volume", "UI sound gain.", [0, 2]],
 	]],
 	["Game Setup", [
+		["boolean", "persistmatchsettings", "Persist match settings", "Save and restore match settings for quick reuse when hosting another game."],
 		["dropdown", "gui.gamesetup.aidifficulty", "Default AI difficulty", "Default difficulty of the AI.",
 			[["Sandbox", "0"], ["Very Easy", "1"], ["Easy", "2"], ["Medium", "3"], ["Hard", "4"], ["Very Hard", "5"]]],
 		["dropdown", "gui.gamesetup.aibehavior", "Default AI behavior", "Default behavior of the AI.",
@@ -81,23 +78,35 @@ const SCHEMA := [
 	["Networking / Lobby", [
 		["boolean", "lobby.columns.gamerating", "Game rating column", "Show the average rating of the participating players in a column of the gamelist."],
 	]],
-	["Game Session", [
-		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],
-		["number", "gui.session.batchtrainingsize", "Batch training size", "Number of units trained per batch by default.", [1, 20]],
-		["slider", "gui.session.flarelifetime", "Flare display duration", "How long the flare markers on the minimap are displayed in seconds.", [0, 60]],
+	["Chat & Notifications", [
 		["boolean", "chat.timestamp", "Chat timestamp", "Display the time at which a chat message was posted."],
 		["boolean", "gui.session.notifications.attack", "Chat notification attack", "Show a chat notification if you are attacked by another player."],
 		["boolean", "gui.session.notifications.tribute", "Chat notification tribute", "Show a chat notification if an ally tributes resources to another team member if teams are locked, and all tributes in observer mode."],
 		["boolean", "gui.session.notifications.barter", "Chat notification barter", "Show a chat notification to observers when a player bartered resources."],
+		["dropdown", "gui.session.notifications.flare", "Chat notification flare", "Show a chat notification if a flare was sent.",
+			[["Never", "never"], ["Only as observer", "observer"], ["Always", "always"]]],
 		["dropdown", "gui.session.notifications.phase", "Chat notification phase", "Show a chat notification if you or an ally have started, aborted or completed a new phase, and phases of all players in observer mode.",
 			[["Disable", "none"], ["Completed", "completed"], ["All displayed", "all"]]],
+	]],
+	["Display", [
+		["dropdown", "gui.session.howtoshownames", "Naming of entities.", "How to show entity names.",
+			[["Specific names first", "0"], ["Generic names first", "1"], ["Only specific names", "2"], ["Only generic names", "3"]]],
+		["dropdown", "gui.session.respoptooltipsort", "Sort resources and population tooltip", "Dynamically sort players in the resources and population tooltip by value.",
+			[["Unordered", "0"], ["Ascending", "-1"], ["Descending", "1"]]],
+		["boolean", "overlay.fps", "FPS overlay", "Show frames per second in top right corner."],
+		["boolean", "overlay.realtime", "Real time overlay", "Show current system time in top right corner."],
+		["slider", "gui.session.flarelifetime", "Flare display duration", "How long the flare markers on the minimap are displayed in seconds.", [0, 60]],
+		["boolean", "gui.session.attackrange", "Attack range visualization", "Display the attack range of selected defensive structures. (It can also be toggled with the hotkey during a game)."],
+		["boolean", "gui.session.aurasrange", "Aura range visualization", "Display the range of auras of selected units and structures. (It can also be toggled with the hotkey during a game)."],
+		["boolean", "gui.session.healrange", "Heal range visualization", "Display the healing range of selected units. (It can also be toggled with the hotkey during a game)."],
 		["color", "gui.session.diplomacycolors.self", "Diplomacy colors: self", "Color of your units when diplomacy colors are enabled."],
 		["color", "gui.session.diplomacycolors.ally", "Diplomacy colors: ally", "Color of allies when diplomacy colors are enabled."],
 		["color", "gui.session.diplomacycolors.neutral", "Diplomacy colors: neutral", "Color of neutral players when diplomacy colors are enabled."],
 		["color", "gui.session.diplomacycolors.enemy", "Diplomacy colors: enemy", "Color of enemies when diplomacy colors are enabled."],
-		["boolean", "gui.session.attackrange", "Attack range visualization", "Display the attack range of selected defensive structures. (It can also be toggled with the hotkey during a game)."],
-		["boolean", "gui.session.aurasrange", "Aura range visualization", "Display the range of auras of selected units and structures. (It can also be toggled with the hotkey during a game)."],
-		["boolean", "gui.session.healrange", "Heal range visualization", "Display the healing range of selected units. (It can also be toggled with the hotkey during a game)."],
+	]],
+	["Gameplay", [
+		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],
+		["number", "gui.session.batchtrainingsize", "Batch training size", "Number of units trained per batch by default.", [1, 20]],
 	]],
 ]
 
