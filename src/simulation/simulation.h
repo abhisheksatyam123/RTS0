@@ -2410,6 +2410,7 @@ private:
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
 	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
 	bool near_deep_water(float x, float z, float c) const;
+	bool near_impassable_terrain(float x, float z, float c) const; // deep water or a steep tile
 	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
 	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
 	// A unit with clearance c may not step past a circular map's edge (past_map_edge); one already
@@ -3013,8 +3014,9 @@ private:
 	// not, unlike petra_land_at's regions. 0 off land. Derived from the nav grid, not saved.
 	uint16_t petra_access_at(float x, float z) const;
 	struct PetraAccess {
-		std::vector<uint8_t> pass;  // nav cell is land by terrain
+		std::vector<uint8_t> pass;  // cell (terrain tile, else nav cell) is land by terrain
 		std::vector<uint16_t> land; // its land id from 1, 0 none
+		std::vector<uint16_t> near; // an off-land cell's nearest land within 8 m, once looked up (0xFFFF before)
 		int res = 0;
 		uint32_t stamp = 0;
 	};
@@ -3393,6 +3395,9 @@ private:
 	}
 	std::vector<SteerObstacle> steer_obstacles_;
 	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
+	// Each unit's last short path search among them (ShortPathSearchMemo), by unit index; not
+	// saved, as a search finds the same again.
+	std::vector<ShortPathSearchMemo> short_path_search_;
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
 	// SteerObstacle::type of a Gaia mine (mine_footprint), after the buildings in both lists.
 	static constexpr uint8_t MINE_OBSTACLE = 0xFF;
