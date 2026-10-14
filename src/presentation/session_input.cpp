@@ -132,38 +132,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 				return;
 			}
-			PackedInt32Array recall;
-			Vector3 first_pos;
-			if (sim) {
-				auto gview = sim->units();
-				for (int m = 0; m < selected_groups[grp].size(); ++m) {
-					const int32_t gid = selected_groups[grp][m];
-					for (size_t i = 0; i < gview.count; ++i) {
-						if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == local_player()) {
-							if (recall.is_empty()) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
-							recall.push_back(gid);
-							break;
-						}
-					}
-				}
-			}
-			selected_groups[grp] = recall;
-			if (recall.is_empty()) return;
 			if (add) {
-				for (int m = 0; m < recall.size(); ++m)
-					if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
-				selected_building_id = 0;
-				play_civ_voice("select");
+				perform_group(grp, GROUP_ADD);
 				return;
 			}
 			const uint64_t now_ms = Time::get_singleton()->get_ticks_msec();
-			if (grp == last_group_pressed_ && now_ms - last_group_press_ms_ < 500 && cam_rig)
-				cam_rig->set_target_pos(first_pos);
+			const bool snap = grp == last_group_pressed_ && now_ms - last_group_press_ms_ < 500;
 			last_group_pressed_ = grp;
 			last_group_press_ms_ = now_ms;
-			selected_ids = recall;
-			selected_building_id = 0;
-			play_civ_voice("select");
+			perform_group(grp, snap ? GROUP_SNAP : GROUP_SELECT);
 			return;
 		}
 
