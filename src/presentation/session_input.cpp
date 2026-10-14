@@ -109,8 +109,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		// Control groups (0 A.D. input.js:852-873 and performGroup, input.js:1606):
 		// N selects group N, Ctrl+N saves the selection as group N, Shift+N adds
 		// group N to the selection (performGroup "add"), and pressing N twice within
-		// 500 ms centres the camera on the group. Groups are disjoint
-		// (gui.session.disjointcontrolgroups).
+		// 500 ms centres the camera on the group. With gui.session.disjointcontrolgroups
+		// ("Single", the default) a unit saved to one group leaves the others
+		// (EntityGroupsContainer.addEntities); "Multiple" keeps it in them.
 		for (int g = 1; g <= 10; ++g) {
 			const int grp = g % 10;
 			const std::string n = std::to_string(g);
@@ -120,8 +121,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (!sel && !save && !add) continue;
 			if (save) {
 				selected_groups[grp].clear();
+				const bool disjoint = rtso::user_config::get_bool("gui.session.disjointcontrolgroups");
 				for (int s = 0; s < selected_ids.size(); ++s) {
-					for (int o = 0; o < 10; ++o) {
+					for (int o = 0; o < 10 && disjoint; ++o) {
 						if (o == grp) continue;
 						const int64_t at = selected_groups[o].find(selected_ids[s]);
 						if (at >= 0) selected_groups[o].remove_at(at);
@@ -325,6 +327,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			rtso::user_config::set("silhouettes", rtso::user_config::get_bool("silhouettes") ? "false" : "true");
 			return;
 		}
+		// OverlayCounterElapsedTime / RemainingCeasefire Hotkey: the top-right counters.
+		if (fired("timeelapsedcounter.toggle")) { toggle_overlay("gui.session.timeelapsedcounter"); return; }
+		if (fired("ceasefirecounter.toggle")) { toggle_overlay("gui.session.ceasefirecounter"); return; }
 
 		if (fired("fps.toggle")) {
 			if (debug_overlay) debug_overlay->set_visible(!debug_overlay->is_visible());
@@ -561,13 +566,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							} else if (is_shift) {
 								// Shift+click adds the unit (selection.add -> addList keeps it if
 								// already selected; Ctrl+click is the removal).
-								const int32_t uid = (int32_t)uview.id[best_uidx];
-								if (!selected_ids.has(uid)) selected_ids.push_back(uid);
+								for (int32_t uid : formation_mates((int32_t)uview.id[best_uidx]))
+									if (!selected_ids.has(uid)) selected_ids.push_back(uid);
 								selected_building_id = 0;
 							} else {
 								selected_ids.clear();
 								selected_building_id = 0;
-								selected_ids.push_back((int32_t)uview.id[best_uidx]);
+								for (int32_t uid : formation_mates((int32_t)uview.id[best_uidx]))
+									selected_ids.push_back(uid);
 							}
 							play_civ_voice("select");
 						} else if (uint32_t animal = own_fauna_at(click_pos.x, click_pos.z)) {
@@ -636,12 +642,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								Vector2 screen_pos = cam->unproject_position(world_pos);
 								if (screen_pos.x >= min_p.x && screen_pos.x <= max_p.x &&
 									screen_pos.y >= min_p.y && screen_pos.y <= max_p.y) {
-									int32_t uid = (int32_t)uview.id[i];
-									if (is_ctrl) {
-										const int64_t at = selected_ids.find(uid);
-										if (at >= 0) selected_ids.remove_at(at);
-									} else if (!selected_ids.has(uid)) {
-										selected_ids.push_back(uid);
+									for (int32_t uid : formation_mates((int32_t)uview.id[i])) {
+										if (is_ctrl) {
+											const int64_t at = selected_ids.find(uid);
+											if (at >= 0) selected_ids.remove_at(at);
+										} else if (!selected_ids.has(uid)) {
+											selected_ids.push_back(uid);
+										}
 									}
 								}
 							}
@@ -929,7 +936,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (int k = 0; k < selected_ids.size() && !any_builder; ++k)
 					for (size_t i = 0; i < uview.count; ++i)
 						if (uview.id[i] == (uint32_t)selected_ids[k]) {
-							any_builder = rtso::unit_can_build(uview.unit_type[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+							any_builder = rtso::unit_can_build(uview.unit_type[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE) && !sim->nonbuilder(uview.id[i]);
 							break;
 						}
 				uint32_t repair_id = 0;

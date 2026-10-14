@@ -5377,49 +5377,49 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 109.16,
       "z": 107.11,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 113.91,
       "z": 113.75,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 117.92,
       "z": 110.36,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 111.49,
       "z": 110.62,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 116.1,
       "z": 105.91,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 113.65,
       "z": 102.42,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 111.81,
       "z": 99.96,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 106.72,
       "z": 104.71,
       "amount": 400
@@ -5917,19 +5917,19 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 0.6,
       "z": 97.5,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 102.77,
       "z": 34.48,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 59.73,
       "z": 30.44,
       "amount": 400
@@ -7423,49 +7423,49 @@
       "amount": 1000
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -107.84,
       "z": -116.66,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -103.72,
       "z": -114.42,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -106.39,
       "z": -110.73,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -109.44,
       "z": -110.65,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -110.85,
       "z": -115.56,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -112.97,
       "z": -111.13,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -113.27,
       "z": -117.24,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -115.03,
       "z": -112.04,
       "amount": 400
@@ -8161,13 +8161,13 @@
       "amount": 1000
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -96.28,
       "z": -37.58,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -49.3,
       "z": -101.07,
       "amount": 400
@@ -8965,109 +8965,109 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 41.47,
       "z": -93.3,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 44.14,
       "z": -94.71,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 42.87,
       "z": -98.46,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 41.29,
       "z": -100.37,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 41.84,
       "z": -103.65,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 44.18,
       "z": -104.49,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 45.94,
       "z": -102.08,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 45.91,
       "z": -98.95,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -22.92,
       "z": 62.68,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -19.41,
       "z": 62.27,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -18.56,
       "z": 59.61,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -17.82,
       "z": 55.38,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -18.41,
       "z": 52.96,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -16.08,
       "z": 49.32,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -13.56,
       "z": 48.67,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -14.54,
       "z": 53.68,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -15.99,
       "z": 58.53,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -18.09,
       "z": 64.5,
       "amount": 400
@@ -11755,217 +11755,217 @@
       "amount": 1000
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 63.41,
       "z": 103.44,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 63.98,
       "z": 104.53,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 64.53,
       "z": 105.42,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 64.98,
       "z": 106.26,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 65.42,
       "z": 107.04,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 65.86,
       "z": 107.94,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 67.17,
       "z": 107.17,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 66.5,
       "z": 106.3,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 66.25,
       "z": 105.67,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 65.74,
       "z": 104.65,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 65.28,
       "z": 103.94,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 64.64,
       "z": 102.8,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 65.89,
       "z": 102.07,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 66.45,
       "z": 103.06,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 66.77,
       "z": 103.82,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 67.3,
       "z": 104.61,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 67.81,
       "z": 105.54,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 68.45,
       "z": 106.72,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -88.13,
       "z": -98.46,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -87.39,
       "z": -97.76,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -86.76,
       "z": -96.99,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -85.9,
       "z": -96.19,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -85.32,
       "z": -95.39,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -84.7,
       "z": -94.72,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -87.05,
       "z": -99.54,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -86.4,
       "z": -98.75,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -85.85,
       "z": -97.95,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -85.14,
       "z": -97.19,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -84.45,
       "z": -96.4,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -83.75,
       "z": -95.68,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -85.93,
       "z": -100.43,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -85.28,
       "z": -99.64,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -84.85,
       "z": -98.93,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -84.19,
       "z": -98.13,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -83.62,
       "z": -97.45,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -82.85,
       "z": -96.76,
       "amount": 200
@@ -12533,6 +12533,13 @@
       "player": 2,
       "x": -93.2,
       "z": -79.01
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 82.08,
+      "z": 91.61,
+      "template": "hellenic_stoa"
     }
   ],
   "units": [

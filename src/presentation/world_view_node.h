@@ -5,6 +5,7 @@
 #include <godot_cpp/classes/multi_mesh_instance3d.hpp>
 #include <godot_cpp/classes/multi_mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/sprite3d.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/plane_mesh.hpp>
@@ -54,6 +55,10 @@ class RtsoWorldView : public Node3D {
 		MeshInstance3D *ring = nullptr;
 		MeshInstance3D *hp_bg = nullptr;
 		MeshInstance3D *hp_fg = nullptr;
+		MeshInstance3D *xp_bg = nullptr; // StatusBars AddExperienceBar
+		MeshInstance3D *xp_fg = nullptr;
+		Sprite3D *rank_icon = nullptr;   // StatusBars AddRankIcon
+		uint8_t rank_shown = 0;
 		uint32_t sim_id = 0;
 		float yaw = 0.0f;
 		bool ring_on = false;
@@ -114,7 +119,7 @@ class RtsoWorldView : public Node3D {
 	// Trees and fruit bushes with their own FloraKind (a ported map's templates, a
 	// random map's rmbiome trees) draw that plant, one batch per kind; FLORA_DEFAULT
 	// ones take the biome's pick above.
-	static constexpr int FLORA_KINDS = 27; // rtso::FLORA_COUNT
+	static constexpr int FLORA_KINDS = rtso::FLORA_COUNT; // the 27 families, then one per template (flora_data.h)
 	MultiMeshInstance3D *flora_mmi[FLORA_KINDS][TREE_VARIANTS] = {};
 	Ref<MultiMesh> flora_mm[FLORA_KINDS][TREE_VARIANTS];
 	float flora_scale[FLORA_KINDS] = {};
@@ -145,11 +150,23 @@ class RtsoWorldView : public Node3D {
 	float turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id, float offset, float x, float z);
 	Ref<Shader> wind_shader_;
 	Ref<Mesh> wind_mesh(const Ref<Mesh> &src);
-	MultiMeshInstance3D *gold_mmi = nullptr;   // gold_vein.glb
-	MultiMeshInstance3D *stone_mmi = nullptr;  // stone_mine.glb
+	// Mines draw the 0.28 large and small metal and stone mine of the map's biome
+	// (maps/random/rmbiome metalLarge, metalSmall, stoneLarge, stoneSmall; pick_mine_models),
+	// falling back to gold_vein.glb and stone_mine.glb.
+	enum { MINE_METAL_LARGE, MINE_METAL_SMALL, MINE_STONE_LARGE, MINE_STONE_SMALL, MINE_KINDS };
+	MultiMeshInstance3D *mine_mmi[MINE_KINDS] = {};
+	Ref<MultiMesh> mine_mm[MINE_KINDS];
+	float mine_y[MINE_KINDS] = {};
+	std::string mine_biome_ = "-";
+	void pick_mine_models(const std::string &biome);
+	// A mine is large (template_gaia_*_large, 5000) or small (1000, a cut quarry 2000) by its
+	// supply when first drawn, so a worked large mine keeps its model. Cleared on a new match.
+	std::unordered_map<uint32_t, bool> mine_large_;
+	float mine_large_time_ = -1.0f;
+	std::string mine_large_map_;
 	MultiMeshInstance3D *food_mmi = nullptr;   // fruit_bush.glb
 	MultiMeshInstance3D *fish_mmi = nullptr;   // fish.glb (0 A.D. fauna/fish_generic.xml)
-	Ref<MultiMesh> gold_mm, stone_mm, food_mm, fish_mm;
+	Ref<MultiMesh> food_mm, fish_mm;
 	// Gaia ruins (a stone/metal supply, buildings/ruins.glb) and treasures (a placeholder chest).
 	MultiMeshInstance3D *ruins_mmi = nullptr;
 	// One multimesh per treasure type: its 0.28 actor (gaia_data.h TreasureTypeInfo::model_id).
@@ -219,6 +236,9 @@ class RtsoWorldView : public Node3D {
 	Ref<StandardMaterial3D> hp_green_mat;
 	Ref<StandardMaterial3D> hp_red_mat;
 	Ref<StandardMaterial3D> hp_blue_mat;
+	Ref<StandardMaterial3D> xp_mat;
+	Ref<BoxMesh> xp_bg_mesh;
+	Ref<BoxMesh> xp_fg_mesh;
 
 	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
 	// time a unit of that civ and type shows, so every civ in the match renders

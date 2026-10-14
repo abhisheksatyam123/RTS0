@@ -54,7 +54,7 @@ func run() -> void:
 	var tip_image: TextureRect = page.find_child("TipImage", true, false)
 	check(tip_title != null and tip_title.text != "" and tip_title.text == tip_title.text.to_upper(), "a tip title: " + (tip_title.text if tip_title else ""))
 	check(tip_text != null and tip_text.text.begins_with("• "), "the tip's lines are bullets")
-	var pic: String = "res://assets/textures/ui/loading/tips/%s.png" % page.tip_name
+	var pic: String = "res://assets/textures/ui/loading/tips/" + page.find_child("TipDisplay", true, false).current_image()
 	check(tip_image != null and (tip_image.texture != null or not ResourceLoader.exists(pic)), "the tip has its picture (when imported)")
 	var quote: Label = page.find_child("Quote", true, false)
 	check(quote != null and quote.text.contains("—"), "a quote with its author")

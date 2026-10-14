@@ -19,9 +19,9 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Library", "library", "library", 2000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/mace/library */ \
 		{"Kennel", "kennel", "kennel", 500.0f, 1, 0, 100, 0, 0, 0, 10, 12.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/brit/kennel */ \
 		{"Assembly of Princes", "assembly", "assembly", 2000.0f, 2, 0, 400, 0, 0, 0, 20, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/gaul/assembly */ \
-		{"Revered Monument", "monument", "monument", 1200.0f, 1, 0, 0, 100, 100, 0, 0, 30.0f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/iber/monument */ \
+		{"Revered Monument", "monument", "monument", 1200.0f, 1, 0, 0, 100, 100, 0, 0, 30.0f, 0.0f, 5.0f, 1.0f, 0.0f}, /* structures/iber/monument */ \
 		{"Palace", "palace", "palace", 3000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/maur/palace */ \
-		{"Edict Pillar of Ashoka", "pillar", "pillar", 1000.0f, 1, 0, 0, 100, 100, 0, 0, 20.0f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/maur/pillar_ashoka */ \
+		{"Edict Pillar of Ashoka", "pillar", "pillar", 1000.0f, 1, 0, 0, 100, 100, 0, 0, 20.0f, 0.0f, 5.0f, 1.0f, 0.0f}, /* structures/maur/pillar_ashoka */ \
 		{"Large Pyramid", "pyramid_large", "pyramid_large", 3000.0f, 2, 0, 0, 150, 450, 0, 0, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/kush/pyramid_large */ \
 		{"Small Pyramid", "pyramid_small", "pyramid_small", 2000.0f, 2, 0, 0, 100, 100, 0, 0, 25.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/kush/pyramid_small */ \
 		{"Mercenary Camp", "mercenary_camp", "mercenary_camp", 1200.0f, 2, 0, 100, 100, 100, 0, 10, 75.0f, 500.0f, 10.0f, 1.0f, 1.0f}, /* structures/ptol/mercenary_camp */ \
@@ -54,6 +54,13 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Fortified Wagon Encampment", "encampment_fortified", "army_camp", 2625.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 3000.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment_fortified */ \
 		{"Shrine", "temple", "temple", 1000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 0.0f}, /* structures/shrine_greek_01 */ \
 		{"Trading Post", "market", "market", 1000.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/trading_post_desert */ \
+		{"Bolt Tower", "tower_bolt", "tower_bolt", 1400.0f, 1, 0, 0, 100, 200, 0, 5, 50.0f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/athen/tower_bolt */ \
+		{"Artillery Tower", "tower_artillery", "tower_artillery", 1400.0f, 1, 0, 200, 0, 200, 0, 5, 50.0f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/athen/tower_artillery */ \
+		{"Stoa", "greek_stoa_great", "stoa", 2500.0f, 2, 0, 0, 150, 100, 0, 10, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/athen/royal_stoa */ \
+		{"Stoa", "greek_stoa", "stoa", 1100.0f, 2, 0, 0, 100, 100, 0, 0, 27.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/hellenic_stoa */ \
+		{"Inn", "house", "house", 2500.0f, 2, 0, 75, 0, 0, 15, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/inn */ \
+		{"Tent", "house", "house", 200.0f, 1, 0, 50, 0, 0, 5, 5, 7.5f, 500.0f, 5.0f, 1.0f, 1.0f}, /* structures/rome/tent */ \
+		{"Triumphal Arch", "triumphal_arch", "arch", 2000.0f, 2, 0, 0, 400, 200, 0, 0, 50.0f, 0.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/arch */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -103,6 +110,13 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 40, 40, 30}, /* structures/germ/encampment_fortified */ \
 		{0, 0, 0, 60, 0}, /* structures/shrine_greek_01 */ \
 		{0, 0, 60, 0, 0}, /* structures/trading_post_desert */ \
+		{0, 0, 0, 40, 20}, /* structures/athen/tower_bolt */ \
+		{0, 0, 40, 40, 0}, /* structures/athen/tower_artillery */ \
+		{0, 0, 0, 20, 30}, /* structures/athen/royal_stoa */ \
+		{0, 0, 0, 50, 50}, /* structures/hellenic_stoa */ \
+		{0, 0, 15, 0, 0}, /* structures/pers/inn */ \
+		{0, 0, 10, 0, 0}, /* structures/rome/tent */ \
+		{0, 0, 0, 40, 80}, /* structures/rome/arch */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -161,6 +175,13 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 0x8000; // germ
 		case BLD_SHRINE: return 0x0000; // 
 		case BLD_TRADING_POST: return 0x0000; // 
+		case BLD_TOWER_BOLT: return 0x0000; // 
+		case BLD_TOWER_ARTILLERY: return 0x0000; // 
+		case BLD_STOA: return 0x0000; // 
+		case BLD_HELLENIC_STOA: return 0x0000; // 
+		case BLD_INN: return 0x0000; // 
+		case BLD_TENT: return 0x0000; // 
+		case BLD_TRIUMPHAL_ARCH: return 0x0000; // 
 		default: return 0xFFFF;
 	}
 }
@@ -213,6 +234,13 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 2;
 		case BLD_SHRINE: return 2;
 		case BLD_TRADING_POST: return 2;
+		case BLD_TOWER_BOLT: return 3;
+		case BLD_TOWER_ARTILLERY: return 3;
+		case BLD_STOA: return 2;
+		case BLD_HELLENIC_STOA: return 1;
+		case BLD_INN: return 1;
+		case BLD_TENT: return 1;
+		case BLD_TRIUMPHAL_ARCH: return 3;
 		default: return 0;
 	}
 }
@@ -248,6 +276,8 @@ inline float civ_building_vision(uint8_t type) {
 		case BLD_CRANNOG: return 27.0f;
 		case BLD_WAGON_ENCAMPMENT: return 27.0f;
 		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 27.0f;
+		case BLD_TOWER_BOLT: return 24.0f;
+		case BLD_TOWER_ARTILLERY: return 24.0f;
 		default: return 0.0f;
 	}
 }

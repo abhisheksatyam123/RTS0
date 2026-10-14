@@ -79,8 +79,9 @@ static int32_t fauna_idx(const Simulation &s, uint32_t id) {
 }
 
 static void garrison(Simulation &s, uint32_t *ids, size_t n, uint32_t bld) {
+	const int want = s.get_garrison_count(bld) + (int)n;
 	s.order_garrison(ids, n, bld);
-	for (int t = 0; t < 900 && s.get_garrison_count(bld) < (int)n; ++t) s.tick(0.1f);
+	for (int t = 0; t < 900 && s.get_garrison_count(bld) < want; ++t) s.tick(0.1f);
 }
 
 int main() {

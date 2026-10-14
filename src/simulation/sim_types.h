@@ -9,6 +9,8 @@
 #include <cstring>
 #include <vector>
 
+#include "flora_data.h"
+
 namespace rtso {
 
 
@@ -39,7 +41,9 @@ enum BiomeType : uint8_t {
 	BIOME_SAVANNA = 6,
 	BIOME_POLAR = 7,
 	BIOME_INDIA = 8,
-	BIOME_COUNT = 9
+	BIOME_AUTUMN = 9, // generic/autumn (Rhine Valley, Fall)
+	BIOME_NUBIA = 10, // generic/nubia
+	BIOME_COUNT = 11
 };
 
 // Player colours, 0xRRGGBB. The first 8 are 0 A.D. simulation/data/settings/player_defaults.json
@@ -228,6 +232,17 @@ inline uint8_t map_team_placements(uint8_t type) {
 	}
 }
 inline bool map_has_team_placement(uint8_t type) { return map_team_placements(type) != 0; }
+
+// 0 A.D. CircularMap: the map is the circle inside the square (LOS and passability end at
+// it). Every 0.28 random map is circular except the ones whose JSON says CircularMap false
+// (corsica, phoenician_levant, latium); RTS0's own maps (0-10) fill the square.
+inline bool map_circular(uint8_t type) {
+	if (type <= MAP_RANDOM_MEDITERRANEAN || type >= MAP_TYPE_COUNT) return false;
+	switch (type) {
+		case MAP_CORSICA: case MAP_PHOENICIAN_LEVANT: case MAP_LATIUM: return false;
+		default: return true;
+	}
+}
 
 inline const MapTypeInfo &map_type_info(uint8_t type) {
 	static const MapTypeInfo kTable[MAP_TYPE_COUNT] = {
@@ -483,7 +498,15 @@ enum BuildingType : uint8_t {
 	// no Health (captured, never destroyed), no territory; the building's civ is its template's.
 	BLD_SHRINE = 69,          // structures/shrine_* (a temple: trains its civ's Elite Healer)
 	BLD_TRADING_POST = 70,    // structures/trading_post_* (a market for trade and barter)
-	BLD_TYPE_COUNT = 71
+	// Structures only maps place (no Builder list names them): map_structure_template.
+	BLD_TOWER_BOLT = 71,      // {athen,cart,mace,ptol,rome,spart}/tower_bolt
+	BLD_TOWER_ARTILLERY = 72, // {athen,cart,mace,ptol,rome,sele}/tower_artillery
+	BLD_STOA = 73,            // {athen,mace,spart}/royal_stoa (template_structure_civic_stoa)
+	BLD_HELLENIC_STOA = 74,   // structures/hellenic_stoa
+	BLD_INN = 75,             // pers/inn (a house: Population/Bonus 15)
+	BLD_TENT = 76,            // rome/tent (a house: Population/Bonus 5)
+	BLD_TRIUMPHAL_ARCH = 77,  // rome/arch (not capturable)
+	BLD_TYPE_COUNT = 78
 };
 
 #include "civ_building_data.h"
@@ -496,12 +519,15 @@ static_assert(STRUCTURE_VISION_ROWS == BLD_TYPE_COUNT,
 
 // The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
 // forms research the Tachara's technologies, the apartment the house's, the Han
-// Imperial Court the Civic Center's, the Great Archery Tower the defense tower's).
+// Imperial Court the Civic Center's, the Great Archery Tower the defense tower's). The
+// maps' Persian inn and Roman tent are houses and their bolt and artillery towers defense
+// towers wherever the role matters (building_researches_tech narrows what they research).
 inline constexpr uint8_t building_research_base(uint8_t type) {
 	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
 	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG) ? (uint8_t)BLD_TOWN_CENTER
-	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER
+	       : (type == BLD_TOWER_GREAT || type == BLD_TOWER_BOLT || type == BLD_TOWER_ARTILLERY) ? (uint8_t)BLD_TOWER
+	       : (type == BLD_INN || type == BLD_TENT) ? (uint8_t)BLD_HOUSE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -512,20 +538,34 @@ inline constexpr bool structure_has_health(uint8_t type) {
 	return type != BLD_SHRINE && type != BLD_TRADING_POST;
 }
 
-// The Gaia shrine or trading post a map's structures/<stem> template places, and its
-// Identity/Civ (structures/shrine_*.xml, trading_post_*.xml); BLD_TYPE_COUNT for others.
-struct GaiaStructureTemplate { const char *stem; uint8_t type; uint8_t civ; };
-inline GaiaStructureTemplate gaia_structure_template(const char *tpl) {
-	static const GaiaStructureTemplate kRows[] = {
+// The structures only maps place, by their 0 A.D. template ("structures/rome/tent", or a map's
+// short "rome/tower_bolt"), with the template's Identity/Civ: the Gaia shrines and trading posts
+// (structures/shrine_*.xml, trading_post_*.xml), the bolt and artillery towers, royal and
+// Hellenic stoas, the Persian inn and the Roman tent and arch. CIV_GAIA: a template without a
+// civ (the Hellenic stoa). BLD_TYPE_COUNT for others.
+struct MapStructureTemplate { const char *stem; uint8_t type; uint8_t civ; };
+inline MapStructureTemplate map_structure_template(const char *tpl) {
+	static const MapStructureTemplate kRows[] = {
 		{"shrine_celtic", BLD_SHRINE, CIV_GAULS}, {"shrine_chinese", BLD_SHRINE, CIV_HAN},
 		{"shrine_egyptian", BLD_SHRINE, CIV_PTOLEMIES}, {"shrine_greek_01", BLD_SHRINE, CIV_MACEDONIANS},
 		{"shrine_greek_02", BLD_SHRINE, CIV_MACEDONIANS}, {"shrine_italian", BLD_SHRINE, CIV_ROMANS},
 		{"shrine_kushite", BLD_SHRINE, CIV_KUSHITES}, {"shrine_persian", BLD_SHRINE, CIV_PERSIANS},
 		{"trading_post_celtic", BLD_TRADING_POST, CIV_GAULS}, {"trading_post_desert", BLD_TRADING_POST, CIV_PERSIANS},
+		{"athen/tower_bolt", BLD_TOWER_BOLT, CIV_ATHENIANS}, {"cart/tower_bolt", BLD_TOWER_BOLT, CIV_CARTHAGINIANS},
+		{"mace/tower_bolt", BLD_TOWER_BOLT, CIV_MACEDONIANS}, {"ptol/tower_bolt", BLD_TOWER_BOLT, CIV_PTOLEMIES},
+		{"rome/tower_bolt", BLD_TOWER_BOLT, CIV_ROMANS}, {"spart/tower_bolt", BLD_TOWER_BOLT, CIV_SPARTANS},
+		{"athen/tower_artillery", BLD_TOWER_ARTILLERY, CIV_ATHENIANS},
+		{"cart/tower_artillery", BLD_TOWER_ARTILLERY, CIV_CARTHAGINIANS},
+		{"mace/tower_artillery", BLD_TOWER_ARTILLERY, CIV_MACEDONIANS},
+		{"ptol/tower_artillery", BLD_TOWER_ARTILLERY, CIV_PTOLEMIES},
+		{"rome/tower_artillery", BLD_TOWER_ARTILLERY, CIV_ROMANS},
+		{"sele/tower_artillery", BLD_TOWER_ARTILLERY, CIV_SELEUCIDS},
+		{"athen/royal_stoa", BLD_STOA, CIV_ATHENIANS}, {"mace/royal_stoa", BLD_STOA, CIV_MACEDONIANS},
+		{"spart/royal_stoa", BLD_STOA, CIV_SPARTANS}, {"hellenic_stoa", BLD_HELLENIC_STOA, CIV_GAIA},
+		{"pers/inn", BLD_INN, CIV_PERSIANS}, {"rome/tent", BLD_TENT, CIV_ROMANS},
+		{"rome/arch", BLD_TRIUMPHAL_ARCH, CIV_ROMANS},
 	};
-	const char *stem = tpl;
-	for (const char *c = tpl; *c; ++c)
-		if (*c == '/') stem = c + 1;
+	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
 		if (std::strcmp(r.stem, stem) == 0) return r;
 	return {"", BLD_TYPE_COUNT, CIV_GAIA};
@@ -552,7 +592,8 @@ inline constexpr bool is_conquest_critical(uint8_t type) {
 		case BLD_OUTPOST: case BLD_PALISADE: case BLD_WALL_TOWER: case BLD_THEATER: case BLD_AMPHITHEATER:
 		case BLD_LIBRARY: case BLD_MONUMENT: case BLD_PILLAR: case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL:
 		case BLD_LIGHTHOUSE: case BLD_ICE_HOUSE: case BLD_TOWER_GREAT: case BLD_PALISADE_GATE:
-		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: case BLD_TRADING_POST:
+		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: case BLD_TRADING_POST: case BLD_TOWER_BOLT:
+		case BLD_TOWER_ARTILLERY: case BLD_STOA: case BLD_TRIUMPHAL_ARCH:
 			return false;
 		default:
 			return type < BLD_TYPE_COUNT;
@@ -594,8 +635,10 @@ enum ResourceSubtype : uint8_t {
 };
 
 // The plant a tree or fruit supply shows: 0 A.D.'s gaia/tree/* and gaia/fruit/*
-// templates grouped by the vegetation models RTS0 has (assets/models/vegetation).
-// Only the drawing reads it; FLORA_DEFAULT lets the viewer pick from the map's biome.
+// templates. Kinds 1-26 are families sharing one species model (assets/models/vegetation);
+// from FLORA_TEMPLATE_FIRST on, each kind is one template with its own model (flora_data.h).
+// Only the drawing and the inspector read it; FLORA_DEFAULT lets the viewer pick from the
+// map's biome.
 enum FloraKind : uint8_t {
 	FLORA_DEFAULT = 0,
 	FLORA_BROADLEAF = 1, // elm, tamarix and other leafy trees without their own model
@@ -624,22 +667,38 @@ enum FloraKind : uint8_t {
 	FLORA_MAPLE = 24,
 	FLORA_JUNIPER = 25,
 	FLORA_TEAK = 26,        // teak, toona
-	FLORA_COUNT = 27
+	FLORA_FAMILY_COUNT = 27
 };
 
-// The FloraKind a map JSON "resources" type names ("pine", "berry", ...; tools/port_0ad_maps.py),
-// or FLORA_COUNT for a name that is not a plant ("tree" and "food" are FLORA_DEFAULT).
+constexpr int FLORA_COUNT = FLORA_TEMPLATE_FIRST + FLORA_TEMPLATE_COUNT;
+static_assert(FLORA_TEMPLATE_FIRST == FLORA_FAMILY_COUNT, "template kinds follow the families");
+static_assert(FLORA_COUNT <= 255, "FloraKind is a byte");
+
+// The family (0-26) a kind counts as for game logic: itself, or a template kind's family.
+inline uint8_t flora_family(uint8_t kind) {
+	if (kind < FLORA_TEMPLATE_FIRST) return kind;
+	return kind < FLORA_COUNT ? flora_template_info(kind - FLORA_TEMPLATE_FIRST).family : (uint8_t)FLORA_DEFAULT;
+}
+
+// The FloraKind a map JSON "resources" type names ("pine", "berry", ... or a template's
+// "tree/elm", "fruit/fig"; tools/port_0ad_maps.py), or FLORA_COUNT for a name that is not a
+// plant ("tree" and "food" are FLORA_DEFAULT).
 inline uint8_t flora_kind_by_name(const char *name) {
-	static const char *const kNames[FLORA_COUNT] = {
+	static const char *const kNames[FLORA_FAMILY_COUNT] = {
 		"tree", "broadleaf", "pine", "palm", "oak", "baobab", "acacia", "bamboo", "bush", "berry", "apple", "date",
 		"carob", "poplar", "fan_palm", "beech", "dead", "cypress", "aleppo_pine", "fir", "tropic_bush", "olive",
 		"banyan", "tropic_palm", "maple", "juniper", "teak"};
-	for (int k = 0; k < FLORA_COUNT; ++k)
+	for (int k = 0; k < FLORA_FAMILY_COUNT; ++k)
 		if (std::strcmp(name, kNames[k]) == 0) return (uint8_t)k;
+	for (int k = 0; k < FLORA_TEMPLATE_COUNT; ++k)
+		if (std::strcmp(name, flora_template_info(k).name) == 0) return (uint8_t)(FLORA_TEMPLATE_FIRST + k);
 	if (std::strcmp(name, "food") == 0 || std::strcmp(name, "fruit") == 0) return FLORA_DEFAULT;
 	return FLORA_COUNT;
 }
-inline bool flora_is_fruit(uint8_t kind) { return kind == FLORA_BERRY || kind == FLORA_APPLE || kind == FLORA_DATE; }
+inline bool flora_is_fruit(uint8_t kind) {
+	if (kind >= FLORA_TEMPLATE_FIRST) return kind < FLORA_COUNT && flora_template_info(kind - FLORA_TEMPLATE_FIRST).fruit;
+	return kind == FLORA_BERRY || kind == FLORA_APPLE || kind == FLORA_DATE;
+}
 
 // 0 A.D. Gaia ResourceSupply Max amounts that random maps place: gaia/tree/* hold
 // 200 wood, template_gaia_ore and template_gaia_rock 1000 metal or stone, and their
@@ -1476,6 +1535,8 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 // and temple_vesta, kush/camp_blemmye and camp_noba, spart/gerousia, athen/gymnasium,
 // iber/monument, cart/super_dock, mace/arsenal and maur/elephant_stable are Town.
 inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
+	if (type == BLD_TENT) return 0; // rome/tent: VisibleClasses -Village
+	if (type == BLD_STOA) return 2; // template_structure_civic_stoa: Town
 	switch (building_research_base(type)) {
 		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
 		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE: case BLD_KENNEL:
@@ -1647,6 +1708,10 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	// technologies (trader_health, trade_gain_01/02, trade_commercial_treaty).
 	case BLD_SHRINE: return false;
 	case BLD_TRADING_POST: return tech_id == TECH_UNLOCK_SHARED_LOS || tech_id == TECH_UNLOCK_SHARED_DROPSITES;
+	// template_structure_defensive_tower_bolt and _artillery research only tower_health;
+	// rome/tent has Researcher disable="" (pers/inn keeps the house's list).
+	case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return tech_id == TECH_TOWER_HEALTH;
+	case BLD_TENT: return false;
 	default: return r == building_research_base(type);
 	}
 }
@@ -1759,6 +1824,9 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_STOREHOUSE: return c | TC_STOREHOUSE;
 		case BLD_TOWER: case BLD_TOWER_GREAT: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
 		case BLD_SENTRY_TOWER: return c | TC_TOWER | TC_SENTRYTOWER | TC_DEFENSIVE;
+		case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return c | TC_TOWER | TC_DEFENSIVE; // not StoneTower
+		case BLD_INN: case BLD_TENT: return c | TC_HOUSE | TC_CIVIC;
+		case BLD_STOA: case BLD_HELLENIC_STOA: return c | TC_CIVIC;
 		case BLD_WALL_TOWER: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_FARMSTEAD: return c | TC_FARMSTEAD;
 		case BLD_FIELD: return c | TC_FIELD;
@@ -1823,7 +1891,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
 		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
 		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
-		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL: case BLD_SHRINE:
+		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL: case BLD_SHRINE: case BLD_STOA:
 			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
 		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
 		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;

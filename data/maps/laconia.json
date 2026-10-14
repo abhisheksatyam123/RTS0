@@ -9142,61 +9142,61 @@
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -16.0,
       "z": -87.38,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -15.52,
       "z": -86.38,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -14.75,
       "z": -84.91,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -13.91,
       "z": -83.08,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -13.42,
       "z": -82.0,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 27.25,
       "z": 68.1,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 28.97,
       "z": 66.3,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 29.73,
       "z": 64.84,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 30.21,
       "z": 63.87,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 28.2,
       "z": 67.47,
       "amount": 200
@@ -9732,6 +9732,48 @@
       "player": 1,
       "x": 4.07,
       "z": -76.28
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -23.4,
+      "z": -83.25,
+      "template": "spart/royal_stoa"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -13.69,
+      "z": -64.34,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 31.36,
+      "z": 58.0,
+      "template": "rome/tent"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 30.32,
+      "z": 59.18,
+      "template": "rome/tent"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 4.67,
+      "z": 55.65,
+      "template": "rome/tent"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 3.14,
+      "z": 56.2,
+      "template": "rome/tent"
     }
   ],
   "units": [
