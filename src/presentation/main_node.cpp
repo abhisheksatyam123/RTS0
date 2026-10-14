@@ -78,6 +78,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
+	ClassDB::bind_method(D_METHOD("_on_panel_entity_gui_input", "event", "slot"), &RtsoMain::_on_panel_entity_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
@@ -1218,6 +1219,29 @@ void RtsoMain::toggle_diplomacy_colors() {
 
 // 0 A.D. ChatMessageFormatSimulation: who sees which tribute, barter, phase and
 // diplomacy line. Observers (and defeated players) see more, as g_IsObserver does.
+void RtsoMain::show_trigger_dialogs(const std::vector<rtso::Simulation::TriggerDialog> &dialogs) {
+	// messages.js "dialog": a message box with the two buttons, for the players it names.
+	// Its "dialog-answer" command only reaches a script's OnPlayerCommand, which no
+	// ported script reads, so the answer just closes it.
+	const uint8_t me = local_player();
+	if (!sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS) return;
+	for (const auto &d : dialogs) {
+		if (!((d.players >> me) & 1u)) continue;
+		ConfirmationDialog *dlg = memnew(ConfirmationDialog);
+		dlg->set_title("");
+		dlg->set_text(String::utf8(d.caption.c_str()));
+		dlg->set_ok_button_text(String::utf8(d.button1.c_str()));
+		dlg->set_cancel_button_text(String::utf8(d.button2.c_str()));
+		dlg->get_ok_button()->set_tooltip_text(String::utf8(d.tooltip1.c_str()));
+		dlg->get_cancel_button()->set_tooltip_text(String::utf8(d.tooltip2.c_str()));
+		dlg->set_exclusive(false);
+		dlg->connect("confirmed", callable_mp((Node *)dlg, &Node::queue_free));
+		dlg->connect("canceled", callable_mp((Node *)dlg, &Node::queue_free));
+		add_child(dlg);
+		dlg->popup_centered();
+	}
+}
+
 void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices) {
 	if (notices.empty() || !sim || !chat_window_.is_ready() || turn_mgr_.is_replaying()) return;
 	using N = rtso::Simulation::SessionNotice;
@@ -2626,6 +2650,26 @@ void RtsoMain::_on_selection_group_gui_input(const Ref<InputEvent> &event, int k
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || mb->is_pressed()) return;
 	select_group(key, true);
+}
+
+// PanelEntity.js onPress (select it; selection.add keeps the selection) and
+// onDoublePress (selectAndMoveTo: select it and move the camera to it).
+void RtsoMain::_on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot) {
+	Ref<InputEventMouseButton> mb = event;
+	if (!sim || mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_LEFT || !mb->is_pressed()) return;
+	const uint32_t id = panel_entities_.entity_at(slot);
+	if (!id) return;
+	auto uview = sim->units();
+	size_t i = 0;
+	while (i < uview.count && uview.id[i] != id) ++i;
+	if (i == uview.count) return;
+	if (mb->is_double_click() || !rtso::hotkeys::held("selection.add")) {
+		selected_ids.clear();
+		selected_building_id = 0;
+	}
+	if (!selected_ids.has((int32_t)id)) selected_ids.push_back((int32_t)id);
+	if (mb->is_double_click() && cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[i], 0, uview.pos_z[i]));
+	play_civ_voice("select");
 }
 
 void RtsoMain::_on_selection_group_clicked(int key) {

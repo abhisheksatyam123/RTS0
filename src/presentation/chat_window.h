@@ -179,8 +179,9 @@ public:
 		overlay_->set_anchor(SIDE_TOP, 0.0f);
 		overlay_->set_offset(SIDE_LEFT, 16.0f);
 		overlay_->set_offset(SIDE_RIGHT, 520.0f);
-		overlay_->set_offset(SIDE_TOP, 64.0f);
-		overlay_->set_offset(SIDE_BOTTOM, 64.0f + 20 * 18.0f);
+		// session.xml chatPanel starts below the hero and relic buttons (PanelEntities.xml).
+		overlay_->set_offset(SIDE_TOP, 114.0f);
+		overlay_->set_offset(SIDE_BOTTOM, 114.0f + 20 * 18.0f);
 		overlay_->set_use_bbcode(true);
 		overlay_->set_scroll_active(false);
 		overlay_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
