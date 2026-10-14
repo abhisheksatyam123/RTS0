@@ -2592,7 +2592,7 @@ void RtsoWorldView::refresh_silhouettes() {
 			silhouette_mat_->set_shader(sh);
 		}
 	}
-	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid();
+	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid() && !cinema_playing_;
 	silhouettes_ = on;
 	const Ref<Material> overlay = on ? Ref<Material>(silhouette_mat_) : Ref<Material>();
 	for (auto &per_civ : crowd_)
@@ -2627,11 +2627,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		water_mesh_node->set_position(Vector3(0.0f, drawn_water_height(sim), 0.0f));
 	}
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
+	// A cinema path playing (CCmpCinemaManager::SetEnabled) turns silhouettes and the
+	// territory borders off (session.js: renderer.silhouettes, TerritoryManager SetVisibility).
+	if (cinema_playing_ != sim->cinema_playing()) {
+		cinema_playing_ = sim->cinema_playing();
+		silhouette_gen_ = 0xFFFFFFFFu;
+	}
 	refresh_silhouettes();
 
 	update_fog(sim, delta);
 	if (paint_dirty_ && sim->resources().count > 0) build_ground_paint(sim);
 	update_territory_borders(sim);
+	if (border_mi_ && border_mi_->is_visible() == cinema_playing_) border_mi_->set_visible(!cinema_playing_);
 
 	// Update skeletal animation controllers
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
