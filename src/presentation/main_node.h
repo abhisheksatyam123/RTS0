@@ -266,8 +266,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	void apply_map_player_overrides();
 
 	bool dragging = false;
-	bool paused_via_menu = false;
-	void set_menu_paused(bool paused);
 	// Lockstep gate (2026-10-06 OOS fix): host and joiner boot INDEPENDENT
 	// random worlds, so pre-Start lockstep turns hash divergent state (first
 	// live OOS at turn 1) and reset() at asymmetric wall times offsets the
@@ -354,7 +352,8 @@ public:
 	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
 	static Array speed_choices(bool replay);
-	bool is_game_paused() const { return hotkey_paused_ || paused_via_menu; }
+	bool is_game_paused() const { return hotkey_paused_; }
+	bool can_pause() const;
 	PopupMenu *speed_menu_ = nullptr;
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
