@@ -2185,7 +2185,7 @@ void RtsoMain::update_cursor() {
 						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
 							const uint16_t tm = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
 							healer = healer || rtso::unit_is_healer(tm, uv.unit_type[i]);
-							builder = builder || rtso::unit_can_build(uv.unit_type[i], tm);
+							builder = builder || (rtso::unit_can_build(uv.unit_type[i], tm) && !sim->nonbuilder(uv.id[i]));
 							break;
 						}
 				for (size_t i = 0; i < uv.count && !*want; ++i) {

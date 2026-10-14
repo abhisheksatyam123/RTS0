@@ -1053,6 +1053,12 @@ public:
 	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
 	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
 	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
+	// The map scripts' only invulnerable units are Survival of the Fittest's treasure seekers,
+	// placed as "nonbuilder|undeletable|...": no Builder, Identity/Undeletable.
+	bool nonbuilder(uint32_t unit_id) const { return invulnerable(unit_id); }
+	bool undeletable_unit(uint32_t unit_id) const { return invulnerable(unit_id); }
+	// unit_can_build (Builder) for unit i, less a nonbuilder.
+	bool unit_builds(size_t i) const { return unit_can_build(units_.unit_type[i], units_.tmpl[i]) && !nonbuilder(units_.id[i]); }
 	bool has_map_triggers() const { return !triggers_.triggers.empty(); }
 	// Commands.js ProcessCommand's OnPlayerCommand (kind: TriggerCommand). target and other
 	// are the command's targets (see TriggerCommand), hunt 1 when target is an animal,
