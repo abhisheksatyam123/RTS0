@@ -10466,6 +10466,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 5
     },
     {
@@ -10473,6 +10474,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10480,6 +10482,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10487,6 +10490,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 5
     },
     {
@@ -10494,19 +10498,22 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 5
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 31.75,
-      "z": -117.25
+      "z": -117.25,
+      "template": "units/default_ship_arrow"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10514,6 +10521,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10521,6 +10529,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10528,6 +10537,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10535,6 +10545,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 5
     },
     {
@@ -10542,6 +10553,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 5
     },
     {
@@ -10549,6 +10561,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 5
     },
     {
@@ -10556,6 +10569,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 5
     },
     {
@@ -10563,6 +10577,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_cavalry",
       "garrison_in": 5
     },
     {
@@ -10570,19 +10585,22 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 5
     },
     {
       "type": "trireme",
       "player": 2,
       "x": 35.0,
-      "z": 109.75
+      "z": 109.75,
+      "template": "units/default_ship_arrow"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10590,6 +10608,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10597,6 +10616,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10604,6 +10624,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10611,6 +10632,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 16
     },
     {
@@ -10618,6 +10640,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 16
     },
     {
@@ -10625,6 +10648,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 16
     },
     {
@@ -10632,6 +10656,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 16
     },
     {
@@ -10639,6 +10664,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_cavalry",
       "garrison_in": 16
     },
     {
@@ -10646,6 +10672,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 16
     },
     {
@@ -10653,6 +10680,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10660,6 +10688,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10667,6 +10696,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 16
     },
     {
@@ -10674,6 +10704,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 16
     },
     {
@@ -10681,6 +10712,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 16
     }
   ],
