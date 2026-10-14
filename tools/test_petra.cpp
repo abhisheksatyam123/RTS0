@@ -3580,6 +3580,16 @@ static void test_raid_keeps_hunters() {
 	CHECK((int)plan.squad.size() == std::min(4, riders - 2), "a raid leaves two riders home to hunt");
 }
 
+// The first base's storehouse check (baseManager.js gatherers), added when it has none yet.
+static PetraDropsiteCheck &base_dropsite_check(Simulation &s) {
+	Simulation::PetraBasesMap m;
+	s.petra_bases_map(m);
+	for (auto &c : s.petra_base_dropsite_checks_)
+		if (c.anchor_id == m.anchors.at(0).id) return c.check;
+	s.petra_base_dropsite_checks_.push_back({m.anchors.at(0).id, PetraDropsiteCheck{}});
+	return s.petra_base_dropsite_checks_.back().check;
+}
+
 // startingStrategy.js buildFirstBase lays the first wood dropsite and no houses: houses wait for
 // buildMoreHouses' houseNeeded. queueplanBuilding.js findPosition keeps a house 60 m clear of
 // other structures (-40), and requireHouses drops every influence so a house fits anywhere.
@@ -3643,7 +3653,7 @@ static void test_building_plan_028() {
 
 	// checkResourceLevels counts GATHER.GATHERING units only: one walking out to its trees counts
 	// as neither used nor lost.
-	auto &dc = s->petra_dropsite_check_;
+	auto &dc = base_dropsite_check(*s);
 	dc = PetraDropsiteCheck{};
 	for (size_t i = 0; i < s->units_.count; ++i)
 		if (s->units_.team[i] == 1 && s->units_.alive[i]) s->units_.action_state[i] = ACTION_IDLE;
@@ -3713,7 +3723,7 @@ static void test_pending_dropsite() {
 	};
 	for (auto &a : s->petra_queues_.accounts) a = {0, 0, 0, 0};
 	s->set_player_resources(1, 0, 0, 0, 0);
-	auto &dc = s->petra_dropsite_check_;
+	auto &dc = base_dropsite_check(*s);
 	dc = PetraDropsiteCheck{};
 	dc.used[0] = 120;
 	dc.lost[0] = 40; // 25% walking back
@@ -3721,12 +3731,17 @@ static void test_pending_dropsite() {
 	s->petra_check_resource_levels(500);
 	CHECK(storehouses() == before && dc.pending == RES_WOOD + 1, "an unpaid wood storehouse stays decided");
 	CHECK(dc.used[0] == 0 && dc.lost[0] == 0, "the counts restart once it is decided");
+	// worker.js lastHuntSearch rides in the same save (v79).
+	s->petra_hunt_search_ = {{1234u, 56.5f}};
 	const char *path = "/tmp/rtso_test_petra_pending.sav";
 	CHECK(s->save_state(path), "saves");
 	auto t = std::make_unique<Simulation>();
 	CHECK(t->load_state(path), "loads");
 	std::remove(path);
-	CHECK(t->petra_dropsite_check_.pending == RES_WOOD + 1, "the pending storehouse survives a save");
+	CHECK(base_dropsite_check(*t).pending == RES_WOOD + 1, "the pending storehouse survives a save");
+	CHECK(t->petra_hunt_search_.size() == 1 && t->petra_hunt_search_[0].id == 1234u && t->petra_hunt_search_[0].time == 56.5f,
+	      "a hunter's last fruitless search survives a save");
+	s->petra_hunt_search_.clear();
 	fund_queues(*s);
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
 	s->petra_check_resource_levels(501);
@@ -3758,7 +3773,7 @@ static void test_dropsites() {
 	fund_queues(*s);
 	s->petra_pid_ = 1;
 	const int stores = count(BLD_STOREHOUSE, false);
-	auto &dc = s->petra_dropsite_check_;
+	auto &dc = base_dropsite_check(*s);
 	dc = PetraDropsiteCheck{};
 	dc.used[0] = 120; dc.lost[0] = 40;
 	s->petra_check_resource_levels(1000);
