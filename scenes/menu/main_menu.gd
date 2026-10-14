@@ -147,8 +147,12 @@ func _ready() -> void:
 
 	# 0.28 SplashScreenHandler: the welcome page over the menu shown at startup
 	# (not under a -s test script).
+	# With incompatible mods 0.28 starts in the Mod Selection instead (modmod.js).
 	if get_tree().get_script() == null:
-		load("res://scenes/menu/splashscreen.gd").open_at_startup(self)
+		if not preload("res://scenes/menu/mods.gd").incompatible.is_empty():
+			load("res://scenes/menu/modmod.gd").open_incompatible(self)
+		else:
+			load("res://scenes/menu/splashscreen.gd").open_at_startup(self)
 
 	# Connect hover sounds
 	for btn in $MainPanel/Buttons.get_children():
