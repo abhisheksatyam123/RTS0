@@ -69,9 +69,17 @@ int main() {
 	// corral 1 (EjectHealth 0.5), military 0, fortress EjectHealth 0.075.
 	CHECK(building_garrison_heal(BLD_TEMPLE) == 3.0f && building_garrison_heal(BLD_TOWN_CENTER) == 1.0f);
 	CHECK(building_garrison_heal(BLD_WONDER) == 5.0f && building_garrison_heal(BLD_BARRACKS) == 0.0f);
-	CHECK(building_eject_health(BLD_FORTRESS) == 0.075f && building_eject_health(BLD_CORRAL) == 0.5f);
-	CHECK(building_eject_health(BLD_BARRACKS) == 0.1f);
-	CHECK(building_eject_health(BLD_MINISTRY) == 0.0f); // han/ministry keeps its garrison to the end
+	CHECK(building_eject_health(BLD_FORTRESS, CIV_ROMANS) == 0.075f && building_eject_health(BLD_CORRAL, CIV_ROMANS) == 0.5f);
+	CHECK(building_eject_health(BLD_BARRACKS, CIV_ROMANS) == 0.1f);
+	// han/ministry ejects only on destruction; Han storehouses and farmsteads seat a Minister (0.1).
+	CHECK(building_eject_health(BLD_MINISTRY, CIV_HAN) == 0.0f);
+	CHECK(building_eject_health(BLD_STOREHOUSE, CIV_HAN) == 0.1f && building_eject_health(BLD_FARMSTEAD, CIV_HAN) == 0.1f);
+	CHECK(building_eject_health(BLD_STOREHOUSE, CIV_ROMANS) == 0.0f);
+	// 0.28 BuffHeal: temple variants 3, military colonies and wagon encampments 1.
+	CHECK(building_garrison_heal(BLD_TEMPLE_AMUN) == 3.0f && building_garrison_heal(BLD_TEMPLE_MARS) == 3.0f &&
+	      building_garrison_heal(BLD_TEMPLE_VESTA) == 3.0f);
+	CHECK(building_garrison_heal(BLD_MILITARY_COLONY) == 1.0f && building_garrison_heal(BLD_WAGON_ENCAMPMENT) == 1.0f &&
+	      building_garrison_heal(BLD_WAGON_ENCAMPMENT_FORTIFIED) == 1.0f);
 	const TechInfo &lc = tech_info(TECH_GARRISON_HEAL);
 	CHECK(lc.food_cost == 500 && lc.gold_cost == 250 && lc.required_phase == 2 && lc.researcher == BLD_TEMPLE);
 

@@ -6784,7 +6784,7 @@ uint32_t Simulation::spawn_gaia_unit(float x, float z, UnitType u_type, const ch
 }
 
 bool Simulation::structure_has_enough_health(const Building &b) const {
-	return b.hp > std::floor(building_eject_health(b.type) * b.max_hp);
+	return b.hp > std::floor(building_eject_health(b.type, b.civ) * b.max_hp);
 }
 
 float Simulation::structure_garrison_heal(const Building &b) const {

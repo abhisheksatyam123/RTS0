@@ -1647,8 +1647,12 @@ inline bool unit_is_human(uint8_t type) {
 // garrison in 0 A.D. (storehouse, farmstead, market, gate, dock, walls, outpost).
 inline float building_garrison_heal(uint8_t type) {
 	switch (building_research_base(type)) {
-		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: return 1.0f; // han/ministry BuffHeal 1
-		case BLD_TEMPLE: return 3.0f;
+		// han/ministry, ptol and sele military_colony (template_structure_civic_civil_centre_military_colony)
+		// and germ/encampment BuffHeal 1
+		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: case BLD_MILITARY_COLONY:
+		case BLD_WAGON_ENCAMPMENT: return 1.0f;
+		// kush/temple_amun, rome/temple_mars and rome/temple_vesta keep template_structure_civic_temple's 3
+		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
 	}
@@ -1657,13 +1661,17 @@ inline float building_garrison_heal(uint8_t type) {
 // +3 resistance to each damage type and +20 m vision (x0.28 like every Vision range).
 inline constexpr float WALL_TURRET_ARMOR = 3.0f;
 inline constexpr float WALL_TURRET_VISION = 20.0f * 0.28f;
-inline float building_eject_health(uint8_t type) {
+// han/ministry unloads only when destroyed (EjectHealth 0); han/storehouse and
+// han/farmstead seat a Minister with the usual 0.1.
+inline float building_eject_health(uint8_t type, uint8_t civ) {
 	switch (type) {
 		case BLD_FORTRESS: return 0.075f;
 		case BLD_CORRAL: return 0.5f;
-		case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
+		case BLD_MINISTRY: return 0.0f;
+		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 0.1f : 0.0f;
+		case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
 		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: case BLD_PALISADE_GATE:
-		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: case BLD_MINISTRY: return 0.0f; // han/ministry: EjectHealth 0
+		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return 0.0f;
 		default: return 0.1f;
 	}
 }
