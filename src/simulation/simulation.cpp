@@ -16286,12 +16286,6 @@ void Simulation::petra_manage_military_production(float dt) {
 		petra_raid_target_ok(petra_raid_plan_.target_building_id);
 	if (!attack_musters && !raid_musters) return;
 	const bool rush_wants = attack_musters && petra_attack_mgr_.kind == PETRA_ATTACK_RUSH;
-	// The army otherwise waits until the economy is mostly staffed (workers counted as
-	// trainMoreWorkers does); else the village phase never reaches popPhase2.
-	if (!rush_wants && !raid_musters) {
-		const float staffed = (phase == 1) ? 0.8f : 0.5f;
-		if ((float)petra_accounted_workers() < staffed * (float)petra_target_workers()) return;
-	}
 
 	// The classes a template carries (FastMoving is RTS0's TC_CAVALRY: cavalry, camels, chariots).
 	auto classes_of = [](uint16_t tmpl, uint8_t type) {
