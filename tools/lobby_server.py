@@ -40,11 +40,14 @@ behind a small JSON API:
   POST /chat      {token, text}
   POST /report    {token, matchID, players, playerStates, ...}
                   a player's end-of-game report (gui/session/lobby/LobbyRatingReporter.js);
-                  once every player of a 1v1 has reported, both ratings change
-                  (the lobby bot's EcheLOn and elo.py)
+                  once every player has sent the same report, a finished game is
+                  recorded, and a 1v1 with one winner changes both ratings (the
+                  lobby bot's EcheLOn and elo.py; RatingsBot announces it in chat)
   GET  /leaderboard                      -> {players: [{name, rating}]}, best first (boardlist)
   GET  /profile?name=N                   -> {name, rating, highestRating, rank, totalGamesPlayed,
-                                             wins, losses}; 404 if N has no rated game (profile)
+                                             wins, losses}; "-" for the rating fields until
+                                             N's first rated game, 404 if the lobby has no
+                                             game of N's (profile)
 
 A host also sends local_ip and local_port with its game; they are kept out of
 GET /rooms. With --stun-port the server also answers STUN Binding Requests
@@ -278,7 +281,7 @@ class Lobby:
         for p in self.players.values():
             row = {"name": p["name"], "status": p["status"]}
             r = self.ratings.get(p["name"].lower())
-            if r:
+            if r and r.get("rating") is not None:
                 row["rating"] = r["rating"]
             rows.append(row)
         return 200, {"players": sorted(rows, key=lambda r: r["name"].lower())}
@@ -312,6 +315,9 @@ class Lobby:
                 del self.reports[next(iter(self.reports))]
         elif [n.lower() for n in rep["players"]] != [n.lower() for n in names]:
             return 409, {"error": "the players differ from the match's other reports"}
+        elif rep["playerStates"] != states:
+            # EcheLOn's ReportManager drops reports that differ from the match's first.
+            return 409, {"error": "the report differs from the match's other reports"}
         rep["reporters"].add(p["name"].lower())
         if rep.get("done"):
             return 200, {"rated": False}
@@ -320,36 +326,53 @@ class Lobby:
         rep["done"] = True
         return 200, self._rate(rep)
 
+    def _row(self, name):
+        """A player's leaderboard row: rating None until a rated game (EcheLOn's -1);
+        games counts every finished game the lobby recorded (len(player.games))."""
+        r = self.ratings.setdefault(name.lower(), {"name": name, "rating": None, "highestRating": None,
+                                                   "wins": 0, "losses": 0})
+        r["name"] = name
+        r.setdefault("games", r["wins"] + r["losses"])  # rows saved before games was kept
+        return r
+
     def _rate(self, rep):
-        """leaderboard.py rate_game: only 1v1 games change ratings."""
+        """EcheLOn's Leaderboard.add_and_rate_game: a finished game (nobody still
+        active, someone won) is recorded for its players; a 1v1 with exactly one
+        winner also changes both ratings (_verify_game, _rate_game)."""
         names, states = rep["players"], rep["playerStates"]
-        if len(names) != 2 or names[0].lower() == names[1].lower():
-            return {"rated": False}
-        result = {"won": 1, "defeated": -1}.get(states[0], 0)
-        if result == 0 and states[1] not in ("won", "defeated"):
-            return {"rated": False}  # nobody finished: nothing to rate
-        rows = []
-        for n in names:
-            r = self.ratings.setdefault(n.lower(), {"name": n, "rating": LEADERBOARD_DEFAULT_RATING,
-                                                    "highestRating": LEADERBOARD_DEFAULT_RATING,
-                                                    "wins": 0, "losses": 0})
-            r["name"] = n
-            rows.append(r)
-        games = [r["wins"] + r["losses"] for r in rows]
-        change0 = get_rating_adjustment(rows[0]["rating"], rows[1]["rating"], games[0], games[1], result)
-        change1 = get_rating_adjustment(rows[1]["rating"], rows[0]["rating"], games[1], games[0], -result)
-        for r, change, res in ((rows[0], change0, result), (rows[1], change1, -result)):
-            r["rating"] += change
-            r["highestRating"] = max(r["highestRating"], r["rating"])
-            if res == 1:
-                r["wins"] += 1
-            elif res == -1:
+        if "active" in states or "won" not in states:
+            return {"rated": False}  # _add_game: unfinished, or no winner to record
+        rows = [self._row(n) for n in names]
+        for r in rows:
+            r["games"] += 1
+        winner = rows[states.index("won")]
+        winner["wins"] += 1
+        for r, st in zip(rows, states):
+            if r is not winner and st != "won":
                 r["losses"] += 1
+        if len(names) != 2 or names[0].lower() == names[1].lower() or states.count("won") != 1:
+            self._save_ratings()
+            return {"rated": False}
+        result = 1 if winner is rows[0] else -1
+        for r in rows:
+            if r["rating"] is None:
+                r["rating"] = LEADERBOARD_DEFAULT_RATING
+        # Both adjustments from the ratings before the game, each with the games
+        # counted so far, this one included.
+        change0 = get_rating_adjustment(rows[0]["rating"], rows[1]["rating"], rows[0]["games"], rows[1]["games"], result)
+        change1 = get_rating_adjustment(rows[1]["rating"], rows[0]["rating"], rows[1]["games"], rows[0]["games"], -result)
+        self._say("RatingsBot", "A rated game has ended. %s %s against %s. Rating Adjustment: %s (%d -> %d) and %s (%d -> %d)." % (
+            rows[0]["name"], "won" if result == 1 else "lost", rows[1]["name"],
+            rows[0]["name"], rows[0]["rating"], rows[0]["rating"] + change0,
+            rows[1]["name"], rows[1]["rating"], rows[1]["rating"] + change1))
+        for r, change in ((rows[0], change0), (rows[1], change1)):
+            r["rating"] += change
+            r["highestRating"] = max(r["rating"], r["highestRating"] if r["highestRating"] is not None else -1)
         self._save_ratings()
         return {"rated": True, "ratings": {r["name"]: r["rating"] for r in rows}}
 
     def _ranked(self):
-        rated = [r for r in self.ratings.values() if r["wins"] + r["losses"] > 0]
+        rated = [r for r in self.ratings.values() if r.get("rating") is not None]
         return sorted(rated, key=lambda r: (-r["rating"], r["name"].lower()))
 
     def leaderboard(self):
@@ -357,14 +380,19 @@ class Lobby:
         return 200, {"players": board}
 
     def profile(self, name):
-        name = str(name or "").strip().lower()
-        ranked = self._ranked()
-        for rank, r in enumerate(ranked, 1):
-            if r["name"].lower() == name:
-                return 200, {"name": r["name"], "rating": r["rating"], "highestRating": r["highestRating"],
-                             "rank": rank, "totalGamesPlayed": r["wins"] + r["losses"],
-                             "wins": r["wins"], "losses": r["losses"]}
-        return 404, {"error": "player not found"}
+        """EcheLOn's get_profile: rank counts the players rated at least as high;
+        a player with recorded games but no rated one shows "-" for those."""
+        r = self.ratings.get(str(name or "").strip().lower())
+        if r is None:
+            return 404, {"error": "player not found"}
+        games = r.get("games", r["wins"] + r["losses"])
+        out = {"name": r["name"], "totalGamesPlayed": games, "wins": r["wins"], "losses": games - r["wins"]}
+        if r.get("rating") is None:
+            out.update(rating="-", rank="-", highestRating="-")
+        else:
+            out.update(rating=r["rating"], highestRating=r["highestRating"],
+                       rank=sum(1 for o in self._ranked() if o["rating"] >= r["rating"]))
+        return 200, out
 
     def add_punch(self, data):
         """A joiner's STUN endpoint for the host to punch towards (0 A.D.'s

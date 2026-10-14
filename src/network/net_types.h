@@ -268,10 +268,15 @@ struct NetPeer {
 	std::set<uint32_t> recv_ahead; // delivered reliable seqs > last_recv_seq (arrived out of order)
 };
 
+// 0 A.D. NetServer.cpp MAX_CLIENTS: connected sessions a host takes (players
+// and observers); one more is refused with NDR_SERVER_FULL.
+constexpr size_t NET_MAX_CLIENTS = 41;
+// 0 A.D. NetHost.h ENetDisconnectReason values a host sends with its disconnect.
+constexpr uint8_t NDR_SERVER_FULL = 9;
+
 struct NetConfig {
 	uint16_t port = PS_DEFAULT_PORT; // 20595 (0x5073)
 	uint8_t maxPlayers = 8;
-	uint8_t maxObservers = 2;
 	float snapshotRate = 20.0f; // Hz
 	bool enableCompression = false;
 	uint32_t snapshotChannel = 1; // unreliable channel
@@ -789,7 +794,9 @@ inline std::string peer_guid(uint32_t peer_id) { return "peer-" + std::to_string
 // command batch it holds for turns after T) and then the saved world in CHUNKs.
 // The rejoiner loads the world, takes the batches and runs on from turn T+1.
 struct RejoinMsg {
-	enum Kind : uint8_t { REQUEST = 0, REJECT = 1, HEADER = 2, CHUNK = 3 };
+	// LOADED: a rejoining player has loaded the world (0 A.D. NMT_LOADED_GAME);
+	// LOCKSTEP: the host's answer, turn = the first turn the lockstep waits on it.
+	enum Kind : uint8_t { REQUEST = 0, REJECT = 1, HEADER = 2, CHUNK = 3, LOADED = 4, LOCKSTEP = 5 };
 	uint8_t kind = REQUEST;
 	uint32_t turn = 0;
 	uint32_t total = 0;  // HEADER: saved-world size; CHUNK: offset of these bytes
@@ -1272,7 +1279,7 @@ public:
 
 	static bool parse_rejoin(const uint8_t *data, size_t size, RejoinMsg &msg) {
 		size_t offset = 0;
-		if (!NetSerde::read_u8(data, size, offset, msg.kind) || msg.kind > RejoinMsg::CHUNK) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.kind) || msg.kind > RejoinMsg::LOCKSTEP) return false;
 		if (!NetSerde::read_u32(data, size, offset, msg.turn)) return false;
 		if (!NetSerde::read_u32(data, size, offset, msg.total)) return false;
 		if (!NetSerde::read_u8(data, size, offset, msg.reason)) return false;

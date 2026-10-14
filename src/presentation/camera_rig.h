@@ -24,6 +24,9 @@ class RtsoCameraRig : public Node3D {
 	// Camera pitch in degrees below the horizon (0 A.D. camera.rotate.up/down).
 	float pitch_deg = 50.6f;
 	float target_pitch_deg = 50.6f;
+	// 0 A.D. camera.togglebirdseyeview: straight down, and back to the pitch before.
+	bool birds_eye_ = false;
+	float pre_birds_eye_pitch_ = 50.6f;
 	// Which keys may scroll and rotate the camera: every key, arrows only (while
 	// placing a building, when letters pick the building), or none (typing).
 	int key_scroll_mode_ = 0;
@@ -46,6 +49,9 @@ public:
 	void set_target_pos(Vector3 pos);
 	void zoom(float delta_zoom);
 	void reset_camera();
+	void toggle_birds_eye();
+	bool is_birds_eye() const { return birds_eye_; }
+	float get_pitch_deg() const { return target_pitch_deg; }
 	void set_map_bounds_half(float h) { map_bounds_half = h; }
 	bool is_edge_scroll_enabled() const { return edge_scroll_enabled; }
 	enum KeyScrollMode { KEYS_ALL = 0, KEYS_ARROWS_ONLY = 1, KEYS_NONE = 2 };

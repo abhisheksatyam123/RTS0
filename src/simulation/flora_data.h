@@ -95,88 +95,96 @@ struct FloraTemplateInfo {
 	const char *model_id; // assets/models/vegetation/<model_id>.glb (its VisualActor)
 	uint8_t family;       // the FloraKind (0-26) game logic treats it as
 	bool fruit;           // gaia/fruit: a food supply
+	float obstruction;    // Obstruction/Static width = depth, metres
 };
 
 // i = kind - FLORA_TEMPLATE_FIRST.
 inline const FloraTemplateInfo &flora_template_info(int i) {
 	static const FloraTemplateInfo kTable[FLORA_TEMPLATE_COUNT] = {
-		{"fruit/apple", "Apple", "flora_fruit_apple", 10, true}, // flora/trees/apple_bloom.xml
-		{"fruit/banana", "Banana", "flora_fruit_banana", 0, true}, // flora/trees/banana.xml
-		{"fruit/berry_02", "Berries", "flora_fruit_berry_02", 9, true}, // props/flora/berry_bush_02.xml
-		{"fruit/berry_03", "Berries", "flora_fruit_berry_03", 9, true}, // props/flora/berry_bush_03.xml
-		{"fruit/berry_04", "Berries", "flora_fruit_berry_04", 9, true}, // props/flora/berry_bush_autumn_01.xml
-		{"fruit/berry_05", "Berries", "flora_fruit_berry_05", 9, true}, // props/flora/bush_berries_large.xml
-		{"fruit/date", "Date Palm", "flora_fruit_date", 11, true}, // flora/trees/palm_date_new_fruit.xml
-		{"fruit/fig", "Fig", "flora_fruit_fig", 10, true}, // flora/trees/fig.xml
-		{"fruit/grapes", "Grapes", "flora_fruit_grapes", 9, true}, // props/flora/forage_grapes.xml
-		{"tree/acacia_large", "Ancient Acacia", "flora_tree_acacia_large", 6, false}, // flora/trees/acacia_large.xml
-		{"tree/bamboo_dragon", "Dragon Bamboo", "flora_tree_bamboo_dragon", 7, false}, // flora/trees/bamboo_dragon.xml
-		{"tree/bamboo_single", "Bamboo", "flora_tree_bamboo_single", 7, false}, // flora/trees/bamboo_single.xml
-		{"tree/baobab_1_sapling", "Baobab Sapling", "flora_tree_baobab_1_sapling", 8, false}, // flora/trees/baobab_new_sapling.xml
-		{"tree/baobab_2_young", "Young Baobab", "flora_tree_baobab_2_young", 5, false}, // flora/trees/baobab_new_young.xml
-		{"tree/baobab_3_mature", "Baobab", "flora_tree_baobab_3_mature", 5, false}, // flora/trees/baobab_new.xml
-		{"tree/baobab_4_dead", "Baobab", "flora_tree_baobab_4_dead", 16, false}, // flora/trees/baobab_new_dead.xml
-		{"tree/bush_badlands", "Hardy Bush", "flora_tree_bush_badlands", 8, false}, // props/flora/bush_tempe_a.xml
-		{"tree/bush_mediterranean", "Scrub", "flora_tree_bush_mediterranean", 8, false}, // flora/bushes/medit_scrub_01.xml
-		{"tree/bush_mediterranean_dry", "Dry Scrub", "flora_tree_bush_mediterranean_dry", 8, false}, // flora/bushes/medit_scrub_02.xml
-		{"tree/bush_steppe_01", "Bush", "flora_tree_bush_steppe_01", 8, false}, // props/flora/bush_tempe_underbrush.xml
-		{"tree/bush_steppe_02", "Bush", "flora_tree_bush_steppe_02", 8, false}, // props/flora/bush_juniper_prickly.xml
-		{"tree/bush_steppe_03", "Bush", "flora_tree_bush_steppe_03", 8, false}, // props/flora/bush_medit_underbrush.xml
-		{"tree/bush_temperate", "Bush", "flora_tree_bush_temperate", 8, false}, // flora/trees/temperate_bush_biome.xml
-		{"tree/bush_temperate_autumn", "Bush", "flora_tree_bush_temperate_autumn", 8, false}, // props/flora/bush_temperate_autumn.xml
-		{"tree/bush_temperate_winter", "Bush", "flora_tree_bush_temperate_winter", 8, false}, // flora/trees/temperate_bush_biome_winter.xml
-		{"tree/cedar_atlas_1_sapling", "Atlas Cedar Sapling", "flora_tree_cedar_atlas_1_sapling", 8, false}, // flora/trees/cedar_atlas_sapling.xml
-		{"tree/cedar_atlas_2_young", "Atlas Cedar", "flora_tree_cedar_atlas_2_young", 2, false}, // flora/trees/cedar_atlas_young.xml
-		{"tree/cedar_atlas_3_mature", "Atlas Cedar", "flora_tree_cedar_atlas_3_mature", 2, false}, // flora/trees/cedar_atlas.xml
-		{"tree/cedar_atlas_4_dead", "Atlas Cedar", "flora_tree_cedar_atlas_4_dead", 16, false}, // flora/trees/cedar_atlas_dead.xml
-		{"tree/cherry_blossom", "Cherry Blossom", "flora_tree_cherry_blossom", 1, false}, // flora/trees/cherryblossom.xml
-		{"tree/cretan_date_palm_patch", "Cretan Date Palm", "flora_tree_cretan_date_palm_patch", 3, false}, // flora/trees/palm_cretan_date_patch.xml
-		{"tree/cretan_date_palm_short", "Cretan Date Palm", "flora_tree_cretan_date_palm_short", 3, false}, // flora/trees/palm_cretan_date_short.xml
-		{"tree/cretan_date_palm_tall", "Cretan Date Palm", "flora_tree_cretan_date_palm_tall", 3, false}, // flora/trees/palm_cretan_date_tall.xml
-		{"tree/cypress_wild", "Cypress", "flora_tree_cypress_wild", 17, false}, // flora/trees/cypress_mediterranean_wild.xml
-		{"tree/cypress_windswept", "Cypress", "flora_tree_cypress_windswept", 17, false}, // flora/trees/cypress_mediterranean_windswept.xml
-		{"tree/date_palm", "Date Palm", "flora_tree_date_palm", 3, false}, // flora/trees/palm_date_new.xml
-		{"tree/date_palm_dead", "Date Palm", "flora_tree_date_palm_dead", 16, false}, // flora/trees/palm_date_dead.xml
-		{"tree/elm", "Elm", "flora_tree_elm", 1, false}, // flora/trees/elm.xml
-		{"tree/elm_dead", "Elm", "flora_tree_elm_dead", 16, false}, // flora/trees/elm_dead.xml
-		{"tree/euro_beech_aut", "European Beech", "flora_tree_euro_beech_aut", 15, false}, // flora/trees/european_beech_aut.xml
-		{"tree/euro_birch", "Silver Birch", "flora_tree_euro_birch", 1, false}, // flora/trees/euro_birch_tree.xml
-		{"tree/fir_sapling", "Fir Sapling", "flora_tree_fir_sapling", 8, false}, // flora/trees/fir_sapling.xml
-		{"tree/fir_winter", "Fir", "flora_tree_fir_winter", 19, false}, // flora/trees/fir_tree_winter.xml
-		{"tree/mangrove", "Mangrove", "flora_tree_mangrove", 1, false}, // flora/trees/mangrove.xml
-		{"tree/maple_autumn", "Maple", "flora_tree_maple_autumn", 24, false}, // flora/trees/maple_autumn.xml
-		{"tree/oak_aut", "Oak", "flora_tree_oak_aut", 4, false}, // flora/trees/oak_aut.xml
-		{"tree/oak_aut_new", "Oak", "flora_tree_oak_aut_new", 4, false}, // flora/trees/oak_new_aut.xml
-		{"tree/oak_dead", "Oak", "flora_tree_oak_dead", 16, false}, // flora/trees/oak_dead.xml
-		{"tree/oak_holly", "Holly Oak", "flora_tree_oak_holly", 4, false}, // flora/trees/oak_holly.xml
-		{"tree/oak_holly_autumn", "Holly Oak", "flora_tree_oak_holly_autumn", 4, false}, // flora/trees/oak_holly_autumn.xml
-		{"tree/oak_hungarian", "Hungarian Oak", "flora_tree_oak_hungarian", 4, false}, // flora/trees/oak_hungarian.xml
-		{"tree/oak_hungarian_autumn", "Hungarian Oak", "flora_tree_oak_hungarian_autumn", 4, false}, // flora/trees/oak_hungarian_autumn.xml
-		{"tree/oak_large", "Large Oak", "flora_tree_oak_large", 4, false}, // flora/trees/oak_large.xml
-		{"tree/palm_areca", "Areca Palm", "flora_tree_palm_areca", 3, false}, // flora/trees/palm_areca.xml
-		{"tree/palm_doum", "Doum Palm", "flora_tree_palm_doum", 23, false}, // flora/trees/palm_doum.xml
-		{"tree/palm_palmyra", "Palmyra Palm", "flora_tree_palm_palmyra", 23, false}, // flora/trees/palm_palmyra.xml
-		{"tree/palm_royal", "Royal Palm", "flora_tree_palm_royal", 3, false}, // flora/trees/palm_royal.xml
-		{"tree/palm_tropical", "Tropical Palm", "flora_tree_palm_tropical", 23, false}, // flora/trees/palm_tropical.xml
-		{"tree/pine_black", "Black Pine", "flora_tree_pine_black", 18, false}, // flora/trees/pine_black.xml
-		{"tree/pine_black_dead", "Black Pine", "flora_tree_pine_black_dead", 16, false}, // flora/trees/pine_black_dead.xml
-		{"tree/pine_maritime", "Maritime Pine", "flora_tree_pine_maritime", 18, false}, // flora/trees/pine_maritime.xml
-		{"tree/pine_maritime_short", "Maritime Pine", "flora_tree_pine_maritime_short", 18, false}, // flora/trees/pine_maritime_short.xml
-		{"tree/pine_w", "Pine", "flora_tree_pine_w", 19, false}, // flora/trees/pine_w.xml
-		{"tree/poplar", "Poplar", "flora_tree_poplar", 13, false}, // flora/trees/poplar.xml
-		{"tree/poplar_dead", "Poplar", "flora_tree_poplar_dead", 16, false}, // flora/trees/poplar_dead.xml
-		{"tree/poplar_lombardy_autumn", "Poplar", "flora_tree_poplar_lombardy_autumn", 13, false}, // flora/trees/poplar_autumn.xml
-		{"tree/poplar_lombardy_dead", "Black Poplar", "flora_tree_poplar_lombardy_dead", 16, false}, // flora/trees/poplar_lombardy_dead.xml
-		{"tree/senegal_date_palm", "Senegal Date Palm", "flora_tree_senegal_date_palm", 23, false}, // flora/trees/palm_senegal_date.xml
-		{"tree/strangler", "Strangler Fig", "flora_tree_strangler", 22, false}, // flora/trees/strangler.xml
-		{"tree/tamarix", "Tamarix", "flora_tree_tamarix", 1, false}, // flora/trees/tamarix.xml
-		{"tree/temperate", "Deciduous Tree", "flora_tree_temperate", 1, false}, // flora/trees/temperate_forest_biome_tree.xml
-		{"tree/temperate_autumn", "Deciduous Tree", "flora_tree_temperate_autumn", 1, false}, // flora/trees/temperate_forest_biome_tree_autumn.xml
-		{"tree/temperate_winter", "Deciduous Tree", "flora_tree_temperate_winter", 1, false}, // flora/trees/temperate_forest_biome_tree_winter.xml
-		{"tree/toona", "Toona", "flora_tree_toona", 26, false}, // flora/trees/tree_tropic.xml
-		{"tree/tropic_rainforest", "Rainforest Tree", "flora_tree_tropic_rainforest", 1, false}, // flora/trees/tropic_forest_biome_tree.xml
+		{"fruit/apple", "Apple", "flora_fruit_apple", 10, true, 2.5f}, // flora/trees/apple_bloom.xml
+		{"fruit/banana", "Banana", "flora_fruit_banana", 0, true, 2.5f}, // flora/trees/banana.xml
+		{"fruit/berry_02", "Berries", "flora_fruit_berry_02", 9, true, 2.5f}, // props/flora/berry_bush_02.xml
+		{"fruit/berry_03", "Berries", "flora_fruit_berry_03", 9, true, 2.5f}, // props/flora/berry_bush_03.xml
+		{"fruit/berry_04", "Berries", "flora_fruit_berry_04", 9, true, 2.5f}, // props/flora/berry_bush_autumn_01.xml
+		{"fruit/berry_05", "Berries", "flora_fruit_berry_05", 9, true, 2.5f}, // props/flora/bush_berries_large.xml
+		{"fruit/date", "Date Palm", "flora_fruit_date", 11, true, 2.5f}, // flora/trees/palm_date_new_fruit.xml
+		{"fruit/fig", "Fig", "flora_fruit_fig", 10, true, 5.0f}, // flora/trees/fig.xml
+		{"fruit/grapes", "Grapes", "flora_fruit_grapes", 9, true, 2.5f}, // props/flora/forage_grapes.xml
+		{"tree/acacia_large", "Ancient Acacia", "flora_tree_acacia_large", 6, false, 1.6f}, // flora/trees/acacia_large.xml
+		{"tree/bamboo_dragon", "Dragon Bamboo", "flora_tree_bamboo_dragon", 7, false, 6.0f}, // flora/trees/bamboo_dragon.xml
+		{"tree/bamboo_single", "Bamboo", "flora_tree_bamboo_single", 7, false, 1.6f}, // flora/trees/bamboo_single.xml
+		{"tree/baobab_1_sapling", "Baobab Sapling", "flora_tree_baobab_1_sapling", 8, false, 1.6f}, // flora/trees/baobab_new_sapling.xml
+		{"tree/baobab_2_young", "Young Baobab", "flora_tree_baobab_2_young", 5, false, 1.6f}, // flora/trees/baobab_new_young.xml
+		{"tree/baobab_3_mature", "Baobab", "flora_tree_baobab_3_mature", 5, false, 6.0f}, // flora/trees/baobab_new.xml
+		{"tree/baobab_4_dead", "Baobab", "flora_tree_baobab_4_dead", 16, false, 6.0f}, // flora/trees/baobab_new_dead.xml
+		{"tree/bush_badlands", "Hardy Bush", "flora_tree_bush_badlands", 8, false, 1.6f}, // props/flora/bush_tempe_a.xml
+		{"tree/bush_mediterranean", "Scrub", "flora_tree_bush_mediterranean", 8, false, 1.6f}, // flora/bushes/medit_scrub_01.xml
+		{"tree/bush_mediterranean_dry", "Dry Scrub", "flora_tree_bush_mediterranean_dry", 8, false, 1.6f}, // flora/bushes/medit_scrub_02.xml
+		{"tree/bush_steppe_01", "Bush", "flora_tree_bush_steppe_01", 8, false, 1.6f}, // props/flora/bush_tempe_underbrush.xml
+		{"tree/bush_steppe_02", "Bush", "flora_tree_bush_steppe_02", 8, false, 1.6f}, // props/flora/bush_juniper_prickly.xml
+		{"tree/bush_steppe_03", "Bush", "flora_tree_bush_steppe_03", 8, false, 1.6f}, // props/flora/bush_medit_underbrush.xml
+		{"tree/bush_temperate", "Bush", "flora_tree_bush_temperate", 8, false, 1.6f}, // flora/trees/temperate_bush_biome.xml
+		{"tree/bush_temperate_autumn", "Bush", "flora_tree_bush_temperate_autumn", 8, false, 1.6f}, // props/flora/bush_temperate_autumn.xml
+		{"tree/bush_temperate_winter", "Bush", "flora_tree_bush_temperate_winter", 8, false, 1.6f}, // flora/trees/temperate_bush_biome_winter.xml
+		{"tree/cedar_atlas_1_sapling", "Atlas Cedar Sapling", "flora_tree_cedar_atlas_1_sapling", 8, false, 1.6f}, // flora/trees/cedar_atlas_sapling.xml
+		{"tree/cedar_atlas_2_young", "Atlas Cedar", "flora_tree_cedar_atlas_2_young", 2, false, 1.6f}, // flora/trees/cedar_atlas_young.xml
+		{"tree/cedar_atlas_3_mature", "Atlas Cedar", "flora_tree_cedar_atlas_3_mature", 2, false, 1.6f}, // flora/trees/cedar_atlas.xml
+		{"tree/cedar_atlas_4_dead", "Atlas Cedar", "flora_tree_cedar_atlas_4_dead", 16, false, 1.6f}, // flora/trees/cedar_atlas_dead.xml
+		{"tree/cherry_blossom", "Cherry Blossom", "flora_tree_cherry_blossom", 1, false, 1.6f}, // flora/trees/cherryblossom.xml
+		{"tree/cretan_date_palm_patch", "Cretan Date Palm", "flora_tree_cretan_date_palm_patch", 3, false, 4.0f}, // flora/trees/palm_cretan_date_patch.xml
+		{"tree/cretan_date_palm_short", "Cretan Date Palm", "flora_tree_cretan_date_palm_short", 3, false, 1.6f}, // flora/trees/palm_cretan_date_short.xml
+		{"tree/cretan_date_palm_tall", "Cretan Date Palm", "flora_tree_cretan_date_palm_tall", 3, false, 1.6f}, // flora/trees/palm_cretan_date_tall.xml
+		{"tree/cypress_wild", "Cypress", "flora_tree_cypress_wild", 17, false, 1.6f}, // flora/trees/cypress_mediterranean_wild.xml
+		{"tree/cypress_windswept", "Cypress", "flora_tree_cypress_windswept", 17, false, 1.6f}, // flora/trees/cypress_mediterranean_windswept.xml
+		{"tree/date_palm", "Date Palm", "flora_tree_date_palm", 3, false, 1.6f}, // flora/trees/palm_date_new.xml
+		{"tree/date_palm_dead", "Date Palm", "flora_tree_date_palm_dead", 16, false, 1.6f}, // flora/trees/palm_date_dead.xml
+		{"tree/elm", "Elm", "flora_tree_elm", 1, false, 1.6f}, // flora/trees/elm.xml
+		{"tree/elm_dead", "Elm", "flora_tree_elm_dead", 16, false, 1.6f}, // flora/trees/elm_dead.xml
+		{"tree/euro_beech_aut", "European Beech", "flora_tree_euro_beech_aut", 15, false, 1.6f}, // flora/trees/european_beech_aut.xml
+		{"tree/euro_birch", "Silver Birch", "flora_tree_euro_birch", 1, false, 1.6f}, // flora/trees/euro_birch_tree.xml
+		{"tree/fir_sapling", "Fir Sapling", "flora_tree_fir_sapling", 8, false, 1.6f}, // flora/trees/fir_sapling.xml
+		{"tree/fir_winter", "Fir", "flora_tree_fir_winter", 19, false, 1.6f}, // flora/trees/fir_tree_winter.xml
+		{"tree/mangrove", "Mangrove", "flora_tree_mangrove", 1, false, 1.6f}, // flora/trees/mangrove.xml
+		{"tree/maple_autumn", "Maple", "flora_tree_maple_autumn", 24, false, 1.6f}, // flora/trees/maple_autumn.xml
+		{"tree/oak_aut", "Oak", "flora_tree_oak_aut", 4, false, 1.6f}, // flora/trees/oak_aut.xml
+		{"tree/oak_aut_new", "Oak", "flora_tree_oak_aut_new", 4, false, 1.6f}, // flora/trees/oak_new_aut.xml
+		{"tree/oak_dead", "Oak", "flora_tree_oak_dead", 16, false, 1.6f}, // flora/trees/oak_dead.xml
+		{"tree/oak_holly", "Holly Oak", "flora_tree_oak_holly", 4, false, 1.6f}, // flora/trees/oak_holly.xml
+		{"tree/oak_holly_autumn", "Holly Oak", "flora_tree_oak_holly_autumn", 4, false, 1.6f}, // flora/trees/oak_holly_autumn.xml
+		{"tree/oak_hungarian", "Hungarian Oak", "flora_tree_oak_hungarian", 4, false, 1.6f}, // flora/trees/oak_hungarian.xml
+		{"tree/oak_hungarian_autumn", "Hungarian Oak", "flora_tree_oak_hungarian_autumn", 4, false, 1.6f}, // flora/trees/oak_hungarian_autumn.xml
+		{"tree/oak_large", "Large Oak", "flora_tree_oak_large", 4, false, 1.6f}, // flora/trees/oak_large.xml
+		{"tree/palm_areca", "Areca Palm", "flora_tree_palm_areca", 3, false, 1.6f}, // flora/trees/palm_areca.xml
+		{"tree/palm_doum", "Doum Palm", "flora_tree_palm_doum", 23, false, 1.6f}, // flora/trees/palm_doum.xml
+		{"tree/palm_palmyra", "Palmyra Palm", "flora_tree_palm_palmyra", 23, false, 1.6f}, // flora/trees/palm_palmyra.xml
+		{"tree/palm_royal", "Royal Palm", "flora_tree_palm_royal", 3, false, 1.6f}, // flora/trees/palm_royal.xml
+		{"tree/palm_tropical", "Tropical Palm", "flora_tree_palm_tropical", 23, false, 1.6f}, // flora/trees/palm_tropical.xml
+		{"tree/pine_black", "Black Pine", "flora_tree_pine_black", 18, false, 1.6f}, // flora/trees/pine_black.xml
+		{"tree/pine_black_dead", "Black Pine", "flora_tree_pine_black_dead", 16, false, 1.6f}, // flora/trees/pine_black_dead.xml
+		{"tree/pine_maritime", "Maritime Pine", "flora_tree_pine_maritime", 18, false, 1.6f}, // flora/trees/pine_maritime.xml
+		{"tree/pine_maritime_short", "Maritime Pine", "flora_tree_pine_maritime_short", 18, false, 1.6f}, // flora/trees/pine_maritime_short.xml
+		{"tree/pine_w", "Pine", "flora_tree_pine_w", 19, false, 1.6f}, // flora/trees/pine_w.xml
+		{"tree/poplar", "Poplar", "flora_tree_poplar", 13, false, 1.6f}, // flora/trees/poplar.xml
+		{"tree/poplar_dead", "Poplar", "flora_tree_poplar_dead", 16, false, 1.6f}, // flora/trees/poplar_dead.xml
+		{"tree/poplar_lombardy_autumn", "Poplar", "flora_tree_poplar_lombardy_autumn", 13, false, 1.6f}, // flora/trees/poplar_autumn.xml
+		{"tree/poplar_lombardy_dead", "Black Poplar", "flora_tree_poplar_lombardy_dead", 16, false, 1.6f}, // flora/trees/poplar_lombardy_dead.xml
+		{"tree/senegal_date_palm", "Senegal Date Palm", "flora_tree_senegal_date_palm", 23, false, 1.6f}, // flora/trees/palm_senegal_date.xml
+		{"tree/strangler", "Strangler Fig", "flora_tree_strangler", 22, false, 5.0f}, // flora/trees/strangler.xml
+		{"tree/tamarix", "Tamarix", "flora_tree_tamarix", 1, false, 1.6f}, // flora/trees/tamarix.xml
+		{"tree/temperate", "Deciduous Tree", "flora_tree_temperate", 1, false, 1.6f}, // flora/trees/temperate_forest_biome_tree.xml
+		{"tree/temperate_autumn", "Deciduous Tree", "flora_tree_temperate_autumn", 1, false, 1.6f}, // flora/trees/temperate_forest_biome_tree_autumn.xml
+		{"tree/temperate_winter", "Deciduous Tree", "flora_tree_temperate_winter", 1, false, 1.6f}, // flora/trees/temperate_forest_biome_tree_winter.xml
+		{"tree/toona", "Toona", "flora_tree_toona", 26, false, 1.6f}, // flora/trees/tree_tropic.xml
+		{"tree/tropic_rainforest", "Rainforest Tree", "flora_tree_tropic_rainforest", 1, false, 1.6f}, // flora/trees/tropic_forest_biome_tree.xml
 	};
 	return kTable[i];
+}
+
+// The obstruction width (metres) of the templates a family kind (0-26) draws as; 0 where
+// no template draws as it (FLORA_DEFAULT among them): its supply decides (template_gaia_tree 1.6, template_gaia_fruit 2.5).
+inline float flora_family_obstruction(int kind) {
+	static const float kWidth[27] = {0.0f, 0.0f, 1.6f, 0.0f, 1.6f, 3.0f, 1.6f, 1.6f, 0.0f, 2.5f, 0.0f, 0.0f, 1.6f, 1.6f, 1.6f, 1.6f, 1.6f, 1.6f, 1.6f, 1.6f, 1.6f, 1.6f, 6.0f, 1.6f, 1.6f, 1.6f, 3.0f};
+	return kind >= 0 && kind < 27 ? kWidth[kind] : 0.0f;
 }
 
 } // namespace rtso

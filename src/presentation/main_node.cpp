@@ -75,9 +75,12 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_disconnected_exit_pressed"), &RtsoMain::_on_disconnected_exit_pressed);
 	ClassDB::bind_method(D_METHOD("_on_delete_confirmed"), &RtsoMain::_on_delete_confirmed);
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
+	ClassDB::bind_method(D_METHOD("_on_template_details_input", "event", "kind", "id", "civ"), &RtsoMain::_on_template_details_input);
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
+	ClassDB::bind_method(D_METHOD("_on_panel_entity_gui_input", "event", "slot"), &RtsoMain::_on_panel_entity_gui_input);
+	ClassDB::bind_method(D_METHOD("_on_research_progress_pressed", "slot"), &RtsoMain::_on_research_progress_pressed);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
@@ -149,6 +152,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count"), &RtsoMain::debug_spawn_units);
+	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
@@ -329,700 +333,6 @@ static Ref<Texture2D> load_tex(const String &path) {
 		if (tex.is_valid()) return tex;
 	}
 	return Ref<Texture2D>();
-}
-
-void RtsoMain::_ready() {
-	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready - Full 0 A.D. UI & Simulation");
-	// 0 A.D. writes oos_dump.txt/.dat to its log dir; ours is user://.
-	turn_mgr_.set_oos_dump_dir(OS::get_singleton()->get_user_data_dir().utf8().get_data());
-
-	// Incoming chat: 0 A.D. NetMessages.h NMT_CHAT parity. Fires on the main
-	// thread from net_host_.poll() (_process), so appending to the chat
-	// widget (chat_window.h) is safe.
-	// net_host.cpp:540 dispatch -> onChat (:395) -> display here.
-	net_host_.onChat([this](const rtso::ChatMsg &cm) {
-		String msg = String::utf8(cm.message.c_str());
-		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
-		// flare): "[Flare] x,z" -> local map ping, not chat text.
-		if (msg.begins_with("[Flare]")) {
-			// 0 A.D. sends a flare to the sender's mutual allies and the observers.
-			const String guid = String::utf8(cm.sender_guid.c_str());
-			if (!chat_local_observer() && !chat_is_addressee(guid, "[Allies]")) return;
-			String coords = msg.substr(7).strip_edges();
-			int32_t comma = coords.find(",");
-			if (comma > 0) {
-				float fx = coords.substr(0, comma).to_float();
-				float fz = coords.substr(comma + 1).to_float();
-				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
-				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
-				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
-				// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
-				// "never", "observer" (only while observing) or "always".
-				const std::string when = rtso::user_config::get("gui.session.notifications.flare");
-				const uint8_t from = chat_player_of(guid);
-				if (from < rtso::MAX_PLAYERS && (when == "always" || (when == "observer" && chat_local_observer())))
-					chat_window_.append_line(colored_player_name(from) + " has sent a flare.\n");
-			}
-			return;
-		}
-		// Channel-tag parse + RichTextLabel append live in the chat leaf
-		// widget (chat_window.h append_incoming()); no-op until built.
-		const String sender = String::utf8(cm.sender_guid.c_str());
-		// 0.28 sound.notify.nick: a chime when someone else's message names you.
-		if (chat_window_.append_incoming(sender, msg) && rtso::user_config::get_bool("sound.notify.nick")) {
-			const String me = chat_user("peer-" + String::num_int64(turn_mgr_.local_client_id()));
-			if (!me.is_empty() && sender != "peer-" + String::num_int64(turn_mgr_.local_client_id()) &&
-					msg.to_lower().contains(me.to_lower()))
-				play_alarm("res://assets/audio/interface/ui/chat_alert.ogg");
-		}
-	});
-
-	// Stash the GameSetup first: load_map_seeded needs view + cam_rig, which
-	// are created below. apply_match_settings() runs after they exist.
-	// (Map choice was previously dropped - map_index stored but never
-	// consumed. Victory / Petra difficulty+behavior / starting resources /
-	// per-slot civs apply after the map load because reset()/generate()
-	// overwrite stocks.)
-	load_progress(30, "Loading animations");
-	anim_ctrl.load("res://assets/animations");
-
-	bool has_light = false;
-	for (int i = 0; i < get_child_count(); ++i) {
-		if (Object::cast_to<DirectionalLight3D>(get_child(i))) {
-			has_light = true;
-			break;
-		}
-	}
-	if (!has_light) {
-		DirectionalLight3D *sun = memnew(DirectionalLight3D);
-		sun->set_position(Vector3(0, 50, 0));
-		sun->set_rotation_degrees(Vector3(-55, 35, 0));
-		sun->set_color(Color(1.0f, 0.96f, 0.90f));
-		sun->set_param(Light3D::PARAM_ENERGY, 1.4f);
-		add_child(sun);
-	}
-
-	// 0 A.D. reads hotkeys from default.cfg, then the player's user.cfg.
-	if (rtso::hotkeys::load_user_cfg()) print_line("[RTS0] Loaded hotkeys from user://config/user.cfg");
-
-	cam_rig = memnew(RtsoCameraRig);
-	add_child(cam_rig);
-
-	view = memnew(RtsoWorldView);
-	add_child(view);
-
-	ui_layer = memnew(CanvasLayer);
-	add_child(ui_layer);
-
-	Ref<Theme> zeroad_theme;
-	if (ResourceLoader::get_singleton()->exists("res://assets/themes/zeroad_theme.tres")) {
-		zeroad_theme = ResourceLoader::get_singleton()->load("res://assets/themes/zeroad_theme.tres");
-	}
-
-	sel_rect = memnew(RtsoSelectionRect);
-	ui_layer->add_child(sel_rect);
-
-	debug_overlay = memnew(RtsoDebugOverlay);
-	debug_overlay->set_visible(false); // fps.toggle (Alt+F) shows it, as 0 A.D.'s FPS counter
-	ui_layer->add_child(debug_overlay);
-
-	minimap_view = memnew(RtsoMiniMapView);
-	minimap_view->connect("minimap_clicked", Callable(this, "_on_minimap_clicked"));
-	minimap_view->connect("minimap_order", Callable(this, "_on_minimap_order"));
-	ui_layer->add_child(minimap_view);
-
-	// Minimap layer toggles (methods were ClassDB-bound but had no UI driver).
-	// Row sits directly above the 190px minimap (see minimap ctor offsets).
-	{
-		HBoxContainer *mm_btns = memnew(HBoxContainer);
-		mm_btns->set_anchor(SIDE_LEFT, Control::ANCHOR_BEGIN);
-		mm_btns->set_anchor(SIDE_RIGHT, Control::ANCHOR_BEGIN);
-		mm_btns->set_anchor(SIDE_TOP, Control::ANCHOR_END);
-		mm_btns->set_anchor(SIDE_BOTTOM, Control::ANCHOR_END);
-		mm_btns->set_offset(SIDE_LEFT, 14.0f);
-		mm_btns->set_offset(SIDE_RIGHT, 204.0f);
-		mm_btns->set_offset(SIDE_TOP, -230.0f);
-		mm_btns->set_offset(SIDE_BOTTOM, -206.0f);
-		mm_btns->add_theme_constant_override("separation", 4);
-		struct MmBtn { const char *label; const char *method; };
-		const MmBtn mm_btn_defs[4] = {
-			// 3-state shroud cycle (RtsoMiniMapView::cycle_shroud, minimap_view.h ShroudMode):
-			// On -> terrain-only -> off -> On. 0AD MiniMapPanel.js:8-11 panel buttons.
-			{"Shroud", "cycle_shroud"},
-			{"Terr", "toggle_territory"},
-			{"Res", "toggle_resources"},
-			{"Diplo", "toggle_diplomacy"},
-		};
-		for (const MmBtn &d : mm_btn_defs) {
-			Button *b = memnew(Button);
-			b->set_text(d.label);
-			b->set_custom_minimum_size(Vector2(44, 22));
-			b->set_focus_mode(Control::FOCUS_NONE);
-			b->add_theme_font_size_override("font_size", 9);
-			b->connect("pressed", Callable(minimap_view, d.method));
-			mm_btns->add_child(b);
-		}
-		ui_layer->add_child(mm_btns);
-	}
-
-	// =========================================================================
-	// 1. TOP HUD BAR PANEL (Civ Crest, 4 Resources, Pop, Idle, Clock, Speed, Menu)
-	// =========================================================================
-	top_hud_panel = memnew(Panel);
-	top_hud_panel->set_anchor(SIDE_LEFT, 0.0f);
-	top_hud_panel->set_anchor(SIDE_RIGHT, 1.0f);
-	top_hud_panel->set_anchor(SIDE_TOP, 0.0f);
-	top_hud_panel->set_anchor(SIDE_BOTTOM, 0.0f);
-	top_hud_panel->set_offset(SIDE_LEFT, 12.0f);
-	top_hud_panel->set_offset(SIDE_RIGHT, -12.0f);
-	top_hud_panel->set_offset(SIDE_TOP, 8.0f);
-	top_hud_panel->set_offset(SIDE_BOTTOM, 54.0f);
-
-	Ref<StyleBoxFlat> top_style;
-	top_style.instantiate();
-	top_style->set_bg_color(Color(0.10f, 0.11f, 0.15f, 0.94f));
-	top_style->set_corner_radius_all(3);
-	top_style->set_border_width_all(2);
-	top_style->set_border_color(Color(0.90f, 0.75f, 0.31f, 1.0f));
-	top_hud_panel->add_theme_stylebox_override("panel", top_style);
-	if (zeroad_theme.is_valid()) top_hud_panel->set_theme(zeroad_theme);
-	ui_layer->add_child(top_hud_panel);
-
-	HBoxContainer *top_hbox = memnew(HBoxContainer);
-	top_hbox->set_anchor(SIDE_LEFT, 0.0f);
-	top_hbox->set_anchor(SIDE_RIGHT, 1.0f);
-	top_hbox->set_anchor(SIDE_TOP, 0.0f);
-	top_hbox->set_anchor(SIDE_BOTTOM, 1.0f);
-	top_hbox->set_offset(SIDE_LEFT, 8.0f);
-	top_hbox->set_offset(SIDE_RIGHT, -8.0f);
-	top_hbox->set_offset(SIDE_TOP, 4.0f);
-	top_hbox->set_offset(SIDE_BOTTOM, -4.0f);
-	top_hbox->add_theme_constant_override("separation", 4);
-	top_hud_panel->add_child(top_hbox);
-
-	top_panel_.build(this, top_hbox, sim->player_civ());
-	// Tooltips are plain text: the name without colorizePlayernameHelper's coloured square.
-	top_panel_.set_ally_name([this](uint8_t p) { return player_display_name(p); });
-	{
-		auto first_key = [](const char *name) {
-			const auto *combos = rtso::hotkeys::table().get(name);
-			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
-		};
-		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
-				first_key("session.gui.barter.toggle"),
-				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
-	}
-
-	time_notification_label_ = memnew(Label);
-	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
-	time_notification_label_->set_anchor(SIDE_RIGHT, 1.0f);
-	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
-	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
-	time_notification_label_->set_offset(SIDE_TOP, 62.0f);
-	time_notification_label_->set_offset(SIDE_BOTTOM, 140.0f);
-	time_notification_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	time_notification_label_->add_theme_font_size_override("font_size", 16);
-	time_notification_label_->add_theme_color_override("font_color", Color(1.0f, 0.92f, 0.6f));
-	time_notification_label_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
-	time_notification_label_->add_theme_constant_override("outline_size", 4);
-	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-	ui_layer->add_child(time_notification_label_);
-
-	cursor_tip_ = memnew(Label);
-	cursor_tip_->add_theme_font_size_override("font_size", 13);
-	cursor_tip_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
-	cursor_tip_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
-	cursor_tip_->add_theme_constant_override("outline_size", 4);
-	cursor_tip_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-	cursor_tip_->set_visible(false);
-	ui_layer->add_child(cursor_tip_);
-
-	// Speed & Menu
-	speed_btn = memnew(Button);
-	speed_btn->set_custom_minimum_size(Vector2(45, 28));
-	speed_btn->set_text(speed_text(1.0f));
-	speed_btn->set_tooltip_text("Choose game speed");
-	speed_btn->add_theme_font_size_override("font_size", 12);
-	speed_btn->connect("pressed", Callable(this, "_on_speed_button_pressed"));
-	top_hbox->add_child(speed_btn);
-
-	menu_btn = memnew(Button);
-	menu_btn->set_custom_minimum_size(Vector2(60, 28));
-	menu_btn->set_text("Menu");
-	menu_btn->add_theme_font_size_override("font_size", 12);
-	menu_btn->connect("pressed", Callable(this, "_on_menu_button_pressed"));
-	top_hbox->add_child(menu_btn);
-
-	map_selector = memnew(RtsoSafeSelect);
-	map_selector->set_custom_minimum_size(Vector2(165, 28));
-	PackedStringArray av_maps = get_available_maps();
-	for (int i = 0; i < av_maps.size(); ++i) {
-		String mid = av_maps[i];
-		String title = mid.replace("_", " ").capitalize();
-		if (mid.begins_with("random_")) {
-			title = "RMS: " + title.trim_prefix("Random ");
-		}
-		map_selector->add_item(title, i);
-	}
-	map_selector->connect("item_selected", Callable(this, "_on_map_selected"));
-	map_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
-	top_hbox->add_child(map_selector);
-
-	civ_selector = memnew(RtsoSafeSelect);
-	civ_selector->set_custom_minimum_size(Vector2(125, 28));
-	civ_selector->add_item("Athenians", rtso::CIV_ATHENIANS);
-	civ_selector->add_item("Spartans", rtso::CIV_SPARTANS);
-	civ_selector->add_item("Persians", rtso::CIV_PERSIANS);
-	civ_selector->add_item("Romans", rtso::CIV_ROMANS);
-	civ_selector->add_item("Carthaginians", rtso::CIV_CARTHAGINIANS);
-	civ_selector->add_item("Macedonians", rtso::CIV_MACEDONIANS);
-	civ_selector->add_item("Britons", rtso::CIV_BRITONS);
-	civ_selector->add_item("Gauls", rtso::CIV_GAULS);
-	civ_selector->add_item("Iberians", rtso::CIV_IBERIANS);
-	civ_selector->add_item("Mauryans", rtso::CIV_MAURYANS);
-	civ_selector->add_item("Kushites", rtso::CIV_KUSHITES);
-	civ_selector->add_item("Ptolemies", rtso::CIV_PTOLEMIES);
-	civ_selector->add_item("Seleucids", rtso::CIV_SELEUCIDS);
-	civ_selector->add_item("Han Chinese", rtso::CIV_HAN);
-	civ_selector->add_item("Germans", rtso::CIV_GERMANS);
-	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
-	civ_selector->select((int)sim->player_civ());
-	civ_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
-	top_hbox->add_child(civ_selector);
-
-	ai_diff_selector = memnew(RtsoSafeSelect);
-	ai_diff_selector->set_custom_minimum_size(Vector2(100, 28));
-	ai_diff_selector->add_item("AI Sandbox", rtso::PETRA_SANDBOX);
-	ai_diff_selector->add_item("AI Very Easy", rtso::PETRA_VERY_EASY);
-	ai_diff_selector->add_item("AI Easy", rtso::PETRA_EASY);
-	ai_diff_selector->add_item("AI Medium", rtso::PETRA_MEDIUM);
-	ai_diff_selector->add_item("AI Hard", rtso::PETRA_HARD);
-	ai_diff_selector->add_item("AI Very Hard", rtso::PETRA_VERY_HARD);
-	ai_diff_selector->select(rtso::PETRA_MEDIUM);
-	ai_diff_selector->connect("item_selected", Callable(this, "_on_ai_diff_selected"));
-	ai_diff_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
-	top_hbox->add_child(ai_diff_selector);
-
-	ai_behavior_selector = memnew(RtsoSafeSelect);
-	ai_behavior_selector->set_custom_minimum_size(Vector2(110, 28));
-	ai_behavior_selector->add_item("AI Balanced", rtso::PETRA_BEHAVIOR_BALANCED);
-	ai_behavior_selector->add_item("AI Defensive", rtso::PETRA_BEHAVIOR_DEFENSIVE);
-	ai_behavior_selector->add_item("AI Aggressive", rtso::PETRA_BEHAVIOR_AGGRESSIVE);
-	ai_behavior_selector->add_item("AI Random", rtso::PETRA_BEHAVIOR_RANDOM);
-	ai_behavior_selector->connect("item_selected", Callable(this, "_on_ai_behavior_selected"));
-	ai_behavior_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
-	top_hbox->add_child(ai_behavior_selector);
-
-	victory_selector = memnew(RtsoSafeSelect);
-	victory_selector->set_custom_minimum_size(Vector2(110, 28));
-	victory_selector->add_item("Conquest", rtso::VICTORY_CONQUEST);
-	victory_selector->add_item("Wonder", rtso::VICTORY_WONDER);
-	victory_selector->add_item("Relics", rtso::VICTORY_RELIC);
-	victory_selector->add_item("Endless", rtso::VICTORY_ENDLESS);
-	victory_selector->add_item("Conquest Units", rtso::VICTORY_CONQUEST_UNITS);
-	victory_selector->add_item("Conquest Structures", rtso::VICTORY_CONQUEST_STRUCTURES);
-	victory_selector->add_item("Regicide", rtso::VICTORY_REGICIDE);
-	// The victory condition is fixed in Game Setup; changing it mid-match would desync lockstep peers.
-	victory_selector->set_disabled(true);
-	victory_selector->set_tooltip_text("Victory condition (set in Game Setup)");
-	victory_selector->connect("item_selected", Callable(this, "_on_victory_selected"));
-	victory_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
-	top_hbox->add_child(victory_selector);
-
-	voice_btn = memnew(Button);
-	voice_btn->set_custom_minimum_size(Vector2(72, 28));
-	voice_btn->set_text("Voice: EN");
-	voice_btn->add_theme_font_size_override("font_size", 12);
-	voice_btn->connect("pressed", Callable(this, "_on_voice_button_pressed"));
-	voice_btn->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
-	top_hbox->add_child(voice_btn);
-
-	lobby_btn = memnew(Button);
-	lobby_btn->set_custom_minimum_size(Vector2(64, 28));
-	lobby_btn->set_text("Lobby");
-	lobby_btn->add_theme_font_size_override("font_size", 12);
-	lobby_btn->connect("pressed", Callable(this, "_on_lobby_button_pressed"));
-	// 0 A.D.'s top panel shows its Lobby button only with a lobby connection
-	// (Engine.HasXmppClient); here, in a game started from the lobby screen.
-	lobby_btn->set_visible(false);
-	top_hbox->add_child(lobby_btn);
-
-	lobby_panel = memnew(Panel);
-	lobby_panel->set_visible(false);
-	lobby_panel->set_anchor(SIDE_LEFT, 0.0f);
-	lobby_panel->set_anchor(SIDE_RIGHT, 0.0f);
-	lobby_panel->set_anchor(SIDE_TOP, 0.0f);
-	lobby_panel->set_anchor(SIDE_BOTTOM, 0.0f);
-	lobby_panel->set_offset(SIDE_LEFT, 16.0f);
-	lobby_panel->set_offset(SIDE_RIGHT, 420.0f);
-	lobby_panel->set_offset(SIDE_TOP, 52.0f);
-	lobby_panel->set_offset(SIDE_BOTTOM, 320.0f);
-	ui_layer->add_child(lobby_panel);
-
-	VBoxContainer *lobby_box = memnew(VBoxContainer);
-	lobby_box->set_anchors_preset(Control::PRESET_FULL_RECT);
-	lobby_box->set_offset(SIDE_LEFT, 8);
-	lobby_box->set_offset(SIDE_RIGHT, -8);
-	lobby_box->set_offset(SIDE_TOP, 8);
-	lobby_box->set_offset(SIDE_BOTTOM, -8);
-	lobby_panel->add_child(lobby_box);
-
-	Label *lobby_title = memnew(Label);
-	lobby_title->set_text("Multiplayer lobby");
-	lobby_box->add_child(lobby_title);
-
-	HBoxContainer *name_row = memnew(HBoxContainer);
-	lobby_name = memnew(LineEdit);
-	lobby_name->set_placeholder("Player name");
-	lobby_name->set_text("Player");
-	lobby_name->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	rtso::parent_line_edit(name_row, lobby_name);
-	lobby_host = memnew(LineEdit);
-	lobby_host->set_placeholder("127.0.0.1");
-	lobby_host->set_text("127.0.0.1");
-	lobby_host->set_custom_minimum_size(Vector2(110, 0));
-	rtso::parent_line_edit(name_row, lobby_host);
-	lobby_port = memnew(LineEdit);
-	lobby_port->set_placeholder("20595");
-	lobby_port->set_text("20595");
-	lobby_port->set_custom_minimum_size(Vector2(70, 0));
-	rtso::parent_line_edit(name_row, lobby_port);
-	lobby_password = memnew(LineEdit);
-	lobby_password->set_placeholder("Password");
-	lobby_password->set_secret(true);
-	lobby_password->set_custom_minimum_size(Vector2(90, 0));
-	rtso::parent_line_edit(name_row, lobby_password);
-	lobby_box->add_child(name_row);
-
-	lobby_rooms = memnew(ItemList);
-	lobby_rooms->set_custom_minimum_size(Vector2(0, 140));
-	lobby_box->add_child(lobby_rooms);
-
-	HBoxContainer *lobby_actions = memnew(HBoxContainer);
-	Button *host_b = memnew(Button);
-	host_b->set_text("Host");
-	host_b->connect("pressed", Callable(this, "_on_lobby_host_pressed"));
-	lobby_actions->add_child(host_b);
-	Button *join_b = memnew(Button);
-	join_b->set_text("Join");
-	join_b->connect("pressed", Callable(this, "_on_lobby_join_pressed"));
-	lobby_actions->add_child(join_b);
-	lobby_observe = memnew(Button);
-	lobby_observe->set_text("Observe");
-	lobby_observe->set_toggle_mode(true);
-	lobby_observe->set_tooltip_text("Watch instead of playing: host or join a match (or one in progress) as an observer");
-	lobby_observe->connect("toggled", Callable(this, "_on_lobby_observe_toggled"));
-	lobby_actions->add_child(lobby_observe);
-	Button *ref_b = memnew(Button);
-	ref_b->set_text("Refresh");
-	ref_b->connect("pressed", Callable(this, "_on_lobby_refresh_pressed"));
-	lobby_actions->add_child(ref_b);
-	Button *start_b = memnew(Button);
-	lobby_start_btn_ = start_b;
-	start_b->set_text("Start");
-	start_b->set_tooltip_text("Host: regenerate map with a fresh seed and broadcast map+seed (NMT_GAME_START)");
-	start_b->connect("pressed", Callable(this, "_on_lobby_start_pressed"));
-	lobby_actions->add_child(start_b);
-	lobby_box->add_child(lobby_actions);
-
-	lobby_status = memnew(Label);
-	lobby_status->set_text("Lobby HTTP 127.0.0.1:8088 - run tools/lobby_server.py");
-	lobby_box->add_child(lobby_status);
-	lobby_players = memnew(Label);
-	lobby_players->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	lobby_box->add_child(lobby_players);
-	lobby_seats = memnew(VBoxContainer);
-	lobby_box->add_child(lobby_seats);
-
-	// =========================================================================
-	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
-	// =========================================================================
-	inspector_.build(this, ui_layer, zeroad_theme, this);
-
-	// 0 A.D. selection_details.js: the "i" button opens the Template Viewer
-	// (gui/reference/viewer) for the selected unit or structure.
-	template_info_btn_ = memnew(Button);
-	template_info_btn_->set_position(Vector2(72, 72));
-	template_info_btn_->set_size(Vector2(22, 22));
-	template_info_btn_->set_text("i");
-	template_info_btn_->add_theme_font_size_override("font_size", 12);
-	template_info_btn_->set_focus_mode(Control::FOCUS_NONE);
-	template_info_btn_->connect("pressed", Callable(this, "_on_template_info_pressed"));
-	inspector_.panel()->add_child(template_info_btn_);
-
-
-	// =========================================================================
-	// 3. COMMAND & ACTION PANEL (Stances, Formations, Training, 8-Slot Queue)
-	// =========================================================================
-	command_panel_.build(this, ui_layer, zeroad_theme, this, this);
-
-	// =========================================================================
-	// 4. BANNER OVERLAY (Victory / Defeat)
-	// =========================================================================
-	banner_panel = memnew(Panel);
-	banner_panel->set_anchor(SIDE_LEFT, 0.5f);
-	banner_panel->set_anchor(SIDE_RIGHT, 0.5f);
-	banner_panel->set_anchor(SIDE_TOP, 0.5f);
-	banner_panel->set_anchor(SIDE_BOTTOM, 0.5f);
-	banner_panel->set_offset(SIDE_LEFT, -220.0f);
-	banner_panel->set_offset(SIDE_RIGHT, 220.0f);
-	banner_panel->set_offset(SIDE_TOP, -80.0f);
-	banner_panel->set_offset(SIDE_BOTTOM, 80.0f);
-	banner_panel->set_visible(false);
-
-	Ref<StyleBoxFlat> banner_style;
-	banner_style.instantiate();
-	banner_style->set_bg_color(Color(0.05f, 0.06f, 0.09f, 0.95f));
-	banner_style->set_corner_radius_all(10);
-	banner_style->set_border_width_all(2);
-	banner_style->set_border_color(Color(0.8f, 0.7f, 0.2f, 1.0f));
-	banner_panel->add_theme_stylebox_override("panel", banner_style);
-	ui_layer->add_child(banner_panel);
-
-	banner_label = memnew(Label);
-	banner_label->set_position(Vector2(20, 25));
-	banner_label->set_size(Vector2(400, 110));
-	banner_label->add_theme_font_size_override("font_size", 22);
-	banner_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-	banner_panel->add_child(banner_label);
-
-	// PauseOverlay.xml: a dimmed full-screen button with the pause captions.
-	pause_overlay_ = memnew(Button);
-	pause_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
-	pause_overlay_->set_flat(true);
-	pause_overlay_->set_focus_mode(Control::FOCUS_NONE);
-	pause_overlay_->set_visible(false);
-	pause_overlay_->connect("pressed", Callable(this, "_on_pause_overlay_pressed"));
-	{
-		ColorRect *dim = memnew(ColorRect);
-		dim->set_anchors_preset(Control::PRESET_FULL_RECT);
-		dim->set_color(Color(0, 0, 0, 0.45f));
-		dim->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		pause_overlay_->add_child(dim);
-		auto caption = [&](const String &text, float top, int size) {
-			Label *l = memnew(Label);
-			l->set_text(text);
-			l->set_anchor(SIDE_LEFT, 0.3f);
-			l->set_anchor(SIDE_RIGHT, 0.7f);
-			l->set_anchor(SIDE_TOP, 0.4f);
-			l->set_anchor(SIDE_BOTTOM, 0.4f);
-			l->set_offset(SIDE_TOP, top);
-			l->set_offset(SIDE_BOTTOM, top + size + 8);
-			l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-			l->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-			l->add_theme_font_size_override("font_size", size);
-			l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
-			l->add_theme_constant_override("outline_size", 4);
-			l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-			pause_overlay_->add_child(l);
-			return l;
-		};
-		caption(tr("Game Paused"), -20.0f, 28);
-		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
-		pause_by_label_ = caption("", 50.0f, 14);
-	}
-	ui_layer->add_child(pause_overlay_);
-
-	// gameStateNotifications: top right, under the data counter.
-	net_warnings_label_ = memnew(RichTextLabel);
-	net_warnings_label_->set_anchors_preset(Control::PRESET_TOP_RIGHT);
-	net_warnings_label_->set_offset(SIDE_LEFT, -420.0f);
-	net_warnings_label_->set_offset(SIDE_RIGHT, -15.0f);
-	net_warnings_label_->set_offset(SIDE_TOP, 40.0f);
-	net_warnings_label_->set_offset(SIDE_BOTTOM, 140.0f);
-	net_warnings_label_->set_use_bbcode(true);
-	net_warnings_label_->set_fit_content(true);
-	net_warnings_label_->set_scroll_active(false);
-	net_warnings_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-	net_warnings_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
-	net_warnings_label_->add_theme_constant_override("outline_size", 3);
-	net_warnings_label_->add_theme_font_size_override("normal_font_size", 13);
-	net_warnings_label_->set_visible(false);
-	ui_layer->add_child(net_warnings_label_);
-
-	// NetworkStatusOverlay.xml: the status text on sessionOverlayBackground,
-	// over the whole screen, with the disconnectedExitButton below it.
-	net_status_overlay_ = memnew(Control);
-	net_status_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
-	net_status_overlay_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
-	net_status_overlay_->set_visible(false);
-	{
-		ColorRect *dim = memnew(ColorRect);
-		dim->set_anchors_preset(Control::PRESET_FULL_RECT);
-		dim->set_color(Color(0, 0, 0, 0.6f));
-		dim->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		net_status_overlay_->add_child(dim);
-		net_status_label_ = memnew(Label);
-		net_status_label_->set_anchors_preset(Control::PRESET_FULL_RECT);
-		net_status_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-		net_status_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
-		net_status_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-		net_status_label_->add_theme_font_size_override("font_size", 18);
-		net_status_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		net_status_overlay_->add_child(net_status_label_);
-		// loadingClientsText: 50%-300 50%+60 50%+300 50%+110, the names in their colours.
-		net_loading_clients_ = memnew(RichTextLabel);
-		net_loading_clients_->set_use_bbcode(true);
-		net_loading_clients_->set_fit_content(true);
-		net_loading_clients_->set_anchors_preset(Control::PRESET_CENTER);
-		net_loading_clients_->set_offset(SIDE_LEFT, -300);
-		net_loading_clients_->set_offset(SIDE_RIGHT, 300);
-		net_loading_clients_->set_offset(SIDE_TOP, 60);
-		net_loading_clients_->set_offset(SIDE_BOTTOM, 110);
-		net_loading_clients_->add_theme_font_size_override("normal_font_size", 16);
-		net_loading_clients_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		net_loading_clients_->set_visible(false);
-		net_status_overlay_->add_child(net_loading_clients_);
-		Button *exit = memnew(Button);
-		exit->set_name("DisconnectedExitButton");
-		exit->set_text(tr("Exit"));
-		exit->set_anchors_preset(Control::PRESET_CENTER);
-		exit->set_offset(SIDE_LEFT, -84);
-		exit->set_offset(SIDE_RIGHT, 84);
-		exit->set_offset(SIDE_TOP, 128);
-		exit->set_offset(SIDE_BOTTOM, 160);
-		exit->connect("pressed", Callable(this, "_on_disconnected_exit_pressed"));
-		net_status_overlay_->add_child(exit);
-	}
-	ui_layer->add_child(net_status_overlay_);
-
-	// 5/6. Chat overlay + diplomacy/tribute matrix: P4.1 leaf widgets
-	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
-	// handler methods below delegate into them).
-	chat_window_.build(this, ui_layer, this);
-	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
-	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
-	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
-	rtso::strip_engine_popups(ui_layer);
-
-	// =========================================================================
-	// 5. AUDIO PLAYERS (Voice, SFX, Alarm, Music)
-	// =========================================================================
-	voice_player = memnew(AudioStreamPlayer);
-	voice_player->set_volume_db(-2.0f);
-	// Busses for 0 A.D.'s sound.*gain options (created by scenes/menu/user_settings.gd).
-	voice_player->set_bus("Action");
-	add_child(voice_player);
-
-	alarm_player = memnew(AudioStreamPlayer);
-	alarm_player->set_volume_db(-4.0f);
-	alarm_player->set_bus("UI");
-	sfx_player = memnew(AudioStreamPlayer);
-	sfx_player->set_volume_db(-3.0f);
-	sfx_player->set_bus("Action");
-	add_child(sfx_player);
-	add_child(alarm_player);
-
-	// 0 A.D. music.js playlists and in-game sound events (music_manager.h,
-	// session_audio.h).
-	music_.build(this);
-	session_audio_.build(this);
-	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db, float pitch) {
-		if (view) view->play_spatial_sound(s, pos, db, 75.0f, pitch);
-	});
-
-	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks").
-	{
-		Ref<AudioStream> amb_stream = rtso::load_audio("res://assets/audio/ambient/dayscape/day_temperate_gen_03.ogg");
-		if (amb_stream.is_null()) amb_stream = rtso::load_audio("res://assets/sounds/ambient/nature_ambient.ogg");
-		if (amb_stream.is_valid()) {
-			amb_stream->set("loop", true);
-			ambient_player = memnew(AudioStreamPlayer);
-			ambient_player->set_stream(amb_stream);
-			ambient_player->set_autoplay(true);
-			ambient_player->set_volume_db(-12.0f);
-			ambient_player->set_bus("Ambient");
-			add_child(ambient_player);
-			ambient_player->play();
-		}
-	}
-
-	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/wind_ambient.ogg")) {
-		Ref<AudioStream> wind_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/wind_ambient.ogg");
-		if (wind_stream.is_valid()) {
-			ambient_wind_player = memnew(AudioStreamPlayer);
-			ambient_wind_player->set_stream(wind_stream);
-			ambient_wind_player->set_autoplay(true);
-			ambient_wind_player->set_volume_db(-25.0f);
-			ambient_wind_player->set_bus("Ambient");
-			add_child(ambient_wind_player);
-			ambient_wind_player->play();
-		}
-	}
-
-	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/water_coast.ogg")) {
-		Ref<AudioStream> water_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/water_coast.ogg");
-		if (water_stream.is_valid()) {
-			ambient_water_player = memnew(AudioStreamPlayer);
-			ambient_water_player->set_stream(water_stream);
-			ambient_water_player->set_autoplay(true);
-			ambient_water_player->set_volume_db(-80.0f);
-			ambient_water_player->set_bus("Ambient");
-			add_child(ambient_water_player);
-			ambient_water_player->play();
-		}
-	}
-
-	spatial_sfx_player = memnew(AudioStreamPlayer3D);
-	spatial_sfx_player->set_bus("Action");
-	spatial_sfx_player->set_max_distance(75.0f);
-	spatial_sfx_player->set_unit_size(10.0f);
-	spatial_sfx_player->set_volume_db(0.0f);
-	add_child(spatial_sfx_player);
-
-	// =========================================================================
-	// 6. GHOST BUILDING & RALLY FLAG PREVIEW
-	// =========================================================================
-	ghost_mat_ok.instantiate();
-	ghost_mat_ok->set_albedo(Color(0.2f, 0.9f, 0.2f, 0.55f));
-	ghost_mat_ok->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
-	ghost_mat_ok->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-
-	ghost_mat_bad.instantiate();
-	ghost_mat_bad->set_albedo(Color(0.9f, 0.2f, 0.2f, 0.55f));
-	ghost_mat_bad->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
-	ghost_mat_bad->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-
-	ghost_mesh = memnew(MeshInstance3D);
-	ghost_mesh->set_visible(false);
-	add_child(ghost_mesh);
-	update_ghost_mesh();
-
-	// 3D Rally Flag Marker
-	rally_flag = memnew(MeshInstance3D);
-	Ref<CylinderMesh> flag_c;
-	flag_c.instantiate();
-	flag_c->set_top_radius(0.08f);
-	flag_c->set_bottom_radius(0.08f);
-	flag_c->set_height(1.6f);
-	rally_flag->set_mesh(flag_c);
-	Ref<StandardMaterial3D> flag_mat;
-	flag_mat.instantiate();
-	flag_mat->set_albedo(Color(0.2f, 0.8f, 1.0f));
-	rally_flag->set_material_override(flag_mat);
-	rally_flag->set_visible(false);
-	add_child(rally_flag);
-	range_overlays_.build(this);
-
-	// (Unit selection now happens in apply_match_settings, after the map
-	// exists - the old block here ran before any map loaded and selected
-	// nothing. apply_net_game_start re-selects on GameStart via
-	// load_map_seeded -> clear_selection; selection follows in _process.)
-	// G3 Barter dialog wiring: connect BarterDialog.barter_requested -> _on_barter_requested
-	Node *barter = get_node_or_null(NodePath("BarterDialog"));
-	if (barter) {
-		barter->connect("barter_requested", Callable(this, "_on_barter_requested"));
-		barter->connect("trading_goods_requested", Callable(this, "_on_trading_goods_requested"));
-	}
-
-	// A replay or a saved game picked in the menus brings its own setup;
-	// otherwise Game Setup's match starts and is recorded as a replay.
-	if (!start_pending_replay() && !load_pending_save()) {
-		apply_match_settings();
-		begin_match_recording(nullptr);
-		call_deferred("_start_menu_net");
-	}
 }
 
 void RtsoMain::play_voice(const char *path) {
@@ -1484,6 +794,27 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 	return out;
 }
 
+// Test hook: starts the first technology one of the local player's structures can
+// research now; {building, tech, name}, empty when none can.
+Dictionary RtsoMain::debug_research_any() {
+	Dictionary d;
+	if (!sim) return d;
+	const uint8_t me = local_player();
+	std::vector<std::pair<uint32_t, uint8_t>> ids;
+	for (const auto &b : sim->buildings())
+		if (b.team == me && b.queue.empty()) ids.push_back({b.id, b.type});
+	for (const auto &[id, type] : ids)
+		for (int t = 1; t < rtso::TECH_COUNT; ++t) {
+			if (rtso::tech_info((uint8_t)t).researcher != type) continue;
+			if (!sim->cmd_research(me, id, (uint8_t)t)) continue;
+			d["building"] = (int64_t)id;
+			d["tech"] = t;
+			d["name"] = String::utf8(rtso::tech_info((uint8_t)t).name);
+			return d;
+		}
+	return d;
+}
+
 // CounterManager.onPress: a click on a resource or population counter cycles
 // the order of the allies' stats in their tooltips.
 void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
@@ -1912,6 +1243,29 @@ void RtsoMain::toggle_diplomacy_colors() {
 
 // 0 A.D. ChatMessageFormatSimulation: who sees which tribute, barter, phase and
 // diplomacy line. Observers (and defeated players) see more, as g_IsObserver does.
+void RtsoMain::show_trigger_dialogs(const std::vector<rtso::Simulation::TriggerDialog> &dialogs) {
+	// messages.js "dialog": a message box with the two buttons, for the players it names.
+	// Its "dialog-answer" command only reaches a script's OnPlayerCommand, which no
+	// ported script reads, so the answer just closes it.
+	const uint8_t me = local_player();
+	if (!sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS) return;
+	for (const auto &d : dialogs) {
+		if (!((d.players >> me) & 1u)) continue;
+		ConfirmationDialog *dlg = memnew(ConfirmationDialog);
+		dlg->set_title("");
+		dlg->set_text(String::utf8(d.caption.c_str()));
+		dlg->set_ok_button_text(String::utf8(d.button1.c_str()));
+		dlg->set_cancel_button_text(String::utf8(d.button2.c_str()));
+		dlg->get_ok_button()->set_tooltip_text(String::utf8(d.tooltip1.c_str()));
+		dlg->get_cancel_button()->set_tooltip_text(String::utf8(d.tooltip2.c_str()));
+		dlg->set_exclusive(false);
+		dlg->connect("confirmed", callable_mp((Node *)dlg, &Node::queue_free));
+		dlg->connect("canceled", callable_mp((Node *)dlg, &Node::queue_free));
+		add_child(dlg);
+		dlg->popup_centered();
+	}
+}
+
 void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices) {
 	if (notices.empty() || !sim || !chat_window_.is_ready() || turn_mgr_.is_replaying()) return;
 	using N = rtso::Simulation::SessionNotice;
@@ -2431,6 +1785,7 @@ void RtsoMain::update_net_status_overlay() {
 			case 2: why = tr("The host has ended the game."); break;
 			case 6: why = tr("You have been kicked."); break;
 			case 7: why = tr("You have been banned."); break;
+			case rtso::NDR_SERVER_FULL: why = tr("Server full."); break;
 			case 14: why = tr("Password is invalid."); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
@@ -2544,6 +1899,15 @@ void RtsoMain::_on_template_info_pressed() {
 		show_notice("No details for this selection.");
 		return;
 	}
+	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
+}
+
+// A command panel button's right click (selection_panels.js onPressRight showTemplateDetails):
+// the Template Viewer for its structure, technology or unit.
+void RtsoMain::_on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || !ui_layer) return;
 	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
 	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
 }
@@ -2746,8 +2110,16 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 	(void)at;
 	if (!command_panel_.roster_list() || index < 0 || index >= command_panel_.roster_list()->get_item_count()) return;
 	command_panel_.roster_list()->deselect_all();
-	if (mouse_button != MOUSE_BUTTON_LEFT || command_panel_.roster_list()->is_item_disabled(index)) return;
 	const int meta = (int)command_panel_.roster_list()->get_item_metadata(index);
+	if (mouse_button == MOUSE_BUTTON_RIGHT && !(meta & RtsoCommandPanelView::ROSTER_ANIMAL) && sim && ui_layer) {
+		// onPressRight showTemplateDetails, disabled rows too.
+		Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+		const bool tech = meta & RtsoCommandPanelView::ROSTER_TECH;
+		if (viewer.is_valid())
+			viewer->call("open", ui_layer, String(tech ? "tech" : "unit"), tech ? (meta & 0xFF) : meta, (int)sim->player_civ(local_player()));
+		return;
+	}
+	if (mouse_button != MOUSE_BUTTON_LEFT || command_panel_.roster_list()->is_item_disabled(index)) return;
 	if (meta & RtsoCommandPanelView::ROSTER_ANIMAL) {
 		try_breed(selected_building_id, (uint8_t)(meta & 0xFF), train_batch());
 		return;
@@ -3109,505 +2481,6 @@ void RtsoMain::refresh_user_options() {
 	range_overlays_.show_heal = uc::get_bool("gui.session.healrange");
 }
 
-void RtsoMain::_process(double delta) {
-	refresh_user_options();
-	if (net_host_.getRole() != rtso::NetRole::None) {
-		net_host_.poll(net_arena_);
-		net_arena_.reset();
-		// Consume NMT_GAME_START seed-sync queued by TurnManager::onMessage.
-		apply_net_game_start();
-		// Rejoin of a match in progress: the host sent its world; load it and
-		// play on in the seat our dropped client had.
-		if ((net_host_.isHost() && !net_game_started_) || (lobby_seats && lobby_seats->get_child_count()))
-			refresh_lobby_seats();
-		if (net_host_.isHost()) host_net_setup_tick(false);
-		else client_net_setup_tick();
-		update_net_setup_overlay();
-		// A host that turned us away mid-match says why (0 A.D. disconnect reasons).
-		if (!net_host_.isHost() && !net_game_started_ && lobby_status) {
-			const uint8_t why = turn_mgr_.rejoin_reject_reason();
-			const char *text = why == 6 ? "This game does not let observers join after it started."
-					: why == 7 ? "This game is full: it has as many observers as it allows."
-					: why == 3 || why == 4 || why == 5 ? "Could not load the host's game."
-					: nullptr;
-			if (text && lobby_status->get_text() != text) lobby_status->set_text(text);
-		}
-		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
-			net_game_started_ = true;
-			start_net_speed(net_setup_.seq ? net_setup_.setup.speed : 100);
-			selected_ids.clear();
-			selected_building_id = 0;
-			if (lobby_status)
-				lobby_status->set_text("Rejoined the match at turn " + String::num_int64(turn_mgr_.rejoin_turn()) +
-						" as Player " + String::num_int64(turn_mgr_.local_player() + 1));
-		}
-	}
-	if (cam_rig) {
-		// Letters pick buildings while placing one, and typing never moves the camera.
-		Control *focus = get_viewport() ? get_viewport()->gui_get_focus_owner() : nullptr;
-		const bool typing = focus && (Object::cast_to<LineEdit>(focus) || focus->is_class("TextEdit"));
-		cam_rig->set_key_scroll_mode(typing ? RtsoCameraRig::KEYS_NONE
-				: build_mode ? RtsoCameraRig::KEYS_ARROWS_ONLY : RtsoCameraRig::KEYS_ALL);
-		if (const uint32_t fid = sim ? cam_rig->follow_id() : 0) {
-			bool alive = false;
-			auto fview = sim->units();
-			for (size_t i = 0; i < fview.count; ++i) {
-				if (fview.id[i] == fid && fview.alive[i]) {
-					cam_rig->follow_to(Vector3(fview.pos_x[i], 0, fview.pos_z[i]));
-					alive = true;
-					break;
-				}
-			}
-			if (!alive) cam_rig->set_follow_id(0);
-		}
-	}
-	// Networked: keep running TurnManager::tick, which holds turns for everyone
-	// while any client is paused, so this peer still sees remote pauses end.
-	music_.tick(delta);
-	if (notice_until_ && Time::get_singleton()->get_ticks_msec() >= notice_until_) {
-		notice_until_ = 0;
-		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
-	}
-	update_pause_overlay();
-	if (hotkey_paused_ && !net_lockstep()) return;
-	double scaled_delta = delta * game_speed;
-	match_elapsed_time += scaled_delta;
-
-	rtso::PerfTracker::begin_frame();
-	uint64_t start_us = Time::get_singleton()->get_ticks_usec();
-
-	accumulator += scaled_delta;
-	int ticks = 0;
-	if (net_lockstep() && lobby_status) {
-		// 0 A.D. NetClient notices: the host refused us, or removed someone.
-		const int auth = net_host_.authResult();
-		if (auth == rtso::ARC_PASSWORD_INVALID) lobby_status->set_text("Wrong password");
-		else if (auth == rtso::ARC_BANNED) lobby_status->set_text("You have been banned from this game");
-		const auto &kicks = net_host_.kicks();
-		for (; kicks_shown_ < kicks.size(); ++kicks_shown_) {
-			const auto &k = kicks[kicks_shown_];
-			const String who = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str());
-			lobby_status->set_text(net_host_.kickedSelf() && k.guid == rtso::peer_guid(net_host_.getLocalPeerId())
-					? String(k.ban ? "You have been banned" : "You have been kicked")
-					: who + String(k.ban ? " has been banned" : " has been kicked"));
-		}
-	}
-	if (net_lockstep()) {
-		if (net_game_started_) {
-			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
-			if (turn_mgr_.tick((float)scaled_delta, *sim))
-				ticks = rtso::TurnManager::TICKS_PER_TURN;
-			if (turn_mgr_.has_out_of_sync() && lobby_status) {
-				// 0 A.D. session.js "Out-Of-Sync" notice: the first diverging turn and who.
-				String who;
-				for (const auto &n : turn_mgr_.oos_players()) who += (who.is_empty() ? "" : ", ") + String::utf8(n.c_str());
-				lobby_status->set_text("Out-Of-Sync on turn " + String::num_int64(turn_mgr_.oos_turn()) +
-						(who.is_empty() ? String() : ". Players: " + who) +
-						(turn_mgr_.oos_dump_path().empty() ? String() : ". Dump: " + String::utf8(turn_mgr_.oos_dump_path().c_str())));
-			} else if (turn_mgr_.is_paused() && lobby_status) {
-				String who;
-				for (uint32_t c : turn_mgr_.paused_clients()) {
-					const uint8_t pl = turn_mgr_.player_for_client(c);
-					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? player_display_name(pl) : String("an observer"));
-				}
-				lobby_status->set_text("Game paused by " + who);
-			} else if (lobby_status && !net_disconnected_) {
-				// 0 A.D. session.js network warnings: who the turn waits on, who
-				// is not responding and whose connection is bad.
-				auto name = [&](uint32_t c) {
-					for (const auto &e : net_host_.playerAssignment())
-						if (e.client == c && !e.name.empty()) return String::utf8(e.name.c_str());
-					const uint8_t pl = turn_mgr_.player_for_client(c);
-					return pl < 8 ? "Player " + String::num_int64(pl + 1) : String("an observer");
-				};
-				String status;
-				if (turn_mgr_.waiting_ms() > rtso::NET_TIMEOUT_WARN_MS) {
-					String who;
-					for (uint32_t c : turn_mgr_.waiting_on()) who += (who.is_empty() ? "" : ", ") + name(c);
-					if (!who.is_empty()) status = "Waiting for " + who;
-				}
-				for (const auto &e : net_host_.clientPerformance()) {
-					String line;
-					if (e.silent_ms > rtso::NET_TIMEOUT_WARN_MS)
-						line = name(e.client) + " is not responding (" + String::num_int64(e.silent_ms / 1000) + " s)";
-					else if (e.rtt_ms > rtso::NET_LAG_WARN_RTT_MS)
-						line = name(e.client) + " has a bad connection (" + String::num_int64(e.rtt_ms) + " ms)";
-					if (!line.is_empty()) status += (status.is_empty() ? "" : ". ") + line;
-				}
-				if (!status.is_empty() || net_status_shown_) lobby_status->set_text(status);
-				net_status_shown_ = !status.is_empty();
-			}
-		}
-		if (net_game_started_) post_network_chat();
-		update_net_status_overlay();
-		update_net_warnings();
-		// 0 A.D. player list: who plays which player, who has left, who watches.
-		if (lobby_players && net_host_.playerAssignments() != players_shown_) {
-			players_shown_ = net_host_.playerAssignments();
-			String playing, watching;
-			for (const auto &e : net_host_.playerAssignment()) {
-				const String who = String::utf8(e.name.empty() ? rtso::peer_guid(e.client).c_str() : e.name.c_str());
-				if (e.status == rtso::PlayerAssignmentMsg::OBSERVER) {
-					watching += String(watching.is_empty() ? "" : ", ") + who;
-					continue;
-				}
-				String line = who + String(" (Player ") + String::num_int64(e.player + 1);
-				if (e.status == rtso::PlayerAssignmentMsg::LEFT) line += String(", left");
-				playing += String(playing.is_empty() ? "" : ", ") + line + String(")");
-			}
-			String text = playing.is_empty() ? String() : "Players: " + playing;
-			if (!watching.is_empty()) text += (text.is_empty() ? "" : ". ") + String("Observers: ") + watching;
-			if (turn_mgr_.is_observer()) text += (text.is_empty() ? "" : ". ") + String("You are observing.");
-			lobby_players->set_text(text);
-		}
-		// else pre-Start lobby phase: poll + GAME_START consume only (above) -
-		// no lockstep turns and no hash exchange across divergent boot worlds.
-	} else if (turn_cmds()) {
-		// Offline turns (0 A.D. CLocalTurnManager): orders run on the next 200 ms
-		// turn and every turn lands in the replay. A fast game speed runs a few
-		// turns a frame; the timer keeps any remainder for the next frame.
-		if (!replay_finished_) {
-			float step = (float)scaled_delta;
-			const int max_turns = std::max(4, (int)std::ceil(game_speed * 2.0f)); // fast replays
-			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
-				ticks += rtso::TurnManager::TICKS_PER_TURN;
-				step = 0.0f;
-			}
-		}
-	} else {
-		while (accumulator >= rtso::Simulation::FIXED_STEP) {
-			sim->tick(rtso::Simulation::FIXED_STEP);
-			accumulator -= rtso::Simulation::FIXED_STEP;
-			ticks++;
-			if (ticks > 8) break;
-		}
-	}
-
-
-	tick_match_archive();
-
-	uint64_t after_sim_us = Time::get_singleton()->get_ticks_usec();
-	rtso::PerfTracker::record_tick((after_sim_us - start_us) / 1000);
-	rtso::PerfTracker::record_draw((int)sim->unit_count(), (int)sim->building_count());
-
-	const uint8_t viewer = view_player();
-	rtso::display_colors::refresh_config();
-	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
-	view->set_local_player(viewer);
-	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
-	if (inspector_.kind() == RtsoInspectorView::INSPECT_UNIT || inspector_.kind() == RtsoInspectorView::INSPECT_FAUNA) {
-		PackedInt32Array shown = selected_ids;
-		shown.push_back((int32_t)inspector_.id());
-		view->sync(sim, (float)delta, shown);
-	} else {
-		view->sync(sim, (float)delta, selected_ids);
-	}
-	if (cam_rig) {
-		minimap_view->set_local_player(viewer);
-		minimap_view->sync(sim, cam_rig->get_target_pos());
-	}
-	uint64_t after_sync_us = Time::get_singleton()->get_ticks_usec();
-	rtso::PerfTracker::record_sync((after_sync_us - after_sim_us) / 1000);
-	rtso::PerfTracker::sample_memory();
-	rtso::PerfTracker::maybe_log();
-
-	if (debug_overlay->is_visible()) {
-		String perf_txt = rtso::PerfTracker::get_report() +
-			" | Tick US: " + String::num_int64(sim->stats().tick_us) +
-			" | Jobs: " + String::num_int64((int64_t)rtso::JobSystem::instance().parallel_width()) +
-			" | FPS: " + String::num_int64(Engine::get_singleton()->get_frames_per_second());
-		debug_overlay->update_info(perf_txt);
-	}
-
-	update_hud();
-	if (sim && time_notification_label_) {
-		String txt;
-		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
-			if (!txt.is_empty()) txt += "\n";
-			// GuiInterface time notifications: %(time)s is the time left (timeToString).
-			String line = String::utf8(n->text);
-			if (line.contains("%(time)s")) {
-				const uint32_t now = sim->trigger_state().time_ms;
-				const int left_s = n->end_ms > now ? (int)((n->end_ms - now + 999) / 1000) : 0;
-				line = line.replace("%(time)s", vformat("%d:%02d", left_s / 60, left_s % 60));
-			}
-			txt += line;
-		}
-		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
-		// player (the wonder's owner, its allies or everyone else).
-		{
-			const uint8_t me = local_player();
-			auto mutual = [&](uint8_t a, uint8_t b) {
-				return !sim->last_man_standing() && sim->is_ally(a, b) && sim->is_ally(b, a);
-			};
-			auto allies_of = [&](uint8_t p) {
-				uint8_t m = 0;
-				for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q)
-					if (q != p && ((sim->participant_mask() >> q) & 1) && !sim->is_defeated(q) && mutual(p, q)) m |= (uint8_t)(1u << q);
-				return m;
-			};
-			auto clock = [](float s) { const int t = (int)std::ceil(std::max(0.0f, s)); return vformat("%d:%02d", t / 60, t % 60); };
-			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
-			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
-				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
-					if (sim->wonder_hold(p) <= 0.0f || sim->is_defeated(p)) continue;
-					const String left = clock(sim->wonder_duration() - sim->wonder_hold(p));
-					const uint8_t allies = allies_of(p);
-					if (p == me) add(allies ? "You own a Wonder and you and your allies will win in " + left + "."
-							: "You own a Wonder and will win in " + left + ".");
-					else if (me < rtso::MAX_PLAYERS && ((allies >> me) & 1)) add(colored_player_name(p) + " owns a Wonder and you will win in " + left + ".");
-					else add(colored_player_name(p) + " owns a Wonder and " + (allies ? colored_player_name(p) + " and their allies" : String()) +
-							(allies ? " will win in " : "will win in ") + left + ".");
-				}
-			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
-				const uint8_t owner = sim->relics()[0].owner_team;
-				if (owner < rtso::MAX_PLAYERS) {
-					const uint8_t side = (uint8_t)(allies_of(owner) | (1u << owner));
-					const bool team = (side & (side - 1)) != 0;
-					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
-					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
-						add(team ? "You and your allies have captured all relics and will win in " + left + "."
-								: "You have captured all relics and will win in " + left + ".");
-					else
-						add(colored_player_name(owner) + (team ? " and their allies have captured all relics and will win in "
-								: " has captured all relics and will win in ") + left + ".");
-				}
-			}
-		}
-		// CeasefireManager: "You can attack in %(time)s" for the last 10 s, then
-		// "You can attack now!" for 5 s.
-		if (sim->ceasefire_seconds() > 0.0f) {
-			const float left = sim->ceasefire_seconds() - sim->game_time();
-			String line;
-			if (left > 0.0f && left <= 10.0f) line = "You can attack in 0:" + String(left > 9.0f ? "" : "0") + String::num_int64((int64_t)std::ceil(left));
-			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
-			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
-		}
-		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
-	}
-	if (sim && chat_window_.is_ready()) {
-		for (const auto &line : sim->pending_petra_chat()) {
-			if (!sim->petra_chat_reaches(line, local_player())) continue; // addressed to someone else
-			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
-				return std::string(player_display_name(pid).utf8().get_data());
-			});
-			// 0 A.D. marks "/allies" lines "(to allies)" and "/msg" lines "(privately)".
-			const bool ai = line.kind != rtso::PETRA_CHAT_ATTACK_REQUESTED || sim->player(line.from).is_ai;
-			const String audience = line.to == rtso::PETRA_CHAT_ALLIES ? " (to allies)" : line.to < rtso::MAX_PLAYERS ? " (privately)" : "";
-			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + (ai ? " (AI)" : "") + audience + ":[/color] " +
-			                         String::utf8(text.c_str()) + "\n");
-		}
-		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
-	}
-	prune_selection();
-	if (!selected_ids.is_empty() || selected_building_id != 0) inspector_.clear();
-	update_inspector();
-	update_command_panel();
-	const auto attacks = sim->take_attacked_events();
-	detect_attacks(attacks);
-	show_session_notices(sim->take_session_notices());
-	update_cursor();
-	chat_window_.tick_overlay();
-	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
-	tutorial_panel_.refresh(sim);
-	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
-
-	// Sound events and the music state (0 A.D. music.js: battle while
-	// BattleDetection says so, victory and defeat playlists at the end).
-	if (cam_rig) {
-		const Vector3 focus = cam_rig->get_target_pos();
-		session_audio_.set_listener(focus.x, focus.z);
-	}
-	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
-	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time);
-	update_music_state();
-
-	// Environmental Ambience: Viewport Elevation & Coastal Water Proximity
-	Vector3 cam_world_pos(0, 30, 0);
-	if (cam_rig && cam_rig->get_camera()) {
-		cam_world_pos = cam_rig->get_camera()->get_global_position();
-	} else if (cam_rig) {
-		cam_world_pos = cam_rig->get_target_pos() + Vector3(0, 30, 0);
-	}
-
-	// 1. Wind & Nature elevation crossfade
-	float elev_factor = Math::clamp((cam_world_pos.y - 12.0f) / 38.0f, 0.0f, 1.0f);
-	float target_wind_db = Math::lerp(-32.0f, -8.0f, elev_factor);
-	float target_nature_db = Math::lerp(-12.0f, -28.0f, elev_factor);
-
-	if (ambient_wind_player) {
-		if (!ambient_wind_player->is_playing()) ambient_wind_player->play();
-		float cur_db = ambient_wind_player->get_volume_db();
-		ambient_wind_player->set_volume_db(Math::lerp(cur_db, target_wind_db, (float)delta * 3.5f));
-	}
-	if (ambient_player) {
-		if (!ambient_player->is_playing()) ambient_player->play();
-		float cur_db = ambient_player->get_volume_db();
-		ambient_player->set_volume_db(Math::lerp(cur_db, target_nature_db, (float)delta * 3.5f));
-	}
-
-	// 2. Coastal water proximity modulation
-	float target_water_db = -80.0f;
-	if (sim && sim->water_height() > 0.0f) {
-		float water_h = sim->water_height();
-		Vector3 target_pos = cam_rig ? cam_rig->get_target_pos() : cam_world_pos;
-		float terrain_h = sim->get_terrain_height(target_pos.x, target_pos.z);
-		float d_water = terrain_h - water_h;
-		if (d_water <= 3.5f) {
-			float coast_factor = Math::clamp(1.0f - (d_water / 3.5f), 0.0f, 1.0f);
-			target_water_db = Math::lerp(-40.0f, -10.0f, coast_factor);
-		}
-	}
-	if (ambient_water_player) {
-		if (!ambient_water_player->is_playing()) ambient_water_player->play();
-		float cur_db = ambient_water_player->get_volume_db();
-		ambient_water_player->set_volume_db(Math::lerp(cur_db, target_water_db, (float)delta * 3.0f));
-	}
-
-	// Update Building Placement Ghost (0 A.D. gui/session/building_placement.js:45-92 BuildPreview parity)
-	if (build_mode) {
-		Vector2 mouse_pos = get_viewport()->get_mouse_position();
-		if (wall_drag_mode) {
-			if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
-			// The pieces the sim will lay (helpers/Walls.js GetWallPlacement), each tinted by whether
-			// it can be placed where it stands.
-			const Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
-			std::vector<rtso::Simulation::WallPiece> pieces;
-			uint32_t start_tower = 0, end_tower = 0;
-			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
-			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
-			if (sim)
-				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
-						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
-			while (wall_ghosts.size() < pieces.size()) {
-				MeshInstance3D *g = memnew(MeshInstance3D);
-				g->set_visible(false);
-				add_child(g);
-				wall_ghosts.push_back(g);
-			}
-
-			uint8_t pciv = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
-			// Pieces of this wall don't block each other; the towers it snaps onto don't block it.
-			const uint32_t snapped[2] = {start_tower, end_tower};
-			for (size_t i = 0; i < pieces.size(); ++i) {
-				const auto &p = pieces[i];
-				MeshInstance3D *g = wall_ghosts[i];
-				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
-				// tower): the model the world view will draw for it, turned the same way.
-				const auto entry = rtso::ModelLibrary::get("buildings", RtsoWorldView::building_visual_id(pciv, p.type, p.half_w));
-				const float h = sim ? sim->get_terrain_height(p.x, p.z) : 0.0f;
-				if (entry.valid && entry.mesh.is_valid()) {
-					const float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
-					g->set_mesh(entry.mesh);
-					g->set_scale(Vector3(sc, sc, sc));
-					g->set_global_position(Vector3(p.x, h + entry.y_offset, p.z));
-				} else {
-					const bool is_tower = p.type == wall_set.tower && p.half_w == wall_set.tower_half;
-					Ref<BoxMesh> box;
-					box.instantiate();
-					// Along the box's x: the piece's length (its u axis); across it: its 0 A.D. depth.
-					box->set_size(is_tower ? Vector3(2.2f * p.half_w, 4.5f, 2.2f * p.half_w)
-							: Vector3(2.0f * p.half_w, 2.5f, 2.0f * wall_set.half_depth));
-					g->set_mesh(box);
-					g->set_scale(Vector3(1.0f, 1.0f, 1.0f));
-					g->set_global_position(Vector3(p.x, h + 0.05f, p.z));
-				}
-				g->set_rotation(Vector3(0.0f, p.rot - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
-				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
-				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
-				g->set_visible(true);
-			}
-			for (size_t i = pieces.size(); i < wall_ghosts.size(); ++i) {
-				if (wall_ghosts[i] && wall_ghosts[i]->is_visible()) {
-					wall_ghosts[i]->set_visible(false);
-				}
-			}
-		} else {
-			for (auto *wg : wall_ghosts) {
-				if (wg && wg->is_visible()) wg->set_visible(false);
-			}
-			if (ghost_mesh) {
-				ghost_mesh->set_visible(true);
-				auto [cell_x, cell_y] = mouse_cell(mouse_pos);
-				if (build_click_pending) {
-					cell_x = build_click_cell_x;
-					cell_y = build_click_cell_y;
-					// Dragging turns the building toward the cursor; back near the
-					// click it snaps to the default facing (input.js getMaxDragDelta).
-					if (build_click_screen.distance_to(mouse_pos) >= 4.0f) {
-						const Vector3 cur = get_ground_click_pos(mouse_pos);
-						placement_angle = std::atan2(cur.x - build_click_ground.x, cur.z - build_click_ground.z);
-					} else {
-						placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
-					}
-				}
-				int footprint = rtso::building_type_info(current_build_type).footprint;
-
-				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
-				float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
-				ghost_mesh->set_global_position(Vector3(gx, sim->get_terrain_height(gx, gz) + 0.05f, gz));
-				const float ghost_angle = placement_angle_at(current_build_type, gx, gz);
-				ghost_mesh->set_rotation(Vector3(0.0f, ghost_angle - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
-
-				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle) ==
-						rtso::Simulation::PLACE_OK;
-				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
-			}
-		}
-	} else {
-		if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
-		for (auto *wg : wall_ghosts) {
-			if (wg && wg->is_visible()) wg->set_visible(false);
-		}
-	}
-
-	// Update 3D Rally Point Marker
-	rtso::update_rally_marker(rally_flag, sim, selected_building_id, local_player());
-	range_overlays_.tick((float)delta);
-	range_overlays_.update(sim, local_player(), selected_building_id, selected_ids.ptr(), selected_ids.size());
-
-	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {
-		summary_shown_ = true;
-		write_replay(); // the finished match, with its final statistics
-	}
-	tick_quit_confirmation();
-
-	update_observer_view_picker();
-	// Check Victory / Defeat Condition, from the local player's seat
-	if (sim->is_victory_for(seat_player())) {
-		banner_panel->set_visible(true);
-		banner_label->set_text("VICTORY!\nYour side has prevailed.");
-		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));
-	} else if ((sim->is_victory() || sim->is_game_over()) && seat_player() >= rtso::MAX_PLAYERS) {
-		// An observer has no side: name the winners instead (0 A.D. summary "Winner").
-		String winners;
-		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
-			if ((sim->winner_mask() >> p) & 1) winners += (winners.is_empty() ? "" : ", ") + player_display_name(p);
-		banner_panel->set_visible(true);
-		banner_label->set_text("MATCH OVER\n" + (winners.is_empty() ? String("No one prevailed.") : winners + String(" prevailed.")));
-		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
-	} else if (sim->is_victory() || sim->is_game_over()) {
-		banner_panel->set_visible(true);
-		banner_label->set_text("DEFEAT!\nYour side has been defeated.");
-		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
-	} else if (sim->is_defeated(seat_player())) {
-		// 0 A.D.: a defeated player watches the rest of the match with the map revealed.
-		// The notice shows for a few seconds, then gets out of the way.
-		static double defeated_at = -1.0;
-		if (defeated_at < 0.0 || match_elapsed_time < defeated_at) defeated_at = match_elapsed_time;
-		banner_panel->set_visible(match_elapsed_time - defeated_at < 6.0);
-		banner_label->set_text("DEFEATED\nYou are now observing. The match goes on.");
-		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.75f, 0.3f));
-	} else if ((local_observer_ || (net_lockstep() && seat_player() >= rtso::MAX_PLAYERS)) && !turn_mgr_.is_replaying()) {
-		// Every Game Setup slot was AI, or this client joined to watch: say so
-		// for the first few seconds.
-		banner_panel->set_visible(match_elapsed_time < 6.0);
-		banner_label->set_text(local_observer_ ? "OBSERVING\nEvery player is an AI. The map is revealed."
-				: "OBSERVING\nYou are watching this match. The map is revealed.");
-		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
-	}
-}
-
 bool RtsoMain::spectating() const {
 	if (turn_mgr_.is_replaying() || !sim) return false;
 	const uint8_t seat = seat_player();
@@ -3818,6 +2691,39 @@ void RtsoMain::_on_selection_group_gui_input(const Ref<InputEvent> &event, int k
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || mb->is_pressed()) return;
 	select_group(key, true);
+}
+
+// PanelEntity.js onPress (select it; selection.add keeps the selection) and
+// onDoublePress (selectAndMoveTo: select it and move the camera to it).
+void RtsoMain::_on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot) {
+	Ref<InputEventMouseButton> mb = event;
+	if (!sim || mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_LEFT || !mb->is_pressed()) return;
+	const uint32_t id = panel_entities_.entity_at(slot);
+	if (!id) return;
+	auto uview = sim->units();
+	size_t i = 0;
+	while (i < uview.count && uview.id[i] != id) ++i;
+	if (i == uview.count) return;
+	if (mb->is_double_click() || !rtso::hotkeys::held("selection.add")) {
+		selected_ids.clear();
+		selected_building_id = 0;
+	}
+	if (!selected_ids.has((int32_t)id)) selected_ids.push_back((int32_t)id);
+	if (mb->is_double_click() && cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[i], 0, uview.pos_z[i]));
+	play_civ_voice("select");
+}
+
+// ResearchProgressButton.onPress: selectAndMoveTo(researcher).
+void RtsoMain::_on_research_progress_pressed(int slot) {
+	const uint32_t id = research_progress_.researcher_at(slot);
+	if (!sim || !id) return;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != id) continue;
+		selected_ids.clear();
+		selected_building_id = id;
+		if (cam_rig) cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+		return;
+	}
 }
 
 void RtsoMain::_on_selection_group_clicked(int key) {

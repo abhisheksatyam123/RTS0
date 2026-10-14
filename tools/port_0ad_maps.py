@@ -76,6 +76,17 @@ def pmp_tiles(raw_pmp):
     """Map width in tiles (16 tiles per patch)."""
     return struct.unpack('<I', raw_pmp[12:16])[0] * 16
 
+def flat_pmp(patches, texture, height):
+    """The .pmp a map without one stands for: CMapReader's <Terrain patches= texture=
+    height=> fills a patches x patches map with one texture at one height."""
+    side = patches * 16 + 1
+    name = (texture + ".xml").encode("utf-8")
+    out = bytearray(b"PSMP") + struct.pack("<III", 6, 0, patches)
+    out += struct.pack("<H", height) * (side * side)
+    out += struct.pack("<I", 1) + struct.pack("<I", len(name)) + name
+    out += struct.pack("<HHI", 0, 0xFFFF, 0) * (patches * patches * 256)
+    return bytes(out)
+
 def extract_pmp_heights(raw_pmp, target_res=64, height_scale=HEIGHT_PER_METRE):
     magic = raw_pmp[:4].decode('ascii', errors='ignore')
     if magic != "PSMP":
@@ -482,6 +493,90 @@ class DirSource:
             return f.read()
 
 
+def units_demo_entities(z):
+    """maps/scenarios/units_demo.js: every simulation template (FindAllTemplates(false):
+    not the template_* bases) that has a Footprint and a Position, in name order,
+    placed in rows from (20, 20) to x 1870 with 14 m gaps, owned by player 1.
+    Returns (template, player, x, z, uid) rows like the map's own entities."""
+    names = z.namelist() if hasattr(z, "namelist") else [
+        os.path.relpath(os.path.join(d, f), z.root).replace(os.sep, "/")
+        for d, _, fs in os.walk(os.path.join(z.root, "simulation/templates"), followlinks=True) for f in fs]
+    pre = "simulation/templates/"
+    names = sorted(n[len(pre):-4] for n in names if n.startswith(pre) and n.endswith(".xml"))
+    cache = {}
+
+    def node(tpl):
+        if tpl not in cache:
+            try:
+                cache[tpl] = ET.fromstring(z.read(f"{pre}{tpl}.xml"))
+            except (KeyError, FileNotFoundError, ET.ParseError):
+                cache[tpl] = None
+        return cache[tpl]
+
+    def component(tpl, name, depth=0):
+        """The template's component element after inheritance (None if absent or disabled)."""
+        root = node(tpl)
+        if root is None or depth > 32:
+            return None
+        own = root.find(name)
+        if own is not None:
+            return None if "disable" in own.attrib else own
+        for parent in (root.get("parent") or "").split("|"):
+            if parent:
+                found = component(parent, name, depth + 1)
+                if found is not None:
+                    return found
+        return None
+
+    def size(tpl):
+        """(width, depth) from the Footprint after inheritance, merging the shape attributes."""
+        w = h = None
+        circle = None
+        chain, t = [], tpl
+        for _ in range(32):
+            root = node(t)
+            if root is None:
+                break
+            chain.append(root)
+            t = (root.get("parent") or "").split("|")[0]
+            if not t:
+                break
+        for root in reversed(chain):
+            fp = root.find("Footprint")
+            if fp is None:
+                continue
+            sq, ci = fp.find("Square"), fp.find("Circle")
+            if sq is not None:
+                circle = None
+                w, h = float(sq.get("width", w or 0)), float(sq.get("depth", h or 0))
+            if ci is not None:
+                circle = float(ci.get("radius", circle or 0))
+        if circle is not None:
+            return circle * 2, circle * 2
+        return w, h
+
+    out = []
+    x, zz, maxh, gap, stop = 20.0, 20.0, 0.0, 14.0, 1870.0
+    for tpl in names:
+        if os.path.basename(tpl).startswith("template_"):
+            continue
+        if component(tpl, "Footprint") is None or component(tpl, "Position") is None:
+            continue
+        w, h = size(tpl)
+        if w is None:
+            continue
+        if x + w >= stop:
+            x, zz, maxh = 20.0, zz + maxh + gap, 0.0
+        if zz >= stop:
+            continue
+        # SetOwner(1) on everything with an Ownership; RTS0 keeps trees, mines and
+        # animals as Gaia's, which only Gaia entries become (an owned tree gathers the same).
+        out.append((tpl, 0 if tpl.startswith("gaia/") else 1, x + w / 2, zz, f"u{len(out) + 1}"))
+        x += w + gap
+        maxh = max(maxh, h)
+    return out
+
+
 def apply_player_data(players, settings):
     """ScriptSettings PlayerData: a scenario's fixed civs, starting resources, locked teams and
     population limits, onto the map's player entries (by id). Its first entry is player 1, or
@@ -563,7 +658,15 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             return
 
         # Terrain heights from PMP
-        raw_pmp = z.read(pmp_rel)
+        try:
+            raw_pmp = z.read(pmp_rel)
+        except (KeyError, FileNotFoundError):
+            # No .pmp: the map's <Terrain patches= texture= height=> (units_demo,
+            # the unit motion tests, Combat Demo (Huge)).
+            t = root.find("Terrain")
+            if t is None or not t.get("patches"):
+                raise
+            raw_pmp = flat_pmp(int(t.get("patches")), t.get("texture", "grass1_spring"), int(t.get("height", 0)))
         target_res = 64
         if world_size_m is None:
             # One RTS0 world unit per 0 A.D. tile, as for random maps.
@@ -613,6 +716,8 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         angle_by_uid = {}  # uid -> Orientation y (radians)
         garrisoned_in = {}  # passenger uid -> holder uid
 
+        if "scenarios/units_demo.js" in settings.get("TriggerScripts", []):
+            raw_entities = units_demo_entities(z)
         if entities_elem is not None:
             for e in entities_elem.findall("Entity"):
                 tpl = e.find("Template").text if e.find("Template") is not None and e.find("Template").text else ""
@@ -650,8 +755,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             if tpl.lower().startswith("trigger/trigger_point_"):
                 trigger_points.append({"ref": tpl[len("trigger/trigger_point_"):], "owner": ply,
                                        "x": round((rx - center_x) * scale, 2), "z": round((rz - center_z) * scale, 2)})
+        # units_demo.js only places entities, which units_demo_entities already did.
         scripts = [os.path.splitext(os.path.basename(t))[0] for t in settings.get("TriggerScripts", [])
-                   if not t.startswith("scripts/")]
+                   if not t.startswith("scripts/") and t != "scenarios/units_demo.js"]
         if triggers_only:
             # Keep the existing map; only add or refresh its trigger points and scripts.
             out_path = f"data/maps/{map_id}.json"
@@ -1084,6 +1190,9 @@ github_skirmishes = {
     "via_augusta_4p": ("via_augusta", "mediterranean"),
     "white_cliffs_of_dover_5p": ("white_cliffs_of_dover", "temperate"),
     "yangtze_2p": ("yangtze", "temperate"),
+    # 0.28's demo skirmishes (Keywords "demo": Game Setup's Demo Maps filter).
+    "north_african_savanna_2p": ("north_african_savanna", "savanna"),
+    "skirmish_demo_2p": ("skirmish_demo", "mediterranean"),
 }
 
 # 0 A.D. scenario maps (maps/scenarios/) fetched with --github-scenarios: file -> (id, biome).
@@ -1118,6 +1227,37 @@ github_scenarios = {
     "gorge": ("gorge", "temperate"),
     "temperate_map": ("temperate_map", "temperate"),
     "walltest": ("walltest", "temperate"),
+    # 0.28's demo scenarios (Keywords "demo"). Left out: the ones run by trigger scripts RTS0
+    # has no port of, or with no terrain file (see REMAINING_GAPS).
+    "bridge_demo": ("bridge_demo", "temperate"),
+    "campaign_test_map": ("campaign_test_map", "mediterranean"),
+    "campaign_test_map_2_heightmap": ("campaign_test_map_2_heightmap", "mediterranean"),
+    "combat_demo": ("combat_demo", "mediterranean"),
+    "demo_trading": ("demo_trading", "mediterranean"),
+    "eire_and_albion": ("eire_and_albion", "temperate"),
+    "fishing_demo": ("fishing_demo", "mediterranean"),
+    "flight_demo": ("flight_demo", "mediterranean"),
+    "multiplayer_demo": ("multiplayer_demo", "mediterranean"),
+    "napata_reconstruction": ("napata_reconstruction", "nubia"),
+    "pathfinding_demo": ("pathfinding_demo", "mediterranean"),
+    "pathfinding_terrain_demo": ("pathfinding_terrain_demo", "mediterranean"),
+    "polynesia": ("polynesia", "tropical"),
+    "reservoir": ("reservoir", "mediterranean"),
+    "resource_demo": ("resource_demo", "mediterranean"),
+    "road_demo": ("road_demo", "mediterranean"),
+    "sandbox_germans": ("sandbox_germans", "temperate"),
+    "sandbox_ptolemies_02": ("sandbox_ptolemies_02", "desert"),
+    "ship_formations": ("ship_formations", "mediterranean"),
+    "shipattacks": ("shipattacks", "mediterranean"),
+    "territory_demo": ("territory_demo", "mediterranean"),
+    "test_foundation": ("test_foundation", "mediterranean"),
+    "tropical_island": ("tropical_island", "tropical"),
+    "walls": ("walls", "mediterranean"),
+    "we_are_legion": ("we_are_legion", "mediterranean"),
+    "units_demo": ("units_demo", "mediterranean"),
+    "combat_demo_huge": ("combat_demo_huge", "mediterranean"),
+    "vertex_pathfinder_test": ("vertex_pathfinder_test", "temperate"),
+    "triggers_demo": ("triggers_demo", "alpine"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
