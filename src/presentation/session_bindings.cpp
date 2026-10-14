@@ -83,6 +83,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
+	ClassDB::bind_method(D_METHOD("_on_formation_gui_input", "event", "formation"), &RtsoMain::_on_formation_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_train_pressed", "utype"), &RtsoMain::_on_train_pressed);
 	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
 	ClassDB::bind_method(D_METHOD("_on_roster_gui_input", "event"), &RtsoMain::_on_roster_gui_input);
@@ -157,9 +158,13 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_grid", "select_all"), &RtsoMain::debug_selection_grid);
 	ClassDB::bind_method(D_METHOD("debug_inspector", "what"), &RtsoMain::debug_inspector);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
+	ClassDB::bind_method(D_METHOD("debug_garrison_icons"), &RtsoMain::debug_garrison_icons);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
-	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count"), &RtsoMain::debug_spawn_units);
+	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player"), &RtsoMain::debug_spawn_units, DEFVAL(-1));
+	ClassDB::bind_method(D_METHOD("debug_put_inside", "ids", "holder"), &RtsoMain::debug_put_inside);
+	ClassDB::bind_method(D_METHOD("debug_select_entity", "id"), &RtsoMain::debug_select_entity);
+	ClassDB::bind_method(D_METHOD("debug_civic_centre_id", "player"), &RtsoMain::debug_civic_centre_id);
 	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
 	ClassDB::bind_method(D_METHOD("debug_structure_types"), &RtsoMain::debug_structure_types);
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
