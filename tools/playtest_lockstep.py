@@ -854,7 +854,8 @@ def run_oos_case(binary: str, seed: int, speed: float, port: int, out_dir: str, 
     for role in ("host", "join"):
         procs[role] = subprocess.Popen(
             [binary, "--net-peer", role, str(port), str(seed), "400", os.path.join(out_dir, f"oos_{role}.log"),
-             "--speed", str(speed), "--force-oos", str(force), "--oos-dir", dirs[role]],
+             "--speed", str(speed), "--force-oos", str(force), "--oos-dir", dirs[role],
+             "--name", "alice" if role == "host" else "bob"],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         time.sleep(0.3)
     outs, rcs = [], []
@@ -868,20 +869,26 @@ def run_oos_case(binary: str, seed: int, speed: float, port: int, out_dir: str, 
         rcs.append(procs[role].returncode)
     rep = peer_lines(outs, "oos")
     dumps_ok = True
+    states = {}
     for role, d in dirs.items():
         txt = os.path.join(d, "oos_dump.txt")
         if not (os.path.exists(txt) and os.path.exists(os.path.join(d, "oos_dump.dat"))):
             dumps_ok = False
             continue
         with open(txt) as f:
-            dumps_ok = dumps_ok and f.readline().strip() == f"oos turn: {force + 1}"
+            lines = f.read().splitlines()
+        dumps_ok = dumps_ok and lines[0].strip() == f"oos turn: {force + 1}" and "-- units (id type team x z hp action carry)" in lines
+        states[role] = [l for l in lines if l.startswith("player 0:")]
+    # The readable state shows where they part: the joiner's extra food.
+    dumps_ok = dumps_ok and len(states) == 2 and states["host"] != states["join"]
+    # The host names the out-of-sync player by name; the joiner's state differs
+    # from the host's, the host's own is the expected one (OutOfSyncNetwork).
     ok = (rcs == [0, 0] and len(rep) == 2 and all(r.get("turn") == str(force + 1) for r in rep.values())
-          and rep["join"].get("from_host") == "1" and rep["host"].get("players") == "Player"
-          and dumps_ok)
-    # players= prints "Player 2"; split() keeps only "Player", so check the raw line too.
-    ok = ok and any("players=Player 2 " in (o or "") for o in outs)
+          and rep["join"].get("from_host") == "1" and rep["host"].get("players") == "bob"
+          and rep["join"].get("players") == "bob" and rep["host"].get("matches_host") == "1"
+          and rep["join"].get("matches_host") == "0" and dumps_ok)
     if ok:
-        print(f"[net] PASS forced OOS: both peers report turn {force + 1}, players Player 2, dumps written")
+        print(f"[net] PASS forced OOS: both peers report turn {force + 1}, players bob; the joiner's state differs from the host's; readable dumps differ in player 0's food")
     else:
         for o in outs:
             for line in (o or "").splitlines():
