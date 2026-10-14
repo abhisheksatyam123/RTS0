@@ -300,7 +300,6 @@ class RtsoWorldView : public Node3D {
 	AudioStreamPlayer3D *spatial_players[SPATIAL_AUDIO_POOL_SIZE] = {nullptr};
 	size_t next_spatial_idx = 0;
 
-	Ref<AudioStream> sfx_building_fire;
 
 
 	struct PrevBuildingState {
@@ -309,7 +308,6 @@ class RtsoWorldView : public Node3D {
 		float hp = 0.0f;
 		float max_hp = 0.0f;
 		uint8_t type = 0;
-		float fire_timer = 0.0f;
 		bool live = true; // last frame showed the live structure, not a mirage
 	};
 	std::unordered_map<uint32_t, PrevBuildingState> tracked_buildings;

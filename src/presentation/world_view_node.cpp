@@ -519,7 +519,6 @@ void RtsoWorldView::_ready() {
 		return Ref<AudioStream>();
 	};
 
-	sfx_building_fire = load_s("res://assets/sounds/building/building_fire.ogg");
 
 	// Fog overlay: 0 A.D. model_common.fs multiplies every model by the LOS
 	// texture. Imported models keep their StandardMaterial3D, so a structure
@@ -3141,24 +3140,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			st.hp = b.hp;
 			st.max_hp = b.max_hp;
 			st.type = b.type;
-			st.fire_timer = ((float)(rand() % 100) / 100.0f) * 2.0f;
 			st.live = !b.miraged;
 			tracked_buildings[b.id] = st;
 		} else if (b.miraged) {
-			// A memory: no live hit points to crackle over.
+			// A memory: no live hit points.
 			bit->second.live = false;
 		} else {
 			bit->second.live = true;
 			bit->second.hp = b.hp;
 			bit->second.max_hp = b.max_hp;
-			bit->second.fire_timer += delta;
-
-			// If damaged below 50% HP, periodically trigger fire crackle acoustics
-			if (b.hp < b.max_hp * 0.5f && b.hp > 0.0f && bit->second.fire_timer >= 2.8f) {
-				bit->second.fire_timer = 0.0f;
-				float by = sim->get_terrain_height(b.x, b.z);
-				play_spatial_sound(sfx_building_fire, Vector3(b.x, by + 1.5f, b.z), -4.0f, 55.0f, 0.95f + ((float)(rand() % 15) / 100.0f));
-			}
+			// 0.28 plays no sound for a damaged structure: Health.js only switches its
+			// damage variant (template_structure DamageVariants).
 		}
 	}
 
