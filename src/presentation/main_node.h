@@ -72,6 +72,7 @@
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
 #include "dev_overlay_view.h"
+#include "minimap_panel_view.h"
 #include "control_groups_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
@@ -100,6 +101,10 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// 1. Top HUD Bar
 	Panel *top_hud_panel = nullptr;
 	RtsoTopPanel top_panel_;
+	// 0.28 MiniMapPanel's idle worker, diplomacy colours and flare buttons.
+	rtso::RtsoMiniMapPanel minimap_panel_;
+	// input.js INPUT_FLARE: the flare button (or session.flareactivate) armed a flare.
+	bool flare_armed_ = false;
 	Button *speed_btn = nullptr;
 	Button *menu_btn = nullptr;
 	RtsoSafeSelect *map_selector = nullptr;
@@ -542,6 +547,7 @@ public:
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count);
 	Dictionary debug_research_any();
+	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
@@ -612,7 +618,7 @@ private:
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
-	bool over_own_rally_structure(const Vector3 &at) const;
+	bool over_own_rally_structure(const Vector3 &at, bool need_rally = true) const;
 	// 0 A.D. "focus-fire": the selected arrow-shooting structure aims at the enemy under `at`.
 	bool try_focus_fire(const Vector3 &at);
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
@@ -702,6 +708,10 @@ private:
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
 	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
+	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
+	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)
+	Dictionary debug_selected_building() const;
+	Dictionary debug_minimap_panel() const;
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while
