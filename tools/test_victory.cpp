@@ -346,7 +346,7 @@ int main() {
 		sim->spawn_building(-20, 20, BLD_WONDER, 2, 1.0f);
 		run(*sim, 2.0f);
 		CHECK(sim->is_wonder_active());
-		sim->wonder_hold_[2] = 599.9f;
+		for (auto &b : sim->buildings_) if (b.type == BLD_WONDER) b.wonder_hold = 599.9f;
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());
 		delete sim;
@@ -1138,6 +1138,50 @@ int main() {
 		sim->units_.team[sim->lookup_unit(sim->relics()[1].id)] = 0;
 		run(*sim, 2.0f);
 		CHECK(sim->relic_countdown_players() == 0b1 && sim->relic_victory_timer() > 1.5f);
+		delete sim;
+	}
+
+	// 21. WonderVictory.js: each wonder keeps its own countdown, so losing one while holding
+	// another does not carry the lost one's time over; a change of the owner's mutual allies
+	// restarts it; a save keeps each wonder's countdown.
+	{
+		Simulation *sim = fresh(VICTORY_WONDER);
+		for (uint8_t p = 0; p < 3; ++p) sim->set_player_active(p, true, false);
+		sim->set_wonder_duration(120.0f);
+		sim->spawn_unit(-30.0f, 30.0f, 2, UNIT_VILLAGER);
+		sim->spawn_building(-20, 34, BLD_TOWN_CENTER, 0, 1.0f); // territory: no decay to Gaia
+		const uint32_t w1 = sim->spawn_building(-20, 20, BLD_WONDER, 0, 1.0f);
+		run(*sim, 60.0f);
+		const uint32_t w2 = sim->spawn_building(-40, 34, BLD_WONDER, 0, 1.0f);
+		run(*sim, 20.0f);
+		auto wonder = [&](uint32_t id) -> Simulation::Building * {
+			for (auto &b : sim->buildings_) if (b.id == id) return &b;
+			return nullptr;
+		};
+		CHECK(wonder(w1)->wonder_hold > 79.0f && wonder(w2)->wonder_hold < 21.0f);
+		CHECK(sim->wonder_hold(0) > 79.0f);
+		wonder(w1)->hp = 0.0f; // the old wonder falls: the new one's 20 s count, not 80 s
+		run(*sim, 1.0f);
+		CHECK(sim->wonder_hold(0) < 22.0f && !sim->is_game_over());
+		sim->set_mutual_ally(0, 2); // a new ally: the countdown restarts
+		run(*sim, 1.0f);
+		CHECK(wonder(w2)->wonder_hold < 1.5f && wonder(w2)->wonder_allies == 0b100);
+		run(*sim, 30.0f);
+		sim->set_diplomacy(1, 0, Simulation::DIPLO_ALLY); // one-sided: allies unchanged, no restart
+		run(*sim, 1.0f);
+		CHECK(wonder(w2)->wonder_hold > 30.0f);
+		const char *wpath = "test_victory_wonder.sav";
+		CHECK(sim->save_state(wpath));
+		{
+			Simulation loaded;
+			CHECK(loaded.load_state(wpath));
+			float hold = -1.0f;
+			for (const auto &b : loaded.buildings_) if (b.id == w2) hold = b.wonder_hold;
+			CHECK(std::fabs(hold - wonder(w2)->wonder_hold) < 0.001f);
+		}
+		std::remove(wpath);
+		run(*sim, 90.0f);
+		CHECK(sim->is_game_over() && sim->winner_mask_ == 0b101);
 		delete sim;
 	}
 

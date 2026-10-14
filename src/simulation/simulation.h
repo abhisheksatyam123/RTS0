@@ -163,10 +163,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 72; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 73; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_TRIGGER_RANGE = 72; // OnRange queries and their collections
+	static constexpr uint32_t SAVE_VERSION_WONDER_TIMERS = 73; // each wonder's own countdown, owner and allies
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -270,6 +271,11 @@ public:
 		// in order; empty: FireArrows picks its own. Saved in save_tick_state (SAVE_VERSION_FOCUS_FIRE).
 		std::vector<uint32_t> focus_targets;
 		bool is_burning = false; // Structure fire under 33% HP
+		// WonderVictory.js wonderVictoryMessages[ent]: this wonder's own countdown, the player it
+		// runs for (255: none) and that player's mutual allies when it started (allied victory).
+		float wonder_hold = 0.0f;
+		uint8_t wonder_owner = 255;
+		uint8_t wonder_allies = 0;
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -2540,7 +2546,9 @@ private:
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
-	float wonder_hold_[MAX_PLAYERS] = {}; // seconds each player has held a finished wonder
+	float wonder_hold_[MAX_PLAYERS] = {}; // the longest countdown of each player's wonders (Building::wonder_hold)
+	// GetPlayersByDiplomacy("IsExclusiveMutualAlly") under allied victory, else nobody.
+	uint8_t wonder_allies_of(uint8_t p) const { return (uint8_t)(side_of(p) & ~(1u << p)); }
 
 	MatchRecord record_;
 	// StatisticsTracker state, saved through tick_state_io (save v19+).
