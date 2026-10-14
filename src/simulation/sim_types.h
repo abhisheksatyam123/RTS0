@@ -532,6 +532,7 @@ inline constexpr bool is_defense_tower(uint8_t type) {
 // TerritoryInfluence/Root: civic centres, wonders and a few civ structures (the
 // military colony, palace, tachara, ministry, Cothon); territory connects through them.
 inline bool is_territory_root(uint8_t type) { return territory_influence_info(type).root; }
+
 // Structures that claim territory (TerritoryInfluence); docks, fields, outposts,
 // palisades and camps claim none.
 inline bool has_territory_influence(uint8_t type) { return territory_influence_info(type).radius > 0.0f; }
@@ -1141,6 +1142,19 @@ inline bool civ_has_big_house(uint8_t civ) {
 	}
 }
 
+// TerritoryInfluence of the civ's own template where it differs: the big house
+// (template_structure_civic_house_big: 20 m at Weight 40000) and the Iberian tower (38 m).
+inline TerritoryInfluenceInfo structure_territory_influence(uint8_t type, uint8_t civ) {
+	TerritoryInfluenceInfo ti = territory_influence_info(type);
+	if (type == BLD_HOUSE && civ_has_big_house(civ)) {
+		ti.radius = 20.0f * 0.28f;
+		ti.weight = 40000;
+	} else if (type == BLD_TOWER && civ == CIV_IBERIANS) {
+		ti.radius = 38.0f * 0.28f;
+	}
+	return ti;
+}
+
 // Whether a civ's structure of `type` has a round 0 A.D. Footprint (<Circle>) rather than a square
 // one. 0 A.D.'s obstruction stays square either way, so this only shapes where trained and
 // unloaded units step out (Footprint.PickSpawnPoint). RTS0 draws the circle on the structure's
@@ -1649,7 +1663,7 @@ inline float building_eject_health(uint8_t type) {
 		case BLD_CORRAL: return 0.5f;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
 		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: case BLD_PALISADE_GATE:
-		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return 0.0f;
+		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: case BLD_MINISTRY: return 0.0f; // han/ministry: EjectHealth 0
 		default: return 0.1f;
 	}
 }
@@ -1735,7 +1749,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
 		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
 		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
-		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT:
+		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL:
 			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
 		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
 		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;
@@ -2406,22 +2420,12 @@ inline LootInfo unit_class_loot(uint8_t type) {
 	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
 }
 
-// A roster unit takes its 0 A.D. rank template's loot: heroes, champions and siege towers
-// differ from the class their RTS0 UnitType names.
+// A roster unit takes its own 0 A.D. template's Loot (civ_attack_data.h, mixins such as
+// elephant_indian's x1.1 applied); RTS0-only rows (the male villager) take their class's.
 inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
-		const uint16_t flags = civ_unit_template(tmpl).flags;
-		if (flags & ROSTER_HERO) return {400, 10, 0, 0, 25};          // template_unit_hero
-		if (flags & ROSTER_SIEGE_TOWER) return {250, 0, 100, 0, 60};  // template_unit_siege_tower
-		if (flags & ROSTER_CHAMPION) {
-			switch (type) {
-				case UNIT_SWORDSMAN: case UNIT_ARCHER: case UNIT_SPEARMAN: case UNIT_ARCHER_MAIDEN:
-					return {150, 8, 6, 0, 8};                              // template_unit_champion_infantry
-				case UNIT_CAVALRY: case UNIT_CAMEL:
-					return {200, 15, 8, 0, 10};                            // template_unit_champion_cavalry
-				default: break;
-			}
-		}
+		const CombatProfile &c = combat_template_table()[tmpl];
+		if (c.has_loot) return {c.loot[0], c.loot[1], c.loot[2], c.loot[3], c.loot[4]};
 	}
 	return unit_class_loot(type);
 }
@@ -2460,6 +2464,39 @@ inline LootInfo building_loot(uint8_t type) {
 	};
 	static_assert(sizeof(table) / sizeof(table[0]) == BLD_TYPE_COUNT, "one loot row per BuildingType");
 	return type < BLD_TYPE_COUNT ? table[type] : LootInfo{};
+}
+// A structure's own 0.28 template Loot: the civ's template where it differs (big houses 30 wood;
+// Celtic and Mauryan wooden barracks, stables and temples; the Iberian tower; the Carthaginian
+// dock; Mauryan wooden walls) and each WallSet piece's length (wall_long, _medium, _short 7, 5
+// and 3 stone; palisades 3, 2, 1 wood and their tower 3; siege walls 12, 8, 4 wood and the
+// tower 16).
+inline LootInfo structure_loot(uint8_t type, uint8_t civ, float half_w) {
+	LootInfo l = building_loot(type);
+	const bool celt_or_maur = civ == CIV_BRITONS || civ == CIV_GAULS || civ == CIV_MAURYANS;
+	auto set = [&l](uint16_t wood, uint16_t stone) { l.wood = wood; l.stone = stone; };
+	switch (type) {
+		case BLD_HOUSE: if (civ_has_big_house(civ)) set(30, 0); break;
+		case BLD_BARRACKS: if (celt_or_maur) set(60, 0); break;
+		case BLD_STABLE: if (celt_or_maur) set(50, 0); break;
+		case BLD_TEMPLE: if (civ == CIV_BRITONS || civ == CIV_GAULS) set(60, 0); break;
+		case BLD_TOWER: if (civ == CIV_IBERIANS) set(10, 50); break;
+		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) set(30, 0); break;
+		case BLD_GATE: if (civ == CIV_MAURYANS) set(6, 0); break;
+		case BLD_WALL_TOWER: if (civ == CIV_MAURYANS) set(12, 0); break;
+		default: break;
+	}
+	if (!is_wallset_piece(type, half_w) || is_gate_type(type)) return l;
+	const uint8_t kind = wallset_kind_of(type);
+	const WallSetInfo &ws = wallset_info(kind);
+	int k = 3; // the set's tower
+	if (!is_wallset_tower_piece(type, half_w))
+		for (k = 0; k < 2 && std::fabs(0.5f * ws.lengths[k] - half_w) >= 0.01f; ++k) {}
+	static constexpr uint16_t STONE[4] = {7, 5, 3, 10}, PALISADE[4] = {3, 2, 1, 3}, SIEGE[4] = {12, 8, 4, 16};
+	if (kind == WALLSET_PALISADE) set(PALISADE[k], 0);
+	else if (kind == WALLSET_SIEGE) set(SIEGE[k], 0);
+	else if (civ == CIV_MAURYANS) set(STONE[k], 0); // maur/wall_*: wood
+	else set(0, STONE[k]);
+	return l;
 }
 // 0 A.D. unit_advanced.json and unit_elite.json each multiply Loot/* by 1.2.
 inline float loot_rank_multiplier(uint8_t rank) {

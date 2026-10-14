@@ -848,7 +848,7 @@ public:
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
 	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
-	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
+	bool ship_garrison_allowed(size_t ship, size_t unit) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
 	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
 	// this unload are in `taken`), false when there is none; without a passenger, the nearest dry ground.
@@ -2038,6 +2038,11 @@ private:
 	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
+	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
+	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
+	int occupied_slots(const std::vector<uint32_t> &ids) const;  // GarrisonHolder.OccupiedSlots
+	bool garrison_room(const Building &b, size_t unit) const;
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
 	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
@@ -2170,6 +2175,7 @@ private:
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
 	void gain_xp(size_t idx, float amount);
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
+	void award_structure_damage_xp(uint32_t attacker_id, const Building &b, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 			bool target_is_building, float damage, bool melee = false);

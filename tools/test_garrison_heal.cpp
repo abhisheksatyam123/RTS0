@@ -71,6 +71,7 @@ int main() {
 	CHECK(building_garrison_heal(BLD_WONDER) == 5.0f && building_garrison_heal(BLD_BARRACKS) == 0.0f);
 	CHECK(building_eject_health(BLD_FORTRESS) == 0.075f && building_eject_health(BLD_CORRAL) == 0.5f);
 	CHECK(building_eject_health(BLD_BARRACKS) == 0.1f);
+	CHECK(building_eject_health(BLD_MINISTRY) == 0.0f); // han/ministry keeps its garrison to the end
 	const TechInfo &lc = tech_info(TECH_GARRISON_HEAL);
 	CHECK(lc.food_cost == 500 && lc.gold_cost == 250 && lc.required_phase == 2 && lc.researcher == BLD_TEMPLE);
 
@@ -242,6 +243,8 @@ int main() {
 		CHECK(takes(BLD_FORGE, UNIT_HEALER) && takes(BLD_FORGE, UNIT_ARCHER) && !takes(BLD_FORGE, UNIT_CAVALRY));
 		CHECK(!takes(BLD_CORRAL, UNIT_FEMALE_CITIZEN) && !takes(BLD_TOWER, UNIT_CAVALRY) && takes(BLD_TOWER, UNIT_FEMALE_CITIZEN));
 		CHECK(!garrison_list_matches(structure_garrison_list(BLD_BARRACKS, CIV_ATHENIANS), unit_tech_classes(UNIT_MINISTER)));
+		// germ/great_hall: template_structure_special's Support Infantry Cavalry.
+		CHECK(takes(BLD_GREAT_HALL, UNIT_SPEARMAN) && takes(BLD_GREAT_HALL, UNIT_CAVALRY) && !takes(BLD_GREAT_HALL, UNIT_CATAPULT));
 		CHECK(garrison_list_matches(structure_garrison_list(BLD_BARRACKS, CIV_HAN), unit_tech_classes(UNIT_MINISTER)));
 		fresh(s);
 		uint32_t bk = s.spawn_building_world(0.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
