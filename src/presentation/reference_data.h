@@ -33,6 +33,9 @@ public:
 	// [{type, name, portrait, phase, cost, units: [{tmpl, name, specific_name, portrait, phase, cost, flags}],
 	//   techs: [{id, name, description, phase, cost}], upgrades: [{type, name}]}].
 	Array get_structure_tree(int civ) const;
+	// Structure Tree "Trainer Units": the civ's units that train, research or upgrade,
+	// [{tmpl, name, ..., units: [...], techs: [...], upgrades: [...]}].
+	Array get_trainer_units(int civ) const;
 	// Template Viewer (gui/reference/viewer ViewerPage): every stat RTS0 plays
 	// with for a roster unit template, a structure (for a civ) or a technology.
 	// Each has kind ("unit", "structure", "tech"), name, portrait, phase,
