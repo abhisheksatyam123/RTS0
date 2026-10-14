@@ -75,9 +75,12 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_disconnected_exit_pressed"), &RtsoMain::_on_disconnected_exit_pressed);
 	ClassDB::bind_method(D_METHOD("_on_delete_confirmed"), &RtsoMain::_on_delete_confirmed);
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
+	ClassDB::bind_method(D_METHOD("_on_template_details_input", "event", "kind", "id", "civ"), &RtsoMain::_on_template_details_input);
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
+	ClassDB::bind_method(D_METHOD("_on_panel_entity_gui_input", "event", "slot"), &RtsoMain::_on_panel_entity_gui_input);
+	ClassDB::bind_method(D_METHOD("_on_research_progress_pressed", "slot"), &RtsoMain::_on_research_progress_pressed);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
@@ -149,6 +152,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count"), &RtsoMain::debug_spawn_units);
+	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
@@ -790,6 +794,27 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 	return out;
 }
 
+// Test hook: starts the first technology one of the local player's structures can
+// research now; {building, tech, name}, empty when none can.
+Dictionary RtsoMain::debug_research_any() {
+	Dictionary d;
+	if (!sim) return d;
+	const uint8_t me = local_player();
+	std::vector<std::pair<uint32_t, uint8_t>> ids;
+	for (const auto &b : sim->buildings())
+		if (b.team == me && b.queue.empty()) ids.push_back({b.id, b.type});
+	for (const auto &[id, type] : ids)
+		for (int t = 1; t < rtso::TECH_COUNT; ++t) {
+			if (rtso::tech_info((uint8_t)t).researcher != type) continue;
+			if (!sim->cmd_research(me, id, (uint8_t)t)) continue;
+			d["building"] = (int64_t)id;
+			d["tech"] = t;
+			d["name"] = String::utf8(rtso::tech_info((uint8_t)t).name);
+			return d;
+		}
+	return d;
+}
+
 // CounterManager.onPress: a click on a resource or population counter cycles
 // the order of the allies' stats in their tooltips.
 void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
@@ -1218,6 +1243,29 @@ void RtsoMain::toggle_diplomacy_colors() {
 
 // 0 A.D. ChatMessageFormatSimulation: who sees which tribute, barter, phase and
 // diplomacy line. Observers (and defeated players) see more, as g_IsObserver does.
+void RtsoMain::show_trigger_dialogs(const std::vector<rtso::Simulation::TriggerDialog> &dialogs) {
+	// messages.js "dialog": a message box with the two buttons, for the players it names.
+	// Its "dialog-answer" command only reaches a script's OnPlayerCommand, which no
+	// ported script reads, so the answer just closes it.
+	const uint8_t me = local_player();
+	if (!sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS) return;
+	for (const auto &d : dialogs) {
+		if (!((d.players >> me) & 1u)) continue;
+		ConfirmationDialog *dlg = memnew(ConfirmationDialog);
+		dlg->set_title("");
+		dlg->set_text(String::utf8(d.caption.c_str()));
+		dlg->set_ok_button_text(String::utf8(d.button1.c_str()));
+		dlg->set_cancel_button_text(String::utf8(d.button2.c_str()));
+		dlg->get_ok_button()->set_tooltip_text(String::utf8(d.tooltip1.c_str()));
+		dlg->get_cancel_button()->set_tooltip_text(String::utf8(d.tooltip2.c_str()));
+		dlg->set_exclusive(false);
+		dlg->connect("confirmed", callable_mp((Node *)dlg, &Node::queue_free));
+		dlg->connect("canceled", callable_mp((Node *)dlg, &Node::queue_free));
+		add_child(dlg);
+		dlg->popup_centered();
+	}
+}
+
 void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices) {
 	if (notices.empty() || !sim || !chat_window_.is_ready() || turn_mgr_.is_replaying()) return;
 	using N = rtso::Simulation::SessionNotice;
@@ -1855,6 +1903,15 @@ void RtsoMain::_on_template_info_pressed() {
 	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
 }
 
+// A command panel button's right click (selection_panels.js onPressRight showTemplateDetails):
+// the Template Viewer for its structure, technology or unit.
+void RtsoMain::_on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || !ui_layer) return;
+	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
+}
+
 // Tests: select the local player's first structure or first live unit.
 // unit_actions.js "garrison" actionCheck: some selected unit may garrison in this own or allied
 // structure (its GarrisonHolder List, IsOwnedByMutualAllyOfEntity). Room is not checked.
@@ -2053,8 +2110,16 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 	(void)at;
 	if (!command_panel_.roster_list() || index < 0 || index >= command_panel_.roster_list()->get_item_count()) return;
 	command_panel_.roster_list()->deselect_all();
-	if (mouse_button != MOUSE_BUTTON_LEFT || command_panel_.roster_list()->is_item_disabled(index)) return;
 	const int meta = (int)command_panel_.roster_list()->get_item_metadata(index);
+	if (mouse_button == MOUSE_BUTTON_RIGHT && !(meta & RtsoCommandPanelView::ROSTER_ANIMAL) && sim && ui_layer) {
+		// onPressRight showTemplateDetails, disabled rows too.
+		Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+		const bool tech = meta & RtsoCommandPanelView::ROSTER_TECH;
+		if (viewer.is_valid())
+			viewer->call("open", ui_layer, String(tech ? "tech" : "unit"), tech ? (meta & 0xFF) : meta, (int)sim->player_civ(local_player()));
+		return;
+	}
+	if (mouse_button != MOUSE_BUTTON_LEFT || command_panel_.roster_list()->is_item_disabled(index)) return;
 	if (meta & RtsoCommandPanelView::ROSTER_ANIMAL) {
 		try_breed(selected_building_id, (uint8_t)(meta & 0xFF), train_batch());
 		return;
@@ -2626,6 +2691,39 @@ void RtsoMain::_on_selection_group_gui_input(const Ref<InputEvent> &event, int k
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || mb->is_pressed()) return;
 	select_group(key, true);
+}
+
+// PanelEntity.js onPress (select it; selection.add keeps the selection) and
+// onDoublePress (selectAndMoveTo: select it and move the camera to it).
+void RtsoMain::_on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot) {
+	Ref<InputEventMouseButton> mb = event;
+	if (!sim || mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_LEFT || !mb->is_pressed()) return;
+	const uint32_t id = panel_entities_.entity_at(slot);
+	if (!id) return;
+	auto uview = sim->units();
+	size_t i = 0;
+	while (i < uview.count && uview.id[i] != id) ++i;
+	if (i == uview.count) return;
+	if (mb->is_double_click() || !rtso::hotkeys::held("selection.add")) {
+		selected_ids.clear();
+		selected_building_id = 0;
+	}
+	if (!selected_ids.has((int32_t)id)) selected_ids.push_back((int32_t)id);
+	if (mb->is_double_click() && cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[i], 0, uview.pos_z[i]));
+	play_civ_voice("select");
+}
+
+// ResearchProgressButton.onPress: selectAndMoveTo(researcher).
+void RtsoMain::_on_research_progress_pressed(int slot) {
+	const uint32_t id = research_progress_.researcher_at(slot);
+	if (!sim || !id) return;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != id) continue;
+		selected_ids.clear();
+		selected_building_id = id;
+		if (cam_rig) cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+		return;
+	}
 }
 
 void RtsoMain::_on_selection_group_clicked(int key) {
