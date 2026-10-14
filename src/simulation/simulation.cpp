@@ -8200,6 +8200,29 @@ float Simulation::unit_move_speed(size_t i) const {
 	return spd;
 }
 
+// CCmpUnitMotion::PerformMove: a unit gains speed at its template's Acceleration up to its speed, and
+// drops to a lower one at once. Facing further from its way on than its InstantTurnAngle it stops (and
+// turns); nearer, it keeps cos(angle) of its speed. Ships never stop (InstantTurnAngle 10), so one
+// turning more than a right angle drifts on backwards until its speed passes zero, as 0.28's signed
+// speed does. Its velocity at the start of the tick (vel_x/z, saved) is its speed and facing, so a
+// unit at rest starts from nothing; turning time is not modelled. The step is negative while it drifts.
+float Simulation::accelerated_step(size_t i, float vx, float vz, float ux, float uz, float max_speed, float dt,
+		float *speed) const {
+	const UnitMotionProfile &m = unit_motion(units_.tmpl[i], units_.unit_type[i]);
+	float s = std::sqrt(vx * vx + vz * vz);
+	if (s > 0.0f) {
+		const float c = (vx * ux + vz * uz) / s;
+		s = c < m.cos_instant_turn ? 0.0f : s * c;
+	}
+	if (s >= max_speed || m.acceleration <= 0.0f) {
+		*speed = max_speed;
+		return max_speed * dt;
+	}
+	const float t = std::min(dt, (max_speed - s) / m.acceleration);
+	*speed = s + m.acceleration * t;
+	return s * t + 0.5f * m.acceleration * t * t + max_speed * (dt - t);
+}
+
 void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	steps = MoveSteps{};
 	const size_t n = units_.count;
@@ -8667,12 +8690,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		float inv = 1.0f / sqrtf(d2);
 		float ux = dx * inv;
 		float uz = dz * inv;
-		const float spd = unit_move_speed(i);
+		float spd;
+		const float step = accelerated_step(i, vx[i], vz[i], ux, uz, unit_move_speed(i), dt, &spd);
 		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
-		float move_dx = ux * spd * dt;
-		float move_dz = uz * spd * dt;
+		float move_dx = ux * step;
+		float move_dz = uz * step;
 		// A short-path waypoint reached this tick is done: next tick searches from the corner.
-		if (steered && d2 <= (spd * dt) * (spd * dt)) units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+		if (steered && step > 0.0f && d2 <= step * step) units_.short_path[i].key = round_units ? idle_corner_key() : 0;
 		want_x[i] = move_dx;
 		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
@@ -8711,6 +8735,9 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				else { npx[i] = px[i]; npz[i] = pz[i]; }
 			}
 		}
+		// A step that ends where it started (at the shore, or a closed gate) loses its speed, as a move
+		// that fails does in 0 A.D.
+		if (npx[i] == px[i] && npz[i] == pz[i]) spd = 0.0f;
 		vx[i] = ux * spd;
 		vz[i] = uz * spd;
 	});
@@ -8962,7 +8989,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			return;
 		}
 		if (!obstructed && w.x == next.x && w.y == next.y) return; // the way on from the corner is clear
-		const float reach = unit_move_speed(i) * dt;
+		// The step move_units gave it toward its aim (accelerated_step), or one from rest when it was
+		// obstructed: 0 A.D. loses the speed of a move that fails.
+		float speed = std::sqrt(units_.vel_x[i] * units_.vel_x[i] + units_.vel_z[i] * units_.vel_z[i]);
+		const float reach = obstructed ? accelerated_step(i, 0.0f, 0.0f, 1.0f, 0.0f, unit_move_speed(i), dt, &speed)
+		                               : std::sqrt(want_x[i] * want_x[i] + want_z[i] * want_z[i]);
 		// A first waypoint within this tick's step is reached now and the unit keeps the second, as
 		// 0 A.D. follows the whole short path: heading straight for the aim from that corner would
 		// walk it back into the obstruction it is going round.
@@ -8988,8 +9019,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		want_x[i] = sx - x0;
 		want_z[i] = sz - z0;
 		blocked[i] = 0;
-		units_.vel_x[i] = want_x[i] / dt;
-		units_.vel_z[i] = want_z[i] / dt;
+		units_.vel_x[i] = to.x / len * speed;
+		units_.vel_z[i] = to.y / len * speed;
 		memo = ShortPathMemo{keep.x, keep.y, aim.x, aim.y, key};
 	});
 }
