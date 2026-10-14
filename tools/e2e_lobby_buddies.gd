@@ -7,6 +7,9 @@ extends SceneTree
 #      game details (gamedescription.js); unmarking the last one keeps ",";
 #   2. GameListFilters: Show only open games, map size, map type and player
 #      count hide the games that don't match, and "Any" shows them again.
+#   4. ChatCommandHandler: /away and /back set the presence (Away, Online),
+#      unknown and moderator-only commands print a line and send nothing,
+#      /me and /say need an argument, /clear empties the log.
 #
 #   godot --headless --path . -s tools/e2e_lobby_buddies.gd
 # Exit code 0 = pass. Needs python3 for the lobby server.
@@ -122,6 +125,41 @@ func run() -> void:
 	cfg.reload()
 	check(cfg.get_value("lobby.buddies") == "," and lobby._buddy_btn.text == "Mark as Buddy", "an empty list is kept as \",\"")
 	check(not lobby.toggle_buddy("a,b", "alice") and not lobby.toggle_buddy("alice", "alice"), "no delimiter, not oneself")
+
+	print("4. chat commands")
+	var state := func(who: String) -> String:
+		for it in lobby._players.get_root().get_children():
+			if str(it.get_metadata(0)) == who:
+				return it.get_text(0)
+		return ""
+	var send := func(t: String) -> void:
+		lobby._chat_line.text = t
+		lobby._on_send_pressed()
+	send.call("/away")
+	await until(func() -> bool: return state.call("alice") == "Away")
+	check(state.call("alice") == "Away" and ls.away, "/away shows alice as Away")
+	ls._beat()
+	await create_timer(0.3).timeout
+	lobby._refresh()
+	await until(func() -> bool: return state.call("alice") == "Away", 30)
+	check(state.call("alice") == "Away", "and the heartbeat keeps it")
+	send.call("/back")
+	await until(func() -> bool: return state.call("alice") == "Online")
+	check(state.call("alice") == "Online" and not ls.away, "/back shows alice as Online")
+	send.call("/dance")
+	check(lobby._chat_log.get_parsed_text().contains("The command 'dance' is not supported. Try /help"), "an unknown command is refused")
+	send.call("/kick bob")
+	check(lobby._chat_log.get_parsed_text().contains("The command 'kick' is restricted to moderators."), "kick is for moderators")
+	send.call("/me")
+	check(lobby._chat_log.get_parsed_text().contains("The command '/me' requires at least one argument."), "/me needs an argument")
+	send.call("/help")
+	var log: String = lobby._chat_log.get_parsed_text()
+	check(log.contains("away - Set your state to 'Away'.") and not log.contains("ban - "), "/help lists the commands a player may use")
+	send.call("/clear")
+	check(lobby._chat_log.get_parsed_text().strip_edges() == "", "/clear empties the log")
+	send.call("/me waves")
+	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("* alice waves"))
+	check(lobby._chat_log.get_parsed_text().contains("* alice waves"), "/me shows as * alice waves")
 
 	ls.sign_out()
 	cfg.set_value("lobby.buddies", saved_buddies)

@@ -1846,7 +1846,7 @@ public:
 		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
 	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna = 0) const;
+	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna = 0, uint32_t exclude = 0) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
@@ -2102,6 +2102,10 @@ private:
 	bool chase_goal(size_t i, float &key_x, float &key_z, float &to_x, float &to_z) const;
 	bool chase_path_kept(size_t i) const;
 	bool chase_falls_short(size_t i) const;
+	// The same for a hunter: its path to the animal ends out of reach of where it was asked to go.
+	bool hunt_falls_short(size_t i) const;
+	// MovementUpdate likelyFailure for a hunter (GATHER APPROACHING / COMBAT): FINDINGNEWTARGET.
+	void give_up_hunt(size_t i);
 	bool walk_falls_short(size_t i) const;
 	void obstructed_long_path(size_t i, uint8_t failed);
 	void abandon_chase(size_t i);
@@ -2354,6 +2358,10 @@ private:
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	void fauna_hit_fauna(size_t f, size_t v);             // ... or on a player's livestock v
 	bool fauna_can_step(size_t f, float x, float z) const;
+	// UnitMotion for animal f heading to (tx, tz): where to steer now. The first waypoint of
+	// find_path when the navcell line there is blocked, then the short path round the structures
+	// in the way. A function of the map and the two points only, so nothing is kept or saved.
+	void fauna_path_aim(size_t f, float tx, float tz, float &ax, float &az, uint32_t ignore_building_id = 0) const;
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
 	void explore_territories(); // InitGame.js ExploreTerritories, before the first turn

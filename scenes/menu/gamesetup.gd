@@ -1155,9 +1155,12 @@ func refresh_slots() -> void:
 
 func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var row: Dictionary = _slot_rows[i]
-	var name := Label.new()
-	name.text = _slot_label(i, row)
-	grid.add_child(name)
+	if _mp_role == "host" and int(row["kind"]) == 0 and _net_rows().has(i):
+		grid.add_child(_assignment_cell(i))
+	else:
+		var name := Label.new()
+		name.text = _slot_label(i, row)
+		grid.add_child(name)
 	# kind
 	var kind_slot := Control.new()
 	kind_slot.custom_minimum_size = Vector2(92, 28)
@@ -1893,6 +1896,13 @@ func _init_net() -> void:
 	_mp_role = "host" if bool(_net_state.get("controller", false)) else "client"
 	_build_net_controls()
 	_build_net_chat()
+	var obs := Label.new()
+	obs.name = "NetObservers"
+	obs.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	obs.visible = false
+	$VBox/HBox/Right/SlotsBox.add_child(obs)
+	obs.owner = self
+	obs.unique_name_in_owner = true
 	net_main.net_setup_changed.connect(_on_net_setup_changed)
 	if net_main.has_signal("net_setup_refused"):
 		net_main.net_setup_refused.connect(_show_error)
@@ -2137,6 +2147,7 @@ func _on_net_setup_changed() -> void:
 	refresh_slots()
 	_update_preview()
 	_update_net_controls()
+	_update_net_observers()
 
 ## A client asks the host for its own slot's civ, team or colour.
 func _net_request(key: String, value: int) -> void:
@@ -2154,6 +2165,52 @@ func _slot_label(i: int, row: Dictionary) -> String:
 	var e: Dictionary = slots[k]
 	var you := int(e["client"]) == int(_net_state.get("my_client", -2))
 	return "%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if int(e["client"]) > 0 and int(e.get("ready", 0)) > 0 else ""]
+
+## 0.28 PlayerAssignment dropdown (host only): the slot's name cell lists the
+## connected clients and Unassigned; picking a client seats it here (one
+## holding another slot swaps, as NetServer AssignPlayer does), and
+## Unassigned makes the holder an observer.
+func _assignment_cell(i: int) -> Control:
+	var cell := Control.new()
+	cell.name = "Assign%d" % i
+	cell.custom_minimum_size = Vector2(110, 28)
+	var ob := _make_option(cell)
+	ob.name = "AssignSelect"
+	var k := _net_rows().find(i)
+	var slots: Array = _net_state.get("slots", [])
+	var holder := int(slots[k].get("client", -1)) if k >= 0 and k < slots.size() else -1
+	var clients: Array = []
+	for e in slots + Array(_net_state.get("observers", [])):
+		if int(e.get("client", -1)) >= 0 and not clients.any(func(x): return int(x["client"]) == int(e["client"])):
+			clients.append(e)
+	for e in clients:
+		var you := int(e["client"]) == int(_net_state.get("my_client", -2))
+		var ready := int(e["client"]) > 0 and int(e.get("ready", 0)) > 0
+		# The item id is the client + 1; Unassigned is 0.
+		ob.add_item("%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if ready else ""], int(e["client"]) + 1)
+	ob.add_item("Unassigned", 0)
+	ob.select(ob.get_item_index(holder + 1 if holder >= 0 else 0))
+	ob.tooltip_text = "Assign a player to this slot."
+	ob.item_selected.connect(func(idx: int) -> void:
+		if _rebuilding_slots:
+			return
+		var c := int(ob.get_item_id(idx)) - 1
+		if c >= 0:
+			net_main.assign_net_client(c, k)
+		elif holder >= 0:
+			net_main.assign_net_client(holder, -1)
+		_net_state = net_main.get_net_setup_state()
+		refresh_slots.call_deferred())
+	return cell
+
+## Observers.js / the 0.28 player list: who watches, under the slots.
+func _update_net_observers() -> void:
+	if _mp_role == "none" or not has_node("%NetObservers"):
+		return
+	var names: Array = Array(_net_state.get("observers", [])).map(func(e): return str(e.get("name", "")))
+	var lbl: Label = %NetObservers
+	lbl.text = "Observers: " + ", ".join(names) if not names.is_empty() else ""
+	lbl.visible = not names.is_empty()
 
 ## Session UI's single lock pass: a client may change only its own slot's civ,
 ## team and colour (none on a map that sets them); only adds disables, after
