@@ -559,6 +559,7 @@ public:
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
+	void debug_select_units(const PackedInt32Array &ids);
 	int64_t debug_civic_centre_id(int player) const;
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();

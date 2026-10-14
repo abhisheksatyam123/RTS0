@@ -413,6 +413,12 @@ Array RtsoMain::debug_command_row() {
 		e["disabled"] = btn->is_disabled();
 		e["id"] = (int64_t)btn->get_instance_id();
 		e["paired"] = paired; // one of a research pair (selection_panels.js Research)
+		Label *cnt = Object::cast_to<Label>(btn->find_child("unitUpgradeCount", false, false));
+		e["count"] = cnt ? cnt->get_text().to_int() : 0;
+		e["progress"] = btn->has_meta("progress") ? (int)btn->get_meta("progress") : -1; // pixels left
+		e["grey"] = false;
+		for (int k = 0; k < btn->get_child_count(); ++k)
+			if (TextureRect *ic = Object::cast_to<TextureRect>(btn->get_child(k))) e["grey"] = ic->get_material().is_valid();
 		out.push_back(e);
 	};
 	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
@@ -454,6 +460,11 @@ int RtsoMain::debug_put_inside(const PackedInt32Array &ids, int64_t holder) {
 	int n = 0;
 	for (uint32_t u : v) n += sim->garrison_unit_now(u, (uint32_t)holder) ? 1 : 0;
 	return n;
+}
+
+void RtsoMain::debug_select_units(const PackedInt32Array &ids) {
+	selected_building_id = 0;
+	selected_ids = ids;
 }
 
 void RtsoMain::debug_select_entity(int64_t id) {
