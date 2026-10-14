@@ -9403,7 +9403,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				const bool capture = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
 						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f &&
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
-				const float reach = capture ? CAPTURE_RANGE : attack_reach(i);
+				float reach = capture ? CAPTURE_RANGE : attack_reach(i);
+				if (!capture && reach > 3.0f) { // Ranged: the elevation-adapted range, as for a unit target
+					const float h = get_terrain_height(b.x, b.z) - unit_height(i);
+					const float eff = std::sqrt(std::max(0.0f, reach * reach - 2.0f * reach * h));
+					reach = eff > reach ? 0.5f * (reach + eff) : eff;
+				}
 				const float eff_d = structure_gap(b, px[i], pz[i], unit_clearance_at(i));
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
