@@ -395,6 +395,18 @@ public:
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// The passability class Clearance of the unit at SoA index i from buildings (unit_building_clearance).
 	float unit_clearance_at(size_t i) const { return unit_building_clearance(units_.tmpl[i], units_.unit_type[i]); }
+	// Attack MaxRange of the unit at SoA index i with technologies (the developer overlay's range overlay).
+	float unit_attack_range_at(size_t i) const { return i < units_.count ? units_.attack_range[i] : 0.0f; }
+	// The waypoints of its long path it has still to reach, *xs / *zs at the next one (the unit
+	// motion overlay); 0 when it has none.
+	int unit_waypoints_left(size_t i, const float **xs, const float **zs) const {
+		if (i >= units_.count || i >= unit_paths_.size()) return 0;
+		const int cur = units_.waypoint_cur[i], n = units_.waypoint_count[i];
+		if (cur < 0 || n > WaypointPath::MAX_WP || cur >= n) return 0;
+		*xs = unit_paths_[i].xs + cur;
+		*zs = unit_paths_[i].zs + cur;
+		return n - cur;
+	}
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {

@@ -2100,6 +2100,18 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_SELECTION_STATE: // SelectionEntityState
 			dev_overlay_.show_state(on);
 			break;
+		case D::DEV_PATHFINDER_OVERLAY: // PathfinderOverlay: SetPathfinderDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::PATHFINDER, on);
+			break;
+		case D::DEV_OBSTRUCTION_OVERLAY: // ObstructionOverlay: SetObstructionDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::OBSTRUCTION, on);
+			break;
+		case D::DEV_UNIT_MOTION_OVERLAY: // UnitMotionOverlay: SetMotionDebugOverlay on every entity
+			debug_overlays_.set(rtso::RtsoDebugOverlays::UNIT_MOTION, on);
+			break;
+		case D::DEV_RANGE_OVERLAY: // RangeOverlay: SetRangeDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::RANGE, on);
+			break;
 		case D::DEV_REVEAL_MAP: // RevealMap: "reveal-map" with enable
 			cheat(rtso::Simulation::CHEAT_DEV_REVEAL_MAP, on ? 1 : 0, {});
 			break;
@@ -2183,6 +2195,11 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
+		using O = rtso::RtsoDebugOverlays;
+		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
+		dev_overlay_.set_checked(D::DEV_OBSTRUCTION_OVERLAY, debug_overlays_.on(O::OBSTRUCTION));
+		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
+		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
 	}
 	if (!dev_overlay_.state_shown()) return;
 	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
@@ -2241,6 +2258,14 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["selection_ranks"] = ranks;
 	d["seat"] = (int)seat_player();
 	d["view_picker"] = observer_view_picker_ && observer_view_picker_->is_visible_in_tree();
+	PackedStringArray commands; // the rows in order
+	for (int i = 0; i < D::DEV_COUNT; ++i) commands.push_back(D::kLabels[i]);
+	d["commands"] = commands;
+	using O = rtso::RtsoDebugOverlays;
+	d["pathfinder_drawn"] = debug_overlays_.drawn(O::PATHFINDER);
+	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
+	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
+	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
 	return d;
 }
 
