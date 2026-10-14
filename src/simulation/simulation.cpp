@@ -9918,6 +9918,11 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		if (!blocked && progress >= OBSTRUCTED_PROGRESS * ww) continue; // slowed, not stopped
 		const bool moved = !blocked && ax * ax + az * az >= OBSTRUCTED_PROGRESS * OBSTRUCTED_PROGRESS * ww;
 		if (moved && m.failed >= OBSTRUCTED_AT) continue;
+		// PathResult's short-path hack: a walk that has followed all of a long path ending short of its
+		// point (MakeGoalReachable moved the goal: out at sea, on another island) gets no closer by a
+		// new path from there (RejectFartherPaths), so UnitMotion sets m_FailedMovements to
+		// MAX_FAILED_MOVEMENTS - 2 and the walk fails two obstructed turns later.
+		if (m.failed < FAILED_AT - 3 && walk_falls_short(i)) m.failed = FAILED_AT - 3;
 		bool move_failed = false;
 		if (++m.failed >= FAILED_AT) {
 			move_failed = true;
@@ -10016,6 +10021,21 @@ bool Simulation::chase_falls_short(size_t i) const {
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
 	return structure_gap(b, ex, ez, unit_clearance_at(i)) > reach;
+}
+
+// A walk, attack-move or patrol leg whose unit has walked all of its long path, which ends short of
+// the point it walks to: find_path stopped it at the nearest navcell the unit can reach
+// (MakeGoalReachable). A player's walk ends there already (beach_goal).
+bool Simulation::walk_falls_short(size_t i) const {
+	const uint8_t kind = units_.order_kind[i], st = units_.action_state[i];
+	if (!((kind == ORDER_WALK && st == ACTION_MOVE) || (kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
+	      (kind == ORDER_PATROL && st == ACTION_PATROL)) ||
+			units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0 || i >= unit_paths_.size())
+		return false;
+	const WaypointPath &wp = unit_paths_[i];
+	if (wp.count == 0 || wp.cur < wp.count || units_.waypoint_count[i] != wp.count) return false;
+	const float dx = wp.xs[wp.count - 1] - units_.target_x[i], dz = wp.zs[wp.count - 1] - units_.target_z[i];
+	return dx * dx + dz * dz > 1.0f;
 }
 
 // ShouldAbandonChase on the COMBAT timer: FinishOrder. A fight the unit picked itself ends and
