@@ -438,7 +438,9 @@ public:
 			d.resistance[0] = fi.hack_armor;
 			d.resistance[1] = fi.pierce_armor;
 			d.resistance[2] = fi.crush_armor;
-			const String attack = rtso::seldet::attack_tooltip(d), resistance = rtso::seldet::resistance_tooltip(d.resistance);
+			const String attack = rtso::seldet::attack_tooltip(d,
+					godot::Dictionary(rtso::portraits::fauna_entry(fv.fauna_type[f]).get("viewer", godot::Dictionary())).get("attacks", godot::Array())),
+					resistance = rtso::seldet::resistance_tooltip(d.resistance);
 			stats_->set_text(rtso::seldet::join_lines({body_lines(attack), body_lines(resistance)}));
 			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance}));
 			// resourceSection: the meat it yields, "Food: 100 / 100".
@@ -884,7 +886,10 @@ private:
 		const int nl = tip.find("\n");
 		if (nl < 0) return tip;
 		String out;
-		for (const String &line : tip.substr(nl + 1).split("\n")) out += String(out.is_empty() ? "" : "\n") + line.strip_edges();
+		for (const String &line : tip.substr(nl + 1).split("\n")) {
+			if (line.begins_with("    ")) continue; // an attack's status and splash lines stay in the tooltip
+			out += String(out.is_empty() ? "" : "\n") + line.strip_edges();
+		}
 		return out;
 	}
 	// displaySingle for a unit: the attack and resistance lines, the detailed tooltip
@@ -893,7 +898,9 @@ private:
 	void fill_unit_details(const rtso::Simulation &sim, size_t u, const String &name) {
 		using namespace rtso::seldet;
 		const rtso::Simulation::UnitDetails d = sim.unit_details(u);
-		const String attack = attack_tooltip(d), resistance = resistance_tooltip(d.resistance);
+		auto uv0 = sim.units();
+		const godot::Dictionary viewer = rtso::portraits::unit_entry(uv0.tmpl ? uv0.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE).get("viewer", godot::Dictionary());
+		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array())), resistance = resistance_tooltip(d.resistance);
 		stats_->set_text(join_lines({body_lines(attack), body_lines(resistance)}));
 		auto uv = sim.units();
 		Amounts loot;
