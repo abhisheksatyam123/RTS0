@@ -537,6 +537,7 @@ static void check_tutorials() {
 	CHECK(loaded.tutorial_id() == TUTORIAL_INTRODUCTORY && loaded.tutorial_goal_index() == 4 && tm.compute_sim_hash(loaded) == tm.compute_sim_hash(s),
 	      "tutorial state lost on load (goal %d)", loaded.tutorial_goal_index());
 	CHECK(loaded.trigger_hash() == s.trigger_hash(), "trigger hash differs after load");
+	CHECK(loaded.tutorial_ready_button() == s.tutorial_ready_button(), "Ready %d after load, %d before", loaded.tutorial_ready_button(), s.tutorial_ready_button());
 
 	// Economy walkthrough: five Ready goals, then gathering, hunting, a rally point.
 	static Simulation e;

@@ -28365,12 +28365,12 @@ void Simulation::trigger_treasure_islands_collected(const TriggerEventData &data
 	}
 }
 
-void Simulation::defeat_player(uint8_t pid) {
+void Simulation::defeat_player(uint8_t pid, uint8_t reason) {
 	if (pid >= MAX_PLAYERS || is_defeated(pid) || game_over_ || victory_) return;
 	// Player.js SetState("defeated"): everything it owns goes to Gaia.
 	convert_to_gaia((uint8_t)(1u << pid));
 	defeated_mask_ |= (uint8_t)(1u << pid);
-	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_OBJECTIVE, {}});
+	note_session({SessionNotice::DEFEATED, pid, 0, reason, {}});
 }
 
 bool Simulation::cmd_resign(uint8_t pid) {
@@ -28626,7 +28626,7 @@ void Simulation::trigger_survival_ownership(const TriggerEventData &data) {
 	// change counts (the script forgets the entity then).
 	if (data.from != data.player) return;
 	if (data.value == kSurvivalCivicCentre) {
-		defeat_player(data.from);
+		defeat_player(data.from, SessionNotice::END_LOST_CIVIC_CENTER); // "... has been defeated (lost civic center)."
 	} else if (data.value == kSurvivalTreasureFemale) {
 		auto &inv = triggers_.invulnerable;
 		inv.erase(std::remove(inv.begin(), inv.end(), data.entity), inv.end());
@@ -28835,7 +28835,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		victory_condition_ = VICTORY_ENDLESS;
 		for (uint8_t e : {TRIGGER_ON_PLAYER_COMMAND, TRIGGER_ON_TRAINING_QUEUED, TRIGGER_ON_TRAINING_FINISHED,
 				TRIGGER_ON_RESEARCH_QUEUED, TRIGGER_ON_RESEARCH_FINISHED, TRIGGER_ON_STRUCTURE_BUILT,
-				TRIGGER_ON_OWNERSHIP_CHANGED})
+				TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ON_DESERIALIZED})
 			triggers_.register_trigger(e, TRIGGER_ACTION_TUTORIAL, true);
 		// The enemy has no AI ("AI": "" in the map's PlayerData): it only fights when the
 		// script sends it. A seat Game Setup gave Petra is taken back.
@@ -28855,9 +28855,18 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		tutorial_next_goal();
 		return;
 	}
+	const int g = v[kTutGoal];
+	if (d.event == TRIGGER_ON_DESERIALIZED) {
+		// OnDeserializedTrigger: NextGoal(true) on the current goal, without its Init: a goal
+		// done before the save (a phase already queued) offers Ready again.
+		if (g >= 0 && g < tutorial_goal_count(id)) {
+			const bool ready_delay = id == TUTORIAL_ECONOMY && g == 18;
+			v[kTutReady] = (ready_delay || !tutorial_goal_listens(g) || tutorial_goal_done(g)) ? 1 : 0;
+		}
+		return;
+	}
 	// The scripts listen to every player; only the tutorial's own player gives orders.
 	if (d.event != TRIGGER_ON_OWNERSHIP_CHANGED && d.player != TUTORIAL_PLAYER) return;
-	const int g = v[kTutGoal];
 	if (d.event == TRIGGER_ON_PLAYER_COMMAND && v[kTutReady]) {
 		// The Ready button's OnPlayerCommand replaces the goal's own.
 		if (d.value == TRIGGER_CMD_DIALOG_READY) tutorial_next_goal();
@@ -29197,6 +29206,11 @@ const DanubiusTemplates &danubius_templates() {
 			if (std::strstr(u.id, "rts0_")) continue;
 			const TechClasses c = u.tech_classes;
 			const size_t len = std::strlen(u.id);
+			// An _a or _e row whose _b row is on the roster is already one of that row's ranks
+			// (support_healer_e): 0.28 lists each rank template once.
+			if (len > 2 && (std::strcmp(u.id + len - 2, "_a") == 0 || std::strcmp(u.id + len - 2, "_e") == 0) &&
+					civ_unit_template_by_id((std::string(u.id, len - 2) + "_b").c_str()) != CIV_UNIT_TEMPLATE_NONE)
+				continue;
 			const int ranks = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0 ? 3 : 1;
 			auto add = [&](std::vector<uint16_t> &v, int max_rank) {
 				for (int r = 0; r < std::min(ranks, max_rank); ++r) v.push_back((uint16_t)(id | r << kDanubiusRankShift));
@@ -29963,9 +29977,9 @@ void Simulation::trigger_volcano_garrison_towers() {
 		auto it = building_id_to_idx_.find(id);
 		if (it == building_id_to_idx_.end()) continue;
 		const float x = buildings_[it->second].x, z = buildings_[it->second].z;
-		std::vector<uint32_t> garrison;
-		for (int i = 0; i < cap; ++i) garrison.push_back(spawn_unit(x, z, GAIA_PLAYER, UNIT_SWORDSMAN, 0.0f, tmpl));
-		order_garrison(garrison.data(), garrison.size(), id);
+		// SpawnGarrisonedUnits: each one goes straight in (Garrisonable.Garrison(entity)).
+		for (int i = 0; i < cap; ++i)
+			if (const uint32_t u = spawn_unit(x, z, GAIA_PLAYER, UNIT_SWORDSMAN, 0.0f, tmpl)) garrison_unit_now(u, id);
 	}
 }
 

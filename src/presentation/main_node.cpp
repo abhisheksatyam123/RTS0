@@ -2072,7 +2072,7 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			// EndGameManager's, WonderVictory.js's and CaptureTheRelic.js's win lines.
 			static const char *kWhy[] = {"lost all critical units and structures", "lost all units", "lost all structures",
 					"lost all civic centers", "lost hero", "", "objective", "last players alive", "wonder victory",
-					"Capture the Relic", "game mode"};
+					"Capture the Relic", "game mode", "lost civic center"};
 			const String why = n.tech < sizeof(kWhy) / sizeof(kWhy[0]) ? String(kWhy[n.tech]) : String("game mode");
 			if (n.kind == N::DEFEATED) {
 				line = sprintf0(tr(n.tech == N::END_RESIGNED ? String("%(player)s has resigned.")
