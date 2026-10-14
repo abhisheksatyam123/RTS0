@@ -1092,6 +1092,9 @@ inline bool unit_is_ship(uint8_t type) {
 // a land unit's or animal's centre comes to a structure. "default" 0.8 m, "large" 3 m.
 inline constexpr float CLEARANCE_DEFAULT = 0.8f / 4.0f;
 inline constexpr float CLEARANCE_LARGE = 3.0f / 4.0f;
+// helpers/MapEdgeTiles.h MAP_EDGE_TILES in RTS0 units: 3 terrain tiles (12 m). On a circular map
+// CCmpPathfinder makes everything that far inside the LOS circle's edge impassable to every class.
+inline constexpr float MAP_EDGE_DIST = 12.0f / 4.0f;
 
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
