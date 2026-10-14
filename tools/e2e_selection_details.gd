@@ -40,6 +40,10 @@ func run() -> void:
 	check(String(u["stats"]).contains("Damage: "), "the stats lines show the attack and resistance")
 	check(String(u["portrait_tooltip"]).begins_with(String(u["title"]).trim_prefix("Advanced ").trim_prefix("Elite ")) or String(u["portrait_tooltip"]) != "", "the portrait tooltip names the unit")
 	check(String(u["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/units/"), "the portrait is the unit template's 0.28 icon")
+	check(Color(u["owner_color"]).a > 0.4 and Color(u["owner_color"]).a < 0.6, "the owner row sits on the player colour at half alpha")
+	check(" — " in String(u["owner_tooltip"]) and String(u["owner_tooltip"]).ends_with("Phase"), "its tooltip names the civ and, for the viewer, the phase")
+	check(String(u["owner_phase"]).begins_with("res://assets/textures/ui/archive/panel_phase_emblems_") and not String(u["owner_phase"]).ends_with("hidden.png"), "the viewer's own phase emblems show")
+	check(not " (" in String(u["owner"]), "the row names the player, the civ moves to the tooltip")
 
 	var m: Dictionary = main.debug_inspector("multi")
 	print("multi: ", m)
@@ -64,6 +68,7 @@ func run() -> void:
 	check(String(f["extra"]).begins_with("Food: ") and " / " in String(f["extra"]), "an animal shows its food, amount / max")
 	check(String(f["stats_tooltip"]).contains("Resistance:"), "and its resistance")
 	check(String(f["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/gaia/fauna_"), "an animal shows its template's icon")
+	check(String(f["owner"]) == "Gaia" and String(f["owner_tooltip"]) == "" and Color(f["owner_color"]).a == 0.0, "Gaia has no colour, emblem or tooltip")
 
 	print("e2e_selection_details: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
