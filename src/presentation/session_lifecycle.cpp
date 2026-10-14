@@ -2,6 +2,7 @@
 // the 3D scene and the session HUD, _process runs the frame (sim ticks, lockstep, HUD refresh).
 // Split out of main_node.cpp (PLAN P4.6); the state they set up is RtsoMain's.
 
+#include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
 #include <godot_cpp/classes/style_box_flat.hpp>
@@ -49,6 +50,12 @@ void RtsoMain::_ready() {
 	// thread from net_host_.poll() (_process), so appending to the chat
 	// widget (chat_window.h) is safe.
 	// net_host.cpp:540 dispatch -> onChat (:395) -> display here.
+	// 0 A.D. NetServer OnChat: as host, an addressed line goes only to the
+	// clients it is for (the receivers keep their own check too).
+	net_host_.setChatRouter([this](uint32_t from, uint32_t to, const std::string &message) {
+		const std::string tag = rtso::chat_wire_tag(message);
+		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag);
+	});
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
 		String msg = String::utf8(cm.message.c_str());
 		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap

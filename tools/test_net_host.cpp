@@ -10,10 +10,19 @@
 //    or mods is refused (NDR_INCORRECT_SOFTWARE_VERSION); a name already in
 //    the game, the host's included, is refused (NDR_PLAYERNAME_IN_USE) unless
 //    network.duplicateplayernames, which lets it in as "Name (2)".
+// 4. 0 A.D. NetServer CheckPasswordAndIncrement / IsBanned: three wrong
+//    passwords from one name ban it, so even the right one is then refused
+//    (ARC_BANNED); the right password before the third resets the count.
+// 5. 0 A.D. NetServer OnChat with ChatAddressees.isAddressee
+//    (network/chat_routing.h): the host relays an ally, enemy, observer,
+//    private or flare line only to its addressees, and an untagged one to all.
 #include "network/net_host.h"
+#include "network/chat_routing.h"
 
 #include <chrono>
 #include <cstdio>
+#include <algorithm>
+#include <map>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -118,6 +127,99 @@ int main() {
 	      admitted == (std::vector<std::string>{"bob", "bob (2)", "bob (3)"}),
 	      "with network.duplicateplayernames they come in as bob (2) and bob (3)");
 	for (auto &p : live) p->stop();
+	live.clear();
+
+	// 4. Wrong passwords, on a host with one.
+	NetHost locked;
+	locked.setLocalPlayerName("alice");
+	locked.setPassword("hunter2");
+	locked.startHost(c);
+	const uint16_t locked_port = locked.localPort();
+	auto attempt = [&](const std::string &name, const std::string &password) {
+		std::vector<std::unique_ptr<NetHost>> one;
+		one.push_back(std::make_unique<NetHost>());
+		NetHost &cl = *one[0];
+		cl.setLocalPlayerName(name);
+		cl.setPassword(password);
+		cl.startClient("127.0.0.1", locked_port);
+		pump(locked, one, 5000, [&] { return cl.authResult() >= 0 || cl.connectionLost(); });
+		const int code = cl.authResult();
+		cl.stop();
+		pump(locked, none, 100, [&] { return false; });
+		return code;
+	};
+	CHECK(attempt("dan", "x") == ARC_PASSWORD_INVALID && attempt("dan", "y") == ARC_PASSWORD_INVALID &&
+	      attempt("dan", "hunter2") == ARC_OK && attempt("dan", "z") == ARC_PASSWORD_INVALID &&
+	      attempt("dan", "hunter2") == ARC_OK,
+	      "two wrong passwords, then the right one, let dan in (and reset his count)");
+	CHECK(attempt("eve", "a") == ARC_PASSWORD_INVALID && attempt("eve", "b") == ARC_PASSWORD_INVALID &&
+	      attempt("eve", "c") == ARC_PASSWORD_INVALID,
+	      "eve's three wrong passwords are refused as wrong");
+	CHECK(attempt("eve", "hunter2") == ARC_BANNED, "then eve is banned, even with the right password");
+	CHECK(attempt("frank", "hunter2") == ARC_OK, "another name still gets in");
+
+	// 5. Chat routing. Seats: host 0 and client A 1 are allies, client B 2 is
+	// their enemy, client O watches (255).
+	NetHost room;
+	room.setLocalPlayerName("host");
+	room.startHost(c);
+	const uint16_t room_port = room.localPort();
+	std::vector<std::unique_ptr<NetHost>> people;
+	std::map<std::string, std::vector<std::string>> heard; // who -> lines
+	std::vector<std::string> host_heard;
+	room.onChat([&](const ChatMsg &m) { host_heard.push_back(m.message); });
+	for (const char *name : {"A", "B", "O"}) {
+		people.push_back(std::make_unique<NetHost>());
+		NetHost &cl = *people.back();
+		cl.setLocalPlayerName(name);
+		const std::string who = name;
+		cl.onChat([&heard, who](const ChatMsg &m) { heard[who].push_back(m.message); });
+		cl.startClient("127.0.0.1", room_port);
+	}
+	pump(room, people, 8000, [&] {
+		for (auto &p : people) if (p->authResult() != ARC_OK) return false;
+		return true;
+	});
+	std::map<uint32_t, uint8_t> seat{{0, 0}};
+	seat[room.peerByName("A")] = 1;
+	seat[room.peerByName("B")] = 2;
+	seat[room.peerByName("O")] = 255;
+	auto allied = [](uint8_t a, uint8_t b) { return (a <= 1 && b <= 1) || a == b; };
+	room.setChatRouter([&](uint32_t from, uint32_t to, const std::string &msg) {
+		const std::string tag = chat_wire_tag(msg);
+		return chat_tag_reaches(seat[from], seat[to], tag, 8, allied,
+				[&](uint8_t a, uint8_t b) { return !allied(a, b); });
+	});
+	auto say = [&](NetHost &from, const std::string &line) {
+		from.sendChat(line);
+		pump(room, people, 600, [&] { return false; });
+	};
+	NetHost &a = *people[0], &b = *people[1], &o = *people[2];
+	say(a, "[Allies] push left");
+	say(a, "[Enemies] gg");
+	say(b, "[Player-2] psst");
+	say(o, "[Observers] nice");
+	say(o, "[Player-2] hi player");
+	say(room, "[Flare] 10,20");
+	say(b, "hello all");
+	auto has = [&](const std::string &who, const std::string &line) {
+		const auto &v = who == "host" ? host_heard : heard[who];
+		return std::find(v.begin(), v.end(), line) != v.end();
+	};
+	CHECK(has("host", "[Allies] push left") && !has("B", "[Allies] push left") && !has("O", "[Allies] push left"),
+	      "an ally line reaches only the sender's allies");
+	CHECK(has("B", "[Enemies] gg") && !has("host", "[Enemies] gg") && !has("O", "[Enemies] gg"),
+	      "an enemy line reaches only the sender's enemies");
+	CHECK(has("A", "[Player-2] psst") && !has("host", "[Player-2] psst") && !has("O", "[Player-2] psst"),
+	      "a private line reaches only its player");
+	CHECK(!has("A", "[Player-2] hi player") && !has("host", "[Player-2] hi player"),
+	      "an observer cannot message a player privately");
+	CHECK(!has("host", "[Observers] nice") && !has("A", "[Observers] nice") && !has("B", "[Observers] nice"),
+	      "an observer line reaches no player");
+	CHECK(has("A", "[Flare] 10,20") && has("O", "[Flare] 10,20") && !has("B", "[Flare] 10,20"),
+	      "a flare reaches allies and observers, not enemies");
+	CHECK(has("host", "hello all") && has("A", "hello all") && has("O", "hello all"), "an untagged line reaches everyone");
+	for (auto &p : people) p->stop();
 
 	if (failures) {
 		std::printf("%d host check(s) failed\n", failures);

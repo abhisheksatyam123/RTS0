@@ -1,3 +1,4 @@
+#include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
 #include <godot_cpp/classes/color_rect.hpp>
@@ -3449,6 +3450,10 @@ uint8_t RtsoMain::chat_player_of(const String &sender_guid) {
 	if (!net_lockstep()) return local_player();
 	uint32_t client = turn_mgr_.local_client_id();
 	if (sender_guid.begins_with("peer-")) client = (uint32_t)sender_guid.substr(5).to_int();
+	return chat_player_of_client(client);
+}
+
+uint8_t RtsoMain::chat_player_of_client(uint32_t client) const {
 	for (const auto &e : net_host_.playerAssignment())
 		if (e.client == client) return e.player;
 	return turn_mgr_.player_for_client(client);
@@ -3456,18 +3461,16 @@ uint8_t RtsoMain::chat_player_of(const String &sender_guid) {
 
 // ChatAddressees.js AddresseeTypes isAddressee, with the local player as the receiver.
 bool RtsoMain::chat_is_addressee(const String &sender_guid, const String &tag) {
-	const uint8_t from = chat_player_of(sender_guid), me = local_player();
-	const bool from_obs = from >= rtso::MAX_PLAYERS, me_obs = me >= rtso::MAX_PLAYERS;
-	if (tag == "[Observers]") return me_obs;
-	if (tag == "[Allies]")
-		return !from_obs && !me_obs && sim && sim->get_diplomacy(from, me) == rtso::Simulation::DIPLO_ALLY &&
-				sim->get_diplomacy(me, from) == rtso::Simulation::DIPLO_ALLY;
-	if (tag == "[Enemies]") return !from_obs && !me_obs && sim && sim->get_diplomacy(from, me) == rtso::Simulation::DIPLO_ENEMY;
-	if (tag.begins_with("[Player-")) {
-		const int target = tag.substr(8, tag.length() - 9).to_int(); // player id + 1, 0 for an observer
-		return (me_obs ? target == 0 : target == (int)me + 1) && (!from_obs || me_obs);
-	}
-	return true;
+	return chat_reaches(chat_player_of(sender_guid), local_player(), tag.utf8().get_data());
+}
+
+// chat_routing.h chat_tag_reaches on this match's diplomacy: the receiver's
+// check above, and the host's relay (NetHost::setChatRouter, _ready).
+bool RtsoMain::chat_reaches(uint8_t from, uint8_t to, const std::string &tag) const {
+	auto stance = [this](uint8_t a, uint8_t b, uint8_t s) { return sim && sim->get_diplomacy(a, b) == s; };
+	return rtso::chat_tag_reaches(from, to, tag, rtso::MAX_PLAYERS,
+			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ALLY); },
+			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY); });
 }
 
 bool RtsoMain::chat_local_observer() { return local_player() >= rtso::MAX_PLAYERS; }
