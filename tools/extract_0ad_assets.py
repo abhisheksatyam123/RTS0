@@ -993,6 +993,10 @@ ZIP_STRUCTURES = {
     "s_carthaginians_embassy_iberian": ("art/actors/structures/carthaginians/embassy_iberian.xml", "width", 3.5, None),
     "s_carthaginians_embassy_italic":  ("art/actors/structures/carthaginians/embassy_italic.xml",  "width", 3.4, None),
     "s_carthaginians_apartment":       ("art/actors/structures/carthaginians/apartment.xml",       "width", 2.7, None),
+    # The Wagon Encampment, as wide as the Roman army camp it stood in for, and
+    # its fortified Upgrade at the same scale (its palisade rings the wagons).
+    "s_germans_encampment":           ("art/actors/structures/germans/encampment.xml",           "width", 4.0, None),
+    "s_germans_encampment_fortified": ("art/actors/structures/germans/encampment_fortified.xml", "scale", 0.1146, None),
 }
 
 # Units only 0.28 has, drawn by RTS0's generic unit models of the same id
@@ -3836,7 +3840,11 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         part_info.append((prim, bone_idx, xf, origin_locked, skin_i, oar_tq,
                           getattr(part, "tool_tag", None)))
 
-        if not getattr(part, "aux", False) and not is_oar:
+        # A part buried under the ground (0.28's encampment base sits 30 m
+        # down, a hidden prop-point carrier) stays out of the fit, or it
+        # would lift the whole model off the ground.
+        buried = bool(world_pos) and max(p[1] for p in world_pos) < -1.0
+        if not getattr(part, "aux", False) and not is_oar and not buried:
             fit_pos.extend(world_pos)
 
     # Normalization (center XZ, base Y, scale to target) applied as the ROOT

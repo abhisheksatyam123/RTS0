@@ -239,9 +239,9 @@ UNIQUE_BUILDINGS = [
     # The Germans' Great Hall (Town phase): their champions and the ram train there.
     ("BLD_GREAT_HALL", ["great_hall"], "great_hall", "great_hall"),
     # The Germans' Wagon Encampment and its fortified Upgrade (a Colony that claims no territory),
-    # drawn with the Roman army camp until they have their own models.
-    ("BLD_WAGON_ENCAMPMENT", ["encampment"], "army_camp", "army_camp"),
-    ("BLD_WAGON_ENCAMPMENT_FORTIFIED", ["encampment_fortified"], "army_camp", "army_camp"),
+    # drawn with 0.28's encampment actors (the portrait is still the army camp's).
+    ("BLD_WAGON_ENCAMPMENT", ["encampment"], "encampment", "army_camp"),
+    ("BLD_WAGON_ENCAMPMENT_FORTIFIED", ["encampment_fortified"], "encampment_fortified", "army_camp"),
     # Gaia structures maps place (GAIA_UNIQUE): nobody builds them; captured, never destroyed.
     # The type's row is read from the first template; each placed one keeps its template's civ.
     ("BLD_SHRINE", ["shrine_greek_01"], "temple", "temple"),

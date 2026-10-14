@@ -1294,6 +1294,61 @@ static void test_ships_sail_round_land() {
 	CHECK(prey_hit);
 }
 
+// pathfinder.xml: warships ("ship", Clearance 10 m) keep a navcell of water between them and the
+// shore on their way round the headland (grid_nav.h PASS_WARSHIP), where a fishing boat
+// ("ship-small", 3 m) may sail beside it. Through a channel two navcells wide, which the clearance
+// closes, a warship still gets through on the plain ship path.
+static float channel_at(float x, float z) {
+	return std::fabs(x) < 20.0f && std::fabs(z) > 2.5f ? 3.0f : -3.0f;
+}
+
+static void test_warships_keep_off_shore() {
+	static Simulation s;
+	fresh(s, headland_at);
+	const uint32_t tri = s.spawn_unit(-40.0f, -8.0f, 0, UNIT_TRIREME);
+	const uint32_t boat = s.spawn_unit(-40.0f, -12.0f, 0, UNIT_FISHING_BOAT);
+	s.cmd_move(&tri, 1, 40.0f, -8.0f);
+	s.cmd_move(&boat, 1, 40.0f, -12.0f);
+	const uint32_t ships[2] = {tri, boat};
+	int by_shore[2] = {0, 0}, ashore[2] = {0, 0};
+	bool there[2] = {false, false};
+	for (int t = 0; t < (int)(90.0f / Simulation::FIXED_STEP); ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		for (int k = 0; k < 2; ++k) {
+			const int32_t i = s.lookup_unit(ships[k]);
+			if (i < 0) continue;
+			auto [cx, cy] = s.nav_grid().world_to_cell(s.units().pos_x[i], s.units().pos_z[i]);
+			ashore[k] += !s.nav_grid().is_passable_for(cx, cy, PASS_SHIP);
+			// A navcell beside land: one of its eight neighbours isn't ship water.
+			bool beside = false;
+			for (int dy = -1; dy <= 1; ++dy)
+				for (int dx = -1; dx <= 1; ++dx) beside |= !s.nav_grid().is_passable_for(cx + dx, cy + dy, PASS_SHIP);
+			by_shore[k] += beside;
+			there[k] |= s.units().pos_x[i] > 36.0f;
+		}
+	}
+	std::printf("warships keep off the shore: ticks beside the shore warship %d, fishing boat %d; ashore %d, %d; both round: %s\n",
+			by_shore[0], by_shore[1], ashore[0], ashore[1], there[0] && there[1] ? "yes" : "no");
+	CHECK(by_shore[0] == 0 && ashore[0] == 0 && ashore[1] == 0);
+	CHECK(there[0] && there[1]);
+
+	fresh(s, channel_at);
+	const uint32_t tri2 = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_TRIREME);
+	s.cmd_move(&tri2, 1, 40.0f, 0.0f);
+	bool through = false;
+	int aground = 0;
+	for (int t = 0; t < (int)(90.0f / Simulation::FIXED_STEP) && !through; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t i = s.lookup_unit(tri2);
+		if (i < 0) break;
+		auto [cx, cy] = s.nav_grid().world_to_cell(s.units().pos_x[i], s.units().pos_z[i]);
+		aground += !s.nav_grid().is_passable_for(cx, cy, PASS_SHIP);
+		through = s.units().pos_x[i] > 30.0f;
+	}
+	std::printf("warship through a narrow channel: %s, ticks aground %d\n", through ? "through" : "stuck", aground);
+	CHECK(through && aground == 0);
+}
+
 // template_unit_ship_fishing.xml Harpoon and UnitAI GATHER: a fishing boat ordered onto a
 // whale harpoons it, gathers the carcass (food.fish) to a dock, and when the carcass is
 // eaten goes on to the next whale (FindNearbyResource takes live whales too).
@@ -1382,6 +1437,7 @@ int main() {
 	test_ship_height();
 	test_ship_leaves_shore_house();
 	test_ships_sail_round_land();
+	test_warships_keep_off_shore();
 	test_petra_navy();
 	test_petra_overseas_attack();
 	test_petra_unreachable_target();

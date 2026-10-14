@@ -41,6 +41,101 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"azure_coast_2p": {
+			"keywords": [],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": 0
+					},
+					{
+						"civ": "gaul",
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"azure_coast_4p": {
+			"keywords": [],
+			"settings": {
+				"LockTeams": true,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": 0
+					},
+					{
+						"civ": "athen",
+						"team": 0
+					},
+					{
+						"civ": "gaul",
+						"team": 1
+					},
+					{
+						"civ": "gaul",
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"azure_coast_8p": {
+			"keywords": [],
+			"settings": {
+				"LockTeams": true,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": 0
+					},
+					{
+						"civ": "athen",
+						"team": 0
+					},
+					{
+						"civ": "athen",
+						"team": 0
+					},
+					{
+						"civ": "athen",
+						"team": 0
+					},
+					{
+						"civ": "gaul",
+						"team": 1
+					},
+					{
+						"civ": "gaul",
+						"team": 1
+					},
+					{
+						"civ": "gaul",
+						"team": 1
+					},
+					{
+						"civ": "gaul",
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"bactria": {
 			"keywords": [],
 			"type": "skirmish"
@@ -89,6 +184,27 @@
 		"belgian_bog": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"belgian_bog_night": {
+			"keywords": [],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "brit",
+						"team": -1
+					},
+					{
+						"civ": "gaul",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"corinthian_isthmus": {
 			"keywords": [],
@@ -157,6 +273,59 @@
 		"farmland": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"fast_oasis": {
+			"keywords": [],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 1000,
+							"metal": 1000,
+							"stone": 1000,
+							"wood": 1000
+						},
+						"team": -1
+					},
+					{
+						"civ": "iber",
+						"resources": {
+							"food": 1000,
+							"metal": 1000,
+							"stone": 1000,
+							"wood": 1000
+						},
+						"team": -1
+					},
+					{
+						"civ": "pers",
+						"resources": {
+							"food": 1000,
+							"metal": 1000,
+							"stone": 1000,
+							"wood": 1000
+						},
+						"team": -1
+					},
+					{
+						"civ": "maur",
+						"resources": {
+							"food": 1000,
+							"metal": 1000,
+							"stone": 1000,
+							"wood": 1000
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"forest_battle": {
 			"keywords": [],
@@ -423,6 +592,83 @@
 		"oceanside": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"peloponnese": {
+			"keywords": [],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "spart",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 700,
+							"metal": 500,
+							"stone": 500,
+							"wood": 700
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"persian_highlands": {
 			"keywords": [],
@@ -956,6 +1202,25 @@
 			},
 			"type": "scenario"
 		},
+		"savanna_ravine": {
+			"keywords": [],
+			"settings": {
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "gaul",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"savanna_river": {
 			"keywords": [],
 			"type": "skirmish"
@@ -963,6 +1228,61 @@
 		"scythia": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"serengeti": {
+			"keywords": [],
+			"settings": {
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "cart",
+						"team": 0
+					},
+					{
+						"civ": "iber",
+						"team": 0
+					},
+					{
+						"civ": "spart",
+						"team": 1
+					},
+					{
+						"civ": "pers",
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"ship_combat_demo": {
+			"keywords": [],
+			"settings": {
+				"AllyView": false,
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest_units"
+				],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "brit",
+						"pop": 500,
+						"team": -1
+					},
+					{
+						"civ": "pers",
+						"pop": 500,
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"sicilia": {
 			"keywords": [],
