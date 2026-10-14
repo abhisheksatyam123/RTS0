@@ -13359,6 +13359,20 @@
       "player": 1,
       "x": -43.42,
       "z": 51.43
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 40.46,
+      "z": -56.26,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 45.51,
+      "z": -44.3,
+      "template": "athen/royal_stoa"
     }
   ],
   "units": [

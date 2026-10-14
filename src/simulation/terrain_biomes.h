@@ -61,6 +61,16 @@ inline const TerrainBiome &terrain_biome(const char *biome) {
 		 {"india_forestfloor_01", "india_forestfloor_02"}, {"india_grass_02", "india_mud_01", "india_grass_dirt_01", "india_grass_dirt_02"},
 		 {"india_cliff_02", "india_cliff_03"}, {"india_dirt_01", "india_dirt_02"}, {"india_dirt_01", "india_dirt_02"}, "india_paving_02",
 		 "india_paving_02", "india_grass_dirt_01", "india_sand_01", "india_mud_01"},
+		// generic/autumn ("Rhine Valley (Fall)"); its four dirt terrains keep the first two.
+		{"autumn", {"autumn_grass_02"}, {"autumn_forestfloor_01", "autumn_forestfloor_02"},
+		 {"autumn_grass_dirt_01", "autumn_grass_01", "autumn_grass_mud_01", "autumn_grass_04"},
+		 {"temperate_cliff_01", "temperate_cliff_02"}, {"temperate_rocks_dirt_01"}, {"autumn_grass_dirt_01", "autumn_grass_dirt_02"},
+		 "temperate_paving_03", "temperate_rocks_dirt_01", "autumn_grass_dirt_01", "autumn_grass_mud_01", "autumn_mud_01"},
+		// generic/nubia; its four dirt terrains keep the first two.
+		{"nubia", {"nubia_sand_01", "nubia_sand_ripples", "nubia_sand_dunes_01"}, {"nubia_forestfloor_01", "nubia_forestfloor_01"},
+		 {"nubia_sand_03", "nubia_rocks_dirt_01", "nubia_rocks_dirt_02", "nubia_rocks_dirt_03"}, {"nubia_rock_02", "nubia_rock_01"},
+		 {"nubia_dirt_02", "nubia_dirt_01"}, {"nubia_dirt_01", "nubia_dirt_02"}, "nubia_paving_stones_01",
+		 "nubia_paving_stones_01_sand_01", "nubia_dirt_cracks_01", "nubia_sand_02", "nubia_sand_02_wet"},
 		// volcanic_lands.js.
 		{"volcanic", {"cliff volcanic light", "ocean_rock_a", "ocean_rock_b"}, {"cliff volcanic light", "ocean_rock_a"},
 		 {"cliff volcanic light", "ocean_rock_a", "ocean_rock_b", "ocean_rock_a"}, {"cliff volcanic coarse", "cave_walls"},
@@ -127,6 +137,14 @@ inline const BiomeFlora *biome_flora(const char *biome) {
 		// banyan, strangler; teak; palm_palmyra, palm_tropical; date.
 		{"india", {{FLORA_BANYAN, FLORA_BANYAN}}, {FLORA_TEAK}, {{FLORA_TROPIC_PALM, FLORA_TROPIC_PALM}}, FLORA_DATE,
 		 {{600, 500}}, {500}, {{200, 200}}},
+		// autumn: oak_holly_autumn, oak_hungarian_autumn; poplar_dead; oak_holly_autumn, maple_autumn.
+		{"autumn", {{FLORA_OAK, FLORA_OAK}}, {FLORA_DEAD}, {{FLORA_OAK, FLORA_MAPLE}}, FLORA_BERRY,
+		 {{200, 200}}, {200}, {{200, 200}}},
+		// nubia: acacia, acacia; baobab_4_dead or baobab_3_mature; date_palm + acacia,
+		// date_palm + palm_doum or baobab_3_mature + bush_tropic; date.
+		{"nubia", {{FLORA_ACACIA, FLORA_ACACIA}}, {FLORA_DEAD, FLORA_BAOBAB},
+		 {{FLORA_PALM, FLORA_ACACIA}, {FLORA_PALM, FLORA_TROPIC_PALM}, {FLORA_BAOBAB, FLORA_TROPIC_BUSH}}, FLORA_DATE,
+		 {{200, 200}}, {1000, 1200}, {{200, 200}, {200, 200}, {1200, 50}}},
 	};
 	static const struct { const char *from, *to; } kAliases[] = {
 		{"mediterranean", "aegean"}, {"latium", "aegean"}, {"desert", "oasis"}, {"persia", "steppe"}, {"tropical", "india"}};

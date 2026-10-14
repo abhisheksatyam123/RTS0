@@ -1139,6 +1139,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "savanna") == 0) cfg.biome = BIOME_SAVANNA;
 	else if (std::strcmp(minfo.biome, "polar") == 0) cfg.biome = BIOME_POLAR;
 	else if (std::strcmp(minfo.biome, "india") == 0) cfg.biome = BIOME_INDIA;
+	else if (std::strcmp(minfo.biome, "autumn") == 0) cfg.biome = BIOME_AUTUMN;
+	else if (std::strcmp(minfo.biome, "nubia") == 0) cfg.biome = BIOME_NUBIA;
 	else if (std::strcmp(minfo.biome, "desert") == 0 || std::strcmp(minfo.biome, "persia") == 0) cfg.biome = BIOME_OASIS;
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
@@ -1168,7 +1170,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	if (biome_pick >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
-				"steppe", "savanna", "polar", "india"};
+				"steppe", "savanna", "polar", "india", "autumn", "nubia"};
 		current_map_biome_ = kBiomeNames[biome_pick];
 	}
 	// 0 A.D. per-tile terrain textures from the final biome.
@@ -4369,48 +4371,66 @@ void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, floa
 			if (idx >= 0) begin_walk_order((size_t)idx);
 		}
 	}
-	if (!individual.empty()) cmd_move_individual(individual.data(), individual.size(), tx, tz);
+	if (!individual.empty()) cmd_move_individual(individual.data(), individual.size(), tx, tz, ctrls.empty());
 }
 
-void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz) {
-	if (count == 0) return;
-
-	// Units not in a formation spread over a square grid around the target, turned to face
-	// the walk (RTS0's group move; 0 A.D. sends them all to the point and lets them push).
-	const float spacing = 1.35f;
-	float centerX = 0.0f, centerZ = 0.0f;
-	int validCount = 0;
+// CCmpPathfinder::DistributeAround: points on a spiral round (x, z), the first ring 1 m out and each
+// next 1.75 m further, 9/pi m (2.9 m) apart along a ring, then handed out so that no swap of two
+// units' points cuts their squared travel (in whole metres, rounded up as fixed ToInt_RoundToInfinity
+// does). Lengths are at the crowd scale (PUSH_SCALE), which keeps 0.28's spacing for RTS0's bigger bodies.
+std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_t *unit_ids, size_t count, float x, float z) const {
+	std::vector<std::pair<float, float>> points;
+	points.reserve(count);
+	constexpr float kPi = 3.14159265f;
+	float angle = 0.0f, radius = 1.0f, step = 9.0f / (kPi * radius);
 	for (size_t i = 0; i < count; ++i) {
-		int32_t idx = lookup_unit(unit_ids[i]);
-		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
-			centerX += units_.pos_x[idx];
-			centerZ += units_.pos_z[idx];
-			++validCount;
+		points.emplace_back(x + radius * std::cos(angle) * PUSH_SCALE, z - radius * std::sin(angle) * PUSH_SCALE);
+		angle += step;
+		if (angle >= 2.0f * kPi) {
+			angle = 0.0f;
+			radius += 1.75f;
+			step = 9.0f / (kPi * radius);
 		}
 	}
-	float cosH = 1.0f, sinH = 0.0f;
-	if (validCount > 0) {
-		centerX /= (float)validCount;
-		centerZ /= (float)validCount;
-		const float heading = atan2f(tz - centerZ, tx - centerX);
-		cosH = cosf(heading);
-		sinH = sinf(heading);
+	std::vector<std::pair<float, float>> at(count);
+	for (size_t i = 0; i < count; ++i) {
+		const int32_t idx = lookup_unit(unit_ids[i]);
+		if (idx < 0 || !units_.alive[idx]) return points;
+		at[i] = {units_.pos_x[idx], units_.pos_z[idx]};
 	}
+	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
+		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
+		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
+		return dx * dx + dz * dz;
+	};
+	bool improved;
+	do {
+		improved = false;
+		for (size_t i = 0; i < count; ++i)
+			for (size_t j = i + 1; j < count; ++j)
+				if (dist2(points[j], at[i]) + dist2(points[i], at[j]) < dist2(points[i], at[i]) + dist2(points[j], at[j])) {
+					std::swap(points[i], points[j]);
+					improved = true;
+				}
+	} while (improved);
+	return points;
+}
+
+void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread) {
+	if (count == 0) return;
+
+	// Commands.js "walk", "attack-walk" and "patrol": units that all walk on their own (none in a
+	// formation) each walk to their own point round the target (DistributeAround); one alone, or the
+	// loose units of a selection with formations in it, walk to the point itself and push.
+	const std::vector<std::pair<float, float>> points =
+			spread && count > 1 ? distribute_around(unit_ids, count, tx, tz) : std::vector<std::pair<float, float>>();
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
 		if (idx < 0 || (size_t)idx >= units_.count || !units_.alive[idx]) continue;
 
-		const int side = std::max(1, (int)std::ceil(std::sqrt((float)count)));
-		const int row = (int)i / side;
-		const int col = (int)i % side;
-		const float ox = (col - (side - 1) * 0.5f) * spacing;
-		const float oz = (row - (side - 1) * 0.5f) * spacing;
-		float rx = ox * cosH - oz * sinH;
-		float rz = ox * sinH + oz * cosH;
-
-		float dest_x = tx + rx;
-		float dest_z = tz + rz;
+		float dest_x = points.empty() ? tx : points[i].first;
+		float dest_z = points.empty() ? tz : points[i].second;
 		dest_x = std::clamp(dest_x, -map_half_ + 1.0f, map_half_ - 1.0f);
 		dest_z = std::clamp(dest_z, -map_half_ + 1.0f, map_half_ - 1.0f);
 		units_.target_x[idx] = dest_x;
@@ -4656,7 +4676,7 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 	// Formations patrol as a whole (FORMATIONCONTROLLER PATROL); the rest walk on their own.
 	const std::vector<uint32_t> rest = !queued && !formations_.empty() ? formation_take_patrol(now, tx, tz) : now;
 	formation_remove_units(rest.data(), rest.size());
-	cmd_move_individual(rest.data(), rest.size(), tx, tz);
+	cmd_move_individual(rest.data(), rest.size(), tx, tz, rest.size() == now.size());
 	for (uint32_t uid : rest) {
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
@@ -11274,9 +11294,10 @@ void Simulation::tick_combat(float dt) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
-				const bool human = ai.prefers_human && unit_combat_at(i).classes.has(CC_HUMAN);
+				const auto &cls = unit_combat_at(i).classes;
+				const bool preferred = (ai.prefers_human && cls.has(CC_HUMAN)) || (ai.prefers_inorganic && !cls.has(CC_ORGANIC));
 				const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
-				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(human ? 0 : 49), dx * dx + dz * dz});
+				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(preferred ? 0 : 49), dx * dx + dz * dz});
 			});
 		}
 		for (const int32_t f : wild) {
@@ -11290,7 +11311,8 @@ void Simulation::tick_combat(float dt) {
 			if (!building_target(buildings_[o])) continue;
 			in_reach = true;
 			const float dx = buildings_[o].x - b.x, dz = buildings_[o].z - b.z;
-			if (seen_structure(buildings_[o].x, buildings_[o].z)) arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, 49, dx * dx + dz * dz});
+			if (seen_structure(buildings_[o].x, buildings_[o].z))
+				arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, (uint8_t)(ai.prefers_inorganic ? 0 : 49), dx * dx + dz * dz});
 		}
 		if (!in_reach) { // FireArrows with no targets cancels the timer
 			b.arrow_timer_on = false;

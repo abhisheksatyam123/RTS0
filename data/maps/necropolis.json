@@ -38562,6 +38562,118 @@
       "player": 3,
       "x": -136.1,
       "z": 135.93
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -127.29,
+      "z": -128.94,
+      "template": "spart/royal_stoa"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -136.4,
+      "z": -125.8,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -138.43,
+      "z": -148.78,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -119.99,
+      "z": -140.74,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -129.22,
+      "z": 129.59,
+      "template": "mace/royal_stoa"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -143.16,
+      "z": 132.33,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -134.9,
+      "z": 122.4,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -141.23,
+      "z": 116.32,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": 127.58,
+      "z": -130.83,
+      "template": "athen/royal_stoa"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": 121.2,
+      "z": -148.56,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": 129.25,
+      "z": -149.7,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": 127.99,
+      "z": -141.24,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 142.11,
+      "z": 129.37,
+      "template": "athen/royal_stoa"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 118.5,
+      "z": 125.18,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 123.27,
+      "z": 120.48,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 144.33,
+      "z": 136.84,
+      "template": "hellenic_stoa"
     }
   ],
   "units": [

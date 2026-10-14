@@ -24,6 +24,7 @@ struct Default {
 const Default kDefaults[] = {
 	{"locale", ""}, // L10n.cpp: empty follows the system language
 	{"playername.singleplayer", ""}, // empty: the system user name (singleplayerName)
+	{"playername.multiplayer", ""}, // empty: the system user name (multiplayerName)
 	{"persistmatchsettings", "true"}, // PersistentMatchSettings
 	{"pauseonfocusloss", "true"},
 	{"overlay.fps", "false"},
@@ -66,6 +67,9 @@ const Default kDefaults[] = {
 	{"sound.ambientgain", "0.6"},
 	{"sound.actiongain", "0.7"},
 	{"sound.uigain", "0.7"},
+	{"sound.notify.nick", "true"},
+	{"sound.notify.gamesetup.join", "false"},
+	{"lobby.history", "0"},
 	{"gui.gamesetup.aidifficulty", "3"},
 	{"gui.gamesetup.aibehavior", "random"},
 	{"gui.gamesetup.assignplayers", "everyone"},
@@ -78,6 +82,18 @@ const Default kDefaults[] = {
 	{"lobby.stun.port", "3478"},
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},
+	{"gui.session.formationwalkonly", "true"},
+	{"gui.session.selectformationasone", "true"},
+	{"gui.session.rankabovestatusbar", "true"},
+	{"gui.session.experiencestatusbar", "true"},
+	{"gui.session.timeelapsedcounter", "false"},
+	{"gui.session.ceasefirecounter", "false"},
+	{"gui.session.minimap.icons.enabled", "true"},
+	{"gui.session.minimap.icons.opacity", "1.0"},
+	{"gui.session.minimap.icons.sizescale", "1.0"},
+	{"gui.session.scrollbatchratio", "1"},
+	{"gui.session.disjointcontrolgroups", "true"},
+	{"showdetailedtooltips", "false"},
 	{"gui.session.flarelifetime", "6"},
 	{"gui.session.woundedunithotkeythreshold", "33"},
 	{"gui.session.attackrange", "true"},
@@ -87,6 +103,8 @@ const Default kDefaults[] = {
 	{"gui.session.notifications.tribute", "true"},
 	{"gui.session.notifications.barter", "true"},
 	{"gui.session.notifications.phase", "completed"},
+	{"gui.session.notifications.flare", "always"},
+	{"gui.session.respoptooltipsort", "0"},
 	{"gui.session.diplomacycolors.self", "21 55 149"},
 	{"gui.session.diplomacycolors.ally", "86 180 31"},
 	{"gui.session.diplomacycolors.neutral", "231 200 5"},
