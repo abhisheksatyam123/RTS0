@@ -5243,8 +5243,13 @@ void Simulation::order_set_stance(const uint32_t *unit_ids, size_t count, uint8_
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
 		// Commands.js "stance" skips turrets (UnitAI.IsTurret): they stand their ground.
-		if (idx >= 0 && !turret_height_.count(unit_ids[i])) {
+		// UnitAI.SwitchToStance skips units out of the world (garrisoned) and holds the
+		// position the unit stands at; SetStance refuses an unknown stance.
+		if (stance > STANCE_PASSIVE) return;
+		if (idx >= 0 && !turret_height_.count(unit_ids[i]) && units_.action_state[idx] != ACTION_GARRISONED) {
 			units_.stance[idx] = stance;
+			units_.anchor_x[idx] = units_.pos_x[idx];
+			units_.anchor_z[idx] = units_.pos_z[idx];
 		}
 	}
 }
@@ -11660,9 +11665,9 @@ void Simulation::tick_combat(float dt) {
 					const nav::Vec2 gap = nav::footprint_gap(b, pxi, pzi);
 					const float d2 = gap.x * gap.x + gap.y * gap.y;
 					if (d2 > scan_range * scan_range || d2 < minr * minr) return;
-					if (stance == STANCE_DEFENSIVE) {
-						const nav::Vec2 held = nav::footprint_gap(b, anc_x, anc_z);
-						if (held.x * held.x + held.y * held.y >= held_lim * held_lim) return;
+					if (stance == STANCE_DEFENSIVE) { // CheckTargetDistanceFromHeldPosition: to its centre
+						const float hx = b.x - anc_x, hz = b.z - anc_z;
+						if (hx * hx + hz * hz >= held_lim * held_lim) return;
 					}
 					const uint8_t pref = preference_of(my_prefs, building_pref_classes(b.type));
 					if (pref < best_pref || (pref == best_pref && d2 < best_unit_d2)) {
@@ -11728,7 +11733,7 @@ void Simulation::tick_combat(float dt) {
 			units_.action_state[i] = ACTION_ATTACK;
 		} else if (found_bld >= 0) {
 			units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
-			units_.anchor_x[i] = pxi; units_.anchor_z[i] = pzi;
+			if (on_the_move) { units_.anchor_x[i] = pxi; units_.anchor_z[i] = pzi; } // AttackEntityInZone keeps it
 			units_.target_building_id[i] = buildings_[found_bld].id;
 			units_.target_unit_id[i] = 0;
 			units_.waypoint_count[i] = 0;
@@ -14884,7 +14889,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	}
 	if (stance == STANCE_DEFENSIVE) {
 		const float hx = ax - units_.anchor_x[i], hz = az - units_.anchor_z[i];
-		const float lim = vision * 0.5f + range + (sb ? sb->half_size : 0.0f);
+		const float lim = vision * 0.5f + range; // to the attacker's centre, a structure's too
 		if (hx * hx + hz * hz >= lim * lim) return;
 	}
 	units_.target_unit_id[i] = sb ? 0 : attacker_id;
