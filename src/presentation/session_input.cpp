@@ -44,6 +44,8 @@ static void pop_from_selection(PackedInt32Array &sel, uint32_t id) {
 }
 
 void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
+	// input.js handleInputBeforeGui / handleInputAfterGui: nothing while a cinema path plays.
+	if (cinema_view_.playing()) return;
 	// Keys go through named 0 A.D. hotkeys (hotkeys.h, config/default.cfg
 	// [hotkey.*]; user overrides in user://config/user.cfg). Same-specificity
 	// hotkeys can share a key (B = build menu or fifth trainee), so the context

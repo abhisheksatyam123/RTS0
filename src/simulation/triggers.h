@@ -40,6 +40,8 @@ enum TriggerEvent : uint8_t {
 	TRIGGER_ON_TREASURE_COLLECTED,
 	TRIGGER_ON_PLAYER_COMMAND,
 	TRIGGER_ON_DESERIALIZED,        // a saved game was loaded
+	TRIGGER_ON_CINEMA_PATH_ENDED,   // CinemaManager: the path at the front of the queue ended (value = its index)
+	TRIGGER_ON_CINEMA_QUEUE_ENDED,  // CinemaManager: the last queued path ended
 	TRIGGER_EVENT_COUNT
 };
 
@@ -99,6 +101,7 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_UNIT_DANCING_EVENT = 41,        // its ReportResults hooks (a dancer killed, or idle)
 	TRIGGER_ACTION_UNIT_PUSHING = 42,              // scenarios/unit_pushing_test.js: arg 0 init, 1 Setup, 2 EndGame
 	TRIGGER_ACTION_UNIT_MOTION = 43,               // scenarios/unit_motion_integration_test.js: arg 0 init, 1 SetupUnits, 2 enclosed_timeout
+	TRIGGER_ACTION_CINEMA_DEMO = 44,               // scenarios/cinema_demo.js: arg 0 init, 1 CounterMessage, 2 StartCutscene
 	TRIGGER_ACTION_COUNT
 };
 

@@ -501,6 +501,7 @@ void Simulation::reset() {
 	terrain_tiles_ = TerrainTiles();
 	terrain_water_height_ = -1.0f;
 	triggers_.clear();
+	cinema_.clear();
 	units_.free_all(); units_.init(UNIT_CAP);
 	resources_.free_all(); resources_.init(512);
 	buildings_.clear();
@@ -8720,8 +8721,10 @@ void Simulation::tick(float dt) {
 	if (ticks_ == 0) explore_territories();
 
 	// Master simulation tick pipeline in fixed, deterministic order:
-	// 0. Map triggers (0 A.D. Timer.js runs its timers at the start of a turn)
+	// 0. Map triggers (0 A.D. Timer.js runs its timers at the start of a turn), then the
+	//    cinema queue (CCmpCinemaManager, on the same MT_Update)
 	tick_triggers(dt);
+	tick_cinema(dt);
 
 	// 1. Movement & spatial separation
 	tick_pack(dt);           // 0 A.D. Pack.js: siege engines pack to move, unpack to fire
@@ -9159,8 +9162,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (bit != building_id_to_idx_.end()) {
 				const Building &bb = buildings_[bit->second];
 				if (!bb.wrecked && bb.hp > 0.0f) {
-					stand_outside(bb, units_.id[i],
-							px[i], pz[i], &tx[i], &tz[i], unit_clearance_at(i) + kStandMargin);
+					builder_stand_point(i, bb, px[i], pz[i], tx[i], tz[i]);
 					has[i] = 1;
 				}
 			}
@@ -11303,6 +11305,55 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 	cmd_move(&uid, 1, tx, tz);
 	applying_queued_ = was;
 	if (units_.order_kind[i] == ORDER_WALK) units_.order_flags[i] |= ORDER_FLAG_FORCE;
+}
+
+// UnitMotion MoveToTargetRange: the long pathfinder's goal is the whole range round the structure's
+// obstruction, and the path ends on its nearest reachable navcell. stand_outside picks the point
+// on the side the builder comes from; when a neighbour touches the structure there (Petra packs
+// houses corner to corner) that point is shut, and the builder would push at it for good. It then
+// takes the nearest open point of the ring that it can reach instead.
+void Simulation::builder_stand_point(size_t i, const Building &b, float x, float z, float &tx, float &tz) const {
+	const float off = unit_clearance_at(i) + kStandMargin;
+	stand_outside(b, units_.id[i], x, z, &tx, &tz, off);
+	const uint8_t ut = units_.unit_type[i];
+	if (unit_is_ship(ut)) return;
+	const uint8_t pass = (ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT)
+			? PASS_CAVALRY : PASS_INFANTRY;
+	auto [ux, uy] = nav_grid_.world_to_cell(x, z);
+	// Open: on a passable navcell the builder can reach, and its clearance clear of every other
+	// structure touching the ring (a point on a neighbour's edge passes the navcell test).
+	const float clear = unit_clearance_at(i);
+	const float reach = std::max(b.hu, b.hv) + off + clear;
+	std::vector<const Building *> near;
+	for (const Building &o : buildings_)
+		if (&o != &b && o.committed && !o.wrecked && building_blocks_movement(o.type) &&
+				std::fabs(o.x - b.x) < reach + std::max(o.hu, o.hv) + 1.0f && std::fabs(o.z - b.z) < reach + std::max(o.hu, o.hv) + 1.0f)
+			near.push_back(&o);
+	auto open = [&](float wx, float wz) {
+		auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
+		if (!nav_grid_.is_passable_for(cx, cy, pass) || !nav_grid_.reachable(ux, uy, cx, cy, pass)) return false;
+		for (const Building *o : near)
+			if (nav::footprint_contains(*o, wx, wz, clear)) return false;
+		return true;
+	};
+	if (open(tx, tz) || !nav_grid_.is_passable_for(ux, uy, pass)) return;
+	const float eu = b.hu + off, ev = b.hv + off;
+	constexpr float kStep = 0.25f;
+	float best = 1e30f;
+	for (int side = 0; side < 4; ++side) {
+		const float len = side < 2 ? eu : ev; // half this side of the ring: 0-1 run along u, 2-3 along v
+		for (float t = -len; t <= len + 1e-4f; t += kStep) {
+			const float lu = side < 2 ? t : side == 2 ? -eu : eu;
+			const float lv = side < 2 ? (side == 0 ? -ev : ev) : t;
+			const nav::Vec2 w = nav::footprint_world(b, lu, lv);
+			const float d = (w.x - x) * (w.x - x) + (w.y - z) * (w.y - z);
+			if (d < best && open(w.x, w.y)) {
+				best = d;
+				tx = w.x;
+				tz = w.y;
+			}
+		}
+	}
 }
 
 bool Simulation::try_commit_foundation(Building &b) {
@@ -26347,7 +26398,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply); v82 CinemaManager's camera paths, path queue and timers (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -27907,6 +27958,23 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			if constexpr (std::decay_t<decltype(ar)>::loading)
 				if (q.trigger >= s.triggers_.triggers.size() || q.point >= s.triggers_.points.size()) ar.ok = false;
 		});
+	}
+
+	// v82: CinemaManager's paths (0 A.D. serializes them too: scripts may add their own),
+	// the queue and how far into it the match is.
+	if (ar.version >= Simulation::SAVE_VERSION_CINEMA) {
+		CinemaState &c = s.cinema_;
+		ar.pod(c.enabled); ar.pod(c.map_revealed); ar.pod(c.reserved);
+		ar.pod(c.elapsed_ms); ar.pod(c.path_elapsed_ms); ar.pod(c.total_ms);
+		io_vec(ar, c.paths, 1u << 10, [&](CinemaPath &p) {
+			ar.pod(p.info);
+			io_vec_pod(ar, p.nodes, 128);
+			io_vec_pod(ar, p.targets, 128);
+		});
+		io_vec_pod(ar, c.queue, 1u << 12);
+		if constexpr (std::decay_t<decltype(ar)>::loading)
+			for (uint16_t q : c.queue)
+				if (q >= c.paths.size()) ar.ok = false;
 	}
 
 	// 9. Aura sources (v38): rebuilt every 0.4 s, and move_units() reads speed auras
@@ -30045,6 +30113,81 @@ void Simulation::rebuild_auras() {
 // Map triggers (0 A.D. Trigger.js and Timer.js; engine state in triggers.h)
 // =========================================================================
 
+uint32_t Simulation::trigger_hash() const {
+	uint32_t h = triggers_.hash();
+	if (cinema_.paths.empty()) return h;
+	auto mix = [&](uint32_t v) { h = (h ^ v) * 16777619u; };
+	mix(cinema_.enabled); mix(cinema_.elapsed_ms); mix(cinema_.path_elapsed_ms); mix(cinema_.total_ms);
+	mix((uint32_t)cinema_.paths.size());
+	for (uint16_t q : cinema_.queue) mix(q);
+	return h;
+}
+
+void Simulation::add_cinema_path(const CinemaPath &path) {
+	if (path.nodes.empty() || cinema_has_path(path.info.name)) return; // 0 A.D. warns and keeps the first
+	cinema_.paths.push_back(path);
+	cinema_.paths.back().info.name[sizeof(path.info.name) - 1] = 0;
+}
+
+void Simulation::cinema_queue_path(const char *name) {
+	const int idx = cinema_.find(name);
+	if (idx < 0) return; // "Path with name '%s' doesn't exist"
+	cinema_.queue.push_back((uint16_t)idx);
+	if (cinema_.queue.size() == 1) cinema_.path_elapsed_ms = 0; // the front path starts over (Reset)
+	cinema_.total_ms += cinema_.paths[(size_t)idx].duration_ms();
+}
+
+void Simulation::cinema_delete_path(const char *name) {
+	const int idx = cinema_.find(name);
+	if (idx < 0) return;
+	std::vector<uint16_t> queue;
+	for (uint16_t q : cinema_.queue)
+		if (q != idx) queue.push_back(q > idx ? (uint16_t)(q - 1) : q);
+	cinema_.queue.swap(queue);
+	cinema_.paths.erase(cinema_.paths.begin() + idx);
+}
+
+void Simulation::set_cinema_enabled(bool enabled) {
+	// CCmpCinemaManager::SetEnabled: nothing to play stays off. Playing reveals the map
+	// for everyone (SetLosRevealAll(-1)); the GUI hides territory, selection and overlays.
+	if (cinema_.queue.empty() && enabled) enabled = false;
+	if ((cinema_.enabled != 0) == enabled) return;
+	if (enabled) {
+		cinema_.map_revealed = reveal_map_ ? 1 : 0;
+		reveal_map_ = true;
+	} else {
+		// 0 A.D. turns reveal-all off here whatever it was (its TODO on m_MapRevealed);
+		// RTS0 puts back the state from before, so a Revealed Map match stays revealed.
+		reveal_map_ = cinema_.map_revealed != 0;
+	}
+	cinema_.enabled = enabled ? 1 : 0;
+}
+
+void Simulation::tick_cinema(float dt) {
+	// CCmpCinemaManager MT_Update: the front path ends when its time is up, then the queue.
+	if (!cinema_.enabled) return;
+	if (cinema_.queue.empty()) { // ClearQueue while playing (0 A.D. would read an empty queue)
+		cinema_.elapsed_ms = cinema_.path_elapsed_ms = cinema_.total_ms = 0;
+		set_cinema_enabled(false);
+		return;
+	}
+	const uint32_t step = (uint32_t)std::lround(dt * 1000.0f);
+	cinema_.elapsed_ms += step;
+	cinema_.path_elapsed_ms += step;
+	if (cinema_.path_elapsed_ms >= cinema_.paths[cinema_.queue.front()].duration_ms()) {
+		TriggerEventData ev;
+		ev.value = cinema_.queue.front();
+		cinema_.queue.erase(cinema_.queue.begin());
+		cinema_.path_elapsed_ms = 0;
+		trigger_event(TRIGGER_ON_CINEMA_PATH_ENDED, ev);
+	}
+	if (cinema_.elapsed_ms >= cinema_.total_ms) {
+		cinema_.elapsed_ms = cinema_.path_elapsed_ms = cinema_.total_ms = 0;
+		set_cinema_enabled(false);
+		trigger_event(TRIGGER_ON_CINEMA_QUEUE_ENDED);
+	}
+}
+
 void Simulation::trigger_event(uint8_t event, const TriggerEventData &data) {
 	// Trigger.js CallEvent: every enabled trigger listening on the event, in
 	// registration order. An action may register more triggers; those wait
@@ -30144,6 +30287,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"unit_dancing_test_triggers", TRIGGER_ACTION_UNIT_DANCING, TUTORIAL_NONE},
 		{"unit_pushing_test", TRIGGER_ACTION_UNIT_PUSHING, TUTORIAL_NONE},
 		{"unit_motion_integration_test", TRIGGER_ACTION_UNIT_MOTION, TUTORIAL_NONE},
+		{"cinema_demo", TRIGGER_ACTION_CINEMA_DEMO, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -30399,6 +30543,9 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 		case TRIGGER_ACTION_UNIT_MOTION:
 			trigger_unit_motion((int)arg);
 			break;
+		case TRIGGER_ACTION_CINEMA_DEMO:
+			trigger_cinema_demo((int)arg);
+			break;
 		case TRIGGER_ACTION_TRIGGERS_DEMO_RANGE:
 			// RangeAction: warn(uneval(data)). vars 0-2 count what it saw (the demo keeps no state).
 			if (data.added && data.removed && data.collection) {
@@ -30428,7 +30575,7 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			static const char *const kNames[TRIGGER_EVENT_COUNT] = {"OnInitGame", "OnInterval", "OnRange", "OnStructureBuilt",
 				"OnConstructionStarted", "OnTrainingQueued", "OnTrainingFinished", "OnResearchQueued", "OnResearchFinished",
 				"OnOwnershipChanged", "OnPlayerDefeated", "OnPlayerWon", "OnDiplomacyChanged", "OnTreasureCollected",
-				"OnPlayerCommand", "OnDeserialized"};
+				"OnPlayerCommand", "OnDeserialized", "OnCinemaPathEnded", "OnCinemaQueueEnded"};
 			std::fprintf(stderr, "[triggers] The %s event happened with the following data: entity %u, other %u, player %u, from %u, to %u, value %u, count %u\n",
 			             data.event < TRIGGER_EVENT_COUNT ? kNames[data.event] : "?", data.entity, data.other, data.player,
 			             data.from, data.to, data.value, data.count);
@@ -31235,6 +31382,19 @@ void Simulation::trigger_unit_pushing(int step) {
 			gx = 100.0f;
 			gy += 150.0f;
 		}
+	}
+}
+
+void Simulation::trigger_cinema_demo(int step) {
+	// maps/scenarios/cinema_demo.js: a notice at 1 s, then the "test" path plays at 6 s.
+	if (step == 0) {
+		triggers_.set_timeout(1000, TRIGGER_ACTION_CINEMA_DEMO, 1.0f);
+		triggers_.set_timeout(6000, TRIGGER_ACTION_CINEMA_DEMO, 2.0f);
+	} else if (step == 1) { // CounterMessage
+		triggers_.add_notification("Cutscene starts after 5 seconds", kPushNotificationMs, (1u << 0) | (1u << 1));
+	} else if (step == 2) { // StartCutscene
+		cinema_queue_path("test");
+		cinema_play();
 	}
 }
 
