@@ -517,6 +517,12 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_first
 		{0x00000u, 0x000u}, // germ/support_wagon
 		{0x00000u, 0x000u}, // germ/support_wagon_house
+		{0x0078fu, 0x040u}, // pers/support_healer_e
+		{0x0078fu, 0x040u}, // rome/support_healer_e
+		{0x0078fu, 0x040u}, // mace/support_healer_e
+		{0x0078fu, 0x040u}, // gaul/support_healer_e
+		{0x0078fu, 0x040u}, // ptol/support_healer_e
+		{0x0078fu, 0x040u}, // han/support_healer_e
 	};
 	return kRows;
 }
