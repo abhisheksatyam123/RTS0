@@ -29,12 +29,18 @@ behind a small JSON API:
                   the details 0 A.D.'s lobby shows for a selected game (GameDetails.js).
                   player_names is a list of {name, team, civ, ai, observer}, an AI
                   also with ai_difficulty and ai_behavior
-  POST /rooms/unregister {id}            removes it (unregisterGame)
+  POST /rooms/unregister {token, id}     removes it (unregisterGame)
+                  A game belongs to the account that registered it (its token), or
+                  without one to the address it came from, as 0 A.D.'s bot keys a
+                  game by the host's JID: only that host updates or removes it.
+                  Another host sending the same id (two on the default port) gets a
+                  game of its own, listed as "<id>-2" and so on; its later posts
+                  with the old id still reach its own game.
   POST /rooms/punch {token, id, ip, port} a signed-in joiner's public game endpoint, from STUN (0 A.D.
                                          SendStunEndpointToHost). Answers {local_ip, local_port},
                                          the host's LAN address, when ip is the host's public
                                          address (one network: 0 A.D. then joins at the LAN address)
-  GET  /rooms/punch?id=R&since=N         -> {endpoints: [{seq, ip, port}], last}: the host punches
+  GET  /rooms/punch?id=R&since=N[&token=T] -> {endpoints: [{seq, ip, port}], last}: the host punches
                                             a hole towards each (0 A.D. SendHolePunchingMessage)
   GET  /chat?since=N                     -> {messages: [{id, time, from, text}], last}
   POST /chat      {token, text}
@@ -86,7 +92,7 @@ STATUSES = ("available", "away", "playing")
 ROOM_STATES = ("init", "running")
 PUNCH_KEEP = 16         # joiner endpoints kept per game
 PUNCH_TIMEOUT = 30.0    # seconds a joiner endpoint stays listed
-PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port")
+PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port", "base", "owner", "poster_ip")
 STUN_MAGIC_COOKIE = 0x2112A442
 
 
@@ -416,14 +422,28 @@ class Lobby:
             return 200, {"local_ip": room["local_ip"], "local_port": room["local_port"]}
         return 200, {}
 
-    def punches(self, room_id, since):
-        room = next((r for r in self.rooms if r["id"] == str(room_id)), None)
+    def punches(self, room_id, since, token=None, peer_ip="127.0.0.1"):
+        room = self._own_room(str(room_id), self._owner(token), peer_ip)
         if not room:
             return 404, {"error": "no such game"}
         now = self.clock()
         eps = [{"seq": e["seq"], "ip": e["ip"], "port": e["port"]} for e in room["punch"]
                if e["seq"] > since and now - e["time"] <= PUNCH_TIMEOUT]
         return 200, {"endpoints": eps, "last": room["next_punch"] - 1}
+
+    def _owner(self, token):
+        p = self.player(token) if token else None
+        return p["name"] if p else ""
+
+    def _own_room(self, rid, owner, peer_ip):
+        """The poster's own game under id rid (its listed id, or the id it asked
+        for): the signed-in account's, else the one posted from this address."""
+        def mine(r):
+            if owner and r["owner"] == owner:
+                return True
+            return r["poster_ip"] == peer_ip and (not owner or not r["owner"])
+        rooms = [r for r in self.rooms if r["id"] == rid] + [r for r in self.rooms if r["base"] == rid and r["id"] != rid]
+        return next((r for r in rooms if mine(r)), None)
 
     def room_list(self):
         return 200, {"rooms": [{k: v for k, v in r.items() if k not in PRIVATE_ROOM_KEYS} for r in self.rooms]}
@@ -433,13 +453,22 @@ class Lobby:
         left out keeps its value). Without host_ip the game is reached at the
         address the request came from, as 0 A.D.'s lobby bot records it."""
         rid = str(data.get("id") or f"room-{int(data.get('host_port') or 20595)}")[:64]
-        old = next((r for r in self.rooms if r["id"] == rid), {})
+        owner = self._owner(data.get("token"))
+        old = self._own_room(rid, owner, peer_ip) or {}
+        new_id = old.get("id", rid)
+        n = 2
+        while not old and any(r["id"] == new_id for r in self.rooms):
+            new_id = f"{rid}-{n}"
+            n += 1
 
         def field(key, default, kind):
             return kind(data[key]) if data.get(key) not in (None, "") else old.get(key, default)
 
         room = {
-            "id": rid,
+            "id": new_id,
+            "base": old.get("base", rid),
+            "owner": old.get("owner") or owner,
+            "poster_ip": old.get("poster_ip", peer_ip),
             "host_ip": field("host_ip", peer_ip, str)[:64],
             "host_port": field("host_port", 20595, int),
             "players": field("players", 1, int),
@@ -471,10 +500,14 @@ class Lobby:
         self.rooms.append(room)
         return 201, public
 
-    def unregister(self, room_id):
-        before = len(self.rooms)
-        self.rooms = [r for r in self.rooms if r["id"] != str(room_id)]
-        return (200, {}) if len(self.rooms) < before else (404, {"error": "no such game"})
+    def unregister(self, room_id, token=None, peer_ip="127.0.0.1"):
+        room = self._own_room(str(room_id), self._owner(token), peer_ip)
+        if not room:
+            if any(r["id"] == str(room_id) for r in self.rooms):
+                return 403, {"error": "not your game"}
+            return 404, {"error": "no such game"}
+        self.rooms.remove(room)
+        return 200, {}
 
     def chat_since(self, since):
         msgs = [m for m in self.chat if m["id"] > since]
@@ -540,7 +573,8 @@ class LobbyHandler(BaseHTTPRequestHandler):
                     since = int(q.get("since", ["0"])[0])
                 except ValueError:
                     since = 0
-                code, obj = LOBBY.punches(q.get("id", [""])[0], since)
+                code, obj = LOBBY.punches(q.get("id", [""])[0], since, q.get("token", [""])[0],
+                                          self.client_address[0])
             else:
                 code, obj = 404, {"error": "not found"}
         self._json(code, obj)
@@ -564,7 +598,7 @@ class LobbyHandler(BaseHTTPRequestHandler):
                 elif path == "/rooms/punch":
                     code, obj = LOBBY.add_punch(data)
                 elif path == "/rooms/unregister":
-                    code, obj = LOBBY.unregister(data.get("id"))
+                    code, obj = LOBBY.unregister(data.get("id"), data.get("token"), self.client_address[0])
                 elif path == "/login":
                     code, obj = LOBBY.login(data.get("name"), data.get("password"))
                 elif path == "/register":

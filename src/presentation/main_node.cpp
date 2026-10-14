@@ -1544,6 +1544,41 @@ void RtsoMain::_on_formation_selected(int formation) {
 	}
 }
 
+void RtsoMain::_on_formation_gui_input(const Ref<InputEvent> &event, int formation) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_RIGHT) return;
+	if (formation >= 0 && formation < rtso::FORMATION_COUNT) set_default_formation((uint8_t)formation);
+}
+
+void RtsoMain::set_default_formation(uint8_t formation) {
+	if (formation != rtso::FORMATION_NONE) last_default_formation_ = formation;
+	rtso::user_config::set("gui.session.defaultformation", rtso::formation_template(formation).path);
+	rtso::user_config::save();
+}
+
+void RtsoMain::toggle_default_formation() {
+	const uint8_t cur = RtsoCommandPanelView::default_formation();
+	set_default_formation(cur == rtso::FORMATION_NONE ? last_default_formation_ : rtso::FORMATION_NONE);
+}
+
+void RtsoMain::apply_default_formation(const uint32_t *ids, size_t n) {
+	const uint8_t f = RtsoCommandPanelView::default_formation();
+	if (f == rtso::FORMATION_NONE || n < 2 || !sim) return;
+	// Units already in a formation keep it (the walk reuses its template).
+	for (const auto &fc : sim->formations())
+		for (uint32_t m : fc.members)
+			if (std::find(ids, ids + n, m) != ids + n) return;
+	if (turn_cmds()) {
+		rtso::NetCommand form;
+		form.cmd_type = (uint8_t)rtso::NetCommandType::NET_CMD_FORMATION;
+		form.entity_ids.assign(ids, ids + n);
+		form.param = f;
+		turn_mgr_.post_local_command(form);
+	} else {
+		sim->order_set_formation(ids, n, f);
+	}
+}
+
 void RtsoMain::_on_train_pressed(int utype) {
 	try_train_unit((rtso::UnitType)utype);
 }
@@ -3344,6 +3379,8 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_id = tid;
 	c.param = param;
 	if (spectating()) return; // observers and defeated players order nothing
+	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
+		apply_default_formation(ids, n);
 	if (ids && n && order_disbands_formation(cmd_type)) {
 		// 0 A.D. AutoFormation.getNull: with gui.session.formationwalkonly every order but
 		// walk and patrol carries the null formation, so the units leave their formations

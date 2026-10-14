@@ -579,10 +579,10 @@ public:
 				else if (!found_b->queue.empty())
 					status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
 							" in queue" + (found_b->autoqueue ? " (autoqueue on)" : "") + " (click a slot to cancel)";
-				if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(found_b->type); ai.shoots())
-					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sim->building_arrow_count(*found_b)) + " arrows of " +
-							String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
-							String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
+				if (const rtso::Simulation::StructureDetails sd = sim->structure_details(*found_b); sd.shoots)
+					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sd.arrows) + " arrows of " +
+							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
+							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 				stats_->set_text(status);
 				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
 				// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
@@ -804,9 +804,25 @@ private:
 	// BuildingAI), resistance and garrison limit (getGarrisonTooltip).
 	static String structure_tooltip(const rtso::Simulation &sim, const rtso::Simulation::Building &b) {
 		using namespace rtso::seldet;
+		// displaySingle's detailedTooltip: attack, resistance, garrison, turrets, population
+		// bonus, projectiles, resource trickle and loot.
 		float res[3];
 		sim.structure_resistance(b, res);
-		return join_lines({resistance_tooltip(res), garrison_limit_tooltip(b.garrison_cap)});
+		const rtso::Simulation::StructureDetails d = sim.structure_details(b);
+		constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+		const String attack = d.shoots ? structure_attack_tooltip(d.damage, d.min_range * kM, d.max_range * kM, d.repeat_time,
+				d.arrows ? d.arrows : d.default_arrows) : String();
+		const rtso::LootInfo l = rtso::structure_loot(b.type, b.civ, b.half_size);
+		Amounts loot;
+		loot.res[rtso::RES_FOOD] = l.food;
+		loot.res[rtso::RES_WOOD] = l.wood;
+		loot.res[rtso::RES_STONE] = l.stone;
+		loot.res[rtso::RES_GOLD] = l.metal;
+		loot.xp = l.xp;
+		return join_lines({attack, resistance_tooltip(res), garrison_limit_tooltip(b.garrison_cap), garrison_heal_tooltip(d.heal),
+				turrets_tooltip(d.turrets), population_bonus_tooltip(d.pop_bonus),
+				projectiles_tooltip(d.projectile_limit, d.default_arrows, d.per_unit),
+				d.trickles ? trickle_tooltip(d.trickle, rtso::Simulation::TRICKLE_STRUCTURE_INTERVAL) : String(), loot_tooltip(loot)});
 	}
 	static String flora_title(uint8_t flora) {
 		static const char *const kNames[] = {"Tree", "Tree", "Pine", "Date Palm", "Oak", "Baobab", "Acacia", "Bamboo", "Bush",
