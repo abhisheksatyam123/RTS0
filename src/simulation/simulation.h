@@ -364,6 +364,8 @@ public:
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
 	// Walk speed of the unit at SoA index i: its speed with technologies times any speed aura it stands in.
 	float unit_walk_speed(size_t i) const;
+	// The same before running (a fleeing, chasing or slot-walking unit runs at RunMultiplier times it).
+	float unit_base_walk_speed(size_t i) const;
 	// The speed it moves at now: its walk speed, slowed by the pushing pressure it is under.
 	float unit_move_speed(size_t i) const;
 	// How far it moves this tick heading (ux, uz) at up to max_speed, starting from velocity (vx, vz),
@@ -922,6 +924,11 @@ public:
 	void set_victory_conditions(uint8_t mask) { victory_condition_ = (VictoryCondition)victory_code(mask); }
 	bool has_victory(uint8_t kind) const { return (victory_mask(victory_condition_) & kind) != 0; }
 	float relic_victory_timer() const { return relic_victory_timer_; }
+	// CaptureTheRelic.js relicsVictoryCountdownPlayers: who the running countdown would make win.
+	uint8_t relic_countdown_players() const { return relic_countdown_players_; }
+	// CheckCaptureTheRelicCountdown's winningPlayers from the current relic owners and
+	// diplomacy, or 0 while Gaia holds a relic, nobody holds one or the owners are not allies.
+	uint8_t relic_winners() const;
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
@@ -2293,7 +2300,7 @@ private:
 	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
 		if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) note_session({kind, player, 0, tech, {}});
 	}
-	void note_phases_aborted(const Building &b); // a lost or captured structure's queued phases
+	void reset_production_queue(Building &b); // ResetQueue: refund a lost or captured structure's queue
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
@@ -2350,6 +2357,9 @@ private:
 	// obstruction group and don't push each other in separation(). Derived from formations_
 	// by formation_refresh_groups() whenever membership changes, so it is never saved.
 	std::vector<uint32_t> formation_group_;
+	// Per unit index, 1 while it walks to its slot with a walking controller: UnitMotion's
+	// IsMovingAsFormation, so it runs there. Derived with formation_group_.
+	std::vector<uint8_t> formation_slot_walk_;
 	void formation_refresh_groups();
 
 	UnitSoA units_;
@@ -2369,6 +2379,10 @@ private:
 	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
+	// Derived, not saved: relic_winners() as the end of the last tick saw it (a load rebuilds
+	// it), and whether a relic changed hands this tick (tick_relics, read by the victory check).
+	uint8_t relic_countdown_players_ = 0;
+	bool relic_changed_hands_ = false;
 	std::vector<BattleAlert> pending_alerts_;
 	float last_alert_time_[6] = {};
 	std::unordered_map<uint32_t, size_t> unit_id_to_idx_;
@@ -2576,6 +2590,7 @@ private:
 	void trigger_survival_init();
 	void trigger_survival_wave();
 	void trigger_gallic_fields(bool attack);
+	void trigger_pickup_test(int step);
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
 	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").

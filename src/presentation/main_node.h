@@ -68,6 +68,8 @@
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
 #include "panel_entities_view.h"
+#include "research_progress_view.h"
+#include "control_groups_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
 #include "session_audio.h"
@@ -190,6 +192,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
+	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
+	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker
 	MeshInstance3D *ghost_mesh = nullptr;
@@ -335,11 +339,17 @@ public:
 	void _on_remove_guard_pressed();
 	void _on_call_to_arms_pressed();
 	void _on_template_info_pressed();
+	void _on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ);
 	void _on_alert_pressed(int end);
 	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
 	void _on_selection_group_gui_input(const Ref<InputEvent> &event, int key);
 	void _on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot);
+	void _on_research_progress_pressed(int slot);
+	void _on_control_group_gui_input(const Ref<InputEvent> &event, int button);
+	// input.js performGroup: select, add or snap (select and move the camera) group `grp`.
+	enum GroupAction { GROUP_SELECT, GROUP_ADD, GROUP_SNAP };
+	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
@@ -510,6 +520,7 @@ public:
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count);
+	Dictionary debug_research_any();
 	void debug_delete_units(const PackedInt32Array &ids);
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;

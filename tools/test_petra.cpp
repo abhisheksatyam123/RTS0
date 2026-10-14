@@ -1773,10 +1773,13 @@ static void test_relic_capture() {
 	s->relics_.clear();
 	s->spawn_relic(tx + 12.0f, tz - 12.0f);
 	s->spawn_relic(-tx, -tz); // far side, unseen
-	run_for(*s, 150.0f);
+	// Until the capture, up to 3 min: when the points run out depends on which starting
+	// units Petra frees from work (0.28's StartEntities since #578), not on the relic code.
+	float t = 0.0f;
+	for (; t < 180.0f && !s->relics_[0].claimed; t += 1.0f) run_for(*s, 1.0f);
 	const auto &near = s->relics_[0], &far = s->relics_[1];
-	std::printf("  relics: own-territory relic %s, unseen relic %s\n",
-		near.claimed ? (near.owner_team == 1 ? "taken by AI 1" : "taken by another") : "left", far.claimed ? "taken" : "left alone");
+	std::printf("  relics: own-territory relic %s after %.0f s, unseen relic %s\n",
+		near.claimed ? (near.owner_team == 1 ? "taken by AI 1" : "taken by another") : "left", t, far.claimed ? "taken" : "left alone");
 	CHECK(near.claimed && near.owner_team == 1, "Petra captures a Gaia relic in its territory");
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
 	// abortCaptureGaiaRelic: a relic someone else takes first ends the expedition.
