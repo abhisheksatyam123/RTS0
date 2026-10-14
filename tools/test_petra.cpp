@@ -1,3 +1,4 @@
+#include <cstring>
 // RTS0 Petra AI headless regression test (no SCons, no Godot).
 //   g++ -std=c++20 -O2 -Isrc tools/test_petra.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread
@@ -234,6 +235,7 @@ static void test_no_free_income() {
 	auto &u = s->units_;
 	for (size_t i = 0; i < u.count; ++i)
 		if (u.team[i] == 1) u.alive[i] = false;
+	s->treasures_.clear(); // a unit it trains may pick one up: income, but not a free one
 	int before = 0, after = 0;
 	for (uint8_t r = 0; r < RES_COUNT; ++r) before += s->player_resource(1, r);
 	for (float t = 0.0f; t < 30.0f; t += Simulation::FIXED_STEP) s->tick(Simulation::FIXED_STEP);
@@ -345,6 +347,15 @@ static void fund_queues(Simulation &s) {
 
 static void run_for(Simulation &s, float seconds) {
 	for (float t = 0.0f; t < seconds && !s.is_game_over(); t += Simulation::FIXED_STEP) s.tick(Simulation::FIXED_STEP);
+}
+
+// Ticks until AI `pid` has played `turns` more turns (one every PETRA_TURN_TICKS).
+static void run_ai_turns(Simulation &s, int turns, uint8_t pid = 1) {
+	while (turns > 0 && !s.is_game_over()) {
+		const bool due = s.petra_turn_due(pid);
+		s.tick(Simulation::FIXED_STEP);
+		if (due) --turns;
+	}
 }
 
 static std::unique_ptr<Simulation> three_player_match(uint32_t seed) {
@@ -1398,7 +1409,7 @@ static void test_regicide_hero() {
 		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
 	std::vector<uint32_t> champs;
 	for (int i = 0; i < 2; ++i) champs.push_back(s->spawn_unit(tx + 10.0f + 3.0f * (float)i, tz + 10.0f, 1, UNIT_ELEPHANT));
-	run_for(*s, 3.0f);
+	run_ai_turns(*s, 10); // victoryManager.js: guards every 10th AI turn
 	int guarding = 0;
 	for (uint32_t id : champs) {
 		const int32_t c = s->lookup_unit(id);
@@ -1716,7 +1727,8 @@ static void test_attack_request() {
 	slot.petra_attack_mgr_.min_size = 30;
 	s->clear_petra_chat();
 	s->cmd_attack_request(3, 0);
-	s->tick(Simulation::FIXED_STEP);
+	run_ai_turns(*s, 1, 2); // each AI answers on its own turn (AI 2's comes first)
+	run_ai_turns(*s, 1, 1);
 	bool requested_notice = false, join = false, decline = false;
 	for (const auto &line : s->pending_petra_chat()) {
 		requested_notice |= line.kind == PETRA_CHAT_ATTACK_REQUESTED && line.from == 3 && line.to == PETRA_CHAT_ALLIES;
@@ -1761,12 +1773,24 @@ static void test_relic_capture() {
 	s->relics_.clear();
 	s->spawn_relic(tx + 12.0f, tz - 12.0f);
 	s->spawn_relic(-tx, -tz); // far side, unseen
-	run_for(*s, 60.0f);
+	run_for(*s, 150.0f);
 	const auto &near = s->relics_[0], &far = s->relics_[1];
 	std::printf("  relics: own-territory relic %s, unseen relic %s\n",
 		near.claimed ? (near.owner_team == 1 ? "taken by AI 1" : "taken by another") : "left", far.claimed ? "taken" : "left alone");
 	CHECK(near.claimed && near.owner_team == 1, "Petra captures a Gaia relic in its territory");
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
+	// abortCaptureGaiaRelic: a relic someone else takes first ends the expedition.
+	const uint32_t taken = s->spawn_relic(tx - 12.0f, tz + 12.0f);
+	const uint32_t seeker = s->spawn_unit(tx - 4.0f, tz + 4.0f, 1, UNIT_SPEARMAN);
+	s->order_capture_relic(&seeker, 1, taken);
+	const int32_t tr = s->lookup_unit(taken), su = s->lookup_unit(seeker);
+	s->units_.team[tr] = 0;
+	for (auto &rel : s->relics_)
+		if (rel.id == taken) { rel.claimed = true; rel.owner_team = 0; }
+	run_ai_turns(*s, 10);
+	std::printf("  relic taken by player 0 first: the AI's capturer %s\n",
+		s->units_.order_kind[su] == ORDER_CAPTURE_RELIC ? "keeps going" : "is called off");
+	CHECK(s->units_.alive[su] && s->units_.order_kind[su] != ORDER_CAPTURE_RELIC, "Petra calls off a capture of a relic an enemy took");
 }
 
 // attackManager.js getRelicEnemyPlayer: in capture the relic, Petra attacks the enemy
@@ -2181,7 +2205,7 @@ static void test_research_choices() {
 		for (uint8_t t = 1; t < TECH_COUNT; ++t) n += s->players_[1].has_tech(t) && tech_info(t).researcher == BLD_FORGE;
 		return n;
 	};
-	for (int k = 0; k < 12; ++k) {
+	for (int k = 0; k < 30; ++k) {
 		s->set_player_resources(1, 5000, 5000, 5000, 5000);
 		run_for(*s, 10.0f);
 	}
@@ -2193,12 +2217,14 @@ static void test_research_choices() {
 	CHECK(mines >= 2, "researches stone and metal rates in the town phase");
 	CHECK(fights == 0, "no random forge techs before the city phase");
 	s->players_[1].phase = 3;
-	for (int k = 0; k < 12; ++k) {
+	for (int k = 0; k < 60; ++k) {
 		s->set_player_resources(1, 5000, 5000, 5000, 5000);
 		run_for(*s, 10.0f);
 	}
 	const int fights3 = forge_techs();
-	std::printf("  city phase: %d forge techs\n", fights3);
+	int all3 = 0;
+	for (uint8_t t = 1; t < TECH_COUNT; ++t) all3 += s->players_[1].has_tech(t);
+	std::printf("  city phase: %d forge techs (%d techs in all)\n", fights3, all3);
 	CHECK(fights3 >= 2, "researches other technologies at random in the city phase");
 }
 
@@ -2296,7 +2322,7 @@ static void test_wonder_guards() {
 	const uint32_t wonder = s->spawn_building_world(wx, wz, BLD_WONDER, 1, 1.0f);
 	std::vector<uint32_t> champs;
 	for (int i = 0; i < 4; ++i) champs.push_back(s->spawn_unit(tx + 10.0f + 3.0f * (float)i, tz + 10.0f, 1, UNIT_ELEPHANT));
-	run_for(*s, 4.0f);
+	run_ai_turns(*s, 10); // victoryManager.js: guards every 10th AI turn
 	auto &u = s->units_;
 	int guarding = 0;
 	for (uint32_t id : champs) {
@@ -2336,7 +2362,7 @@ static void test_victory_critical_ents() {
 		if (r >= 0) s->units_.team[r] = 1;
 		std::vector<uint32_t> champs;
 		for (int i = 0; i < 3; ++i) champs.push_back(s->spawn_unit(tx + 10.0f + 3.0f * (float)i, tz + 10.0f, 1, UNIT_ELEPHANT));
-		run_for(*s, 4.0f);
+		run_ai_turns(*s, 10); // victoryManager.js: guards every 10th AI turn
 		int guarding = 0;
 		for (uint32_t id : champs) {
 			const int32_t c = s->lookup_unit(id);
@@ -2358,7 +2384,7 @@ static void test_victory_critical_ents() {
 			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
 		const uint32_t trained = s->spawn_unit(tx - 10.0f, tz - 10.0f, 1, UNIT_HERO);
 		for (int i = 0; i < 14; ++i) s->spawn_unit(tx + 10.0f + 2.0f * (float)(i % 7), tz + 10.0f + 2.0f * (float)(i / 7), 1, UNIT_ELEPHANT);
-		run_for(*s, 4.0f);
+		run_ai_turns(*s, 10); // victoryManager.js: guards every 10th AI turn
 		int on_hero = 0, on_trained = 0;
 		for (size_t i = 0; i < s->units_.count; ++i) {
 			if (!s->units_.alive[i] || s->units_.team[i] != 1 || s->units_.order_kind[i] != ORDER_GUARD) continue;
@@ -2368,6 +2394,30 @@ static void test_victory_critical_ents() {
 		std::printf("  regicide: %d guard the regicide hero, %d a hero trained later\n", on_hero, on_trained);
 		CHECK(hero != 0 && on_hero >= 4, "the regicide hero is guarded");
 		CHECK(on_trained == 0, "a hero trained later is not a critical entity");
+		// Garrison events: the hero goes into its civic centre; its guards walk up to it.
+		uint32_t tc = 0;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) tc = b.id;
+		std::vector<uint32_t> guards;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.order_kind[i] == ORDER_GUARD && s->units_.order_target[i] == hero)
+				guards.push_back(s->units_.id[i]);
+		s->set_regicide_garrison(true); // Regicide garrison: the hero may go in
+		const bool inside = s->garrison_unit_now(hero, tc);
+		run_ai_turns(*s, 1);
+		int still = 0, near_tc = 0;
+		for (uint32_t g : guards) {
+			const int32_t u = s->lookup_unit(g);
+			still += u >= 0 && s->units_.order_kind[u] == ORDER_GUARD && s->units_.order_target[u] == hero;
+		}
+		run_for(*s, 15.0f); // walking up (once the hero is out again they guard it anew)
+		const auto &tcb = s->buildings_[s->building_id_to_idx_.at(tc)];
+		for (uint32_t g : guards) {
+			const int32_t u = s->lookup_unit(g);
+			if (u >= 0 && s->units_.alive[u]) near_tc += std::hypot(s->units_.pos_x[u] - tcb.x, s->units_.pos_z[u] - tcb.z) < tcb.half_size + 4.0f;
+		}
+		std::printf("  regicide hero garrisoned: %zu guards, %d still guarding, %d by the civic centre\n", guards.size(), still, near_tc);
+		CHECK(inside && !guards.empty() && still == 0 && near_tc > 0, "a garrisoned hero's guards walk to its holder");
 	}
 	{
 		auto s = std::make_unique<Simulation>();
@@ -2383,7 +2433,7 @@ static void test_victory_critical_ents() {
 		const uint32_t first = s->spawn_building_world(tx * 0.8f, tz * 0.8f, BLD_WONDER, 1, 1.0f);
 		s->cmd_delete(1, &first, 1);
 		bool rebuilt = false;
-		for (float t = 0.0f; t < 30.0f && !rebuilt; t += Simulation::FIXED_STEP) {
+		for (float t = 0.0f; t < 40.0f && !rebuilt; t += Simulation::FIXED_STEP) { // buildWonder every 10th AI turn
 			s->players_[1].add(5000.0f, 5000.0f, 5000.0f, 5000.0f);
 			fund_queues(*s);
 			s->tick(Simulation::FIXED_STEP);
@@ -2616,6 +2666,7 @@ static void test_decay_destroy() {
 			if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) foe_cc = &b;
 		CHECK(foe_cc != nullptr, "player 0 has a civic centre");
 		if (!foe_cc) return;
+		while (!s->petra_turn_due(1)) s->tick(Simulation::FIXED_STEP); // AI 1 plays on the next tick
 		const uint32_t id = s->spawn_building_world(foe_cc->x + 14.0f, foe_cc->z, BLD_STOREHOUSE, 1);
 		Simulation::Building &b = s->buildings_[s->building_id_to_idx_[id]];
 		const float own = phase == 0 ? 0.6f : 0.95f;
@@ -2623,7 +2674,7 @@ static void test_decay_destroy() {
 		b.capture_points_by_team[1] = b.max_capture_points * own;
 		b.capture_points_by_team[0] = b.max_capture_points * (1.0f - own);
 		s->petra_decay_events_.push_back(id); // as if just captured
-		s->tick(Simulation::FIXED_STEP);
+		run_ai_turns(*s, 1);
 		auto it = s->building_id_to_idx_.find(id);
 		const bool gone = it == s->building_id_to_idx_.end() || s->buildings_[it->second].wrecked ||
 			s->buildings_[it->second].hp <= 0.0f;
@@ -2653,7 +2704,7 @@ static void test_defense_by_strength() {
 		for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 10.0f + (float)(k % 6), cz - 10.0f - (float)(k / 6), 1, UNIT_SPEARMAN);
 		const UnitType foe = phase == 0 ? UNIT_FEMALE_CITIZEN : UNIT_ELEPHANT;
 		for (int k = 0; k < 2; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
-		run_for(*s, 1.0f);
+		run_ai_turns(*s, 3); // checkEnemyUnits looks in our land one turn in (players + 1)
 		const size_t n = all_defenders(*s).size();
 		const size_t by_count = (size_t)std::ceil(2.0f * s->petra_config_.defense_ratio_own);
 		if (phase == 0) {
@@ -2717,7 +2768,7 @@ static void test_defense_armies() {
 	std::vector<uint32_t> east, west;
 	for (int k = 0; k < 3; ++k) east.push_back(s->spawn_unit(cx + 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
 	for (int k = 0; k < 3; ++k) west.push_back(s->spawn_unit(cx - 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
-	run_for(*s, 1.0f);
+	run_ai_turns(*s, 3); // checkEnemyUnits looks in our land one turn in (players + 1)
 	const auto &armies = s->petra_defense_armies();
 	size_t with_defenders = 0;
 	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
@@ -2730,7 +2781,7 @@ static void test_defense_armies() {
 		s->units_.pos_x[i] = cx + 10.0f;
 		s->units_.pos_z[i] = cz - 8.0f + (float)k;
 	}
-	run_for(*s, 1.0f);
+	run_ai_turns(*s, 1);
 	std::printf("  defense: after the groups meet, %zu army\n", armies.size());
 	CHECK(armies.size() == 1, "armies that meet merge (armyMergeSize)");
 }
@@ -3065,7 +3116,7 @@ static void test_concurrent_attacks() {
 		for (const auto &b : s->buildings())
 			if (b.team == 0 && b.type == BLD_TOWN_CENTER) { marching.target_building_id = b.id; marching.target_x = b.x; marching.target_z = b.z; }
 		s->petra_started_attacks_.push_back(marching);
-		run_for(*s, 1.0f);
+		run_ai_turns(*s, 2);
 		const int cap = s->pop_max(1);
 		const bool second = s->petra_attack_plan().state == Simulation::AttackPlan::MUSTER;
 		std::printf("  concurrent attacks: population cap %d, one marching, a second musters %s\n", cap, second ? "yes" : "no");
@@ -3164,7 +3215,7 @@ static void test_fasten_end_game() {
 		if (siege) plan.squad.push_back(s->spawn_unit(tx - 16.0f, tz - 20.0f, 1, UNIT_CATAPULT));
 		mgr.kind = PETRA_ATTACK_HUGE;
 		mgr.target_size = mgr.min_size = 500;
-		run_for(*s, 3.0f);
+		run_ai_turns(*s, 5); // "Fasten the end game" every 5th AI turn
 		const bool marched = s->petra_attack_plan_.state != Simulation::AttackPlan::MUSTER;
 		std::printf("  end game: %zu soldiers%s against %zu enemy units, marches %s\n", n, siege ? " and a catapult" : "", enemies, marched ? "yes" : "no");
 		if (siege) CHECK(marched, "a plan with siege engines that far outnumbers the enemy starts (forceStart)");
@@ -3735,13 +3786,17 @@ static void test_temple_wonder_save() {
 	auto fund = [&] {
 		s->set_player_resources(1, 50000, 50000, 50000, 50000);
 		for (auto &a : s->petra_queues_.accounts) a = {50000, 50000, 50000, 50000};
+		for (auto &p : s->petra_queues_.paused) p = 0; // checkPausedQueues counts few workers yet
 	};
 	CHECK(s->spawn_building_world(cx + 30.0f, cz, BLD_MARKET, 1, 1.0f) != 0, "a market is placed");
 	CHECK(s->spawn_building_world(cx - 30.0f, cz, BLD_FORGE, 1, 1.0f) != 0, "a forge is placed");
 	s->players_[1].phase = 2;
 	fund();
 	s->petra_attack_mgr_.save_resources = 0;
-	s->petra_timer_ = 1.0f;
+	// AI 1's played turn `p` (headquarters.js gates on playedTurn).
+	auto set_turn = [&](uint32_t p) { s->ticks_ = 4 * (4 + 8 * (uint64_t)(p - 2)); };
+	set_turn(3);
+	CHECK(s->petra_played_turn() == 3, "the played turn follows the tick count");
 	s->petra_manage_research(0.1f);
 	CHECK(temples() == 0, "no temple in the town phase");
 	s->players_[1].phase = 3;
@@ -3759,10 +3814,10 @@ static void test_temple_wonder_save() {
 
 	s->pop_cap_ = s->pop_current(1); // population at its maximum
 	fund();
-	s->petra_timer_ = 5.0f;
+	set_turn(33);
 	s->petra_manage_research(0.1f);
 	CHECK(count(BLD_WONDER) == 0, "no wonder off the 30th AI turn");
-	s->petra_timer_ = 6.05f;
+	set_turn(60);
 	s->petra_manage_research(0.1f);
 	const int wonders = count(BLD_WONDER);
 	std::printf("  temple %d, wonder %d at population %d of %d\n", t, wonders, s->pop_current(1), s->pop_max(1));
@@ -3879,83 +3934,90 @@ static void test_corral_by_owner() {
 	CHECK(corrals() == 2, "a second corral in the town phase past 30 population");
 }
 
-int main() {
+int main(int argc, char **argv) {
+	// Optional test names on the command line run just those.
+	auto want = [&](const char *name) {
+		if (argc < 2) return true;
+		for (int k = 1; k < argc; ++k) if (!std::strcmp(argv[k], name)) return true;
+		return false;
+	};
+#define RUN(t) if (want(#t)) t()
 	std::printf("test_petra\n");
-	test_no_early_rush();
-	test_phase_up();
-	test_no_free_income();
-	test_roster_army();
-	test_diplomacy();
-	test_ai_slots();
-	test_attack_plans();
-	test_slot_config();
-	test_allow_capture();
-	test_garrisons();
-	test_diplomacy_requests();
-	test_tribute_request_paid_later();
-	test_hunting();
-	test_hunters_028();
-	test_first_base();
-	test_barter();
-	test_market_prospection();
-	test_market_dock_route();
-	test_civ_structures();
-	test_emergency();
-	test_regicide_hero();
-	test_regicide_hero_no_garrison();
-	test_regicide_hero_tower_fire();
-	test_nomad_first_base();
-	test_entity_limit_placement();
-	test_army_answers_attackers();
-	test_mustering_units_defend();
-	test_attack_request();
-	test_relic_capture();
-	test_relic_enemy_player();
-	test_relic_gaia_target();
-	test_retreat_walk_forced();
-	test_expansion_small_nodes();
-	test_dropsite_sites();
-	test_structure_cost_by_civ();
-	test_repairs();
-	test_idle_return();
-	test_idle_return_to_wagon();
-	test_gather_limits();
-	test_decay_garrison();
-	test_decay_garrison_from_attack();
-	test_decay_destroy();
-	test_defense_by_strength();
-	test_defense_armies();
-	test_defense_switch_to_attack();
-	test_capturing_armies();
-	test_assign_bombers();
-	test_cancel_attacks_on_peace();
-	test_builders_per_foundation();
-	test_wonder_guards();
-	test_victory_critical_ents();
-	test_placement_miss_memory_exact();
-	test_defend_allies();
-	test_retake_civic_centre();
-	test_research_choices();
-	test_research_parity_028();
-	test_concurrent_attacks();
-	test_fasten_end_game();
-	test_abort_nearest_base();
-	test_mobile_dropsite_follows();
-	test_worker_mix();
-	test_unit_choice();
-	test_build_defenses();
-	test_defensive_location();
-	test_raid_keeps_hunters();
-	test_dropsites();
-	test_building_plan_028();
-	test_food_fields();
-	test_corral_by_owner();
-	test_missing_room_expansion();
-	test_emergency_units();
-	test_new_cc_defenders();
-	test_temple_wonder_save();
-	test_personality_draw();
-	test_chat_text();
+	RUN(test_no_early_rush);
+	RUN(test_phase_up);
+	RUN(test_no_free_income);
+	RUN(test_roster_army);
+	RUN(test_diplomacy);
+	RUN(test_ai_slots);
+	RUN(test_attack_plans);
+	RUN(test_slot_config);
+	RUN(test_allow_capture);
+	RUN(test_garrisons);
+	RUN(test_diplomacy_requests);
+	RUN(test_tribute_request_paid_later);
+	RUN(test_hunting);
+	RUN(test_hunters_028);
+	RUN(test_first_base);
+	RUN(test_barter);
+	RUN(test_market_prospection);
+	RUN(test_market_dock_route);
+	RUN(test_civ_structures);
+	RUN(test_emergency);
+	RUN(test_regicide_hero);
+	RUN(test_regicide_hero_no_garrison);
+	RUN(test_regicide_hero_tower_fire);
+	RUN(test_nomad_first_base);
+	RUN(test_entity_limit_placement);
+	RUN(test_army_answers_attackers);
+	RUN(test_mustering_units_defend);
+	RUN(test_attack_request);
+	RUN(test_relic_capture);
+	RUN(test_relic_enemy_player);
+	RUN(test_relic_gaia_target);
+	RUN(test_retreat_walk_forced);
+	RUN(test_expansion_small_nodes);
+	RUN(test_dropsite_sites);
+	RUN(test_structure_cost_by_civ);
+	RUN(test_repairs);
+	RUN(test_idle_return);
+	RUN(test_idle_return_to_wagon);
+	RUN(test_gather_limits);
+	RUN(test_decay_garrison);
+	RUN(test_decay_garrison_from_attack);
+	RUN(test_decay_destroy);
+	RUN(test_defense_by_strength);
+	RUN(test_defense_armies);
+	RUN(test_defense_switch_to_attack);
+	RUN(test_capturing_armies);
+	RUN(test_assign_bombers);
+	RUN(test_cancel_attacks_on_peace);
+	RUN(test_builders_per_foundation);
+	RUN(test_wonder_guards);
+	RUN(test_victory_critical_ents);
+	RUN(test_placement_miss_memory_exact);
+	RUN(test_defend_allies);
+	RUN(test_retake_civic_centre);
+	RUN(test_research_choices);
+	RUN(test_research_parity_028);
+	RUN(test_concurrent_attacks);
+	RUN(test_fasten_end_game);
+	RUN(test_abort_nearest_base);
+	RUN(test_mobile_dropsite_follows);
+	RUN(test_worker_mix);
+	RUN(test_unit_choice);
+	RUN(test_build_defenses);
+	RUN(test_defensive_location);
+	RUN(test_raid_keeps_hunters);
+	RUN(test_dropsites);
+	RUN(test_building_plan_028);
+	RUN(test_food_fields);
+	RUN(test_corral_by_owner);
+	RUN(test_missing_room_expansion);
+	RUN(test_emergency_units);
+	RUN(test_new_cc_defenders);
+	RUN(test_temple_wonder_save);
+	RUN(test_personality_draw);
+	RUN(test_chat_text);
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

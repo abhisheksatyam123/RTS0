@@ -183,10 +183,16 @@ enum PetraQueue : uint8_t {
 // queueManager.js funds the queues that hold a plan, by priority, up to that plan's cost.
 // RTS0's Petra pays where it decides rather than queueing plans: a queue "wants" the cost
 // of the item it last failed to pay for, and the want lapses after WANT_TTL seconds without
-// a retry, when the account's reserve returns to the free pool (queue emptied).
+// a retry, when the account's reserve returns to the free pool (queue emptied). Retries come
+// on 0.28's played-turn cadences (every 3rd to 5th 1.6 s turn: up to 8 s), so a want outlives them.
 struct PetraQueueManager {
 	static constexpr int QUEUE_COUNT = PETRA_Q_COUNT;
-	static constexpr float WANT_TTL = 5.0f;
+	static constexpr float WANT_TTL = 10.0f;
+	// Queues retried less often keep their want across one cadence: a new base every 10th
+	// turn (checkBaseExpansion), a wonder every 30th (headquarters.js:2314).
+	static constexpr float want_ttl(int q) {
+		return q == PETRA_Q_WONDER ? 31 * 1.6f : q == PETRA_Q_CIVIL_CENTRE ? 11 * 1.6f : WANT_TTL;
+	}
 	PetraQueueAccount accounts[QUEUE_COUNT] = {};
 	PetraQueueAccount wants[QUEUE_COUNT] = {};
 	float want_age[QUEUE_COUNT] = {};
@@ -199,7 +205,7 @@ struct PetraQueueManager {
 		for (int i = 0; i < QUEUE_COUNT; ++i) {
 			accounts[i] = PetraQueueAccount{};
 			wants[i] = PetraQueueAccount{};
-			want_age[i] = WANT_TTL + 1.0f;
+			want_age[i] = want_ttl(i) + 1.0f;
 			priority[i] = 0;
 			paused[i] = switched[i] = reset_on_start[i] = 0;
 		}
