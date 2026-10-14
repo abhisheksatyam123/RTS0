@@ -541,6 +541,24 @@ static void test_no_wading() {
 	CHECK(aboard(s, ship, boarder));
 }
 
+// A task walk's line is tested on every navcell it passes through, as CheckLineMovement walks
+// them: one that clips a deep-water navcell between its ends crosses it, where a Bresenham line
+// from navcell to navcell stepped round that cell.
+static void test_line_clips_water() {
+	static Simulation s;
+	fresh(s);
+	NavGrid &g = s.nav_grid_;
+	const float cell = 2.0f * g.map_half / g.res;
+	const auto [bx, by] = g.world_to_cell(-20.0f, 40.0f); // dry land north of the sea
+	auto wx = [&](float c) { return -g.map_half + cell * c; };
+	const float x0 = wx(bx + 0.5f), z0 = wx(by + 0.5f), x1 = wx(bx + 2.5f), z1 = wx(by + 1.5f);
+	const bool before = s.line_crosses_impassable(x0, z0, x1, z1);
+	g.cells.at(bx + 1, by) = NAV_WATER;
+	const bool after = s.line_crosses_impassable(x0, z0, x1, z1), back = s.line_crosses_impassable(x1, z1, x0, z0);
+	std::printf("  a line clipping one water navcell: crosses %d (both ways %d), %d before the water\n", after, back, before);
+	CHECK(!before && after && back);
+}
+
 // A ship moored beside a house on the shore still sails off: its path starts on
 // the centre of its own cell, closer to the house than the ship can stand, which
 // move_units' crowded-waypoint skip passes over for ships too (seen on an island
@@ -1424,11 +1442,43 @@ static void test_gather_unreachable() {
 	CHECK(gather_target(s, woman) == near_bush && s.units().carry[i] > 0);
 }
 
+// UnitMotion Acceleration (CCmpUnitMotion PerformMove): a fishing boat gains speed at 3.85 m/s^2
+// (template_unit_ship 35 x 0.1, x1.1), so it takes 2.6 s to reach full speed. Ships never stop to turn
+// (InstantTurnAngle 10): one sent back the way it came keeps cos(180 degrees) of its speed, -1, and
+// drifts on for v^2 / 2a before it comes back.
+static void test_ships_accelerate() {
+	static Simulation s;
+	fresh(s);
+	uint32_t boat = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_FISHING_BOAT);
+	const int32_t i = idx(s, boat);
+	const float a = unit_motion(s.units().tmpl[i], UNIT_FISHING_BOAT).acceleration, v = s.unit_move_speed(i);
+	s.cmd_move(&boat, 1, 40.0f, 0.0f);
+	run(s, 1.0f);
+	const float x1 = s.units().pos_x[i] + 40.0f;
+	run(s, 2.0f);
+	const float v3 = std::hypot(s.units().vel_x[i], s.units().vel_z[i]);
+	const float x_back = s.units().pos_x[i];
+	s.cmd_move(&boat, 1, -40.0f, 0.0f);
+	float furthest = x_back;
+	for (int t = 0; t < 160; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		furthest = std::max(furthest, s.units().pos_x[i]);
+	}
+	const float x_end = s.units().pos_x[i];
+	std::printf("  fishing boat: %.3f units/s^2, %.3f after 1 s (%.3f expected), %.3f of %.3f at 3 s; sent back, it"
+	            " drifted on %.2f (%.2f expected) and is at %.2f after 8 s\n",
+	            a, x1, 0.5f * a, v3, v, furthest - x_back, v * v / (2.0f * a), x_end);
+	CHECK(std::fabs(a - 35.0f * 0.1f * 1.1f * 0.356f) < 0.01f && std::fabs(x1 - 0.5f * a) < 0.02f && std::fabs(v3 - v) < 1e-3f);
+	CHECK(std::fabs(furthest - x_back - v * v / (2.0f * a)) < 0.2f && std::fabs(x_end + 40.0f) < 1.0f);
+}
+
 int main() {
+	test_ships_accelerate();
 	test_transport();
 	test_dropsite_own_land();
 	test_dock_takes_all();
 	test_no_wading();
+	test_line_clips_water();
 	test_gather_around_lake();
 	test_dock_trade();
 	test_fishing();

@@ -409,9 +409,16 @@ void RtsoWorldView::_ready() {
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
 	ruins_mm = create_multimesh(tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh), true);
-	treasure_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "treasure_chest").mesh), true);
 	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
-	treasure_mmi = memnew(MultiMeshInstance3D); treasure_mmi->set_multimesh(treasure_mm); add_child(treasure_mmi);
+	for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) {
+		auto e = rtso::ModelLibrary::get("props", rtso::treasure_type_info((uint8_t)k).model_id);
+		if (!e.mesh.is_valid()) e = rtso::ModelLibrary::get("vegetation", "treasure_chest");
+		treasure_y_offset[k] = e.y_offset;
+		treasure_mm[k] = create_multimesh(tinted(e.mesh), true);
+		treasure_mmi[k] = memnew(MultiMeshInstance3D);
+		treasure_mmi[k]->set_multimesh(treasure_mm[k]);
+		add_child(treasure_mmi[k]);
+	}
 	{
 		Ref<BoxMesh> box;
 		box.instantiate();
@@ -3136,18 +3143,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// taken out of sight stays there as a mirage until the spot is seen again.
 	{
 		const auto &tv = mirages_.treasures();
-		auto e_chest = rtso::ModelLibrary::get("vegetation", "treasure_chest");
-		int nt = 0;
-		for (const auto &t : tv) if (los_brightness(t.x, t.z) > 0.0f) ++nt;
-		treasure_mm->set_instance_count(nt);
-		int it = 0;
+		int nt[rtso::TREASURE_TYPE_COUNT] = {};
+		for (const auto &t : tv)
+			if (t.type < rtso::TREASURE_TYPE_COUNT && los_brightness(t.x, t.z) > 0.0f) ++nt[t.type];
+		for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) treasure_mm[k]->set_instance_count(nt[k]);
+		int it[rtso::TREASURE_TYPE_COUNT] = {};
 		for (const auto &t : tv) {
-			const float lit = los_brightness(t.x, t.z);
+			const float lit = t.type < rtso::TREASURE_TYPE_COUNT ? los_brightness(t.x, t.z) : 0.0f;
 			if (lit <= 0.0f) continue;
+			// Wrecks and floating cargo sit on the water, the rest on the ground.
+			const float ground = std::max(sim->get_terrain_height(t.x, t.z), sim->water_height());
 			Basis rot(Vector3(0, 1, 0), rtso::Simulation::treasure_angle(t.id));
-			Transform3D xf(rot, Vector3(t.x, sim->get_terrain_height(t.x, t.z) + e_chest.y_offset, t.z));
-			treasure_mm->set_instance_transform(it, xf);
-			treasure_mm->set_instance_color(it++, Color(lit, lit * 0.85f, lit * 0.4f, 1.0f));
+			Transform3D xf(rot, Vector3(t.x, ground + treasure_y_offset[t.type], t.z));
+			treasure_mm[t.type]->set_instance_transform(it[t.type], xf);
+			treasure_mm[t.type]->set_instance_color(it[t.type]++, Color(lit, lit, lit, 1.0f));
 		}
 	}
 
