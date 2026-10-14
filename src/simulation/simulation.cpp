@@ -2808,21 +2808,13 @@ bool Simulation::cmd_research_from_unit(uint8_t player, uint32_t unit_id, uint8_
 	auto qit = unit_queues_.find(unit_id);
 	if (qit != unit_queues_.end() && qit->second.orders.size() >= PRODUCTION_QUEUE_MAX) return false;
 	if (research_check(player, tech, 0) != TECH_OK) return false;
-	const TechInfo &tinfo = tech_info(tech);
-	const uint8_t civ = civ_of(player);
-	const uint16_t allies = ally_civ_mask(player);
-	auto team = [&](uint8_t stat, int8_t r) { return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, BLD_TYPE_COUNT); };
 	ProductionOrder order;
 	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech;
 	order.timer = 0.0f;
-	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
-	order.paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
-	order.paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
-	order.paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	tech_price(player, tech, BLD_TYPE_COUNT, order.paid.data(), order.duration);
 	if (!players_[player].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]))
 		return false;
-	order.duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1) * ai_time_mult(player);
 	UnitQueue &q = unit_queues_[unit_id];
 	q.player = player;
 	q.orders.push_back(order);
@@ -2998,7 +2990,8 @@ void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo 
 	const TechMods::Template *tm = tmpl < CIV_UNIT_TEMPLATE_COUNT ? &tech_mods(pid).tmpl[tmpl] : nullptr;
 	for (int r = 0; r < RES_COUNT; ++r)
 		out[r] = std::round(std::max(0.0f, out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
-		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f)));
+		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f) +
+		                    civ_team_bonus_cost_add(civ, allies, (int8_t)r, tmpl)));
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
@@ -3128,7 +3121,7 @@ int Simulation::phase_structures(uint8_t player_id, uint8_t phase) const {
 	int n = 0;
 	for (const auto &b : buildings_)
 		if (b.team == player_id && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
-				building_phase_class(b.type) == phase)
+				building_phase_class(b.type, b.civ) == phase)
 			++n;
 	return n;
 }
@@ -3151,6 +3144,8 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	if (!tech_available_to_civ(tech_id, ps.civ)) return TECH_ERR_CIV;
 	if (tinfo.required_phase > ps.phase) return TECH_ERR_PHASE;
 	if (tinfo.prerequisite != TECH_NONE && !ps.has_tech(tinfo.prerequisite)) return TECH_ERR_PREREQUISITE;
+	// DeriveTechnologyRequirements: the technology it supersedes must be researched first.
+	if (const uint8_t sup = tech_supersedes(tech_id); sup != TECH_NONE && !ps.has_tech(sup)) return TECH_ERR_PREREQUISITE;
 	// 0 A.D. phase_town_generic / phase_city_generic "entity" requirements.
 	if (tech_id == TECH_PHASE_TOWN && phase_structures(player_id, 1) < 5) return TECH_ERR_STRUCTURES;
 	if (tech_id == TECH_PHASE_CITY && phase_structures(player_id, 2) < 3) return TECH_ERR_STRUCTURES;
@@ -3163,11 +3158,41 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 			return TECH_ERR_BUILDING;
 		if (!building_researches_tech(b.type, tech_id, player_civ(player_id))) return TECH_ERR_BUILDING;
 	}
-	const float *tc = tech_mods(player_id).bld_tech_cost[tinfo.researcher]; // Researcher/TechCostMultiplier
-	if (!ps.can_afford(tinfo.food_cost * tc[RES_FOOD], tinfo.wood_cost * tc[RES_WOOD], tinfo.gold_cost * tc[RES_GOLD],
-			tinfo.stone_cost * tc[RES_STONE]))
-		return TECH_ERR_COST;
+	uint8_t at = tinfo.researcher;
+	if (building_id != 0) at = buildings_[building_id_to_idx_.find(building_id)->second].type;
+	float paid[RES_COUNT], time;
+	tech_price(player_id, tech_id, at, paid, time);
+	if (!ps.can_afford(paid[RES_FOOD], paid[RES_WOOD], paid[RES_GOLD], paid[RES_STONE])) return TECH_ERR_COST;
 	return TECH_OK;
+}
+
+void Simulation::tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type, float paid[RES_COUNT], float &time) const {
+	const TechInfo &tinfo = tech_info(tech_id);
+	// Team bonuses on techs researched here (e.g. Athenian Democracy at the civic centre).
+	const uint8_t civ = civ_of(player_id);
+	const uint16_t allies = ally_civ_mask(player_id);
+	const bool unit = bld_type >= BLD_TYPE_COUNT;
+	float library = 1.0f;
+	// structures/library.json (Library of Alexandria): while the player has a finished
+	// library, its technologies cost 15% less and take 15% less time (not stackable).
+	if (!unit)
+		for (const Building &o : buildings_)
+			if (o.team == player_id && o.type == BLD_LIBRARY && o.build_progress >= 1.0f && !o.wrecked) {
+				library *= 0.85f;
+				break;
+			}
+	const float *tc = unit ? nullptr : tech_mods(player_id).bld_tech_cost[bld_type]; // Researcher/TechCostMultiplier
+	auto team = [&](uint8_t stat, int8_t r) {
+		if (unit) return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, BLD_TYPE_COUNT);
+		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, bld_type) * library
+			* (stat == TEAM_BONUS_TECH_COST && r >= 0 ? tc[r] : 1.0f);
+	};
+	paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
+	paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
+	paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
+	paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	time = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
+		* (unit ? 1.0f : tech_mods(player_id).bld_research_time[bld_type]) * ai_time_mult(player_id);
 }
 
 bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t tech_id) {
@@ -3176,35 +3201,13 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	Building &b = buildings_[bit->second];
 	if (research_check(player_id, tech_id, building_id) != TECH_OK) return false;
 
-	const TechInfo &tinfo = tech_info(tech_id);
-	// Team bonuses on techs researched here (e.g. Athenian Democracy at the civic centre).
-	const uint8_t civ = civ_of(player_id);
-	const uint16_t allies = ally_civ_mask(player_id);
-	float library = 1.0f;
-	// structures/library.json (Library of Alexandria): while the player has a finished
-	// library, its technologies cost 15% less and take 15% less time (not stackable).
-	for (const Building &o : buildings_)
-		if (o.team == player_id && o.type == BLD_LIBRARY && o.build_progress >= 1.0f && !o.wrecked) {
-			library *= 0.85f;
-			break;
-		}
-	const float *tc = tech_mods(player_id).bld_tech_cost[b.type]; // Researcher/TechCostMultiplier
-	auto team = [&](uint8_t stat, int8_t r) {
-		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * library
-			* (stat == TEAM_BONUS_TECH_COST && r >= 0 ? tc[r] : 1.0f);
-	};
 	// Researcher.js QueueTechnology: paid now, researched when it reaches the queue's front.
 	ProductionOrder order;
 	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech_id;
 	order.timer = 0.0f;
-	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
-	order.paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
-	order.paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
-	order.paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	tech_price(player_id, tech_id, b.type, order.paid.data(), order.duration);
 	players_[player_id].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]);
-	order.duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
-		* tech_mods(player_id).bld_research_time[b.type] * ai_time_mult(player_id);
 	b.queue.push_back(order);
 	note_phase(SessionNotice::PHASE_STARTED, player_id, tech_id);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnResearchQueued
@@ -6230,7 +6233,7 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
-	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return;
+	if (b.build_progress < 1.0f) return;
 	UnitOrder o; o.kind = ORDER_GARRISON; o.target = building_id; o.x = b.x; o.z = b.z;
 	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	if (!queued && !formations_.empty()) now = formation_take_task(now, FTASK_GARRISON, building_id);
@@ -6243,11 +6246,16 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		if (turret_height_.count(unit_ids[i])) continue; // UnitAI.Garrison: a turret stays put
-		if (!structure_accepts_garrison(b, (size_t)uidx)) continue; // own or allied, on the List
+		// UnitAI.Garrison: a unit the holder can't take (not own or allied, not on its List,
+		// or no room left) walks to it instead (WalkToTarget). EjectHealth is not part of
+		// CanGarrison: a unit sent into a burning structure walks there and stops (GARRISONING).
+		if (!structure_accepts_garrison(b, (size_t)uidx) || !garrison_room(b, (size_t)uidx)) {
+			cmd_move(&unit_ids[i], 1, b.x, b.z);
+			continue;
+		}
 		// UnitAI Order.Garrison: an unpacked siege engine packs first (a forced Pack), then gets in.
 		if (garrison_in_range((size_t)uidx, b) && pack_state_can_move(units_.pack_state[uidx])) {
-			if (!garrison_room(b, (size_t)uidx)) continue;
-			garrison_now((size_t)uidx, b);
+			if (structure_has_enough_health(b)) garrison_now((size_t)uidx, b);
 			continue;
 		}
 		const bool was = applying_queued_;
@@ -7278,7 +7286,6 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 	int max_cap = get_transport_capacity(transport_id);
 
 	auto &passengers = transport_passengers_[transport_id];
-	float pick_x = 0.0f, pick_z = 0.0f;
 	int walking = 0;
 
 	for (size_t i = 0; i < count; ++i) {
@@ -7309,25 +7316,78 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 			units_.target_x[uidx] = tx;
 			units_.target_z[uidx] = tz;
 			if (units_.team[uidx] != team) continue; // Pickup: only the holder's owner's own units
-			pick_x += units_.pos_x[uidx];
-			pick_z += units_.pos_z[uidx];
 			++walking;
 		}
 	}
-	// GarrisonHolder Pickup: an idle ship sails toward the units coming aboard,
-	// as close to them as the water allows.
-	// Petra's transport plan steers its own ship to the pickup point.
-	bool petra_ship = false; // any AI's: the ship's team is the AI whose plan it is
-	for (const auto &tp : petra_transports_) petra_ship |= tp.ship_id == transport_id;
+	// GarrisonHolder Pickup: the ship comes for the walkers (tick_ship_pickup).
+	if (walking) tick_ship_pickup((size_t)tidx);
+}
+
+bool Simulation::petra_steers_ship(uint32_t ship_id) const {
+	// Petra's transport plan steers its own ship to the pickup point (any AI's: the ship's team
+	// is the AI whose plan it is).
+	for (const auto &tp : petra_transports_) if (tp.ship_id == ship_id) return true;
 	for (const auto &slot : petra_slots_)
-		for (const auto &tp : slot.petra_transports_) petra_ship |= tp.ship_id == transport_id;
-	if (walking && !petra_ship && unit_is_ship(units_.unit_type[tidx]) && !units_.has_order[tidx]) {
-		float wx = pick_x / (float)walking, wz = pick_z / (float)walking;
-		if (nearest_water_for_ship((size_t)tidx, wx, wz, wx, wz)) {
-			const uint32_t ship = transport_id;
-			cmd_move(&ship, 1, wx, wz);
+		for (const auto &tp : slot.petra_transports_) if (tp.ship_id == ship_id) return true;
+	return false;
+}
+
+// Order.PickupUnit's test: the passenger can walk to within the ship's LoadingRange
+// (IsTargetRangeReachable: dry ground beside the hull in the walker's own land) and is
+// less than 200 m away.
+bool Simulation::ship_reachable_by(size_t ship, size_t walker) const {
+	const float dx = units_.pos_x[walker] - units_.pos_x[ship], dz = units_.pos_z[walker] - units_.pos_z[ship];
+	if (dx * dx + dz * dz >= (200.0f * 0.28f) * (200.0f * 0.28f)) return false;
+	float lx = 0.0f, lz = 0.0f;
+	if (!ship_unload_point(ship, lx, lz)) return false;
+	if (nav_grid_.cells.blank()) return true;
+	auto [wx, wy] = nav_grid_.world_to_cell(units_.pos_x[walker], units_.pos_z[walker]);
+	auto [sx, sy] = nav_grid_.world_to_cell(lx, lz);
+	if (!nav_grid_.cells.inside(wx, wy) || !nav_grid_.cells.inside(sx, sy)) return false;
+	return nav_grid_.global_region_at(wx, wy, PASS_INFANTRY) == nav_grid_.global_region_at(sx, sy, PASS_INFANTRY);
+}
+
+// UnitAI PICKUP for a ship with Pickup: each of its owner's units walking to board it asks
+// (PickupRequested), and once the ship has no order of its own left (PushOrderAfterForced) it
+// takes the first of them: a walker that can reach it is waited for where the ship lies
+// (LOADING), one that can't is met, the ship sailing to the water nearest it (APPROACHING)
+// and waiting there. Waiting ends when the ship is full or nobody is walking to it any more
+// (PickupCanceled). No state is kept: the walkers' own orders are the requests.
+void Simulation::tick_ship_pickup(size_t ship) {
+	if (!units_.alive[ship] || !unit_is_ship(units_.unit_type[ship]) || units_.has_order[ship]) return;
+	const uint32_t sid = units_.id[ship];
+	if (petra_steers_ship(sid)) return;
+	auto pit = transport_passengers_.find(sid);
+	const int used = pit == transport_passengers_.end() ? 0 : occupied_slots(pit->second);
+	if (used >= get_transport_capacity(sid)) return; // GarrisonHolder.CanPickup: not when full
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_MOVE || units_.target_unit_id[i] != sid ||
+				units_.team[i] != units_.team[ship] || !can_board(ship, i)) continue;
+		if (ship_reachable_by(ship, i)) return; // LOADING: wait for it here
+		float wx = units_.pos_x[i], wz = units_.pos_z[i];
+		if (nearest_water_for_ship(ship, wx, wz, wx, wz)) {
+			const float dx = wx - units_.pos_x[ship], dz = wz - units_.pos_z[ship];
+			if (dx * dx + dz * dz > 1.0f) cmd_move(&sid, 1, wx, wz);
 		}
+		return;
 	}
+}
+
+void Simulation::tick_ship_pickups() {
+	if (transport_walkers_none()) return;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && unit_is_ship(units_.unit_type[i]) && !units_.has_order[i] && ship_garrison_capacity(i) > 0)
+			tick_ship_pickup(i);
+}
+
+// No unit is walking to board a ship (the common case): nothing for tick_ship_pickups to do.
+bool Simulation::transport_walkers_none() const {
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_MOVE || units_.target_unit_id[i] == 0) continue;
+		const int32_t t = lookup_unit(units_.target_unit_id[i]);
+		if (t >= 0 && unit_is_ship(units_.unit_type[t])) return false;
+	}
+	return true;
 }
 
 void Simulation::order_disembark(uint32_t transport_id, float target_x, float target_z) {
@@ -8003,6 +8063,7 @@ void Simulation::tick(float dt) {
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
 	if (!unit_upgrades_.empty()) tick_unit_upgrades(dt); // and unit ones (Centurion, Immortal bow)
 	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
+	tick_ship_pickups();     // 0 A.D. UnitAI PICKUP: ships come for the units walking to board them
 	tick_garrison_holders(); // 0 A.D. GarrisonHolder BuffHeal / EjectHealth for structures
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
 
@@ -9829,6 +9890,11 @@ void Simulation::tick_gather(float dt) {
 						if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
 								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
 							for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
+						// Carthaginian civbonuses/cart_stone_01..03 (auto-researched at Village, Town and
+						// City; Carthage has no servants/serfs/slaves): Workers stone.rock x1.25 each.
+						if (rt == RES_STONE && civ == CIV_CARTHAGINIANS &&
+								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
+							for (uint8_t ph = player_phase(uteam); ph >= 1; --ph) rate *= 1.25f;
 						// Germanic Bovine Tradition (civbonuses/germ_meat.json): Civilians
 						// ResourceGatherer/Rates/food.meat x2.
 						if (kind == GK_MEAT && civ == CIV_GERMANS &&
@@ -13244,8 +13310,10 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 					b->type == BLD_FIELD);
 		}
 		case ORDER_GARRISON: {
+			// GARRISON.APPROACHING checks CanGarrison only as the walk starts (order_garrison); a
+			// holder that fills meanwhile turns the unit away on arrival (tick_unit_ai).
 			const Building *b = building(o.target);
-			return b && b->build_progress >= 1.0f && garrison_room(*b, i) && structure_accepts_garrison(*b, i);
+			return b && b->build_progress >= 1.0f;
 		}
 		case ORDER_GUARD: {
 			const int32_t t = lookup_unit(o.target);
@@ -13876,6 +13944,12 @@ void Simulation::tick_unit_ai(float dt) {
 			Building *b = bit == building_id_to_idx_.end() ? nullptr : &buildings_[bit->second];
 			if (!b || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
 			if (garrison_in_range(i, *b)) {
+				// GARRISONING enter: Garrisonable.Garrison fails on a full holder, one that no longer
+				// takes the unit, or one below EjectHealth, and the unit stops where it stands.
+				if (!garrison_room(*b, i) || !structure_accepts_garrison(*b, i) || !structure_has_enough_health(*b)) {
+					finish_order(i);
+					continue;
+				}
 				if (pack_state_can_move(units_.pack_state[i])) garrison_now(i, *b); // else still packing
 				continue;
 			}
@@ -19400,7 +19474,7 @@ void Simulation::petra_manage_research(float dt) {
 	auto build_phase_structures = [&](uint8_t cls, int need) {
 		if (!home || phase_structures(petra_pid_, cls) >= need) return;
 		for (const auto &b : buildings_)
-			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && building_phase_class(b.type) == cls)
+			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && building_phase_class(b.type, b.civ) == cls)
 				return; // one at a time; it counts once finished
 		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_MARKET, BLD_TEMPLE, BLD_FORGE}; // checkPhaseRequirements order
@@ -25932,10 +26006,9 @@ void Simulation::update_fauna_los() {
 
 float Simulation::building_vision_range(const Building &b) const {
 	if (b.build_progress < 1.0f) return 0.0f;
-	float bvr = 18.0f; // default building vision
-	if (is_defense_tower(b.type) || b.type == BLD_FORTRESS) bvr = 24.0f;
-	if (b.type == BLD_DOCK) bvr = 28.0f;
-	if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
+	// 0 A.D. Vision/Range of the structure's template (vision_data.h): 90 m for a Civic Centre,
+	// 20 m for a house, 4 m for walls, none for fields.
+	float bvr = structure_vision_range(b.type);
 	if (b.team < MAX_PLAYERS) { // Carrier Pigeons, Arrow Shooters: multiplied, then added metres x0.28
 		const TechMods &m = tech_mods(b.team);
 		bvr = bvr * m.bld_vision[b.type] + m.bld_vision_add[b.type] * 0.28f;
@@ -26215,6 +26288,7 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 			fauna_start_attack(f, attacker_id);
 		} else if (melee && fauna_.target_unit_id[f] != attacker_id) {
 			fauna_.target_unit_id[f] = attacker_id;
+			fauna_.flee_distance[f] = 0.0f; // approaches the new target
 		}
 		return;
 	}
@@ -26241,6 +26315,7 @@ void Simulation::fauna_start_attack(size_t f, uint32_t target) {
 	fauna_.target_unit_id[f] = target;
 	fauna_.home_x[f] = fauna_.pos_x[f];
 	fauna_.home_z[f] = fauna_.pos_z[f];
+	fauna_.flee_distance[f] = 0.0f; // COMBAT APPROACHING
 	fauna_.attack_timer[f] = std::max(fauna_.attack_timer[f], fauna_type_info(fauna_.fauna_type[f]).attack_prepare);
 }
 
@@ -26710,6 +26785,21 @@ void Simulation::tick_fauna(float dt) {
 			}
 			const float dx = tx - fx, dz = tz - fz;
 			const float len = std::sqrt(dx * dx + dz * dz);
+			// In COMBAT, flee_distance (unused there) marks ATTACKING: 0 while approaching, 1
+			// once the animal has reached its target.
+			const bool holds_ground = info.stance == FAUNA_STANCE_DEFENSIVE || info.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE;
+			if (len > info.attack_range + 0.6f && holds_ground && fauna_.flee_distance[i] > 0.0f) {
+				// ATTACKING OutOfRange: the swing's range check fails, and with respondChase false
+				// (ShouldChaseTargetedEntity) it goes to FINDINGNEWTARGET instead of CHASING, so
+				// it stands until that swing and then finishes the order. A defensive animal picks
+				// a new target within min(range + vision / 2, vision) on its next idle scan.
+				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				if (fauna_.attack_timer[i] > 0.0f) continue;
+				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+				fauna_.target_unit_id[i] = 0;
+				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+				continue;
+			}
 			if (len > info.attack_range + 0.6f) {
 				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
 				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
@@ -26734,6 +26824,7 @@ void Simulation::tick_fauna(float dt) {
 				}
 			} else {
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				fauna_.flee_distance[i] = 1.0f; // COMBAT ATTACKING
 				if (fauna_.attack_timer[i] <= 0.0f) {
 					fauna_.attack_timer[i] = info.attack_cooldown > 0.0f ? info.attack_cooldown : 1.0f;
 					if (t >= 0) fauna_hit_unit(i, (size_t)t);
@@ -27095,6 +27186,7 @@ void Simulation::tick_treasures(float dt) {
 	std::vector<uint8_t> in_range(treasures_.size(), 0);
 	struct NextTreasure { uint32_t uid; float x, z; };
 	std::vector<NextTreasure> next_hunt; // collectors whose treasure is gone
+	std::vector<uint8_t> collecting(n, 0);
 	for (size_t i = 0; i < n; ++i) {
 		const uint32_t tid = units_.target_unit_id[i];
 		if (tid == 0 || !units_.alive[i] || lookup_unit(tid) >= 0) continue;
@@ -27105,20 +27197,22 @@ void Simulation::tick_treasures(float dt) {
 			if (t.id != tid) continue;
 			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
 			const float reach = treasure_reach(i);
-			if (reach < 0.0f || dx * dx + dz * dz > reach * reach) break;
-			// One collector at a time; another in range takes over if it stops.
-			if (t.collector_id == 0 || lookup_unit(t.collector_id) < 0 || !units_.alive[lookup_unit(t.collector_id)] ||
-			    units_.target_unit_id[lookup_unit(t.collector_id)] != t.id) {
+			if (reach < 0.0f || units_.pack_state[i] != PACK_NONE || dx * dx + dz * dz > reach * reach) break;
+			// TreasureCollector.js: each collector in range runs its own CollectTime timer and the
+			// first to finish takes it. Collectors never pack, so pack_elapsed holds the timer.
+			collecting[i] = 1;
+			units_.pack_elapsed[i] += dt;
+			if (!in_range[k] || units_.pack_elapsed[i] > t.collect_progress) {
 				t.collector_id = units_.id[i];
-				t.collect_progress = 0.0f;
+				t.collect_progress = units_.pack_elapsed[i];
 			}
-			if (t.collector_id == units_.id[i] && !in_range[k]) {
-				in_range[k] = 1;
-				t.collect_progress += dt;
-			}
+			in_range[k] = 1;
 			break;
 		}
 	}
+	// A collector that stops or leaves loses its timer, as its CollectTreasure order ends.
+	for (size_t i = 0; i < n; ++i)
+		if (!collecting[i] && units_.pack_state[i] == PACK_NONE) units_.pack_elapsed[i] = 0.0f;
 	for (size_t k = 0; k < treasures_.size();) {
 		Treasure &t = treasures_[k];
 		if (!in_range[k]) {

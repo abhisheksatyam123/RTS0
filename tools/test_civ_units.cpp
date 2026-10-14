@@ -220,6 +220,22 @@ int main() {
 		CHECK(civ_team_bonus_mult(CIV_ATHENIANS, civ_bit(CIV_HAN), TEAM_BONUS_TRADE_INTERNATIONAL) > 1.19f);
 		// Two allies of the same civ don't stack one bonus.
 		CHECK(civ_team_bonus_mult(CIV_SPARTANS, civ_bit(CIV_SPARTANS), TEAM_BONUS_UNIT_COST, RES_FOOD, pericles) == 0.0f);
+		// German Stolen Arms adds -5 metal (ModifiersManager "add", after the multipliers),
+		// for Germans and their allies; a multiplier of -5 would make them free.
+		uint16_t teut = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+			if (std::strcmp(civ_unit_template(i).id, "germ/infantry_swordsman_b") == 0) teut = i;
+		CHECK(teut != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(civ_team_bonus_cost_add(CIV_GERMANS, 0, RES_GOLD, teut) == -5.0f);
+		CHECK(civ_team_bonus_mult(CIV_GERMANS, 0, TEAM_BONUS_UNIT_COST, RES_GOLD, teut) == 1.0f);
+		{
+			Simulation g;
+			g.set_team_civ(0, CIV_GERMANS);
+			float cost[RES_COUNT];
+			const CivUnitTemplate &tt = civ_unit_template(teut);
+			g.unit_train_cost(0, teut, civ_template_unit_info(teut, tt.unit_type), cost);
+			CHECK(tt.gold_cost > 5 && cost[RES_GOLD] == (float)tt.gold_cost - 5.0f);
+		}
 
 		// Ptolemaic allies trickle +1 food/s.
 		t.set_team_civ(3, CIV_PTOLEMIES);

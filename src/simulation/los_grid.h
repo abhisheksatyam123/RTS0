@@ -62,7 +62,9 @@ public:
 		const float lim = (float)(res_ * Q);
 		s.qx = (int16_t)std::clamp((x + half_) * q, 0.0f, lim);
 		s.qz = (int16_t)std::clamp((z + half_) * q, 0.0f, lim);
-		s.rq = (uint16_t)std::clamp(r * q + 0.5f, 1.0f, (float)(MAX_RQ - 1));
+		// At least a whole cell, so a source always lights the cell it stands in (a wall's
+		// 4 m reaches no cell centre when the wall sits on a cell corner).
+		s.rq = (uint16_t)std::clamp(r * q + 0.5f, (float)Q, (float)(MAX_RQ - 1));
 		s.owner = owner;
 		return s;
 	}

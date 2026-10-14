@@ -486,6 +486,9 @@ enum BuildingType : uint8_t {
 #include "territory_data.h"
 static_assert(TERRITORY_INFLUENCE_ROWS == BLD_TYPE_COUNT,
 	"a new BuildingType needs its TerritoryInfluence row: run tools/extract_0ad_territory.py");
+#include "vision_data.h"
+static_assert(STRUCTURE_VISION_ROWS == BLD_TYPE_COUNT,
+	"a new BuildingType needs its Vision row: run tools/extract_0ad_vision.py");
 
 // The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
 // forms research the Tachara's technologies, the apartment the house's, the Han
@@ -1433,13 +1436,22 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 // 0 A.D. VisibleClasses "Village" (1) / "Town" (2): the structures that count
 // toward phase_town_generic (five Village) and phase_city_generic (three Town).
 // Civic centres, fields, towers and walls count toward neither.
-inline uint8_t building_phase_class(uint8_t type) {
+// Civ structures carry their own: brit/kennel, ptol/mercenary_camp, han/ministry,
+// kush/pyramid_small, spart/syssiton and pers/ice_house are Village; rome/army_camp
+// and temple_vesta, kush/camp_blemmye and camp_noba, spart/gerousia, athen/gymnasium,
+// iber/monument, cart/super_dock, mace/arsenal and maur/elephant_stable are Town.
+inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 	switch (building_research_base(type)) {
 		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
-		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE:
+		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE: case BLD_KENNEL:
+		case BLD_MERCENARY_CAMP: case BLD_MINISTRY: case BLD_PYRAMID_SMALL: case BLD_SYSSITON: case BLD_ICE_HOUSE:
 			return 1;
-		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY:
+		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY: case BLD_ARMY_CAMP:
+		case BLD_TEMPLE_VESTA: case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_GEROUSIA: case BLD_GYMNASIUM:
+		case BLD_MONUMENT: case BLD_SUPER_DOCK:
 			return 2;
+		case BLD_ARSENAL: return civ == CIV_MACEDONIANS ? 2 : 0;
+		case BLD_ELEPHANT_STABLE: return civ == CIV_MAURYANS ? 2 : 0;
 		default:
 			return 0;
 	}
@@ -1911,7 +1923,8 @@ enum TeamBonusStat : uint8_t {
 	TEAM_BONUS_TECH_COST = 5,          // per resource, techs researched at the buildings in the mask
 	TEAM_BONUS_TECH_TIME = 6,
 	TEAM_BONUS_FOOD_TRICKLE = 7,       // food per second, added
-	TEAM_BONUS_TRADE_INTERNATIONAL = 8 // Market/InternationalBonus of allies' markets (calculate_trade_gain)
+	TEAM_BONUS_TRADE_INTERNATIONAL = 8, // Market/InternationalBonus of allies' markets (calculate_trade_gain)
+	TEAM_BONUS_UNIT_COST_ADD = 9       // per resource, added after the multipliers (Stolen Arms -5 metal)
 };
 
 struct CivTeamBonus {
@@ -1920,7 +1933,7 @@ struct CivTeamBonus {
 	int8_t res; // ResourceType for cost stats, -1 otherwise
 	bool allies_only; // 0 A.D. ExclusiveMutualAlly: not the owner itself
 	BldMask buildings; // bld_bit() mask
-	float value; // multiplier, or amount added for TEAM_BONUS_FOOD_TRICKLE
+	float value; // multiplier, or amount added for TEAM_BONUS_FOOD_TRICKLE and TEAM_BONUS_UNIT_COST_ADD
 	const char *id;
 	const char *name;
 	const char *description;
@@ -2067,7 +2080,7 @@ inline float civ_team_bonus_mult(uint8_t own_civ, uint16_t ally_civs, uint8_t st
 		const CivTeamBonus &b = t[i];
 		if (b.stat != stat || b.res != res) continue;
 		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
-		if (stat == TEAM_BONUS_UNIT_COST || stat == TEAM_BONUS_UNIT_TRAIN_TIME) {
+		if (stat == TEAM_BONUS_UNIT_COST || stat == TEAM_BONUS_UNIT_TRAIN_TIME || stat == TEAM_BONUS_UNIT_COST_ADD) {
 			if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !((b.units[tmpl >> 6] >> (tmpl & 63)) & 1u)) continue;
 		} else if (stat != TEAM_BONUS_FOOD_TRICKLE && stat != TEAM_BONUS_TRADE_INTERNATIONAL) {
 			if (!(b.buildings & bld_bit(building))) continue;
@@ -2075,6 +2088,20 @@ inline float civ_team_bonus_mult(uint8_t own_civ, uint16_t ally_civs, uint8_t st
 		m *= b.value;
 	}
 	return m;
+}
+
+// Sum of the team bonus amounts added to a unit's cost of one resource (TEAM_BONUS_UNIT_COST_ADD).
+inline float civ_team_bonus_cost_add(uint8_t own_civ, uint16_t ally_civs, int8_t res, uint16_t tmpl) {
+	float add = 0.0f;
+	const CivTeamBonus *t = civ_team_bonus_table();
+	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
+		const CivTeamBonus &b = t[i];
+		if (b.stat != TEAM_BONUS_UNIT_COST_ADD || b.res != res) continue;
+		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !((b.units[tmpl >> 6] >> (tmpl & 63)) & 1u)) continue;
+		add += b.value;
+	}
+	return add;
 }
 
 // Sum of the team bonus food trickle (food per second) a player gets.

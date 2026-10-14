@@ -108,6 +108,19 @@ int main() {
 		CHECK(std::fabs(s1 - s3) < 0.06f && std::fabs(sp1 - sp3) < 0.06f && std::fabs(sp1 - m1) < 0.06f);
 	}
 
+	// 3b. Carthaginian civbonuses cart_stone_01..03: Workers stone.rock x1.25 from the start and
+	// again at Town and City (Carthage researches no servants, serfs or slaves); metal untouched.
+	{
+		const float a1 = fill_time(CIV_ATHENIANS, 1, RES_STONE);
+		const float c1 = fill_time(CIV_CARTHAGINIANS, 1, RES_STONE), c2 = fill_time(CIV_CARTHAGINIANS, 2, RES_STONE),
+				c3 = fill_time(CIV_CARTHAGINIANS, 3, RES_STONE), cm = fill_time(CIV_CARTHAGINIANS, 3, RES_GOLD);
+		const float sm = fill_time(CIV_SPARTANS, 3, RES_GOLD);
+		std::printf("  Carthaginian stone: fill %.2f / %.2f / %.2f s by phase (Athenian %.2f), metal %.2f (Spartan %.2f)\n",
+				c1, c2, c3, a1, cm, sm);
+		CHECK(std::fabs(a1 / c1 - 1.25f) < 0.04f && std::fabs(a1 / c2 - 1.5625f) < 0.06f && std::fabs(a1 / c3 - 1.953f) < 0.08f);
+		CHECK(std::fabs(cm - sm) < 0.06f);
+	}
+
 	// 4. Loot is floored after the rank multiplier.
 	{
 		static Simulation s;
