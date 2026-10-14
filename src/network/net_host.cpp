@@ -1,4 +1,5 @@
 #include "net_host.h"
+#include "stun.h"
 #include <chrono>
 #include <iostream>
 #include <cstring>
@@ -282,6 +283,7 @@ static std::vector<uint8_t> join_sync_reply_packet(uint32_t role, uint32_t turn,
 
 void NetHost::send_raw_packet(const std::string &ip, uint16_t port, const uint8_t *data, size_t size) {
 	if (socket_fd_ < 0) return;
+	if (sim_firewall_) sent_to_.insert(ip + ":" + std::to_string(port));
 	if (sim_loss_ > 0.0f) {
 		sim_loss_rng_ ^= sim_loss_rng_ << 13;
 		sim_loss_rng_ ^= sim_loss_rng_ >> 17;
@@ -569,6 +571,22 @@ void NetHost::onJoinSyncRequest(std::function<bool(uint32_t, uint32_t, uint32_t 
 }
 
 void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std::string &from_ip, uint16_t from_port) {
+	if (sim_firewall_ && !sent_to_.count(from_ip + ":" + std::to_string(from_port))) {
+		firewalled_++;
+		return;
+	}
+	if (stun::is_stun(data, size)) {
+		std::string ip;
+		uint16_t port = 0;
+		if (stun_state_ == 1 && stun::parse_binding_success(data, size, stun_txn_, ip, port)) {
+			public_ip_ = ip;
+			public_port_ = port;
+			stun_state_ = 2;
+			std::cout << "[NetHost] STUN: public endpoint " << ip << ":" << port << "\n";
+		}
+		return;
+	}
+	if (stun::is_hole_punch(data, size)) return; // it only opened the sender's NAT
 	if (size < sizeof(NetWireHeader)) return;
 
 	NetWireHeader hdr;
@@ -1023,10 +1041,138 @@ void NetHost::poll(Arena &arena) {
 	}
 
 	uint64_t now = get_now_ms();
+	check_stun(now);
+	send_hole_punches(now);
 	check_retransmissions(now);
 	send_heartbeats(now);
 	check_peer_timeouts(now);
 	send_client_performance(now);
+}
+
+void NetHost::set_simulated_firewall(bool on) {
+	sim_firewall_ = on;
+	sent_to_.clear();
+	// What this socket already sent to (a client's connect request) is open.
+	if (on)
+		for (const auto &p : peers_) sent_to_.insert(p.address + ":" + std::to_string(p.port));
+}
+
+void NetHost::queryStun(const std::string &server, uint16_t port) {
+	if (socket_fd_ < 0) return;
+	stun_state_ = 3;
+	public_ip_.clear();
+	public_port_ = 0;
+	lan_ip_ = localIp();
+	// Resolved once: send_raw_packet would look the name up on every resend.
+	addrinfo hints{};
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	addrinfo *res = nullptr;
+	if (getaddrinfo(server.c_str(), nullptr, &hints, &res) != 0 || !res) {
+		std::cerr << "[NetHost] STUN: cannot resolve " << server << "\n";
+		return;
+	}
+	char ip[INET_ADDRSTRLEN] = {0};
+	inet_ntop(AF_INET, &reinterpret_cast<sockaddr_in *>(res->ai_addr)->sin_addr, ip, sizeof(ip));
+	freeaddrinfo(res);
+	stun_server_ip_ = ip;
+	stun_server_port_ = port ? port : stun::DEFAULT_PORT;
+	// The transaction id only has to tell this answer from a stale one.
+	uint64_t x = get_now_ms() ^ ((uint64_t)(uintptr_t)this << 16) ^ ((uint64_t)localPort() << 40);
+	for (int i = 0; i < 12; ++i) {
+		x ^= x << 13; x ^= x >> 7; x ^= x << 17;
+		stun_txn_[i] = (uint8_t)x;
+	}
+	stun_state_ = 1;
+	stun_started_ms_ = get_now_ms();
+	stun_sent_ms_ = 0;
+	check_stun(stun_started_ms_);
+}
+
+void NetHost::check_stun(uint64_t now_ms) {
+	if (stun_state_ != 1) return;
+	if (now_ms - stun_started_ms_ > STUN_TIMEOUT_MS) {
+		stun_state_ = 3;
+		std::cerr << "[NetHost] STUN: no answer from " << stun_server_ip_ << ":" << stun_server_port_ << "\n";
+		return;
+	}
+	if (stun_sent_ms_ && now_ms - stun_sent_ms_ < STUN_RESEND_MS) return;
+	stun_sent_ms_ = now_ms;
+	const std::vector<uint8_t> req = stun::binding_request(stun_txn_);
+	send_raw_packet(stun_server_ip_, stun_server_port_, req.data(), req.size());
+}
+
+void NetHost::holePunch(const std::string &ip, uint16_t port) {
+	if (socket_fd_ < 0 || ip.empty() || port == 0) return;
+	HolePunch h;
+	h.ip = ip;
+	h.port = port;
+	h.left = HOLE_PUNCH_SENDS;
+	hole_punches_.push_back(h);
+	send_hole_punches(get_now_ms());
+}
+
+void NetHost::send_hole_punches(uint64_t now_ms) {
+	for (auto it = hole_punches_.begin(); it != hole_punches_.end();) {
+		if (now_ms >= it->next_ms) {
+			send_raw_packet(it->ip, it->port, stun::HOLE_PUNCH, sizeof(stun::HOLE_PUNCH));
+			it->next_ms = now_ms + HOLE_PUNCH_DELAY_MS;
+			if (--it->left <= 0) {
+				it = hole_punches_.erase(it);
+				continue;
+			}
+		}
+		++it;
+	}
+}
+
+uint16_t NetHost::localPort() const {
+	if (socket_fd_ < 0) return 0;
+	sockaddr_in a{};
+	socklen_t len = sizeof(a);
+	if (getsockname(static_cast<SOCKET>(socket_fd_), reinterpret_cast<sockaddr *>(&a), &len) != 0) return 0;
+	return ntohs(a.sin_port);
+}
+
+std::string NetHost::localIp() {
+	ensure_socket_subsystem();
+	// A connected UDP socket sends nothing; the kernel just picks the
+	// interface that routes to the internet (as StunClient::FindLocalIP).
+	SOCKET fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (!IS_SOCKET_VALID(fd)) return "";
+	sockaddr_in dst{};
+	dst.sin_family = AF_INET;
+	dst.sin_port = htons(53);
+	inet_pton(AF_INET, "8.8.8.8", &dst.sin_addr);
+	std::string ip;
+	if (connect(fd, reinterpret_cast<sockaddr *>(&dst), sizeof(dst)) == 0) {
+		sockaddr_in a{};
+		socklen_t len = sizeof(a);
+		char buf[INET_ADDRSTRLEN] = {0};
+		if (getsockname(fd, reinterpret_cast<sockaddr *>(&a), &len) == 0 &&
+				inet_ntop(AF_INET, &a.sin_addr, buf, sizeof(buf)))
+			ip = buf;
+	}
+	CLOSE_SOCKET(fd);
+	return ip == "0.0.0.0" ? "" : ip;
+}
+
+void NetHost::retargetHost(const std::string &ip, uint16_t port) {
+	if (!isClient() || peers_.empty() || ip.empty() || port == 0) return;
+	for (auto &pk : pending_acks_) {
+		if (pk.dest_ip == server_ip_ && pk.dest_port == server_port_) {
+			pk.dest_ip = ip;
+			pk.dest_port = port;
+			pk.sent_time_ms = 0; // resend now, to the new address
+			pk.first_sent_ms = get_now_ms();
+		}
+	}
+	peers_[0].last_seen_ms = get_now_ms();
+	server_ip_ = ip;
+	server_port_ = port;
+	peers_[0].address = ip;
+	peers_[0].port = port;
+	std::cout << "[NetHost] Client connecting to " << ip << ":" << port << " instead\n";
 }
 
 void NetHost::lose_host(int reason) {
@@ -1124,6 +1270,11 @@ void NetHost::stop() {
 	role = NetRole::None;
 	peers_.clear();
 	pending_acks_.clear();
+	sent_to_.clear();
+	stun_state_ = 0;
+	public_ip_.clear();
+	public_port_ = 0;
+	hole_punches_.clear();
 	server_ip_.clear();
 	server_port_ = 0;
 	local_peer_id_ = 0;
