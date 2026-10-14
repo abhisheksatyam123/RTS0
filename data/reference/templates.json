@@ -38,6 +38,23 @@
     24,
     26,
     27
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmē",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "spart": {
@@ -69,6 +86,23 @@
    "specific_structures": [
     24,
     29
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmā",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "pers": {
@@ -105,6 +139,23 @@
     54,
     55,
     56
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Āvahana",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Vardana",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Vazaraka Vardana",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "rome": {
@@ -132,6 +183,23 @@
    "specific_structures": [
     31,
     49
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Vicus",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Oppidum",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Urbs",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "cart": {
@@ -182,6 +250,23 @@
     57,
     61,
     62
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kapr",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Ir",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Qart",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "mace": {
@@ -214,6 +299,23 @@
    ],
    "specific_structures": [
     24
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmē",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "brit": {
@@ -246,6 +348,23 @@
    "specific_structures": [
     34,
     65
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Ialon",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Bona",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Dūnon",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "gaul": {
@@ -277,6 +396,23 @@
    ],
    "specific_structures": [
     35
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Ialon",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Bona",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Dūnon",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "iber": {
@@ -295,6 +431,23 @@
    ],
    "specific_structures": [
     36
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Treba",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Contrebia",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Iltir",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "maur": {
@@ -338,6 +491,23 @@
     23,
     37,
     38
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Gāma",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Nayara",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Pura",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "kush": {
@@ -361,6 +531,23 @@
     46,
     47,
     48
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Wḥyt",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Dmj",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Ri",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "ptol": {
@@ -394,6 +581,23 @@
     33,
     42,
     43
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmē",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "sele": {
@@ -425,6 +629,23 @@
    "specific_structures": [
     24,
     43
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmē",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "han": {
@@ -471,6 +692,23 @@
     45,
     58,
     59
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Xiāng",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Xìan",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Jùn",
+     "icon": "city_phase.png"
+    }
    ]
   },
   "germ": {
@@ -506,6 +744,23 @@
     66,
     67,
     68
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "",
+     "icon": "city_phase.png"
+    }
    ]
   }
  },

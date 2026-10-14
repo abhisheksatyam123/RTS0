@@ -336,8 +336,15 @@ def civ_gameplay(loader, sim_root, civ, auto_techs, all_techs, structures):
         classes = set(t.tokens("Identity/Classes")) | set(t.tokens("Identity/VisibleClasses"))
         if {"CivSpecific", "Structure"} <= classes:
             specific.append(int(i))
+    # structree PhaseIdent.drawPhaseIcon: phase_X_<civ>, else phase_X_generic, else phase_X.
+    by_name = dict(all_techs)
+    phases = []
+    for ph in ("phase_village", "phase_town", "phase_city"):
+        j = by_name.get(ph + "_" + civ) or by_name.get(ph + "_generic") or by_name.get(ph, {})
+        n = tech_name(j, civ)
+        phases.append({"generic_name": n["generic"], "specific_name": n["specific"], "icon": j.get("icon", "")})
     return {"bonuses": bonuses, "team_bonuses": team, "specific_techs": techs,
-            "specific_structures": sorted(specific)}
+            "specific_structures": sorted(specific), "phases": phases}
 
 
 def collect(zad, prev=None):
