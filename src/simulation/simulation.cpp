@@ -11998,6 +11998,14 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
+		// A razed structure stays as a wreck (rubble), where 0 A.D. destroys the entity: its
+		// attackers' target is gone, as above. Arrows on the way razing it, or another unit
+		// felling it, would otherwise leave archers shooting at rubble and melee units looting it again.
+		if (b.wrecked || b.hp <= 0.0f) {
+			units_.target_building_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
 		const bool capture = capture_strength > 0.0f && units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 		if (!capture && (!can_attack(units_.team[i], b.team) || units_.attack_damage[i] <= 0.0f ||
 				!unit_can_target_building(i, b.type))) { // dogs never attack structures, rams never fields
