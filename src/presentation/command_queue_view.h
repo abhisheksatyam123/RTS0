@@ -730,7 +730,7 @@ public:
 						add_cost((int)price[rtso::RES_WOOD], "w");
 						add_cost((int)price[rtso::RES_GOLD], "g");
 						add_cost((int)price[rtso::RES_STONE], "s");
-						uint8_t need = rtso::building_required_phase((uint8_t)bt);
+						uint8_t need = rtso::building_required_phase((uint8_t)bt, my_civ);
 						// 0.28's Construction panel: an icon grid, name and cost on the tooltip.
 						Button *bb = memnew(Button);
 						const String label = String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")");
