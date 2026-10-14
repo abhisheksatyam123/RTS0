@@ -556,13 +556,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							} else if (is_shift) {
 								// Shift+click adds the unit (selection.add -> addList keeps it if
 								// already selected; Ctrl+click is the removal).
-								const int32_t uid = (int32_t)uview.id[best_uidx];
-								if (!selected_ids.has(uid)) selected_ids.push_back(uid);
+								for (int32_t uid : formation_mates((int32_t)uview.id[best_uidx]))
+									if (!selected_ids.has(uid)) selected_ids.push_back(uid);
 								selected_building_id = 0;
 							} else {
 								selected_ids.clear();
 								selected_building_id = 0;
-								selected_ids.push_back((int32_t)uview.id[best_uidx]);
+								for (int32_t uid : formation_mates((int32_t)uview.id[best_uidx]))
+									selected_ids.push_back(uid);
 							}
 							play_civ_voice("select");
 						} else if (uint32_t animal = own_fauna_at(click_pos.x, click_pos.z)) {
@@ -631,12 +632,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								Vector2 screen_pos = cam->unproject_position(world_pos);
 								if (screen_pos.x >= min_p.x && screen_pos.x <= max_p.x &&
 									screen_pos.y >= min_p.y && screen_pos.y <= max_p.y) {
-									int32_t uid = (int32_t)uview.id[i];
-									if (is_ctrl) {
-										const int64_t at = selected_ids.find(uid);
-										if (at >= 0) selected_ids.remove_at(at);
-									} else if (!selected_ids.has(uid)) {
-										selected_ids.push_back(uid);
+									for (int32_t uid : formation_mates((int32_t)uview.id[i])) {
+										if (is_ctrl) {
+											const int64_t at = selected_ids.find(uid);
+											if (at >= 0) selected_ids.remove_at(at);
+										} else if (!selected_ids.has(uid)) {
+											selected_ids.push_back(uid);
+										}
 									}
 								}
 							}

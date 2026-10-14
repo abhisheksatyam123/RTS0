@@ -95,6 +95,8 @@ const SCHEMA := [
 	["Display", [
 		["dropdown", "gui.session.howtoshownames", "Naming of entities.", "How to show entity names.",
 			[["Specific names first", "0"], ["Generic names first", "1"], ["Only specific names", "2"], ["Only generic names", "3"]]],
+		["boolean", "gui.session.rankabovestatusbar", "Rank icon above status bar", "Show rank icons above status bars."],
+		["boolean", "gui.session.experiencestatusbar", "Experience status bar", "Show an experience status bar above each selected unit."],
 		["dropdown", "gui.session.respoptooltipsort", "Sort resources and population tooltip", "Dynamically sort players in the resources and population tooltip by value.",
 			[["Unordered", "0"], ["Ascending", "-1"], ["Descending", "1"]]],
 		["boolean", "overlay.fps", "FPS overlay", "Show frames per second in top right corner."],
@@ -111,6 +113,9 @@ const SCHEMA := [
 	["Gameplay", [
 		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],
 		["number", "gui.session.batchtrainingsize", "Batch training size", "Number of units trained per batch by default.", [1, 20]],
+		["dropdown", "gui.session.formationwalkonly", "Formation control", "Decide whether formations are enabled for all orders or only 'Walk' and 'Patrol'.",
+			[["Walk/Patrol Only", "true"], ["No override", "false"]]],
+		["boolean", "gui.session.selectformationasone", "Battalion-style formations", "Whether formations are selected as a whole."],
 	]],
 ]
 
