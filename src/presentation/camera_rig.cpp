@@ -42,7 +42,7 @@ void RtsoCameraRig::_ready() {
 }
 
 void RtsoCameraRig::set_target_pos(Vector3 pos) {
-	float half = map_bounds_half;
+	float half = bounds_half();
 	target_pos.x = Math::clamp(pos.x, -half, half);
 	target_pos.z = Math::clamp(pos.z, -half, half);
 	target_pos.y = 0.0f;
@@ -123,7 +123,7 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 			(-rel.x * sin_y - rel.y * cos_y) * drag_scale
 		);
 		target_pos += world_dir;
-		float half = map_bounds_half;
+		float half = bounds_half();
 		target_pos.x = Math::clamp(target_pos.x, -half, half);
 		target_pos.z = Math::clamp(target_pos.z, -half, half);
 		return;
@@ -151,7 +151,7 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 			delta.x * sin_y + delta.y * cos_y
 		);
 		target_pos += world_dir * 0.6f;
-		float half = map_bounds_half;
+		float half = bounds_half();
 		target_pos.x = Math::clamp(target_pos.x, -half, half);
 		target_pos.z = Math::clamp(target_pos.z, -half, half);
 		return;
@@ -213,7 +213,7 @@ void RtsoCameraRig::_process(double delta) {
 			input_dir.x * sin_y + input_dir.z * cos_y
 		);
 		target_pos += world_dir * speed * (float)delta;
-		float half = map_bounds_half;
+		float half = bounds_half();
 		target_pos.x = Math::clamp(target_pos.x, -half, half);
 		target_pos.z = Math::clamp(target_pos.z, -half, half);
 	}
