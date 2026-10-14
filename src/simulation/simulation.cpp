@@ -26180,6 +26180,7 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 			fauna_start_attack(f, attacker_id);
 		} else if (melee && fauna_.target_unit_id[f] != attacker_id) {
 			fauna_.target_unit_id[f] = attacker_id;
+			fauna_.flee_distance[f] = 0.0f; // approaches the new target
 		}
 		return;
 	}
@@ -26206,6 +26207,7 @@ void Simulation::fauna_start_attack(size_t f, uint32_t target) {
 	fauna_.target_unit_id[f] = target;
 	fauna_.home_x[f] = fauna_.pos_x[f];
 	fauna_.home_z[f] = fauna_.pos_z[f];
+	fauna_.flee_distance[f] = 0.0f; // COMBAT APPROACHING
 	fauna_.attack_timer[f] = std::max(fauna_.attack_timer[f], fauna_type_info(fauna_.fauna_type[f]).attack_prepare);
 }
 
@@ -26675,6 +26677,21 @@ void Simulation::tick_fauna(float dt) {
 			}
 			const float dx = tx - fx, dz = tz - fz;
 			const float len = std::sqrt(dx * dx + dz * dz);
+			// In COMBAT, flee_distance (unused there) marks ATTACKING: 0 while approaching, 1
+			// once the animal has reached its target.
+			const bool holds_ground = info.stance == FAUNA_STANCE_DEFENSIVE || info.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE;
+			if (len > info.attack_range + 0.6f && holds_ground && fauna_.flee_distance[i] > 0.0f) {
+				// ATTACKING OutOfRange: the swing's range check fails, and with respondChase false
+				// (ShouldChaseTargetedEntity) it goes to FINDINGNEWTARGET instead of CHASING, so
+				// it stands until that swing and then finishes the order. A defensive animal picks
+				// a new target within min(range + vision / 2, vision) on its next idle scan.
+				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				if (fauna_.attack_timer[i] > 0.0f) continue;
+				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+				fauna_.target_unit_id[i] = 0;
+				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+				continue;
+			}
 			if (len > info.attack_range + 0.6f) {
 				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
 				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
@@ -26699,6 +26716,7 @@ void Simulation::tick_fauna(float dt) {
 				}
 			} else {
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				fauna_.flee_distance[i] = 1.0f; // COMBAT ATTACKING
 				if (fauna_.attack_timer[i] <= 0.0f) {
 					fauna_.attack_timer[i] = info.attack_cooldown > 0.0f ? info.attack_cooldown : 1.0f;
 					if (t >= 0) fauna_hit_unit(i, (size_t)t);
