@@ -1355,6 +1355,13 @@ public:
 	bool is_game_over() const { return game_over_; }
 	bool is_victory() const { return victory_; }
 	uint8_t player_phase(uint8_t pid = 0) const { return player(pid).phase; }
+	// A corral animal's Identity/Requirements: fauna_pig_trainable needs phase_town and
+	// template_unit_fauna_herd_domestic_cattle (cow, sanga, zebu) phase_city.
+	static uint8_t livestock_required_phase(uint8_t animal) {
+		if (animal == FAUNA_PIG_TRAINABLE) return 2;
+		if (animal == FAUNA_CATTLE_COW_TRAINABLE || animal == FAUNA_CATTLE_SANGA_TRAINABLE || animal == FAUNA_CATTLE_ZEBU_TRAINABLE) return 3;
+		return 1;
+	}
 	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
 	// A civ chosen after the player's starting structures were placed re-templates them too.
@@ -2081,6 +2088,7 @@ private:
 	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
 	static constexpr float SLAUGHTER_PREPARE = 0.9f; // Attack/Slaughter PrepareTime 900 ms
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
+	void fauna_hit_fauna(size_t f, size_t v);             // ... or on a player's livestock v
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
