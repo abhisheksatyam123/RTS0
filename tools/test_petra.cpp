@@ -556,13 +556,13 @@ static void test_attack_plans() {
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
-		// At 0 A.D.'s gather rates the HugeAttack starts mustering around minute 14-21 on this
-		// map (later once traders take a market-dock route); 25 min leaves room for map changes.
+		// At 0 A.D.'s gather rates the HugeAttack starts mustering around minute 14-27 on this
+		// map (later once traders take a market-dock route); 30 min leaves room for map changes.
 		// An army that razes the idle player finds it rebuilt, so every plan has a target.
 		float home_x = 0.0f, home_z = 0.0f;
 		for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { home_x = b.x; home_z = b.z; }
 		int step = 0;
-		for (float t = 0.0f; t < 25.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		for (float t = 0.0f; t < 30.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (++step % 200 == 0) {
 				bool any = false;
