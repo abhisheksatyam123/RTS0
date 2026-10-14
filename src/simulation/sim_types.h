@@ -700,6 +700,15 @@ inline bool flora_is_fruit(uint8_t kind) {
 	return kind == FLORA_BERRY || kind == FLORA_APPLE || kind == FLORA_DATE;
 }
 
+// The width (= depth) in metres of a tree or fruit supply's Obstruction/Static: its
+// template's (flora_data.h), else its family's, else template_gaia_fruit's 2.5 for food
+// and template_gaia_tree's 1.6 for wood.
+inline float flora_obstruction_m(uint8_t kind, bool food) {
+	float w = kind >= FLORA_TEMPLATE_FIRST ? (kind < FLORA_COUNT ? flora_template_info(kind - FLORA_TEMPLATE_FIRST).obstruction : 0.0f)
+	                                       : flora_family_obstruction(kind);
+	return w > 0.0f ? w : food ? 2.5f : 1.6f;
+}
+
 // 0 A.D. Gaia ResourceSupply Max amounts that random maps place: gaia/tree/* hold
 // 200 wood, template_gaia_ore and template_gaia_rock 1000 metal or stone, and their
 // _large variants 5000. (Ported JSON maps read each entity's own template instead.)
@@ -1098,6 +1107,12 @@ inline constexpr float PUSH_CLEARANCE_PER_RADIUS = 0.8f * PUSH_SCALE / 0.5f;
 inline float unit_push_clearance(uint8_t type) {
 	return unit_collision_radius(type) * PUSH_CLEARANCE_PER_RADIUS;
 }
+// ResourceGatherer MaxDistance of land gatherers (2 m, template_unit) between a gatherer's obstruction
+// and a mine's square: 0.28 measures range between the two obstructions. The gatherers round a mine
+// stand in a crowd, so the gap counts at the crowd scale past the unit's crowd clearance
+// (unit_push_clearance): 0.28's band round a large mine holds its 24 gatherers, and one at the map
+// scale would hold only half of them in RTS0's bigger crowds.
+inline constexpr float MINE_GATHER_REACH = 2.0f * PUSH_SCALE;
 
 // 0 A.D. ResourceDropsite on a unit: the Mauryan worker elephant (template_unit_support_elephant)
 // and the supply wagon (template_unit_support_wagon) take food, wood, stone and metal. Only the
@@ -1672,9 +1687,23 @@ inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 //    stable research;
 //  - the Mauryan palace researches unlock_spies and spy_counter too;
 //  - Carthage: the dock drops warship_health, and the super dock (cart/super_dock) researches
-//    it and eight other dock techs.
+//    it and eight other dock techs;
+//  - a tech's researcher is one structure here, but 0.28 lists some at several: the market
+//    (template_structure_economic_market) researches unlock_shared_los like the Civic Center,
+//    the fortress tower_murderholes and the sentry tower tower_watch like the stone tower,
+//    athen/gymnasium iphicratean_reforms like the dock, and rome/temple_vesta and
+//    kush/temple_amun inherit template_structure_civic_temple's healer techs;
+//  - no 0.28 structure researches agoge, and only cart/embassy_celtic (not the Iberian or
+//    Italic embassy) celtic_auxiliaries.
 inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ) {
 	const uint8_t r = tech_info(tech_id).researcher;
+	if (tech_id == TECH_AGOGE) return false;
+	if (tech_id == TECH_CELTIC_AUXILIARIES) return type == BLD_EMBASSY;
+	if (tech_id == TECH_UNLOCK_SHARED_LOS && building_research_base(type) == BLD_MARKET) return true;
+	if (tech_id == TECH_TOWER_MURDERHOLES && type == BLD_FORTRESS) return true;
+	if (tech_id == TECH_TOWER_WATCH && type == BLD_SENTRY_TOWER) return true;
+	if (tech_id == TECH_IPHICRATEAN_REFORMS && type == BLD_GYMNASIUM) return true;
+	if ((type == BLD_TEMPLE_VESTA || type == BLD_TEMPLE_AMUN) && r == BLD_TEMPLE) return true;
 	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
 	if (civ == CIV_HAN) {
 		if (spies) return type == BLD_MINISTRY;
@@ -1811,10 +1840,6 @@ inline constexpr int SIEGE_TOWER_GARRISON = 20;
 inline constexpr int SIEGE_RAM_GARRISON = 10;
 inline constexpr int SIEGE_TOWER_MAX_ARROWS = 10;
 inline constexpr float SIEGE_EJECT_HEALTH = 0.1f;
-inline bool siege_garrison_allowed(uint8_t unit_type) {
-	return (unit_tech_classes(unit_type) & (TC_INFANTRY | TC_CIVILIAN)) != 0;
-}
-
 inline TechClasses building_tech_classes(uint8_t type) {
 	const TechClasses c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {

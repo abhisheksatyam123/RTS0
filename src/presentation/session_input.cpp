@@ -821,22 +821,28 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			// session.calltoarms + right-click: Commands.js call-to-arms (drop loads, then attack-walk).
+			// unit_actions.js: session.attackmoveUnit fights units only (targetClasses Unit); call-to-arms
+			// captures only with session.capture.
+			const bool units_only = rtso::hotkeys::held("session.attackmoveUnit");
 			if (call_to_arms_mode || (!garrison_click && rtso::hotkeys::held("session.calltoarms"))) {
 				call_to_arms_mode = false;
 				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+				const bool capture = rtso::hotkeys::held("session.capture");
 				if (turn_cmds())
-					post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_CALL_TO_ARMS, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
+					post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_CALL_TO_ARMS, sel_ptr, sel_n, click_pos.x, click_pos.z, 0,
+							(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0) | (capture ? rtso::NET_PARAM_CAPTURE : 0)));
 				else
-					sim->order_call_to_arms(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
+					sim->order_call_to_arms(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, units_only, capture);
 				play_civ_voice("attack");
 				return;
 			}
-			if (attack_move_mode || (!garrison_click && rtso::hotkeys::held("session.attackmove"))) {
+			if (attack_move_mode || (!garrison_click && (rtso::hotkeys::held("session.attackmove") || units_only))) {
 				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
 				if (turn_cmds())
-					post_lockstep(10, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
+					post_lockstep(10, sel_ptr, sel_n, click_pos.x, click_pos.z, 0,
+							(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
 				else
-					sim->order_attack_move(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, false, true);
+					sim->order_attack_move(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, units_only, true);
 				play_civ_voice("attack");
 				attack_move_mode = false;
 				return;

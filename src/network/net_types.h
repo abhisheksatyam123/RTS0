@@ -227,6 +227,7 @@ enum class NetCommandType : uint8_t {
 inline constexpr uint8_t NET_PARAM_QUEUED = 0x80;     // Shift: add to the order queue (0 A.D. "queued")
 inline constexpr uint8_t NET_PARAM_UNITS_ONLY = 0x01; // attack-move: units only (targetClasses Unit)
 inline constexpr uint8_t NET_PARAM_NO_CAPTURE = 0x02; // attack-move / attack-building: damage, don't capture (Ctrl)
+inline constexpr uint8_t NET_PARAM_CAPTURE = 0x04;    // call-to-arms: capture (session.capture held)
 inline constexpr uint8_t NET_PARAM_PUSH_FRONT = 0x04; // focus-fire: put the target first (0 A.D. "pushFront")
 inline constexpr uint8_t NET_HUNT_SCENERY_NO_CAPTURE = 3; // hunt (17) on scenery: attack it, don't capture it (Ctrl)
 
@@ -267,10 +268,15 @@ struct NetPeer {
 	std::set<uint32_t> recv_ahead; // delivered reliable seqs > last_recv_seq (arrived out of order)
 };
 
+// 0 A.D. NetServer.cpp MAX_CLIENTS: connected sessions a host takes (players
+// and observers); one more is refused with NDR_SERVER_FULL.
+constexpr size_t NET_MAX_CLIENTS = 41;
+// 0 A.D. NetHost.h ENetDisconnectReason values a host sends with its disconnect.
+constexpr uint8_t NDR_SERVER_FULL = 9;
+
 struct NetConfig {
 	uint16_t port = PS_DEFAULT_PORT; // 20595 (0x5073)
 	uint8_t maxPlayers = 8;
-	uint8_t maxObservers = 2;
 	float snapshotRate = 20.0f; // Hz
 	bool enableCompression = false;
 	uint32_t snapshotChannel = 1; // unreliable channel

@@ -680,7 +680,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Grove of Fetters", "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.", 0, 600, 300, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x8000, 187, 1, "grove_of_fetters"},
 		{"Migratory Resettlement", "All Structures except for walls do not decay to neutral or enemy territory.", 0, 200, 200, 200, 40.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x8000, 188, 1, "resettlement"},
 		{"Celtic Auxiliaries", "Mercenaries −50% metal cost but +50 food cost.", 0, 0, 550, 0, 45.0f, 3, BLD_EMBASSY, TECH_NONE, 0x0010, 189, 4, "celtic_auxiliaries"},
-		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 199, 1, "wagon_trains"},
+		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space. Training Germanic Workers unlocked from the Supply Wagon as well.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 199, 1, "wagon_trains"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

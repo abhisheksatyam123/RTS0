@@ -91,9 +91,13 @@ struct ProductionOrder {
 	uint8_t count = 1;          // batch size
 	uint8_t tech = TECH_NONE;   // the technology this item researches
 	bool started = false;       // Trainer.js Item.Start: the batch's population is reserved
+	uint8_t petra_plan = 0;     // PetraOrderPlan: what Petra queued the batch for (saved SAVE_VERSION_PETRA_ORDER_PLAN)
 	std::array<float, RES_COUNT> paid{}; // refunded when the item is removed (RemoveItem)
 	bool is_tech() const { return tech != TECH_NONE; }
 };
+// The metadata Petra trains a batch with (queueplanTraining.js): a worker (role worker, no
+// plan), a soldier for the attack in preparation or for the raid (plan), or none.
+enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID };
 // ProductionQueue.js MaxQueueSize.
 static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
 
@@ -163,7 +167,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 72; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 75; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
+	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_TRIGGER_RANGE = 72; // OnRange queries and their collections
@@ -496,6 +502,17 @@ public:
 		auto it = res_id_to_idx_.find(res_id);
 		return it == res_id_to_idx_.end() ? 0 : resources_.max_amount[it->second];
 	}
+	// A mine's facing (radians), fixed by its id as a treasure's is: the world view turns each
+	// resource's model by it, and a mine's Obstruction/Static square lies along it.
+	static float mine_angle(uint32_t id) { return (float)(id % 12) * 0.52f; }
+	// Resource r's Obstruction/Static when it is a mine (ore, rock or ruins), turned by mine_angle:
+	// template_gaia_ore and _rock 7 x 7 m, their _large 13 x 13 m (24 gatherers or more),
+	// temperate_large_02 22 x 14 m (48), template_gaia_ruins 7 x 7 m. Mines block movement,
+	// pathfinding and foundations (template_gaia). False for any other supply.
+	bool mine_footprint(size_t r, nav::Footprint &f) const;
+	// Half the width of any other supply's square foundation obstruction, in world units: a
+	// tree's or fruit's template Obstruction/Static (flora_obstruction_m), else 1.5 m.
+	float resource_block_half(size_t r) const;
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
@@ -688,8 +705,10 @@ public:
 	// the queued ones.
 	void order_remove_guard(const uint32_t *unit_ids, size_t count);
 	// 0 A.D. Commands.js "call-to-arms": Soldiers, Warships, Siege and Healers drop their load
-	// at the nearest dropsite (DropAtNearestDropSite), then attack-walk to (x, z).
-	void order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued = false);
+	// at the nearest dropsite (DropAtNearestDropSite), then attack-walk to (x, z): units only with
+	// session.attackmoveUnit, capturing with session.capture.
+	void order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued = false,
+			bool units_only = false, bool allow_capture = false);
 	// The unit's current order and its Shift-queued ones (empty if none).
 	UnitOrder unit_order(uint32_t unit_id) const;
 	const std::vector<UnitOrder> *unit_order_queue(uint32_t unit_id) const;
@@ -1034,6 +1053,14 @@ public:
 	const TriggerState &trigger_state() const { return triggers_; }
 	uint32_t trigger_hash() const { return triggers_.hash(); }
 	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// Player.js SetState / Diplomacy.js SetDiplomacyIndex: the masks and stances change and
+	// OnPlayerDefeated, OnPlayerWon and OnDiplomacyChanged fire for each change.
+	void mark_players_defeated(uint8_t mask);
+	// How often each event was called since the start or the last load: for tests and
+	// debugging only, never saved or hashed.
+	uint32_t trigger_event_calls(uint8_t event) const { return event < TRIGGER_EVENT_COUNT ? trigger_event_calls_[event] : 0; }
+	void mark_players_won(uint8_t mask);
+	void note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance);
 	// A map's TriggerScripts by name ("polar_sea_triggers", "treasure_islands"): registers
 	// the ported script's triggers. Random maps do it in generate_random_map; data/maps
 	// JSON maps list theirs under "trigger_scripts". Returns false for an unported script.
@@ -1904,6 +1931,14 @@ private:
 	// foundation it builds, a unit it attacks, a structure it garrisons in): 0 A.D.'s move to the
 	// target's range is done there.
 	bool walk_in_reach(size_t i, float x, float z) const;
+	// tick_gather's reach of unit i at (x, z) to resource r: 2.5 units from its centre (FISH_GATHER_REACH
+	// for fish), and for a mine, which no unit stands on, MINE_GATHER_REACH from its square.
+	bool gather_in_reach(size_t i, size_t r, float x, float z) const;
+	bool gathering_mine(size_t i) const; // unit i is gathering from a mine (mine_footprint)
+	bool gather_mine_footprint(size_t i, nav::Footprint &m) const; // and that mine's footprint
+	// Unit i's control group (0 A.D. ControlGroup) for avoid_idle_units and separation: its formation,
+	// or the mine it works (0x80000000 | the mine's id) while it gathers from or returns from one.
+	uint32_t control_group(size_t i) const;
 	// The key of a short path kept round idle units (ShortPathMemo): a short path among this tick's
 	// buildings (short_path_key_) that also went round units.
 	uint32_t idle_path_key() const { const uint32_t k = short_path_key_ ^ 0x5BD1E995u; return k ? k : 1u; }
@@ -1996,6 +2031,7 @@ private:
 			float cost[RES_COUNT];
 			float cost_add[RES_COUNT]; // Cost/Resources added after the multipliers (Nastasen's Gift of Warships)
 			float loot_mul[RES_COUNT], loot_add[RES_COUNT]; // the unit's own Loot/<res> (Celtic Auxiliaries)
+			int16_t carry[RES_COUNT]; // ResourceGatherer/Capacities added (Wicker Baskets: Worker, infantry too)
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
@@ -2164,11 +2200,16 @@ private:
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
+	void explore_territories(); // InitGame.js ExploreTerritories, before the first turn
 	void reset_los();
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
+	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
+	bool near_deep_water(float x, float z, float c) const;
+	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
+	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -2392,6 +2433,13 @@ private:
 	// petra_find_position leaves out every structure's influence for houses (set for one call).
 	bool petra_require_houses_ = false;
 	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
+	// queueplanBuilding.js canStart: one foundation per AI turn (HQ.turnCache.buildingBuilt).
+	// Both are set only inside one AI's turn (tick_petra_ai), so a save between ticks never
+	// holds them (not saved); a call from outside a turn isn't limited.
+	bool petra_in_turn_ = false;
+	bool petra_turn_built_ = false;
+	bool petra_building_built() const { return petra_in_turn_ && petra_turn_built_; }
+	uint32_t petra_spawn_foundation(int cx, int cz, uint8_t btype);
 	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
@@ -2428,6 +2476,7 @@ private:
 	std::unordered_map<uint32_t, TradeGain> trader_goods_;
 
 	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
+	uint32_t trigger_event_calls_[TRIGGER_EVENT_COUNT] = {}; // trigger_event_calls
 	uint8_t diplomacy_[MAX_PLAYERS][MAX_PLAYERS] = {};
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
@@ -2644,6 +2693,7 @@ private:
 	std::vector<PetraFoundationWatch> petra_fnd_watch_;
 	mutable Petra petra_fleets_; // per-sea warship registry (navalManager.seaWarShips)
 	float petra_timer_  = 0.0f;
+	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
 	float petra_econ_timer_ = 0.0f;
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
@@ -2758,6 +2808,8 @@ private:
 	bool petra_garrison_attacked_unit(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	size_t petra_attacked_unit_holder(size_t unit_idx, bool emergency, const std::vector<int> &incoming) const; // building index or SIZE_MAX
 	// victoryManager.js: regicide heroes and the units guarding them.
+	// victoryManager.js Garrison events: the regicide hero's guards when it is garrisoned.
+	void petra_critical_ent_garrisoned();
 	bool petra_is_critical_ent(size_t unit_idx) const;
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
@@ -2872,7 +2924,9 @@ private:
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
 	// wait_for_pop: queue it even with no population room, to wait in the trainer's queue as
 	// 0 A.D.'s ProductionQueue holds an item until there is room.
-	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false);
+	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false,
+	                          uint8_t plan = PETRA_ORDER_NONE);
+	uint32_t petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t max_queue) const;
 	bool petra_relic_targeted(uint32_t relic_id) const;
 	bool petra_unit_target_ok(int32_t t) const;
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
@@ -2938,7 +2992,8 @@ private:
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
-	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_)
+	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
+	X(petra_failed_gather_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -2947,7 +3002,38 @@ private:
 	};
 	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
 	void petra_swap_slot(uint8_t pid);
-	std::vector<std::pair<uint8_t, uint8_t>> petra_attack_requests_; // (source, target), drained each AI turn
+	// 0.28 PetraBot plays one turn every PETRA_TURN_TURNS sim turns, offset by player
+	// (_petrabot.js:110 `(turn + player) % 8 == 5`, the first turn at once), so with 0 A.D.'s
+	// 200 ms turns an AI thinks every 1.6 s. What happens in between reaches it as the
+	// events saved since its last turn (savedEvents): here tick-stamped buffers kept for
+	// PETRA_TURN_TICKS ticks and read by each AI over its own window (saved v73).
+	static constexpr uint32_t PETRA_TURN_TURNS = 8;
+	static constexpr uint32_t PETRA_TURN_TICKS = PETRA_TURN_TURNS * 4; // 4 ticks a 200 ms sim turn
+	static constexpr float PETRA_TURN_S = PETRA_TURN_TICKS * FIXED_STEP; // 1.6 s
+	bool petra_turn_due(uint8_t pid) const; // this tick is pid's AI turn
+	// gameState.ai.playedTurn of the AI being run: its turns so far, this one included.
+	uint32_t petra_played_turn() const;
+	// playedTurn % n == r, the 0.28 "every nth turn" gates.
+	bool petra_turn_mod(uint32_t n, uint32_t r = 0) const { return petra_played_turn() % n == r; }
+	struct PetraAttackedEvent { uint32_t tick, target, attacker; }; // units_.attacked_by of that tick
+	struct PetraStampedCapture { uint32_t tick; CivicCentreCapture cap; };
+	struct PetraStampedId { uint32_t tick, id; };
+	struct PetraAttackRequest { uint32_t tick; uint8_t source, target, pad[2]; };
+	std::vector<PetraAttackedEvent> petra_ev_attacked_;
+	std::vector<PetraStampedCapture> petra_ev_captures_;
+	std::vector<PetraStampedId> petra_ev_decay_;
+	std::vector<PetraAttackRequest> petra_attack_requests_; // AttackRequest events (diplomacy and plan launches)
+	void petra_record_events(); // this tick's events into the buffers, the stale ones out
+	// The window (from, to] of ticks the AI being run reads events over, and those events,
+	// gathered at the start of its turn (not saved: rebuilt from the buffers).
+	uint32_t petra_window_from_ = 0;
+	float petra_turn_dt_ = 0.0f; // the game time this turn covers (set each turn, not saved)
+	std::vector<std::pair<uint32_t, uint32_t>> petra_turn_attacks_; // (target, attacker) in order
+	std::unordered_map<uint32_t, uint32_t> petra_turn_attacker_;    // target -> its last attacker
+	std::vector<CivicCentreCapture> petra_turn_captures_;
+	std::vector<uint32_t> petra_turn_decay_;
+	void petra_gather_turn_events();
+	uint32_t petra_attacker_of(size_t unit_idx) const; // who attacked this unit since the last turn, 0 = nobody
 	void petra_process_attack_requests();
 	void petra_answer_attack_request(uint8_t source, uint8_t target);
 	// Saves or loads save_tick_state's fields, every AI's Petra state included (save v15); simulation.cpp.
@@ -2996,18 +3082,31 @@ private:
 	int territory_roots_res_ = 0;
 	float territory_roots_half_ = 0.0f;
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
-	// move_units' copy of the buildings that block movement, in buildings_ order, with only the
-	// fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
+	// move_units' copy of the buildings that block movement, in buildings_ order, and the mines, with
+	// only the fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
 	struct SteerObstacle {
 		uint32_t id;
 		float x, z;
 		float ux, uz, hu, hv; // Building::ux, uz, hu, hv
 		uint8_t type;
 		bool wrecked;
+		float ext; // nav::footprint_extent, which the steering loops test every obstacle by
 	};
+	static SteerObstacle steer_obstacle(uint32_t id, float x, float z, float ux, float uz, float hu, float hv, uint8_t type) {
+		SteerObstacle o{id, x, z, ux, uz, hu, hv, type, false, 0.0f};
+		o.ext = nav::footprint_extent(nav::Footprint{x, z, ux, uz, hu, hv});
+		return o;
+	}
 	std::vector<SteerObstacle> steer_obstacles_;
 	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
+	// SteerObstacle::type of a Gaia mine (mine_footprint), after the buildings in both lists.
+	static constexpr uint8_t MINE_OBSTACLE = 0xFF;
+	void append_mine_obstacles(std::vector<SteerObstacle> &out) const;
+	// This tick's mines (append_mine_obstacles), listed once for move_units and separation.
+	std::vector<SteerObstacle> mine_obstacles_;
+	uint64_t mine_obstacles_tick_ = ~uint64_t{0};
+	const std::vector<SteerObstacle> &tick_mine_obstacles();
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.

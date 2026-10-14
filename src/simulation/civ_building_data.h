@@ -52,14 +52,14 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Great Hall", "great_hall", "great_hall", 2000.0f, 2, 0, 0, 200, 200, 0, 10, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/germ/great_hall */ \
 		{"Wagon Encampment", "encampment", "army_camp", 1750.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 2500.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment */ \
 		{"Fortified Wagon Encampment", "encampment_fortified", "army_camp", 2625.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 3000.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment_fortified */ \
-		{"Shrine", "temple", "temple", 1000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 0.0f}, /* structures/shrine_greek_01 */ \
-		{"Trading Post", "market", "market", 1000.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/trading_post_desert */ \
+		{"Shrine", "shrine", "temple", 1000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 0.0f}, /* structures/shrine_greek_01 */ \
+		{"Trading Post", "trading_post", "market", 1000.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/trading_post_desert */ \
 		{"Bolt Tower", "tower_bolt", "tower_bolt", 1400.0f, 1, 0, 0, 100, 200, 0, 5, 50.0f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/athen/tower_bolt */ \
 		{"Artillery Tower", "tower_artillery", "tower_artillery", 1400.0f, 1, 0, 200, 0, 200, 0, 5, 50.0f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/athen/tower_artillery */ \
 		{"Stoa", "greek_stoa_great", "stoa", 2500.0f, 2, 0, 0, 150, 100, 0, 10, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/athen/royal_stoa */ \
 		{"Stoa", "greek_stoa", "stoa", 1100.0f, 2, 0, 0, 100, 100, 0, 0, 27.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/hellenic_stoa */ \
-		{"Inn", "house", "house", 2500.0f, 2, 0, 75, 0, 0, 15, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/inn */ \
-		{"Tent", "house", "house", 200.0f, 1, 0, 50, 0, 0, 5, 5, 7.5f, 500.0f, 5.0f, 1.0f, 1.0f}, /* structures/rome/tent */ \
+		{"Inn", "inn", "house", 2500.0f, 2, 0, 75, 0, 0, 15, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/inn */ \
+		{"Tent", "tent", "house", 200.0f, 1, 0, 50, 0, 0, 5, 5, 7.5f, 500.0f, 5.0f, 1.0f, 1.0f}, /* structures/rome/tent */ \
 		{"Triumphal Arch", "triumphal_arch", "arch", 2000.0f, 2, 0, 0, 400, 200, 0, 0, 50.0f, 0.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/arch */ \
 
 

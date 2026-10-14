@@ -3086,7 +3086,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 			update_damage_fx(v, lvl, b.half_size, entry.aabb.size.y * b_scale);
 		}
-		update_garrison_flag(v, visual_id, v.phase == 0 && !b.miraged && sim->get_garrison_count(b.id) > 0,
+		update_garrison_flag(v, visual_id, v.phase == 0 && !b.miraged && (sim->get_garrison_count(b.id) > 0 || (b.type == rtso::BLD_CORRAL && sim->corral_count(b.id) > 0)),
 				player_display_color(sim, b.team), b_scale, entry.y_offset);
 
 		// Building Health & Construction Progress Bar
@@ -3410,6 +3410,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	};
 	int f_counts[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
+		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
 		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
@@ -3431,6 +3432,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	int f_written[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	size_t rings_used = 0;
 	for (size_t f = 0; f < fview.count; ++f) {
+		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
 		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;

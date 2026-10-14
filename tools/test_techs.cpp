@@ -147,6 +147,21 @@ int main() {
 	CHECK(building_researches_tech(BLD_DOCK, TECH_WARSHIP_HEALTH, CIV_ROMANS));
 	CHECK(!tech_available_to_civ(TECH_SHIP_MOVEMENT_SPEED, CIV_CARTHAGINIANS)); // cart/dock -ship_movement_speed
 	CHECK(!tech_available_to_civ(TECH_SIEGE_BOLT_ACCURACY, CIV_HAN)); // han/arsenal -siege_bolt_accuracy
+	// Techs 0.28 lists at more than one structure, and two it lists nowhere / at one embassy.
+	CHECK(building_researches_tech(BLD_MARKET, TECH_UNLOCK_SHARED_LOS, CIV_ROMANS));
+	CHECK(building_researches_tech(BLD_TOWN_CENTER, TECH_UNLOCK_SHARED_LOS, CIV_ROMANS));
+	CHECK(building_researches_tech(BLD_FORTRESS, TECH_TOWER_MURDERHOLES, CIV_GAULS));
+	CHECK(building_researches_tech(BLD_TOWER, TECH_TOWER_MURDERHOLES, CIV_GAULS));
+	CHECK(building_researches_tech(BLD_SENTRY_TOWER, TECH_TOWER_WATCH, CIV_GAULS));
+	CHECK(!building_researches_tech(BLD_SENTRY_TOWER, TECH_TOWER_MURDERHOLES, CIV_GAULS));
+	CHECK(building_researches_tech(BLD_GYMNASIUM, TECH_IPHICRATEAN_REFORMS, CIV_ATHENIANS));
+	CHECK(building_researches_tech(BLD_DOCK, TECH_IPHICRATEAN_REFORMS, CIV_ATHENIANS));
+	CHECK(building_researches_tech(BLD_TEMPLE_VESTA, TECH_HEAL_RATE, CIV_ROMANS));
+	CHECK(building_researches_tech(BLD_TEMPLE_AMUN, TECH_GARRISON_HEAL, CIV_KUSHITES));
+	CHECK(!building_researches_tech(BLD_GEROUSIA, TECH_AGOGE, CIV_SPARTANS));
+	CHECK(building_researches_tech(BLD_EMBASSY, TECH_CELTIC_AUXILIARIES, CIV_CARTHAGINIANS));
+	CHECK(!building_researches_tech(BLD_EMBASSY_IBERIAN, TECH_CELTIC_AUXILIARIES, CIV_CARTHAGINIANS));
+	CHECK(!building_researches_tech(BLD_EMBASSY_ITALIC, TECH_CELTIC_AUXILIARIES, CIV_CARTHAGINIANS));
 	{
 		Simulation c;
 		fresh(c);
@@ -357,11 +372,15 @@ int main() {
 		uint32_t ger = s.spawn_building_world(20.0f, -20.0f, BLD_GEROUSIA, 0, 1.0f);
 		uint32_t bar = s.spawn_building_world(-20.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
 		CHECK(s.research_check(0, TECH_AGOGE, bar) == Simulation::TECH_ERR_BUILDING);
+		// 0.28's spart/gerousia researches only krypteia and unlock_neodamodes: no structure
+		// offers agoge, so its effect is checked by granting it.
+		CHECK(s.research_check(0, TECH_AGOGE, ger) == Simulation::TECH_ERR_BUILDING);
+		CHECK(!s.cmd_research(0, ger, TECH_AGOGE));
 		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, (UnitType)civ_unit_template(champ).unit_type, 0.0f, champ);
 		uint32_t b = s.spawn_unit(2.0f, 0.0f, 0, (UnitType)civ_unit_template(citizen).unit_type, 0.0f, citizen);
 		float champ_hp = unit_max_hp(s, a), citizen_hp = unit_max_hp(s, b);
-		CHECK(s.cmd_research(0, ger, TECH_AGOGE));
-		run(s, tech_info(TECH_AGOGE).research_time + 1.0f);
+		s.complete_research(0, TECH_AGOGE);
+		run(s, 1.0f);
 		CHECK(std::fabs(unit_max_hp(s, a) - 1.25f * champ_hp) < 0.01f);
 		CHECK(std::fabs(unit_max_hp(s, b) - citizen_hp) < 0.01f);
 		uint32_t a2 = s.spawn_unit(4.0f, 0.0f, 0, (UnitType)civ_unit_template(champ).unit_type, 0.0f, champ);

@@ -62,11 +62,8 @@ struct PetraConfig {
 
 	float defense_ratio_own = 2.0f;   // Defense.defenseRatio.own
 	float army_compact_sq   = 2000.0f; // Defense.armyCompactSize
-	int   target_num_workers = 60;
-	int   target_num_traders = 3;
 	int   pop_phase2         = 150;  // config.js Economy.popPhase2 before setConfig's population scaling (petra_pop_phase2)
 	int   work_phase3        = 180;  // config.js Economy.workPhase3, likewise (petra_work_phase3); 999 never cities
-	int   muster_delta       = 0;     // +/- army threshold from personality
 
 	float garrison_hp_low  = 0.40f;
 	float garrison_hp_high = 0.70f;
@@ -91,6 +88,8 @@ struct PetraConfig {
 			default:
 				aggressive = 0.50f; defensive = 0.50f; cooperative = 0.50f; break;
 		}
+		// Sandbox keeps the default personality whatever the behaviour (setConfig draws above it).
+		if (difficulty == PETRA_SANDBOX) aggressive = defensive = cooperative = 0.5f;
 		if (seed != 0 && difficulty > PETRA_SANDBOX) {
 			uint64_t st = seed;
 			auto rand01 = [&st]() { // splitmix64
@@ -119,8 +118,6 @@ struct PetraConfig {
 		// training and technologies.
 		static const float kRate[6]    = { 0.42f, 0.56f, 0.75f, 1.00f, 1.25f, 1.56f };
 		static const float kTime[6]    = { 1.40f, 1.25f, 1.10f, 1.00f, 1.00f, 1.00f };
-		static const int   kWorkers[6] = { 18, 28, 40, 60, 80, 100 };
-		static const int   kTraders[6] = { 0, 1, 2, 3, 4, 5 };
 		// config.js criticalPopulationFactors / criticalStructureFactors / criticalRootFactors
 		static const float kEmerg[6]   = { 0.80f, 0.80f, 0.70f, 0.60f, 0.50f, 0.35f };
 		static const float kRoots[6]   = { 0.80f, 0.80f, 0.67f, 0.50f, 0.35f, 0.20f };
@@ -128,16 +125,11 @@ struct PetraConfig {
 		pop_scaling = kPop[d];
 		gather_rate = kRate[d];
 		build_time = kTime[d];
-		target_num_workers = kWorkers[d];
-		target_num_traders = kTraders[d];
 		emergency_pop_factor = kEmerg[d];
 		emergency_struct_factor = kEmerg[d];
 		emergency_root_factor = kRoots[d];
 
-		defense_ratio_own = 1.6f + 0.8f * defensive + 0.15f * (float)d;
-		muster_delta = 0;
-		if (aggressive > 0.70f) muster_delta = -2;
-		if (defensive > 0.70f) muster_delta = 2;
+		defense_ratio_own = 2.0f; // config.js Defense.defenseRatio.own (ally 1.4 and neutral 1.8 derive from it)
 		// config.js Economy.popPhase2 150 and workPhase3 180 (0.28); from Medium a strongly
 		// aggressive personality goes to the town phase at 50. Below Easy it never cities.
 		pop_phase2 = (d >= PETRA_MEDIUM && aggressive > 0.70f) ? 50 : 150;
@@ -183,10 +175,16 @@ enum PetraQueue : uint8_t {
 // queueManager.js funds the queues that hold a plan, by priority, up to that plan's cost.
 // RTS0's Petra pays where it decides rather than queueing plans: a queue "wants" the cost
 // of the item it last failed to pay for, and the want lapses after WANT_TTL seconds without
-// a retry, when the account's reserve returns to the free pool (queue emptied).
+// a retry, when the account's reserve returns to the free pool (queue emptied). Retries come
+// on 0.28's played-turn cadences (every 3rd to 5th 1.6 s turn: up to 8 s), so a want outlives them.
 struct PetraQueueManager {
 	static constexpr int QUEUE_COUNT = PETRA_Q_COUNT;
-	static constexpr float WANT_TTL = 5.0f;
+	static constexpr float WANT_TTL = 10.0f;
+	// Queues retried less often keep their want across one cadence: a new base every 10th
+	// turn (checkBaseExpansion), a wonder every 30th (headquarters.js:2314).
+	static constexpr float want_ttl(int q) {
+		return q == PETRA_Q_WONDER ? 31 * 1.6f : q == PETRA_Q_CIVIL_CENTRE ? 11 * 1.6f : WANT_TTL;
+	}
 	PetraQueueAccount accounts[QUEUE_COUNT] = {};
 	PetraQueueAccount wants[QUEUE_COUNT] = {};
 	float want_age[QUEUE_COUNT] = {};
@@ -199,7 +197,7 @@ struct PetraQueueManager {
 		for (int i = 0; i < QUEUE_COUNT; ++i) {
 			accounts[i] = PetraQueueAccount{};
 			wants[i] = PetraQueueAccount{};
-			want_age[i] = WANT_TTL + 1.0f;
+			want_age[i] = want_ttl(i) + 1.0f;
 			priority[i] = 0;
 			paused[i] = switched[i] = reset_on_start[i] = 0;
 		}
@@ -367,6 +365,14 @@ struct PetraDropsiteCheck {
 	int32_t next_check[3] = {};
 	int32_t used[3] = {};
 	int32_t lost[3] = {};
+};
+
+// headquarters.js lastFailedGather: the AI time a worker last found nothing of each resource to
+// gather (worker.js startGathering); for 20 s after, no idle worker is sent to it (baseManager.js
+// reassignIdleWorkers, setWorkersIdleByPriority). 0 = never, as 0.28's falsy check reads it.
+struct PetraFailedGather {
+	float time[RES_COUNT] = {};
+	bool recent(uint8_t r, float now) const { return time[r] != 0.0f && now - time[r] < 20.0f; }
 };
 
 // emergencyManager.js
