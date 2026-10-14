@@ -15,6 +15,7 @@
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/color.hpp>
@@ -262,12 +263,12 @@ public:
 				}));
 			}
 
-			const int cur_pop = sim->pop_current(me);
-			const int max_pop = sim->pop_max(me);
 			pop_label_->set_text(pop_caption(sim, me));
-			// CounterPopulation flashes orange while training is blocked; RTS0 refuses to
-			// queue past the limit instead, so a full house shows orange.
-			pop_label_->add_theme_color_override("font_color", cur_pop >= max_pop ? Color(1.0f, 0.65f, 0.0f) : Color(1, 1, 1));
+			// CounterPopulation.onTick: orange for half of each second while a batch waits
+			// for population room, white otherwise.
+			pop_blocked_ = sim->training_blocked(me);
+			const bool flash = pop_blocked_ && godot::Time::get_singleton()->get_ticks_msec() % 1000 < 500;
+			pop_label_->add_theme_color_override("font_color", flash ? Color(1.0f, 165 / 255.0f, 0.0f) : Color(1, 1, 1));
 			set_gatherers(pop_stats_, total);
 			pop_panel_->set_tooltip_text(rtso::tr0("Population: current/limit (max)") + ally_stats(sim, me, [this, sim](uint8_t p) {
 				return std::make_pair(pop_caption(sim, p), (int64_t)sim->pop_current(p));
@@ -344,6 +345,7 @@ private:
 	godot::String civ_keys_[2];
 	int tooltip_civ_ = -1;
 	bool observer_ = false;
+	bool pop_blocked_ = false;
 	static int sort_order() {
 		const std::string v = rtso::user_config::get("gui.session.respoptooltipsort");
 		return v == "1" ? 1 : v == "-1" ? -1 : 0;

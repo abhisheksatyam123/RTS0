@@ -1908,7 +1908,9 @@ static void test_relic_capture() {
 	run_ai_turns(*s, 10);
 	std::printf("  relic taken by player 0 first: the AI's capturer %s\n",
 		s->units_.order_kind[su] == ORDER_CAPTURE_RELIC ? "keeps going" : "is called off");
-	CHECK(s->units_.alive[su] && s->units_.order_kind[su] != ORDER_CAPTURE_RELIC, "Petra calls off a capture of a relic an enemy took");
+	// Called off, it may go back to work or into the civic centre (garrisoned units are not alive).
+	CHECK((s->units_.alive[su] || s->units_.action_state[su] == ACTION_GARRISONED) &&
+			s->units_.order_kind[su] != ORDER_CAPTURE_RELIC, "Petra calls off a capture of a relic an enemy took");
 }
 
 // attackManager.js getRelicEnemyPlayer: in capture the relic, Petra attacks the enemy
@@ -3847,6 +3849,51 @@ static void test_land_access() {
 	CHECK(s->petra_access_at(side, tc->z) == home, "a structure doesn't split land");
 }
 
+// worker.js isInaccessibleSupply: a gatherer that stands still at its supply for over 10 s
+// without carrying more is sent once more, and failing again flags the supply for 600 s; the
+// flags and each worker's watch ride in the save (v81).
+static void test_inaccessible_supply() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->petra_pid_ = 1;
+	auto &u = s->units_;
+	int32_t w = -1;
+	for (size_t i = 0; i < u.count && w < 0; ++i)
+		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_FEMALE_CITIZEN) w = (int32_t)i;
+	uint32_t bush = 0;
+	for (size_t r = 0; r < s->resources_.count && !bush; ++r)
+		if (s->resources_.alive[r] && s->resources_.type[r] == RES_FOOD && s->resources_.subtype[r] != RES_SUB_FISH) bush = s->resources_.id[r];
+	CHECK(w >= 0 && bush != 0, "a woman and a food supply");
+	if (w < 0 || !bush) return;
+	Simulation::PetraHuntScan scan = s->petra_hunt_scan();
+	auto stuck = [&] { // walking at it and getting nowhere
+		u.action_state[w] = ACTION_GATHER;
+		u.target_resource_id[w] = bush;
+		u.carry[w] = 0;
+	};
+	float flagged_at = -1.0f;
+	for (int turn = 0; turn < 40 && flagged_at < 0.0f; ++turn) {
+		stuck();
+		s->petra_check_inaccessible_supplies(scan);
+		if (s->petra_supply_inaccessible(bush)) flagged_at = s->petra_timer_;
+		s->petra_timer_ += 1.6f;
+	}
+	std::printf("  a supply its gatherer can't reach is flagged after %.1f s\n", flagged_at);
+	CHECK(flagged_at > 20.0f && flagged_at < 30.0f, "flagged inaccessible after two 10 s stands");
+	CHECK(u.action_state[w] == ACTION_IDLE, "the gatherer gives it up to be reassigned (retryWorking)");
+	const char *path = "/tmp/rtso_test_petra_inaccessible.sav";
+	CHECK(s->save_state(path), "saves");
+	auto t = std::make_unique<Simulation>();
+	CHECK(t->load_state(path), "loads");
+	std::remove(path);
+	CHECK(t->petra_supply_inaccessible(bush) && t->petra_inaccessible_.size() == s->petra_inaccessible_.size() &&
+	      t->petra_approach_.size() == s->petra_approach_.size(), "the flag and the approach watch survive a save");
+	s->petra_timer_ = flagged_at + 600.0f;
+	CHECK(!s->petra_supply_inaccessible(bush), "the flag lasts 600 s");
+}
+
 static void test_pending_dropsite() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -4396,6 +4443,7 @@ int main(int argc, char **argv) {
 	RUN(test_personality_draw);
 	RUN(test_chat_text);
 	RUN(test_pending_dropsite);
+	RUN(test_inaccessible_supply);
 	RUN(test_land_access);
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;

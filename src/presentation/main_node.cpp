@@ -1,6 +1,7 @@
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
+#include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
@@ -422,6 +423,21 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 		out.push_back((int32_t)sim->spawn_unit(cx - 16.0f + 3.0f * i, cz - 16.0f, me,
 				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
 	return out;
+}
+
+// Test hook: each player's structures by type name, {player: {name: count}}.
+Dictionary RtsoMain::debug_structure_types() {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings()) {
+		if (b.hp <= 0.0f || b.wrecked) continue;
+		const int p = b.team;
+		Dictionary per = d.get(p, Dictionary());
+		const String n = String::utf8(rtso::building_type_info(b.type).name);
+		per[n] = (int)per.get(n, 0) + 1;
+		d[p] = per;
+	}
+	return d;
 }
 
 // Test hook: starts the first technology one of the local player's structures can
@@ -908,6 +924,8 @@ Dictionary RtsoMain::debug_selected_building() const {
 		d["has_rally"] = b.has_rally_point;
 		d["rally_self"] = b.has_rally_point && b.rally_target_bld_id == b.id;
 		d["autoqueue"] = b.autoqueue;
+		d["queue"] = (int64_t)b.queue.size();
+		d["food"] = sim->player(b.team < rtso::MAX_PLAYERS ? b.team : 0).res[rtso::RES_FOOD];
 		Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 		if (cam) d["screen"] = cam->unproject_position(Vector3(b.x, sim->get_terrain_height(b.x, b.z), b.z));
 	}
@@ -1131,7 +1149,10 @@ void RtsoMain::update_net_warnings() {
 void RtsoMain::update_net_status_overlay() {
 	if (net_disconnected_ || !net_status_overlay_) return;
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
-	if (client && net_game_started_ && net_host_.connectionLost()) {
+	// Before Start too, once the host let us in (0.28 gamesetup ChatInputPanel
+	// reportDisconnect): the setup page closes for "Lost connection to the server.".
+	const bool joined = net_game_started_ || net_setup_overlay_ || net_host_.authResult() == rtso::ARC_OK;
+	if (client && joined && net_host_.connectionLost()) {
 		net_disconnected_ = true;
 		finished_asked_ = true; // no quit question over the overlay
 		close_open_dialogs();
@@ -1147,10 +1168,12 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = tr("Different game engine versions or different mods loaded."); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
-		net_status_label_->set_text(tr("Connection to the server has been lost.") + "\n" + why);
+		net_status_label_->set_text((net_game_started_ ? tr("Connection to the server has been lost.")
+				: tr("Lost connection to the server.")) + "\n" + why);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
 		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
+		update_net_setup_overlay(); // the setup page gives way at once
 		return;
 	}
 	String status, loading;
@@ -1179,6 +1202,8 @@ void RtsoMain::update_net_status_overlay() {
 
 // disconnectedExitButton: endGame(true), the summary page.
 void RtsoMain::_on_disconnected_exit_pressed() {
+	// Lost before Start: OK goes back to the lobby, as the setup page's Back does.
+	if (!net_game_started_) return leave_net_game();
 	Ref<Script> q = ResourceLoader::get_singleton()->load("res://scenes/session/quit_confirmation.gd");
 	if (q.is_valid()) q->call("end_game", this, true);
 }
@@ -2084,6 +2109,9 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_RESTRICT_CAMERA: // RestrictCamera: GameView_SetConstrainCameraEnabled
 			if (cam_rig) cam_rig->set_constrain_camera(on);
 			break;
+		case D::DEV_TIME_WARP: // EnableTimeWarp: TimeWarp.setEnabled
+			set_time_warp(on);
+			break;
 		case D::DEV_PROMOTE: { // PromoteSelectedUnits: "promote" the selection; checked() is always false
 			std::vector<uint32_t> ids;
 			for (int k = 0; k < selected_ids.size(); ++k) ids.push_back((uint32_t)(int64_t)selected_ids[k]);
@@ -2096,6 +2124,58 @@ void RtsoMain::_on_dev_command(int command) {
 	refresh_dev_overlay();
 }
 
+// TimeWarp.setEnabled: not in networked games (nor replays); turning it on shows
+// TimeWarpMessageBox and starts the snapshots (Engine.EnableTimeWarpRecording(10)).
+void RtsoMain::set_time_warp(bool on) {
+	if (net_lockstep() || turn_mgr_.is_replaying()) on = false;
+	if (on == time_warp_) return;
+	time_warp_ = on;
+	if (!on) {
+		if (time_warp_ff_) game_speed = time_warp_speed_;
+		time_warp_ff_ = false;
+		for (const String &p : time_warp_snapshots_) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(p));
+		time_warp_snapshots_.clear();
+		return;
+	}
+	time_warp_turn_ = UINT32_MAX;
+	quit_confirmation("time_warp");
+}
+
+// CTurnManager time warp: a snapshot of the game every 10 turns, and SetSimRate(20)
+// while the fast forward hotkey is held.
+void RtsoMain::time_warp_tick() {
+	if (!time_warp_ || !sim) return;
+	const bool ff = rtso::hotkeys::held("session.timewarp.fastforward");
+	if (ff != time_warp_ff_) {
+		if (ff) time_warp_speed_ = game_speed;
+		game_speed = ff ? 20.0f : time_warp_speed_;
+		time_warp_ff_ = ff;
+	}
+	const uint32_t turn = turn_mgr_.current_turn();
+	if (turn % 10 != 0 || turn == time_warp_turn_) return;
+	time_warp_turn_ = turn;
+	DirAccess::make_dir_recursive_absolute(ProjectSettings::get_singleton()->globalize_path("user://timewarp"));
+	const String path = "user://timewarp/turn_" + String::num_int64(time_warp_serial_++) + ".rts0sav";
+	if (!sim->save_state(ProjectSettings::get_singleton()->globalize_path(path).utf8().get_data())) return;
+	time_warp_snapshots_.push_back(path);
+	if (time_warp_snapshots_.size() > 100) { // TimeWarp's caption warns of memory: keep the last 100 on disk
+		DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(time_warp_snapshots_.front()));
+		time_warp_snapshots_.erase(time_warp_snapshots_.begin());
+	}
+}
+
+// CTurnManager::RewindTimeWarp: back to the latest snapshot, which is then dropped, so
+// rewinding again goes further back. The game goes on as a new replay from there.
+bool RtsoMain::time_warp_rewind() {
+	if (!time_warp_ || time_warp_snapshots_.empty()) return false;
+	const String path = time_warp_snapshots_.back();
+	time_warp_snapshots_.pop_back();
+	const bool ok = load_game(path);
+	DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(path));
+	time_warp_turn_ = turn_mgr_.current_turn(); // no snapshot of the state just restored
+	return ok;
+}
+
 // The checked() handlers while the overlay is open, and DeveloperOverlayEntityState.update:
 // the first selected entity's state.
 void RtsoMain::refresh_dev_overlay() {
@@ -2105,6 +2185,7 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_REVEAL_MAP, sim->reveal_map());
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
+		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 	}
 	if (!dev_overlay_.state_shown()) return;
 	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
@@ -2698,6 +2779,7 @@ Dictionary RtsoMain::get_lobby_state() const {
 	for (uint8_t p = 0; sim && p < rtso::MAX_PLAYERS; ++p) ai = ai || (sim->player(p).active && sim->player(p).is_ai);
 	d["oos_ai"] = ai;
 	d["disconnected"] = net_disconnected_;
+	d["setup_page"] = net_setup_overlay_ != nullptr;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
@@ -3499,6 +3581,75 @@ Dictionary RtsoMain::get_tech_tree() const {
 
 void RtsoMain::_on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx) {
 	command_panel_.production_queue().handle_gui_input(event, slot_idx, get_viewport());
+}
+
+// 0.28 placementTooltip: BackgroundErrorTooltip for a refusal, else
+// BackgroundInformationTooltip, beside the cursor; hidden with no message.
+void RtsoMain::set_placement_tip(const String &text, bool error) {
+	if (!placement_tip_) return;
+	placement_tip_->set_visible(!text.is_empty());
+	if (text.is_empty()) return;
+	if (placement_tip_->get_text() != text) placement_tip_->set_text(text);
+	if (error != placement_tip_error_ || !placement_tip_->has_theme_stylebox_override("normal")) {
+		placement_tip_error_ = error;
+		Ref<StyleBoxFlat> bg;
+		bg.instantiate();
+		bg->set_bg_color(error ? Color(0.35f, 0.04f, 0.04f, 0.85f) : Color(0.05f, 0.05f, 0.08f, 0.85f));
+		bg->set_border_width_all(1);
+		bg->set_border_color(error ? Color(0.75f, 0.25f, 0.2f) : Color(0.55f, 0.5f, 0.35f));
+		bg->set_content_margin_all(5.0f);
+		placement_tip_->add_theme_stylebox_override("normal", bg);
+	}
+	placement_tip_->set_size(Vector2());
+	placement_tip_->set_position(get_viewport()->get_mouse_position() + Vector2(24, 20));
+}
+
+// BuildRestrictions.js CheckPlacement's message for a refused placement of `btype` centred at (x, z).
+String RtsoMain::placement_failure_text(int result, uint8_t btype, float x, float z) const {
+	using S = rtso::Simulation;
+	if (!sim || result == S::PLACE_OK) return String();
+	const String name = rtso::tr0(String::utf8(rtso::civ_building_type_info(sim->player_civ(local_player()), btype).name));
+	auto named = [&](const char *msg) { return rtso::sprintf0(rtso::tr0(msg), {{"name", name}}); };
+	switch (result) {
+		case S::PLACE_OBSTRUCTED: return named("%(name)s cannot be built on another building or resource");
+		case S::PLACE_TERRAIN: return named("%(name)s cannot be built on invalid terrain");
+		case S::PLACE_SHORE: return named("%(name)s must be built on a valid shoreline");
+		case S::PLACE_TERRITORY: {
+			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
+			// markForTranslationWithContext("Territory type", ...) and the template's Territory list.
+			const char *found = d.territory_found == 1 ? (d.connected ? "own" : "unconnected own")
+					: d.territory_found == 2 ? (d.connected ? "allied" : "unconnected allied")
+					: d.territory_found == 4 ? "neutral" : "enemy";
+			String valid;
+			const char *const kinds[] = {"own", "ally", "neutral", "enemy"};
+			for (int i = 0; i < 4; ++i)
+				if (d.territory_allowed & (1 << i)) valid += (valid.is_empty() ? String() : rtso::tr0(", ")) + rtso::tr0(kinds[i]);
+			return rtso::sprintf0(rtso::tr0("%(name)s cannot be built in %(territoryType)s territory. Valid territories: %(validTerritories)s"),
+					{{"name", name}, {"territoryType", rtso::tr0(found)}, {"validTerritories", valid}});
+		}
+		case S::PLACE_DISTANCE: {
+			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
+			const int64_t m = (int64_t)std::lround(d.min_distance_m);
+			return rtso::sprintf0(rtso::tr0(m == 1 ? "%(name)s too close to a %(category)s, must be at least %(distance)s meter away"
+							: "%(name)s too close to a %(category)s, must be at least %(distance)s meters away"),
+					{{"name", name}, {"category", rtso::tr0(d.distance_class ? d.distance_class : "")}, {"distance", String::num_int64(m)}});
+		}
+		default: return named("%(name)s cannot be built due to unknown error");
+	}
+}
+
+Dictionary RtsoMain::debug_placement_tip() const {
+	Dictionary d;
+	d["visible"] = placement_tip_ && placement_tip_->is_visible();
+	d["text"] = placement_tip_ ? placement_tip_->get_text() : String();
+	d["error"] = placement_tip_error_;
+	return d;
+}
+
+// Tests: production queue slot i as the panel shows it.
+Dictionary RtsoMain::debug_queue_slot(int i) {
+	update_command_panel();
+	return command_panel_.production_queue().debug_slot(i);
 }
 
 void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
