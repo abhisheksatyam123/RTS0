@@ -4,12 +4,13 @@
 
 #include "../../simulation/sim_types.h"
 
+#include <array>
 #include <cstring>
 
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 191;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 203;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -204,6 +205,18 @@ inline const char *unit_template_draw_model(int k) {
 		"wagon_house",
 		"iber_infantry_javelineer_b",
 		"brit_ship_fire_fire",
+		"rome_cavalry_javelineer_a",
+		"rome_cavalry_javelineer_auxiliary_a",
+		"rome_cavalry_javelineer_auxiliary_e",
+		"rome_cavalry_javelineer_e",
+		"rome_cavalry_spearman_a",
+		"rome_cavalry_spearman_auxiliary_a",
+		"rome_cavalry_spearman_auxiliary_e",
+		"rome_cavalry_spearman_e",
+		"rome_infantry_javelineer_a",
+		"rome_infantry_javelineer_e",
+		"rome_infantry_spearman_e",
+		"rome_infantry_swordsman_e",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -685,7 +698,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 151;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 163;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -800,9 +813,17 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"ptol_ship_siege", "ptol_trireme", nullptr},
 		{"ptol_siege_tower", "ptol_bolt_shooter", nullptr},
 		{"rome_cavalry_auxiliary_b", "rome_cavalry", "rome_cavalry"},
+		{"rome_cavalry_javelineer_a", "rome_cavalry", nullptr},
+		{"rome_cavalry_javelineer_auxiliary_a", "rome_cavalry", nullptr},
 		{"rome_cavalry_javelineer_auxiliary_b", "rome_cavalry", nullptr},
+		{"rome_cavalry_javelineer_auxiliary_e", "rome_cavalry", nullptr},
 		{"rome_cavalry_javelineer_b", "rome_cavalry", "rome_cavalry"},
+		{"rome_cavalry_javelineer_e", "rome_cavalry", nullptr},
+		{"rome_cavalry_spearman_a", "rome_cavalry", nullptr},
+		{"rome_cavalry_spearman_auxiliary_a", "rome_cavalry", nullptr},
 		{"rome_cavalry_spearman_auxiliary_b", "rome_cavalry", nullptr},
+		{"rome_cavalry_spearman_auxiliary_e", "rome_cavalry", nullptr},
+		{"rome_cavalry_spearman_e", "rome_cavalry", nullptr},
 		{"rome_champion_cavalry", "rome_cavalry", "rome_cavalry"},
 		{"rome_champion_infantry_spear_gladiator", "rome_spearman", nullptr},
 		{"rome_champion_infantry_sword_gladiator", "rome_swordsman", nullptr},
@@ -812,11 +833,15 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"rome_hero_maximus", "rome_cavalry", "rome_cavalry"},
 		{"rome_hero_scipio", "rome_cavalry", "rome_cavalry"},
 		{"rome_infantry_antesignanus", "rome_archer", nullptr},
+		{"rome_infantry_javelineer_a", "rome_archer", "rome_archer"},
+		{"rome_infantry_javelineer_e", "rome_archer", "rome_archer"},
 		{"rome_infantry_legionary", "rome_swordsman", nullptr},
 		{"rome_infantry_spearman_a", "rome_spearman", "rome_spearman"},
 		{"rome_infantry_spearman_conscript", "rome_spearman", nullptr},
+		{"rome_infantry_spearman_e", "rome_spearman", "rome_spearman"},
 		{"rome_infantry_swordsman_a", "rome_swordsman", nullptr},
 		{"rome_infantry_swordsman_b", "rome_swordsman", nullptr},
+		{"rome_infantry_swordsman_e", "rome_swordsman", nullptr},
 		{"rome_ship_ram", "rome_trireme", nullptr},
 		{"rome_ship_scout", "rome_trireme", "rome_trireme"},
 		{"rome_ship_siege", "rome_trireme", "rome_trireme"},
@@ -851,6 +876,60 @@ inline const UnitTemplateModel *find_unit_template_model(const char *id) {
 	for (int i = 0; i < UNIT_TEMPLATE_MODEL_COUNT; ++i)
 		if (std::strcmp(t[i].id, id) == 0) return &t[i];
 	return nullptr;
+}
+
+// The model an advanced (rank 2) or elite (rank 3) unit of a roster template
+// draws with: 0 A.D. promotes a `_b` template to its `_a` and `_e` templates,
+// which mostly have their own actor (tools/unit_template_models.py rank_plan).
+struct UnitTemplateRankModel {
+	const char *tmpl; // the roster template
+	const char *advanced; // its _a template's unit_template_draw_model or civ class model, or nullptr
+	const char *elite; // its _e template's, or nullptr
+};
+
+inline constexpr int UNIT_TEMPLATE_RANK_MODEL_COUNT = 9;
+
+inline const UnitTemplateRankModel *unit_template_rank_models() {
+	static const UnitTemplateRankModel kRank[UNIT_TEMPLATE_RANK_MODEL_COUNT + 1] = {
+		{"rome/cavalry_javelineer_auxiliary_b", "rome_cavalry_javelineer_auxiliary_a", "rome_cavalry_javelineer_auxiliary_e"},
+		{"rome/cavalry_javelineer_b", "rome_cavalry_javelineer_a", "rome_cavalry_javelineer_e"},
+		{"rome/cavalry_spearman_auxiliary_b", "rome_cavalry_spearman_auxiliary_a", "rome_cavalry_spearman_auxiliary_e"},
+		{"rome/cavalry_spearman_b", "rome_cavalry_spearman_a", "rome_cavalry_spearman_e"},
+		{"rome/infantry_javelineer_b", "rome_infantry_javelineer_a", "rome_infantry_javelineer_e"},
+		{"rome/infantry_spearman_a", nullptr, "rome_infantry_spearman_e"},
+		{"rome/infantry_spearman_b", "rome_infantry_spearman_a", "rome_infantry_spearman_e"},
+		{"rome/infantry_swordsman_a", nullptr, "rome_infantry_swordsman_e"},
+		{"rome/infantry_swordsman_b", "rome_infantry_swordsman_a", "rome_infantry_swordsman_e"},
+		{nullptr, nullptr, nullptr},
+	};
+	return kRank;
+}
+
+// The unit_template_draw_model a roster template's unit draws with at `rank`
+// (Promotion: 2 advanced, 3 elite), UNIT_TEMPLATE_RANK_CLASS_MODEL for the civ's
+// model for its UnitType (a model not in kDraw), or -1 for its basic-rank model.
+inline constexpr int UNIT_TEMPLATE_RANK_CLASS_MODEL = -2;
+
+inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
+	if (rank < 2 || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return -1;
+	static const std::array<std::array<int16_t, 2>, CIV_UNIT_TEMPLATE_COUNT> kLookup = [] {
+		std::array<std::array<int16_t, 2>, CIV_UNIT_TEMPLATE_COUNT> t;
+		for (auto &r : t) r = {-1, -1};
+		auto draw_index = [](const char *id) -> int16_t {
+			if (!id) return -1;
+			for (int k = 0; k < UNIT_TEMPLATE_DRAW_MODEL_COUNT; ++k)
+				if (std::strcmp(unit_template_draw_model(k), id) == 0) return (int16_t)k;
+			return (int16_t)UNIT_TEMPLATE_RANK_CLASS_MODEL;
+		};
+		for (const UnitTemplateRankModel *r = unit_template_rank_models(); r->tmpl; ++r)
+			for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+				if (std::strcmp(civ_unit_template(i).id, r->tmpl) == 0) {
+					t[i] = {draw_index(r->advanced), draw_index(r->elite)};
+					break;
+				}
+		return t;
+	}();
+	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
 static_assert(CIV_UNIT_TEMPLATE_COUNT == 463, "rerun tools/extract_0ad_assets.py --templates");

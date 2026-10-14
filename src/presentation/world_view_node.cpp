@@ -1677,10 +1677,15 @@ static uint8_t drawn_unit_type(uint8_t utype, uint16_t tmpl, uint32_t id) {
 	return rtso::civilian_is_male(tmpl, id) ? (uint8_t)rtso::UNIT_VILLAGER : utype;
 }
 
-static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl, uint32_t id) {
+// An advanced or elite unit draws its _a or _e template's actor (0 A.D. Promotion
+// changes the template; RTS0 keeps the roster row and raises the rank).
+static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl, uint32_t id, uint8_t rank) {
 	if (rtso::civilian_is_male(tmpl, id)) return rtso::UNIT_VILLAGER;
 	if (shows_packed(pack_state) && rtso::packed_siege_model(rtso::civ_unit_model(civ, utype)))
 		return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
+	const int ranked = rtso::unit_template_rank_draw_index(tmpl, rank);
+	if (ranked >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + ranked);
+	if (ranked == rtso::UNIT_TEMPLATE_RANK_CLASS_MODEL) return utype;
 	const int own = rtso::unit_template_draw_index(tmpl);
 	if (own >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + own);
 	return utype;
@@ -2695,7 +2700,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 		const int slot = crowd_slot_of(anim_of(i).clip);
 		crowd_slot_scratch_[i] = (uint8_t)slot;
-		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i]);
+		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
 		crowd_key_utype_[key] = t;
 		counts[civ][key][slot]++;
 	}
@@ -2793,7 +2798,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
-		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i], uview.id[i]);
+		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
 		String utype_str = crowd_key_model(uciv, ckey);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
