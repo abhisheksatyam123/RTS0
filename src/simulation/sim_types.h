@@ -484,6 +484,9 @@ enum BuildingType : uint8_t {
 #include "territory_data.h"
 static_assert(TERRITORY_INFLUENCE_ROWS == BLD_TYPE_COUNT,
 	"a new BuildingType needs its TerritoryInfluence row: run tools/extract_0ad_territory.py");
+#include "vision_data.h"
+static_assert(STRUCTURE_VISION_ROWS == BLD_TYPE_COUNT,
+	"a new BuildingType needs its Vision row: run tools/extract_0ad_vision.py");
 
 // The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
 // forms research the Tachara's technologies, the apartment the house's, the Han
