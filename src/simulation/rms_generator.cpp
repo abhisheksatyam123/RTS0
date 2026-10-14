@@ -2211,6 +2211,12 @@ static BiomeFauna biome_fauna(BiomeType biome, int pick) {
 		case BIOME_POLAR: return {FAUNA_CHICKEN, FAUNA_MUSKOX, FAUNA_WALRUS, FAUNA_WOLF_ARCTIC};
 		case BIOME_INDIA: return {FAUNA_PEACOCK, FAUNA_PEACOCK, FAUNA_ELEPHANT_ASIAN, FAUNA_TIGER};
 		case BIOME_TEMPERATE: return {FAUNA_CHICKEN, FAUNA_DEER, FAUNA_SHEEP, FAUNA_WOLF};
+		case BIOME_AUTUMN: return {FAUNA_CHICKEN, FAUNA_DEER, FAUNA_SHEEP, FAUNA_WOLF};
+		case BIOME_NUBIA: {
+			// setupBiome_nubia's pickRandom of the main huntable animal.
+			static const uint8_t kMain[5] = {FAUNA_WILDEBEEST, FAUNA_ZEBRA, FAUNA_GIRAFFE, FAUNA_ELEPHANT_AFRICAN_BUSH, FAUNA_GAZELLE};
+			return {FAUNA_CHICKEN, kMain[(unsigned)pick % 5u], FAUNA_GAZELLE, FAUNA_LION};
+		}
 		default: return {FAUNA_CHICKEN, FAUNA_DEER, FAUNA_SHEEP, FAUNA_BOAR}; // aegean (and latium)
 	}
 }

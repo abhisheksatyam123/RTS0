@@ -1935,6 +1935,8 @@ void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
 		{ "persia", { { "palm", 1.0f }, { "acacia", 0.5f }, { "tree", 0.9f } } },
 		{ "india", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "tree", 1.0f } } },
 		{ "tropical", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "palm", 1.2f } } },
+		{ "autumn", { { "oak", 1.15f }, { "tree", 1.0f }, { "oak", 1.0f } } },
+		{ "nubia", { { "acacia", 0.6f }, { "baobab", 0.45f }, { "palm", 1.0f } } },
 		{ "volcanic", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
 	};
 	const Set *set = &kSets[0];
@@ -2075,6 +2077,8 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 		{ "persia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
 		{ "volcanic", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
 		{ "tropical", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f } }, // india
+		{ "autumn", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
+		{ "nubia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
 	};
 	const Env *e = &kEnvs[0];
 	for (const auto &x : kEnvs)

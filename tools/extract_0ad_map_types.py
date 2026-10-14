@@ -28,11 +28,12 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "map_types.json")
 HEADER = os.path.join(ROOT, "src", "simulation", "map_biomes_data.h")
-# 0.28 rmbiome id -> RTS0 BiomeType (sim_types.h). Biomes RTS0 lacks (generic/autumn,
-# generic/nubia and the map folders such as alpine/) have no entry yet.
+# 0.28 rmbiome id -> RTS0 BiomeType (sim_types.h). Biomes RTS0 lacks (the map folders such as
+# alpine/ and fields_of_meroe/) have no entry yet.
 RTS0_BIOMES = {"generic/aegean": "BIOME_AEGEAN", "generic/alpine": "BIOME_ALPINE", "generic/arctic": "BIOME_POLAR",
                "generic/sahara": "BIOME_OASIS", "generic/temperate": "BIOME_TEMPERATE", "generic/steppe": "BIOME_STEPPE",
-               "generic/savanna": "BIOME_SAVANNA", "generic/india": "BIOME_INDIA"}
+               "generic/savanna": "BIOME_SAVANNA", "generic/india": "BIOME_INDIA",
+               "generic/autumn": "BIOME_AUTUMN", "generic/nubia": "BIOME_NUBIA"}
 # 0.28 script name -> RTS0 MapTypeInfo id where they differ.
 RTS0_MAP_IDS = {"archipelago": "archipelago_0ad", "neareastern_badlands": "nearestern_badlands"}
 # The maps 0 A.D. keeps in maps/tutorials (Learn to Play), not in Game Setup.

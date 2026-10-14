@@ -1175,6 +1175,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "savanna") == 0) cfg.biome = BIOME_SAVANNA;
 	else if (std::strcmp(minfo.biome, "polar") == 0) cfg.biome = BIOME_POLAR;
 	else if (std::strcmp(minfo.biome, "india") == 0) cfg.biome = BIOME_INDIA;
+	else if (std::strcmp(minfo.biome, "autumn") == 0) cfg.biome = BIOME_AUTUMN;
+	else if (std::strcmp(minfo.biome, "nubia") == 0) cfg.biome = BIOME_NUBIA;
 	else if (std::strcmp(minfo.biome, "desert") == 0 || std::strcmp(minfo.biome, "persia") == 0) cfg.biome = BIOME_OASIS;
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
@@ -1203,7 +1205,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	if (biome_pick >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
-				"steppe", "savanna", "polar", "india"};
+				"steppe", "savanna", "polar", "india", "autumn", "nubia"};
 		current_map_biome_ = kBiomeNames[biome_pick];
 	}
 	// 0 A.D. per-tile terrain textures from the final biome.
