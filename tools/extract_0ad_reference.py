@@ -309,6 +309,90 @@ def tech_name(j, civ):
     return {"generic": g if isinstance(g, str) else "", "specific": n if n != g else ""}
 
 
+COST_KEYS = ("food", "wood", "stone", "metal")
+
+
+def _classes(t):
+    return set(t.tokens("Identity/Classes")) | set(t.tokens("Identity/VisibleClasses"))
+
+
+def _matches(classes, affects):
+    """MatchesClassList: any list whose classes all match ("!X" excludes X)."""
+    return any(all((c[1:] not in classes) if c.startswith("!") else (c in classes) for c in lst) for lst in affects)
+
+
+def civ_modifiers(sim_root, civ, auto_techs, player):
+    """0.28 TemplateLoader.deriveModifications: auto-researched techs the civ may
+    research, its civ-bonus auras and the team bonuses that also affect the player."""
+    out = []
+    def add(j):
+        base = [a.split() for a in j.get("affects", [])] or [[]]
+        for m in j.get("modifications", []):
+            aff = [lst + m["affects"].split() for lst in base] if m.get("affects") else base
+            out.append((m["value"], m, aff))
+    for _rel, j in auto_techs:
+        req = j.get("requirements")
+        if req:
+            op, val = next(iter(req.items()))
+            if tech_reqs(civ, op, val) is False:
+                continue
+        add(j)
+    for a in player.tokens("Auras"):
+        path = os.path.join(sim_root, "data", "auras", a + ".json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                j = json.load(f)
+            if any(x in j.get("affectedPlayers", ["Player"]) for x in ("Player", "Ally", "MutualAlly")):
+                add(j)
+    return out
+
+
+def _modified(mods, path, value, classes):
+    for p, m, aff in mods:
+        if p != path or not _matches(classes, aff):
+            continue
+        if "replace" in m:
+            value = m["replace"]
+        elif "multiply" in m:
+            value *= m["multiply"]
+        elif "add" in m:
+            value += m["add"]
+    return value
+
+
+def civ_cost_mults(loader, mods, structures, units):
+    """Cost and Researcher/TechCostMultiplier as the civ's own bonuses leave them
+    (TemplateParser.getEntity under the civ's modifiers): food, wood, stone, metal
+    and time factors, only where one differs from 1."""
+    def factors(t, prefix, base):
+        cl = _classes(t)
+        f = []
+        for k in COST_KEYS + ("time",):
+            path = prefix + ("BuildTime" if k == "time" and prefix == "Cost/" else (k if prefix != "Cost/" else "Resources/" + k))
+            b = base(t, path)
+            v = _modified(mods, path, b, cl)
+            f.append(round(v / b, 4) if b else 1.0)
+        return f if any(abs(x - 1) > 1e-6 for x in f) else None
+    def tval(t, path):
+        return float(t.value(path, "1") or 1)
+    def cval(t, path):
+        return float(t.value(path, "0") or 0)
+    tech, cost = {}, {}
+    for i, d in structures.items():
+        t = loader.load(d["template"])
+        f = factors(t, "Researcher/TechCostMultiplier/", tval)
+        if f:
+            tech[i] = f
+        f = factors(t, "Cost/", cval)
+        if f:
+            cost["s" + i] = f
+    for uid, name in units:
+        f = factors(loader.load(name), "Cost/", cval)
+        if f:
+            cost[uid] = f
+    return {"tech_cost_mult": tech, "cost_mult": cost}
+
+
 def civ_gameplay(loader, sim_root, civ, auto_techs, all_techs, structures):
     """0.28 civinfo GameplaySection lists: the civ bonuses that are an auto-researched
     civ tech or a player aura (BonusesSubsection), team bonuses, and which techs and
@@ -360,6 +444,7 @@ def collect(zad, prev=None):
     with open(ROSTERS, encoding="utf-8") as f:
         rosters = json.load(f)
     units = {}
+    unit_names = {}  # civ -> [(roster id, 0.28 template)] for the civ's cost modifiers
     for r in rosters["units"]:
         name = "units/" + r["id"]
         ld = loader
@@ -372,6 +457,8 @@ def collect(zad, prev=None):
         d["builds"] = build_list(ld, t, r["civ"])
         d["viewer"] = viewer(t)
         units[r["id"]] = d
+        if ld is loader:
+            unit_names.setdefault(r["civ"], []).append((r["id"], name))
     structures = {}
     for civ in CIVS:
         rows = {}
@@ -416,6 +503,8 @@ def collect(zad, prev=None):
         p = loader.load("special/players/" + civ)
         civs[civ] = {"name": text_of(p, "Identity/GenericName"), "history": text_of(p, "Identity/History")}
         civs[civ].update(civ_gameplay(loader, sim_root, civ, auto_techs, all_techs, structures[civ]))
+        mods = civ_modifiers(sim_root, civ, auto_techs, p)
+        civs[civ].update(civ_cost_mults(loader, mods, structures[civ], unit_names.get(civ, [])))
     return {
         "generator": "tools/extract_0ad_reference.py",
         "license": "0 A.D. data, CC BY-SA 3.0, Wildfire Games",
