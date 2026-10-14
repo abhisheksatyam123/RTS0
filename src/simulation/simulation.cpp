@@ -7285,7 +7285,6 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 	int max_cap = get_transport_capacity(transport_id);
 
 	auto &passengers = transport_passengers_[transport_id];
-	float pick_x = 0.0f, pick_z = 0.0f;
 	int walking = 0;
 
 	for (size_t i = 0; i < count; ++i) {
@@ -7316,25 +7315,78 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 			units_.target_x[uidx] = tx;
 			units_.target_z[uidx] = tz;
 			if (units_.team[uidx] != team) continue; // Pickup: only the holder's owner's own units
-			pick_x += units_.pos_x[uidx];
-			pick_z += units_.pos_z[uidx];
 			++walking;
 		}
 	}
-	// GarrisonHolder Pickup: an idle ship sails toward the units coming aboard,
-	// as close to them as the water allows.
-	// Petra's transport plan steers its own ship to the pickup point.
-	bool petra_ship = false; // any AI's: the ship's team is the AI whose plan it is
-	for (const auto &tp : petra_transports_) petra_ship |= tp.ship_id == transport_id;
+	// GarrisonHolder Pickup: the ship comes for the walkers (tick_ship_pickup).
+	if (walking) tick_ship_pickup((size_t)tidx);
+}
+
+bool Simulation::petra_steers_ship(uint32_t ship_id) const {
+	// Petra's transport plan steers its own ship to the pickup point (any AI's: the ship's team
+	// is the AI whose plan it is).
+	for (const auto &tp : petra_transports_) if (tp.ship_id == ship_id) return true;
 	for (const auto &slot : petra_slots_)
-		for (const auto &tp : slot.petra_transports_) petra_ship |= tp.ship_id == transport_id;
-	if (walking && !petra_ship && unit_is_ship(units_.unit_type[tidx]) && !units_.has_order[tidx]) {
-		float wx = pick_x / (float)walking, wz = pick_z / (float)walking;
-		if (nearest_water_for_ship((size_t)tidx, wx, wz, wx, wz)) {
-			const uint32_t ship = transport_id;
-			cmd_move(&ship, 1, wx, wz);
+		for (const auto &tp : slot.petra_transports_) if (tp.ship_id == ship_id) return true;
+	return false;
+}
+
+// Order.PickupUnit's test: the passenger can walk to within the ship's LoadingRange
+// (IsTargetRangeReachable: dry ground beside the hull in the walker's own land) and is
+// less than 200 m away.
+bool Simulation::ship_reachable_by(size_t ship, size_t walker) const {
+	const float dx = units_.pos_x[walker] - units_.pos_x[ship], dz = units_.pos_z[walker] - units_.pos_z[ship];
+	if (dx * dx + dz * dz >= (200.0f * 0.28f) * (200.0f * 0.28f)) return false;
+	float lx = 0.0f, lz = 0.0f;
+	if (!ship_unload_point(ship, lx, lz)) return false;
+	if (nav_grid_.cells.blank()) return true;
+	auto [wx, wy] = nav_grid_.world_to_cell(units_.pos_x[walker], units_.pos_z[walker]);
+	auto [sx, sy] = nav_grid_.world_to_cell(lx, lz);
+	if (!nav_grid_.cells.inside(wx, wy) || !nav_grid_.cells.inside(sx, sy)) return false;
+	return nav_grid_.global_region_at(wx, wy, PASS_INFANTRY) == nav_grid_.global_region_at(sx, sy, PASS_INFANTRY);
+}
+
+// UnitAI PICKUP for a ship with Pickup: each of its owner's units walking to board it asks
+// (PickupRequested), and once the ship has no order of its own left (PushOrderAfterForced) it
+// takes the first of them: a walker that can reach it is waited for where the ship lies
+// (LOADING), one that can't is met, the ship sailing to the water nearest it (APPROACHING)
+// and waiting there. Waiting ends when the ship is full or nobody is walking to it any more
+// (PickupCanceled). No state is kept: the walkers' own orders are the requests.
+void Simulation::tick_ship_pickup(size_t ship) {
+	if (!units_.alive[ship] || !unit_is_ship(units_.unit_type[ship]) || units_.has_order[ship]) return;
+	const uint32_t sid = units_.id[ship];
+	if (petra_steers_ship(sid)) return;
+	auto pit = transport_passengers_.find(sid);
+	const int used = pit == transport_passengers_.end() ? 0 : occupied_slots(pit->second);
+	if (used >= get_transport_capacity(sid)) return; // GarrisonHolder.CanPickup: not when full
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_MOVE || units_.target_unit_id[i] != sid ||
+				units_.team[i] != units_.team[ship] || !can_board(ship, i)) continue;
+		if (ship_reachable_by(ship, i)) return; // LOADING: wait for it here
+		float wx = units_.pos_x[i], wz = units_.pos_z[i];
+		if (nearest_water_for_ship(ship, wx, wz, wx, wz)) {
+			const float dx = wx - units_.pos_x[ship], dz = wz - units_.pos_z[ship];
+			if (dx * dx + dz * dz > 1.0f) cmd_move(&sid, 1, wx, wz);
 		}
+		return;
 	}
+}
+
+void Simulation::tick_ship_pickups() {
+	if (transport_walkers_none()) return;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && unit_is_ship(units_.unit_type[i]) && !units_.has_order[i] && ship_garrison_capacity(i) > 0)
+			tick_ship_pickup(i);
+}
+
+// No unit is walking to board a ship (the common case): nothing for tick_ship_pickups to do.
+bool Simulation::transport_walkers_none() const {
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_MOVE || units_.target_unit_id[i] == 0) continue;
+		const int32_t t = lookup_unit(units_.target_unit_id[i]);
+		if (t >= 0 && unit_is_ship(units_.unit_type[t])) return false;
+	}
+	return true;
 }
 
 void Simulation::order_disembark(uint32_t transport_id, float target_x, float target_z) {
@@ -8010,6 +8062,7 @@ void Simulation::tick(float dt) {
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
 	if (!unit_upgrades_.empty()) tick_unit_upgrades(dt); // and unit ones (Centurion, Immortal bow)
 	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
+	tick_ship_pickups();     // 0 A.D. UnitAI PICKUP: ships come for the units walking to board them
 	tick_garrison_holders(); // 0 A.D. GarrisonHolder BuffHeal / EjectHealth for structures
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
 
