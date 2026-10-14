@@ -29,6 +29,10 @@ inline int tree_slot_gatherers(const char *name, bool script, int group, int opt
 		{"savanna", false, 0, 0, 0, 9}, // baobab
 		{"savanna", false, 2, 0, 0, 4}, // bush_tropic
 		{"savanna", false, 2, 0, 1, 4}, // bush_temperate
+		{"nubia", false, 2, 2, 0, 12}, // baobab_3_mature
+		{"nubia", false, 2, 2, 1, 4}, // bush_tropic
+		{"nubia", false, 1, 0, 0, 12}, // baobab_4_dead
+		{"nubia", false, 1, 1, 0, 12}, // baobab_3_mature
 		{"aegean_sea", true, 0, 0, 1, 6}, // cretan_date_palm_short
 		{"anatolian_plateau", true, 1, 0, 0, 4}, // bush_temperate
 		{"arctic_summer", true, 0, 0, 0, 4}, // bush_badlands
@@ -71,6 +75,9 @@ inline int tree_slot_gatherers(const char *name, bool script, int group, int opt
 		{"sahel_watering_holes", true, 2, 0, 0, 9}, // baobab
 		{"sahel_watering_holes", true, 2, 0, 1, 9}, // baobab
 		{"sahel_watering_holes", true, 1, 0, 0, 9}, // baobab
+		{"the_nile", true, 0, 0, 1, 6}, // cretan_date_palm_short
+		{"the_nile", true, 2, 0, 1, 6}, // cretan_date_palm_short
+		{"the_nile", true, 1, 1, 0, 6}, // cretan_date_palm_short
 		{"scythian_rivulet", true, 1, 3, 0, 4}, // bush_badlands
 		{"india", false, 0, 0, 0, 12}, // banyan
 		{"india", false, 0, 0, 1, 10}, // strangler

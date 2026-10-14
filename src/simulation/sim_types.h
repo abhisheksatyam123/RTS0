@@ -39,7 +39,9 @@ enum BiomeType : uint8_t {
 	BIOME_SAVANNA = 6,
 	BIOME_POLAR = 7,
 	BIOME_INDIA = 8,
-	BIOME_COUNT = 9
+	BIOME_AUTUMN = 9, // generic/autumn (Rhine Valley, Fall)
+	BIOME_NUBIA = 10, // generic/nubia
+	BIOME_COUNT = 11
 };
 
 // Player colours, 0xRRGGBB. The first 8 are 0 A.D. simulation/data/settings/player_defaults.json

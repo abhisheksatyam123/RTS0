@@ -292,8 +292,9 @@ public:
 
 	// Incoming NMT_CHAT display: channel-tag parse + RichTextLabel append
 	// (ChatBounce.js parity). No-op until build() has run.
-	void append_incoming(const String &sender_guid, const String &raw_msg) {
-		if (!log_) return;
+	// Returns whether the message was shown (it reached one of its addressees).
+	bool append_incoming(const String &sender_guid, const String &raw_msg) {
+		if (!log_) return false;
 		String msg = raw_msg;
 		// The wire tag is the addressee; 0.28 shows it as the context (ChatAddressees.js)
 		// and shows the message only to its addressees (isAddressee).
@@ -322,10 +323,11 @@ public:
 				msg = msg.substr(close_b + 1).strip_edges();
 			}
 		}
-		if (!tag.is_empty() && host_ && !host_->chat_is_addressee(sender_guid, tag)) return;
+		if (!tag.is_empty() && host_ && !host_->chat_is_addressee(sender_guid, tag)) return false;
 		const String line = stamp() + format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
 		log_->append_text(line + String("\n"));
 		post_overlay(line);
+		return true;
 	}
 
 	// Raw bbcode line (Petra log, diplomacy/tribute feedback).

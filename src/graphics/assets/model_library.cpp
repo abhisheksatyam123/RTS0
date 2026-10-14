@@ -63,7 +63,7 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "healer") return 1.72f;
 		if (id == "deer") return 1.35f;
 		if (id == "boar") return 1.15f;
-		if (id == "sheep") return 0.95f;
+		if (id == "sheep" || id == "sheep_gaia") return 0.95f;
 		if (id == "wolf") return 1.05f;
 		// Animal GLBs come out of the extractors already sized (a chicken 0.5,
 		// a bush elephant 3.2), so they keep their own height.
