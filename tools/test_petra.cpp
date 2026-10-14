@@ -149,9 +149,11 @@ static void test_roster_army() {
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
 		// rates) still has something to fire at. They stand on dry land: no land unit wades out
-		// to one at sea. The one at (20, 4) keeps Petra's second Civic Center off the neutral
-		// strip below it (findEconomicCCLocation), where the forts would shoot its gatherers.
-		for (const float *at : {(const float[2]){24.0f, 37.0f}, (const float[2]){20.0f, 4.0f}, (const float[2]){6.0f, 22.0f}}) {
+		// to one at sea. The one at (20, 12) keeps Petra's second Civic Center off the neutral
+		// strip below it (findEconomicCCLocation), where the forts would shoot its gatherers,
+		// and stays off the way east from Petra's Civic Center, where it would shoot builders
+		// walking to Petra's own towers there.
+		for (const float *at : {(const float[2]){24.0f, 37.0f}, (const float[2]){20.0f, 12.0f}, (const float[2]){6.0f, 22.0f}}) {
 			const uint32_t fort = s->spawn_building_world(at[0], at[1], BLD_FORTRESS, 0, 1.0f);
 			std::vector<uint32_t> men;
 			for (int k = 0; k < 10; ++k)
