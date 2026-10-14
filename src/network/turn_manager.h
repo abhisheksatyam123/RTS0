@@ -278,6 +278,10 @@ public:
 	bool is_paused() const { return !paused_clients_.empty(); }
 	bool client_paused(uint32_t client_id) const { return paused_clients_.count(client_id) != 0; }
 	const std::set<uint32_t>& paused_clients() const { return paused_clients_; }
+	// 0 A.D. NMT_REJOINED: the clients that rejoined the running match, in
+	// order, once each has loaded ("%(player)s has rejoined the game.").
+	// Never cleared, so a reader keeps its own count.
+	const std::vector<uint32_t>& rejoined_clients() const { return rejoined_clients_; }
 
 	// Replay records the sorted command batch and the post-turn simulation hash.
 	// This is a turn recorder/verifier, not a portable simulation-state snapshot.
@@ -407,6 +411,7 @@ private:
 	uint32_t local_hash_at(uint32_t turn) const;
 	std::string client_label(uint32_t client_id) const;
 	std::set<uint32_t> paused_clients_;
+	std::vector<uint32_t> rejoined_clients_;
 	std::set<uint32_t> left_clients_; // host: clients drop_client removed; their hashes are ignored
 	// Rejoin: per-peer first turn whose batch is required (a rejoiner sends
 	// from T+COMMAND_DELAY+1), host-side requests, and the client's transfer.

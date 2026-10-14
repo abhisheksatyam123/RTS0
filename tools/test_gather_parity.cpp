@@ -274,6 +274,27 @@ int main() {
 		CHECK(s.nearest_dropsite((size_t)w2) == cc && s.units_.target_x[w2] == c->x);
 	}
 
+	// 11. 0.28 ResourceGatherer has no owner check: player 0's woman farms player 1's field,
+	// and a cavalryman (no grain rate) cannot.
+	{
+		static Simulation s;
+		fresh(s);
+		const uint32_t field = s.spawn_building_world(0.0f, 0.0f, BLD_FIELD, 1, 1.0f);
+		s.spawn_building_world(0.0f, 8.0f, BLD_FARMSTEAD, 0, 1.0f);
+		run(s, 0.5f);
+		const uint32_t grain = s.field_resource_id(field);
+		uint32_t w = s.spawn_unit(3.0f, 3.0f, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t cav = s.spawn_unit(4.0f, 3.0f, 0, UNIT_CAVALRY);
+		const bool woman_can = s.any_can_gather(&w, 1, grain), cav_can = s.any_can_gather(&cav, 1, grain);
+		const float food0 = s.player(0).res[RES_FOOD];
+		s.order_gather(&w, 1, grain);
+		run(s, 40.0f);
+		const int32_t wi = s.lookup_unit(w);
+		const float got = s.player(0).res[RES_FOOD] - food0 + (wi >= 0 ? (float)s.units_.carry[wi] : 0.0f);
+		std::printf("  other player's field: %.0f food farmed in 40 s (woman can %d, cavalry can %d)\n", got, woman_can, cav_can);
+		CHECK(grain != 0 && woman_can && !cav_can && got > 0.0f);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

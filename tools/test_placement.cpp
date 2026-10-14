@@ -249,6 +249,19 @@ static void test_unconnected_territory() {
 	CHECK(at(s, 0, 52.0f, 58.0f, BLD_BARRACKS) == Simulation::PLACE_TERRITORY);
 	CHECK(at(s, 0, 52.0f, 58.0f, BLD_OUTPOST) == Simulation::PLACE_OK);          // own neutral
 	CHECK(at(s, 0, 52.0f, 58.0f, BLD_PALISADE) == Simulation::PLACE_OK);
+	// The renderer's per-cell query agrees: the fortress's land blinks, the civic centre's does not.
+	const auto &g = s.territory_grid();
+	auto cell = [&](float x, float z, int &tx, int &tz) {
+		tx = (int)((x + s.map_half()) / (s.map_half() * 2.0f) * (float)g.w);
+		tz = (int)((z + s.map_half()) / (s.map_half() * 2.0f) * (float)g.h);
+	};
+	int fx, fz, cx, cz;
+	cell(45.0f, 55.0f, fx, fz);
+	cell(-45.0f, 55.0f, cx, cz);
+	CHECK(s.territory_blinking_cell(fx, fz));
+	CHECK(!s.territory_blinking_cell(cx, cz));
+	CHECK(!s.territory_blinking_cell(g.w / 2, 0)); // unclaimed land never blinks
+	CHECK(!s.territory_blinking_cell(-1, 0));
 	(void)fort;
 }
 
@@ -283,6 +296,27 @@ static void test_camps() {
 	CHECK(at(s, 0, -50.0f, 25.0f, BLD_MONUMENT) == Simulation::PLACE_OK);
 	s.spawn_building_world(-50.0f, 25.0f, BLD_MONUMENT, 0, 0.0f);
 	CHECK(at(s, 0, -20.0f, 30.0f, BLD_MONUMENT) == Simulation::PLACE_DISTANCE);
+	// germ/totem keeps only 100 m from another Monument (122 m here).
+	const auto civ0 = s.players_[0].civ;
+	s.players_[0].civ = CIV_GERMANS;
+	CHECK(at(s, 0, -20.0f, 30.0f, BLD_MONUMENT) == Simulation::PLACE_OK);
+	CHECK(at(s, 0, -35.0f, 30.0f, BLD_MONUMENT) == Simulation::PLACE_DISTANCE);
+	s.players_[0].civ = civ0;
+	// Its own template: 800 health, 150 wood and 100 metal, Resistance 8/20/2, Loot 30 wood 20 metal.
+	const BuildingTypeInfo totem = civ_building_type_info(CIV_GERMANS, BLD_MONUMENT);
+	CHECK(totem.max_hp == 800.0f && totem.wood_cost == 150 && totem.gold_cost == 100 && totem.stone_cost == 0);
+	CHECK(civ_building_type_info(CIV_IBERIANS, BLD_MONUMENT).stone_cost == 100);
+	float armour[3];
+	structure_armour(BLD_MONUMENT, CIV_GERMANS, armour);
+	CHECK(armour[0] == 8.0f && armour[1] == 20.0f && armour[2] == 2.0f);
+	structure_armour(BLD_MONUMENT, CIV_IBERIANS, armour);
+	CHECK(armour[0] == 20.0f && armour[1] == 30.0f && armour[2] == 3.0f);
+	const LootInfo loot = structure_loot(BLD_MONUMENT, CIV_GERMANS, 1.0f);
+	CHECK(loot.wood == 30 && loot.metal == 20 && loot.stone == 0);
+	// mace/arsenal and maur/elephant_stable are Town phase; everyone else's are City.
+	CHECK(building_required_phase(BLD_ARSENAL, CIV_MACEDONIANS) == 2 && building_required_phase(BLD_ARSENAL, CIV_ROMANS) == 3);
+	CHECK(building_required_phase(BLD_ELEPHANT_STABLE, CIV_MAURYANS) == 2 &&
+		building_required_phase(BLD_ELEPHANT_STABLE, CIV_KUSHITES) == 3);
 	CHECK(at(s, 0, -20.0f, 30.0f, BLD_PILLAR) == Simulation::PLACE_OK);
 	s.spawn_building_world(-20.0f, 30.0f, BLD_PILLAR, 0, 0.0f);
 	CHECK(at(s, 0, -5.0f, 40.0f, BLD_PILLAR) == Simulation::PLACE_DISTANCE);

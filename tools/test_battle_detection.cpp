@@ -191,6 +191,25 @@ int main() {
 				fauna_attack_sound(fauna_type_by_name("fauna_lion")) == fauna_attack_sound(fauna_type_by_name("fauna_tiger")));
 		CHECK(group_is(fauna_attack_sound(fauna_type_by_name("fauna_elephant_asian")), "actor/fauna/animal", "elephant_attack"));
 		CHECK(fauna_attack_sound(FAUNA_DEER) == ATTACK_SOUND_NONE && fauna_attack_sound(FAUNA_COUNT) == ATTACK_SOUND_NONE);
+		// Death groups (Health.js PlaySound("death")): a soldier's by phenotype, a dog's
+		// generic animal death, a ship's warship_death, a camel trader's, an animal's own;
+		// siege has none.
+		CHECK(generic_death_sound(UNIT_SPEARMAN) == ATTACK_SOUND_PHENOTYPE);
+		CHECK(group_is(phenotype_death_sound(false), "actor/human/death", "death_"));
+		CHECK(group_is(phenotype_death_sound(true), "actor/human/death", "female_death"));
+		CHECK(group_is(generic_death_sound(UNIT_WAR_DOG), "actor/fauna/death", "Animal_death_generic"));
+		CHECK(group_is(generic_death_sound(UNIT_TRIREME), "actor/ship", "warship_death"));
+		CHECK(generic_death_sound(UNIT_SIEGE_RAM) == ATTACK_SOUND_NONE);
+		bool camel = false, horse = false;
+		for (uint16_t r = 0; r < CIV_UNIT_TEMPLATE_COUNT; ++r) {
+			if (std::strcmp(civ_unit_template_table()[r].id, "pers/support_trader") == 0)
+				camel = group_is(roster_death_sound(r), "actor/fauna/death", "death_camel");
+			if (std::strcmp(civ_unit_template_table()[r].id, "athen/cavalry_javelineer_b") == 0)
+				horse = group_is(roster_death_sound(r), "actor/fauna/death", "death_horse");
+		}
+		CHECK(camel && horse);
+		CHECK(group_is(fauna_death_sound(fauna_type_by_name("fauna_elephant_asian")), "actor/fauna/animal", "elephant_death"));
+		CHECK(fauna_death_sound(FAUNA_COUNT) == ATTACK_SOUND_NONE);
 	}
 
 	// 3. Strikes on animals and animals' bites reach the session's combat sounds: a woman

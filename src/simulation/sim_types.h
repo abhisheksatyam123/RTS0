@@ -836,6 +836,9 @@ inline constexpr float HEAL_HP = 5.0f;
 // 0.28 template_unit_hero_healer.xml Heal: Health 15, Range 20 (m, before COMBAT_DISTANCE_SCALE).
 inline constexpr float HERO_HEAL_HP = 15.0f;
 inline constexpr float HERO_HEAL_RANGE = 20.0f;
+// 0.28 template_unit_champion_support_healer.xml Heal: Health 10, Range 20 (the Seeress).
+inline constexpr float CHAMPION_HEAL_HP = 10.0f;
+inline constexpr float CHAMPION_HEAL_RANGE = 20.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
@@ -1106,6 +1109,9 @@ inline bool unit_is_ship(uint8_t type) {
 // a land unit's or animal's centre comes to a structure. "default" 0.8 m, "large" 3 m.
 inline constexpr float CLEARANCE_DEFAULT = 0.8f / 4.0f;
 inline constexpr float CLEARANCE_LARGE = 3.0f / 4.0f;
+// helpers/MapEdgeTiles.h MAP_EDGE_TILES in RTS0 units: 3 terrain tiles (12 m). On a circular map
+// CCmpPathfinder makes everything that far inside the LOS circle's edge impassable to every class.
+inline constexpr float MAP_EDGE_DIST = 12.0f / 4.0f;
 
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
@@ -1174,6 +1180,7 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
 		case UNIT_WAGON:
+		case UNIT_WORKER_ELEPHANT: // maur/support_elephant: template_unit_support
 			return STANCE_PASSIVE;
 		case UNIT_CATAFALQUE:
 			return STANCE_STAND_GROUND; // template_unit_catafalque UnitAI/DefaultStance
@@ -1359,6 +1366,15 @@ inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
 			}
 			break;
 		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) info.wood_cost = 150; break;
+		case BLD_MONUMENT:
+			// germ/totem (Cerannus Totem): 800 health, 150 wood and 100 metal.
+			if (civ == CIV_GERMANS) {
+				info.max_hp = 800.0f;
+				info.wood_cost = 150;
+				info.gold_cost = 100;
+				info.stone_cost = 0;
+			}
+			break;
 		case BLD_FIELD:
 			if (civ == CIV_HAN) {
 				info.wood_cost = 60;
@@ -1494,7 +1510,10 @@ inline float building_half_depth(uint8_t type, float half_w) {
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
 // 2 = phase_town, 3 = phase_city.
-inline uint8_t building_required_phase(uint8_t type) {
+// The civ's own template where it differs: mace/arsenal and maur/elephant_stable are Town phase
+// ("-phase_city phase_town"), as Macedonian siege and Mauryan elephants come a phase early.
+inline uint8_t building_required_phase(uint8_t type, uint8_t civ = 0xFF) {
+	if ((type == BLD_ARSENAL && civ == CIV_MACEDONIANS) || (type == BLD_ELEPHANT_STABLE && civ == CIV_MAURYANS)) return 2;
 	switch (type) {
 		case BLD_TOWER: case BLD_MARKET: case BLD_GATE: case BLD_TEMPLE:
 		case BLD_WALL_SEGMENT: case BLD_FORGE: case BLD_WALL_TOWER: case BLD_EMBASSY:
@@ -2314,6 +2333,29 @@ inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
 	return (c & TC_HEALER) != 0;
 }
 
+// Heal/Range and Heal/Health of a healer's template, in metres before COMBAT_DISTANCE_SCALE:
+// template_unit_support_healer 12 m / 5, template_unit_champion_support_healer 20 m / 10,
+// template_unit_hero_healer 20 m / 15.
+inline float unit_heal_range_base(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_HERO) return HERO_HEAL_RANGE;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_RANGE;
+	return 12.0f;
+}
+// UnitAI/DefaultStance of the unit's template where it differs from its RTS0 class: siege towers
+// (template_unit_siege) and the Seeress (template_unit_champion_support_healer) are aggressive.
+inline uint8_t unit_default_stance(uint8_t type, uint16_t tmpl) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint16_t flags = civ_unit_template(tmpl).flags;
+		if ((flags & ROSTER_SIEGE_TOWER) || (type == UNIT_HEALER && (flags & ROSTER_CHAMPION))) return STANCE_AGGRESSIVE;
+	}
+	return unit_default_stance(type);
+}
+inline float unit_heal_hp_base(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_HERO) return HERO_HEAL_HP;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_HP;
+	return HEAL_HP;
+}
+
 // 0 A.D. UnitMotion/PassabilityClass "large": template_unit_siege, every elephant
 // (template_unit_elephant and the champion, hero and support elephants), chariots
 // (mixins/chariot: the champion and hero chariots) and catafalques (template_unit_catafalque).
@@ -2696,6 +2738,7 @@ inline LootInfo structure_loot(uint8_t type, uint8_t civ, float half_w) {
 		case BLD_TEMPLE: if (civ == CIV_BRITONS || civ == CIV_GAULS) set(60, 0); break;
 		case BLD_TOWER: if (civ == CIV_IBERIANS) set(10, 50); break;
 		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) set(30, 0); break;
+		case BLD_MONUMENT: if (civ == CIV_GERMANS) { set(30, 0); l.metal = 20; } break;
 		case BLD_GATE: if (civ == CIV_MAURYANS) set(6, 0); break;
 		case BLD_WALL_TOWER: if (civ == CIV_MAURYANS) set(12, 0); break;
 		default: break;
@@ -2761,6 +2804,19 @@ inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
 // A building type past the table (a civ-unique structure added later) is a generic structure.
 inline const CombatProfile &building_combat(uint8_t type) {
 	return combat_building_table()[type < COMBAT_BUILDING_ROWS ? type : COMBAT_BUILDING_ROWS];
+}
+// A structure's Resistance levels (hack, pierce, crush): its type's template, or the civ's own
+// where it differs (germ/totem 8, 20, 2 against the Iberian monument's 20, 30, 3).
+inline void structure_armour(uint8_t type, uint8_t civ, float out[3]) {
+	const CombatProfile &bc = building_combat(type);
+	out[0] = bc.hack_armor;
+	out[1] = bc.pierce_armor;
+	out[2] = bc.crush_armor;
+	if (type == BLD_MONUMENT && civ == CIV_GERMANS) {
+		out[0] = 8.0f;
+		out[1] = 20.0f;
+		out[2] = 2.0f;
+	}
 }
 // 0 A.D. Attack/<type>/PreferredClasses (preference_data.h, from tools/extract_0ad_preferences.py).
 static_assert(PREF_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_preferences.py");

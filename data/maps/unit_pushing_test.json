@@ -6630,5 +6630,6 @@
   "units": [],
   "trigger_scripts": [
     "unit_pushing_test"
-  ]
+  ],
+  "circular": false
 }
