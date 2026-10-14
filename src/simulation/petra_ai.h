@@ -365,6 +365,10 @@ struct PetraDropsiteCheck {
 	int32_t next_check[3] = {};
 	int32_t used[3] = {};
 	int32_t lost[3] = {};
+	// The storehouse a check decided on that couldn't be paid yet (queues.dropsites keeps the plan
+	// until it is funded): its resource + 1, 0 for none. The counts wait while it is pending.
+	uint8_t pending = 0;
+	uint8_t pad[3] = {};
 };
 
 // headquarters.js lastFailedGather: the AI time a worker last found nothing of each resource to

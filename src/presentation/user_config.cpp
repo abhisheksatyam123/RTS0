@@ -91,6 +91,7 @@ const Default kDefaults[] = {
 	{"network.observerlimit", "8"},
 	{"network.observermaxlag", "-1"},
 	{"network.autocatchup", "true"},
+	{"network.duplicateplayernames", "false"},
 	{"overlay.netwarnings", "true"},
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},
