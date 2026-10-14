@@ -23642,6 +23642,8 @@ void Simulation::petra_manage_victory(float dt) {
 		}
 	}
 	if (!turn) return;
+	// checkEvents (every turn): Garrison events of the regicide hero.
+	petra_critical_ent_garrisoned();
 
 	// update(): the rest every 10 AI turns.
 	if (!petra_turn_mod(10)) return;
@@ -23756,6 +23758,44 @@ void Simulation::petra_retreat_critical_ent(size_t i, bool emergency, std::vecto
 // manageCriticalEntGuards: 4 + 5 * defensive soldiers guard each hero and relic,
 // 10 + 5 * defensive each wonder,
 // champions first; citizen soldiers only while there are workers to spare.
+void Simulation::petra_critical_ent_garrisoned() {
+	// victoryManager.js Garrison events: a hero gone into a ship lets its guards go; one in a
+	// structure has them walk to it (moveToRange radius .. radius + 5 m), no longer guarding.
+	if (has_victory(VK_REGICIDE) && regicide_hero_[petra_pid_]) {
+		const uint32_t hid = regicide_hero_[petra_pid_];
+		const int32_t h = lookup_unit(hid);
+		if (h >= 0 && units_.action_state[h] == ACTION_GARRISONED) {
+			bool ship = false, found = false;
+			float hx = 0.0f, hz = 0.0f, radius = 0.0f;
+			for (const auto &[tid, ps] : transport_passengers_)
+				if (std::find(ps.begin(), ps.end(), hid) != ps.end()) {
+					const int32_t t = lookup_unit(tid);
+					ship = t >= 0 && unit_is_ship(units_.unit_type[t]);
+					if (t >= 0) { hx = units_.pos_x[t]; hz = units_.pos_z[t]; radius = unit_clearance_at((size_t)t); found = true; }
+					break;
+				}
+			if (!found)
+				for (const Building &b : buildings_)
+					if (std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), hid) != b.garrisoned_units.end()) {
+						hx = b.x; hz = b.z; radius = b.half_size; found = true;
+						break;
+					}
+			for (size_t i = 0; found && i < units_.count; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GUARD || units_.order_target[i] != hid)
+					continue;
+				const uint32_t uid = units_.id[i];
+				if (ship) {
+					cmd_stop(&uid, 1);
+					continue;
+				}
+				const float dx = units_.pos_x[i] - hx, dz = units_.pos_z[i] - hz, d = std::max(0.01f, std::sqrt(dx * dx + dz * dz));
+				const float r = radius + 2.5f / 4.0f; // the middle of radius .. radius + 5 m
+				order_walk(&uid, 1, hx + dx / d * r, hz + dz / d * r, false);
+			}
+		}
+	}
+}
+
 void Simulation::petra_manage_critical_ent_guards() {
 	int workers = 0;
 	for (size_t i = 0; i < units_.count; ++i)
@@ -23883,7 +23923,17 @@ void Simulation::petra_capture_gaia_relics() {
 			}
 			continue;
 		}
-		if (units_.team[r] != GAIA_PLAYER) continue;
+		if (units_.team[r] != GAIA_PLAYER) {
+			// victoryManager.js OnOwnershipChanged / abortCaptureGaiaRelic: someone else took it
+			// first, so the expedition (a Raid plan in 0.28) is called off. Attack plans keep theirs.
+			for (size_t i = 0; i < units_.count; ++i)
+				if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_CAPTURE_RELIC &&
+				    units_.order_target[i] == rel.id && !petra_unit_reserved(units_.id[i])) {
+					const uint32_t uid = units_.id[i];
+					cmd_stop(&uid, 1);
+				}
+			continue;
+		}
 		// captureGaiaRelic: the capture already under way, less the relic's regen.
 		float capture = -(float)RELIC_REGEN_RATE;
 		for (size_t i = 0; i < units_.count; ++i)
