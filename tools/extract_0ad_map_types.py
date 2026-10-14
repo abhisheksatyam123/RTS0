@@ -24,7 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "map_types.json")
 # The maps 0 A.D. keeps in maps/tutorials (Learn to Play), not in Game Setup.
 TUTORIALS = {"introductory_tutorial", "starting_economy_walkthrough"}
-SETTING_KEYS = ["VictoryConditions", "LockTeams", "LastManStanding", "RevealMap", "ExploreMap",
+SETTING_KEYS = ["VictoryConditions", "LockTeams", "LastManStanding", "RevealMap", "ExploreMap", "AllyView",
                 "DisableTreasures", "DisableSpies", "PopulationCap", "WorldPopulationCap",
                 "StartingResources", "Ceasefire", "Nomad"]
 

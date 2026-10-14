@@ -358,6 +358,7 @@ struct GameSetupParams {
 	uint8_t ceasefire = 0;  // minutes of ceasefire at match start
 	uint8_t reveal = 0;     // 1 = revealed map (everything visible)
 	uint8_t explore = 0;    // 1 = explored map (terrain known from the start)
+	uint8_t ally = 0;       // 1 = Allied View (0 A.D. AllyView: SharedLosTech researched at start)
 	uint8_t wonder_min = 20; // Wonder victory: minutes a wonder must stand, 0..60
 	uint8_t relic_min = 20;  // Capture the Relic: minutes all relics must be held, 0..60
 	uint8_t relics = 2;      // Capture the Relic: relic count, 1..16
@@ -444,6 +445,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";ceasefire=" + std::to_string((unsigned)p.ceasefire);
 	s += ";reveal=" + std::to_string((unsigned)p.reveal);
 	s += ";explore=" + std::to_string((unsigned)p.explore);
+	if (p.ally) s += ";ally=1";
 	s += ";wonderdur=" + std::to_string((unsigned)p.wonder_min);
 	s += ";relicdur=" + std::to_string((unsigned)p.relic_min);
 	s += ";relics=" + std::to_string((unsigned)p.relics);
@@ -561,6 +563,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "ceasefire") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.ceasefire = x; }
 			else if (k == "reveal") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.reveal = x; }
 			else if (k == "explore") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.explore = x; }
+			else if (k == "ally") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.ally = x; }
 			else if (k == "wonderdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.wonder_min = x; }
 			else if (k == "relicdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.relic_min = x; }
 			else if (k == "relics") { uint8_t x; if (detail::parse_u8(v, 1, 16, x)) out.relics = x; }
