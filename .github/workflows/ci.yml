@@ -83,6 +83,11 @@ jobs:
           g++ -std=c++20 -O2 -Isrc tools/test_hotkeys.cpp src/presentation/hotkeys.cpp -o /tmp/test_hotkeys
           /tmp/test_hotkeys
 
+      - name: Snap to edges tests (0 A.D. ObstructionSnap.js)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_obstruction_snap.cpp -o /tmp/test_obstruction_snap
+          /tmp/test_obstruction_snap
+
       - name: Per-player economy tests
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_players.cpp src/simulation/simulation.cpp \
