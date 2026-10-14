@@ -1603,16 +1603,16 @@ bool Simulation::near_impassable_terrain(float x, float z, float c) const {
 }
 
 // A step may not end within the clearance of deep water or of a cliff. A unit already that close to
-// one (unloaded on the beach, walking in from the water, standing on a slope) may move on, but not
-// off passable ground into it.
+// one (unloaded on the beach, walking in from the water, standing on a slope) may move on: across
+// the cliff too, as 0.28's CheckLineMovement lets a unit on impassable navcells cross more of them
+// (the clearance band and the steep tile are both impassable there), but not off the beach into
+// the deep water itself.
 bool Simulation::land_step_barred(float x0, float z0, float x1, float z1, float c) const {
-	auto barred = [&](auto &&near) {
-		if (!near(x1, z1, c)) return false;
-		if (!near(x0, z0, c)) return true;
-		return near(x1, z1, 0.0f) && !near(x0, z0, 0.0f);
-	};
-	return barred([this](float x, float z, float r) { return near_deep_water(x, z, r); }) ||
-	       barred([this](float x, float z, float r) { return nav_grid_.near_steep_tile(x, z, r); });
+	if (near_deep_water(x1, z1, c)) {
+		if (!near_deep_water(x0, z0, c)) return true;
+		if (near_deep_water(x1, z1, 0.0f) && !near_deep_water(x0, z0, 0.0f)) return true;
+	}
+	return nav_grid_.near_steep_tile(x1, z1, c) && !nav_grid_.near_steep_tile(x0, z0, c);
 }
 
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
