@@ -182,6 +182,43 @@ int main() {
 		CHECK(alone > 0.0f && later == alone && joined < alone && std::fabs(next - joined) < 1e-4f);
 	}
 
+	// 7. Diminishing returns count the other farmers only (GetTargetGatherRate runs before
+	// AddActiveGatherer): two farmers both work at the full rate, a third at 0.95.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_building_world(-55.0f, 30.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		s.spawn_building_world(-30.0f, 10.0f, BLD_FARMSTEAD, 0, 1.0f);
+		const uint32_t field = s.spawn_building_world(-20.0f, 10.0f, BLD_FIELD, 0, 1.0f);
+		std::vector<uint32_t> two = {s.spawn_unit(-16.0f, 10.0f, 0, UNIT_FEMALE_CITIZEN), s.spawn_unit(-16.0f, 11.0f, 0, UNIT_FEMALE_CITIZEN)};
+		run(s, 0.1f);
+		s.order_build_or_repair(two.data(), two.size(), field);
+		run(s, 3.0f);
+		const float r0 = s.units_.gather_rate[s.lookup_unit(two[0])], r1 = s.units_.gather_rate[s.lookup_unit(two[1])];
+		const uint32_t third = s.spawn_unit(-16.0f, 12.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_build_or_repair(&third, 1, field);
+		run(s, 3.0f);
+		const float r2 = s.units_.gather_rate[s.lookup_unit(third)];
+		std::printf("  field: two farmers %.3f/s and %.3f/s, a third %.3f/s\n", r0, r1, r2);
+		CHECK(r0 > 0.0f && std::fabs(r1 - r0) < 1e-5f && std::fabs(r2 - r0 * 0.95f) < 1e-4f);
+	}
+
+	// 8. Wicker Baskets (+5 for Workers) reaches citizen infantry, whose template is a Worker.
+	{
+		static Simulation s;
+		fresh(s);
+		const uint32_t spear = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const uint32_t woman = s.spawn_unit(2.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const size_t u = (size_t)s.lookup_unit(spear), w = (size_t)s.lookup_unit(woman);
+		const int32_t before = s.carry_cap(u, RES_WOOD), wbefore = s.carry_cap(w, RES_WOOD);
+		s.player(0).techs.set(TECH_GATHER_CAPACITY_BASKET);
+		s.rebuild_all_tech_mods();
+		std::printf("  basket: infantry wood %d -> %d, woman %d -> %d (template %d)\n", before, s.carry_cap(u, RES_WOOD),
+				wbefore, s.carry_cap(w, RES_WOOD), (int)s.units_.tmpl[u]);
+		CHECK(s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT && s.carry_cap(u, RES_WOOD) == before + 5 &&
+		      s.carry_cap(w, RES_WOOD) == wbefore + 5);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
