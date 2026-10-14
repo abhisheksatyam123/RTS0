@@ -1644,7 +1644,7 @@ static void test_run_speed() {
 	const int si = idx_of(t, sp);
 	check(fled && t.unit_running((size_t)si) && t.unit_running((size_t)idx_of(t, woman)),
 			"the woman flees from the spearman and both run");
-	for (int k = 0; k < 3; ++k) t.tick(DT); // up to running speed (UnitMotion Acceleration)
+	t.tick(DT); // gaining speed from rest (UnitMotion Acceleration); the flee is over within four turns
 	const float x0 = x_of(t, woman), z0 = z_of(t, woman);
 	t.tick(DT);
 	const float moved = std::hypot(x_of(t, woman) - x0, z_of(t, woman) - z0);
