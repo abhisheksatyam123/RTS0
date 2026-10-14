@@ -20277,13 +20277,13 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			    siege_units == 0 && plan.state_timer < 240.0f)
 				ready = false;
 			// attackPlan.js updatePreparation: a plan that must start keeps on while its units
-			// finish training. RTS0's queues don't carry the plan, so the siege engines Petra
-			// has in training stand for them (bounded, as a queue may never empty).
+			// finish training (countOwnQueuedEntitiesWithMetadata "plan"): the batches under way
+			// for it (bounded, as a queue may never empty).
 			if (ready && !capped && plan.state_timer < 300.0f) {
 				for (const auto &b : buildings_) {
 					if (b.team != petra_pid_ || b.hp <= 0.0f) continue;
 					for (const auto &o : b.queue)
-						if (o.started && !o.is_tech() && o.unit_type < UNIT_TYPE_COUNT && unit_is_siege_engine(o.unit_type)) ready = false;
+						if (o.started && o.petra_plan == PETRA_ORDER_ATTACK) ready = false;
 					if (!ready) break;
 				}
 			}
