@@ -972,13 +972,17 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
-	if (inspector_.kind() == RtsoInspectorView::INSPECT_UNIT || inspector_.kind() == RtsoInspectorView::INSPECT_FAUNA) {
+	if (sim->cinema_playing()) {
+		// ICmpSelectable::SetOverrideVisibility(false): no selection rings while a path plays.
+		view->sync(sim, (float)delta, PackedInt32Array());
+	} else if (inspector_.kind() == RtsoInspectorView::INSPECT_UNIT || inspector_.kind() == RtsoInspectorView::INSPECT_FAUNA) {
 		PackedInt32Array shown = selected_ids;
 		shown.push_back((int32_t)inspector_.id());
 		view->sync(sim, (float)delta, shown);
 	} else {
 		view->sync(sim, (float)delta, selected_ids);
 	}
+	cinema_view_.update(*sim, cam_rig, ui_layer, this, delta);
 	if (cam_rig) {
 		minimap_view->set_local_player(viewer);
 		minimap_view->sync(sim, cam_rig->get_target_pos());

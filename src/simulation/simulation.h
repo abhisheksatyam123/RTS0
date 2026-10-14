@@ -14,6 +14,7 @@
 #include "map_biomes_data.h"
 #include "statistics_tracker.h"
 #include "triggers.h"
+#include "cinema.h"
 #include "tutorial_data.h"
 #include "turret_data.h"
 #include <cstdint>
@@ -167,7 +168,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 78; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 79; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_CINEMA = 79; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
@@ -1079,7 +1081,7 @@ public:
 	// Map trigger scripts (0 A.D. Trigger.js; see triggers.h). Map generation registers
 	// the map's own triggers; tick() runs their timers and the sim calls trigger_event().
 	const TriggerState &trigger_state() const { return triggers_; }
-	uint32_t trigger_hash() const { return triggers_.hash(); }
+	uint32_t trigger_hash() const;
 	void trigger_event(uint8_t event, const TriggerEventData &data = {});
 	// Player.js SetState / Diplomacy.js SetDiplomacyIndex: the masks and stances change and
 	// OnPlayerDefeated, OnPlayerWon and OnDiplomacyChanged fire for each change.
@@ -1105,6 +1107,18 @@ public:
 	// the ported script's triggers. Random maps do it in generate_random_map; data/maps
 	// JSON maps list theirs under "trigger_scripts". Returns false for an unported script.
 	bool register_trigger_script(const std::string &name);
+	// CCmpCinemaManager (cinema.h): the camera paths a map has (its <Paths>) and the queue
+	// trigger scripts play. While a queue plays the map is revealed and the GUI shows the
+	// camera flying the front path instead of the session.
+	const CinemaState &cinema() const { return cinema_; }
+	bool cinema_playing() const { return cinema_.enabled != 0; }
+	void add_cinema_path(const CinemaPath &path); // AddPath: a name already used is ignored
+	bool cinema_has_path(const char *name) const { return cinema_.find(name) >= 0; }
+	void cinema_queue_path(const char *name);     // AddCinemaPathToQueue
+	void cinema_play() { set_cinema_enabled(true); }
+	void cinema_stop() { set_cinema_enabled(false); }
+	void cinema_clear_queue() { cinema_.queue.clear(); }
+	void cinema_delete_path(const char *name);
 	// TriggerPoint.js: a trigger point the map places (trigger/trigger_point_<ref>).
 	void add_trigger_point(uint8_t ref, float x, float z, uint8_t owner = GAIA_PLAYER) { triggers_.add_point(ref, x, z, owner); }
 	// TriggerHelper.SetPlayerWon: pid and its allies win, everyone else is defeated.
@@ -2571,7 +2585,10 @@ private:
 	uint8_t water_level_mode_ = WATER_LEVEL_RISING; // saved with the trigger state (v18)
 	uint8_t sea_level_rise_min_ = 25;
 	TriggerState triggers_;
+	CinemaState cinema_; // saved from SAVE_VERSION_CINEMA
 	void tick_triggers(float dt);
+	void tick_cinema(float dt);
+	void set_cinema_enabled(bool enabled);
 	void register_map_triggers(MapType type);
 	void run_trigger_action(uint16_t action, float arg, const TriggerEventData &data);
 	// Ported map scripts (simulation.cpp, "Map trigger scripts").
@@ -2623,6 +2640,7 @@ private:
 	void trigger_unit_dancing_event(const TriggerEventData &data);
 	void trigger_unit_pushing(int step);
 	void trigger_unit_motion(int step);
+	void trigger_cinema_demo(int step);
 	uint32_t script_structure(float mx, float mz, uint8_t type, uint8_t team, float progress);
 	uint32_t script_palisade(float mx, float mz, float length_m, float angle);
 	uint32_t script_tree(float mx, float mz, int32_t amount = 200);

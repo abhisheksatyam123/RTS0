@@ -291,6 +291,7 @@ class RtsoWorldView : public Node3D {
 	Ref<ShaderMaterial> silhouette_mat_;
 	bool silhouettes_ = true;
 	uint32_t silhouette_gen_ = 0xFFFFFFFFu;
+	bool cinema_playing_ = false; // Simulation::cinema_playing() at the last sync
 	void refresh_silhouettes();
 	void set_silhouette(Node *model, const Color &c);
 

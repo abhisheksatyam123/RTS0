@@ -68,6 +68,7 @@
 #include "inspector_view.h"
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
+#include "cinema_view.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
 #include "dev_overlay_view.h"
@@ -201,6 +202,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
+	rtso::RtsoCinemaView cinema_view_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
