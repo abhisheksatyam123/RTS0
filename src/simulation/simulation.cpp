@@ -3129,7 +3129,7 @@ int Simulation::phase_structures(uint8_t player_id, uint8_t phase) const {
 	int n = 0;
 	for (const auto &b : buildings_)
 		if (b.team == player_id && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
-				building_phase_class(b.type) == phase)
+				building_phase_class(b.type, b.civ) == phase)
 			++n;
 	return n;
 }
@@ -3152,6 +3152,8 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	if (!tech_available_to_civ(tech_id, ps.civ)) return TECH_ERR_CIV;
 	if (tinfo.required_phase > ps.phase) return TECH_ERR_PHASE;
 	if (tinfo.prerequisite != TECH_NONE && !ps.has_tech(tinfo.prerequisite)) return TECH_ERR_PREREQUISITE;
+	// DeriveTechnologyRequirements: the technology it supersedes must be researched first.
+	if (const uint8_t sup = tech_supersedes(tech_id); sup != TECH_NONE && !ps.has_tech(sup)) return TECH_ERR_PREREQUISITE;
 	// 0 A.D. phase_town_generic / phase_city_generic "entity" requirements.
 	if (tech_id == TECH_PHASE_TOWN && phase_structures(player_id, 1) < 5) return TECH_ERR_STRUCTURES;
 	if (tech_id == TECH_PHASE_CITY && phase_structures(player_id, 2) < 3) return TECH_ERR_STRUCTURES;
@@ -6231,7 +6233,7 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
-	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return;
+	if (b.build_progress < 1.0f) return;
 	UnitOrder o; o.kind = ORDER_GARRISON; o.target = building_id; o.x = b.x; o.z = b.z;
 	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	if (!queued && !formations_.empty()) now = formation_take_task(now, FTASK_GARRISON, building_id);
@@ -6244,11 +6246,16 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		if (turret_height_.count(unit_ids[i])) continue; // UnitAI.Garrison: a turret stays put
-		if (!structure_accepts_garrison(b, (size_t)uidx)) continue; // own or allied, on the List
+		// UnitAI.Garrison: a unit the holder can't take (not own or allied, not on its List,
+		// or no room left) walks to it instead (WalkToTarget). EjectHealth is not part of
+		// CanGarrison: a unit sent into a burning structure walks there and stops (GARRISONING).
+		if (!structure_accepts_garrison(b, (size_t)uidx) || !garrison_room(b, (size_t)uidx)) {
+			cmd_move(&unit_ids[i], 1, b.x, b.z);
+			continue;
+		}
 		// UnitAI Order.Garrison: an unpacked siege engine packs first (a forced Pack), then gets in.
 		if (garrison_in_range((size_t)uidx, b) && pack_state_can_move(units_.pack_state[uidx])) {
-			if (!garrison_room(b, (size_t)uidx)) continue;
-			garrison_now((size_t)uidx, b);
+			if (structure_has_enough_health(b)) garrison_now((size_t)uidx, b);
 			continue;
 		}
 		const bool was = applying_queued_;
@@ -9824,6 +9831,11 @@ void Simulation::tick_gather(float dt) {
 						if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
 								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
 							for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
+						// Carthaginian civbonuses/cart_stone_01..03 (auto-researched at Village, Town and
+						// City; Carthage has no servants/serfs/slaves): Workers stone.rock x1.25 each.
+						if (rt == RES_STONE && civ == CIV_CARTHAGINIANS &&
+								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
+							for (uint8_t ph = player_phase(uteam); ph >= 1; --ph) rate *= 1.25f;
 						// Germanic Bovine Tradition (civbonuses/germ_meat.json): Civilians
 						// ResourceGatherer/Rates/food.meat x2.
 						if (kind == GK_MEAT && civ == CIV_GERMANS &&
@@ -13239,8 +13251,10 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 					b->type == BLD_FIELD);
 		}
 		case ORDER_GARRISON: {
+			// GARRISON.APPROACHING checks CanGarrison only as the walk starts (order_garrison); a
+			// holder that fills meanwhile turns the unit away on arrival (tick_unit_ai).
 			const Building *b = building(o.target);
-			return b && b->build_progress >= 1.0f && garrison_room(*b, i) && structure_accepts_garrison(*b, i);
+			return b && b->build_progress >= 1.0f;
 		}
 		case ORDER_GUARD: {
 			const int32_t t = lookup_unit(o.target);
@@ -13871,6 +13885,12 @@ void Simulation::tick_unit_ai(float dt) {
 			Building *b = bit == building_id_to_idx_.end() ? nullptr : &buildings_[bit->second];
 			if (!b || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
 			if (garrison_in_range(i, *b)) {
+				// GARRISONING enter: Garrisonable.Garrison fails on a full holder, one that no longer
+				// takes the unit, or one below EjectHealth, and the unit stops where it stands.
+				if (!garrison_room(*b, i) || !structure_accepts_garrison(*b, i) || !structure_has_enough_health(*b)) {
+					finish_order(i);
+					continue;
+				}
 				if (pack_state_can_move(units_.pack_state[i])) garrison_now(i, *b); // else still packing
 				continue;
 			}
@@ -19395,7 +19415,7 @@ void Simulation::petra_manage_research(float dt) {
 	auto build_phase_structures = [&](uint8_t cls, int need) {
 		if (!home || phase_structures(petra_pid_, cls) >= need) return;
 		for (const auto &b : buildings_)
-			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && building_phase_class(b.type) == cls)
+			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && building_phase_class(b.type, b.civ) == cls)
 				return; // one at a time; it counts once finished
 		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_MARKET, BLD_TEMPLE, BLD_FORGE}; // checkPhaseRequirements order
