@@ -258,6 +258,10 @@ def play(args, lobby, leave):
     ok = ok and net_warning.startswith("bob losing connection (")
     ok = ok and said("host", "start_refused") == "true"
     ok = ok and said("join", "refused") == "Another player has that color"
+    # 0.28 /list on both: the users by seat, and the command is not a chat line.
+    users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
+    ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
+    ok = ok and not any("> /list" in outs[role] for role in ("host", "join"))
     picks = {k: (h.get(k), j.get(k)) for k in ("speed", "civ1", "team1", "color1")}
     ok = ok and picks == {"speed": ("1.5", "1.5"), "civ1": ("15", "15"), "team1": ("2", "2"), "color1": ("5", "5")}
     if leave == "join":
@@ -276,6 +280,7 @@ def play(args, lobby, leave):
               "(Germans, team 2, colour 5) at 1.5x")
         print(f"[gmp] PASS while the client was frozen at the start, the host showed: {waited}; "
               f"network warning: {net_warning}")
+        print("[gmp] PASS /list on both read: Users (2): alice, bob")
     if ok and leave == "join":
         print(f"[gmp] PASS the client left and the host's chat said: {said('host', 'chat_left')}")
     elif ok:
@@ -297,7 +302,7 @@ def play(args, lobby, leave):
             print(f"---- {role} output (tail) ----")
             print("\n".join((outs[role] or "").splitlines()[-40:]))
     print(f"[gmp] FAIL rc host/join={host.returncode}/{join.returncode} host={h} join={j} lobby={seen} "
-          f"stun={stun_found} lan={lan} retargeted={retargeted}")
+          f"stun={stun_found} lan={lan} retargeted={retargeted} users={users}")
     return False
 
 
