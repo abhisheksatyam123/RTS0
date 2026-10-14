@@ -265,6 +265,10 @@ int main() {
 		CHECK(building_tech_classes(BLD_TOWER_GREAT) & TC_STONETOWER);
 		CHECK(building_type_info(BLD_IMPERIAL_COURT).max_hp > building_type_info(BLD_TOWN_CENTER).max_hp);
 		CHECK(building_type_info(BLD_TOWER_GREAT).max_hp > building_type_info(BLD_TOWER).max_hp);
+		// han/defense_tower_great.xml: DefaultArrowCount op="add" 2 on the tower's 4, no
+		// MaxArrowCount (its GarrisonHolder/Max is the 10).
+		CHECK(building_ai_info(BLD_TOWER_GREAT).default_arrows == building_ai_info(BLD_TOWER).default_arrows + 2 &&
+		      building_ai_info(BLD_TOWER_GREAT).max_arrows == 0);
 		CHECK(building_ai_info(BLD_TOWER_GREAT).shoots() &&
 			building_ai_info(BLD_TOWER_GREAT).max_range > building_ai_info(BLD_TOWER).max_range);
 		CHECK(building_ai_info(BLD_IMPERIAL_COURT).default_arrows == building_ai_info(BLD_TOWN_CENTER).default_arrows);

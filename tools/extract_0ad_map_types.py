@@ -8,7 +8,8 @@ LockTeams, RevealMap, ExploreMap, PlayerData civs, teams and resources ...).
 This writes data/map_types.json: for every ported map in data/maps/ its
 type ("skirmish" or "scenario"), its Keywords (for the Map Filter), and for a
 scenario the settings Game Setup shows locked. Random maps (RTS0's RMS list
-in scenes/menu/gamesetup.gd) get their keywords from maps/random/<script>.json.
+in scenes/menu/gamesetup.gd) get their keywords and their Player Placement
+patterns (PlayerPlacements, in the map's order) from maps/random/<script>.json.
 
   python3 tools/extract_0ad_map_types.py <0ad public dir> [--check]
 
@@ -24,7 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "map_types.json")
 # The maps 0 A.D. keeps in maps/tutorials (Learn to Play), not in Game Setup.
 TUTORIALS = {"introductory_tutorial", "starting_economy_walkthrough"}
-SETTING_KEYS = ["VictoryConditions", "LockTeams", "LastManStanding", "RevealMap", "ExploreMap",
+SETTING_KEYS = ["VictoryConditions", "LockTeams", "LastManStanding", "RevealMap", "ExploreMap", "AllyView",
                 "DisableTreasures", "DisableSpies", "PopulationCap", "WorldPopulationCap",
                 "StartingResources", "Ceasefire", "Nomad"]
 
@@ -82,10 +83,14 @@ def build(public):
             continue
         maps[mid] = entry
     random = {}
+    placements = {}
     for p in sorted(glob.glob(os.path.join(public, "maps/random/*.json"))):
         s = json.load(open(p, encoding="utf-8")).get("settings", {})
-        random[os.path.basename(p)[:-5]] = s.get("Keywords", [])
-    return {"maps": maps, "random_keywords": random}
+        name = os.path.basename(p)[:-5]
+        random[name] = s.get("Keywords", [])
+        if s.get("PlayerPlacements"):
+            placements[name] = s["PlayerPlacements"]
+    return {"maps": maps, "random_keywords": random, "player_placements": placements}
 
 
 def main():

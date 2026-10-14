@@ -710,6 +710,7 @@
 				"demo"
 			],
 			"settings": {
+				"AllyView": false,
 				"LockTeams": false,
 				"RevealMap": false,
 				"VictoryConditions": [],
@@ -752,6 +753,7 @@
 				"demo"
 			],
 			"settings": {
+				"AllyView": false,
 				"LockTeams": false,
 				"RevealMap": false,
 				"VictoryConditions": [],
@@ -806,6 +808,7 @@
 				"demo"
 			],
 			"settings": {
+				"AllyView": false,
 				"LockTeams": false,
 				"RevealMap": false,
 				"VictoryConditions": [],
@@ -827,6 +830,7 @@
 				"demo"
 			],
 			"settings": {
+				"AllyView": false,
 				"LockTeams": false,
 				"RevealMap": false,
 				"VictoryConditions": [],
@@ -876,6 +880,7 @@
 				"demo"
 			],
 			"settings": {
+				"AllyView": false,
 				"LockTeams": false,
 				"RevealMap": false,
 				"VictoryConditions": [],
@@ -926,6 +931,7 @@
 				"demo"
 			],
 			"settings": {
+				"AllyView": false,
 				"LockTeams": false,
 				"RevealMap": false,
 				"VictoryConditions": [],
@@ -1109,6 +1115,157 @@
 			"keywords": [],
 			"type": "skirmish"
 		}
+	},
+	"player_placements": {
+		"african_plains": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"alpine_lakes": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"ambush": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"anatolian_plateau": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"archipelago": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"arctic_summer": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"ardennes_forest": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup"
+		],
+		"atlas_mountains": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"botswanan_haven": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"cantabrian_highlands": [
+			"circle",
+			"stronghold"
+		],
+		"coast_range": [
+			"circle",
+			"stronghold",
+			"river"
+		],
+		"continent": [
+			"circle",
+			"river",
+			"stronghold"
+		],
+		"extinct_volcano": [
+			"circle",
+			"river",
+			"randomGroup"
+		],
+		"foothills": [
+			"circle",
+			"river",
+			"randomGroup",
+			"stronghold"
+		],
+		"frontier": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"india": [
+			"circle",
+			"river",
+			"stronghold"
+		],
+		"lake": [
+			"circle",
+			"river"
+		],
+		"mainland": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"migration": [
+			"circle",
+			"river",
+			"stronghold"
+		],
+		"neareastern_badlands": [
+			"circle",
+			"river"
+		],
+		"persian_highlands": [
+			"circle",
+			"river",
+			"stronghold"
+		],
+		"rhine_marshlands": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"sahel": [
+			"circle",
+			"river",
+			"groupedLines",
+			"randomGroup",
+			"stronghold"
+		],
+		"syria": [
+			"circle",
+			"river",
+			"randomGroup",
+			"stronghold"
+		],
+		"volcanic_lands": [
+			"circle",
+			"river",
+			"stronghold"
+		]
 	},
 	"random_keywords": {
 		"aegean_sea": [

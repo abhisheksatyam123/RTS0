@@ -19,6 +19,10 @@
 //     from each corner of its short path it searches on instead of heading back into the pocket.
 //  7. Pushing pressure: crowds build it up, it slows a walker down to the floor speed, and it decays
 //     once the unit walks alone.
+//  8. A hero ordered home again every turn, as Petra orders a hurt hero each time it is hit, gets past
+//     an idle rider standing by a barracks. Each new order starts its failed turns again, so its short
+//     path searches stay short, and the point it walks to counts at the search box's nearest point to
+//     it, inside the barracks: after a search that finds no way, the next one looks 32 m round.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -228,6 +232,27 @@ int main() {
 		CHECK(std::fabs(slow - 1.5f * FORMATION_METRE) < 0.01f, "pressure slows a walker to the floor speed");
 		CHECK(s->units_.motion[wi].pressure == 0, "and decays when nobody pushes it");
 		CHECK(std::fabs(fast - speed) < 0.01f, "after which it walks at full speed");
+	}
+	{
+		// The layout of test_petra's regicide match where the hero stuck: its Civic Center, a barracks
+		// beside it and a rider of its own standing at the barracks' corner, in the hero's way home.
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(4242);
+		s->reset();
+		s->spawn_building_world(-24.89f, -24.89f, BLD_TOWN_CENTER, 0, 1.0f);
+		s->spawn_building_world(52.0f, 52.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		s->spawn_building_world(-18.88f, -18.88f, BLD_BARRACKS, 0, 1.0f);
+		s->spawn_unit(-16.054f, -16.237f, 0, UNIT_CAVALRY, 150.0f);
+		const uint32_t hero = s->spawn_unit(-13.779f, -14.946f, 0, UNIT_HERO, 150.0f);
+		const int hi = idx(*s, hero);
+		const float d0 = std::hypot(s->units_.pos_x[hi] + 24.89f, s->units_.pos_z[hi] + 24.89f);
+		for (int t = 0; t < 400; ++t) {
+			if (t % 4 == 0) s->order_walk(&hero, 1, -24.89f, -24.89f);
+			s->tick(DT);
+		}
+		const float d1 = std::hypot(s->units_.pos_x[hi] + 24.89f, s->units_.pos_z[hi] + 24.89f);
+		std::printf("  hero ordered home every turn past an idle rider: %.1f from its Civic Center, %.1f after 20 s\n", d0, d1);
+		CHECK(d1 < 4.0f, "a walker ordered again every turn gets past an idle unit by a structure");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
