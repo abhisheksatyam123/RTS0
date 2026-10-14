@@ -61,6 +61,16 @@ inline const TerrainBiome &terrain_biome(const char *biome) {
 		 {"india_forestfloor_01", "india_forestfloor_02"}, {"india_grass_02", "india_mud_01", "india_grass_dirt_01", "india_grass_dirt_02"},
 		 {"india_cliff_02", "india_cliff_03"}, {"india_dirt_01", "india_dirt_02"}, {"india_dirt_01", "india_dirt_02"}, "india_paving_02",
 		 "india_paving_02", "india_grass_dirt_01", "india_sand_01", "india_mud_01"},
+		// generic/autumn ("Rhine Valley (Fall)"); its four dirt terrains keep the first two.
+		{"autumn", {"autumn_grass_02"}, {"autumn_forestfloor_01", "autumn_forestfloor_02"},
+		 {"autumn_grass_dirt_01", "autumn_grass_01", "autumn_grass_mud_01", "autumn_grass_04"},
+		 {"temperate_cliff_01", "temperate_cliff_02"}, {"temperate_rocks_dirt_01"}, {"autumn_grass_dirt_01", "autumn_grass_dirt_02"},
+		 "temperate_paving_03", "temperate_rocks_dirt_01", "autumn_grass_dirt_01", "autumn_grass_mud_01", "autumn_mud_01"},
+		// generic/nubia; its four dirt terrains keep the first two.
+		{"nubia", {"nubia_sand_01", "nubia_sand_ripples", "nubia_sand_dunes_01"}, {"nubia_forestfloor_01", "nubia_forestfloor_01"},
+		 {"nubia_sand_03", "nubia_rocks_dirt_01", "nubia_rocks_dirt_02", "nubia_rocks_dirt_03"}, {"nubia_rock_02", "nubia_rock_01"},
+		 {"nubia_dirt_02", "nubia_dirt_01"}, {"nubia_dirt_01", "nubia_dirt_02"}, "nubia_paving_stones_01",
+		 "nubia_paving_stones_01_sand_01", "nubia_dirt_cracks_01", "nubia_sand_02", "nubia_sand_02_wet"},
 		// volcanic_lands.js.
 		{"volcanic", {"cliff volcanic light", "ocean_rock_a", "ocean_rock_b"}, {"cliff volcanic light", "ocean_rock_a"},
 		 {"cliff volcanic light", "ocean_rock_a", "ocean_rock_b", "ocean_rock_a"}, {"cliff volcanic coarse", "cave_walls"},
@@ -98,35 +108,43 @@ inline const BiomeFlora *biome_flora(const char *biome) {
 	static const BiomeFlora kFlora[] = {
 		// cypress_wild, pine_maritime_short; olive, juniper_prickly, date_palm, cretan_date_palm_short,
 		// medit_fan_palm; poplar_lombardy, carob; berry_01 or grapes.
-		{"aegean", {{FLORA_CYPRESS, FLORA_ALEPPO_PINE}}, {FLORA_OLIVE, FLORA_JUNIPER, FLORA_PALM, FLORA_PALM, FLORA_FAN_PALM},
+		{"aegean", {{FLORA_TREE_CYPRESS_WILD, FLORA_TREE_PINE_MARITIME_SHORT}}, {FLORA_OLIVE, FLORA_JUNIPER, FLORA_TREE_DATE_PALM, FLORA_TREE_CRETAN_DATE_PALM_SHORT, FLORA_FAN_PALM},
 		 {{FLORA_POPLAR, FLORA_CAROB}}, FLORA_BERRY,
 		 {{200, 200}}, {400, 200, 200, 100, 200}, {{200, 200}}},
 		// pine, fir; oak_hungarian_autumn; fir_sapling, elm.
-		{"alpine", {{FLORA_PINE, FLORA_FIR}}, {FLORA_OAK}, {{FLORA_BUSH, FLORA_BROADLEAF}}, FLORA_BERRY,
+		{"alpine", {{FLORA_PINE, FLORA_FIR}}, {FLORA_TREE_OAK_HUNGARIAN_AUTUMN}, {{FLORA_TREE_FIR_SAPLING, FLORA_TREE_ELM}}, FLORA_BERRY,
 		 {{200, 200}}, {200}, {{50, 200}}},
 		// arctic: fir_winter, pine_w.
-		{"polar", {{FLORA_FIR, FLORA_FIR}}, {FLORA_FIR}, {{FLORA_FIR, FLORA_FIR}}, FLORA_BERRY,
+		{"polar", {{FLORA_TREE_FIR_WINTER, FLORA_TREE_PINE_W}}, {FLORA_TREE_PINE_W}, {{FLORA_TREE_FIR_WINTER, FLORA_TREE_FIR_WINTER}}, FLORA_BERRY,
 		 {{200, 200}}, {200}, {{200, 200}}},
 		// sahara: cretan_date_palm_short + date_palm or date_palm + cretan_date_palm_tall; juniper_prickly;
 		// date_palm or cretan_date_palm_patch in both tree4 and tree5.
-		{"oasis", {{FLORA_PALM, FLORA_PALM}, {FLORA_PALM, FLORA_PALM}}, {FLORA_JUNIPER},
-		 {{FLORA_PALM, FLORA_PALM}, {FLORA_PALM, FLORA_PALM}}, FLORA_DATE,
+		{"oasis", {{FLORA_TREE_CRETAN_DATE_PALM_SHORT, FLORA_TREE_DATE_PALM}, {FLORA_TREE_DATE_PALM, FLORA_TREE_CRETAN_DATE_PALM_TALL}}, {FLORA_JUNIPER},
+		 {{FLORA_TREE_DATE_PALM, FLORA_TREE_DATE_PALM}, {FLORA_TREE_CRETAN_DATE_PALM_PATCH, FLORA_TREE_CRETAN_DATE_PALM_PATCH}}, FLORA_DATE,
 		 {{100, 200}, {200, 200}}, {200}, {{200, 200}, {300, 300}}},
 		// oak + oak_hungarian, oak_holly + maple or oak_hungarian + oak_holly; apple (a fruit tree,
 		// drawn here as a leafy tree; gaia/fruit/apple holds food, not wood, so it keeps TREE_WOOD_SUPPLY);
 		// pine and pine_maritime.
-		{"temperate", {{FLORA_OAK, FLORA_OAK}, {FLORA_OAK, FLORA_MAPLE}, {FLORA_OAK, FLORA_OAK}}, {FLORA_BROADLEAF},
-		 {{FLORA_PINE, FLORA_ALEPPO_PINE}}, FLORA_BERRY,
+		{"temperate", {{FLORA_OAK, FLORA_TREE_OAK_HUNGARIAN}, {FLORA_TREE_OAK_HOLLY, FLORA_MAPLE}, {FLORA_TREE_OAK_HUNGARIAN, FLORA_TREE_OAK_HOLLY}}, {FLORA_BROADLEAF},
+		 {{FLORA_PINE, FLORA_TREE_PINE_MARITIME}}, FLORA_BERRY,
 		 {{200, 200}, {200, 300}, {200, 200}}, {0}, {{200, 200}}},
 		// bush_steppe_01-03.
-		{"steppe", {{FLORA_BUSH, FLORA_BUSH}}, {FLORA_BUSH}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY,
+		{"steppe", {{FLORA_TREE_BUSH_STEPPE_01, FLORA_TREE_BUSH_STEPPE_02}}, {FLORA_TREE_BUSH_STEPPE_01}, {{FLORA_TREE_BUSH_STEPPE_03, FLORA_TREE_BUSH_STEPPE_02}}, FLORA_BERRY,
 		 {{100, 100}}, {100}, {{100, 100}}},
 		// baobab, acacia; acacia; bush_tropic, bush_temperate.
-		{"savanna", {{FLORA_BAOBAB, FLORA_ACACIA}}, {FLORA_ACACIA}, {{FLORA_TROPIC_BUSH, FLORA_BUSH}}, FLORA_BERRY,
+		{"savanna", {{FLORA_BAOBAB, FLORA_ACACIA}}, {FLORA_ACACIA}, {{FLORA_TROPIC_BUSH, FLORA_TREE_BUSH_TEMPERATE}}, FLORA_BERRY,
 		 {{600, 200}}, {200}, {{50, 100}}},
 		// banyan, strangler; teak; palm_palmyra, palm_tropical; date.
-		{"india", {{FLORA_BANYAN, FLORA_BANYAN}}, {FLORA_TEAK}, {{FLORA_TROPIC_PALM, FLORA_TROPIC_PALM}}, FLORA_DATE,
+		{"india", {{FLORA_BANYAN, FLORA_TREE_STRANGLER}}, {FLORA_TEAK}, {{FLORA_TREE_PALM_PALMYRA, FLORA_TREE_PALM_TROPICAL}}, FLORA_DATE,
 		 {{600, 500}}, {500}, {{200, 200}}},
+		// autumn: oak_holly_autumn, oak_hungarian_autumn; poplar_dead; oak_holly_autumn, maple_autumn.
+		{"autumn", {{FLORA_TREE_OAK_HOLLY_AUTUMN, FLORA_TREE_OAK_HUNGARIAN_AUTUMN}}, {FLORA_TREE_POPLAR_DEAD}, {{FLORA_TREE_OAK_HOLLY_AUTUMN, FLORA_TREE_MAPLE_AUTUMN}}, FLORA_BERRY,
+		 {{200, 200}}, {200}, {{200, 200}}},
+		// nubia: acacia, acacia; baobab_4_dead or baobab_3_mature; date_palm + acacia,
+		// date_palm + palm_doum or baobab_3_mature + bush_tropic; date.
+		{"nubia", {{FLORA_ACACIA, FLORA_ACACIA}}, {FLORA_TREE_BAOBAB_4_DEAD, FLORA_TREE_BAOBAB_3_MATURE},
+		 {{FLORA_TREE_DATE_PALM, FLORA_ACACIA}, {FLORA_TREE_DATE_PALM, FLORA_TREE_PALM_DOUM}, {FLORA_TREE_BAOBAB_3_MATURE, FLORA_TROPIC_BUSH}}, FLORA_DATE,
+		 {{200, 200}}, {1000, 1200}, {{200, 200}, {200, 200}, {1200, 50}}},
 	};
 	static const struct { const char *from, *to; } kAliases[] = {
 		{"mediterranean", "aegean"}, {"latium", "aegean"}, {"desert", "oasis"}, {"persia", "steppe"}, {"tropical", "india"}};

@@ -5,6 +5,7 @@
 #include <godot_cpp/classes/multi_mesh_instance3d.hpp>
 #include <godot_cpp/classes/multi_mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/sprite3d.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/plane_mesh.hpp>
@@ -54,6 +55,10 @@ class RtsoWorldView : public Node3D {
 		MeshInstance3D *ring = nullptr;
 		MeshInstance3D *hp_bg = nullptr;
 		MeshInstance3D *hp_fg = nullptr;
+		MeshInstance3D *xp_bg = nullptr; // StatusBars AddExperienceBar
+		MeshInstance3D *xp_fg = nullptr;
+		Sprite3D *rank_icon = nullptr;   // StatusBars AddRankIcon
+		uint8_t rank_shown = 0;
 		uint32_t sim_id = 0;
 		float yaw = 0.0f;
 		bool ring_on = false;
@@ -113,7 +118,7 @@ class RtsoWorldView : public Node3D {
 	// Trees and fruit bushes with their own FloraKind (a ported map's templates, a
 	// random map's rmbiome trees) draw that plant, one batch per kind; FLORA_DEFAULT
 	// ones take the biome's pick above.
-	static constexpr int FLORA_KINDS = 27; // rtso::FLORA_COUNT
+	static constexpr int FLORA_KINDS = rtso::FLORA_COUNT; // the 27 families, then one per template (flora_data.h)
 	MultiMeshInstance3D *flora_mmi[FLORA_KINDS][TREE_VARIANTS] = {};
 	Ref<MultiMesh> flora_mm[FLORA_KINDS][TREE_VARIANTS];
 	float flora_scale[FLORA_KINDS] = {};
@@ -230,6 +235,9 @@ class RtsoWorldView : public Node3D {
 	Ref<StandardMaterial3D> hp_green_mat;
 	Ref<StandardMaterial3D> hp_red_mat;
 	Ref<StandardMaterial3D> hp_blue_mat;
+	Ref<StandardMaterial3D> xp_mat;
+	Ref<BoxMesh> xp_bg_mesh;
+	Ref<BoxMesh> xp_fg_mesh;
 
 	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
 	// time a unit of that civ and type shows, so every civ in the match renders

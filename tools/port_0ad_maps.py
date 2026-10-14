@@ -13,6 +13,8 @@
   python3 tools/port_0ad_maps.py --walls-only   # turn each ported map's walls, palisades and gates into WallSet pieces
   python3 tools/port_0ad_maps.py --livestock-only DIR  # refresh each ported map's player-owned sheep, goats and
                                                        # other livestock from an unpacked public.zip
+  python3 tools/port_0ad_maps.py --units-only DIR  # refresh each ported map's player units with their 0 A.D.
+                                                 # templates from an unpacked public.zip
   python3 tools/port_0ad_maps.py --supplies-only DIR  # refresh each ported map's resource amounts and
                                                   # gatherer limits from the templates of an unpacked
                                                   # 0 A.D. public.zip at DIR (maps/ and simulation/ under it)
@@ -24,6 +26,7 @@ Maps fetched with --github get their world size from the .pmp (one RTS0 world un
 0 A.D. tile, clamped to 128..512) and a heightmap of one sample per 4 tiles.
 0 A.D. maps are CC BY-SA 3.0; see docs/0AD_ATTRIBUTION.md.
 """
+import re
 import zipfile
 import xml.etree.ElementTree as ET
 import json
@@ -36,6 +39,11 @@ import urllib.request
 import urllib.error
 import time
 import base64
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from extract_0ad_flora import ORDER as _FLORA_ORDER, family_of_fruit, family_of_tree  # noqa: E402
+
+FLORA_TEMPLATES = frozenset(_FLORA_ORDER)
 
 zip_path = "/home/abhi/project/0ad/binaries/data/mods/public/public.zip"
 GITHUB_RAW = "https://raw.githubusercontent.com/0ad/0ad/master/binaries/data/mods/public/"
@@ -164,6 +172,8 @@ def gaia_entity(ltpl, wx, wz):
     return None
 
 _TEMPLATE_CACHE = {}
+# Structures only maps place, which RTS0 finds by template (sim_types.h map_structure_template).
+MAP_ONLY_STRUCTURE = re.compile(r"(^|/)(\w+/tower_bolt|\w+/tower_artillery|\w+/royal_stoa|hellenic_stoa|pers/inn|rome/tent|rome/arch)$")
 
 def _read_template(source, rel):
     """Parsed simulation/templates/<rel>.xml, or None if 0 A.D. has no such file."""
@@ -336,29 +346,31 @@ def unit_class(ltpl):
     return None
 
 # 0 A.D. gaia/tree/* and gaia/fruit/* templates by the plant RTS0 draws for them
-# (FloraKind in sim_types.h, models in assets/models/vegetation).
+# (FloraKind in sim_types.h and flora_data.h, models in assets/models/vegetation): a
+# template with its own kind by its "<tree|fruit>/<stem>" name, else its family.
 def flora_kind(ltpl):
     name = ltpl.rsplit("/", 1)[-1]
-    # First match wins: the specific species before the families they share words with.
-    for keys, kind in ((["dead"], "dead"), (["bush_tropic"], "tropic_bush"), (["bush", "sapling", "shrub"], "bush"),
-                       (["baobab"], "baobab"), (["acacia"], "acacia"), (["bamboo"], "bamboo"),
-                       (["fan_palm"], "fan_palm"), (["palm_tropic", "palmyra", "palm_doum", "senegal_date"], "tropic_palm"),
-                       (["palm", "date"], "palm"), (["aleppo", "pine_maritime", "pine_black"], "aleppo_pine"),
-                       (["fir", "pine_w"], "fir"), (["cypress"], "cypress"), (["juniper"], "juniper"),
-                       (["pine", "cedar", "spruce", "larch", "yew"], "pine"), (["oak"], "oak"), (["carob"], "carob"),
-                       (["poplar"], "poplar"), (["beech"], "beech"), (["olive"], "olive"),
-                       (["banyan", "strangler"], "banyan"), (["maple"], "maple"), (["teak", "toona"], "teak")):
-        if any(k in name for k in keys):
-            return kind
-    return "broadleaf"
+    if "tree/" + name in FLORA_TEMPLATES and ltpl.startswith("gaia/tree/"):
+        return "tree/" + name
+    return family_of_tree(name)
 
 
 def fruit_kind(ltpl):
     name = ltpl.rsplit("/", 1)[-1]
-    for keys, kind in ((["berry", "grape"], "berry"), (["apple", "fig"], "apple"), (["date"], "date")):
-        if any(k in name for k in keys):
-            return kind
-    return "food"
+    if "fruit/" + name in FLORA_TEMPLATES and ltpl.startswith("gaia/fruit/"):
+        return "fruit/" + name
+    kind = family_of_fruit(name)
+    return "food" if kind == "tree" else kind
+
+
+def supply_family(rtype):
+    """A resource type with a template plant ("tree/elm", "fruit/fig") as its family's name."""
+    if rtype.startswith("tree/"):
+        return family_of_tree(rtype[len("tree/"):])
+    if rtype.startswith("fruit/"):
+        kind = family_of_fruit(rtype[len("fruit/"):])
+        return "food" if kind == "tree" else kind
+    return rtype
 
 
 def gaia_resource(source, ltpl, wx, wz):
@@ -493,7 +505,8 @@ def apply_player_data(players, settings):
 
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
              terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False,
-             supplies_only=False, walls_only=False, livestock_only=False):
+             supplies_only=False, walls_only=False, livestock_only=False, structures_only=False,
+             units_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -837,6 +850,36 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         os.makedirs("data/maps", exist_ok=True)
         out_path = f"data/maps/{map_id}.json"
+        if structures_only:
+            # Keep the existing map; only give it the structures only maps place (bolt and artillery
+            # towers, stoas, the Persian inn, the Roman tent and arch: sim_types.h
+            # map_structure_template): an entry at the same spot gets the template, a missing one
+            # is appended (indices of the entries already there don't move).
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            k = old.get("world_size", world_size_m) / world_size_m
+            tagged = added = 0
+            for key, new in (("structures", structures), ("gaia_structures", gaia["gaia_structures"])):
+                have = old.setdefault(key, [])
+                for e in new:
+                    if not MAP_ONLY_STRUCTURE.search(e.get("template", "")):
+                        continue
+                    x, z = round(e["x"] * k, 2), round(e["z"] * k, 2)
+                    o = next((o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5 and "wallset" not in o
+                              and o.get("player") == e.get("player")), None)
+                    if o is None:
+                        have.append(dict(e, x=x, z=z))
+                        added += 1
+                    elif o.get("template") != e["template"]:
+                        o["template"] = e["template"]
+                        tagged += 1
+            if tagged or added:
+                with open(out_path, "w") as f:
+                    json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: {tagged} structures given their template, {added} added")
+            return
         if supplies_only:
             # Keep the existing map; only refresh each resource's amount and gatherer limit,
             # entry by entry, when the entries still line up with the template's.
@@ -846,22 +889,40 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 old = json.load(f)
             have = old.get("resources", [])
             k = old.get("world_size", world_size_m) / world_size_m
-            if len(have) != len(resources) or any(a["type"] != b["type"] or abs(a["x"] - b["x"] * k) > 0.5 or
+            if len(have) != len(resources) or any(supply_family(a["type"]) != supply_family(b["type"]) or
+                                                  abs(a["x"] - b["x"] * k) > 0.5 or
                                                   abs(a["z"] - b["z"] * k) > 0.5 for a, b in zip(have, resources)):
                 print(f"  !! {out_path}: {len(have)} resources, 0 A.D. has {len(resources)}; not refreshed")
                 return
             changed = 0
             for a, b in zip(have, resources):
-                before = (a.get("amount"), a.get("max_gatherers"))
+                before = (a.get("type"), a.get("amount"), a.get("max_gatherers"))
+                a["type"] = b["type"]  # a template with its own FloraKind names itself (flora_kind)
                 a["amount"] = b["amount"]
                 a.pop("max_gatherers", None)
                 if "max_gatherers" in b:
                     a["max_gatherers"] = b["max_gatherers"]
-                changed += before != (a.get("amount"), a.get("max_gatherers"))
+                changed += before != (a.get("type"), a.get("amount"), a.get("max_gatherers"))
             if changed:
                 with open(out_path, "w") as f:
                     json.dump(old, f, indent=2)
             print(f"  -> {out_path}: {changed} of {len(have)} supplies changed")
+            return
+        if units_only:
+            # Keep the existing map; only refresh the players' units, each with its 0 A.D. template
+            # (skirmish maps' skirmish/units/default_* become the owner's civ units at load, as
+            # SkirmishReplacer does).
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            k = old.get("world_size", world_size_m) / world_size_m
+            mine = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in units]
+            if mine != old.get("units", []):
+                old["units"] = mine
+                with open(out_path, "w") as f:
+                    json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: {len(mine)} units")
             return
         if livestock_only:
             # Keep the existing map; only refresh the players' own livestock (fauna with a player).
@@ -1015,6 +1076,7 @@ github_scenarios = {
     "savanna_ravine": ("savanna_ravine", "savanna"),
     "serengeti": ("serengeti", "savanna"),
     "ship_combat_demo": ("ship_combat_demo", "mediterranean"),
+    "third_macedonian_war": ("third_macedonian_war", "mediterranean"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
@@ -1038,9 +1100,12 @@ if __name__ == "__main__":
                 port_map(mid, xrel, None, source=src, player_data_only=True)
             except FileNotFoundError:
                 print(f"  !! {mid}: no {xrel} in 0 A.D.")
-    elif len(sys.argv) > 2 and sys.argv[1] in ("--supplies-only", "--livestock-only"):
-        src = DirSource(sys.argv[2])
-        only = {"supplies_only": True} if sys.argv[1] == "--supplies-only" else {"livestock_only": True}
+    elif len(sys.argv) > 2 and sys.argv[1] in ("--supplies-only", "--livestock-only", "--structures-only", "--units-only"):
+        # --structures-only <public.zip> [map ids]: from a 0 A.D. public.zip (or an unpacked one).
+        def source():  # port_map closes a ZipFile when done with it
+            return zipfile.ZipFile(sys.argv[2]) if sys.argv[2].endswith(".zip") else DirSource(sys.argv[2])
+        only = {"--supplies-only": {"supplies_only": True}, "--livestock-only": {"livestock_only": True},
+                "--structures-only": {"structures_only": True}, "--units-only": {"units_only": True}}[sys.argv[1]]
         tables = [(mid, xrel, prel, size, bome, hscale) for mid, xrel, prel, size, bome, hscale in maps_list]
         tables += [(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None)
                    for name, (mid, bome) in github_skirmishes.items()]
@@ -1048,9 +1113,11 @@ if __name__ == "__main__":
                    for folder, table in (("scenarios", github_scenarios), ("tutorials", github_tutorials))
                    for name, (mid, bome) in table.items()]
         for row in sorted(set(tables)):
+            if sys.argv[3:] and row[0] not in sys.argv[3:]:
+                continue
             try:
-                port_map(*row, source=src, **only)
-            except FileNotFoundError:
+                port_map(*row, source=source(), **only)
+            except (FileNotFoundError, KeyError):
                 print(f"  !! {row[0]}: no {row[1]} in 0 A.D.")
     elif len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only", "--environment-only", "--walls-only"):
         # Refresh fauna, treasures and ruins (or only the per-tile terrain, or only the

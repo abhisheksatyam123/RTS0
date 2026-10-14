@@ -71,6 +71,8 @@ static void test_build_and_repair() {
 		std::vector<uint32_t> ids;
 		for (int b = 0; b < builders; ++b) ids.push_back(s.spawn_unit(-31.0f + b, 52.5f, 0, UNIT_FEMALE_CITIZEN));
 		s.order_build_or_repair(ids.data(), ids.size(), house);
+		// Timed from the first work: the builders walk up to Builder range first.
+		seconds_until(s, house, [](const Simulation::Building &b) { return b.build_progress > 0.0f; });
 		took[k] = seconds_until(s, house, [](const Simulation::Building &b) { return b.build_progress >= 1.0f; });
 	}
 	const float speedup = took[0] / took[1];
