@@ -9,6 +9,8 @@
 #include <cstring>
 #include <vector>
 
+#include "flora_data.h"
+
 namespace rtso {
 
 
@@ -594,8 +596,10 @@ enum ResourceSubtype : uint8_t {
 };
 
 // The plant a tree or fruit supply shows: 0 A.D.'s gaia/tree/* and gaia/fruit/*
-// templates grouped by the vegetation models RTS0 has (assets/models/vegetation).
-// Only the drawing reads it; FLORA_DEFAULT lets the viewer pick from the map's biome.
+// templates. Kinds 1-26 are families sharing one species model (assets/models/vegetation);
+// from FLORA_TEMPLATE_FIRST on, each kind is one template with its own model (flora_data.h).
+// Only the drawing and the inspector read it; FLORA_DEFAULT lets the viewer pick from the
+// map's biome.
 enum FloraKind : uint8_t {
 	FLORA_DEFAULT = 0,
 	FLORA_BROADLEAF = 1, // elm, tamarix and other leafy trees without their own model
@@ -624,22 +628,38 @@ enum FloraKind : uint8_t {
 	FLORA_MAPLE = 24,
 	FLORA_JUNIPER = 25,
 	FLORA_TEAK = 26,        // teak, toona
-	FLORA_COUNT = 27
+	FLORA_FAMILY_COUNT = 27
 };
 
-// The FloraKind a map JSON "resources" type names ("pine", "berry", ...; tools/port_0ad_maps.py),
-// or FLORA_COUNT for a name that is not a plant ("tree" and "food" are FLORA_DEFAULT).
+constexpr int FLORA_COUNT = FLORA_TEMPLATE_FIRST + FLORA_TEMPLATE_COUNT;
+static_assert(FLORA_TEMPLATE_FIRST == FLORA_FAMILY_COUNT, "template kinds follow the families");
+static_assert(FLORA_COUNT <= 255, "FloraKind is a byte");
+
+// The family (0-26) a kind counts as for game logic: itself, or a template kind's family.
+inline uint8_t flora_family(uint8_t kind) {
+	if (kind < FLORA_TEMPLATE_FIRST) return kind;
+	return kind < FLORA_COUNT ? flora_template_info(kind - FLORA_TEMPLATE_FIRST).family : (uint8_t)FLORA_DEFAULT;
+}
+
+// The FloraKind a map JSON "resources" type names ("pine", "berry", ... or a template's
+// "tree/elm", "fruit/fig"; tools/port_0ad_maps.py), or FLORA_COUNT for a name that is not a
+// plant ("tree" and "food" are FLORA_DEFAULT).
 inline uint8_t flora_kind_by_name(const char *name) {
-	static const char *const kNames[FLORA_COUNT] = {
+	static const char *const kNames[FLORA_FAMILY_COUNT] = {
 		"tree", "broadleaf", "pine", "palm", "oak", "baobab", "acacia", "bamboo", "bush", "berry", "apple", "date",
 		"carob", "poplar", "fan_palm", "beech", "dead", "cypress", "aleppo_pine", "fir", "tropic_bush", "olive",
 		"banyan", "tropic_palm", "maple", "juniper", "teak"};
-	for (int k = 0; k < FLORA_COUNT; ++k)
+	for (int k = 0; k < FLORA_FAMILY_COUNT; ++k)
 		if (std::strcmp(name, kNames[k]) == 0) return (uint8_t)k;
+	for (int k = 0; k < FLORA_TEMPLATE_COUNT; ++k)
+		if (std::strcmp(name, flora_template_info(k).name) == 0) return (uint8_t)(FLORA_TEMPLATE_FIRST + k);
 	if (std::strcmp(name, "food") == 0 || std::strcmp(name, "fruit") == 0) return FLORA_DEFAULT;
 	return FLORA_COUNT;
 }
-inline bool flora_is_fruit(uint8_t kind) { return kind == FLORA_BERRY || kind == FLORA_APPLE || kind == FLORA_DATE; }
+inline bool flora_is_fruit(uint8_t kind) {
+	if (kind >= FLORA_TEMPLATE_FIRST) return kind < FLORA_COUNT && flora_template_info(kind - FLORA_TEMPLATE_FIRST).fruit;
+	return kind == FLORA_BERRY || kind == FLORA_APPLE || kind == FLORA_DATE;
+}
 
 // 0 A.D. Gaia ResourceSupply Max amounts that random maps place: gaia/tree/* hold
 // 200 wood, template_gaia_ore and template_gaia_rock 1000 metal or stone, and their

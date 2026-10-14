@@ -531,9 +531,9 @@ int main() {
 		int baobabs = 0, baobab_600 = 0, acacias = 0, acacia_200 = 0, bushes = 0, bush_ok = 0;
 		for (size_t i = 0; i < rv.count; ++i) {
 			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
-			if (rv.flora[i] == FLORA_BAOBAB) { ++baobabs; baobab_600 += rv.amount[i] == 600; }
-			if (rv.flora[i] == FLORA_ACACIA) { ++acacias; acacia_200 += rv.amount[i] == 200; }
-			if (rv.flora[i] == FLORA_BUSH) { ++bushes; bush_ok += rv.amount[i] == 50 || rv.amount[i] == 100; }
+			if (flora_family(rv.flora[i]) == FLORA_BAOBAB) { ++baobabs; baobab_600 += rv.amount[i] == 600; }
+			if (flora_family(rv.flora[i]) == FLORA_ACACIA) { ++acacias; acacia_200 += rv.amount[i] == 200; }
+			if (flora_family(rv.flora[i]) == FLORA_BUSH) { ++bushes; bush_ok += rv.amount[i] == 50 || rv.amount[i] == 100; }
 		}
 		CHECK(baobabs > 0 && baobab_600 == baobabs, "savanna: %d of %d baobabs hold 600 wood", baobab_600, baobabs);
 		CHECK(acacias > 0 && acacia_200 == acacias, "savanna: %d of %d acacias hold 200 wood", acacia_200, acacias);
@@ -543,8 +543,9 @@ int main() {
 		for (size_t i = 0; i < rv.count; ++i) {
 			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
 			const int mg = sim.resource_max_gatherers(rv.id[i]);
-			mg_bad += rv.flora[i] == FLORA_BAOBAB ? mg != 9 : rv.flora[i] == FLORA_BUSH || rv.flora[i] == FLORA_TROPIC_BUSH ? mg != 4
-					: rv.flora[i] == FLORA_ACACIA ? mg != 8 : 0;
+			const uint8_t fam = flora_family(rv.flora[i]);
+			mg_bad += fam == FLORA_BAOBAB ? mg != 9 : fam == FLORA_BUSH || fam == FLORA_TROPIC_BUSH ? mg != 4
+					: fam == FLORA_ACACIA ? mg != 8 : 0;
 		}
 		CHECK(mg_bad == 0, "savanna: %d trees with the wrong gatherer limit", mg_bad);
 		// set_resource_amount: a tree's amount; a fruit bush's regrowth Max follows it.
@@ -688,7 +689,8 @@ int main() {
 		const auto rv = sim.resources();
 		bool oak = false, pine = false, aleppo = false;
 		for (size_t i = 0; i < rv.count; ++i) {
-			oak |= rv.flora[i] == FLORA_OAK; pine |= rv.flora[i] == FLORA_PINE; aleppo |= rv.flora[i] == FLORA_ALEPPO_PINE;
+			const uint8_t fam = flora_family(rv.flora[i]);
+			oak |= fam == FLORA_OAK; pine |= fam == FLORA_PINE; aleppo |= fam == FLORA_ALEPPO_PINE;
 		}
 		CHECK(oak && pine && aleppo, "temperate mixes oak (tree1/tree2) and pine and maritime pine (tree4/tree5) forests");
 		CHECK(flora_kind_by_name("aleppo_pine") == FLORA_ALEPPO_PINE && flora_kind_by_name("teak") == FLORA_TEAK &&
@@ -697,6 +699,13 @@ int main() {
 		      flora_kind_by_name("tree") == FLORA_DEFAULT && flora_kind_by_name("food") == FLORA_DEFAULT &&
 		      flora_kind_by_name("stone") == FLORA_COUNT && flora_is_fruit(FLORA_DATE) && !flora_is_fruit(FLORA_PALM),
 		      "map JSON plant names resolve");
+		// 0.28 templates with their own model (flora_data.h) resolve to their own kind, keeping
+		// their family for game logic.
+		CHECK(flora_kind_by_name("tree/elm") == FLORA_TREE_ELM && flora_family(FLORA_TREE_ELM) == FLORA_BROADLEAF &&
+		      flora_kind_by_name("fruit/fig") == FLORA_FRUIT_FIG && flora_is_fruit(FLORA_FRUIT_FIG) &&
+		      flora_family(FLORA_FRUIT_FIG) == FLORA_APPLE && !flora_is_fruit(FLORA_TREE_DATE_PALM) &&
+		      flora_kind_by_name("tree/no_such_tree") == FLORA_COUNT && flora_family(FLORA_COUNT) == FLORA_DEFAULT,
+		      "template flora kinds resolve");
 		const uint32_t id = sim.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 100, RES_SUB_NONE, 1, FLORA_BAMBOO);
 		CHECK(sim.resource_max_gatherers(id) == 1, "a JSON tree keeps its MaxGatherers");
 		sim.set_resource_flora(id, 200);
