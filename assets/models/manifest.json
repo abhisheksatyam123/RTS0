@@ -47018,6 +47018,23 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_carthaginians_apartment": {
+   "file": "models/buildings/s_carthaginians_apartment.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.7,
+    4.568,
+    2.7
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/apartment.xml",
+    "mesh:structural/kart_apartment_01.dae",
+    "skin:structural/ao/kart_apartment_01.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_carthaginians_blacksmith": {
    "file": "models/buildings/s_carthaginians_blacksmith.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -47037,6 +47054,63 @@
     "skin:props/palisade_main.png",
     "skin:structural/ao/kart_blacksmith.png",
     "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_embassy_celtic": {
+   "file": "models/buildings/s_carthaginians_embassy_celtic.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.5,
+    3.019,
+    2.851
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/carthaginians/embassy_celtic_props.xml",
+    "actor:art/actors/structures/carthaginians/embassy_celtic.xml",
+    "mesh:props/kart_embassy_celtic_props.dae",
+    "mesh:structural/kart_embassy_celtic.dae",
+    "skin:structural/ao/kart_embassy_celtic.png",
+    "skin:structural/celt_struct_1.dds",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_embassy_iberian": {
+   "file": "models/buildings/s_carthaginians_embassy_iberian.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.08,
+    2.741,
+    3.5
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/carthaginians/embassy_iberian_props.xml",
+    "actor:art/actors/structures/carthaginians/embassy_iberian.xml",
+    "mesh:props/kart_embassy_iber_props.dae",
+    "mesh:structural/kart_embassy_iberian.dae",
+    "skin:props/iber_prop_shields.dds",
+    "skin:structural/ao/kart_embassy_iberian.png",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_spec.xml"
+  },
+  "s_carthaginians_embassy_italic": {
+   "file": "models/buildings/s_carthaginians_embassy_italic.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.721,
+    3.456,
+    3.4
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/embassy_italic.xml",
+    "mesh:structural/kart_embassy_italic.dae",
+    "skin:structural/ao/kart_embassy_italic.png",
+    "skin:structural/rome_struct.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
