@@ -65,6 +65,10 @@
 //     and elephants, CCmpPathfinder ExpandImpassableCells). An elephant sent to a spot on the beach
 //     2 m off the water stops 3 m off it, where a swordsman gets to the spot, and a clump of elephants
 //     on the beach pushes apart along it, never out to within 3 m of the water.
+// 21. Trees, bushes and treasures: a 6 m baobab (gaia/tree/baobab_3_mature) blocks movement, so a
+//     swordsman sent through it walks round; one sent through a wood of oaks 4 m apart winds
+//     between them; women sent to a tree in that wood gather from it; and a soldier sent to a
+//     7 m treasure (half-buried barrels) collects it from beside it.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -923,6 +927,122 @@ static float mine_penetration(const Simulation &s) {
 	return worst;
 }
 
+// Deepest overlap of any live team-0 unit's building clearance with a tree's, bush's or
+// treasure's square (Simulation::gaia_obstacles_), other than the one it works at.
+static float gaia_penetration(const Simulation &s) {
+	const Simulation::UnitView u = s.units();
+	float worst = 0.0f;
+	for (uint32_t k = 0; k < s.gaia_obstacles_.size(); ++k) {
+		const auto &o = s.gaia_obstacles_[k];
+		if (!s.gaia_obstacle_live(k)) continue;
+		for (size_t i = 0; i < u.count; ++i) {
+			if (!u.alive[i] || u.team[i] != 0 || s.units_.target_resource_id[i] == o.id || s.units_.target_unit_id[i] == o.id)
+				continue;
+			const float c = unit_building_clearance(u.tmpl[i], u.unit_type[i]);
+			const nav::Vec2 l = nav::footprint_local(o, u.pos_x[i], u.pos_z[i]);
+			const float ex = o.hu + c - std::fabs(l.x), ez = o.hv + c - std::fabs(l.y);
+			if (ex > 0.0f && ez > 0.0f) worst = std::max(worst, std::min(ex, ez));
+		}
+	}
+	return worst;
+}
+
+// 21. Trees, bushes and treasures.
+static void trees() {
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_TREE_BAOBAB_3_MATURE);
+		const uint32_t id = s.spawn_unit(-8.0f, 0.1f, 0, UNIT_SWORDSMAN, 160.0f);
+		s.cmd_move(&id, 1, 8.0f, 0.1f);
+		int arrived = -1;
+		float pen = 0.0f, dev = 0.0f;
+		for (int t = 0; t < 1200 && arrived < 0; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, gaia_penetration(s));
+			const int i = index_of(s, id);
+			if (i < 0) break;
+			const Simulation::UnitView u = s.units();
+			if (std::fabs(u.pos_x[i]) < 0.3f) dev = std::max(dev, std::fabs(u.pos_z[i]));
+			if (std::hypot(u.pos_x[i] - 8.0f, u.pos_z[i] - 0.1f) <= 1.0f) arrived = t;
+		}
+		std::printf("  through a baobab: arrived after %d ticks (-1 = never in 1200), %.2f off its middle passing it, "
+				"max penetration %.3f\n", arrived, dev, pen);
+		check(arrived >= 0, "a swordsman sent through a baobab never got past it");
+		check(dev > 6.0f / 8.0f, "a swordsman walked through a baobab");
+		check(pen <= MAX_PENETRATION, "a swordsman overlapped a baobab");
+	}
+	// A wood of oaks 1 unit (4 m) apart, 1.6 m wide: 2.4 m gaps, wider than an infantryman.
+	auto wood = [](Simulation &s) {
+		for (int x = -4; x <= 4; ++x)
+			for (int z = -4; z <= 4; ++z)
+				s.spawn_resource_world((float)x + (z & 1) * 0.5f, (float)z, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+	};
+	{
+		Simulation s;
+		setup(s);
+		wood(s);
+		const uint32_t id = s.spawn_unit(-8.0f, 0.3f, 0, UNIT_SWORDSMAN, 160.0f);
+		s.cmd_move(&id, 1, 8.0f, 0.3f);
+		int arrived = -1;
+		float pen = 0.0f;
+		for (int t = 0; t < 2400 && arrived < 0; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, gaia_penetration(s));
+			const int i = index_of(s, id);
+			if (i < 0) break;
+			const Simulation::UnitView u = s.units();
+			if (std::hypot(u.pos_x[i] - 8.0f, u.pos_z[i] - 0.3f) <= 1.0f) arrived = t;
+		}
+		std::printf("  through a wood: arrived after %d ticks (-1 = never in 2400), max penetration %.3f\n", arrived, pen);
+		check(arrived >= 0, "a swordsman never got through a wood");
+		check(pen <= MAX_PENETRATION, "a swordsman walked into a tree");
+	}
+	{
+		Simulation s;
+		setup(s);
+		wood(s);
+		uint32_t tree = 0;
+		const Simulation::ResourceView rv = s.resources();
+		for (size_t r = 0; r < rv.count; ++r)
+			if (rv.x[r] == 0.0f && rv.z[r] == 0.0f) tree = rv.id[r];
+		std::vector<uint32_t> women;
+		for (int k = 0; k < 4; ++k) women.push_back(s.spawn_unit(-8.0f, -1.5f + 1.0f * k, 0, UNIT_FEMALE_CITIZEN));
+		s.order_gather(women.data(), women.size(), tree);
+		std::vector<bool> worked(women.size(), false);
+		float pen = 0.0f;
+		for (int t = 0; t < 1600; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, gaia_penetration(s));
+			for (size_t k = 0; k < women.size(); ++k) {
+				const int i = index_of(s, women[k]);
+				if (i >= 0 && s.units_.carry[i] > 0 && s.units_.res_type_carried[i] == RES_WOOD) worked[k] = true;
+			}
+		}
+		const int n = (int)std::count(worked.begin(), worked.end(), true);
+		std::printf("  gather in a wood: %d of %zu women cut wood, max penetration %.3f\n", n, women.size(), pen);
+		check(n == (int)women.size(), "a woman never reached the tree she was sent to");
+		check(pen <= MAX_PENETRATION, "a woman walked into a tree");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t chest = s.spawn_treasure(0.0f, 0.0f, TREASURE_FOOD_BARRELS_BURIED);
+		const uint32_t id = s.spawn_unit(-6.0f, 0.0f, 0, UNIT_SWORDSMAN, 160.0f);
+		s.order_collect_treasure(&id, 1, chest);
+		bool taken = false;
+		float pen = 0.0f;
+		for (int t = 0; t < 800 && !taken; ++t) {
+			s.tick(DT);
+			taken = !s.is_treasure_id(chest);
+			if (!taken) pen = std::max(pen, gaia_penetration(s)); // gaia_obstacles_ drops it next tick
+		}
+		std::printf("  collect a 7 m treasure: %s, max penetration %.3f\n", taken ? "taken" : "never taken", pen);
+		check(taken, "a swordsman never collected a 7 m treasure");
+		check(pen <= MAX_PENETRATION, "a swordsman overlapped another obstacle on the way to a treasure");
+	}
+}
+
 // 19. Mines.
 static void mines() {
 	{
@@ -1067,6 +1187,7 @@ int main() {
 	walk_to_structure_range();
 	mines();
 	shore_clearance();
+	trees();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

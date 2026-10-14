@@ -161,9 +161,18 @@ func _run() -> void:
 		if st.get("oos", false):
 			return _fail("out of sync at turn %d" % int(st.get("oos_turn", 0)))
 		if int(st.get("turn", 0)) >= turns + 5:
-			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d" % [turns, int(st.get("seat", -1)),
+			# 0.28 /list: "Users (N): ..." in the chat, and the command is no chat line.
+			for le in main.find_children("*", "LineEdit", true, false):
+				if le.placeholder_text == "Type message...":
+					le.text = "/list"
+					main._on_chat_send_pressed()
+			var users := RegEx.create_from_string("Users \\((\\d+)\\): (.*)").search(str(main.get_lobby_state().get("chat", "")))
+			_say("users=%s list=%s" % [users.get_string(1) if users else "-", users.get_string(2).replace(" ", "_") if users else "-"])
+			st = main.get_lobby_state()
+			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d" % [turns, int(st.get("seat", -1)),
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
-					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1])])
+					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
+					str(st.get("chat", "")).count("has rejoined the game.")])
 			break
 	var leave: String = args.get("leave", "")
 	if leave == role:
