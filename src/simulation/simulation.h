@@ -2274,7 +2274,7 @@ private:
 	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
 		if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) note_session({kind, player, 0, tech, {}});
 	}
-	void note_phases_aborted(const Building &b); // a lost or captured structure's queued phases
+	void reset_production_queue(Building &b); // ResetQueue: refund a lost or captured structure's queue
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
