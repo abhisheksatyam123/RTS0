@@ -144,16 +144,6 @@ public:
 		return (c & TC_HERO) ? 0 : -1;
 	}
 
-private:
-	struct Slot {
-		godot::Button *button = nullptr;
-		godot::TextureRect *image = nullptr;
-		godot::ColorRect *hit = nullptr, *health_bg = nullptr, *health = nullptr;
-		uint32_t id = 0;
-		float hp = 0.0f, hit_at = -100.0f;
-		godot::String name;
-	};
-
 	// The template's Identity/Icon (data/reference/templates.json units.<id>.icon), else the class portrait.
 	static godot::Ref<godot::Texture2D> portrait(uint16_t tmpl, uint8_t type) {
 		using namespace godot;
@@ -166,6 +156,16 @@ private:
 		}
 		return load_ui_texture(String("res://assets/textures/ui/portraits/") + unit_type_portrait(type) + ".png");
 	}
+
+private:
+	struct Slot {
+		godot::Button *button = nullptr;
+		godot::TextureRect *image = nullptr;
+		godot::ColorRect *hit = nullptr, *health_bg = nullptr, *health = nullptr;
+		uint32_t id = 0;
+		float hp = 0.0f, hit_at = -100.0f;
+		godot::String name;
+	};
 
 	static godot::String name(uint16_t tmpl, uint8_t type) {
 		const auto &info = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_template_unit_info(tmpl, type) : unit_type_info(type);
