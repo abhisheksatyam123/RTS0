@@ -364,6 +364,8 @@ public:
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
 	// Walk speed of the unit at SoA index i: its speed with technologies times any speed aura it stands in.
 	float unit_walk_speed(size_t i) const;
+	// The same before running (a fleeing, chasing or slot-walking unit runs at RunMultiplier times it).
+	float unit_base_walk_speed(size_t i) const;
 	// The speed it moves at now: its walk speed, slowed by the pushing pressure it is under.
 	float unit_move_speed(size_t i) const;
 	// How far it moves this tick heading (ux, uz) at up to max_speed, starting from velocity (vx, vz),
@@ -2357,6 +2359,9 @@ private:
 	// obstruction group and don't push each other in separation(). Derived from formations_
 	// by formation_refresh_groups() whenever membership changes, so it is never saved.
 	std::vector<uint32_t> formation_group_;
+	// Per unit index, 1 while it walks to its slot with a walking controller: UnitMotion's
+	// IsMovingAsFormation, so it runs there. Derived with formation_group_.
+	std::vector<uint8_t> formation_slot_walk_;
 	void formation_refresh_groups();
 
 	UnitSoA units_;

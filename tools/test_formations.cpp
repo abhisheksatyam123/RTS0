@@ -263,7 +263,14 @@ static void test_walk() {
 	const auto *fc = ctrl(s, fid);
 	check(fc && fc->order == Simulation::FORDER_WALK, "the walk goes to the controller");
 	check(fc && fc->columnar, "a long walk marches in column");
-	run(s, 8.0f);
+	run(s, 0.2f);
+	{
+		// UnitMotion IsMovingAsFormation: members run to their slots, the controller walks.
+		const int i = idx_of(s, inf[0]), c = idx_of(s, cav[0]);
+		check(std::fabs(s.unit_walk_speed(i) - 1.67f * s.unit_base_walk_speed(i)) < 1e-3f &&
+		      std::fabs(s.unit_walk_speed(c) - 1.4f * s.unit_base_walk_speed(c)) < 1e-3f, "members run to their slots");
+	}
+	run(s, 7.8f);
 	float cx, cz;
 	centroid(s, all, cx, cz);
 	float worst = 0.0f;
