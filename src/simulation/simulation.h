@@ -986,6 +986,15 @@ public:
 	// 0 A.D. AllyView (InitGame.js): every player starts with Diplomacy's SharedLosTech researched.
 	void set_ally_view(bool on) { set_setup_flag(SETUP_ALLY_VIEW, on); }
 	bool ally_view() const { return setup_flags_ & SETUP_ALLY_VIEW; }
+	// 0 A.D. "Circular map" (settings.CircularMap): the map is the circle inside the square.
+	// The choice is 0 = the map's own (map_circular), 1 = circular, 2 = square; generate_random_map
+	// applies it. Hooks: LOS (los_grid off_world), passability and the minimap read circular_map().
+	void set_circular_map_choice(int c) { circular_map_choice_ = (uint8_t)((c >= 0 && c <= 2) ? c : 0); }
+	uint8_t circular_map_choice() const { return circular_map_choice_; }
+	bool circular_map() const { return setup_flags_ & SETUP_CIRCULAR_MAP; }
+	void set_circular_map(bool on);
+	// Off the world on a circular map: outside the circle of radius map_half() round the centre.
+	bool off_world(float x, float z) const { return circular_map() && x * x + z * z >= map_half_ * map_half_; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -2409,6 +2418,7 @@ private:
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
 	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
+	uint8_t circular_map_choice_ = 0; // setup-time Circular map choice (set_circular_map_choice)
 	uint8_t map_daytime_choice_ = 0, map_daytime_ = 0; // setup-time Daytime and the one the map used
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
@@ -2416,7 +2426,7 @@ private:
 	void spawn_nomad_treasures();
 	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
 	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_DISABLE_SPIES = 8,
-		SETUP_ALLY_VIEW = 16, SETUP_FLAGS_ALL = 31;
+		SETUP_ALLY_VIEW = 16, SETUP_CIRCULAR_MAP = 32, SETUP_FLAGS_ALL = 63;
 	std::vector<Spy> spies_; // VisionSharing spies, oldest first
 	CheatMods cheat_mods_[MAX_PLAYERS] = {};
 	int32_t unit_pop_bonus_[MAX_PLAYERS] = {}; // Population/Bonus of each player's units (refresh_unit_pop_bonus)
