@@ -6,6 +6,7 @@
   python3 tools/port_0ad_maps.py --github-builtin # the built-in list, fetched from GitHub
   python3 tools/port_0ad_maps.py --github-scenarios [NAME..]  # scenario maps, same way
   python3 tools/port_0ad_maps.py --zip-scenarios ZIP [NAME..]  # scenario maps from a 0 A.D. public.zip
+  python3 tools/port_0ad_maps.py --zip-skirmishes ZIP [NAME..]  # skirmish maps from a 0 A.D. public.zip
   python3 tools/port_0ad_maps.py --github-tutorials [NAME..]  # the tutorials (maps/tutorials/)
   python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
   python3 tools/port_0ad_maps.py --environment-only   # add each ported map's Environment (sun, fog, water) from GitHub
@@ -990,6 +991,19 @@ github_skirmishes = {
     "oceanside_2p": ("oceanside", "mediterranean"),
     "watering_holes_4p": ("watering_holes", "savanna"),
     "sicilia_nomad_2p": ("sicilia_nomad", "mediterranean"),
+    # 0.28 skirmishes ported from its public.zip (--zip-skirmishes).
+    "obedska_bog_4p": ("obedska_bog", "temperate"),
+    "obedska_bog_night_4p": ("obedska_bog_night", "temperate"),
+    "sahyadri_buttes_5p": ("sahyadri_buttes", "india"),
+    "scythia_4p": ("scythia", "temperate"),
+    "tarim_basin_2p": ("tarim_basin_2p", "desert"),
+    "tarim_basin_4p": ("tarim_basin_4p", "desert"),
+    "team_oasis_2pv2p": ("team_oasis", "desert"),
+    "temperate_roadway_2p": ("temperate_roadway", "temperate"),
+    "thessalian_plains_4p": ("thessalian_plains", "aegean"),
+    "via_augusta_4p": ("via_augusta", "mediterranean"),
+    "white_cliffs_of_dover_5p": ("white_cliffs_of_dover", "temperate"),
+    "yangtze_2p": ("yangtze", "temperate"),
 }
 
 # 0 A.D. scenario maps (maps/scenarios/) fetched with --github-scenarios: file -> (id, biome).
@@ -1097,6 +1111,12 @@ if __name__ == "__main__":
         for name in sys.argv[3:] or sorted(github_scenarios):
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))
             port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
+                     source=zipfile.ZipFile(sys.argv[2]))
+    elif len(sys.argv) > 2 and sys.argv[1] == "--zip-skirmishes":
+        # --zip-skirmishes <public.zip> [names]: like --github, from a 0 A.D. public.zip.
+        for name in sys.argv[3:] or sorted(github_skirmishes):
+            mid, bome = github_skirmishes.get(name, (name, "mediterranean"))
+            port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None,
                      source=zipfile.ZipFile(sys.argv[2]))
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-tutorials":
         for name in sys.argv[2:] or sorted(github_tutorials):
