@@ -5403,6 +5403,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	int h_res = (int)d.get("heightmap_res", 64);
 
 	sim->set_map_half(world_size * 0.5f);
+	// 0.28 ScriptSettings CircularMap ("circular", from port_0ad_maps.py); square when absent.
+	sim->set_circular_map((bool)d.get("circular", false));
 	sim->set_map_info(map_id.utf8().get_data(), name.utf8().get_data(), biome.utf8().get_data());
 
 	Array h_arr = d.get("heightmap", Array());
