@@ -7102,6 +7102,7 @@ bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, ui
 	count = std::clamp(count, 1, 255);
 	if (!entity_limit_allows_unit(player_id, UNIT_TYPE_NONE, CIV_UNIT_TEMPLATE_NONE, count)) return false; // Animal 50
 	const uint8_t animal = corral_animal_for(civ_of(b.team), ftype);
+	if (player(b.team).phase < livestock_required_phase(animal)) return false; // Identity/Requirements
 	const FaunaTrainCost &c = fauna_train_cost(animal);
 	const float n = (float)count;
 	if (!player(b.team).pay(n * c.res[0], n * c.res[1], n * c.res[3], n * c.res[2])) return false;
@@ -12476,6 +12477,12 @@ void Simulation::tick_trickle(float dt) {
 			auto it = building_id_to_idx_.find(fauna_.corral_id[f]);
 			if (it == building_id_to_idx_.end()) continue;
 			const Building &b = buildings_[it->second];
+			if (b.type != BLD_CORRAL) {
+				// Penned in a civic centre by an older build: only a corral holds animals.
+				fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
+				fauna_.corral_id[f] = 0;
+				continue;
+			}
 			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
 			players_[b.team].res[RES_FOOD] += fauna_corral_food(fauna_.fauna_type[f]);
 		}
@@ -16777,7 +16784,7 @@ void Simulation::petra_manage_fields() {
 			for (size_t f = 0; f < fauna_.count; ++f)
 				if (fauna_.alive[f] && fauna_.fauna_type[f] == ct.fauna[k] && fauna_owner_[f] == petra_pid_) ++have;
 			if (have > corrals) continue;
-			cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1);
+			if (!cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1)) continue; // not in this phase yet
 			return;
 		}
 	}
@@ -25981,6 +25988,13 @@ bool Simulation::fauna_threat_pos(uint32_t id, float &x, float &z) const {
 		z = units_.pos_z[u];
 		return true;
 	}
+	const auto fit = fauna_id_to_idx_.find(id);
+	if (fit != fauna_id_to_idx_.end()) {
+		if (!fauna_.alive[fit->second]) return false;
+		x = fauna_.pos_x[fit->second];
+		z = fauna_.pos_z[fit->second];
+		return true;
+	}
 	const auto bit = building_id_to_idx_.find(id);
 	if (id == 0 || bit == building_id_to_idx_.end() || buildings_[bit->second].wrecked) return false;
 	x = buildings_[bit->second].x;
@@ -26058,6 +26072,22 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	// The victim's UnitAI "Attacked", as for any attacker: soldiers turn on the animal
 	// (tick_hunters fights it), women and other passive units flee.
 	respond_to_attacker(u, fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], true);
+}
+
+// An animal's Attack/Melee lands on a player's livestock, against the livestock's resistance.
+// It flees (passive Domestic), or dies and leaves its carcass.
+void Simulation::fauna_hit_fauna(size_t f, size_t v) {
+	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
+	const auto &vinfo = fauna_type_info(fauna_.fauna_type[v]);
+	const float dmg = info.hack_damage * powf(0.9f, vinfo.hack_armor) + info.pierce_damage * powf(0.9f, vinfo.pierce_armor) +
+	                  info.crush_damage * powf(0.9f, vinfo.crush_armor);
+	note_attacked(fauna_.id[f], GAIA_PLAYER, fauna_.id[v], fauna_owner_[v], false, dmg, true);
+	fauna_.hp[v] -= dmg;
+	if (fauna_.hp[v] > 0.0f) {
+		fauna_attacked(v, fauna_.id[f], true);
+		return;
+	}
+	fauna_killed(v, (size_t)-1);
 }
 
 // Units whose attack target is an animal (order_hunt, or fighting back): chase it, strike it with
@@ -26223,6 +26253,25 @@ void Simulation::tick_fauna(float dt) {
 		});
 		return best;
 	};
+	// A player's livestock is an enemy entity too (UnitAI attackfilter: owner > 0), so a
+	// predator goes for trained sheep and cattle that are out of their corral.
+	auto prey = [&](size_t f) {
+		return fauna_.alive[f] && fauna_owner_[f] < MAX_PLAYERS && fauna_.behavior[f] != FAUNA_CORRALLED &&
+		       fauna_.behavior[f] != FAUNA_CARCASS && fauna_.hp[f] > 0.0f;
+	};
+	bool any_prey = false;
+	for (size_t f = 0; f < fauna_.count && !any_prey; ++f) any_prey = prey(f);
+	auto nearest_prey = [&](size_t self, float x, float z, float range) -> int32_t {
+		int32_t best = -1;
+		float best_d2 = range * range;
+		if (range <= 0.0f || !any_prey) return -1;
+		for (size_t f = 0; f < fauna_.count; ++f) {
+			if (f == self || !prey(f)) continue;
+			const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z, d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) { best_d2 = d2; best = (int32_t)f; }
+		}
+		return best;
+	};
 	auto step = [&](size_t i, float vx, float vz) {
 		const float nx = fauna_.pos_x[i] + vx * dt, nz = fauna_.pos_z[i] + vz * dt;
 		if (fauna_can_step(i, nx, nz)) {
@@ -26350,10 +26399,19 @@ void Simulation::tick_fauna(float dt) {
 				float dz = target_cz - fz;
 				float len = std::hypot(dx, dz);
 				if (len <= 3.8f) {
-					fauna_.corral_id[i] = nearest_cid;
-					fauna_.behavior[i] = FAUNA_CORRALLED;
 					fauna_.vel_x[i] = 0.0f;
 					fauna_.vel_z[i] = 0.0f;
+					const auto cit = building_id_to_idx_.find(nearest_cid);
+					if (cit != building_id_to_idx_.end() && buildings_[cit->second].type == BLD_CORRAL) {
+						fauna_.corral_id[i] = nearest_cid;
+						fauna_.behavior[i] = FAUNA_CORRALLED;
+					} else {
+						// A civic centre's GarrisonHolder takes no animals: the herd stops beside it.
+						fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+						fauna_.target_unit_id[i] = 0;
+						fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+						continue;
+					}
 				} else {
 					fauna_.vel_x[i] = (dx / len) * (info.speed * 1.15f);
 					fauna_.vel_z[i] = (dz / len) * (info.speed * 1.15f);
@@ -26432,9 +26490,16 @@ void Simulation::tick_fauna(float dt) {
 		// 3. Combat: an animal fights back or hunts per its stance (UnitAI g_Stances).
 		if (fauna_.behavior[i] == FAUNA_ATTACK) {
 			const int32_t t = lookup_unit(fauna_.target_unit_id[i]);
-			bool keep = t >= 0 && can_bite(t);
+			int32_t tf = -1; // a player's livestock
+			if (t < 0) {
+				auto it = fauna_id_to_idx_.find(fauna_.target_unit_id[i]);
+				if (it != fauna_id_to_idx_.end() && prey(it->second)) tf = (int32_t)it->second;
+			}
+			bool keep = t >= 0 ? can_bite(t) : tf >= 0;
+			const float tx = t >= 0 ? units_.pos_x[t] : tf >= 0 ? fauna_.pos_x[tf] : fx;
+			const float tz = t >= 0 ? units_.pos_z[t] : tf >= 0 ? fauna_.pos_z[tf] : fz;
 			if (keep) {
-				const float tdx = units_.pos_x[t] - fx, tdz = units_.pos_z[t] - fz;
+				const float tdx = tx - fx, tdz = tz - fz;
 				const float td2 = tdx * tdx + tdz * tdz;
 				// ShouldAbandonChase: every stance but violent stops once the target leaves the
 				// animal's vision (CheckTargetIsInVisionRange). An animal has no held position
@@ -26450,12 +26515,15 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
 				continue;
 			}
-			const float dx = units_.pos_x[t] - fx, dz = units_.pos_z[t] - fz;
+			const float dx = tx - fx, dz = tz - fz;
 			const float len = std::sqrt(dx * dx + dz * dz);
 			if (len > info.attack_range + 0.6f) {
 				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
 				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
-				const float sp = info.speed * info.run_mult;
+				// COMBAT APPROACHING and CHASING walk, and run only after a target that flees
+				// (UnitAI.js: "if (cmpUnitAI.IsFleeing()) this.SetSpeedMultiplier(this.GetRunMultiplier())").
+				const bool fleeing = t >= 0 ? units_.action_state[t] == ACTION_FLEE : fauna_.behavior[tf] == FAUNA_FLEE;
+				const float sp = info.speed * (fleeing ? info.run_mult : 1.0f);
 				// Straight at the target; when a pond or cliff is in the way, 45 or 90 degrees
 				// to either side (animals have no long-range path here; polar_sea_triggers.js
 				// sends its wolves across the whole map).
@@ -26475,7 +26543,8 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 				if (fauna_.attack_timer[i] <= 0.0f) {
 					fauna_.attack_timer[i] = info.attack_cooldown > 0.0f ? info.attack_cooldown : 1.0f;
-					fauna_hit_unit(i, (size_t)t);
+					if (t >= 0) fauna_hit_unit(i, (size_t)t);
+					else fauna_hit_fauna(i, (size_t)tf);
 				}
 			}
 			continue;
@@ -26530,6 +26599,13 @@ void Simulation::tick_fauna(float dt) {
 				// GetQueryRange(IID_Attack): vision when chasing, min(range + vision / 2, vision) when holding ground.
 				const float q = info.stance == FAUNA_STANCE_DEFENSIVE ? std::min(info.attack_range + info.vision * 0.5f, info.vision) : info.vision;
 				const int32_t u = nearest_foe(fx, fz, q, true);
+				float ud2 = q * q;
+				if (u >= 0) ud2 = (units_.pos_x[u] - fx) * (units_.pos_x[u] - fx) + (units_.pos_z[u] - fz) * (units_.pos_z[u] - fz);
+				const int32_t p = nearest_prey(i, fx, fz, std::sqrt(ud2));
+				if (p >= 0) {
+					fauna_start_attack(i, fauna_.id[p]);
+					continue;
+				}
 				if (u >= 0) {
 					fauna_start_attack(i, units_.id[u]);
 					continue;

@@ -5124,7 +5124,11 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 					String::num(sim->livestock_train_time(pid, f), 0) + " s, " +
 					String::num_int64(rtso::fauna_type_info(f).food_amount) + " food when slaughtered, " +
 					String::num(rtso::fauna_corral_food(f), 0) + " food every " +
-					String::num(rtso::CORRAL_TRICKLE_INTERVAL, 0) + " s while penned");
+					String::num(rtso::CORRAL_TRICKLE_INTERVAL, 0) + " s while penned" +
+					(rtso::Simulation::livestock_required_phase(f) > phase
+									? String(rtso::Simulation::livestock_required_phase(f) >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase")
+									: String()));
+			if (rtso::Simulation::livestock_required_phase(f) > phase) roster_list->set_item_disabled(idx, true);
 		}
 		roster_list->set_visible(roster_list->get_item_count() > 0);
 		return;
