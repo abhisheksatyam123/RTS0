@@ -143,9 +143,31 @@ enum TechnologyId : uint8_t {
 	TECH_GROVE_OF_FETTERS = 134, // grove_of_fetters
 	TECH_RESETTLEMENT = 135, // resettlement
 	TECH_CELTIC_AUXILIARIES = 136, // celtic_auxiliaries (hand-added: Loot/<res> of the unit)
-	TECH_COUNT = 137
+	TECH_WAGON_TRAINS = 137, // wagon_trains
+	TECH_COUNT = 138
 };
 
+// A set of 0 A.D. classes (TechClass bits 0..63 in lo, 64..127 in hi).
+struct TechClasses {
+	uint64_t lo = 0, hi = 0;
+	constexpr TechClasses() = default;
+	constexpr TechClasses(uint64_t l) : lo(l) {}
+	constexpr TechClasses(uint64_t l, uint64_t h) : lo(l), hi(h) {}
+	constexpr bool any() const { return (lo | hi) != 0; }
+	constexpr explicit operator bool() const { return any(); }
+	constexpr bool contains(TechClasses o) const { return (lo & o.lo) == o.lo && (hi & o.hi) == o.hi; }
+	constexpr bool intersects(TechClasses o) const { return ((lo & o.lo) | (hi & o.hi)) != 0; }
+	friend constexpr TechClasses operator|(TechClasses a, TechClasses b) { return {a.lo | b.lo, a.hi | b.hi}; }
+	friend constexpr TechClasses operator&(TechClasses a, TechClasses b) { return {a.lo & b.lo, a.hi & b.hi}; }
+	friend constexpr TechClasses operator~(TechClasses a) { return {~a.lo, ~a.hi}; }
+	friend constexpr bool operator==(TechClasses a, TechClasses b) { return a.lo == b.lo && a.hi == b.hi; }
+	friend constexpr bool operator!=(TechClasses a, TechClasses b) { return !(a == b); }
+	constexpr TechClasses &operator|=(TechClasses o) { lo |= o.lo; hi |= o.hi; return *this; }
+	constexpr TechClasses &operator&=(TechClasses o) { lo &= o.lo; hi &= o.hi; return *this; }
+};
+constexpr TechClasses tc_bit(int i) { return i < 64 ? TechClasses(1ull << i, 0) : TechClasses(0, 1ull << (i - 64)); }
+
+// Bits 0..63; 0 A.D. classes from bit 64 up are TechClasses constants below.
 enum TechClass : uint64_t {
 	TC_UNIT = 1ull << 0,
 	TC_ORGANIC = 1ull << 1,
@@ -212,9 +234,11 @@ enum TechClass : uint64_t {
 	TC_MINISTER = 1ull << 62,
 	TC_ICEHOUSE = 1ull << 63,
 };
+inline constexpr TechClasses TC_WAGON = tc_bit(64);
+inline constexpr TechClasses TC_COLONY = tc_bit(65);
 
 // One 0 A.D. "affects" alternative: every `need` class and no `forbid` class.
-struct TechClassExpr { uint64_t need; uint64_t forbid; };
+struct TechClassExpr { TechClasses need; TechClasses forbid; };
 
 inline const TechClassExpr *tech_affects_table() {
 	static const TechClassExpr kAffects[] = {
@@ -300,6 +324,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_SCOUTSHIP, 0},
 		{TC_RAM, 0}, // siege_health: Ram or SiegeTower
 		{TC_SIEGETOWER, 0},
+		{TC_COLONY, 0},
 	};
 	return kAffects;
 }
@@ -506,10 +531,11 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_MELEE_FIRE, TOP_MUL, 78, 1, 1.25f}, // warship_fireship_attack (hand-added: Attack/Melee/Damage/Fire)
 		{TSTAT_VISION, TOP_MUL, 71, 1, 1.1f}, // ship_vision
 		{TSTAT_VISION, TOP_MUL, 79, 1, 1.25f}, // ship_vision
+		{TSTAT_POP_BONUS, TOP_ADD, 82, 1, 10.0f}, // wagon_trains (its Promotion/RequiredXp is in promotion_data.h)
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 199;
+constexpr int TECH_EFFECT_COUNT = 200;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -653,6 +679,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Grove of Fetters", "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.", 0, 600, 300, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x8000, 187, 1, "grove_of_fetters"},
 		{"Migratory Resettlement", "All Structures except for walls do not decay to neutral or enemy territory.", 0, 200, 200, 200, 40.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x8000, 188, 1, "resettlement"},
 		{"Celtic Auxiliaries", "Mercenaries −50% metal cost but +50 food cost.", 0, 0, 550, 0, 45.0f, 3, BLD_EMBASSY, TECH_NONE, 0x0010, 189, 4, "celtic_auxiliaries"},
+		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 199, 1, "wagon_trains"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

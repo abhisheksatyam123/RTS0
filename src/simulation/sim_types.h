@@ -177,7 +177,10 @@ enum MapType : uint8_t {
 	MAP_RIVER_ARCHIPELAGO = 87,
 	MAP_LAND_GRAB = 88,
 	MAP_THE_NILE = 89,
-	MAP_TYPE_COUNT = 90
+	MAP_CONTINENT = 90,
+	MAP_FOOTHILLS = 91,
+	MAP_COAST_RANGE = 92,
+	MAP_TYPE_COUNT = 93
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -215,10 +218,12 @@ inline uint8_t map_team_placements(uint8_t type) {
 			return C | R | L | G | S;
 		case MAP_ARDENNES_FOREST: return C | R | L | G;
 		case MAP_CANTABRIAN_HIGHLANDS: return C | S;
+		case MAP_COAST_RANGE: return C | R | S;
 		case MAP_EXTINCT_VOLCANO: return C | R | G;
-		case MAP_INDIA: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS: return C | R | S;
+		case MAP_CONTINENT: case MAP_INDIA: case MAP_MIGRATION: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS:
+			return C | R | S;
 		case MAP_LAKE: case MAP_NEARESTERN_BADLANDS: return C | R;
-		case MAP_SYRIA: return C | R | G | S;
+		case MAP_FOOTHILLS: case MAP_SYRIA: return C | R | G | S;
 		default: return 0;
 	}
 }
@@ -315,7 +320,10 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_NGORONGORO, "ngorongoro", "Ngorongoro (RMS)", "savanna", true, "Ngorongoro Crater is the world's largest intact volcanic caldera and is one of the Seven Natural Wonders of Africa. Due to it's climate, biodiversity and history, Ngorongoro is believed by some to be Africa's Garden of Eden and the birthplace of mankind."},
 		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."},
 		{MAP_LAND_GRAB, "land_grab", "Land Grab (RMS)", "temperate", true, "Players start in small islands in the eastern part of the map. There is a big continent in the west ready for expansion."},
-		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."}
+		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."},
+		{MAP_CONTINENT, "continent", "Continent (RMS)", "temperate", true, "All players starts on a continent surrounded by water."},
+		{MAP_FOOTHILLS, "foothills", "Foothills (RMS)", "temperate", true, "A land map with rolling hills and no obstructions."},
+		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -469,7 +477,9 @@ enum BuildingType : uint8_t {
 	BLD_SIEGE_WALL_GATE = 64, // rome/siege_wall_gate (a siege_wall_long Upgrade)
 	BLD_CRANNOG = 65,         // brit/crannog (a Civic Center on the shore: is_civic_centre)
 	BLD_GREAT_HALL = 66,      // germ/great_hall (Town phase; champions and the ram)
-	BLD_TYPE_COUNT = 67
+	BLD_WAGON_ENCAMPMENT = 67, // germ/encampment (a Colony that claims no territory; researches Wagon Trains)
+	BLD_WAGON_ENCAMPMENT_FORTIFIED = 68, // germ/encampment_fortified (its City-phase Upgrade; also trains the log ram)
+	BLD_TYPE_COUNT = 69
 };
 
 #include "civ_building_data.h"
@@ -485,6 +495,7 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
 	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG) ? (uint8_t)BLD_TOWN_CENTER
 	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER
+	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
 
@@ -718,7 +729,7 @@ struct AlertRaiserInfo {
 inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
 	constexpr float S = 0.28f;
 	switch (building_research_base(type)) {
-		case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: out = {false, 120 * S, 180 * S, 100 * S}; return true;
+		case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: case BLD_WAGON_ENCAMPMENT: out = {false, 120 * S, 180 * S, 100 * S}; return true;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: out = {false, 50 * S, 100 * S, 100 * S}; return true;
 		case BLD_MARKET: out = {true, -1.0f, -1.0f, 100 * S}; return true;
 		default: return false;
@@ -1551,12 +1562,17 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	case BLD_MILITARY_COLONY:
 		return r == BLD_MILITARY_COLONY || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
 		                                    && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
+	// germ/encampment shares the military colony's parent template and adds wagon_trains; its
+	// fortified Upgrade keeps the list.
+	case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED:
+		return r == BLD_WAGON_ENCAMPMENT || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
+		                                     && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
 	default: return r == building_research_base(type);
 	}
 }
 
 // Does an entity with these TechClass bits match effect `e`'s affects list?
-inline bool tech_effect_applies(const TechEffect &e, uint64_t classes) {
+inline bool tech_effect_applies(const TechEffect &e, TechClasses classes) {
 	if (e.affects_count == 0) return true;
 	const TechClassExpr *rows = tech_affects_table() + e.affects;
 	for (uint16_t i = 0; i < e.affects_count; ++i)
@@ -1565,9 +1581,9 @@ inline bool tech_effect_applies(const TechEffect &e, uint64_t classes) {
 }
 
 // 0 A.D. Identity/Classes for RTS0's unit types, as far as technologies need them.
-inline uint64_t unit_tech_classes(uint8_t type) {
-	const uint64_t org = TC_UNIT | TC_ORGANIC;
-	const uint64_t cs = org | TC_SOLDIER | TC_CITIZENSOLDIER | TC_CITIZEN;
+inline TechClasses unit_tech_classes(uint8_t type) {
+	const TechClasses org = TC_UNIT | TC_ORGANIC;
+	const TechClasses cs = org | TC_SOLDIER | TC_CITIZENSOLDIER | TC_CITIZEN;
 	switch (type) {
 		case UNIT_VILLAGER: return org | TC_WORKER | TC_CITIZEN | TC_CIVILIAN;
 		case UNIT_FEMALE_CITIZEN: return org | TC_WORKER | TC_CITIZEN | TC_CIVILIAN | TC_FEMALECITIZEN;
@@ -1587,7 +1603,7 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_CARNYX: return org | TC_SOLDIER | TC_INFANTRY | TC_MELEE;
 		case UNIT_ARCHER_MAIDEN: return org | TC_SOLDIER | TC_INFANTRY | TC_RANGED | TC_ARCHER | TC_CHAMPION;
 		case UNIT_WORKER_ELEPHANT: return org | TC_WORKER | TC_ELEPHANT;
-		case UNIT_WAGON: return org | TC_CIVILIAN; // Support (Civilian) Wagon
+		case UNIT_WAGON: return org | TC_CIVILIAN | TC_WAGON; // Support (Civilian) Wagon
 		case UNIT_CATAPULT: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_STONETHROWER;
 		case UNIT_BOLT_SHOOTER: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_BOLTSHOOTER;
 		case UNIT_SIEGE_RAM: return TC_UNIT | TC_SIEGE | TC_MELEE | TC_RAM;
@@ -1646,8 +1662,8 @@ inline bool siege_garrison_allowed(uint8_t unit_type) {
 	return (unit_tech_classes(unit_type) & (TC_INFANTRY | TC_CIVILIAN)) != 0;
 }
 
-inline uint64_t building_tech_classes(uint8_t type) {
-	const uint64_t c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
+inline TechClasses building_tech_classes(uint8_t type) {
+	const TechClasses c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
 		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
@@ -1671,13 +1687,16 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_ARSENAL: return c | TC_ARSENAL;
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
+		case BLD_MILITARY_COLONY: return c | TC_COLONY;
+		// germ/encampment: VisibleClasses Civic Defensive Colony Encampment (no CivCentre).
+		case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED: return c | TC_CIVIC | TC_DEFENSIVE | TC_COLONY;
 		default: return c;
 	}
 }
 
 // Whether an attack-move with these avoid bits skips a structure of `type`.
 inline bool attack_move_avoids(uint8_t flags, uint8_t type) {
-	const uint64_t c = building_tech_classes(type);
+	const TechClasses c = building_tech_classes(type);
 	if ((flags & ORDER_AVOID_ECONOMY) && (c & (TC_HOUSE | TC_STOREHOUSE | TC_FARMSTEAD | TC_FIELD | TC_FORGE))) return true;
 	switch ((flags & ORDER_AVOID_MASK) >> ORDER_AVOID_SHIFT) {
 		case ORDER_AVOID_WALLS_FORTRESS: return (c & (TC_WALL | TC_FORTRESS)) != 0;
@@ -1707,16 +1726,16 @@ inline int structure_garrison_max(uint8_t type, uint8_t civ) {
 // the Han lists add Minister (structures/han/*.xml), all but the sentry and wall towers.
 struct GarrisonClassList { uint8_t n; TechClassExpr e[5]; };
 inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
-	constexpr uint64_t SUP = TC_CIVILIAN, INF = TC_INFANTRY, CAV = TC_CAVALRY;
+	constexpr TechClasses SUP = TC_CIVILIAN, INF = TC_INFANTRY, CAV = TC_CAVALRY;
 	GarrisonClassList l{};
-	auto add = [&](uint64_t need, uint64_t forbid = 0) { l.e[l.n++] = {need, forbid}; };
+	auto add = [&](TechClasses need, TechClasses forbid = 0) { l.e[l.n++] = {need, forbid}; };
 	switch (building_research_base(type)) { // the court and great tower keep their parent's List
 		case BLD_TOWN_CENTER: case BLD_TEMPLE: case BLD_EMBASSY: case BLD_THEATER: case BLD_GYMNASIUM:
 		case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_SYSSITON: case BLD_TACHARA: case BLD_AMPHITHEATER:
 		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
 		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
 		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
-		case BLD_TACHARA_METAL:
+		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT:
 			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
 		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
 		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;
@@ -1736,7 +1755,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 	if (civ == CIV_HAN && type != BLD_SENTRY_TOWER && type != BLD_WALL_TOWER && l.n < 5) add(TC_MINISTER);
 	return l;
 }
-inline bool garrison_list_matches(const GarrisonClassList &l, uint64_t classes) {
+inline bool garrison_list_matches(const GarrisonClassList &l, TechClasses classes) {
 	for (uint8_t k = 0; k < l.n; ++k)
 		if ((classes & l.e[k].need) == l.e[k].need && (classes & l.e[k].forbid) == 0) return true;
 	return false;
@@ -1900,7 +1919,7 @@ struct CivUnitTemplate {
 	int16_t carry_capacity;
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
-	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
+	TechClasses tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
 	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
 };
 
@@ -1916,6 +1935,12 @@ struct CivUnitUpgrade {
 	int16_t stone_cost;
 	float time; // seconds
 	uint8_t phase; // phase the choice's Requirements name, 1 = none
+};
+
+// 0 A.D. Population/Bonus on a unit (Population.js), the Germans' wagon house.
+struct CivUnitPopBonus {
+	uint16_t tmpl; // civ_unit_template_table() row, 0xFFFF ends the table
+	int16_t bonus;
 };
 
 #include "civ_roster_data.h"
@@ -1965,7 +1990,7 @@ inline int builder_rate_aura_index(int16_t aura) {
 }
 
 // Does an entity with these TechClass bits match relic aura modifier `m`?
-inline bool relic_modifier_applies(const RelicAuraModifier &m, uint64_t classes) {
+inline bool relic_modifier_applies(const RelicAuraModifier &m, TechClasses classes) {
 	if (m.alt_count == 0) return true;
 	for (uint8_t i = 0; i < m.alt_count; ++i)
 		if ((classes & m.alts[i].need) == m.alts[i].need && (classes & m.alts[i].forbid) == 0) return true;
@@ -2061,9 +2086,18 @@ inline int unit_pop_cost(uint16_t tmpl, uint8_t type) {
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).pop_cost : unit_type_info(type).pop_cost;
 }
 
+// Population/Bonus of a unit: the population space it adds for its owner while it exists
+// (units/germ/support_wagon_house 5). Units without a roster template add none.
+inline int unit_pop_bonus(uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return 0;
+	for (const CivUnitPopBonus *b = civ_unit_pop_bonus_table(); b->tmpl != 0xFFFF; ++b)
+		if (b->tmpl == tmpl) return b->bonus;
+	return 0;
+}
+
 // Identity class Healer (Heal component): support healers and hero healers.
 inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
-	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & TC_HEALER) != 0;
 }
 
@@ -2076,7 +2110,7 @@ inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
 // is not).
 inline bool unit_is_large(uint16_t tmpl, uint8_t type) {
 	if (type == UNIT_CATAFALQUE || type == UNIT_WAGON) return true;
-	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & (TC_SIEGE | TC_ELEPHANT | TC_CHARIOT)) != 0;
 }
 

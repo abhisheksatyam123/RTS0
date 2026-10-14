@@ -813,7 +813,9 @@
     "germ/support_trader",
     "germ/rts0_villager",
     "germ/catafalque",
-    "germ/ship_fire_fire"
+    "germ/ship_fire_fire",
+    "germ/support_wagon",
+    "germ/support_wagon_house"
    ],
    "auto_bonuses": [
     {
@@ -23334,11 +23336,15 @@
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
     "BLD_RANGE",
-    "BLD_MERCENARY_CAMP"
+    "BLD_MERCENARY_CAMP",
+    "BLD_WAGON_ENCAMPMENT",
+    "BLD_WAGON_ENCAMPMENT_FORTIFIED"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "encampment",
+    "encampment_fortified",
     "mercenary_camp",
     "range"
    ],
@@ -23395,11 +23401,15 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_MERCENARY_CAMP"
+    "BLD_MERCENARY_CAMP",
+    "BLD_WAGON_ENCAMPMENT",
+    "BLD_WAGON_ENCAMPMENT_FORTIFIED"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "encampment",
+    "encampment_fortified",
     "mercenary_camp"
    ],
    "flags": [
@@ -23747,10 +23757,12 @@
    "phase": 2,
    "trainers": [
     "BLD_ARSENAL",
-    "BLD_GREAT_HALL"
+    "BLD_GREAT_HALL",
+    "BLD_WAGON_ENCAMPMENT_FORTIFIED"
    ],
    "trained_at_0ad": [
     "arsenal",
+    "encampment_fortified",
     "great_hall"
    ],
    "flags": [],
@@ -23840,10 +23852,14 @@
    "specific_name": "Būraz",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_WAGON_ENCAMPMENT",
+    "BLD_WAGON_ENCAMPMENT_FORTIFIED"
    ],
    "trained_at_0ad": [
-    "civil_centre"
+    "civil_centre",
+    "encampment",
+    "encampment_fortified"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -24427,6 +24443,111 @@
     "range": 1.7999999999999998,
     "carry": 0
    }
+  },
+  {
+   "id": "germ/support_wagon",
+   "civ": "germ",
+   "class": "UNIT_WAGON",
+   "name": "Mobile Dropsite",
+   "specific_name": "Wagnaz",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER",
+    "BLD_WAGON_ENCAMPMENT",
+    "BLD_WAGON_ENCAMPMENT_FORTIFIED"
+   ],
+   "trained_at_0ad": [
+    "civil_centre",
+    "encampment",
+    "encampment_fortified"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Dropsite",
+    "DropsiteFood",
+    "DropsiteMetal",
+    "DropsiteStone",
+    "DropsiteWood",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Wagon"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 4.0,
+    "pierce_armor": 4.0,
+    "crush_armor": 10.0,
+    "food": 25,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 12.0,
+    "pop": 1,
+    "speed": 1.7799999999999998,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "germ/support_wagon_house",
+   "civ": "germ",
+   "class": "UNIT_WAGON",
+   "name": "Mobile Dropsite",
+   "specific_name": "Supply Wagon",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Dropsite",
+    "DropsiteFood",
+    "DropsiteMetal",
+    "DropsiteStone",
+    "DropsiteWood",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Wagon"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 4.0,
+    "pierce_armor": 4.0,
+    "crush_armor": 10.0,
+    "food": 25,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 12.0,
+    "pop": 1,
+    "speed": 1.7799999999999998,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   },
+   "pop_bonus": 5
   }
  ],
  "auras": [

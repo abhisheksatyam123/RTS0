@@ -81,9 +81,15 @@ struct PlayerStatistics {
 	uint32_t livestock_bred = 0; // unitsTrained.Domestic: animals trained at a corral
 	uint32_t successful_bribes = 0;
 	uint32_t failed_bribes = 0;
+	// Appended in save v71: unitsCaptured by class and unitsCapturedValue
+	// (CapturedEntity: a unit taken through Capturable, a relic's catafalque).
+	uint32_t units_captured[STAT_UNIT_SLOTS] = {};
+	uint32_t units_captured_value = 0;
 };
 // The fields saved before v65, which older saves hold.
 inline constexpr size_t PLAYER_STATISTICS_V30_FIELDS = 91;
+// The fields saved by v65-v70.
+inline constexpr size_t PLAYER_STATISTICS_V65_FIELDS = 99;
 
 // One row of the sequences: every player's counters at `time` seconds.
 struct StatisticsSample {

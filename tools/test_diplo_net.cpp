@@ -698,8 +698,9 @@ static bool run_tribute_and_barter(const char *ph) {
 		CHECK(p1_food - s->player_resource(1, RES_FOOD) == 150, "player 1 paid both tributes", ph);
 		CHECK(p1_wood - s->player_resource(1, RES_WOOD) == 100, "player 1 sold 100 wood", ph);
 		CHECK(s->player_resource(1, RES_STONE) - p1_stone == quote, "player 1 bought the quoted stone", ph);
-		CHECK(s->barter_price_diff(RES_WOOD) == -2.0f && s->barter_price_diff(RES_STONE) == 2.0f,
-		      "the deal moved the shared prices by 2%", ph);
+		// Barter.js (0.28): 2% per 100 bought, so 82 stone moves them 1.64%.
+		CHECK(std::fabs(s->barter_price_diff(RES_WOOD) + 1.64f) < 1e-3f && std::fabs(s->barter_price_diff(RES_STONE) - 1.64f) < 1e-3f,
+		      "the deal moved the shared prices by 1.64%", ph);
 	}
 	// Player 0 has no market: its barter is refused on both peers.
 	NetCommand p0_barter = barter;
