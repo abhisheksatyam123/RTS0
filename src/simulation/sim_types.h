@@ -1672,9 +1672,23 @@ inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 //    stable research;
 //  - the Mauryan palace researches unlock_spies and spy_counter too;
 //  - Carthage: the dock drops warship_health, and the super dock (cart/super_dock) researches
-//    it and eight other dock techs.
+//    it and eight other dock techs;
+//  - a tech's researcher is one structure here, but 0.28 lists some at several: the market
+//    (template_structure_economic_market) researches unlock_shared_los like the Civic Center,
+//    the fortress tower_murderholes and the sentry tower tower_watch like the stone tower,
+//    athen/gymnasium iphicratean_reforms like the dock, and rome/temple_vesta and
+//    kush/temple_amun inherit template_structure_civic_temple's healer techs;
+//  - no 0.28 structure researches agoge, and only cart/embassy_celtic (not the Iberian or
+//    Italic embassy) celtic_auxiliaries.
 inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ) {
 	const uint8_t r = tech_info(tech_id).researcher;
+	if (tech_id == TECH_AGOGE) return false;
+	if (tech_id == TECH_CELTIC_AUXILIARIES) return type == BLD_EMBASSY;
+	if (tech_id == TECH_UNLOCK_SHARED_LOS && building_research_base(type) == BLD_MARKET) return true;
+	if (tech_id == TECH_TOWER_MURDERHOLES && type == BLD_FORTRESS) return true;
+	if (tech_id == TECH_TOWER_WATCH && type == BLD_SENTRY_TOWER) return true;
+	if (tech_id == TECH_IPHICRATEAN_REFORMS && type == BLD_GYMNASIUM) return true;
+	if ((type == BLD_TEMPLE_VESTA || type == BLD_TEMPLE_AMUN) && r == BLD_TEMPLE) return true;
 	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
 	if (civ == CIV_HAN) {
 		if (spies) return type == BLD_MINISTRY;
@@ -1811,10 +1825,6 @@ inline constexpr int SIEGE_TOWER_GARRISON = 20;
 inline constexpr int SIEGE_RAM_GARRISON = 10;
 inline constexpr int SIEGE_TOWER_MAX_ARROWS = 10;
 inline constexpr float SIEGE_EJECT_HEALTH = 0.1f;
-inline bool siege_garrison_allowed(uint8_t unit_type) {
-	return (unit_tech_classes(unit_type) & (TC_INFANTRY | TC_CIVILIAN)) != 0;
-}
-
 inline TechClasses building_tech_classes(uint8_t type) {
 	const TechClasses c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {

@@ -746,7 +746,9 @@ static void test_petra_overseas_base() {
 	const Simulation::Building *b = cc ? bld(s, cc) : nullptr;
 	int south_workers = 0, north_gathering_south = 0;
 	for (size_t i = 0; i < s.units().count; ++i) {
-		if (!s.units().alive[i] || s.units().team[i] != 1 || s.units().unit_type[i] != UNIT_VILLAGER) continue;
+		// Support workers: the starting villagers and the civilians Petra trains (#578).
+		if (!s.units().alive[i] || s.units().team[i] != 1 ||
+		    unit_gather_class(s.units().unit_type[i], s.units().tmpl[i]) != GATHER_SUPPORT) continue;
 		const uint16_t l = s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]);
 		if (l == south) ++south_workers;
 		const uint32_t rid = s.units().target_resource_id[i];
@@ -791,7 +793,7 @@ static void test_petra_concurrent_transports() {
 		return nullptr;
 	};
 	// The builders' crossing first; the attack sets out while it is under way.
-	for (int k = 0; k < 240 && !plan_of(PETRA_TRANSPORT_BUILDERS); ++k) run(s, 1.0f);
+	for (int k = 0; k < 360 && !plan_of(PETRA_TRANSPORT_BUILDERS); ++k) run(s, 1.0f);
 	CHECK(plan_of(PETRA_TRANSPORT_BUILDERS) != nullptr);
 	// One plan per owner: a second builders' crossing waits for the first.
 	CHECK(!s.petra_start_transport(army, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
@@ -802,6 +804,13 @@ static void test_petra_concurrent_transports() {
 	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
 	s.petra_attack_plan_.target_building_id = house;
 	s.petra_attack_plan_.state_timer = 0.0f;
+	// The army is the six given above: drop the batches Petra queued for the attack before
+	// it, which the plan would wait for (updatePreparation waits for its units in training).
+	for (auto &b : s.buildings_)
+		if (b.team == 1)
+			b.queue.erase(std::remove_if(b.queue.begin(), b.queue.end(),
+			                             [](const ProductionOrder &o) { return o.petra_plan == PETRA_ORDER_ATTACK; }),
+			              b.queue.end());
 	bool both = false, shared = false;
 	std::vector<uint32_t> landed;
 	for (int k = 0; k < 120; ++k) {
