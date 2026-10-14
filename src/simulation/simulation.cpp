@@ -1498,11 +1498,18 @@ void Simulation::rebuild_territory_grids() {
 	territory_grid_ = influence_grid_;
 }
 
+// A ship's long-path class: 0 A.D. "ship-small" for fishing and merchant ships, "ship" (10 m
+// clearance from the shore) for warships and transports (grid_nav.h PASS_WARSHIP).
+static uint8_t unit_ship_pass(uint8_t type) {
+	return type == UNIT_FISHING_BOAT || type == UNIT_MERCHANT_SHIP ? PASS_SHIP : PASS_WARSHIP;
+}
+
 // Whether the straight walk from (x0, z0) to (x1, z1) crosses a navcell no land unit can cross:
-// deep water, or a slope over MaxTerrainSlope; for a ship, one that isn't water: land or a
-// structure (the end cells excepted: a dock, a shoreline resource or a mine on a hillside may
-// sit on one).
-bool Simulation::line_crosses_impassable(float x0, float z0, float x1, float z1, bool ship) const {
+// deep water, or a slope over MaxTerrainSlope; for a ship (ship_pass, its class: unit_ship_pass),
+// one its class can't cross: land or a structure, and for a warship water beside them too (the
+// end cells excepted: a dock, a shoreline resource or a mine on a hillside may sit on one).
+bool Simulation::line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass) const {
+	const bool ship = ship_pass != 0;
 	if ((terrain_water_height_ < -0.5f && !nav_grid_.any_steep()) || nav_grid_.cells.blank()) return false;
 	auto [cx0, cy0] = nav_grid_.world_to_cell(x0, z0);
 	auto [cx1, cy1] = nav_grid_.world_to_cell(x1, z1);
@@ -1511,7 +1518,7 @@ bool Simulation::line_crosses_impassable(float x0, float z0, float x1, float z1,
 	int err = dx + dy, x = cx0, y = cy0;
 	while (x != cx1 || y != cy1) {
 		if ((x != cx0 || y != cy0) && nav_grid_.cells.inside(x, y) &&
-		    (ship ? !nav_grid_.is_passable_for(x, y, PASS_SHIP)
+		    (ship ? !nav_grid_.is_passable_for(x, y, ship_pass)
 		          : nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y))) return true;
 		const int e2 = 2 * err;
 		if (e2 >= dy) { err += dy; x += sx; }
@@ -4430,8 +4437,8 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 		WaypointPath wp;
 		uint8_t pass = PASS_INFANTRY;
 		uint8_t ut = units_.unit_type[idx];
-		if (ut == UNIT_TRIREME || ut == UNIT_FISHING_BOAT || ut == UNIT_MERCHANT_SHIP)
-			pass = PASS_SHIP;
+		if (unit_is_ship(ut))
+			pass = unit_ship_pass(ut);
 		else if (ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL ||
 		         ut == UNIT_SCYTHED_CHARIOT)
 			pass = PASS_CAVALRY;
@@ -8407,10 +8414,10 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (!task_path && ((!closing_in && !ship && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
 					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_clearance_at(i),
 					steer_obstacles_, units_.target_building_id[i])) ||
-					line_crosses_impassable(px[i], pz[i], tx[i], tz[i], ship))) {
+					line_crosses_impassable(px[i], pz[i], tx[i], tz[i], ship ? unit_ship_pass(units_.unit_type[i]) : 0))) {
 				const uint8_t ut = units_.unit_type[i];
 				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
-				find_path(px[i], pz[i], tx[i], tz[i], wp, ship ? PASS_SHIP : mounted ? PASS_CAVALRY : PASS_INFANTRY);
+				find_path(px[i], pz[i], tx[i], tz[i], wp, ship ? unit_ship_pass(ut) : mounted ? PASS_CAVALRY : PASS_INFANTRY);
 				wp.has_goal = true;
 				wp.goal_x = tx[i];
 				wp.goal_z = tz[i];
