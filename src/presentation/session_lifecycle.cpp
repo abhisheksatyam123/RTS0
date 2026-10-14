@@ -4,6 +4,7 @@
 
 #include "main_node.h"
 #include "l10n.h"
+#include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
@@ -600,6 +601,7 @@ void RtsoMain::_ready() {
 	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
 	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
+	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
 	rtso::strip_engine_popups(ui_layer);
 
 	// =========================================================================
@@ -1034,6 +1036,7 @@ void RtsoMain::_process(double delta) {
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
+	panel_entities_.refresh(*sim, view_player(), (float)Time::get_singleton()->get_ticks_msec() / 1000.0f);
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while

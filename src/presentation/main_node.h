@@ -67,6 +67,7 @@
 #include "inspector_view.h"
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
+#include "panel_entities_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
 #include "session_audio.h"
@@ -188,6 +189,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
+	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 
 	// 3D Placement Ghost & Rally Marker
 	MeshInstance3D *ghost_mesh = nullptr;
@@ -337,6 +339,7 @@ public:
 	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
 	void _on_selection_group_gui_input(const Ref<InputEvent> &event, int key);
+	void _on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);

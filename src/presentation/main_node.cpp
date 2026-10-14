@@ -78,6 +78,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
+	ClassDB::bind_method(D_METHOD("_on_panel_entity_gui_input", "event", "slot"), &RtsoMain::_on_panel_entity_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
@@ -2649,6 +2650,26 @@ void RtsoMain::_on_selection_group_gui_input(const Ref<InputEvent> &event, int k
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || mb->is_pressed()) return;
 	select_group(key, true);
+}
+
+// PanelEntity.js onPress (select it; selection.add keeps the selection) and
+// onDoublePress (selectAndMoveTo: select it and move the camera to it).
+void RtsoMain::_on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot) {
+	Ref<InputEventMouseButton> mb = event;
+	if (!sim || mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_LEFT || !mb->is_pressed()) return;
+	const uint32_t id = panel_entities_.entity_at(slot);
+	if (!id) return;
+	auto uview = sim->units();
+	size_t i = 0;
+	while (i < uview.count && uview.id[i] != id) ++i;
+	if (i == uview.count) return;
+	if (mb->is_double_click() || !rtso::hotkeys::held("selection.add")) {
+		selected_ids.clear();
+		selected_building_id = 0;
+	}
+	if (!selected_ids.has((int32_t)id)) selected_ids.push_back((int32_t)id);
+	if (mb->is_double_click() && cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[i], 0, uview.pos_z[i]));
+	play_civ_voice("select");
 }
 
 void RtsoMain::_on_selection_group_clicked(int key) {
