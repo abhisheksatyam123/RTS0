@@ -214,6 +214,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
 	rtso::RtsoDebugOverlays debug_overlays_; // its pathfinder, obstruction, unit motion and range overlays
+	int render_debug_mode_ = 0; // its Render Debug Mode (RtsoDevOverlay::RenderDebugMode)
 	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker
@@ -371,6 +372,7 @@ public:
 	void _on_research_progress_pressed(int slot);
 	void toggle_dev_overlay();
 	void _on_dev_command(int command);
+	void _on_render_debug_mode(int index);
 	void refresh_dev_overlay();
 	Dictionary debug_dev_overlay() const;
 	void _on_control_group_gui_input(const Ref<InputEvent> &event, int button);

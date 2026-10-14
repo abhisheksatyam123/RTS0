@@ -667,7 +667,7 @@ void RtsoMain::_ready() {
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
 	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
-	dev_overlay_.build(ui_layer, this, "_on_dev_command");
+	dev_overlay_.build(ui_layer, this, "_on_dev_command", "_on_render_debug_mode");
 	control_groups_.build(ui_layer, this, "_on_control_group_gui_input");
 	rtso::strip_engine_popups(ui_layer);
 
