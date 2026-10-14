@@ -571,6 +571,7 @@ void Simulation::reset() {
 	formations_.clear();
 	next_formation_id_ = 1;
 	formation_group_.assign(UNIT_CAP, 0u);
+	formation_slot_walk_.assign(UNIT_CAP, 0);
 
 	// G3 Market dynamic pricing reset
 	for (int i = 0; i < 4; ++i) { barter_price_diff_[i] = 0.0f; market_trade_history_[i] = 0; }
@@ -5029,11 +5030,18 @@ bool Simulation::can_move_into_formation(const uint32_t *unit_ids, size_t count,
 
 void Simulation::formation_refresh_groups() {
 	formation_group_.assign(UNIT_CAP, 0u);
-	for (const FormationController &fc : formations_)
+	formation_slot_walk_.assign(UNIT_CAP, 0);
+	for (const FormationController &fc : formations_) {
 		for (uint32_t id : fc.members) {
 			const int32_t idx = lookup_unit(id);
 			if (idx >= 0 && (size_t)idx < formation_group_.size()) formation_group_[idx] = fc.id;
 		}
+		if (fc.order != FORDER_WALK && fc.order != FORDER_ATTACK_WALK && fc.order != FORDER_APPROACH && fc.order != FORDER_PATROL) continue;
+		for (const FormationSlot &sl : fc.slots) {
+			const int32_t idx = lookup_unit(sl.ent);
+			if (sl.following && idx >= 0 && (size_t)idx < formation_slot_walk_.size()) formation_slot_walk_[idx] = 1;
+		}
+	}
 }
 
 uint32_t Simulation::formation_of_unit(uint32_t unit_id) const {
@@ -5894,7 +5902,6 @@ void Simulation::tick_formations(float dt) {
 		// Which members still walk with the controller. Any other task (an attack, a gather,
 		// a garrison) takes a member out of the walk; an attack-walk takes back its idle fighters.
 		float speed = INFINITY;
-		float max_lag = 0.0f;
 		bool any_following = false;
 		for (FormationSlot &s : fc.slots) {
 			const int32_t idx = lookup_unit(s.ent);
@@ -5903,10 +5910,7 @@ void Simulation::tick_formations(float dt) {
 			if (s.following && st != ACTION_IDLE && st != ACTION_MOVE && st != ACTION_ATTACK_MOVE) s.following = 0;
 			if (!s.following) continue;
 			any_following = true;
-			speed = std::min(speed, unit_walk_speed(idx));
-			float wx, wz;
-			formation_slot_world(fc.x, fc.z, fc.rot, s.x, s.y, wx, wz);
-			max_lag = std::max(max_lag, std::hypot(units_.pos_x[idx] - wx, units_.pos_z[idx] - wz));
+			speed = std::min(speed, unit_base_walk_speed(idx)); // its walk, not the run to its slot
 		}
 		if (!any_following) {
 			fc.order = FORDER_IDLE;
@@ -5916,14 +5920,9 @@ void Simulation::tick_formations(float dt) {
 		}
 
 		// Formation.js ComputeMotionParameters: the slowest member's walk speed times the
-		// template SpeedMultiplier. RTS0 also holds the controller back while members lag
-		// their slots, so the shape stays together.
-		float step = 0.0f;
-		{
-			const float slack = 2.0f;
-			const float keep_up = max_lag <= slack ? 1.0f : std::max(0.0f, 1.0f - (max_lag - slack) / (2.0f * slack));
-			step = speed * t.speed_multiplier * keep_up * dt;
-		}
+		// template SpeedMultiplier, never slowed for members lagging their slots: they run
+		// to catch up (unit_running, IsMovingAsFormation).
+		float step = speed * t.speed_multiplier * dt;
 		bool arrived = false;
 		while (step > 0.0f) {
 			const bool on_path = fc.path.cur < fc.path.count;
@@ -7912,15 +7911,19 @@ void Simulation::raise_alert(BattleAlert::Type type, float x, float z, uint32_t 
 	}
 }
 
-void Simulation::note_phases_aborted(const Building &b) {
-	if (b.team >= MAX_PLAYERS) return;
-	for (const ProductionOrder &o : b.queue)
-		if (o.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, b.team, o.tech);
+// ProductionQueue.js OnOwnershipChanged -> ResetQueue: a structure that changes hands or is
+// destroyed (its owner becomes INVALID_PLAYER) refunds every item to its owner, which frees the
+// batch's population and the technologies it was researching (phases noted as aborted).
+void Simulation::reset_production_queue(Building &b) {
+	if (b.team < MAX_PLAYERS)
+		while (!b.queue.empty()) cmd_cancel_train(b.team, b.id, b.queue.size() - 1);
+	b.queue.clear();
+	b.autoqueue = false;
 }
 
 void Simulation::mark_building_wreck(Building &b, uint8_t killer) {
 	if (b.wrecked) return;
-	note_phases_aborted(b);
+	reset_production_queue(b);
 	refund_foundation(b);
 	stat_building_lost(b, killer);
 	b.wrecked = true;
@@ -8387,6 +8390,8 @@ float Simulation::unit_run_multiplier(size_t i) const {
 bool Simulation::unit_running(size_t i) const {
 	const uint8_t st = units_.action_state[i];
 	if (st == ACTION_FLEE) return true;
+	// CCmpUnitMotion IsMovingAsFormation: a member walking to its slot moves at its run speed.
+	if ((st == ACTION_MOVE || st == ACTION_ATTACK_MOVE) && i < formation_slot_walk_.size() && formation_slot_walk_[i]) return true;
 	if (st != ACTION_ATTACK || units_.target_unit_id[i] == 0) return false;
 	const uint32_t tid = units_.target_unit_id[i];
 	const int32_t t = lookup_unit(tid);
@@ -8402,6 +8407,11 @@ bool Simulation::unit_running(size_t i) const {
 // ally inside (units/ram_garrison "Battering Team", stackable; ModifiersManager adds
 // after it multiplies), then a running unit runs at RunMultiplier times its walk.
 float Simulation::unit_walk_speed(size_t i) const {
+	const float spd = unit_base_walk_speed(i);
+	return unit_running(i) ? spd * unit_run_multiplier(i) : spd;
+}
+
+float Simulation::unit_base_walk_speed(size_t i) const {
 	float spd = units_.speed[i];
 	if (aura_mgr_.has(AURA_SPEED)) {
 		const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
@@ -8420,7 +8430,6 @@ float Simulation::unit_walk_speed(size_t i) const {
 			spd += 0.15f * FORMATION_METRE * (float)team;
 		}
 	}
-	if (unit_running(i)) spd *= unit_run_multiplier(i);
 	return spd;
 }
 
@@ -12211,11 +12220,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 		b.rally_more.clear();
 		eject_or_kill(b, best == GAIA ? GAIA_PLAYER : (uint8_t)best); // GarrisonHolder.OnGlobalOwnershipChanged
 		cancel_upgrade(b, b.team);
-		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
-		if (b.team < MAX_PLAYERS)
-			while (!b.queue.empty()) cmd_cancel_train(b.team, b.id, b.queue.size() - 1);
-		b.queue.clear();
-		b.autoqueue = false;
+		reset_production_queue(b);
 		b.focus_targets.clear(); // BuildingAI.OnOwnershipChanged
 		const uint8_t from = b.team;
 		b.team = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
@@ -14682,7 +14687,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 }
 
 void Simulation::destroy_building(Building &b) {
-	if (!b.wrecked) note_phases_aborted(b);
+	reset_production_queue(b);
 	refund_foundation(b);
 	eject_or_kill(b);
 	b.garrisoned_units.clear();
@@ -14908,11 +14913,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		b.has_rally_point = false;
 		eject_or_kill(b, to); // GarrisonHolder.OnGlobalOwnershipChanged
 		cancel_upgrade(b, b.team);
-		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
-		if (b.team < MAX_PLAYERS)
-			while (!b.queue.empty()) cmd_cancel_train(b.team, b.id, b.queue.size() - 1);
-		b.queue.clear();
-		b.autoqueue = false;
+		reset_production_queue(b);
 		b.focus_targets.clear(); // BuildingAI.OnOwnershipChanged
 		// OnOwnershipChanged: the old owner's points move to the new owner (Gaia's pool is
 		// what no player holds); the other sides keep theirs.
@@ -25859,6 +25860,10 @@ bool Simulation::load_state(const char *filepath) {
 			turret_height_[b.garrisoned_units[k]] = pts->pt[pi].y;
 		}
 	}
+	// Saves from before reset_production_queue ran on destruction kept a wreck's queue, which
+	// held its batch's population and its technologies for the rest of the match.
+	for (Building &b : buildings_)
+		if (b.wrecked && !b.queue.empty()) reset_production_queue(b);
 	rebuild_all_tech_mods();
 	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
 	relic_countdown_players_ = has_victory(VK_RELIC) ? relic_winners() : 0;
@@ -28733,6 +28738,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"jebel_barkal_triggers", TRIGGER_ACTION_JEBEL_BARKAL_INIT, TUTORIAL_NONE},
 		{"gallic_fields_3p", TRIGGER_ACTION_GALLIC_FIELDS, TUTORIAL_NONE},
 		{"triggers_demo", TRIGGER_ACTION_TRIGGERS_DEMO_INIT, TUTORIAL_NONE},
+		{"pickup_test_map_triggers", TRIGGER_ACTION_PICKUP_TEST, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -28966,6 +28972,9 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_GALLIC_FIELDS:
 			trigger_gallic_fields(arg != 0.0f);
+			break;
+		case TRIGGER_ACTION_PICKUP_TEST:
+			trigger_pickup_test((int)arg);
 			break;
 		case TRIGGER_ACTION_TRIGGERS_DEMO_RANGE:
 			// RangeAction: warn(uneval(data)). vars 0-2 count what it saw (the demo keeps no state).
@@ -29360,6 +29369,66 @@ void Simulation::trigger_gallic_fields(bool attack) {
 	v[1] = (int32_t)((float)v[1] * rand);
 	v[0] = (int32_t)std::lround((float)v[0] * rand);
 	triggers_.set_timeout((uint32_t)v[1], TRIGGER_ACTION_GALLIC_FIELDS, 1.0f);
+}
+
+void Simulation::trigger_pickup_test(int step) {
+	// maps/scenarios/pickup_test_map_triggers.js: ten garrison experiments, each started
+	// 200 ms in (DoAfterDelay). Its points are A 14-26 in map order, then B 27 and C 28 (the
+	// coasts). QuickSpawn offsets "pos.x + i" are metres: a quarter of a world unit here.
+	// vars 0 the ship of UnitsIntoShipThenAnotherCloseBy.
+	if (step == 0) {
+		triggers_.set_timeout(200, TRIGGER_ACTION_PICKUP_TEST, 1.0f);
+		return;
+	}
+	std::vector<const TriggerPoint *> pt;
+	for (const TriggerPoint &p : triggers_.points) pt.push_back(&p);
+	if (pt.size() < 15) return;
+	enum { PLAZA_NW, PLAZA_NE, PLAZA_SE, PLAZA_SW, ROAD_1, ROAD_2, ROAD_3, ROAD_4, ROAD_5, ISLAND_1, ISLAND_2,
+	       SEA_1, SEA_2, COAST_1, COAST_2 };
+	// UNIT_TEMPLATE is units/athen/infantry_marine_archer_b, the Cretan Mercenary Archer
+	// RTS0's roster has as athen/infantry_archer_b (same stats, minus the Iphicratean requirement).
+	const uint16_t archer = roster_template_named("athen/infantry_archer_b");
+	const uint16_t ship_t = roster_template_named("athen/ship_arrow");
+	const uint16_t ram_t = roster_template_named("brit/siege_ram");
+	if (archer == CIV_UNIT_TEMPLATE_NONE || ship_t == CIV_UNIT_TEMPLATE_NONE || ram_t == CIV_UNIT_TEMPLATE_NONE) return;
+	auto spawn = [&](int point, float dx_m, uint16_t tmpl) -> uint32_t {
+		return spawn_unit(pt[point]->x + dx_m / 4.0f, pt[point]->z, 0, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+	};
+	auto board = [&](uint32_t holder, int point, int n, int other = -1) {
+		for (int i = 0; i < n; ++i)
+			if (const uint32_t u = spawn(other >= 0 && i % 2 ? other : point, (float)i, archer)) order_board_transport(&u, 1, holder);
+	};
+	if (step == 2) {
+		// The PerformGarrison hook: once the first walker is aboard, another from the far coast.
+		const uint32_t ship = (uint32_t)triggers_.vars[0];
+		if (!is_transport(ship)) return;
+		if (get_transport_passenger_count(ship) == 0) {
+			triggers_.set_timeout(200, TRIGGER_ACTION_PICKUP_TEST, 2.0f);
+			return;
+		}
+		if (const uint32_t u = spawn(COAST_2, 0.0f, archer)) order_board_transport(&u, 1, ship);
+		return;
+	}
+	board(spawn(PLAZA_NW, 0.0f, ram_t), PLAZA_NE, 5);                  // UnitsIntoRamClose
+	board(spawn(ROAD_5, 0.0f, ram_t), ROAD_1, 5);                      // UnitsIntoRamFar
+	board(spawn(PLAZA_SW, 0.0f, ram_t), PLAZA_SE, 6, ROAD_1);          // UnitsIntoRamOppositeDir
+	board(spawn(ISLAND_1, 0.0f, ram_t), PLAZA_SE, 3);                  // UnitsIntoRamImpossible
+	board(spawn(SEA_1, 0.0f, ship_t), PLAZA_SE, 6);                    // UnitsIntoShipClose
+	board(spawn(SEA_1, 0.0f, ship_t), ROAD_4, 50);                     // UnitsIntoShipFar
+	const uint32_t two = spawn(SEA_2, 0.0f, ship_t);                   // UnitsIntoShipTwoIslands
+	board(two, ROAD_2, 3);
+	board(two, ISLAND_2, 3);
+	const uint32_t erratic = spawn(SEA_1, 0.0f, ship_t);               // UnitsIntoShipThenAnotherCloseBy
+	if (const uint32_t u = spawn(COAST_1, 0.0f, archer)) order_board_transport(&u, 1, erratic);
+	triggers_.vars[0] = (int32_t)erratic;
+	triggers_.set_timeout(200, TRIGGER_ACTION_PICKUP_TEST, 2.0f);
+	const uint32_t beached = spawn(ROAD_3, 0.0f, ship_t);              // UnitsIntoShipAlreadyInRange
+	for (int i = 0; i < 10; ++i)
+		if (const uint32_t u = spawn(ROAD_3, 0.0f, archer)) order_board_transport(&u, 1, beached);
+	const uint32_t bad = spawn(SEA_2, 0.0f, ship_t);                   // IslandUnitsPlayerGivesBadOrder
+	board(bad, ISLAND_1, 3);
+	// WalkTo(567, 53): 0 A.D. metres from the map corner, 1024 m across.
+	if (bad) order_walk(&bad, 1, (567.0f - 512.0f) / 4.0f, (53.0f - 512.0f) / 4.0f);
 }
 
 void Simulation::trigger_survival_wave() {
@@ -30826,7 +30895,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 			units_.pos_z[u] = b.z;
 		}
 		b.garrisoned_units.clear();
-		b.queue.clear();
+		reset_production_queue(b);
 		// mark_building_wreck, but nobody killed it: no loot for anyone.
 		b.wrecked = true;
 		occupied_stale_ = true;
