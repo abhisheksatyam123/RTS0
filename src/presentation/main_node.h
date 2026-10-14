@@ -4,6 +4,7 @@
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/label.hpp>
+#include <godot_cpp/classes/rich_text_label.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/check_box.hpp>
@@ -71,6 +72,7 @@
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
 #include "dev_overlay_view.h"
+#include "minimap_panel_view.h"
 #include "control_groups_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
@@ -99,6 +101,10 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// 1. Top HUD Bar
 	Panel *top_hud_panel = nullptr;
 	RtsoTopPanel top_panel_;
+	// 0.28 MiniMapPanel's idle worker, diplomacy colours and flare buttons.
+	rtso::RtsoMiniMapPanel minimap_panel_;
+	// input.js INPUT_FLARE: the flare button (or session.flareactivate) armed a flare.
+	bool flare_armed_ = false;
 	Button *speed_btn = nullptr;
 	Button *menu_btn = nullptr;
 	RtsoSafeSelect *map_selector = nullptr;
@@ -184,7 +190,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Panel *banner_panel = nullptr;
 	Label *banner_label = nullptr;
 	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
-	Label *time_notification_label_ = nullptr;
+	RichTextLabel *time_notification_label_ = nullptr; // notificationText: player names in their colours
 	// 0.28 NetworkDelayOverlay: "Delay to live stream" while this peer holds more
 	// than MAX_LIVE_DELAY turns it hasn't run yet; checked once a second.
 	Label *net_delay_label_ = nullptr;
@@ -444,7 +450,7 @@ public:
 	// The seat this client plays: its lockstep slot in multiplayer, player 0
 	// offline; 0xFF for an observer (multiplayer, or every slot AI).
 	uint8_t seat_player() const {
-		if (net_lockstep()) return turn_mgr_.local_player();
+		if (net_lockstep() || turn_mgr_.perspective_changed()) return turn_mgr_.local_player();
 		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0;
 	}
 	// This client only watches: an observer, or a player who was defeated
@@ -550,12 +556,23 @@ public:
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count);
 	Dictionary debug_research_any();
+	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
+	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
+	// wall can't go where the cursor is, or a wall's cost; wall_fail_tip_ ("Cannot build wall
+	// here!") holds until the cursor moves.
+	Label *placement_tip_ = nullptr;
+	bool placement_tip_error_ = false;
+	String wall_fail_tip_;
+	Vector2 wall_fail_mouse_;
+	void set_placement_tip(const String &text, bool error);
+	String placement_failure_text(int result, uint8_t btype, float x, float z) const;
+	Dictionary debug_placement_tip() const;
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -620,7 +637,7 @@ private:
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
-	bool over_own_rally_structure(const Vector3 &at) const;
+	bool over_own_rally_structure(const Vector3 &at, bool need_rally = true) const;
 	// 0 A.D. "focus-fire": the selected arrow-shooting structure aims at the enemy under `at`.
 	bool try_focus_fire(const Vector3 &at);
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
@@ -674,6 +691,25 @@ private:
 	// An observer's perspective (0 A.D. session "viewPlayer" dropdown): the whole
 	// map, or one player's sight and panels. Presentation only.
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
+	// The developer overlay's Change perspective: the player view dropdown shows for a
+	// player too, and picking in it takes that player over (PlayerViewControl.setChangePerspective).
+	bool change_perspective_ = false;
+	// The developer overlay's time warp (TimeWarp.js, offline only): a snapshot every
+	// 10 turns, session.timewarp.rewind loads the latest (and drops it), and
+	// session.timewarp.fastforward runs the game at 20x while held.
+	bool time_warp_ = false;
+	bool time_warp_ff_ = false;
+	float time_warp_speed_ = 1.0f; // the speed to go back to when fast forward is let go
+	uint32_t time_warp_turn_ = UINT32_MAX;
+	uint32_t time_warp_serial_ = 0;
+	std::vector<String> time_warp_snapshots_;
+	void set_time_warp(bool on);
+	void time_warp_tick();
+public:
+	bool time_warp_rewind();
+	int time_warp_snapshot_count() const { return (int)time_warp_snapshots_.size(); }
+private:
+	int perspective_pick_ = -1; // the dropdown item picked, until the lockstep turn seats us there
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;
 	// 0 A.D. top_panel/FollowPlayer (g_FollowPlayer): an observer or replay viewer
@@ -702,9 +738,15 @@ private:
 	// and in multiplayer "Paused by" the pausing players.
 	Button *pause_overlay_ = nullptr;
 	Label *pause_resume_label_ = nullptr;
-	Label *pause_by_label_ = nullptr;
+	RichTextLabel *pause_by_label_ = nullptr;
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
+	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
+	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
+	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)
+	Dictionary debug_selected_building() const;
+	Dictionary debug_queue_slot(int i);
+	Dictionary debug_minimap_panel() const;
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while

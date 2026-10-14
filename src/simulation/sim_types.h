@@ -28,8 +28,9 @@ struct RecentDeath {
 // DeathDamage.js: Circular splash when the entity dies (Range in RTS0 units, Damage summed).
 struct DeathDamageInfo {
 	float range;
-	float damage;
+	float damage; // Damage/Crush, against the target's crush Resistance
 	bool friendly_fire;
+	float ship_building_mult; // Bonuses: Classes "Ship Building" Multiplier
 };
 enum BiomeType : uint8_t {
 	BIOME_AEGEAN = 0,
@@ -513,7 +514,8 @@ enum BuildingType : uint8_t {
 	BLD_KUSH_SHRINE = 82,     // kush/shrine (a temple that trains and researches nothing)
 	BLD_FORTRESS_OLD = 83,    // han/fortress_old (the fortress with the old actor)
 	BLD_LAOZI_GATE = 84,      // han/laozigate (not capturable)
-	BLD_TYPE_COUNT = 85
+	BLD_TEMPLE_ISIS = 85,     // ptol/temple_2 (Temple of Isis: City, one per player, trains the heroes)
+	BLD_TYPE_COUNT = 86
 };
 
 #include "civ_building_data.h"
@@ -537,7 +539,7 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	          type == BLD_TOWER_DOUBLE) ? (uint8_t)BLD_TOWER
 	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN) ? (uint8_t)BLD_HOUSE
 	       : type == BLD_FORTRESS_OLD ? (uint8_t)BLD_FORTRESS
-	       : type == BLD_KUSH_SHRINE ? (uint8_t)BLD_TEMPLE
+	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS) ? (uint8_t)BLD_TEMPLE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -577,7 +579,7 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"pers/hall", BLD_HALL, CIV_PERSIANS}, {"pers/warehouse", BLD_WAREHOUSE, CIV_PERSIANS},
 		{"gaul/tavern", BLD_TAVERN, CIV_GAULS}, {"maur/tower_double", BLD_TOWER_DOUBLE, CIV_MAURYANS},
 		{"kush/shrine", BLD_KUSH_SHRINE, CIV_KUSHITES}, {"han/fortress_old", BLD_FORTRESS_OLD, CIV_HAN},
-		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN},
+		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN}, {"ptol/temple_2", BLD_TEMPLE_ISIS, CIV_PTOLEMIES},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -863,7 +865,7 @@ inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
 // GarrisonHolder LoadingRange of a structure, 0 A.D. metres to RTS0 (x0.28), counted from
 // its obstruction: 1 m for civic centres (military colonies, wagon encampments and the
 // crannog too), houses and apartments, and Han's ministry, farmstead and storehouse;
-// 6 m for the fortress and the Roman army camp; 4 m for the corral; 2 m elsewhere
+// 6 m for the fortress (and Han's fortress_old) and the Roman army camp; 4 m for the corral; 2 m elsewhere
 // (template_structure_*.xml and the civ templates of 0.28).
 inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
 	switch (type) {
@@ -873,7 +875,7 @@ inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
 			return 1.0f * 0.28f;
 		case BLD_FARMSTEAD: case BLD_STOREHOUSE:
 			return (civ == CIV_HAN ? 1.0f : 2.0f) * 0.28f;
-		case BLD_FORTRESS: case BLD_ARMY_CAMP:
+		case BLD_FORTRESS: case BLD_FORTRESS_OLD: case BLD_ARMY_CAMP:
 			return 6.0f * 0.28f;
 		case BLD_CORRAL:
 			return 4.0f * 0.28f;
@@ -883,12 +885,13 @@ inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
 }
 // template_unit_siege_ram.xml and template_unit_siege_tower.xml LoadingRange, 2 m.
 inline constexpr float SIEGE_LOADING_RANGE = 2.0f * 0.28f;
-// Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
-// 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
+// Attack.js Ranged MinRange as a share of MaxRange (0.28): template_unit_siege_stonethrower.xml
+// 26 of 85, template_unit_siege_stonethrower_onager.xml 20 of 60, template_unit_siege_boltshooter.xml
+// 15 of 80; template_unit_siege_tower.xml has none. Scaled to each unit's own range.
 inline float unit_min_range_ratio(uint8_t type) {
 	switch (type) {
 		case UNIT_CATAPULT: return 26.0f / 85.0f;
-		case UNIT_BOLT_SHOOTER: return 15.0f / 90.0f;
+		case UNIT_BOLT_SHOOTER: return 15.0f / 80.0f;
 		default: return 0.0f;
 	}
 }
@@ -1649,6 +1652,7 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 // and temple_vesta, kush/camp_blemmye and camp_noba, spart/gerousia, athen/gymnasium,
 // iber/monument, cart/super_dock, mace/arsenal and maur/elephant_stable are Town.
 inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
+	if (type == BLD_TEMPLE_ISIS) return 0; // ptol/temple_2: VisibleClasses -Town City
 	if (type == BLD_TENT) return 0; // rome/tent: VisibleClasses -Village
 	if (type == BLD_STOA) return 2; // template_structure_civic_stoa: Town
 	if (type == BLD_TAVERN || type == BLD_LAOZI_GATE) return 2; // gaul/tavern -Village Town, han/laozigate Town
@@ -1682,9 +1686,9 @@ inline float field_gather_efficiency(int gatherers) {
 	return (1.0f - p) / (1.0f - FIELD_DIMINISHING_RETURNS) / (float)gatherers;
 }
 
-// 0 A.D. Obstruction BlockMovement=false: fields don't block units.
+// 0 A.D. Obstruction BlockMovement=false: fields and the Han paifang (han/laozigate) don't block units.
 inline bool building_blocks_movement(uint8_t type) {
-	return type != BLD_FIELD;
+	return type != BLD_FIELD && type != BLD_LAOZI_GATE;
 }
 
 inline const char *building_type_name(uint8_t type) { return building_type_info(type).name; }
@@ -1842,6 +1846,8 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return tech_id == TECH_TOWER_HEALTH;
 	case BLD_TENT: return false;
 	case BLD_KUSH_SHRINE: return false; // kush/shrine: Researcher disable=
+	// ptol/temple_2 adds pair_unlock_cult_ptol (Pharaonic and Serapis Cult) to the temple's list.
+	case BLD_TEMPLE_ISIS: return r == BLD_TEMPLE || r == BLD_TEMPLE_ISIS;
 	default: return r == building_research_base(type);
 	}
 }
@@ -1913,7 +1919,8 @@ inline float building_garrison_heal(uint8_t type) {
 		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: case BLD_MILITARY_COLONY:
 		case BLD_WAGON_ENCAMPMENT: return 1.0f;
 		// kush/temple_amun, rome/temple_mars, rome/temple_vesta and the shrines keep template_structure_civic_temple's 3
-		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE: return 3.0f;
+		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE:
+		case BLD_TEMPLE_ISIS: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
 	}
@@ -1926,7 +1933,7 @@ inline constexpr float WALL_TURRET_VISION = 20.0f * 0.28f;
 // han/farmstead seat a Minister with the usual 0.1.
 inline float building_eject_health(uint8_t type, uint8_t civ) {
 	switch (type) {
-		case BLD_FORTRESS: return 0.075f;
+		case BLD_FORTRESS: case BLD_FORTRESS_OLD: return 0.075f; // han/fortress_old: a fortress child
 		case BLD_CORRAL: return 0.5f;
 		case BLD_MINISTRY: return 0.0f;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 0.1f : 0.0f;
@@ -1961,7 +1968,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_FORTRESS: case BLD_FORTRESS_OLD: return c | TC_FORTRESS | TC_DEFENSIVE;
 		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
-		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: return c | TC_TEMPLE | TC_CIVIC;
+		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
 		case BLD_STABLE: case BLD_ELEPHANT_STABLE: return c | TC_STABLE;
@@ -2407,6 +2414,16 @@ inline float unit_heal_range_base(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_RANGE;
 	return 12.0f;
 }
+// unit_min_range_ratio for the unit's template: siege towers have no MinRange, the onager 20 of 60.
+inline float unit_min_range_ratio(uint8_t type, uint16_t tmpl) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (t.flags & ROSTER_SIEGE_TOWER) return 0.0f;
+		if (type == UNIT_CATAPULT && std::strstr(t.id, "onager")) return 20.0f / 60.0f;
+	}
+	return unit_min_range_ratio(type);
+}
+
 // UnitAI/DefaultStance of the unit's template where it differs from its RTS0 class: siege towers
 // (template_unit_siege) and the Seeress (template_unit_champion_support_healer) are aggressive.
 inline uint8_t unit_default_stance(uint8_t type, uint16_t tmpl) {
@@ -2495,8 +2512,16 @@ inline bool unit_has_slaughter(uint8_t unit_type, uint16_t tmpl) {
 
 // 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
 // workers build and repair; cavalry, champions, heroes, siege and ships do not.
+// Mercenary infantry keep Builder in 0.28 though their ResourceGatherer is gone (template_unit_infantry
+// pulls in mixins/builder); the Neodamodes, no mercenaries, disable it.
 inline bool unit_can_build(uint8_t unit_type, uint16_t tmpl) {
 	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER || unit_type == UNIT_WORKER_ELEPHANT) return true;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint16_t f = civ_unit_template(tmpl).flags;
+		if ((f & ROSTER_MERCENARY) && (f & ROSTER_CITIZEN) && !(f & ROSTER_CHAMPION) &&
+				(unit_tech_classes(unit_type) & TC_INFANTRY) && !(unit_tech_classes(unit_type) & TC_CAVALRY))
+			return true;
+	}
 	return unit_gather_class(unit_type, tmpl) == GATHER_INFANTRY;
 }
 
@@ -2691,7 +2716,7 @@ enum PackState : uint8_t {
 	PACK_PACKING = 3, // unpacked -> packed in progress
 	PACK_UNPACKING = 4, // packed -> unpacked in progress
 };
-inline constexpr float PACK_TIME_S = 10.0f; // template_unit_siege_*.xml Pack/Time 10000 ms
+inline constexpr float PACK_TIME_S = 5.0f; // 0.28 template_unit_siege_stonethrower/_boltshooter Pack/Time 5000 ms
 
 inline bool unit_has_pack(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return (civ_unit_template(tmpl).flags & ROSTER_PACKABLE) != 0;

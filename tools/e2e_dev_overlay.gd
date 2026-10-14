@@ -3,7 +3,9 @@ extends SceneTree
 # and says so in the chat; Display selection state shows the first selected
 # entity's state; Reveal map reveals and hides the map again ("reveal-map");
 # Restrict camera lets the camera leave the map when cleared; Promote selected
-# units raises the selection a rank ("promote").
+# units raises the selection a rank ("promote"); Change perspective shows the
+# player view dropdown, and picking a player or Observer re-seats this client;
+# Enable time warp snapshots the game every 10 turns and rewinds to the last one.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_dev_overlay.gd
 # Exit code 0 = pass.
@@ -35,6 +37,20 @@ func press(i: int) -> void:
 	b.set_pressed_no_signal(not b.button_pressed) # what a click does: toggle, then "pressed"
 	b.pressed.emit()
 
+## Pick a player view dropdown item by id (0 Observer, N player N) and wait for the turn.
+func pick(id: int) -> void:
+	var dd: OptionButton = null
+	for o in main.find_children("*", "OptionButton", true, false):
+		if o.is_visible_in_tree() and o.get_item_count() > 0 and o.get_item_text(0) == "Observer":
+			dd = o
+	if dd == null:
+		check(false, "the player view dropdown is there")
+		return
+	var index := dd.get_item_index(id)
+	dd.select(index)
+	dd.item_selected.emit(index)
+	await frames(20)
+
 func run() -> void:
 	await frames(60)
 	var rig = main.find_children("*", "RtsoCameraRig", true, false)[0]
@@ -48,35 +64,70 @@ func run() -> void:
 	check(main.debug_dev_overlay()["chat_log"].contains("The Developer Overlay was opened."), "the chat says it was opened")
 
 	main.select_first_own(false)
-	press(0)
+	press(1)
 	await frames(2)
 	d = main.debug_dev_overlay()
 	check(d["state_shown"] and str(d["state"]).contains("entity: {") and str(d["state"]).contains("hitpoints:"),
 		"Display selection state shows the selected entity")
 
-	press(1)
+	press(2)
 	await frames(3)
 	check(main.debug_dev_overlay()["map_revealed"], "Reveal map reveals it")
-	press(1)
+	press(2)
 	await frames(3)
 	check(not main.debug_dev_overlay()["map_revealed"], "and clearing it hides it again")
 
-	press(2)
+	press(3)
 	await frames(1)
 	rig.set_target_pos(Vector3(100000, 0, 100000))
 	check(float(main.debug_dev_overlay()["camera_x"]) > 10000.0, "unrestricted, the camera may leave the map")
-	press(2)
+	press(3)
 	await frames(1)
 	rig.set_target_pos(Vector3(100000, 0, 100000))
 	check(float(main.debug_dev_overlay()["camera_x"]) < 10000.0, "restricted again, it stays on the map")
 
 	main.debug_selection_grid(true) # every own unit: the citizen soldiers rise a rank, women don't
 	var before: int = int(main.debug_dev_overlay()["selection_ranks"])
-	press(3)
+	press(5)
 	await frames(3)
 	var after: int = int(main.debug_dev_overlay()["selection_ranks"])
 	check(after > before, "Promote selected units raises their ranks: %d -> %d" % [before, after])
-	check(not box(3).button_pressed, "its box doesn't stay ticked")
+	check(not box(5).button_pressed, "its box doesn't stay ticked")
+
+	check(not main.debug_dev_overlay()["view_picker"] and int(main.debug_dev_overlay()["seat"]) == 0, "a player has no view dropdown")
+	press(0)
+	await frames(2)
+	check(main.debug_dev_overlay()["view_picker"], "Change perspective shows the player view dropdown")
+	await pick(2)
+	check(int(main.debug_dev_overlay()["seat"]) == 1, "picking player 2 plays as player 2")
+	await pick(0)
+	check(int(main.debug_dev_overlay()["seat"]) == 255 and main.debug_dev_overlay()["view_picker"], "picking Observer watches, dropdown kept")
+	await pick(1)
+	check(int(main.debug_dev_overlay()["seat"]) == 0, "and picking player 1 plays as player 1 again")
+
+	press(4) # Enable time warp
+	await frames(2)
+	var tw: Node = main.find_child("MessageBox", true, false)
+	check(tw != null and str(tw.find_child("Title", true, false).text) == "Time warp mode", "time warp says what it is")
+	for q in main.get_children():
+		if q.has_method("press") and q.has_method("button_texts"):
+			q.press(0)
+	await frames(2)
+	var waited := 0
+	while main.time_warp_snapshot_count() < 2 and waited < 2000:
+		await process_frame
+		waited += 1
+	await frames(20) # half way to the next snapshot
+	var snaps: int = main.time_warp_snapshot_count()
+	check(snaps >= 2, "it takes a snapshot every 10 turns (%d)" % snaps)
+	var t_before: float = main.get_match_statistics().get("game_time", 0.0)
+	check(main.time_warp_rewind(), "rewind loads the latest snapshot")
+	await frames(2)
+	var t_after: float = main.get_match_statistics().get("game_time", 0.0)
+	check(t_after < t_before and main.time_warp_snapshot_count() == snaps - 1, "back in time %.1f -> %.1f, that snapshot used up" % [t_before, t_after])
+	press(4)
+	await frames(1)
+	check(main.time_warp_snapshot_count() == 0, "turning it off drops the snapshots")
 
 	main.toggle_dev_overlay()
 	await frames(1)

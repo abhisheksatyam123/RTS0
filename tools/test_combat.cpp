@@ -455,8 +455,9 @@ static void test_status() {
 	check(maiden != CIV_UNIT_TEMPLATE_NONE && iber_cav != CIV_UNIT_TEMPLATE_NONE, "roster has maiden archers and Iberian champion cavalry");
 	const CombatProfile &mp = unit_combat(maiden, UNIT_ARCHER_MAIDEN);
 	const CombatProfile &cp = unit_combat(iber_cav, UNIT_CAVALRY);
-	check(mp.status == 1 && std::fabs(mp.status_dps - 2.0f / 0.6f) < 1e-3f && std::fabs(mp.status_time - 3.6f) < 1e-4f, "maiden archer: Poisoned 2 per 0.6 s for 3.6 s (0.28)");
-	check(cp.status == 2 && std::fabs(cp.status_dps - 2.0f / 3.0f) < 1e-3f && cp.status_time == 9.0f, "Iberian champion cavalry: Burning 2 per 3 s for 9 s");
+	check(mp.status == 1 && mp.status_damage == 2.0f && std::fabs(mp.status_interval - 0.6f) < 1e-6f && std::fabs(mp.status_time - 3.6f) < 1e-4f,
+			"maiden archer: Poisoned 2 per 0.6 s for 3.6 s (0.28)");
+	check(cp.status == 2 && cp.status_damage == 2.0f && cp.status_interval == 3.0f && cp.status_time == 9.0f, "Iberian champion cavalry: Burning 2 per 3 s for 9 s");
 	uint32_t v = s.spawn_unit(-20.0f, 20.0f, 0, UNIT_SWORDSMAN);
 	uint32_t ram = s.spawn_unit(-24.0f, 20.0f, 0, UNIT_SIEGE_RAM);
 	const float hv = s.units_.hp[idx(s, v)], hr = s.units_.hp[idx(s, ram)];
@@ -464,9 +465,48 @@ static void test_status() {
 	s.apply_status((size_t)idx(s, v), mp);
 	s.apply_status((size_t)idx(s, ram), mp);
 	for (int k = 0; k < 500; ++k) s.tick(DT);
-	check(std::fabs((hv - s.units_.hp[idx(s, v)]) - 24.0f) < 0.1f, "two poisoned hits: 3.33 hp/s for 7.2 s");
+	// StatusEffectsReceiver Stack: each hit is its own status, ticking at once and every 0.6 s
+	// until 3.6 s have passed, 7 ticks of 2.
+	check(std::fabs((hv - s.units_.hp[idx(s, v)]) - 28.0f) < 1e-3f, "two poisoned hits stack: 2 x 7 ticks of 2");
 	check(s.units_.hp[idx(s, ram)] == hr, "a ram is immune to poison");
 	check(s.units_.status_effects[idx(s, v)] == 0, "poison wears off");
+
+	// C2: structures and animals have a StatusEffectsReceiver too; structures block only poison.
+	{
+		Simulation w;
+		setup(w);
+		const uint32_t house = w.spawn_building_world(20.0f, -20.0f, BLD_HOUSE, 1, 1.0f);
+		Simulation::Building &hb = w.buildings_[w.building_id_to_idx_.at(house)];
+		const float h0 = hb.hp;
+		w.apply_status_structure(hb, cp, 0, 0);
+		w.apply_status_structure(hb, mp, 0, 0);
+		const uint32_t deer = w.spawn_fauna(-28.0f, -40.0f, FAUNA_DEER);
+		const size_t df = w.fauna_id_to_idx_.at(deer);
+		const float d0 = w.fauna_.hp[df];
+		w.apply_status_fauna(df, cp, 0, 0);
+		for (int k = 0; k < 300; ++k) w.tick(DT);
+		const Simulation::Building &hb2 = w.buildings_[w.building_id_to_idx_.at(house)];
+		check(std::fabs((h0 - hb2.hp) - 8.0f) < 1e-3f, "Iberian champion cavalry's burn on a house: 4 ticks of 2, no poison");
+		const auto fit = w.fauna_id_to_idx_.find(deer);
+		check(fit != w.fauna_id_to_idx_.end() && std::fabs((d0 - w.fauna_.hp[fit->second]) - 8.0f) < 1e-3f, "and on a deer");
+		check(w.statuses_.empty(), "both burn out");
+	}
+	// Saved halfway, a burn deals the rest after loading.
+	{
+		Simulation w;
+		setup(w);
+		const uint32_t sw = dummy(w, 20.0f, 20.0f, UNIT_SWORDSMAN);
+		const float h0 = w.units_.hp[idx(w, sw)];
+		w.apply_status((size_t)idx(w, sw), cp, 0, 0);
+		for (int k = 0; k < (int)(4.0f / DT); ++k) w.tick(DT);
+		const char *path = "/tmp/rts0_test_status_half.sav";
+		check(w.save_state(path), "save mid-burn");
+		Simulation r;
+		check(r.load_state(path), "load mid-burn");
+		std::remove(path);
+		for (int k = 0; k < 300; ++k) r.tick(DT);
+		check(std::fabs((h0 - r.units_.hp[idx(r, sw)]) - 8.0f) < 1e-3f, "a burn saved halfway still deals 8 in all");
+	}
 
 	Simulation m;
 	setup(m);
@@ -919,7 +959,8 @@ static void test_status_credit() {
 	check(b.load_state(path), "load");
 	std::remove(path);
 	const int bv = idx(b, a_v);
-	check(bv >= 0 && b.units_.poison_src[bv] == a_arch && b.units_.poison_owner[bv] == 0, "the poison's source survives save and load");
+	check(bv >= 0 && b.statuses_.size() == 1 && b.statuses_[0].target == a_v && b.statuses_[0].src == a_arch && b.statuses_[0].src_owner == 0,
+			"the poison's source survives save and load");
 }
 
 static void test_reach_and_responses() {

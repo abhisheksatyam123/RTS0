@@ -18,6 +18,8 @@ The playable file is **`build/linux/RTS0.x86_64`**. Refresh it every ship (not o
 ```bash
 make                    # or: python3 tools/build.py linux
 ./build/linux/RTS0.x86_64
+# 0 A.D.'s -autostart options skip the menus (see scenes/menu/autostart.gd):
+./build/linux/RTS0.x86_64 -- -autostart=random/mainland -autostart-civ=2:brit -autostart-ai=2:petra
 ```
 
 `scons platform=linux target=template_release` now copies `bin/librtso.linux.template_release.x86_64.so` into `build/linux/` and, if `godot` is on `PATH` (or `GODOT=`), re-exports that binary. Use `scons skip_export=1` for library-only. Editor iteration: `make debug` then F5.

@@ -1,6 +1,7 @@
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
+#include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
@@ -209,8 +210,16 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	// The units it trains (the civ's roster list), then its other buttons.
 	if (command_panel_.roster_list() && command_panel_.roster_list()->is_visible())
 		for (int i = 0; i < command_panel_.roster_list()->get_item_count(); ++i) out.push_back(command_panel_.roster_list()->get_item_text(i));
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i)
-		if (Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i))) out.push_back(btn->get_text());
+	// Icon buttons (research, construction) by their label; a research pair's two buttons.
+	auto add = [&out](Node *n) {
+		if (Button *btn = Object::cast_to<Button>(n)) out.push_back(btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text());
+	};
+	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
+		Node *n = command_panel_.production_bar()->get_child(i);
+		add(n);
+		if (!Object::cast_to<Button>(n))
+			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j));
+	}
 	return out;
 }
 
@@ -360,6 +369,7 @@ Dictionary RtsoMain::debug_selection_state() {
 		const rtso::TechClasses tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
 				: rtso::unit_tech_classes(uview.unit_type[i]);
 		u["civilian"] = (bool)(tc & rtso::TC_CIVILIAN);
+		u["target_resource"] = (int64_t)uview.target_resource_id[i];
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -369,6 +379,23 @@ Dictionary RtsoMain::debug_selection_state() {
 	}
 	d["units"] = units;
 	d["viewport"] = get_viewport()->get_visible_rect().size;
+	// The resource nearest the first selected unit, and where it is on screen.
+	if (cam && !selected_ids.is_empty()) {
+		float ux = 0, uz = 0;
+		for (size_t i = 0; i < uview.count; ++i)
+			if (uview.id[i] == (uint32_t)selected_ids[0]) { ux = uview.pos_x[i]; uz = uview.pos_z[i]; }
+		auto rv = sim->resources();
+		float best = 1e30f;
+		for (size_t r = 0; r < rv.count; ++r) {
+			if (!rv.alive[r]) continue;
+			const float dd = (rv.x[r] - ux) * (rv.x[r] - ux) + (rv.z[r] - uz) * (rv.z[r] - uz);
+			if (dd < best) {
+				best = dd;
+				d["nearest_resource"] = (int64_t)rv.id[r];
+				d["nearest_resource_screen"] = cam->unproject_position(Vector3(rv.x[r], sim->get_terrain_height(rv.x[r], rv.z[r]), rv.z[r]));
+			}
+		}
+	}
 	return d;
 }
 
@@ -377,15 +404,23 @@ Dictionary RtsoMain::debug_selection_state() {
 Array RtsoMain::debug_command_row() {
 	Array out;
 	update_command_panel();
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i)
-		if (Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i))) {
-			Dictionary e;
-			e["text"] = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
-			e["tip"] = btn->get_tooltip_text();
-			e["disabled"] = btn->is_disabled();
-			e["id"] = (int64_t)btn->get_instance_id();
-			out.push_back(e);
-		}
+	auto add = [&out](Node *n, bool paired) {
+		Button *btn = Object::cast_to<Button>(n);
+		if (!btn) return;
+		Dictionary e;
+		e["text"] = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
+		e["tip"] = btn->get_tooltip_text();
+		e["disabled"] = btn->is_disabled();
+		e["id"] = (int64_t)btn->get_instance_id();
+		e["paired"] = paired; // one of a research pair (selection_panels.js Research)
+		out.push_back(e);
+	};
+	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
+		Node *n = command_panel_.production_bar()->get_child(i);
+		add(n, false);
+		if (!Object::cast_to<Button>(n))
+			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j), true);
+	}
 	return out;
 }
 
@@ -404,6 +439,21 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 		out.push_back((int32_t)sim->spawn_unit(cx - 16.0f + 3.0f * i, cz - 16.0f, me,
 				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
 	return out;
+}
+
+// Test hook: each player's structures by type name, {player: {name: count}}.
+Dictionary RtsoMain::debug_structure_types() {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings()) {
+		if (b.hp <= 0.0f || b.wrecked) continue;
+		const int p = b.team;
+		Dictionary per = d.get(p, Dictionary());
+		const String n = String::utf8(rtso::building_type_info(b.type).name);
+		per[n] = (int)per.get(n, 0) + 1;
+		d[p] = per;
+	}
+	return d;
 }
 
 // Test hook: starts the first technology one of the local player's structures can
@@ -433,7 +483,7 @@ void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
 	RtsoTopPanel::cycle_order();
-	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time);
+	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
 }
 
 // Test hook: destroys the units (Delete's command) without touching the selection,
@@ -458,6 +508,7 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["barter"] = barter ? bool(barter->call("is_open")) : false;
 	d["overlay"] = pause_overlay_ && pause_overlay_->is_visible();
 	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
+	d["overlay_by"] = pause_by_label_ ? pause_by_label_->get_text() : String();
 	d["chat_log"] = chat_window_.log_text();
 	return d;
 }
@@ -699,7 +750,8 @@ bool RtsoMain::chat_network_command(const String &text) {
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
-	if (rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare hotkey wins
+	if (flare_armed_ || rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare wins
+		flare_armed_ = false;
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
 	}
@@ -852,11 +904,11 @@ bool RtsoMain::try_focus_fire(const Vector3 &at) {
 	return true;
 }
 
-bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
+bool RtsoMain::over_own_rally_structure(const Vector3 &at, bool need_rally) const {
 	if (!sim || selected_building_id == 0 || !selected_ids.is_empty()) return false;
 	for (const auto &b : sim->buildings()) {
 		if (b.id != selected_building_id) continue;
-		if (b.team != local_player() || !b.has_rally_point) return false;
+		if (b.team != local_player() || (need_rally && !b.has_rally_point)) return false;
 		// Inside the turned footprint (u axis = (ux, uz), half extents hu, hv).
 		const float dx = at.x - b.x, dz = at.z - b.z;
 		const float u = dx * b.ux + dz * b.uz, v = -dx * b.uz + dz * b.ux;
@@ -864,6 +916,36 @@ bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
 		return std::fabs(u) <= hu && std::fabs(v) <= hv;
 	}
 	return false;
+}
+
+bool RtsoMain::selected_building_trains_units() const {
+	if (!sim || selected_building_id == 0) return false;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		const uint8_t civ = rtso::building_trains_native(b.type) ? b.civ : sim->player_civ(b.team);
+		for (uint16_t i : rtso::civ_roster_ids(civ))
+			if (rtso::civ_unit_template(i).trainers & rtso::bld_bit(b.type)) return true;
+		return false;
+	}
+	return false;
+}
+
+// Test hook: the selected structure, where it is on screen and its rally point.
+Dictionary RtsoMain::debug_selected_building() const {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		d["id"] = (int64_t)b.id;
+		d["has_rally"] = b.has_rally_point;
+		d["rally_self"] = b.has_rally_point && b.rally_target_bld_id == b.id;
+		d["autoqueue"] = b.autoqueue;
+		d["queue"] = (int64_t)b.queue.size();
+		d["food"] = sim->player(b.team < rtso::MAX_PLAYERS ? b.team : 0).res[rtso::RES_FOOD];
+		Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+		if (cam) d["screen"] = cam->unproject_position(Vector3(b.x, sim->get_terrain_height(b.x, b.z), b.z));
+	}
+	return d;
 }
 
 static const char *const kQuicksavePath = "user://saves/quicksave.rts0sav";
@@ -983,7 +1065,8 @@ void RtsoMain::toggle_pause() {
 }
 
 // PauseOverlay.rebuild: shown for your own pause and while another client
-// pauses; the resume line only for your own; "Paused by" in multiplayer.
+// pauses; the resume line only for your own; "Paused by" in multiplayer, each
+// name in its player's colour (colorizePlayernameByGUID: white for an observer).
 void RtsoMain::update_pause_overlay() {
 	if (!pause_overlay_) return;
 	const bool networked = net_lockstep() && !turn_mgr_.is_replaying();
@@ -993,19 +1076,25 @@ void RtsoMain::update_pause_overlay() {
 		for (uint32_t c : turn_mgr_.paused_clients()) {
 			others = others || c != turn_mgr_.local_client_id();
 			String name;
+			uint8_t pl = 0xFF;
 			for (const auto &e : net_host_.playerAssignment())
-				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str());
-			if (name.is_empty()) {
-				const uint8_t pl = turn_mgr_.player_for_client(c);
-				name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
-			}
-			who += (who.is_empty() ? "" : ", ") + name;
+				if (e.client == c) {
+					if (!e.name.empty()) name = String::utf8(e.name.c_str());
+					pl = e.player;
+				}
+			if (pl == 0xFF) pl = turn_mgr_.player_for_client(c);
+			const bool seated = pl < rtso::MAX_PLAYERS;
+			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
+			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
+			who += String(who.is_empty() ? "" : ", ") + "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" +
+					name.replace("[", "[lb]") + "[/color]";
 		}
 	const bool show = hotkey_paused_ || others;
 	if (pause_overlay_->is_visible() != show) pause_overlay_->set_visible(show);
 	if (!show) return;
 	pause_resume_label_->set_visible(hotkey_paused_);
-	const String by = networked && !who.is_empty() ? sprintf0(tr("Paused by %(players)s"), {{"players", who}}) : String();
+	const String by = networked && !who.is_empty()
+			? "[center]" + sprintf0(tr("Paused by %(players)s"), {{"players", who}}) + "[/center]" : String();
 	if (pause_by_label_->get_text() != by) pause_by_label_->set_text(by);
 }
 
@@ -1076,7 +1165,10 @@ void RtsoMain::update_net_warnings() {
 void RtsoMain::update_net_status_overlay() {
 	if (net_disconnected_ || !net_status_overlay_) return;
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
-	if (client && net_game_started_ && net_host_.connectionLost()) {
+	// Before Start too, once the host let us in (0.28 gamesetup ChatInputPanel
+	// reportDisconnect): the setup page closes for "Lost connection to the server.".
+	const bool joined = net_game_started_ || net_setup_overlay_ || net_host_.authResult() == rtso::ARC_OK;
+	if (client && joined && net_host_.connectionLost()) {
 		net_disconnected_ = true;
 		finished_asked_ = true; // no quit question over the overlay
 		close_open_dialogs();
@@ -1092,10 +1184,12 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = tr("Different game engine versions or different mods loaded."); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
-		net_status_label_->set_text(tr("Connection to the server has been lost.") + "\n" + why);
+		net_status_label_->set_text((net_game_started_ ? tr("Connection to the server has been lost.")
+				: tr("Lost connection to the server.")) + "\n" + why);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
 		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
+		update_net_setup_overlay(); // the setup page gives way at once
 		return;
 	}
 	String status, loading;
@@ -1124,6 +1218,8 @@ void RtsoMain::update_net_status_overlay() {
 
 // disconnectedExitButton: endGame(true), the summary page.
 void RtsoMain::_on_disconnected_exit_pressed() {
+	// Lost before Start: OK goes back to the lobby, as the setup page's Back does.
+	if (!net_game_started_) return leave_net_game();
 	Ref<Script> q = ResourceLoader::get_singleton()->load("res://scenes/session/quit_confirmation.gd");
 	if (q.is_valid()) q->call("end_game", this, true);
 }
@@ -1847,7 +1943,7 @@ bool RtsoMain::spectating() const {
 // to Observer; a win keeps the player's own (PlayerViewControl.js onPlayerFinished).
 // "Observer Mode" shows while the view is Observer or Gaia.
 void RtsoMain::update_observer_view_picker() {
-	if (!spectating()) {
+	if (!spectating() && !change_perspective_) {
 		if (observer_view_picker_) observer_view_picker_->get_parent()->call("set_visible", false);
 		return;
 	}
@@ -1867,7 +1963,9 @@ void RtsoMain::update_observer_view_picker() {
 		add_child(layer);
 		layer->add_child(row);
 		const uint8_t seat = seat_player();
-		if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat) && !sim->is_defeated(seat)) {
+		if (!spectating()) {
+			sync_observer_view_picker(); // Change perspective: the player's own seat
+		} else if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat) && !sim->is_defeated(seat)) {
 			observer_view_ = seat; // the winner keeps watching their own side
 			sync_observer_view_picker();
 		} else {
@@ -1875,11 +1973,31 @@ void RtsoMain::update_observer_view_picker() {
 		}
 	}
 	observer_view_picker_->get_parent()->call("set_visible", true);
+	if (perspective_pick_ >= 0) {
+		const uint8_t seat = seat_player();
+		if (perspective_pick_ == (seat < rtso::MAX_PLAYERS ? seat + 1 : 0)) { // the turn has seated us
+			perspective_pick_ = -1;
+			sync_observer_view_picker();
+		}
+	}
 }
 
 void RtsoMain::_on_observer_view_selected(int index) {
 	if (!observer_view_picker_ || index < 0 || index >= observer_view_picker_->get_item_count()) return;
 	const int id = observer_view_picker_->get_item_id(index);
+	if (change_perspective_) {
+		// Engine.SetPlayerID: this client plays the picked player (or watches) from the next turn.
+		if (id == kReplayViewGaiaId || !turn_cmds()) {
+			sync_observer_view_picker(); // RTS0 can't seat a client as Gaia
+			return;
+		}
+		rtso::NetCommand c;
+		c.cmd_type = 39;
+		c.param = rtso::Simulation::CHEAT_DEV_PERSPECTIVE;
+		c.target_id = id == 0 ? 0xFFu : (uint32_t)(id - 1);
+		turn_mgr_.post_local_command(c); // not post_lockstep: an observer may send it too
+		perspective_pick_ = id;
+	}
 	set_observer_view(id == kReplayViewGaiaId ? (int)rtso::GAIA_PLAYER : id - 1);
 }
 
@@ -1893,11 +2011,13 @@ void RtsoMain::set_observer_view(int player) {
 
 void RtsoMain::sync_observer_view_picker() {
 	if (observer_view_picker_) {
-		const int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
+		int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
+		if (!spectating() && seat_player() < rtso::MAX_PLAYERS) // Change perspective: the seat, or the pick on its way
+			want = perspective_pick_ >= 0 ? perspective_pick_ : seat_player() + 1;
 		for (int i = 0; i < observer_view_picker_->get_item_count(); ++i)
 			if (observer_view_picker_->get_item_id(i) == want) observer_view_picker_->select(i);
 	}
-	if (observer_mode_label_) observer_mode_label_->set_visible(observer_view_ == rtso::OBSERVER_VIEW);
+	if (observer_mode_label_) observer_mode_label_->set_visible(spectating() && observer_view_ == rtso::OBSERVER_VIEW);
 }
 
 std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
@@ -1908,7 +2028,13 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 }
 
 void RtsoMain::update_hud() {
-	top_panel_.update(sim, local_player(), match_elapsed_time);
+	top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
+	if (sim) {
+		const uint8_t me = local_player();
+		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
+		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
+				turn_mgr_.is_replaying());
+	}
 	// GameSpeedButton is hidden in networked games; a replay's own row has the speed list.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep() && !turn_mgr_.is_replaying());
 }
@@ -2021,6 +2147,10 @@ void RtsoMain::_on_dev_command(int command) {
 		else sim->cmd_cheat(me, action, parameter, 0, ids.data(), ids.size());
 	};
 	switch (command) {
+		case D::DEV_CHANGE_PERSPECTIVE: // ChangePerspective: PlayerViewControl.setChangePerspective
+			change_perspective_ = on;
+			update_observer_view_picker();
+			break;
 		case D::DEV_SELECTION_STATE: // SelectionEntityState
 			dev_overlay_.show_state(on);
 			break;
@@ -2029,6 +2159,9 @@ void RtsoMain::_on_dev_command(int command) {
 			break;
 		case D::DEV_RESTRICT_CAMERA: // RestrictCamera: GameView_SetConstrainCameraEnabled
 			if (cam_rig) cam_rig->set_constrain_camera(on);
+			break;
+		case D::DEV_TIME_WARP: // EnableTimeWarp: TimeWarp.setEnabled
+			set_time_warp(on);
 			break;
 		case D::DEV_PROMOTE: { // PromoteSelectedUnits: "promote" the selection; checked() is always false
 			std::vector<uint32_t> ids;
@@ -2042,6 +2175,58 @@ void RtsoMain::_on_dev_command(int command) {
 	refresh_dev_overlay();
 }
 
+// TimeWarp.setEnabled: not in networked games (nor replays); turning it on shows
+// TimeWarpMessageBox and starts the snapshots (Engine.EnableTimeWarpRecording(10)).
+void RtsoMain::set_time_warp(bool on) {
+	if (net_lockstep() || turn_mgr_.is_replaying()) on = false;
+	if (on == time_warp_) return;
+	time_warp_ = on;
+	if (!on) {
+		if (time_warp_ff_) game_speed = time_warp_speed_;
+		time_warp_ff_ = false;
+		for (const String &p : time_warp_snapshots_) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(p));
+		time_warp_snapshots_.clear();
+		return;
+	}
+	time_warp_turn_ = UINT32_MAX;
+	quit_confirmation("time_warp");
+}
+
+// CTurnManager time warp: a snapshot of the game every 10 turns, and SetSimRate(20)
+// while the fast forward hotkey is held.
+void RtsoMain::time_warp_tick() {
+	if (!time_warp_ || !sim) return;
+	const bool ff = rtso::hotkeys::held("session.timewarp.fastforward");
+	if (ff != time_warp_ff_) {
+		if (ff) time_warp_speed_ = game_speed;
+		game_speed = ff ? 20.0f : time_warp_speed_;
+		time_warp_ff_ = ff;
+	}
+	const uint32_t turn = turn_mgr_.current_turn();
+	if (turn % 10 != 0 || turn == time_warp_turn_) return;
+	time_warp_turn_ = turn;
+	DirAccess::make_dir_recursive_absolute(ProjectSettings::get_singleton()->globalize_path("user://timewarp"));
+	const String path = "user://timewarp/turn_" + String::num_int64(time_warp_serial_++) + ".rts0sav";
+	if (!sim->save_state(ProjectSettings::get_singleton()->globalize_path(path).utf8().get_data())) return;
+	time_warp_snapshots_.push_back(path);
+	if (time_warp_snapshots_.size() > 100) { // TimeWarp's caption warns of memory: keep the last 100 on disk
+		DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(time_warp_snapshots_.front()));
+		time_warp_snapshots_.erase(time_warp_snapshots_.begin());
+	}
+}
+
+// CTurnManager::RewindTimeWarp: back to the latest snapshot, which is then dropped, so
+// rewinding again goes further back. The game goes on as a new replay from there.
+bool RtsoMain::time_warp_rewind() {
+	if (!time_warp_ || time_warp_snapshots_.empty()) return false;
+	const String path = time_warp_snapshots_.back();
+	time_warp_snapshots_.pop_back();
+	const bool ok = load_game(path);
+	DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(path));
+	time_warp_turn_ = turn_mgr_.current_turn(); // no snapshot of the state just restored
+	return ok;
+}
+
 // The checked() handlers while the overlay is open, and DeveloperOverlayEntityState.update:
 // the first selected entity's state.
 void RtsoMain::refresh_dev_overlay() {
@@ -2051,6 +2236,7 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_REVEAL_MAP, sim->reveal_map());
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
+		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 	}
 	if (!dev_overlay_.state_shown()) return;
 	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
@@ -2107,6 +2293,8 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 				if (v.alive[i] && v.id[i] == (uint32_t)selected_ids[k]) ranks += v.rank[i];
 	}
 	d["selection_ranks"] = ranks;
+	d["seat"] = (int)seat_player();
+	d["view_picker"] = observer_view_picker_ && observer_view_picker_->is_visible_in_tree();
 	return d;
 }
 
@@ -2642,6 +2830,7 @@ Dictionary RtsoMain::get_lobby_state() const {
 	for (uint8_t p = 0; sim && p < rtso::MAX_PLAYERS; ++p) ai = ai || (sim->player(p).active && sim->player(p).is_ai);
 	d["oos_ai"] = ai;
 	d["disconnected"] = net_disconnected_;
+	d["setup_page"] = net_setup_overlay_ != nullptr;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
@@ -3447,6 +3636,75 @@ void RtsoMain::_on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_i
 	command_panel_.production_queue().handle_gui_input(event, slot_idx, get_viewport());
 }
 
+// 0.28 placementTooltip: BackgroundErrorTooltip for a refusal, else
+// BackgroundInformationTooltip, beside the cursor; hidden with no message.
+void RtsoMain::set_placement_tip(const String &text, bool error) {
+	if (!placement_tip_) return;
+	placement_tip_->set_visible(!text.is_empty());
+	if (text.is_empty()) return;
+	if (placement_tip_->get_text() != text) placement_tip_->set_text(text);
+	if (error != placement_tip_error_ || !placement_tip_->has_theme_stylebox_override("normal")) {
+		placement_tip_error_ = error;
+		Ref<StyleBoxFlat> bg;
+		bg.instantiate();
+		bg->set_bg_color(error ? Color(0.35f, 0.04f, 0.04f, 0.85f) : Color(0.05f, 0.05f, 0.08f, 0.85f));
+		bg->set_border_width_all(1);
+		bg->set_border_color(error ? Color(0.75f, 0.25f, 0.2f) : Color(0.55f, 0.5f, 0.35f));
+		bg->set_content_margin_all(5.0f);
+		placement_tip_->add_theme_stylebox_override("normal", bg);
+	}
+	placement_tip_->set_size(Vector2());
+	placement_tip_->set_position(get_viewport()->get_mouse_position() + Vector2(24, 20));
+}
+
+// BuildRestrictions.js CheckPlacement's message for a refused placement of `btype` centred at (x, z).
+String RtsoMain::placement_failure_text(int result, uint8_t btype, float x, float z) const {
+	using S = rtso::Simulation;
+	if (!sim || result == S::PLACE_OK) return String();
+	const String name = rtso::tr0(String::utf8(rtso::civ_building_type_info(sim->player_civ(local_player()), btype).name));
+	auto named = [&](const char *msg) { return rtso::sprintf0(rtso::tr0(msg), {{"name", name}}); };
+	switch (result) {
+		case S::PLACE_OBSTRUCTED: return named("%(name)s cannot be built on another building or resource");
+		case S::PLACE_TERRAIN: return named("%(name)s cannot be built on invalid terrain");
+		case S::PLACE_SHORE: return named("%(name)s must be built on a valid shoreline");
+		case S::PLACE_TERRITORY: {
+			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
+			// markForTranslationWithContext("Territory type", ...) and the template's Territory list.
+			const char *found = d.territory_found == 1 ? (d.connected ? "own" : "unconnected own")
+					: d.territory_found == 2 ? (d.connected ? "allied" : "unconnected allied")
+					: d.territory_found == 4 ? "neutral" : "enemy";
+			String valid;
+			const char *const kinds[] = {"own", "ally", "neutral", "enemy"};
+			for (int i = 0; i < 4; ++i)
+				if (d.territory_allowed & (1 << i)) valid += (valid.is_empty() ? String() : rtso::tr0(", ")) + rtso::tr0(kinds[i]);
+			return rtso::sprintf0(rtso::tr0("%(name)s cannot be built in %(territoryType)s territory. Valid territories: %(validTerritories)s"),
+					{{"name", name}, {"territoryType", rtso::tr0(found)}, {"validTerritories", valid}});
+		}
+		case S::PLACE_DISTANCE: {
+			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
+			const int64_t m = (int64_t)std::lround(d.min_distance_m);
+			return rtso::sprintf0(rtso::tr0(m == 1 ? "%(name)s too close to a %(category)s, must be at least %(distance)s meter away"
+							: "%(name)s too close to a %(category)s, must be at least %(distance)s meters away"),
+					{{"name", name}, {"category", rtso::tr0(d.distance_class ? d.distance_class : "")}, {"distance", String::num_int64(m)}});
+		}
+		default: return named("%(name)s cannot be built due to unknown error");
+	}
+}
+
+Dictionary RtsoMain::debug_placement_tip() const {
+	Dictionary d;
+	d["visible"] = placement_tip_ && placement_tip_->is_visible();
+	d["text"] = placement_tip_ ? placement_tip_->get_text() : String();
+	d["error"] = placement_tip_error_;
+	return d;
+}
+
+// Tests: production queue slot i as the panel shows it.
+Dictionary RtsoMain::debug_queue_slot(int i) {
+	update_command_panel();
+	return command_panel_.production_queue().debug_slot(i);
+}
+
 void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 	command_panel_.production_queue().cancel(slot_idx);
 }
@@ -3585,6 +3843,38 @@ String RtsoMain::match_settings_player_state() const {
 
 // session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
 // settings close together; opening one of them closes the others first.
+// MiniMapFlareButton.onPress (and session.flareactivate): INPUT_FLARE, so the
+// next left click on the map or minimap sends a flare; never in a replay.
+void RtsoMain::_on_flare_button_pressed() {
+	if (turn_mgr_.is_replaying()) return;
+	flare_armed_ = true;
+}
+
+// Test hook: the minimap panel's buttons.
+Dictionary RtsoMain::debug_minimap_panel() const {
+	Dictionary d;
+	const char *names[3] = {"idle", "diplomacy", "flare"};
+	for (int i = 0; i < 3; ++i) {
+		TextureButton *b = minimap_panel_.button(i);
+		Dictionary e;
+		e["disabled"] = b ? b->is_disabled() : true;
+		e["tooltip"] = b ? b->get_tooltip_text() : String();
+		e["texture"] = b && b->get_texture_normal().is_valid() ? b->get_texture_normal()->get_path() : String();
+		d[names[i]] = e;
+	}
+	d["idle_count"] = minimap_panel_.idle_count_text();
+	d["flare_armed"] = flare_armed_;
+	return d;
+}
+
+// CivIcon.onPress: a left click on the top panel's civ emblem reopens the
+// reference page last viewed (the Structure Tree at first).
+void RtsoMain::_on_civ_icon_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("open_last");
+}
+
 bool RtsoMain::close_open_dialogs() {
 	bool any = false;
 	if (Node *menu = get_node_or_null(NodePath("PauseMenu")))

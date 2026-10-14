@@ -31,6 +31,7 @@ Needs a Godot 4.3 binary (--godot or $GODOT) and an imported project
 """
 import argparse
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -73,6 +74,7 @@ def main():
     for leave in ("join", "host"):
         ok = play(args, lobby, leave) and ok
     ok = play_saved(args, lobby) and ok
+    ok = play_setup_leave(args, lobby) and ok
     server.shutdown()
     stun.close()
     return 0 if ok else 1
@@ -145,6 +147,53 @@ def play_saved(args, lobby):
           f"hosted={hosted} loaded={loaded}")
     return False
 
+
+def play_setup_leave(args, lobby):
+    """0.28 reportDisconnect in the game setup: the host leaves before Start;
+    the client's setup page closes for "Lost connection to the server." with
+    the reason, and its OK goes back to the lobby."""
+    print("[gmp] ---- the host leaves the game setup before Start ----")
+    port = args.port + 3
+    def client(role, name):
+        cmd = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
+               f"role={role}", f"name={name}", f"lobby={lobby}", f"port={port}", f"timeout={args.timeout}",
+               f"stun={args.stun_port}", "lan=0", "setup_leave=1"]
+        if not args.no_firewall:
+            cmd.append("net_firewall=1")
+        log = tempfile.TemporaryFile(mode="w+")
+        p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, text=True)
+        p.log = log
+        return p
+    host = client("host", "alice")
+    time.sleep(2.0)
+    join = client("join", "bob")
+    outs = {}
+    for role, p in (("join", join), ("host", host)):
+        try:
+            p.wait(timeout=args.timeout + 30)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+        p.log.seek(0)
+        outs[role] = p.log.read()
+    def said(key):
+        return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs["join"]) if f" {key}=" in l), "")
+    status = said("setup_status")
+    ok = (host.returncode == 0 and join.returncode == 0
+          and status == "Lost connection to the server. | The host has ended the game. reason=2 saw_page=true page=false"
+          and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn")
+    for role in ("host", "join"):
+        for line in gmp_lines(outs[role]):
+            print("   " + line)
+    if ok:
+        print(f"[gmp] PASS the host left the setup; the client's page closed for: {status.split(' reason=')[0]}; "
+              f"OK went back to the lobby")
+        return True
+    for role in ("host", "join"):
+        print(f"---- {role} output ----")
+        print("\n".join(l for l in outs[role].splitlines() if "NetHost" in l or "[gmp]" in l)[-4000:])
+    print(f"[gmp] FAIL setup leave rc host/join={host.returncode}/{join.returncode} status={status!r}")
+    return False
 
 def play(args, lobby, leave):
     print(f"[gmp] ---- one match; then the {leave} leaves ----")
@@ -262,6 +311,10 @@ def play(args, lobby, leave):
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
     ok = ok and not any("> /list" in outs[role] for role in ("host", "join"))
+    # 0.28 PauseOverlay: the host's pause reads on the client as its name in its player colour.
+    paused_by = said("join", "paused_by")
+    ok = ok and re.fullmatch(r"\[center\]Paused by \[color=#[0-9a-f]{6}\]alice\[/color\]\[/center\]", paused_by) is not None
+    ok = ok and "#ffffff]alice" not in paused_by
     picks = {k: (h.get(k), j.get(k)) for k in ("speed", "civ1", "team1", "color1")}
     ok = ok and picks == {"speed": ("1.5", "1.5"), "civ1": ("15", "15"), "team1": ("2", "2"), "color1": ("5", "5")}
     if leave == "join":
@@ -281,6 +334,7 @@ def play(args, lobby, leave):
         print(f"[gmp] PASS while the client was frozen at the start, the host showed: {waited}; "
               f"network warning: {net_warning}")
         print("[gmp] PASS /list on both read: Users (2): alice, bob")
+        print(f"[gmp] PASS the host's pause showed on the client as: {paused_by}")
     if ok and leave == "join":
         print(f"[gmp] PASS the client left and the host's chat said: {said('host', 'chat_left')}")
     elif ok:

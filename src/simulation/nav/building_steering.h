@@ -63,6 +63,41 @@ inline bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, u
 	return !PointIsInSquare(aim - Vec2(b.x, b.z), footprint_u(b), footprint_v(b), half);
 }
 
+// The bounding box of the segment from `pos` to `end`. A building whose footprint, grown by
+// `radius` along its own axes, misses it can neither cross the segment nor hold `pos`, so the loops
+// below skip it before their exact tests, with the same result. Grown along turned axes, the
+// footprint's bounding box grows by up to radius * sqrt(2); 1.5 and a hair keep the test loose.
+struct SegmentBox {
+	float x0, z0, x1, z1, radius;
+	SegmentBox(Vec2 pos, Vec2 end, float r)
+		: x0(std::min(pos.x, end.x)), z0(std::min(pos.y, end.y)), x1(std::max(pos.x, end.x)), z1(std::max(pos.y, end.y)),
+		  radius(1.5f * r + 0.01f) {}
+	template <class B>
+	bool may_touch(const B& b) const
+	{
+		const float e = footprint_extent(b) + radius;
+		return b.x + e >= x0 && b.x - e <= x1 && b.z + e >= z0 && b.z - e <= z1;
+	}
+};
+
+// How building `b` meets the line from `pos` to `end` (cut from the line to `aim` at `reach`), as
+// line_blocked_by_buildings tests each one.
+enum LineHit { LINE_MISSES, LINE_CROSSES, LINE_HOLDS_POS };
+template <class B>
+#if defined(__GNUC__)
+[[gnu::always_inline]]
+#endif
+inline int line_hit(const B& b, Vec2 pos, Vec2 end, Vec2 aim, float radius, uint32_t ignore_building_id, float reach,
+		const SegmentBox& box)
+{
+	if (!box.may_touch(b) || !within_reach(b, pos, radius, reach) ||
+	    !is_steering_obstacle(b, pos, aim, radius, ignore_building_id, reach)) return LINE_MISSES;
+	const Vec2 c(b.x, b.z), u = footprint_u(b), v = footprint_v(b);
+	const Vec2 half(b.hu + radius, b.hv + radius);
+	if (PointIsInSquare(pos - c, u, v, half)) return LINE_HOLDS_POS;
+	return TestRaySquare(pos - c, end - c, u, v, half) ? LINE_CROSSES : LINE_MISSES;
+}
+
 } // namespace detail
 
 // True when the straight line from `pos` towards `aim`, cut at `max_len`, crosses a building expanded
@@ -78,14 +113,12 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 	if (len < 1e-3f) return false;
 	const Vec2 end = len > max_len ? pos + to_aim * (max_len / len) : aim;
 	const float reach = std::min(len, max_len);
+	const detail::SegmentBox box(pos, end, radius);
 	bool blocked = false;
 	for (const auto& b : buildings) {
-		if (!detail::within_reach(b, pos, radius, reach) ||
-		    !detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, reach)) continue;
-		const Vec2 c(b.x, b.z), u = footprint_u(b), v = footprint_v(b);
-		const Vec2 half(b.hu + radius, b.hv + radius);
-		if (PointIsInSquare(pos - c, u, v, half)) return false;
-		if (TestRaySquare(pos - c, end - c, u, v, half)) blocked = true;
+		const int hit = detail::line_hit(b, pos, end, aim, radius, ignore_building_id, reach, box);
+		if (hit == detail::LINE_HOLDS_POS) return false;
+		if (hit == detail::LINE_CROSSES) blocked = true;
 	}
 	return blocked;
 }
@@ -98,9 +131,10 @@ bool segment_blocked_by_buildings(Vec2 pos, Vec2 end, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id)
 {
 	const float reach = (end - pos).length();
+	const detail::SegmentBox box(pos, end, radius);
 	bool blocked = false;
 	for (const auto& b : buildings) {
-		if (!detail::within_reach(b, pos, radius, reach) ||
+		if (!box.may_touch(b) || !detail::within_reach(b, pos, radius, reach) ||
 		    !detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, reach)) continue;
 		const Vec2 c(b.x, b.z), u = footprint_u(b), v = footprint_v(b);
 		const Vec2 half(b.hu + radius, b.hv + radius);
@@ -224,20 +258,14 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 	return search_short_path(pos, aim, radius, buildings, ignore_building_id, nav, out);
 }
 
-// The same, for a unit that keeps its short path in `memo` between ticks. `key` names the obstacles
-// (buildings and water) this tick; it must not be 0. While the line to `aim` is blocked, the memo's
-// waypoint is reused if it was found among the same obstacles, for an aim within
-// SHORT_PATH_AIM_SLACK, and the way to it is clear; otherwise a new short path is searched and kept.
-// The caller clears the memo (key = 0) once the unit reaches the waypoint.
+namespace detail {
+
+// steer_around_buildings once the line to `aim` is known to be blocked by a building.
 template <class Buildings>
-bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
+bool steer_round_buildings(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
 		const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out)
 {
-	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id)) {
-		memo.key = 0;
-		return false;
-	}
 	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
 	if (memo.key == key && aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK) {
 		const Vec2 w(memo.x, memo.z);
@@ -254,6 +282,25 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 	return true;
 }
 
+} // namespace detail
+
+// The same, for a unit that keeps its short path in `memo` between ticks. `key` names the obstacles
+// (buildings and water) this tick; it must not be 0. While the line to `aim` is blocked, the memo's
+// waypoint is reused if it was found among the same obstacles, for an aim within
+// SHORT_PATH_AIM_SLACK, and the way to it is clear; otherwise a new short path is searched and kept.
+// The caller clears the memo (key = 0) once the unit reaches the waypoint.
+template <class Buildings>
+bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
+		const Buildings& buildings, uint32_t ignore_building_id,
+		const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out)
+{
+	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id)) {
+		memo.key = 0;
+		return false;
+	}
+	return detail::steer_round_buildings(pos, aim, radius, buildings, ignore_building_id, nav, key, memo, out);
+}
+
 // The memo key steer_around_obstacles keeps for a search that found no way, and how far the unit
 // moves before it searches again.
 inline uint32_t no_short_path_key(uint32_t key)
@@ -267,15 +314,28 @@ inline constexpr float NO_SHORT_PATH_MOVE = 0.25f;
 // bushes, treasures: Simulation::gaia_obstacles_near) that only count within `small_range`. A line
 // blocked by a building is searched round both lists within BUILDING_STEER_RANGE; one blocked by
 // small obstacles alone within `small_range`, which is much cheaper, as 0 A.D.'s short paths
-// round a tree are short.
-template <class Buildings, class T>
+// round a tree are short. The list is gathered (`fetch(small)`) only when it may matter: when a
+// building blocks the line, or `small_maybe` says a small obstacle may (one crosses the line within
+// `small_range` or holds the unit); the result is the same as with the whole list each time.
+// `by_buildings` is line_blocked_by_buildings over `buildings` within BUILDING_STEER_RANGE, which
+// the caller may have a quicker way to find.
+template <class Buildings, class T, class Fetch>
 bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
-		const Buildings& buildings, const std::vector<T>& small, float small_range, uint32_t ignore_building_id,
-		const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out)
+		const Buildings& buildings, bool by_buildings, std::vector<T>& small, bool small_maybe, Fetch&& fetch, float small_range,
+		uint32_t ignore_building_id, const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out)
 {
-	if (small.empty())
-		return steer_around_buildings(pos, aim, radius, buildings, ignore_building_id, nav, key, memo, out);
-	const bool by_buildings = line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id);
+	if (!by_buildings && !small_maybe) {
+		memo.key = 0;
+		return false;
+	}
+	fetch(small);
+	if (small.empty()) {
+		if (!by_buildings) {
+			memo.key = 0;
+			return false;
+		}
+		return detail::steer_round_buildings(pos, aim, radius, buildings, ignore_building_id, nav, key, memo, out);
+	}
 	if (!by_buildings && !line_blocked_by_buildings(pos, aim, small_range, radius, small, ignore_building_id)) {
 		memo.key = 0;
 		return false;
