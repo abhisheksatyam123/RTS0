@@ -75,6 +75,11 @@ const Default kDefaults[] = {
 	{"gui.gamesetup.assignplayers", "everyone"},
 	{"lobby.buddies", ","},
 	{"lobby.columns.gamerating", "false"},
+	// 0 A.D. default.cfg [lobby.stun]; an empty server is the lobby's own host
+	// (tools/lobby_server.py answers STUN on --stun-port).
+	{"lobby.stun.enabled", "true"},
+	{"lobby.stun.server", ""},
+	{"lobby.stun.port", "3478"},
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},
 	{"gui.session.flarelifetime", "6"},

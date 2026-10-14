@@ -576,6 +576,12 @@ func _on_join_pressed() -> void:
 	MatchSettings.net_port = port
 	MatchSettings.net_password = _join_pwd.text
 	MatchSettings.net_observe = _observe.button_pressed
+	# A game picked from the list is joined through the lobby, with STUN and
+	# hole punching (0 A.D. TryToConnectWithSTUN); a typed address directly.
+	var r := _selected_room()
+	var listed := not r.is_empty() and str(r.get("host_ip", "")) == MatchSettings.net_ip \
+			and int(r.get("host_port", 0)) == port
+	LobbySession.join_game(str(r.get("id", "")) if listed and LobbySession.signed_in() else "")
 	MatchSettings.go("res://scenes/main.tscn")
 
 
