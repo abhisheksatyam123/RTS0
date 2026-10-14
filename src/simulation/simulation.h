@@ -2691,6 +2691,7 @@ private:
 	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
 	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
 	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none
+	void petra_note_enemy(uint8_t enemy) const; // remember getEnemyPlayer's pick as currentEnemyPlayer
 	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
 	// read by Petra later in the same tick; cleared at the end of tick(), so never saved.
 	struct CivicCentreCapture { uint32_t building_id; uint8_t from, to; };
