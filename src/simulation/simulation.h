@@ -2888,8 +2888,9 @@ private:
 	// not, unlike petra_land_at's regions. 0 off land. Derived from the nav grid, not saved.
 	uint16_t petra_access_at(float x, float z) const;
 	struct PetraAccess {
-		std::vector<uint8_t> pass;  // nav cell is land by terrain
+		std::vector<uint8_t> pass;  // cell (terrain tile, else nav cell) is land by terrain
 		std::vector<uint16_t> land; // its land id from 1, 0 none
+		std::vector<uint16_t> near; // an off-land cell's nearest land within 8 m, once looked up (0xFFFF before)
 		int res = 0;
 		uint32_t stamp = 0;
 	};

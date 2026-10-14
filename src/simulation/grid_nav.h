@@ -624,6 +624,7 @@ struct NavGrid {
         float water_thresh = 0.0f;
         bool water_valid = false;
         std::vector<uint8_t> tiles; // per heightmap tile, (h_res - 1) a side: steeper than tiles_max_slope
+        std::vector<uint32_t> tiles_sum; // (tiles_w + 1) a side: steep tiles below and left of each corner
         int tiles_w = 0;
         float tiles_max_slope = 0.0f;
         bool any_tile = false;
@@ -687,6 +688,17 @@ struct NavGrid {
                     }
                 }
             c.tiles_w = std::max(tw, 0);
+            // Summed-area table, so steep_tile_in answers any box in four reads.
+            const size_t sw = static_cast<size_t>(c.tiles_w) + 1;
+            c.tiles_sum.assign(sw * sw, 0);
+            for (int j = 0; j < c.tiles_w; ++j) {
+                uint32_t row = 0;
+                for (int i = 0; i < c.tiles_w; ++i) {
+                    row += c.tiles[static_cast<size_t>(j) * static_cast<size_t>(c.tiles_w) + static_cast<size_t>(i)];
+                    c.tiles_sum[(static_cast<size_t>(j) + 1) * sw + static_cast<size_t>(i) + 1] =
+                            c.tiles_sum[static_cast<size_t>(j) * sw + static_cast<size_t>(i) + 1] + row;
+                }
+            }
             c.tiles_max_slope = max_slope;
             c.tiles_valid = true;
         }
@@ -743,13 +755,11 @@ struct NavGrid {
         const int tw = h.tiles_w;
         const float inv = static_cast<float>(tw) / (map_half * 2.0f);
         auto tile = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) * inv)), 0, tw - 1); };
-        const int i0 = tile(x0), i1 = tile(x1), j1 = tile(z1);
-        for (int j = tile(z0); j <= j1; ++j) {
-            const uint8_t* row = h.tiles.data() + static_cast<size_t>(j) * static_cast<size_t>(tw);
-            for (int i = i0; i <= i1; ++i)
-                if (row[i]) return true;
-        }
-        return false;
+        const size_t sw = static_cast<size_t>(tw) + 1;
+        const size_t i0 = static_cast<size_t>(tile(x0)), i1 = static_cast<size_t>(tile(x1)) + 1;
+        const size_t j0 = static_cast<size_t>(tile(z0)) * sw, j1 = (static_cast<size_t>(tile(z1)) + 1) * sw;
+        const uint32_t* t = h.tiles_sum.data();
+        return t[j1 + i1] - t[j0 + i1] - t[j1 + i0] + t[j0 + i0] != 0;
     }
 
     bool is_steep(int cx, int cy) const {

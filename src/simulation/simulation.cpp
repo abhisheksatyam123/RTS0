@@ -18360,7 +18360,10 @@ void Simulation::petra_manage_fields() {
 	auto can_build = [&](uint8_t t) {
 		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
-	const Building *anchor = farmstead ? farmstead : tc; // manageCorral's
+	// manageCorral's anchor, as a position: the fields and corrals placed below grow buildings_.
+	const Building *anchor_b = farmstead ? farmstead : tc;
+	const bool anchor = anchor_b != nullptr;
+	const float anchor_at[2] = {anchor ? anchor_b->x : 0.0f, anchor ? anchor_b->z : 0.0f};
 	// configFirstBase: a starting land under 25000 m² saves space (one field at most, one field
 	// foundation fewer, and a corral), one under 60000 m² takes two fields at most; a second
 	// civic centre (handleNewBase) or a finished market (checkEvents) lifts both.
@@ -18402,8 +18405,7 @@ void Simulation::petra_manage_fields() {
 	if (!petra_turn_mod(4, 3)) return; // manageCorral, every fourth played turn (headquarters.js:2292)
 	if (!can_build(BLD_FIELD) && corrals < (int)petra_ps().phase && pop_current(petra_pid_) > 30 * corrals && anchor &&
 	    can_build(BLD_CORRAL)) {
-		const float at[2] = {anchor->x, anchor->z};
-		if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) return;
+		if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, anchor_at)) return;
 	}
 	const CorralTrainable &ct = CORRAL_TRAINABLE[civ < CIV_COUNT ? civ : 0];
 	for (const auto &b : buildings_) {
@@ -19000,11 +19002,12 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 			a.res = res;
 			a.pass = std::move(pass);
 			a.land.assign((size_t)res * res, 0);
+			a.near.assign((size_t)res * res, 0xFFFF);
 			uint16_t next = 0;
 			std::vector<uint32_t> stack;
 			for (size_t k0 = 0; k0 < a.pass.size(); ++k0) {
 				if (!a.pass[k0] || a.land[k0]) continue;
-				if (next < 0xFFFF) ++next;
+				if (next < 0xFFFE) ++next; // 0xFFFF marks a near cell not looked up yet
 				a.land[k0] = next;
 				stack.push_back((uint32_t)k0);
 				while (!stack.empty()) {
@@ -19022,19 +19025,24 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 			}
 		}
 	}
-	// Off land, the nearest land within 4 nav cells (8 m tiles), ring by ring.
 	const int cx = std::clamp((int)std::floor((x + half) / cell), 0, res - 1);
 	const int cz = std::clamp((int)std::floor((z + half) / cell), 0, res - 1);
+	const size_t k = (size_t)cz * res + cx;
+	if (const uint16_t l = a.land[k]) return l;
+	// Off land, the nearest land within 4 nav cells, ring by ring, kept for the next lookup there.
+	uint16_t &near = a.near[k];
+	if (near != 0xFFFF) return near;
+	near = 0;
 	const int rings = 4 * res / nres;
-	for (int rr = 0; rr <= rings; ++rr)
-		for (int dz = -rr; dz <= rr; ++dz)
+	for (int rr = 1; rr <= rings && !near; ++rr)
+		for (int dz = -rr; dz <= rr && !near; ++dz)
 			for (int dx = -rr; dx <= rr; ++dx) {
 				if (std::abs(dx) != rr && std::abs(dz) != rr) continue;
 				const int nx = cx + dx, nz = cz + dz;
 				if (nx < 0 || nz < 0 || nx >= res || nz >= res) continue;
-				if (const uint16_t l = a.land[(size_t)nz * res + nx]) return l;
+				if (const uint16_t l = a.land[(size_t)nz * res + nx]) { near = l; break; }
 			}
-	return 0;
+	return near;
 }
 
 // A structure's land: the land just outside its footprint (a dock's shore side).
