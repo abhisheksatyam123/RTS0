@@ -254,7 +254,8 @@ static float edge_distance(const Simulation::Building &b, float x, float z) {
 }
 
 // 0 A.D. ObstructionManager IsInTargetRange against a structure: the gap between the
-// unit's obstruction (a circle of its collision radius) and the structure's footprint,
+// unit's obstruction (a square of its class clearance, unit_building_clearance; `radius`)
+// and the structure's footprint,
 // not the distance to its centre, so a long wall or a dock on the shore is reached from
 // any side at the same range.
 static float structure_gap(const Simulation::Building &b, float x, float z, float radius) {
@@ -8186,6 +8187,9 @@ float Simulation::unit_move_speed(size_t i) const {
 	return spd;
 }
 
+// How close a guard keeps to the unit it guards (Guard.js/UnitAI guardRange).
+static constexpr float GUARD_RANGE = 3.0f;
+
 void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	steps = MoveSteps{};
 	const size_t n = units_.count;
@@ -8264,7 +8268,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// A ship stops in the water beside the dock, a little further out.
 		const float reach = ttype == UNIT_MERCHANT_SHIP ? 4.0f : 2.0f;
 		if (dx * dx + dz * dz >= 2.5f * 2.5f &&
-				structure_gap(dest, px[ti], pz[ti], unit_collision_radius(ttype)) >= reach) continue;
+				structure_gap(dest, px[ti], pz[ti], unit_building_clearance(units_.tmpl[ti], ttype)) >= reach) continue;
 
 		// Arrived (Trader.js PerformTrade). The goods loaded at the other market pay what was
 		// worked out when they were loaded (GenerateResources): the trader's owner its gain and,
@@ -8317,6 +8321,22 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		short_path_key_ = key ? key : 1u;
 	}
 
+	// UnitAI ESCORTING Timer: a guard within 3 guard ranges of the unit it guards walks no
+	// faster than that unit moves now (TryMatchTargetSpeed, mayRun false). Read before the
+	// parallel pass, which writes the velocities.
+	float *guard_cap = arena.alloc_array<float>(n);
+	if (!guard_cap) return;
+	for (size_t i = 0; i < n; ++i) {
+		guard_cap[i] = 0.0f;
+		if (!alive[i] || units_.action_state[i] != ACTION_GUARD || units_.target_unit_id[i] == 0) continue;
+		const int32_t g = lookup_unit(units_.target_unit_id[i]);
+		if (g < 0 || !alive[g]) continue;
+		const float gdx = px[g] - px[i], gdz = pz[g] - pz[i];
+		if (gdx * gdx + gdz * gdz > (3.0f * GUARD_RANGE) * (3.0f * GUARD_RANGE)) continue;
+		const float gs = std::sqrt(vx[g] * vx[g] + vz[g] * vz[g]);
+		if (gs > 0.0f) guard_cap[i] = std::min(unit_walk_speed(i), gs);
+	}
+
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
@@ -8348,11 +8368,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (units_.action_state[i] == ACTION_GUARD && units_.target_unit_id[i] != 0) {
 			int32_t gtidx = lookup_unit(units_.target_unit_id[i]);
 			if (gtidx >= 0 && units_.alive[gtidx]) {
-				// Stay within 3m of guarded unit
+				// Stay within GUARD_RANGE of guarded unit
 				float gdx = px[gtidx] - px[i];
 				float gdz = pz[gtidx] - pz[i];
 				float gd2 = gdx * gdx + gdz * gdz;
-				if (gd2 > 3.0f * 3.0f) {
+				if (gd2 > GUARD_RANGE * GUARD_RANGE) {
 					tx[i] = px[gtidx];
 					tz[i] = pz[gtidx];
 					has[i] = 1;
@@ -8559,7 +8579,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f &&
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 				const float reach = capture ? CAPTURE_RANGE : attack_reach(i);
-				const float eff_d = structure_gap(b, px[i], pz[i], unit_collision_radius(units_.unit_type[i]));
+				const float eff_d = structure_gap(b, px[i], pz[i], unit_building_clearance(units_.tmpl[i], units_.unit_type[i]));
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
 			}
@@ -8645,7 +8665,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		float inv = 1.0f / sqrtf(d2);
 		float ux = dx * inv;
 		float uz = dz * inv;
-		const float spd = unit_move_speed(i);
+		const float spd = guard_cap[i] > 0.0f ? std::min(unit_move_speed(i), guard_cap[i]) : unit_move_speed(i);
 		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
 		float move_dx = ux * spd * dt;
 		float move_dz = uz * spd * dt;
@@ -9486,7 +9506,7 @@ bool Simulation::chase_falls_short(size_t i) const {
 		return dx * dx + dz * dz > reach * reach;
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
-	return structure_gap(b, ex, ez, unit_collision_radius(units_.unit_type[i])) > reach;
+	return structure_gap(b, ex, ez, unit_building_clearance(units_.tmpl[i], units_.unit_type[i])) > reach;
 }
 
 // ShouldAbandonChase on the COMBAT timer: FinishOrder. A fight the unit picked itself ends and
@@ -10439,7 +10459,7 @@ void Simulation::tick_pack(float dt) {
 				const Building &b = buildings_[bit->second];
 				if (is_hostile(units_.team[i], b.team)) {
 					const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i],
-							unit_collision_radius(units_.unit_type[i]));
+							unit_building_clearance(units_.tmpl[i], units_.unit_type[i]));
 					target_in_range = in_parabolic_range(eff_d * eff_d, att_y, get_terrain_height(b.x, b.z),
 							attack_reach(i));
 				}

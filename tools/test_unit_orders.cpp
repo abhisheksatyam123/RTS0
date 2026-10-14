@@ -282,6 +282,32 @@ static void test_guard() {
 			dist(s, g, x_of(s, vip), z_of(s, vip)) < 5.0f, "then goes back to guarding");
 }
 
+// UnitAI ESCORTING: a guard within three guard ranges of the unit it guards walks no faster
+// than that unit moves (TryMatchTargetSpeed), so it doesn't overtake a slow one.
+static void test_guard_speed() {
+	std::printf("5b. guard matches the guarded unit's speed\n");
+	Simulation s;
+	setup(s);
+	uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_HERO, 5000.0f);
+	s.order_set_stance(&vip, 1, STANCE_PASSIVE);
+	uint32_t g = s.spawn_unit(-6, 0, 0, UNIT_SWORDSMAN);
+	const size_t vi = (size_t)idx_of(s, vip), gi = (size_t)idx_of(s, g);
+	s.units_.speed[vi] = s.unit_walk_speed(gi) * 0.4f;
+	s.order_guard(&g, 1, vip);
+	s.order_walk(&vip, 1, 40, 0);
+	run(s, 1.0f);
+	float fastest = 0.0f;
+	for (int k = 0; k < 100; ++k) {
+		const float x0 = x_of(s, g), z0 = z_of(s, g);
+		s.tick(DT);
+		fastest = std::max(fastest, std::hypot(x_of(s, g) - x0, z_of(s, g) - z0) / DT);
+	}
+	const float vs = s.unit_walk_speed(vi), gs = s.unit_walk_speed(gi);
+	std::printf("  guarded walks %.2f, guard could walk %.2f, walked at most %.2f\n", vs, gs, fastest);
+	check(fastest <= vs * 1.05f + 0.01f, "the guard walks no faster than the unit it guards");
+	check(dist(s, g, x_of(s, vip), z_of(s, vip)) < 9.0f, "and keeps up with it");
+}
+
 static void test_patrol() {
 	std::printf("6. patrol\n");
 	Simulation s;
@@ -2429,6 +2455,7 @@ int main(int argc, char **argv) {
 	test_stance_leash();
 	test_attack_move();
 	test_guard();
+	test_guard_speed();
 	test_patrol();
 	test_women_flee();
 	test_rally();
