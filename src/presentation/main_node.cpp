@@ -4380,7 +4380,11 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			spawn_map_wall(*sim, b, team);
 			continue;
 		}
-		uint8_t btype = b.has("template") ? map_building_template(b["template"]) : (uint8_t)rtso::BLD_TYPE_COUNT;
+		// The structures only maps place (bolt towers, stoas, tents) by their template, then the
+		// generic and civ structures by template or name.
+		const String tmpl = b.get("template", "");
+		uint8_t btype = rtso::map_structure_template(tmpl.utf8().get_data()).type;
+		if (btype >= rtso::BLD_TYPE_COUNT && !tmpl.is_empty()) btype = map_building_template(tmpl);
 		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(stype_str);
 		if (btype >= rtso::BLD_TYPE_COUNT) {
 			if (stype_str.is_empty()) continue; // a civ structure RTS0 doesn't have
@@ -4398,12 +4402,12 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			gaia_structure_ids[i] = spawn_map_wall(*sim, b, rtso::GAIA_PLAYER);
 			continue;
 		}
-		// structures/shrine_* and trading_post_*: their own types, keeping the template's civ.
-		const rtso::GaiaStructureTemplate gt = rtso::gaia_structure_template(String(b.get("template", "")).utf8().get_data());
+		// structures/shrine_*, trading_post_*, rome/tent...: their own types, keeping the template's civ.
+		const rtso::MapStructureTemplate gt = rtso::map_structure_template(String(b.get("template", "")).utf8().get_data());
 		const uint8_t btype = gt.type < rtso::BLD_TYPE_COUNT ? gt.type : map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
-		if (gt.type < rtso::BLD_TYPE_COUNT) sim->set_building_civ(gaia_structure_ids[i], gt.civ);
+		if (gt.type < rtso::BLD_TYPE_COUNT && gt.civ < rtso::CIV_COUNT) sim->set_building_civ(gaia_structure_ids[i], gt.civ);
 	}
 	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
 	Array scenery_arr = d.get("scenery", Array());

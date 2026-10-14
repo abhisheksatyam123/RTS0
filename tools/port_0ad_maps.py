@@ -24,6 +24,7 @@ Maps fetched with --github get their world size from the .pmp (one RTS0 world un
 0 A.D. tile, clamped to 128..512) and a heightmap of one sample per 4 tiles.
 0 A.D. maps are CC BY-SA 3.0; see docs/0AD_ATTRIBUTION.md.
 """
+import re
 import zipfile
 import xml.etree.ElementTree as ET
 import json
@@ -164,6 +165,8 @@ def gaia_entity(ltpl, wx, wz):
     return None
 
 _TEMPLATE_CACHE = {}
+# Structures only maps place, which RTS0 finds by template (sim_types.h map_structure_template).
+MAP_ONLY_STRUCTURE = re.compile(r"(^|/)(\w+/tower_bolt|\w+/tower_artillery|\w+/royal_stoa|hellenic_stoa|pers/inn|rome/tent|rome/arch)$")
 
 def _read_template(source, rel):
     """Parsed simulation/templates/<rel>.xml, or None if 0 A.D. has no such file."""
@@ -493,7 +496,7 @@ def apply_player_data(players, settings):
 
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
              terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False,
-             supplies_only=False, walls_only=False, livestock_only=False):
+             supplies_only=False, walls_only=False, livestock_only=False, structures_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -842,6 +845,36 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         os.makedirs("data/maps", exist_ok=True)
         out_path = f"data/maps/{map_id}.json"
+        if structures_only:
+            # Keep the existing map; only give it the structures only maps place (bolt and artillery
+            # towers, stoas, the Persian inn, the Roman tent and arch: sim_types.h
+            # map_structure_template): an entry at the same spot gets the template, a missing one
+            # is appended (indices of the entries already there don't move).
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            k = old.get("world_size", world_size_m) / world_size_m
+            tagged = added = 0
+            for key, new in (("structures", structures), ("gaia_structures", gaia["gaia_structures"])):
+                have = old.setdefault(key, [])
+                for e in new:
+                    if not MAP_ONLY_STRUCTURE.search(e.get("template", "")):
+                        continue
+                    x, z = round(e["x"] * k, 2), round(e["z"] * k, 2)
+                    o = next((o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5 and "wallset" not in o
+                              and o.get("player") == e.get("player")), None)
+                    if o is None:
+                        have.append(dict(e, x=x, z=z))
+                        added += 1
+                    elif o.get("template") != e["template"]:
+                        o["template"] = e["template"]
+                        tagged += 1
+            if tagged or added:
+                with open(out_path, "w") as f:
+                    json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: {tagged} structures given their template, {added} added")
+            return
         if supplies_only:
             # Keep the existing map; only refresh each resource's amount and gatherer limit,
             # entry by entry, when the entries still line up with the template's.
@@ -1058,9 +1091,12 @@ if __name__ == "__main__":
                 port_map(mid, xrel, None, source=src, player_data_only=True)
             except FileNotFoundError:
                 print(f"  !! {mid}: no {xrel} in 0 A.D.")
-    elif len(sys.argv) > 2 and sys.argv[1] in ("--supplies-only", "--livestock-only"):
-        src = DirSource(sys.argv[2])
-        only = {"supplies_only": True} if sys.argv[1] == "--supplies-only" else {"livestock_only": True}
+    elif len(sys.argv) > 2 and sys.argv[1] in ("--supplies-only", "--livestock-only", "--structures-only"):
+        # --structures-only <public.zip> [map ids]: from a 0 A.D. public.zip (or an unpacked one).
+        def source():  # port_map closes a ZipFile when done with it
+            return zipfile.ZipFile(sys.argv[2]) if sys.argv[2].endswith(".zip") else DirSource(sys.argv[2])
+        only = {"--supplies-only": {"supplies_only": True}, "--livestock-only": {"livestock_only": True},
+                "--structures-only": {"structures_only": True}}[sys.argv[1]]
         tables = [(mid, xrel, prel, size, bome, hscale) for mid, xrel, prel, size, bome, hscale in maps_list]
         tables += [(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None)
                    for name, (mid, bome) in github_skirmishes.items()]
@@ -1068,9 +1104,11 @@ if __name__ == "__main__":
                    for folder, table in (("scenarios", github_scenarios), ("tutorials", github_tutorials))
                    for name, (mid, bome) in table.items()]
         for row in sorted(set(tables)):
+            if sys.argv[3:] and row[0] not in sys.argv[3:]:
+                continue
             try:
-                port_map(*row, source=src, **only)
-            except FileNotFoundError:
+                port_map(*row, source=source(), **only)
+            except (FileNotFoundError, KeyError):
                 print(f"  !! {row[0]}: no {row[1]} in 0 A.D.")
     elif len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only", "--environment-only", "--walls-only"):
         # Refresh fauna, treasures and ruins (or only the per-tile terrain, or only the
