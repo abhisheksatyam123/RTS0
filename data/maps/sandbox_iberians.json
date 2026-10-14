@@ -4338,7 +4338,68 @@
       "amount": 200
     }
   ],
-  "fauna": [],
+  "fauna": [
+    {
+      "type": "sheep",
+      "x": -12.31,
+      "z": -7.4,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -12.77,
+      "z": -6.9,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -11.85,
+      "z": -7.89,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -13.23,
+      "z": -6.41,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -11.39,
+      "z": -8.38,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -7.33,
+      "z": -12.33,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -7.82,
+      "z": -11.86,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -6.84,
+      "z": -12.79,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -8.31,
+      "z": -11.4,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -6.35,
+      "z": -13.26,
+      "player": 1
+    }
+  ],
   "structures": [
     {
       "type": "town_center",

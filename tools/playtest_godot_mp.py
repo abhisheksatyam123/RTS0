@@ -16,6 +16,12 @@ host's chat must say "bob has left the game."; the second time the host leaves,
 and the client must show "Connection to the server has been lost." with "The
 host has ended the game.", whose Exit opens the summary as disconnected.
 
+Both clients sit behind a simulated NAT firewall (each drops datagrams from
+endpoints it never sent to; --no-firewall turns it off), so the join works
+only through 0 A.D.'s NAT traversal: both find their public endpoint with the
+lobby's STUN responder, the joiner sends its endpoint through the lobby, and
+the host punches a hole towards it.
+
 Needs a Godot 4.3 binary (--godot or $GODOT) and an imported project
 (.godot/) with the built GDExtension in bin/:
 
@@ -45,6 +51,9 @@ def main():
     ap.add_argument("--port", type=int, default=20640, help="the game's UDP port")
     ap.add_argument("--turns", type=int, default=150)
     ap.add_argument("--timeout", type=int, default=300, help="seconds each client may take")
+    ap.add_argument("--no-firewall", action="store_true",
+                    help="skip the simulated NAT firewall (each peer otherwise drops datagrams from "
+                         "endpoints it never sent to, so the join needs STUN and the lobby's hole punch)")
     args = ap.parse_args()
     if not args.godot or not os.path.exists(args.godot):
         print("no Godot binary: pass --godot or set $GODOT")
@@ -54,11 +63,14 @@ def main():
     lobby_server.LOBBY = lobby_server.Lobby()
     threading.Thread(target=server.serve_forever, daemon=True).start()
     lobby = f"127.0.0.1:{server.server_address[1]}"
+    stun = lobby_server.serve_stun("127.0.0.1", 0)
+    args.stun_port = stun.getsockname()[1]
 
     ok = True
     for leave in ("join", "host"):
         ok = play(args, lobby, leave) and ok
     server.shutdown()
+    stun.close()
     return 0 if ok else 1
 
 
@@ -68,11 +80,28 @@ def play(args, lobby, leave):
     def client(role, name):
         cmd = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
                f"role={role}", f"name={name}", f"lobby={lobby}", f"port={port}",
-               f"turns={args.turns}", f"timeout={args.timeout}", f"leave={leave}"]
+               f"turns={args.turns}", f"timeout={args.timeout}", f"leave={leave}", f"stun={args.stun_port}", f"lan={1 if lan else 0}"]
+        if not args.no_firewall:
+            cmd.append("net_firewall=1")
         return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
+    # The first match joins at the host's public address (NAT on both sides);
+    # the second, from behind the host's own public address, at its LAN one.
+    lan = leave == "host"
     host = client("host", "alice")
     time.sleep(2.0)
+    if lan:
+        until = time.time() + 30
+        while time.time() < until:
+            with lobby_server.LOBBY.lock:
+                raw = next((r for r in lobby_server.LOBBY.rooms if r["id"] == f"room-{port}"), {})
+            if raw.get("local_ip"):
+                break
+            time.sleep(0.25)
+        # A machine with no route has no LAN address to publish.
+        lan = bool(raw.get("local_ip"))
+        if not lan:
+            print("[gmp] note: the host found no LAN address; the joiner uses the public one")
     join = client("join", "bob")
     # Read both outputs as they come, so the host's Start can be seen live.
     lines = {"host": [], "join": []}
@@ -87,13 +116,17 @@ def play(args, lobby, leave):
     frozen = None
 
     # What the lobby showed while the match ran.
-    seen = {"running": False, "two": False, "playing": set(), "names": set(), "started_at": False}
+    seen = {"running": False, "two": False, "playing": set(), "names": set(), "started_at": False,
+            "punched": False}
     procs = (host, join)
     deadline = time.time() + args.timeout + 30
     while any(p.poll() is None for p in procs) and time.time() < deadline:
         with lobby_server.LOBBY.lock:
             rooms = lobby_server.LOBBY.room_list()[1]["rooms"]
             players = lobby_server.LOBBY.player_list()[1]["players"]
+            raw = next((r for r in lobby_server.LOBBY.rooms if r["id"] == f"room-{port}"), None)
+            # The joiner's STUN endpoint, sent for the host to punch towards.
+            seen["punched"] = seen["punched"] or bool(raw and raw.get("punch"))
         room = next((r for r in rooms if r["id"] == f"room-{port}"), None)
         if room and room["state"] == "running":
             seen["running"] = True
@@ -142,6 +175,9 @@ def play(args, lobby, leave):
           and seen["names"] == {"alice", "bob"} and seen["started_at"])
     def said(role, key):
         return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs[role]) if f" {key}=" in l), "")
+    stun_found = all("[NetHost] STUN: public endpoint" in outs[role] for role in ("host", "join"))
+    retargeted = "instead" in outs["join"]
+    ok = ok and stun_found and seen["punched"] and retargeted == lan
     waited = said("host", "waiting")
     ok = ok and waited == "Waiting for players to connect: bob"
     ok = ok and said("host", "start_refused") == "true"
@@ -169,6 +205,12 @@ def play(args, lobby, leave):
         print(f"[gmp] PASS the host left and the client showed: {said('join', 'net_status')}; "
               f"Exit opened the summary as disconnected")
     if ok:
+        print("[gmp] PASS both peers found their public endpoint by STUN and the joiner's went through the "
+              "lobby; " + ("behind simulated NAT firewalls, only the hole punches let the join in"
+                           if not args.no_firewall else "no firewall") +
+              ("; behind the host's own public address it joined at the host's LAN address" if lan
+               else "; it joined at the host's public address"))
+    if ok:
         print(f"[gmp] PASS two Godot clients: lobby sign-in, host, join from the game list, Start; "
               f"turn {args.turns} hash {h['hash']} on both (seats 0 and 1); the lobby showed the game "
               f"running with 2 players, alice and bob in a game and in its details, and its start time")
@@ -177,7 +219,8 @@ def play(args, lobby, leave):
         for role in ("host", "join"):
             print(f"---- {role} output (tail) ----")
             print("\n".join((outs[role] or "").splitlines()[-40:]))
-    print(f"[gmp] FAIL rc host/join={host.returncode}/{join.returncode} host={h} join={j} lobby={seen}")
+    print(f"[gmp] FAIL rc host/join={host.returncode}/{join.returncode} host={h} join={j} lobby={seen} "
+          f"stun={stun_found} lan={lan} retargeted={retargeted}")
     return False
 
 

@@ -12680,6 +12680,42 @@
       "type": "deer",
       "x": 93.44,
       "z": 33.5
+    },
+    {
+      "type": "sheep",
+      "x": 120.69,
+      "z": 7.47,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": 111.82,
+      "z": 13.6,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": 111.07,
+      "z": 6.49,
+      "player": 2
+    },
+    {
+      "type": "sheep",
+      "x": -112.28,
+      "z": -12.19,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -106.49,
+      "z": -9.7,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -107.19,
+      "z": -17.56,
+      "player": 1
     }
   ],
   "structures": [
