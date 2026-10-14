@@ -432,6 +432,11 @@ jobs:
           g++ -std=c++20 -O2 -Isrc tools/test_nat.cpp src/network/net_host.cpp -o /tmp/test_nat
           /tmp/test_nat
 
+      - name: Host session limits (MAX_CLIENTS, Server full)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_net_host.cpp src/network/net_host.cpp -o /tmp/test_net_host
+          /tmp/test_net_host
+
       - name: Lockstep playtest
         run: python3 tools/playtest_lockstep.py
 
