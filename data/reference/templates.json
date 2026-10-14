@@ -1408,7 +1408,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "phases": [
     {
@@ -16362,7 +16363,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -16441,7 +16443,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -16519,7 +16522,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -16604,7 +16608,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -16690,7 +16695,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -16769,7 +16775,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -17299,7 +17306,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -17370,7 +17378,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -22768,7 +22777,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -22848,7 +22858,8 @@
     24,
     33,
     42,
-    43
+    43,
+    85
    ],
    "viewer": {
     "attacks": [
@@ -35995,6 +36006,32 @@
     "icon": "gaia/special_stoa.png",
     "template": "structures/hellenic_stoa",
     "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "85": {
+    "generic_name": "Temple of Isis",
+    "specific_name": "Naos",
+    "tooltip": "Train Heroes and Healers. Research special technologies.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "City",
+     "TempleOfIsis"
+    ],
+    "icon": "structures/temple_epic.png",
+    "template": "structures/ptol/temple_2",
+    "viewer": {
+     "garrison": {
+      "capacity": 30,
+      "buff_heal": 3
+     },
      "status_resistance": {
       "Poisoned": {
        "block": 1,

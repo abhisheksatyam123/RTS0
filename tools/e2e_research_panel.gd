@@ -3,7 +3,7 @@ extends SceneTree
 # selection_panels_right/research_panel.xml):
 #   1. each technology is an icon button (its 0.28 icon) with names, cost and the
 #      right-click line in its tooltip;
-#   2. a pair (pair_*.json, the Ptolemaic temple's Pharaonic and Serapis Cults)
+#   2. a pair (pair_*.json, the Temple of Isis's Pharaonic and Serapis Cults)
 #      stands together with the pair connector, top first, and hovering one
 #      crosses out the other;
 #   3. a technology the stock can't pay for is disabled under a red mask with the
@@ -13,7 +13,7 @@ extends SceneTree
 # Exit code 0 = pass.
 
 const BLD_DOCK := 11
-const BLD_TEMPLE := 9
+const BLD_TEMPLE_ISIS := 85
 const CIV_PTOLEMIES := 11
 
 var main
@@ -38,8 +38,8 @@ func frames(n: int) -> void:
 
 func run() -> void:
 	await frames(60)
-	print("1-2. The temple's pair")
-	main.debug_train_buttons(BLD_TEMPLE)
+	print("1-2. The Temple of Isis' pair")
+	main.debug_train_buttons(BLD_TEMPLE_ISIS)
 	await frames(2)
 	var row: Array = main.debug_command_row()
 	var pair: Array = row.filter(func(e): return e["paired"])
