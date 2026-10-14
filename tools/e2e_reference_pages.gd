@@ -66,6 +66,17 @@ func run() -> void:
 			trains += b["units"].size()
 		check(trains > 10, "%s: structures train %d units" % [civs[i]["name"], trains])
 	check(empty_history.is_empty(), "every civ has its 0 A.D. history " + str(empty_history))
+	# 0.28 civinfo: civ bonuses from auto-researched civ techs and player auras besides
+	# {civ}.json, team bonuses from the player auras, (i) info hovers, and only the
+	# techs and structures 0.28 counts as civ specific.
+	civinfo._on_civ_selected(0)
+	var athen: String = civinfo._gameplay.text
+	check(athen.contains("Delian League") and athen.contains("Silver Owls") and athen.contains("Democracy"),
+		"Athenian bonuses: Delian League (tech), Silver Owls (civ json), Democracy (team)")
+	check(athen.contains("[hint=") and athen.contains("Ships −25% construction time."), "entries carry an info hover and the tooltip text")
+	var own: Array = Common.text()["civs"]["athen"]["specific_structures"]
+	check(athen.contains("Long Walls") and not athen.contains("Wicker Baskets"), "specific technologies only")
+	check(athen.contains("Gymnasium") and athen.count("[url=structure:") == own.size(), "specific structures only (%d)" % own.size())
 	# 0.28 structree: the civ header, a production row per phase under each box, the
 	# Trainer Units section and EntityBox tooltips.
 	civinfo._on_civ_selected(0) # Athenians: their warships train marines
