@@ -1068,6 +1068,9 @@ github_skirmishes = {
     "via_augusta_4p": ("via_augusta", "mediterranean"),
     "white_cliffs_of_dover_5p": ("white_cliffs_of_dover", "temperate"),
     "yangtze_2p": ("yangtze", "temperate"),
+    # 0.28's demo skirmishes (Keywords "demo": Game Setup's Demo Maps filter).
+    "north_african_savanna_2p": ("north_african_savanna", "savanna"),
+    "skirmish_demo_2p": ("skirmish_demo", "mediterranean"),
 }
 
 # 0 A.D. scenario maps (maps/scenarios/) fetched with --github-scenarios: file -> (id, biome).
@@ -1102,6 +1105,33 @@ github_scenarios = {
     "gorge": ("gorge", "temperate"),
     "temperate_map": ("temperate_map", "temperate"),
     "walltest": ("walltest", "temperate"),
+    # 0.28's demo scenarios (Keywords "demo"). Left out: the ones run by trigger scripts RTS0
+    # has no port of, or with no terrain file (see REMAINING_GAPS).
+    "bridge_demo": ("bridge_demo", "temperate"),
+    "campaign_test_map": ("campaign_test_map", "mediterranean"),
+    "campaign_test_map_2_heightmap": ("campaign_test_map_2_heightmap", "mediterranean"),
+    "combat_demo": ("combat_demo", "mediterranean"),
+    "demo_trading": ("demo_trading", "mediterranean"),
+    "eire_and_albion": ("eire_and_albion", "temperate"),
+    "fishing_demo": ("fishing_demo", "mediterranean"),
+    "flight_demo": ("flight_demo", "mediterranean"),
+    "multiplayer_demo": ("multiplayer_demo", "mediterranean"),
+    "napata_reconstruction": ("napata_reconstruction", "nubia"),
+    "pathfinding_demo": ("pathfinding_demo", "mediterranean"),
+    "pathfinding_terrain_demo": ("pathfinding_terrain_demo", "mediterranean"),
+    "polynesia": ("polynesia", "tropical"),
+    "reservoir": ("reservoir", "mediterranean"),
+    "resource_demo": ("resource_demo", "mediterranean"),
+    "road_demo": ("road_demo", "mediterranean"),
+    "sandbox_germans": ("sandbox_germans", "temperate"),
+    "sandbox_ptolemies_02": ("sandbox_ptolemies_02", "desert"),
+    "ship_formations": ("ship_formations", "mediterranean"),
+    "shipattacks": ("shipattacks", "mediterranean"),
+    "territory_demo": ("territory_demo", "mediterranean"),
+    "test_foundation": ("test_foundation", "mediterranean"),
+    "tropical_island": ("tropical_island", "tropical"),
+    "walls": ("walls", "mediterranean"),
+    "we_are_legion": ("we_are_legion", "mediterranean"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
