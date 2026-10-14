@@ -6,7 +6,7 @@
   python3 tools/port_0ad_maps.py --github-builtin # the built-in list, fetched from GitHub
   python3 tools/port_0ad_maps.py --github-scenarios [NAME..]  # scenario maps, same way
   python3 tools/port_0ad_maps.py --zip-scenarios ZIP [NAME..]  # scenario maps from a 0 A.D. public.zip
-  python3 tools/port_0ad_maps.py --zip-skirmishes ZIP [NAME..]  # skirmish maps from a 0 A.D. public.zip
+  python3 tools/port_0ad_maps.py --zip-skirmishes ZIP|DIR [NAME..]  # skirmish maps from a 0 A.D. public.zip or unpacked tree
   python3 tools/port_0ad_maps.py --github-tutorials [NAME..]  # the tutorials (maps/tutorials/)
   python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
   python3 tools/port_0ad_maps.py --environment-only   # add each ported map's Environment (sun, fog, water) from GitHub
@@ -705,6 +705,11 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     key, ent = gaia_entity(ltpl, wx, wz)
                     gaia[key].append(dict(ent, player=ply))
                     continue
+                if "gaia/ruins/" in ltpl:
+                    # A player's statue (Island of Meroe's, Crocodilopolis'): RTS0 ruins have no owner.
+                    key, ent = gaia_entity(ltpl, wx, wz)
+                    gaia[key].append(ent)
+                    continue
                 if ltpl.startswith("vision_revealers/"):
                     # A VisionRevealer marker: RTS0 has no such entity.
                     continue
@@ -1034,6 +1039,22 @@ github_skirmishes = {
     "oceanside_2p": ("oceanside", "mediterranean"),
     "watering_holes_4p": ("watering_holes", "savanna"),
     "sicilia_nomad_2p": ("sicilia_nomad", "mediterranean"),
+    # 0.28 skirmishes ported from an unpacked 0.28 maps/ tree (F).
+    "barcania_3p": ("barcania", "mediterranean"),
+    "butana_steppe_2p": ("butana_steppe", "nubia"),
+    "caspian_sea_2pv2p": ("caspian_sea", "persia"),
+    "cisalpine_winter_2p": ("cisalpine_winter", "alpine"),
+    "corsica_and_sardinia_4p": ("corsica_and_sardinia", "mediterranean"),
+    "crocodilopolis_4p": ("crocodilopolis", "desert"),
+    "dueling_cliffs_3pv3p": ("dueling_cliffs", "alpine"),
+    "egypt_3pv3p": ("egypt", "desert"),
+    "gallic_highlands_2p": ("gallic_highlands", "temperate"),
+    "golden_oasis_2p": ("golden_oasis", "desert"),
+    "greek_acropolis_night_2p": ("greek_acropolis_night", "mediterranean"),
+    "libyan_oasis_2p": ("libyan_oasis", "desert"),
+    "magadha_2p": ("magadha", "india"),
+    "north_african_savanna_2p": ("north_african_savanna", "savanna"),
+    "nubian_frontier_2p": ("nubian_frontier", "nubia"),
     # 0.28 skirmishes ported from its public.zip (--zip-skirmishes).
     "obedska_bog_4p": ("obedska_bog", "temperate"),
     "obedska_bog_night_4p": ("obedska_bog_night", "temperate"),
@@ -1077,6 +1098,10 @@ github_scenarios = {
     "serengeti": ("serengeti", "savanna"),
     "ship_combat_demo": ("ship_combat_demo", "mediterranean"),
     "third_macedonian_war": ("third_macedonian_war", "mediterranean"),
+    # 0.28's test stubs, listed in its Scenarios dropdown like any other.
+    "gorge": ("gorge", "temperate"),
+    "temperate_map": ("temperate_map", "temperate"),
+    "walltest": ("walltest", "temperate"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
@@ -1161,11 +1186,13 @@ if __name__ == "__main__":
             port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
                      source=zipfile.ZipFile(sys.argv[2]))
     elif len(sys.argv) > 2 and sys.argv[1] == "--zip-skirmishes":
-        # --zip-skirmishes <public.zip> [names]: like --github, from a 0 A.D. public.zip.
+        # --zip-skirmishes <public.zip or unpacked dir> [names]: like --github, from a 0 A.D. public.zip
+        # or a directory holding its maps/ and simulation/.
         for name in sys.argv[3:] or sorted(github_skirmishes):
             mid, bome = github_skirmishes.get(name, (name, "mediterranean"))
+            src = DirSource(sys.argv[2]) if os.path.isdir(sys.argv[2]) else zipfile.ZipFile(sys.argv[2])
             port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None,
-                     source=zipfile.ZipFile(sys.argv[2]))
+                     source=src)
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-tutorials":
         for name in sys.argv[2:] or sorted(github_tutorials):
             mid, bome = github_tutorials.get(name, (name, "mediterranean"))
