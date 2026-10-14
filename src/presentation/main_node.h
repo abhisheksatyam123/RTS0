@@ -465,10 +465,12 @@ public:
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
 	bool chat_network_command(const String &text) override;
+	bool chat_reaches(uint8_t from, uint8_t to, const std::string &tag) const;
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
 	std::vector<std::pair<int, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
+	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
 	// gui.session.formationwalkonly: this order takes its units out of their formations.
 	bool order_disbands_formation(uint8_t cmd_type) const;
@@ -588,6 +590,8 @@ private:
 	uint32_t own_fauna_at(float x, float z) const;
 	void update_command_panel();
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
+	// Commands.js "construct-wall" from wall_drag_start_pos to `end` (input.js tryPlaceWall): false when no piece can go down.
+	bool try_place_wall(const Vector3 &end, bool queued);
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
 	float placement_angle_at(uint8_t btype, float x, float z) const;

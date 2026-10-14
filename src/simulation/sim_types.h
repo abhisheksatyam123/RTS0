@@ -1431,7 +1431,41 @@ struct WallSetInfo {
 	float tower_health, tower_cost, tower_build_time;
 };
 
-inline const WallSetInfo &wallset_info(uint8_t kind) {
+// Each civ's stone WallSet (structures/{civ}/wallset_stone.xml Min/MaxTowerOverlap, else
+// template_wallset's 0.05 and 0.85; wall_tower WallPiece/Length; wall_long/medium/short
+// WallPiece/Length and Obstruction Static depth), in metres. Gaia's maps lay the Athenian set.
+struct WallCivGeometry {
+	float tower_length, min_overlap, max_overlap, lengths[3], depth;
+};
+
+inline const WallCivGeometry &wall_civ_geometry(uint8_t civ) {
+	static const WallCivGeometry kCivs[CIV_COUNT] = {
+		{7.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // athen
+		{7.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // spart
+		{7.0f, 0.05f, 0.85f, {36.0f, 24.0f, 12.0f}, 6.0f},  // pers (template_wallset overlaps)
+		{10.0f, 0.10f, 0.80f, {36.0f, 24.0f, 12.0f}, 8.0f}, // rome
+		{11.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 7.0f}, // cart
+		{7.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // mace
+		{10.0f, 0.05f, 0.80f, {36.0f, 24.0f, 12.0f}, 6.0f}, // brit
+		{8.0f, 0.05f, 0.80f, {36.0f, 24.0f, 12.0f}, 6.0f},  // gaul
+		{10.0f, 0.20f, 0.80f, {36.0f, 24.0f, 12.0f}, 7.0f}, // iber
+		{7.0f, 0.05f, 0.85f, {36.0f, 24.0f, 12.0f}, 4.0f},  // maur (template_wallset overlaps)
+		{8.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // kush
+		{9.0f, 0.15f, 0.90f, {38.0f, 25.0f, 15.0f}, 5.0f},  // ptol
+		{7.0f, 0.05f, 0.90f, {34.0f, 21.0f, 11.0f}, 5.0f},  // sele (MinTowerOverlap from template_wallset)
+		{10.0f, 0.10f, 0.80f, {36.0f, 24.0f, 12.0f}, 8.0f}, // han
+		{7.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // Gaia: athen
+		{9.0f, 0.05f, 0.80f, {36.0f, 24.0f, 12.0f}, 8.0f},  // germ
+	};
+	return kCivs[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
+}
+
+// The `kind` WallSet of `civ` (CIV_COUNT: the generic one, the Athenian stone set). Only stone
+// walls differ by civ, and Han palisades reach further into their towers (han/wallset_palisade.xml
+// MaxTowerOverlap 0.95).
+inline WallSetInfo wallset_info(uint8_t kind, uint8_t civ = CIV_COUNT);
+
+inline const WallSetInfo &wallset_base_info(uint8_t kind) {
 	static const WallSetInfo kSets[WALLSET_COUNT] = {
 		{BLD_WALL_SEGMENT, BLD_WALL_TOWER, {WALL_SEGMENT_LENGTHS[0], WALL_SEGMENT_LENGTHS[1], WALL_SEGMENT_LENGTHS[2]},
 			WALL_TOWER_LENGTH, 1.0f, WALL_MIN_TOWER_OVERLAP, WALL_MAX_TOWER_OVERLAP, WALL_HALF_DEPTH,
@@ -1453,6 +1487,22 @@ inline const WallSetInfo &wallset_info(uint8_t kind) {
 			3000.0f, 80.0f, 40.0f * 0.25f},
 	};
 	return kSets[kind < WALLSET_COUNT ? kind : 0];
+}
+
+inline WallSetInfo wallset_info(uint8_t kind, uint8_t civ) {
+	WallSetInfo ws = wallset_base_info(kind);
+	if (civ >= CIV_COUNT) return ws;
+	if (ws.segment == BLD_WALL_SEGMENT) {
+		const WallCivGeometry &g = wall_civ_geometry(civ);
+		for (int k = 0; k < 3; ++k) ws.lengths[k] = g.lengths[k] / 4.0f;
+		ws.tower_length = g.tower_length / 4.0f;
+		ws.min_overlap = g.min_overlap;
+		ws.max_overlap = g.max_overlap;
+		ws.half_depth = g.depth / 4.0f * 0.5f;
+	} else if (ws.segment == BLD_PALISADE && civ == CIV_HAN) {
+		ws.max_overlap = 0.95f;
+	}
+	return ws;
 }
 
 // Gate.js holders: the stone gate, the palisade gate (a palisades_long Upgrade) and the Roman
@@ -1491,21 +1541,37 @@ inline bool is_wallset_piece(uint8_t type, float half_w) {
 
 // A WallSet piece's 0 A.D. values (wallset_info) by its type and length; negative when it keeps
 // its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
-inline float wallset_piece_value(uint8_t type, float half_w, int what) {
+// `civ` is the piece's template civ (Building::civ); the generic set's lengths are tried too, as
+// maps lay Athenian pieces for every civ.
+inline float wallset_piece_value(uint8_t type, float half_w, int what, uint8_t civ = CIV_COUNT) {
 	if (!is_wallset_piece(type, half_w) || is_gate_type(type)) return -1.0f;
-	const WallSetInfo &ws = wallset_info(wallset_kind_of(type));
+	const WallSetInfo ws = wallset_info(wallset_kind_of(type), civ);
 	if (is_wallset_tower_piece(type, half_w)) return what == 0 ? ws.tower_health : what == 1 ? ws.tower_cost : ws.tower_build_time;
 	const float *v = what == 0 ? ws.health : what == 1 ? ws.cost : ws.build_time;
-	for (int k = 0; k < 3; ++k)
-		if (std::fabs(0.5f * ws.lengths[k] - half_w) < 0.01f) return v[k];
+	const WallSetInfo &generic = wallset_base_info(wallset_kind_of(type));
+	for (const WallSetInfo *set : {&ws, &generic})
+		for (int k = 0; k < 3; ++k)
+			if (std::fabs(0.5f * set->lengths[k] - half_w) < 0.01f) return v[k];
 	return v[0] * 2.0f * half_w / ws.lengths[0]; // any other length: its share of a long one
 }
 
+// Which of `civ`'s segments (0 long, 1 medium, 2 short) a WallSet segment of half length `half_w`
+// is, by the civ's lengths or the generic ones maps lay; -1 for any other length.
+inline int wallset_segment_index(uint8_t type, float half_w, uint8_t civ) {
+	const WallSetInfo ws = wallset_info(wallset_kind_of(type), civ);
+	const WallSetInfo &generic = wallset_base_info(wallset_kind_of(type));
+	for (const WallSetInfo *set : {&ws, &generic})
+		for (int k = 0; k < 3; ++k)
+			if (std::fabs(0.5f * set->lengths[k] - half_w) < 0.01f) return k;
+	return -1;
+}
+
 // Half the depth (along the footprint's v axis, nav/footprint.h) of a building of `type` whose half
-// width is `half_w`. RTS0's buildings are square but for WallSet segments, long and thin.
-inline float building_half_depth(uint8_t type, float half_w) {
+// width is `half_w`, of `civ`'s template. RTS0's buildings are square but for WallSet segments,
+// long and thin.
+inline float building_half_depth(uint8_t type, float half_w, uint8_t civ = CIV_COUNT) {
 	if (!is_wallset_piece(type, half_w) || is_wallset_tower_piece(type, half_w)) return half_w;
-	return wallset_info(wallset_kind_of(type)).half_depth;
+	return wallset_info(wallset_kind_of(type), civ).half_depth;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
