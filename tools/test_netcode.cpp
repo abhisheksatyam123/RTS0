@@ -602,6 +602,12 @@ struct PeerOpts {
     std::string kick_name;
     bool ban = false;           // ... and bans it
     int observer_limit = 8;     // host: network.observerlimit
+    std::string late_observers = "everyone"; // host: network.lateobservers
+    std::string buddies;        // host: lobby.buddies, "a,b"
+    int observer_max_lag = -1;  // host: network.observermaxlag
+    bool auto_catch_up = true;  // network.autocatchup
+    uint32_t stall_turn = 0;    // this peer stops polling for stall_ms after this turn (a lagging machine)
+    uint32_t stall_ms = 0;
     uint32_t humans = 2;        // human seats (the host and humans-1 joiners); 3+ takes the AI slot
     std::string oos_dir;        // where each peer writes its OOS dump
 };
@@ -706,6 +712,19 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     uint32_t me = host ? 0u : 1u;
     tm.set_net_host(&net, me);
     tm.set_observer_limit(opt.observer_limit);
+    {
+        std::set<std::string> buddies;
+        std::string cur;
+        for (char ch : opt.buddies + ",") {
+            if (ch == ',') { if (!cur.empty()) buddies.insert(cur); cur.clear(); }
+            else cur += (char)std::tolower((unsigned char)ch);
+        }
+        tm.set_late_observers(opt.late_observers == "disabled" ? TurnManager::LATE_OBSERVERS_DISABLED
+                              : opt.late_observers == "buddies" ? TurnManager::LATE_OBSERVERS_BUDDIES
+                              : TurnManager::LATE_OBSERVERS_EVERYONE, buddies);
+    }
+    tm.set_observer_max_lag(opt.observer_max_lag);
+    tm.set_auto_catch_up(opt.auto_catch_up);
     Arena arena(1 << 16);
 
     // Chat (0 A.D. NMT_CHAT): what reached this peer, as "sender: text".
@@ -799,6 +818,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     bool save_ok = false;
     uint64_t oos_since = 0;
     std::set<uint32_t> waited_on;
+    bool stall_done = false;
+    // Observer: how far behind the host it ran over the match's last 100 turns.
+    uint64_t behind_sum = 0, behind_samples = 0;
     // The last non-empty status report: the host's empties once the joiner has
     // finished and gone, which can happen before this peer's last turn.
     std::vector<ClientPerformanceMsg::Entry> last_perf;
@@ -989,6 +1011,18 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         // 0 A.D. "Waiting for players": whom this peer was held on.
         if (!tm.is_paused() && tm.waiting_ms() > 300)
             for (uint32_t c : tm.waiting_on()) waited_on.insert(c);
+        if (tm.is_observer() && tm.current_turn() + 100 >= turns) {
+            behind_sum += tm.turns_behind();
+            ++behind_samples;
+        }
+        if (opt.stall_turn && !stall_done && tm.current_turn() >= opt.stall_turn) {
+            // A machine that falls behind: no polling, no turns.
+            stall_done = true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(opt.stall_ms));
+            now = now_us();
+            last = now;
+            last_progress = now;
+        }
         if (!net.clientPerformance().empty()) last_perf = net.clientPerformance();
         float dt = (float)(now - last) * 1e-6f * speed;
         last = now;
@@ -1158,6 +1192,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         std::printf("[net-peer] %s: roster observer=%d list=%s\n", host ? "host" : "join", tm.is_observer() ? 1 : 0,
                     list.empty() ? "-" : list.c_str());
     }
+    if (tm.is_observer())
+        std::printf("[net-peer] join: catchup behind_late=%.1f\n",
+                    behind_samples ? (double)behind_sum / (double)behind_samples : 0.0);
     if (opt.pause_turn)
         std::printf("[net-peer] %s: pause seen=%d by=%u at_turn=%u held_ms=%u\n", host ? "host" : "join",
                     pause_seen ? 1 : 0, paused_by, paused_at_turn, (unsigned)(held_us / 1000));
@@ -1244,6 +1281,12 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--kick-name") == 0) opt.kick_name = v;
             else if (std::strcmp(k, "--ban") == 0) opt.ban = std::atoi(v) != 0;
             else if (std::strcmp(k, "--observer-limit") == 0) opt.observer_limit = std::atoi(v);
+            else if (std::strcmp(k, "--late-observers") == 0) opt.late_observers = v;
+            else if (std::strcmp(k, "--buddies") == 0) opt.buddies = v;
+            else if (std::strcmp(k, "--observer-max-lag") == 0) opt.observer_max_lag = std::atoi(v);
+            else if (std::strcmp(k, "--auto-catch-up") == 0) opt.auto_catch_up = std::atoi(v) != 0;
+            else if (std::strcmp(k, "--stall-turn") == 0) opt.stall_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--stall-ms") == 0) opt.stall_ms = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--humans") == 0) opt.humans = (uint32_t)std::max(2, std::min(3, std::atoi(v)));
         }
         return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),
