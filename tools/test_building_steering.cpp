@@ -932,7 +932,9 @@ static float mine_penetration(const Simulation &s) {
 static float gaia_penetration(const Simulation &s) {
 	const Simulation::UnitView u = s.units();
 	float worst = 0.0f;
-	for (const auto &o : s.gaia_obstacles_) {
+	for (uint32_t k = 0; k < s.gaia_obstacles_.size(); ++k) {
+		const auto &o = s.gaia_obstacles_[k];
+		if (!s.gaia_obstacle_live(k)) continue;
 		for (size_t i = 0; i < u.count; ++i) {
 			if (!u.alive[i] || u.team[i] != 0 || s.units_.target_resource_id[i] == o.id || s.units_.target_unit_id[i] == o.id)
 				continue;

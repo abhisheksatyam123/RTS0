@@ -1040,7 +1040,9 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 
 void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
 	auto it = res_id_to_idx_.find(res_id);
-	if (it != res_id_to_idx_.end()) resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
+	if (it == res_id_to_idx_.end()) return;
+	resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
+	gaia_obstacles_sig_ = 0; // its obstruction size (resource_block_half)
 }
 
 void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
@@ -1892,16 +1894,17 @@ uint8_t distance_class_of(uint8_t type) {
 
 // The mines, which block movement (template_gaia BlockMovement), for the steering and separation lists.
 void Simulation::append_mine_obstacles(std::vector<SteerObstacle> &out) const {
-	for (size_t r = 0; r < resources_.count; ++r) {
+	// mine_candidates_: the supplies that are mines (their type and subtype never change).
+	for (const uint32_t r : mine_candidates_) {
 		nav::Footprint m;
-		if (!resources_.alive[r] || resources_.amount[r] <= 0 ||
-				(resources_.type[r] != RES_GOLD && resources_.type[r] != RES_STONE) || !mine_footprint(r, m)) continue;
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
 		out.push_back(steer_obstacle(resources_.id[r], m.x, m.z, m.ux, m.uz, m.hu, m.hv, MINE_OBSTACLE));
 	}
 }
 
 const std::vector<Simulation::SteerObstacle> &Simulation::tick_mine_obstacles() {
 	if (mine_obstacles_tick_ != ticks_) {
+		ensure_gaia_obstacles();
 		mine_obstacles_.clear();
 		append_mine_obstacles(mine_obstacles_);
 		mine_obstacles_tick_ = ticks_;
@@ -1910,28 +1913,34 @@ const std::vector<Simulation::SteerObstacle> &Simulation::tick_mine_obstacles() 
 }
 
 void Simulation::ensure_gaia_obstacles() {
-	// FNV-1a over what makes the set: the map, and each blocking supply and treasure.
+	// Supplies are only ever appended (spawn_resource_world) and keep their place, type and
+	// position: a depleted one stays in the list, which the lookups skip (gaia_obstacle_live). So
+	// the lists change only with the supply count, a new map or a load (both renumber them), and
+	// the treasures, few enough to name every one.
 	uint64_t h = 1469598103934665603ull;
 	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
-	auto fbits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return (uint64_t)u; };
-	auto blocks = [this](size_t r) {
-		const uint8_t t = resources_.type[r];
-		return resources_.alive[r] && resources_.amount[r] > 0 && resources_.subtype[r] == RES_SUB_NONE &&
-		       (t == RES_WOOD || t == RES_FOOD);
-	};
-	mix(fbits(map_half_));
-	for (size_t r = 0; r < resources_.count; ++r)
-		if (blocks(r)) mix(((uint64_t)resources_.id[r] << 32) ^ (fbits(resources_.x[r]) * 31u + fbits(resources_.z[r])));
-	for (const Treasure &t : treasures_) mix(((uint64_t)t.id << 32) ^ (fbits(t.x) * 31u + fbits(t.z)));
+	uint32_t mh;
+	std::memcpy(&mh, &map_half_, sizeof mh);
+	mix(mh);
+	mix(resources_.count);
+	if (resources_.count) mix(((uint64_t)resources_.id[0] << 32) | resources_.id[resources_.count - 1]);
+	for (const Treasure &t : treasures_) mix(t.id);
 	if (h == gaia_obstacles_sig_) return;
 	gaia_obstacles_sig_ = h;
 	gaia_obstacles_.clear();
-	for (size_t r = 0; r < resources_.count; ++r)
-		if (blocks(r)) {
+	gaia_res_idx_.clear();
+	mine_candidates_.clear();
+	for (size_t r = 0; r < resources_.count; ++r) {
+		const uint8_t t = resources_.type[r], sub = resources_.subtype[r];
+		if ((t == RES_GOLD || t == RES_STONE) && (sub == RES_SUB_NONE || sub == RES_SUB_RUINS)) {
+			mine_candidates_.push_back((uint32_t)r);
+		} else if (sub == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD)) {
 			const float half = resource_block_half(r);
 			gaia_obstacles_.push_back(
 					steer_obstacle(resources_.id[r], resources_.x[r], resources_.z[r], 1.0f, 0.0f, half, half, GAIA_OBSTACLE));
+			gaia_res_idx_.push_back((uint32_t)r);
 		}
+	}
 	for (const Treasure &t : treasures_) {
 		const auto &ti = treasure_type_info(t.type);
 		const float hw = ti.width * 0.125f, hd = ti.depth * 0.125f; // metres to half-extents in world units
@@ -1939,6 +1948,7 @@ void Simulation::ensure_gaia_obstacles() {
 		bool swapped;
 		nav::footprint_axis(treasure_angle(t.id), ux, uz, swapped);
 		gaia_obstacles_.push_back(steer_obstacle(t.id, t.x, t.z, ux, uz, swapped ? hd : hw, swapped ? hw : hd, GAIA_OBSTACLE));
+		gaia_res_idx_.push_back(UINT32_MAX);
 	}
 	gaia_grid_.build(gaia_obstacles_, map_half_);
 }
@@ -1946,7 +1956,8 @@ void Simulation::ensure_gaia_obstacles() {
 void Simulation::gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const {
 	gaia_grid_.for_each_in_box(x - reach, z - reach, x + reach, z + reach, [&](uint32_t k) {
 		const SteerObstacle &o = gaia_obstacles_[k];
-		if (std::fabs(o.x - x) <= reach + o.ext && std::fabs(o.z - z) <= reach + o.ext) out.push_back(o);
+		if (std::fabs(o.x - x) <= reach + o.ext && std::fabs(o.z - z) <= reach + o.ext && gaia_obstacle_live(k))
+			out.push_back(o);
 	});
 }
 
@@ -8983,12 +8994,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (round_units) steer = rtso::nav::Vec2(memo.x, memo.z);
 			const ShortPathMemo last = memo;
 			// The trees, bushes and treasures near the unit count too (gaia_obstacles_near): the
-			// short path goes round those within GAIA_STEER_REACH, and further ones once it nears them.
+			// short path goes round those within GAIA_STEER_REACH (steer_around_obstacles), and
+			// further ones once it nears them.
 			thread_local std::vector<SteerObstacle> near_gaia;
 			near_gaia.clear();
 			if (!round_units) gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, near_gaia);
-			if (round_units || rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
-					unit_clearance_at(i), nav::ConcatRange<SteerObstacle>{steer_obstacles_, near_gaia},
+			if (round_units || rtso::nav::steer_around_obstacles(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
+					unit_clearance_at(i), steer_obstacles_, near_gaia, GAIA_STEER_REACH,
 					units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer)) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
@@ -9760,7 +9772,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const uint32_t own_res = units_.target_resource_id[i], own_unit = units_.target_unit_id[i];
 			gaia_grid_.for_each_in_box(pxi - b_skip, pzi - b_skip, pxi + b_skip, pzi + b_skip, [&](uint32_t k) {
 				const SteerObstacle &b = gaia_obstacles_[k];
-				if (b.id != own_res && b.id != own_unit) push_out(b);
+				if (b.id != own_res && b.id != own_unit && gaia_obstacle_live(k)) push_out(b);
 			});
 		}
 
@@ -26815,6 +26827,7 @@ void Simulation::save_tick_state(std::ofstream &out) const {
 bool Simulation::load_tick_state(std::ifstream &in, uint32_t version) {
 	TickLoadAr ar{in, version};
 	tick_state_io(ar, *this);
+	gaia_obstacles_sig_ = 0; // ensure_gaia_obstacles lists the loaded supplies afresh
 	return ar.ok && in.good();
 }
 

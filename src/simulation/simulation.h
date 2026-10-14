@@ -3113,8 +3113,15 @@ private:
 	// steer_obstacles_, so units steer round only those near them (gaia_obstacles_near) and
 	// separation() pushes them out of these. Rebuilt with gaia_grid_ when the set changes.
 	static constexpr uint8_t GAIA_OBSTACLE = 0xFE;
-	static constexpr float GAIA_STEER_REACH = 6.0f; // world units round a walker whose trees it steers by
+	static constexpr float GAIA_STEER_REACH = 2.5f; // world units round a walker whose trees it steers by
 	std::vector<SteerObstacle> gaia_obstacles_;
+	std::vector<uint32_t> gaia_res_idx_; // each one's supply index in resources_, UINT32_MAX for a treasure
+	std::vector<uint32_t> mine_candidates_; // the supplies that are mines, for append_mine_obstacles
+	// A tree or bush stays listed once cut down (ensure_gaia_obstacles); a treasure leaves at once.
+	bool gaia_obstacle_live(uint32_t k) const {
+		const uint32_t r = gaia_res_idx_[k];
+		return r == UINT32_MAX || (resources_.alive[r] && resources_.amount[r] > 0);
+	}
 	nav::BucketGrid gaia_grid_;
 	uint64_t gaia_obstacles_sig_ = 0;
 	void ensure_gaia_obstacles();
