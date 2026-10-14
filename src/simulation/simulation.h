@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 70; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 71; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
@@ -173,6 +173,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_DISABLED_BUILDINGS_128 = 63; // triggers' disabled_buildings as 128-bit BldMasks
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr uint32_t SAVE_VERSION_STATISTICS_COUNTS = 65; // resource and population counts, livestock, bribes
+	static constexpr uint32_t SAVE_VERSION_UNITS_CAPTURED = 71; // StatisticsTracker unitsCaptured and its value
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -1142,6 +1143,9 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
+	// The same for any passability class; building_region is that cell's region (0 = none).
+	bool nearest_pass_cell(const Building &b, uint8_t pass, float &out_x, float &out_z, uint16_t *out_region = nullptr) const;
+	uint16_t building_region(const Building &b, uint8_t pass) const;
 	// 0 A.D. Footprint.PickSpawnPoint: a free spot for a unit of `type` in rows around the
 	// footprint, the front (or the side facing the rally point) first; skip_uid is the unit left out
 	// of the overlap check (the one being placed).
@@ -2151,6 +2155,7 @@ private:
 	void stat_building_constructed(const Building &b);
 	void stat_building_lost(const Building &b, uint8_t killer);
 	void stat_building_captured(const Building &b, uint8_t from);
+	void stat_unit_captured(size_t idx, uint8_t from); // unit idx now belongs to its captor
 	void stat_gathered(uint8_t player, uint8_t res, int amount, bool vegetarian);
 	void tick_statistics();
 	void update_statistics_explored();
@@ -2284,10 +2289,15 @@ private:
 	void ensure_resource_block_cells() const;
 	// check_placement over the cells `cells` of a footprint whose bounds are [x0, x1] x [z0, z1]
 	// and centre (cx, cz); `rect` is a turned footprint (a WallSet piece) or null for a square, and
-	// occupied cells in `ignore_cells` don't obstruct it.
+	// occupied cells in `ignore_cells` don't obstruct it. With `ignore_ids` (a wall piece), other
+	// structures obstruct it where their footprints overlap its own, as 0 A.D.'s obstructions do.
 	PlacementResult check_placement_cells(uint8_t player, uint8_t b_type, const std::vector<std::pair<int, int>> &cells,
 			float x0, float z0, float x1, float z1, float cx, float cz, const Building *rect,
-			const std::vector<std::pair<int, int>> *ignore_cells) const;
+			const std::vector<std::pair<int, int>> *ignore_cells, const std::vector<uint32_t> *ignore_ids = nullptr) const;
+	// Whether a wall piece's footprint `f` overlaps a structure, leaving out `ignore` (the towers it
+	// joins and the pieces laid since) and, of the segments already joined to one of those towers,
+	// the part inside the tower (their shared obstruction control group).
+	bool wall_piece_hits_building(const nav::Footprint &f, const std::vector<uint32_t> &ignore) const;
 	// survivalofthefittest.js's placement obstructors: whether one covers part of [x0, x1] x [z0, z1].
 	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
@@ -2872,19 +2882,22 @@ private:
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
 	// CCmpTerritoryManager connectivity, derived from territory_grid_ and the territory roots
-	// (civic centres and wonders): each 4-connected patch of one player's territory is a region,
+	// (civic centres and wonders): each 8-connected patch of one player's territory is a region,
 	// connected when it holds one of that player's roots. Unconnected regions keep the count of
-	// tiles of connected foreign regions bordering them (GetNeighbours(filterConnected)).
+	// bordering tiles of connected foreign regions and of neutral land (GetNeighbours(filterConnected)).
 	// Rebuilt on demand after the grid changes; not saved or hashed.
 	struct TerritoryRegion {
 		uint8_t owner;
 		bool connected;
 		std::array<uint32_t, MAX_PLAYERS> neighbours;
+		uint32_t neutral; // bordering neutral tiles (Gaia's share of the decay)
 	};
 	Grid<uint16_t> territory_region_;
 	std::vector<TerritoryRegion> territory_regions_;
 	bool territory_regions_dirty_ = true;
 	void ensure_territory_regions();
+	// !IsTerritoryBlinking: the tile at (x, z) is neutral or in a region holding one of its owner's roots.
+	bool territory_connected_at(float x, float z) const;
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
 	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
 	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);

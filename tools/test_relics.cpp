@@ -85,6 +85,9 @@ int main() {
 	run(s, 20.0f);
 	CHECK(relic(s).claimed && relic(s).owner_team == 0 && s.units_.team[s.lookup_unit(rid)] == 0);
 	CHECK(relic(s).capture_cp == RELIC_CAPTURE_POINTS * 100);
+	// StatisticsTracker CapturedEntity: a unit captured, of no class and no value (no Cost).
+	CHECK(s.stats_[0].units_captured[STAT_UNIT_TOTAL] == 1 && s.stats_[0].units_captured_value == 0);
+	CHECK(s.stats_[0].units_captured[STAT_UNIT_INFANTRY] == 0);
 	// The captors are done.
 	CHECK(s.units_.order_kind[s.lookup_unit(six[0])] != ORDER_CAPTURE_RELIC);
 
@@ -122,11 +125,15 @@ int main() {
 		// Nobody defends it.
 		for (uint32_t id : two) s.units_.alive[s.lookup_unit(id)] = 0;
 		for (uint32_t id : six) s.units_.alive[s.lookup_unit(id)] = 0;
+		const uint32_t lost_before = s.stats_[0].units_lost[STAT_UNIT_TOTAL];
 		std::vector<uint32_t> foes = squad(s, 1, 8, -20.0f, 10.0f);
 		s.order_attack(foes.data(), foes.size(), rid);
 		s.order_walk(&rid, 1, -24.0f, -6.0f, false);
 		run(s, 40.0f);
 		CHECK(relic(s).claimed && relic(s).owner_team == 1);
+		// Capturable.js: LostEntity for the player it was taken from, CapturedEntity for the captor.
+		CHECK(s.stats_[1].units_captured[STAT_UNIT_TOTAL] == 1);
+		CHECK(s.stats_[0].units_lost[STAT_UNIT_TOTAL] == lost_before + 1);
 	}
 
 	// 7. Save and load during a capture keeps the hash.
