@@ -74,6 +74,11 @@ const Default kDefaults[] = {
 	{"gui.gamesetup.aibehavior", "random"},
 	{"gui.gamesetup.assignplayers", "everyone"},
 	{"lobby.buddies", ","},
+	// 0 A.D. default.cfg [lobby]: the account last signed in, and its password as
+	// EncryptPassword gives it (LobbySession.encrypt_password), kept only when remembered.
+	{"lobby.login", ""},
+	{"lobby.password", ""},
+	{"lobby.rememberpassword", "true"},
 	{"lobby.columns.gamerating", "false"},
 	// 0 A.D. default.cfg [lobby.stun]; an empty server is the lobby's own host
 	// (tools/lobby_server.py answers STUN on --stun-port).
