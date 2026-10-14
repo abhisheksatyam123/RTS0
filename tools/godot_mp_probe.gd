@@ -233,6 +233,8 @@ func _run() -> void:
 			var users := RegEx.create_from_string("Users \\((\\d+)\\): (.*)").search(str(main.get_lobby_state().get("chat", "")))
 			_say("users=%s list=%s" % [users.get_string(1) if users else "-", users.get_string(2).replace(" ", "_") if users else "-"])
 			st = main.get_lobby_state()
+			# 0.28 page_loading at "start": the networked Start loads under the loading page.
+			_say("start_loading=" + ",".join(load("res://scenes/menu/loading.gd").last_stages.map(func(x): return str(x[1]).replace(" ", "_"))))
 			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d" % [turns, int(st.get("seat", -1)),
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
@@ -269,6 +271,9 @@ func _run() -> void:
 						left += 1
 						_say("chat_left=" + line.strip_edges())
 				_say("chat_left_lines=%d" % left)
+				# LobbyGamelistReporter: the lobby's game report marks bob offline.
+				var rep: Dictionary = session.room_details(root.get_node("/root/MatchSettings"), main.get_net_setup_state(), 0)
+				_say("report_offline=" + ",".join(rep["player_names"].filter(func(p): return p.get("offline", false)).map(func(p): return str(p["name"]))))
 				break
 			if role == "join" and st.get("disconnected", false):
 				_say("net_status=" + str(st.get("net_status", "")).replace("\n", " | ") +

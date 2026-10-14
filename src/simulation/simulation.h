@@ -560,6 +560,13 @@ public:
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
+	// Test hook: a unit carries `amount` of resource `res`.
+	void debug_set_carry(uint32_t unit_id, uint8_t res, int32_t amount) {
+		const int32_t idx = lookup_unit(unit_id);
+		if (idx < 0 || res >= RES_COUNT) return;
+		units_.res_type_carried[idx] = res;
+		units_.carry[idx] = amount;
+	}
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
 	// The civ of a structure's own template (Identity/Civ): a map's Gaia shrine or trading post.
@@ -1002,6 +1009,11 @@ public:
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
 	int get_garrison_count(uint32_t building_id) const;
 	int get_garrison_capacity(uint32_t building_id) const;
+	// GarrisonHolder.OccupiedSlots of a structure: its units' Garrisonable sizes.
+	int get_garrison_occupied(uint32_t building_id) const {
+		auto bit = building_id_to_idx_.find(building_id);
+		return bit == building_id_to_idx_.end() ? 0 : occupied_slots(buildings_[bit->second].garrisoned_units);
+	}
 	const std::vector<uint32_t> *get_garrisoned_units(uint32_t building_id) const;
 
 	// Victory Conditions (VictoryManager.js, EndGameManager.js)
@@ -2971,7 +2983,6 @@ private:
 	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);
 	void petra_manage_scouting(float dt);
-	void petra_manage_workers(float dt);
 	void petra_manage_economy(float dt);
 	void petra_manage_trading(float dt);
 	void petra_manage_naval(float dt);

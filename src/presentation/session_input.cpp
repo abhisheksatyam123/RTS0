@@ -273,13 +273,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("rts0.stance.standground")) { apply_stance(rtso::STANCE_STAND_GROUND); return; }
 		if (fired("rts0.stance.violent")) { apply_stance(rtso::STANCE_VIOLENT); return; }
 		if (fired("rts0.stance.passive")) { apply_stance(rtso::STANCE_PASSIVE); return; }
-		if (fired("session.attackmoveunit")) {
-			if (!selected_ids.is_empty()) {
-				attack_move_mode = true;
-				patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
-			}
-			return;
-		}
+		// session.attackmoveUnit is only a modifier held with a right-click (unit_actions.js),
+		// read where the order is given; a press arms nothing.
+		if (fired("session.attackmoveunit")) return;
 
 		// Training: Z X C V B N M , queue the selected building's 1st-8th
 		// trainee; Shift trains a batch of 5 (gui.session.batchtrainingsize).
@@ -1140,7 +1136,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 						else
 							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
-						clear_selection();
 					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp)) {
 						// session.repair likewise wins over returning resources (unit_actions.js "repair").
 						if (turn_cmds())
@@ -1177,7 +1172,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
-							clear_selection();
 						} else {
 							break; // nothing to do there: walk
 						}
@@ -1209,7 +1203,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
-							clear_selection();
 						} else {
 							break; // no selected unit is on its GarrisonHolder List: walk
 						}
@@ -1225,6 +1218,19 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseMotion> mm = event;
 	if (mm.is_valid() && dragging) {
 		sel_rect->set_rect(drag_start, mm->get_position(), true);
+	}
+	// input.js INPUT_BUILDING_PLACEMENT mousemotion: placing a structure (not a wall) that the
+	// player can no longer afford stops placement on the next mouse move.
+	if (mm.is_valid() && build_mode && sim && current_build_type != rtso::BLD_WALL_SEGMENT &&
+			current_build_type != rtso::BLD_PALISADE && current_build_type != rtso::BLD_SIEGE_WALL) {
+		float cost[rtso::RES_COUNT];
+		sim->structure_cost_for(local_player(), (uint8_t)current_build_type, cost);
+		const auto &ps = sim->player(local_player());
+		for (int r = 0; r < rtso::RES_COUNT; ++r)
+			if (ps.res[r] < cost[r]) {
+				enter_build_mode(false);
+				break;
+			}
 	}
 }
 
