@@ -23203,6 +23203,7 @@
     "Wagon",
     "Dropsite"
    ],
+   "icon": "units/germ/support_wagon.png",
    "builds": [],
    "viewer": {
     "garrison_size": 1,
@@ -23229,6 +23230,7 @@
     "Wagon",
     "Dropsite"
    ],
+   "icon": "units/germ/support_wagon_covered.png",
    "builds": [],
    "viewer": {
     "garrison_size": 1,
@@ -35301,6 +35303,7 @@
      "Colony",
      "Encampment"
     ],
+    "icon": "structures/military_settlement.png",
     "template": "structures/germ/encampment",
     "viewer": {
      "garrison": {
@@ -35333,6 +35336,7 @@
      "Encampment",
      "Fortified"
     ],
+    "icon": "structures/mercenary_camp.png",
     "template": "structures/germ/encampment_fortified",
     "viewer": {
      "garrison": {
