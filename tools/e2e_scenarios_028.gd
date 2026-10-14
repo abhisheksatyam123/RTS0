@@ -9,8 +9,12 @@ extends SceneTree
 const MAPS := {
 	"azure_coast_2p": 2, "azure_coast_4p": 4, "azure_coast_8p": 8, "belgian_bog_night": 2,
 	"fast_oasis": 4, "peloponnese": 6, "savanna_ravine": 2, "serengeti": 4, "ship_combat_demo": 2,
-	"third_macedonian_war": 3,
+	"third_macedonian_war": 3, "gorge": 2, "temperate_map": 2, "walltest": 2,
 }
+# 0.28 gives these no preview picture.
+const NO_PREVIEW := ["ship_combat_demo", "gorge", "temperate_map", "walltest"]
+# Base Temperate Map is an empty test stub: its players start with nothing.
+const EMPTY := ["temperate_map"]
 
 var failures := 0
 
@@ -36,7 +40,7 @@ func run() -> void:
 		var n: int = MAPS[map_id]
 		print(map_id)
 		check(types.get(map_id, {}).get("type", "") == "scenario", "Game Setup lists it as a scenario")
-		check(FileAccess.file_exists("res://assets/maps/previews/%s.jpg" % map_id) or map_id == "ship_combat_demo", "it has its 0.28 preview")
+		check(FileAccess.file_exists("res://assets/maps/previews/%s.jpg" % map_id) or map_id in NO_PREVIEW, "it has its 0.28 preview")
 		ms.map_id = map_id
 		ms.seed = 7
 		ms.slot_types = [0] + range(n - 1).map(func(_i): return 1)
@@ -64,7 +68,7 @@ func run() -> void:
 		var players: Array = st.get("players", [])
 		check(players.size() == n, "%d players (want %d)" % [players.size(), n])
 		var controlled := players.filter(func(p): return float(p.get("percentMapControlled", 0.0)) > 0.0).size()
-		check(controlled > 0, "%d of them hold territory" % controlled)
+		check(controlled > 0 or map_id in EMPTY, "%d of them hold territory" % controlled)
 		check(not st.get("victory", false), "nobody has won yet")
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)

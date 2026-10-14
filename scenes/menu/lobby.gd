@@ -18,6 +18,9 @@ const REFRESH_S := 3.0
 var _server: LineEdit
 var _name: LineEdit
 var _sign_btn: Button
+var _password: LineEdit
+var _remember: CheckBox
+var _register_btn: Button
 var _games: Tree
 var _players: Tree
 var _profile: VBoxContainer
@@ -96,10 +99,23 @@ func _build() -> void:
 	_server = _line("127.0.0.1:8088", 180)
 	login.add_child(_server)
 	login.add_child(_label("Player name"))
-	_name = _line("Player", 180)
+	var cfg := RtsoUserConfig.new()
+	_name = _line(cfg.get_value("lobby.login") if cfg.get_value("lobby.login") != "" else "Player", 180)
 	login.add_child(_name)
+	# 0 A.D. prelobby Login / Register: an account's password; empty signs in
+	# as a guest where the lobby allows it.
+	login.add_child(_label("Password"))
+	_password = _line("", 140)
+	_password.secret = true
+	login.add_child(_password)
+	_remember = CheckBox.new()
+	_remember.text = "Remember password"
+	_remember.button_pressed = cfg.get_bool("lobby.rememberpassword")
+	login.add_child(_remember)
 	_sign_btn = _button("Sign In", _on_sign_pressed)
 	login.add_child(_sign_btn)
+	_register_btn = _button("Register", _on_register_pressed)
+	login.add_child(_register_btn)
 
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -338,6 +354,8 @@ func _update_signed_in() -> void:
 	_sign_btn.text = "Sign Out" if on else "Sign In"
 	_server.editable = not on
 	_name.editable = not on
+	_password.editable = not on
+	_register_btn.disabled = on
 	_chat_line.editable = on
 	_chat_send.disabled = not on
 	if not on:
@@ -363,11 +381,33 @@ func _on_sign_pressed() -> void:
 	if who == "":
 		_say("Type a player name first.")
 		return
+	_sign_in(who)
+
+
+# The password typed now, else the one lobby.password remembers for this name.
+func _encrypted_password(who: String) -> String:
+	if _password.text != "":
+		return LobbySession.encrypt_password(_password.text, who)
+	var cfg := RtsoUserConfig.new()
+	if _remember.button_pressed and cfg.get_value("lobby.login").to_lower() == who.to_lower():
+		return cfg.get_value("lobby.password")
+	return ""
+
+
+func _sign_in(who: String) -> void:
 	_sign_btn.disabled = true
 	_say("Signing in...")
-	LobbySession.sign_in(_server.text.strip_edges(), who, func(code: int, obj) -> void:
+	var encrypted := _encrypted_password(who)
+	var done := func(code: int, obj) -> void:
 		_sign_btn.disabled = false
 		if code == 200:
+			# 0 A.D. prelobby: lobby.login, and lobby.password (encrypted) when remembered.
+			var cfg := RtsoUserConfig.new()
+			cfg.set_value("lobby.login", LobbySession.player_name)
+			cfg.set_value("lobby.rememberpassword", "true" if _remember.button_pressed else "false")
+			cfg.set_value("lobby.password", encrypted if _remember.button_pressed else "")
+			cfg.save()
+			_password.text = ""
 			MatchSettings.net_player_name = LobbySession.player_name
 			_chat_last = 0
 			_chat_backlog = true
@@ -377,7 +417,28 @@ func _on_sign_pressed() -> void:
 		elif code == 0:
 			_say("The lobby server at %s does not answer." % _server.text)
 		else:
-			_say("Sign in refused: %s" % (obj.get("error", code) if obj is Dictionary else str(code))))
+			_say("Sign in refused: %s" % (obj.get("error", code) if obj is Dictionary else str(code)))
+	LobbySession.sign_in(_server.text.strip_edges(), who, done, encrypted)
+
+
+func _on_register_pressed() -> void:
+	var who := _name.text.strip_edges()
+	# One field here, so the password is its own confirmation; 0 A.D. asks twice.
+	var problem := LobbySession.register_problem(who, _password.text, _password.text)
+	if problem != "":
+		_say(problem)
+		return
+	_register_btn.disabled = true
+	_say("Registering...")
+	LobbySession.register(_server.text.strip_edges(), who, _password.text, func(code: int, obj) -> void:
+		_register_btn.disabled = false
+		if code == 200:
+			_say("Registered %s; signing in..." % who)
+			_sign_in(who)
+		elif code == 0:
+			_say("The lobby server at %s does not answer." % _server.text)
+		else:
+			_say("Registration failed: %s" % (obj.get("error", code) if obj is Dictionary else str(code))))
 
 
 func _refresh() -> void:

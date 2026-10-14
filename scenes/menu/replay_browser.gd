@@ -18,6 +18,7 @@ extends Control
 const REPLAY_ROOT := "user://replays"
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
 const SummaryPage = preload("res://scenes/session/summary_screen.gd")
+const MSGBOX := preload("res://scenes/common/msgbox.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 ## compatibilityColor: incompatible replays are greyed out.
 const INCOMPATIBLE := Color8(96, 96, 96)
@@ -31,6 +32,8 @@ const POP_TYPES := ["player", "team", "world"]
 const UNLIMITED_POP := 10000
 const DURATIONS := [[-1, -1], [-1, 15], [15, 30], [30, 45], [45, 60], [60, 90], [90, 120], [120, -1]]
 const SINGLEPLAYER := ["Any", "Single-player", "Multiplayer", "Campaigns"]
+## initRatedGamesFilter.
+const RATED_GAMES := ["Rated and unrated games", "Rated games", "Unrated games"]
 ## 0 A.D. map_sizes.json names by RTS0 width in meters.
 const MAP_SIZES := [[128, "Tiny"], [192, "Small"], [256, "Normal"], [320, "Medium"], [384, "Large"],
 	[448, "Very Large"], [512, "Giant"]]
@@ -59,6 +62,7 @@ var _duration_filter: OptionButton
 var _compatibility_filter: CheckBox
 var _singleplayer_filter: OptionButton
 var _victory_filter: OptionButton
+var _rated_filter: OptionButton
 var _info: Control
 var _info_empty: Control
 var _info_labels := {}
@@ -67,8 +71,9 @@ var _spoiler: CheckBox
 var _btn_start: Button
 var _btn_delete: Button
 var _btn_summary: Button
-var _confirm: ConfirmationDialog
-var _message: AcceptDialog
+# The open message box (scenes/common/msgbox.gd), null when closed.
+var _confirm: Control
+var _message: Control
 var _hotkeys = null
 static var _map_info_cache := {}
 ## replaySelectionData: what start_replay leaves for the menu that opens after
@@ -165,6 +170,8 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 		"size": size, "pop": pop, "pop_type": pop_type,
 		"duration": float(meta.get("start_time", 0.0)) + float(meta.get("duration", 0.0)),
 		"victory": victory, "multiplayer": humans > 1, # replay_menu.js isMultiplayer
+		# isRated: two humans, two players and RatingEnabled (game_start's rated=1).
+		"rated": humans == 2 and players.size() == 2 and attribs.get("rated", "0") == "1",
 		"campaign": str(settings.get("campaign_run", "")) != ""}
 
 ## loadReplays: read every replay folder, then refill the filters.
@@ -201,6 +208,9 @@ func create_selection_data(directory: String) -> Dictionary:
 	for k in _dropdown_filters():
 		var dd: OptionButton = _dropdown_filters()[k]
 		filters[k] = dd.get_item_text(dd.selected) if dd.selected >= 0 else ""
+	# 0.28 keeps the rated filter's index, which initRatedGamesFilter then looks
+	# up among its list_data and never finds: it comes back as "Rated and unrated".
+	filters["ratedGames"] = _rated_filter.selected
 	return {"directory": directory, "column": sort_column, "columnOrder": sort_order, "filters": filters}
 
 func _dropdown_filters() -> Dictionary:
@@ -283,6 +293,7 @@ func _init_filters() -> void:
 	if _singleplayer_filter.item_count == 0:
 		_refill(_singleplayer_filter, SINGLEPLAYER)
 	_refill(_victory_filter, ["Any victory condition"] + SetupPage.VICTORY_KINDS.map(func(k): return k[1]))
+	_refill(_rated_filter, RATED_GAMES)
 
 ## filterReplay.
 func passes(r: Dictionary) -> bool:
@@ -299,6 +310,8 @@ func passes(r: Dictionary) -> bool:
 			if not r["campaign"]:
 				return false
 	# replay_filters.js: the replay's VictoryConditions include the picked one.
+	if _rated_filter.selected == 1 and not r["rated"] or _rated_filter.selected == 2 and r["rated"]:
+		return false
 	if _victory_filter.selected > 0 and not (SetupPage.victory_mask(r["victory"]) & int(SetupPage.VICTORY_KINDS[_victory_filter.selected - 1][0])):
 		return false
 	if _date_filter.selected > 0 and r["month"] != _date_filter.get_item_text(_date_filter.selected):
@@ -470,9 +483,11 @@ func start_replay() -> void:
 
 ## displayReplayCompatibilityError.
 func _compatibility_error(r: Dictionary) -> void:
-	_message.title = "Incompatible replay"
-	_message.dialog_text = "This replay is not compatible with your version of the game!\n" + r["why"]
-	_message.popup_centered()
+	_show_message("This replay is not compatible with your version of the game!\n" + r["why"], "Incompatible replay")
+
+func _show_message(text: String, title: String) -> void:
+	_message = MSGBOX.open(self, 500, 200, text, tr(title))
+	_message.answered.connect(func(_i): _message = null)
 
 ## showReplaySummary.
 func show_summary() -> void:
@@ -483,9 +498,7 @@ func show_summary() -> void:
 		_compatibility_error(r)
 		return
 	if not r["meta"].has("summary"):
-		_message.title = "Error"
-		_message.dialog_text = "No summary data available."
-		_message.popup_centered()
+		_show_message(tr("No summary data available."), "Error")
 		return
 	var s = load("res://scenes/session/summary_screen.tscn").instantiate()
 	add_child(s)
@@ -502,8 +515,11 @@ func delete_pressed(no_confirmation := false) -> void:
 	if no_confirmation:
 		delete_selected()
 		return
-	_confirm.dialog_text = "Are you sure you want to delete this replay permanently?\n%s" % ProjectSettings.globalize_path(r["dir"])
-	_confirm.popup_centered()
+	_confirm = MSGBOX.open(self, 500, 200, "Are you sure you want to delete this replay permanently?\n%s" % ProjectSettings.globalize_path(r["dir"]),
+		tr("Delete replay"), [tr("No"), tr("Yes")])
+	_confirm.answered.connect(func(i: int):
+		_confirm = null
+		if i == 1: delete_selected())
 
 func delete_selected() -> void:
 	var r := _selected()
@@ -649,6 +665,8 @@ func _build() -> void:
 	right.add_child(_anchor(_singleplayer_filter, 0, 0, 1, 0, 0, 30, 0, 55))
 	_victory_filter = _dropdown("VictoryConditionFilter", "")
 	right.add_child(_anchor(_victory_filter, 0, 0, 1, 0, 0, 60, 0, 85))
+	_rated_filter = _dropdown("RatedGamesFilter", "")
+	right.add_child(_anchor(_rated_filter, 0, 0, 1, 0, 0, 90, 0, 115))
 	var frame := StyleBoxFlat.new()
 	frame.bg_color = Color(0, 0, 0, 0.35)
 	frame.border_color = GOLD.darkened(0.3)
@@ -661,11 +679,11 @@ func _build() -> void:
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_info_empty.add_child(logo)
-	right.add_child(_anchor(_info_empty, 0, 0, 1, 1, 0, 92, 0, 0))
+	right.add_child(_anchor(_info_empty, 0, 0, 1, 1, 0, 122, 0, 0))
 	_info = PanelContainer.new()
 	_info.name = "ReplayInfo"
 	_info.add_theme_stylebox_override("panel", frame)
-	right.add_child(_anchor(_info, 0, 0, 1, 1, 0, 92, 0, 0))
+	right.add_child(_anchor(_info, 0, 0, 1, 1, 0, 122, 0, 0))
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
 	_info.add_child(box)
@@ -733,14 +751,6 @@ func _build() -> void:
 	_btn_delete = bottom.get_node("DeleteButton")
 	_btn_summary = bottom.get_node("SummaryButton")
 	_btn_start = bottom.get_node("StartReplayButton")
-	_confirm = ConfirmationDialog.new()
-	_confirm.title = "Delete replay"
-	_confirm.ok_button_text = "Yes" # messageBox buttons No, Yes
-	_confirm.cancel_button_text = "No"
-	_confirm.confirmed.connect(delete_selected)
-	add_child(_confirm)
-	_message = AcceptDialog.new()
-	add_child(_message)
 	_singleplayer_filter.clear()
 	_refill(_singleplayer_filter, SINGLEPLAYER)
 
@@ -786,7 +796,7 @@ func _fired(event: InputEvent, hotkey: String) -> bool:
 	return false
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventKey) or not event.pressed or find_child("SummaryScreen", false, false):
+	if not (event is InputEventKey) or not event.pressed or find_child("SummaryScreen", false, false) or _confirm != null or _message != null:
 		return
 	if _fired_ignoring_modifiers(event, "session.savedgames.delete") and not _players_filter.has_focus():
 		get_viewport().set_input_as_handled()
