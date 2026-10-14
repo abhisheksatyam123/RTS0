@@ -392,6 +392,25 @@
 			},
 			"type": "scenario"
 		},
+		"combat_demo_huge": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"corinthian_isthmus": {
 			"keywords": [],
 			"type": "skirmish"
@@ -2231,6 +2250,34 @@
 			},
 			"type": "scenario"
 		},
+		"triggers_demo": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 50000,
+							"metal": 50000,
+							"stone": 50000,
+							"wood": 50000
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"tropical_island": {
 			"keywords": [
 				"demo"
@@ -2259,6 +2306,44 @@
 		"two_seas": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"units_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"vertex_pathfinder_test": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"AllyView": false,
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "han",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"vesuvius": {
 			"keywords": [],

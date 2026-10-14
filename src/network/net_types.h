@@ -794,7 +794,9 @@ inline std::string peer_guid(uint32_t peer_id) { return "peer-" + std::to_string
 // command batch it holds for turns after T) and then the saved world in CHUNKs.
 // The rejoiner loads the world, takes the batches and runs on from turn T+1.
 struct RejoinMsg {
-	enum Kind : uint8_t { REQUEST = 0, REJECT = 1, HEADER = 2, CHUNK = 3 };
+	// LOADED: a rejoining player has loaded the world (0 A.D. NMT_LOADED_GAME);
+	// LOCKSTEP: the host's answer, turn = the first turn the lockstep waits on it.
+	enum Kind : uint8_t { REQUEST = 0, REJECT = 1, HEADER = 2, CHUNK = 3, LOADED = 4, LOCKSTEP = 5 };
 	uint8_t kind = REQUEST;
 	uint32_t turn = 0;
 	uint32_t total = 0;  // HEADER: saved-world size; CHUNK: offset of these bytes
@@ -1277,7 +1279,7 @@ public:
 
 	static bool parse_rejoin(const uint8_t *data, size_t size, RejoinMsg &msg) {
 		size_t offset = 0;
-		if (!NetSerde::read_u8(data, size, offset, msg.kind) || msg.kind > RejoinMsg::CHUNK) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.kind) || msg.kind > RejoinMsg::LOCKSTEP) return false;
 		if (!NetSerde::read_u32(data, size, offset, msg.turn)) return false;
 		if (!NetSerde::read_u32(data, size, offset, msg.total)) return false;
 		if (!NetSerde::read_u8(data, size, offset, msg.reason)) return false;
