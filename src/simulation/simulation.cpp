@@ -1054,6 +1054,13 @@ void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
 	gaia_obstacles_sig_ = 0; // its obstruction size (resource_block_half)
 }
 
+void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
+	auto it = res_id_to_idx_.find(res_id);
+	if (it == res_id_to_idx_.end()) return;
+	resources_.x[it->second] = x;
+	resources_.z[it->second] = z;
+}
+
 void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	auto it = res_id_to_idx_.find(res_id);
 	if (it == res_id_to_idx_.end()) return;
@@ -1234,6 +1241,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	// 0 A.D. per-tile terrain textures from the final biome.
 	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
 	RmsGenerator::plant_flora(*this, seed, (uint8_t)type);
+	RmsGenerator::keep_resources_passable(*this);
 	RmsGenerator::set_mine_gatherers(*this, (uint8_t)type);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
@@ -2718,43 +2726,6 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	return bid;
 }
 
-// P3 maintainFleet upkeep seam — 0 A.D. navalManager.js:507-543 gates:
-// built dock, own queue (no queued units), wishlists vs existing fleet.
-// Team-aware: uses the building's own team (Petra=1 via petra_try_pay),
-// unlike cmd_train which is team-0/human only. Deterministic: id-ordered
-// dock choice by caller, sim pay path only.
-bool Simulation::cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team) {
-	auto bit = building_id_to_idx_.find(building_id);
-	if (bit == building_id_to_idx_.end()) return false;
-	Building &b = buildings_[bit->second];
-	if (b.team != team || b.hp <= 0.0f || b.build_progress < 1.0f) return false;
-	if (b.type != BLD_DOCK) return false;
-	if (!b.queue.empty()) return false; // queues.ships.hasQueuedUnits()
-	if (u_type != UNIT_TRIREME && u_type != UNIT_FISHING_BOAT) return false;
-	const UnitTypeInfo &uinfo = civ_unit_info(civ_of(team), u_type);
-	if (team == 0) {
-		if (pop_current() >= pop_max()) return false;
-		if (!players_[0].pay((float)uinfo.food_cost, (float)uinfo.wood_cost,
-		                     (float)uinfo.gold_cost, (float)uinfo.stone_cost)) return false;
-	} else {
-		if (pop_current(team) >= pop_max(team)) return false;
-		if (!petra_try_pay(PETRA_Q_SHIPS, (float)uinfo.food_cost,
-		                 (float)uinfo.wood_cost, (float)uinfo.gold_cost,
-		                 (float)uinfo.stone_cost)) return false;
-	}
-	ProductionOrder order;
-	order.unit_type = u_type;
-	order.timer = 0.0f;
-	order.paid[RES_FOOD] = (float)uinfo.food_cost;
-	order.paid[RES_WOOD] = (float)uinfo.wood_cost;
-	order.paid[RES_GOLD] = (float)uinfo.gold_cost;
-	order.paid[RES_STONE] = (float)uinfo.stone_cost;
-	order.duration = uinfo.train_time * 0.75f * tech_mods(team).train_time[u_type] * ai_time_mult(team); // navalManager AI train discount, matches petra_manage_naval
-	if (b.queue.size() >= 3) return false;
-	b.queue.push_back(order);
-	return true;
-}
-
 // template_unit_support_healer.xml Heal values (Range 12, Health 5 every 2 s) after the
 // player's Healing Range / Healing Rate technologies.
 // 0 A.D. Heal/Range 12 m plus Healing Range techs, in RTS0 units (x0.28) like every range.
@@ -4073,7 +4044,8 @@ void Simulation::apply_tech_mods_to_unit(size_t idx) {
 	units_.max_hp[idx] *= m.health;
 	units_.hp[idx] = units_.max_hp[idx];
 	units_.speed[idx] *= m.speed;
-	units_.attack_range[idx] = units_.attack_range[idx] * m.range_mul + m.range;
+	// Attack/Ranged/MaxRange adds are metres: x COMBAT_DISTANCE_SCALE like the template ranges.
+	units_.attack_range[idx] = units_.attack_range[idx] * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
 }
 
 // 0 A.D. ModificationsManager: a finished technology changes every existing
@@ -4114,7 +4086,8 @@ void Simulation::refresh_tech_mods(uint8_t player_id) {
 		}
 		if (now.speed != was.speed) units_.speed[i] *= now.speed / was.speed;
 		if (now.range_mul != was.range_mul || now.range != was.range)
-			units_.attack_range[i] = (units_.attack_range[i] - was.range) / was.range_mul * now.range_mul + now.range;
+			units_.attack_range[i] = (units_.attack_range[i] - was.range * COMBAT_DISTANCE_SCALE) / was.range_mul * now.range_mul +
+				now.range * COMBAT_DISTANCE_SCALE;
 	}
 	for (auto &b : buildings_) {
 		if (b.team != player_id || b.type >= BLD_TYPE_COUNT) continue;
@@ -5135,10 +5108,7 @@ static TechSet shift_techs_before_v16(const TechSet &old) {
 float Simulation::pack_time_s(size_t unit_idx) const {
 	// 0 A.D. Military Engineers (siege_pack_unpack.json): Pack/Time x0.6 for Siege.
 	const uint8_t team = units_.team[unit_idx], t = units_.unit_type[unit_idx];
-	// rome/siege_scorpio_packed and _unpacked override Pack/Time to 5000 ms.
-	const uint16_t tmpl = units_.tmpl[unit_idx];
-	const float base = tmpl < CIV_UNIT_TEMPLATE_COUNT && std::strcmp(civ_unit_template(tmpl).id, "rome/siege_scorpio_packed") == 0
-		? PACK_TIME_S * 0.5f : PACK_TIME_S;
+	const float base = PACK_TIME_S;
 	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) return base;
 	return base * tech_mods_[team].pack_time[t];
 }
@@ -6477,7 +6447,8 @@ int Simulation::building_arrow_count(const Building &b) const {
 float Simulation::building_arrow_range(const Building &b) const {
 	const BuildingAIInfo &ai = building_ai_info(b.type);
 	if (!ai.shoots()) return 0.0f;
-	return ai.max_range + (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_range[b.type] : 0.0f);
+	// Tower Range's +8 m is metres, scaled as the template's MaxRange is.
+	return ai.max_range + (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_range[b.type] * COMBAT_DISTANCE_SCALE : 0.0f);
 }
 
 // Who may board: same owner, not a transport itself; land siege only takes
@@ -9097,7 +9068,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// (UnitMotion MoveToTargetRange with a minimum); tick_pack unpacks it once past MinRange.
 		bool backing_off = false;
 		if (units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0 && !using_path) {
-			const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
+			const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
 			if (minr > 0.0f && d2 < minr * minr) {
 				backing_off = true;
 				if (d2 < 1e-6f) { dx = 1.0f; dz = 0.0f; }
@@ -11251,7 +11222,7 @@ void Simulation::tick_pack(float dt) {
 				float dx = units_.pos_x[i] - units_.pos_x[t];
 				float dz = units_.pos_z[i] - units_.pos_z[t];
 				const float d2 = dx * dx + dz * dz;
-				const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
+				const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
 				target_in_range = d2 >= minr * minr && in_parabolic_range(d2, att_y,
 						unit_height(t), attack_reach(i));
 			}
@@ -11384,7 +11355,7 @@ void Simulation::tick_combat(float dt) {
 		const float anc_z = on_the_move ? pzi : units_.anchor_z[i];
 		const float range = attack_reach(i);
 		// Attack.js MinRange (catapults, bolt shooters): the range query skips anything closer.
-		const float minr = range * unit_min_range_ratio(units_.unit_type[i]);
+		const float minr = range * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
 		const float vision = unit_vision_at(i);
 		const float held_lim = vision * 0.5f + range; // CheckTargetDistanceFromHeldPosition
 		const float att_y = unit_height(i);
@@ -11586,7 +11557,7 @@ void Simulation::tick_combat(float dt) {
 		float def_y = unit_height(t);
 
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
-		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
+		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
 		const bool in_range = in_parabolic_range(d2, att_y, def_y, attack_reach(i)) && d2 >= minr * minr; // Attack.js MinRange
 		if (!in_range && range_check_due(i, dt)) stop_attack(i);
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
@@ -13720,7 +13691,8 @@ void Simulation::eject_corral_animals(const Building &b) {
 // (brit, gaul and iber ship_fire_fire, which ship_fire turns into by its Ignition
 // upgrade): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
 // has one too but no civ trains it.
-static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {20.0f * AREA_DAMAGE_SCALE, 500.0f, true};
+// 0.28 mixins/fireship.xml DeathDamage: Crush 500 in 22 m, no FriendlyFire, x3 vs Ship and Building.
+static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {22.0f * AREA_DAMAGE_SCALE, 500.0f, false, 3.0f};
 
 static bool template_is(uint16_t tmpl, const char *name) {
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
@@ -13752,7 +13724,7 @@ const DeathDamageInfo *Simulation::unit_death_damage(size_t i) const {
 
 // Health RegenRate from the template; tech modifiers (TSTAT_REGEN) add to it.
 float Simulation::unit_template_regen(size_t i) const {
-	return is_ignited_fire_ship(units_.tmpl[i]) ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
+	return is_ignited_fire_ship(units_.tmpl[i]) ? -200.0f : 0.0f; // mixins/fireship.xml RegenRate -200: it burns down
 }
 
 // DeathDamage.CauseDeathDamage -> AttackHelper.CauseDamageOverArea: every entity of the
@@ -13778,8 +13750,12 @@ void Simulation::tick_death_damage(float dt) {
 			if (std::fabs(dx) > r + 2.0f || std::fabs(dz) > r + 2.0f) continue;
 			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_collision_radius(units_.unit_type[i]));
 			if (d >= r || invulnerable(units_.id[i])) continue;
-			note_attacked(0, owner, units_.id[i], units_.team[i], false, dd.damage * (1.0f - d * d / r2));
-			units_.hp[i] -= dd.damage * (1.0f - d * d / r2);
+			float res[3];
+			unit_resistance(i, res);
+			const float dmg = dd.damage * powf(0.9f, res[2]) * (unit_is_ship(units_.unit_type[i]) ? dd.ship_building_mult : 1.0f) *
+					(1.0f - d * d / r2);
+			note_attacked(0, owner, units_.id[i], units_.team[i], false, dmg);
+			units_.hp[i] -= dmg;
 			if (units_.hp[i] > 0.0f) continue;
 			units_.hp[i] = 0.0f;
 			units_.alive[i] = 0;
@@ -13795,8 +13771,11 @@ void Simulation::tick_death_damage(float dt) {
 			const nav::Vec2 gap = nav::footprint_gap(b, ox, oz);
 			const float d2 = gap.x * gap.x + gap.y * gap.y;
 			if (d2 >= r2) continue;
-			note_attacked(0, owner, b.id, b.team, true, dd.damage * (1.0f - d2 / r2));
-			b.hp -= dd.damage * (1.0f - d2 / r2);
+			float res[3];
+			structure_resistance(b, res);
+			const float dmg = dd.damage * powf(0.9f, res[2]) * dd.ship_building_mult * (1.0f - d2 / r2);
+			note_attacked(0, owner, b.id, b.team, true, dmg);
+			b.hp -= dmg;
 			if (b.hp <= 0.0f) mark_building_wreck(b, owner);
 		}
 	}
@@ -13844,7 +13823,7 @@ Simulation::UnitDetails Simulation::unit_details(size_t i) const {
 		d.interval = info.attack_cooldown;
 		d.ranged = template_has_ranged_attack(tmpl, ut, civ_of(units_.team[i]));
 		d.max_range = units_.attack_range[i] / (d.ranged ? COMBAT_DISTANCE_SCALE : kMeleeRangeScale);
-		d.min_range = d.max_range * unit_min_range_ratio(ut);
+		d.min_range = d.max_range * unit_min_range_ratio(ut, tmpl);
 	}
 	d.capture = unit_capture_attack_at(i);
 	unit_resistance(i, d.resistance);

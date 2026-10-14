@@ -6,8 +6,8 @@
 // developer command with its label and tick box (DeveloperOverlay.xml,
 // DeveloperOverlayControlCheckbox.js), and DeveloperOverlayEntityState's yellow
 // text on the left with the state of the first selected entity. RTS0 ports the
-// commands it has something behind: Display selection state, Reveal map,
-// Restrict camera and Promote selected units.
+// commands it has something behind: Change perspective, Display selection state,
+// Reveal map, Restrict camera and Promote selected units.
 
 #include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
@@ -21,7 +21,7 @@ namespace rtso {
 
 class RtsoDevOverlay {
 public:
-	enum Command { DEV_SELECTION_STATE, DEV_REVEAL_MAP, DEV_RESTRICT_CAMERA, DEV_PROMOTE, DEV_COUNT };
+	enum Command { DEV_CHANGE_PERSPECTIVE, DEV_SELECTION_STATE, DEV_REVEAL_MAP, DEV_RESTRICT_CAMERA, DEV_PROMOTE, DEV_COUNT };
 	static constexpr float kRow = 24.0f;
 
 	// parent: the HUD layer; owner gets `method`(command, checked) when a box is pressed.
@@ -42,7 +42,7 @@ public:
 		panel_->set_visible(false);
 		parent->add_child(panel_);
 		static const char *kLabels[DEV_COUNT] = {
-			"Display selection state", "Reveal map", "Restrict camera", "Promote selected units",
+			"Change perspective", "Display selection state", "Reveal map", "Restrict camera", "Promote selected units",
 		};
 		for (int i = 0; i < DEV_COUNT; ++i) {
 			Label *l = memnew(Label); // devCommandsText

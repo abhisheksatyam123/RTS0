@@ -106,11 +106,22 @@ func run() -> void:
 	page._controls["textures.quality"][1].select(0)
 	page._controls["textures.quality"][1].item_selected.emit(0)
 	await frames(2)
-	check(is_equal_approx(root.texture_mipmap_bias, 2.0), "Low texture quality drops two mip levels")
+	check(absf(root.texture_mipmap_bias - 2.0) < 0.01, "Low texture quality drops two mip levels")
 	page._controls["textures.quality"][1].select(2)
 	page._controls["textures.quality"][1].item_selected.emit(2)
 	await frames(2)
-	check(is_equal_approx(root.texture_mipmap_bias, 0.0), "High uses full textures")
+	check(absf(root.texture_mipmap_bias) < 0.01, "High uses full textures")
+	var aniso_key := "rendering/textures/default_filters/anisotropic_filtering_level"
+	check(int(ProjectSettings.get_setting(aniso_key)) == 1, "the anisotropic filter defaults to 0.28's 2x")
+	var aniso = page._controls["textures.maxanisotropy"][1]
+	aniso.select(4)
+	aniso.item_selected.emit(4)
+	await frames(2)
+	check(int(ProjectSettings.get_setting(aniso_key)) == 4 and RtsoUserConfig.new().get_value("textures.maxanisotropy") == "16",
+		"16x reaches the renderer")
+	aniso.select(1)
+	aniso.item_selected.emit(1)
+	await frames(2)
 	page._controls["waterreflection"][1].button_pressed = false
 	await frames(2)
 	var wg: Dictionary = root.get_node("UserSettings").water_globals
