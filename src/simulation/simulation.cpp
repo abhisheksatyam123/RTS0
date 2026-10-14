@@ -486,6 +486,7 @@ void Simulation::reset() {
 	petra_ev_captures_.clear();
 	petra_ev_decay_.clear();
 	spies_.clear();
+	trigger_dialogs_.clear();
 	for (CheatMods &cm : cheat_mods_) cm = CheatMods{};
 	std::fill(std::begin(player_pop_cap_), std::end(player_pop_cap_), 0);
 	std::fill(std::begin(unit_pop_bonus_), std::end(unit_pop_bonus_), 0);
@@ -13425,6 +13426,7 @@ Simulation::UnitDetails Simulation::unit_details(size_t i) const {
 	unit_resistance(i, d.resistance);
 	d.walk = unit_walk_speed(i) / kSpeedScale;
 	d.run = d.walk * unit_run_multiplier(i);
+	d.acceleration = unit_motion(tmpl, ut).acceleration / kSpeedScale;
 	const uint8_t gcls = unit_gather_class(ut, tmpl);
 	if (gcls != GATHER_NONE && units_.team[i] < MAX_PLAYERS && ut < UNIT_TYPE_COUNT) {
 		const UnitTechMods m = unit_tech_mods(units_.team[i], ut, tmpl);
@@ -13537,24 +13539,41 @@ void Simulation::tick_gates(float dt) {
 	gate_timer_ += dt;
 	if (gate_timer_ < 0.2f) return;
 	gate_timer_ = 0.0f;
-	constexpr float PASS_RANGE = 4.0f;
+	// Gate.js: <PassRange>2</PassRange> (stone and palisade gates), measured between the gate's
+	// and the unit's obstructions, so from the footprint edge plus the unit's clearance. 0.28's
+	// UnitMotion only steers round a closed gate once it bumps into it; RTS0's short paths plan
+	// round it from further off (building_steering.h), so the gate opens from 6 m (1.5 units),
+	// not 2 m, or a unit would walk round a short palisade before its gate opened.
+	constexpr float PASS_RANGE = 1.5f;
 	bool nav_changed = false;
 	for (auto &b : buildings_) {
 		if (!is_gate_type(b.type) || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 		const bool blocked_paths = blocks_pathfinding(b);
 		bool ally_near = false, unit_inside = false;
-		const float reach_u = b.hu + PASS_RANGE, reach_v = b.hv + PASS_RANGE;
-		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i]) continue;
-			const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
+		// Gate.js GetAllies: the owner's own allies, one way (Diplomacy.GetAllies), itself included.
+		auto opens_for = [&](uint8_t p) {
+			return b.team < MAX_PLAYERS && p < MAX_PLAYERS &&
+			       (p == b.team || players_[p].team == players_[b.team].team || diplomacy_[b.team][p] == DIPLO_ALLY);
+		};
+		auto check = [&](float x, float z, float clearance, uint8_t owner, bool can_open) {
+			const nav::Vec2 l = nav::footprint_local(b, x, z);
 			const float dx = std::fabs(l.x), dz = std::fabs(l.y);
-			if (dx > reach_u || dz > reach_v) continue;
-			const float clearance = unit_clearance_at(i);
+			if (dx > b.hu + clearance + PASS_RANGE || dz > b.hv + clearance + PASS_RANGE) return;
 			if (dx < b.hu + clearance && dz < b.hv + clearance) unit_inside = true;
-			if (!ally_near && b.team < MAX_PLAYERS && units_.team[i] < MAX_PLAYERS && is_ally(b.team, units_.team[i])
-			    && units_.action_state[i] != ACTION_DYING)
-				ally_near = true;
-			if (ally_near && unit_inside) break;
+			if (!ally_near && can_open && opens_for(owner)) ally_near = true;
+		};
+		for (size_t i = 0; i < units_.count && !(ally_near && unit_inside); ++i) {
+			if (!units_.alive[i]) continue;
+			// A unit on a turret point is immobile with its obstruction off (Turretable.js): the gate
+			// ignores it (Gate.js OnRangeUpdate skips immobile units).
+			if (!turret_height_.empty() && turret_height_.count(units_.id[i])) continue;
+			check(units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i), units_.team[i], units_.action_state[i] != ACTION_DYING);
+		}
+		// Animals have UnitAI too: owned livestock opens its owner's gates, any animal in the way keeps one open.
+		for (size_t f = 0; f < fauna_.count && !(ally_near && unit_inside); ++f) {
+			if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CARCASS || fauna_.behavior[f] == FAUNA_CORRALLED)
+				continue;
+			check(fauna_.pos_x[f], fauna_.pos_z[f], CLEARANCE_DEFAULT, fauna_owner_[f], true);
 		}
 		const bool should_open = ally_near && !b.gate_locked;
 		if (b.gate_open && !should_open && !unit_inside) b.gate_open = false;
@@ -28628,6 +28647,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"danubius_triggers", TRIGGER_ACTION_DANUBIUS_INIT, TUTORIAL_NONE},
 		{"jebel_barkal_triggers", TRIGGER_ACTION_JEBEL_BARKAL_INIT, TUTORIAL_NONE},
 		{"gallic_fields_3p", TRIGGER_ACTION_GALLIC_FIELDS, TUTORIAL_NONE},
+		{"triggers_demo", TRIGGER_ACTION_TRIGGERS_DEMO_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -28872,6 +28892,44 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 				triggers_.vars[2] = (int32_t)data.collection->size();
 			}
 			break;
+		case TRIGGER_ACTION_TRIGGERS_DEMO_INIT: {
+			// scenarios/triggers_demo.js: every listener logs its event; OnAttackDetected is
+			// registered too, but 0.28's Trigger.js never raises it (AttackDetection posts
+			// MT_AttackDetected to the player entity only), so RTS0 has no such event.
+			std::fprintf(stderr, "[triggers] loading the triggers file\n");
+			for (uint8_t e : {TRIGGER_ON_STRUCTURE_BUILT, TRIGGER_ON_CONSTRUCTION_STARTED, TRIGGER_ON_TRAINING_FINISHED,
+			                  TRIGGER_ON_TRAINING_QUEUED, TRIGGER_ON_RESEARCH_FINISHED, TRIGGER_ON_RESEARCH_QUEUED,
+			                  TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ON_PLAYER_COMMAND})
+				triggers_.register_trigger(e, TRIGGER_ACTION_TRIGGERS_DEMO_LOG, true);
+			triggers_.vars[3] = 0; // numberOfTimerTrigger (maxNumberOfTimerTrigger 3)
+			triggers_.vars[4] = triggers_.register_trigger(TRIGGER_ON_INTERVAL, TRIGGER_ACTION_TRIGGERS_DEMO_INTERVAL, true, 5000, 10000);
+			// OnRange round the A points: player 1's units (UnitAI) within 40 m.
+			triggers_.register_range_trigger(TRIGGER_ACTION_TRIGGERS_DEMO_RANGE, 'A', 0.0f, 40.0f / 4.0f, 1u << 0, true, true);
+			break;
+		}
+		case TRIGGER_ACTION_TRIGGERS_DEMO_LOG: {
+			static const char *const kNames[TRIGGER_EVENT_COUNT] = {"OnInitGame", "OnInterval", "OnRange", "OnStructureBuilt",
+				"OnConstructionStarted", "OnTrainingQueued", "OnTrainingFinished", "OnResearchQueued", "OnResearchFinished",
+				"OnOwnershipChanged", "OnPlayerDefeated", "OnPlayerWon", "OnDiplomacyChanged", "OnTreasureCollected",
+				"OnPlayerCommand", "OnDeserialized"};
+			std::fprintf(stderr, "[triggers] The %s event happened with the following data: entity %u, other %u, player %u, from %u, to %u, value %u, count %u\n",
+			             data.event < TRIGGER_EVENT_COUNT ? kNames[data.event] : "?", data.entity, data.other, data.player,
+			             data.from, data.to, data.value, data.count);
+			break;
+		}
+		case TRIGGER_ACTION_TRIGGERS_DEMO_INTERVAL: {
+			std::fprintf(stderr, "[triggers] The OnInterval event happened\n");
+			if (++triggers_.vars[3] >= 3) triggers_.disable_trigger((uint16_t)triggers_.vars[4]);
+			TriggerDialog d;
+			d.players = 0xFF; // players 1-8
+			d.caption = "Testing the yes-no dialog. Do you want to say sure or rather not?";
+			d.button1 = "Sure";
+			d.tooltip1 = "Say sure";
+			d.button2 = "Rather not";
+			d.tooltip2 = "Say rather not";
+			trigger_dialogs_.push_back(d);
+			break;
+		}
 		case TRIGGER_ACTION_DEATH_CANYON_INIT:
 			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
 			// "no_building" modifier emptying Builder/Entities, so their units build nothing.
