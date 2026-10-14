@@ -261,6 +261,7 @@ struct NetPeer {
 	uint32_t ready_version = 0;    // host: the setup version ready_status was given for
 	bool is_authenticated = false; // host: admitted to the session (right password, not banned)
 	uint64_t kick_disconnect_ms = 0; // host: kicked; the link closes at this time, after NMT_KICKED got there
+	uint8_t disconnect_reason = 0;   // host: the NDR_* reason sent when that link closes (0 none)
 	uint64_t last_seen_ms = 0;
 	uint32_t last_sent_seq = 0;
 	uint32_t last_recv_seq = 0;   // every reliable seq <= this has been delivered
@@ -272,7 +273,13 @@ struct NetPeer {
 // and observers); one more is refused with NDR_SERVER_FULL.
 constexpr size_t NET_MAX_CLIENTS = 41;
 // 0 A.D. NetHost.h ENetDisconnectReason values a host sends with its disconnect.
+constexpr uint8_t NDR_INCORRECT_PROTOCOL_VERSION = 3;
+constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;
+constexpr uint8_t NDR_INCORRECT_SOFTWARE_VERSION = 17;
+// What this build sends in its handshake (0 A.D. CNetServerWorker::CheckHandshake
+// compares engine versions and enabled mods): a host refuses any other.
+constexpr const char *NET_SOFTWARE_VERSION = "RTS0-0.1";
 
 struct NetConfig {
 	uint16_t port = PS_DEFAULT_PORT; // 20595 (0x5073)
@@ -296,14 +303,14 @@ struct NetStats {
 struct ClientHandshakeMsg {
 	uint32_t magic_response = PS_PROTOCOL_MAGIC_RESPONSE;
 	uint32_t protocol_version = PS_PROTOCOL_VERSION;
-	std::string engine_version = "RTS0-0.1";
+	std::string engine_version = NET_SOFTWARE_VERSION;
 	std::vector<std::pair<std::string, std::string>> enabled_mods;
 };
 
 struct ServerHandshakeMsg {
 	uint32_t magic = PS_PROTOCOL_MAGIC;
 	uint32_t protocol_version = PS_PROTOCOL_VERSION;
-	std::string engine_version = "RTS0-0.1";
+	std::string engine_version = NET_SOFTWARE_VERSION;
 };
 
 struct ServerHandshakeResponseMsg {

@@ -69,6 +69,7 @@
 #include "tutorial_panel.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
+#include "control_groups_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
 #include "session_audio.h"
@@ -192,6 +193,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
+	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker
 	MeshInstance3D *ghost_mesh = nullptr;
@@ -344,6 +346,10 @@ public:
 	void _on_selection_group_gui_input(const Ref<InputEvent> &event, int key);
 	void _on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot);
 	void _on_research_progress_pressed(int slot);
+	void _on_control_group_gui_input(const Ref<InputEvent> &event, int button);
+	// input.js performGroup: select, add or snap (select and move the camera) group `grp`.
+	enum GroupAction { GROUP_SELECT, GROUP_ADD, GROUP_SNAP };
+	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
@@ -625,6 +631,7 @@ private:
 	Label *replay_observer_label_ = nullptr; // PlayerViewControl's "Observer Mode"
 	bool replay_view_gaia_ = false;          // Gaia picked (its view is the observer's)
 	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
+	uint32_t net_oos_shown_turn_ = 0;        // OutOfSyncNetwork showed this turn (0 none)
 	static constexpr int kReplayViewGaiaId = 100;
 	OptionButton *replay_speed_picker_ = nullptr;
 	Button *replay_pause_btn_ = nullptr;
