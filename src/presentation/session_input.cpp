@@ -1096,7 +1096,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float dz = b.z - click_pos.z;
 				float hit_r = b.half_size + 1.2f;
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
-					const uint32_t gaia_grain = b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
+					// A finished field's grain, whoever owns it (0 A.D. "gather" has no owner check
+					// and its specificness 1 beats capture, attack and repair).
+					const uint32_t field_grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
 					const bool friendly = b.team == local_player() || sim->is_ally(local_player(), b.team);
 					if (force_garrison && friendly && selection_can_garrison(b.id)) {
 						// session.garrison is a hotkeyActionCheck: it wins over returning
@@ -1115,11 +1117,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						play_civ_voice("build");
 					} else if (trade_route_click(b, true, queue_shift, nullptr)) {
 						// setup-trade-route has specificness 0: it wins over garrison and capture.
-					} else if (gaia_grain) { // a Gaia field: anyone may farm it (0 A.D. "gather" comes before "capture")
+					} else if (field_grain && sim->any_can_gather(sel_ptr, sel_n, field_grain)) { // any player's finished field
 						if (turn_cmds())
-							post_lockstep(4, sel_ptr, sel_n, 0, 0, gaia_grain, qbit);
+							post_lockstep(4, sel_ptr, sel_n, 0, 0, field_grain, qbit);
 						else
-							sim->order_gather(sel_ptr, sel_n, gaia_grain, queue_shift);
+							sim->order_gather(sel_ptr, sel_n, field_grain, queue_shift);
 						play_civ_voice("gather");
 					} else if (b.team != local_player() && sim->is_hostile(local_player(), b.team)) {
 						if (turn_cmds())

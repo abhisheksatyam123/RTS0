@@ -944,7 +944,10 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 				"  float los = 1.0;\n"
 				"  if (los_map_half > 0.0) los = texture(los_tex, (wpos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r;\n"
 				"  ALBEDO = COLOR.rgb * mix(0.5, 1.0, los) * dash;\n"
-				"  ALPHA = max(core, glow) * smoothstep(0.02, 0.25, los);\n"
+				// CCmpTerritoryManager::Interpolate: a region cut off from its owner's
+				// civic centres (COLOR.a 0) blinks, alpha * (0.2 + 0.8 |cos(t pi)|).
+				"  float blink = mix(0.2 + 0.8 * abs(cos(TIME * PI)), 1.0, COLOR.a);\n"
+				"  ALPHA = max(core, glow) * smoothstep(0.02, 0.25, los) * blink;\n"
 				"}\n");
 		border_mat_.instantiate();
 		border_mat_->set_shader(sh);
@@ -965,12 +968,24 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	PackedColorArray cols;
 	PackedVector2Array uvs;
 	PackedInt32Array idx;
-	auto boundaries = rtso::compute_territory_boundaries(grid.data.data(), grid.w, grid.h);
+	// TERRITORY_BLINKING_MASK: cells of a region holding none of its owner's
+	// territory roots get their own outline, which blinks.
+	constexpr uint8_t kBlinking = 0x40;
+	std::vector<uint8_t> cells(grid.data.begin(), grid.data.end());
+	for (int j = 0; j < grid.h; ++j) {
+		for (int i = 0; i < grid.w; ++i) {
+			uint8_t &c = cells[(size_t)j * grid.w + i];
+			if (c && c < kBlinking && sim->territory_blinking_cell(i, j)) c |= kBlinking;
+		}
+	}
+	auto boundaries = rtso::compute_territory_boundaries(cells.data(), grid.w, grid.h);
 	for (auto &b : boundaries) {
 		if (b.points.size() < 3) continue;
 		rtso::smooth_points_average(b.points);
 		rtso::interpolate_points_rns(b.points, separation / cell);
-		const Color col = player_display_color(sim, (uint8_t)(b.owner - 1));
+		const bool blinking = (b.owner & kBlinking) != 0;
+		Color col = player_display_color(sim, (uint8_t)((b.owner & ~kBlinking) - 1));
+		col.a = blinking ? 0.0f : 1.0f;
 		const int n = (int)b.points.size();
 		const int base = verts.size();
 		float run = 0.0f;
