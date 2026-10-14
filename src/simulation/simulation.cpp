@@ -20181,6 +20181,17 @@ void Simulation::petra_research_trade_bonus() {
 	}
 }
 
+// researchManager.js update's random pick leaves out techs only for healers, outposts or
+// walls, and with no ally Config.unusedNoAllyTechs: Player/sharedLos (Cartography),
+// Market/InternationalBonus and Player/sharedDropsites (Diaspora).
+bool Simulation::petra_skips_random_tech(uint8_t t, bool has_ally) const {
+	if (petra_tech_affects_only(t, TC_HEALER) || petra_tech_affects_only(t, TC_OUTPOST) || petra_tech_affects_only(t, TC_WALL))
+		return true;
+	const TechInfo &ti = tech_info(t);
+	return !has_ally && (t == TECH_UNLOCK_SHARED_LOS || t == TECH_UNLOCK_SHARED_DROPSITES ||
+	                     (ti.effect_count == 1 && tech_effects_table()[ti.effect_begin].stat == TSTAT_TRADE_INTERNATIONAL));
+}
+
 void Simulation::petra_manage_research(float dt) {
 	auto start_tech = [&](uint8_t tech_id) { return petra_start_research(tech_id); };
 	auto have_building = [&](uint8_t btype) {
@@ -20396,13 +20407,8 @@ void Simulation::petra_manage_research(float dt) {
 	bool has_ally = false;
 	for (uint8_t p = 0; p < MAX_PLAYERS && !has_ally; ++p)
 		has_ally = p != petra_pid_ && player_in_match(p) && is_ally(petra_pid_, p);
-	techs.erase(std::remove_if(techs.begin(), techs.end(), [&](uint8_t t) {
-		if (petra_tech_affects_only(t, TC_HEALER) || petra_tech_affects_only(t, TC_OUTPOST) || petra_tech_affects_only(t, TC_WALL))
-			return true;
-		const TechInfo &ti = tech_info(t);
-		return !has_ally && (t == TECH_UNLOCK_SHARED_LOS ||
-		                     (ti.effect_count == 1 && tech_effects_table()[ti.effect_begin].stat == TSTAT_TRADE_INTERNATIONAL));
-	}), techs.end());
+	techs.erase(std::remove_if(techs.begin(), techs.end(), [&](uint8_t t) { return petra_skips_random_tech(t, has_ally); }),
+	            techs.end());
 	if (techs.empty()) return;
 	// pickRandom, kept while the pick waits for resources: the draw is a hash of
 	// what Petra has researched, so it is the same until a research completes.
