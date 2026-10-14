@@ -93,6 +93,10 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_TRIGGERS_DEMO_LOG = 35,         // its <Event>Action listeners: warn(uneval(data))
 	TRIGGER_ACTION_TRIGGERS_DEMO_INTERVAL = 36,    // IntervalAction: the yes-no dialog, three times
 	TRIGGER_ACTION_PICKUP_TEST = 37,               // scenarios/pickup_test_map_triggers.js: arg 0 init, 1 experiments, 2 second walker
+	TRIGGER_ACTION_UNIT_CHASING = 38,              // scenarios/unit_chasing_test_triggers.js: arg 0 init, 1 SetupUnits
+	TRIGGER_ACTION_UNIT_CHASING_OWNERSHIP = 39,    // its OwnershipChanged
+	TRIGGER_ACTION_UNIT_DANCING = 40,              // scenarios/unit_dancing_test_triggers.js: arg 0 init, 1 SetupUnits, 2 RemoveSpread, 3 EndGame
+	TRIGGER_ACTION_UNIT_DANCING_EVENT = 41,        // its ReportResults hooks (a dancer killed, or idle)
 	TRIGGER_ACTION_COUNT
 };
 

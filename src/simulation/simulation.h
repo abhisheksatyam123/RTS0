@@ -2591,6 +2591,21 @@ private:
 	void trigger_survival_wave();
 	void trigger_gallic_fields(bool attack);
 	void trigger_pickup_test(int step);
+	void trigger_unit_chasing(int step);
+	void trigger_unit_chasing_ownership(const TriggerEventData &data);
+	void trigger_unit_dancing(int step);
+	void trigger_unit_dancing_event(const TriggerEventData &data);
+	// The unit motion test scripts' helpers: 0 A.D. metres from the map corner to world units,
+	// QuickSpawn (followed as TriggerWatch role/label unless role is 0xFF), WalkTo, and removing
+	// every unit an experiment (role) followed.
+	std::pair<float, float> script_metres(float mx, float mz) const;
+	uint32_t script_spawn(float mx, float mz, const char *tmpl_id, uint8_t team, uint8_t role = 0xFF, uint8_t label = 0);
+	void script_walk(uint32_t id, float mx, float mz, bool queued);
+	void script_delete_role(uint8_t role);
+	// Their ModifiersManager.AddModifiers (no promotions; the dancing test's 5 m vision and
+	// spread off), from the script that is running: kept out of the save as they follow from it.
+	uint16_t unit_test_script() const;
+	void script_modifiers(uint8_t player_id, TechMods &m) const;
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
 	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").
