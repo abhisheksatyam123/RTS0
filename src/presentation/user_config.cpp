@@ -50,6 +50,7 @@ const Default kDefaults[] = {
 	{"waterrefraction", "true"},
 	{"waterreflection", "true"},
 	{"textures.quality", "2"},
+	{"textures.maxanisotropy", "2"},
 	{"sharpening", "disabled"},
 	{"sharpness", "0.3"},
 	{"variant_diversity", "full"},
