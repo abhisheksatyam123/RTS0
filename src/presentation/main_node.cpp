@@ -75,6 +75,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_disconnected_exit_pressed"), &RtsoMain::_on_disconnected_exit_pressed);
 	ClassDB::bind_method(D_METHOD("_on_delete_confirmed"), &RtsoMain::_on_delete_confirmed);
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
+	ClassDB::bind_method(D_METHOD("_on_template_details_input", "event", "kind", "id", "civ"), &RtsoMain::_on_template_details_input);
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
@@ -1879,6 +1880,15 @@ void RtsoMain::_on_template_info_pressed() {
 	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
 }
 
+// A command panel button's right click (selection_panels.js onPressRight showTemplateDetails):
+// the Template Viewer for its structure, technology or unit.
+void RtsoMain::_on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || !ui_layer) return;
+	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
+}
+
 // Tests: select the local player's first structure or first live unit.
 // unit_actions.js "garrison" actionCheck: some selected unit may garrison in this own or allied
 // structure (its GarrisonHolder List, IsOwnedByMutualAllyOfEntity). Room is not checked.
@@ -2077,8 +2087,16 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 	(void)at;
 	if (!command_panel_.roster_list() || index < 0 || index >= command_panel_.roster_list()->get_item_count()) return;
 	command_panel_.roster_list()->deselect_all();
-	if (mouse_button != MOUSE_BUTTON_LEFT || command_panel_.roster_list()->is_item_disabled(index)) return;
 	const int meta = (int)command_panel_.roster_list()->get_item_metadata(index);
+	if (mouse_button == MOUSE_BUTTON_RIGHT && !(meta & RtsoCommandPanelView::ROSTER_ANIMAL) && sim && ui_layer) {
+		// onPressRight showTemplateDetails, disabled rows too.
+		Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+		const bool tech = meta & RtsoCommandPanelView::ROSTER_TECH;
+		if (viewer.is_valid())
+			viewer->call("open", ui_layer, String(tech ? "tech" : "unit"), tech ? (meta & 0xFF) : meta, (int)sim->player_civ(local_player()));
+		return;
+	}
+	if (mouse_button != MOUSE_BUTTON_LEFT || command_panel_.roster_list()->is_item_disabled(index)) return;
 	if (meta & RtsoCommandPanelView::ROSTER_ANIMAL) {
 		try_breed(selected_building_id, (uint8_t)(meta & 0xFF), train_batch());
 		return;
