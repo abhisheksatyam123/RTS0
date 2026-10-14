@@ -1920,13 +1920,45 @@ void RmsGenerator::synth_hells_pass(HeightmapGrid &hm, RmsRng &rng, float &water
 	const int n = std::max(1, num_players);
 	hm.apply_fbm(rng, 4, 0.025f, 0.5f, 2.0f, 1.5f);
 	const float start = rng.range_float(0.0f, 6.2831853f);
-	const float spine_w = (float)scale_by_map_size(14, n >= 5 ? 4 : 8, half) * 0.5f;
+	// PathPlacer width and tapering (the width grows to 1 - tapering times itself at the
+	// end); SmoothElevationPainter(ELEVATION_SET, heightBarrier, 2).
+	const float spine_w = (float)scale_by_map_size(14, n >= 5 ? 4 : 8, half);
+	const float taper = n >= 5 ? -0.7f : (n > 3 || 2.0f * half <= 192.0f) ? -1.0f : -1.5f;
+	const float step = (half * 2.0f) / (float)(hm.res - 1);
 	for (int i = 0; i < n; ++i) {
 		const float a = start + ((float)i + 0.5f) * 6.2831853f / (float)n;
 		const auto s = polar(a, half * 0.15f), e = polar(a, half * 0.84f);
 		// PathPlacer waviness: bend the spine through a jittered midpoint.
 		const auto m = polar(a + rng.range_float(-0.06f, 0.06f), half * 0.5f);
-		raise_ridge(hm, {s, m, e}, spine_w, 10.5f, -1.0f, 0.0f);
+		const std::pair<float, float> pts[3] = {s, m, e};
+		const float l0 = std::hypot(m.first - s.first, m.second - s.second), l1 = std::hypot(e.first - m.first, e.second - m.second);
+		for (int z = 0; z < hm.res; ++z) {
+			const float wz = -half + z * step;
+			for (int x = 0; x < hm.res; ++x) {
+				const float wx = -half + x * step;
+				// The nearest point on the spine; its ends are square (PathPlacer's quads), so
+				// the passes round the centre and along the edge stay open.
+				float best = 1e9f, along = 0.0f, past_end = 0.0f;
+				for (int k = 0; k < 2; ++k) {
+					const float ax = pts[k].first, az = pts[k].second, bx = pts[k + 1].first - ax, bz = pts[k + 1].second - az;
+					const float len = k == 0 ? l0 : l1;
+					float t = ((wx - ax) * bx + (wz - az) * bz) / (len * len);
+					if ((k == 0 && t < 0.0f) || (k == 1 && t > 1.0f)) continue;
+					t = std::clamp(t, 0.0f, 1.0f);
+					const float d = std::hypot(wx - (ax + bx * t), wz - (az + bz * t));
+					if (d < best) {
+						best = d;
+						along = (k == 0 ? 0.0f : l0) + len * t;
+						past_end = std::min(along, l0 + l1 - along);
+					}
+				}
+				const float hw = (1.0f - along / (l0 + l1) * taper) * spine_w * 0.5f;
+				if (best >= hw) continue;
+				const float w = std::clamp(std::min(hw - best, past_end) / 2.0f, 0.0f, 1.0f);
+				const float cur = hm.get(x, z);
+				hm.set(x, z, cur + (10.5f - cur) * w);
+			}
+		}
 	}
 	place_ring_spawns(hm, spawns, num_players, half * 0.40f, start, 6.2831853f, 0.0f);
 	scatter_hills(hm, rng, spawns, scale_by_map_size(1, 4, half), 3.0f, 5.0f, 2.0f, 4.0f, 30.0f);
@@ -3373,10 +3405,13 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 	const float half = hm.map_half;
 	const float player_r = (float)scale_by_map_size(15, 25, half); // defaultPlayerBaseRadius()
 	place_team_spawns(hm, rng, spawns, num_players, 0.35f * 2.0f * half, rng.range_float(0.0f, 6.2831853f), 25.0f * k);
+	// createMountain's omnidirectional ramp, then the flattened Civic Centre area. The ramp
+	// is long enough for land units to climb (0.28's hill is a dome of bumps, walkable all
+	// round), so the bases meet round the volcano, not only past the map's edge.
+	const float ramp = std::max(player_r, 1.5f * 25.0f * k / (0.8f * LAND_MAX_TERRAIN_SLOPE));
 	for (auto &sp : spawns) {
 		sp.base_height = 25.0f * k;
-		// createMountain's omnidirectional ramp, then the flattened Civic Centre area.
-		hm.level_area(sp.x, sp.z, 14.0f, player_r, 25.0f * k);
+		hm.level_area(sp.x, sp.z, 14.0f, ramp, 25.0f * k);
 	}
 	// createVolcano(mapCenter, ..., ELEVATION_SET): each ring inside the last.
 	const float rings[5][2] = {
@@ -4782,6 +4817,8 @@ std::vector<uint8_t> seas_path(const HeightmapGrid &hm, RmsRng &rng, float ax, f
 			for (int x = x0; x <= x1; ++x) {
 				const float wx = -half + (float)x * sp, wz = -half + (float)z * sp;
 				float t = sl2 > 0.0f ? ((wx - p1x) * (p2x - p1x) + (wz - p1z) * (p2z - p1z)) / sl2 : 0.0f;
+				// The path's quads (ConvexPolygonPlacer) end square at a and b: no round caps.
+				if ((j == 0 && t < 0.0f) || (j == total - 1 && t > 1.0f)) continue;
 				t = std::clamp(t, 0.0f, 1.0f);
 				const float qx = p1x + (p2x - p1x) * t, qz = p1z + (p2z - p1z) * t;
 				if ((wx - qx) * (wx - qx) + (wz - qz) * (wz - qz) > w * w) continue;

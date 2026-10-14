@@ -4181,5 +4181,6 @@
   "units": [],
   "trigger_scripts": [
     "unit_motion_integration_test"
-  ]
+  ],
+  "circular": true
 }
