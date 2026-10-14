@@ -387,7 +387,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				double_click_pending = false;
 				if (build_click_pending) {
 					build_click_pending = false;
-					const int cell_x = build_click_cell_x, cell_y = build_click_cell_y;
+					int cell_x = build_click_cell_x, cell_y = build_click_cell_y;
+					snap_placement_to_edges(current_build_type, cell_x, cell_y);
 					const float fp = (float)rtso::building_type_info(current_build_type).footprint;
 					const float angle = placement_angle_at(current_build_type, (cell_x + fp * 0.5f) * rtso::Simulation::GRID,
 							(cell_y + fp * 0.5f) * rtso::Simulation::GRID);

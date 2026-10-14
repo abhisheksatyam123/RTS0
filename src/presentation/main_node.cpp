@@ -15,6 +15,7 @@
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include "user_config.h"
+#include "obstruction_snap.h"
 #include "display_colors.h"
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
@@ -2852,6 +2853,43 @@ float RtsoMain::placement_angle_at(uint8_t btype, float x, float z) const {
 		if (!std::isnan(a)) return a;
 	}
 	return placement_angle;
+}
+
+void RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y) {
+	if (!sim || btype == rtso::BLD_DOCK) return;
+	// isSnapToEdgesEnabled: the hotkey turns it on, or off when the option is "enabled".
+	if (rtso::hotkeys::held("session.snaptoedges") == (rtso::user_config::get("gui.session.snaptoedges") == "enabled")) return;
+	const float GRID = rtso::Simulation::GRID;
+	const int fp = rtso::building_type_info(btype).footprint;
+	const float half = fp * GRID * 0.5f;
+	const float x = cell_x * GRID + half, z = cell_y * GRID + half;
+	// The structures the player has seen (GetEntitiesWithStaticObstructionOnScreen draws mirages too).
+	std::vector<rtso::snap::Rect> rects;
+	const float reach = rtso::snap::kDistanceThreshold + 2.0f * half + 4.0f * GRID;
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked || std::fabs(b.x - x) > reach || std::fabs(b.z - z) > reach) continue;
+		if (!sim->los_explored(local_player(), b.x, b.z)) continue;
+		rects.push_back({b.x, b.z, b.half_size, b.half_d, b.rot});
+	}
+	const std::vector<rtso::snap::Edge> edges = rtso::snap::edges_near(rects, x, z);
+	rtso::snap::Result r;
+	if (!rtso::snap::snap_position(edges, half, rtso::building_half_depth(btype, half), x, z, placement_angle, r)) return;
+	placement_angle = r.angle;
+	// RTS0 places on GRID cells: the cell nearest the flush centre that can be built, else the nearest.
+	const float fx = r.x / GRID - fp * 0.5f, fz = r.z / GRID - fp * 0.5f;
+	int best_x = (int)std::lround(fx), best_y = (int)std::lround(fz);
+	float best_d = 1e30f;
+	for (int cx = (int)std::floor(fx); cx <= (int)std::floor(fx) + 1; ++cx)
+		for (int cy = (int)std::floor(fz); cy <= (int)std::floor(fz) + 1; ++cy) {
+			const float d = (cx - fx) * (cx - fx) + (cy - fz) * (cy - fz);
+			if (d >= best_d) continue;
+			if (sim->check_placement(local_player(), cx, cy, btype, r.angle) != rtso::Simulation::PLACE_OK) continue;
+			best_d = d;
+			best_x = cx;
+			best_y = cy;
+		}
+	cell_x = best_x;
+	cell_y = best_y;
 }
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
