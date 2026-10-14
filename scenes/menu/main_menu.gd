@@ -83,7 +83,9 @@ var submenu_data = {
 		"title": "SETTINGS",
 		"items": [
 			{"label": "Game Options", "tooltip": "Audio, graphics, display mode, camera speeds.", "action": "open_options"},
-			{"label": "Hotkeys & Controls", "tooltip": "Standard 0 A.D. hotkeys (WASD, MMB pan, H stop, Ctrl+RMB).", "action": "open_options"}
+			{"label": "Hotkeys & Controls", "tooltip": "Standard 0 A.D. hotkeys (WASD, MMB pan, H stop, Ctrl+RMB).", "action": "open_options"},
+			{"label": "Mod Selection", "tooltip": "Select and download mods for the game.", "action": "open_mods"},
+			{"label": "Welcome Screen", "tooltip": "Show the Welcome Screen again. Useful if you hid it by mistake.", "action": "open_splash"}
 		]
 	}
 }
@@ -113,6 +115,11 @@ func _ready() -> void:
 	$MainPanel/Buttons/BtnExit.pressed.connect(_on_exit_pressed)
 
 	$CivSwitcher.pressed.connect(_cycle_background)
+
+	# 0.28 SplashScreenHandler: the welcome page over the menu shown at startup
+	# (not under a -s test script).
+	if get_tree().get_script() == null:
+		load("res://scenes/menu/splashscreen.gd").open_at_startup(self)
 
 	# Connect hover sounds
 	for btn in $MainPanel/Buttons.get_children():
@@ -259,6 +266,12 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/lobby.tscn")
 		"open_options":
 			_go_to_scene("res://scenes/menu/options.tscn")
+		"open_mods":
+			_close_submenu()
+			load("res://scenes/menu/modmod.gd").open(self)
+		"open_splash":
+			_close_submenu()
+			load("res://scenes/menu/splashscreen.gd").open(self)
 		"open_asset_viewer":
 			_go_to_scene("res://scenes/tools/asset_viewer.tscn")
 		"continue_campaign", "new_campaign", "load_campaign":

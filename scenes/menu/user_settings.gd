@@ -41,6 +41,8 @@ var _translation: Translation
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# 0 A.D.'s enabled mods (mod.enabledmods) load over the game's files first.
+	preload("res://scenes/menu/mods.gd").load_enabled_packs()
 	_make_buses()
 	_make_overlay()
 	get_tree().node_added.connect(_on_node_added)

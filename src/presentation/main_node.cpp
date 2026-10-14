@@ -1,4 +1,5 @@
 #include "main_node.h"
+#include "l10n.h"
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
@@ -30,6 +31,8 @@
 #include <sstream>
 
 using namespace godot;
+
+using rtso::sprintf0;
 
 // 0 A.D. Trainer lists (civ_unit_template(..).trainers): does a structure of type
 // `btype` train any of `civ`'s units of class `utype`?
@@ -140,6 +143,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
+	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count"), &RtsoMain::debug_spawn_units);
+	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
@@ -592,6 +597,8 @@ void RtsoMain::_ready() {
 	top_hud_panel->add_child(top_hbox);
 
 	top_panel_.build(this, top_hbox, sim->player_civ());
+	// Tooltips are plain text: the name without colorizePlayernameHelper's coloured square.
+	top_panel_.set_ally_name([this](uint8_t p) { return player_display_name(p); });
 	{
 		auto first_key = [](const char *name) {
 			const auto *combos = rtso::hotkeys::table().get(name);
@@ -1695,7 +1702,8 @@ Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 }
 
 // Test hook: the selection, the selected structure's rally point, and every own
-// unit with its template, rank, world position and screen position.
+// unit with its template, rank, idleness, whether it is a Civilian,
+// world position and screen position.
 Dictionary RtsoMain::debug_selection_state() {
 	Dictionary d;
 	if (!sim) return d;
@@ -1713,6 +1721,10 @@ Dictionary RtsoMain::debug_selection_state() {
 		u["tmpl"] = (int64_t)uview.tmpl[i];
 		u["rank"] = (int64_t)uview.rank[i];
 		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
+		u["idle"] = uview.action_state[i] == rtso::ACTION_IDLE;
+		const rtso::TechClasses tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
+				: rtso::unit_tech_classes(uview.unit_type[i]);
+		u["civilian"] = (bool)(tc & rtso::TC_CIVILIAN);
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -1740,6 +1752,32 @@ Array RtsoMain::debug_command_row() {
 			out.push_back(e);
 		}
 	return out;
+}
+
+// Test hook: spawns `count` of the roster template `template_id` (e.g.
+// "athen/support_female_citizen") for the local player by its Civic Centre.
+PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count) {
+	PackedInt32Array out;
+	if (!sim) return out;
+	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
+	if (t >= rtso::CIV_UNIT_TEMPLATE_COUNT) return out;
+	const uint8_t me = local_player();
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : sim->buildings())
+		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+	for (int i = 0; i < count; ++i)
+		out.push_back((int32_t)sim->spawn_unit(cx - 16.0f + 3.0f * i, cz - 16.0f, me,
+				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
+	return out;
+}
+
+// CounterManager.onPress: a click on a resource or population counter cycles
+// the order of the allies' stats in their tooltips.
+void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	RtsoTopPanel::cycle_order();
+	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time);
 }
 
 // Test hook: destroys the units (Delete's command) without touching the selection,
@@ -2035,34 +2073,61 @@ void RtsoMain::cycle_idle_worker() {
 }
 
 // 0 A.D. findIdleUnit (gui/session/input.js:1659) with the class lists from
-// session.js g_WorkerTypes / g_MilitaryTypes and hotkeys/misc.xml: selects the
-// next idle unit of the kind after the last one found and centres the camera
-// on it. selection.add (Shift) appends; selection.offscreen (Alt) selects every
-// idle unit of the kind at once.
+// session.js g_WorkerTypes / g_MilitaryTypes and hotkeys/misc.xml, and
+// GuiInterface FindIdleUnits / IdleUnitFilter: selects the next idle unit after
+// the last one found and centres the camera on it. The class list is walked in
+// order from the class of the last find (all idle civilians before the
+// traders, and so on), units garrisoned or on a turret don't count, and once a
+// class runs out the next one follows. selection.add (Shift) appends;
+// selection.offscreen (Alt) selects every idle unit of the kind at once.
 void RtsoMain::find_idle_unit(IdleKind kind) {
 	if (!sim) return;
-	rtso::TechClasses want;
+	std::vector<rtso::TechClasses> classes;
 	switch (kind) {
-		case IDLE_WORKER: want = rtso::TC_FEMALECITIZEN | rtso::TC_TRADER | rtso::TC_FISHINGBOAT | rtso::TC_CITIZEN; break;
-		case IDLE_WARRIOR: want = rtso::TC_MELEE | rtso::TC_RANGED; break;
-		case IDLE_BUILDER: want = rtso::TC_WORKER | rtso::TC_CITIZEN; break;
-		case IDLE_ANY: want = ~0ull; break;
+		case IDLE_WORKER: classes = {rtso::TC_CIVILIAN, rtso::TC_TRADER, rtso::TC_FISHINGBOAT, rtso::TC_CITIZEN}; break;
+		case IDLE_WARRIOR: classes = {rtso::TC_MELEE, rtso::TC_RANGED}; break;
+		case IDLE_BUILDER: classes = {rtso::TC_WORKER | rtso::TC_CITIZEN}; break;
+		case IDLE_ANY: classes = {rtso::TechClasses(~0ull, ~0ull)}; break;
 	}
+	const size_t n = classes.size();
 	const bool append = rtso::hotkeys::held("selection.add");
 	const bool select_all = rtso::hotkeys::held("selection.offscreen");
-	if (select_all || kind != last_idle_kind_) last_idle_unit_ = 0;
+	if (select_all || kind != last_idle_kind_) {
+		last_idle_unit_ = 0;
+		idle_class_index_ = 0;
+	}
 	last_idle_kind_ = kind;
 
+	// Bucket of each idle unit: the first class it matches, counted from the
+	// current class; current-class units at or before the last find go last.
 	auto uview = sim->units();
+	size_t best = SIZE_MAX, best_bucket = SIZE_MAX, best_index = 0;
 	std::vector<size_t> idle;
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!uview.alive[i] || uview.team[i] != local_player() || uview.action_state[i] != rtso::ACTION_IDLE) continue;
-		if (!(rtso::unit_tech_classes(uview.unit_type[i]) & want)) continue;
+		if (sim->turret_holder_of(uview.id[i])) continue;
 		if (append && selected_ids.has((int32_t)uview.id[i])) continue;
+		// The roster row's Identity classes (a female citizen is a villager by UnitType).
+		const uint16_t tmpl = uview.tmpl[i];
+		const rtso::TechClasses tc = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).tech_classes
+				: rtso::unit_tech_classes(uview.unit_type[i]);
+		size_t bucket = n;
+		for (size_t k = 0; k < n; ++k) {
+			if (tc & classes[(idle_class_index_ + k) % n]) { bucket = k; break; }
+		}
+		if (bucket == n) continue;
 		idle.push_back(i);
+		const size_t index = bucket;
+		if (bucket == 0 && last_idle_unit_ && uview.id[i] <= last_idle_unit_) bucket = n;
+		if (bucket < best_bucket || (bucket == best_bucket && uview.id[i] < uview.id[best])) {
+			best = i;
+			best_bucket = bucket;
+			best_index = index;
+		}
 	}
 	if (idle.empty()) {
 		last_idle_unit_ = 0;
+		idle_class_index_ = 0;
 		session_audio_.play_no_idle_unit();
 		return;
 	}
@@ -2075,20 +2140,10 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 		play_civ_voice("select");
 		return;
 	}
-	// The idle unit with the next id after the previous pick, wrapping around.
-	size_t pick = idle.front(), first = idle.front();
-	bool found = false;
-	for (size_t i : idle) {
-		if (uview.id[i] < uview.id[first]) first = i;
-		if (uview.id[i] > last_idle_unit_ && (!found || uview.id[i] < uview.id[pick])) {
-			pick = i;
-			found = true;
-		}
-	}
-	if (!found) pick = first;
-	last_idle_unit_ = uview.id[pick];
-	selected_ids.push_back((int32_t)uview.id[pick]);
-	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[pick], 0, uview.pos_z[pick]));
+	last_idle_unit_ = uview.id[best];
+	idle_class_index_ = (idle_class_index_ + best_index) % n;
+	selected_ids.push_back((int32_t)uview.id[best]);
+	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[best], 0, uview.pos_z[best]));
 	play_civ_voice("select");
 }
 
@@ -2121,13 +2176,25 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 	const bool gaia = attacker == rtso::GAIA_PLAYER;
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
 	if (!chat_window_.is_ready() || !user_opts_.attack_notice) return;
-	String who = gaia ? String("Gaia")
-			: player_display_name(attacker) + " (" + String(rtso::civ_info(sim->player_civ(attacker)).name) + ")";
+	// ChatMessageFormatSimulation.attack: the attacker's name in its colour.
 	(void)structure; // 0 A.D. words unit and structure attacks the same way
-	const String what = "You have been attacked";
-	const String key = rtso::hotkeys::table().label("camera.lastattackfocus").c_str();
-	chat_window_.append_line("[color=#ff6644]" + what + " by " + who + "![/color]" +
-			(key.is_empty() ? String() : " [color=#aaaaaa](" + key + " to view)[/color]") + "\n");
+	chat_window_.append_line(sprintf0(tr("%(icon)sYou have been attacked by %(attacker)s!"),
+			{{"icon", ""}, {"attacker", colored_player_name(attacker)}}) + "\n");
+}
+
+// 0 A.D.'s "Requires %(technology)s" line with the requirement's translated name.
+String RtsoMain::requires_text(const String &what) const {
+	return sprintf0(tr("Requires %(technology)s"), {{"technology", tr(what)}});
+}
+
+// getNeededResourcesTooltip for the local player's stock, called once the sim
+// refused the cost; a cost multiplier the shown cost leaves out (a researcher's
+// TechCostMultiplier) still gets the label.
+String RtsoMain::needed_text(const rtso::CostTip &cost) const {
+	const auto &ps = sim->player(local_player());
+	const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+			ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD]);
+	return need.is_empty() ? rtso::tr0("Insufficient resources:").trim_suffix(":") : need;
 }
 
 // colorizePlayernameByID: the name in the player's displayed colour.
@@ -2155,17 +2222,24 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 				sim->get_diplomacy(b, a) == rtso::Simulation::DIPLO_ALLY;
 	};
 	// getLocalizedResourceAmounts: "100 food, 50 wood and 200 metal".
-	auto amounts_text = [](const int32_t *amounts, const uint8_t *types, int n) {
-		static const char *kNames[rtso::RES_COUNT] = {"wood", "metal", "stone", "food"}; // RES_* order
-		String parts[rtso::RES_COUNT];
-		int count = 0;
+	// tooltips.js: "%(amount)s %(resourceType)s" each, the last joined by
+	// "%(previousAmounts)s and %(lastAmount)s", the others by ", ".
+	auto amounts_text = [this](const int32_t *amounts, const uint8_t *types, int n) {
+		// resourceNameWithinSentence: the resource's name in the "withinSentence"
+		// context; English keeps it lower case ("200 food, 100 wood and 300 metal").
+		static const char *kNames[rtso::RES_COUNT] = {"Wood", "Metal", "Stone", "Food"}; // RES_* order
+		PackedStringArray parts;
 		for (int i = 0; i < n; ++i)
-			if (amounts[i] > 0 && types[i] < rtso::RES_COUNT)
-				parts[count++] = String::num_int64(amounts[i]) + " " + kNames[types[i]];
-		String out;
-		for (int i = 0; i < count; ++i)
-			out += (i == 0 ? "" : i == count - 1 ? " and " : ", ") + parts[i];
-		return out;
+			if (amounts[i] > 0 && types[i] < rtso::RES_COUNT) {
+				const String name = tr(kNames[types[i]]);
+				parts.push_back(sprintf0(tr("%(amount)s %(resourceType)s"), {{"amount", String::num_int64(amounts[i])},
+						{"resourceType", name == kNames[types[i]] ? name.to_lower() : name}}));
+			}
+		if (parts.size() < 2) return parts.is_empty() ? String() : parts[0];
+		const String last = parts[parts.size() - 1];
+		parts.remove_at(parts.size() - 1);
+		return sprintf0(tr("%(previousAmounts)s and %(lastAmount)s"),
+				{{"previousAmounts", String(tr(", ")).join(parts)}, {"lastAmount", last}});
 	};
 	for (const N &n : notices) {
 		String line;
@@ -2175,31 +2249,44 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			int32_t a[4];
 			for (int i = 0; i < 4; ++i) a[i] = n.amounts[kOrder[i]];
 			const String what = amounts_text(a, kOrder, 4);
-			if (n.other == me) line = colored_player_name(n.player) + " has sent you " + what + ".";
-			else if (n.player == me) line = "You have sent " + colored_player_name(n.other) + " " + what + ".";
+			if (n.other == me)
+				line = sprintf0(tr("%(player)s has sent you %(amounts)s."), {{"player", colored_player_name(n.player)}, {"amounts", what}});
+			else if (n.player == me)
+				line = sprintf0(tr("You have sent %(player2)s %(amounts)s."), {{"player2", colored_player_name(n.other)}, {"amounts", what}});
 			else if (user_opts_.tribute_notice &&
 					(observer || (sim->teams_locked() && mutual_ally(n.player, me) && mutual_ally(n.other, me))))
-				line = colored_player_name(n.player) + " has sent " + colored_player_name(n.other) + " " + what + ".";
+				line = sprintf0(tr("%(player)s has sent %(player2)s %(amounts)s."),
+						{{"player", colored_player_name(n.player)}, {"player2", colored_player_name(n.other)}, {"amounts", what}});
 		} else if (n.kind == N::BARTER) {
 			if (observer && user_opts_.barter_notice) {
 				const String given = amounts_text(&n.amounts[0], &n.other, 1);
 				const String gained = amounts_text(&n.amounts[1], &n.tech, 1);
-				line = colored_player_name(n.player) + " bartered " + given + " for " + gained + ".";
+				line = sprintf0(tr("%(player)s bartered %(amountGiven)s for %(amountGained)s."),
+						{{"player", colored_player_name(n.player)}, {"amountGiven", given}, {"amountGained", gained}});
 			}
 		} else if (n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED || n.kind == N::PHASE_COMPLETED) {
 			if (user_opts_.phase_notice == 0 || (n.player != me && !observer && !mutual_ally(n.player, me))) continue;
-			const String phase = String(rtso::tech_info(n.tech).name);
-			if (n.kind == N::PHASE_COMPLETED) line = colored_player_name(n.player) + " has reached the " + phase + ".";
+			const String phase = tr(String::utf8(rtso::tech_info(n.tech).name));
+			const String player = colored_player_name(n.player);
+			if (n.kind == N::PHASE_COMPLETED)
+				line = sprintf0(tr("%(player)s has reached the %(phaseName)s."), {{"player", player}, {"phaseName", phase}});
 			else if (user_opts_.phase_notice == 2 && n.kind == N::PHASE_STARTED)
-				line = colored_player_name(n.player) + " is advancing to the " + phase + ".";
+				line = sprintf0(tr("%(player)s is advancing to the %(phaseName)s."), {{"player", player}, {"phaseName", phase}});
 			else if (user_opts_.phase_notice == 2)
-				line = "The " + phase + " of " + colored_player_name(n.player) + " has been aborted.";
+				line = sprintf0(tr("The %(phaseName)s of %(player)s has been aborted."), {{"player", player}, {"phaseName", phase}});
 		} else if (n.kind == N::DIPLOMACY) {
-			static const char *kWord[3] = {"allied with", "neutral with", "at war with"};
-			const char *word = kWord[n.tech <= rtso::Simulation::DIPLO_ENEMY ? n.tech : 2];
-			if (observer) line = colored_player_name(n.player) + " is now " + word + " " + colored_player_name(n.other) + ".";
-			else if (n.player == me) line = "You are now " + String(word) + " " + colored_player_name(n.other) + ".";
-			else if (n.other == me) line = colored_player_name(n.player) + " is now " + word + " you.";
+			// ChatMessageFormatSimulation.diplomacy's three message sets.
+			static const char *kObserver[3] = {"%(player)s is now allied with %(player2)s.",
+					"%(player)s is now neutral with %(player2)s.", "%(player)s is now at war with %(player2)s."};
+			static const char *kMine[3] = {"You are now allied with %(player)s.",
+					"You are now neutral with %(player)s.", "You are now at war with %(player)s."};
+			static const char *kTheirs[3] = {"%(player)s is now allied with you.",
+					"%(player)s is now neutral with you.", "%(player)s is now at war with you."};
+			const int w = n.tech <= rtso::Simulation::DIPLO_ENEMY ? n.tech : 2;
+			if (observer)
+				line = sprintf0(tr(kObserver[w]), {{"player", colored_player_name(n.player)}, {"player2", colored_player_name(n.other)}});
+			else if (n.player == me) line = sprintf0(tr(kMine[w]), {{"player", colored_player_name(n.other)}});
+			else if (n.other == me) line = sprintf0(tr(kTheirs[w]), {{"player", colored_player_name(n.player)}});
 		} else if (n.kind == N::DEFEATED || n.kind == N::WON || n.kind == N::LOST) {
 			// ChatMessageFormatSimulation.playerstate, shown to everyone: the defeat reasons of
 			// Conquest*.js, Regicide.js, Commands.js "resign" and TriggerHelper.DefeatPlayer, and
@@ -2209,20 +2296,21 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 					"Capture the Relic", "game mode"};
 			const String why = n.tech < sizeof(kWhy) / sizeof(kWhy[0]) ? String(kWhy[n.tech]) : String("game mode");
 			if (n.kind == N::DEFEATED) {
-				line = colored_player_name(n.player) + (n.tech == N::END_RESIGNED ? String(" has resigned.")
-						: " has been defeated (" + why + ").");
+				line = sprintf0(tr(n.tech == N::END_RESIGNED ? String("%(player)s has resigned.")
+						: "%(player)s has been defeated (" + why + ")."), {{"player", colored_player_name(n.player)}});
 			} else {
 				std::vector<String> names;
 				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
 					if ((n.other >> p) & 1) names.push_back(colored_player_name(p));
 				if (names.empty()) continue;
+				// translatePlural of the sim's message; the enumeration comma is translated too.
 				String list;
-				for (size_t i = 0; i + 1 < names.size(); ++i) list += (i ? ", " : "") + names[i];
+				for (size_t i = 0; i + 1 < names.size(); ++i) list += (i ? tr(", ") : String()) + names[i];
 				const bool one = names.size() == 1;
-				const String who = one ? names.back() : list + " and " + names.back();
 				const String reason = n.kind == N::WON && n.tech == N::END_LAST_ALIVE && one ? String("last player alive") : why;
-				line = who + String(n.kind == N::WON ? (one ? " has won (" : " have won (") : (one ? " has been defeated (" : " have been defeated (")) +
-						reason + ").";
+				const String msg = (one ? String("%(lastPlayer)s ") : String("%(players)s and %(lastPlayer)s ")) +
+						(n.kind == N::WON ? (one ? "has won (" : "have won (") : (one ? "has been defeated (" : "have been defeated (")) + reason + ").";
+				line = sprintf0(tr(msg), {{"players", list}, {"lastPlayer", names.back()}});
 			}
 		}
 		if (!line.is_empty()) chat_window_.append_line(line + "\n");
@@ -2536,7 +2624,7 @@ void RtsoMain::update_pause_overlay() {
 	if (pause_overlay_->is_visible() != show) pause_overlay_->set_visible(show);
 	if (!show) return;
 	pause_resume_label_->set_visible(hotkey_paused_);
-	const String by = networked && !who.is_empty() ? vformat(tr("Paused by %s"), who) : String();
+	const String by = networked && !who.is_empty() ? sprintf0(tr("Paused by %(players)s"), {{"players", who}}) : String();
 	if (pause_by_label_->get_text() != by) pause_by_label_->set_text(by);
 }
 
@@ -2623,11 +2711,12 @@ void RtsoMain::post_network_chat() {
 		if (!first) {
 			for (const auto &e : chat_assignments_)
 				if (e.status != rtso::PlayerAssignmentMsg::LEFT && !in(now, e.client))
-					chat_window_.append_line(vformat(tr("%s has left the game."), who(e)) + "\n");
+					chat_window_.append_line(sprintf0(tr("%(player)s has left the game."), {{"player", who(e)}}) + "\n");
 			for (const auto &e : now)
 				if (e.status != rtso::PlayerAssignmentMsg::LEFT && !in(chat_assignments_, e.client))
-					chat_window_.append_line(vformat(e.player < rtso::MAX_PLAYERS
-							? tr("%s is starting to rejoin the game.") : tr("%s is starting to join the game."), who(e)) + "\n");
+					chat_window_.append_line(sprintf0(e.player < rtso::MAX_PLAYERS
+							? tr("%(player)s is starting to rejoin the game.") : tr("%(player)s is starting to join the game."),
+							{{"player", who(e)}}) + "\n");
 		}
 		chat_assignments_ = now;
 	}
@@ -2635,7 +2724,7 @@ void RtsoMain::post_network_chat() {
 	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
 		const auto &k = kicks[kicks_chatted_];
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		chat_window_.append_line(vformat(k.ban ? tr("%s has been banned") : tr("%s has been kicked"), name) + "\n");
+		chat_window_.append_line(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n");
 	}
 }
 
@@ -4202,7 +4291,7 @@ void RtsoMain::update_inspector() {
 			} else if (const uint8_t rt = rtso::Simulation::researching(*found_b); rt != rtso::TECH_NONE && found_b->queue.front().duration > 0.0f) {
 				const rtso::ProductionOrder &po = found_b->queue.front();
 				set_bar(inspector_xp_bar, inspector_xp_label, po.timer, po.duration,
-						"Researching " + String(rtso::tech_info(rt).name) + " (" +
+						"Researching " + String::utf8(rtso::tech_info(rt).name) + " (" +
 						String::num(po.duration - po.timer, 0) + " s left)");
 			} else {
 				show_bar(inspector_xp_bar, inspector_xp_label, false);
@@ -4284,11 +4373,9 @@ void RtsoMain::update_inspector() {
 		// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
 		const int rank = std::max(1, (int)uview.rank[u]);
 		static const char *kRank[] = {"", "", "Advanced ", "Elite "};
-		String name = String(kRank[std::min(rank, 3)]) + String::utf8(uinfo.name);
-		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
-			const char *specific = rtso::civ_unit_template(tmpl).specific_name;
-			if (specific && specific[0]) name += String::utf8(" (") + String::utf8(specific) + ")";
-		}
+		const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
+		const String name = String(kRank[std::min(rank, 3)]) +
+				rtso::entity_names(String::utf8(uinfo.name), String::utf8(specific ? specific : ""));
 		inspector_title->set_text(name);
 		const uint8_t owner = uview.team[u];
 		inspector_class->set_text(player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
@@ -4504,32 +4591,37 @@ void RtsoMain::update_command_panel() {
 				add_cost(ti.wood_cost, "w");
 				add_cost(ti.gold_cost, "g");
 				add_cost(ti.stone_cost, "s");
-				btn->set_text(String(ti.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+				btn->set_text(String::utf8(ti.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 				if (t == rtso::TECH_PHASE_TOWN || t == rtso::TECH_PHASE_CITY) {
 					btn->set_button_icon(load_tex(t == rtso::TECH_PHASE_TOWN
 							? "res://assets/textures/ui/phases/town.png" : "res://assets/textures/ui/phases/city.png"));
 					btn->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 					btn->add_theme_constant_override("icon_max_width", 20);
 				}
-				String tip = String(ti.desc ? ti.desc : "");
-				const char *why = nullptr;
+				// 0.28 Research panel: names, tooltip, cost, requirements, needed resources.
+				String tip = String::utf8(ti.name);
+				if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
+				const rtso::CostTip tech_cost{ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost, 0, (int64_t)std::ceil(ti.research_time)};
+				const String tech_cost_tip = rtso::cost_tooltip(tech_cost);
+				if (!tech_cost_tip.is_empty()) tip += "\n" + tech_cost_tip;
+				String why;
 				switch (rc) {
 					case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; break;
 					case rtso::Simulation::TECH_ERR_PHASE:
-						why = ti.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
+						why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase"); break;
 					case rtso::Simulation::TECH_ERR_PREREQUISITE: {
-						tip += String("\nRequires ") + rtso::tech_info(ti.prerequisite).name;
+						tip += "\n" + requires_text(String::utf8(rtso::tech_info(ti.prerequisite).name));
 						btn->set_disabled(true);
 						break;
 					}
 					case rtso::Simulation::TECH_ERR_STRUCTURES:
 						why = t == rtso::TECH_PHASE_CITY ? "Requires 3 Town Phase structures"
 								: "Requires 5 Village Phase structures"; break;
-					case rtso::Simulation::TECH_ERR_COST: why = "Not enough resources"; break;
+					case rtso::Simulation::TECH_ERR_COST: why = needed_text(tech_cost); break;
 					default: break;
 				}
-				if (why) {
-					tip += String("\n") + why;
+				if (!why.is_empty()) {
+					tip += "\n" + tr(why);
 					if (rc != rtso::Simulation::TECH_ERR_COST) btn->set_disabled(true);
 				}
 				btn->set_tooltip_text(tip);
@@ -4609,18 +4701,19 @@ void RtsoMain::update_command_panel() {
 						add_cost(up.wood_cost, "w");
 						add_cost(up.gold_cost, "g");
 						add_cost(up.stone_cost, "s");
-						btn->set_text(String("Upgrade to ") + rtso::building_type_name(up.to) + (cost.is_empty() ? String() : " (" + cost + ")"));
-						String tip = String(up.tooltip ? up.tooltip : "") + "\n" + String::num((double)up.time, 0) + "s";
-						const char *why = nullptr;
+						btn->set_text(String("Upgrade to ") + String::utf8(rtso::building_type_name(up.to)) + (cost.is_empty() ? String() : " (" + cost + ")"));
+						const rtso::CostTip up_cost{up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost, 0, (int64_t)std::ceil(up.time)};
+						String tip = String::utf8(up.tooltip ? up.tooltip : "") + "\n" + rtso::cost_tooltip(up_cost);
+						String why;
 						switch (check) {
 							case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
-							case rtso::Simulation::UPGRADE_ERR_PHASE: why = up.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
-							case rtso::Simulation::UPGRADE_ERR_COST: why = "Not enough resources"; break;
+							case rtso::Simulation::UPGRADE_ERR_PHASE: why = requires_text(up.required_phase >= 3 ? "City Phase" : "Town Phase"); break;
+							case rtso::Simulation::UPGRADE_ERR_COST: why = needed_text(up_cost); break;
 							case rtso::Simulation::UPGRADE_ERR_LIMIT: why = "Limit reached"; break;
 							default: break;
 						}
-						if (why) {
-							tip += String("\n") + why;
+						if (!why.is_empty()) {
+							tip += "\n" + tr(why);
 							btn->set_disabled(true);
 						}
 						btn->set_tooltip_text(tip);
@@ -4789,12 +4882,12 @@ void RtsoMain::update_command_panel() {
 				for (int t = 0; t < target_n; ++t) {
 					const uint16_t to = targets[t];
 					const rtso::CivUnitUpgrade *row = nullptr;
-					const char *why = "Already upgrading";
+					String why = "Already upgrading";
 					for (int i = 0; i < selected_ids.size(); ++i) {
 						const rtso::Simulation::UpgradeCheck c = sim->unit_upgrade_check(local_player(), (uint32_t)selected_ids[i], to);
-						if (c == rtso::Simulation::UPGRADE_OK) { why = nullptr; break; }
-						if (c == rtso::Simulation::UPGRADE_ERR_COST) why = "Not enough resources";
-						else if (c == rtso::Simulation::UPGRADE_ERR_PHASE) why = "Requires City Phase";
+						if (c == rtso::Simulation::UPGRADE_OK) { why = String(); break; }
+						if (c == rtso::Simulation::UPGRADE_ERR_COST) why = "\x01"; // needed resources, below
+						else if (c == rtso::Simulation::UPGRADE_ERR_PHASE) why = requires_text("City Phase");
 						else if (c == rtso::Simulation::UPGRADE_ERR_LIMIT) why = "Limit reached";
 					}
 					for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF && !row; ++up)
@@ -4810,10 +4903,14 @@ void RtsoMain::update_command_panel() {
 					add_cost(row->gold_cost, "g");
 					add_cost(row->stone_cost, "s");
 					Button *btn = memnew(Button);
-					btn->set_text(String("Upgrade to ") + rtso::civ_unit_template(to).name + (cost.is_empty() ? String() : " (" + cost + ")"));
-					String tip = String(rtso::civ_unit_template(to).specific_name) + "\n" + String::num((double)row->time, 0) + "s";
-					if (why) {
-						tip += String("\n") + why;
+					btn->set_text(String("Upgrade to ") + String::utf8(rtso::civ_unit_template(to).name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+					const rtso::CivUnitTemplate &tt = rtso::civ_unit_template(to);
+					const rtso::CostTip row_cost{row->food_cost, row->wood_cost, row->stone_cost, row->gold_cost, 0, (int64_t)std::ceil(row->time)};
+					String tip = rtso::entity_names(String::utf8(tt.name), String::utf8(tt.specific_name ? tt.specific_name : "")) +
+							"\n" + rtso::cost_tooltip(row_cost);
+					if (why == "\x01") why = needed_text(row_cost);
+					if (!why.is_empty()) {
+						tip += "\n" + tr(why);
 						btn->set_disabled(true);
 					}
 					btn->set_tooltip_text(tip);
@@ -4944,12 +5041,18 @@ void RtsoMain::update_command_panel() {
 					String tip = specific.is_empty() || specific == generic ? generic : specific + String(" (") + generic + String(")");
 					const String identity_tip = text.get("tooltip", String());
 					if (!identity_tip.is_empty()) tip += "\n" + identity_tip;
-					if (!cost.is_empty()) tip += "\nCost: " + cost;
-					tip += "  Time: " + String::num(std::round(sim->structure_build_time_for(local_player(), (uint8_t)bt) * 10.0f) / 10.0f) + "s";
+					const rtso::CostTip b_cost{(int64_t)price[rtso::RES_FOOD], (int64_t)price[rtso::RES_WOOD],
+							(int64_t)price[rtso::RES_STONE], (int64_t)price[rtso::RES_GOLD], 0,
+							(int64_t)std::round(sim->structure_build_time_for(local_player(), (uint8_t)bt))};
+					if (!rtso::cost_tooltip(b_cost).is_empty()) tip += "\n" + rtso::cost_tooltip(b_cost);
 					const int garrison = rtso::structure_garrison_max((uint8_t)bt, my_civ);
-					if (garrison > 0) tip += "\nGarrison: " + String::num_int64(garrison);
+					if (garrison > 0)
+						tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s: %(garrisonLimit)s"),
+								{{"label", rtso::tr0("Garrison Limit")}, {"garrisonLimit", String::num_int64(garrison)}});
 					const int pop_bonus = sim->structure_pop_bonus((uint8_t)bt, local_player());
-					if (pop_bonus > 0) tip += "\nPopulation Bonus: " + String::num_int64(pop_bonus);
+					if (pop_bonus > 0)
+						tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s %(bonus)s"),
+								{{"label", rtso::tr0("Population Bonus:")}, {"bonus", String::num_int64(pop_bonus)}});
 					Ref<Texture2D> b_ico = structure_icon(bi.portrait_id);
 					if (b_ico.is_valid()) {
 						bb->set_button_icon(b_ico);
@@ -4961,7 +5064,7 @@ void RtsoMain::update_command_panel() {
 					bb->add_theme_font_size_override("font_size", 9);
 					if (need > sim->player_phase(local_player())) {
 						bb->set_disabled(true);
-						tip += String("\nRequires ") + kPhaseNames[need] + " Phase";
+						tip += "\n" + requires_text(String(kPhaseNames[need]) + " Phase");
 					}
 					bb->set_tooltip_text(tip);
 					bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(bt));
@@ -4976,9 +5079,13 @@ void RtsoMain::update_command_panel() {
 			if (!btn->has_theme_font_size_override("font_size")) btn->add_theme_font_size_override("font_size", 11);
 	keep_command_buttons(actions_bar, old_actions);
 	keep_command_buttons(production_bar, old_production);
-	// A structure shows its queue under the buttons; a unit selection has no
-	// queue, so the buttons get that room.
-	const bool queue_shown = selected_building_id != 0;
+	// A structure shows its queue under the buttons while something is queued
+	// (0.28's Queue panel shows only queued items); otherwise the buttons get
+	// that room.
+	bool queue_shown = false;
+	if (selected_building_id != 0)
+		for (const auto &b : sim->buildings())
+			if (b.id == selected_building_id) { queue_shown = !b.queue.empty(); break; }
 	if (queue_bar->is_visible() != queue_shown) queue_bar->set_visible(queue_shown);
 	// A builder's construction grid can outgrow the two rows a unit selection
 	// has: the panel grows upward to show all of it (0.28 shows the whole
@@ -5117,8 +5224,10 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		(ps.has_tech(rtso::TECH_UNLOCK_CHAMPION_CHARIOTS) ? 4u : 0u);
 	const uint64_t key = ((uint64_t)b->id << 32) | ((uint64_t)sim->ally_civ_mask(pid) << 12) |
 		(unlocks << 8) | ((uint64_t)(civ & 0x3F) << 2) | (uint64_t)(phase & 0x3);
-	if (key == roster_list_key_) return;
+	// A changed option (gui.session.howtoshownames) rebuilds it too.
+	if (key == roster_list_key_ && roster_list_gen_ == rtso::user_config::generation()) return;
 	roster_list_key_ = key;
+	roster_list_gen_ = rtso::user_config::generation();
 	roster_list->clear();
 	// A corral trains its civ's animals (structures/<civ>/corral.xml Trainer/Entities);
 	// metadata ROSTER_ANIMAL | FaunaType tells the click handler to breed one.
@@ -5153,11 +5262,11 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		const int idx = add_roster_item(pid, i, tip);
 		if (u.phase > phase) {
 			roster_list->set_item_disabled(idx, true);
-			tip += u.phase >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase";
+			tip += "\n" + requires_text(u.phase >= 3 ? "City Phase" : "Town Phase");
 		} else if (!sim->can_train_at(pid, u.unit_type, b->type, i)) {
 			roster_list->set_item_disabled(idx, true);
 			uint8_t gate = sim->train_unlock_tech(pid, u.unit_type, b->type, i);
-			if (gate != rtso::TECH_NONE) tip += String("\nRequires ") + rtso::tech_info(gate).name;
+			if (gate != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
 		}
 		roster_list->set_item_tooltip(idx, tip);
 	}
@@ -5196,7 +5305,7 @@ bool RtsoMain::update_unit_roster(uint32_t unit_id) {
 		const int idx = add_roster_item(pid, all[k], tip);
 		if (!(can_mask & (1ull << k))) {
 			roster_list->set_item_disabled(idx, true);
-			tip += "\nRequirements not met";
+			tip += "\n" + tr("Requirements not met");
 		}
 		roster_list->set_item_tooltip(idx, tip);
 	}
@@ -5216,10 +5325,11 @@ bool RtsoMain::update_unit_roster(uint32_t unit_id) {
 		add_cost(ti.gold_cost, "m");
 		const int idx = roster_list->add_item(String::utf8(ti.name) + " (" + costs + ")");
 		roster_list->set_item_metadata(idx, ROSTER_TECH | (int)t);
-		String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\nResearch " + String::num(ti.research_time, 0) + " s";
+		const rtso::CostTip tech_cost{ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost, 0, (int64_t)std::ceil(ti.research_time)};
+		String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\n" + rtso::cost_tooltip(tech_cost);
 		if (check != rtso::Simulation::TECH_OK && check != rtso::Simulation::TECH_ERR_COST) {
 			roster_list->set_item_disabled(idx, true);
-			tip += "\nRequirements not met";
+			tip += "\n" + tr("Requirements not met");
 		}
 		roster_list->set_item_tooltip(idx, tip);
 	}
@@ -5247,10 +5357,17 @@ int RtsoMain::add_roster_item(uint8_t pid, uint16_t i, String &tip) {
 	label += costs.is_empty() ? String(" (free)") : " (" + costs + ")";
 	int idx = roster_list->add_item(label);
 	roster_list->set_item_metadata(idx, (int)i);
-	tip = String::utf8(u.name);
-	if (u.specific_name && u.specific_name[0]) tip += String::utf8(" \u2014 ") + String::utf8(u.specific_name);
-	tip += "\nHP " + String::num_int64((int64_t)u.hp) + ", attack " + String::num(u.attack_damage, 1) +
-		", train " + String::num(u.train_time, 0) + " s, pop " + String::num_int64(u.pop_cost);
+	// 0.28 Training panel: names, cost (population and time too), health and
+	// attack, then the batch line; callers add requirements.
+	tip = rtso::entity_names(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
+	const rtso::CostTip unit_cost{(int64_t)cost[rtso::RES_FOOD], (int64_t)cost[rtso::RES_WOOD], (int64_t)cost[rtso::RES_STONE],
+			(int64_t)cost[rtso::RES_GOLD], (int64_t)u.pop_cost, (int64_t)std::ceil(u.train_time)};
+	const String cost_tip = rtso::cost_tooltip(unit_cost);
+	if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
+	tip += "\n" + rtso::label_details("Health:", String::num_int64((int64_t)u.hp));
+	if (u.attack_damage > 0.0f) tip += "\n" + rtso::label_details("Attack:", String::num(u.attack_damage, 1));
+	const String batch = rtso::batch_training_string(1, user_opts_.batch_size, 0);
+	if (!batch.is_empty()) tip += "\n" + batch;
 	return idx;
 }
 
@@ -6116,7 +6233,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// 1. Right click on Allied War Trireme / Transport (Board Naval Transport)
 			uint32_t clicked_transport_id = 0;
 			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || uview.team[i] != local_player() || uview.unit_type[i] != rtso::UNIT_TRIREME) continue;
+				if (!uview.alive[i] || !sim->is_ally(local_player(), uview.team[i]) || uview.unit_type[i] != rtso::UNIT_TRIREME) continue; // own or a mutual ally's
 				float dx = uview.pos_x[i] - click_pos.x;
 				float dz = uview.pos_z[i] - click_pos.z;
 				if (dx * dx + dz * dz <= 3.2f * 3.2f) {
@@ -8064,8 +8181,8 @@ Dictionary RtsoMain::get_tech_tree() const {
 		const auto &ti = rtso::tech_info((uint8_t)t);
 		Dictionary e;
 		e["id"] = t;
-		e["name"] = String(ti.name);
-		e["desc"] = String(ti.desc ? ti.desc : "");
+		e["name"] = String::utf8(ti.name);
+		e["desc"] = String::utf8(ti.desc ? ti.desc : "");
 		e["phase"] = (int)ti.required_phase;
 		e["researcher"] = String(rtso::building_type_info(ti.researcher).name);
 		e["food"] = ti.food_cost;
@@ -8073,7 +8190,7 @@ Dictionary RtsoMain::get_tech_tree() const {
 		e["metal"] = ti.gold_cost;
 		e["stone"] = ti.stone_cost;
 		e["time"] = ti.research_time;
-		e["prerequisite"] = ti.prerequisite ? String(rtso::tech_info(ti.prerequisite).name) : String();
+		e["prerequisite"] = ti.prerequisite ? String::utf8(rtso::tech_info(ti.prerequisite).name) : String();
 		e["researched"] = sim->player(local_player()).has_tech((uint8_t)t);
 		techs.push_back(e);
 	}

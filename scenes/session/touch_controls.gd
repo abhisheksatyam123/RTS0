@@ -8,11 +8,10 @@ signal market_requested()
 signal diplo_requested()
 
 func _ready() -> void:
-	# Show touch controls on mobile or when touch is detected
-	if OS.has_feature("mobile") or OS.has_feature("touchscreen"):
-		visible = true
-	else:
-		visible = true # Always provide available touch action bar
+	# A touch screen's stand-in for keys and right-clicks. 0 A.D. 0.28 has no such
+	# bar, and with a mouse it only covers the training list, so it shows on touch
+	# screens alone.
+	visible = OS.has_feature("mobile") or DisplayServer.is_touchscreen_available()
 
 func _on_army_pressed() -> void:
 	emit_signal("select_all_army_requested")

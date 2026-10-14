@@ -163,6 +163,14 @@ def footprint_of(t):
     return 0.0
 
 
+LOOT_KEYS = ("xp", "food", "wood", "stone", "metal")
+
+
+def loot_of(t):
+    """Loot/{xp,food,wood,stone,metal}: what killing the unit pays (Loot.js)."""
+    return tuple(int(round(t.num("Loot/" + k, 0.0))) for k in LOOT_KEYS)
+
+
 def row_of(t, structure=False):
     r = {"classes": sorted(ex.classes_of(t)), "attack": attack_of(t), "footprint": footprint_of(t),
          "immune": status_immunity(t), "capture": t.num("Attack/Capture/Capture", 0.0)}
@@ -177,9 +185,14 @@ def collect(sim_root):
     units = []
     for u in rosters["units"]:
         name = "units/" + u["id"]
-        if not loader.exists(name.split("|")[-1]):
+        own = loader.exists(name.split("|")[-1])
+        if not own:
             name = ex.GENERIC[u["class"]]  # RTS0-only rows (the male villager)
-        units.append((u["id"], row_of(loader.load(name))))
+        row = row_of(loader.load(name))
+        if own:  # RTS0-only rows keep their class's loot (unit_class_loot)
+            row["loot"] = loot_of(loader.load(name))
+            row["garrison"] = int(loader.load(name).num("GarrisonHolder/Max", 0))
+        units.append((u["id"], row))
     generic = []
     for cls in UNIT_TYPES:
         generic.append((cls, ex.GENERIC[cls] or "no template", row_of(ex.generic_template(loader, cls))))
@@ -283,6 +296,9 @@ def emit(units, generic, buildings, classes):
     w("\tfloat proj_speed, proj_gravity; // Projectile Speed (m/s, horizontal) and Gravity (m/s^2), 0 = melee")
     w("\tfloat capture; // Attack/Capture/Capture: capture points a second, 0 = no Capture attack")
     w("\tfloat fire; // its attack's Damage/Fire (fire ships); no 0.28 template resists Fire")
+    w("\tbool has_loot; // a roster unit's own template: loot below, else its class's unit_class_loot")
+    w("\tuint16_t loot[5]; // Loot xp, food, wood, stone, metal")
+    w("\tuint8_t garrison_max; // a roster unit's GarrisonHolder/Max (ships, rams, siege towers), 0 = none")
     w("};")
     w("")
 
@@ -297,11 +313,13 @@ def emit(units, generic, buildings, classes):
             bon.append("{{0, 0}, 1.0f, 255}")
         arm = row.get("armour", (0, 0, 0))
         st = a["status"]
-        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s, %d, %s, %s, %d, %s, %s, %s, %s, %s}, // %s" % (
+        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s, %d, %s, %s, %d, %s, %s, %s, %s, %s, %s, {%s}, %d}, // %s" % (
             mask(row["classes"], index), mask(a["restricted"], index), f(a["spread"]), len(a["bonuses"]),
             ", ".join(bon), f(arm[0]), f(arm[1]), f(arm[2]), f(round(row["footprint"], 3)),
             st[0], f(round(st[1], 4)), f(st[2]), row["immune"], f(round(a["prepare"], 4)),
-            f(a["proj_speed"]), f(a["proj_gravity"]), f(row["capture"]), f(a["fire"]), comment)
+            f(a["proj_speed"]), f(a["proj_gravity"]), f(row["capture"]), f(a["fire"]),
+            "true" if "loot" in row else "false", ", ".join(str(v) for v in row.get("loot", (0, 0, 0, 0, 0))),
+            row.get("garrison", 0), comment)
 
     w("// 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).")
     w("inline constexpr float COMBAT_DISTANCE_SCALE = %s;" % f(ex.RANGED_RANGE_SCALE))

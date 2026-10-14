@@ -70,13 +70,14 @@ inline const std::vector<godot::String> &sound_group(const char *dir, const char
 	return out;
 }
 
-// Template Identity/Lang -> voice folder. Civs whose language isn't in
-// assets/audio/voice/ (punic, celtic, iberian, sanskrit, chinese) borrow the
-// nearest one RTS0 ships.
+// Template Identity/Lang -> voice folder. 0 A.D.'s templates set Lang only
+// for the Romans (latin), Persians (persian), Kushites (napatan) and the
+// Hellenes (greek); every other civ falls back to Identity.js GetLang's
+// "greek", as 0 A.D. has no punic, celtic, iberian, sanskrit or chinese voices.
 inline const char *voice_language(uint8_t civ) {
 	switch (civ) {
-		case CIV_ROMANS: case CIV_BRITONS: case CIV_GAULS: case CIV_IBERIANS: case CIV_GERMANS: return "latin";
-		case CIV_PERSIANS: case CIV_CARTHAGINIANS: case CIV_MAURYANS: case CIV_HAN: return "persian";
+		case CIV_ROMANS: return "latin";
+		case CIV_PERSIANS: return "persian";
 		case CIV_KUSHITES: return "napatan";
 		default: return "greek";
 	}
