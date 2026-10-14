@@ -11571,14 +11571,36 @@ void RmsGenerator::keep_resources_passable(Simulation &sim) {
 				if (!steep[(size_t)j * tr + i]) return true;
 		return false;
 	};
+	// rmgen's MAP_BORDER_WIDTH: entities stay 3 tiles in from the edge; on a circular map the
+	// ring past_map_edge bars is impassable, so whatever starts there moves in across it.
+	const float inner = half - MAP_EDGE_DIST - 1.5f;
+	auto in_ring = [&](float x, float z) { return sim.circular_map() && x * x + z * z > inner * inner; };
+	auto pull_in = [&](float &x, float &z) {
+		const float d = std::max(1e-3f, std::hypot(x, z)), k = (inner - 0.5f) / d;
+		x *= k;
+		z *= k;
+	};
+	const auto fv = sim.fauna();
+	for (size_t f = 0; f < fv.count; ++f) {
+		float x = fv.pos_x[f], z = fv.pos_z[f];
+		if (!fv.alive[f] || !in_ring(x, z)) continue;
+		pull_in(x, z);
+		sim.set_fauna_position(fv.id[f], x, z);
+	}
 	const auto rv = sim.resources();
+	for (size_t r = 0; r < rv.count; ++r) {
+		float x = rv.x[r], z = rv.z[r];
+		if (!rv.alive[r] || !in_ring(x, z)) continue;
+		pull_in(x, z);
+		sim.set_resource_position(rv.id[r], x, z);
+	}
 	std::vector<std::pair<float, float>> taken;
 	taken.reserve(rv.count);
 	for (size_t r = 0; r < rv.count; ++r)
 		if (rv.alive[r]) taken.push_back({rv.x[r], rv.z[r]});
 	auto spot_ok = [&](float x, float z, float gap, size_t self) {
 		if (std::fabs(x) > half - 2.0f || std::fabs(z) > half - 2.0f) return false;
-		if (sim.circular_map() && x * x + z * z > (half - 4.0f) * (half - 4.0f)) return false;
+		if (in_ring(x, z)) return false;
 		if (sim.get_terrain_height(x, z) < dry_h) return false;
 		for (float dz : {-tile, 0.0f, tile})
 			for (float dx : {-tile, 0.0f, tile})

@@ -360,6 +360,7 @@ public:
 	void _on_call_to_arms_pressed();
 	void _on_template_info_pressed();
 	void _on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ);
+	void _on_portrait_gui_input(const Ref<InputEvent> &event);
 	void _on_alert_pressed(int end);
 	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
@@ -376,8 +377,19 @@ public:
 	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
+	uint32_t selected_garrison_holder() const;
+	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
+	// AutoFormation.js setDefault: right-click on a formation button; the hotkey
+	// session.toggledefaultformation switches between none and the last one used.
+	void _on_formation_gui_input(const Ref<InputEvent> &event, int formation);
+	void set_default_formation(uint8_t formation);
+	void toggle_default_formation();
+	// AutoFormation.getDefault on a walk or patrol: units in no formation are put
+	// into the default one first (Commands.js GetFormationUnitAIs).
+	void apply_default_formation(const uint32_t *ids, size_t n);
+	uint8_t last_default_formation_ = rtso::FORMATION_BOX;
 	void _on_train_pressed(int utype);
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
 	void _on_roster_gui_input(const Ref<InputEvent> &event);
@@ -424,6 +436,9 @@ public:
 	void request_net_player_setting(const String &key, int value);
 	void set_net_ready(int status);
 	void leave_net_game();
+	// 0.28 gamesetup ChatPanel: the chat before Start, shown on the setup page.
+	Dictionary get_setup_chat() const; // {rev, text}: the chat log's bbcode
+	void send_setup_chat(const String &text);
 	// The lockstep state hash this client computed for a turn (0 if not kept).
 	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();
@@ -480,6 +495,10 @@ public:
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
+	// 0.28 gamesetup ChatMessages: joined, left, ready and not ready lines.
+	void post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after);
+	String setup_client_name(const rtso::NetSetupState &n, uint32_t client) const;
+	void post_kick_chat();
 	// gui.session.formationwalkonly: this order takes its units out of their formations.
 	bool order_disbands_formation(uint8_t cmd_type) const;
 	// gui.session.selectformationasone: the unit and the rest of its formation.
@@ -547,7 +566,11 @@ public:
 	Dictionary debug_selection_state();
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
-	PackedInt32Array debug_spawn_units(const String &template_id, int count);
+	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
+	void debug_select_entity(int64_t id);
+	void debug_select_units(const PackedInt32Array &ids);
+	int64_t debug_civic_centre_id(int player) const;
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
@@ -556,6 +579,16 @@ public:
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
+	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
+	// wall can't go where the cursor is, or a wall's cost; wall_fail_tip_ ("Cannot build wall
+	// here!") holds until the cursor moves.
+	Label *placement_tip_ = nullptr;
+	bool placement_tip_error_ = false;
+	String wall_fail_tip_;
+	Vector2 wall_fail_mouse_;
+	void set_placement_tip(const String &text, bool error);
+	String placement_failure_text(int result, uint8_t btype, float x, float z) const;
+	Dictionary debug_placement_tip() const;
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -677,6 +710,21 @@ private:
 	// The developer overlay's Change perspective: the player view dropdown shows for a
 	// player too, and picking in it takes that player over (PlayerViewControl.setChangePerspective).
 	bool change_perspective_ = false;
+	// The developer overlay's time warp (TimeWarp.js, offline only): a snapshot every
+	// 10 turns, session.timewarp.rewind loads the latest (and drops it), and
+	// session.timewarp.fastforward runs the game at 20x while held.
+	bool time_warp_ = false;
+	bool time_warp_ff_ = false;
+	float time_warp_speed_ = 1.0f; // the speed to go back to when fast forward is let go
+	uint32_t time_warp_turn_ = UINT32_MAX;
+	uint32_t time_warp_serial_ = 0;
+	std::vector<String> time_warp_snapshots_;
+	void set_time_warp(bool on);
+	void time_warp_tick();
+public:
+	bool time_warp_rewind();
+	int time_warp_snapshot_count() const { return (int)time_warp_snapshots_.size(); }
+private:
 	int perspective_pick_ = -1; // the dropdown item picked, until the lockstep turn seats us there
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;
@@ -713,6 +761,7 @@ private:
 	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
 	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)
 	Dictionary debug_selected_building() const;
+	Dictionary debug_queue_slot(int i);
 	Dictionary debug_minimap_panel() const;
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the

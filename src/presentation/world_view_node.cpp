@@ -2666,6 +2666,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
 		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
 	};
+	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
+	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
+	auto fauna_visible = [sim, this](float x, float z) {
+		return rtso::los_sees_all(*sim, local_player_) || mirages_.los_at(x, z) != rtso::Simulation::FOW_UNEXPLORED;
+	};
 	std::unordered_map<uint32_t, uint8_t> res_sub;
 	res_sub.reserve(rview_g.count);
 	for (size_t r = 0; r < rview_g.count; ++r) {
@@ -3426,7 +3431,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	int f_counts[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		// Baked before the first count, so both passes pick the same clips.
@@ -3448,7 +3453,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	size_t rings_used = 0;
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		float vx = fview.vel_x[f];

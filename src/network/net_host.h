@@ -266,6 +266,8 @@ private:
 	// The disconnect notice is a bare unreliable datagram (ENet's waits for an
 	// ack); a few copies make a lost one unlikely, and repeats are harmless.
 	static constexpr int kDisconnectSends = 3;
+	// A client gives up on a host that never answers its connect after this long.
+	static constexpr uint64_t kConnectTimeoutMs = 11000;
 	std::vector<ClientPerformanceMsg::Entry> client_perf_;
 	uint64_t client_perf_reports_ = 0;
 	uint64_t last_perf_ms_ = 0;

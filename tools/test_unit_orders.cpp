@@ -2442,6 +2442,34 @@ static void test_passive_mid_fight() {
 	check(std::hypot(x_of(s, a) - ax, z_of(s, a) - az) < 1.5f && hp_of(s, e) == hp1, "without following it");
 }
 
+static void test_stance_held_position() {
+	std::printf("70. a stance change holds where the unit stands, skips garrisoned units and unknown stances; defensive units keep it while hitting structures (SwitchToStance)\n");
+	Simulation s;
+	setup(s);
+	uint32_t d = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+	s.order_walk(&d, 1, -10, 0);
+	check(run_until(s, 20.0f, [&] { return dist(s, d, -10, 0) < 1.0f && act_of(s, d) == ACTION_IDLE; }), "walks to its post");
+	s.units_.anchor_x[idx_of(s, d)] = 30.0f; // somewhere else
+	s.order_set_stance(&d, 1, STANCE_DEFENSIVE);
+	check(std::hypot(s.units_.anchor_x[idx_of(s, d)] - x_of(s, d), s.units_.anchor_z[idx_of(s, d)] - z_of(s, d)) < 1e-3f,
+			"the held position is where it stands");
+	s.order_set_stance(&d, 1, 9);
+	check(s.units_.stance[idx_of(s, d)] == STANCE_DEFENSIVE, "an unknown stance changes nothing");
+	const uint32_t bk = s.spawn_building_world(-40.0f, -30.0f, BLD_BARRACKS, 0, 1.0f);
+	uint32_t g = s.spawn_unit(-40.0f, -22.0f, 0, UNIT_SPEARMAN);
+	s.order_garrison(&g, 1, bk);
+	check(run_until(s, 15.0f, [&] { const auto *gg = s.get_garrisoned_units(bk); return gg && gg->size() == 1; }),
+			"a spearman garrisons");
+	s.order_set_stance(&g, 1, STANCE_STAND_GROUND);
+	check(s.units_.stance[idx_of(s, g)] != STANCE_STAND_GROUND, "a garrisoned one keeps its stance");
+	// A defensive unit away from its post that picks an enemy structure keeps its post.
+	const float hx = s.units_.anchor_x[idx_of(s, d)], hz = s.units_.anchor_z[idx_of(s, d)];
+	s.units_.pos_x[idx_of(s, d)] = -6.0f;
+	s.spawn_building_world(-2.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+	check(run_until(s, 5.0f, [&] { return s.units_.target_building_id[idx_of(s, d)] != 0; }), "it goes for an enemy house");
+	check(s.units_.anchor_x[idx_of(s, d)] == hx && s.units_.anchor_z[idx_of(s, d)] == hz, "its held position stays");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2638,6 +2666,7 @@ int main(int argc, char **argv) {
 	test_can_patrol();
 	test_unarmed_aggressive_stays();
 	test_passive_mid_fight();
+	test_stance_held_position();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
