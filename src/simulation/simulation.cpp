@@ -1178,7 +1178,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "desert") == 0 || std::strcmp(minfo.biome, "persia") == 0) cfg.biome = BIOME_OASIS;
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
-	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
+	const int biome_pick = map_biome_pick(type);
+	if (biome_pick >= 0) cfg.biome = (BiomeType)biome_pick;
 	cfg.team_placement = team_placement_;
 	cfg.landscape = map_landscape_;
 	cfg.trigger_difficulty = trigger_difficulty_;
@@ -1199,11 +1200,11 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 			map_daytime_ = first ? 1 : 2;
 		}
 	}
-	if (biome_override_ >= 0) {
+	if (biome_pick >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
 				"steppe", "savanna", "polar", "india"};
-		current_map_biome_ = kBiomeNames[biome_override_];
+		current_map_biome_ = kBiomeNames[biome_pick];
 	}
 	// 0 A.D. per-tile terrain textures from the final biome.
 	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
@@ -2047,6 +2048,27 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			o.z = sc.z;
 			o.hu = swapped ? sc.half_d : sc.half_w;
 			o.hv = swapped ? sc.half_w : sc.half_d;
+			if (!nav::footprints_overlap(piece, o)) continue;
+		}
+		return PLACE_OBSTRUCTED;
+	}
+	// Treasures' Obstruction/Static (template_gaia_treasure 1.5 m up to the 21 x 11 m wrecks)
+	// blocks foundations as well.
+	for (const Treasure &t : treasures_) {
+		const auto &ti = treasure_type_info(t.type);
+		const float angle = treasure_angle(t.id);
+		const float hw = ti.width * 0.125f, hd = ti.depth * 0.125f; // metres to half-extents in world units
+		const float c = std::fabs(std::cos(angle)), sn = std::fabs(std::sin(angle));
+		const float ex = c * hw + sn * hd, ez = sn * hw + c * hd;
+		if (!(t.x + ex > x0 && t.x - ex < x1 && t.z + ez > z0 && t.z - ez < z1)) continue;
+		if (exact) {
+			nav::Footprint o;
+			bool swapped;
+			nav::footprint_axis(angle, o.ux, o.uz, swapped);
+			o.x = t.x;
+			o.z = t.z;
+			o.hu = swapped ? hd : hw;
+			o.hv = swapped ? hw : hd;
 			if (!nav::footprints_overlap(piece, o)) continue;
 		}
 		return PLACE_OBSTRUCTED;
@@ -9415,6 +9437,15 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		}
 		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
 		if (!formations_.empty() && formation_group_[i] != 0) continue;
+		// GATHER APPROACHING MovementUpdate with likelyFailure: FINDINGNEWTARGET, which goes on to
+		// the next order, another resource of the kind nearby (not the one it couldn't reach) or the
+		// dropsite. A boat's fish are on its own sea, so its walks to them don't fail this way.
+		if (move_failed && units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
+				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i])) {
+			m.failed = 0;
+			finish_order(i, true);
+			continue;
+		}
 		// A chase gives up on MoveFailed (UnitAI COMBAT.APPROACHING / CHASING MovementUpdate with
 		// likelyFailure). UnitMotion fails it within two turns once its long path can't reach the
 		// target (the short-path hack sets m_FailedMovements to MAX_FAILED_MOVEMENTS - 2).
@@ -13367,11 +13398,13 @@ void Simulation::patrol_next_leg(size_t i) {
 	apply_order(units_.id[i], back);
 }
 
-void Simulation::finish_order(size_t i) {
+// find_new_target: a gather order whose resource is still there ends as one whose resource is gone
+// (GATHER FINDINGNEWTARGET), as when the walk to it failed.
+void Simulation::finish_order(size_t i, bool find_new_target) {
 	const uint32_t uid = units_.id[i];
 	auto queued = order_queues_.find(uid);
-	if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i)) && queued != order_queues_.end() &&
-			!queued->second.empty()) {
+	const bool finding = units_.order_kind[i] == ORDER_GATHER && (find_new_target || !order_still_valid(i, current_order(i)));
+	if (finding && queued != order_queues_.end() && !queued->second.empty()) {
 		// GATHER FINDINGNEWTARGET: FinishOrder comes first. A unit carrying a load drops it
 		// off before a next order that isn't a ReturnResource or a gather of the same type.
 		const UnitOrder &n = queued->second.front();
@@ -13389,19 +13422,20 @@ void Simulation::finish_order(size_t i) {
 				queued->second.insert(queued->second.begin(), ret);
 			}
 		}
-	} else if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
+	} else if (finding) {
 		// FINDINGNEWTARGET with no orders queued: the same kind of resource, near the unit
 		// (not for a forced order: it may have sent the unit across the map on purpose),
-		// else near where it was.
+		// else near where it was; never the one it had ("previousTarget == ent").
 		const int sub = (units_.order_flags[i] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
 		// UnitAI.js FINDINGNEWTARGET: "type.specific != 'meat' || resourceTemplate == template",
 		// so a hunter goes on only to the animal it was hunting (a carcass or a live one).
 		const uint8_t species = sub == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
+		const uint32_t previous = units_.target_resource_id[i];
 		uint32_t r = 0;
 		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
-			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, 0, species);
+			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
 		if (r == 0)
-			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, 0, species);
+			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
@@ -13640,8 +13674,8 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != res_type) continue;
 		if (subtype >= 0 && resources_.subtype[r] != subtype) continue; // the same kind (type.specific)
 		if (fauna != 0 && resources_.fauna[r] != fauna) continue; // meat: the same template
+		if (resources_.id[r] == skip) continue;
 		if (busy) {
-			if (resources_.id[r] == skip) continue;
 			auto g = busy->find(resources_.id[r]);
 			if (g != busy->end() && g->second.total >= resources_.max_gatherers[r]) continue;
 		}
@@ -14983,7 +15017,7 @@ void Simulation::update_petra_bases(float dt) {
 
 		int w_count = 0;
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_VILLAGER) continue;
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || unit_gather_class(units_.unit_type[i], units_.tmpl[i]) != GATHER_SUPPORT) continue;
 			float dx = units_.pos_x[i] - base.x;
 			float dz = units_.pos_z[i] - base.z;
 			if (dx * dx + dz * dz <= base.radius * base.radius) {
@@ -15181,7 +15215,7 @@ void Simulation::petra_manage_workers(float dt) {
 
 	// 1. Worker Threat Evaluation & Evacuation
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_VILLAGER) continue;
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || unit_gather_class(units_.unit_type[i], units_.tmpl[i]) != GATHER_SUPPORT) continue;
 
 		float threat = get_threat_at(units_.pos_x[i], units_.pos_z[i]);
 
@@ -15756,27 +15790,21 @@ int Simulation::petra_train_more_workers() {
 			return shortfall;
 	}
 
-	// The civ's support worker (Support+Worker, costing food).
-	if (triggers_.template_disabled(civ_default_template(petra_ps().civ, UNIT_VILLAGER))) return shortfall;
-	const uint32_t bid = shortest_queue(CIV_UNIT_TEMPLATE_NONE, UNIT_VILLAGER, true);
-	if (!bid) return shortfall;
-	Building &cc = buildings_[building_id_to_idx_.at(bid)];
-	const UnitTypeInfo &vinfo = civ_unit_info(civ_of(petra_pid_), UNIT_VILLAGER);
-	const float n = (float)size;
-	if (!petra_try_pay(PETRA_Q_VILLAGER, std::floor(vinfo.food_cost * n), std::floor(vinfo.wood_cost * n),
-	                   std::floor(vinfo.gold_cost * n), std::floor(vinfo.stone_cost * n)))
-		return shortfall;
-	ProductionOrder order;
-	order.unit_type = UNIT_VILLAGER;
-	order.count = (uint8_t)size;
-	order.timer = 0.0f;
-	order.paid[RES_FOOD] = std::floor(vinfo.food_cost * n);
-	order.paid[RES_WOOD] = std::floor(vinfo.wood_cost * n);
-	order.paid[RES_GOLD] = std::floor(vinfo.gold_cost * n);
-	order.paid[RES_STONE] = std::floor(vinfo.stone_cost * n);
-	order.duration = vinfo.train_time * 0.8f * tech_mods(petra_pid_).train_time[UNIT_VILLAGER] * ai_time_mult(petra_pid_) *
-		batch_time_multiplier(petra_pid_, cc.type, size);
-	cc.queue.push_back(order);
+	// findBestTrainableUnit(["Support+Worker"], costsResource food): the civ's 0.28 civilian
+	// (support_civilian at the civic centre), the cheapest that a civic centre of ours trains.
+	uint16_t civilian = CIV_UNIT_TEMPLATE_NONE;
+	float civilian_cost = 0.0f;
+	for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (!(t.flags & ROSTER_CIVILIAN) || t.phase > petra_ps().phase || triggers_.template_disabled(tmpl)) continue;
+		if (!shortest_queue(tmpl, t.unit_type, true)) continue;
+		float cost[RES_COUNT];
+		unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
+		const float sum = cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE];
+		if (civilian == CIV_UNIT_TEMPLATE_NONE || sum < civilian_cost) { civilian = tmpl; civilian_cost = sum; }
+	}
+	if (civilian == CIV_UNIT_TEMPLATE_NONE) return shortfall;
+	petra_train_template(PETRA_Q_VILLAGER, shortest_queue(civilian, civ_unit_template(civilian).unit_type, true), civilian, size);
 	return shortfall;
 }
 
@@ -23259,7 +23287,7 @@ void Simulation::petra_manage_victory(float dt) {
 				auto builders = get_idle_workers(petra_pid_);
 				if (builders.size() < 4) {
 					for (size_t i = 0; i < units_.count && builders.size() < 8; ++i) {
-						if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_VILLAGER)
+						if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_gather_class(units_.unit_type[i], units_.tmpl[i]) == GATHER_SUPPORT)
 							builders.push_back(units_.id[i]);
 					}
 				}

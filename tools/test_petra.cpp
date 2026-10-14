@@ -648,10 +648,11 @@ static void test_attack_plans() {
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
 		// Fortresses on dry land around its base keep the idle player standing after the Attacks raze its
 		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
-		// still a target to plan the HugeAttack against. The one at (20, 4) keeps Petra's second
-		// Civic Center off the neutral strip below it, as in test_roster_army.
+		// still a target to plan the HugeAttack against. The one at (20, 12) keeps Petra's second
+		// Civic Center off the neutral strip below it and off the way east from Petra's Civic
+		// Center, as in test_roster_army.
 		s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(20.0f, 4.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(20.0f, 12.0f, BLD_FORTRESS, 0, 1.0f);
 		s->spawn_building_world(6.0f, 22.0f, BLD_FORTRESS, 0, 1.0f);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
@@ -1963,7 +1964,7 @@ static void test_repairs() {
 	const uint32_t cc_id = cc->id, house_id = house ? house->id : 0;
 	// Enough workers that the builder cap (0.6 of them for a civic centre under 30%) leaves
 	// room for seven repairers whatever foundations are going up at this point.
-	for (int k = 0; k < 8; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	for (int k = 0; k < 16; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
 	cc->hp = cc->max_hp * 0.25f;
 	if (house) house->hp = house->max_hp * 0.5f;
 	// Most repairers at once over 3 s: a foundation laid where some stand pushes them off for a
@@ -2343,10 +2344,19 @@ static void test_idle_return() {
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 20.0f);
 	auto &u = s->units_;
+	// The support worker nearest Petra's civic centre (one off building a far house may have
+	// no short way back).
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
 	uint32_t uid = 0;
-	for (size_t i = 0; i < u.count && !uid; ++i)
-		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_VILLAGER) uid = u.id[i];
-	CHECK(uid != 0, "Petra has a villager");
+	float best = 0.0f;
+	for (size_t i = 0; i < u.count; ++i) {
+		if (!u.alive[i] || u.team[i] != 1 || unit_gather_class(u.unit_type[i], u.tmpl[i]) != GATHER_SUPPORT) continue;
+		const float d = (u.pos_x[i] - cx) * (u.pos_x[i] - cx) + (u.pos_z[i] - cz) * (u.pos_z[i] - cz);
+		if (!uid || d < best) { uid = u.id[i]; best = d; }
+	}
+	CHECK(uid != 0, "Petra has a support worker");
 	if (!uid) return;
 	s->cmd_stop(&uid, 1);
 	const int32_t i = s->lookup_unit(uid);
@@ -2376,8 +2386,8 @@ static void test_idle_return_to_wagon() {
 	auto &u = s->units_;
 	uint32_t uid = 0;
 	for (size_t i = 0; i < u.count && !uid; ++i)
-		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_VILLAGER) uid = u.id[i];
-	CHECK(uid != 0, "Petra has a villager");
+		if (u.alive[i] && u.team[i] == 1 && unit_gather_class(u.unit_type[i], u.tmpl[i]) == GATHER_SUPPORT) uid = u.id[i];
+	CHECK(uid != 0, "Petra has a support worker");
 	if (!uid) return;
 	// No structure of its own takes the load any more.
 	for (auto &b : s->buildings_) if (b.team == 1) b.team = GAIA_PLAYER;
@@ -2432,7 +2442,7 @@ static void test_gather_limits() {
 	for (auto &b : s->buildings_)
 		if (b.team == 1 && b.hp > 0.0f && b.build_progress < 1.0f) s->destroy_building(b);
 	const uint32_t tree_id = r.id[tree], mine_id = r.id[mine];
-	for (int k = 0; k < 16; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	for (int k = 0; k < 8; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
 	auto &u = s->units_;
 	std::vector<uint32_t> workers;
 	for (size_t i = 0; i < u.count; ++i)
