@@ -19,6 +19,7 @@ extends CanvasLayer
 # RtsoMain.save_game. Save calls the RtsoMain it is given. Load (from a match
 # or the main menu) starts the match scene with MatchSettings.load_save_path
 # set, and the scene loads it after building the map.
+const L10n := preload("res://scenes/menu/l10n.gd")
 
 signal closed
 
@@ -330,7 +331,7 @@ func _delete_tooltip() -> String:
 	var del: PackedStringArray = keys.get("session.savedgames.delete", PackedStringArray())
 	if del.is_empty():
 		return ""
-	var tip := "Delete the selected savegame using [%s]." % del[0]
+	var tip := L10n.sprintf(L10n.t("Delete the selected savegame using %(hotkey)s."), {"hotkey": "[%s]" % del[0]})
 	var skip: PackedStringArray = keys.get("session.savedgames.noconfirmation", PackedStringArray())
 	if not skip.is_empty():
 		tip += "\nHold [%s] to skip the confirmation dialog while deleting." % skip[0]

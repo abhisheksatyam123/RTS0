@@ -9,6 +9,9 @@ extends Control
 # tools/lobby_server.py; LobbySession keeps the sign-in alive across scenes.
 # Ratings follow 0 A.D.'s: the player list's Rating column, the profile panel
 # under it (LobbyPage/ProfilePanel.js) and the Leaderboard (LeaderboardPage).
+# Selecting a game shows its details (LobbyPage/GameDetails.js); Options'
+# lobby.columns.gamerating adds the game list's Rating column and filter
+# (GameList.js, GameListFilters/Rating.js).
 
 const REFRESH_S := 3.0
 
@@ -38,6 +41,16 @@ var _status: Label
 var _timer: Timer
 var _chat_last := 0
 var _rooms: Array = []
+var _ratings := {} # player name -> rating, from the player list
+var _details: RichTextLabel
+var _rating_column := false # lobby.columns.gamerating
+var _rating_filter: OptionButton
+var _shown_rooms: Array = [] # _rooms past the Rating filter
+
+const GAME_COLUMNS := ["Name", "Host", "Map", "Players", "Status"]
+const RATING_COL := 3 # where the Rating column goes when shown
+# GameListFilters/Rating.js RatingFilters, after "Any".
+const RATING_FILTERS := ["", ">1500", ">1400", ">1300", ">1200", "<1200", "<1100", "<1000"]
 
 
 func _ready() -> void:
@@ -95,19 +108,38 @@ func _build() -> void:
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left.size_flags_stretch_ratio = 2.0
 	body.add_child(left)
-	left.add_child(_label("Games"))
+	_rating_column = RtsoUserConfig.new().get_bool("lobby.columns.gamerating")
+	var games_head := HBoxContainer.new()
+	left.add_child(games_head)
+	var games_title := _label("Games")
+	games_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	games_head.add_child(games_title)
+	_rating_filter = OptionButton.new()
+	for f in RATING_FILTERS:
+		_rating_filter.add_item("Any" if f == "" else "%s %s" % [f.substr(0, 1), f.substr(1)])
+	_rating_filter.tooltip_text = "Filter the games by the average rating of their players."
+	_rating_filter.visible = _rating_column
+	_rating_filter.item_selected.connect(func(_i: int) -> void: _show_rooms())
+	games_head.add_child(_rating_filter)
+	var titles := game_columns(_rating_column)
 	_games = Tree.new()
-	_games.columns = 5
+	_games.columns = titles.size()
 	_games.hide_root = true
 	_games.column_titles_visible = true
-	for i in 5:
-		_games.set_column_title(i, ["Name", "Host", "Map", "Players", "Status"][i])
+	for i in titles.size():
+		_games.set_column_title(i, titles[i])
 	_games.set_column_expand_ratio(0, 3)
 	_games.set_column_expand_ratio(2, 2)
 	_games.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_games.item_selected.connect(_on_game_selected)
 	_games.item_activated.connect(_on_join_pressed)
 	left.add_child(_games)
+	_details = RichTextLabel.new()
+	_details.bbcode_enabled = true
+	_details.fit_content = true
+	_details.custom_minimum_size = Vector2(0, 60)
+	_details.visible = false
+	left.add_child(_details)
 
 	var join := HBoxContainer.new()
 	left.add_child(join)
@@ -311,6 +343,8 @@ func _update_signed_in() -> void:
 		_players.clear()
 		_games.clear()
 		_rooms = []
+		_shown_rooms = []
+		_details.visible = false
 	_say(("Signed in as %s." % LobbySession.player_name) if on
 		else "Sign in to see the games and players, or join an address directly.")
 
@@ -355,24 +389,67 @@ func _refresh() -> void:
 func _on_rooms(code: int, obj) -> void:
 	if code != 200 or not (obj is Dictionary):
 		return
+	_rooms = obj.get("rooms", [])
+	_show_rooms()
+
+
+## The game list's columns; Rating (GameList.js gameRating) when
+## lobby.columns.gamerating is on.
+static func game_columns(rating: bool) -> Array:
+	var cols: Array = GAME_COLUMNS.duplicate()
+	if rating:
+		cols.insert(RATING_COL, "Rating")
+	return cols
+
+
+## GameListFilters/Rating.js: "" passes every game, ">N" a game rated at least
+## N, "<N" one rated below N.
+static func rating_passes(filter: String, rating: int) -> bool:
+	if filter == "":
+		return true
+	var n := filter.substr(1).to_int()
+	return rating >= n if filter.begins_with(">") else rating < n
+
+
+func _room_rating(r: Dictionary) -> int:
+	return LobbySession.game_rating(r.get("player_names", []), _ratings)
+
+
+func _show_rooms() -> void:
 	var keep := ""
 	var sel := _games.get_selected()
 	if sel:
 		keep = str(sel.get_metadata(0))
-	_rooms = obj.get("rooms", [])
+	var filter: String = RATING_FILTERS[_rating_filter.selected] if _rating_column and _rating_filter.selected >= 0 else ""
+	_shown_rooms = _rooms.filter(func(r) -> bool: return rating_passes(filter, _room_rating(r)))
+	var col := func(name: String) -> int: return game_columns(_rating_column).find(name)
 	_games.clear()
 	var top := _games.create_item()
-	for r in _rooms:
+	var reselected := false
+	for r in _shown_rooms:
 		var it := _games.create_item(top)
 		var title := str(r.get("name", "")) if str(r.get("name", "")) != "" else str(r.get("id", ""))
 		it.set_text(0, title + (" (password)" if int(r.get("password", 0)) else ""))
 		it.set_text(1, str(r.get("host_name", "")))
 		it.set_text(2, str(r.get("map_name", "")) if str(r.get("map_name", "")) != "" else str(r.get("map_id", "")))
-		it.set_text(3, "%d/%d" % [int(r.get("players", 1)), int(r.get("max_players", 8))])
-		it.set_text(4, "Running" if r.get("state", "init") == "running" else "Waiting")
+		if _rating_column:
+			it.set_text(col.call("Rating"), str(_room_rating(r)))
+		it.set_text(col.call("Players"), "%d/%d" % [int(r.get("players", 1)), int(r.get("max_players", 8))])
+		it.set_text(col.call("Status"), "Running" if r.get("state", "init") == "running" else "Waiting")
 		it.set_metadata(0, str(r.get("id", "")))
 		if str(r.get("id", "")) == keep:
 			it.select(0)
+			reselected = true
+	if reselected:
+		_show_details(_selected_room())
+	else:
+		_show_details({})
+
+
+func _show_details(r: Dictionary) -> void:
+	_details.visible = not r.is_empty()
+	if not r.is_empty():
+		_details.text = LobbySession.game_details(r, _ratings)
 
 
 func _on_players(code: int, obj) -> void:
@@ -381,8 +458,11 @@ func _on_players(code: int, obj) -> void:
 			_say("Lost the lobby server at %s." % LobbySession.address)
 		return
 	_players.clear()
+	_ratings = {}
 	var top := _players.create_item()
 	for p in obj.get("players", []):
+		if p.get("rating") != null:
+			_ratings[str(p.get("name", ""))] = p["rating"]
 		var st := str(p.get("status", "available"))
 		var it := _players.create_item(top)
 		var col: Color = {"available": Color(0.6, 0.9, 0.6), "away": Color(0.9, 0.8, 0.4), "playing": Color(0.9, 0.5, 0.5)}.get(st, Color.WHITE)
@@ -393,6 +473,8 @@ func _on_players(code: int, obj) -> void:
 		it.set_metadata(0, str(p.get("name", "")))
 		if str(p.get("name", "")) == _selected_player:
 			it.select(0)
+	if _rating_column or _details.visible:
+		_show_rooms() # the games' ratings follow the players'
 
 
 func _on_chat(code: int, obj) -> void:
@@ -428,6 +510,7 @@ func _selected_room() -> Dictionary:
 
 func _on_game_selected() -> void:
 	var r := _selected_room()
+	_show_details(r)
 	if r.is_empty():
 		return
 	_join_ip.text = str(r.get("host_ip", "127.0.0.1"))

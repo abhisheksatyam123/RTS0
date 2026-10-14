@@ -1408,7 +1408,7 @@ void Simulation::rebuild_territory_grids() {
 	for (const auto &b : buildings_) {
 		// Foundations claim nothing; Gaia holds no territory (CalculateTerritories skips owner 0).
 		if (b.build_progress < 0.99f || b.wrecked || b.team >= MAX_PLAYERS) continue;
-		const TerritoryInfluenceInfo &ti = territory_influence_info(b.type);
+		const TerritoryInfluenceInfo ti = structure_territory_influence(b.type, b.civ);
 		if (ti.radius <= 0.0f) continue;
 		roots.push_back({b.x, b.z, ti.radius * theater[b.team] * tech_mods(b.team).bld_territory[b.type], b.team, ti.weight});
 	}
@@ -1773,10 +1773,14 @@ namespace {
 // civil_centre (own neutral, 200 m from a CivilCentre), dock (shore, own ally
 // neutral), defensive_wall and its gate and tower (land-shore), palisade
 // (land-shore, own neutral), rome/siege_wall (land-shore, own neutral enemy), outpost (own neutral, 50 m from an Outpost),
-// defensive_tower (60 m from a Tower) and fortress (80 m from a Fortress).
+// defensive_tower (60 m from a Tower) and fortress (80 m from a Fortress), rome/army_camp
+// (neutral enemy, 80 m from an ArmyCamp), ptol/mercenary_camp (own neutral, 100 m from a
+// MercenaryCamp), kush/camp_noba and camp_blemmye (own neutral), iber/monument (150 m from a
+// Monument) and maur/pillar_ashoka (75 m from a Pillar).
 enum : uint8_t { PLACE_LAND, PLACE_SHORE_TYPE, PLACE_LAND_SHORE };
 enum : uint8_t { TERR_OWN = 1, TERR_ALLY = 2, TERR_NEUTRAL = 4, TERR_ENEMY = 8 };
-enum : uint8_t { DIST_NONE, DIST_CIVIL_CENTRE, DIST_TOWER, DIST_FORTRESS, DIST_OUTPOST };
+enum : uint8_t { DIST_NONE, DIST_CIVIL_CENTRE, DIST_TOWER, DIST_FORTRESS, DIST_OUTPOST,
+                 DIST_ARMY_CAMP, DIST_MERCENARY_CAMP, DIST_MONUMENT, DIST_PILLAR };
 struct BuildRestriction {
 	uint8_t placement, territory, distance_class;
 	float min_distance; // world units (one tile, 4 m)
@@ -1802,6 +1806,11 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_WAGON_ENCAMPMENT: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 1.0f / 4.0f};
 	case BLD_SUPER_DOCK:
 	case BLD_LIGHTHOUSE: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	case BLD_ARMY_CAMP: return {PLACE_LAND, TERR_NEUTRAL | TERR_ENEMY, DIST_ARMY_CAMP, 80.0f / 4.0f};
+	case BLD_MERCENARY_CAMP: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_MERCENARY_CAMP, 100.0f / 4.0f};
+	case BLD_CAMP_NOBA: case BLD_CAMP_BLEMMYE: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	case BLD_MONUMENT: return {PLACE_LAND, TERR_OWN, DIST_MONUMENT, 150.0f / 4.0f};
+	case BLD_PILLAR: return {PLACE_LAND, TERR_OWN, DIST_PILLAR, 75.0f / 4.0f};
 	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};
 	}
 }
@@ -1811,6 +1820,10 @@ uint8_t distance_class_of(uint8_t type) {
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return DIST_TOWER; // both carry the Tower class
 	case BLD_FORTRESS: return DIST_FORTRESS;
 	case BLD_OUTPOST: return DIST_OUTPOST;
+	case BLD_ARMY_CAMP: return DIST_ARMY_CAMP;
+	case BLD_MERCENARY_CAMP: return DIST_MERCENARY_CAMP;
+	case BLD_MONUMENT: return DIST_MONUMENT;
+	case BLD_PILLAR: return DIST_PILLAR;
 	default: return DIST_NONE;
 	}
 }
@@ -5278,7 +5291,9 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 		} else {
 			dist = std::hypot(tx - fc.x, tz - fc.z);
 		}
-		const float range = task == FTASK_GARRISON ? GARRISON_LOADING_RANGE + nav::kClearanceExtensionRadius
+		const float range = task == FTASK_GARRISON && fc.target_building
+				? structure_loading_range(buildings_[building_id_to_idx_.at(fc.target_building)].type,
+						buildings_[building_id_to_idx_.at(fc.target_building)].civ) + nav::kClearanceExtensionRadius
 				: 10.0f * FORMATION_METRE;
 		return dist <= range;
 	}
@@ -5795,7 +5810,12 @@ int Simulation::ship_garrison_capacity(size_t i) const {
 	return ship_template_capacity(units_.unit_type[i], units_.tmpl[i]);
 }
 
+// GarrisonHolder/Max: a roster row's own 0.28 template (civ_attack_data.h: Briton, Gallic, Iberian
+// and Mauryan arrow ships hold 40, fire ships none), else its class's.
 int Simulation::ship_template_capacity(uint8_t unit_type, uint16_t tmpl) {
+	const bool ship = unit_type == UNIT_FISHING_BOAT || unit_type == UNIT_MERCHANT_SHIP || unit_type == UNIT_TRIREME;
+	if (ship && tmpl < CIV_UNIT_TEMPLATE_COUNT && combat_template_table()[tmpl].has_loot)
+		return combat_template_table()[tmpl].garrison_max;
 	switch (unit_type) {
 		case UNIT_FISHING_BOAT: return 1;
 		case UNIT_MERCHANT_SHIP: return 15;
@@ -5812,14 +5832,27 @@ int Simulation::ship_template_capacity(uint8_t unit_type, uint16_t tmpl) {
 	return TRANSPORT_CAPACITY; // ship_arrow, ship_ram, ship_bireme...
 }
 
-// GarrisonHolder List: every ship takes FemaleCitizen Infantry Healer Dog
-// (template_unit_ship.xml); merchant ships add Support and Cavalry, warships
-// add Support and Soldier, and arrow, ram and siege ships add Siege.
-bool Simulation::ship_garrison_allowed(size_t ship, uint8_t unit_type) const {
+// 0.28's Civilian class: template_unit_support_civilian's men and women (ROSTER_CIVILIAN) and
+// RTS0's own villager, which stands in for the male civilian. The old female citizens are
+// FemaleCitizen and Support only.
+static bool is_civilian_class(uint16_t tmpl, uint8_t type) {
+	return type == UNIT_VILLAGER || (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CIVILIAN));
+}
+
+// GarrisonHolder/List: template_unit_ship "Civilian Infantry Healer Dog" (fishing boats too),
+// merchant ships add Support Cavalry Relic, warships Support Soldier Hero Relic (+ Siege).
+bool Simulation::ship_garrison_allowed(size_t ship, size_t unit) const {
+	const uint8_t unit_type = units_.unit_type[unit];
 	const TechClasses c = unit_tech_classes(unit_type);
-	TechClasses allowed = TC_FEMALECITIZEN | TC_INFANTRY | TC_HEALER | TC_DOG;
-	if (units_.unit_type[ship] == UNIT_MERCHANT_SHIP) allowed |= TC_CIVILIAN | TC_CAVALRY;
+	if (is_civilian_class(units_.tmpl[unit], unit_type)) return true;
+	TechClasses allowed = TC_INFANTRY | TC_HEALER | TC_DOG;
+	const bool relic = unit_type == UNIT_CATAFALQUE;
+	if (units_.unit_type[ship] == UNIT_MERCHANT_SHIP) {
+		if (relic) return true;
+		allowed |= TC_CIVILIAN | TC_CAVALRY;
+	}
 	if (units_.unit_type[ship] == UNIT_TRIREME) {
+		if (relic) return true;
 		allowed |= TC_CIVILIAN | TC_SOLDIER | TC_HERO;
 		if (ship_garrison_capacity(ship) != 10) allowed |= TC_SIEGE; // not the scout ship
 	}
@@ -5830,6 +5863,12 @@ bool Simulation::ship_garrison_allowed(size_t ship, uint8_t unit_type) const {
 // the unit's edges as 0 A.D. does.
 float Simulation::ship_loading_reach(size_t ship, size_t unit) const {
 	return SHIP_LOADING_RANGE + unit_collision_radius(units_.unit_type[ship]) + unit_collision_radius(units_.unit_type[unit]);
+}
+
+// The same for any transport: a ship's 10 m, or a ram's or siege tower's 2 m.
+float Simulation::transport_loading_reach(size_t holder, size_t unit) const {
+	if (unit_is_ship(units_.unit_type[holder])) return ship_loading_reach(holder, unit);
+	return SIEGE_LOADING_RANGE + unit_collision_radius(units_.unit_type[holder]) + unit_collision_radius(units_.unit_type[unit]);
 }
 
 // The water cell of the ship's own sea nearest to (x, z), searched out to 16
@@ -5971,7 +6010,13 @@ bool Simulation::is_siege_tower_at(size_t i) const {
 		&& (civ_unit_template(tmpl).flags & ROSTER_SIEGE_TOWER) != 0;
 }
 
+// GarrisonHolder/Max of the unit's own 0.28 template: Kushite and Persian rams hold 12, the
+// Germanic log ram nobody; a template with none falls back to the class.
 int Simulation::siege_garrison_capacity(size_t i) const {
+	const uint16_t tmpl = units_.tmpl[i];
+	const bool siege = is_siege_tower_at(i) || units_.unit_type[i] == UNIT_SIEGE_RAM;
+	if (siege && tmpl < CIV_UNIT_TEMPLATE_COUNT && combat_template_table()[tmpl].has_loot)
+		return combat_template_table()[tmpl].garrison_max;
 	if (is_siege_tower_at(i)) return SIEGE_TOWER_GARRISON;
 	if (units_.unit_type[i] == UNIT_SIEGE_RAM) return SIEGE_RAM_GARRISON;
 	return 0;
@@ -6046,20 +6091,73 @@ float Simulation::building_arrow_range(const Building &b) const {
 // Who may board: same owner, not a transport itself; land siege only takes
 // 0 A.D.'s Support and Infantry classes.
 bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
-	if (units_.team[unit_idx] != units_.team[transport_idx]) return false;
+	// GarrisonHolder.IsAllowedToBeGarrisoned: the holder's owner or a mutual ally of it.
+	if (!is_ally(units_.team[unit_idx], units_.team[transport_idx])) return false;
 	if (!unit_garrisonable(unit_idx)) return false; // an ungarrisonable Regicide hero boards nothing
 	// Ships carry rams and siege towers too (Siege on warship Lists), never other ships.
 	if (unit_is_ship(units_.unit_type[transport_idx]))
-		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, units_.unit_type[unit_idx]);
+		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, unit_idx);
 	if (is_transport(units_.id[unit_idx])) return false;
 	if (siege_garrison_capacity(transport_idx) > 0 && !siege_garrison_allowed(units_.unit_type[unit_idx])) return false;
+	// GarrisonHolder.Garrison: a siege engine below its EjectHealth takes nobody in.
+	if (units_.hp[transport_idx] <= std::floor(units_.max_hp[transport_idx] * SIEGE_EJECT_HEALTH)) return false;
 	return true;
+}
+
+// GarrisonHolder.EjectOrKill on a holder killed out of the world (a loaded ram aboard a sinking
+// ship or inside a structure): its passengers cannot be ejected and die with it.
+void Simulation::kill_passengers_of(size_t holder) {
+	auto pit = transport_passengers_.find(units_.id[holder]);
+	if (pit == transport_passengers_.end()) return;
+	const std::vector<uint32_t> ps = std::move(pit->second);
+	transport_passengers_.erase(pit);
+	for (uint32_t puid : ps) {
+		const int32_t p = lookup_unit(puid);
+		if (p < 0) continue;
+		units_.hp[p] = 0.0f;
+		units_.alive[p] = 0;
+		units_.action_state[p] = ACTION_DYING;
+		record_unit_death((size_t)p, 0xFF);
+		if (units_.team[p] == 0) record_.units_lost++;
+		kill_passengers_of((size_t)p);
+	}
+}
+
+// GarrisonHolder OnDiplomacyChanged / OnGlobalOwnershipChanged: a passenger whose owner is no
+// longer the holder's owner or its mutual ally gets off; with no spot to land (a ship out at
+// sea) EjectOrKill kills it.
+void Simulation::eject_foreign_passengers(size_t transport) {
+	auto pit = transport_passengers_.find(units_.id[transport]);
+	if (pit == transport_passengers_.end()) return;
+	std::vector<uint32_t> foreign;
+	for (uint32_t puid : pit->second)
+		if (const int32_t p = lookup_unit(puid); p >= 0 && !is_ally(units_.team[p], units_.team[transport]))
+			foreign.push_back(puid);
+	if (foreign.empty()) return;
+	const uint32_t tid = units_.id[transport];
+	for (uint32_t puid : foreign) {
+		order_disembark_single(tid, puid);
+		auto it = transport_passengers_.find(tid);
+		if (it == transport_passengers_.end()) break;
+		auto at = std::find(it->second.begin(), it->second.end(), puid);
+		if (at == it->second.end()) continue; // landed
+		it->second.erase(at);
+		const int32_t p = lookup_unit(puid);
+		units_.hp[p] = 0.0f;
+		units_.alive[p] = 0;
+		units_.action_state[p] = ACTION_DYING;
+		if (units_.team[p] == 0) record_.units_lost++;
+		kill_passengers_of((size_t)p);
+	}
+	if (auto it = transport_passengers_.find(tid); it != transport_passengers_.end() && it->second.empty())
+		transport_passengers_.erase(it);
 }
 
 void Simulation::tick_siege_garrisons() {
 	if (transport_passengers_.empty()) return;
 	// Index order, not map order, so every peer unloads identically.
 	for (size_t i = 0; i < units_.count; ++i) {
+		if (units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) eject_foreign_passengers(i);
 		if (unit_is_ship(units_.unit_type[i])) {
 			if (!units_.alive[i]) unload_sunk_ship(i);
 			continue;
@@ -6067,7 +6165,8 @@ void Simulation::tick_siege_garrisons() {
 		if (siege_garrison_capacity(i) == 0) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED) continue;
 		const bool dead = !units_.alive[i];
-		if (!dead && units_.hp[i] >= units_.max_hp[i] * SIEGE_EJECT_HEALTH) continue;
+		// GarrisonHolder.HasEnoughHealth: holds while hp > floor(EjectHealth x max).
+		if (!dead && units_.hp[i] > std::floor(units_.max_hp[i] * SIEGE_EJECT_HEALTH)) continue;
 		auto pit = transport_passengers_.find(units_.id[i]);
 		if (pit == transport_passengers_.end() || pit->second.empty()) continue;
 		const float cx = units_.pos_x[i], cz = units_.pos_z[i];
@@ -6094,7 +6193,7 @@ void Simulation::tick_siege_garrisons() {
 }
 
 // A ship's GarrisonHolder OnDestroy (EjectHealth 0): EjectClassesOnDestroy
-// (FemaleCitizen Infantry Healer Dog) swim to a free spot on dry ground within its
+// (Civilian Infantry Healer Dog) swim to a free spot on dry ground within its
 // loading reach; everyone else, everyone out at sea and anyone with no free spot (EjectOrKill
 // kills what the unforced PerformEject leaves aboard) goes down with it.
 void Simulation::unload_sunk_ship(size_t ship) {
@@ -6102,12 +6201,12 @@ void Simulation::unload_sunk_ship(size_t ship) {
 	if (pit == transport_passengers_.end()) return;
 	float lx = 0.0f, lz = 0.0f;
 	const bool shore = ship_unload_point(ship, lx, lz);
-	const TechClasses ejected = TC_FEMALECITIZEN | TC_INFANTRY | TC_HEALER | TC_DOG;
+	const TechClasses ejected = TC_INFANTRY | TC_HEALER | TC_DOG; // and Civilian (is_civilian_class)
 	std::vector<SpawnSpot> taken;
 	for (uint32_t puid : pit->second) {
 		const int32_t p = lookup_unit(puid);
 		if (p < 0) continue;
-		if (shore && (unit_tech_classes(units_.unit_type[p]) & ejected) &&
+		if (shore && ((unit_tech_classes(units_.unit_type[p]) & ejected) || is_civilian_class(units_.tmpl[p], units_.unit_type[p])) &&
 				ship_unload_point(ship, lx, lz, (size_t)p, &taken)) {
 			units_.pos_x[p] = lx;
 			units_.pos_z[p] = lz;
@@ -6120,9 +6219,10 @@ void Simulation::unload_sunk_ship(size_t ship) {
 			units_.alive[p] = 0;
 			units_.action_state[p] = ACTION_DYING;
 			if (units_.team[p] == 0) record_.units_lost++;
+			kill_passengers_of((size_t)p);
 		}
 	}
-	transport_passengers_.erase(pit);
+	transport_passengers_.erase(units_.id[ship]);
 }
 
 void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued) {
@@ -6141,9 +6241,11 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
+		if (turret_height_.count(unit_ids[i])) continue; // UnitAI.Garrison: a turret stays put
 		if (!structure_accepts_garrison(b, (size_t)uidx)) continue; // own or allied, on the List
-		if (garrison_in_range((size_t)uidx, b)) {
-			if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
+		// UnitAI Order.Garrison: an unpacked siege engine packs first (a forced Pack), then gets in.
+		if (garrison_in_range((size_t)uidx, b) && pack_state_can_move(units_.pack_state[uidx])) {
+			if (!garrison_room(b, (size_t)uidx)) continue;
 			garrison_now((size_t)uidx, b);
 			continue;
 		}
@@ -6160,7 +6262,7 @@ bool Simulation::garrison_in_range(size_t i, const Building &b, float x, float z
 	const float ex = gap.x, ez = gap.y;
 	// LoadingRange counts from where a unit can stand: its radius plus the navcell
 	// clearance extension around the structure (0 A.D. measures from the obstruction).
-	const float reach = GARRISON_LOADING_RANGE + unit_collision_radius(units_.unit_type[i]) +
+	const float reach = structure_loading_range(b.type, b.civ) + unit_collision_radius(units_.unit_type[i]) +
 			nav::kClearanceExtensionRadius;
 	return ex * ex + ez * ez <= reach * reach;
 }
@@ -6297,6 +6399,21 @@ bool Simulation::structure_accepts_garrison(const Building &b, size_t i) const {
 	return structure_accepts_classes(b, garrison_classes(units_.tmpl[i], units_.unit_type[i]));
 }
 
+// Garrisonable.TotalSize: a unit's own slot plus everyone it carries (a loaded ram takes 11).
+int Simulation::garrison_size(size_t unit) const {
+	return 1 + (int)get_transport_passenger_count(units_.id[unit]);
+}
+// GarrisonHolder.OccupiedSlots: the sum of its occupants' TotalSize.
+int Simulation::occupied_slots(const std::vector<uint32_t> &ids) const {
+	int n = 0;
+	for (uint32_t uid : ids) n += 1 + (int)get_transport_passenger_count(uid);
+	return n;
+}
+// GarrisonHolder.IsAllowedToGarrison's room test: the unit's TotalSize still fits.
+bool Simulation::garrison_room(const Building &b, size_t unit) const {
+	return occupied_slots(b.garrisoned_units) + garrison_size(unit) <= b.garrison_cap;
+}
+
 bool Simulation::can_garrison_in(uint32_t unit_id, uint32_t building_id) const {
 	const int32_t i = lookup_unit(unit_id);
 	auto it = building_id_to_idx_.find(building_id);
@@ -6418,7 +6535,7 @@ bool Simulation::garrison_unit_now(uint32_t unit_id, uint32_t building_id) {
 	auto it = building_id_to_idx_.find(building_id);
 	if (i < 0 || !units_.alive[i] || it == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[it->second];
-	if (!structure_accepts_garrison(b, (size_t)i) || (int)b.garrisoned_units.size() >= b.garrison_cap) return false;
+	if (!structure_accepts_garrison(b, (size_t)i) || !garrison_room(b, (size_t)i)) return false;
 	garrison_now((size_t)i, b);
 	return true;
 }
@@ -6677,7 +6794,7 @@ uint32_t Simulation::spawn_gaia_unit(float x, float z, UnitType u_type, const ch
 }
 
 bool Simulation::structure_has_enough_health(const Building &b) const {
-	return b.hp > std::floor(building_eject_health(b.type) * b.max_hp);
+	return b.hp > std::floor(building_eject_health(b.type, b.civ) * b.max_hp);
 }
 
 float Simulation::structure_garrison_heal(const Building &b) const {
@@ -6805,6 +6922,7 @@ void Simulation::eject_or_kill(Building &b, uint8_t keep_allies_of) {
 		units_.action_state[i] = ACTION_DYING; // Health.Kill
 		record_unit_death((size_t)i, 0xFF);
 		if (units_.team[i] == 0) record_.units_lost++;
+		kill_passengers_of((size_t)i);
 	}
 	b.garrisoned_units = std::move(kept);
 }
@@ -6853,7 +6971,23 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 
 void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count) {
 	auto bit = building_id_to_idx_.find(building_id);
-	if (bit == building_id_to_idx_.end()) return;
+	if (bit == building_id_to_idx_.end()) {
+		// Commands.js unload / unload-all-by-owner on a ship, ram or siege tower: its owner
+		// unloads anyone, a mutual ally only its own units.
+		const int32_t t = lookup_unit(building_id);
+		if (t < 0 || !units_.alive[t] || !is_transport(building_id)) return;
+		const bool owner = units_.team[t] == player;
+		if (!owner && !is_ally(player, units_.team[t])) return;
+		auto pit = transport_passengers_.find(building_id);
+		if (pit == transport_passengers_.end()) return;
+		std::vector<uint32_t> out = count ? std::vector<uint32_t>(unit_ids, unit_ids + count) : pit->second;
+		for (uint32_t uid : out) {
+			const int32_t i = lookup_unit(uid);
+			if (i < 0 || (!owner && units_.team[i] != player)) continue;
+			order_disembark_single(building_id, uid);
+		}
+		return;
+	}
 	const Building &b = buildings_[bit->second];
 	const bool owner = b.team == player;
 	if (!owner && !is_ally(player, b.team)) return;
@@ -7147,15 +7281,17 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 	int walking = 0;
 
 	for (size_t i = 0; i < count; ++i) {
-		if ((int)passengers.size() >= max_cap) break;
+		if (occupied_slots(passengers) >= max_cap) break;
 		int32_t uidx = lookup_unit(unit_ids[i]);
-		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != team) continue;
+		if (uidx < 0 || !units_.alive[uidx]) continue;
+		if (turret_height_.count(unit_ids[i])) continue; // UnitAI.Garrison: a turret stays put
+		if (occupied_slots(passengers) + garrison_size((size_t)uidx) > max_cap) continue;
 		if (!can_board((size_t)tidx, (size_t)uidx)) continue;
 
 		float dx = units_.pos_x[uidx] - tx;
 		float dz = units_.pos_z[uidx] - tz;
 		float d2 = dx * dx + dz * dz;
-		const float reach = unit_is_ship(units_.unit_type[tidx]) ? ship_loading_reach((size_t)tidx, (size_t)uidx) : 4.5f;
+		const float reach = transport_loading_reach((size_t)tidx, (size_t)uidx);
 
 		if (d2 <= reach * reach) {
 			units_.action_state[uidx] = ACTION_GARRISONED;
@@ -7171,6 +7307,7 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 			units_.target_unit_id[uidx] = transport_id;
 			units_.target_x[uidx] = tx;
 			units_.target_z[uidx] = tz;
+			if (units_.team[uidx] != team) continue; // Pickup: only the holder's owner's own units
 			pick_x += units_.pos_x[uidx];
 			pick_z += units_.pos_z[uidx];
 			++walking;
@@ -7325,6 +7462,17 @@ void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float dama
 	gain_xp((size_t)a, unit_loot_xp(victim) * lost / units_.max_hp[victim]);
 }
 
+// Health.js Reduce on a structure: the attacker gains its Loot/xp share of the health taken
+// (only the Han Imperial Ministry has any, 200).
+void Simulation::award_structure_damage_xp(uint32_t attacker_id, const Building &b, float damage) {
+	const uint16_t xp = building_loot(b.type).xp;
+	if (!xp || attacker_id == 0 || !(b.max_hp > 0.0f) || loot_denied_building(b)) return;
+	const int32_t a = lookup_unit(attacker_id);
+	if (a < 0 || !units_.alive[a]) return;
+	const float lost = std::min(damage, std::max(0.0f, b.hp));
+	if (lost > 0.0f) gain_xp((size_t)a, xp * lost / b.max_hp);
+}
+
 // A no-loot range aura (Pericles' Inspired Defense: Loot replaced by 0) reaches the unit
 // or structure. A garrisoned unit is out of every range aura.
 bool Simulation::loot_denied_unit(size_t i) const {
@@ -7426,7 +7574,9 @@ void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, si
 }
 
 void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
-	LootInfo loot = loot_denied_building(b) ? LootInfo{} : building_loot(b.type);
+	// A foundation has no Loot (special/filter/foundation.xml keeps no Loot component).
+	if (b.build_progress < 1.0f) return;
+	LootInfo loot = loot_denied_building(b) ? LootInfo{} : structure_loot(b.type, b.civ, b.half_size);
 	loot.wood *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_LOOT_WOOD, b.type); // ptol_structures, sele_farms
 	collect_loot(looter_id, looter_player, loot, 1.0f, RES_COUNT, 0);
 }
@@ -8494,11 +8644,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (tidx >= 0 && units_.alive[tidx] && is_transport(units_.id[tidx]) && can_board((size_t)tidx, i)) {
 				float dx = px[i] - px[tidx];
 				float dz = pz[i] - pz[tidx];
-				const float reach = unit_is_ship(units_.unit_type[tidx]) ? ship_loading_reach((size_t)tidx, i) : 4.5f;
+				const float reach = transport_loading_reach((size_t)tidx, i);
 				if (dx * dx + dz * dz <= reach * reach) {
 					auto &passengers = transport_passengers_[units_.id[tidx]];
 					int max_pcap = get_transport_capacity(units_.id[tidx]);
-					if ((int)passengers.size() < max_pcap) {
+					if (occupied_slots(passengers) + garrison_size(i) <= max_pcap) {
 						units_.action_state[i] = ACTION_GARRISONED;
 						units_.alive[i] = 0;
 						units_.has_order[i] = 0;
@@ -8619,7 +8769,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// garrison_in_range's LoadingRange, which counts from the unit's centre (square adds its radius).
 			const auto bit = building_id_to_idx_.find(units_.order_target[i]);
 			return bit != building_id_to_idx_.end() &&
-			       square(buildings_[bit->second], GARRISON_LOADING_RANGE + nav::kClearanceExtensionRadius);
+			       square(buildings_[bit->second], structure_loading_range(buildings_[bit->second].type,
+						buildings_[bit->second].civ) + nav::kClearanceExtensionRadius);
 		}
 		if (st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) {
 			// The dropsite (tick_gather) or market (the trader tick) at the walk's target, or a
@@ -10063,7 +10214,7 @@ void Simulation::tick_production(float dt) {
 			// Trainer.js Spawn: a rally point that garrisons in the trainer itself puts each
 			// unit straight inside while there is room (autoGarrison), with no spot outside needed.
 			// GarrisonHolder.IsAllowedToGarrison: only a unit on the trainer's List goes in.
-			if (self_garrison_rally(b, done.unit_type, done.tmpl) && (int)b.garrisoned_units.size() < b.garrison_cap &&
+			if (self_garrison_rally(b, done.unit_type, done.tmpl) && occupied_slots(b.garrisoned_units) < b.garrison_cap &&
 					structure_accepts_classes(b, garrison_classes(done.tmpl, done.unit_type))) {
 				const uint32_t uid = spawn_unit(b.x, b.z, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
 				if (const int32_t ti = lookup_unit(uid); ti >= 0) {
@@ -10739,6 +10890,7 @@ void Simulation::tick_combat(float dt) {
 			           unit_splash(units_.tmpl[i], ut));
 		} else {
 			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, bld_dmg, true);
+			award_structure_damage_xp(units_.id[i], b, bld_dmg);
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
 				raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
@@ -11083,13 +11235,15 @@ void Simulation::tick_combat(float dt) {
 
 	// 2b. Health.js regeneration: RegenRate always, IdleRegenRate while the unit is idle
 	// (technologies such as Battlefield Medicine). 0 A.D. adds it once a second; RTS0
-	// adds the same rate every tick.
+	// adds the same rate every tick. Garrisoned units and passengers keep regenerating, as
+	// idle ones (UnitAI is IDLE inside a holder).
 	for (size_t u = 0; u < n; ++u) {
-		if (!units_.alive[u] || units_.hp[u] <= 0.0f || units_.hp[u] >= units_.max_hp[u]) continue;
+		const bool inside = units_.action_state[u] == ACTION_GARRISONED;
+		if ((!units_.alive[u] && !inside) || units_.hp[u] <= 0.0f || units_.hp[u] >= units_.max_hp[u]) continue;
 		uint8_t owner = units_.team[u], t = units_.unit_type[u];
 		if (owner >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) continue;
 		const TechMods &m = tech_mods_[owner];
-		float rate = m.regen[t] + (units_.action_state[u] == ACTION_IDLE ? m.idle_regen[t] : 0.0f);
+		float rate = m.regen[t] + (inside || units_.action_state[u] == ACTION_IDLE ? m.idle_regen[t] : 0.0f);
 		if (rate > 0.0f) units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * rate);
 	}
 	// A negative template RegenRate (fire ships) wears the unit down, even at full health.
@@ -11639,6 +11793,7 @@ int32_t Simulation::projectile_hit_structure(const Projectile &p) const {
 void Simulation::projectile_hits_structure(const Projectile &p, Building &b) {
 	const float dmg = projectile_damage_to_structure(p, b);
 	note_attacked(p.source_id, p.team, b.id, b.team, true, dmg);
+	award_structure_damage_xp(p.source_id, b, dmg);
 	b.hp -= dmg;
 	if (b.team == 0)
 		raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
@@ -12726,6 +12881,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		const float dmg = m * (sp.hack * powf(0.9f, ba[0]) + sp.pierce * powf(0.9f, ba[1]) + sp.crush * powf(0.9f, ba[2]));
 		if (dmg <= 0.0f) continue;
 		note_attacked(attacker_id, attacker_team, b.id, b.team, true, dmg);
+		award_structure_damage_xp(attacker_id, b, dmg);
 		b.hp -= dmg;
 		if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
 		if (b.hp > 0.0f) continue;
@@ -13082,8 +13238,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		}
 		case ORDER_GARRISON: {
 			const Building *b = building(o.target);
-			return b && b->build_progress >= 1.0f && (int)b->garrisoned_units.size() < b->garrison_cap &&
-					structure_accepts_garrison(*b, i);
+			return b && b->build_progress >= 1.0f && garrison_room(*b, i) && structure_accepts_garrison(*b, i);
 		}
 		case ORDER_GUARD: {
 			const int32_t t = lookup_unit(o.target);
@@ -13495,7 +13650,7 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 					return;
 				}
 				if (ignore_self_garrison && t.id == b.id) return;
-				if ((int)t.garrisoned_units.size() < t.garrison_cap && structure_accepts_garrison(t, (size_t)i)) {
+				if (garrison_room(t, (size_t)i) && structure_accepts_garrison(t, (size_t)i)) {
 					order_garrison(&uid, 1, t.id, queued);
 					return;
 				}
@@ -13713,7 +13868,10 @@ void Simulation::tick_unit_ai(float dt) {
 			auto bit = building_id_to_idx_.find(units_.order_target[i]);
 			Building *b = bit == building_id_to_idx_.end() ? nullptr : &buildings_[bit->second];
 			if (!b || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
-			if (garrison_in_range(i, *b)) { garrison_now(i, *b); continue; }
+			if (garrison_in_range(i, *b)) {
+				if (pack_state_can_move(units_.pack_state[i])) garrison_now(i, *b); // else still packing
+				continue;
+			}
 			if (now == ACTION_IDLE) finish_order(i);
 			continue;
 		}
@@ -14970,7 +15128,7 @@ void Simulation::petra_manage_workers(float dt) {
 					float dx = units_.pos_x[i] - sb.x;
 					float dz = units_.pos_z[i] - sb.z;
 					const float reach = sb.half_size + 2.5f;
-					if (dx * dx + dz * dz <= reach * reach && (int)sb.garrisoned_units.size() < sb.garrison_cap &&
+					if (dx * dx + dz * dz <= reach * reach && garrison_room(sb, i) &&
 					    structure_accepts_garrison(sb, i) && petra_around(sb).unit) { // else garrisonManager would let it straight out
 						uint32_t uid = units_.id[i];
 						order_garrison(&uid, 1, sb.id);
@@ -18319,6 +18477,9 @@ void Simulation::petra_build_advanced() {
 	if (n && !(n < (int)advanced.size() && pop > 110)) return;
 	for (uint8_t t : advanced) {
 		if (count(t) > 0 || !petra_limit_allows_building(t)) continue;
+		// Petra seeks sites in its own territory only, where Rome's army camp (neutral or
+		// enemy land) is refused, so it goes on to the next structure.
+		if (!(build_restriction(t).territory & TERR_OWN)) continue;
 		build(t);
 		return;
 	}
@@ -26955,10 +27116,9 @@ void Simulation::tick_treasures(float dt) {
 			static const uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
 			PlayerState &ps = player(owner);
 			for (int r = 0; r < 4; ++r) ps.res[kRes[r]] += (float)info.amount[r];
-			// TreasureCollector.js: a treasure counts as collected and as gathered.
+			// Treasure.js Reward: Player.AddResources and IncreaseTreasuresCollectedCounter only,
+			// so the resources don't count as gathered, and no alert is raised.
 			stats_[owner].treasures_collected++;
-			for (int r = 0; r < 4; ++r) stat_gathered(owner, kRes[r], (int)info.amount[r], false);
-			raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, t.x, t.z, t.id, owner);
 			// TreasureCollector.js: Engine.PostMessage(..., MT_TreasureCollected, {player, type, ...}).
 			TriggerEventData ev;
 			ev.entity = units_.id[c];
@@ -26995,7 +27155,10 @@ void Simulation::tick_treasures(float dt) {
 		if (q != order_queues_.end() && !q->second.empty()) continue;
 		uint32_t best = 0;
 		float best_d2 = (64.0f * COMBAT_DISTANCE_SCALE) * (64.0f * COMBAT_DISTANCE_SCALE);
+		const uint8_t owner = units_.team[i];
 		for (const Treasure &t : treasures_) {
+			// CheckTargetVisible: only a treasure the player sees or has seen (it stays in the fog).
+			if (owner < MAX_PLAYERS && fow_state_at(t.x, t.z, owner) == FOW_UNEXPLORED) continue;
 			const float d2 = (t.x - nt.x) * (t.x - nt.x) + (t.z - nt.z) * (t.z - nt.z);
 			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
 		}

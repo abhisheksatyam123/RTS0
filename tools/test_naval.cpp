@@ -350,6 +350,9 @@ static void test_transport() {
 	CHECK(s.get_transport_capacity(merchant) == 15);
 	CHECK(s.get_transport_capacity(fisher) == 1);
 	CHECK(!s.is_transport(fire));
+	// Per-civ GarrisonHolder/Max: Briton arrow ships hold 40.
+	const uint32_t brit_arrow = s.spawn_unit(-30.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_arrow"));
+	CHECK(s.get_transport_capacity(brit_arrow) == 40);
 
 	// Lists: cavalry boards a warship or a merchant ship but not a fishing boat;
 	// siege boards an arrow ship but not a scout ship.
@@ -396,6 +399,38 @@ static void test_transport() {
 	std::printf("  sunk by the beach: spearman %s at z %.1f\n", isp2 >= 0 && s.units().alive[isp2] ? "ashore" : "drowned", isp2 >= 0 ? s.units().pos_z[isp2] : 0.0f);
 	CHECK(isp2 >= 0 && s.units().alive[isp2] && s.get_terrain_height(s.units().pos_x[isp2], s.units().pos_z[isp2]) > 0.15f);
 	CHECK(!s.units().alive[idx(s, rider2)]);
+
+	// EjectClassesOnDestroy is "Civilian Infantry Healer Dog": a 0.28 civilian swims ashore, an
+	// old female citizen (FemaleCitizen Support only) drowns, and a loaded ram (Siege) sinks
+	// with its own passengers (EjectOrKill kills a holder's units when it dies out of the world).
+	{
+		const uint16_t civ_t = tmpl_of("athen/support_civilian"), fem_t = tmpl_of("athen/support_female_citizen");
+		const uint32_t ship4 = s.spawn_unit(-60.0f, 13.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+		const uint32_t civ = s.spawn_unit(-60.0f, 17.5f, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_t);
+		const uint32_t fem = s.spawn_unit(-61.0f, 17.5f, 0, UNIT_FEMALE_CITIZEN, 0.0f, fem_t);
+		const uint32_t ram4 = s.spawn_unit(-59.0f, 17.5f, 0, UNIT_SIEGE_RAM);
+		uint32_t crew4[2] = {s.spawn_unit(-59.0f, 19.0f, 0, UNIT_SPEARMAN), s.spawn_unit(-58.0f, 19.0f, 0, UNIT_SPEARMAN)};
+		s.order_board_transport(crew4, 2, ram4);
+		CHECK(s.get_transport_passenger_count(ram4) == 2);
+		const uint32_t party4[] = {civ, fem, ram4};
+		s.order_board_transport(party4, 3, ship4);
+		run(s, 3.0f);
+		CHECK(s.get_transport_passenger_count(ship4) == 3);
+		s.units_.hp[idx(s, ship4)] = 0.0f;
+		s.units_.alive[idx(s, ship4)] = 0;
+		run(s, 0.1f);
+		CHECK(s.units().alive[idx(s, civ)] && !s.units().alive[idx(s, fem)] && !s.units().alive[idx(s, ram4)]);
+		CHECK(!s.units().alive[idx(s, crew4[0])] && !s.units().alive[idx(s, crew4[1])]);
+		CHECK(s.get_transport_passengers(ram4) == nullptr);
+		// A fishing boat (template_unit_ship's List) takes a civilian, not an old female citizen.
+		const int32_t ifb = idx(s, fisher);
+		const uint32_t civ2 = s.spawn_unit(30.0f, 20.0f, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_t);
+		const uint32_t fem2 = s.spawn_unit(31.0f, 20.0f, 0, UNIT_FEMALE_CITIZEN, 0.0f, fem_t);
+		CHECK(s.can_board(ifb, idx(s, civ2)) && !s.can_board(ifb, idx(s, fem2)));
+		// Relics ride warships and merchant ships (List Relic), not fishing boats.
+		const uint32_t relic = s.spawn_unit(32.0f, 20.0f, 0, UNIT_CATAFALQUE);
+		CHECK(s.can_board(ia, idx(s, relic)) && s.can_board(im, idx(s, relic)) && !s.can_board(ifb, idx(s, relic)));
+	}
 
 	// Pickup: an idle ship sails toward units ordered aboard from inland.
 	const uint32_t ship3 = s.spawn_unit(40.0f, -2.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));

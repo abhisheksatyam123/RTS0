@@ -256,6 +256,24 @@ static void test_retreat_under_fire() {
 	check(x_of(s, cat) < -2.0f, "and walks away");
 }
 
+// UnitAI Order.Garrison: an unpacked engine packs first (forced Pack), then gets in packed.
+static void test_garrison_packs_first() {
+	std::printf("garrison packs first\n");
+	static Simulation s;
+	setup(s);
+	uint32_t ars = s.spawn_building_world(-20.0f, -20.0f, BLD_ARSENAL, 0, 1.0f);
+	uint32_t cat = s.spawn_unit(-20.0f, -12.0f, 0, UNIT_CATAPULT);
+	s.order_pack(&cat, 1, false);
+	run(s, 10.4f);
+	check(pack_of(s, cat) == PACK_UNPACKED, "unpacked beside the arsenal");
+	s.order_garrison(&cat, 1, ars, false);
+	run(s, 1.0f);
+	check(s.units().alive[idx_of(s, cat)] && pack_of(s, cat) == PACK_PACKING, "the unpacked catapult packs before it garrisons");
+	run(s, 30.0f);
+	check(!s.units().alive[idx_of(s, cat)] && s.get_garrison_count(ars) == 1 && pack_of(s, cat) == PACK_PACKED,
+		"once packed it walks in, packed");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_pack.sav";
 	test_who_packs();
@@ -266,6 +284,7 @@ int main(int argc, char **argv) {
 	test_save_load(save.c_str());
 	test_lockstep();
 	test_retreat_under_fire();
+	test_garrison_packs_first();
 	if (g_failures) {
 		std::printf("test_pack: FAIL (%d)\n", g_failures);
 		return 1;
