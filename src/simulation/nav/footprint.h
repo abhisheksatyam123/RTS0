@@ -73,6 +73,7 @@ Vec2 footprint_v(const B& b) { return b.uz == 0.0f ? Vec2(0.0f, 1.0f) : Vec2(-b.
 template <class B>
 float footprint_extent(const B& b)
 {
+	if constexpr (requires { b.ext; }) return b.ext; // kept with the footprint (Simulation::SteerObstacle)
 	if (b.uz == 0.0f) return std::max(b.hu, b.hv);
 	const float ax = std::fabs(b.ux), az = std::fabs(b.uz);
 	return std::max(b.hu * ax + b.hv * az, b.hu * az + b.hv * ax);
