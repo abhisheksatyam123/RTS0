@@ -364,6 +364,10 @@ public:
 	float unit_walk_speed(size_t i) const;
 	// The speed it moves at now: its walk speed, slowed by the pushing pressure it is under.
 	float unit_move_speed(size_t i) const;
+	// How far it moves this tick heading (ux, uz) at up to max_speed, starting from velocity (vx, vz),
+	// with its template's acceleration and turn rule; *speed is its speed at the end of the tick.
+	float accelerated_step(size_t i, float vx, float vz, float ux, float uz, float max_speed, float dt,
+			float *speed) const;
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
@@ -1450,7 +1454,9 @@ public:
 	void petra_build_defenses();
 	void petra_check_resource_levels(int32_t turn);
 	// baseManager.js findBestDropsiteLocation for res; no_site: no spot reached min_quality.
-	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr);
+	// fund_above: past this quality, set the dropsites account to the storehouse's cost first
+	// (startingStrategy.js buildFirstBase setAccounts); negative: never.
+	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f);
 	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
@@ -1702,6 +1708,8 @@ public:
 	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
 	float treasure_reach(size_t i) const;
+	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
+	bool treasure_in_reach(size_t i, uint32_t id) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }
 	bool is_treasure_id(uint32_t id) const {
 		for (const auto &t : treasures_) if (t.id == id) return true;
@@ -2363,6 +2371,9 @@ private:
 		uint8_t pid, btype;
 	};
 	std::vector<PetraPlaceMiss> petra_place_misses_;
+	// headquarters.js requireHouses: a house the phase needs and no room for one, so
+	// petra_find_position leaves out every structure's influence for houses (set for one call).
+	bool petra_require_houses_ = false;
 	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
 	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
