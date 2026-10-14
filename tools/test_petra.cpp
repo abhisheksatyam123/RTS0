@@ -3397,6 +3397,104 @@ static void test_defensive_location() {
 	}
 }
 
+// queueplanTraining.js: each batch Petra queues carries what it is for (a worker, the attack
+// in preparation, the raid); getBestTrainers/start send it to the trainer whose queue ends
+// first, a civic centre 10 s later for soldiers; the attack's soldiers spawn into its army and
+// the worker ones stay workers, wherever they trained; the tag survives a save and load.
+static void test_order_plan_tags() {
+	auto make = [] {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		return s;
+	};
+	auto s = make();
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type)) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	uint32_t barracks = 0; // the starting one, else a new one
+	int n_barracks = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_BARRACKS) { barracks = b.id; ++n_barracks; }
+	if (!barracks) barracks = s->spawn_building_world(cc->x + 14.0f, cc->z, BLD_BARRACKS, 1, 1.0f), ++n_barracks;
+	CHECK(n_barracks == 1, "Petra has one barracks");
+	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t : civ_roster_ids(s->players_[1].civ)) {
+		const CivUnitTemplate &ct = civ_unit_template(t);
+		if (ct.phase > 1 || unit_gather_class(ct.unit_type, t) != GATHER_INFANTRY) continue;
+		if (!s->can_train_at(1, ct.unit_type, BLD_BARRACKS, t) || !s->can_train_at(1, ct.unit_type, BLD_TOWN_CENTER, t)) continue;
+		tmpl = t;
+		break;
+	}
+	CHECK(tmpl != CIV_UNIT_TEMPLATE_NONE, "a citizen soldier trains at both the barracks and the civic centre");
+	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return;
+	const uint8_t type = civ_unit_template(tmpl).unit_type;
+	auto queue_of = [&](uint32_t id) -> std::vector<ProductionOrder> & {
+		return s->buildings_[s->building_id_to_idx_.at(id)].queue;
+	};
+	queue_of(cc_id).clear();
+	queue_of(barracks).clear();
+	CHECK(s->petra_best_trainer(tmpl, type, PRODUCTION_QUEUE_MAX) == barracks, "a soldier trains at the barracks over the civic centre");
+	ProductionOrder busy;
+	busy.unit_type = type;
+	busy.tmpl = tmpl;
+	busy.timer = 0.0f;
+	busy.duration = 12.0f;
+	queue_of(barracks).push_back(busy);
+	CHECK(s->petra_best_trainer(tmpl, type, PRODUCTION_QUEUE_MAX) == cc_id, "and at the civic centre once the barracks has 10 s more to train");
+	queue_of(barracks).clear();
+
+	// One batch for the attack and one for the economy, both at the barracks and about to finish.
+	std::vector<uint32_t> before;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i]) before.push_back(s->units_.id[i]);
+	for (uint8_t plan : {PETRA_ORDER_ATTACK, PETRA_ORDER_WORKER}) {
+		ProductionOrder o;
+		o.unit_type = type;
+		o.tmpl = tmpl;
+		o.duration = 1.0f;
+		o.timer = 0.95f;
+		o.petra_plan = plan;
+		queue_of(barracks).push_back(o);
+	}
+	run_for(*s, 1.0f);
+	int spawned = 0, army = 0;
+	for (size_t i = 0; i < s->units_.count; ++i) {
+		if (!s->units_.alive[i] || s->units_.team[i] != 1 || s->units_.tmpl[i] != tmpl) continue;
+		if (std::find(before.begin(), before.end(), s->units_.id[i]) != before.end()) continue;
+		++spawned;
+		army += !s->petra_is_worker(i);
+	}
+	std::printf("  plan tags: %d soldiers trained at the barracks, %d in the army\n", spawned, army);
+	CHECK(spawned == 2 && army == 1, "the attack's soldier joins the army, the worker one stays a worker");
+
+	// The tag is saved.
+	ProductionOrder raid;
+	raid.unit_type = type;
+	raid.tmpl = tmpl;
+	raid.timer = 0.0f;
+	raid.duration = 60.0f;
+	raid.petra_plan = PETRA_ORDER_RAID;
+	queue_of(barracks).clear();
+	queue_of(barracks).push_back(raid);
+	const char *path = "/tmp/rtso_test_petra_plan_tags.sav";
+	CHECK(s->save_state(path), "saves");
+	auto t = make();
+	CHECK(t->load_state(path), "loads");
+	std::remove(path);
+	auto it = t->building_id_to_idx_.find(barracks);
+	CHECK(it != t->building_id_to_idx_.end() && !t->buildings_[it->second].queue.empty() &&
+	      t->buildings_[it->second].queue.front().petra_plan == PETRA_ORDER_RAID, "a queued batch keeps its plan through a save and load");
+}
+
+
 // attackPlan.js addUnits for a raid: every free FastMoving soldier but two, kept back to hunt.
 static void test_raid_keeps_hunters() {
 	auto s = std::make_unique<Simulation>();
@@ -4008,6 +4106,7 @@ int main(int argc, char **argv) {
 	RUN(test_build_defenses);
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);
+	RUN(test_order_plan_tags);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);
 	RUN(test_food_fields);
