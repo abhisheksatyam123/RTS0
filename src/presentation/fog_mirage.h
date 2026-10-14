@@ -57,6 +57,15 @@ struct FoggedResource {
 	bool miraged = false;
 };
 
+// A treasure as the viewer knows it. Treasure.Reward activates its Fogging, so a
+// treasure taken out of the viewer's sight stays drawn in the fog until seen again.
+struct FoggedTreasure {
+	uint32_t id = 0;
+	float x = 0.0f, z = 0.0f;
+	uint8_t type = 0;
+	bool miraged = false;
+};
+
 // 0 A.D. Fogging.js + Mirage.js for one viewer. Structures and resource supplies
 // carry the Fogging component in 0 A.D.; units do not (they just vanish in fog).
 //
@@ -78,16 +87,19 @@ public:
 	// The structures and resources the viewer should see, live or miraged.
 	const std::vector<FoggedBuilding> &buildings() const { return out_buildings_; }
 	const std::vector<FoggedResource> &resources() const { return out_resources_; }
+	const std::vector<FoggedTreasure> &treasures() const { return out_treasures_; }
 	// The viewer's FOW grid update() last built (los_view_grid), fow_res() squared.
 	const std::vector<uint8_t> &view() const { return view_; }
 	size_t building_mirage_count() const { return building_memory_.size(); }
 	size_t resource_mirage_count() const { return resource_memory_.size(); }
+	size_t treasure_mirage_count() const { return treasure_memory_.size(); }
 
 	// Low-level API, used by update() and by tests with a hand-made LOS grid.
 	// los is res*res cells of Simulation::FOW_* states over [-map_half, map_half]^2.
 	void begin(const uint8_t *los, int res, float map_half);
 	void add_building(const FoggedBuilding &live, bool allied);
 	void add_resource(const FoggedResource &live);
+	void add_treasure(const FoggedTreasure &live);
 	void end();
 
 	uint8_t los_at(float x, float z) const;
@@ -101,6 +113,10 @@ private:
 		FoggedResource seen;
 		uint32_t stamp = 0;
 	};
+	struct TreasureMemory {
+		FoggedTreasure seen;
+		uint32_t stamp = 0;
+	};
 
 	const uint8_t *los_ = nullptr;
 	std::vector<uint8_t> view_;
@@ -110,14 +126,16 @@ private:
 
 	std::unordered_map<uint32_t, BuildingMemory> building_memory_;
 	std::unordered_map<uint32_t, ResourceMemory> resource_memory_;
+	std::unordered_map<uint32_t, TreasureMemory> treasure_memory_;
 	std::vector<FoggedBuilding> out_buildings_;
 	std::vector<FoggedResource> out_resources_;
+	std::vector<FoggedTreasure> out_treasures_;
 
 	// update() cache key
 	bool have_key_ = false;
 	uint8_t key_viewer_ = 0;
 	uint64_t key_ticks_ = 0;
-	size_t key_buildings_ = 0, key_resources_ = 0;
+	size_t key_buildings_ = 0, key_resources_ = 0, key_treasures_ = 0;
 	float key_half_ = 0.0f;
 	int key_res_ = 0;
 };
