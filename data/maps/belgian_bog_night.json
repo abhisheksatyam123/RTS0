@@ -4321,7 +4321,7 @@
   ],
   "resources": [
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": -13.08,
       "z": 4.67,
       "amount": 400
@@ -9571,73 +9571,73 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 72.38,
       "z": 12.03,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 72.66,
       "z": 18.49,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 74.08,
       "z": 23.94,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 77.6,
       "z": 24.12,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 75.51,
       "z": 15.57,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 75.75,
       "z": 10.52,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -77.59,
       "z": -23.28,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -74.38,
       "z": -19.93,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -71.77,
       "z": -16.49,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -70.01,
       "z": -18.62,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -72.18,
       "z": -22.25,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -75.26,
       "z": -25.75,
       "amount": 400
@@ -17053,61 +17053,61 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 101.93,
       "z": -14.16,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 77.45,
       "z": -6.73,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 108.96,
       "z": 5.78,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 96.2,
       "z": 8.6,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 92.16,
       "z": -19.0,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -101.18,
       "z": 9.2,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -97.54,
       "z": -11.02,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -82.27,
       "z": -7.17,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -76.87,
       "z": 5.93,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -88.95,
       "z": 18.89,
       "amount": 300

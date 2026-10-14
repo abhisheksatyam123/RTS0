@@ -361,6 +361,16 @@ def fruit_kind(ltpl):
     return "food" if kind == "tree" else kind
 
 
+def supply_family(rtype):
+    """A resource type with a template plant ("tree/elm", "fruit/fig") as its family's name."""
+    if rtype.startswith("tree/"):
+        return family_of_tree(rtype[len("tree/"):])
+    if rtype.startswith("fruit/"):
+        kind = family_of_fruit(rtype[len("fruit/"):])
+        return "food" if kind == "tree" else kind
+    return rtype
+
+
 def gaia_resource(source, ltpl, wx, wz):
     """A Gaia resource supply (tree, fruit, rock, mine) as a resources entry, typed and sized
     by its 0 A.D. template's ResourceSupply. Templates that can't be read fall back to a
@@ -876,18 +886,20 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 old = json.load(f)
             have = old.get("resources", [])
             k = old.get("world_size", world_size_m) / world_size_m
-            if len(have) != len(resources) or any(a["type"] != b["type"] or abs(a["x"] - b["x"] * k) > 0.5 or
+            if len(have) != len(resources) or any(supply_family(a["type"]) != supply_family(b["type"]) or
+                                                  abs(a["x"] - b["x"] * k) > 0.5 or
                                                   abs(a["z"] - b["z"] * k) > 0.5 for a, b in zip(have, resources)):
                 print(f"  !! {out_path}: {len(have)} resources, 0 A.D. has {len(resources)}; not refreshed")
                 return
             changed = 0
             for a, b in zip(have, resources):
-                before = (a.get("amount"), a.get("max_gatherers"))
+                before = (a.get("type"), a.get("amount"), a.get("max_gatherers"))
+                a["type"] = b["type"]  # a template with its own FloraKind names itself (flora_kind)
                 a["amount"] = b["amount"]
                 a.pop("max_gatherers", None)
                 if "max_gatherers" in b:
                     a["max_gatherers"] = b["max_gatherers"]
-                changed += before != (a.get("amount"), a.get("max_gatherers"))
+                changed += before != (a.get("type"), a.get("amount"), a.get("max_gatherers"))
             if changed:
                 with open(out_path, "w") as f:
                     json.dump(old, f, indent=2)

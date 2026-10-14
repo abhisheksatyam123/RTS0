@@ -138,12 +138,12 @@ inline const BiomeFlora *biome_flora(const char *biome) {
 		{"india", {{FLORA_BANYAN, FLORA_TREE_STRANGLER}}, {FLORA_TEAK}, {{FLORA_TREE_PALM_PALMYRA, FLORA_TREE_PALM_TROPICAL}}, FLORA_DATE,
 		 {{600, 500}}, {500}, {{200, 200}}},
 		// autumn: oak_holly_autumn, oak_hungarian_autumn; poplar_dead; oak_holly_autumn, maple_autumn.
-		{"autumn", {{FLORA_OAK, FLORA_OAK}}, {FLORA_DEAD}, {{FLORA_OAK, FLORA_MAPLE}}, FLORA_BERRY,
+		{"autumn", {{FLORA_TREE_OAK_HOLLY_AUTUMN, FLORA_TREE_OAK_HUNGARIAN_AUTUMN}}, {FLORA_TREE_POPLAR_DEAD}, {{FLORA_TREE_OAK_HOLLY_AUTUMN, FLORA_TREE_MAPLE_AUTUMN}}, FLORA_BERRY,
 		 {{200, 200}}, {200}, {{200, 200}}},
 		// nubia: acacia, acacia; baobab_4_dead or baobab_3_mature; date_palm + acacia,
 		// date_palm + palm_doum or baobab_3_mature + bush_tropic; date.
-		{"nubia", {{FLORA_ACACIA, FLORA_ACACIA}}, {FLORA_DEAD, FLORA_BAOBAB},
-		 {{FLORA_PALM, FLORA_ACACIA}, {FLORA_PALM, FLORA_TROPIC_PALM}, {FLORA_BAOBAB, FLORA_TROPIC_BUSH}}, FLORA_DATE,
+		{"nubia", {{FLORA_ACACIA, FLORA_ACACIA}}, {FLORA_TREE_BAOBAB_4_DEAD, FLORA_TREE_BAOBAB_3_MATURE},
+		 {{FLORA_TREE_DATE_PALM, FLORA_ACACIA}, {FLORA_TREE_DATE_PALM, FLORA_TREE_PALM_DOUM}, {FLORA_TREE_BAOBAB_3_MATURE, FLORA_TROPIC_BUSH}}, FLORA_DATE,
 		 {{200, 200}}, {1000, 1200}, {{200, 200}, {200, 200}, {1200, 50}}},
 	};
 	static const struct { const char *from, *to; } kAliases[] = {

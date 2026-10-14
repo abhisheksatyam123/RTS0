@@ -4212,42 +4212,42 @@
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -47.28,
       "z": -55.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -47.89,
       "z": -58.42,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -42.28,
       "z": -51.86,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -44.57,
       "z": -54.19,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -40.09,
       "z": -51.81,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -22.26,
       "z": -46.83,
       "amount": 100,
@@ -4344,879 +4344,879 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -29.13,
       "z": -56.15,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -31.43,
       "z": -59.33,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": 3.36,
       "z": -5.27,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -26.31,
       "z": -55.8,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -29.01,
       "z": -57.66,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -63.9,
       "z": -64.89,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -60.49,
       "z": -62.01,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -59.52,
       "z": -65.56,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -60.04,
       "z": -66.69,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -55.96,
       "z": -63.99,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -54.79,
       "z": -61.08,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -51.72,
       "z": -61.69,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -52.36,
       "z": -64.26,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -51.95,
       "z": -58.82,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -50.37,
       "z": -60.38,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -49.96,
       "z": -61.28,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -48.17,
       "z": -60.3,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -49.08,
       "z": -58.31,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -49.44,
       "z": -57.16,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -48.14,
       "z": -56.28,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -46.29,
       "z": -57.55,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -44.57,
       "z": -54.95,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -29.24,
       "z": -44.27,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -27.62,
       "z": -46.67,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -26.95,
       "z": -44.51,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -26.6,
       "z": -42.1,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -25.13,
       "z": -42.91,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -25.44,
       "z": -44.71,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -24.61,
       "z": -46.23,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -23.49,
       "z": -44.06,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -23.35,
       "z": -43.01,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -21.71,
       "z": -41.7,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -21.6,
       "z": -43.27,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -21.8,
       "z": -44.58,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -19.66,
       "z": -44.67,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -18.27,
       "z": -42.96,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -19.48,
       "z": -41.91,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -20.39,
       "z": -40.42,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -16.53,
       "z": -41.02,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -15.42,
       "z": -42.7,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -15.45,
       "z": -43.47,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -11.96,
       "z": -42.12,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -13.87,
       "z": -40.68,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -13.7,
       "z": -39.9,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -11.01,
       "z": -40.34,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -11.7,
       "z": -42.53,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -10.68,
       "z": -43.74,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -9.63,
       "z": -43.31,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -7.22,
       "z": -43.03,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -7.36,
       "z": -43.85,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -5.92,
       "z": -38.67,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -8.47,
       "z": -39.87,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -9.07,
       "z": -40.09,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -9.62,
       "z": -34.0,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -10.73,
       "z": -35.94,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -12.87,
       "z": -37.25,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -15.19,
       "z": -37.38,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -16.86,
       "z": -37.51,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -18.59,
       "z": -37.82,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -21.68,
       "z": -38.66,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -23.49,
       "z": -40.23,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -24.74,
       "z": -40.76,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -6.43,
       "z": -32.63,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -5.72,
       "z": -34.16,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -4.95,
       "z": -35.5,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -9.34,
       "z": -35.92,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -3.13,
       "z": -39.0,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -4.64,
       "z": -41.08,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -31.66,
       "z": -57.2,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -49.51,
       "z": -63.65,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -57.17,
       "z": -62.08,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -62.2,
       "z": -68.58,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -44.07,
       "z": -69.99,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -55.76,
       "z": -66.35,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -5.83,
       "z": -62.36,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -30.24,
       "z": -46.08,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -12.65,
       "z": -44.67,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -15.82,
       "z": -45.15,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -13.25,
       "z": -36.12,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -58.08,
       "z": -69.99,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -56.72,
       "z": -70.8,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -54.96,
       "z": -70.86,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -44.14,
       "z": -70.16,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -44.32,
       "z": -69.82,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -55.92,
       "z": -71.67,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -53.88,
       "z": -67.84,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -58.77,
       "z": -70.5,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -44.1,
       "z": -69.7,
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -53.73,
       "z": -69.32,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -51.57,
       "z": -65.91,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -47.72,
       "z": -63.41,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -47.02,
       "z": -60.91,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -45.33,
       "z": -58.29,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -43.65,
       "z": -60.79,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -44.92,
       "z": -60.46,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -45.73,
       "z": -62.87,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -58.58,
       "z": -71.66,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -25.6,
       "z": -46.45,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -25.79,
       "z": -48.34,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -24.62,
       "z": -48.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -23.22,
       "z": -47.4,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -22.48,
       "z": -45.56,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -20.84,
       "z": -45.23,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -20.87,
       "z": -46.66,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -20.43,
       "z": -47.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -19.69,
       "z": -46.37,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -18.36,
       "z": -44.61,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -17.68,
       "z": -44.66,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -18.15,
       "z": -46.3,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -16.53,
       "z": -46.47,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -14.66,
       "z": -44.45,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -13.77,
       "z": -44.64,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -14.06,
       "z": -45.82,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -13.99,
       "z": -46.56,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -12.26,
       "z": -46.32,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -11.48,
       "z": -45.04,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -9.86,
       "z": -44.02,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -9.64,
       "z": -44.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -10.27,
       "z": -45.67,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -10.42,
       "z": -46.31,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -7.66,
       "z": -45.66,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -6.56,
       "z": -43.97,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -5.72,
       "z": -43.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -17.99,
       "z": -44.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -27.64,
       "z": -48.28,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate_autumn",
       "x": -24.49,
       "z": -46.36,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "broadleaf",
+      "type": "tree/temperate_autumn",
       "x": -19.14,
       "z": -47.13,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -2.33,
       "z": -62.3,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -4.98,
       "z": -60.99,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -6.35,
       "z": -61.94,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -7.58,
       "z": -63.85,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -8.04,
       "z": -65.47,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -6.68,
       "z": -65.13,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -7.4,
       "z": -60.74,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -8.84,
       "z": -61.99,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -9.11,
       "z": -64.95,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -9.7,
       "z": -66.28,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -4.87,
       "z": -64.32,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -42.31,
       "z": -52.98,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -42.31,
       "z": -52.98,
       "amount": 200
@@ -5234,991 +5234,991 @@
       "amount": 5000
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -77.38,
       "z": 49.87,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -76.72,
       "z": 48.87,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -75.86,
       "z": 46.76,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -74.12,
       "z": 46.16,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -72.43,
       "z": 45.29,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -71.29,
       "z": 44.45,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -70.15,
       "z": 43.43,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -69.17,
       "z": 42.9,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -68.25,
       "z": 43.47,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -67.51,
       "z": 45.2,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -67.11,
       "z": 45.37,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -66.09,
       "z": 45.9,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -65.31,
       "z": 47.45,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -64.99,
       "z": 48.34,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -64.81,
       "z": 50.6,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -65.71,
       "z": 52.07,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -65.88,
       "z": 54.6,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -66.24,
       "z": 55.87,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -67.49,
       "z": 57.28,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -68.47,
       "z": 58.1,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -69.79,
       "z": 58.73,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -70.31,
       "z": 59.09,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -71.4,
       "z": 56.7,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -71.56,
       "z": 56.04,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -72.92,
       "z": 53.99,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -73.63,
       "z": 52.14,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -74.25,
       "z": 51.63,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -74.64,
       "z": 50.02,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -73.83,
       "z": 48.94,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -72.64,
       "z": 47.93,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -71.66,
       "z": 47.11,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -70.94,
       "z": 46.84,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -70.02,
       "z": 46.92,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -70.09,
       "z": 48.26,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -71.5,
       "z": 49.75,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -71.86,
       "z": 50.63,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -71.55,
       "z": 52.59,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -70.92,
       "z": 52.78,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -70.26,
       "z": 54.21,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -69.77,
       "z": 54.7,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -68.55,
       "z": 53.58,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -68.97,
       "z": 51.34,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -69.57,
       "z": 49.92,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -69.15,
       "z": 49.44,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -68.36,
       "z": 49.49,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -67.99,
       "z": 47.92,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -68.55,
       "z": 46.36,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -67.71,
       "z": 42.22,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar_lombardy_autumn",
       "x": -21.06,
       "z": 36.31,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar_lombardy_autumn",
       "x": -53.88,
       "z": 41.48,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar_lombardy_autumn",
       "x": -35.61,
       "z": 54.73,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar_lombardy_autumn",
       "x": -23.22,
       "z": -84.66,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar_lombardy_autumn",
       "x": -21.5,
       "z": -52.82,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar_lombardy_autumn",
       "x": -11.29,
       "z": -70.19,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar_lombardy_autumn",
       "x": -47.34,
       "z": -76.21,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/poplar_dead",
       "x": -16.29,
       "z": -47.76,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/poplar_dead",
       "x": -17.35,
       "z": -42.01,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/poplar_dead",
       "x": -4.55,
       "z": -41.51,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/poplar_dead",
       "x": -26.05,
       "z": -48.2,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/poplar_dead",
       "x": -55.1,
       "z": -65.78,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/poplar_dead",
       "x": -52.09,
       "z": -67.74,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/poplar_dead",
       "x": -46.31,
       "z": -61.07,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/poplar_dead",
       "x": -58.55,
       "z": -62.9,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/poplar_dead",
       "x": -21.56,
       "z": -87.19,
       "amount": 200
     },
     {
-      "type": "dead",
+      "type": "tree/elm_dead",
       "x": 12.37,
       "z": -37.12,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 11.02,
       "z": -13.1,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 8.82,
       "z": -15.0,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 9.07,
       "z": -17.73,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 12.03,
       "z": -19.41,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 13.35,
       "z": -17.85,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 15.33,
       "z": -18.54,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 14.03,
       "z": -22.22,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 12.35,
       "z": -22.28,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 11.29,
       "z": -23.1,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 15.5,
       "z": -22.79,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 15.94,
       "z": -25.38,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 14.14,
       "z": -26.32,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 14.4,
       "z": -27.81,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 16.15,
       "z": -27.77,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 15.93,
       "z": -30.17,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 11.09,
       "z": -26.88,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": 9.08,
       "z": -22.07,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -5.15,
       "z": -28.61,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": 11.9,
       "z": -29.44,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": 18.13,
       "z": -22.07,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": 18.49,
       "z": -26.25,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": 12.86,
       "z": -15.72,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -13.65,
       "z": 17.72,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -38.92,
       "z": 13.21,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -39.81,
       "z": 3.81,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_hungarian_autumn",
       "x": -34.43,
       "z": 8.74,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -37.46,
       "z": 8.37,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -38.19,
       "z": 5.21,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -40.51,
       "z": 1.09,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -14.6,
       "z": 31.58,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -16.67,
       "z": 29.18,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -16.51,
       "z": 27.54,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -14.44,
       "z": 30.86,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -14.51,
       "z": 29.32,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -14.85,
       "z": 27.6,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -17.02,
       "z": 24.53,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -18.0,
       "z": 24.31,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -17.24,
       "z": 27.87,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -15.25,
       "z": 30.68,
       "amount": 200
     },
     {
-      "type": "maple",
+      "type": "tree/maple_autumn",
       "x": -15.57,
       "z": 33.67,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -20.81,
       "z": 18.08,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -26.38,
       "z": 6.64,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -31.75,
       "z": 12.93,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -56.78,
       "z": 59.73,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -58.7,
       "z": 47.97,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -54.4,
       "z": 30.47,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -49.94,
       "z": 29.49,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -20.04,
       "z": 40.76,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -25.6,
       "z": 41.22,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -21.07,
       "z": 50.3,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -19.08,
       "z": 60.3,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -29.43,
       "z": 52.15,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -38.42,
       "z": -16.03,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -36.91,
       "z": -14.61,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -35.49,
       "z": -12.39,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -34.48,
       "z": -10.32,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -35.81,
       "z": -9.58,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -37.43,
       "z": -11.05,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -38.36,
       "z": -12.43,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -39.3,
       "z": -13.92,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -39.73,
       "z": -14.01,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -38.35,
       "z": -11.03,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -38.15,
       "z": -7.6,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -38.38,
       "z": -7.03,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -38.04,
       "z": -5.33,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -37.13,
       "z": -4.51,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -33.76,
       "z": -8.26,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -32.9,
       "z": -5.35,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -33.28,
       "z": -4.2,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -33.18,
       "z": -2.53,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -33.37,
       "z": -0.78,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -34.24,
       "z": -1.28,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -38.84,
       "z": -2.93,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -39.33,
       "z": -0.21,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -39.38,
       "z": 0.61,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -33.3,
       "z": 0.49,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -32.14,
       "z": 2.92,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -31.08,
       "z": 5.52,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -29.01,
       "z": 5.07,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -35.98,
       "z": 3.23,
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_holly_autumn",
       "x": -35.0,
       "z": 6.27,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 8.52,
       "z": -46.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 5.57,
       "z": -47.8,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 3.48,
       "z": -50.5,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 2.7,
       "z": -53.24,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 3.42,
       "z": -55.07,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 5.26,
       "z": -55.17,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 5.49,
       "z": -52.4,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 8.64,
       "z": -48.57,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 11.48,
       "z": -45.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 13.93,
       "z": -45.25,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 9.54,
       "z": -49.33,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 7.77,
       "z": -52.81,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 7.77,
       "z": -53.64,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 1.88,
       "z": -55.69,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 10.44,
       "z": -50.87,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 6.56,
       "z": -54.16,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 8.33,
       "z": -55.07,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 12.87,
       "z": -47.31,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_black",
       "x": 8.65,
       "z": -51.89,
       "amount": 200

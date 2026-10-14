@@ -10613,19 +10613,19 @@
       "amount": 5000
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -178.29,
       "z": 65.34,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -178.35,
       "z": 65.53,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -177.63,
       "z": 67.05,
       "amount": 200
