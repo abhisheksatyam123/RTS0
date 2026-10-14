@@ -140,6 +140,10 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"barcania": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"battle_for_the_tiber": {
 			"keywords": [],
 			"settings": {
@@ -206,7 +210,29 @@
 			},
 			"type": "scenario"
 		},
+		"butana_steppe": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"caspian_sea": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"cisalpine_winter": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"corinthian_isthmus": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"corsica_and_sardinia": {
+			"keywords": [
+				"naval"
+			],
+			"type": "skirmish"
+		},
+		"crocodilopolis": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -267,6 +293,10 @@
 			"type": "scenario"
 		},
 		"deccan_plateau": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"dueling_cliffs": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -337,6 +367,10 @@
 			],
 			"type": "skirmish"
 		},
+		"gallic_highlands": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"gambia_river": {
 			"keywords": [],
 			"type": "skirmish"
@@ -372,7 +406,15 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"golden_oasis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"greek_acropolis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"greek_acropolis_night": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -425,7 +467,15 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"libyan_oasis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"lorraine_plain": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"magadha": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -577,7 +627,17 @@
 			],
 			"type": "skirmish"
 		},
+		"north_african_savanna": {
+			"keywords": [
+				"demo"
+			],
+			"type": "skirmish"
+		},
 		"northern_island": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"nubian_frontier": {
 			"keywords": [],
 			"type": "skirmish"
 		},
