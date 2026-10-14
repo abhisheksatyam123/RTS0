@@ -12,8 +12,8 @@
 //     pressure dampens the pushes of a crowd that has just come together). On the way no two walkers
 //     come closer than the distance 0 A.D. treats as overlapping (Push: half the moving pair's
 //     MovingSpread of its reach), where the push between them is at its strongest.
-//  4. Two groups walking through each other both arrive (within 20 s: walkers that meet start again
-//     from rest, test 11).
+//  4. Two groups walking through each other both arrive (within 24 s: a walker obstructed by one
+//     already standing starts again from rest, test 11).
 //  5. The heavier unit pushes harder: a ram and a spearman standing on each other part mostly by
 //     the spearman moving (UnitMotion Weight 50 against 10).
 //  6. A walker that runs into a pocket of idle spearmen open towards it gets out and round them:
@@ -180,7 +180,7 @@ int main() {
 		for (uint32_t id : g2) far2 = std::max(far2, std::hypot(s->units_.pos_x[idx(*s, id)] + 15.0f, s->units_.pos_z[idx(*s, id)]));
 		std::printf("  two groups crossing: done after %d ticks, %.2f and %.2f from their points at most, pressure up to %d\n",
 		            done, far1, far2, pressure);
-		CHECK(done > 0 && done <= 400 && far1 < 6.0f && far2 < 6.0f, "two groups walk through each other");
+		CHECK(done > 0 && done <= 480 && far1 < 6.0f && far2 < 6.0f, "two groups walk through each other");
 		CHECK(pressure > 10, "and the crowd's pushing pressure slows them");
 	}
 	{

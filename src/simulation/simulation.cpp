@@ -4608,7 +4608,8 @@ void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach
 		const float range = healer_range_of(i) + reach;
 		const float dx = units_.pos_x[i] - tx, dz = units_.pos_z[i] - tz;
 		const float d = std::sqrt(dx * dx + dz * dz);
-		const float stop = 0.9f * range; // well inside, as UnitMotion stops once in range
+		// Well inside, as UnitMotion stops once in range: the walk ends within ARRIVE_DIST of the point.
+		const float stop = std::max(0.0f, std::min(0.9f * range, range - ARRIVE_DIST));
 		if (d <= range) {
 			wx = units_.pos_x[i];
 			wz = units_.pos_z[i];
@@ -8972,6 +8973,16 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			});
 			return hit;
 		};
+		// A unit still gaining speed is tested on the step it would take at full speed (no further than
+		// its waypoint or aim): steps from rest are a sixteenth of 0 A.D.'s 200 ms ones, and tested as
+		// they are they creep it onto an idle unit's edge, where its short path search finds no way.
+		const float full_step = unit_move_speed(i) * dt;
+		auto full_step_blocked = [&](float ex, float ez, float to_x, float to_z) {
+			const float dx = ex - x0, dz = ez - z0, l = std::sqrt(dx * dx + dz * dz);
+			const float probe = std::min(full_step, std::hypot(to_x - x0, to_z - z0));
+			if (l <= 0.0f || l >= probe) return step_blocked(ex, ez);
+			return step_blocked(x0 + dx / l * probe, z0 + dz / l * probe);
+		};
 		// A unit that reached a waypoint of its short path last tick searches on from there, as 0 A.D.
 		// follows the whole path: heading straight for its aim could take it back to where it was
 		// stuck, such as a dead end between idle units.
@@ -8981,7 +8992,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 				mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
 		if (memo.key == corner_key) memo.key = 0;
 		const uint8_t failed = units_.motion[i].failed;
-		const bool obstructed = step_blocked(npx[i], npz[i]);
+		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i]);
 		bool no_way = false;
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
@@ -9062,7 +9073,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if (len < 1e-4f) return;
 		const float step = std::min(len, reach);
 		const float sx = x0 + to.x / len * step, sz = z0 + to.y / len * step;
-		if (step_blocked(sx, sz)) return;
+		if (full_step_blocked(sx, sz, w.x, w.y)) return;
 		// As in move_units, a land unit doesn't step off dry land into deep water.
 		if (!nav_grid_.cells.blank()) {
 			auto deep = [&](float x, float z) {
@@ -14157,6 +14168,11 @@ void Simulation::tick_unit_ai(float dt) {
 				start_cheer(i);
 			continue;
 		}
+		// COLLECTTREASURE.COLLECTING: a collector whose walk ended within reach of the treasure stands
+		// there while its CollectTime timer runs (tick_treasures), which ends the order.
+		if (now == ACTION_IDLE && !interrupted && units_.order_kind[i] == ORDER_COLLECT_TREASURE &&
+				treasure_in_reach(i, units_.order_target[i]))
+			continue;
 		if (now == ACTION_IDLE) {
 			if (interrupted) resume_order(i);
 			else if (units_.order_kind[i] != ORDER_NONE) finish_order(i);
@@ -27539,6 +27555,17 @@ float Simulation::treasure_reach(size_t i) const {
 		}
 	}
 	return m * 0.6f + 1.0f;
+}
+
+bool Simulation::treasure_in_reach(size_t i, uint32_t id) const {
+	const float reach = treasure_reach(i);
+	if (reach < 0.0f || units_.target_unit_id[i] != id || units_.pack_state[i] != PACK_NONE) return false;
+	for (const Treasure &t : treasures_)
+		if (t.id == id) {
+			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
+			return dx * dx + dz * dz <= reach * reach;
+		}
+	return false;
 }
 
 // UnitAI Order.CollectTreasure: walk to the treasure, for units with a TreasureCollector.
