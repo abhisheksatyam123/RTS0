@@ -56,6 +56,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_game_speed", "speed"), &RtsoMain::set_game_speed);
 	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
 	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
+	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
 	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
 	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
 	ClassDB::bind_method(D_METHOD("_on_replay_speed_selected", "index"), &RtsoMain::_on_replay_speed_selected);
@@ -155,6 +156,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
+	ClassDB::bind_method(D_METHOD("has_lobby_client"), &RtsoMain::has_lobby_client);
 	ClassDB::bind_method(D_METHOD("_on_voice_button_pressed"), &RtsoMain::_on_voice_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_host_pressed"), &RtsoMain::_on_lobby_host_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
@@ -2460,14 +2462,17 @@ void RtsoMain::quickload() {
 	show_notice(load_game(kQuicksavePath) ? "Quickloaded game" : "Quickload failed");
 }
 
+// PauseControl.js canPause(explicit): an observer who is not the host cannot
+// pause a multiplayer match (resuming their own pause stays allowed).
+bool RtsoMain::can_pause() const {
+	return hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying() || local_player() < rtso::MAX_PLAYERS ||
+			net_host_.isHost();
+}
+
 void RtsoMain::toggle_pause() {
-	// PauseControl.js canPause: an observer who is not the host cannot pause a
-	// multiplayer match (resuming their own pause stays allowed).
-	if (!hotkey_paused_ && net_lockstep() && !turn_mgr_.is_replaying() && local_player() >= rtso::MAX_PLAYERS &&
-			!net_host_.isHost())
-		return;
+	if (!can_pause()) return;
 	hotkey_paused_ = !hotkey_paused_;
-	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
+	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_);
 	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
 	update_pause_overlay();
 }
@@ -2599,19 +2604,10 @@ void RtsoMain::post_network_chat() {
 	}
 }
 
+// 0 A.D. Menu.toggle: the menu slides open over the running game; only its
+// Pause button (and the pages it opens in single player) pause.
 void RtsoMain::_on_menu_button_pressed() {
-	Node *pause = get_node_or_null(NodePath("PauseMenu"));
-	if (pause) {
-		pause->call("toggle");
-		set_menu_paused(!paused_via_menu);
-	}
-}
-
-// In a networked match the pause menu pauses every peer (0 A.D.
-// NMT_CLIENT_PAUSED); offline it just stops the local sim.
-void RtsoMain::set_menu_paused(bool paused) {
-	paused_via_menu = paused;
-	if (net_lockstep()) turn_mgr_.set_local_paused(paused || hotkey_paused_);
+	if (Node *pause = get_node_or_null(NodePath("PauseMenu"))) pause->call("toggle");
 }
 
 // Template Viewer for the selection: the selected structure, else the first
@@ -3274,7 +3270,7 @@ void RtsoMain::_process(double delta) {
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
 	}
 	update_pause_overlay();
-	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
+	if (hotkey_paused_ && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
 
