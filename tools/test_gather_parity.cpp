@@ -8,7 +8,8 @@
 //   - ResourceSupply Change timers run per supply: a fruit bush's Regrowth ticks 6 s after its
 //     timer started, not on a map-wide clock.
 //   - ResourceGatherer.StartGathering fixes the gather rate: a field's diminishing returns are
-//     those when the farmer started, until she stops gathering.
+//     those when the farmer started, until she stops gathering, and its timer starts afresh.
+//   - Han rice paddies take 3 farmers; the Ptolemaic team food trickle reaches allies without buildings.
 //   g++ -std=c++20 -O2 -Isrc tools/test_gather_parity.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_gather_parity && /tmp/test_gather_parity
@@ -293,6 +294,72 @@ int main() {
 		const float got = s.player(0).res[RES_FOOD] - food0 + (wi >= 0 ? (float)s.units_.carry[wi] : 0.0f);
 		std::printf("  other player's field: %.0f food farmed in 40 s (woman can %d, cavalry can %d)\n", got, woman_can, cav_can);
 		CHECK(grain != 0 && woman_can && !cav_can && got > 0.0f);
+	}
+
+	// 12. structures/han/field.xml: a rice paddy takes 3 farmers (MaxGatherers 3), not the
+	// generic field's 5; the other two are turned away.
+	{
+		static Simulation s;
+		fresh(s);
+		s.player(0).civ = CIV_HAN;
+		const uint32_t field = s.spawn_building_world(0.0f, 0.0f, BLD_FIELD, 0, 1.0f);
+		s.spawn_building_world(0.0f, 10.0f, BLD_FARMSTEAD, 0, 1.0f);
+		run(s, 0.5f);
+		const uint32_t grain = s.field_resource_id(field);
+		std::vector<uint32_t> women;
+		for (int k = 0; k < 5; ++k) women.push_back(s.spawn_unit(-4.0f + 2.0f * k, 4.0f, 0, UNIT_FEMALE_CITIZEN));
+		s.order_gather(women.data(), (int)women.size(), grain);
+		run(s, 20.0f);
+		int farming = 0;
+		for (uint32_t id : women) {
+			const int32_t u = s.lookup_unit(id);
+			if (u >= 0 && s.units_.target_resource_id[u] == grain) ++farming;
+		}
+		const auto rit = s.res_id_to_idx_.find(grain);
+		const int cap = rit == s.res_id_to_idx_.end() ? -1 : s.resources_.max_gatherers[rit->second];
+		std::printf("  Han rice paddy: %d of 5 women farm it (MaxGatherers %d)\n", farming, cap);
+		CHECK(farming == 3 && cap == 3);
+	}
+
+	// 13. ResourceGatherer.StartGathering sets a fresh timer: the first unit comes 1 / rate after
+	// gathering starts, whatever a kill (attack timer -1 s) or a fight (time banked) left behind.
+	{
+		auto first_unit = [](float leftover) {
+			static Simulation s;
+			fresh(s);
+			const uint32_t bush = s.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 200);
+			const uint32_t woman = s.spawn_unit(1.2f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+			const int32_t w = s.lookup_unit(woman);
+			s.order_gather(&woman, 1, bush);
+			s.units_.attack_timer[w] = leftover;
+			int ticks = 0, burst = 0;
+			while (s.units_.carry[w] < 1 && ticks < 2000) { s.tick(Simulation::FIXED_STEP); ++ticks; }
+			burst = s.units_.carry[w];
+			return std::make_pair(ticks, burst);
+		};
+		const auto clean = first_unit(0.0f), after_kill = first_unit(-1.0f), after_fight = first_unit(5.0f);
+		std::printf("  first unit after %d / %d / %d ticks (fresh / after a kill / after a fight), %d / %d / %d at once\n",
+				clean.first, after_kill.first, after_fight.first, clean.second, after_kill.second, after_fight.second);
+		CHECK(after_kill.first == clean.first && after_fight.first == clean.first);
+		CHECK(after_fight.second == 1);
+	}
+
+	// 14. ptol_player_teambonus is a player aura (Auras.js): a mutual ally with units but no
+	// buildings still gets +1 food a second.
+	{
+		static Simulation s;
+		fresh(s);
+		s.set_player_team(1, 0);
+		s.player(0).civ = CIV_PTOLEMIES;
+		s.player(1).civ = CIV_ATHENIANS;
+		s.spawn_building_world(-30.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		s.spawn_unit(30.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN);
+		run(s, 0.5f);
+		const float food0 = s.player(1).res[RES_FOOD];
+		run(s, 10.0f);
+		const float got = s.player(1).res[RES_FOOD] - food0;
+		std::printf("  Ptolemaic team bonus: a units-only ally gets %.0f food in 10 s\n", got);
+		CHECK(got >= 9.0f && got <= 11.0f);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

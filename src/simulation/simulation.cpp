@@ -10593,7 +10593,8 @@ uint32_t Simulation::ensure_field_resource(const Building &b) {
 			break;
 		}
 	}
-	if (rid == 0) rid = spawn_resource_world(b.x, b.z, RES_FOOD, FIELD_FOOD_SUPPLY, RES_SUB_GRAIN);
+	if (rid == 0) rid = spawn_resource_world(b.x, b.z, RES_FOOD, FIELD_FOOD_SUPPLY, RES_SUB_GRAIN, (uint8_t)field_cap(b));
+	else set_resource_max_gatherers(rid, field_cap(b)); // the supply's MaxGatherers, for the details panel
 	field_res_by_bld_[b.id] = rid;
 	field_bld_by_res_[rid] = b.id;
 	return rid;
@@ -10627,7 +10628,7 @@ uint32_t Simulation::find_free_field(uint8_t team, float x, float z) {
 		auto fit = field_res_by_bld_.find(b.id);
 		if (fit == field_res_by_bld_.end()) continue;
 		auto git = field_gatherers_.find(fit->second);
-		if (git != field_gatherers_.end() && git->second.total >= FIELD_MAX_GATHERERS) continue;
+		if (git != field_gatherers_.end() && git->second.total >= field_cap(b)) continue;
 		float dx = b.x - x, dz = b.z - z;
 		float d2 = dx * dx + dz * dz;
 		if (d2 < best_d2) { best_d2 = d2; best = fit->second; }
@@ -10891,7 +10892,8 @@ void Simulation::tick_gather(float dt) {
 				// Any player's field: 0 A.D.'s ResourceGatherer has no owner check, so Gaia's, an
 				// ally's and even an enemy's field are farmed like our own.
 				bool exists = bit != building_id_to_idx_.end();
-				if (!exists || fg.slots_taken >= FIELD_MAX_GATHERERS) {
+				const int cap = exists ? field_cap(buildings_[bit->second]) : FIELD_MAX_GATHERERS;
+				if (!exists || fg.slots_taken >= cap) {
 					// Field full or gone: try our nearest field with a free slot.
 					uint32_t alt = exists ? find_free_field(uteam, units_.pos_x[i], units_.pos_z[i]) : 0;
 					if (alt != 0) {
@@ -10907,7 +10909,7 @@ void Simulation::tick_gather(float dt) {
 				fg.slots_taken++;
 				// StartGathering takes the rate before AddActiveGatherer, and APPROACHING.leave has
 				// already removed this farmer: the diminishing returns count the others only.
-				field_efficiency = field_gather_efficiency(std::min(fg.total, FIELD_MAX_GATHERERS) - 1);
+				field_efficiency = field_gather_efficiency(std::min(fg.total, cap) - 1);
 			}
 			if (!fish && field_it == field_bld_by_res_.end() && !supply_slot[i]) {
 				// MaxGatherers: a full supply turns the unit away as soon as it is over the cap
@@ -10949,6 +10951,9 @@ void Simulation::tick_gather(float dt) {
 				// (Gather techs name stone.rock, metal.ore and so on, never *.ruins.)
 				const uint32_t rid = units_.target_resource_id[i];
 				if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f)) {
+					// StartGathering sets a fresh SetInterval(timing, timing): the first unit comes
+					// 1 / rate after it, whatever a kill or a fight left on the shared timer.
+					units_.attack_timer[i] = 0.0f;
 					units_.hunt_fauna[i] = resources_.fauna[ridx]; // order.data.template
 					float rate = class_rate * ai_gather_mult(uteam);
 					const Civilization civ = civ_of(uteam);
@@ -14034,7 +14039,7 @@ void Simulation::tick_trickle(float dt) {
 
 	// template_player.xml: Interval 1000, Rates 0, raised by the Ptolemaic team bonus
 	// (ptol_player_teambonus.json, Breadbasket of the Mediterranean: +1 food for the
-	// Ptolemies and their mutual allies; only players who own a building get it) and by
+	// Ptolemies and their mutual allies still in the match) and by
 	// technologies that affect "Player" (Serapis Cult: +2 metal). Their trickle effects
 	// are the unfiltered ones (tools/extract_0ad_techs.py).
 	static constexpr uint8_t kTrickleRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
@@ -14056,18 +14061,11 @@ void Simulation::tick_trickle(float dt) {
 			// Global relic auras on the player's own trickle (Macedonian Financial Reorganization).
 			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += tech_mods_[p].trickle_add[r];
 		}
-		uint16_t civs_present = 0;
-		for (const auto &b : buildings_)
-			if (b.team < MAX_PLAYERS && b.hp > 0.0f) civs_present |= civ_bit(players_[b.team].civ);
-		if (civs_present & civ_bit(CIV_PTOLEMIES)) {
-			for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-				bool owns = false;
-				for (const auto &b : buildings_)
-					if (b.team == p && b.hp > 0.0f) { owns = true; break; }
-				if (!owns) continue;
-				const float add = civ_team_food_trickle(players_[p].civ, ally_civ_mask(p));
-				if (add > 0.0f) players_[p].food() += add;
-			}
+		// A player aura (Auras.js): every mutual ally still in the match gets it, buildings or not.
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			if (!player_in_match(p)) continue;
+			const float add = civ_team_food_trickle(players_[p].civ, ally_civ_mask(p));
+			if (add > 0.0f) players_[p].food() += add;
 		}
 	}
 
@@ -17821,7 +17819,7 @@ void Simulation::petra_manage_economy(float dt) {
 	// (not animals or fields) within 90 m of one of its dropsites for that resource ("nearby"),
 	// 90-180 m ("medium") and 180-360 m ("faraway"), by distance to the dropsite.
 	// Every supply caps its gatherers (worker.js IsSupplyFull: everyone's gatherers on it against
-	// its MaxGatherers, fields FIELD_MAX_GATHERERS); slots counts the free ones.
+	// its MaxGatherers, fields field_cap); slots counts the free ones.
 	struct Candidate { uint32_t id; float x, z; uint8_t type; int slots, users; uint16_t land; int32_t amount; int base; };
 	std::vector<Candidate> candidates;
 	struct Listed { float d2; uint32_t c; };
@@ -17870,7 +17868,7 @@ void Simulation::petra_manage_economy(float dt) {
 				if (bit == building_id_to_idx_.end() || buildings_[bit->second].team != petra_pid_) continue;
 				auto uit = field_users.find(resources_.id[r]);
 				users = uit == field_users.end() ? 0 : uit->second;
-				slots = FIELD_MAX_GATHERERS - users;
+				slots = field_cap(buildings_[bit->second]) - users;
 			} else {
 				if (sub == RES_SUB_MEAT) continue; // animals: startHunting
 				auto uit = supply_users.find(resources_.id[r]);
@@ -17998,8 +17996,8 @@ void Simulation::petra_manage_economy(float dt) {
 			std::pair<uint32_t, int> *fb = nullptr;
 			float fbest = 1e30f;
 			for (auto &e : field_builders) {
-				if (e.second >= FIELD_MAX_GATHERERS) continue;
 				const Building &f = buildings_[building_id_to_idx_.at(e.first)];
+				if (e.second >= field_cap(f)) continue;
 				if (bmap.at(f.x, f.z, map_half_) != base || petra_access_at(f.x, f.z) != land) continue;
 				const float d2 = (f.x - wx) * (f.x - wx) + (f.z - wz) * (f.z - wz);
 				if (d2 <= fbest) { fbest = d2; fb = &e; }
