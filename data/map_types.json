@@ -2329,6 +2329,108 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"unit_chasing_test": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"unit_dancing_test": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"unit_motion_integration_test": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"unit_pushing_test": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"units_demo": {
 			"keywords": [
 				"demo"

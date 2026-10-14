@@ -6,6 +6,7 @@
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/popup_menu.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
@@ -69,6 +70,7 @@
 #include "tutorial_panel.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
+#include "dev_overlay_view.h"
 #include "control_groups_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
@@ -183,6 +185,14 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Label *banner_label = nullptr;
 	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
 	Label *time_notification_label_ = nullptr;
+	// 0.28 NetworkDelayOverlay: "Delay to live stream" while this peer holds more
+	// than MAX_LIVE_DELAY turns it hasn't run yet; checked once a second.
+	Label *net_delay_label_ = nullptr;
+	double net_delay_check_s_ = 0.0;
+	int debug_net_delay_turns_ = -1; // test hook: stands in for turns_behind()
+	void update_net_delay_overlay(double delta);
+	void debug_set_net_delay(int turns) { debug_net_delay_turns_ = turns; net_delay_check_s_ = 1.0; }
+	String debug_net_delay_text() const { return net_delay_label_ && net_delay_label_->is_visible() ? net_delay_label_->get_text() : String(); }
 
 	// 5/6. In-Game Chat Overlay + Diplomacy & Tribute Dialog: P4.1 leaf
 	// widgets (chat_window.h / diplomacy_dialog.h) own their panel trees;
@@ -193,6 +203,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
+	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
 	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker
@@ -307,6 +318,7 @@ public:
 	void _on_minimap_clicked(Vector2 world_pos);
 	void _on_minimap_order(Vector2 world_pos);
 	void trigger_flare(float x, float z);
+	Color player_flare_color(uint8_t pid) const;
 	void _on_flare_requested(Vector2 world_pos);
 	// g_EntityCommands (unit_actions.js): the command row's presses and their hotkeys.
 	void _on_entity_command(const String &name);
@@ -346,6 +358,10 @@ public:
 	void _on_selection_group_gui_input(const Ref<InputEvent> &event, int key);
 	void _on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot);
 	void _on_research_progress_pressed(int slot);
+	void toggle_dev_overlay();
+	void _on_dev_command(int command);
+	void refresh_dev_overlay();
+	Dictionary debug_dev_overlay() const;
 	void _on_control_group_gui_input(const Ref<InputEvent> &event, int button);
 	// input.js performGroup: select, add or snap (select and move the camera) group `grp`.
 	enum GroupAction { GROUP_SELECT, GROUP_ADD, GROUP_SNAP };
@@ -502,6 +518,7 @@ public:
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
+	int get_target_marker_actor_count() const { return range_overlays_.marker_actor_count(); } // tests
 	bool select_first_own(bool building); // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
@@ -573,6 +590,10 @@ private:
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
 	float placement_angle_at(uint8_t btype, float x, float z) const;
+	// 0 A.D. input.js snap to edges: with isSnapToEdgesEnabled, turns placement_angle to the
+	// nearest structure's sides (ObstructionSnap.getPosition) and moves (cell_x, cell_y) to the
+	// building cell nearest the flush position.
+	void snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y);
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
 	void try_train_unit(rtso::UnitType utype);
@@ -631,6 +652,7 @@ private:
 	Label *replay_observer_label_ = nullptr; // PlayerViewControl's "Observer Mode"
 	bool replay_view_gaia_ = false;          // Gaia picked (its view is the observer's)
 	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
+	uint32_t net_oos_shown_turn_ = 0;        // OutOfSyncNetwork showed this turn (0 none)
 	static constexpr int kReplayViewGaiaId = 100;
 	OptionButton *replay_speed_picker_ = nullptr;
 	Button *replay_pause_btn_ = nullptr;
@@ -640,6 +662,18 @@ private:
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;
+	// 0 A.D. top_panel/FollowPlayer (g_FollowPlayer): an observer or replay viewer
+	// watching a player can have the camera follow that player's commands and attacks.
+	bool follow_player_ = false;
+	CheckBox *observer_follow_box_ = nullptr;
+	CheckBox *replay_follow_box_ = nullptr;
+	CheckBox *new_follow_player_box();
+	int followed_view() const;
+	void set_follow_player(bool on);
+	bool is_follow_player() const { return follow_player_; }
+	void follow_player_tick();
+	void follow_focus(uint32_t id, bool select);
+	void follow_command(const rtso::NetCommand &c);
 	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
 	void sync_observer_view_picker();
 	OptionButton *new_player_view_picker() const;
@@ -693,6 +727,10 @@ private:
 	void stop_replay_recording();
 	bool start_pending_replay();
 	bool load_pending_save();
+	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start
+	// then continues it for everyone (host_start_saved_game).
+	String net_saved_game_;
+	void host_start_saved_game();
 	void tick_match_archive();
 	Dictionary statistics_summary() const;
 	Dictionary summary_gui(bool in_game) const;

@@ -47,7 +47,7 @@ func select_map(page, id: String) -> bool:
 	var i: int = ids(page).find(id)
 	if i < 0:
 		return false
-	page.get_node("VBox/HBox/LeftScroll/Left/MapList").select(i)
+	page.get_node("%MapList").select(i)
 	page._on_map_list_selected(i)
 	return true
 
@@ -55,7 +55,7 @@ func set_filter(page, title: String) -> void:
 	page._on_map_filter_selected(filter_titles(page).find(title))
 
 func node(page, path: String):
-	return page.get_node("VBox/HBox/LeftScroll/Left/" + path)
+	return page.get_node("%" + path.get_file())
 
 func slot_selects(page) -> Array:
 	# Per row: name label, kind, civ, team, AI gear, colour.
@@ -89,10 +89,10 @@ func run() -> void:
 	check(ids(page).has("sahel") and not ids(page).has("sahel_scenario"), "Sahel's skirmish is one, its scenario isn't")
 
 	print("2. Map Filter")
-	check(filter_titles(page) == ["Default", "Naval Maps", "Trigger Maps", "All Maps"], "a skirmish's filters: " + str(filter_titles(page)))
+	check(filter_titles(page) == ["Default", "Naval Maps", "Demo Maps", "Trigger Maps", "All Maps"], "a skirmish's filters (Demo Maps since the test maps came over): " + str(filter_titles(page)))
 	check(not ids(page).has("cycladic_archipelago"), "Default hides naval maps")
 	set_filter(page, "Naval Maps")
-	check(ids(page).has("cycladic_archipelago") and ids(page).has("nile_river") and ids(page).has("yangtze") and ids(page).size() == 4, "Naval Maps: " + str(ids(page)))
+	check(ids(page).has("cycladic_archipelago") and ids(page).has("nile_river") and ids(page).has("yangtze") and ids(page).has("sporades_islands") and ids(page).size() == 5, "Naval Maps: " + str(ids(page)))
 	set_filter(page, "Default")
 
 	print("3. Random maps")
@@ -130,7 +130,7 @@ func run() -> void:
 		await frames(2)
 		check(items.call() == [0, 1, 5, 3, 4], "Foothills: Random, Circle, River, Random Group, Stronghold: " + str(items.call()))
 		print("3c. Biome follows 0.28's SupportedBiomes")
-		var bio_slot: Control = page.get_node("VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot")
+		var bio_slot: Control = page.get_node("%BiomeSlot")
 		var bio: RtsoSafeSelect = bio_slot.get_child(0)
 		var bio_ids := func(): return range(bio.get_item_count()).map(func(i): return bio.get_item_id(i))
 		select_map(page, "random_african_plains")

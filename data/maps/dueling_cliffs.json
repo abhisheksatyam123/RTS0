@@ -26448,5 +26448,6 @@
       "z": -90.23,
       "template": "units/special_starting_unit"
     }
-  ]
+  ],
+  "circular": true
 }

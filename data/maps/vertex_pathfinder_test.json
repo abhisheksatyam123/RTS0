@@ -4729,7 +4729,10 @@
       "player": 1,
       "x": -4.87,
       "z": -82.77,
-      "template": "spart/infantry_spearman_a"
+      "template": "spart/infantry_spearman_a",
+      "parents": [
+        "spart/infantry_spearman_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -5583,7 +5586,10 @@
       "player": 1,
       "x": 5.03,
       "z": -86.18,
-      "template": "spart/infantry_spearman_a"
+      "template": "spart/infantry_spearman_a",
+      "parents": [
+        "spart/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
@@ -6262,7 +6268,11 @@
       "player": 1,
       "x": 9.75,
       "z": -87.75,
-      "template": "spart/infantry_spearman_a"
+      "template": "spart/infantry_spearman_a",
+      "parents": [
+        "spart/infantry_spearman_b"
+      ]
     }
-  ]
+  ],
+  "circular": true
 }

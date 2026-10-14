@@ -4278,5 +4278,6 @@
   "gaia_units": [],
   "scenery": [],
   "structures": [],
-  "units": []
+  "units": [],
+  "circular": true
 }

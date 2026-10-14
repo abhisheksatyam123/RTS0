@@ -21624,7 +21624,8 @@
    "phase": 1,
    "trainers": [
     "BLD_HOUSE",
-    "BLD_INN"
+    "BLD_INN",
+    "BLD_WAREHOUSE"
    ],
    "trained_at_0ad": [
     "apartment_block",
@@ -22143,7 +22144,8 @@
    "specific_name": "Ambactos",
    "phase": 1,
    "trainers": [
-    "BLD_HOUSE"
+    "BLD_HOUSE",
+    "BLD_TAVERN"
    ],
    "trained_at_0ad": [
     "house",
@@ -28257,7 +28259,8 @@
    ],
    "buildings": [
     "BLD_TEMPLE_VESTA",
-    "BLD_TEMPLE_MARS"
+    "BLD_TEMPLE_MARS",
+    "BLD_KUSH_SHRINE"
    ]
   },
   {

@@ -95,6 +95,9 @@ var net_ip: String = "127.0.0.1"
 var net_port: int = 20595
 var net_password: String = ""
 var net_observe: bool = false
+# 0 A.D. "Host Saved Game": with net_mode "host", the save in load_save_path is
+# continued in multiplayer (cleared once used).
+var net_saved_game: bool = false
 # 0 A.D. campaignData: the campaign run (its file name under user://saves/campaigns/)
 # and the level being played; empty outside a campaign. Saves and replays keep them.
 var campaign_run: String = ""

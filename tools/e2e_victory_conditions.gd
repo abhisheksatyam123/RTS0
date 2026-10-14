@@ -37,7 +37,7 @@ func select_map(page, id: String) -> bool:
 	var i: int = ids(page).find(id)
 	if i < 0:
 		return false
-	page.get_node("VBox/HBox/LeftScroll/Left/MapList").select(i)
+	page.get_node("%MapList").select(i)
 	page._on_map_list_selected(i)
 	return true
 

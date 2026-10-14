@@ -2777,7 +2777,9 @@ static void test_defense_armies() {
 	std::vector<uint32_t> east, west;
 	for (int k = 0; k < 3; ++k) east.push_back(s->spawn_unit(cx + 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
 	for (int k = 0; k < 3; ++k) west.push_back(s->spawn_unit(cx - 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
-	run_ai_turns(*s, 3); // checkEnemyUnits looks in our land one turn in (players + 1)
+	// checkEnemyUnits looks in our land one turn in (players + 1): the armies form within three
+	// turns, and are counted the turn they do, before the fight moves either group.
+	for (int t = 0; t < 3 && s->petra_defense_armies().empty(); ++t) run_ai_turns(*s, 1);
 	const auto &armies = s->petra_defense_armies();
 	size_t with_defenders = 0;
 	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
@@ -2804,6 +2806,33 @@ static void test_defense_armies() {
 	run_ai_turns(*s, 1);
 	std::printf("  defense: after the groups meet, %zu army\n", armies.size());
 	CHECK(armies.size() == 1, "armies that meet merge (armyMergeSize)");
+}
+
+// defenseManager.js checkEnemyUnits/isDangerous: ships and traders are skipped ("TODO what to
+// do for ships ?"), and a support unit is dangerous only while it builds; a fighter by our
+// structures still is.
+static void test_defense_ignores_ships() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	s->spawn_unit(cx + 9.0f, cz - 8.0f, 0, UNIT_TRIREME, 1.0e4f);
+	s->spawn_unit(cx - 9.0f, cz - 8.0f, 0, UNIT_MERCHANT_SHIP, 1.0e4f);
+	s->spawn_unit(cx - 9.0f, cz + 8.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	run_ai_turns(*s, 3);
+	std::printf("  defense: a warship, a merchant ship and a woman by the civic centre make %zu armies\n", s->petra_defense_armies().size());
+	CHECK(s->petra_defense_armies().empty(), "ships and idle support units raise no defense army (checkEnemyUnits, isDangerous)");
+	s->spawn_unit(cx + 9.0f, cz + 8.0f, 0, UNIT_SWORDSMAN, 1.0e4f);
+	run_ai_turns(*s, 3);
+	CHECK(s->petra_defense_armies().size() == 1, "a swordsman by the civic centre still does");
 }
 
 // defenseManager.js switchToAttack: an army whose foes are gone, with a defender within
@@ -4175,6 +4204,7 @@ int main(int argc, char **argv) {
 	RUN(test_decay_destroy);
 	RUN(test_defense_by_strength);
 	RUN(test_defense_armies);
+	RUN(test_defense_ignores_ships);
 	RUN(test_defense_switch_to_attack);
 	RUN(test_capturing_armies);
 	RUN(test_assign_bombers);

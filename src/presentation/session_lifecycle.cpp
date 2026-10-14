@@ -4,6 +4,8 @@
 
 #include "main_node.h"
 #include "l10n.h"
+#include <godot_cpp/classes/style_box_flat.hpp>
+#include <cmath>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
@@ -60,8 +62,10 @@ void RtsoMain::_ready() {
 			if (comma > 0) {
 				float fx = coords.substr(0, comma).to_float();
 				float fz = coords.substr(comma + 1).to_float();
-				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
-				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
+				const uint8_t sender = chat_player_of(guid);
+				const Color c = player_flare_color(sender);
+				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), c);
+				range_overlays_.add_flare(fx, fz, c, user_opts_.flare_time);
 				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 				// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
 				// "never", "observer" (only while observing) or "always".
@@ -235,6 +239,30 @@ void RtsoMain::_ready() {
 	time_notification_label_->add_theme_constant_override("outline_size", 4);
 	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 	ui_layer->add_child(time_notification_label_);
+
+	// NetworkDelayOverlay.xml: size="100%-300 60 100%-110 80", mono-10, white,
+	// right-aligned, on "color: 0 0 0 100".
+	net_delay_label_ = memnew(Label);
+	net_delay_label_->set_name("NetDelayOverlay");
+	net_delay_label_->set_anchor(SIDE_LEFT, 1.0f);
+	net_delay_label_->set_anchor(SIDE_RIGHT, 1.0f);
+	net_delay_label_->set_offset(SIDE_LEFT, -300.0f);
+	net_delay_label_->set_offset(SIDE_RIGHT, -110.0f);
+	net_delay_label_->set_offset(SIDE_TOP, 60.0f);
+	net_delay_label_->set_offset(SIDE_BOTTOM, 80.0f);
+	net_delay_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
+	net_delay_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_TOP);
+	net_delay_label_->add_theme_font_size_override("font_size", 10);
+	net_delay_label_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+	{
+		Ref<StyleBoxFlat> bg;
+		bg.instantiate();
+		bg->set_bg_color(Color(0.0f, 0.0f, 0.0f, 100.0f / 255.0f));
+		net_delay_label_->add_theme_stylebox_override("normal", bg);
+	}
+	net_delay_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	net_delay_label_->set_visible(false);
+	ui_layer->add_child(net_delay_label_);
 
 	cursor_tip_ = memnew(Label);
 	cursor_tip_->add_theme_font_size_override("font_size", 13);
@@ -603,6 +631,7 @@ void RtsoMain::_ready() {
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
 	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
+	dev_overlay_.build(ui_layer, this, "_on_dev_command");
 	control_groups_.build(ui_layer, this, "_on_control_group_gui_input");
 	rtso::strip_engine_popups(ui_layer);
 
@@ -728,7 +757,10 @@ void RtsoMain::_ready() {
 
 	// A replay or a saved game picked in the menus brings its own setup;
 	// otherwise Game Setup's match starts and is recorded as a replay.
-	if (!start_pending_replay() && !load_pending_save()) {
+	if (start_pending_replay()) {
+	} else if (load_pending_save()) {
+		if (!net_saved_game_.is_empty()) call_deferred("_start_menu_net"); // Host Saved Game
+	} else {
 		apply_match_settings();
 		begin_match_recording(nullptr);
 		call_deferred("_start_menu_net");
@@ -763,7 +795,11 @@ void RtsoMain::_process(double delta) {
 			start_net_speed(net_setup_.seq ? net_setup_.setup.speed : 100);
 			selected_ids.clear();
 			selected_building_id = 0;
-			if (lobby_status)
+			if (lobby_status && net_setup_.seq && net_setup_.setup.saved_game)
+				lobby_status->set_text(turn_mgr_.local_player() < rtso::MAX_PLAYERS
+						? "Loaded the host's saved game as Player " + String::num_int64(turn_mgr_.local_player() + 1)
+						: String("Loaded the host's saved game as an observer"));
+			else if (lobby_status)
 				lobby_status->set_text("Rejoined the match at turn " + String::num_int64(turn_mgr_.rejoin_turn()) +
 						" as Player " + String::num_int64(turn_mgr_.local_player() + 1));
 		}
@@ -830,6 +866,14 @@ void RtsoMain::_process(double delta) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
 			if (turn_mgr_.tick((float)scaled_delta, *sim))
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
+			// OutOfSyncNetwork: the box opens once the dump is written, and again
+			// if the host later names an earlier diverging turn.
+			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
+					net_oos_shown_turn_ != turn_mgr_.oos_turn()) {
+				net_oos_shown_turn_ = turn_mgr_.oos_turn();
+				write_replay(); // "Replay saved to"
+				quit_confirmation("out_of_sync_network");
+			}
 			if (turn_mgr_.has_out_of_sync() && lobby_status) {
 				// 0 A.D. session.js "Out-Of-Sync" notice: the first diverging turn and who.
 				String who;
@@ -953,6 +997,7 @@ void RtsoMain::_process(double delta) {
 	}
 
 	update_hud();
+	update_net_delay_overlay(delta);
 	if (sim && time_notification_label_) {
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
@@ -1038,6 +1083,7 @@ void RtsoMain::_process(double delta) {
 	if (!selected_ids.is_empty() || selected_building_id != 0) inspector_.clear();
 	update_inspector();
 	update_command_panel();
+	follow_player_tick();
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
@@ -1048,6 +1094,7 @@ void RtsoMain::_process(double delta) {
 	tutorial_panel_.refresh(sim);
 	panel_entities_.refresh(*sim, view_player(), (float)Time::get_singleton()->get_ticks_msec() / 1000.0f);
 	research_progress_.refresh(*sim, view_player());
+	refresh_dev_overlay();
 	control_groups_.refresh(*sim, local_player(), selected_groups);
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
@@ -1180,6 +1227,7 @@ void RtsoMain::_process(double delta) {
 						placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 					}
 				}
+				snap_placement_to_edges(current_build_type, cell_x, cell_y);
 				int footprint = rtso::building_type_info(current_build_type).footprint;
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
@@ -1245,4 +1293,27 @@ void RtsoMain::_process(double delta) {
 				: "OBSERVING\nYou are watching this match. The map is revealed.");
 		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
 	}
+}
+
+// 0.28 NetworkDelayOverlay.CheckDelay, once a second: the turns this client
+// has in hand but hasn't run (Engine.GetPendingTurns); from MAX_LIVE_DELAY (6)
+// on it shows how far behind the live game that is, at 5 turns a second, to
+// one decimal under 5 s. Observer catch-up itself is the turn manager's
+// (network.autocatchup).
+void RtsoMain::update_net_delay_overlay(double delta) {
+	if (!net_delay_label_) return;
+	net_delay_check_s_ += delta;
+	if (net_delay_check_s_ < 1.0) return;
+	net_delay_check_s_ = 0.0;
+	constexpr uint32_t kMaxLiveDelay = 6, kTurnsPerSecond = 5;
+	const uint32_t delay = debug_net_delay_turns_ >= 0 ? (uint32_t)debug_net_delay_turns_
+		: net_lockstep() ? turn_mgr_.turns_behind() : 0;
+	if (delay < kMaxLiveDelay) {
+		net_delay_label_->set_visible(false);
+		return;
+	}
+	const double s = (double)delay / kTurnsPerSecond;
+	const String secs = s < 5.0 ? String::num(s, 1).pad_decimals(1) : String::num_int64((int64_t)std::llround(s));
+	net_delay_label_->set_text(rtso::sprintf0(tr("Delay to live stream: %(delay)ss"), {{"delay", secs}}));
+	net_delay_label_->set_visible(true);
 }

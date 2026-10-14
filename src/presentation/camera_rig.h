@@ -26,6 +26,7 @@ class RtsoCameraRig : public Node3D {
 	float target_pitch_deg = 50.6f;
 	// 0 A.D. camera.togglebirdseyeview: straight down, and back to the pitch before.
 	bool birds_eye_ = false;
+	bool constrain_ = true;
 	float pre_birds_eye_pitch_ = 50.6f;
 	// Which keys may scroll and rotate the camera: every key, arrows only (while
 	// placing a building, when letters pick the building), or none (typing).
@@ -53,6 +54,11 @@ public:
 	bool is_birds_eye() const { return birds_eye_; }
 	float get_pitch_deg() const { return target_pitch_deg; }
 	void set_map_bounds_half(float h) { map_bounds_half = h; }
+	// The developer overlay's Restrict camera (GameView_SetConstrainCameraEnabled):
+	// off, the camera may leave the map.
+	void set_constrain_camera(bool on) { constrain_ = on; }
+	bool is_constrain_camera() const { return constrain_; }
+	float bounds_half() const { return constrain_ ? map_bounds_half : 1.0e6f; }
 	bool is_edge_scroll_enabled() const { return edge_scroll_enabled; }
 	enum KeyScrollMode { KEYS_ALL = 0, KEYS_ARROWS_ONLY = 1, KEYS_NONE = 2 };
 	void set_key_scroll_mode(int mode) { key_scroll_mode_ = mode; }

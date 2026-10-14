@@ -35,6 +35,9 @@ Everything must match:
 - Set team ID + bundle identifier in Project → Export → iOS before archiving.
 - The export produces an **Xcode project** you sign/archive in Xcode (or fastlane).
 
+### Cloud containers (headless checks)
+A fresh Linux container has no Godot, so the GDScript checks (`tools/e2e_*.gd`) can't run there. After building the GDExtension, `tools/setup_godot.sh --import` downloads the Godot build `ci.yml` uses (4.3-stable from github.com/godotengine/godot releases, checked against its SHA512-SUMS.txt) to `/usr/local/bin/godot`, or to `GODOT_DEST`. It then imports the assets in batches with `tools/godot_import.py`. A fresh checkout took 51 minutes on 4 cores, with Godot peaking at 2.8 GB. Leave out `--import` for checks that load no art. Then run a check with `godot --headless --path . --fixed-fps 60 -s tools/e2e_options.gd`, which exits 0 on a pass. With `godot` on PATH, `scons` re-exports `RTS0.x86_64` after every build unless it is given `skip_export=1`.
+
 ## Local builds
 
 ```bash

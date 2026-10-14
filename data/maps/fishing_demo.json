@@ -4357,5 +4357,6 @@
       "z": -54.67,
       "template": "pers/ship_fishing"
     }
-  ]
+  ],
+  "circular": false
 }

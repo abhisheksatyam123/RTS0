@@ -426,13 +426,14 @@ public:
 	}
 
 private:
-	// Gather and build sounds: 0 A.D. actors fire the unit's Sound group
-	// (gather_tree, gather_grain, build...) on each swing of the gather or build
-	// animation. RTS0 has no animation events here, so each visible worker near
-	// the camera swings every 1.6-2.4 s, with a cap so a crowd doesn't drown the rest.
+	// Gather and build sounds: 0 A.D.'s CUnitAnimation plays the Sound group of
+	// the animation (gather_tree, gather_grain, build...) once per loop, at the
+	// clip's sound point, else its event point (art/variants/biped/*gather_*.xml,
+	// *build.xml); a clip with neither, as farming, plays none. Each worker's loop
+	// starts when it starts working, at the clip's length over its speed with
+	// VisualActor's 5% desync; a cap keeps a crowd from drowning the rest.
 	static const char *work_group(uint8_t res_type, uint8_t sub, const char **dir) {
 		*dir = "resource/mining";
-		if (sub == RES_SUB_GRAIN) { *dir = "resource/farming"; return "hoe"; }          // farm.xml
 		if (sub == RES_SUB_MEAT) { *dir = "resource/gathering"; return "gather_meat"; }  // gather_meat.xml
 		if (sub == RES_SUB_FISH) return nullptr;                                         // ships have no gather sound
 		if (sub == RES_SUB_RUINS) return "mine_metal";                                   // mining.xml
@@ -443,6 +444,23 @@ private:
 			case RES_GOLD: return "mine_metal";                                          // mining.xml
 			default: return nullptr;
 		}
+	}
+
+	// One loop of a work clip: its length in seconds (the .dae's duration over the
+	// actor's speed) and where in it the sound plays (0-1), < 0 when it plays none.
+	struct WorkClip { float period, pos; };
+	static WorkClip work_clip(bool build, uint8_t res_type, uint8_t sub, bool female) {
+		if (build) return female ? WorkClip{ 0.8f / 0.7f, 0.75f } : WorkClip{ 0.8f, 0.5f }; // citizen/build.dae 0.8 s
+		if (res_type == RES_FOOD) {
+			if (sub == RES_SUB_GRAIN) return { 2.667f, -1.0f };                            // farming.dae, no event
+			if (sub == RES_SUB_MEAT) return { 4.133f, 0.0f };                              // gather_meat.dae, sound 0
+			if (sub == RES_SUB_FISH) return { 1.0f, -1.0f };
+			return female ? WorkClip{ 4.133f, 0.0f } : WorkClip{ 6.633f, 0.0f };           // gather_fruit_{f,m}.dae
+		}
+		if (res_type == RES_WOOD) return { 2.267f / 1.2f, 0.25f };                         // gather_wood.dae, speed 120
+		if (res_type == RES_STONE || res_type == RES_GOLD)
+			return { 2.333f / (female ? 1.0f : 1.2f), 0.4f };                              // gather_mine.dae
+		return { 1.0f, -1.0f };
 	}
 
 	void tick_work_sounds(const Simulation *sim, uint8_t me, const Simulation::UnitView &uv, double t) {
@@ -460,50 +478,79 @@ private:
 			for (size_t r = 0; r < rv.count; ++r) res_index_[rv.id[r]] = r;
 		}
 		auto rv = sim->resources();
-		std::unordered_map<uint32_t, double> next;
+		std::unordered_map<uint32_t, WorkLoop> next;
 		workers_at_work_ = workers_heard_ = 0;
 		for (size_t i = 0; i < uv.count; ++i) {
 			const uint8_t st = uv.action_state[i];
 			if (!uv.alive[i] || (st != ACTION_GATHER && st != ACTION_BUILD)) continue;
 			++workers_at_work_;
-			const float dx = uv.pos_x[i] - listener_x_, dz = uv.pos_z[i] - listener_z_;
-			if (dx * dx + dz * dz > kHear2) continue;
-			if (!sim->is_entity_visible_to_viewer(uv.pos_x[i], uv.pos_z[i], uv.team[i], me)) continue;
-			++workers_heard_;
-			const uint32_t id = uv.id[i];
-			auto it = work_next_.find(id);
-			double due = it == work_next_.end() ? t + 0.2 + (rng_() % 1000) / 1000.0 : it->second;
-			if (t >= due && work_in_window_ < kMaxPerHalfSecond) {
-				const char *dir = nullptr;
-				const char *prefix = nullptr;
-				if (st == ACTION_BUILD) {
-					dir = "resource/construction";
-					prefix = "con_wood"; // con_wood.xml
-				} else if (uv.target_resource_id) {
-					auto rit = res_index_.find(uv.target_resource_id[i]);
-					if (rit != res_index_.end() && rit->second < rv.count && rv.id[rit->second] == uv.target_resource_id[i])
-						prefix = work_group(rv.type[rit->second], rv.subtype[rit->second], &dir);
+			uint8_t res_type = 0xFF, sub = 0;
+			if (st == ACTION_GATHER && uv.target_resource_id) {
+				auto rit = res_index_.find(uv.target_resource_id[i]);
+				if (rit != res_index_.end() && rit->second < rv.count && rv.id[rit->second] == uv.target_resource_id[i]) {
+					res_type = rv.type[rit->second];
+					sub = rv.subtype[rit->second];
 				}
-				if (prefix) {
-					const auto &g = sound_group(dir, (std::string(prefix) + "_").c_str());
-					if (!g.empty()) {
-						godot::Ref<godot::AudioStream> snd = stream(g[rng_() % g.size()]);
-						if (snd.is_valid()) {
-							spatial_(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f, 1.0f);
-							++work_in_window_;
-							++work_sounds_;
+			}
+			const uint32_t id = uv.id[i];
+			const uint16_t tmpl = uv.tmpl ? uv.tmpl[i] : CIV_UNIT_TEMPLATE_NONE;
+			const uint8_t ut = uv.unit_type[i];
+			const bool female = (ut == UNIT_FEMALE_CITIZEN || ut == UNIT_VILLAGER) && !civilian_is_male(tmpl, id);
+			const uint16_t kind = st == ACTION_BUILD ? 0xFFFF : (uint16_t)((res_type << 8) | sub);
+			auto it = work_loops_.find(id);
+			WorkLoop w;
+			if (it != work_loops_.end() && it->second.kind == kind) {
+				w = it->second;
+			} else {
+				// SelectAnimation starts the clip; VisualActor desyncs its speed by up to 5%.
+				const WorkClip c = work_clip(st == ACTION_BUILD, res_type, sub, female);
+				const float desync = 1.0f + 0.05f * (((id * 2654435761u) >> 16) % 2001 / 1000.0f - 1.0f);
+				w = WorkLoop{ kind, t, c.period * desync, c.pos, 0 };
+			}
+			const float dx = uv.pos_x[i] - listener_x_, dz = uv.pos_z[i] - listener_z_;
+			const bool heard = dx * dx + dz * dz <= kHear2 && sim->is_entity_visible_to_viewer(uv.pos_x[i], uv.pos_z[i], uv.team[i], me);
+			if (heard) ++workers_heard_;
+			if (w.pos >= 0.0f && w.period > 0.0f) {
+				// Sound points passed since the clip started.
+				const double passed = std::floor((t - w.start) / w.period - w.pos) + 1.0;
+				if (passed > (double)w.played) {
+					w.played = (uint32_t)passed;
+					if (heard) {
+						const char *dir = nullptr;
+						const char *prefix = nullptr;
+						if (st == ACTION_BUILD) {
+							dir = "resource/construction";
+							prefix = "con_wood"; // con_wood.xml
+						} else if (res_type != 0xFF) {
+							prefix = work_group(res_type, sub, &dir);
+						}
+						if (prefix && work_in_window_ < kMaxPerHalfSecond) {
+							const auto &g = sound_group(dir, (std::string(prefix) + "_").c_str());
+							if (!g.empty()) {
+								godot::Ref<godot::AudioStream> snd = stream(g[rng_() % g.size()]);
+								if (snd.is_valid()) {
+									spatial_(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f, 1.0f);
+									++work_in_window_;
+									++work_sounds_;
+								}
+							}
 						}
 					}
 				}
-				due = t + 1.6 + (rng_() % 800) / 1000.0;
 			}
-			next[id] = due;
+			next[id] = w;
 		}
-		work_next_.swap(next);
+		work_loops_.swap(next);
 	}
 
+	struct WorkLoop {
+		uint16_t kind = 0;
+		double start = 0.0;
+		float period = 1.0f, pos = -1.0f;
+		uint32_t played = 0;
+	};
+	std::unordered_map<uint32_t, WorkLoop> work_loops_;
 	float listener_x_ = 0.0f, listener_z_ = 0.0f;
-	std::unordered_map<uint32_t, double> work_next_;
 	std::unordered_map<uint32_t, size_t> res_index_;
 	double res_index_time_ = -100.0;
 	double work_window_start_ = 0.0;

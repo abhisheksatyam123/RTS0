@@ -478,6 +478,62 @@ int main() {
 		s.transport_passengers_.erase(tower);
 	}
 
+	// 9. iber/defense_tower.xml: DefaultArrowCount +1 (5) and MinRange 12 m, kept by a captor.
+	{
+		fresh(s);
+		uint32_t tw = s.spawn_building_world(-40.0f, -40.0f, BLD_TOWER, 0, 1.0f);
+		s.set_building_civ(tw, CIV_ROMANS);
+		CHECK(s.building_arrow_count(*find_bld(s, tw)) == 4);
+		s.set_building_civ(tw, CIV_IBERIANS);
+		std::printf("Iberian tower: %d arrows\n", s.building_arrow_count(*find_bld(s, tw)));
+		CHECK(s.building_arrow_count(*find_bld(s, tw)) == 5);
+		CHECK(near(civ_building_ai_info(CIV_IBERIANS, BLD_TOWER).min_range, 12.0f * COMBAT_DISTANCE_SCALE));
+		CHECK(near(civ_building_ai_info(CIV_ROMANS, BLD_TOWER).min_range, 10.0f * COMBAT_DISTANCE_SCALE));
+	}
+
+	// 10. Attack.js PredictTimeToTarget leads with the structure's own Projectile/Speed: a bolt
+	// tower (150) aims less far ahead of a runner than a civic centre (100) would.
+	{
+		fresh(s);
+		uint32_t bt = s.spawn_building_world(-40.0f, -40.0f, BLD_TOWER_BOLT, 0, 1.0f);
+		uint32_t cc = s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		std::printf("lead speeds: bolt tower %.1f, civic centre %.1f u/s\n", s.projectile_speed_of(bt, 0), s.projectile_speed_of(cc, 0));
+		CHECK(near(s.projectile_speed_of(bt, 0), 150.0f * COMBAT_DISTANCE_SCALE, 0.01f));
+		CHECK(near(s.projectile_speed_of(cc, 0), 100.0f * COMBAT_DISTANCE_SCALE, 0.01f));
+	}
+
+	// 11. BuildingAI's enemy query takes an enemy's livestock (IsDangerousAnimal filters only
+	// Gaia's); Gaia's sheep and an ally's are left alone.
+	{
+		fresh(s);
+		uint32_t cc = s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		uint32_t sheep = s.spawn_fauna(-30.0f, -40.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		uint32_t wild_sheep = s.spawn_fauna(-40.0f, -30.0f, FAUNA_SHEEP_TRAINABLE, GAIA_PLAYER);
+		ArrowCounter a;
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); a.step(s, cc); }
+		int at_sheep = 0, at_wild = 0;
+		for (const Projectile &p : a.fired) { at_sheep += p.target_unit_id == sheep; at_wild += p.target_unit_id == wild_sheep; }
+		std::printf("civic centre beside an enemy's sheep over 10 s: %d arrows, %d at it, %d at Gaia's\n", (int)a.fired.size(), at_sheep, at_wild);
+		CHECK(at_sheep > 0 && at_wild == 0);
+	}
+
+	// 12. Trainer.js {native}: a captured Carthaginian embassy trains its Celtic mercenaries
+	// for a Roman captor; a Roman's barracks offers no Carthaginian unit.
+	{
+		fresh(s);
+		s.set_team_civ(0, CIV_ROMANS);
+		s.players_[0].phase = 3;
+		uint32_t emb = s.spawn_building_world(-40.0f, -40.0f, BLD_EMBASSY, 0, 1.0f);
+		s.set_building_civ(emb, CIV_CARTHAGINIANS);
+		const uint16_t gaul = template_named("cart/infantry_swordsman_gaul_b");
+		CHECK(gaul != CIV_UNIT_TEMPLATE_NONE);
+		const bool ok = s.cmd_train_template_at(0, emb, gaul, true, 1);
+		std::printf("Roman-held Carthaginian embassy trains a Gallic swordsman: %d\n", (int)ok);
+		CHECK(ok);
+		uint32_t bk = s.spawn_building_world(40.0f, 40.0f, BLD_BARRACKS, 0, 1.0f);
+		CHECK(!s.cmd_train_template_at(0, bk, gaul, false, 1));
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

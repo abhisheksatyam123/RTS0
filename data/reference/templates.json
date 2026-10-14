@@ -1125,6 +1125,13 @@
      1.0,
      1.0,
      0.8
+    ],
+    "s80": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.8
     ]
    }
   },
@@ -1581,7 +1588,8 @@
    "specific_structures": [
     45,
     58,
-    59
+    59,
+    84
    ],
    "phases": [
     {
@@ -27768,6 +27776,55 @@
       }
      }
     }
+   },
+   "78": {
+    "generic_name": "Gate of All Nations",
+    "specific_name": "Duvarθi Visadahyu",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "City",
+     "Hall"
+    ],
+    "icon": "structures/pers_hall.png",
+    "template": "structures/pers/hall",
+    "viewer": {
+     "garrison": {
+      "capacity": 10,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "79": {
+    "generic_name": "House",
+    "specific_name": "Warehouse",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Village",
+     "House"
+    ],
+    "icon": "structures/house.png",
+    "template": "structures/pers/warehouse",
+    "viewer": {
+     "garrison": {
+      "capacity": 3,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "rome": {
@@ -32324,6 +32381,31 @@
       }
      }
     }
+   },
+   "80": {
+    "generic_name": "Tavern",
+    "specific_name": "Taberna",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic",
+     "House",
+     "Town"
+    ],
+    "icon": "structures/embassy_celtic.png",
+    "template": "structures/gaul/tavern",
+    "viewer": {
+     "garrison": {
+      "capacity": 3,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "iber": {
@@ -33940,6 +34022,45 @@
       }
      }
     }
+   },
+   "81": {
+    "generic_name": "Rampart Tower",
+    "specific_name": "Udarka",
+    "tooltip": "Higher health tower with ramparts for up to 16 archers. Visibly garrisoned archers receive a range and armor bonus. Only archers can garrison. Needs the murder holes tech to protect its foot.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "StoneTower"
+    ],
+    "icon": "structures/defense_tower.png",
+    "template": "structures/maur/tower_double",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Bow",
+       "min_range": 10,
+       "max_range": 60,
+       "y_origin": 15,
+       "repeat_time": 3.5,
+       "damage": {
+        "Pierce": 8
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "turrets": 16,
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "kush": {
@@ -34828,6 +34949,31 @@
     "icon": "gaia/special_stoa.png",
     "template": "structures/hellenic_stoa",
     "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "82": {
+    "generic_name": "Shrine",
+    "specific_name": "Ḥwt-nṯr",
+    "tooltip": "Train Healers and research healing technologies.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Town",
+     "Temple"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/kush/shrine",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     },
      "status_resistance": {
       "Poisoned": {
        "block": 1,
@@ -37602,6 +37748,64 @@
     ],
     "icon": "gaia/special_stoa.png",
     "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "83": {
+    "generic_name": "Fortress",
+    "specific_name": "Bǎolěi",
+    "tooltip": "Garrison Soldiers for additional arrows.",
+    "history": "",
+    "classes": [
+     "Military",
+     "Defensive",
+     "Fortress"
+    ],
+    "icon": "structures/fortress.png",
+    "template": "structures/han/fortress_old",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Bow",
+       "min_range": 10,
+       "max_range": 60,
+       "y_origin": 0,
+       "repeat_time": 3.5,
+       "damage": {
+        "Pierce": 10
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "84": {
+    "generic_name": "LaoziGate",
+    "specific_name": "Lǎozǐ Mén",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "LaoziGate",
+     "Town"
+    ],
+    "icon": "structures/paifang.png",
+    "template": "structures/han/laozigate",
     "viewer": {
      "status_resistance": {
       "Poisoned": {

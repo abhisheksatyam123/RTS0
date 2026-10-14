@@ -4574,5 +4574,6 @@
       "z": 5.32,
       "template": "pers/ship_arrow"
     }
-  ]
+  ],
+  "circular": true
 }

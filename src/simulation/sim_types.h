@@ -506,7 +506,14 @@ enum BuildingType : uint8_t {
 	BLD_INN = 75,             // pers/inn (a house: Population/Bonus 15)
 	BLD_TENT = 76,            // rome/tent (a house: Population/Bonus 5)
 	BLD_TRIUMPHAL_ARCH = 77,  // rome/arch (not capturable)
-	BLD_TYPE_COUNT = 78
+	BLD_HALL = 78,            // pers/hall (Gate of All Nations: template_structure_special)
+	BLD_WAREHOUSE = 79,       // pers/warehouse (a house: Population/Bonus 5)
+	BLD_TAVERN = 80,          // gaul/tavern (a Town house: Population/Bonus 10)
+	BLD_TOWER_DOUBLE = 81,    // maur/tower_double (a stone tower: DefaultArrowCount 2)
+	BLD_KUSH_SHRINE = 82,     // kush/shrine (a temple that trains and researches nothing)
+	BLD_FORTRESS_OLD = 83,    // han/fortress_old (the fortress with the old actor)
+	BLD_LAOZI_GATE = 84,      // han/laozigate (not capturable)
+	BLD_TYPE_COUNT = 85
 };
 
 #include "civ_building_data.h"
@@ -526,8 +533,11 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
 	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG) ? (uint8_t)BLD_TOWN_CENTER
-	       : (type == BLD_TOWER_GREAT || type == BLD_TOWER_BOLT || type == BLD_TOWER_ARTILLERY) ? (uint8_t)BLD_TOWER
-	       : (type == BLD_INN || type == BLD_TENT) ? (uint8_t)BLD_HOUSE
+	       : (type == BLD_TOWER_GREAT || type == BLD_TOWER_BOLT || type == BLD_TOWER_ARTILLERY ||
+	          type == BLD_TOWER_DOUBLE) ? (uint8_t)BLD_TOWER
+	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN) ? (uint8_t)BLD_HOUSE
+	       : type == BLD_FORTRESS_OLD ? (uint8_t)BLD_FORTRESS
+	       : type == BLD_KUSH_SHRINE ? (uint8_t)BLD_TEMPLE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -564,6 +574,10 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"spart/royal_stoa", BLD_STOA, CIV_SPARTANS}, {"hellenic_stoa", BLD_HELLENIC_STOA, CIV_GAIA},
 		{"pers/inn", BLD_INN, CIV_PERSIANS}, {"rome/tent", BLD_TENT, CIV_ROMANS},
 		{"rome/arch", BLD_TRIUMPHAL_ARCH, CIV_ROMANS},
+		{"pers/hall", BLD_HALL, CIV_PERSIANS}, {"pers/warehouse", BLD_WAREHOUSE, CIV_PERSIANS},
+		{"gaul/tavern", BLD_TAVERN, CIV_GAULS}, {"maur/tower_double", BLD_TOWER_DOUBLE, CIV_MAURYANS},
+		{"kush/shrine", BLD_KUSH_SHRINE, CIV_KUSHITES}, {"han/fortress_old", BLD_FORTRESS_OLD, CIV_HAN},
+		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -593,7 +607,7 @@ inline constexpr bool is_conquest_critical(uint8_t type) {
 		case BLD_LIBRARY: case BLD_MONUMENT: case BLD_PILLAR: case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL:
 		case BLD_LIGHTHOUSE: case BLD_ICE_HOUSE: case BLD_TOWER_GREAT: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: case BLD_TRADING_POST: case BLD_TOWER_BOLT:
-		case BLD_TOWER_ARTILLERY: case BLD_STOA: case BLD_TRIUMPHAL_ARCH:
+		case BLD_TOWER_ARTILLERY: case BLD_STOA: case BLD_TRIUMPHAL_ARCH: case BLD_TOWER_DOUBLE:
 			return false;
 		default:
 			return type < BLD_TYPE_COUNT;
@@ -604,9 +618,9 @@ inline constexpr bool is_conquest_critical_unit(uint8_t utype) {
 	return utype != UNIT_CATAFALQUE && utype != UNIT_TRADER && utype != UNIT_HEALER &&
 	       utype != UNIT_FISHING_BOAT && utype != UNIT_MERCHANT_SHIP;
 }
-// The defense tower and its Han Great Archery Tower form (StoneTower).
+// The defense tower, its Han Great Archery Tower form and the maps' Mauryan rampart tower (StoneTower).
 inline constexpr bool is_defense_tower(uint8_t type) {
-	return type == BLD_TOWER || type == BLD_TOWER_GREAT;
+	return type == BLD_TOWER || type == BLD_TOWER_GREAT || type == BLD_TOWER_DOUBLE;
 }
 // TerritoryInfluence/Root: civic centres, wonders and a few civ structures (the
 // military colony, palace, tachara, ministry, Cothon); territory connects through them.
@@ -822,6 +836,9 @@ inline constexpr float HEAL_HP = 5.0f;
 // 0.28 template_unit_hero_healer.xml Heal: Health 15, Range 20 (m, before COMBAT_DISTANCE_SCALE).
 inline constexpr float HERO_HEAL_HP = 15.0f;
 inline constexpr float HERO_HEAL_RANGE = 20.0f;
+// 0.28 template_unit_champion_support_healer.xml Heal: Health 10, Range 20 (the Seeress).
+inline constexpr float CHAMPION_HEAL_HP = 10.0f;
+inline constexpr float CHAMPION_HEAL_RANGE = 20.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
@@ -1160,6 +1177,7 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
 		case UNIT_WAGON:
+		case UNIT_WORKER_ELEPHANT: // maur/support_elephant: template_unit_support
 			return STANCE_PASSIVE;
 		case UNIT_CATAFALQUE:
 			return STANCE_STAND_GROUND; // template_unit_catafalque UnitAI/DefaultStance
@@ -1345,6 +1363,15 @@ inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
 			}
 			break;
 		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) info.wood_cost = 150; break;
+		case BLD_MONUMENT:
+			// germ/totem (Cerannus Totem): 800 health, 150 wood and 100 metal.
+			if (civ == CIV_GERMANS) {
+				info.max_hp = 800.0f;
+				info.wood_cost = 150;
+				info.gold_cost = 100;
+				info.stone_cost = 0;
+			}
+			break;
 		case BLD_FIELD:
 			if (civ == CIV_HAN) {
 				info.wood_cost = 60;
@@ -1480,7 +1507,10 @@ inline float building_half_depth(uint8_t type, float half_w) {
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
 // 2 = phase_town, 3 = phase_city.
-inline uint8_t building_required_phase(uint8_t type) {
+// The civ's own template where it differs: mace/arsenal and maur/elephant_stable are Town phase
+// ("-phase_city phase_town"), as Macedonian siege and Mauryan elephants come a phase early.
+inline uint8_t building_required_phase(uint8_t type, uint8_t civ = 0xFF) {
+	if ((type == BLD_ARSENAL && civ == CIV_MACEDONIANS) || (type == BLD_ELEPHANT_STABLE && civ == CIV_MAURYANS)) return 2;
 	switch (type) {
 		case BLD_TOWER: case BLD_MARKET: case BLD_GATE: case BLD_TEMPLE:
 		case BLD_WALL_SEGMENT: case BLD_FORGE: case BLD_WALL_TOWER: case BLD_EMBASSY:
@@ -1552,6 +1582,7 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 	if (type == BLD_TENT) return 0; // rome/tent: VisibleClasses -Village
 	if (type == BLD_STOA) return 2; // template_structure_civic_stoa: Town
+	if (type == BLD_TAVERN || type == BLD_LAOZI_GATE) return 2; // gaul/tavern -Village Town, han/laozigate Town
 	switch (building_research_base(type)) {
 		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
 		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE: case BLD_KENNEL:
@@ -1741,6 +1772,7 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	// rome/tent has Researcher disable="" (pers/inn keeps the house's list).
 	case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return tech_id == TECH_TOWER_HEALTH;
 	case BLD_TENT: return false;
+	case BLD_KUSH_SHRINE: return false; // kush/shrine: Researcher disable=
 	default: return r == building_research_base(type);
 	}
 }
@@ -1847,20 +1879,20 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_BARRACKS: return c | TC_BARRACKS;
 		case BLD_STOREHOUSE: return c | TC_STOREHOUSE;
-		case BLD_TOWER: case BLD_TOWER_GREAT: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
+		case BLD_TOWER: case BLD_TOWER_GREAT: case BLD_TOWER_DOUBLE: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
 		case BLD_SENTRY_TOWER: return c | TC_TOWER | TC_SENTRYTOWER | TC_DEFENSIVE;
 		case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return c | TC_TOWER | TC_DEFENSIVE; // not StoneTower
-		case BLD_INN: case BLD_TENT: return c | TC_HOUSE | TC_CIVIC;
+		case BLD_INN: case BLD_TENT: case BLD_WAREHOUSE: case BLD_TAVERN: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_STOA: case BLD_HELLENIC_STOA: return c | TC_CIVIC;
 		case BLD_WALL_TOWER: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_FARMSTEAD: return c | TC_FARMSTEAD;
 		case BLD_FIELD: return c | TC_FIELD;
 		case BLD_CORRAL: return c | TC_CORRAL;
 		case BLD_MARKET: case BLD_TRADING_POST: return c | TC_MARKET;
-		case BLD_FORTRESS: return c | TC_FORTRESS | TC_DEFENSIVE;
+		case BLD_FORTRESS: case BLD_FORTRESS_OLD: return c | TC_FORTRESS | TC_DEFENSIVE;
 		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
-		case BLD_TEMPLE: case BLD_SHRINE: return c | TC_TEMPLE | TC_CIVIC;
+		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
 		case BLD_STABLE: case BLD_ELEPHANT_STABLE: return c | TC_STABLE;
@@ -1916,7 +1948,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
 		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
 		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
-		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL: case BLD_SHRINE: case BLD_STOA:
+		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL: case BLD_SHRINE: case BLD_STOA: case BLD_HALL:
 			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
 		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
 		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;
@@ -2296,6 +2328,29 @@ inline int unit_pop_bonus(uint16_t tmpl) {
 inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
 	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & TC_HEALER) != 0;
+}
+
+// Heal/Range and Heal/Health of a healer's template, in metres before COMBAT_DISTANCE_SCALE:
+// template_unit_support_healer 12 m / 5, template_unit_champion_support_healer 20 m / 10,
+// template_unit_hero_healer 20 m / 15.
+inline float unit_heal_range_base(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_HERO) return HERO_HEAL_RANGE;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_RANGE;
+	return 12.0f;
+}
+// UnitAI/DefaultStance of the unit's template where it differs from its RTS0 class: siege towers
+// (template_unit_siege) and the Seeress (template_unit_champion_support_healer) are aggressive.
+inline uint8_t unit_default_stance(uint8_t type, uint16_t tmpl) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint16_t flags = civ_unit_template(tmpl).flags;
+		if ((flags & ROSTER_SIEGE_TOWER) || (type == UNIT_HEALER && (flags & ROSTER_CHAMPION))) return STANCE_AGGRESSIVE;
+	}
+	return unit_default_stance(type);
+}
+inline float unit_heal_hp_base(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_HERO) return HERO_HEAL_HP;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_HP;
+	return HEAL_HP;
 }
 
 // 0 A.D. UnitMotion/PassabilityClass "large": template_unit_siege, every elephant
@@ -2680,6 +2735,7 @@ inline LootInfo structure_loot(uint8_t type, uint8_t civ, float half_w) {
 		case BLD_TEMPLE: if (civ == CIV_BRITONS || civ == CIV_GAULS) set(60, 0); break;
 		case BLD_TOWER: if (civ == CIV_IBERIANS) set(10, 50); break;
 		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) set(30, 0); break;
+		case BLD_MONUMENT: if (civ == CIV_GERMANS) { set(30, 0); l.metal = 20; } break;
 		case BLD_GATE: if (civ == CIV_MAURYANS) set(6, 0); break;
 		case BLD_WALL_TOWER: if (civ == CIV_MAURYANS) set(12, 0); break;
 		default: break;
@@ -2745,6 +2801,19 @@ inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
 // A building type past the table (a civ-unique structure added later) is a generic structure.
 inline const CombatProfile &building_combat(uint8_t type) {
 	return combat_building_table()[type < COMBAT_BUILDING_ROWS ? type : COMBAT_BUILDING_ROWS];
+}
+// A structure's Resistance levels (hack, pierce, crush): its type's template, or the civ's own
+// where it differs (germ/totem 8, 20, 2 against the Iberian monument's 20, 30, 3).
+inline void structure_armour(uint8_t type, uint8_t civ, float out[3]) {
+	const CombatProfile &bc = building_combat(type);
+	out[0] = bc.hack_armor;
+	out[1] = bc.pierce_armor;
+	out[2] = bc.crush_armor;
+	if (type == BLD_MONUMENT && civ == CIV_GERMANS) {
+		out[0] = 8.0f;
+		out[1] = 20.0f;
+		out[2] = 2.0f;
+	}
 }
 // 0 A.D. Attack/<type>/PreferredClasses (preference_data.h, from tools/extract_0ad_preferences.py).
 static_assert(PREF_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_preferences.py");
@@ -2816,6 +2885,25 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 inline bool civ_can_build(uint8_t civ, uint8_t type) {
 	return type < BLD_TYPE_COUNT && civ < 16 && ((civ_building_civ_mask(type) >> civ) & 1u) &&
 	       !civ_building_upgrade_only(type);
+}
+
+// Structures whose 0.28 Trainer list names units/{native}/...: they train their own civ's
+// units whoever holds them (Trainer.js CalculateEntitiesMap): the shrines, the Kushite
+// Noba and Blemmye camps and the Carthaginian embassies.
+inline bool building_trains_native(uint8_t type) {
+	return type == BLD_SHRINE || type == BLD_CAMP_NOBA || type == BLD_CAMP_BLEMMYE ||
+	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
+}
+
+// BuildingAI and Attack/Ranged of a civ's structure: the generic row plus 0.28's one civ
+// override, iber/defense_tower.xml (DefaultArrowCount +1, MinRange 12 m).
+inline BuildingAIInfo civ_building_ai_info(uint8_t civ, uint8_t type) {
+	BuildingAIInfo ai = building_ai_info(type);
+	if (type == BLD_TOWER && civ == CIV_IBERIANS) {
+		ai.default_arrows += 1;
+		ai.min_range = 12.0f * COMBAT_DISTANCE_SCALE;
+	}
+	return ai;
 }
 
 inline bool civ_can_train(uint8_t civ, uint8_t type) {
