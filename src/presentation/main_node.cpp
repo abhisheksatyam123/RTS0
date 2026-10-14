@@ -3326,7 +3326,7 @@ Dictionary RtsoMain::get_tech_tree() const {
 		Dictionary b;
 		b["id"] = (int)t;
 		b["name"] = String::utf8(bi.name);
-		b["phase"] = (int)rtso::building_required_phase(t);
+		b["phase"] = (int)rtso::building_required_phase(t, civ);
 		blds.push_back(b);
 	}
 	for (int t = 1; t < rtso::TECH_COUNT; ++t) {

@@ -203,7 +203,7 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 		sd["unique"] = b >= rtso::CIV_BUILDING_FIRST;
 		sd["name"] = String::utf8(rtso::building_type_info(b).name);
 		sd["portrait"] = building_portrait(b);
-		sd["phase"] = rtso::building_required_phase(b);
+		sd["phase"] = rtso::building_required_phase(b, c);
 		structures.push_back(sd);
 	}
 	d["structures"] = structures;
@@ -246,7 +246,7 @@ Array RtsoReference::get_structure_tree(int civ) const {
 		d["type"] = b;
 		d["name"] = String::utf8(bi.name);
 		d["portrait"] = building_portrait(b);
-		d["phase"] = rtso::building_required_phase(b);
+		d["phase"] = rtso::building_required_phase(b, c);
 		d["cost"] = cost_text(bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost);
 		d["units"] = units;
 		d["techs"] = techs;
@@ -421,13 +421,14 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	d["name"] = String::utf8(bi.name);
 	d["specific_name"] = "";
 	d["portrait"] = building_portrait(b);
-	d["phase"] = rtso::building_required_phase(b);
+	d["phase"] = rtso::building_required_phase(b, c);
 	d["cost"] = cost_dict(bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost);
 	d["cost_text"] = cost_text(bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost);
 	d["time"] = bi.build_time;
 	d["hp"] = bi.max_hp;
-	const rtso::CombatProfile &cp = rtso::building_combat(b);
-	d["armour"] = armour_dict(cp.hack_armor, cp.pierce_armor, cp.crush_armor);
+	float armour[3];
+	rtso::structure_armour(b, c, armour); // the Germans' totem
+	d["armour"] = armour_dict(armour[0], armour[1], armour[2]);
 	d["pop_bonus"] = bi.pop_bonus;
 	d["garrison"] = rtso::structure_garrison_max(b, c); // the civ's own GarrisonHolder/Max
 	d["garrison_heal"] = rtso::building_garrison_heal(b);
