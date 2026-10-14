@@ -163,7 +163,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 72; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 73; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_TRIGGER_RANGE = 72; // OnRange queries and their collections
@@ -1039,6 +1040,14 @@ public:
 	const TriggerState &trigger_state() const { return triggers_; }
 	uint32_t trigger_hash() const { return triggers_.hash(); }
 	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// Player.js SetState / Diplomacy.js SetDiplomacyIndex: the masks and stances change and
+	// OnPlayerDefeated, OnPlayerWon and OnDiplomacyChanged fire for each change.
+	void mark_players_defeated(uint8_t mask);
+	// How often each event was called since the start or the last load: for tests and
+	// debugging only, never saved or hashed.
+	uint32_t trigger_event_calls(uint8_t event) const { return event < TRIGGER_EVENT_COUNT ? trigger_event_calls_[event] : 0; }
+	void mark_players_won(uint8_t mask);
+	void note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance);
 	// A map's TriggerScripts by name ("polar_sea_triggers", "treasure_islands"): registers
 	// the ported script's triggers. Random maps do it in generate_random_map; data/maps
 	// JSON maps list theirs under "trigger_scripts". Returns false for an unported script.
@@ -1058,6 +1067,12 @@ public:
 	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
 	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
 	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
+	// The map scripts' only invulnerable units are Survival of the Fittest's treasure seekers,
+	// placed as "nonbuilder|undeletable|...": no Builder, Identity/Undeletable.
+	bool nonbuilder(uint32_t unit_id) const { return invulnerable(unit_id); }
+	bool undeletable_unit(uint32_t unit_id) const { return invulnerable(unit_id); }
+	// unit_can_build (Builder) for unit i, less a nonbuilder.
+	bool unit_builds(size_t i) const { return unit_can_build(units_.unit_type[i], units_.tmpl[i]) && !nonbuilder(units_.id[i]); }
 	bool has_map_triggers() const { return !triggers_.triggers.empty(); }
 	// Commands.js ProcessCommand's OnPlayerCommand (kind: TriggerCommand). target and other
 	// are the command's targets (see TriggerCommand), hunt 1 when target is an animal,
@@ -2431,6 +2446,7 @@ private:
 	std::unordered_map<uint32_t, TradeGain> trader_goods_;
 
 	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
+	uint32_t trigger_event_calls_[TRIGGER_EVENT_COUNT] = {}; // trigger_event_calls
 	uint8_t diplomacy_[MAX_PLAYERS][MAX_PLAYERS] = {};
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
@@ -2761,6 +2777,8 @@ private:
 	bool petra_garrison_attacked_unit(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	size_t petra_attacked_unit_holder(size_t unit_idx, bool emergency, const std::vector<int> &incoming) const; // building index or SIZE_MAX
 	// victoryManager.js: regicide heroes and the units guarding them.
+	// victoryManager.js Garrison events: the regicide hero's guards when it is garrisoned.
+	void petra_critical_ent_garrisoned();
 	bool petra_is_critical_ent(size_t unit_idx) const;
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
@@ -2950,7 +2968,38 @@ private:
 	};
 	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
 	void petra_swap_slot(uint8_t pid);
-	std::vector<std::pair<uint8_t, uint8_t>> petra_attack_requests_; // (source, target), drained each AI turn
+	// 0.28 PetraBot plays one turn every PETRA_TURN_TURNS sim turns, offset by player
+	// (_petrabot.js:110 `(turn + player) % 8 == 5`, the first turn at once), so with 0 A.D.'s
+	// 200 ms turns an AI thinks every 1.6 s. What happens in between reaches it as the
+	// events saved since its last turn (savedEvents): here tick-stamped buffers kept for
+	// PETRA_TURN_TICKS ticks and read by each AI over its own window (saved v73).
+	static constexpr uint32_t PETRA_TURN_TURNS = 8;
+	static constexpr uint32_t PETRA_TURN_TICKS = PETRA_TURN_TURNS * 4; // 4 ticks a 200 ms sim turn
+	static constexpr float PETRA_TURN_S = PETRA_TURN_TICKS * FIXED_STEP; // 1.6 s
+	bool petra_turn_due(uint8_t pid) const; // this tick is pid's AI turn
+	// gameState.ai.playedTurn of the AI being run: its turns so far, this one included.
+	uint32_t petra_played_turn() const;
+	// playedTurn % n == r, the 0.28 "every nth turn" gates.
+	bool petra_turn_mod(uint32_t n, uint32_t r = 0) const { return petra_played_turn() % n == r; }
+	struct PetraAttackedEvent { uint32_t tick, target, attacker; }; // units_.attacked_by of that tick
+	struct PetraStampedCapture { uint32_t tick; CivicCentreCapture cap; };
+	struct PetraStampedId { uint32_t tick, id; };
+	struct PetraAttackRequest { uint32_t tick; uint8_t source, target, pad[2]; };
+	std::vector<PetraAttackedEvent> petra_ev_attacked_;
+	std::vector<PetraStampedCapture> petra_ev_captures_;
+	std::vector<PetraStampedId> petra_ev_decay_;
+	std::vector<PetraAttackRequest> petra_attack_requests_; // AttackRequest events (diplomacy and plan launches)
+	void petra_record_events(); // this tick's events into the buffers, the stale ones out
+	// The window (from, to] of ticks the AI being run reads events over, and those events,
+	// gathered at the start of its turn (not saved: rebuilt from the buffers).
+	uint32_t petra_window_from_ = 0;
+	float petra_turn_dt_ = 0.0f; // the game time this turn covers (set each turn, not saved)
+	std::vector<std::pair<uint32_t, uint32_t>> petra_turn_attacks_; // (target, attacker) in order
+	std::unordered_map<uint32_t, uint32_t> petra_turn_attacker_;    // target -> its last attacker
+	std::vector<CivicCentreCapture> petra_turn_captures_;
+	std::vector<uint32_t> petra_turn_decay_;
+	void petra_gather_turn_events();
+	uint32_t petra_attacker_of(size_t unit_idx) const; // who attacked this unit since the last turn, 0 = nobody
 	void petra_process_attack_requests();
 	void petra_answer_attack_request(uint8_t source, uint8_t target);
 	// Saves or loads save_tick_state's fields, every AI's Petra state included (save v15); simulation.cpp.

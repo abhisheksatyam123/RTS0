@@ -509,7 +509,7 @@ public:
 					for (size_t u = 0; u < uview.count; ++u) {
 						if (uview.id[u] == (uint32_t)selected_ids[i]) {
 							uint8_t ut = uview.unit_type[u];
-							if (rtso::unit_can_build(ut, uview.tmpl[u])) {
+							if (rtso::unit_can_build(ut, uview.tmpl[u]) && !sim->nonbuilder(uview.id[u])) {
 								has_worker = true;
 								break;
 							}
@@ -621,7 +621,7 @@ public:
 				// its getInfo would (any selected unit it applies to).
 				{
 					bool any_guarding = false, any_busy = false, any_work = false, any_fighter = false;
-					bool any_guard = false, any_can_add_guard = false, any_garrison = false;
+					bool any_guard = false, any_can_add_guard = false, any_garrison = false, any_deletable = false;
 					int passengers = 0;
 					for (int s = 0; s < selected_ids.size(); ++s) {
 						const uint32_t id = (uint32_t)selected_ids[s];
@@ -642,16 +642,18 @@ public:
 							any_can_add_guard = any_can_add_guard || (can_guard && !guarding);
 							any_garrison = any_garrison || !rtso::unit_is_ship(ut); // Garrisonable
 							if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
+							any_deletable = any_deletable || (ut != rtso::UNIT_CATAFALQUE && !sim->undeletable_unit(id)); // isUndeletable
 							break;
 						}
 					}
 					if (passengers > 0)
 						add_entity_command("unload-all", "Unload All", "session.unload",
 								"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, passengers);
-					add_entity_command("delete", "Delete", "session.kill",
-							String("Self-Destruct\nDestroy the selected entities.\nUse ") +
-									rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
-							"kill_small.png");
+					if (any_deletable)
+						add_entity_command("delete", "Delete", "session.kill",
+								String("Self-Destruct\nDestroy the selected entities.\nUse ") +
+										rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
+								"kill_small.png");
 					if (any_busy)
 						add_entity_command("stop", "Abort", "session.stop",
 								"Abort\nCancel the current orders for the selected units.", "stop.png");
