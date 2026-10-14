@@ -3952,10 +3952,51 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 	if (diplomacy_[player_id][target] != stance)
 		note_session({SessionNotice::DIPLOMACY, player_id, target, stance, {}}); // Commands.js "diplomacy" notification
 	set_diplomacy(player_id, target, stance);
+	note_diplomacy_changed(player_id, target, stance);
 	// Diplomacy.js OnDiplomacyChanged, "mutual worsening of relations": the other player's
 	// stance drops to match (war declared on it is war back), with no notification of its own.
-	if (diplomacy_[target][player_id] < stance) set_diplomacy(target, player_id, stance);
+	if (diplomacy_[target][player_id] < stance) {
+		set_diplomacy(target, player_id, stance);
+		note_diplomacy_changed(target, player_id, stance);
+	}
 	return true;
+}
+
+void Simulation::note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance) {
+	// Diplomacy.js SetDiplomacyIndex: MT_DiplomacyChanged {player, otherPlayer, value},
+	// Trigger.js OnGlobalDiplomacyChanged -> OnDiplomacyChanged.
+	if (triggers_.triggers.empty()) return;
+	TriggerEventData ev;
+	ev.player = player;
+	ev.to = other;
+	ev.value = stance;
+	trigger_event(TRIGGER_ON_DIPLOMACY_CHANGED, ev);
+}
+
+void Simulation::mark_players_defeated(uint8_t mask) {
+	// Player.js SetState("defeated"): MT_PlayerDefeated {playerId} once per player.
+	const uint8_t fresh = (uint8_t)(mask & ~defeated_mask_);
+	defeated_mask_ |= mask;
+	if (!fresh || triggers_.triggers.empty()) return;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if ((fresh >> p) & 1) {
+			TriggerEventData ev;
+			ev.player = p;
+			trigger_event(TRIGGER_ON_PLAYER_DEFEATED, ev);
+		}
+}
+
+void Simulation::mark_players_won(uint8_t mask) {
+	// Player.js SetState("won"): MT_PlayerWon {playerId} once per player.
+	const uint8_t fresh = (uint8_t)(mask & ~winner_mask_);
+	winner_mask_ = mask;
+	if (!fresh || triggers_.triggers.empty()) return;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if ((fresh >> p) & 1) {
+			TriggerEventData ev;
+			ev.player = p;
+			trigger_event(TRIGGER_ON_PLAYER_WON, ev);
+		}
 }
 
 // globalscripts/Trade.js. Distances and the map size are in metres; one RTS0
@@ -4696,9 +4737,10 @@ void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float
 	}
 }
 
-// 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz).
+// 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz), at units only
+// (unit_actions.js g_PatrolTargets ["Unit"]).
 void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
-	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
+	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
 	// Formations patrol as a whole (FORMATIONCONTROLLER PATROL); the rest walk on their own.
 	const std::vector<uint32_t> rest = !queued && !formations_.empty() ? formation_take_patrol(now, tx, tz) : now;
@@ -4708,7 +4750,7 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.action_state[idx] = ACTION_PATROL;
-			set_order(idx, ORDER_PATROL, ORDER_FLAG_FORCE, 0, units_.target_x[idx], units_.target_z[idx]);
+			set_order(idx, ORDER_PATROL, o.flags, 0, units_.target_x[idx], units_.target_z[idx]);
 		}
 	}
 }
@@ -5533,7 +5575,7 @@ std::vector<uint32_t> Simulation::formation_take_patrol(const std::vector<uint32
 		formation_move_members_into(ci, true, true);
 		for (uint32_t id : fc.members) {
 			const int32_t idx = lookup_unit(id);
-			if (idx >= 0) set_order((size_t)idx, ORDER_PATROL, ORDER_FLAG_FORCE, 0, tx, tz);
+			if (idx >= 0) set_order((size_t)idx, ORDER_PATROL, ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY, 0, tx, tz);
 		}
 	}
 	return individual;
@@ -5664,7 +5706,7 @@ void Simulation::tick_formations(float dt) {
 				// points loop and other queued orders run in turn.
 				UnitOrder leg;
 				leg.kind = ORDER_PATROL;
-				leg.flags = ORDER_FLAG_FORCE;
+				leg.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY;
 				leg.x = fc.goal_x;
 				leg.z = fc.goal_z;
 				if (fc.queue.size() < 64) fc.queue.push_back(leg);
@@ -5889,7 +5931,7 @@ static bool is_civilian_class(uint16_t tmpl, uint8_t type) {
 // merchant ships add Support Cavalry Relic, warships Support Soldier Hero Relic (+ Siege).
 bool Simulation::ship_garrison_allowed(size_t ship, size_t unit) const {
 	const uint8_t unit_type = units_.unit_type[unit];
-	const TechClasses c = unit_tech_classes(unit_type);
+	const TechClasses c = unit_classes_at(unit); // the template's own classes (a cavalry hero is no Infantry)
 	if (is_civilian_class(units_.tmpl[unit], unit_type)) return true;
 	TechClasses allowed = TC_INFANTRY | TC_HEALER | TC_DOG;
 	const bool relic = unit_type == UNIT_CATAFALQUE;
@@ -6144,7 +6186,7 @@ bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 	if (unit_is_ship(units_.unit_type[transport_idx]))
 		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, unit_idx);
 	if (is_transport(units_.id[unit_idx])) return false;
-	if (siege_garrison_capacity(transport_idx) > 0 && !siege_garrison_allowed(units_.unit_type[unit_idx])) return false;
+	if (siege_garrison_capacity(transport_idx) > 0 && !(unit_classes_at(unit_idx) & (TC_INFANTRY | TC_CIVILIAN))) return false;
 	// GarrisonHolder.Garrison: a siege engine below its EjectHealth takes nobody in.
 	if (units_.hp[transport_idx] <= std::floor(units_.max_hp[transport_idx] * SIEGE_EJECT_HEALTH)) return false;
 	return true;
@@ -10308,6 +10350,13 @@ bool Simulation::try_commit_foundation(Building &b) {
 	if (blocked) return false;
 	b.committed = true;
 	rebuild_nav_grid();
+	if (!triggers_.triggers.empty()) { // Foundation.js Commit: OnConstructionStarted {foundation, template}
+		TriggerEventData ev;
+		ev.entity = b.id;
+		ev.player = b.team;
+		ev.value = b.type;
+		trigger_event(TRIGGER_ON_CONSTRUCTION_STARTED, ev);
+	}
 	return true;
 }
 
@@ -12371,9 +12420,9 @@ void Simulation::end_match(uint8_t winners, uint8_t reason) {
 	const uint8_t beaten = (uint8_t)(participant_mask_ & ~winners & ~defeated_mask_);
 	if (winners) note_session({SessionNotice::WON, 0, winners, reason, {}});
 	if (beaten && (reason == SessionNotice::END_WONDER || reason == SessionNotice::END_RELIC)) note_session({SessionNotice::LOST, 0, beaten, reason, {}});
-	winner_mask_ = winners;
 	convert_to_gaia((uint8_t)(participant_mask_ & ~winners & ~defeated_mask_));
-	defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
+	mark_players_won(winners);
+	mark_players_defeated((uint8_t)(participant_mask_ & ~winners));
 	victory_ = (winners & 1) != 0;
 	game_over_ = true;
 }
@@ -12506,7 +12555,7 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 	if (fallen) {
 		convert_to_gaia(fallen);
-		defeated_mask_ |= fallen;
+		mark_players_defeated(fallen);
 	}
 	const uint8_t standing = participant_mask_ & ~defeated_mask_;
 	if (participant_mask_ && !standing) { // everyone fell on the same tick
@@ -12777,7 +12826,7 @@ void Simulation::tick_waves(float dt) {
 
 	if (wave_number_ > 5) {
 		victory_ = true;
-		winner_mask_ = side_of(0);
+		mark_players_won(side_of(0));
 		return;
 	}
 
@@ -14380,7 +14429,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		const uint8_t bit = (uint8_t)(1u << parameter);
 		participant_mask_ |= bit;
 		convert_to_gaia(bit);
-		defeated_mask_ |= bit;
+		mark_players_defeated(bit);
 		return true;
 	}
 	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer
@@ -14580,7 +14629,8 @@ uint32_t Simulation::nearest_dropsite(size_t i) const {
 	return best;
 }
 
-void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued) {
+void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued,
+		bool units_only, bool allow_capture) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
 		if (i < 0 || !units_.alive[i]) continue;
@@ -14595,7 +14645,7 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 				q = true;
 			}
 		}
-		order_attack_move(&uid, 1, x, z, q);
+		order_attack_move(&uid, 1, x, z, q, units_only, allow_capture);
 	}
 }
 
@@ -23617,6 +23667,8 @@ void Simulation::petra_manage_victory(float dt) {
 		}
 	}
 	if (!turn) return;
+	// checkEvents (every turn): Garrison events of the regicide hero.
+	petra_critical_ent_garrisoned();
 
 	// update(): the rest every 10 AI turns.
 	if (!petra_turn_mod(10)) return;
@@ -23731,6 +23783,44 @@ void Simulation::petra_retreat_critical_ent(size_t i, bool emergency, std::vecto
 // manageCriticalEntGuards: 4 + 5 * defensive soldiers guard each hero and relic,
 // 10 + 5 * defensive each wonder,
 // champions first; citizen soldiers only while there are workers to spare.
+void Simulation::petra_critical_ent_garrisoned() {
+	// victoryManager.js Garrison events: a hero gone into a ship lets its guards go; one in a
+	// structure has them walk to it (moveToRange radius .. radius + 5 m), no longer guarding.
+	if (has_victory(VK_REGICIDE) && regicide_hero_[petra_pid_]) {
+		const uint32_t hid = regicide_hero_[petra_pid_];
+		const int32_t h = lookup_unit(hid);
+		if (h >= 0 && units_.action_state[h] == ACTION_GARRISONED) {
+			bool ship = false, found = false;
+			float hx = 0.0f, hz = 0.0f, radius = 0.0f;
+			for (const auto &[tid, ps] : transport_passengers_)
+				if (std::find(ps.begin(), ps.end(), hid) != ps.end()) {
+					const int32_t t = lookup_unit(tid);
+					ship = t >= 0 && unit_is_ship(units_.unit_type[t]);
+					if (t >= 0) { hx = units_.pos_x[t]; hz = units_.pos_z[t]; radius = unit_clearance_at((size_t)t); found = true; }
+					break;
+				}
+			if (!found)
+				for (const Building &b : buildings_)
+					if (std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), hid) != b.garrisoned_units.end()) {
+						hx = b.x; hz = b.z; radius = b.half_size; found = true;
+						break;
+					}
+			for (size_t i = 0; found && i < units_.count; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GUARD || units_.order_target[i] != hid)
+					continue;
+				const uint32_t uid = units_.id[i];
+				if (ship) {
+					cmd_stop(&uid, 1);
+					continue;
+				}
+				const float dx = units_.pos_x[i] - hx, dz = units_.pos_z[i] - hz, d = std::max(0.01f, std::sqrt(dx * dx + dz * dz));
+				const float r = radius + 2.5f / 4.0f; // the middle of radius .. radius + 5 m
+				order_walk(&uid, 1, hx + dx / d * r, hz + dz / d * r, false);
+			}
+		}
+	}
+}
+
 void Simulation::petra_manage_critical_ent_guards() {
 	int workers = 0;
 	for (size_t i = 0; i < units_.count; ++i)
@@ -23858,7 +23948,17 @@ void Simulation::petra_capture_gaia_relics() {
 			}
 			continue;
 		}
-		if (units_.team[r] != GAIA_PLAYER) continue;
+		if (units_.team[r] != GAIA_PLAYER) {
+			// victoryManager.js OnOwnershipChanged / abortCaptureGaiaRelic: someone else took it
+			// first, so the expedition (a Raid plan in 0.28) is called off. Attack plans keep theirs.
+			for (size_t i = 0; i < units_.count; ++i)
+				if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_CAPTURE_RELIC &&
+				    units_.order_target[i] == rel.id && !petra_unit_reserved(units_.id[i])) {
+					const uint32_t uid = units_.id[i];
+					cmd_stop(&uid, 1);
+				}
+			continue;
+		}
 		// captureGaiaRelic: the capture already under way, less the relic's regen.
 		float capture = -(float)RELIC_REGEN_RATE;
 		for (size_t i = 0; i < units_.count; ++i)
@@ -28106,6 +28206,7 @@ void Simulation::trigger_event(uint8_t event, const TriggerEventData &data) {
 	// registration order. An action may register more triggers; those wait
 	// for the next event.
 	const size_t n = triggers_.triggers.size();
+	if (event < TRIGGER_EVENT_COUNT) ++trigger_event_calls_[event];
 	TriggerEventData ev = data;
 	ev.event = event;
 	for (size_t i = 0; i < n && i < triggers_.triggers.size(); ++i) {
@@ -28595,7 +28696,7 @@ void Simulation::defeat_player(uint8_t pid, uint8_t reason) {
 	if (pid >= MAX_PLAYERS || is_defeated(pid) || game_over_ || victory_) return;
 	// Player.js SetState("defeated"): everything it owns goes to Gaia.
 	convert_to_gaia((uint8_t)(1u << pid));
-	defeated_mask_ |= (uint8_t)(1u << pid);
+	mark_players_defeated((uint8_t)(1u << pid));
 	note_session({SessionNotice::DEFEATED, pid, 0, reason, {}});
 }
 
@@ -28604,7 +28705,7 @@ bool Simulation::cmd_resign(uint8_t pid) {
 	const uint8_t bit = (uint8_t)(1u << pid);
 	participant_mask_ |= bit; // a player that resigns before it held anything is still out
 	convert_to_gaia(bit);
-	defeated_mask_ |= bit;
+	mark_players_defeated(bit);
 	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_RESIGNED, {}}); // Commands.js "resign"
 	return true;
 }
