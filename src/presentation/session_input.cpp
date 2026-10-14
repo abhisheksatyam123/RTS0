@@ -233,6 +233,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (cam_rig) cam_rig->reset_camera();
 			return;
 		}
+		if (fired("camera.togglebirdseyeview")) {
+			if (cam_rig) cam_rig->toggle_birds_eye();
+			return;
+		}
 		if (fired("camera.follow")) {
 			if (cam_rig) cam_rig->set_follow_id(selected_ids.is_empty() ? 0 : (uint32_t)selected_ids[0]);
 			return;
