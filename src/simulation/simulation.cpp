@@ -22797,6 +22797,49 @@ bool Simulation::petra_find_beach(float land_x, float land_z, float toward_x, fl
 	return found;
 }
 
+// transportPlan.js getBoardingPos: the landing-zone cell (land of `land` beside sea `sea`)
+// that makes the shortest trip from the ship to the destination; with avoid_enemy, one in
+// enemy territory only if there is no other, and not within 70 m (30 m for a foundation)
+// of an allied dock. False when that land has no shore on that sea.
+bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, float ship_z, float dest_x, float dest_z,
+                                    bool avoid_enemy, float &out_x, float &out_z) const {
+	if (!land || !sea || nav_grid_.cells.blank()) return false;
+	const int w = nav_grid_.cells.w, h = nav_grid_.cells.h;
+	const float cell = 2.0f * nav_grid_.map_half / (float)nav_grid_.res;
+	std::vector<const Building *> docks;
+	for (const auto &b : buildings_)
+		if (b.type == BLD_DOCK && b.hp > 0.0f && b.team < MAX_PLAYERS && is_ally(petra_pid_, b.team)) docks.push_back(&b);
+	double best = 0.0;
+	bool found = false;
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x) {
+			if (nav_grid_.global_region_at(x, y, PASS_INFANTRY) != land) continue;
+			bool shore = false;
+			const int nb[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+			for (const auto &d : nb)
+				if (x + d[0] >= 0 && y + d[1] >= 0 && x + d[0] < w && y + d[1] < h &&
+				    nav_grid_.global_region_at(x + d[0], y + d[1], PASS_SHIP) == sea) { shore = true; break; }
+			if (!shore) continue;
+			const float px = ((float)x + 0.5f) * cell - nav_grid_.map_half, pz = ((float)y + 0.5f) * cell - nav_grid_.map_half;
+			double dist = 4.0 * (std::hypot(px - ship_x, pz - ship_z) + std::hypot(dest_x - px, dest_z - pz)); // metres
+			if (avoid_enemy) {
+				const int owner = territory_owner_at(px, pz);
+				if (owner >= 0 && owner < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)owner)) dist += 1.0e8;
+			}
+			for (const Building *b : docks) {
+				const float r2 = b->build_progress < 1.0f ? 900.0f : 4900.0f; // m²
+				const float dx = (b->x - px) * 4.0f, dz = (b->z - pz) * 4.0f, d2 = dx * dx + dz * dz;
+				if (d2 < r2) dist += 1.0e5 * (r2 - d2) / r2;
+			}
+			if (found && dist > best) continue;
+			best = dist;
+			out_x = px;
+			out_z = pz;
+			found = true;
+		}
+	return found;
+}
+
 // transportPlan.js assignShip: a free transport ship of that sea (any sea for 0),
 // the roomiest (+50 for siege, as getBestShip), then the nearest to (x, z).
 uint32_t Simulation::petra_free_transport_ship(uint16_t sea, float x, float z) const {
@@ -22827,16 +22870,20 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	float pickup_x = from_x, pickup_z = from_z;
 	float drop_x = to_x, drop_z = to_z;
 	petra_find_beach(from_x, from_z, to_x, to_z, pickup_x, pickup_z);
-	petra_find_beach(to_x, to_z, from_x, from_z, drop_x, drop_z);
-
 	const uint32_t ship = petra_free_transport_ship(sea, pickup_x, pickup_z);
 	if (ship == 0) return false;
+	// The ship lands where getBoardingPos with avoidEnnemy finds the shortest way from the
+	// beach it boards at to the destination outside enemy land; RTS0's straight-line beach
+	// is the fallback where that land has no shore on that sea.
+	const uint16_t ship_sea = sea ? sea : petra_ship_sea((size_t)lookup_unit(ship));
+	if (!petra_boarding_pos(petra_land_at(to_x, to_z), ship_sea, pickup_x, pickup_z, to_x, to_z, true, drop_x, drop_z))
+		petra_find_beach(to_x, to_z, from_x, from_z, drop_x, drop_z);
 
 	PetraTransportPlan tp;
 	tp.state = PetraTransportPlan::BOARDING;
 	tp.owner = owner;
 	tp.ship_id = ship;
-	tp.sea = sea ? sea : petra_ship_sea((size_t)lookup_unit(ship));
+	tp.sea = ship_sea;
 	tp.pickup_x = pickup_x;
 	tp.pickup_z = pickup_z;
 	tp.drop_x = drop_x;
