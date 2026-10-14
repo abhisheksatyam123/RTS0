@@ -14,6 +14,7 @@ const MAPS := [
 	"territory_demo", "test_foundation", "tropical_island", "walls", "we_are_legion",
 	"units_demo", "combat_demo_huge", "vertex_pathfinder_test", "triggers_demo",
 	"pickup_test_map", "unit_chasing_test", "unit_dancing_test",
+	"unit_pushing_test", "unit_motion_integration_test",
 ]
 
 var failures := 0

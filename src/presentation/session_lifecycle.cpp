@@ -60,8 +60,10 @@ void RtsoMain::_ready() {
 			if (comma > 0) {
 				float fx = coords.substr(0, comma).to_float();
 				float fz = coords.substr(comma + 1).to_float();
-				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
-				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
+				const uint8_t sender = chat_player_of(guid);
+				const Color c = player_flare_color(sender);
+				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), c);
+				range_overlays_.add_flare(fx, fz, c, user_opts_.flare_time);
 				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 				// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
 				// "never", "observer" (only while observing) or "always".
@@ -830,6 +832,14 @@ void RtsoMain::_process(double delta) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
 			if (turn_mgr_.tick((float)scaled_delta, *sim))
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
+			// OutOfSyncNetwork: the box opens once the dump is written, and again
+			// if the host later names an earlier diverging turn.
+			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
+					net_oos_shown_turn_ != turn_mgr_.oos_turn()) {
+				net_oos_shown_turn_ = turn_mgr_.oos_turn();
+				write_replay(); // "Replay saved to"
+				quit_confirmation("out_of_sync_network");
+			}
 			if (turn_mgr_.has_out_of_sync() && lobby_status) {
 				// 0 A.D. session.js "Out-Of-Sync" notice: the first diverging turn and who.
 				String who;
@@ -1180,6 +1190,7 @@ void RtsoMain::_process(double delta) {
 						placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 					}
 				}
+				snap_placement_to_edges(current_build_type, cell_x, cell_y);
 				int footprint = rtso::building_type_info(current_build_type).footprint;
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
