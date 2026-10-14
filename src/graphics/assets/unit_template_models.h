@@ -9,7 +9,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 189;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 191;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -202,6 +202,8 @@ inline const char *unit_template_draw_model(int k) {
 		"rome_champion_infantry_swordsman_first",
 		"rome_infantry_spearman_conscript",
 		"wagon_house",
+		"iber_infantry_javelineer_b",
+		"brit_ship_fire_fire",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -426,7 +428,7 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		64, // iber/hero_caros
 		65, // iber/hero_indibil
 		-1, // iber/hero_viriato
-		29, // iber/infantry_javelineer_b
+		189, // iber/infantry_javelineer_b
 		61, // iber/infantry_slinger_b
 		-1, // iber/infantry_spearman_b
 		66, // iber/infantry_swordsman_b
@@ -602,9 +604,9 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		1, // sele/catafalque
 		1, // han/catafalque
 		-1, // pers/champion_infantry_archer_upgrade
-		19, // brit/ship_fire_fire (fireship_fire: the fire ship's mesh, burning)
-		19, // gaul/ship_fire_fire
-		19, // iber/ship_fire_fire
+		190, // brit/ship_fire_fire (fireship_fire: the fire ship's mesh, burning)
+		190, // gaul/ship_fire_fire
+		190, // iber/ship_fire_fire
 		-1, // athen/support_civilian (the civ's female citizen model until male civilian models are ported)
 		-1, // athen/support_civilian_house
 		-1, // spart/support_civilian
@@ -659,7 +661,7 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // germ/support_trader
 		-1, // germ/rts0_villager
 		1, // germ/catafalque (no German actor)
-		19, // germ/ship_fire_fire (the Iberian fireship, as for the Celts)
+		190, // germ/ship_fire_fire (the Iberian fireship, as for the Celts)
 		187, // rome/infantry_spearman_conscript
 		183, // cart/infantry_spearman_ital_b
 		184, // rome/cavalry_javelineer_auxiliary_b
@@ -683,7 +685,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 149;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 151;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -705,6 +707,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"brit_infantry_javelineer_b", "brit_archer", nullptr},
 		{"brit_infantry_spearman_b", "brit_spearman", nullptr},
 		{"brit_ship_fire", "brit_trireme", nullptr},
+		{"brit_ship_fire_fire", "brit_trireme", nullptr},
 		{"brit_ship_scout", "brit_trireme", nullptr},
 		{"brit_support_female_citizen", "brit_female_citizen", "brit_female_citizen"},
 		{"brit_war_dog_war_dog_mastiff_b", "brit_war_dog", nullptr},
@@ -749,6 +752,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"iber_cavalry_spearman_b", "iber_cavalry", "iber_cavalry"},
 		{"iber_hero_caros", "iber_hero", nullptr},
 		{"iber_hero_indibil", "iber_cavalry", "iber_cavalry"},
+		{"iber_infantry_javelineer_b", "iber_archer", nullptr},
 		{"iber_infantry_swordsman_b", "iber_swordsman", nullptr},
 		{"kush_cavalry_spearman_b", "kush_cavalry", "kush_cavalry"},
 		{"kush_champion_infantry_apedemak", "kush_swordsman", nullptr},

@@ -8311,6 +8311,22 @@
 0.28
 ]
 },
+"units/brit_ship_fire_fire_tex0": {
+"mask": "res://assets/textures/player_masks/structural/iber_ship_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/brit_ship_fire_fire_tex1": {
+"mask": "res://assets/textures/player_masks/props/wood_burned_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "units/brit_ship_fire_tex0": {
 "mask": "res://assets/textures/player_masks/structural/iber_ship_512x512.png",
 "tint": [
@@ -10893,6 +10909,30 @@
 0.92,
 0.32,
 0.28
+]
+},
+"units/iber_infantry_javelineer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/iber_infantry_javelineer_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/head/iber_isp_b_1_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/iber_infantry_javelineer_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/iber_round_01_03_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/iber_infantry_swordsman_b_tex0": {
