@@ -35,6 +35,9 @@ func _ready() -> void:
 	add_child(top)
 	_select = Common.civ_select(_on_civ_selected)
 	_select.visible = not lock_civ
+	var heading := Common.civ_heading()
+	heading.visible = _select.visible
+	top.add_child(heading)
 	top.add_child(_select)
 	_emblem = TextureRect.new()
 	_emblem.custom_minimum_size = Vector2(56, 56)

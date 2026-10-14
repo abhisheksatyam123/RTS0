@@ -127,6 +127,9 @@ func _ready() -> void:
 	name_row.add_child(_civ_name)
 	_select = Common.civ_select(_on_civ_selected)
 	_select.visible = not lock_civ
+	var heading := Common.civ_heading()
+	heading.visible = _select.visible
+	name_row.add_child(heading)
 	name_row.add_child(_select)
 	_history = RichTextLabel.new()
 	_history.bbcode_enabled = true

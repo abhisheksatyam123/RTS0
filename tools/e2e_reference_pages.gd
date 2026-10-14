@@ -46,7 +46,7 @@ func run() -> void:
 	var empty_history := []
 	for i in civs.size():
 		var c := int(civs[i]["id"]) # the Germans are civ 15, after Gaia
-		civinfo._on_civ_selected(i) # as the dropdown does
+		civinfo._on_civ_selected(civinfo._select.get_item_index(c)) # as the dropdown does
 		check(tree.civ == c, "%s: the structure tree follows the overview's civ" % civs[i]["name"])
 		var txt: String = civinfo._gameplay.text
 		var info: Dictionary = ref.get_civ_info(c)
@@ -69,7 +69,8 @@ func run() -> void:
 	# 0.28 civinfo: civ bonuses from auto-researched civ techs and player auras besides
 	# {civ}.json, team bonuses from the player auras, (i) info hovers, and only the
 	# techs and structures 0.28 counts as civ specific.
-	civinfo._on_civ_selected(0)
+	check(civinfo._select.get_item_text(0) == "Athenians" and civinfo._select.get_item_text(1) == "Britons", "civs sorted by name")
+	civinfo._on_civ_selected(civinfo._select.get_item_index(0))
 	var athen: String = civinfo._gameplay.text
 	check(athen.contains("Delian League") and athen.contains("Silver Owls") and athen.contains("Democracy"),
 		"Athenian bonuses: Delian League (tech), Silver Owls (civ json), Democracy (team)")
@@ -79,7 +80,7 @@ func run() -> void:
 	check(athen.contains("Gymnasium") and athen.count("[url=structure:") == own.size(), "specific structures only (%d)" % own.size())
 	# 0.28 structree: the civ header, a production row per phase under each box, the
 	# Trainer Units section and EntityBox tooltips.
-	civinfo._on_civ_selected(0) # Athenians: their warships train marines
+	civinfo._on_civ_selected(civinfo._select.get_item_index(0)) # Athenians: their warships train marines
 	check(tree._civ_name.text == civs[0]["name"] and tree._history.text != "", "the tree shows the civ's name and history")
 	check(tree._trainer_section.visible and tree._trainers.get_child_count() >= 2, "Athenian warships are Trainer Units")
 	var village_box: Control = null
@@ -94,7 +95,7 @@ func run() -> void:
 	var tip_btn = village_box.get_child(0).get_child(1)
 	var tip: String = tip_btn._tooltip_text()
 	check(tip.contains("Cost:") and tip.contains("Health:"), "a structure's tooltip has its cost and stats")
-	civinfo._on_civ_selected(1) # Spartans: no trainer units
+	civinfo._on_civ_selected(civinfo._select.get_item_index(1)) # Spartans: no trainer units
 	check(not tree._trainer_section.visible, "the Trainer Units section hides when a civ has none")
 
 	print("2. Template Viewer")
