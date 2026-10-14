@@ -512,6 +512,29 @@ static void test_diplomacy() {
 		      "a defeated player's request is dropped");
 	}
 
+	// checkEvents Attacked: an ally's hits on an enemy inside our territory raise
+	// our cooperative trait by 0.003 each, arrows and splash included.
+	{
+		auto s = three_player_match(5);
+		s->set_mutual_ally(1, 2);
+		run_for(*s, 2.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		s->petra_config_slot(1).cooperative = 0.5f;
+		const float before = s->petra_config_slot(1).cooperative;
+		const uint32_t foe = s->spawn_unit(tx + 12.0f, tz + 12.0f, 0, UNIT_ELEPHANT);
+		const uint32_t foe_s = foe;
+		s->order_set_stance(&foe_s, 1, STANCE_PASSIVE);
+		std::vector<uint32_t> archers;
+		for (int i = 0; i < 3; ++i) archers.push_back(s->spawn_unit(tx + 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
+		s->order_attack(archers.data(), archers.size(), foe);
+		run_for(*s, 10.0f);
+		const float after = s->petra_config_slot(1).cooperative;
+		std::printf("  ally fights in our territory: cooperative %.3f -> %.3f\n", before, after);
+		CHECK(after >= std::min(1.0f, before + 0.01f), "an ally's hits in our territory raise cooperativeness");
+	}
+
 	// Last Man Standing with unlocked teams: lobby teams only set the starting
 	// alliances, so teammates fall out too once no enemy is left.
 	{
@@ -1744,6 +1767,62 @@ static void test_relic_enemy_player() {
 	const uint8_t after = s->petra_enemy_player(PETRA_ATTACK_ATTACK);
 	std::printf("  relic enemy: player %d without relics, player %d once player %d holds two\n", before, after, holder);
 	CHECK(after == holder, "Petra targets the enemy holding the most relics (getRelicEnemyPlayer)");
+	s->petra_pid_ = 1;
+	float tx = 0.0f, tz = 0.0f;
+	const uint32_t t = s->petra_nearest_target(PETRA_ATTACK_HUGE, true, holder, 0.0f, 0.0f, 0, tx, tz);
+	const int32_t ti = s->lookup_unit(t);
+	CHECK(s->is_relic_unit(ti), "and an attack on it goes for its relics first (defaultTargetFinder)");
+}
+
+// attackManager.js getRelicEnemyPlayer with Gaia (player 0) first while tryCaptureGaiaRelic
+// holds: an attack goes for a Gaia relic no one targets yet, the next try waits the lapse
+// (resetCaptureGaiaRelic, 240 s at Medium), and an army at its relic captures it.
+static void test_relic_gaia_target() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_RELIC);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	s->relics_.clear();
+	const float rx = cx * 0.5f, rz = cz * 0.5f; // halfway to the middle, away from the enemy
+	const uint32_t relic = s->spawn_relic(rx, rz);
+	s->petra_attack_mgr_.gaia_relic_lapse = 0;
+	CHECK(s->petra_enemy_player(PETRA_ATTACK_ATTACK) == GAIA_PLAYER, "with no player holding a relic, Gaia's relics are the enemy");
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	float tx = 0.0f, tz = 0.0f;
+	const uint32_t target = s->find_petra_attack_target(tx, tz, 0, &plan);
+	const int lapse = s->petra_attack_mgr_.gaia_relic_lapse;
+	std::printf("  Gaia relic: target %s, next try in %d s\n", target == relic ? "the relic" : "something else", 2 * lapse);
+	CHECK(target == relic, "the attack targets the Gaia relic");
+	CHECK(lapse == 120, "and the next try at Gaia's relics waits 240 s at Medium");
+	CHECK(s->petra_enemy_player(PETRA_ATTACK_ATTACK) != GAIA_PLAYER, "meanwhile another enemy is picked");
+	plan.target_building_id = relic;
+	CHECK(s->find_petra_attack_target(tx, tz, 0, &plan) == relic, "a plan keeps the Gaia relic it targets");
+
+	// An army that reached it captures it.
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.target_x = rx;
+	plan.target_z = rz;
+	for (int k = 0; k < 4; ++k) plan.squad.push_back(s->spawn_unit(rx + 3.0f + (float)k, rz + 3.0f, 1, UNIT_SPEARMAN));
+	s->petra_started_attacks_.push_back(plan);
+	s->petra_update_attack_plan(s->petra_started_attacks_.back(), 36.0f, 36.0f);
+	int capturing = 0;
+	for (uint32_t uid : plan.squad) {
+		const int32_t i = s->lookup_unit(uid);
+		capturing += i >= 0 && s->units_.order_kind[i] == ORDER_CAPTURE_RELIC && s->units_.order_target[i] == relic;
+	}
+	run_for(*s, 50.0f);
+	const int32_t r = s->lookup_unit(relic);
+	std::printf("  Gaia relic: %d of 4 soldiers sent to capture it, held by player %d after 50 s\n", capturing, r >= 0 ? (int)s->units_.team[r] : -1);
+	CHECK(capturing == 4, "the army at the relic goes to capture it");
+	CHECK(r >= 0 && s->units_.team[r] == 1, "and takes it");
 }
 
 // attackPlan.js moves armies with forced walks: a retreating army ignores what it
@@ -3730,6 +3809,7 @@ int main() {
 	test_attack_request();
 	test_relic_capture();
 	test_relic_enemy_player();
+	test_relic_gaia_target();
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();
 	test_dropsite_sites();
