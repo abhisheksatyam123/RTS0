@@ -2151,7 +2151,8 @@ private:
 	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
-	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz);
+	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz, uint32_t follow = 0);
+	bool follow_walk_target(size_t i);
 	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread = true);
 	// CCmpPathfinder::DistributeAround: a point round (x, z) for each unit.
@@ -2174,7 +2175,8 @@ private:
 	void attack_done(size_t i, bool in_range, float repeat);
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
-	void unit_attack_effects(size_t i, float out[4]) const; // hack, pierce, crush, fire
+	void unit_attack_effects(size_t i, float out[4]) const;
+	float unit_repeat_time(size_t i) const; // hack, pierce, crush, fire
 	void unit_tech_damage(size_t i, float out[4]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);

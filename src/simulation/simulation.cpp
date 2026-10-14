@@ -4849,7 +4849,7 @@ void Simulation::attack_unit_one_by_one(const uint32_t *unit_ids, size_t count, 
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		if (units_.attack_damage[uidx] <= 0.0f || !unit_can_target((size_t)uidx, (size_t)tidx)) { // CanAttack
-			walk_to_attack_target((size_t)uidx, tx, tz, 0.0f, tx, tz);
+			walk_to_attack_target((size_t)uidx, tx, tz, 0.0f, tx, tz, target_unit_id);
 			continue;
 		}
 
@@ -4879,9 +4879,10 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 // UnitAI Attack: a unit that can't attack the target (no attack, or the target is in its
 // RestrictedClasses: a ram and a unit, a dog and a structure) walks to it instead (WalkToTarget,
 // to (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
-// killed (0.28 WalkToTargetRange; one already in range stops there). RTS0's walk goes to where
-// the target stands now, where 0 A.D.'s follows it. A player's order: the walk is forced.
-void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz) {
+// killed (0.28 WalkToTargetRange; one already in range stops there). A `follow` unit is
+// followed (follow_walk_target). A player's order: the walk is forced.
+void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz,
+		uint32_t follow) {
 	if (unit_is_healer(units_.tmpl[i], units_.unit_type[i])) {
 		const float range = healer_range_of(i) + reach;
 		const float dx = units_.pos_x[i] - tx, dz = units_.pos_z[i] - tz;
@@ -4901,7 +4902,36 @@ void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach
 	applying_queued_ = true;
 	cmd_move_individual(&id, 1, wx, wz);
 	applying_queued_ = was;
-	if (units_.order_kind[i] == ORDER_WALK) units_.order_flags[i] = ORDER_FLAG_FORCE;
+	if (units_.order_kind[i] == ORDER_WALK) {
+		units_.order_flags[i] = ORDER_FLAG_FORCE;
+		units_.order_target[i] = follow;
+	}
+}
+
+// UnitAI WalkToTarget moves with MoveToTargetRange, so it follows a unit that walks off:
+// re-aim the walk once the target has left the spot the walker heads for, and end the
+// order once in range of it (a healer's heal range, otherwise touching). A target that
+// dies leaves the walk to its last spot. True when the order ended.
+bool Simulation::follow_walk_target(size_t i) {
+	const int32_t t = lookup_unit(units_.order_target[i]);
+	if (t < 0 || !units_.alive[t]) {
+		units_.order_target[i] = 0;
+		return false;
+	}
+	const float tx = units_.pos_x[t], tz = units_.pos_z[t];
+	const bool healer = unit_is_healer(units_.tmpl[i], units_.unit_type[i]);
+	const float range = healer ? healer_range_of(i) : unit_clearance_at(i) + unit_clearance_at((size_t)t);
+	const float dx = units_.pos_x[i] - tx, dz = units_.pos_z[i] - tz;
+	if (dx * dx + dz * dz <= range * range) {
+		units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		finish_order(i);
+		return true;
+	}
+	const float ax = units_.target_x[i] - tx, az = units_.target_z[i] - tz;
+	const float off = (healer ? range : 0.0f) + 1.0f;
+	if (ax * ax + az * az > off * off) walk_to_attack_target(i, tx, tz, 0.0f, tx, tz, units_.id[t]);
+	return false;
 }
 
 void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t count, uint32_t target_building_id,
@@ -11520,9 +11550,9 @@ void Simulation::tick_combat(float dt) {
 		if (!in_range && range_check_due(i, dt)) stop_attack(i);
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
-		attack_done(i, in_range, units_.attack_cooldown[i]);
+		attack_done(i, in_range, unit_repeat_time(i));
 		units_.action_state[i] = ACTION_ATTACK;
-		units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked", answered by tick_unit_ai
+		if (!invulnerable(units_.id[t])) units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked", answered by tick_unit_ai
 		if (in_range && !(units_.order_kind[i] == ORDER_ATTACK && units_.order_target[i] == units_.id[t]) &&
 				preference_of(unit_preferences(units_.tmpl[i], units_.unit_type[i]).prefs,
 						unit_preferences(units_.tmpl[t], units_.unit_type[t]).classes) == PREF_NONE)
@@ -11568,10 +11598,12 @@ void Simulation::tick_combat(float dt) {
 				           unit_splash(units_.tmpl[i], u_att));
 			}
 
-		} else {
+		} else if (!invulnerable(units_.id[t])) {
+			// helpers/Attack.js HandleAttackEffects returns at once for an invulnerable target:
+			// no damage, xp, Attacked message or status.
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
 			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg, true);
-			if (!invulnerable(units_.id[t])) units_.hp[t] -= final_dmg;
+			units_.hp[t] -= final_dmg;
 			if (units_.team[t] == 0) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
 			}
@@ -11599,6 +11631,8 @@ void Simulation::tick_combat(float dt) {
 				// Promotion.js xp came with each hit (award_damage_xp); count the kill.
 				units_.kills[i]++;
 			}
+		}
+		if (!is_ranged_attack) {
 			// Attack.js PerformAttack: a melee Splash lands on the target's position
 			// (DelayedDamage.js Hit), after the hit itself here.
 			if (const uint8_t sp = unit_splash(units_.tmpl[i], u_att)) {
@@ -11682,7 +11716,7 @@ void Simulation::tick_combat(float dt) {
 		if (!in_range && range_check_due(i, dt)) stop_attack(i);
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
-		attack_done(i, in_range, units_.attack_cooldown[i]);
+		attack_done(i, in_range, unit_repeat_time(i));
 		units_.action_state[i] = ACTION_ATTACK;
 		// Attack.js Attack (0.28): likewise after a hit on a structure (look_again).
 		if (in_range && !(units_.order_kind[i] == ORDER_ATTACK_BUILDING && units_.order_target[i] == b.id) &&
@@ -11826,7 +11860,7 @@ void Simulation::tick_combat(float dt) {
 		}
 		const bool have = tu >= 0 || tb >= 0 || tf >= 0;
 		if (!attack_ready(i, have, unit_combat_at(i).prepare)) continue;
-		attack_done(i, have, units_.attack_cooldown[i]);
+		attack_done(i, have, unit_repeat_time(i));
 		if (!have) continue;
 		const float tech_spread = team < MAX_PLAYERS ? unit_tech_mods(team, units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
 		const float spread = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread;
@@ -12664,11 +12698,11 @@ void Simulation::tick_projectiles(float dt) {
 				}
 				const int32_t tidx = hb < 0 ? projectile_hit_unit(p) : -1;
 				if (hb < 0 && tidx < 0) hb = projectile_hit_structure(p);
-				if (tidx >= 0 && units_.alive[tidx]) {
+				if (tidx >= 0 && units_.alive[tidx] && !invulnerable(units_.id[tidx])) {
 					p.damage = projectile_damage_to_unit(p, (size_t)tidx);
 					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
 					note_attacked(p.source_id, p.team, units_.id[tidx], units_.team[tidx], false, p.damage);
-					if (!invulnerable(units_.id[tidx])) units_.hp[tidx] -= p.damage;
+					units_.hp[tidx] -= p.damage;
 					// UnitAI "Attacked": a structure's arrow, or a stray one hitting someone else.
 					if (units_.attacked_by[tidx] == 0 && p.source_id != 0) units_.attacked_by[tidx] = p.source_id;
 					if (units_.team[tidx] == 0) {
@@ -12724,7 +12758,8 @@ void Simulation::tick_projectiles(float dt) {
 // their owner (StatusEffectsReceiver.AddStatus attacker, attackerOwner), the last one to
 // renew it.
 void Simulation::apply_status(size_t t, const CombatProfile &att, uint32_t src_id, uint8_t src_owner) {
-	if (att.status == 0 || (unit_combat_at(t).status_immune & att.status)) return;
+	// helpers/Attack.js HandleAttackEffects: an invulnerable target takes no effect at all.
+	if (att.status == 0 || (unit_combat_at(t).status_immune & att.status) || invulnerable(units_.id[t])) return;
 	const uint8_t bit = status_effect_bit(att.status);
 	units_.status_effects[t] |= bit;
 	const bool poison = att.status == 1;
@@ -12769,6 +12804,14 @@ void Simulation::unit_attack_effects(size_t i, float out[4]) const {
 		units_.tmpl[i], &unit_combat_at(i).classes);
 	if (aura > 0.0f) // 0 = none in range
 		for (int k = 0; k < 4; ++k) out[k] *= aura;
+}
+
+// Unit i's Attack/<type>/RepeatTime after its attack-rate auras (Cleopatra's Patriot x0.8,
+// Chandragupta's Elephant Corps x0.85), which speed up its splash and statuses with its hits.
+float Simulation::unit_repeat_time(size_t i) const {
+	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK_RATE,
+		units_.tmpl[i], &unit_combat_at(i).classes);
+	return aura > 0.0f ? units_.attack_cooldown[i] * aura : units_.attack_cooldown[i]; // 0 = none in range
 }
 
 // Unit i's hack, pierce, crush and fire after technologies and rank, before auras.
@@ -12890,8 +12933,9 @@ void Simulation::attack_done(size_t i, bool in_range, float repeat) {
 // checks fell in the tick that just ran (tick_attack_timer counted it).
 bool Simulation::range_check_due(size_t i, float dt) const {
 	const float tm = units_.attack_timer[i];
-	const float repeat = units_.attack_cooldown[i];
-	if (tm >= 0.0f || repeat <= 0.0f) return false; // no swing under way, or the hit is due
+	if (tm >= 0.0f) return false; // no swing under way
+	const float repeat = unit_repeat_time(i);
+	if (repeat <= 0.0f) return false; // no swing under way, or the hit is due
 	const float checks = std::ceil(repeat);
 	const float per = repeat / checks;
 	// The checks fall per / 2 + k * per before the hit (k < checks): count those left
@@ -13692,9 +13736,9 @@ void Simulation::tick_death_damage(float dt) {
 			const float dx = units_.pos_x[i] - ox, dz = units_.pos_z[i] - oz;
 			if (std::fabs(dx) > r + 2.0f || std::fabs(dz) > r + 2.0f) continue;
 			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_collision_radius(units_.unit_type[i]));
-			if (d >= r) continue;
+			if (d >= r || invulnerable(units_.id[i])) continue;
 			note_attacked(0, owner, units_.id[i], units_.team[i], false, dd.damage * (1.0f - d * d / r2));
-			if (!invulnerable(units_.id[i])) units_.hp[i] -= dd.damage * (1.0f - d * d / r2);
+			units_.hp[i] -= dd.damage * (1.0f - d * d / r2);
 			if (units_.hp[i] > 0.0f) continue;
 			units_.hp[i] = 0.0f;
 			units_.alive[i] = 0;
@@ -13823,10 +13867,10 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		unit_resistance(u, res);
 		const float dmg = m * (sp.hack * powf(0.9f, res[0]) + sp.pierce * powf(0.9f, res[1]) +
 				sp.crush * powf(0.9f, res[2]));
-		if (dmg <= 0.0f) continue;
+		if (dmg <= 0.0f || invulnerable(units_.id[u])) continue;
 		award_damage_xp(attacker_id, u, dmg);
 		note_attacked(attacker_id, attacker_team, units_.id[u], units_.team[u], false, dmg);
-		if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
+		units_.hp[u] -= dmg;
 		// "Melee.Splash" (helpers/Attack.js): COMBAT "Attacked" answers only "Melee", so a unit
 		// busy fighting ignores the splash of a melee attack; anyone else answers it.
 		const bool fighting = units_.action_state[u] == ACTION_ATTACK &&
@@ -14749,6 +14793,9 @@ void Simulation::tick_unit_ai(float dt) {
 		if (st == ACTION_DYING || st == ACTION_GARRISONED) continue;
 		if (units_.attacked_by[i] != 0) respond_to_attack(i);
 		if (units_.action_state[i] == ACTION_TRADE) continue;
+		if (units_.order_kind[i] == ORDER_WALK && units_.order_target[i] != 0 &&
+				units_.action_state[i] == ACTION_MOVE && (i + ticks_) % 4 == 0 && follow_walk_target(i))
+			continue;
 		// Guard.js: guards answer whoever attacks the unit they guard (GuardedAttacked).
 		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD &&
 				units_.target_unit_id[i] == 0) {
@@ -27656,7 +27703,8 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	unit_resistance(u, res);
 	const float dmg = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
 	                  info.crush_damage * powf(0.9f, res[2]);
-	if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
+	if (invulnerable(units_.id[u])) return;
+	units_.hp[u] -= dmg;
 	note_attacked(fauna_.id[f], GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg, true);
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
@@ -27728,7 +27776,7 @@ void Simulation::tick_hunters() {
 			attack_done(i, in_reach, 1.0f);
 			dmg = 1000.0f * powf(0.9f, finfo.hack_armor);
 		} else {
-			attack_done(i, in_reach, units_.attack_cooldown[i]);
+			attack_done(i, in_reach, unit_repeat_time(i));
 			if (template_has_ranged_attack(units_.tmpl[i], ut, civ_of(units_.team[i]))) {
 				// Attack.js PerformAttack: a ranged hunter's javelin or arrow flies at where
 				// the animal will be, scattered by Spread; it hurts what it lands on
@@ -28385,7 +28433,7 @@ void Simulation::tick_scenery_attackers() {
 		const float reach = units_.attack_range[i] + 1.0f;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
 		if (!attack_ready(i, in_reach, unit_combat_at(i).prepare)) continue;
-		attack_done(i, in_reach, units_.attack_cooldown[i]);
+		attack_done(i, in_reach, unit_repeat_time(i));
 		scenery_[k].hp -= unit_damage_to_scenery(i);
 		if (scenery_[k].hp <= 0.0f) destroy_scenery((size_t)k, (int32_t)i);
 	}
