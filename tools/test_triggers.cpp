@@ -631,6 +631,42 @@ static void check_triggers_demo() {
 	if (failures == before) std::printf("triggers_demo: listeners, three yes-no dialogs, OnRange: ok\n");
 }
 
+static void check_pickup_test() {
+	// scenarios/pickup_test_map_triggers.js: at 200 ms four rams and six arrow ships, 95 archers
+	// sent to board them (one more once the first boards the erratic ship); the close ram fills.
+	const int before = failures;
+	static Simulation s;
+	s.reset();
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	for (int k = 0; k < 13; ++k) s.add_trigger_point('A', -30.0f + 5.0f * (float)k, 25.0f + (float)(k % 3) * 4.0f, 1);
+	s.add_trigger_point('B', -20.0f, 40.0f, 0);
+	s.add_trigger_point('C', 20.0f, 40.0f, 0);
+	CHECK(s.register_trigger_script("pickup_test_map_triggers"), "pickup_test_map_triggers not registered");
+	const uint16_t archer = civ_unit_template_by_id("athen/infantry_archer_b");
+	const uint16_t ram = civ_unit_template_by_id("brit/siege_ram");
+	const uint16_t ship = civ_unit_template_by_id("athen/ship_arrow");
+	auto count = [&](uint16_t tmpl) {
+		int n = 0;
+		for (size_t i = 0; i < s.units_.count; ++i) n += s.units_.tmpl[i] == tmpl && s.units_.team[i] == 0;
+		return n;
+	};
+	run_to(s, 0.15f);
+	CHECK(count(ram) == 0 && count(ship) == 0, "nothing before 200 ms");
+	run_to(s, 0.3f);
+	CHECK(count(ram) == 4 && count(ship) == 6, "%d rams, %d ships at 200 ms", count(ram), count(ship));
+	CHECK(count(archer) == 95, "%d archers at 200 ms, want 95", count(archer));
+	uint32_t first_ram = 0;
+	for (size_t i = 0; i < s.units_.count; ++i)
+		if (s.units_.tmpl[i] == ram && (!first_ram || s.units_.id[i] < first_ram)) first_ram = s.units_.id[i];
+	run_to(s, 40.0f);
+	CHECK(s.get_transport_passenger_count(first_ram) == 5, "UnitsIntoRamClose: %zu aboard, want 5",
+	      s.get_transport_passenger_count(first_ram));
+	if (failures == before) std::printf("pickup_test_map: rams, ships and 95 archers at 200 ms, the close ram fills: ok\n");
+}
+
 static void check_gallic_fields() {
 	// skirmishes/gallic_fields_3p.js: a Roman champion at each B or C point after a minute,
 	// attack-walking to its owner's A point; each wave waits 1-3 times longer and grows as much.
@@ -1100,6 +1136,7 @@ int main() {
 	check_treasure_islands();
 	check_gallic_fields();
 	check_triggers_demo();
+	check_pickup_test();
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
 	check_on_range();

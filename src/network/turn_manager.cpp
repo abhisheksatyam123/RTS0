@@ -1520,9 +1520,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 12) { // Garrison
 			sim.order_garrison(ids, n, c.target_id, queued);
 			if (raw_n > n) sim.order_fauna_walk(pl, raw, raw_n, 0.0f, 0.0f, c.target_id);
-		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all
+		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all / leave-turret
 			if (c.param == 1) {
 				if (n) sim.order_disembark_all(ids[0]);
+			} else if (c.param == 2) { // 0 A.D. "leave-turret": entity_ids are the turret units
+				sim.cmd_leave_turret(pl, c.entity_ids.data(), c.entity_ids.size());
 			} else { // entity_ids: the garrisoned units to unload (UnloadTemplate); none: all
 				sim.cmd_unload(pl, c.target_id, c.entity_ids.data(), c.entity_ids.size());
 			}

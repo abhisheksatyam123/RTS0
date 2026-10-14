@@ -155,6 +155,14 @@ public:
 	// Host: the password joiners must give (empty = open game; 0 A.D. lobby
 	// password). Client: the password this client sends.
 	void setPassword(const std::string &password) { password_ = password; }
+	// The engine version and mods this side sends in its handshake (0 A.D.
+	// engine version + enabled mods); a host refuses a client whose differs
+	// (NDR_INCORRECT_SOFTWARE_VERSION).
+	void setSoftwareVersion(const std::string &v) { software_version_ = v; }
+	const std::string &softwareVersion() const { return software_version_; }
+	// Host: 0.28 network.duplicateplayernames. Off, a name already in the game
+	// is refused (NDR_PLAYERNAME_IN_USE); on, the joiner becomes "Name (2)".
+	void setDuplicatePlayerNames(bool on) { duplicate_names_ = on; }
 	// Host: 0 A.D. NetServer::KickPlayer. Tells every client, drops the peer (the
 	// lockstep goes on without it) and, with ban, refuses its name and address
 	// from then on. False if there is no such admitted client.
@@ -171,8 +179,9 @@ public:
 	bool kickedSelf() const { return kicked_self_; }
 	// Client: the link to the host is gone (0 A.D. netstatus "disconnected"),
 	// and why, as 0 A.D.'s NetHost.h NDR_* reasons (getDisconnectReason): 0 the
-	// host fell silent, 2 the host ended the game, 6 kicked, 7 banned,
-	// 14 wrong password. -1 while connected.
+	// host fell silent, 2 the host ended the game, 3 another protocol version,
+	// 6 kicked, 7 banned, 8 name in use, 9 server full, 14 wrong password,
+	// 17 another engine version or mods. -1 while connected.
 	bool connectionLost() const { return disconnect_reason_ >= 0; }
 	int disconnectReason() const { return disconnect_reason_; }
 
@@ -229,6 +238,11 @@ private:
 	void send_client_performance(uint64_t now_ms);
 	bool admitted(const NetPeer &p) const { return p.connected && p.is_authenticated && !p.kick_disconnect_ms; }
 	std::string password_;
+	std::string software_version_ = NET_SOFTWARE_VERSION;
+	bool duplicate_names_ = false;
+	// Host: close a link with this reason, sent in the disconnect's channel byte.
+	void refuse_with(NetPeer &p, uint8_t reason);
+	bool name_taken(const std::string &name, const NetPeer *self) const;
 	std::set<std::string> banned_names_, banned_addresses_;
 	int auth_result_ = -1;
 	std::vector<KickedMsg> kicks_;
