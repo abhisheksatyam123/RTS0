@@ -2356,6 +2356,30 @@ static void test_walk_to_target_follows() {
 	check(dr < 4.0f, "the ram ends beside it");
 }
 
+static void test_structure_arrows_and_force() {
+	std::printf("66. a soldier at work answers structure arrows unless its order is forced (UnitAI Attacked)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t tower = s.spawn_building_world(40, 0, BLD_TOWER, 1, 1.0f);
+	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(0, 0, RES_WOOD, 500);
+	uint32_t gatherer = s.spawn_unit(-1.5f, 0, 0, UNIT_SPEARMAN);
+	uint32_t walker = s.spawn_unit(0, 10, 0, UNIT_SPEARMAN);
+	uint32_t violent = s.spawn_unit(0, -10, 0, UNIT_SPEARMAN);
+	s.order_set_stance(&violent, 1, STANCE_VIOLENT);
+	s.order_gather(&gatherer, 1, tree);
+	check(run_until(s, 20.0f, [&] { return act_of(s, gatherer) == ACTION_GATHER; }), "the soldier starts gathering");
+	s.order_walk(&walker, 1, -30.0f, 10.0f);
+	s.order_walk(&violent, 1, -30.0f, -10.0f);
+	s.tick(DT);
+	for (uint32_t u : {gatherer, walker, violent}) s.units_.attacked_by[idx_of(s, u)] = tower;
+	s.tick(DT);
+	check(s.units_.target_building_id[idx_of(s, gatherer)] == tower, "a gatherer (no longer forced once at work) goes for the tower");
+	check(s.units_.target_building_id[idx_of(s, walker)] != tower && s.unit_order(walker).kind == ORDER_WALK,
+			"a soldier on a player's walk keeps walking");
+	check(s.units_.target_building_id[idx_of(s, violent)] == tower, "a violent one answers even on a forced walk");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2545,6 +2569,7 @@ int main(int argc, char **argv) {
 	test_healer_attack_order();
 	test_restricted_attack_order();
 	test_walk_to_target_follows();
+	test_structure_arrows_and_force();
 	test_scenery_capture();
 	test_arakamani_temples();
 	test_range_check_between_hits();
