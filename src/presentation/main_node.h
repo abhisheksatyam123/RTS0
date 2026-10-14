@@ -184,6 +184,14 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Label *banner_label = nullptr;
 	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
 	Label *time_notification_label_ = nullptr;
+	// 0.28 NetworkDelayOverlay: "Delay to live stream" while this peer holds more
+	// than MAX_LIVE_DELAY turns it hasn't run yet; checked once a second.
+	Label *net_delay_label_ = nullptr;
+	double net_delay_check_s_ = 0.0;
+	int debug_net_delay_turns_ = -1; // test hook: stands in for turns_behind()
+	void update_net_delay_overlay(double delta);
+	void debug_set_net_delay(int turns) { debug_net_delay_turns_ = turns; net_delay_check_s_ = 1.0; }
+	String debug_net_delay_text() const { return net_delay_label_ && net_delay_label_->is_visible() ? net_delay_label_->get_text() : String(); }
 
 	// 5/6. In-Game Chat Overlay + Diplomacy & Tribute Dialog: P4.1 leaf
 	// widgets (chat_window.h / diplomacy_dialog.h) own their panel trees;
