@@ -10,6 +10,9 @@
 //    or mods is refused (NDR_INCORRECT_SOFTWARE_VERSION); a name already in
 //    the game, the host's included, is refused (NDR_PLAYERNAME_IN_USE) unless
 //    network.duplicateplayernames, which lets it in as "Name (2)".
+// 4. 0 A.D. NetServer CheckPasswordAndIncrement / IsBanned: three wrong
+//    passwords from one name ban it, so even the right one is then refused
+//    (ARC_BANNED); the right password before the third resets the count.
 #include "network/net_host.h"
 
 #include <chrono>
@@ -118,6 +121,36 @@ int main() {
 	      admitted == (std::vector<std::string>{"bob", "bob (2)", "bob (3)"}),
 	      "with network.duplicateplayernames they come in as bob (2) and bob (3)");
 	for (auto &p : live) p->stop();
+	live.clear();
+
+	// 4. Wrong passwords, on a host with one.
+	NetHost locked;
+	locked.setLocalPlayerName("alice");
+	locked.setPassword("hunter2");
+	locked.startHost(c);
+	const uint16_t locked_port = locked.localPort();
+	auto attempt = [&](const std::string &name, const std::string &password) {
+		std::vector<std::unique_ptr<NetHost>> one;
+		one.push_back(std::make_unique<NetHost>());
+		NetHost &cl = *one[0];
+		cl.setLocalPlayerName(name);
+		cl.setPassword(password);
+		cl.startClient("127.0.0.1", locked_port);
+		pump(locked, one, 5000, [&] { return cl.authResult() >= 0 || cl.connectionLost(); });
+		const int code = cl.authResult();
+		cl.stop();
+		pump(locked, none, 100, [&] { return false; });
+		return code;
+	};
+	CHECK(attempt("dan", "x") == ARC_PASSWORD_INVALID && attempt("dan", "y") == ARC_PASSWORD_INVALID &&
+	      attempt("dan", "hunter2") == ARC_OK && attempt("dan", "z") == ARC_PASSWORD_INVALID &&
+	      attempt("dan", "hunter2") == ARC_OK,
+	      "two wrong passwords, then the right one, let dan in (and reset his count)");
+	CHECK(attempt("eve", "a") == ARC_PASSWORD_INVALID && attempt("eve", "b") == ARC_PASSWORD_INVALID &&
+	      attempt("eve", "c") == ARC_PASSWORD_INVALID,
+	      "eve's three wrong passwords are refused as wrong");
+	CHECK(attempt("eve", "hunter2") == ARC_BANNED, "then eve is banned, even with the right password");
+	CHECK(attempt("frank", "hunter2") == ARC_OK, "another name still gets in");
 
 	if (failures) {
 		std::printf("%d host check(s) failed\n", failures);

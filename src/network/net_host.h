@@ -2,6 +2,7 @@
 #include "net_types.h"
 #include "../core/memory/arena.h"
 #include <functional>
+#include <map>
 #include <vector>
 #include <cstdint>
 #include <string>
@@ -244,6 +245,11 @@ private:
 	void refuse_with(NetPeer &p, uint8_t reason);
 	bool name_taken(const std::string &name, const NetPeer *self) const;
 	std::set<std::string> banned_names_, banned_addresses_;
+	// 0 A.D. NetServer m_FailedAttempts: wrong passwords per name (the address
+	// for an unnamed client); FAILED_PASSWORD_TRIES_BEFORE_BAN of them bans it,
+	// and the right password before that resets the count.
+	std::map<std::string, int> failed_passwords_;
+	static constexpr int FAILED_PASSWORD_TRIES_BEFORE_BAN = 3;
 	int auth_result_ = -1;
 	std::vector<KickedMsg> kicks_;
 	bool kicked_self_ = false;
