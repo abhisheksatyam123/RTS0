@@ -210,8 +210,16 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	// The units it trains (the civ's roster list), then its other buttons.
 	if (command_panel_.roster_list() && command_panel_.roster_list()->is_visible())
 		for (int i = 0; i < command_panel_.roster_list()->get_item_count(); ++i) out.push_back(command_panel_.roster_list()->get_item_text(i));
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i)
-		if (Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i))) out.push_back(btn->get_text());
+	// Icon buttons (research, construction) by their label; a research pair's two buttons.
+	auto add = [&out](Node *n) {
+		if (Button *btn = Object::cast_to<Button>(n)) out.push_back(btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text());
+	};
+	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
+		Node *n = command_panel_.production_bar()->get_child(i);
+		add(n);
+		if (!Object::cast_to<Button>(n))
+			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j));
+	}
 	return out;
 }
 
@@ -396,15 +404,23 @@ Dictionary RtsoMain::debug_selection_state() {
 Array RtsoMain::debug_command_row() {
 	Array out;
 	update_command_panel();
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i)
-		if (Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i))) {
-			Dictionary e;
-			e["text"] = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
-			e["tip"] = btn->get_tooltip_text();
-			e["disabled"] = btn->is_disabled();
-			e["id"] = (int64_t)btn->get_instance_id();
-			out.push_back(e);
-		}
+	auto add = [&out](Node *n, bool paired) {
+		Button *btn = Object::cast_to<Button>(n);
+		if (!btn) return;
+		Dictionary e;
+		e["text"] = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
+		e["tip"] = btn->get_tooltip_text();
+		e["disabled"] = btn->is_disabled();
+		e["id"] = (int64_t)btn->get_instance_id();
+		e["paired"] = paired; // one of a research pair (selection_panels.js Research)
+		out.push_back(e);
+	};
+	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
+		Node *n = command_panel_.production_bar()->get_child(i);
+		add(n, false);
+		if (!Object::cast_to<Button>(n))
+			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j), true);
+	}
 	return out;
 }
 

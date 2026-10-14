@@ -2978,9 +2978,16 @@ int Simulation::entity_limit_count(uint8_t player_id, uint8_t category) const {
 		    unit_limit_category(units_.unit_type[i], units_.tmpl[i]) != category)
 			++n;
 	}
-	if (category == LIMIT_ANIMAL) // livestock penned in the player's corrals
+	// EntityLimits counts every entity of the class its owner has (0.28 Identity Animal): the
+	// player's livestock wherever it is, and Gaia livestock penned in the player's corrals.
+	if (category == LIMIT_ANIMAL)
 		for (size_t f = 0; f < fauna_.count; ++f) {
-			if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
+			if (!fauna_.alive[f]) continue;
+			if (fauna_owner_[f] == player_id) {
+				++n;
+				continue;
+			}
+			if (fauna_owner_[f] < MAX_PLAYERS || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
 			auto bit = building_id_to_idx_.find(fauna_.corral_id[f]);
 			if (bit != building_id_to_idx_.end() && buildings_[bit->second].team == player_id) ++n;
 		}
@@ -7743,7 +7750,8 @@ bool Simulation::fauna_selectable_by(uint8_t player, uint32_t fauna_id) const {
 void Simulation::order_fauna_walk(uint8_t player, const uint32_t *ids, size_t count, float x, float z, uint32_t corral_id) {
 	// "garrison": the player's own finished corral with room, else a plain walk to it.
 	auto bit = building_id_to_idx_.find(corral_id);
-	if (bit == building_id_to_idx_.end() || buildings_[bit->second].team != player || buildings_[bit->second].type != BLD_CORRAL ||
+	// Garrisonable: a mutual ally's corral takes the player's livestock too.
+	if (bit == building_id_to_idx_.end() || !is_ally(buildings_[bit->second].team, player) || buildings_[bit->second].type != BLD_CORRAL ||
 	    buildings_[bit->second].build_progress < 1.0f || buildings_[bit->second].hp <= 0.0f)
 		corral_id = 0;
 	x = std::clamp(x, -map_half_ + 2.0f, map_half_ - 2.0f);
@@ -11729,6 +11737,25 @@ void Simulation::tick_combat(float dt) {
 					found_wild = f;
 				}
 			}
+			// An enemy's livestock: UnitAI's attack filter takes any entity a player owns.
+			for (uint16_t f : herd) {
+				if (!hunts) break;
+				if (!can_attack(units_.team[i], fauna_owner_[f])) continue;
+				const float dx = fauna_.pos_x[f] - pxi, dz = fauna_.pos_z[f] - pzi;
+				const float d2 = dx * dx + dz * dz;
+				if (d2 > scan_range * scan_range || d2 < minr * minr) continue;
+				if (stance == STANCE_DEFENSIVE) {
+					const float hx = fauna_.pos_x[f] - anc_x, hz = fauna_.pos_z[f] - anc_z;
+					if (hx * hx + hz * hz >= held_lim * held_lim) continue;
+				}
+				if (PREF_NONE < best_pref || (PREF_NONE == best_pref && d2 < best_unit_d2)) {
+					best_pref = PREF_NONE;
+					best_unit_d2 = d2;
+					found = -1;
+					found_bld = -1;
+					found_wild = f;
+				}
+			}
 		}
 
 		if (found_wild >= 0) {
@@ -12780,6 +12807,8 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 			}
 		}
 		stat_building_captured(b, from);
+		// GarrisonHolder.OnGlobalOwnershipChanged: livestock its new owner may not keep leaves.
+		if (b.type == BLD_CORRAL) eject_corral_animals(b, true);
 		owner = best;
 		raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) cc_captures_.push_back({b.id, from, b.team});
@@ -13975,10 +14004,12 @@ int Simulation::corral_count(uint32_t corral_id) const {
 }
 
 // GarrisonHolder Eject for the animals penned in `b`: each steps out beside it and grazes.
-void Simulation::eject_corral_animals(const Building &b) {
+void Simulation::eject_corral_animals(const Building &b, bool unallied_only) {
 	int k = 0;
 	for (size_t f = 0; f < fauna_.count; ++f) {
 		if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED || fauna_.corral_id[f] != b.id) continue;
+		// Gaia livestock (RTS0 herding) belongs to whoever holds the pen; it stays.
+		if (unallied_only && (fauna_owner_[f] >= MAX_PLAYERS || is_ally(fauna_owner_[f], b.team))) continue;
 		float ex = b.x + 1.6f, ez = b.z + 1.6f;
 		pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, ex, ez);
 		fauna_.pos_x[f] = ex + 0.3f * (float)(k % 3 - 1); // spread the herd over the spawn point
@@ -28210,16 +28241,23 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, 
 	const bool ship = unit_is_ship(units_.unit_type[i]);
 	uint32_t best = 0;
 	float best_d2 = std::min(max_d2, NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE);
+	const bool fog = los_.cells() != 0;
 	for (size_t f = 0; f < fauna_.count; ++f) {
 		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0) continue;
 		const uint8_t b = fauna_.behavior[f];
 		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED || b == FAUNA_MOVING) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-		if (info.is_dangerous() || info.is_naval() != ship) continue;
+		// FINDINGNEWTARGET takes meat of the same template only, so a dangerous animal just
+		// when the hunter was already after that kind.
+		if ((info.is_dangerous() && fauna == 0) || info.is_naval() != ship) continue;
 		if (fauna != 0 && fauna_.fauna_type[f] + 1 != fauna) continue;
 		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
 		const float d2 = dx * dx + dz * dz;
-		if (d2 < best_d2) { best_d2 = d2; best = fauna_.id[f]; }
+		if (d2 >= best_d2) continue;
+		// CheckTargetVisible: animals don't stay in the fog, so the hunter must see it now.
+		if (fog && !los_visible(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])) continue;
+		best_d2 = d2;
+		best = fauna_.id[f];
 	}
 	return best;
 }
