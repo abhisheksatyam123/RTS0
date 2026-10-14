@@ -1,6 +1,6 @@
 // 0 A.D. TurretHolder / Turretable: ranged infantry on the turret points of walls, gates
 // and outposts. They stay visible and alive up there, shoot from the point's height,
-// hold their ground, and step down on any order but an attack.
+// hold their ground, and finish any order but an attack up there until they leave the turret.
 //   g++ -std=c++20 -O2 -Isrc tools/test_turrets.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_turrets && /tmp/test_turrets
@@ -125,13 +125,27 @@ int main() {
 		std::remove(path);
 	}
 
-	// 5. A walk order takes an archer down beside the wall with its stance back; a killed
-	//    turret unit leaves its point; unloading the wall brings the rest down.
+	// 5. Turretable.OccupyTurret makes the unit immobile (UnitAI.SetTurretStance): a walk or a
+	//    gather order finishes and it stays up, a stance command is ignored (Commands.js
+	//    "stance" skips turrets); "leave-turret" takes it down beside the wall with its stance
+	//    back; a killed turret unit leaves its point; unloading the wall brings the rest down.
 	{
 		const uint32_t first = bld(s, wall).garrisoned_units[0];
-		s.cmd_move(&first, 1, 0.0f, 12.0f);
-		run(s, 0.2f);
 		const int32_t i = s.lookup_unit(first);
+		const float x0 = s.units_.pos_x[i], z0 = s.units_.pos_z[i];
+		s.cmd_move(&first, 1, 0.0f, 12.0f);
+		run(s, 1.0f);
+		CHECK(s.turret_holder_of(first) == wall && s.units_.order_kind[i] == ORDER_NONE);
+		CHECK(s.units_.pos_x[i] == x0 && s.units_.pos_z[i] == z0);
+		const uint32_t tree = s.spawn_resource_world(4.0f, 4.0f, RES_WOOD, 200);
+		s.order_gather(&first, 1, tree);
+		run(s, 1.0f);
+		CHECK(s.turret_holder_of(first) == wall && s.units_.order_kind[i] == ORDER_NONE);
+		s.order_set_stance(&first, 1, STANCE_AGGRESSIVE);
+		CHECK(s.units_.stance[i] == STANCE_STAND_GROUND);
+		std::printf("turret archer: stays up through a walk, a gather and a stance change\n");
+		s.cmd_leave_turret(0, &first, 1);
+		run(s, 0.2f);
 		CHECK(s.turret_holder_of(first) == 0);
 		CHECK(bld(s, wall).garrisoned_units.size() == 3);
 		CHECK(s.unit_height_offset((size_t)i) == 0.0f);
@@ -158,12 +172,20 @@ int main() {
 		const uint32_t post = s.spawn_building_world(10.0f, 10.0f, BLD_OUTPOST, 0, 1.0f);
 		uint32_t two[2] = {s.spawn_unit(10.0f, 13.0f, 0, UNIT_ARCHER, 0.0f, archer),
 				s.spawn_unit(11.0f, 13.0f, 0, UNIT_ARCHER, 0.0f, archer)};
+		// A passive unit holds its ground up there too (SetTurretStance: standground is the
+		// only stance with respondStandGround), and is passive again once down.
+		for (uint32_t id : two) s.units_.stance[s.lookup_unit(id)] = STANCE_PASSIVE;
 		s.order_garrison(two, 2, post);
 		run(s, 5.0f);
 		CHECK(bld(s, post).garrisoned_units.size() == 1);
 		const int32_t up = s.lookup_unit(bld(s, post).garrisoned_units[0]);
 		CHECK(std::fabs(s.unit_height_offset((size_t)up) - 2.24f) < 1e-3f);
 		std::printf("outpost: 1 archer at height %.2f\n", s.unit_height_offset((size_t)up));
+		CHECK(s.units_.stance[up] == STANCE_STAND_GROUND);
+		const uint32_t up_id = s.units_.id[up];
+		s.cmd_unload(0, post, &up_id, 1);
+		run(s, 0.2f);
+		CHECK(s.turret_holder_of(up_id) == 0 && s.units_.stance[s.lookup_unit(up_id)] == STANCE_PASSIVE);
 	}
 
 	// 7. WallSet pieces hold their own length's points (wall_long 16, wall_medium 8, wall_gate 8,

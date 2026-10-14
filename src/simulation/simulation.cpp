@@ -4934,7 +4934,8 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 void Simulation::order_set_stance(const uint32_t *unit_ids, size_t count, uint8_t stance) {
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
-		if (idx >= 0) {
+		// Commands.js "stance" skips turrets (UnitAI.IsTurret): they stand their ground.
+		if (idx >= 0 && !turret_height_.count(unit_ids[i])) {
 			units_.stance[idx] = stance;
 		}
 	}
@@ -6677,6 +6678,15 @@ uint32_t Simulation::turret_holder_of(uint32_t unit_id) const {
 	return 0;
 }
 
+void Simulation::cmd_leave_turret(uint8_t player, const uint32_t *unit_ids, size_t count) {
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t i = lookup_unit(unit_ids[k]);
+		if (i < 0 || units_.team[i] != player) continue;
+		if (const uint32_t holder = turret_holder_of(unit_ids[k]); holder != 0)
+			cmd_unload(player, holder, &unit_ids[k], 1); // Turretable.LeaveTurret
+	}
+}
+
 // The point a turret unit stands on: the free one nearest its position.
 static int nearest_turret_point(const TurretPointSet &pts, const Simulation::Building &b, float x, float z,
 		const bool *taken = nullptr) {
@@ -6712,10 +6722,10 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	units_.has_order[i] = 0;
 	units_.waypoint_count[i] = 0;
 	units_.action_state[i] = ACTION_IDLE;
-	// SetTurretStance: a turret holds its ground, keeping the stance it had for later.
+	// SetTurretStance: a turret holds its ground (a passive one too: standground is the only
+	// stance with respondStandGround), keeping the stance it had for later.
 	turret_prev_stance_[units_.id[i]] = units_.stance[i];
-	if (units_.stance[i] != STANCE_STAND_GROUND && units_.stance[i] != STANCE_PASSIVE)
-		units_.stance[i] = STANCE_STAND_GROUND;
+	units_.stance[i] = STANCE_STAND_GROUND;
 	b.garrisoned_units.push_back(units_.id[i]);
 	turret_height_[units_.id[i]] = pts->pt[k].y;
 }
@@ -6751,15 +6761,24 @@ void Simulation::tick_turrets() {
 				continue;
 			}
 			if (!units_.alive[u]) { ++k; continue; } // garrisoned before turrets: left as it was
-			// Any order but an attack takes the unit down (UnitAI orders call LeaveTurret);
-			// so does an owner that is no longer a mutual ally, or a point that is gone.
-			const uint8_t ok = units_.order_kind[u];
-			const bool stays = (ok == ORDER_NONE || ok == ORDER_ATTACK || ok == ORDER_ATTACK_BUILDING) &&
-					(units_.team[u] == b.team || is_ally(units_.team[u], b.team)) && (int)k < pts->count;
-			if (!stays) {
+			// An owner that is no longer a mutual ally, or a point that is gone, takes the unit down.
+			if (!(units_.team[u] == b.team || is_ally(units_.team[u], b.team)) || (int)k >= pts->count) {
 				leave_turret((size_t)u, b);
 				list.erase(list.begin() + (std::ptrdiff_t)k);
 				continue;
+			}
+			// SetTurretStance makes the unit immobile: an order to walk, gather, build, garrison and
+			// so on finishes at once (UnitAI Order.* with !AbleToMove), and only an attack stands.
+			// It comes down through "leave-turret" or the holder's "unload-turrets" (cmd_unload).
+			const uint8_t ok = units_.order_kind[u];
+			if (ok != ORDER_NONE && ok != ORDER_ATTACK && ok != ORDER_ATTACK_BUILDING) {
+				formation_remove_units(&list[k], 1);
+				units_.action_state[u] = ACTION_IDLE;
+				units_.target_resource_id[u] = units_.target_unit_id[u] = units_.target_building_id[u] = 0;
+				units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
+				if ((size_t)u < unit_paths_.size()) unit_paths_[u].clear();
+				set_order(u, ORDER_NONE, 0, 0, units_.pos_x[u], units_.pos_z[u]);
+				order_queues_.erase(list[k]);
 			}
 			const int pi = nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u], taken);
 			taken[pi] = true;
