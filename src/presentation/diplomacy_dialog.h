@@ -29,6 +29,7 @@
 #include "../simulation/simulation.h"
 #include "chat_window.h"
 #include "display_colors.h"
+#include "l10n.h"
 
 using namespace godot;
 
@@ -265,8 +266,9 @@ public:
 			set_text(r.theirs, stance_text(*sim, p, me));
 			const bool defeated = sim->is_defeated(p);
 			set_text(r.outcome, defeated ? "Defeated" : ((sim->winner_mask() >> p) & 1) ? "Won" : "");
-			// DiplomacyDialogPlayerControl: no controls for yourself or a player out of the game.
-			const bool inactive = p == me || defeated || sim->is_defeated(me);
+			// DiplomacyDialogPlayerControl: no controls for yourself or a player out of the game
+			// (defeated or won, isPlayerInactive).
+			const bool inactive = p == me || defeated || ((sim->winner_mask() >> p) & 1) || sim->is_defeated(me);
 			const uint8_t cur = effective_stance(*sim, me, p);
 			for (int s = 0; s < 3; ++s) {
 				r.stance[s]->set_visible(!inactive && !stances_hidden);
@@ -287,18 +289,42 @@ public:
 			const bool spy_hidden = inactive || sim->spies_disabled() || sim->is_ally(p, me);
 			r.spy->set_visible(!spy_hidden);
 			if (!spy_hidden) {
-				const bool can = sim->can_bribe(me, p);
-				r.spy->set_disabled(!can);
-				r.spy->set_tooltip_text(String("Bribe a random unit from this player and share its vision during a limited period.\n") +
-						(sim->player(me).has_tech(rtso::TECH_UNLOCK_SPIES)
-										? "Costs " + String::num_int64(sim->bribe_cost(me, p)) + " metal."
-										: String("Requires Espionage (research it at the market).")));
+				// The cost (x the target's spyCostMultiplier), what is missing, then what a failed
+				// bribe costs (VisionSharing FailureCostRatio). A request in flight disables it
+				// until the bribe is answered (onSpyResponse).
+				String tip = "Bribe a random unit from this player and share its vision during a limited period.\n";
+				bool can = sim->can_bribe(me, p);
+				if (!sim->player(me).has_tech(rtso::TECH_UNLOCK_SPIES)) {
+					tip += "Requires Espionage (research it at the market).";
+				} else {
+					rtso::CostTip cost, failed;
+					cost.metal = sim->bribe_cost(me, p);
+					failed.metal = sim->bribe_cost(me, p, true);
+					tip += rtso::cost_tooltip(cost);
+					const String need = rtso::needed_resources_tooltip(cost, sim->player_resource(me, rtso::RES_FOOD),
+							sim->player_resource(me, rtso::RES_WOOD), sim->player_resource(me, rtso::RES_STONE),
+							sim->player_resource(me, rtso::RES_GOLD));
+					if (!need.is_empty()) {
+						tip += "\n" + need;
+						can = false;
+					} else {
+						tip += "\nA failed bribe will cost you:\n" + rtso::cost_tooltip(failed);
+					}
+				}
+				if (spy_pending_[p]) {
+					const auto st = sim->statistics(me);
+					if (st.successful_bribes + st.failed_bribes != spy_pending_bribes_[p] ||
+							sim->game_time() - spy_pending_time_[p] > SPY_REQUEST_TIMEOUT)
+						spy_pending_[p] = false;
+				}
+				r.spy->set_disabled(!can || spy_pending_[p]);
+				r.spy->set_tooltip_text(tip);
 			}
 			// AttackRequestButton.update: for an enemy, while we have an ally to ask.
 			bool has_ally = false;
 			for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q)
 				has_ally |= q != me && sim->player(q).active && !sim->is_defeated(q) && sim->is_ally(me, q);
-			r.attack->set_visible(!inactive && has_ally && sim->is_hostile(me, p));
+			r.attack->set_visible(!inactive && !sim->ceasefire_active() && has_ally && sim->is_hostile(me, p));
 		}
 		// DiplomacyDialogCeasefireCounter.
 		ceasefire_->set_visible(sim->ceasefire_active());
@@ -344,7 +370,13 @@ public:
 		bool ok;
 		if (host_->turn_cmds()) {
 			ok = sim->player_resource(me, rtso::RES_GOLD) >= sim->bribe_cost(me, (uint8_t)player_idx);
-			if (ok) host_->post_lockstep(42, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
+			if (ok) {
+				host_->post_lockstep(42, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
+				const auto st = sim->statistics(me);
+				spy_pending_[player_idx] = true;
+				spy_pending_bribes_[player_idx] = st.successful_bribes + st.failed_bribes;
+				spy_pending_time_[player_idx] = sim->game_time();
+			}
 			msg = ok ? "Bribing a unit of " : "Not enough metal to bribe ";
 		} else {
 			const auto res = sim->cmd_bribe(me, (uint8_t)player_idx);
@@ -374,6 +406,13 @@ private:
 	static constexpr float ATTACK_W = 50.0f;
 	static constexpr float NAME_W = 150.0f, CIV_W = 100.0f, TEAM_W = 40.0f, THEIRS_W = 56.0f, STANCE_W = 26.0f,
 		TRIBUTE_W = 72.0f, SPY_W = 40.0f;
+	// SpyRequestButton.spyRequests: a bribe sent and not yet answered, per target; the
+	// answer is a change of our bribe counts, or nothing for a bribe refused outright.
+	static constexpr float SPY_REQUEST_TIMEOUT = 5.0f;
+	bool spy_pending_[rtso::MAX_PLAYERS] = {};
+	uint32_t spy_pending_bribes_[rtso::MAX_PLAYERS] = {};
+	float spy_pending_time_[rtso::MAX_PLAYERS] = {};
+
 	struct Row {
 		HBoxContainer *box = nullptr;
 		Label *name = nullptr, *civ = nullptr, *team = nullptr, *theirs = nullptr, *outcome = nullptr;

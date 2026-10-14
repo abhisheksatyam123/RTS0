@@ -4,8 +4,10 @@
 // g++ -std=c++20 -O2 -Isrc tools/test_fog_mirage.cpp src/presentation/fog_mirage.cpp \
 //   src/simulation/simulation.cpp src/simulation/rms_generator.cpp src/core/job_system.cpp \
 //   -lpthread -o /tmp/test_fog_mirage
-#include "presentation/fog_mirage.h"
+#define private public // end_match
 #include "simulation/simulation.h"
+#undef private
+#include "presentation/fog_mirage.h"
 #include "simulation/rms_generator.h"
 
 #include <algorithm>
@@ -241,9 +243,9 @@ static void test_real_sim() {
 	size_t own = 0, other_hidden = 0, other_shown = 0;
 	for (const auto &b : sim.buildings()) {
 		const bool shown = find_b(m, b.id) != nullptr;
-		if (sim.is_ally(0, b.team)) {
+		if (sim.shares_los(0, b.team)) {
 			own += shown ? 1 : 0;
-			CHECK(shown, "own/allied structure is always drawn");
+			CHECK(shown, "own (or shared-sight ally's) structure is always drawn");
 		} else if (!sim.los_explored(0, b.x, b.z)) {
 			other_hidden += shown ? 0 : 1;
 			if (shown) CHECK(false, "unexplored enemy structure must not be drawn");
@@ -337,6 +339,44 @@ static void test_giant_cost() {
 	CHECK(us(t0, t1) / N < 5000.0, "giant map mirage rebuild stays under 5 ms per sim tick");
 }
 
+static void test_shared_sight_and_winner() {
+	using namespace rtso;
+	// An ally's units are seen out of our sight only once sight is shared (Diplomacy.js
+	// unlock_shared_los, units not RetainInFog); a winner's map is revealed (Player.js).
+	static Simulation a;
+	a.set_sim_seed(7);
+	a.reset();
+	a.spawn_building_world(-60.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	a.spawn_building_world(60.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	a.set_mutual_ally(1);
+	a.spawn_unit(60.0f, 6.0f, 1, UNIT_SPEARMAN);
+	for (int i = 0; i < 10; ++i) a.tick(Simulation::FIXED_STEP);
+	const bool before = los_sees_unit(a, 0, 60.0f, 6.0f, 1);
+	const bool vis_before = a.is_entity_visible_to_viewer(60.0f, 6.0f, 1, 0);
+	FogMirages fm;
+	fm.update(a, 0);
+	size_t ally_bld_shown = 0;
+	for (const auto &b : a.buildings()) ally_bld_shown += b.team == 1 && find_b(fm, b.id) != nullptr;
+	a.player(0).techs.set(TECH_UNLOCK_SHARED_LOS);
+	for (int i = 0; i < 10; ++i) a.tick(Simulation::FIXED_STEP);
+	const bool after = los_sees_unit(a, 0, 60.0f, 6.0f, 1);
+	std::printf("ally unit far away: seen %d without Cartography, %d with; unseen ally structures shown %zu\n", before,
+			after, ally_bld_shown);
+	CHECK(!before && !vis_before && after && ally_bld_shown == 0, "ally sight shared only with Cartography");
+
+	static Simulation w;
+	w.set_sim_seed(7);
+	w.reset();
+	w.spawn_building_world(-60.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	w.spawn_building_world(60.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	for (int i = 0; i < 10; ++i) w.tick(Simulation::FIXED_STEP);
+	const bool hidden = !los_sees_all(w, 0) && !los_sees_unit(w, 0, 60.0f, 6.0f, 1);
+	w.end_match(1u << 0);
+	const bool revealed = los_sees_all(w, 0) && w.fow_state_at(60.0f, 0.0f, 0) == Simulation::FOW_VISIBLE;
+	std::printf("winner: enemy base hidden before %d, map revealed after the win %d\n", hidden, revealed);
+	CHECK(hidden && revealed, "winner's map revealed");
+}
+
 int main() {
 	test_building_mirages();
 	test_resource_mirages();
@@ -344,6 +384,7 @@ int main() {
 	test_los_bitmap();
 	test_real_sim();
 	test_giant_cost();
+	test_shared_sight_and_winner();
 	if (failures) {
 		std::printf("%d FAILED\n", failures);
 		return 1;

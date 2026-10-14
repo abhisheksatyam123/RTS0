@@ -16,6 +16,11 @@
 // 5. 0 A.D. NetServer OnChat with ChatAddressees.isAddressee
 //    (network/chat_routing.h): the host relays an ally, enemy, observer,
 //    private or flare line only to its addressees, and an untagged one to all.
+// 6. Before Start a joiner reuses the lowest free id 1-7 (the setup seats and
+//    lists only clients 0-7), however many came and went; after Start ids stay
+//    unique, since the turn manager still knows a dropped client's id.
+// 7. 0.28 reportConnectionRequestTimeOut: a connect nobody answers gives up
+//    (reason 0) instead of waiting forever.
 #include "network/net_host.h"
 #include "network/chat_routing.h"
 
@@ -62,7 +67,8 @@ int main() {
 	host.startHost(c);
 	const uint16_t port = host.localPort();
 	int joined = 0;
-	host.onPeerConnected([&](uint32_t) { ++joined; });
+	uint32_t max_id = 0;
+	host.onPeerConnected([&](uint32_t id) { ++joined; max_id = std::max(max_id, id); });
 
 	// 1. Come and go, more times than the cap.
 	std::vector<std::unique_ptr<NetHost>> none;
@@ -78,6 +84,7 @@ int main() {
 		pump(host, none, 200, [&] { return false; });
 	}
 	CHECK(joined == rounds, "every client gets in although more than NET_MAX_CLIENTS came and went");
+	CHECK(max_id == 1, "before Start each of them reuses peer id 1, so the setup can seat it");
 
 	// 2. Fill the session, then one more.
 	std::vector<std::unique_ptr<NetHost>> live;
@@ -220,6 +227,48 @@ int main() {
 	      "a flare reaches allies and observers, not enemies");
 	CHECK(has("host", "hello all") && has("A", "hello all") && has("O", "hello all"), "an untagged line reaches everyone");
 	for (auto &p : people) p->stop();
+
+	// 6. After Start, a dropped id is not handed out again.
+	{
+		NetHost started;
+		started.startHost(c);
+		const uint16_t started_port = started.localPort();
+		std::vector<uint32_t> ids;
+		started.onPeerConnected([&](uint32_t id) { ids.push_back(id); });
+		started.note_game_start_sent();
+		for (int i = 0; i < 3; ++i) {
+			std::vector<std::unique_ptr<NetHost>> one;
+			one.push_back(std::make_unique<NetHost>());
+			one[0]->setLocalPlayerName("late" + std::to_string(i));
+			one[0]->startClient("127.0.0.1", started_port);
+			pump(started, one, 3000, [&] { return ids.size() > (size_t)i; });
+			one[0]->stop();
+			pump(started, none, 200, [&] { return false; });
+		}
+		CHECK(ids == (std::vector<uint32_t>{1, 2, 3}), "after Start each joiner gets a new peer id");
+	}
+
+	// 7. Nobody listens on the port.
+	{
+		uint16_t dead_port = 0;
+		{
+			NetHost gone;
+			gone.startHost(c);
+			dead_port = gone.localPort();
+			gone.stop();
+		}
+		std::vector<std::unique_ptr<NetHost>> lonely;
+		lonely.push_back(std::make_unique<NetHost>());
+		lonely[0]->setLocalPlayerName("lonely");
+		lonely[0]->startClient("127.0.0.1", dead_port);
+		NetHost idle;
+		idle.startHost(c);
+		const uint64_t t0 = now_ms();
+		pump(idle, lonely, 20000, [&] { return lonely[0]->connectionLost(); });
+		const uint64_t took = now_ms() - t0;
+		CHECK(lonely[0]->connectionLost() && lonely[0]->disconnectReason() == 0 && took >= 10000 && took < 15000,
+		      "a connect nobody answers times out after about 11 s (reason 0)");
+	}
 
 	if (failures) {
 		std::printf("%d host check(s) failed\n", failures);

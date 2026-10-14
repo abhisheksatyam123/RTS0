@@ -157,6 +157,14 @@ func sign_out() -> void:
 	join_room = ""
 
 
+# A game post carries the host's token: the lobby keys a game by its host
+# (0 A.D.'s bot by JID), so another host on the same port gets its own entry.
+func _signed(body: Dictionary) -> Dictionary:
+	var b := body.duplicate()
+	b["token"] = token
+	return b
+
+
 # The host's game: registered now and refreshed on every heartbeat.
 func host_game(game: Dictionary) -> void:
 	room = game.duplicate()
@@ -164,7 +172,7 @@ func host_game(game: Dictionary) -> void:
 	_room_in_match = false
 	_room_started_at = 0
 	_reset_nat()
-	post_json("/rooms", room)
+	post_json("/rooms", _signed(room))
 
 
 # The game this player joins from the list ("" for a typed address, which
@@ -226,13 +234,13 @@ func _host_nat_tick(main: Node, nat: Dictionary) -> void:
 		room["host_port"] = int(nat.get("public_port", 0))
 		room["local_ip"] = str(nat.get("local_ip", "")) if publish_lan else ""
 		room["local_port"] = int(nat.get("local_port", 0)) if publish_lan else 0
-		post_json("/rooms", room)
+		post_json("/rooms", _signed(room))
 	_punch_wait -= NAT_TICK_S
 	if _punch_busy or _punch_wait > 0.0:
 		return
 	_punch_wait = PUNCH_POLL_RUNNING_S if st.get("started", false) else PUNCH_POLL_S
 	_punch_busy = true
-	get_json("/rooms/punch?id=%s&since=%d" % [str(room.get("id", "")).uri_encode(), _punch_since],
+	get_json("/rooms/punch?id=%s&since=%d&token=%s" % [str(room.get("id", "")).uri_encode(), _punch_since, token.uri_encode()],
 		func(code: int, obj) -> void:
 			_punch_busy = false
 			if code != 200 or not obj is Dictionary:
@@ -277,17 +285,21 @@ func _match_node() -> Node:
 	return scene if scene != null and scene.has_method("get_lobby_state") else null
 
 
+## 0.28 lobby /away and /back: the presence chosen in the lobby, kept by every
+## heartbeat until a match makes it "playing".
+var away := false
+
 func _beat() -> void:
 	if token == "":
 		return
 	var main := _match_node()
-	post_json("/presence", {"token": token, "status": "playing" if main != null else "available"})
+	post_json("/presence", {"token": token, "status": "playing" if main != null else ("away" if away else "available")})
 	if room.is_empty():
 		return
 	if main == null:
 		if _room_in_match:
 			# Back from the match: the game is gone.
-			post_json("/rooms/unregister", {"id": room.get("id", "")})
+			post_json("/rooms/unregister", {"token": token, "id": room.get("id", "")})
 			room = {}
 		return
 	_room_in_match = true
@@ -300,7 +312,7 @@ func _beat() -> void:
 		_room_started_at = int(Time.get_unix_time_from_system())
 	room.merge(room_details(get_node("/root/MatchSettings"),
 		main.get_net_setup_state() if main.has_method("get_net_setup_state") else {}, _room_started_at), true)
-	post_json("/rooms", room)
+	post_json("/rooms", _signed(room))
 
 
 # The game's details 0 A.D.'s host sends the lobby with its game (Game.js
