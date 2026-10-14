@@ -422,6 +422,11 @@ jobs:
       - name: Lobby server
         run: python3 tools/test_lobby_server.py
 
+      - name: NAT traversal (STUN, hole punching)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_nat.cpp src/network/net_host.cpp -o /tmp/test_nat
+          /tmp/test_nat
+
       - name: Lockstep playtest
         run: python3 tools/playtest_lockstep.py
 
