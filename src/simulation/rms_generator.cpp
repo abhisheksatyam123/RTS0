@@ -11392,6 +11392,31 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	}
 }
 
+void RmsGenerator::set_mine_gatherers(Simulation &sim, uint8_t type) {
+	// 0.28's maps/random scripts that place their quarries as g_Gaia.stoneLarge (rmgen2's
+	// gaia.js included); the others name their own rock templates, all at 24 gatherers.
+	switch (type) {
+	case MAP_AFRICAN_PLAINS: case MAP_ALPINE_LAKES: case MAP_ALPINE_VALLEY: case MAP_ARCHIPELAGO_0AD:
+	case MAP_BAHRAIN: case MAP_CANTABRIAN_HIGHLANDS: case MAP_CANYON: case MAP_COAST_RANGE: case MAP_CONTINENT:
+	case MAP_CORINTHIAN_ISTHMUS: case MAP_FLOOD: case MAP_FOOTHILLS: case MAP_GEAR: case MAP_GULF_OF_BOTHNIA:
+	case MAP_HELLAS: case MAP_HYRCANIAN_SHORES: case MAP_ISLAND_STRONGHOLD: case MAP_ISLANDS: case MAP_LAKE:
+	case MAP_LAND_GRAB: case MAP_MAINLAND: case MAP_MIGRATION: case MAP_NEARESTERN_BADLANDS:
+	case MAP_PERSIAN_HIGHLANDS: case MAP_RATUMACOS: case MAP_RIVERS: case MAP_SNOWFLAKE_SEAROCKS: case MAP_UNKNOWN:
+	case MAP_WILD_LAKE: case MAP_AMBUSH: case MAP_EMPIRE: case MAP_FRONTIER: case MAP_HARBOR: case MAP_HELLS_PASS:
+	case MAP_LIONS_DEN: case MAP_MARMARA: case MAP_NGORONGORO: case MAP_RED_SEA: case MAP_STRONGHOLD: {
+		const std::string &biome = sim.current_map_biome();
+		if (biome != "temperate" && biome != "alpine") return;
+		break;
+	}
+	case MAP_CALEDONIAN_MEADOWS: break; // placeMine(pos, "gaia/rock/temperate_large_02")
+	default: return;
+	}
+	const auto rv = sim.resources();
+	for (size_t r = 0; r < rv.count; ++r)
+		if (rv.alive[r] && rv.type[r] == RES_STONE && rv.subtype[r] == RES_SUB_NONE && rv.amount[r] == LARGE_MINE_SUPPLY)
+			sim.set_resource_max_gatherers(rv.id[r], 48);
+}
+
 void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	const float half = sim.map_half();
 	const int res = std::clamp((int)std::lround(2.0f * half), 1, Simulation::MAX_TERRAIN_TILE_RES);
