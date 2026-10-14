@@ -338,6 +338,14 @@ int main() {
 		const float gold = s.players_[0].res[RES_GOLD], gold1 = s.players_[1].res[RES_GOLD];
 		run(s, 10.0f);
 		CHECK(s.players_[0].res[RES_GOLD] - gold >= s.players_[1].res[RES_GOLD] - gold1 + 9.5f);
+		// It also raises every owned trickle that lists metal (an empty class list affects all):
+		// a wonder's 1 per 2 s becomes 2 per 2 s, so 10 s bring the player 10 + 10.
+		s.spawn_building_world(30.0f, -30.0f, BLD_WONDER, 0, 1.0f);
+		const float gold_w = s.players_[0].res[RES_GOLD], gold1_w = s.players_[1].res[RES_GOLD];
+		run(s, 10.0f);
+		const float got = (s.players_[0].res[RES_GOLD] - gold_w) - (s.players_[1].res[RES_GOLD] - gold1_w);
+		std::printf("  Financial Reorganization with a wonder: +%.1f metal in 10 s\n", got);
+		CHECK(got >= 19.5f && got <= 20.5f);
 
 		// Iberian Mercenary Commander reaches allies too (affectedPlayers Ally).
 		give_relic(s, CIV_IBERIANS, 0);

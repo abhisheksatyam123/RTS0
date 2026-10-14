@@ -10560,7 +10560,7 @@
       "template": "athen/infantry_spearman_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 33.75,
       "z": 88.84,
@@ -10569,5 +10569,6 @@
   ],
   "trigger_scripts": [
     "starting_economy_walkthrough"
-  ]
+  ],
+  "circular": true
 }

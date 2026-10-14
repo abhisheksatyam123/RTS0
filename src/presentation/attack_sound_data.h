@@ -68,7 +68,7 @@ struct EntityAttackSounds {
 
 inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 463;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
-inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 78;
+inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 85;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
 
 // Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).
@@ -657,6 +657,13 @@ inline const EntityAttackSounds &building_attack_sounds(uint8_t type) {
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_INN: structures/pers/inn
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TENT: structures/rome/tent
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TRIUMPHAL_ARCH: structures/rome/arch
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_HALL: structures/pers/hall
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_WAREHOUSE: structures/pers/warehouse
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TAVERN: structures/gaul/tavern
+		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_TOWER_DOUBLE: structures/maur/tower_double
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_KUSH_SHRINE: structures/kush/shrine
+		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_FORTRESS_OLD: structures/han/fortress_old
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_LAOZI_GATE: structures/han/laozigate
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // default: template_structure
 	};
 	return kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];

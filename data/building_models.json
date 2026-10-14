@@ -101,6 +101,7 @@
 "kush_wall_long": "s_kushites_wall_long",
 "kush_wall_medium": "s_kushites_wall_medium",
 "kush_wall_short": "s_kushites_wall_short",
+"laozi_gate": "han_temple_shrine",
 "mace_arsenal": "s_hellenes_workshop",
 "mace_sentry_tower": "s_hellenes_wooden_tower",
 "mace_shrine": "s_hellenes_shrine_01",
@@ -122,6 +123,7 @@
 "pers_arsenal": "s_persians_workshop",
 "pers_blacksmith": "s_persians_blacksmith",
 "pers_great_hall": "s_persians_hall",
+"pers_hall": "s_persians_hall",
 "pers_ice_house": "s_persians_ice_house",
 "pers_inn": "s_persians_alt_building_04",
 "pers_outpost": "s_persians_outpost",
@@ -198,9 +200,11 @@
 "spart_wall_short": "s_hellenes_wall_short",
 "syssiton": "s_spartans_syssiton",
 "tachara": "s_persians_tachara",
+"tavern": "s_celts_tavern",
 "temple_amun": "s_kushites_temple_amun",
 "temple_mars": "s_romans_temple_mars",
 "temple_vesta": "s_romans_temple_vesta",
 "tent": "s_romans_rome_tent",
-"trading_post": "s_persians_market"
+"trading_post": "s_persians_market",
+"warehouse": "pers_storehouse"
 }

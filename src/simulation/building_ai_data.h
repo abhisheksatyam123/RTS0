@@ -19,7 +19,7 @@ struct BuildingAIInfo {
 	bool shoots() const { return default_arrows > 0 || garrison_arrow_multiplier > 0.0f; }
 };
 
-inline constexpr uint8_t BUILDING_AI_ROWS = 78;
+inline constexpr uint8_t BUILDING_AI_ROWS = 85;
 inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 	static const BuildingAIInfo kTable[BUILDING_AI_ROWS + 1] = {
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true, false}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -100,6 +100,13 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_INN: structures/pers/inn
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_TENT: structures/rome/tent
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_TRIUMPHAL_ARCH: structures/rome/arch
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_HALL: structures/pers/hall
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_WAREHOUSE: structures/pers/warehouse
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_TAVERN: structures/gaul/tavern
+		{2, 7, 1.0f, TC_INFANTRY, 0.0f, 8.0f, 0.0f, 2.8f, 16.8f, 4.2f, 0.4f, 3.5f, true, false}, // BLD_TOWER_DOUBLE: structures/maur/tower_double
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_KUSH_SHRINE: structures/kush/shrine
+		{10, 0, 1.0f, TC_SOLDIER, 0.0f, 10.0f, 0.0f, 2.8f, 16.8f, 0.0f, 0.4f, 3.5f, true, false}, // BLD_FORTRESS_OLD: structures/han/fortress_old
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_LAOZI_GATE: structures/han/laozigate
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // none
 	};
 	return kTable[type < BUILDING_AI_ROWS ? type : BUILDING_AI_ROWS];
