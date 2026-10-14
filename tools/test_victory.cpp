@@ -3,6 +3,7 @@
 //        src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o test_victory
 // The checks poke simulation state directly to stage end-of-match situations.
 #define private public
+#include <set>
 #include "simulation/simulation.h"
 #undef private
 #include "network/net_types.h"
@@ -537,6 +538,54 @@ int main() {
 		sim.order_garrison(&hero, 1, tc);
 		for (int t = 0; t < 200 && sim.get_garrison_count(tc) == 0; ++t) sim.tick(0.05f);
 		CHECK((sim.get_garrison_count(tc) > 0) == (on != 0));
+	}
+
+	// 19. Regicide.js SpawnRegicideHero: a random hero of the player's civ, stepping out beside
+	// the Civic Centre (not inside it); a ship start boards it, or without Regicide Garrison
+	// puts it on land by the Gaia entity nearest the ship.
+	{
+		std::set<uint16_t> picked;
+		for (uint32_t seed = 1; seed <= 8; ++seed) {
+			Simulation sim;
+			sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
+			sim.set_sim_seed(seed); // the match seed (the map's own seed reseeds on generation)
+			sim.set_victory_condition(VICTORY_REGICIDE);
+			sim.tick(0.05f);
+			const uint32_t hero = sim.regicide_hero(0);
+			CHECK(hero != 0);
+			const uint16_t t = sim.unit_template(hero);
+			CHECK(t < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(t).flags & ROSTER_HERO) &&
+					civ_unit_template(t).civ == sim.player_civ(0));
+			picked.insert(t);
+			const int32_t h = sim.lookup_unit(hero);
+			for (const auto &b : sim.buildings())
+				if (b.team == 0 && is_civic_centre(b.type)) {
+					const auto uv = sim.units();
+					CHECK(std::fabs(uv.pos_x[h] - b.x) > b.half_size || std::fabs(uv.pos_z[h] - b.z) > b.half_size);
+					break;
+				}
+		}
+		CHECK(picked.size() >= 2);
+		for (int on = 0; on < 2; ++on) {
+			Simulation sim;
+			sim.set_player_active(0, true, false);
+			const uint32_t ship = sim.spawn_unit(0.0f, 0.0f, 0, UNIT_TRIREME);
+			sim.spawn_resource_world(12.0f, 0.0f, RES_WOOD);
+			sim.spawn_resource_world(40.0f, 0.0f, RES_WOOD);
+			sim.set_victory_condition(VICTORY_REGICIDE);
+			sim.set_regicide_garrison(on != 0);
+			sim.tick(0.05f);
+			const uint32_t hero = sim.regicide_hero(0);
+			CHECK(hero != 0);
+			const auto *aboard = sim.get_transport_passengers(ship);
+			const bool on_ship = aboard && std::find(aboard->begin(), aboard->end(), hero) != aboard->end();
+			CHECK(on_ship == (on != 0));
+			if (!on) {
+				const int32_t h = sim.lookup_unit(hero);
+				const auto uv = sim.units();
+				CHECK(std::fabs(uv.pos_x[h] - 12.0f) < 3.0f && std::fabs(uv.pos_z[h]) < 3.0f);
+			}
+		}
 	}
 
 	// 18. DisableTreasures: no treasure is left once the match starts.
