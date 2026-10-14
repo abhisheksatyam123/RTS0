@@ -1038,6 +1038,7 @@ void RtsoMain::_process(double delta) {
 	if (!selected_ids.is_empty() || selected_building_id != 0) inspector_.clear();
 	update_inspector();
 	update_command_panel();
+	follow_player_tick();
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());

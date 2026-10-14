@@ -535,6 +535,14 @@ Dictionary RtsoMain::get_replay_status() const {
 	picker["gaia"] = observer_view_gaia_;
 	picker["observer_mode"] = observer_mode_label_ && observer_mode_label_->is_visible_in_tree();
 	d["observer_picker"] = picker;
+	Dictionary follow;
+	CheckBox *box = turn_mgr_.is_replaying() ? replay_follow_box_ : observer_follow_box_;
+	follow["visible"] = box && box->is_visible_in_tree();
+	follow["on"] = follow_player_;
+	follow["camera_follows"] = cam_rig ? (int64_t)cam_rig->follow_id() : (int64_t)0;
+	follow["selected"] = PackedInt32Array(selected_ids);
+	follow["selected_building"] = (int64_t)selected_building_id;
+	d["follow_player"] = follow;
 	// The game speed dropdown's titles as this client would see them now.
 	Array speed_items;
 	const Array speeds = speed_choices(fast_forward_allowed());
@@ -626,6 +634,8 @@ void RtsoMain::build_replay_view_picker() {
 	replay_observer_label_ = memnew(Label);
 	replay_observer_label_->set_text("Observer Mode");
 	row->add_child(replay_observer_label_);
+	replay_follow_box_ = new_follow_player_box();
+	row->add_child(replay_follow_box_);
 	// Game speed and pause, as the session menu offers them in a 0 A.D. replay.
 	Label *speed_caption = memnew(Label);
 	speed_caption->set_text("  Speed:");

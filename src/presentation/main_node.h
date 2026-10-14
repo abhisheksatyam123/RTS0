@@ -6,6 +6,7 @@
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/popup_menu.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
@@ -640,6 +641,18 @@ private:
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;
+	// 0 A.D. top_panel/FollowPlayer (g_FollowPlayer): an observer or replay viewer
+	// watching a player can have the camera follow that player's commands and attacks.
+	bool follow_player_ = false;
+	CheckBox *observer_follow_box_ = nullptr;
+	CheckBox *replay_follow_box_ = nullptr;
+	CheckBox *new_follow_player_box();
+	int followed_view() const;
+	void set_follow_player(bool on);
+	bool is_follow_player() const { return follow_player_; }
+	void follow_player_tick();
+	void follow_focus(uint32_t id, bool select);
+	void follow_command(const rtso::NetCommand &c);
 	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
 	void sync_observer_view_picker();
 	OptionButton *new_player_view_picker() const;

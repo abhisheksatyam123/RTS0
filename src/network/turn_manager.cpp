@@ -1480,6 +1480,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
 		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
 		note_player_command(sim, pl, c);
+		if (record_applied_ && applied_cmds_.size() < 256) {
+			applied_cmds_.push_back({pl, c});
+			if (c.cmd_type != (uint8_t)NetCommandType::NET_CMD_RALLY) // its entity_ids are targets
+				applied_cmds_.back().cmd.entity_ids.assign(ids, ids + n);
+		}
 		// The sender's own livestock in the selection walks, stops and garrisons in a
 		// corral too (0 A.D. livestock are units; filter_owned_units keeps units only).
 		const uint32_t *raw = c.entity_ids.data();
