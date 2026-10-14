@@ -236,6 +236,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 
 		// Unit commands (0 A.D. [hotkey.session], misc.xml).
+		if (fired("session.toggledefaultformation")) {
+			toggle_default_formation();
+			return;
+		}
 		if (fired("session.stop")) {
 			_on_entity_command("stop");
 			return;
@@ -752,6 +756,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (turn_cmds())
 					post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 				else {
+					apply_default_formation(sel_ptr, sel_n);
 					sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, true);
 					sim->order_fauna_walk(local_player(), sel_ptr, sel_n, click_pos.x, click_pos.z);
 				}
@@ -861,7 +866,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (turn_cmds())
 					post_lockstep(11, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 				else
-					sim->order_patrol(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
+					{
+						apply_default_formation(sel_ptr, sel_n);
+						sim->order_patrol(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
+					}
 				play_civ_voice("select");
 				patrol_mode = false;
 				return;
