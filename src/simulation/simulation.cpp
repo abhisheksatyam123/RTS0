@@ -1083,6 +1083,13 @@ void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
 	resources_.z[it->second] = z;
 }
 
+void Simulation::set_fauna_position(uint32_t fauna_id, float x, float z) {
+	auto it = fauna_id_to_idx_.find(fauna_id);
+	if (it == fauna_id_to_idx_.end()) return;
+	fauna_.pos_x[it->second] = fauna_.home_x[it->second] = x;
+	fauna_.pos_z[it->second] = fauna_.home_z[it->second] = z;
+}
+
 void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	auto it = res_id_to_idx_.find(res_id);
 	if (it == res_id_to_idx_.end()) return;
@@ -12010,6 +12017,14 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
+		// A razed structure stays as a wreck (rubble), where 0 A.D. destroys the entity: its
+		// attackers' target is gone, as above. Arrows on the way razing it, or another unit
+		// felling it, would otherwise leave archers shooting at rubble and melee units looting it again.
+		if (b.wrecked || b.hp <= 0.0f) {
+			units_.target_building_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
 		const bool capture = capture_strength > 0.0f && units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 		if (!capture && (!can_attack(units_.team[i], b.team) || units_.attack_damage[i] <= 0.0f ||
 				!unit_can_target_building(i, b.type))) { // dogs never attack structures, rams never fields
@@ -28048,8 +28063,8 @@ uint8_t Simulation::fow_state_at(float x, float z, uint8_t viewer_team) const {
 }
 
 bool Simulation::is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team) const {
-	// Teams and reciprocal alliances expose allied entities, never enemies.
-	if (is_ally(viewer_team, entity_team)) return true;
+	// Own entities, and an ally's once sight is shared (Cartography); the rest only in sight.
+	if (shares_los(viewer_team, entity_team)) return true;
 	return fow_state_at(x, z, viewer_team) == FOW_VISIBLE;
 }
 

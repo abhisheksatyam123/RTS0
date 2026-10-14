@@ -19,6 +19,8 @@
 // 6. Before Start a joiner reuses the lowest free id 1-7 (the setup seats and
 //    lists only clients 0-7), however many came and went; after Start ids stay
 //    unique, since the turn manager still knows a dropped client's id.
+// 7. 0.28 reportConnectionRequestTimeOut: a connect nobody answers gives up
+//    (reason 0) instead of waiting forever.
 #include "network/net_host.h"
 #include "network/chat_routing.h"
 
@@ -244,6 +246,28 @@ int main() {
 			pump(started, none, 200, [&] { return false; });
 		}
 		CHECK(ids == (std::vector<uint32_t>{1, 2, 3}), "after Start each joiner gets a new peer id");
+	}
+
+	// 7. Nobody listens on the port.
+	{
+		uint16_t dead_port = 0;
+		{
+			NetHost gone;
+			gone.startHost(c);
+			dead_port = gone.localPort();
+			gone.stop();
+		}
+		std::vector<std::unique_ptr<NetHost>> lonely;
+		lonely.push_back(std::make_unique<NetHost>());
+		lonely[0]->setLocalPlayerName("lonely");
+		lonely[0]->startClient("127.0.0.1", dead_port);
+		NetHost idle;
+		idle.startHost(c);
+		const uint64_t t0 = now_ms();
+		pump(idle, lonely, 20000, [&] { return lonely[0]->connectionLost(); });
+		const uint64_t took = now_ms() - t0;
+		CHECK(lonely[0]->connectionLost() && lonely[0]->disconnectReason() == 0 && took >= 10000 && took < 15000,
+		      "a connect nobody answers times out after about 11 s (reason 0)");
 	}
 
 	if (failures) {
