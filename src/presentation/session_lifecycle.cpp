@@ -562,7 +562,22 @@ void RtsoMain::_ready() {
 		};
 		caption(tr("Game Paused"), -20.0f, 28);
 		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
-		pause_by_label_ = caption("", 50.0f, 14);
+		// "Paused by" names each client in its player's colour, so it is bbcode.
+		pause_by_label_ = memnew(RichTextLabel);
+		pause_by_label_->set_use_bbcode(true);
+		pause_by_label_->set_fit_content(true);
+		pause_by_label_->set_scroll_active(false);
+		pause_by_label_->set_anchor(SIDE_LEFT, 0.3f);
+		pause_by_label_->set_anchor(SIDE_RIGHT, 0.7f);
+		pause_by_label_->set_anchor(SIDE_TOP, 0.4f);
+		pause_by_label_->set_anchor(SIDE_BOTTOM, 0.4f);
+		pause_by_label_->set_offset(SIDE_TOP, 50.0f);
+		pause_by_label_->set_offset(SIDE_BOTTOM, 72.0f);
+		pause_by_label_->add_theme_font_size_override("normal_font_size", 14);
+		pause_by_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		pause_by_label_->add_theme_constant_override("outline_size", 4);
+		pause_by_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		pause_overlay_->add_child(pause_by_label_);
 	}
 	ui_layer->add_child(pause_overlay_);
 
