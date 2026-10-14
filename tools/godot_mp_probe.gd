@@ -173,6 +173,19 @@ func _run() -> void:
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
 					str(st.get("chat", "")).count("has rejoined the game.")])
+			# 0.28 PauseOverlay: the client sees "Paused by" the host's name in its colour.
+			if role == "host":
+				main.toggle_pause()
+				await _wait(4.0)
+				main.toggle_pause()
+			else:
+				var by := ""
+				for i in 40:
+					by = str(main.debug_dialogs().get("overlay_by", ""))
+					if by != "":
+						break
+					await _wait(0.2)
+				_say("paused_by=" + by)
 			break
 	var leave: String = args.get("leave", "")
 	if leave == role:
