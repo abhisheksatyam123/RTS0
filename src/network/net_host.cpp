@@ -603,9 +603,12 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 	uint32_t sender_peer_id = hdr.peer_id;
 
 	if (isHost()) {
+		// Only a session still open speaks for its address: a client that left
+		// keeps its entry, and the OS can hand its port to a new client, whose
+		// connect must then open a session of its own (not be told the old id).
 		NetPeer *peer = nullptr;
 		for (auto &p : peers_) {
-			if (p.address == from_ip && p.port == from_port) {
+			if (p.connected && p.address == from_ip && p.port == from_port) {
 				peer = &p;
 				break;
 			}

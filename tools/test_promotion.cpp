@@ -295,6 +295,19 @@ int main() {
 		CHECK(s.units_.tmpl[idx(s, u)] == imm);
 	}
 
+	// Promotion to another template keeps a citizen soldier gathering: the new template's
+	// gatherer-class capacity, as at spawn (Marian Reforms sends Roman spearmen up the chain).
+	{
+		fresh(s, CIV_ROMANS);
+		const uint16_t sp = tmpl_of("rome/infantry_spearman_b"), con = tmpl_of("rome/infantry_spearman_conscript");
+		const size_t a = idx(s, s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, sp));
+		const size_t b = idx(s, s.spawn_unit(3.0f, 0.0f, 0, (UnitType)civ_unit_template(con).unit_type, 0.0f, con));
+		CHECK(s.units_.carry_capacity[a] > 0);
+		s.promote_unit(a, con, 1);
+		CHECK(s.units_.tmpl[a] == con);
+		CHECK(s.units_.carry_capacity[a] == s.units_.carry_capacity[b] && s.units_.carry_capacity[a] > 0);
+	}
+
 	// RequiredXp auras: Han Xin's Northern Army (a 30 m range aura, Citizen Soldiers -20%)
 	// reaches only nearby soldiers of his owner.
 	{

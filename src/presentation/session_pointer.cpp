@@ -152,7 +152,9 @@ void RtsoMain::update_cursor() {
 					}
 					// 0 A.D. "capture" is the default on enemy structures; session.attack
 					// (or attack-move's Ctrl) attacks instead.
-					if (b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD && sim->field_resource_id(b.id))
+					// unit_actions "gather" (specificness 1): any player's finished field.
+					const uint32_t grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
+					if (grain && sim->any_can_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), grain))
 						want = "action-gather-grain";
 					else if (b.team != me && sim->is_hostile(me, b.team))
 						want = (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||

@@ -836,6 +836,9 @@ inline constexpr float HEAL_HP = 5.0f;
 // 0.28 template_unit_hero_healer.xml Heal: Health 15, Range 20 (m, before COMBAT_DISTANCE_SCALE).
 inline constexpr float HERO_HEAL_HP = 15.0f;
 inline constexpr float HERO_HEAL_RANGE = 20.0f;
+// 0.28 template_unit_champion_support_healer.xml Heal: Health 10, Range 20 (the Seeress).
+inline constexpr float CHAMPION_HEAL_HP = 10.0f;
+inline constexpr float CHAMPION_HEAL_RANGE = 20.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
@@ -1106,6 +1109,9 @@ inline bool unit_is_ship(uint8_t type) {
 // a land unit's or animal's centre comes to a structure. "default" 0.8 m, "large" 3 m.
 inline constexpr float CLEARANCE_DEFAULT = 0.8f / 4.0f;
 inline constexpr float CLEARANCE_LARGE = 3.0f / 4.0f;
+// helpers/MapEdgeTiles.h MAP_EDGE_TILES in RTS0 units: 3 terrain tiles (12 m). On a circular map
+// CCmpPathfinder makes everything that far inside the LOS circle's edge impassable to every class.
+inline constexpr float MAP_EDGE_DIST = 12.0f / 4.0f;
 
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
@@ -1174,6 +1180,7 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
 		case UNIT_WAGON:
+		case UNIT_WORKER_ELEPHANT: // maur/support_elephant: template_unit_support
 			return STANCE_PASSIVE;
 		case UNIT_CATAFALQUE:
 			return STANCE_STAND_GROUND; // template_unit_catafalque UnitAI/DefaultStance
@@ -2324,6 +2331,29 @@ inline int unit_pop_bonus(uint16_t tmpl) {
 inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
 	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & TC_HEALER) != 0;
+}
+
+// Heal/Range and Heal/Health of a healer's template, in metres before COMBAT_DISTANCE_SCALE:
+// template_unit_support_healer 12 m / 5, template_unit_champion_support_healer 20 m / 10,
+// template_unit_hero_healer 20 m / 15.
+inline float unit_heal_range_base(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_HERO) return HERO_HEAL_RANGE;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_RANGE;
+	return 12.0f;
+}
+// UnitAI/DefaultStance of the unit's template where it differs from its RTS0 class: siege towers
+// (template_unit_siege) and the Seeress (template_unit_champion_support_healer) are aggressive.
+inline uint8_t unit_default_stance(uint8_t type, uint16_t tmpl) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint16_t flags = civ_unit_template(tmpl).flags;
+		if ((flags & ROSTER_SIEGE_TOWER) || (type == UNIT_HEALER && (flags & ROSTER_CHAMPION))) return STANCE_AGGRESSIVE;
+	}
+	return unit_default_stance(type);
+}
+inline float unit_heal_hp_base(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_HERO) return HERO_HEAL_HP;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_HP;
+	return HEAL_HP;
 }
 
 // 0 A.D. UnitMotion/PassabilityClass "large": template_unit_siege, every elephant
