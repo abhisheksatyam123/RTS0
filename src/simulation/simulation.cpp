@@ -21485,6 +21485,11 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		if (c.size() > n) c.resize(n);
 		return c;
 	};
+	// attackPlan.js update: units pick among getEnemyUnits(targetPlayer) and
+	// getEnemyStructures(targetPlayer), not every enemy's.
+	auto of_target_player = [&](uint8_t team) {
+		return plan.target_player < MAX_PLAYERS ? team == plan.target_player && petra_foe(team) : petra_foe(team);
+	};
 	auto target_is_soft = [&](int32_t j) { // no target, or a structure or support unit
 		if (units_.target_building_id[j] != 0 || units_.target_unit_id[j] == 0) return true;
 		const int32_t t = lookup_unit(units_.target_unit_id[j]);
@@ -21554,7 +21559,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		std::vector<std::pair<float, size_t>> c;
 		for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 			const Building &b = buildings_[bi];
-			if (b.hp <= 0.0f || b.wrecked || !petra_foe(b.team)) continue;
+			if (b.hp <= 0.0f || b.wrecked || !of_target_player(b.team)) continue;
 			if (siege_unit && b.build_progress <= 0.0f) continue;
 			const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
 			if (dx * dx + dz * dz > range2 || petra_building_land(b) != land) continue;
@@ -21601,7 +21606,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		const bool chases_fleeing = !(c & (TC_CAVALRY | TC_RANGED));
 		std::vector<std::pair<float, int32_t>> foes;
 		for (size_t j = 0; j < units_.count; ++j) {
-			if (!units_.alive[j] || !petra_foe(units_.team[j]) || units_.action_state[j] == ACTION_GARRISONED) continue;
+			if (!units_.alive[j] || !of_target_player(units_.team[j]) || units_.action_state[j] == ACTION_GARRISONED) continue;
 			const float dist2 = d2(i, (int32_t)j);
 			if (dist2 > range2) continue;
 			if (chases_fleeing && (cls((int32_t)j) & TC_FEMALECITIZEN) && units_.action_state[j] == ACTION_FLEE) continue;
