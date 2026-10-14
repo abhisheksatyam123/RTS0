@@ -2782,7 +2782,8 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
-	if (t.civ != ps.civ) return false;
+	// A shrine trains units/{native}/support_healer_e: its own civ's, whoever holds it.
+	if (t.civ != (b.type == BLD_SHRINE ? b.civ : ps.civ)) return false;
 	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
@@ -3894,7 +3895,7 @@ bool Simulation::can_barter(uint8_t player_id) const {
 	// Player.js CanBarter: the player owns an entity with the Barter class (the Market).
 	if (player_id >= MAX_PLAYERS) return false;
 	for (const auto &b : buildings_)
-		if (b.team == player_id && b.type == BLD_MARKET && b.build_progress >= 1.0f && b.hp > 0.0f) return true;
+		if (b.team == player_id && is_land_market(b.type) && b.build_progress >= 1.0f && b.hp > 0.0f) return true;
 	return false;
 }
 
@@ -4049,7 +4050,7 @@ bool Simulation::can_trade_at(uint8_t trader_owner, const Building &b, uint8_t t
 	// Trader.js CanTrade: a finished market whose owner the trader's owner is not
 	// at war with. Market TradeType: markets are "land", docks "land naval", so
 	// land traders use markets and docks, merchant ships docks only.
-	const bool kind = trader_type == UNIT_MERCHANT_SHIP ? b.type == BLD_DOCK : (b.type == BLD_MARKET || b.type == BLD_DOCK);
+	const bool kind = trader_type == UNIT_MERCHANT_SHIP ? b.type == BLD_DOCK : (is_land_market(b.type) || b.type == BLD_DOCK);
 	return kind && b.build_progress >= 1.0f && b.hp > 0.0f &&
 	       b.team < MAX_PLAYERS && trader_owner < MAX_PLAYERS && !is_hostile(trader_owner, b.team);
 }
@@ -6424,6 +6425,14 @@ int Simulation::structure_garrison_cap(const Building &b) const {
 // Minister seat, and a Han player capturing another civ's structure gains none.
 bool Simulation::structure_accepts_classes(const Building &b, TechClasses classes) const {
 	return garrison_list_matches(structure_garrison_list(b.type, b.civ), classes);
+}
+
+void Simulation::set_building_civ(uint32_t building_id, uint8_t civ) {
+	auto it = building_id_to_idx_.find(building_id);
+	if (it == building_id_to_idx_.end() || civ >= CIV_COUNT) return;
+	Building &b = buildings_[it->second];
+	b.civ = civ;
+	b.garrison_cap = structure_garrison_cap(b);
 }
 
 void Simulation::set_team_civ(uint8_t team, uint8_t civ) {
@@ -11916,6 +11925,7 @@ int32_t Simulation::projectile_hit_structure(const Projectile &p) const {
 // Projectile p hits structure b (Attacking.HandleAttackEffects): its effects against the
 // structure's resistance at impact; a structure brought to nothing is razed.
 void Simulation::projectile_hits_structure(const Projectile &p, Building &b) {
+	if (!structure_has_health(b.type)) return; // Health disabled: arrows bounce off
 	const float dmg = projectile_damage_to_structure(p, b);
 	note_attacked(p.source_id, p.team, b.id, b.team, true, dmg);
 	award_structure_damage_xp(p.source_id, b, dmg);
@@ -12892,7 +12902,7 @@ void Simulation::tick_death_damage(float dt) {
 			record_unit_death(i, owner);
 		}
 		for (Building &b : buildings_) {
-			if (b.wrecked || b.hp <= 0.0f || (b.team < MAX_PLAYERS && !hurts(b.team))) continue;
+			if (b.wrecked || b.hp <= 0.0f || !structure_has_health(b.type) || (b.team < MAX_PLAYERS && !hurts(b.team))) continue;
 			if (b.team >= MAX_PLAYERS && !dd.friendly_fire && !is_hostile(owner, b.team)) continue;
 			const nav::Vec2 gap = nav::footprint_gap(b, ox, oz);
 			const float d2 = gap.x * gap.x + gap.y * gap.y;
@@ -12995,7 +13005,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 	}
 	bool nav_changed = false, territory_changed = false;
 	for (Building &b : buildings_) {
-		if (b.wrecked || b.hp <= 0.0f || !hurts(b.team)) continue;
+		if (b.wrecked || b.hp <= 0.0f || !structure_has_health(b.type) || !hurts(b.team)) continue;
 		const nav::Vec2 gap = nav::footprint_gap(b, ox, oz); // the distance to its footprint's edge
 		const float d2 = gap.x * gap.x + gap.y * gap.y;
 		if (d2 >= r2) continue;
@@ -14116,6 +14126,7 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 		if (it == building_id_to_idx_.end()) continue;
 		Building &b = buildings_[it->second];
 		if (b.team != player || b.wrecked) continue;
+		if (!structure_has_health(b.type)) continue; // mixins/shrine.xml, trading_post.xml Identity/Undeletable
 		// Commands.js delete-entities: not while the owner holds under half the capture points.
 		if (b.max_capture_points > 0.0f && b.build_progress >= 1.0f &&
 				b.capture_points_by_team[player] < b.max_capture_points * 0.5f)
@@ -17256,7 +17267,7 @@ void Simulation::petra_check_routes(PetraTradeRoutes &out) const {
 	auto finished = [](const Building &b) { return b.build_progress >= 1.0f; };
 	std::vector<const Building *> own, ally;
 	for (const Building &b : buildings_) {
-		if ((b.type != BLD_MARKET && b.type != BLD_DOCK) || !standing(b) || b.team >= MAX_PLAYERS) continue;
+		if ((!is_land_market(b.type) && b.type != BLD_DOCK) || !standing(b) || b.team >= MAX_PLAYERS) continue;
 		if (b.team == petra_pid_) own.push_back(&b);
 		else if (is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team)) ally.push_back(&b);
 	}
@@ -17305,7 +17316,7 @@ const Simulation::PetraTradeRoute *Simulation::petra_route_for(const PetraTradeR
 int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_gain) const {
 	out_gain = 0;
 	std::vector<const Building *> markets;
-	auto trade = [](const Building &b) { return (b.type == BLD_MARKET || b.type == BLD_DOCK) && b.hp > 0.0f && !b.wrecked; };
+	auto trade = [](const Building &b) { return (is_land_market(b.type) || b.type == BLD_DOCK) && b.hp > 0.0f && !b.wrecked; };
 	for (const Building &b : buildings_)
 		if (trade(b) && b.team < MAX_PLAYERS && b.team != petra_pid_ && is_ally(petra_pid_, b.team) &&
 		    !is_hostile(petra_pid_, b.team))
@@ -27786,7 +27797,7 @@ void Simulation::rebuild_auras() {
 	// Kushite pyramids and Temple of Amun, the Mauryan pillar, the civ temples' healing).
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.team >= MAX_PLAYERS) continue;
-		if (b.type == BLD_TEMPLE) {
+		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE) { // the shrines keep the temple's Auras
 			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
 				b.x, b.z, -1, CC_HUMAN);
 		}

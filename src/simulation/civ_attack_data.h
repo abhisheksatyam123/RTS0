@@ -52,7 +52,7 @@ struct CombatProfile {
 // 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).
 inline constexpr float COMBAT_DISTANCE_SCALE = 0.28f;
 
-inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 457; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 463; // = CIV_UNIT_TEMPLATE_COUNT
 inline const CombatProfile *combat_template_table() {
 	static const CombatProfile kTable[COMBAT_TEMPLATE_COUNT] = {
 		{{0x0000000000000532ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0, 0.4f, 70.0f, 35.0f, 1.75f, 0.0f, true, {130, 10, 5, 0, 0}, 0}, // athen/cavalry_javelineer_b
@@ -512,6 +512,12 @@ inline const CombatProfile *combat_template_table() {
 		{{0x0000000000000530ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f, 5.0f, 0.0f, true, {150, 8, 6, 0, 8}, 0}, // rome/champion_infantry_swordsman_first
 		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 5.585f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {100, 10, 10, 10, 10}, 0}, // germ/support_wagon
 		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 5.585f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {100, 10, 10, 10, 10}, 0}, // germ/support_wagon_house
+		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {8, 10, 0, 0, 3}, 0}, // pers/support_healer_e
+		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {8, 10, 0, 0, 3}, 0}, // rome/support_healer_e
+		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {8, 10, 0, 0, 3}, 0}, // mace/support_healer_e
+		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {8, 10, 0, 0, 3}, 0}, // gaul/support_healer_e
+		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {8, 10, 0, 0, 3}, 0}, // ptol/support_healer_e
+		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {8, 10, 0, 0, 3}, 0}, // han/support_healer_e
 	};
 	return kTable;
 }
@@ -552,7 +558,7 @@ inline const CombatProfile *combat_class_table() {
 inline constexpr uint8_t COMBAT_CLASS_ROWS = 27; // = UNIT_TYPE_COUNT
 
 // Structures by BuildingType; types past the table use the generic structure row.
-inline constexpr uint8_t COMBAT_BUILDING_ROWS = 69;
+inline constexpr uint8_t COMBAT_BUILDING_ROWS = 71;
 inline const CombatProfile *combat_building_table() {
 	static const CombatProfile kTable[COMBAT_BUILDING_ROWS + 1] = {
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 29.0f, 35.0f, 3.0f, 18.054f, 0, 0.0f, 0.0f, 1, 0.4f, 100.0f, 50.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -624,6 +630,8 @@ inline const CombatProfile *combat_building_table() {
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 24.0f, 30.0f, 3.0f, 11.396f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_GREAT_HALL: structures/germ/great_hall
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 15.0f, 35.0f, 3.0f, 20.0f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_WAGON_ENCAMPMENT: structures/germ/encampment
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 35.0f, 3.0f, 20.0f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
+		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 12.0f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_SHRINE: structures/shrine_greek_01
+		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 14.669f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_TRADING_POST: structures/trading_post_desert
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 1.0f, 10.0f, 1.0f, 0.0f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // default: template_structure
 	};
 	return kTable;
