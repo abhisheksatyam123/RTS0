@@ -5,7 +5,10 @@ extends SceneTree
 #   2. closeOpenDialogs: opening chat, diplomacy, Barter & Trade or match
 #      settings closes the others, and Esc closes them all at once;
 #   3. ChatMessageFormatPlayer: your line reads "<name> text", "(Ally) <name>
-#      text" to allies and "* name text" with /me; no placeholder line.
+#      text" to allies and "* name text" with /me; no placeholder line;
+#   4. g_NetworkCommands in single player: /kick and /kickspecs say there is
+#      nobody to kick, /list names the users, /clear empties the history, and
+#      none of them is shown as a chat line.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_session_dialogs.gd
 # Exit code 0 = pass.
@@ -107,6 +110,27 @@ func run() -> void:
 	check(re.search(log) != null, "your line reads <name> hello there")
 	check(not log.contains("[All]") and not log.contains("Athenians:"), "without the old [All] Civ: prefix")
 	check(RegEx.create_from_string("\\* \\S.* waves").search(log) != null, "/me reads * name waves")
+
+	print("4. Chat commands")
+	for cmd in ["/kick bob", "/banspecs", "/list"]:
+		main.toggle_chat()
+		await frames(2)
+		le.text = cmd
+		main._on_chat_send_pressed()
+		await frames(2)
+	log = dlg()["chat_log"]
+	print("  log: ", log.strip_edges().replace("\n", " | "))
+	check(log.contains("Offline game! Can not kick or ban."), "/kick: Offline game! Can not kick or ban.")
+	check(log.contains("Offline game! No spectators to kick or ban."), "/banspecs: Offline game! No spectators to kick or ban.")
+	check(RegEx.create_from_string("Users \\(1\\): \\S").search(log) != null, "/list: Users (1): <you>")
+	check(not log.contains("> /kick") and not log.contains("> /list") and not log.contains("> /banspecs"),
+		"the commands are not chat lines")
+	main.toggle_chat()
+	await frames(2)
+	le.text = "/clear"
+	main._on_chat_send_pressed()
+	await frames(2)
+	check(dlg()["chat_log"].strip_edges() == "", "/clear empties the history: " + dlg()["chat_log"].strip_edges())
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

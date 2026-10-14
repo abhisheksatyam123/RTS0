@@ -4,6 +4,8 @@
 
 #include "main_node.h"
 #include "l10n.h"
+#include <godot_cpp/classes/style_box_flat.hpp>
+#include <cmath>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
@@ -237,6 +239,30 @@ void RtsoMain::_ready() {
 	time_notification_label_->add_theme_constant_override("outline_size", 4);
 	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 	ui_layer->add_child(time_notification_label_);
+
+	// NetworkDelayOverlay.xml: size="100%-300 60 100%-110 80", mono-10, white,
+	// right-aligned, on "color: 0 0 0 100".
+	net_delay_label_ = memnew(Label);
+	net_delay_label_->set_name("NetDelayOverlay");
+	net_delay_label_->set_anchor(SIDE_LEFT, 1.0f);
+	net_delay_label_->set_anchor(SIDE_RIGHT, 1.0f);
+	net_delay_label_->set_offset(SIDE_LEFT, -300.0f);
+	net_delay_label_->set_offset(SIDE_RIGHT, -110.0f);
+	net_delay_label_->set_offset(SIDE_TOP, 60.0f);
+	net_delay_label_->set_offset(SIDE_BOTTOM, 80.0f);
+	net_delay_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
+	net_delay_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_TOP);
+	net_delay_label_->add_theme_font_size_override("font_size", 10);
+	net_delay_label_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+	{
+		Ref<StyleBoxFlat> bg;
+		bg.instantiate();
+		bg->set_bg_color(Color(0.0f, 0.0f, 0.0f, 100.0f / 255.0f));
+		net_delay_label_->add_theme_stylebox_override("normal", bg);
+	}
+	net_delay_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	net_delay_label_->set_visible(false);
+	ui_layer->add_child(net_delay_label_);
 
 	cursor_tip_ = memnew(Label);
 	cursor_tip_->add_theme_font_size_override("font_size", 13);
@@ -971,6 +997,7 @@ void RtsoMain::_process(double delta) {
 	}
 
 	update_hud();
+	update_net_delay_overlay(delta);
 	if (sim && time_notification_label_) {
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
@@ -1056,6 +1083,7 @@ void RtsoMain::_process(double delta) {
 	if (!selected_ids.is_empty() || selected_building_id != 0) inspector_.clear();
 	update_inspector();
 	update_command_panel();
+	follow_player_tick();
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
@@ -1265,4 +1293,27 @@ void RtsoMain::_process(double delta) {
 				: "OBSERVING\nYou are watching this match. The map is revealed.");
 		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
 	}
+}
+
+// 0.28 NetworkDelayOverlay.CheckDelay, once a second: the turns this client
+// has in hand but hasn't run (Engine.GetPendingTurns); from MAX_LIVE_DELAY (6)
+// on it shows how far behind the live game that is, at 5 turns a second, to
+// one decimal under 5 s. Observer catch-up itself is the turn manager's
+// (network.autocatchup).
+void RtsoMain::update_net_delay_overlay(double delta) {
+	if (!net_delay_label_) return;
+	net_delay_check_s_ += delta;
+	if (net_delay_check_s_ < 1.0) return;
+	net_delay_check_s_ = 0.0;
+	constexpr uint32_t kMaxLiveDelay = 6, kTurnsPerSecond = 5;
+	const uint32_t delay = debug_net_delay_turns_ >= 0 ? (uint32_t)debug_net_delay_turns_
+		: net_lockstep() ? turn_mgr_.turns_behind() : 0;
+	if (delay < kMaxLiveDelay) {
+		net_delay_label_->set_visible(false);
+		return;
+	}
+	const double s = (double)delay / kTurnsPerSecond;
+	const String secs = s < 5.0 ? String::num(s, 1).pad_decimals(1) : String::num_int64((int64_t)std::llround(s));
+	net_delay_label_->set_text(rtso::sprintf0(tr("Delay to live stream: %(delay)ss"), {{"delay", secs}}));
+	net_delay_label_->set_visible(true);
 }

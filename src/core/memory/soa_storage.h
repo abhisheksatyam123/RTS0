@@ -214,7 +214,7 @@ struct UnitSoA {
 		speed[i] = info.speed;
 		death_timer[i] = 0.0f;
 		target_unit_id[i] = 0; target_resource_id[i] = 0; target_building_id[i] = 0;
-		stance[i] = unit_default_stance(u_type);
+		stance[i] = unit_default_stance(u_type, u_tmpl);
 		formation[i] = FORMATION_NONE;
 		kills[i] = 0;
 		rank[i] = 1;

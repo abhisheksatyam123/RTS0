@@ -167,6 +167,26 @@ int main() {
 		CHECK(std::fabs(s.units().pos_x[idx_of(s, h)]) < 1.0f); // healed without walking up
 	}
 
+	// 6b. The Seeress (template_unit_champion_support_healer) heals 10 hp at range 20 and is
+	//     aggressive; support healers keep 5 hp at 12 and stay passive (UnitAI/DefaultStance).
+	{
+		fresh(s);
+		const uint16_t seer = tmpl_of("germ/champion_healer");
+		const uint16_t sup = tmpl_of("germ/support_healer_b");
+		const int32_t si = idx_of(s, s.spawn_unit(0.0f, 0.0f, 0, UNIT_HEALER, 0.0f, seer));
+		const int32_t hi = idx_of(s, s.spawn_unit(5.0f, 0.0f, 0, UNIT_HEALER, 0.0f, sup));
+		CHECK(s.heal_amount_of(si) == CHAMPION_HEAL_HP && s.heal_amount_of(hi) == HEAL_HP);
+		CHECK(std::fabs(s.healer_range_of(si) - s.healer_range_of(hi) - 8.0f * COMBAT_DISTANCE_SCALE) < 1e-4f);
+		CHECK(s.units().stance[si] == STANCE_AGGRESSIVE && s.units().stance[hi] == STANCE_PASSIVE);
+		// Siege towers (template_unit_siege) advance; bolt shooters stand ground; the Mauryan
+		// worker elephant (template_unit_support) is passive.
+		const int32_t ti = idx_of(s, s.spawn_unit(10.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, tmpl_of("mace/siege_tower")));
+		const int32_t bi = idx_of(s, s.spawn_unit(15.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, tmpl_of("rome/siege_scorpio_packed")));
+		const int32_t ei = idx_of(s, s.spawn_unit(20.0f, 0.0f, 0, UNIT_WORKER_ELEPHANT, 0.0f, tmpl_of("maur/support_elephant")));
+		CHECK(s.units().stance[ti] == STANCE_AGGRESSIVE && s.units().stance[bi] == STANCE_STAND_GROUND);
+		CHECK(s.units().stance[ei] == STANCE_PASSIVE);
+	}
+
 	// 7. Han ministry BuffHeal 1.
 	CHECK(building_garrison_heal(BLD_MINISTRY) == 1.0f);
 
