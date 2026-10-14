@@ -158,6 +158,11 @@ public:
 	// fruitBush. A tree also takes its template's wood (BiomeFlora tree*_wood). Hashed
 	// from seed like paint_terrain.
 	static void plant_flora(Simulation &sim, uint32_t seed, uint8_t type);
+	// Gives large stone quarries their template's MaxGatherers where it differs from
+	// template_gaia_rock_large's 24: the temperate and alpine biomes' stoneLarge
+	// (gaia/rock/temperate_large_02) takes 48 on the maps that place g_Gaia.stoneLarge,
+	// and Caledonian Meadows places that rock itself.
+	static void set_mine_gatherers(Simulation &sim, uint8_t type);
 
 private:
 	// Map-specific terrain synthesizers

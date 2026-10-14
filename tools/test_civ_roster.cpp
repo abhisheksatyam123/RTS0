@@ -107,7 +107,8 @@ int main()
 				rows_ok = false;
 				std::printf("      bad attack %u %s\n", i, u.id);
 			}
-			float split = u.hack_damage + u.pierce_damage + u.crush_damage;
+			// Fire (fire ships) has no roster column: it lives in civ_attack_data.h.
+			float split = u.hack_damage + u.pierce_damage + u.crush_damage + unit_combat(i, u.unit_type).fire;
 			if (split < u.attack_damage - 0.01f || split > u.attack_damage + 0.01f) {
 				rows_ok = false;
 				std::printf("      bad damage split %u %s\n", i, u.id);

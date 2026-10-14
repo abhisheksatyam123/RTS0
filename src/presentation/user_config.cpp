@@ -58,6 +58,7 @@ const Default kDefaults[] = {
 	{"gui.gamesetup.aibehavior", "random"},
 	{"gui.gamesetup.assignplayers", "everyone"},
 	{"lobby.buddies", ","},
+	{"lobby.columns.gamerating", "false"},
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},
 	{"gui.session.flarelifetime", "6"},
