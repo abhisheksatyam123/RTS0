@@ -20,6 +20,7 @@ extends CanvasLayer
 # or the main menu) starts the match scene with MatchSettings.load_save_path
 # set, and the scene loads it after building the map.
 const L10n := preload("res://scenes/menu/l10n.gd")
+const MSGBOX := preload("res://scenes/common/msgbox.gd")
 
 signal closed
 
@@ -45,8 +46,9 @@ var labels := {}
 var players_text: RichTextLabel
 var btn_ok: Button
 var btn_delete: Button
-var confirm: ConfirmationDialog
-var message: AcceptDialog
+# The open message box (scenes/common/msgbox.gd): a No/Yes question, or a notice; null when closed.
+var confirm: Control
+var message: Control
 var _description_changed := false
 var _selected_id := ""
 var _pending := ""
@@ -262,15 +264,17 @@ func delete_selected() -> void:
 	if not saves.is_empty():
 		select_save(mini(i, saves.size() - 1))
 
+## SavegameDeleter/SavegameWriter/SavegameLoader messageBox: No, Yes (500x250 for the load warning).
 func _ask(title: String, text: String, action: String) -> void:
 	_pending = action
-	confirm.title = title
-	confirm.dialog_text = text
-	confirm.popup_centered()
+	confirm = MSGBOX.open(self, 500, 250 if action == "load" else 200, text, title, [tr("No"), tr("Yes")])
+	confirm.answered.connect(func(i: int):
+		confirm = null
+		if i == 1: _on_confirmed())
 
 func _show_message(text: String) -> void:
-	message.dialog_text = text
-	message.popup_centered()
+	message = MSGBOX.open(self, 500, 200, text, tr("Error"))
+	message.answered.connect(func(_i): message = null)
 
 func _on_confirmed() -> void:
 	var s := selected_save()
@@ -350,7 +354,7 @@ func _held(hotkey: String) -> bool:
 	return _hotkeys.call("is_held", hotkey) if _hotkeys else Input.is_key_pressed(KEY_SHIFT)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventKey) or not event.pressed or confirm.visible or message.visible:
+	if not (event is InputEventKey) or not event.pressed or confirm != null or message != null:
 		return
 	if event.keycode == KEY_ESCAPE or _fired(event, "cancel"):
 		get_viewport().set_input_as_handled()
@@ -518,15 +522,6 @@ func _build() -> void:
 	players_text.add_theme_font_size_override("bold_font_size", 13)
 	valid.add_child(players_text)
 
-	confirm = ConfirmationDialog.new()
-	confirm.process_mode = Node.PROCESS_MODE_ALWAYS
-	confirm.ok_button_text = "Yes"
-	confirm.cancel_button_text = "No"
-	confirm.confirmed.connect(_on_confirmed)
-	add_child(confirm)
-	message = AcceptDialog.new()
-	message.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(message)
 
 func _read_json(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):

@@ -117,7 +117,9 @@ func run() -> void:
 	page = current_scene
 	check(page.mode == "load" and level_texts(page) == ["My run - Tutorial"], "the run is listed: " + str(level_texts(page)))
 	page.select(0)
-	page.delete_selected()
+	page.delete_pressed()
+	check(page.confirm != null and page.confirm.message.contains("Are you sure you want to delete run My run"), "Delete asks first (LoadModal messageBox)")
+	page.confirm.find_child("Button2", true, false).pressed.emit() # Yes
 	await frames(2)
 	check(not FileAccess.file_exists(made.path()) and CampaignRun.current_filename() == "", "Delete removes it and the current run")
 	check(page.empty_text.visible, "No saved campaigns.")

@@ -63,8 +63,9 @@ func run() -> void:
 	check(is_equal_approx(root.content_scale_factor, 1.25), "GUI scale applies at once")
 	check(page.has_unsaved_changes(), "the page knows about unsaved changes")
 	page._on_close()
-	check(page._confirm.visible, "Close with unsaved changes asks first")
-	page._confirm.visible = false
+	check(page._confirm != null and page._confirm.message.contains("unsaved changes"), "Close with unsaved changes asks first")
+	page._confirm.find_child("Button1", true, false).pressed.emit() # No
+	check(page._confirm == null and page.is_inside_tree(), "No keeps the page open")
 	page._on_save()
 	var text := cfg_text()
 	check(text.contains("sound.musicgain = \"0.4\"") and text.contains("gui.scale = \"1.25\""), "Save writes the changed values")
@@ -76,12 +77,15 @@ func run() -> void:
 	page._on_revert()
 	check(cfg.get_value("fog") == "true" and page._controls["fog"][1].button_pressed, "Revert goes back to the saved value")
 	page._on_reset()
+	check(page._confirm != null and page._confirm.message.contains("erase your saved settings"), "Reset asks first")
+	page._confirm.find_child("Button2", true, false).pressed.emit() # Yes
 	await frames(2)
 	check(cfg.get_value("sound.musicgain") == "0.2" and is_equal_approx(root.content_scale_factor, 1.0),
 		"Reset goes back to 0 A.D.'s defaults")
 	check(is_equal_approx(page._controls["sound.musicgain"][1].get_child(0).value, 0.2), "Reset updates the sliders")
-	page._on_revert()
-	check(cfg.get_value("sound.musicgain") == "0.4", "Revert after Reset restores the saved values")
+	check(not cfg_text().contains("sound.musicgain") and not page.has_unsaved_changes(), "and erases the saved settings")
+	page._controls["sound.musicgain"][1].get_child(0).value = 0.4
+	page._on_save()
 	# options.json dependencies: the water sub-options follow Water effects, the cutoff
 	# distance Cover whole map, the sharpness factor Sharpening.
 	var fancy: CheckBox = page._controls["waterfancyeffects"][1]
