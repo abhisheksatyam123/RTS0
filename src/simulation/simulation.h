@@ -1350,6 +1350,18 @@ public:
 	};
 	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type,
 			float angle = DEFAULT_BUILDING_ROT) const;
+	// What BuildRestrictions.CheckPlacement's GUI message names for `player` placing `b_type`
+	// with its centre at (x, z): the territories the template allows and the one found there
+	// (bits 1 own, 2 ally, 4 neutral, 8 enemy; `connected` false where an own or allied tile
+	// is cut off from its roots), and its Distance FromClass (0.28's class name, or null)
+	// with MinDistance in metres.
+	struct PlacementDetails {
+		uint8_t territory_allowed = 0, territory_found = 0;
+		bool connected = true;
+		const char *distance_class = nullptr;
+		float min_distance_m = 0.0f;
+	};
+	PlacementDetails placement_details(uint8_t player, uint8_t b_type, float x, float z) const;
 
 	// 0 A.D. WallSet walls (helpers/Walls.js GetWallPlacement, Commands.js "construct-wall").
 	struct WallPiece {
@@ -2292,7 +2304,8 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	void eject_corral_animals(const Building &b);
+	// unallied_only: those whose owner is not allied with the corral's (GarrisonHolder.OnGlobalOwnershipChanged).
+	void eject_corral_animals(const Building &b, bool unallied_only = false);
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
