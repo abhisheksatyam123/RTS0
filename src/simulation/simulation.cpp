@@ -3081,7 +3081,10 @@ void Simulation::tick_unit_production(float dt) {
 			float sx, sz;
 			if (!outside || !pick_spawn_point(at, order.unit_type, it->first, sx, sz)) break;
 			const uint32_t uid = spawn_unit(sx, sz, q.player, (UnitType)order.unit_type, 0.0f, order.tmpl);
-			if (const int32_t ti = lookup_unit(uid); ti >= 0) stat_unit_trained((size_t)ti);
+			if (const int32_t ti = lookup_unit(uid); ti >= 0) {
+				stat_unit_trained((size_t)ti);
+				face_away_from((size_t)ti, at.x, at.z);
+			}
 			if (civ_unit_template(order.tmpl).flags & ROSTER_HERO) match_trained_[q.player].push_back(order.tmpl);
 		}
 		if (n < order.count) {
@@ -7127,6 +7130,7 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 		if (!turret) {
 			units_.pos_x[idx] = ex;
 			units_.pos_z[idx] = ez;
+			face_away_from((size_t)idx, b.x, b.z);
 		}
 		units_.alive[idx] = 1;
 		units_.action_state[idx] = ACTION_IDLE;
@@ -7199,6 +7203,7 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 				if (!pick_spawn_point(b, units_.unit_type[idx], unit_id, ex, ez)) return;
 				units_.pos_x[idx] = ex;
 				units_.pos_z[idx] = ez;
+				face_away_from((size_t)idx, b.x, b.z);
 			}
 			units_.alive[idx] = 1;
 			units_.action_state[idx] = ACTION_IDLE;
@@ -8424,26 +8429,64 @@ float Simulation::unit_move_speed(size_t i) const {
 }
 
 // CCmpUnitMotion::PerformMove: a unit gains speed at its template's Acceleration up to its speed, and
-// drops to a lower one at once. Facing further from its way on than its InstantTurnAngle it stops (and
-// turns); nearer, it keeps cos(angle) of its speed. Ships never stop (InstantTurnAngle 10), so one
-// turning more than a right angle drifts on backwards until its speed passes zero, as 0.28's signed
-// speed does. Its velocity at the start of the tick (vel_x/z, saved) is its speed and facing, so a
-// unit at rest starts from nothing; turning time is not modelled. The step is negative while it drifts.
+// drops to a lower one at once. Facing further from its way on than its InstantTurnAngle it stops and
+// turns in place at its TurnRate (Position) until it is within that angle, then faces its way and
+// moves for the rest of the tick from rest; nearer, it faces its way at once and keeps cos(angle) of
+// its speed. Ships never stop (InstantTurnAngle 10), so one turning more than a right angle drifts on
+// backwards until its speed passes zero, as 0.28's signed speed does. Its velocity at the start of the
+// tick (vel_x/z, saved) is its speed along its heading (heading_x/z, saved). The step is negative while
+// it drifts, and 0 while it turns.
 float Simulation::accelerated_step(size_t i, float vx, float vz, float ux, float uz, float max_speed, float dt,
-		float *speed) const {
+		float *speed) {
 	const UnitMotionProfile &m = unit_motion(units_.tmpl[i], units_.unit_type[i]);
-	float s = std::sqrt(vx * vx + vz * vz);
-	if (s > 0.0f) {
-		const float c = (vx * ux + vz * uz) / s;
-		s = c < m.cos_instant_turn ? 0.0f : s * c;
+	float &hx = units_.heading_x[i], &hz = units_.heading_z[i];
+	const float c = hx * ux + hz * uz; // cos of the angle from its heading to its way on
+	if (c < m.cos_instant_turn) {
+		float t = dt;
+		if (m.turn_rate > 0.0f) {
+			const float over = std::max(0.0f, std::acos(std::max(c, -1.0f)) - m.instant_turn_angle);
+			const float turn = m.turn_rate * dt;
+			if (over > turn) {
+				// It turns as far as it can this tick, the nearer way round (to its left when its way
+				// on is right behind it).
+				const float side = ux * hz - uz * hx >= 0.0f ? 1.0f : -1.0f;
+				const float ct = std::cos(turn), st = std::sin(turn) * side;
+				const float nx = hx * ct + hz * st, nz = hz * ct - hx * st;
+				const float inv = 1.0f / std::sqrt(nx * nx + nz * nz);
+				hx = nx * inv;
+				hz = nz * inv;
+				*speed = 0.0f;
+				return 0.0f;
+			}
+			t -= over / m.turn_rate;
+		}
+		hx = ux;
+		hz = uz;
+		return accelerate(i, 0.0f, max_speed, t, speed);
 	}
-	if (s >= max_speed || m.acceleration <= 0.0f) {
+	const float s = (vx * hx + vz * hz) * c; // its speed along its heading, times cos(angle)
+	hx = ux;
+	hz = uz;
+	return accelerate(i, s, max_speed, dt, speed);
+}
+
+float Simulation::accelerate(size_t i, float s, float max_speed, float t, float *speed) const {
+	const float a = unit_motion(units_.tmpl[i], units_.unit_type[i]).acceleration;
+	if (s >= max_speed || a <= 0.0f) {
 		*speed = max_speed;
-		return max_speed * dt;
+		return max_speed * t;
 	}
-	const float t = std::min(dt, (max_speed - s) / m.acceleration);
-	*speed = s + m.acceleration * t;
-	return s * t + 0.5f * m.acceleration * t * t + max_speed * (dt - t);
+	const float ta = std::min(t, (max_speed - s) / a);
+	*speed = s + a * ta;
+	return s * ta + 0.5f * a * ta * ta + max_speed * (t - ta);
+}
+
+void Simulation::face_away_from(size_t i, float x, float z) {
+	const float dx = units_.pos_x[i] - x, dz = units_.pos_z[i] - z, l2 = dx * dx + dz * dz;
+	if (l2 < 1e-8f) return;
+	const float inv = 1.0f / std::sqrt(l2);
+	units_.heading_x[i] = dx * inv;
+	units_.heading_z[i] = dz * inv;
 }
 
 // How close a guard keeps to the unit it guards (Guard.js/UnitAI guardRange).
@@ -8888,6 +8931,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (!backing_off && stop_d2 <= stop_dist * stop_dist) {
 			vx[i] = 0;
 			vz[i] = 0;
+			// UnitAI FaceTowardsTarget: a unit attacking, healing or repairing another faces it at once.
+			const uint8_t work = units_.action_state[i];
+			if ((work == ACTION_ATTACK || work == ACTION_HEAL || work == ACTION_REPAIR) &&
+					units_.target_unit_id[i] != 0 && !using_path && d2 > 1e-6f) {
+				const float inv_d = 1.0f / std::sqrt(d2);
+				units_.heading_x[i] = dx * inv_d;
+				units_.heading_z[i] = dz * inv_d;
+			}
 			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) {
 				has[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
@@ -9283,9 +9334,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		}
 		if (!obstructed && w.x == next.x && w.y == next.y) return; // the way on from the corner is clear
 		// The step move_units gave it toward its aim (accelerated_step), or one from rest when it was
-		// obstructed: 0 A.D. loses the speed of a move that fails.
+		// obstructed: 0 A.D. loses the speed of a move that fails. It faces its short path's way at once.
 		float speed = std::sqrt(units_.vel_x[i] * units_.vel_x[i] + units_.vel_z[i] * units_.vel_z[i]);
-		const float reach = obstructed ? accelerated_step(i, 0.0f, 0.0f, 1.0f, 0.0f, unit_move_speed(i), dt, &speed)
+		const float reach = obstructed ? accelerate(i, 0.0f, unit_move_speed(i), dt, &speed)
 		                               : std::sqrt(want_x[i] * want_x[i] + want_z[i] * want_z[i]);
 		// A first waypoint within this tick's step is reached now and the unit keeps the second, as
 		// 0 A.D. follows the whole short path: heading straight for the aim from that corner would
@@ -9308,6 +9359,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		blocked[i] = 0;
 		units_.vel_x[i] = to.x / len * speed;
 		units_.vel_z[i] = to.y / len * speed;
+		units_.heading_x[i] = to.x / len;
+		units_.heading_z[i] = to.y / len;
 		memo = ShortPathMemo{keep.x, keep.y, aim.x, aim.y, key};
 	});
 }
@@ -10743,7 +10796,10 @@ void Simulation::tick_production(float dt) {
 				break;
 			}
 			uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
-			if (int32_t ti = lookup_unit(uid); ti >= 0) stat_unit_trained((size_t)ti);
+			if (int32_t ti = lookup_unit(uid); ti >= 0) {
+				stat_unit_trained((size_t)ti);
+				face_away_from((size_t)ti, b.x, b.z);
+			}
 			// MatchLimit: a trained hero counts for the rest of the match.
 			if (bteam < MAX_PLAYERS && done.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(done.tmpl).flags & ROSTER_HERO))
 				match_trained_[bteam].push_back(done.tmpl);
@@ -13134,6 +13190,8 @@ Simulation::UnitView Simulation::units() const {
 	v.xp = units_.xp;
 	v.pack_state = units_.pack_state;
 	v.pack_elapsed = units_.pack_elapsed;
+	v.heading_x = units_.heading_x;
+	v.heading_z = units_.heading_z;
 	v.count = units_.count;
 	return v;
 }
@@ -25010,7 +25068,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -25929,6 +25987,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 		if (ar.version >= SAVE_VERSION_PATROL_WAIT) ar.pod(U.patrol_wait[i]);
 		else U.patrol_wait[i] = 0.0f;
+		if (ar.version >= S::SAVE_VERSION_HEADING) {
+			ar.pod(U.heading_x[i]);
+			ar.pod(U.heading_z[i]);
+		} else if constexpr (Ar::loading) {
+			// Older saves faced each unit the way it was moving, else +z.
+			const float v = std::sqrt(U.vel_x[i] * U.vel_x[i] + U.vel_z[i] * U.vel_z[i]);
+			U.heading_x[i] = v > 0.0f ? U.vel_x[i] / v : 0.0f;
+			U.heading_z[i] = v > 0.0f ? U.vel_z[i] / v : 1.0f;
+		}
 		if (ar.version >= SAVE_VERSION_MOTION) {
 			ar.pod(U.short_path[i]);
 			ar.pod(U.motion[i]);
