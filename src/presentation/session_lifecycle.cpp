@@ -60,8 +60,10 @@ void RtsoMain::_ready() {
 			if (comma > 0) {
 				float fx = coords.substr(0, comma).to_float();
 				float fz = coords.substr(comma + 1).to_float();
-				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
-				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
+				const uint8_t sender = chat_player_of(guid);
+				const Color c = player_flare_color(sender);
+				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), c);
+				range_overlays_.add_flare(fx, fz, c, user_opts_.flare_time);
 				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 				// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
 				// "never", "observer" (only while observing) or "always".
@@ -728,7 +730,10 @@ void RtsoMain::_ready() {
 
 	// A replay or a saved game picked in the menus brings its own setup;
 	// otherwise Game Setup's match starts and is recorded as a replay.
-	if (!start_pending_replay() && !load_pending_save()) {
+	if (start_pending_replay()) {
+	} else if (load_pending_save()) {
+		if (!net_saved_game_.is_empty()) call_deferred("_start_menu_net"); // Host Saved Game
+	} else {
 		apply_match_settings();
 		begin_match_recording(nullptr);
 		call_deferred("_start_menu_net");
@@ -763,7 +768,11 @@ void RtsoMain::_process(double delta) {
 			start_net_speed(net_setup_.seq ? net_setup_.setup.speed : 100);
 			selected_ids.clear();
 			selected_building_id = 0;
-			if (lobby_status)
+			if (lobby_status && net_setup_.seq && net_setup_.setup.saved_game)
+				lobby_status->set_text(turn_mgr_.local_player() < rtso::MAX_PLAYERS
+						? "Loaded the host's saved game as Player " + String::num_int64(turn_mgr_.local_player() + 1)
+						: String("Loaded the host's saved game as an observer"));
+			else if (lobby_status)
 				lobby_status->set_text("Rejoined the match at turn " + String::num_int64(turn_mgr_.rejoin_turn()) +
 						" as Player " + String::num_int64(turn_mgr_.local_player() + 1));
 		}
@@ -1188,6 +1197,7 @@ void RtsoMain::_process(double delta) {
 						placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 					}
 				}
+				snap_placement_to_edges(current_build_type, cell_x, cell_y);
 				int footprint = rtso::building_type_info(current_build_type).footprint;
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;

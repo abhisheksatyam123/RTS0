@@ -186,6 +186,22 @@ _TEMPLATE_CACHE = {}
 # Structures only maps place, which RTS0 finds by template (sim_types.h map_structure_template).
 MAP_ONLY_STRUCTURE = re.compile(r"(^|/)(\w+/tower_bolt|\w+/tower_artillery|\w+/royal_stoa|hellenic_stoa|pers/inn|rome/tent|rome/arch)$")
 
+def unit_parents(source, tpl):
+    """The units/ templates a unit template inherits from, nearest first
+    (rome/champion_infantry_swordsman_03 -> _02, then champion_infantry_swordsman), so RTS0
+    can stand in the nearest roster row for a map-only variant."""
+    out = []
+    rel = tpl
+    while len(out) < 8:
+        root = _read_template(source, rel)
+        parent = root.get("parent", "") if root is not None else ""
+        if not parent.startswith("units/") or "|" in parent:
+            break
+        out.append(parent.split("/", 1)[1])
+        rel = parent
+    return out
+
+
 def _read_template(source, rel):
     """Parsed simulation/templates/<rel>.xml, or None if 0 A.D. has no such file."""
     for attempt in range(5):
@@ -868,14 +884,15 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     pass
                 elif any(k in ltpl for k in ["villager", "support_civilian", "citizen", "female"]):
                     units.append({"type": "villager", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["cavalry", "horse"]):
+                    # Before the infantry names: cavalry_spearman, cavalry_javelineer are cavalry.
+                    units.append({"type": "cavalry", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["infantry_melee", "swordsman", "champion"]):
                     units.append({"type": "swordsman", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["spearman", "hoplite", "phalanx", "pikeman"]):
                     units.append({"type": "spearman", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["infantry_ranged", "archer", "slinger", "skirmisher", "javelin", "ranged"]):
                     units.append({"type": "archer", "player": ply, "x": wx, "z": wz})
-                elif any(k in ltpl for k in ["cavalry", "horse"]):
-                    units.append({"type": "cavalry", "player": ply, "x": wx, "z": wz})
                 elif "trader" in ltpl:
                     units.append({"type": "trader", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["catapult", "onager", "ballista"]):
@@ -904,6 +921,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 if len(units) > n_units:
                     unit_index[uid] = n_units
                     units[-1]["template"] = short
+                    parents = unit_parents(files, tpl) if tpl.startswith("units/") else []
+                    if parents:
+                        units[-1]["parents"] = parents
                 if len(structures) > n_structures:
                     structures[-1]["template"] = short
 
@@ -1245,6 +1265,8 @@ github_scenarios = {
     "pickup_test_map": ("pickup_test_map", "mediterranean"),
     "unit_chasing_test": ("unit_chasing_test", "mediterranean"),
     "unit_dancing_test": ("unit_dancing_test", "mediterranean"),
+    "unit_pushing_test": ("unit_pushing_test", "mediterranean"),
+    "unit_motion_integration_test": ("unit_motion_integration_test", "mediterranean"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {

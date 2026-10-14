@@ -46,7 +46,7 @@ func run() -> void:
 
 	print("1. Cheats")
 	var page = await open_setup()
-	var cheats: CheckBox = page.get_node("VBox/HBox/LeftScroll/Left/MapVisRow/Cheats")
+	var cheats: CheckBox = page.get_node("%Cheats")
 	check(cheats.button_pressed and cheats.disabled, "cheats are on and can't be turned off")
 
 	print("2. Back keeps the page")
@@ -54,7 +54,7 @@ func run() -> void:
 	await frames(2)
 	page._on_slot_civ(0, 1)  # Random
 	page._on_slot_kind(2, 2)                 # Closed
-	var pop: RtsoSafeSelect = page.get_node("VBox/HBox/LeftScroll/Left/PopCapSlot").get_child(0)
+	var pop: RtsoSafeSelect = page.get_node("%PopCapSlot").get_child(0)
 	pop.select(2)
 	page._on_back_pressed()
 	await frames(6)
@@ -64,7 +64,7 @@ func run() -> void:
 	check(int(page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value) == 3, "three slots again")
 	check(rows.size() >= 3 and int(rows[1]["civ"]) == Setup.RANDOM_CIV, "slot 2 is still Random: %s" % (rows[1]["civ"] if rows.size() > 1 else "-"))
 	check(rows.size() >= 3 and int(rows[2]["kind"]) == 2, "slot 3 is still Closed")
-	pop = page.get_node("VBox/HBox/LeftScroll/Left/PopCapSlot").get_child(0)
+	pop = page.get_node("%PopCapSlot").get_child(0)
 	check(pop.get_selected() == 2, "the population limit is kept: %d" % pop.get_selected())
 
 	print("3. Start")
