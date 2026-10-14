@@ -28056,8 +28056,8 @@ uint8_t Simulation::fow_state_at(float x, float z, uint8_t viewer_team) const {
 }
 
 bool Simulation::is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team) const {
-	// Teams and reciprocal alliances expose allied entities, never enemies.
-	if (is_ally(viewer_team, entity_team)) return true;
+	// Own entities, and an ally's once sight is shared (Cartography); the rest only in sight.
+	if (shares_los(viewer_team, entity_team)) return true;
 	return fow_state_at(x, z, viewer_team) == FOW_VISIBLE;
 }
 
