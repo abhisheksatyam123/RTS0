@@ -1069,6 +1069,78 @@ int main() {
 		CHECK(format_game_start_full(none).find("ally=") == std::string::npos);
 	}
 
+	// 20. CaptureTheRelic.js: a relic changing hands, even within one side, restarts the
+	// countdown; a diplomacy change restarts it only when the winners change; the winners are
+	// every player mutually allied to all relic owners; nothing runs while Gaia holds one.
+	{
+		Simulation *sim = fresh(VICTORY_RELIC);
+		for (uint8_t p = 0; p < 3; ++p) sim->set_player_active(p, true, false);
+		sim->set_relic_count(2);
+		sim->set_relic_duration(60.0f);
+		sim->spawn_unit(-30.0f, 30.0f, 2, UNIT_VILLAGER);
+		sim->set_mutual_ally(0, 2);
+		run(*sim, 0.1f);
+		CHECK(sim->relics().size() == 2);
+		auto give = [&](size_t k, uint8_t p) { sim->units_.team[sim->lookup_unit(sim->relics()[k].id)] = p; };
+		CHECK(sim->relic_winners() == 0 && sim->relic_victory_timer() == 0.0f); // Gaia holds them
+		give(0, 0);
+		run(*sim, 5.0f);
+		CHECK(sim->relic_victory_timer() == 0.0f); // one still Gaia's
+		give(1, 0);
+		run(*sim, 30.0f);
+		CHECK(sim->relic_countdown_players() == 0b101 && sim->relic_victory_timer() > 29.0f);
+		give(1, 2); // to an ally: same winners, but a relic changed hands
+		run(*sim, 1.0f);
+		CHECK(sim->relic_countdown_players() == 0b101 && sim->relic_victory_timer() < 1.5f);
+		run(*sim, 20.0f);
+		const float before = sim->relic_victory_timer();
+		sim->set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL); // one-sided: winners unchanged, no restart
+		run(*sim, 1.0f);
+		CHECK(sim->relic_victory_timer() > before);
+		sim->set_mutual_ally(0, 1);
+		sim->set_mutual_ally(1, 2); // player 1 joins the winners: restart
+		run(*sim, 1.0f);
+		CHECK(sim->relic_countdown_players() == 0b111 && sim->relic_victory_timer() < 1.5f);
+		sim->set_diplomacy(0, 2, Simulation::DIPLO_ENEMY); // the owners fall out: no countdown
+		run(*sim, 1.0f);
+		CHECK(sim->relic_winners() == 0 && sim->relic_victory_timer() == 0.0f);
+		sim->set_mutual_ally(0, 2);
+		run(*sim, 30.0f);
+		CHECK(!sim->is_game_over() && sim->relic_victory_timer() > 29.0f);
+		// A save mid-countdown keeps the winners, so the loaded game does not restart.
+		const char *rpath = "test_victory_relic.sav";
+		CHECK(sim->save_state(rpath));
+		{
+			Simulation loaded;
+			CHECK(loaded.load_state(rpath));
+			CHECK(loaded.relic_countdown_players() == 0b111);
+			const float t0 = loaded.relic_victory_timer();
+			loaded.tick(0.05f);
+			CHECK(loaded.relic_victory_timer() > t0);
+		}
+		std::remove(rpath);
+		run(*sim, 31.0f);
+		CHECK(sim->is_game_over() && sim->winner_mask_ == 0b111); // player 1 holds no relic but wins
+		delete sim;
+	}
+	{
+		// Last Man Standing: two owners never count down, however allied.
+		Simulation *sim = fresh(VICTORY_RELIC);
+		for (uint8_t p = 0; p < 2; ++p) sim->set_player_active(p, true, false);
+		sim->set_last_man_standing(true);
+		sim->set_relic_count(2);
+		run(*sim, 0.1f);
+		sim->set_mutual_ally(0, 1);
+		sim->units_.team[sim->lookup_unit(sim->relics()[0].id)] = 0;
+		sim->units_.team[sim->lookup_unit(sim->relics()[1].id)] = 1;
+		run(*sim, 2.0f);
+		CHECK(sim->relic_winners() == 0 && sim->relic_victory_timer() == 0.0f);
+		sim->units_.team[sim->lookup_unit(sim->relics()[1].id)] = 0;
+		run(*sim, 2.0f);
+		CHECK(sim->relic_countdown_players() == 0b1 && sim->relic_victory_timer() > 1.5f);
+		delete sim;
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;

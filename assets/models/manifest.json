@@ -49494,6 +49494,22 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_germans_cult_statue": {
+   "file": "models/buildings/s_germans_cult_statue.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.378,
+    3.454,
+    0.365
+   ],
+   "sources": [
+    "actor:art/actors/structures/germans/cult_statue.xml",
+    "mesh:structural/germans/goth_cult_statue_a.dae",
+    "skin:structural/germ_cult_statue_diffuse.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
   "s_germans_encampment": {
    "animated": true,
    "animations": [
