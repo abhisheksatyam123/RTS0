@@ -118,7 +118,7 @@ class RtsoWorldView : public Node3D {
 	// Trees and fruit bushes with their own FloraKind (a ported map's templates, a
 	// random map's rmbiome trees) draw that plant, one batch per kind; FLORA_DEFAULT
 	// ones take the biome's pick above.
-	static constexpr int FLORA_KINDS = 27; // rtso::FLORA_COUNT
+	static constexpr int FLORA_KINDS = rtso::FLORA_COUNT; // the 27 families, then one per template (flora_data.h)
 	MultiMeshInstance3D *flora_mmi[FLORA_KINDS][TREE_VARIANTS] = {};
 	Ref<MultiMesh> flora_mm[FLORA_KINDS][TREE_VARIANTS];
 	float flora_scale[FLORA_KINDS] = {};

@@ -2072,7 +2072,7 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			// EndGameManager's, WonderVictory.js's and CaptureTheRelic.js's win lines.
 			static const char *kWhy[] = {"lost all critical units and structures", "lost all units", "lost all structures",
 					"lost all civic centers", "lost hero", "", "objective", "last players alive", "wonder victory",
-					"Capture the Relic", "game mode"};
+					"Capture the Relic", "game mode", "lost civic center"};
 			const String why = n.tech < sizeof(kWhy) / sizeof(kWhy[0]) ? String(kWhy[n.tech]) : String("game mode");
 			if (n.kind == N::DEFEATED) {
 				line = sprintf0(tr(n.tech == N::END_RESIGNED ? String("%(player)s has resigned.")
@@ -4395,6 +4395,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	int h_res = (int)d.get("heightmap_res", 64);
 
 	sim->set_map_half(world_size * 0.5f);
+	// 0.28 ScriptSettings CircularMap ("circular", from port_0ad_maps.py); square when absent.
+	sim->set_circular_map((bool)d.get("circular", false));
 	sim->set_map_info(map_id.utf8().get_data(), name.utf8().get_data(), biome.utf8().get_data());
 
 	Array h_arr = d.get("heightmap", Array());

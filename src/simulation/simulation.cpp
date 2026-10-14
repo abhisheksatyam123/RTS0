@@ -1173,6 +1173,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	cfg.trigger_difficulty = trigger_difficulty_;
 
 	set_sim_seed(seed);
+	set_circular_map(circular_map_choice_ ? circular_map_choice_ == 1 : map_circular((uint8_t)type));
 	RmsGenerator::generate(*this, cfg);
 	triggers_.difficulty = trigger_difficulty_; // Trigger.js SetDifficulty (generate reset the triggers)
 	// Daytime (danubius.js randBool(2/3) for day, polar_sea.js randBool(1/3) for dawn): drawn
@@ -7905,16 +7906,17 @@ uint8_t Simulation::stat_team_mask(uint8_t player_id) const {
 }
 
 // CCmpRangeManager::GetPercentMapExplored / GetUnionPercentMapExplored: the LOS cells
-// any of `players` (a bit mask) explored with its own vision, over every cell, rounded
+// any of `players` (a bit mask) explored with its own vision, over every in-world cell, rounded
 // down. Explored Map explores every cell (ExploreMap); Revealed Map explores nothing
 // by itself (LosRevealAll), so it counts what the player's units saw.
 float Simulation::explored_percent(uint8_t players) const {
 	if (explore_map_) return 100.0f;
 	const std::vector<uint16_t> &cells = los_.state();
-	if (cells.empty()) return 0.0f;
+	const size_t world = los_.in_world_cells(); // m_TotalInworldVertices: a circular map's circle
+	if (world == 0) return 0.0f;
 	size_t n = 0;
-	for (const uint16_t c : cells) n += ((c >> 8) & players) != 0;
-	return (float)(n * 100 / cells.size());
+	for (const uint16_t c : cells) n += ((c >> 8) & players) != 0; // off-world cells are never explored
+	return (float)(n * 100 / world);
 }
 
 float Simulation::percent_map_explored(uint8_t player_id) const {
@@ -14908,10 +14910,22 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // always walk around and reach foundations (0 A.D. placement uses obstruction
 // clearance for the same reason); tight packing left builders stranded.
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
-	if (!petra_ring_clear(cell_x, cell_y, footprint)) return false;
+	if (!petra_ring_clear(cell_x, cell_y, footprint, petra_clearance(btype))) return false;
 	return btype >= BLD_TYPE_COUNT || (!triggers_.building_disabled(petra_pid_, btype) &&
 	                                   check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
 	                                   petra_limit_allows_building(btype)); // EntityLimits
+}
+
+// queueplanBuilding.js findGoodPosition's gap round a structure (obstructionRadius + 0, 4 or 8 m):
+// 0 for houses, dropsites, fields and markets, which ought to stand close to each other or a
+// resource; 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest.
+uint8_t Simulation::petra_clearance(uint8_t btype) {
+	if (btype >= BLD_TYPE_COUNT) return 1;
+	const uint8_t r = building_research_base(btype);
+	if (r == BLD_FORTRESS || r == BLD_ARSENAL || r == BLD_ELEPHANT_STABLE) return 2;
+	if (is_dropsite_type(btype) || (building_tech_classes(btype) & TC_HOUSE) || btype == BLD_FIELD || is_land_market(btype))
+		return 0;
+	return 1;
 }
 
 // The ground petra_can_place needs: its footprint's cells free and a ring of whole cells round it
@@ -14919,12 +14933,15 @@ bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t 
 // a ring cell (PART) refuses the spot when it comes within half a cell, 4 m, of the footprint:
 // the gap queueplanBuilding.js findGoodPosition adds round most structures (obstructionRadius + 4).
 // On-grid buildings mark only FULL cells, so they keep the whole-cell ring.
-bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint) const {
+// Clearance 0 (houses, dropsites, fields, markets) needs only the footprint free; 2 (fortress,
+// arsenal, elephant stable) also keeps any building 8 m off.
+bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance) const {
 	ensure_occupied_cells();
 	const int limit = (int)(map_half_ / GRID) - (footprint + 2);
+	const int lo = clearance ? -1 : 0, hi = clearance ? footprint : footprint - 1;
 	bool part = false;
-	for (int dx = -1; dx <= footprint; ++dx)
-		for (int dy = -1; dy <= footprint; ++dy) {
+	for (int dx = lo; dx <= hi; ++dx)
+		for (int dy = lo; dy <= hi; ++dy) {
 			const int cx = cell_x + dx, cy = cell_y + dy;
 			if (std::abs(cx) > limit || std::abs(cy) > limit) return false;
 			const uint8_t m = occupied_cells_.mark(cx, cy);
@@ -14933,11 +14950,11 @@ bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint) const {
 			if (!ring || m == CellSet::FULL) return false;
 			part = true;
 		}
-	if (!part) return true;
+	if (!part && clearance < 2) return true;
 	nav::Footprint grown;
 	grown.x = (cell_x + footprint * 0.5f) * GRID;
 	grown.z = (cell_y + footprint * 0.5f) * GRID;
-	grown.hu = grown.hv = (footprint + 1) * GRID * 0.5f;
+	grown.hu = grown.hv = (footprint + (clearance < 2 ? 1.0f : 2.0f)) * GRID * 0.5f;
 	return !footprint_hits_building(grown);
 }
 
@@ -15382,7 +15399,7 @@ void Simulation::petra_manage_scouting(float dt) {
 			candidate_z = std::clamp(candidate_z, -map_half_ + 4.0f, map_half_ - 4.0f);
 
 			// Stay out of enemy territory until we can fight (town phase).
-			if (!los_explored(petra_pid_, candidate_x, candidate_z) &&
+			if (!off_world(candidate_x, candidate_z) && !los_explored(petra_pid_, candidate_x, candidate_z) &&
 			    !(village && enemy_land_at(candidate_x, candidate_z)) &&
 			    get_terrain_height(candidate_x, candidate_z) > terrain_water_height_ + 0.3f &&
 			    is_position_safe(candidate_x, candidate_z, 5.0f)) {
@@ -19056,6 +19073,9 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 				const uint8_t st = units_.action_state[i];
 				if (st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) continue;
+				// GATHER.GATHERING only: one walking out to its supply (gather_res not yet set
+				// by tick_gather) counts as neither.
+				if (st == ACTION_GATHER && units_.gather_res[i] == 0) continue;
 				const uint8_t rt = units_.res_type_carried[i];
 				for (int j = 0; j < 3; ++j)
 					if (rt == kTypes[j]) (st == ACTION_GATHER ? used[j] : lost[j])++;
@@ -26209,11 +26229,18 @@ void Simulation::tick_fow() {
 	ScopedUs prof(map_scale_stats_.fow_us, map_scale_stats_.fow_calls);
 	// 0 A.D. "Revealed map": everyone sees everything, so there is no per-cell work.
 	// The grids are filled once (a game-setup option, so every peer hashes the same).
+	// m_LosStateRevealed: a circular map's off-world cells stay unseen even then.
 	if (reveal_map_) {
-		if (!fow_grid_.empty() && fow_grid_[0] != FOW_VISIBLE) std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_VISIBLE);
+		const size_t mid = fow_grid_.size() / 2; // the centre row is always in the world
+		auto reveal = [&](std::vector<uint8_t> &grid) {
+			if (grid.size() != fow_grid_.size()) grid.assign(fow_grid_.size(), FOW_UNEXPLORED);
+			if (grid.empty() || (grid[mid] == FOW_VISIBLE && (grid[0] == FOW_VISIBLE) == !los_.off_world(0))) return;
+			for (size_t c = 0; c < grid.size(); ++c)
+				grid[c] = c < los_.cells() && los_.off_world((int)c) ? (uint8_t)FOW_UNEXPLORED : (uint8_t)FOW_VISIBLE;
+		};
+		reveal(fow_grid_);
 		const uint8_t v = fow_viewer_;
-		if (v != 0 && v < MAX_PLAYERS && (player_fow_[v].size() != fow_grid_.size() || player_fow_[v][0] != FOW_VISIBLE))
-			player_fow_[v].assign(fow_grid_.size(), FOW_VISIBLE);
+		if (v != 0 && v < MAX_PLAYERS) reveal(player_fow_[v]);
 		return;
 	}
 
@@ -26241,6 +26268,7 @@ void Simulation::fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) c
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
 	const size_t n = std::min(grid.size(), los_.cells());
 	for (size_t c = 0; c < n; ++c) {
+		if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
 		const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
 		grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
 	}
@@ -26285,8 +26313,14 @@ float Simulation::building_vision_range(const Building &b) const {
 	return bvr;
 }
 
+void Simulation::set_circular_map(bool on) {
+	set_setup_flag(SETUP_CIRCULAR_MAP, on);
+	los_.set_circular(on);
+}
+
 void Simulation::reset_los() {
 	los_.init(grid_res_, map_half_);
+	los_.set_circular(circular_map());
 	los_unit_src_.clear();
 	los_bld_src_.clear();
 	los_fauna_src_.clear();
@@ -28430,12 +28464,12 @@ void Simulation::trigger_treasure_islands_collected(const TriggerEventData &data
 	}
 }
 
-void Simulation::defeat_player(uint8_t pid) {
+void Simulation::defeat_player(uint8_t pid, uint8_t reason) {
 	if (pid >= MAX_PLAYERS || is_defeated(pid) || game_over_ || victory_) return;
 	// Player.js SetState("defeated"): everything it owns goes to Gaia.
 	convert_to_gaia((uint8_t)(1u << pid));
 	defeated_mask_ |= (uint8_t)(1u << pid);
-	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_OBJECTIVE, {}});
+	note_session({SessionNotice::DEFEATED, pid, 0, reason, {}});
 }
 
 bool Simulation::cmd_resign(uint8_t pid) {
@@ -28691,7 +28725,7 @@ void Simulation::trigger_survival_ownership(const TriggerEventData &data) {
 	// change counts (the script forgets the entity then).
 	if (data.from != data.player) return;
 	if (data.value == kSurvivalCivicCentre) {
-		defeat_player(data.from);
+		defeat_player(data.from, SessionNotice::END_LOST_CIVIC_CENTER); // "... has been defeated (lost civic center)."
 	} else if (data.value == kSurvivalTreasureFemale) {
 		auto &inv = triggers_.invulnerable;
 		inv.erase(std::remove(inv.begin(), inv.end(), data.entity), inv.end());
@@ -28900,7 +28934,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		victory_condition_ = VICTORY_ENDLESS;
 		for (uint8_t e : {TRIGGER_ON_PLAYER_COMMAND, TRIGGER_ON_TRAINING_QUEUED, TRIGGER_ON_TRAINING_FINISHED,
 				TRIGGER_ON_RESEARCH_QUEUED, TRIGGER_ON_RESEARCH_FINISHED, TRIGGER_ON_STRUCTURE_BUILT,
-				TRIGGER_ON_OWNERSHIP_CHANGED})
+				TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ON_DESERIALIZED})
 			triggers_.register_trigger(e, TRIGGER_ACTION_TUTORIAL, true);
 		// The enemy has no AI ("AI": "" in the map's PlayerData): it only fights when the
 		// script sends it. A seat Game Setup gave Petra is taken back.
@@ -28920,9 +28954,18 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		tutorial_next_goal();
 		return;
 	}
+	const int g = v[kTutGoal];
+	if (d.event == TRIGGER_ON_DESERIALIZED) {
+		// OnDeserializedTrigger: NextGoal(true) on the current goal, without its Init: a goal
+		// done before the save (a phase already queued) offers Ready again.
+		if (g >= 0 && g < tutorial_goal_count(id)) {
+			const bool ready_delay = id == TUTORIAL_ECONOMY && g == 18;
+			v[kTutReady] = (ready_delay || !tutorial_goal_listens(g) || tutorial_goal_done(g)) ? 1 : 0;
+		}
+		return;
+	}
 	// The scripts listen to every player; only the tutorial's own player gives orders.
 	if (d.event != TRIGGER_ON_OWNERSHIP_CHANGED && d.player != TUTORIAL_PLAYER) return;
-	const int g = v[kTutGoal];
 	if (d.event == TRIGGER_ON_PLAYER_COMMAND && v[kTutReady]) {
 		// The Ready button's OnPlayerCommand replaces the goal's own.
 		if (d.value == TRIGGER_CMD_DIALOG_READY) tutorial_next_goal();
@@ -29262,6 +29305,11 @@ const DanubiusTemplates &danubius_templates() {
 			if (std::strstr(u.id, "rts0_")) continue;
 			const TechClasses c = u.tech_classes;
 			const size_t len = std::strlen(u.id);
+			// An _a or _e row whose _b row is on the roster is already one of that row's ranks
+			// (support_healer_e): 0.28 lists each rank template once.
+			if (len > 2 && (std::strcmp(u.id + len - 2, "_a") == 0 || std::strcmp(u.id + len - 2, "_e") == 0) &&
+					civ_unit_template_by_id((std::string(u.id, len - 2) + "_b").c_str()) != CIV_UNIT_TEMPLATE_NONE)
+				continue;
 			const int ranks = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0 ? 3 : 1;
 			auto add = [&](std::vector<uint16_t> &v, int max_rank) {
 				for (int r = 0; r < std::min(ranks, max_rank); ++r) v.push_back((uint16_t)(id | r << kDanubiusRankShift));
@@ -30028,9 +30076,9 @@ void Simulation::trigger_volcano_garrison_towers() {
 		auto it = building_id_to_idx_.find(id);
 		if (it == building_id_to_idx_.end()) continue;
 		const float x = buildings_[it->second].x, z = buildings_[it->second].z;
-		std::vector<uint32_t> garrison;
-		for (int i = 0; i < cap; ++i) garrison.push_back(spawn_unit(x, z, GAIA_PLAYER, UNIT_SWORDSMAN, 0.0f, tmpl));
-		order_garrison(garrison.data(), garrison.size(), id);
+		// SpawnGarrisonedUnits: each one goes straight in (Garrisonable.Garrison(entity)).
+		for (int i = 0; i < cap; ++i)
+			if (const uint32_t u = spawn_unit(x, z, GAIA_PLAYER, UNIT_SWORDSMAN, 0.0f, tmpl)) garrison_unit_now(u, id);
 	}
 }
 

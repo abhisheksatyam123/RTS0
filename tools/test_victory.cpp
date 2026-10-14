@@ -409,6 +409,9 @@ int main() {
 		CHECK(q.colors[0] == 23 && q.colors[1] == 0 && q.colors[2] == 10 && q.colors[3] == 3);
 		CHECK(q.nomad == 1 && q.regicide_garrison == 1 && q.no_treasures == 1);
 		CHECK(q.names[0] == "Stan; the=Great, 100%" && q.names[1] == "Ptolemy Philadelphus" && q.names[2].empty() && q.names[3].empty());
+		// The last biome (Nubia, BIOME_COUNT) survives the setup string too.
+		p.biome = BIOME_NUBIA + 1;
+		CHECK(parse_game_start_full(format_game_start_full(p), q) && q.biome == BIOME_NUBIA + 1);
 		GameSetupParams longname; longname.names[0] = std::string(60, 'x'); longname.slot_count = 1;
 		CHECK(parse_game_start_full(format_game_start_full(longname), q) && q.names[0].size() == 48);
 		GameSetupParams d;

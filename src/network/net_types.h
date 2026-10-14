@@ -567,7 +567,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "wonderdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.wonder_min = x; }
 			else if (k == "relicdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.relic_min = x; }
 			else if (k == "relics") { uint8_t x; if (detail::parse_u8(v, 1, 16, x)) out.relics = x; }
-			else if (k == "biome") { uint8_t x; if (detail::parse_u8(v, 0, 9, x)) out.biome = x; }
+			else if (k == "biome") { uint8_t x; if (detail::parse_u8(v, 0, 11, x)) out.biome = x; } // BIOME_COUNT (11: Nubia + 1)
 			else if (k == "nomad") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.nomad = x; }
 			else if (k == "names") {
 				size_t a = 0;

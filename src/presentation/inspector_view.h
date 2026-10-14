@@ -786,6 +786,8 @@ private:
 		static const char *const kNames[] = {"Tree", "Tree", "Pine", "Date Palm", "Oak", "Baobab", "Acacia", "Bamboo", "Bush",
 			"Berry Bush", "Apple Tree", "Date Palm", "Carob", "Poplar", "Fan Palm", "Beech", "Dead Tree", "Cypress",
 			"Aleppo Pine", "Fir", "Tropical Bush", "Olive", "Banyan", "Tropical Palm", "Maple", "Juniper", "Teak"};
+		if (flora >= rtso::FLORA_TEMPLATE_FIRST && flora < rtso::FLORA_COUNT)
+			return String(rtso::flora_template_info(flora - rtso::FLORA_TEMPLATE_FIRST).title);
 		return flora < sizeof(kNames) / sizeof(kNames[0]) ? String(kNames[flora]) : String("Tree");
 	}
 
