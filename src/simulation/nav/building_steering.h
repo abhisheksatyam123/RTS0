@@ -131,10 +131,12 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 	req.range = BUILDING_STEER_RANGE;
 	req.goal.type = ShortPathGoal::POINT;
 	req.goal.center = aim;
+	req.terrain_clearance = radius;
 
-	// Terrain edges: water only. Building navcells are covered by `statics`, and the destination
-	// building's own navcells must stay open. Rows hold 1 for land, 0 for water and outside the
-	// grid (cells is res x res).
+	// Terrain edges: water only, kept `radius` off (0 A.D. expands deep water by the class
+	// clearance). Building navcells are covered by `statics`, and the destination building's own
+	// navcells must stay open. Rows hold 1 for land, 0 for water and outside the grid (cells is
+	// res x res).
 	auto land_rows = [&nav](int i, int j, int n, uint8_t* out) {
 		const Grid<uint8_t>& cells = nav.cells;
 		if (j >= 0 && j < cells.h && i >= 0 && i + n <= cells.w) {
@@ -183,6 +185,7 @@ bool search_short_path_with_units(Vec2 pos, Vec2 aim, const ShortPathGoal& goal,
 	req.range = range;
 	req.unit_clearance_bias = radius - unit_radius; // unit squares grow by unit_radius
 	req.goal = goal;
+	req.terrain_clearance = radius;
 	auto land_rows = [&nav](int i, int j, int n, uint8_t* out) {
 		const Grid<uint8_t>& cells = nav.cells;
 		if (j >= 0 && j < cells.h && i >= 0 && i + n <= cells.w) {

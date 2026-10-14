@@ -3,13 +3,16 @@ extends Control
 ## GPL-2.0-or-later): one tab per category, each option a checkbox, slider,
 ## number or dropdown bound to a 0 A.D. config key. Changes apply
 ## at once (ConfigDB_CreateValue); Save writes them to user://config/user.cfg,
-## Revert goes back to the saved values, Reset to 0 A.D.'s defaults, and Close
-## with unsaved changes asks first. Only the options RTS0 implements are
+## Revert goes back to the saved values, Reset erases the saved settings for
+## 0 A.D.'s defaults, and Close with unsaved changes asks first, both in the
+## mod's message box (scenes/common/msgbox.gd). Only the options RTS0 implements are
 ## listed; scenes/menu/user_settings.gd and RtsoMain apply them. Hotkeys opens
 ## the hotkey editor (Session UI thread). From a game the page opens over it.
 
 ## [category, [[type, key, label, tooltip, extra], ...]]; extra is
 ## [min, max] for slider and number, [[label, value], ...] for dropdowns.
+const MSGBOX := preload("res://scenes/common/msgbox.gd")
+
 const SCHEMA := [
 	["General", [
 		["string", "playername.singleplayer", "Player name (single-player)", "How you want to be addressed in single-player matches."],
@@ -161,7 +164,7 @@ var _controls := {} # key -> [type, control, extra]
 var _saved := {} # key -> value at the last save / load
 var _tabs: TabContainer
 var _description: Label
-var _confirm: HBoxContainer
+var _confirm: Control # the open message box, null when closed
 var _updating := false
 
 static func open_overlay(parent: Node) -> Control:
@@ -226,16 +229,6 @@ func _build() -> void:
 	_description.custom_minimum_size = Vector2(0, 40)
 	_description.add_theme_color_override("font_color", Color(0.85, 0.85, 0.75))
 	vb.add_child(_description)
-	_confirm = HBoxContainer.new()
-	_confirm.visible = false
-	_confirm.alignment = BoxContainer.ALIGNMENT_END
-	var q := Label.new()
-	q.text = "You have unsaved changes. Save them?"
-	_confirm.add_child(q)
-	_confirm.add_child(_button("Save", func(): _on_save(); _close()))
-	_confirm.add_child(_button("Discard", func(): _on_revert(); _close()))
-	_confirm.add_child(_button("Cancel", func(): _confirm.visible = false))
-	vb.add_child(_confirm)
 	var foot := HBoxContainer.new()
 	foot.alignment = BoxContainer.ALIGNMENT_END
 	vb.add_child(foot)
@@ -435,16 +428,27 @@ func _on_revert() -> void:
 		cfg.set_value(key, _saved[key])
 	_load_controls()
 
-## options.js "Reset": 0 A.D.'s defaults (not saved until Save).
+## options.js setDefaults: asks, then erases the saved settings (0 A.D.'s defaults) and saves.
 func _on_reset() -> void:
-	cfg.reset_all()
-	_load_controls()
+	_ask(tr("Resetting the options will erase your saved settings. Do you want to continue?"), func():
+		cfg.reset_all()
+		if cfg.save():
+			_snapshot()
+		_load_controls())
 
+## shouldClosePage: unsaved changes ask first; Yes closes and keeps them for this session.
 func _on_close() -> void:
 	if has_unsaved_changes():
-		_confirm.visible = true
+		_ask(tr("You have unsaved changes, do you want to close this window?"), _close)
 		return
 	_close()
+
+## messageBox(500, 200, text, "Warning", No, Yes); `yes` runs on Yes.
+func _ask(text: String, yes: Callable) -> void:
+	_confirm = MSGBOX.open(self, 500, 200, text, tr("Warning"), [tr("No"), tr("Yes")])
+	_confirm.answered.connect(func(i: int):
+		_confirm = null
+		if i == 1: yes.call())
 
 func _close() -> void:
 	closed.emit()

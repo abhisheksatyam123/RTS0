@@ -1557,6 +1557,28 @@ bool Simulation::line_crosses_impassable(float x0, float z0, float x1, float z1,
 	return crosses;
 }
 
+// 0 A.D. expands impassable terrain by each class's Clearance before it paths or moves a unit
+// (CCmpPathfinder ExpandImpassableCells, by whole 1 m navcells, a square): 0.8 m for infantry and
+// cavalry, 3 m for siege and elephants. RTS0's navcells are 8 m, so deep water keeps land units off
+// by their clearance here (and in short paths, ShortPathRequest::terrain_clearance) instead.
+bool Simulation::near_deep_water(float x, float z, float c) const {
+	if (terrain_water_height_ < -0.5f || nav_grid_.cells.blank()) return false;
+	const auto [x0, y0] = nav_grid_.world_to_cell(x - c, z - c);
+	const auto [x1, y1] = nav_grid_.world_to_cell(x + c, z + c);
+	for (int y = y0; y <= y1; ++y)
+		for (int x = x0; x <= x1; ++x)
+			if (nav_grid_.cells.at(x, y) == NAV_WATER) return true;
+	return false;
+}
+
+// A step may not end within the clearance of deep water. A unit already that close (one unloaded on
+// the beach, or walking in from the water) may move on, but not off dry land into deep water.
+bool Simulation::land_step_barred(float x0, float z0, float x1, float z1, float c) const {
+	if (!near_deep_water(x1, z1, c)) return false;
+	if (!near_deep_water(x0, z0, c)) return true;
+	return near_deep_water(x1, z1, 0.0f) && !near_deep_water(x0, z0, 0.0f);
+}
+
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
 	ScopedUs prof(map_scale_stats_.path_us, map_scale_stats_.path_calls);
 	return nav_grid_.find_path(sx, sz, tx, tz, out, pass);
@@ -8942,22 +8964,27 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
 		npz[i] = std::clamp(pz[i] + move_dz, -map_half_, map_half_);
-		// Deep water is impassable for land units (template_unit.xml passability classes).
-		// Walks get a goal on the beach from find_path; a unit walking straight at a target
-		// (a shoreline resource, a ship it boards or chases, an enemy across the water)
-		// stops at the shore and slides along it instead of stepping off. One already in
-		// deep water may still move. Ships (template_unit_ship.xml) stay on water the same
-		// way: one heading for a point ashore (a dock's centre, a target on the beach, the last
-		// leg of a path to a goal on land) stops at the shore.
+		// Deep water is impassable for land units (template_unit.xml passability classes), and
+		// they keep their class clearance off it (land_step_barred). Walks get a goal on the
+		// beach from find_path; a unit walking straight at a target (a shoreline resource, a
+		// ship it boards or chases, an enemy across the water) stops at the shore and slides
+		// along it instead of stepping off. One already in deep water may still move. Ships
+		// (template_unit_ship.xml) stay on water the same way: one heading for a point ashore
+		// (a dock's centre, a target on the beach, the last leg of a path to a goal on land)
+		// stops at the shore.
 		if (!nav_grid_.cells.blank()) {
-			auto deep = [&](float x, float z) {
-				auto [cx, cy] = nav_grid_.world_to_cell(x, z);
-				if (!nav_grid_.cells.inside(cx, cy)) return false;
-				return ship ? !nav_grid_.is_passable_for(cx, cy, PASS_SHIP) : nav_grid_.cells.at(cx, cy) == NAV_WATER;
+			const float c = unit_clearance_at(i);
+			auto barred = [&](float x, float z) {
+				if (!ship) return land_step_barred(px[i], pz[i], x, z, c);
+				auto off = [&](float wx, float wz) {
+					auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
+					return !nav_grid_.is_passable_for(cx, cy, PASS_SHIP);
+				};
+				return off(x, z) && !off(px[i], pz[i]);
 			};
-			if (deep(npx[i], npz[i]) && !deep(px[i], pz[i])) {
-				if (!deep(npx[i], pz[i])) npz[i] = pz[i];
-				else if (!deep(px[i], npz[i])) npx[i] = px[i];
+			if (barred(npx[i], npz[i])) {
+				if (!barred(npx[i], pz[i])) npz[i] = pz[i];
+				else if (!barred(px[i], npz[i])) npx[i] = px[i];
 				else { npx[i] = px[i]; npz[i] = pz[i]; }
 			}
 		}
@@ -9279,14 +9306,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float step = std::min(len, reach);
 		const float sx = x0 + to.x / len * step, sz = z0 + to.y / len * step;
 		if (full_step_blocked(sx, sz, w.x, w.y)) return;
-		// As in move_units, a land unit doesn't step off dry land into deep water.
-		if (!nav_grid_.cells.blank()) {
-			auto deep = [&](float x, float z) {
-				auto [cx, cy] = nav_grid_.world_to_cell(x, z);
-				return nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) == NAV_WATER;
-			};
-			if (deep(sx, sz) && !deep(x0, z0)) return;
-		}
+		// As in move_units, a land unit keeps its clearance off deep water.
+		if (land_step_barred(x0, z0, sx, sz, unit_clearance_at(i))) return;
 		npx[i] = sx;
 		npz[i] = sz;
 		want_x[i] = sx - x0;
@@ -9689,7 +9710,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// CCmpUnitMotionManager::Move: a push never carries a unit onto a navcell its passability
 		// class can't cross (CheckMovement), so ships stay afloat and land units ashore. A unit
 		// already off its terrain (a swimmer, or one beside a building) is pushed as before, but a
-		// land unit on a steep shore is never pushed out into deep water.
+		// land unit on a steep shore is never pushed out into deep water, nor within its clearance
+		// of it (land_step_barred).
 		if (!nav_grid_.cells.blank() && (nx != px[i] || nz != pz[i])) {
 			const uint8_t pass = unit_is_ship(units_.unit_type[i]) ? PASS_SHIP : PASS_INFANTRY;
 			const auto [tcx, tcy] = nav_grid_.world_to_cell(nx, nz);
@@ -9700,6 +9722,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 						nav_grid_.cells.at(tcx, tcy) == NAV_WATER && nav_grid_.cells.at(cx, cy) != NAV_WATER)
 					return;
 			}
+			if (pass == PASS_INFANTRY && land_step_barred(px[i], pz[i], nx, nz, unit_clearance_at(i))) return;
 		}
 		px[i] = nx;
 		pz[i] = nz;
