@@ -1034,6 +1034,14 @@ public:
 	const TriggerState &trigger_state() const { return triggers_; }
 	uint32_t trigger_hash() const { return triggers_.hash(); }
 	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// Player.js SetState / Diplomacy.js SetDiplomacyIndex: the masks and stances change and
+	// OnPlayerDefeated, OnPlayerWon and OnDiplomacyChanged fire for each change.
+	void mark_players_defeated(uint8_t mask);
+	// How often each event was called since the start or the last load: for tests and
+	// debugging only, never saved or hashed.
+	uint32_t trigger_event_calls(uint8_t event) const { return event < TRIGGER_EVENT_COUNT ? trigger_event_calls_[event] : 0; }
+	void mark_players_won(uint8_t mask);
+	void note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance);
 	// A map's TriggerScripts by name ("polar_sea_triggers", "treasure_islands"): registers
 	// the ported script's triggers. Random maps do it in generate_random_map; data/maps
 	// JSON maps list theirs under "trigger_scripts". Returns false for an unported script.
@@ -2428,6 +2436,7 @@ private:
 	std::unordered_map<uint32_t, TradeGain> trader_goods_;
 
 	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
+	uint32_t trigger_event_calls_[TRIGGER_EVENT_COUNT] = {}; // trigger_event_calls
 	uint8_t diplomacy_[MAX_PLAYERS][MAX_PLAYERS] = {};
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
