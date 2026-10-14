@@ -4,6 +4,7 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_map_structures.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_map_structures
 //       && /tmp/test_map_structures
+#include "simulation/entity_limits_data.h"
 #include "simulation/simulation.h"
 #include <cmath>
 #include <cstdio>
@@ -129,6 +130,24 @@ int main() {
 	std::printf("artillery tower: swordsman %.1f -> %.1f, ram %.1f -> %.1f\n", sw0, unit_hp(s, sw), ram0, unit_hp(s, ram));
 	CHECK(unit_hp(s, ram) < ram0);
 	CHECK(unit_hp(s, sw) == sw0);
+
+	// The Temple of Isis (ptol/temple_2): City phase, one per player, the only Ptolemaic hero trainer.
+	CHECK(map_structure_template("structures/ptol/temple_2").type == BLD_TEMPLE_ISIS);
+	CHECK(building_required_phase(BLD_TEMPLE_ISIS, CIV_PTOLEMIES) == 3);
+	for (uint8_t c = 0; c < CIV_COUNT; ++c) CHECK(civ_can_build(c, BLD_TEMPLE_ISIS) == (c == CIV_PTOLEMIES));
+	CHECK(BUILDING_LIMIT_CATEGORY[BLD_TEMPLE_ISIS] == LIMIT_TEMPLE_OF_ISIS);
+	CHECK(CIV_ENTITY_LIMITS[CIV_PTOLEMIES][LIMIT_TEMPLE_OF_ISIS] == 1);
+	CHECK(building_researches_tech(BLD_TEMPLE_ISIS, TECH_PHARAONIC_CULT, CIV_PTOLEMIES));
+	CHECK(!building_researches_tech(BLD_TEMPLE, TECH_PHARAONIC_CULT, CIV_PTOLEMIES));
+	CHECK(building_researches_tech(BLD_TEMPLE_ISIS, TECH_HEAL_RATE, CIV_PTOLEMIES));
+	int ptol_heroes = 0;
+	for (uint16_t id : civ_roster_ids(CIV_PTOLEMIES)) {
+		const CivUnitTemplate &u = civ_unit_template(id);
+		if (u.unit_type != UNIT_HERO) continue;
+		++ptol_heroes;
+		CHECK(u.trainers == bld_bit(BLD_TEMPLE_ISIS));
+	}
+	CHECK(ptol_heroes == 3);
 
 	if (failures) {
 		std::printf("test_map_structures: %d failure(s)\n", failures);

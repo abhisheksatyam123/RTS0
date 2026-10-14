@@ -16081,10 +16081,10 @@
    "specific_name": "Kleopatra H' Philopatōr",
    "phase": 3,
    "trainers": [
-    "BLD_TEMPLE"
+    "BLD_TEMPLE_ISIS"
    ],
    "trained_at_0ad": [
-    "temple"
+    "temple_2"
    ],
    "flags": [
     "ROSTER_HERO",
@@ -16138,10 +16138,10 @@
    "specific_name": "Ptolemaios A' Sōter",
    "phase": 3,
    "trainers": [
-    "BLD_TEMPLE"
+    "BLD_TEMPLE_ISIS"
    ],
    "trained_at_0ad": [
-    "temple"
+    "temple_2"
    ],
    "flags": [
     "ROSTER_HERO"
@@ -16192,10 +16192,10 @@
    "specific_name": "Ptolemaios D' Philopatōr",
    "phase": 3,
    "trainers": [
-    "BLD_TEMPLE"
+    "BLD_TEMPLE_ISIS"
    ],
    "trained_at_0ad": [
-    "temple"
+    "temple_2"
    ],
    "flags": [
     "ROSTER_HERO"
@@ -17191,10 +17191,12 @@
    "specific_name": "Iatros",
    "phase": 2,
    "trainers": [
-    "BLD_TEMPLE"
+    "BLD_TEMPLE",
+    "BLD_TEMPLE_ISIS"
    ],
    "trained_at_0ad": [
-    "temple"
+    "temple",
+    "temple_2"
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
@@ -27064,8 +27066,8 @@
     }
    ],
    "rts0": [
-    "AURA_ATTACK",
-    1.1764705882352942,
+    "AURA_ATTACK_RATE",
+    0.85,
     1000.0
    ]
   },
@@ -27366,8 +27368,8 @@
     }
    ],
    "rts0": [
-    "AURA_ATTACK",
-    1.25,
+    "AURA_ATTACK_RATE",
+    0.8,
     16.8
    ]
   },
@@ -28260,7 +28262,8 @@
    "buildings": [
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_KUSH_SHRINE"
+    "BLD_KUSH_SHRINE",
+    "BLD_TEMPLE_ISIS"
    ]
   },
   {
