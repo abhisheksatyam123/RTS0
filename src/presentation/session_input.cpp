@@ -931,7 +931,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (int k = 0; k < selected_ids.size() && !any_builder; ++k)
 					for (size_t i = 0; i < uview.count; ++i)
 						if (uview.id[i] == (uint32_t)selected_ids[k]) {
-							any_builder = rtso::unit_can_build(uview.unit_type[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+							any_builder = rtso::unit_can_build(uview.unit_type[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE) && !sim->nonbuilder(uview.id[i]);
 							break;
 						}
 				uint32_t repair_id = 0;
