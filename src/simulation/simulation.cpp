@@ -9387,6 +9387,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (units_.target_unit_id[i] != 0 && fauna_.count != 0 && slaughters_target(i))
 				r_att = SLAUGHTER_RANGE + 1.0f; // Attack/Slaughter MaxRange: walk up to the animal
 			if (r_att > 3.0f) {
+				// UnitAI MoveToTargetAttackRange: a Ranged attack walks to its elevation-adapted
+				// range (GetEffectiveParabolicRange, the one tick_combat fires within), or halfway
+				// there when height lengthens it ("the parabole changes while walking").
+				if (units_.target_unit_id[i] != 0) {
+					const int32_t t = lookup_unit(units_.target_unit_id[i]);
+					if (t >= 0) {
+						const float h = unit_height((size_t)t) - unit_height(i);
+						const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
+						r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
+					}
+				}
 				// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance
 				stop_dist = std::max(2.5f, r_att * 0.85f);
 			} else {
@@ -13357,6 +13368,21 @@ void Simulation::tick_status_effects(float dt) {
 
 	// Structures below a third of their health show fire (is_burning) but, as in
 	// 0 A.D., take no damage from it.
+}
+
+int Simulation::statuses_on(uint8_t target_kind, uint32_t target, StatusView *out, int max) const {
+	int n = 0;
+	for (const StatusInstance &st : statuses_) {
+		if (st.target_kind != target_kind || st.target != target) continue;
+		if (n < max && out) {
+			out[n].kind = st.kind;
+			out[n].damage = st.damage;
+			out[n].interval = st.interval;
+			out[n].remaining = std::max(0.0f, st.duration - st.elapsed); // Duration - _timeElapsed
+		}
+		++n;
+	}
+	return n;
 }
 
 // One ExecuteEffect of status st on its target. False when the target is gone.
