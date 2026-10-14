@@ -81,6 +81,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_panel_entity_gui_input", "event", "slot"), &RtsoMain::_on_panel_entity_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_research_progress_pressed", "slot"), &RtsoMain::_on_research_progress_pressed);
+	ClassDB::bind_method(D_METHOD("_on_control_group_gui_input", "event", "button"), &RtsoMain::_on_control_group_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
@@ -2724,6 +2725,50 @@ void RtsoMain::_on_research_progress_pressed(int slot) {
 		if (cam_rig) cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 		return;
 	}
+}
+
+// The group's living units (dead ones leave it), then selected or added;
+// "snap" also moves the camera to the first.
+void RtsoMain::perform_group(int grp, GroupAction action) {
+	if (!sim || grp < 0 || grp > 9) return;
+	PackedInt32Array recall;
+	Vector3 first_pos;
+	auto gview = sim->units();
+	for (int m = 0; m < selected_groups[grp].size(); ++m) {
+		const int32_t gid = selected_groups[grp][m];
+		for (size_t i = 0; i < gview.count; ++i) {
+			if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == local_player()) {
+				if (recall.is_empty()) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
+				recall.push_back(gid);
+				break;
+			}
+		}
+	}
+	selected_groups[grp] = recall;
+	if (recall.is_empty()) return;
+	if (action == GROUP_ADD) {
+		for (int m = 0; m < recall.size(); ++m)
+			if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
+	} else {
+		selected_ids = recall;
+	}
+	selected_building_id = 0;
+	if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(first_pos);
+	play_civ_voice("select");
+}
+
+// session.js updateGroups: a click on a group's button selects it (selection.add
+// adds it), a double click snaps to it, a right click breaks it up.
+void RtsoMain::_on_control_group_gui_input(const Ref<InputEvent> &event, int button) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed()) return;
+	const int grp = rtso::RtsoControlGroups::group_of(button);
+	if (mb->get_button_index() == MOUSE_BUTTON_RIGHT) {
+		selected_groups[grp].clear();
+		return;
+	}
+	if (mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	perform_group(grp, mb->is_double_click() ? GROUP_SNAP : rtso::hotkeys::held("selection.add") ? GROUP_ADD : GROUP_SELECT);
 }
 
 void RtsoMain::_on_selection_group_clicked(int key) {
