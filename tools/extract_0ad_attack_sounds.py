@@ -47,6 +47,10 @@ _spec.loader.exec_module(atk)
 ex = atk.ex
 
 UNIT_GROUPS = ("attack_melee", "attack_ranged", "attack_impact_ranged", "attack_slaughter")
+# Health.js plays "death" for every entity that has it; a human's names its group by the
+# entity's Identity/Phenotype ({phenotype}_death), picked at run time (phenotype_death_sound).
+PHENOTYPE_DEATH = "actor/human/death/{phenotype}_death.xml"
+PHENOTYPES = ("male", "female")
 BUILDING_GROUPS = ("attack_ranged", "attack_impact_ranged", "death", "")
 
 
@@ -87,6 +91,11 @@ def sounds_of(t, names):
     return [(t.value("Sound/SoundGroups/" + n) or "") if n else "" for n in names]
 
 
+def death_of(t):
+    """A unit template's Sound/SoundGroups/death ("" for none)."""
+    return t.value("Sound/SoundGroups/death") or ""
+
+
 def collect(sim_root):
     loader = ex.TemplateLoader(sim_root)
     rosters = json.load(open(ROSTERS))
@@ -95,15 +104,20 @@ def collect(sim_root):
         name = "units/" + u["id"]
         if not loader.exists(name.split("|")[-1]):
             name = ex.GENERIC[u["class"]]  # RTS0-only rows (the male villager)
-        units.append((u["id"], sounds_of(loader.load(name), UNIT_GROUPS)))
+        t = loader.load(name)
+        units.append((u["id"], sounds_of(t, UNIT_GROUPS) + [death_of(t)]))
     generic = []
     for cls in atk.UNIT_TYPES:
-        generic.append((cls, ex.GENERIC[cls] or "no template", sounds_of(ex.generic_template(loader, cls), UNIT_GROUPS)))
+        t = ex.generic_template(loader, cls)
+        generic.append((cls, ex.GENERIC[cls] or "no template", sounds_of(t, UNIT_GROUPS) + [death_of(t)]))
     buildings = []
     for bld, name in atk.BUILDINGS + atk.civ_buildings():
         buildings.append((bld, name, sounds_of(loader.load(name), BUILDING_GROUPS)))
     buildings.append(("default", "template_structure", sounds_of(loader.load("template_structure"), BUILDING_GROUPS)))
-    fauna = [(stem, (loader.load("gaia/" + stem).value("Sound/SoundGroups/attack_melee") or "")) for stem in fauna_stems(loader)]
+    fauna = []
+    for stem in fauna_stems(loader):
+        t = loader.load("gaia/" + stem)
+        fauna.append((stem, t.value("Sound/SoundGroups/attack_melee") or "", death_of(t)))
     return units, generic, buildings, fauna
 
 
@@ -115,8 +129,13 @@ def f(x):
 def emit(groups, units, generic, buildings, fauna):
     index = {p: i for i, (p, _) in enumerate(groups)}
 
+    def one(p):
+        if p == PHENOTYPE_DEATH:
+            return "ATTACK_SOUND_PHENOTYPE"
+        return str(index[p]) if p else "ATTACK_SOUND_NONE"
+
     def ids(paths):
-        return ", ".join(str(index[p]) if p else "ATTACK_SOUND_NONE" for p in paths)
+        return ", ".join(one(p) for p in paths)
 
     out = []
     w = out.append
@@ -134,6 +153,7 @@ def emit(groups, units, generic, buildings, fauna):
     w("};")
     w("")
     w("inline constexpr uint8_t ATTACK_SOUND_NONE = 255;")
+    w("inline constexpr uint8_t ATTACK_SOUND_PHENOTYPE = 254; // {phenotype}_death: phenotype_death_sound")
     w("inline constexpr uint8_t ATTACK_SOUND_GROUP_COUNT = %d;" % len(groups))
     w("")
     w("inline const AttackSoundGroup &attack_sound_group(uint8_t g) {")
@@ -161,7 +181,7 @@ def emit(groups, units, generic, buildings, fauna):
     w("inline const EntityAttackSounds *roster_attack_sounds() {")
     w("\tstatic const EntityAttackSounds kRows[ATTACK_SOUND_ROSTER_ROWS] = {")
     for uid, paths in units:
-        w("\t\t{%s}, // %s" % (ids(paths), uid))
+        w("\t\t{%s}, // %s" % (ids(paths[:4]), uid))
     w("\t};")
     w("\treturn kRows;")
     w("}")
@@ -170,7 +190,7 @@ def emit(groups, units, generic, buildings, fauna):
     w("inline const EntityAttackSounds *generic_attack_sounds() {")
     w("\tstatic const EntityAttackSounds kRows[ATTACK_SOUND_GENERIC_ROWS] = {")
     for cls, name, paths in generic:
-        w("\t\t{%s}, // %s: %s" % (ids(paths), cls, name))
+        w("\t\t{%s}, // %s: %s" % (ids(paths[:4]), cls, name))
     w("\t};")
     w("\treturn kRows;")
     w("}")
@@ -188,10 +208,44 @@ def emit(groups, units, generic, buildings, fauna):
     w("// An animal's attack_melee group by FaunaType (ATTACK_SOUND_NONE past the table).")
     w("inline uint8_t fauna_attack_sound(uint8_t type) {")
     w("\tstatic const uint8_t kRows[ATTACK_SOUND_FAUNA_ROWS] = {")
-    for stem, path in fauna:
+    for stem, path, _death in fauna:
         w("\t\t%s, // %s" % (ids([path]), stem))
     w("\t};")
     w("\treturn type < ATTACK_SOUND_FAUNA_ROWS ? kRows[type] : ATTACK_SOUND_NONE;")
+    w("}")
+    w("")
+    w("// Health.js death sound (Sound/SoundGroups/death) of a civ roster row, ATTACK_SOUND_NONE")
+    w("// for none and ATTACK_SOUND_PHENOTYPE for a human's {phenotype}_death.")
+    w("inline uint8_t roster_death_sound(uint16_t row) {")
+    w("\tstatic const uint8_t kRows[ATTACK_SOUND_ROSTER_ROWS] = {")
+    for uid, paths in units:
+        w("\t\t%s, // %s" % (one(paths[4]), uid))
+    w("\t};")
+    w("\treturn row < ATTACK_SOUND_ROSTER_ROWS ? kRows[row] : ATTACK_SOUND_NONE;")
+    w("}")
+    w("")
+    w("// The same for a unit without a roster row, by UnitType.")
+    w("inline uint8_t generic_death_sound(uint8_t type) {")
+    w("\tstatic const uint8_t kRows[ATTACK_SOUND_GENERIC_ROWS] = {")
+    for cls, name, paths in generic:
+        w("\t\t%s, // %s: %s" % (one(paths[4]), cls, name))
+    w("\t};")
+    w("\treturn type < ATTACK_SOUND_GENERIC_ROWS ? kRows[type] : ATTACK_SOUND_NONE;")
+    w("}")
+    w("")
+    w("// An animal's death group by FaunaType (ATTACK_SOUND_NONE past the table).")
+    w("inline uint8_t fauna_death_sound(uint8_t type) {")
+    w("\tstatic const uint8_t kRows[ATTACK_SOUND_FAUNA_ROWS] = {")
+    for stem, _path, death in fauna:
+        w("\t\t%s, // %s" % (one(death), stem))
+    w("\t};")
+    w("\treturn type < ATTACK_SOUND_FAUNA_ROWS ? kRows[type] : ATTACK_SOUND_NONE;")
+    w("}")
+    w("")
+    w("// A human's {phenotype}_death group.")
+    w("inline uint8_t phenotype_death_sound(bool female) {")
+    w("\treturn female ? %d : %d;" % (index[PHENOTYPE_DEATH.format(phenotype="female")],
+                                      index[PHENOTYPE_DEATH.format(phenotype="male")]))
     w("}")
     w("")
     return "\n".join(out)
@@ -205,8 +259,9 @@ def main():
     args = ap.parse_args()
     sim_root = os.path.join(args.zad, "binaries", "data", "mods", "public", "simulation")
     units, generic, buildings, fauna = collect(sim_root)
-    paths = sorted({p for rows in (units, generic) for _, *rest in rows for p in rest[-1] if p} |
-                   {p for _, _, ps in buildings for p in ps if p} | {p for _, p in fauna if p})
+    paths = sorted({p for rows in (units, generic) for _, *rest in rows for p in rest[-1] if p and p != PHENOTYPE_DEATH} |
+                   {p for _, _, ps in buildings for p in ps if p} | {p for _, a, d in fauna for p in (a, d) if p} |
+                   {PHENOTYPE_DEATH.format(phenotype=ph) for ph in PHENOTYPES})
     groups = [(p, load_group(args.audio, p)) for p in paths]
     if len(groups) >= 255:
         sys.exit("more than 254 sound groups")
