@@ -8133,6 +8133,8 @@ void Simulation::tick(float dt) {
 	Arena &arena = frame_arena_.current();
 	arena.reset();
 
+	if (ticks_ == 0) explore_territories();
+
 	// Master simulation tick pipeline in fixed, deterministic order:
 	// 0. Map triggers (0 A.D. Timer.js runs its timers at the start of a turn)
 	tick_triggers(dt);
@@ -26629,6 +26631,29 @@ void Simulation::update_spy_los() {
 		los_.update(los_spy_src_[k], want);
 	}
 	los_spy_src_.resize(spies_.size());
+}
+
+// InitGame.js calls CCmpRangeManager::ExploreTerritories before the first turn: every
+// player starts with the land inside its territory explored, and so does the fog the
+// local viewer draws. The territory grid and the LOS grid share one cell layout.
+void Simulation::explore_territories() {
+	if (los_.res() != grid_res_) reset_los();
+	const size_t n = (size_t)grid_res_ * (size_t)grid_res_;
+	if ((size_t)territory_grid_.w * (size_t)territory_grid_.h != n || los_.cells() != n) return;
+	const uint8_t viewer = fow_viewer_;
+	std::vector<uint8_t> *view = nullptr;
+	if (viewer != 0 && viewer < MAX_PLAYERS) {
+		view = &player_fow_[viewer];
+		if (view->size() != fow_grid_.size()) view->assign(fow_grid_.size(), FOW_UNEXPLORED);
+	}
+	for (size_t c = 0; c < n; ++c) {
+		const uint8_t v = territory_grid_.data[c];
+		if (v == 0 || v > MAX_PLAYERS) continue;
+		const uint8_t p = (uint8_t)(v - 1);
+		los_.set_explored((int)c, (uint8_t)(1u << p));
+		std::vector<uint8_t> *fog = p == 0 ? &fow_grid_ : p == viewer ? view : nullptr;
+		if (fog && c < fog->size() && (*fog)[c] == FOW_UNEXPLORED) (*fog)[c] = FOW_EXPLORED;
+	}
 }
 
 bool Simulation::shares_los(uint8_t viewer, uint8_t owner) const {

@@ -5,6 +5,7 @@
 #include "simulation/simulation.h"
 #undef private
 #include "simulation/rms_generator.h"
+#include <cmath>
 #include <cstdio>
 #include <memory>
 
@@ -181,6 +182,41 @@ static void test_revealed_and_explored_map() {
 	CHECK(s->los_visible(5, 30.0f, 30.0f), "Revealed map: everything visible");
 }
 
+static void test_start_territory_explored() {
+	std::printf("starting territory explored (InitGame.js ExploreTerritories)\n");
+	auto s = make_sim(64.0f);
+	s->spawn_building_world(-30.0f, -30.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	const auto &tc = s->buildings_.back();
+	const float vr = s->building_vision_range(tc);
+	const int R = s->grid_res_;
+	const float cell = 128.0f / (float)R;
+	// A cell of player 1's territory beyond its civic centre's vision.
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (int z = 0; z < R && !found; ++z)
+		for (int x = 0; x < R && !found; ++x) {
+			const float wx = (x + 0.5f) * cell - 64.0f, wz = (z + 0.5f) * cell - 64.0f;
+			if (s->territory_grid_.at(x, z) == 2 && std::hypot(wx + 30.0f, wz + 30.0f) > vr + 2.0f * cell) {
+				fx = wx; fz = wz; found = true;
+			}
+		}
+	CHECK(found, "the territory reaches past the civic centre's vision");
+	s->tick(0.25f);
+	CHECK(s->los_explored(1, fx, fz) && !s->los_visible(1, fx, fz), "the owner starts with its whole territory explored");
+	CHECK(!s->los_explored(2, fx, fz), "nobody else does");
+	CHECK(!s->los_explored(1, 50.0f, 50.0f), "land outside it stays unexplored");
+	auto t = make_sim(64.0f);
+	t->spawn_building_world(-30.0f, -30.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	t->tick(0.25f);
+	const int c = t->los_.cell_of(fx, fz);
+	CHECK(t->fow_grid_[(size_t)c] == Simulation::FOW_EXPLORED, "and player 0's drawn fog shows it explored");
+	t->tick(0.25f);
+	t->spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	t->tick(0.25f);
+	CHECK(t->territory_grid_.data[(size_t)t->los_.cell_of(40.0f, 40.0f - vr - 2.0f * cell)] == 1, "(a later civic centre's territory)");
+	CHECK(!t->los_explored(0, 40.0f, 40.0f - vr - 2.0f * cell), "only before the first turn, not for later territory");
+}
+
 // 0 A.D. CircularMap: LOS ends at the circle (CCmpRangeManager LosIsOffWorld), so the cells
 // outside it stay unseen, unexplored and out of the explored percentage, even with Revealed map.
 static void test_circular_map() {
@@ -230,6 +266,7 @@ int main() {
 	test_structure_vision_ranges();
 	test_fog_is_los();
 	test_revealed_and_explored_map();
+	test_start_territory_explored();
 	test_circular_map();
 	std::printf("%s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
