@@ -118,6 +118,9 @@ func run() -> void:
 		s.format_value({"trained": 3, "killed": 1, "lost": 2}).contains("1[/color]\n"), "trained / killed, then lost on the next line")
 	check(s.format_value(s.calculate_ratio(3, 0)) == "∞" and s.calculate_ratio(0, 0) == 0 and is_equal_approx(s.calculate_ratio(2, 3), 0.67),
 		"kill / death ratio as counters.js calculateRatio")
+	check(s.format_value(s.calculate_ratio(4, 2)) == "2" and s.format_value(s.calculate_ratio(1, 4)) == "0.25",
+		"a whole ratio shows without decimals, as +toFixed(2) prints it")
+	check(s.time_to_string(3903.0) == "01:05:03" and s.time_to_string(599.0) == "09:59", "times read mm:ss, or HH:mm:ss from an hour")
 	check(s.calculate_percent(1, 3) == {"percent": 33} and s.format_value({"percent": 33}) == "33%", "percentages are floored")
 	check(s._by({"unitsTrained": {"Civilian": 4}}, "unitsTrained", "Civilian") == 4 and
 		s._by({"unitsTrained": {"FemaleCitizen": 3}}, "unitsTrained", "Civilian") == 3, "Civilian reads FemaleCitizen in replays from before 0.28")
