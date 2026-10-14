@@ -544,7 +544,10 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
     """0 A.D. observer late join: two humans play, and a third client joins the
     running match as an observer. It loads the host's world, then must hash the
     same as the host on every later turn; it takes no seat, nobody waits on it,
-    and every peer's player list shows it as an observer."""
+    and every peer's player list shows it as an observer. The host admits late
+    observers from its buddy list only (network.lateobservers "buddies"), so a
+    stranger is refused, and with network.autocatchup the observer runs the
+    turns it holds until it is within a few turns of the host."""
     turns = 400
     print("\n---- observer: a third client joins the running match to watch ----")
     roles = ("host", "join", "obs")
@@ -557,7 +560,8 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
         return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     # 0 A.D. network.observerlimit: the host takes one observer, so a second is refused.
-    host = peer("host", logs["host"], "--name", "alice", "--observer-limit", "1")
+    host = peer("host", logs["host"], "--name", "alice", "--observer-limit", "1",
+                "--late-observers", "buddies", "--buddies", "Watcher,peeker")
     time.sleep(0.3)
     # bob asks to rejoin again at turn 60, as a slow loader repeats its setup-time
     # request; the host must keep him seated (his row stays '1:bob:1:0').
@@ -577,6 +581,14 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
         extra.kill()
         extra_out, _ = extra.communicate()
     refused = extra.returncode == 3 and "could not rejoin (reason 7)" in (extra_out or "")
+    # Not on the host's buddy list: no late observer (0 A.D. NDR_SERVER_ALREADY_IN_GAME).
+    stranger = peer("join", os.path.join(out_dir, "observer_stranger.log"), "--name", "stranger", "--observe", "1")
+    try:
+        stranger_out, _ = stranger.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        stranger.kill()
+        stranger_out, _ = stranger.communicate()
+    stranger_refused = stranger.returncode == 3 and "could not rejoin (reason 6)" in (stranger_out or "")
     outs, rcs = {}, {}
     for role, p in (("obs", obs), ("join", join), ("host", host)):
         try:
@@ -609,12 +621,18 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
         "every player list": all(r == want for r in rosters.values()),
         "observer flags": observer_flags == {"host": "0", "join": "0", "obs": "1"},
         "second observer refused (reason 7)": refused,
+        "stranger refused (reason 6)": stranger_refused,
     }
+    behind = float(lines("obs", "catchup").get("behind_late", "99"))
+    if loss < 0.3:
+        # Without catch-up it stays as far behind as its transfer took (20+ turns).
+        checks["observer caught up"] = behind <= 8.0
     ok = all(checks.values())
     if ok:
         print(f"[net] PASS observer: joined at turn {t0} as an observer, matched the host on turns {t0 + 1}-{turns}, "
               f"never waited on; every player list shows {sorted(want)}; a second observer past the limit "
-              f"of 1 was refused (reason 7) (final hash {h[turns]})")
+              f"of 1 was refused (reason 7) and a stranger not on the buddy list (reason 6); it ran "
+              f"{behind:.1f} turns behind the host at the end (final hash {h[turns]})")
     else:
         for role in roles:
             for line in (outs[role] or "").splitlines():
@@ -623,7 +641,69 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
         failed = ", ".join(k for k, v in checks.items() if not v)
         print(f"[net] FAIL observer ({failed}): rc={rcs} rejoin={rep} turns host/join/obs={len(h)}/{len(j)}/{len(o)} "
               f"first_bad={bad} pair_bad={pair_bad} waited={waited} rosters={rosters} flags={observer_flags} "
-              f"extra_rc={extra.returncode} extra={(extra_out or '').strip().splitlines()[-1:]}")
+              f"extra_rc={extra.returncode} extra={(extra_out or '').strip().splitlines()[-1:]} "
+              f"stranger_rc={stranger.returncode} behind={behind}")
+    return ok
+
+
+def run_observer_lag_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                          timeout: int) -> bool:
+    """0 A.D. network.observermaxlag: the host holds the match while an observer
+    is more than 10 turns behind. The observer's machine stops for 3 s; the
+    host must wait on it, and all three still agree on every turn."""
+    turns = 400
+    print("\n---- observer max lag: the host waits for an observer 10 turns behind ----")
+    roles = ("host", "join", "obs")
+    logs = {r: os.path.join(out_dir, f"obslag_{r}.log") for r in roles}
+    for path in logs.values():
+        if os.path.exists(path):
+            os.remove(path)
+    common = ["--speed", str(speed), "--loss", str(loss)]
+    def peer(role, log, *more):
+        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    host = peer("host", logs["host"], "--name", "alice", "--observer-max-lag", "10")
+    time.sleep(0.3)
+    join = peer("join", logs["join"], "--name", "bob")
+    deadline = time.time() + timeout
+    while time.time() < deadline and len(read_hashes(logs["host"])) < 120 and host.poll() is None:
+        time.sleep(0.1)
+    obs = peer("join", logs["obs"], "--name", "watcher", "--observe", "1", "--stall-turn", "250", "--stall-ms", "3000")
+    outs, rcs = {}, {}
+    for role, p in (("obs", obs), ("join", join), ("host", host)):
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs[role], rcs[role] = out, p.returncode
+    def lines(role, tag):
+        return peer_lines([outs[role]], tag).get("host" if role == "host" else "join", {})
+    t0 = int(lines("obs", "rejoin").get("turn", "0"))
+    h, j, o = (read_hashes(logs[r]) for r in roles)
+    after = [t for t in sorted(o) if t > t0]
+    bad = next((t for t in after if h.get(t) != o[t]), None)
+    pair_bad = next((t for t in sorted(h) if j.get(t) != h[t]), None)
+    waited = lines("host", "status").get("waited_on", "-").split(",")
+    checks = {
+        "exit codes": all(rc == 0 for rc in rcs.values()),
+        "players ran every turn in sync": len(h) == turns and len(j) == turns and pair_bad is None,
+        "observer matched the host after joining": t0 > 0 and after == list(range(t0 + 1, turns + 1)) and bad is None,
+        "the host waited on the observer": "2" in waited,
+    }
+    ok = all(checks.values())
+    if ok:
+        print(f"[net] PASS observer max lag: the observer (joined at turn {t0}) stopped for 3 s at turn 250 and the "
+              f"host waited on it (waited_on={','.join(waited)}); all three agree on every turn "
+              f"(final hash {h[turns]})")
+    else:
+        for role in roles:
+            for line in (outs[role] or "").splitlines():
+                if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
+                    print(f"   [{role}] " + line)
+        failed = ", ".join(k for k, v in checks.items() if not v)
+        print(f"[net] FAIL observer max lag ({failed}): rc={rcs} turns={len(h)}/{len(j)}/{len(o)} t0={t0} "
+              f"first_bad={bad} pair_bad={pair_bad} waited={waited}")
     return ok
 
 
@@ -1000,6 +1080,8 @@ def main() -> int:
                                    args.net_port + 5, out_dir, args.timeout) and net_ok
         net_ok = run_host_gone_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                     args.net_port + 6, out_dir, args.timeout) and net_ok
+        net_ok = run_observer_lag_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                                       args.net_port + 8, out_dir, args.timeout) and net_ok
         # The observer case again on a link that loses 45% of its datagrams: every
         # reliable packet (turn batches, the rejoin world's chunks) must still
         # arrive, as ENet's do, or the late observer stalls or never gets in.

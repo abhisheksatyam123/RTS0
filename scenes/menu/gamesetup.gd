@@ -254,11 +254,12 @@ const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
-const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India"]
+const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India", "Autumn", "Nubia"]
 ## 0.28 rmbiome ids -> BIOMES index, as tools/extract_0ad_map_types.py RTS0_BIOMES maps
 ## them to BiomeType for the sim (map_biomes_data.h); 0.28 biomes RTS0 lacks are left out.
 const RMBIOME_INDEX := {"generic/aegean": 1, "generic/alpine": 3, "generic/sahara": 4, "generic/temperate": 5,
-	"generic/steppe": 6, "generic/savanna": 7, "generic/arctic": 8, "generic/india": 9}
+	"generic/steppe": 6, "generic/savanna": 7, "generic/arctic": 8, "generic/india": 9,
+	"generic/autumn": 10, "generic/nubia": 11}
 const SPEEDS := [[0.5, "0.5x"], [0.75, "0.75x"], [1.0, "1x"], [1.25, "1.25x"], [1.5, "1.5x"], [2.0, "2x"]]
 const SLOT_KINDS := ["Human", "AI", "Closed"]
 # rtso::PLAYER_COLORS: 0 A.D. player_defaults.json (each player's default), then PlayerColor.js DefaultColors.

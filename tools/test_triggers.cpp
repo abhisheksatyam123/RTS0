@@ -857,6 +857,16 @@ static void check_jebel_barkal() {
 		garrisoned += !b.garrisoned_units.empty();
 	}
 	CHECK(holders > 0 && garrisoned > 0, "%d of %d Gaia structures garrisoned", garrisoned, holders);
+	// The Grand Temples of Amun are Temples and the Noba/Blemmye camps Embassies to the script:
+	// each holds its champions (or infantry) and is a spawn point.
+	int amun = 0, amun_full = 0, amun_spawns = 0;
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER || b.type != BLD_TEMPLE_AMUN) continue;
+		++amun;
+		amun_full += (int)b.garrisoned_units.size() == s.get_garrison_capacity(b.id);
+		for (const TriggerWatch &w : s.triggers_.watched) amun_spawns += w.role == 1 && w.id == b.id;
+	}
+	CHECK(amun > 0 && amun_full == amun && amun_spawns == amun, "%d Temples of Amun: %d full, %d spawn points", amun, amun_full, amun_spawns);
 	// The defenders placed with the map (the garrisons and patrols come after the stance is set).
 	std::vector<uint32_t> inside;
 	for (const Simulation::Building &b : s.buildings_) inside.insert(inside.end(), b.garrisoned_units.begin(), b.garrisoned_units.end());

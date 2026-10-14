@@ -82,6 +82,12 @@ const SCHEMA := [
 	["Networking / Lobby", [
 		["number", "lobby.history", "Chat backlog", "Number of backlogged messages to load when joining the lobby.", [0, 1000]],
 		["boolean", "lobby.columns.gamerating", "Game rating column", "Show the average rating of the participating players in a column of the gamelist."],
+		["boolean", "overlay.netwarnings", "Network warnings", "Show which player has a bad connection in multiplayer games."],
+		["dropdown", "network.lateobservers", "Late observer joins", "Allow everybody or buddies only to join the game as observer after it started.",
+			[["Everyone", "everyone"], ["Buddies", "buddies"], ["Disabled", "disabled"]]],
+		["number", "network.observerlimit", "Observer limit", "Prevent further observers from joining if the limit is reached.", [0, 32]],
+		["number", "network.observermaxlag", "Max lag for observers", "When hosting, pause the game if observers are lagging more than this many turns. If set to -1, observers are ignored.", [-1, 10000]],
+		["boolean", "network.autocatchup", "(Observer) Speed up when lagging.", "When observing a game, automatically speed up if you start lagging, to catch up with the live match."],
 	]],
 	["Chat & Notifications", [
 		["boolean", "chat.timestamp", "Chat timestamp", "Display the time at which a chat message was posted."],

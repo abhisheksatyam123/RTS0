@@ -80,6 +80,13 @@ const Default kDefaults[] = {
 	{"lobby.stun.enabled", "true"},
 	{"lobby.stun.server", ""},
 	{"lobby.stun.port", "3478"},
+	// 0 A.D. default.cfg [network] and overlay.netwarnings (the host reads the
+	// observer settings at Host, a joiner autocatchup when it joins).
+	{"network.lateobservers", "everyone"},
+	{"network.observerlimit", "8"},
+	{"network.observermaxlag", "-1"},
+	{"network.autocatchup", "true"},
+	{"overlay.netwarnings", "true"},
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},
 	{"gui.session.formationwalkonly", "true"},
