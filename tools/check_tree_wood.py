@@ -42,6 +42,9 @@ SLOTS = {
                   [["pine", "pine_maritime"]]),
     "steppe": ([["bush_steppe_01", "bush_steppe_02"]], ["bush_steppe_01"], [["bush_steppe_03", "bush_steppe_02"]]),
     "savanna": ([["baobab", "acacia"]], ["acacia"], [["bush_tropic", "bush_temperate"]]),
+    "autumn": ([["oak_holly_autumn", "oak_hungarian_autumn"]], ["poplar_dead"], [["oak_holly_autumn", "maple_autumn"]]),
+    "nubia": ([["acacia", "acacia"]], ["baobab_4_dead", "baobab_3_mature"],
+              [["date_palm", "acacia"], ["date_palm", "palm_doum"], ["baobab_3_mature", "bush_tropic"]]),
     # "india" (banyan, strangler; teak; palm_palmyra, palm_tropical) is INDIA_BIOME below: the
     # india map script shares its name.
     # Map scripts (script_terrains.h). Where a script mixes several species in one
@@ -133,7 +136,7 @@ int main(int argc, char **argv) {
 
 INDIA_BIOME = ([["banyan", "strangler"]], ["teak"], [["palm_palmyra", "palm_tropical"]])
 
-BIOMES = {"aegean", "alpine", "polar", "oasis", "temperate", "steppe", "savanna"}
+BIOMES = {"aegean", "alpine", "polar", "oasis", "temperate", "steppe", "savanna", "autumn", "nubia"}
 
 
 def chain(templates, name):
