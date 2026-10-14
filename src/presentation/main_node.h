@@ -72,6 +72,7 @@
 #include "cinema_view.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
+#include "debug_overlays.h"
 #include "dev_overlay_view.h"
 #include "minimap_panel_view.h"
 #include "control_groups_view.h"
@@ -212,6 +213,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
+	rtso::RtsoDebugOverlays debug_overlays_; // its pathfinder, obstruction, unit motion and range overlays
 	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker
@@ -377,6 +379,9 @@ public:
 	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
+	void _on_barter_sell_selected(int resource);
+	void _on_pack_cancel_pressed(int pack);
+	Array debug_barter_panel();
 	uint32_t selected_garrison_holder() const;
 	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
@@ -412,6 +417,7 @@ public:
 	void _on_lobby_start_pressed();
 	void _on_lobby_seat_selected(int index, int client);
 	void apply_net_game_start();
+	void show_net_loading_page(const std::string &map_id);
 	void apply_match_settings();
 	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);
@@ -561,6 +567,9 @@ public:
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
 	Dictionary debug_selection_grid(bool select_all);
+	void debug_set_carry(int64_t unit_id, int res, int amount);
+	void debug_set_resource(int res, float amount);
+	bool debug_placing() const;
 	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
@@ -571,6 +580,7 @@ public:
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
 	int64_t debug_civic_centre_id(int player) const;
+	int64_t debug_spawn_building(int type, float dx, float dz);
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
@@ -589,6 +599,7 @@ public:
 	void set_placement_tip(const String &text, bool error);
 	String placement_failure_text(int result, uint8_t btype, float x, float z) const;
 	Dictionary debug_placement_tip() const;
+	Dictionary debug_cursor_tip();
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
