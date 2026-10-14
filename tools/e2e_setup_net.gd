@@ -71,7 +71,7 @@ func cells(page) -> Array:
 	return page._slots_grid().get_children().filter(func(c): return not c.is_queued_for_deletion())
 
 func picker(page, slot: int, col: int):
-	return cells(page)[slot * 7 + col].get_child(0)
+	return cells(page)[slot * 6 + col].get_child(0)
 
 func run() -> void:
 	saved_persist = cfg.get_value("persistmatchsettings")
@@ -103,7 +103,7 @@ func run() -> void:
 	check(ms.slot_types == [0, 0] and ms.slot_civs == [1, -1] and ms.player_count == 2,
 		"the setup drops the Closed slot and keeps Random (%s %s)" % [str(ms.slot_types), str(ms.slot_civs)])
 	check(host.pushes > 0 and not ms.cheats, "the host sends its setup, cheats off")
-	check(cells(page)[0].text == "alice (You)" and cells(page)[7].text == "bob", "slots show their players")
+	check(cells(page)[0].text == "alice (You)" and cells(page)[6].text == "bob", "slots show their players")
 	var vis := "VBox/HBox/LeftScroll/Left/MapVisRow/"
 	var rated: CheckBox = page.get_node(vis + "RatedGame")
 	var cheats: CheckBox = page.get_node(vis + "Cheats")
@@ -138,7 +138,7 @@ func run() -> void:
 		"bob's own picks show on the host's page")
 	await create_timer(0.4).timeout
 	check(ms.slot_civs == [1, 15] and ms.slot_colors == [0, 5], "the host's page keeps them")
-	check(cells(page)[7].text == "bob (Ready)", "bob is ready")
+	check(cells(page)[6].text == "bob (Ready)", "bob is ready")
 	check(not start.disabled and start.tooltip_text == page.START_TOOLTIP, "every player ready: Start")
 	page._on_start_pressed()
 	check(host.started == 1, "Start starts the networked game")
@@ -174,7 +174,7 @@ func run() -> void:
 		and page.get_node("VBox/HBox/LeftScroll/Left/Waves").disabled, "the host's settings are locked")
 	check(picker(page, 0, 2).disabled and picker(page, 0, 3).disabled and picker(page, 1, 1).disabled and picker(page, 1, 4).disabled,
 		"other slots, and our slot's type and AI, are locked")
-	check(not picker(page, 1, 2).disabled and not picker(page, 1, 3).disabled and not picker(page, 1, 6).disabled,
+	check(not picker(page, 1, 2).disabled and not picker(page, 1, 3).disabled and not picker(page, 1, 5).disabled,
 		"our own civ, team and colour are not")
 	page._on_slot_civ(1, 1) # the first civ by name; 0 is Random
 	page._on_slot_team(3, 1)

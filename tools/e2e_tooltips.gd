@@ -64,10 +64,10 @@ func run() -> void:
 	await frames(10)
 	current_scene.get_node("MainPanel/Buttons/BtnSingle").pressed.emit()
 	await frames(4)
-	var b := find_tipped(current_scene, "Start a custom skirmish with RMS biomes, AI, or 0 A.D. maps.")
-	check(b != null, "Single-player submenu has Custom Matches with its tooltip")
+	var b := find_tipped(current_scene, "Start a new single-player game.")
+	check(b != null, "Single-player submenu has Matches with its tooltip")
 	if b:
-		await hover_check(b, "Custom Matches")
+		await hover_check(b, "Matches")
 	change_scene_to_file("res://scenes/menu/gamesetup.tscn")
 	await frames(10)
 	var m := find_tipped(current_scene, "Select a map to play on.")
