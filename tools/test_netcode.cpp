@@ -1104,9 +1104,18 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
 
     // Keep serving the wire (no more turns) so the slower peer gets the batches
     // it still needs -- we already sent ours through turns + COMMAND_DELAY --
-    // and our final sync checks get acknowledged.
+    // and our final sync checks get acknowledged. The host stays until every
+    // client has finished and left (or 30 s): under heavy loss a client, an
+    // observer most of all, can be many turns behind, and a host that left
+    // first cut it off before its last turns.
     uint64_t linger = now_us();
-    while (now_us() - linger < 3'000'000ull) {
+    auto clients_left = [&] {
+        for (const auto &p : net.getPeers())
+            if (p.connected) return true;
+        return false;
+    };
+    while (now_us() - linger < 3'000'000ull ||
+           (host && clients_left() && now_us() - linger < 30'000'000ull)) {
         net.poll(arena);
         arena.reset();
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
