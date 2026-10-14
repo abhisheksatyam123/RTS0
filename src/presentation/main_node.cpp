@@ -56,6 +56,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_game_speed", "speed"), &RtsoMain::set_game_speed);
 	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
 	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
+	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
 	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
 	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
 	ClassDB::bind_method(D_METHOD("_on_replay_speed_selected", "index"), &RtsoMain::_on_replay_speed_selected);
@@ -155,6 +156,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
+	ClassDB::bind_method(D_METHOD("has_lobby_client"), &RtsoMain::has_lobby_client);
 	ClassDB::bind_method(D_METHOD("_on_voice_button_pressed"), &RtsoMain::_on_voice_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_host_pressed"), &RtsoMain::_on_lobby_host_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
@@ -2589,14 +2591,17 @@ void RtsoMain::quickload() {
 	show_notice(load_game(kQuicksavePath) ? "Quickloaded game" : "Quickload failed");
 }
 
+// PauseControl.js canPause(explicit): an observer who is not the host cannot
+// pause a multiplayer match (resuming their own pause stays allowed).
+bool RtsoMain::can_pause() const {
+	return hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying() || local_player() < rtso::MAX_PLAYERS ||
+			net_host_.isHost();
+}
+
 void RtsoMain::toggle_pause() {
-	// PauseControl.js canPause: an observer who is not the host cannot pause a
-	// multiplayer match (resuming their own pause stays allowed).
-	if (!hotkey_paused_ && net_lockstep() && !turn_mgr_.is_replaying() && local_player() >= rtso::MAX_PLAYERS &&
-			!net_host_.isHost())
-		return;
+	if (!can_pause()) return;
 	hotkey_paused_ = !hotkey_paused_;
-	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
+	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_);
 	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
 	update_pause_overlay();
 }
@@ -2728,19 +2733,10 @@ void RtsoMain::post_network_chat() {
 	}
 }
 
+// 0 A.D. Menu.toggle: the menu slides open over the running game; only its
+// Pause button (and the pages it opens in single player) pause.
 void RtsoMain::_on_menu_button_pressed() {
-	Node *pause = get_node_or_null(NodePath("PauseMenu"));
-	if (pause) {
-		pause->call("toggle");
-		set_menu_paused(!paused_via_menu);
-	}
-}
-
-// In a networked match the pause menu pauses every peer (0 A.D.
-// NMT_CLIENT_PAUSED); offline it just stops the local sim.
-void RtsoMain::set_menu_paused(bool paused) {
-	paused_via_menu = paused;
-	if (net_lockstep()) turn_mgr_.set_local_paused(paused || hotkey_paused_);
+	if (Node *pause = get_node_or_null(NodePath("PauseMenu"))) pause->call("toggle");
 }
 
 // Template Viewer for the selection: the selected structure, else the first
@@ -3403,7 +3399,7 @@ void RtsoMain::_process(double delta) {
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
 	}
 	update_pause_overlay();
-	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
+	if (hotkey_paused_ && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
 
@@ -4086,6 +4082,16 @@ bool RtsoMain::inspect_at(const Vector3 &click_pos) {
 		}
 		if (best != (size_t)-1) return pick(INSPECT_RESOURCE, rv.id[best]);
 	}
+	{
+		uint32_t best = 0;
+		float best_d2 = 1.3f * 1.3f;
+		for (const auto &t : sim->treasures()) {
+			if (!explored(t.x, t.z)) continue;
+			const float dx = t.x - cx, dz = t.z - cz, d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
+		}
+		if (best != 0) return pick(INSPECT_TREASURE, best);
+	}
 	inspected_kind_ = INSPECT_NONE;
 	return false;
 }
@@ -4182,6 +4188,25 @@ bool RtsoMain::fill_inspected_details() {
 					"Capture points: " + String::num((double)found->capture_points, 0) + " / " + String::num((double)found->max_capture_points, 0));
 		inspector_stats->set_text(found->build_progress < 1.0f
 				? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : String());
+		return true;
+	}
+	if (inspected_kind_ == INSPECT_TREASURE) {
+		// selection_details.js: the treasure's name and its Treasure/Resources as the reward.
+		const rtso::Simulation::Treasure *found = nullptr;
+		for (const auto &t : sim->treasures())
+			if (t.id == inspected_id_) { found = &t; break; }
+		if (!found) return false;
+		const auto &ti = rtso::treasure_type_info(found->type);
+		static const char *kRes[4] = {"Food", "Wood", "Stone", "Metal"};
+		String reward;
+		for (int k = 0; k < 4; ++k)
+			if (ti.amount[k] > 0) reward += (reward.is_empty() ? "" : ", ") + String::num_int64(ti.amount[k]) + " " + kRes[k];
+		inspector_portrait->set_texture(Ref<Texture2D>());
+		inspector_title->set_text(String::utf8(ti.name));
+		inspector_class->set_text("Gaia");
+		bar(inspector_hp_bar, inspector_hp_label, false);
+		inspector_stats->set_text("Reward: " + reward + "\nCollect time: " + String::num((double)ti.collect_time, 1) + " s");
+		inspector_extra->set_text("Collect treasures for resources.");
 		return true;
 	}
 	// A resource: its kind and what is left (selection_details.js resourceSupply).
