@@ -903,6 +903,11 @@ public:
 	void set_victory_conditions(uint8_t mask) { victory_condition_ = (VictoryCondition)victory_code(mask); }
 	bool has_victory(uint8_t kind) const { return (victory_mask(victory_condition_) & kind) != 0; }
 	float relic_victory_timer() const { return relic_victory_timer_; }
+	// CaptureTheRelic.js relicsVictoryCountdownPlayers: who the running countdown would make win.
+	uint8_t relic_countdown_players() const { return relic_countdown_players_; }
+	// CheckCaptureTheRelicCountdown's winningPlayers from the current relic owners and
+	// diplomacy, or 0 while Gaia holds a relic, nobody holds one or the owners are not allies.
+	uint8_t relic_winners() const;
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
@@ -2310,6 +2315,10 @@ private:
 	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
+	// Derived, not saved: relic_winners() as the end of the last tick saw it (a load rebuilds
+	// it), and whether a relic changed hands this tick (tick_relics, read by the victory check).
+	uint8_t relic_countdown_players_ = 0;
+	bool relic_changed_hands_ = false;
 	std::vector<BattleAlert> pending_alerts_;
 	float last_alert_time_[6] = {};
 	std::unordered_map<uint32_t, size_t> unit_id_to_idx_;

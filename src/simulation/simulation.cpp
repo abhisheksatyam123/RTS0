@@ -528,6 +528,8 @@ void Simulation::reset() {
 	game_over_ = false;
 	victory_ = false;
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	relic_countdown_players_ = 0;
+	relic_changed_hands_ = false;
 	for (float &w : wonder_hold_) w = 0.0f;
 	relics_.clear();
 	treasures_.clear();
@@ -8154,6 +8156,8 @@ void Simulation::tick(float dt) {
 
 	tick_spies(dt);
 	refresh_unit_pop_bonus(); // Population.js: units that appeared, died or changed hands this tick
+	relic_countdown_players_ = has_victory(VK_RELIC) ? relic_winners() : 0;
+	relic_changed_hands_ = false;
 
 	// Fog of War (Paced at 4 Hz to avoid unnecessary main thread recalculations)
 	fow_timer_ += dt;
@@ -12377,6 +12381,24 @@ void Simulation::set_player_won(uint8_t pid) {
 	end_match(side_of(pid), SessionNotice::END_GAME_MODE);
 }
 
+uint8_t Simulation::relic_winners() const {
+	if (relics_.empty()) return 0;
+	const uint8_t active = (uint8_t)(participant_mask_ & ~defeated_mask_);
+	uint8_t owners = 0;
+	for (const Relic &r : relics_) {
+		if (!r.claimed || r.owner_team >= MAX_PLAYERS) return 0; // playerRelicsCount[0]
+		owners |= (uint8_t)(1u << r.owner_team);
+	}
+	owners &= active;
+	if (!owners) return 0;
+	// Allied victory: the active players mutually allied to every owner; otherwise the
+	// first owner alone (side_of is just the player under Last Man Standing).
+	uint8_t winners = active;
+	for (uint8_t o = 0; o < MAX_PLAYERS; ++o)
+		if ((owners >> o) & 1) winners &= side_of(o);
+	return (winners & owners) == owners ? winners : 0;
+}
+
 void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
@@ -12433,32 +12455,19 @@ void Simulation::check_victory_conditions(float dt) {
 		}
 	}
 	if (has_victory(VK_RELIC)) {
-		// Capture the Relic: one side (a player and its mutual allies, or one player under
-		// Last Man Standing, side_of) holds every relic for relic_duration_.
-		if (!relics_.empty()) {
-			bool all_claimed = true;
-			int owner = -1;
-			uint8_t side = 0;
-			for (const auto &r : relics_) {
-				if (!r.claimed || r.owner_team >= MAX_PLAYERS) {
-					all_claimed = false;
-					break;
-				}
-				if (owner < 0) {
-					owner = (int)r.owner_team;
-					side = side_of((uint8_t)owner);
-				} else if (!((side >> r.owner_team) & 1)) {
-					all_claimed = false;
-				}
-			}
-			if (all_claimed && owner >= 0 && owner < MAX_TEAMS) {
-				relic_victory_timer_ += dt;
-				if (relic_victory_timer_ >= relic_duration_) {
-					end_match(side, SessionNotice::END_RELIC);
-					return;
-				}
-			} else {
-				relic_victory_timer_ = 0.0f;
+		// Capture the Relic (CaptureTheRelic.js): every relic held by mutually allied players
+		// (one player under Last Man Standing) for relic_duration_ wins for them and every
+		// player allied to them all. A relic changing hands restarts the countdown
+		// (CheckCaptureTheRelicVictory), and so does a change of who it would make win
+		// (CheckCaptureTheRelicCountdown on OnDiplomacyChanged / OnPlayerDefeated).
+		const uint8_t winners = relic_winners();
+		if (!winners || winners != relic_countdown_players_ || relic_changed_hands_) relic_victory_timer_ = 0.0f;
+		relic_changed_hands_ = false;
+		if (winners) {
+			relic_victory_timer_ += dt;
+			if (relic_victory_timer_ >= relic_duration_) {
+				end_match(winners, SessionNotice::END_RELIC);
+				return;
 			}
 		}
 	}
@@ -25277,6 +25286,8 @@ bool Simulation::load_state(const char *filepath) {
 	}
 	rebuild_all_tech_mods();
 	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
+	relic_countdown_players_ = has_victory(VK_RELIC) ? relic_winners() : 0;
+	relic_changed_hands_ = false;
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
 	if (version >= 26) trigger_event(TRIGGER_ON_DESERIALIZED); // Trigger.js OnGlobalDeserialized
 	petra_decay_events_.clear(); // rebuilding the loaded territory is no change of it
@@ -27702,6 +27713,7 @@ void Simulation::tick_relics() {
 		}
 		rel.x = units_.pos_x[r];
 		rel.z = units_.pos_z[r];
+		if (units_.team[r] != (rel.claimed ? rel.owner_team : GAIA_PLAYER)) relic_changed_hands_ = true;
 		rel.claimed = units_.team[r] != GAIA_PLAYER;
 		rel.owner_team = rel.claimed ? units_.team[r] : 255;
 	}

@@ -3438,9 +3438,11 @@ void RtsoMain::_process(double delta) {
 							(allies ? " will win in " : "will win in ") + left + ".");
 				}
 			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
+				// StartCaptureTheRelicCountdown: named after the first relic's owner, "and their
+				// allies" when more than one player would win.
 				const uint8_t owner = sim->relics()[0].owner_team;
-				if (owner < rtso::MAX_PLAYERS) {
-					const uint8_t side = (uint8_t)(allies_of(owner) | (1u << owner));
+				const uint8_t side = sim->relic_countdown_players();
+				if (owner < rtso::MAX_PLAYERS && side) {
 					const bool team = (side & (side - 1)) != 0;
 					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
 					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
