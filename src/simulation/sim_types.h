@@ -1235,36 +1235,35 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		// template_structure_military and _defensive_tower 10, wonder x4, farmstead 300; the dock's
 		// TerritoryDecay is disabled). garrison is GarrisonHolder/Max (0: none; the house's civ value and
 		// other civ overrides are in structure_garrison_max, the List in structure_garrison_list).
-		{"Town Center", "town_center", "town_center", 3000.0f, 2, 0, 300, 250, 300, 20, 20, 125.0f, 2500.0f, 30.0f, 1.0f, 20.0f},
-		{"House", "house", "house", 800.0f, 1, 0, 75, 0, 0, 5, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Barracks", "barracks", "barracks", 2000.0f, 2, 0, 200, 0, 100, 0, 10, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 10.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Defense Tower", "wall_tower", "tower", 1000.0f, 1, 0, 100, 0, 100, 0, 5, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Farmstead", "farmstead", "farmstead", 900.0f, 1, 0, 100, 0, 0, 0, 0, 11.25f, 300.0f, 5.0f, 1.0f, 20.0f},
-		{"Market", "market", "market", 1500.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Fortress", "fortress", "fortress", 5200.0f, 2, 0, 300, 0, 600, 0, 20, 112.5f, 4000.0f, 45.0f, 1.0f, 40.0f},
-		{"Gate", "gate", "gate", 2500.0f, 1, 0, 12, 0, 18, 0, 0, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Temple", "temple", "temple", 2000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 20.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 0, 1000, 1000, 1500, 0, 50, 250.0f, 2000.0f, 5.0f, 1.0f, 20.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 2500.0f, 2, 0, 200, 0, 0, 0, 0, 37.5f, 500.0f, 10.0f, 1.0f, 0.0f},
-		{"Stone Wall Segment", "wall_segment", "wall", 3000.0f, 1, 0, 0, 0, 36, 0, 0, 9.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 500.0f, 2, 0, 100, 0, 0, 0, 8, 12.5f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Town Center", "town_center", "town_center", 3000.0f, 2, 0, 300, 250, 300, 20, 20, 500.0f, 2500.0f, 30.0f, 1.0f, 20.0f},
+		{"House", "house", "house", 800.0f, 1, 0, 75, 0, 0, 5, 3, 30.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Barracks", "barracks", "barracks", 2000.0f, 2, 0, 200, 0, 100, 0, 10, 150.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 40.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Defense Tower", "wall_tower", "tower", 1000.0f, 1, 0, 100, 0, 100, 0, 5, 150.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Farmstead", "farmstead", "farmstead", 900.0f, 1, 0, 100, 0, 0, 0, 0, 45.0f, 300.0f, 5.0f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1500.0f, 2, 0, 300, 0, 0, 0, 0, 150.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 5200.0f, 2, 0, 300, 0, 600, 0, 20, 450.0f, 4000.0f, 45.0f, 1.0f, 40.0f},
+		{"Gate", "gate", "gate", 2500.0f, 1, 0, 12, 0, 18, 0, 0, 30.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 2000.0f, 2, 0, 0, 0, 300, 0, 20, 200.0f, 500.0f, 15.0f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 0, 1000, 1000, 1500, 0, 50, 1000.0f, 2000.0f, 5.0f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 2500.0f, 2, 0, 200, 0, 0, 0, 0, 150.0f, 500.0f, 10.0f, 1.0f, 0.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 3000.0f, 1, 0, 0, 0, 36, 0, 0, 36.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 500.0f, 2, 0, 100, 0, 0, 0, 8, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
-		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
-		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
+		// GarrisonHolder/Max, Capturable, Cost/BuildTime; footprint
 		// is 2 cells when the 0 A.D. footprint is wider than 15 m.
-		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 12.5f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Palisade", "palisade", "palisade", 600.0f, 1, 0, 12, 0, 0, 0, 0, 3.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Celtic Embassy", "embassy", "embassy", 1200.0f, 2, 0, 200, 0, 0, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, // cart/embassy_celtic
+		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 120.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 120.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 120.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 180.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 40.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 30.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Palisade", "palisade", "palisade", 600.0f, 1, 0, 12, 0, 0, 0, 0, 12.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 48.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 180.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 500.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Celtic Embassy", "embassy", "embassy", 1200.0f, 2, 0, 200, 0, 0, 0, 6, 150.0f, 500.0f, 10.0f, 1.0f, 20.0f}, // cart/embassy_celtic
 		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
 		RTSO_CIV_BUILDING_INFO_ROWS
 	};
@@ -1324,7 +1323,7 @@ inline bool building_footprint_round(uint8_t civ, uint8_t type) {
 }
 
 // building_type_info for a civ: where structures/<civ>/<name>.xml differs from the generic row
-// (0.28's own Health/Max, Cost and BuildTime x0.25). The big house
+// (0.28's own Health/Max, Cost and BuildTime). The big house
 // (template_structure_civic_house_big: 1200 health, 150 wood, 10 population, 50 s) where the civ
 // has one; brit/gaul/maur barracks and stables, brit/gaul temples and maur walls, gates and wall
 // towers in wood; germ/temple 150 wood and 150 stone; iber/defense_tower; cart/dock 150 wood;
@@ -1339,7 +1338,7 @@ inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
 				info.max_hp = 1200.0f;
 				info.wood_cost = 150;
 				info.pop_bonus = 10;
-				info.build_time = 50.0f * 0.25f;
+				info.build_time = 50.0f;
 			}
 			break;
 		case BLD_BARRACKS: if (celt_or_maur) cost(300, 0); break;
@@ -1355,7 +1354,7 @@ inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
 			if (civ == CIV_IBERIANS) {
 				info.max_hp = 2400.0f;
 				cost(50, 250);
-				info.build_time = 200.0f * 0.25f;
+				info.build_time = 200.0f;
 			}
 			break;
 		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) info.wood_cost = 150; break;
@@ -1371,7 +1370,7 @@ inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
 		case BLD_FIELD:
 			if (civ == CIV_HAN) {
 				info.wood_cost = 60;
-				info.build_time = 30.0f * 0.25f;
+				info.build_time = 30.0f;
 			}
 			break;
 		default: break;
@@ -1389,9 +1388,8 @@ inline constexpr float WALL_SEGMENT_LENGTHS[3] = {36.0f / 4.0f, 24.0f / 4.0f, 12
 inline constexpr float WALL_TOWER_LENGTH = 7.0f / 4.0f;
 inline constexpr float WALL_MIN_TOWER_OVERLAP = 0.05f, WALL_MAX_TOWER_OVERLAP = 0.90f;
 inline constexpr float WALL_HALF_DEPTH = 5.0f / 4.0f * 0.5f;
-// 0 A.D. wall_long Health 3000, Cost stone 36 and BuildTime 36 s (x0.25 like every RTS0 build
-// time); wall_medium and wall_short have two thirds and a third of each, as of the length.
-inline constexpr float WALL_LONG_HEALTH = 3000.0f, WALL_LONG_STONE = 36.0f, WALL_LONG_BUILD_TIME = 36.0f * 0.25f;
+// 0 A.D. wall_long Health 3000, Cost stone 36 and BuildTime 36 s; wall_medium and wall_short have two thirds and a third of each, as of the length.
+inline constexpr float WALL_LONG_HEALTH = 3000.0f, WALL_LONG_STONE = 36.0f, WALL_LONG_BUILD_TIME = 36.0f;
 
 // wallset_palisade.xml (template_wallset MaxTowerOverlap 0.85): palisades_long/medium/short
 // WallPiece/Length 14, 9 and 4 m with a Static depth of 2 m; palisades_tower WallPiece/Length 3 m
@@ -1414,7 +1412,7 @@ inline constexpr float SIEGE_WALL_HALF_DEPTH = 4.0f / 4.0f * 0.5f;
 enum WallSetKind : uint8_t { WALLSET_STONE = 0, WALLSET_PALISADE = 1, WALLSET_SIEGE = 2, WALLSET_COUNT };
 
 // A WallSet's pieces and their 0 A.D. values: Health/Max, Cost (stone for walls, wood for
-// palisades) and BuildTime (x0.25) of the long, medium and short segment and of the tower. A
+// palisades) and BuildTime of the long, medium and short segment and of the tower. A
 // tower whose values are negative keeps its building_type_info row (the stone wall tower).
 struct WallSetInfo {
 	uint8_t segment, tower;
@@ -1436,14 +1434,14 @@ inline const WallSetInfo &wallset_info(uint8_t kind) {
 		// BuildTime 12, 8, 4 and 14 s.
 		{BLD_PALISADE, BLD_PALISADE, {PALISADE_SEGMENT_LENGTHS[0], PALISADE_SEGMENT_LENGTHS[1], PALISADE_SEGMENT_LENGTHS[2]},
 			PALISADE_TOWER_LENGTH, PALISADE_TOWER_HALF, 0.05f, 0.85f, PALISADE_HALF_DEPTH,
-			{600.0f, 400.0f, 200.0f}, {12.0f, 8.0f, 4.0f}, {12.0f * 0.25f, 8.0f * 0.25f, 4.0f * 0.25f},
-			700.0f, 14.0f, 14.0f * 0.25f},
+			{600.0f, 400.0f, 200.0f}, {12.0f, 8.0f, 4.0f}, {12.0f, 8.0f, 4.0f},
+			700.0f, 14.0f, 14.0f},
 		// rome/siege_wall_*: the stone wall's Health (3000, 2000, 1000; tower 4000) x 0.75; wood 60,
 		// 40, 20 and 80; BuildTime 30, 20, 10 and 40 s.
 		{BLD_SIEGE_WALL, BLD_SIEGE_WALL, {WALL_SEGMENT_LENGTHS[0], WALL_SEGMENT_LENGTHS[1], WALL_SEGMENT_LENGTHS[2]},
 			SIEGE_WALL_TOWER_LENGTH, SIEGE_WALL_TOWER_HALF, 0.05f, 1.00f, SIEGE_WALL_HALF_DEPTH,
-			{2250.0f, 1500.0f, 750.0f}, {60.0f, 40.0f, 20.0f}, {30.0f * 0.25f, 20.0f * 0.25f, 10.0f * 0.25f},
-			3000.0f, 80.0f, 40.0f * 0.25f},
+			{2250.0f, 1500.0f, 750.0f}, {60.0f, 40.0f, 20.0f}, {30.0f, 20.0f, 10.0f},
+			3000.0f, 80.0f, 40.0f},
 	};
 	return kSets[kind < WALLSET_COUNT ? kind : 0];
 }

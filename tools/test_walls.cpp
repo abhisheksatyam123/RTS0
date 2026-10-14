@@ -153,12 +153,12 @@ int main() {
 	{
 		const uint32_t worker = s.spawn_unit(0.0f, 7.0f, 0, UNIT_FEMALE_CITIZEN);
 		CHECK(s.cmd_build_wall(0, -1.75f, 10.0f, 1.75f, 10.0f, &worker, 1) == 3);
-		for (int k = 0; k < (int)(90.0f / Simulation::FIXED_STEP); ++k) s.tick(Simulation::FIXED_STEP);
+		for (int k = 0; k < (int)(150.0f / Simulation::FIXED_STEP); ++k) s.tick(Simulation::FIXED_STEP);
 		int done = 0;
 		for (const auto &bld : s.buildings()) done += (bld.type == BLD_WALL_SEGMENT || bld.type == BLD_WALL_TOWER) && bld.build_progress >= 1.0f;
 		auto [cx, cy] = s.nav_grid().world_to_cell(0.0f, 10.0f);
 		const bool blocked = s.nav_grid().cells.at(cx, cy) == NAV_OBSTRUCTED;
-		std::printf("  short wall built by one woman in 90 s: %d of 3 pieces, ground between the towers %s\n", done,
+		std::printf("  short wall built by one woman in 150 s: %d of 3 pieces, ground between the towers %s\n", done,
 				blocked ? "blocked" : "open");
 		CHECK(done == 3 && blocked);
 	}

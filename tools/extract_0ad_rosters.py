@@ -1661,7 +1661,7 @@ def unique_building_rows(sim_root, generic_masks=None):
     """BuildingTypeInfo rows, civ masks and phases for UNIQUE_BUILDINGS, read
     from each structure's 0 A.D. template the way the generic rows in
     sim_types.h were: Health, Cost (metal -> gold), GarrisonHolder,
-    Population/Bonus, Capturable, TerritoryDecay; BuildTime x0.25; footprint
+    Population/Bonus, Capturable, TerritoryDecay, BuildTime; footprint
     2 cells when wider than 15 m."""
     loader = TemplateLoader(sim_root)
     out = []
@@ -1704,7 +1704,7 @@ def unique_building_rows(sim_root, generic_masks=None):
             "food": int(t.num("Cost/Resources/food")), "wood": int(t.num("Cost/Resources/wood")),
             "gold": int(t.num("Cost/Resources/metal")), "stone": int(t.num("Cost/Resources/stone")),
             "pop": int(t.num("Population/Bonus")), "garrison": int(t.num("GarrisonHolder/Max")),
-            "build_time": t.num("Cost/BuildTime", 100.0) * 0.25,
+            "build_time": t.num("Cost/BuildTime", 100.0),
             # Capturable disable="" (rome/arch): never captured.
             "capture": t.num("Capturable/CapturePoints", 500.0) if t.get("Capturable") is not None else 0.0,
             "regen": t.num("Capturable/RegenRate", 5.0),

@@ -1544,14 +1544,14 @@ static void test_nomad_first_base() {
 	for (size_t i = 0; i < s->units_.count; ++i)
 		if (s->units_.alive[i] && s->units_.team[i] == 0) idle_army.push_back(s->units_.id[i]);
 	s->order_set_stance(idle_army.data(), idle_army.size(), STANCE_PASSIVE);
-	run_for(*s, 150.0f);
+	run_for(*s, 240.0f);
 	int buildings = 0, houses = 0;
 	for (const auto &b : s->buildings())
 		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) {
 			++buildings;
 			houses += b.type == BLD_HOUSE;
 		}
-	std::printf("  nomad: Town Centers at start %d, built after 150 s %d, finished buildings %d, workers %d\n",
+	std::printf("  nomad: Town Centers at start %d, built after 240 s %d, finished buildings %d, workers %d\n",
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
@@ -2220,7 +2220,7 @@ static void test_research_choices() {
 	CHECK(mines >= 2, "researches stone and metal rates in the town phase");
 	CHECK(fights == 0, "no random forge techs before the city phase");
 	s->players_[1].phase = 3;
-	for (int k = 0; k < 60; ++k) {
+	for (int k = 0; k < 90; ++k) {
 		s->set_player_resources(1, 5000, 5000, 5000, 5000);
 		run_for(*s, 10.0f);
 	}

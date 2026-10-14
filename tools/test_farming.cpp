@@ -91,7 +91,7 @@ int main() {
 	uint32_t woman = s.spawn_unit(fx + 4.0f, fz, 0, UNIT_FEMALE_CITIZEN);
 	s.order_build_or_repair(&woman, 1, field);
 	CHECK(count_grain(s) == 0);
-	run(s, 18.0f);
+	run(s, 60.0f); // BuildTime 50 s
 	CHECK(find_bld(s, field)->build_progress >= 1.0f);
 	uint32_t grain = grain_at(s, fx, fz);
 	CHECK(grain != 0);

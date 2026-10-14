@@ -434,7 +434,7 @@ int main() {
 			CHECK(p0[RES_WOOD] == 300.0f && p0[RES_STONE] == 0.0f && p1[RES_WOOD] == 200.0f && p1[RES_STONE] == 100.0f);
 			c.structure_cost_for(1, BLD_TOWER, p1);
 			CHECK(p1[RES_WOOD] == 50.0f && p1[RES_STONE] == 250.0f && c.structure_max_hp(BLD_TOWER, 1) == 2400.0f);
-			CHECK(std::fabs(c.structure_build_time_for(1, BLD_TOWER) - 50.0f) < 0.01f);
+			CHECK(std::fabs(c.structure_build_time_for(1, BLD_TOWER) - 200.0f) < 0.01f);
 			CHECK(civ_building_type_info(CIV_ATHENIANS, BLD_HOUSE).pop_bonus == 10 && civ_building_type_info(CIV_ATHENIANS, BLD_HOUSE).max_hp == 1200.0f);
 			CHECK(civ_building_type_info(CIV_GAULS, BLD_HOUSE).pop_bonus == 5 && civ_building_type_info(CIV_MAURYANS, BLD_WALL_TOWER).wood_cost == 60);
 		}

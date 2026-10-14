@@ -767,7 +767,7 @@ static void test_petra_overseas_base() {
 	uint32_t cc = 0;
 	float placed_at = -1.0f, first_ashore = -1.0f;
 	int waded = 0; // land units are not stopped by deep water yet: none may try
-	for (int k = 0; k < 360; ++k) {
+	for (int k = 0; k < 420; ++k) {
 		run(s, 1.0f);
 		for (size_t i = 0; i < s.units().count; ++i)
 			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
