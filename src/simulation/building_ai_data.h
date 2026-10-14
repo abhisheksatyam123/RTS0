@@ -9,7 +9,7 @@ struct BuildingAIInfo {
 	uint8_t default_arrows; // DefaultArrowCount; 0 with no garrison bonus = never shoots
 	uint8_t max_arrows; // MaxArrowCount, 0 = no limit
 	float garrison_arrow_multiplier; // GarrisonArrowMultiplier
-	uint64_t garrison_arrow_classes; // GarrisonArrowClasses as TechClass bits, any of them
+	TechClasses garrison_arrow_classes; // GarrisonArrowClasses as TechClass bits, any of them
 	float hack, pierce, crush; // Attack/Ranged/Damage
 	float min_range, max_range; // from the structure's edge
 	float origin_y; // Attack/Ranged/Origin/Y: height the parabolic range is measured from
@@ -18,7 +18,7 @@ struct BuildingAIInfo {
 	bool shoots() const { return default_arrows > 0 || garrison_arrow_multiplier > 0.0f; }
 };
 
-inline constexpr uint8_t BUILDING_AI_ROWS = 67;
+inline constexpr uint8_t BUILDING_AI_ROWS = 69;
 inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 	static const BuildingAIInfo kTable[BUILDING_AI_ROWS + 1] = {
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -88,6 +88,8 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_CRANNOG: structures/brit/crannog (the Civic Center's BuildingAI)
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_GREAT_HALL: structures/germ/great_hall
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_WAGON_ENCAMPMENT: structures/germ/encampment
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // none
 	};
 	return kTable[type < BUILDING_AI_ROWS ? type : BUILDING_AI_ROWS];
