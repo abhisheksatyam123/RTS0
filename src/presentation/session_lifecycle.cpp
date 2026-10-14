@@ -163,13 +163,12 @@ void RtsoMain::_ready() {
 		mm_btns->set_offset(SIDE_BOTTOM, -206.0f);
 		mm_btns->add_theme_constant_override("separation", 4);
 		struct MmBtn { const char *label; const char *method; };
-		const MmBtn mm_btn_defs[4] = {
+		const MmBtn mm_btn_defs[3] = {
 			// 3-state shroud cycle (RtsoMiniMapView::cycle_shroud, minimap_view.h ShroudMode):
 			// On -> terrain-only -> off -> On. 0AD MiniMapPanel.js:8-11 panel buttons.
 			{"Shroud", "cycle_shroud"},
 			{"Terr", "toggle_territory"},
 			{"Res", "toggle_resources"},
-			{"Diplo", "toggle_diplomacy"},
 		};
 		for (const MmBtn &d : mm_btn_defs) {
 			Button *b = memnew(Button);
@@ -182,6 +181,7 @@ void RtsoMain::_ready() {
 		}
 		ui_layer->add_child(mm_btns);
 	}
+	minimap_panel_.build(ui_layer, this, [](const String &path) { return rtso::load_ui_texture(path); });
 
 	// =========================================================================
 	// 1. TOP HUD BAR PANEL (Civ Crest, 4 Resources, Pop, Idle, Clock, Speed, Menu)
@@ -227,6 +227,7 @@ void RtsoMain::_ready() {
 			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
 		};
 		top_panel_.set_civ_icon_keys(first_key("civinfo"), first_key("structree"));
+		minimap_panel_.set_hotkeys(first_key("selection.idleworker"), first_key("session.diplomacycolors"), first_key("session.flare"));
 		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
 				first_key("session.gui.barter.toggle"),
 				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));

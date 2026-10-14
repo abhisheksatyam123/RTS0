@@ -72,6 +72,7 @@
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
 #include "dev_overlay_view.h"
+#include "minimap_panel_view.h"
 #include "control_groups_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
@@ -100,6 +101,10 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// 1. Top HUD Bar
 	Panel *top_hud_panel = nullptr;
 	RtsoTopPanel top_panel_;
+	// 0.28 MiniMapPanel's idle worker, diplomacy colours and flare buttons.
+	rtso::RtsoMiniMapPanel minimap_panel_;
+	// input.js INPUT_FLARE: the flare button (or session.flareactivate) armed a flare.
+	bool flare_armed_ = false;
 	Button *speed_btn = nullptr;
 	Button *menu_btn = nullptr;
 	RtsoSafeSelect *map_selector = nullptr;
@@ -702,6 +707,8 @@ private:
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
 	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
+	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
+	Dictionary debug_minimap_panel() const;
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while
