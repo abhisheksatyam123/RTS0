@@ -68,6 +68,29 @@ public:
 		return true;
 	}
 
+	// The same for the box [x0, x1] x [z0, z1]: f(i) for each building whose footprint's bounding
+	// box may overlap it.
+	template <class F>
+	bool for_each_in_box(float x0, float z0, float x1, float z1, F&& f) const
+	{
+		if (words_ == 0) return true;
+		if (words_ > MAX_WORDS || masks_.size() != static_cast<size_t>(w_) * w_ * words_) return false;
+		const int cx0 = axis(x0 - 0.5f), cx1 = axis(x1 + 0.5f);
+		const int cz0 = axis(z0 - 0.5f), cz1 = axis(z1 + 0.5f);
+		const size_t cells = static_cast<size_t>(cx1 - cx0 + 1) * static_cast<size_t>(cz1 - cz0 + 1);
+		if (cells * words_ > count_) return false;
+		uint64_t near[MAX_WORDS] = {};
+		for (int cz = cz0; cz <= cz1; ++cz)
+			for (int cx = cx0; cx <= cx1; ++cx) {
+				const uint64_t* m = &masks_[(static_cast<size_t>(cz) * w_ + cx) * words_];
+				for (int k = 0; k < words_; ++k) near[k] |= m[k];
+			}
+		for (int k = 0; k < words_; ++k)
+			for (uint64_t bits = near[k]; bits; bits &= bits - 1)
+				if (f(static_cast<uint32_t>(k * 64 + std::countr_zero(bits)))) return true;
+		return true;
+	}
+
 	size_t size() const { return count_; }
 
 private:
@@ -122,6 +145,21 @@ public:
 			const size_t row = static_cast<size_t>(cz) * w_;
 			for (uint32_t k = start_[row + cx0], e = start_[row + cx1 + 1]; k < e; ++k) f(items_[k]);
 		}
+	}
+
+	// The same, stopping at the first i for which f returns true. True when one did.
+	template <class F>
+	bool any_in_box(float x0, float z0, float x1, float z1, F&& f) const
+	{
+		if (items_.empty()) return false;
+		const int cx0 = axis(x0 - max_ext_), cx1 = axis(x1 + max_ext_);
+		const int cz0 = axis(z0 - max_ext_), cz1 = axis(z1 + max_ext_);
+		for (int cz = cz0; cz <= cz1; ++cz) {
+			const size_t row = static_cast<size_t>(cz) * w_;
+			for (uint32_t k = start_[row + cx0], e = start_[row + cx1 + 1]; k < e; ++k)
+				if (f(items_[k])) return true;
+		}
+		return false;
 	}
 
 	bool empty() const { return items_.empty(); }
