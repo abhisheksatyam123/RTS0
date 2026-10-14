@@ -372,11 +372,14 @@ int main() {
 		s.cmd_unload(1, tower, nullptr, 0);
 		CHECK(s.get_transport_passenger_count(tower) == 1 && !alive(s, mine));
 		for (uint32_t u : theirs) CHECK(alive(s, u));
+		// Set down around the tower, they walk back to within its 2 m LoadingRange.
 		s.order_board_transport(theirs.data(), theirs.size(), tower);
+		run(s, 3.0f);
 		CHECK(s.get_transport_passenger_count(tower) == 4);
 		s.cmd_unload(0, tower, nullptr, 0);
 		CHECK(s.get_transport_passenger_count(tower) == 0);
 		s.order_board_transport(theirs.data(), theirs.size(), tower);
+		run(s, 3.0f);
 		CHECK(s.get_transport_passenger_count(tower) == 3);
 		s.set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
 		s.set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
