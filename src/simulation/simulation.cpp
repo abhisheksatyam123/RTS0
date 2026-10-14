@@ -1909,6 +1909,47 @@ const std::vector<Simulation::SteerObstacle> &Simulation::tick_mine_obstacles() 
 	return mine_obstacles_;
 }
 
+void Simulation::ensure_gaia_obstacles() {
+	// FNV-1a over what makes the set: the map, and each blocking supply and treasure.
+	uint64_t h = 1469598103934665603ull;
+	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
+	auto fbits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return (uint64_t)u; };
+	auto blocks = [this](size_t r) {
+		const uint8_t t = resources_.type[r];
+		return resources_.alive[r] && resources_.amount[r] > 0 && resources_.subtype[r] == RES_SUB_NONE &&
+		       (t == RES_WOOD || t == RES_FOOD);
+	};
+	mix(fbits(map_half_));
+	for (size_t r = 0; r < resources_.count; ++r)
+		if (blocks(r)) mix(((uint64_t)resources_.id[r] << 32) ^ (fbits(resources_.x[r]) * 31u + fbits(resources_.z[r])));
+	for (const Treasure &t : treasures_) mix(((uint64_t)t.id << 32) ^ (fbits(t.x) * 31u + fbits(t.z)));
+	if (h == gaia_obstacles_sig_) return;
+	gaia_obstacles_sig_ = h;
+	gaia_obstacles_.clear();
+	for (size_t r = 0; r < resources_.count; ++r)
+		if (blocks(r)) {
+			const float half = resource_block_half(r);
+			gaia_obstacles_.push_back(
+					steer_obstacle(resources_.id[r], resources_.x[r], resources_.z[r], 1.0f, 0.0f, half, half, GAIA_OBSTACLE));
+		}
+	for (const Treasure &t : treasures_) {
+		const auto &ti = treasure_type_info(t.type);
+		const float hw = ti.width * 0.125f, hd = ti.depth * 0.125f; // metres to half-extents in world units
+		float ux, uz;
+		bool swapped;
+		nav::footprint_axis(treasure_angle(t.id), ux, uz, swapped);
+		gaia_obstacles_.push_back(steer_obstacle(t.id, t.x, t.z, ux, uz, swapped ? hd : hw, swapped ? hw : hd, GAIA_OBSTACLE));
+	}
+	gaia_grid_.build(gaia_obstacles_, map_half_);
+}
+
+void Simulation::gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const {
+	gaia_grid_.for_each_in_box(x - reach, z - reach, x + reach, z + reach, [&](uint32_t k) {
+		const SteerObstacle &o = gaia_obstacles_[k];
+		if (std::fabs(o.x - x) <= reach + o.ext && std::fabs(o.z - z) <= reach + o.ext) out.push_back(o);
+	});
+}
+
 float Simulation::resource_block_half(size_t r) const {
 	const uint8_t t = resources_.type[r];
 	if (resources_.subtype[r] == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD))
@@ -8576,6 +8617,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		}
 	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
 	steer_obstacles_.insert(steer_obstacles_.end(), mines.begin(), mines.end());
+	ensure_gaia_obstacles();
 	// Names this tick's obstacles for the short paths units keep (ShortPathMemo): a kept short path
 	// is only reused among the same buildings and water level.
 	{
@@ -8819,11 +8861,22 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			const float adx = aim_x - px[i], adz = aim_z - pz[i];
 			if (adx * adx + adz * adz <= nav::BUILDING_STEER_RANGE * nav::BUILDING_STEER_RANGE) {
 				const float c = unit_clearance_at(i) + 0.05f;
+				bool moved = false;
 				for (const SteerObstacle &b : steer_obstacles_)
 					if (std::fabs(aim_x - b.x) < nav::footprint_extent(b) + c &&
 					    std::fabs(aim_z - b.z) < nav::footprint_extent(b) + c &&
-					    nav::footprint_push_out(b, c, aim_x, aim_z))
+					    nav::footprint_push_out(b, c, aim_x, aim_z)) {
+						moved = true;
 						break;
+					}
+				// Nor can it stand in a tree, a bush or a treasure.
+				if (!moved) {
+					thread_local std::vector<SteerObstacle> at_aim;
+					at_aim.clear();
+					gaia_obstacles_near(aim_x, aim_z, c, at_aim);
+					for (const SteerObstacle &b : at_aim)
+						if (nav::footprint_push_out(b, c, aim_x, aim_z)) break;
+				}
 			}
 		}
 
@@ -8929,9 +8982,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
 			if (round_units) steer = rtso::nav::Vec2(memo.x, memo.z);
 			const ShortPathMemo last = memo;
+			// The trees, bushes and treasures near the unit count too (gaia_obstacles_near): the
+			// short path goes round those within GAIA_STEER_REACH, and further ones once it nears them.
+			thread_local std::vector<SteerObstacle> near_gaia;
+			near_gaia.clear();
+			if (!round_units) gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, near_gaia);
 			if (round_units || rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
-					unit_clearance_at(i), steer_obstacles_, units_.target_building_id[i],
-					nav_grid_, short_path_key_, memo, steer)) {
+					unit_clearance_at(i), nav::ConcatRange<SteerObstacle>{steer_obstacles_, near_gaia},
+					units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer)) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
 				if (sdx * sdx + sdz * sdz > 1e-6f) {
@@ -9283,8 +9341,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			building = units_.target_building_id[i];
 		}
 		nav::Vec2 w, next;
+		thread_local std::vector<SteerObstacle> near_gaia; // and round the trees as move_units steers
+		near_gaia.clear();
+		gaia_obstacles_near(x0, z0, GAIA_STEER_REACH, near_gaia);
 		if (!nav::search_short_path_with_units(pos, aim, goal, unit_clearance_at(i), ci, range,
-				steer_obstacles_, building, squares, nav_grid_, w, next)) {
+				nav::ConcatRange<SteerObstacle>{steer_obstacles_, near_gaia}, building, squares, nav_grid_, w, next)) {
 			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
 			return;
 		}
@@ -9693,6 +9754,15 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// order, so the pushes add up exactly as over the whole list.
 		if (!sep_grid_.for_each_near(pxi, pzi, b_skip, [&](uint32_t k) { return push_out(sep_obstacles_[k]); }))
 			for (const SteerObstacle &b : sep_obstacles_) push_out(b);
+		// 3. Trees, bushes and treasures push land units out the same way (gaia_obstacles_), all but the
+		// tree, bush or treasure the unit works at.
+		if (!gaia_grid_.empty() && !unit_is_ship(units_.unit_type[i])) {
+			const uint32_t own_res = units_.target_resource_id[i], own_unit = units_.target_unit_id[i];
+			gaia_grid_.for_each_in_box(pxi - b_skip, pzi - b_skip, pxi + b_skip, pzi + b_skip, [&](uint32_t k) {
+				const SteerObstacle &b = gaia_obstacles_[k];
+				if (b.id != own_res && b.id != own_unit) push_out(b);
+			});
+		}
 
 		bfx[i] = ax;
 		bfz[i] = az;

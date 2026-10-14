@@ -3107,6 +3107,19 @@ private:
 	std::vector<SteerObstacle> mine_obstacles_;
 	uint64_t mine_obstacles_tick_ = ~uint64_t{0};
 	const std::vector<SteerObstacle> &tick_mine_obstacles();
+	// Trees, fruit bushes and treasures, which block land units' movement (template_gaia_tree,
+	// _fruit and _treasure Obstruction/Static: flora_obstruction_m, TreasureTypeInfo width x depth)
+	// but not paths (RTS0's navcells are wider than a tree). Too many for the per-unit scans of
+	// steer_obstacles_, so units steer round only those near them (gaia_obstacles_near) and
+	// separation() pushes them out of these. Rebuilt with gaia_grid_ when the set changes.
+	static constexpr uint8_t GAIA_OBSTACLE = 0xFE;
+	static constexpr float GAIA_STEER_REACH = 6.0f; // world units round a walker whose trees it steers by
+	std::vector<SteerObstacle> gaia_obstacles_;
+	nav::BucketGrid gaia_grid_;
+	uint64_t gaia_obstacles_sig_ = 0;
+	void ensure_gaia_obstacles();
+	// Appends to `out` the Gaia obstacles that may reach into the box (x, z) +- reach.
+	void gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const;
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
