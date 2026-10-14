@@ -14607,6 +14607,14 @@
 0.94
 ]
 },
+"units/ptol_infantry_spearman_merc_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/ptol/tunic_thureophoros_a_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "units/ptol_infantry_spearman_merc_b_tex3": {
 "mask": "res://assets/textures/player_masks/props/shield/ptol_thureos_galatian_a_128x128.png",
 "tint": [
@@ -16031,6 +16039,14 @@
 0.94
 ]
 },
+"units/sele_infantry_spearman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/tunic_hellenistic_b_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "units/sele_infantry_spearman_b_tex3": {
 "mask": "res://assets/textures/player_masks/props/shield/sele_thyreos_a_128x128.png",
 "tint": [
@@ -16671,7 +16687,15 @@
 0.28
 ]
 },
-"units/spart_hero_brasidas_tex4": {
+"units/spart_hero_brasidas_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/spart_hero_brasidas_tex6": {
 "mask": "res://assets/textures/player_masks/props/shield/aspis_spart_lambda_06_256x256.png",
 "tint": [
 0.92,
