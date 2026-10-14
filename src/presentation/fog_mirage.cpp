@@ -81,7 +81,7 @@ void FogMirages::begin(const uint8_t *los, int res, float map_half) {
 	out_treasures_.clear();
 }
 
-void FogMirages::add_building(const FoggedBuilding &live, bool allied) {
+void FogMirages::add_building(const FoggedBuilding &live, bool allied, bool seen_before) {
 	FoggedBuilding b = live;
 	b.miraged = false;
 	if (allied) {
@@ -102,7 +102,11 @@ void FogMirages::add_building(const FoggedBuilding &live, bool allied) {
 		return;
 	}
 	auto it = building_memory_.find(b.id);
-	if (it == building_memory_.end()) return; // never seen: hidden (ComputeLosVisibility !WasSeen)
+	if (it == building_memory_.end()) {
+		if (!seen_before) return; // never seen: hidden (ComputeLosVisibility !WasSeen)
+		it = building_memory_.emplace(b.id, BuildingMemory{}).first;
+		it->second.seen = b;
+	}
 	it->second.stamp = stamp_;
 	if (st == Simulation::FOW_EXPLORED) {
 		FoggedBuilding m = it->second.seen;
@@ -252,7 +256,8 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.committed = b.committed;
 		f.wrecked = b.wrecked;
 		f.is_burning = b.is_burning;
-		add_building(f, sim.shares_los(viewer, b.team)); // an unshared ally's structures mirage like anyone's
+		add_building(f, sim.shares_los(viewer, b.team), // an unshared ally's structures mirage like anyone's
+				viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
 	}
 	const auto rv = sim.resources();
 	for (size_t i = 0; i < rv.count; ++i) {
