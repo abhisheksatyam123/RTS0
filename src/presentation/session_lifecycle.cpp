@@ -163,13 +163,12 @@ void RtsoMain::_ready() {
 		mm_btns->set_offset(SIDE_BOTTOM, -206.0f);
 		mm_btns->add_theme_constant_override("separation", 4);
 		struct MmBtn { const char *label; const char *method; };
-		const MmBtn mm_btn_defs[4] = {
+		const MmBtn mm_btn_defs[3] = {
 			// 3-state shroud cycle (RtsoMiniMapView::cycle_shroud, minimap_view.h ShroudMode):
 			// On -> terrain-only -> off -> On. 0AD MiniMapPanel.js:8-11 panel buttons.
 			{"Shroud", "cycle_shroud"},
 			{"Terr", "toggle_territory"},
 			{"Res", "toggle_resources"},
-			{"Diplo", "toggle_diplomacy"},
 		};
 		for (const MmBtn &d : mm_btn_defs) {
 			Button *b = memnew(Button);
@@ -182,6 +181,7 @@ void RtsoMain::_ready() {
 		}
 		ui_layer->add_child(mm_btns);
 	}
+	minimap_panel_.build(ui_layer, this, [](const String &path) { return rtso::load_ui_texture(path); });
 
 	// =========================================================================
 	// 1. TOP HUD BAR PANEL (Civ Crest, 4 Resources, Pop, Idle, Clock, Speed, Menu)
@@ -227,6 +227,7 @@ void RtsoMain::_ready() {
 			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
 		};
 		top_panel_.set_civ_icon_keys(first_key("civinfo"), first_key("structree"));
+		minimap_panel_.set_hotkeys(first_key("selection.idleworker"), first_key("session.diplomacycolors"), first_key("session.flare"));
 		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
 				first_key("session.gui.barter.toggle"),
 				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
@@ -274,6 +275,14 @@ void RtsoMain::_ready() {
 	net_delay_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 	net_delay_label_->set_visible(false);
 	ui_layer->add_child(net_delay_label_);
+
+	placement_tip_ = memnew(Label);
+	placement_tip_->set_name("placementTooltip");
+	placement_tip_->add_theme_font_size_override("font_size", 13);
+	placement_tip_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+	placement_tip_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	placement_tip_->set_visible(false);
+	ui_layer->add_child(placement_tip_);
 
 	cursor_tip_ = memnew(Label);
 	cursor_tip_->add_theme_font_size_override("font_size", 13);
@@ -1115,6 +1124,7 @@ void RtsoMain::_process(double delta) {
 	update_inspector();
 	update_command_panel();
 	follow_player_tick();
+	time_warp_tick();
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
@@ -1210,9 +1220,15 @@ void RtsoMain::_process(double delta) {
 			// can't be paid for, as cmd_build_wall stops there too) on, every piece is invalid.
 			bool chain_ok = true;
 			float spent[rtso::RES_COUNT] = {};
+			float wall_cost[rtso::RES_COUNT] = {};
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
 				MeshInstance3D *g = wall_ghosts[i];
+				if (sim) {
+					float c[rtso::RES_COUNT];
+					sim->wall_piece_cost(local_player(), pieces[i], c);
+					for (int r = 0; r < rtso::RES_COUNT; ++r) wall_cost[r] += c[r];
+				}
 				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
 				// tower): the model the world view will draw for it, turned the same way.
 				const auto entry = rtso::ModelLibrary::get("buildings", RtsoWorldView::building_visual_id(pciv, p.type, p.half_w));
@@ -1253,6 +1269,26 @@ void RtsoMain::_process(double delta) {
 					wall_ghosts[i]->set_visible(false);
 				}
 			}
+			// INPUT_BUILDING_WALL_PATHING: the wall's cost and what the stock lacks for it;
+			// after a refused click "Cannot build wall here!" until the cursor moves.
+			if (!wall_fail_tip_.is_empty() && mouse_pos.distance_to(wall_fail_mouse_) > 2.0f) wall_fail_tip_ = String();
+			if (!wall_fail_tip_.is_empty()) {
+				set_placement_tip(wall_fail_tip_, true);
+			} else if (sim && !pieces.empty()) {
+				rtso::CostTip cost;
+				cost.food = (int64_t)std::lround(wall_cost[rtso::RES_FOOD]);
+				cost.wood = (int64_t)std::lround(wall_cost[rtso::RES_WOOD]);
+				cost.stone = (int64_t)std::lround(wall_cost[rtso::RES_STONE]);
+				cost.metal = (int64_t)std::lround(wall_cost[rtso::RES_GOLD]);
+				const auto &ps = sim->player(local_player());
+				String tip = rtso::cost_tooltip(cost);
+				const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+						ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD]);
+				if (!need.is_empty()) tip += (tip.is_empty() ? String() : String("\n")) + need;
+				set_placement_tip(tip, !chain_ok);
+			} else {
+				set_placement_tip(String(), false);
+			}
 		} else {
 			for (auto *wg : wall_ghosts) {
 				if (wg && wg->is_visible()) wg->set_visible(false);
@@ -1281,12 +1317,15 @@ void RtsoMain::_process(double delta) {
 				const float ghost_angle = placement_angle_at(current_build_type, gx, gz);
 				ghost_mesh->set_rotation(Vector3(0.0f, ghost_angle - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 
-				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle) ==
-						rtso::Simulation::PLACE_OK;
+				const auto placed = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle);
+				const bool can_build = placed == rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
+				set_placement_tip(can_build ? String() : placement_failure_text(placed, (uint8_t)current_build_type, gx, gz), true);
 			}
 		}
 	} else {
+		set_placement_tip(String(), false);
+		wall_fail_tip_ = String();
 		if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
 		for (auto *wg : wall_ghosts) {
 			if (wg && wg->is_visible()) wg->set_visible(false);

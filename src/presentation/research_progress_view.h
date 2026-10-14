@@ -124,6 +124,7 @@ private:
 		uint8_t tech = TECH_NONE;
 	};
 
+public:
 	// The technology's 0.28 icon (data/reference/templates.json techs.<template>.icon).
 	static godot::Ref<godot::Texture2D> icon(uint8_t tech) {
 		using namespace godot;
@@ -143,6 +144,7 @@ private:
 		return load_ui_texture(String("res://assets/textures/ui/portraits/") + building_type_info(tech_info(tech).researcher).portrait_id + ".png");
 	}
 
+private:
 	godot::Control *column_ = nullptr;
 	Slot slots_[kButtons];
 };

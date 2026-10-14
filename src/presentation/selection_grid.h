@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "../simulation/simulation.h"
+#include "template_portraits.h"
 #include "top_panel.h" // rtso::load_ui_texture
 
 using namespace godot;
@@ -135,7 +136,7 @@ public:
 			b->set_custom_minimum_size(Vector2(icon_, icon_));
 			b->set_expand_icon(true);
 			b->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-			Ref<Texture2D> tex = rtso::load_ui_texture(String("res://assets/textures/ui/portraits/") + rtso::unit_type_portrait(g.unit_type) + ".png");
+			Ref<Texture2D> tex = rtso::portraits::unit(g.tmpl, g.unit_type);
 			if (tex.is_valid()) b->set_button_icon(tex);
 			else b->set_text(group_name(g).substr(0, 3));
 			b->set_tooltip_text(tooltip(g, tip_suffix));

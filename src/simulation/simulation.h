@@ -167,9 +167,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 80; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 81; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATUS_STACKS = 80; // each Poisoned/Burning hit its own status, on units, structures and animals
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
+	static constexpr uint32_t SAVE_VERSION_PETRA_INACCESSIBLE = 81; // Petra workers' approach watch and supplies flagged inaccessible
 	static constexpr uint32_t SAVE_VERSION_PETRA_HUNT_SEARCH = 79; // each Petra hunter's last fruitless hunt search; storehouse checks per base
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
@@ -684,6 +685,7 @@ public:
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
 			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0);
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	bool unit_can_patrol(size_t i) const;
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false, bool force = true);
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
 	// structures (not ones it holds under half the capture points of).
@@ -1325,6 +1327,18 @@ public:
 	};
 	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type,
 			float angle = DEFAULT_BUILDING_ROT) const;
+	// What BuildRestrictions.CheckPlacement's GUI message names for `player` placing `b_type`
+	// with its centre at (x, z): the territories the template allows and the one found there
+	// (bits 1 own, 2 ally, 4 neutral, 8 enemy; `connected` false where an own or allied tile
+	// is cut off from its roots), and its Distance FromClass (0.28's class name, or null)
+	// with MinDistance in metres.
+	struct PlacementDetails {
+		uint8_t territory_allowed = 0, territory_found = 0;
+		bool connected = true;
+		const char *distance_class = nullptr;
+		float min_distance_m = 0.0f;
+	};
+	PlacementDetails placement_details(uint8_t player, uint8_t b_type, float x, float z) const;
 
 	// 0 A.D. WallSet walls (helpers/Walls.js GetWallPlacement, Commands.js "construct-wall").
 	struct WallPiece {
@@ -1467,6 +1481,9 @@ public:
 	float stone_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_STONE] * 6.0f; }
 
 	int order_pop(const ProductionOrder &o, uint8_t player) const;
+	// Player.IsTrainingBlocked: a batch at the head of one of the player's queues waits
+	// for population room (Trainer.js Item.Start, Player.BlockTraining).
+	bool training_blocked(uint8_t player) const;
 	int structure_pop_bonus(uint8_t type, uint8_t player) const;
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
@@ -2264,7 +2281,8 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	void eject_corral_animals(const Building &b);
+	// unallied_only: those whose owner is not allied with the corral's (GarrisonHolder.OnGlobalOwnershipChanged).
+	void eject_corral_animals(const Building &b, bool unallied_only = false);
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
@@ -2842,6 +2860,14 @@ private:
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
 	std::vector<PetraHuntSearch> petra_hunt_search_;
+	// worker.js isInaccessibleSupply: each gatherer's or hunter's approach (approachingTarget, the
+	// petra_timer_ time and spot it was last seen moving from, time < 0 none yet, carriedBefore,
+	// alreadyTried), and the supplies it flagged (inaccessibleTime: skipped until `until`).
+	struct PetraApproach { uint32_t unit, target, tried; float time, x, z; int32_t carried; };
+	std::vector<PetraApproach> petra_approach_;
+	struct PetraInaccessible { uint32_t id; float until; };
+	std::vector<PetraInaccessible> petra_inaccessible_;
+	bool petra_supply_inaccessible(uint32_t id) const;
 	// baseManager.js gatherers[type]: each base's storehouse check, by its civic centre or colony's id
 	// (petra_dropsite_check_ keeps only a pending storehouse from saves before v78).
 	struct PetraBaseDropsiteCheck { uint32_t anchor_id; PetraDropsiteCheck check; };
@@ -3030,6 +3056,7 @@ private:
 	PetraHuntScan petra_hunt_scan() const;
 	bool petra_food_drop_near(const PetraHuntScan &scan, uint16_t land, float x, float z, float d2) const;
 	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
+	void petra_check_inaccessible_supplies(PetraHuntScan &scan);
 	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water = false); // entityExtend.js gatherTreasure
 	void petra_treasures_taken(PetraHuntScan &scan) const;
@@ -3162,7 +3189,7 @@ private:
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
-	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_)
+	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

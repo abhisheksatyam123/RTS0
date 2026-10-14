@@ -110,6 +110,8 @@ func _run() -> void:
 	var refused := false
 	var ready_for := -1
 	var refusals: Array = []
+	var setup_leave: bool = args.get("setup_leave", "") == "1"
+	var saw_setup := false
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -122,6 +124,24 @@ func _run() -> void:
 		if main == null:
 			continue
 		var st: Dictionary = main.get_lobby_state()
+		if setup_leave:
+			# 0.28 reportDisconnect in the setup: the host leaves before Start, and
+			# the client's page gives way to "Lost connection to the server.".
+			saw_setup = saw_setup or bool(st.get("setup_page", false))
+			if role == "host" and main.is_net_pregame() and int(st.get("players", 0)) >= 2:
+				await _wait(3.0)
+				_say("leaving the setup")
+				main.leave_net_game()
+				await _wait(1.5)
+				break
+			if role == "join" and st.get("disconnected", false):
+				_say("setup_status=%s reason=%d saw_page=%s page=%s" % [str(st.get("net_status", "")).replace("\n", " | "),
+						int(st.get("disconnect_reason", -1)), str(saw_setup), str(st.get("setup_page", true))])
+				main._on_disconnected_exit_pressed()
+				await _wait(1.0)
+				_say("setup_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
+				break
+			continue
 		if not saw_wait and str(st.get("net_status", "")) != "":
 			saw_wait = true
 			_say("waiting=%s %s" % [st.get("net_status", ""), st.get("net_loading", "")])
