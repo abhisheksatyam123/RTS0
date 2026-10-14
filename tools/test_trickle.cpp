@@ -131,6 +131,8 @@ int main() {
 		fresh(s);
 		const uint32_t c = s.spawn_building_world(-25.0f, -15.0f, BLD_CORRAL, 0, 1.0f); // in the civic centre's territory
 		s.players_[0].res[RES_FOOD] = 1000.0f;
+		CHECK(!s.cmd_breed_livestock(0, c, FAUNA_CATTLE_COW_TRAINABLE)); // cattle need the City Phase
+		s.players_[0].phase = 3;
 		CHECK(s.cmd_breed_livestock(0, c, FAUNA_CATTLE_COW_TRAINABLE));
 		CHECK(near(s.players_[0].res[RES_FOOD], 850.0f));
 		const auto &q = s.buildings_[s.building_id_to_idx_.at(c)].queue;
