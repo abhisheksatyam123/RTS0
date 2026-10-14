@@ -566,6 +566,7 @@ void Simulation::reset() {
 	formations_.clear();
 	next_formation_id_ = 1;
 	formation_group_.assign(UNIT_CAP, 0u);
+	formation_slot_walk_.assign(UNIT_CAP, 0);
 
 	// G3 Market dynamic pricing reset
 	for (int i = 0; i < 4; ++i) { barter_price_diff_[i] = 0.0f; market_trade_history_[i] = 0; }
@@ -4892,11 +4893,18 @@ bool Simulation::can_move_into_formation(const uint32_t *unit_ids, size_t count,
 
 void Simulation::formation_refresh_groups() {
 	formation_group_.assign(UNIT_CAP, 0u);
-	for (const FormationController &fc : formations_)
+	formation_slot_walk_.assign(UNIT_CAP, 0);
+	for (const FormationController &fc : formations_) {
 		for (uint32_t id : fc.members) {
 			const int32_t idx = lookup_unit(id);
 			if (idx >= 0 && (size_t)idx < formation_group_.size()) formation_group_[idx] = fc.id;
 		}
+		if (fc.order != FORDER_WALK && fc.order != FORDER_ATTACK_WALK && fc.order != FORDER_APPROACH && fc.order != FORDER_PATROL) continue;
+		for (const FormationSlot &sl : fc.slots) {
+			const int32_t idx = lookup_unit(sl.ent);
+			if (sl.following && idx >= 0 && (size_t)idx < formation_slot_walk_.size()) formation_slot_walk_[idx] = 1;
+		}
+	}
 }
 
 uint32_t Simulation::formation_of_unit(uint32_t unit_id) const {
@@ -5757,7 +5765,6 @@ void Simulation::tick_formations(float dt) {
 		// Which members still walk with the controller. Any other task (an attack, a gather,
 		// a garrison) takes a member out of the walk; an attack-walk takes back its idle fighters.
 		float speed = INFINITY;
-		float max_lag = 0.0f;
 		bool any_following = false;
 		for (FormationSlot &s : fc.slots) {
 			const int32_t idx = lookup_unit(s.ent);
@@ -5766,10 +5773,7 @@ void Simulation::tick_formations(float dt) {
 			if (s.following && st != ACTION_IDLE && st != ACTION_MOVE && st != ACTION_ATTACK_MOVE) s.following = 0;
 			if (!s.following) continue;
 			any_following = true;
-			speed = std::min(speed, unit_walk_speed(idx));
-			float wx, wz;
-			formation_slot_world(fc.x, fc.z, fc.rot, s.x, s.y, wx, wz);
-			max_lag = std::max(max_lag, std::hypot(units_.pos_x[idx] - wx, units_.pos_z[idx] - wz));
+			speed = std::min(speed, unit_base_walk_speed(idx)); // its walk, not the run to its slot
 		}
 		if (!any_following) {
 			fc.order = FORDER_IDLE;
@@ -5779,14 +5783,9 @@ void Simulation::tick_formations(float dt) {
 		}
 
 		// Formation.js ComputeMotionParameters: the slowest member's walk speed times the
-		// template SpeedMultiplier. RTS0 also holds the controller back while members lag
-		// their slots, so the shape stays together.
-		float step = 0.0f;
-		{
-			const float slack = 2.0f;
-			const float keep_up = max_lag <= slack ? 1.0f : std::max(0.0f, 1.0f - (max_lag - slack) / (2.0f * slack));
-			step = speed * t.speed_multiplier * keep_up * dt;
-		}
+		// template SpeedMultiplier, never slowed for members lagging their slots: they run
+		// to catch up (unit_running, IsMovingAsFormation).
+		float step = speed * t.speed_multiplier * dt;
 		bool arrived = false;
 		while (step > 0.0f) {
 			const bool on_path = fc.path.cur < fc.path.count;
@@ -8237,6 +8236,8 @@ float Simulation::unit_run_multiplier(size_t i) const {
 bool Simulation::unit_running(size_t i) const {
 	const uint8_t st = units_.action_state[i];
 	if (st == ACTION_FLEE) return true;
+	// CCmpUnitMotion IsMovingAsFormation: a member walking to its slot moves at its run speed.
+	if ((st == ACTION_MOVE || st == ACTION_ATTACK_MOVE) && i < formation_slot_walk_.size() && formation_slot_walk_[i]) return true;
 	if (st != ACTION_ATTACK || units_.target_unit_id[i] == 0) return false;
 	const uint32_t tid = units_.target_unit_id[i];
 	const int32_t t = lookup_unit(tid);
@@ -8252,6 +8253,11 @@ bool Simulation::unit_running(size_t i) const {
 // ally inside (units/ram_garrison "Battering Team", stackable; ModifiersManager adds
 // after it multiplies), then a running unit runs at RunMultiplier times its walk.
 float Simulation::unit_walk_speed(size_t i) const {
+	const float spd = unit_base_walk_speed(i);
+	return unit_running(i) ? spd * unit_run_multiplier(i) : spd;
+}
+
+float Simulation::unit_base_walk_speed(size_t i) const {
 	float spd = units_.speed[i];
 	if (aura_mgr_.has(AURA_SPEED)) {
 		const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
@@ -8270,7 +8276,6 @@ float Simulation::unit_walk_speed(size_t i) const {
 			spd += 0.15f * FORMATION_METRE * (float)team;
 		}
 	}
-	if (unit_running(i)) spd *= unit_run_multiplier(i);
 	return spd;
 }
 
