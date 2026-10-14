@@ -241,7 +241,15 @@ func _apply_viewport() -> void:
 	vp.content_scale_factor = clampf(cfg.get_number("gui.scale"), 0.75, 2.5)
 	# textures.quality as a mipmap bias: each step below High drops a mip level, as
 	# 0.28's texture manager loads smaller textures.
-	vp.texture_mipmap_bias = float(2 - clampi(int(cfg.get_number("textures.quality")), 0, 2))
+	# textures.maxanisotropy (1x..16x) as Godot's level 0..4, which the renderer reads
+	# when the viewport's samplers are rebuilt; a mip bias a hair different per level
+	# makes it rebuild them now (the GPU clamps an unsupported level, as 0.28 does).
+	var aniso := clampi(int(cfg.get_number("textures.maxanisotropy")), 1, 16)
+	var level := 0
+	while level < 4 and (2 << level) <= aniso:
+		level += 1
+	ProjectSettings.set_setting("rendering/textures/default_filters/anisotropic_filtering_level", level)
+	vp.texture_mipmap_bias = float(2 - clampi(int(cfg.get_number("textures.quality")), 0, 2)) - 0.0001 * level
 	_apply_sharpening()
 
 ## sharpening ("cas") and sharpness, under postproc (options.json dependencies).
