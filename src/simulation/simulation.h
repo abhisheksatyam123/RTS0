@@ -549,9 +549,6 @@ public:
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
-		fow_cell_height_.clear();
-		fow_cell_hmax_.clear();
-		fow_block_hmax_.clear();
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -2141,33 +2138,10 @@ private:
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
 	void reset_los();
-	void ensure_fow_cell_heights();
-	// The cells one viewer lit, kept while it stands still (CCmpRangeManager likewise redoes a
-	// viewer's LOS only when it moves). Derived from the terrain alone: never saved or hashed, and
-	// a viewer at another position, or terrain rebuilt since, recomputes. Row k of `rows` holds the
-	// lit cells of FoW row cz - r + k, bit i for column cx - r + i.
-	struct FowView {
-		uint32_t sx = 0, sz = 0, vr = 0; // the bits of the last call's sx, sz and vr
-		uint32_t gen = 0; // fow_view_gen_ of that call; 0: no call yet
-		bool stored = false; // rows filled for that call
-		uint64_t rows[64];
-		// Whether a call with these arguments would find this view's last call.
-		bool same_spot(float x, float z, float r, uint32_t now) const {
-			return gen == now && sx == std::bit_cast<uint32_t>(x) && sz == std::bit_cast<uint32_t>(z) && vr == std::bit_cast<uint32_t>(r);
-		}
-	};
-	static constexpr int FOW_VIEW_MAX_R = 31; // widest view the rows hold: 2r + 1 <= 63
-	struct FowViews {
-		std::vector<FowView> units, buildings;
-	};
-	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr, FowView *view = nullptr) const;
-	template <typename SharesVision>
-	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision, FowViews &views);
-	template <typename UnitVision, typename BuildingVision>
-	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
-	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
+	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
+	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
-	bool line_crosses_impassable(float x0, float z0, float x1, float z1, bool ship = false) const;
+	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -2446,7 +2420,6 @@ private:
 	std::vector<Spy> spies_; // VisionSharing spies, oldest first
 	CheatMods cheat_mods_[MAX_PLAYERS] = {};
 	int32_t unit_pop_bonus_[MAX_PLAYERS] = {}; // Population/Bonus of each player's units (refresh_unit_pop_bonus)
-	std::vector<uint8_t> spy_mask_; // tick_fow scratch: per unit index, the players its spies see for
 	void tick_spies(float dt);
 	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);
 	uint8_t setup_flags_ = 0;
@@ -2718,6 +2691,7 @@ private:
 	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
 	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
 	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none
+	void petra_note_enemy(uint8_t enemy) const; // remember getEnemyPlayer's pick as currentEnemyPlayer
 	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
 	// read by Petra later in the same tick; cleared at the end of tick(), so never saved.
 	struct CivicCentreCapture { uint32_t building_id; uint8_t from, to; };
@@ -2914,6 +2888,10 @@ private:
 	std::vector<LosSource> los_fauna_src_; // the circle each fauna_ index's owned animal adds (rebuilt on load)
 	float owned_fauna_vision(size_t f) const;
 	void update_fauna_los();
+	// VisionSharing.AddSpy: a bribed unit sees for the briber (its allies sharing that LOS)
+	// while the spy lasts. Rebuilt from spies_ each LOS update and on load, never saved.
+	std::vector<LosSource> los_spy_src_;
+	void update_spy_los();
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
@@ -2942,14 +2920,6 @@ private:
 	template <class Ar> friend void tick_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();
 	PetraConfig &petra_config_slot(uint8_t pid);
-	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
-	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
-	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
-	std::vector<float> fow_block_hmax_; // fow_cell_hmax_ max per block, filled with fow_cell_height_
-	uint32_t fow_view_gen_ = 0; // bumped each time fow_cell_height_ is filled, so FowViews from older terrain miss
-	// reveal_fow() views of units (by index) and buildings (by buildings_ index) for update_player_fow().
-	FowViews player_fow_views_;
-	std::vector<uint32_t> fow_moved_units_; // reveal_viewers() scratch: units revealed last
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
