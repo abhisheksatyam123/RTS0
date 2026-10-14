@@ -2106,6 +2106,20 @@ struct ShortPathMemo {
 };
 static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
 
+// A unit's last short path search and what it found, kept beside the saved state, not in it: a
+// search is a function of these inputs alone, so while they are the same bit for bit (a unit held
+// where it stands, which searches again each tick for the same aim) its answer is reused, and a
+// game loaded or joined, which starts without it, searches and finds the same.
+struct ShortPathSearchMemo {
+	uint32_t pos_x = 0, pos_z = 0, aim_x = 0, aim_z = 0, radius = 0, range = 0; // float bits
+	uint32_t key = 0;     // the buildings (ShortPathMemo::key)
+	uint32_t ignore = 0;  // the building not steered round
+	uint32_t terrain = 0; // NavGrid::terrain_version
+	uint64_t small = 0;   // the small obstacles' contents (small_obstacles_hash), 0 for none
+	float out_x = 0.0f, out_z = 0.0f;
+	bool found = false, valid = false;
+};
+
 // CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
 // ticks), which motion_feedback() judges when the turn ends, as UnitMotion judges each turn's Move,
 // and CCmpUnitMotionManager's pushing pressure. Saves before pressure held 0 in its byte.

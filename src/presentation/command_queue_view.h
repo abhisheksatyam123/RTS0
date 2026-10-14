@@ -13,6 +13,7 @@
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
+#include <godot_cpp/classes/v_box_container.hpp>
 #include <godot_cpp/classes/h_flow_container.hpp>
 #include <godot_cpp/classes/item_list.hpp>
 #include <godot_cpp/classes/json.hpp>
@@ -207,6 +208,9 @@ public:
 
 	godot::Panel *panel() const { return panel_; }
 	godot::HFlowContainer *production_bar() const { return production_bar_; }
+	void set_barter_sell(int r) { barter_sell_ = r; } // BarterButtonManager.setSelectedResource
+	void set_barter_host(godot::Control *c) { barter_host_ = c; }
+	godot::Control *barter_host() const { return barter_host_; }
 	godot::ItemList *roster_list() const { return roster_list_; }
 	RtsoProductionQueue &production_queue() { return production_queue_; }
 	// The selected training unit whose roster is shown, else 0.
@@ -218,6 +222,7 @@ public:
 		rtso::Simulation *sim = host_->ui_sim();
 		const godot::PackedInt32Array &selected_ids = host_->ui_selected_ids();
 		const uint32_t selected_building_id = host_->ui_selected_building_id();
+		update_barter_panel();
 
 		// g_SelectionPanels.Stance: shown when only units are selected, the stances
 		// some selected unit holds highlighted (GuiInterface IsStanceSelected).
@@ -430,16 +435,19 @@ public:
 					production_bar_->add_child(btn);
 				}
 
-				// Alert (0 A.D. AlertRaiser.js): civilians take shelter, then go back to work.
+				// 0.28's Alert panel (g_SelectionPanels.Alert, AlertRaiser.js): Raise (bell_level1)
+				// sends nearby civilians or traders into the nearest structures with room, End
+				// (bell_level0) sends them back out.
 				rtso::AlertRaiserInfo alert;
 				if (found_b->team == local_player() && found_b->build_progress >= 1.0f &&
 						rtso::building_alert_raiser(found_b->type, alert)) {
-					const char *who = alert.traders ? "traders" : "women";
 					for (int end = 0; end < 2; ++end) {
-						Button *btn = memnew(Button);
-						btn->set_text(end ? "End alert" : "Raise alert");
-						btn->set_tooltip_text(end ? String("Send nearby ") + who + " back to work"
-								: String("Send nearby ") + who + " into the nearest structures with room");
+						Button *btn = icon_button(end ? "End alert" : "Raise alert",
+								rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + (end ? "bell_level0.png" : "bell_level1.png")));
+						String tip = rtso::tr0(end ? "End the alert." : "Raise an alert!");
+						tip += "\n" + rtso::tr0(end ? (alert.traders ? "Unload nearby Traders." : "Unload nearby Civilians.")
+								: (alert.traders ? "Alert nearby Traders to seek refuge." : "Alert nearby Civilians to seek refuge."));
+						btn->set_tooltip_text(tip);
 						btn->connect("pressed", Callable(owner_, "_on_alert_pressed").bind(end));
 						production_bar_->add_child(btn);
 					}
@@ -456,50 +464,76 @@ public:
 					production_bar_->add_child(btn);
 				}
 
-				// Structure upgrade (0 A.D. Upgrade.js), or cancel one in progress.
+				// 0.28's Upgrade panel for a structure (g_SelectionPanels.Upgrade): an icon button per
+				// choice (the target's portrait), or "Cancel Upgrading" over the progress overlay
+				// while it upgrades.
 				if (found_b->team == local_player()) {
-					if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT) {
-						Button *btn = memnew(Button);
-						btn->set_text(String("Cancel upgrade to ") + rtso::building_type_name(found_b->upgrade_to));
-						btn->set_tooltip_text("Stop upgrading and get the resources back");
-						btn->connect("pressed", Callable(owner_, "_on_upgrade_pressed").bind(-1));
-						production_bar_->add_child(btn);
-					} else {
-						for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, pciv); ++choice) {
-							const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv, choice);
-							const rtso::Simulation::UpgradeCheck check = sim->upgrade_check(local_player(), found_b->id, choice);
-							// Not this piece's (only wall_long and palisades_long become gates).
-							if (check == rtso::Simulation::UPGRADE_ERR_NONE) continue;
-							Button *btn = memnew(Button);
-							String cost;
-							auto add_cost = [&](int v, const char *suffix) {
-								if (v <= 0) return;
-								if (!cost.is_empty()) cost += ",";
-								cost += String::num_int64(v) + suffix;
-							};
-							add_cost(up.food_cost, "f");
-							add_cost(up.wood_cost, "w");
-							add_cost(up.gold_cost, "g");
-							add_cost(up.stone_cost, "s");
-							btn->set_text(String("Upgrade to ") + String::utf8(rtso::building_type_name(up.to)) + (cost.is_empty() ? String() : " (" + cost + ")"));
+					const bool upgrading = found_b->upgrade_to != rtso::BLD_TYPE_COUNT;
+					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, pciv); ++choice) {
+						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv, choice);
+						const rtso::Simulation::UpgradeCheck check = sim->upgrade_check(local_player(), found_b->id, choice);
+						// Not this piece's (only wall_long and palisades_long become gates).
+						if (check == rtso::Simulation::UPGRADE_ERR_NONE && !upgrading) continue;
+						if (upgrading && up.to != found_b->upgrade_to) continue;
+						const Dictionary text = structure_template_text(pciv, up.to);
+						const String generic = text.get("generic_name", String::utf8(rtso::building_type_name(up.to)));
+						const String specific = text.get("specific_name", String());
+						Button *btn = icon_button(String::utf8(rtso::building_type_name(up.to)), rtso::portraits::structure(pciv, up.to));
+						TextureRect *icon = Object::cast_to<TextureRect>(btn->get_child(0));
+						String tip;
+						if (upgrading) {
+							tip = rtso::tr0("Cancel Upgrading");
+							const float progress = found_b->upgrade_duration > 0.0f ? found_b->upgrade_timer / found_b->upgrade_duration : 1.0f;
+							const int left_px = (int)std::lround((1.0f - std::clamp(progress, 0.0f, 1.0f)) * 32.0f);
+							btn->set_meta("progress", left_px);
+							ColorRect *slider = memnew(ColorRect);
+							slider->set_name("unitUpgradeProgressSlider");
+							slider->set_position(Vector2(3, 3));
+							slider->set_size(Vector2(32, (float)left_px));
+							slider->set_color(Color(0.0f, 1.0f, 0.0f, 0.5f));
+							slider->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+							btn->add_child(slider);
+							btn->connect("pressed", Callable(owner_, "_on_upgrade_pressed").bind(-1));
+						} else if (check == rtso::Simulation::UPGRADE_ERR_BUSY) {
+							tip = rtso::tr0("Cannot upgrade when the entity is training, researching or already upgrading.");
+							btn->set_disabled(true);
+							icon->set_material(grayscale_material());
+							icon->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
+						} else {
+							const String hint = String::utf8(up.tooltip ? up.tooltip : "");
+							const bool two = !specific.is_empty() && specific != generic;
+							const String primary = two ? specific : generic;
+							tip = two ? rtso::sprintf0(rtso::tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s (%(secondaryName)s)."
+														: "Upgrade to a %(primaryName)s (%(secondaryName)s). %(tooltip)s"),
+											{{"primaryName", primary}, {"secondaryName", generic}, {"tooltip", rtso::tr0(hint)}})
+									: rtso::sprintf0(rtso::tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s." : "Upgrade to a %(primaryName)s. %(tooltip)s"),
+											{{"primaryName", primary}, {"tooltip", rtso::tr0(hint)}});
 							const rtso::CostTip up_cost{up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost, 0, (int64_t)std::ceil(up.time)};
-							String tip = String::utf8(up.tooltip ? up.tooltip : "") + "\n" + rtso::cost_tooltip(up_cost);
-							String why;
-							switch (check) {
-								case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
-								case rtso::Simulation::UPGRADE_ERR_PHASE: why = requires_text(up.required_phase >= 3 ? "City Phase" : "Town Phase"); break;
-								case rtso::Simulation::UPGRADE_ERR_COST: why = needed_text(up_cost); break;
-								case rtso::Simulation::UPGRADE_ERR_LIMIT: why = "Limit reached"; break;
-								default: break;
-							}
-							if (!why.is_empty()) {
-								tip += "\n" + owner_->tr(why);
+							const String cost_tip = rtso::cost_tooltip(up_cost);
+							if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
+							if (check == rtso::Simulation::UPGRADE_ERR_PHASE) tip += "\n" + requires_text(up.required_phase >= 3 ? "City Phase" : "Town Phase");
+							else if (check == rtso::Simulation::UPGRADE_ERR_LIMIT) tip += "\n" + owner_->tr("Limit reached");
+							else if (check == rtso::Simulation::UPGRADE_ERR_COST) tip += "\n" + needed_text(up_cost);
+							tip += "\n" + right_click_tooltip();
+							if (check == rtso::Simulation::UPGRADE_ERR_PHASE || check == rtso::Simulation::UPGRADE_ERR_LIMIT) {
 								btn->set_disabled(true);
+								icon->set_material(grayscale_material());
+								icon->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
+							} else if (check == rtso::Simulation::UPGRADE_ERR_COST) {
+								btn->set_disabled(true);
+								ColorRect *mask = memnew(ColorRect);
+								mask->set_position(Vector2(3, 3));
+								mask->set_size(Vector2(32, 32));
+								mask->set_color(Color(0.8f, 0.0f, 0.0f, 0.45f));
+								mask->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+								btn->add_child(mask);
 							}
-							btn->set_tooltip_text(tip);
 							btn->connect("pressed", Callable(owner_, "_on_upgrade_pressed").bind(choice));
-							production_bar_->add_child(btn);
 						}
+						on_right_click_details(btn, "structure", up.to, pciv);
+						btn->set_tooltip_text(tip);
+						production_bar_->add_child(btn);
+						if (upgrading) break;
 					}
 				}
 			}
@@ -1271,7 +1305,8 @@ private:
 			String s = n ? n->get_class() : String();
 			if (n)
 				for (int i = 0; i < n->get_child_count(); ++i)
-					if (Object::cast_to<Button>(n->get_child(i))) s += String("\x1e") + button_signature(n->get_child(i));
+					if (Object::cast_to<Container>(n->get_child(i)) || Object::cast_to<Button>(n->get_child(i)))
+						s += String("\x1e") + button_signature(n->get_child(i));
 			return s;
 		}
 		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
@@ -1447,6 +1482,138 @@ private:
 
 	// getTemplateViewerOnRightClickTooltip; the button's right click opens the Template Viewer.
 	static godot::String right_click_tooltip() { return rtso::tr0("Right-click for more information."); }
+	// 0.28's Barter panel (g_SelectionPanels.Barter, BarterButtonManager, BarterButton) in
+	// the selection details' left panel, on a selected market of ours: per resource a sell
+	// button (picks what to sell, the picked one grey with the corners) over a buy button
+	// (sells 100, 500 with session.massbarter, for the quoted amount), red where the stock
+	// falls short. Rebuilt only when what it shows changes, so a click is never lost.
+	void update_barter_panel() {
+		using namespace godot;
+		if (!barter_host_) return;
+		rtso::Simulation *sim = host_->ui_sim();
+		const uint32_t bid = host_->ui_selected_building_id();
+		const rtso::Simulation::Building *market = nullptr;
+		if (sim && bid != 0)
+			for (const auto &b : sim->buildings())
+				if (b.id == bid) { market = &b; break; }
+		const bool show = market && market->team == local_player() && rtso::is_land_market(market->type) &&
+				market->build_progress >= 1.0f && sim->can_barter(local_player());
+		if (barter_host_->is_visible() != show) barter_host_->set_visible(show);
+		if (!show) return;
+		const auto &ps = sim->player(local_player());
+		static const uint8_t kOrder[] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
+		static const char *kNames[] = {"food", "wood", "stone", "metal"};
+		const int amount = 100 * (rtso::hotkeys::held("session.massbarter") ? 5 : 1);
+		int quote[4];
+		bool short_of[4];
+		String sig = String::num_int64(barter_sell_) + ":" + String::num_int64(amount);
+		for (int i = 0; i < 4; ++i) {
+			quote[i] = sim->barter_quote((rtso::ResourceType)barter_sell_, (rtso::ResourceType)kOrder[i], amount);
+			short_of[i] = ps.res[kOrder[i]] < (float)amount;
+			sig += String(",") + String::num_int64(quote[i]) + (short_of[i] ? "R" : "");
+		}
+		if (sig == barter_sig_ && barter_host_->get_child_count() > 0) return;
+		barter_sig_ = sig;
+		while (barter_host_->get_child_count() > 0) {
+			Node *c = barter_host_->get_child(0);
+			barter_host_->remove_child(c);
+			c->queue_free();
+		}
+		auto make = [&](const char *name, const String &caption, int i, bool selected, bool red) {
+			Button *b = memnew(Button);
+			b->set_name(name);
+			b->set_custom_minimum_size(Vector2(38, 38));
+			b->set_focus_mode(Control::FOCUS_NONE);
+			TextureRect *icon = memnew(TextureRect);
+			icon->set_position(Vector2(3, 3));
+			icon->set_size(Vector2(32, 32));
+			icon->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+			icon->set_stretch_mode(TextureRect::STRETCH_SCALE);
+			icon->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			icon->set_texture(rtso::load_ui_texture(String("res://assets/textures/ui/icons/") + kNames[i] + ".png"));
+			if (selected) { // SelectedModifier "color:0 0 0 100:grayscale:"
+				icon->set_material(grayscale_material());
+				icon->set_self_modulate(Color(0.6f, 0.6f, 0.6f));
+			}
+			b->add_child(icon);
+			if (red) { // DisabledModifier "color:255 0 0 80:"
+				ColorRect *mask = memnew(ColorRect);
+				mask->set_position(Vector2(3, 3));
+				mask->set_size(Vector2(32, 32));
+				mask->set_color(Color(1.0f, 0.0f, 0.0f, 80.0f / 255.0f));
+				mask->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+				b->add_child(mask);
+			}
+			Label *cap = memnew(Label); // resourceText, the top half
+			cap->set_name("caption");
+			cap->set_text(caption);
+			cap->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+			cap->set_size(Vector2(38, 19));
+			cap->add_theme_font_size_override("font_size", 11);
+			cap->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+			cap->add_theme_constant_override("outline_size", 3);
+			cap->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			b->add_child(cap);
+			return b;
+		};
+		int sell_i = 0;
+		for (int i = 0; i < 4; ++i)
+			if (kOrder[i] == barter_sell_) sell_i = i;
+		HBoxContainer *row = memnew(HBoxContainer);
+		row->add_theme_constant_override("separation", 2);
+		for (int i = 0; i < 4; ++i) {
+			const bool selected = i == sell_i;
+			VBoxContainer *col = memnew(VBoxContainer);
+			col->set_name(String("barter_") + kNames[i]);
+			col->add_theme_constant_override("separation", 4);
+			const String res_name = owner_->tr(kNames[i]);
+			Button *sell = make("sell", rtso::sprintf0(rtso::tr0("-%(amount)s"), {{"amount", String::num_int64(amount)}}), i,
+					selected, short_of[i]);
+			sell->set_tooltip_text(rtso::sprintf0(rtso::tr0("Sell %(resource)s"), {{"resource", res_name}}));
+			sell->connect("pressed", Callable(owner_, "_on_barter_sell_selected").bind((int)kOrder[i]));
+			if (selected) {
+				TextureRect *corners = memnew(TextureRect);
+				corners->set_name("corners");
+				corners->set_texture(rtso::load_ui_texture("res://assets/textures/ui/archive/icons/corners.png"));
+				corners->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+				corners->set_position(Vector2(3, 3));
+				corners->set_size(Vector2(32, 32));
+				corners->set_stretch_mode(TextureRect::STRETCH_SCALE);
+				corners->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+				sell->add_child(corners);
+			}
+			col->add_child(sell);
+			if (!selected) { // the buy button is hidden under the resource being sold
+				Button *buy = make("buy", rtso::sprintf0(rtso::tr0("+%(amount)s"), {{"amount", String::num_int64(quote[i])}}), i,
+						false, short_of[sell_i]);
+				buy->set_tooltip_text(rtso::sprintf0(rtso::tr0("Buy %(resource)s"), {{"resource", res_name}}));
+				buy->connect("pressed", Callable(owner_, "_on_barter_requested").bind(barter_sell_, (int)kOrder[i], amount));
+				col->add_child(buy);
+			}
+			row->add_child(col);
+		}
+		barter_host_->add_child(row);
+	}
+
+	// A 0.28 panel button: 38x38, its icon a child TextureRect (so "grayscale:" greys only
+	// the icon), its name in the "label" meta.
+	godot::Button *icon_button(const godot::String &label, const godot::Ref<godot::Texture2D> &tex) {
+		using namespace godot;
+		Button *btn = memnew(Button);
+		btn->set_meta("label", label);
+		btn->set_custom_minimum_size(Vector2(38, 38));
+		btn->set_focus_mode(Control::FOCUS_NONE);
+		TextureRect *icon = memnew(TextureRect);
+		icon->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		icon->set_stretch_mode(TextureRect::STRETCH_SCALE);
+		icon->set_position(Vector2(3, 3));
+		icon->set_size(Vector2(32, 32));
+		icon->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		icon->set_texture(tex);
+		btn->add_child(icon);
+		return btn;
+	}
+
 	void on_right_click_details(godot::Control *c, const char *kind, int id, int civ) {
 		using namespace godot;
 		c->connect("gui_input", Callable(owner_, "_on_template_details_input").bind(String(kind), id, civ));
@@ -1472,6 +1639,9 @@ private:
 	std::unordered_map<uint16_t, godot::String> detailed_tips_; // template -> detailed_tooltip()
 	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
 	uint32_t trainer_unit_id_ = 0;
+	int barter_sell_ = rtso::RES_FOOD; // BarterButtonManager.selectedResource
+	godot::Control *barter_host_ = nullptr; // in the selection details (0.28's left panel)
+	godot::String barter_sig_;
 	RtsoProductionQueue production_queue_;
 	godot::Ref<godot::ShaderMaterial> grayscale_;
 

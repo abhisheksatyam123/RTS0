@@ -11,6 +11,8 @@ extends SceneTree
 #      "Stay ready", "I'm not ready!") and waits for the host, with no
 #      Start button; a refused request says why, and Back leaves the game;
 #   3. outside a networked game the page is the single-player one.
+# The host's slot names are 0.28's PlayerAssignment dropdowns: the clients and
+# Unassigned, which makes the slot's player an observer.
 # A lobby game of two players is a Rated Game by default (0.28 Rating.js),
 # and a rated game has no cheats (Cheats.js).
 #
@@ -41,6 +43,9 @@ class StubMain extends Node:
 		is_ready = status
 	func leave_net_game() -> void:
 		left += 1
+	var assigns: Array = []
+	func assign_net_client(client: int, slot: int) -> void:
+		assigns.append([client, slot])
 	func _on_lobby_start_pressed() -> void:
 		started += 1
 
@@ -69,6 +74,11 @@ func open_page(stub: Node) -> Control:
 
 func cells(page) -> Array:
 	return page._slots_grid().get_children().filter(func(c): return not c.is_queued_for_deletion())
+
+## A slot's name cell: a label, or on the host's page the assignment dropdown's pick.
+func slot_text(cell) -> String:
+	var pick = cell.get_node_or_null("AssignSelect")
+	return pick.get_item_text(pick.get_selected()) if pick else str(cell.text)
 
 func picker(page, slot: int, col: int):
 	return cells(page)[slot * 6 + col].get_child(0)
@@ -103,7 +113,16 @@ func run() -> void:
 	check(ms.slot_types == [0, 0] and ms.slot_civs == [1, -1] and ms.player_count == 2,
 		"the setup drops the Closed slot and keeps Random (%s %s)" % [str(ms.slot_types), str(ms.slot_civs)])
 	check(host.pushes > 0 and not ms.cheats, "the host sends its setup, cheats off")
-	check(cells(page)[0].text == "alice (You)" and cells(page)[6].text == "bob", "slots show their players")
+	check(slot_text(cells(page)[0]) == "alice (You)" and slot_text(cells(page)[6]) == "bob", "slots show their players")
+	var assign = cells(page)[6].get_node_or_null("AssignSelect")
+	var items: Array = []
+	for i in (assign.get_item_count() if assign else 0):
+		items.append(assign.get_item_text(i))
+	check(items == ["alice (You)", "bob", "Unassigned"], "the host assigns players from each slot (%s)" % str(items))
+	if assign:
+		assign.select(2)
+		assign.item_selected.emit(2)
+	check(host.assigns == [[1, -1]], "Unassigned makes bob an observer (%s)" % str(host.assigns))
 	var vis := "%"
 	var rated: CheckBox = page.get_node(vis + "RatedGame")
 	var cheats: CheckBox = page.get_node(vis + "Cheats")
@@ -138,7 +157,7 @@ func run() -> void:
 		"bob's own picks show on the host's page")
 	await create_timer(0.4).timeout
 	check(ms.slot_civs == [1, 15] and ms.slot_colors == [0, 5], "the host's page keeps them")
-	check(cells(page)[6].text == "bob (Ready)", "bob is ready")
+	check(slot_text(cells(page)[6]) == "bob (Ready)", "bob is ready")
 	check(not start.disabled and start.tooltip_text == page.START_TOOLTIP, "every player ready: Start")
 	page._on_start_pressed()
 	check(host.started == 1, "Start starts the networked game")
