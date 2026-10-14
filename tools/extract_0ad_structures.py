@@ -114,6 +114,22 @@ UNIQUE_STAND_IN = {
 # Small monuments sized from their 0 A.D. footprint (7-8 m) rather than the stand-in.
 UNIQUE_FIT = {"pillar": ("width", 1.4), "monument": ("width", 1.6)}
 
+# Aliases onto GLBs that tools/extract_0ad_assets.py --zip converts from 0.28's
+# public.zip (its ZIP_STRUCTURES): this script reads the Collada checkout,
+# which has neither the Germans nor Carthage's 0.28 embassies and apartment,
+# so a full run keeps these rows.
+ZIP_ALIASES = {
+    "germ_arsenal": "s_germans_workshop", "germ_blacksmith": "s_germans_forge",
+    "germ_outpost": "s_celts_outpost", "germ_range": "s_germans_range",
+    "germ_stable": "s_germans_stable", "germ_wall_gate": "s_germans_wooden_wall_gate",
+    "germ_wall_long": "s_germans_wooden_wall_long", "germ_wall_medium": "s_germans_wooden_wall_medium",
+    "germ_wall_short": "s_germans_wooden_wall_short",
+    "cart_embassy": "s_carthaginians_embassy_celtic",
+    "cart_embassy_iberian": "s_carthaginians_embassy_iberian", "embassy_iberian": "s_carthaginians_embassy_iberian",
+    "cart_embassy_italic": "s_carthaginians_embassy_italic", "embassy_italic": "s_carthaginians_embassy_italic",
+    "cart_apartment": "s_carthaginians_apartment", "apartment": "s_carthaginians_apartment",
+}
+
 # Generic models with no GLB yet: model id -> template under structures/.
 GENERIC = {"palisade": "palisades_long",
            # Palisade WallSet pieces (WALLSET_PALISADE), drawn by Building::half_size.
@@ -458,6 +474,7 @@ def main():
             entries[model_id] = e
     if not args.only:
         with open(ALIAS_JSON, "w") as fh:
+            aliases.update(ZIP_ALIASES)
             json.dump(dict(sorted(aliases.items())), fh, indent=0)
             fh.write("\n")
     if entries:
