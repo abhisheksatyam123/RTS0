@@ -69,6 +69,8 @@
 //     swordsman sent through it walks round; one sent through a wood of oaks 4 m apart winds
 //     between them; women sent to a tree in that wood gather from it; and a soldier sent to a
 //     7 m treasure (half-buried barrels) collects it from beside it.
+// 22. A circular map's edge: no unit walks, is pushed or spawns past the impassable edge 12 m
+//     inside the circle (0.28 MAP_EDGE_TILES) less its class clearance, and no foundation reaches past it.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -1165,7 +1167,84 @@ static void shore_clearance() {
 	}
 }
 
-// 22. A wood too thick to walk through closes its navcells to long paths (0 A.D. rasterizes each
+// 22. A circular map's edge (0.28 CCmpPathfinder off-world passability, MAP_EDGE_TILES): no unit
+// walks, is pushed or spawns past the circle 12 m inside the map's, less its class clearance, and
+// no foundation reaches past it.
+static void circle_setup(Simulation &s, bool circular) {
+	s.set_sim_seed(4242);
+	s.reset();
+	for (uint8_t p = 0; p < 2; ++p) s.player(p).active = 1, s.player(p).is_ai = 0;
+	constexpr int RES = 65;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	s.set_terrain_data(std::vector<float>((size_t)RES * RES, 3.0f), RES, 0.0f);
+	s.set_circular_map(circular);
+	s.begin_bulk_spawn();
+	s.spawn_building_world(40.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(-40.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	s.end_bulk_spawn();
+}
+
+static void circular_map_edge() {
+	const float edge = 64.0f - MAP_EDGE_DIST; // 61
+	{
+		Simulation s;
+		circle_setup(s, true);
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(62.0f, 0.0f);
+		const auto [ix, iy] = s.nav_grid_.world_to_cell(56.0f, 0.0f);
+		check(!s.nav_grid_.is_passable(cx, cy) && s.nav_grid_.is_passable(ix, iy), "the navcells past a circular map's edge stay passable");
+		// Sent past the edge, straight out and to the corner, a swordsman stops at it.
+		const float goals[2][2] = {{63.5f, 2.0f}, {60.0f, 60.0f}};
+		for (const auto &g : goals) {
+			const uint32_t id = s.spawn_unit(48.0f, 10.0f, 0, UNIT_SWORDSMAN);
+			s.cmd_move(&id, 1, g[0], g[1]);
+			float out = 0.0f;
+			int idle = -1;
+			for (int t = 0; t < 1200 && idle < 0; ++t) {
+				s.tick(DT);
+				const int i = index_of(s, id);
+				out = std::max(out, std::hypot(s.units_.pos_x[i], s.units_.pos_z[i]));
+				if (t > 0 && s.units_.action_state[i] == ACTION_IDLE) idle = t;
+			}
+			const int i = index_of(s, id);
+			const float r = std::hypot(s.units_.pos_x[i], s.units_.pos_z[i]);
+			std::printf("  circular map: a swordsman sent to (%.1f, %.1f) stopped after %d ticks (-1 = never in 1200) %.2f from the centre, "
+					"%.2f at most (edge %.2f less clearance %.2f)\n", g[0], g[1], idle, r, out, edge, CLEARANCE_DEFAULT);
+			check(idle >= 0, "a walk past a circular map's edge never ended");
+			check(out <= edge - CLEARANCE_DEFAULT + 0.01f, "a unit walked past a circular map's edge");
+			check(r >= edge - CLEARANCE_DEFAULT - 1.0f, "a unit sent past a circular map's edge stopped short of it");
+			s.units_.alive[i] = 0;
+		}
+		// A clump of elephants against the edge is never pushed past it.
+		std::vector<uint32_t> herd;
+		for (int k = 0; k < 6; ++k) herd.push_back(s.spawn_unit(59.6f - 0.2f * (float)(k / 3), -6.0f + 0.2f * (float)(k % 3), 0, UNIT_ELEPHANT));
+		float out = 0.0f;
+		for (int t = 0; t < 200; ++t) {
+			s.tick(DT);
+			for (uint32_t id : herd) {
+				const int i = index_of(s, id);
+				out = std::max(out, std::hypot(s.units_.pos_x[i], s.units_.pos_z[i]));
+			}
+		}
+		std::printf("  circular map: a clump of 6 elephants at the edge pushed apart, %.2f from the centre at most\n", out);
+		check(out <= edge - CLEARANCE_LARGE + 0.01f, "pushing carried an elephant past a circular map's edge");
+	}
+	// A house reaching past the edge can't be placed there; on a square map it can.
+	const int foot = building_type_info(BLD_HOUSE).footprint;
+	const int cell_x = (int)std::floor(60.0f / Simulation::GRID) - foot / 2, cell_y = -foot / 2;
+	Simulation::PlacementResult res[2];
+	for (int circular = 0; circular < 2; ++circular) {
+		Simulation s;
+		circle_setup(s, circular);
+		res[circular] = s.check_placement(0, cell_x, cell_y, BLD_HOUSE);
+	}
+	std::printf("  circular map: a house reaching %.1f out placed %d on a square map, %d on a circular one (0 = ok)\n",
+			(float)(cell_x + foot) * Simulation::GRID, (int)res[0], (int)res[1]);
+	check(res[0] == Simulation::PLACE_OK, "a house by a square map's edge couldn't be placed");
+	check(res[1] == Simulation::PLACE_OBSTRUCTED, "a house reaching past a circular map's edge was placed");
+}
+
+// 23. A wood too thick to walk through closes its navcells to long paths (0 A.D. rasterizes each
 // tree grown by the class clearance onto 1 m navcells, so oaks even 4 m apart leave no navcell
 // between them), a sparse one doesn't, and felling a lane through the thick one opens it again.
 static void forest_cells() {
@@ -1220,6 +1299,7 @@ int main() {
 	mines();
 	shore_clearance();
 	trees();
+	circular_map_edge();
 	forest_cells();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);

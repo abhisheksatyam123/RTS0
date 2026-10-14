@@ -167,8 +167,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 78; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 79; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
+	static constexpr uint32_t SAVE_VERSION_PETRA_HUNT_SEARCH = 79; // each Petra hunter's last fruitless hunt search; storehouse checks per base
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
@@ -1046,6 +1047,23 @@ public:
 	void set_circular_map(bool on);
 	// Off the world on a circular map: outside the circle of radius map_half() round the centre.
 	bool off_world(float x, float z) const { return circular_map() && x * x + z * z >= map_half_ * map_half_; }
+	// Past a circular map's passable edge, MAP_EDGE_DIST inside the circle, less a clearance c
+	// (0.28 CCmpPathfinder grows the impassable edge by each class's Clearance).
+	bool past_map_edge(float x, float z, float c = 0.0f) const {
+		if (!circular_map()) return false;
+		const float r = map_half_ - MAP_EDGE_DIST - c;
+		return r <= 0.0f || x * x + z * z > r * r;
+	}
+	// A footprint reaching past a circular map's passable edge (CheckBuildingPlacement).
+	template <class F>
+	bool footprint_past_map_edge(const F &f) const {
+		if (!circular_map()) return false;
+		const nav::Vec2 u = nav::footprint_u(f), v = nav::footprint_v(f);
+		for (float su : {-1.0f, 1.0f})
+			for (float sv : {-1.0f, 1.0f})
+				if (past_map_edge(f.x + su * f.hu * u.x + sv * f.hv * v.x, f.z + su * f.hu * u.y + sv * f.hv * v.y)) return true;
+		return false;
+	}
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -1536,7 +1554,6 @@ public:
 	// baseManager.js findBestDropsiteLocation for res; no_site: no spot reached min_quality.
 	// fund_above: past this quality, set the dropsites account to the storehouse's cost first
 	// (startingStrategy.js buildFirstBase setAccounts); negative: never.
-	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f);
 	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
@@ -1549,6 +1566,9 @@ public:
 	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
+	// ICmpTerritoryManager::IsTerritoryBlinking for territory_grid() cell (tx, tz): owned land in a
+	// region holding none of its owner's territory roots. For the renderer's border lines.
+	bool territory_blinking_cell(int tx, int tz) const;
 	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
 	const NavGrid& nav_grid() const { return nav_grid_; }
 	// Barter.js GetPrices as a fraction of a resource's true price (100):
@@ -1837,6 +1857,16 @@ public:
 	uint32_t field_resource_id(uint32_t building_id) const {
 		auto it = field_res_by_bld_.find(building_id);
 		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
+	}
+	// Whether any of these units can gather this supply (unit_actions "gather" getActionInfo).
+	bool any_can_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id) const {
+		auto rit = res_id_to_idx_.find(resource_id);
+		if (rit == res_id_to_idx_.end()) return false;
+		for (size_t k = 0; k < count; ++k) {
+			const int32_t u = lookup_unit(unit_ids[k]);
+			if (u >= 0 && units_.alive[u] && can_gather((size_t)u, rit->second)) return true;
+		}
+		return false;
 	}
 	const std::vector<Scenery> &scenery() const { return scenery_; }
 	// A Gaia-owned unit from a 0 A.D. map (Player 0): roster template `template_id`
@@ -2141,7 +2171,8 @@ private:
 	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
-	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz);
+	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz, uint32_t follow = 0);
+	bool follow_walk_target(size_t i);
 	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread = true);
 	// CCmpPathfinder::DistributeAround: a point round (x, z) for each unit.
@@ -2164,7 +2195,8 @@ private:
 	void attack_done(size_t i, bool in_range, float repeat);
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
-	void unit_attack_effects(size_t i, float out[4]) const; // hack, pierce, crush, fire
+	void unit_attack_effects(size_t i, float out[4]) const;
+	float unit_repeat_time(size_t i) const; // hack, pierce, crush, fire
 	void unit_tech_damage(size_t i, float out[4]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
@@ -2255,6 +2287,11 @@ private:
 	bool near_deep_water(float x, float z, float c) const;
 	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
 	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
+	// A unit with clearance c may not step past a circular map's edge (past_map_edge); one already
+	// past it may step back in.
+	bool edge_step_barred(float x0, float z0, float x1, float z1, float c) const {
+		return past_map_edge(x1, z1, c) && x1 * x1 + z1 * z1 > x0 * x0 + z0 * z0;
+	}
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -2770,6 +2807,14 @@ private:
 	mutable Petra petra_fleets_; // per-sea warship registry (navalManager.seaWarShips)
 	float petra_timer_  = 0.0f;
 	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
+	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
+	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
+	struct PetraHuntSearch { uint32_t id; float time; };
+	std::vector<PetraHuntSearch> petra_hunt_search_;
+	// baseManager.js gatherers[type]: each base's storehouse check, by its civic centre or colony's id
+	// (petra_dropsite_check_ keeps only a pending storehouse from saves before v78).
+	struct PetraBaseDropsiteCheck { uint32_t anchor_id; PetraDropsiteCheck check; };
+	std::vector<PetraBaseDropsiteCheck> petra_base_dropsite_checks_;
 	float petra_econ_timer_ = 0.0f;
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
@@ -2807,6 +2852,18 @@ private:
 	mutable uint64_t petra_topo_cache_key_ = 0;
 	mutable bool petra_topo_cache_valid_ = false;
 	uint16_t petra_land_at(float x, float z) const;
+	// terrain-analysis.js landPassMap (accessibility.js getAccessValue): the land at (x, z) by
+	// terrain alone, deep water, steep slopes and a circular map's edge splitting it and structures
+	// not, unlike petra_land_at's regions. 0 off land. Derived from the nav grid, not saved.
+	uint16_t petra_access_at(float x, float z) const;
+	struct PetraAccess {
+		std::vector<uint8_t> pass;  // nav cell is land by terrain
+		std::vector<uint16_t> land; // its land id from 1, 0 none
+		int res = 0;
+		uint32_t stamp = 0;
+	};
+	mutable PetraAccess petra_access_;
+	uint32_t nav_terrain_stamp_ = 1; // bumped whenever the nav grid's terrain may have changed
 	// This AI's topology classified from its home land (headquarters.js navalMap, landRegions).
 	const PetraNavalTopo &petra_classified_topo(uint16_t &home) const;
 	mutable PetraNavalTopo petra_class_topo_; // per AI turn, derived: not saved
@@ -3017,6 +3074,8 @@ private:
 	int petra_player_entities(uint8_t player) const;
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;
+	bool petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, float ship_z, float dest_x, float dest_z,
+	                        bool avoid_enemy, float &out_x, float &out_z) const;
 	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea,
 	                           uint8_t owner);
 	void petra_step_transport(PetraTransportPlan &tp, float dt);
@@ -3024,16 +3083,17 @@ private:
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 	// queueplanBuilding.js findPosition (basesMap, influences, findBestTile).
 	struct PetraBasesMap {
-		struct Anchor { float x, z; uint16_t land; };
+		struct Anchor { float x, z; uint16_t land; uint32_t id; }; // land: petra_access_at; id: the civic centre or colony
 		std::vector<Anchor> anchors;
 		std::vector<uint8_t> base; // territory tiles x0..x1, z0..z1: base number from 1, 0 none
 		int w = 0, x0 = 0, z0 = 0, x1 = -1, z1 = -1;
 		bool naval = false;
 		int at(float x, float z, float half) const;
-		// Off naval maps all land is one: RTS0's land regions, unlike 0 A.D.'s, are cut by structures.
-		uint16_t land(uint16_t l) const { return naval || !l ? l : 1; }
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
+	// `bmap` and `base` (from 1) limit the search to that base's territory.
+	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f,
+	                              const PetraBasesMap *bmap = nullptr, int base = 0);
 	int petra_military_base(const PetraBasesMap &m) const;
 	bool petra_find_position(uint8_t btype, const float *base_at, const float *favor_at, bool military_base, int &out_cx,
 	                         int &out_cz);
@@ -3070,7 +3130,7 @@ private:
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
-	X(petra_failed_gather_)
+	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
