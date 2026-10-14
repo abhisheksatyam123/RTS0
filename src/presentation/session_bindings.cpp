@@ -103,6 +103,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
 	ClassDB::bind_method(D_METHOD("_on_replay_view_selected", "index"), &RtsoMain::_on_replay_view_selected);
 	ClassDB::bind_method(D_METHOD("_on_observer_view_selected", "index"), &RtsoMain::_on_observer_view_selected);
+	ClassDB::bind_method(D_METHOD("set_follow_player", "on"), &RtsoMain::set_follow_player);
+	ClassDB::bind_method(D_METHOD("is_follow_player"), &RtsoMain::is_follow_player);
 	ClassDB::bind_static_method("RtsoMain", D_METHOD("get_save_version"), &RtsoMain::get_save_version);
 	ClassDB::bind_static_method("RtsoMain", D_METHOD("get_replay_format"), &RtsoMain::get_replay_format);
 	ClassDB::bind_method(D_METHOD("is_replay_playback"), &RtsoMain::is_replay_playback);
