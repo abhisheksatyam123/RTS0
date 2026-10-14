@@ -558,7 +558,7 @@ int main() {
 		auto ride = [&](float z) {
 			cav = s.spawn_unit(-20.0f, z, 0, UNIT_CAVALRY);
 			s.cmd_move(&cav, 1, 40.0f, z);
-			run(s, 0.2f);
+			run(s, 0.8f); // up to speed (UnitMotion Acceleration)
 			return second();
 		};
 		const float alone = ride(0.0f);

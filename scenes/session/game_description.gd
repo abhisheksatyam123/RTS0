@@ -55,6 +55,13 @@ static func _map_type_title(type: String) -> String:
 	return type.capitalize()
 
 ## The scenario's own per-player settings (map_types.json players[]).
+## The player placements a random map offers (Game Setup's list for it).
+static func map_placements(map_id: String) -> Array:
+	if map_id in SetupPage.OWN_RMS_MAPS or not (SetupPage.PLACEMENT_EVERY_MAP or map_id in SetupPage.PLACEMENT_MAPS_BEFORE):
+		return []
+	var placements: Dictionary = SetupPage._map_types_data().get("player_placements", {})
+	return SetupPage.placement_values(placements.get(SetupPage.rms_script(map_id), []))
+
 static func _scenario_players(map_id: String) -> Array:
 	var known: Dictionary = SetupPage._map_types_data().get("maps", {})
 	return known.get(map_id, {}).get("settings", {}).get("players", [])
@@ -108,9 +115,9 @@ static func titles(info: Dictionary) -> Array:
 		var size: String = SummaryPage.MAP_SIZE_NAMES.get(int(info.get("map_size", 0)), "")
 		if size != "":
 			out.append(["Map Size", size])
-		if SetupPage.TEAM_PLACEMENT_MAPS.has(map_id):
+		if not map_placements(map_id).is_empty():
 			var tp: Array = SetupPage.TEAM_PLACEMENTS[clampi(int(info.get("team_placement", 0)), 0, SetupPage.TEAM_PLACEMENTS.size() - 1)]
-			out.append([tp[0], tp[1]] if int(info.get("team_placement", 0)) > 0
+			out.append([tp[1], tp[2]] if int(info.get("team_placement", 0)) > 0
 				else ["Random Player Placement", "Randomly select a player placement from the list."])
 		if SetupPage.TRIGGER_DIFFICULTY_MAPS.has(map_id):
 			out.append(SetupPage.TRIGGER_DIFFICULTIES[clampi(int(info.get("trigger_difficulty", 3)) - 1, 0, 4)])
