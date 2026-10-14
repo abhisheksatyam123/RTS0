@@ -200,6 +200,8 @@ struct NavGrid {
     // The heightmap's tiles steeper than max_slope (height_cache_.tiles), once
     // compute_slopes_from_heights has run for the current terrain.
     bool tiles_ready_ = false;
+    // Changes whenever the steep tiles or navcells, or the heightmap they come from, may have.
+    uint32_t terrain_version_ = 0;
 
     bool regions_ready_ = false;
 
@@ -217,6 +219,7 @@ struct NavGrid {
         steep_cells_ = Grid<uint8_t>(res, res, 0);
         any_steep_ = false;
         tiles_ready_ = false;
+        ++terrain_version_;
         global_region_map_.clear();
         ship_region_map_.clear();
         regions_ready_ = false;
@@ -648,6 +651,7 @@ struct NavGrid {
         c.steep_valid = false;
         c.water_valid = false;
         c.tiles_valid = false;
+        ++terrain_version_;
     }
 
     // Computes slopes for all navcells from heightmap, flagging cells steeper than max_slope.
@@ -703,6 +707,7 @@ struct NavGrid {
             }
             c.tiles_max_slope = max_slope;
             c.tiles_valid = true;
+            ++terrain_version_;
         }
         tiles_ready_ = true;
         bool any = false;
@@ -729,12 +734,17 @@ struct NavGrid {
         if (steep) any_steep_ = true;
         if (steep_cells_.at(cx, cy) != v) {
             steep_cells_.at(cx, cy) = v;
+            ++terrain_version_;
             if (!dirty.blank()) dirty.at(cx, cy) = 1;
         }
     }
 
     // Whether any navcell is steep: no slope to check on a flat map.
     bool any_steep() const { return any_steep_; }
+
+    // Changes whenever the slopes may have (a new heightmap, map size or grid, or a navcell set
+    // steep): a result worked out from the steep tiles and navcells holds while this stays the same.
+    uint32_t terrain_version() const { return terrain_version_; }
 
     // Whether the terrain has a tile steeper than max_slope; steep_tile_res() tiles a side.
     bool any_steep_tile() const { return tiles_ready_ && height_cache_.any_tile; }

@@ -8989,6 +8989,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	// parallel pass, which writes the velocities.
 	float *guard_cap = arena.alloc_array<float>(n);
 	if (!guard_cap) return;
+	if (short_path_search_.size() < n) short_path_search_.resize(n);
 	for (size_t i = 0; i < n; ++i) {
 		guard_cap[i] = 0.0f;
 		if (!alive[i] || units_.action_state[i] != ACTION_GUARD || units_.target_unit_id[i] == 0) continue;
@@ -9355,7 +9356,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					near_gaia,
 					gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, units_.target_building_id[i]),
 					[&](std::vector<SteerObstacle> &out) { gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, out); },
-					GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer)) {
+					GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer,
+					&short_path_search_[i])) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
 				if (sdx * sdx + sdz * sdz > 1e-6f) {
@@ -28137,6 +28139,9 @@ bool Simulation::fauna_can_step(size_t f, float x, float z) const {
 	// separation() keeps the list of standing structures for this tick.
 	const float c = info.is_large() ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
 	const float ox = fauna_.pos_x[f], oz = fauna_.pos_z[f];
+	// The same classes' MaxTerrainSlope: steep tiles are impassable to animals as to soldiers, kept
+	// that Clearance off (land_step_barred), so a herd doesn't graze up a cliff its hunters can't climb.
+	if (nav_grid_.near_steep_tile(x, z, c) && !nav_grid_.near_steep_tile(ox, oz, c)) return false;
 	auto gap = [](const SteerObstacle &b, float px, float pz) {
 		const nav::Vec2 l = nav::footprint_local(b, px, pz);
 		return std::max(std::fabs(l.x) - b.hu, std::fabs(l.y) - b.hv);

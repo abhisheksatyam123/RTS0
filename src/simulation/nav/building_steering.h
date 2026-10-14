@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 namespace rtso {
@@ -319,6 +320,55 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 	return search_short_path(pos, aim, radius, buildings, ignore_building_id, nav, out);
 }
 
+namespace detail {
+inline uint32_t float_bits(float f)
+{
+	uint32_t w;
+	std::memcpy(&w, &f, sizeof(w));
+	return w;
+}
+
+// What a search's small obstacles are, every field it reads; never 0.
+template <class T>
+uint64_t small_obstacles_hash(const std::vector<T>& small)
+{
+	uint64_t h = 1469598103934665603ull;
+	auto mix = [&h](uint32_t w) { h = (h ^ w) * 1099511628211ull; };
+	for (const T& o : small) {
+		mix(o.id); mix(float_bits(o.x)); mix(float_bits(o.z)); mix(float_bits(o.ux)); mix(float_bits(o.uz));
+		mix(float_bits(o.hu)); mix(float_bits(o.hv)); mix(static_cast<uint32_t>(o.type)); mix(o.wrecked ? 1u : 0u);
+	}
+	return h ? h : 1u;
+}
+
+// search_short_path among `obstacles` (the buildings `key` names, and the small ones `small` hashes),
+// answered from `memo` when it holds the same search.
+template <class Obstacles>
+bool search_short_path_memo(ShortPathSearchMemo* memo, uint32_t key, uint64_t small, Vec2 pos, Vec2 aim, float radius,
+		const Obstacles& obstacles, uint32_t ignore_building_id, const NavGrid& nav, Vec2& out, float range)
+{
+	ShortPathSearchMemo m;
+	m.pos_x = float_bits(pos.x); m.pos_z = float_bits(pos.y);
+	m.aim_x = float_bits(aim.x); m.aim_z = float_bits(aim.y);
+	m.radius = float_bits(radius); m.range = float_bits(range);
+	m.key = key; m.ignore = ignore_building_id; m.terrain = nav.terrain_version(); m.small = small;
+	if (memo && memo->valid && memo->pos_x == m.pos_x && memo->pos_z == m.pos_z && memo->aim_x == m.aim_x &&
+	    memo->aim_z == m.aim_z && memo->radius == m.radius && memo->range == m.range && memo->key == m.key &&
+	    memo->ignore == m.ignore && memo->terrain == m.terrain && memo->small == m.small) {
+		if (memo->found) out = Vec2(memo->out_x, memo->out_z);
+		return memo->found;
+	}
+	m.found = search_short_path(pos, aim, radius, obstacles, ignore_building_id, nav, out, range);
+	if (memo) {
+		m.out_x = m.found ? out.x : 0.0f;
+		m.out_z = m.found ? out.y : 0.0f;
+		m.valid = true;
+		*memo = m;
+	}
+	return m.found;
+}
+} // namespace detail
+
 // The memo key kept for a search that found no way among the obstacles `key` names, and how far
 // the unit moves before it searches again.
 inline uint32_t no_short_path_key(uint32_t key)
@@ -351,7 +401,8 @@ inline bool no_way_noted(const ShortPathMemo& memo, Vec2 pos, Vec2 aim, uint32_t
 template <class Buildings>
 bool steer_round_buildings(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
-		const NavGrid& nav, bool by_terrain, uint32_t key, ShortPathMemo& memo, Vec2& out)
+		const NavGrid& nav, bool by_terrain, uint32_t key, ShortPathMemo& memo, Vec2& out,
+		ShortPathSearchMemo* search = nullptr)
 {
 	if (no_way_noted(memo, pos, aim, key)) return false;
 	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
@@ -363,7 +414,8 @@ bool steer_round_buildings(Vec2 pos, Vec2 aim, float radius,
 			return true;
 		}
 	}
-	if (!search_short_path(pos, aim, radius, buildings, ignore_building_id, nav, out)) {
+	if (!search_short_path_memo(search, key, 0, pos, aim, radius, buildings, ignore_building_id, nav, out,
+			BUILDING_STEER_RANGE)) {
 		memo = ShortPathMemo{pos.x, pos.y, aim.x, aim.y, by_terrain ? no_terrain_path_key(key) : no_short_path_key(key)};
 		return false;
 	}
@@ -405,7 +457,8 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 template <class Buildings, class T, class Fetch>
 bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, bool by_buildings, std::vector<T>& small, bool small_maybe, Fetch&& fetch, float small_range,
-		uint32_t ignore_building_id, const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out)
+		uint32_t ignore_building_id, const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out,
+		ShortPathSearchMemo* search = nullptr)
 {
 	const bool by_terrain = detail::line_blocked_by_terrain(nav, pos, aim, radius);
 	by_buildings = by_buildings || by_terrain; // a line steep ground blocks is searched as one a building blocks
@@ -419,7 +472,8 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 			memo.key = 0;
 			return false;
 		}
-		return detail::steer_round_buildings(pos, aim, radius, buildings, ignore_building_id, nav, by_terrain, key, memo, out);
+		return detail::steer_round_buildings(pos, aim, radius, buildings, ignore_building_id, nav, by_terrain, key, memo, out,
+				search);
 	}
 	if (!by_buildings && !line_blocked_by_buildings(pos, aim, small_range, radius, small, ignore_building_id)) {
 		memo.key = 0;
@@ -495,8 +549,8 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 			}
 		}
 	}
-	if (!search_short_path(pos, aim, radius, both, ignore_building_id, nav, out,
-			by_buildings ? BUILDING_STEER_RANGE : small_range)) {
+	if (!detail::search_short_path_memo(search, key, detail::small_obstacles_hash(small), pos, aim, radius, both,
+			ignore_building_id, nav, out, by_buildings ? BUILDING_STEER_RANGE : small_range)) {
 		memo = ShortPathMemo{pos.x, pos.y, aim.x, aim.y, by_terrain ? no_terrain_path_key(key) : no_short_path_key(key)};
 		return false;
 	}

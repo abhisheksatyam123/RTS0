@@ -3268,6 +3268,9 @@ private:
 	}
 	std::vector<SteerObstacle> steer_obstacles_;
 	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
+	// Each unit's last short path search among them (ShortPathSearchMemo), by unit index; not
+	// saved, as a search finds the same again.
+	std::vector<ShortPathSearchMemo> short_path_search_;
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
 	// SteerObstacle::type of a Gaia mine (mine_footprint), after the buildings in both lists.
 	static constexpr uint8_t MINE_OBSTACLE = 0xFF;
