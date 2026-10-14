@@ -139,6 +139,8 @@ static void sleep_ms(int ms) {
 static bool start_peers(NetHost &h, NetHost &c, uint16_t port, int budget_ms = 1500) {
 	NetConfig cfg;
 	cfg.port = port;
+	h.setLocalPlayerName("host"); // the host refuses a joiner by its own name
+	c.setLocalPlayerName("joiner");
 	if (!h.startHost(cfg)) return false;
 	if (!c.startClient("127.0.0.1", port)) return false;
 	Arena probe_arena;
@@ -397,6 +399,7 @@ static bool run_lockstep_gate(const char *ph) {
 	NetHost host, client;
 	NetConfig cfg;
 	cfg.port = 21800;
+	client.setLocalPlayerName("joiner");
 	bool bound = host.startHost(cfg);
 	bool dialed = client.startClient("127.0.0.1", cfg.port);
 	Arena arena;

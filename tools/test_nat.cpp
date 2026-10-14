@@ -192,6 +192,7 @@ static void test_retarget() {
 	dead.startHost(c);
 	const uint16_t nowhere = dead.localPort();
 	dead.stop();
+	client.setLocalPlayerName("bob");
 	client.startClient("127.0.0.1", nowhere);
 	pump({&host, &client}, nullptr, 600, [&] { return false; });
 	CHECK(joined == 0, "a client aimed at a dead address does not connect");

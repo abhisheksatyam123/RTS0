@@ -1784,10 +1784,13 @@ void RtsoMain::update_net_status_overlay() {
 		String why;
 		switch (net_host_.disconnectReason()) {
 			case 2: why = tr("The host has ended the game."); break;
+			case rtso::NDR_INCORRECT_PROTOCOL_VERSION: why = tr("Incorrect network protocol version."); break;
 			case 6: why = tr("You have been kicked."); break;
 			case 7: why = tr("You have been banned."); break;
+			case rtso::NDR_PLAYERNAME_IN_USE: why = tr("Player name in use. If you were disconnected, retry in few seconds."); break;
 			case rtso::NDR_SERVER_FULL: why = tr("Server full."); break;
 			case 14: why = tr("Password is invalid."); break;
+			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = tr("Different game engine versions or different mods loaded."); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
 		net_status_label_->set_text(tr("Connection to the server has been lost.") + "\n" + why);
@@ -2020,6 +2023,14 @@ void RtsoMain::_on_entity_command(const String &name) {
 		_on_remove_guard_pressed();
 	} else if (name == "unload-all") {
 		_on_ungarrison_pressed();
+	} else if (name == "leave-turret") {
+		// unit_actions.js leaveTurretPoints: every selected unit on a turret point steps down.
+		std::vector<uint32_t> ids;
+		for (int s = 0; s < selected_ids.size(); ++s)
+			if (sim->turret_holder_of((uint32_t)(int64_t)selected_ids[s])) ids.push_back((uint32_t)(int64_t)selected_ids[s]);
+		if (ids.empty()) return;
+		if (turn_cmds()) post_lockstep(13, ids.data(), ids.size(), 0, 0, 0, 2);
+		else sim->cmd_leave_turret(local_player(), ids.data(), ids.size());
 	} else if (name == "select-trading-goods") {
 		_toggle_session_dialog("BarterDialog");
 	} else if (name == "focus-rally") {
@@ -3107,6 +3118,17 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["seat"] = (int)seat_player();
 	d["oos"] = turn_mgr_.has_out_of_sync();
 	d["oos_turn"] = (int64_t)turn_mgr_.oos_turn();
+	// OutOfSyncNetwork's message: who, whether ours matches the host's, and the files.
+	Array oos_players;
+	for (const auto &n : turn_mgr_.oos_players()) oos_players.push_back(String::utf8(n.c_str()));
+	d["oos_players"] = oos_players;
+	d["oos_identical"] = turn_mgr_.oos_matches_host();
+	d["oos_dump"] = String::utf8(turn_mgr_.oos_dump_path().c_str());
+	d["oos_replay"] = replay_dir_.is_empty() ? String()
+			: ProjectSettings::get_singleton()->globalize_path(replay_dir_ + String("commands.rts0rec"));
+	bool ai = false;
+	for (uint8_t p = 0; sim && p < rtso::MAX_PLAYERS; ++p) ai = ai || (sim->player(p).active && sim->player(p).is_ai);
+	d["oos_ai"] = ai;
 	d["disconnected"] = net_disconnected_;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
@@ -3601,6 +3623,15 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	turn_mgr_.post_local_command(c);
 }
 
+// Before Host or Join: what the handshake names (the client sends it at once).
+static void apply_net_host_options(rtso::NetHost &net) {
+	net.setDuplicatePlayerNames(rtso::user_config::get_bool("network.duplicateplayernames"));
+	// Builds whose simulation state differs would fall out of sync: the
+	// handshake names the save format too, so the host refuses them up front.
+	net.setSoftwareVersion(std::string(rtso::NET_SOFTWARE_VERSION) + " save " +
+			std::to_string(rtso::Simulation::SAVE_VERSION));
+}
+
 // 0 A.D. 0.28 [network]: the host's late-observer policy, observer limit and
 // observer lag (NetServer.cpp, NetServerTurnManager.cpp), and a watcher's
 // autocatchup (NetClientTurnManager). Read again at every Host and Join.
@@ -3650,6 +3681,7 @@ void RtsoMain::_on_lobby_host_pressed() {
 	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
 	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
 	kicks_shown_ = 0;
+	apply_net_host_options(net_host_);
 	if (!net_host_.startHost(cfg)) {
 		if (lobby_status) lobby_status->set_text("Host bind failed");
 		return;
@@ -3659,6 +3691,7 @@ void RtsoMain::_on_lobby_host_pressed() {
 	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for Start (NMT_GAME_START) before any lockstep turn
+	net_oos_shown_turn_ = 0;
 	net_setup_ = rtso::NetSetupState();
 	net_setup_key_.clear();
 	net_setup_sent_.clear();
@@ -3784,6 +3817,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
 	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
 	kicks_shown_ = 0;
+	apply_net_host_options(net_host_);
 	if (!net_host_.startClient(ip, port)) {
 		if (lobby_status) lobby_status->set_text("Join failed");
 		return;
@@ -3793,6 +3827,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for host's NMT_GAME_START before lockstep turns
+	net_oos_shown_turn_ = 0;
 	net_setup_ = rtso::NetSetupState();
 	net_setup_key_.clear();
 	net_setup_sent_.clear();
