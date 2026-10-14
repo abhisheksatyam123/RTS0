@@ -1852,7 +1852,7 @@ struct BuildRestriction {
 	uint8_t placement, territory, distance_class;
 	float min_distance; // world units (one tile, 4 m)
 };
-BuildRestriction build_restriction(uint8_t type) {
+BuildRestriction build_restriction(uint8_t type, uint8_t civ) {
 	// brit/crannog: a civil centre (200 m from a CivilCentre) laid on the shore, own ally neutral.
 	if (type == BLD_CRANNOG) return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
 	switch (building_research_base(type)) {
@@ -1876,7 +1876,7 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_ARMY_CAMP: return {PLACE_LAND, TERR_NEUTRAL | TERR_ENEMY, DIST_ARMY_CAMP, 80.0f / 4.0f};
 	case BLD_MERCENARY_CAMP: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_MERCENARY_CAMP, 100.0f / 4.0f};
 	case BLD_CAMP_NOBA: case BLD_CAMP_BLEMMYE: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
-	case BLD_MONUMENT: return {PLACE_LAND, TERR_OWN, DIST_MONUMENT, 150.0f / 4.0f};
+	case BLD_MONUMENT: return {PLACE_LAND, TERR_OWN, DIST_MONUMENT, (civ == CIV_GERMANS ? 100.0f : 150.0f) / 4.0f}; // germ/totem 100 m
 	case BLD_PILLAR: return {PLACE_LAND, TERR_OWN, DIST_PILLAR, 75.0f / 4.0f};
 	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};
 	}
@@ -1998,7 +1998,7 @@ uint64_t Simulation::petra_placement_signature(uint8_t btype, int start_cx, int 
 	uint64_t h = 1469598103934665603ull; // FNV-1a over 64-bit words
 	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
 	auto fbits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return (uint64_t)u; };
-	const BuildRestriction rule = build_restriction(btype);
+	const BuildRestriction rule = build_restriction(btype, civ_of(petra_pid_));
 	const int foot = building_type_info(btype).footprint;
 	// can_place reads cells [c - 1, c + foot] for each candidate c.
 	const int ax0 = start_cx - max_r - 1, ax1 = start_cx + max_r + foot;
@@ -2095,7 +2095,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const std::vector<std::pair<int, int>> &cells, float x0, float z0, float x1, float z1, float cxw, float czw,
 		const Building *rect, const std::vector<std::pair<int, int>> *ignore_cells, const std::vector<uint32_t> *ignore_ids) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
-	BuildRestriction rule = build_restriction(b_type);
+	BuildRestriction rule = build_restriction(b_type, civ_of(player));
 	// Athenian Long Walls: Wall BuildRestrictions/Territory "own neutral" (stone walls, their
 	// gates and towers; palisades are own neutral already).
 	if (players_[player].has_tech(TECH_LONG_WALLS) && rule.placement == PLACE_LAND_SHORE) rule.territory |= TERR_NEUTRAL;
@@ -2562,7 +2562,7 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 	const WallSetInfo &ws = wallset_info(kind);
 	const Civilization civ = civ_of(player);
 	for (uint8_t t : {ws.segment, ws.tower})
-		if (!civ_can_build(civ, t) || building_required_phase(t) > players_[player].phase ||
+		if (!civ_can_build(civ, t) || building_required_phase(t, civ) > players_[player].phase ||
 				triggers_.building_disabled(player, t)) return 0;
 	rebuild_territory();
 	uint32_t start_tower = 0, end_tower = 0;
@@ -2610,7 +2610,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	if (triggers_.building_disabled(player, b_type)) return 0;   // the map script's SetDisabledTemplates
 	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
 	if (check_placement(player, cell_x, cell_y, b_type, unpack_angle(pack_angle(angle))) != PLACE_OK) return 0;
-	if (building_required_phase(b_type) > players_[player].phase) return 0;
+	if (building_required_phase(b_type, players_[player].civ) > players_[player].phase) return 0;
 	if (!entity_limit_allows_building(player, b_type)) return 0; // EntityLimits.js AllowedToBuild
 
 	if (!pay_for_structure(player, b_type)) return 0;
@@ -13623,10 +13623,7 @@ void Simulation::tick_death_damage(float dt) {
 // A structure's Resistance levels: its template's, plus armour auras that name Structure
 // (Maximus' Shield of Rome: his player's structures +1 everywhere).
 void Simulation::structure_resistance(const Building &b, float out[3]) const {
-	const CombatProfile &bc = building_combat(b.type);
-	out[0] = bc.hack_armor;
-	out[1] = bc.pierce_armor;
-	out[2] = bc.crush_armor;
+	structure_armour(b.type, b.civ, out);
 	const float aura = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_ARMOR, CIV_UNIT_TEMPLATE_NONE, nullptr, true);
 	for (int k = 0; k < 3; ++k) out[k] += aura;
 }
@@ -19555,7 +19552,7 @@ void Simulation::petra_build_advanced() {
 		if (count(t) > 0 || !petra_limit_allows_building(t)) continue;
 		// Petra seeks sites in its own territory only, where Rome's army camp (neutral or
 		// enemy land) is refused, so it goes on to the next structure.
-		if (!(build_restriction(t).territory & TERR_OWN)) continue;
+		if (!(build_restriction(t, civ_of(petra_pid_)).territory & TERR_OWN)) continue;
 		build(t);
 		return;
 	}
@@ -19924,7 +19921,7 @@ bool Simulation::petra_build_new_base(int res) {
 			return false;
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		return civ_can_build(civ, t) && building_required_phase(t) <= petra_ps().phase &&
+		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
 		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	bool own_cc = false;
@@ -23290,7 +23287,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	// queueplanBuilding.js: a plan with no room is set unbuildable for a while
 	// (buildManager.setUnbuildable). Here a search that found no spot is not
 	// repeated until something it read changes, so the outcome is unchanged.
-	const bool remember = btype < BLD_TYPE_COUNT && build_restriction(btype).placement == PLACE_LAND;
+	const bool remember = btype < BLD_TYPE_COUNT && build_restriction(btype, 0xFF).placement == PLACE_LAND;
 	const uint64_t sig = remember ? petra_placement_signature(btype, start_cx, start_cz, max_r) : 0;
 	PetraPlaceMiss key{sig, start_cx, start_cz, (int16_t)min_r, (int16_t)max_r, petra_pid_, btype};
 	auto same_search = [&key](const PetraPlaceMiss &m) {
