@@ -1685,10 +1685,20 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	return true;
 }
 
+// NetServerTurnManager names the out-of-sync players by their user names.
 std::string TurnManager::client_label(uint32_t client_id) const {
+	const std::string name = client_id == 0 && net_host_ ? net_host_->localPlayerName() : [&] {
+		auto it = client_names_.find(client_id);
+		return it == client_names_.end() ? std::string() : it->second;
+	}();
+	if (!name.empty()) return name;
 	const uint8_t pl = player_for_client(client_id);
 	if (pl < MAX_PLAYERS) return "Player " + std::to_string((unsigned)pl + 1);
 	return "Observer " + std::to_string(client_id);
+}
+
+bool TurnManager::oos_matches_host() const {
+	return (net_host_ && net_host_->isHost()) || oos_expected_hash_ == oos_received_hash_;
 }
 
 uint32_t TurnManager::local_hash_at(uint32_t turn) const {
@@ -1758,6 +1768,26 @@ void TurnManager::write_oos_dump(const Simulation &sim) {
 	if (current_turn_ != oos_turn_)
 		file << "WARNING: dump is from turn " << current_turn_ << "; OOS was detected on turn " << oos_turn_
 		     << " -- state may have advanced past the diverge point.\n";
+	// A readable state (0 A.D. DumpDebugState), so two peers' dumps diff.
+	file.precision(9); // every float bit that differs shows
+	file << "\n-- players (food wood stone metal)\n";
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		const PlayerState &ps = sim.player(p);
+		file << "player " << (unsigned)p << ":";
+		for (float r : ps.res) file << " " << r;
+		file << "\n";
+	}
+	auto uview = sim.units();
+	file << "\n-- units (id type team x z hp action carry)\n";
+	for (size_t i = 0; i < uview.count; ++i)
+		if (uview.alive[i])
+			file << uview.id[i] << " " << (unsigned)uview.unit_type[i] << " " << (unsigned)uview.team[i] << " "
+			     << uview.pos_x[i] << " " << uview.pos_z[i] << " " << uview.hp[i] << " "
+			     << (unsigned)uview.action_state[i] << " " << uview.carry[i] << "\n";
+	file << "\n-- buildings (id type team x z hp progress queue garrison)\n";
+	for (const auto &b : sim.buildings())
+		file << b.id << " " << (unsigned)b.type << " " << (unsigned)b.team << " " << b.x << " " << b.z << " "
+		     << b.hp << " " << b.build_progress << " " << b.queue.size() << " " << b.garrisoned_units.size() << "\n";
 	file.close();
 	if (sim.save_state((base + ".dat").c_str())) oos_dump_written_ = base + ".txt";
 }
