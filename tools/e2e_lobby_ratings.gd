@@ -65,7 +65,7 @@ func run() -> void:
 	stats.players[1].ai = false
 	stats.players.append(player(2, "carol", "defeated"))
 	check(LobbySessionScript.rating_report(stats, summary, 0).is_empty(), "only 1v1 games are rated")
-	check(LobbySessionScript.rated_name("alice", 1278) == "alice (1278)" and LobbySessionScript.rated_name("bob", null) == "bob",
+	check(LobbySessionScript.rated_name("alice", 1265) == "alice (1265)" and LobbySessionScript.rated_name("bob", null) == "bob",
 		"names show their rating (PlayerColor.ColorPlayerName)")
 	check(LobbySessionScript.format_win_rate({"totalGamesPlayed": 3, "wins": 2}) == "66.67%"
 		and LobbySessionScript.format_win_rate({}) == "-", "the win rate as ProfilePanel.FormatWinRate")
@@ -104,12 +104,12 @@ func run() -> void:
 	var ratings := {}
 	for it in lobby._players.get_root().get_children():
 		ratings[it.get_text(1)] = it.get_text(2)
-	check(ratings == {"alice": "1278", "bob": "1122"}, "the player list's Rating column (%s)" % str(ratings))
+	check(ratings == {"alice": "1265", "bob": "1135"}, "the player list's Rating column (%s)" % str(ratings))
 	var bob_item: TreeItem = lobby._players.get_root().get_child(1)
 	bob_item.select(0)
 	await until(func() -> bool: return lobby._profile_values["totalGamesPlayed"].text == "1")
-	check(lobby._profile.visible and lobby._profile_name.text == "bob (1122)", "selecting bob shows his profile")
-	check(lobby._profile_values["rank"].text == "2" and lobby._profile_values["highestRating"].text == "1200"
+	check(lobby._profile.visible and lobby._profile_name.text == "bob (1135)", "selecting bob shows his profile")
+	check(lobby._profile_values["rank"].text == "2" and lobby._profile_values["highestRating"].text == "1135"
 		and lobby._profile_values["wins"].text == "0" and lobby._profile_values["losses"].text == "1"
 		and lobby._profile_values["ratio"].text == "0.00%", "rank, highest rating, wins, losses and win rate")
 	lobby._on_leaderboard_pressed()
@@ -118,7 +118,7 @@ func run() -> void:
 	if lobby._board.get_root():
 		for it in lobby._board.get_root().get_children():
 			board.append([it.get_text(0), it.get_text(1), it.get_text(2)])
-	check(board == [["1", "alice", "1278"], ["2", "bob", "1122"]], "the Leaderboard, best first")
+	check(board == [["1", "alice", "1265"], ["2", "bob", "1135"]], "the Leaderboard, best first")
 
 	print("3. game details")
 	var ms: Node = root.get_node("/root/MatchSettings")
@@ -151,7 +151,7 @@ func run() -> void:
 	check(sk.get("map_type") == "skirmish" and sk.get("map_size") == "Default", "a skirmish map's size is Default")
 	ms.slot_types = [0, 1, 0]
 	ms.map_id = "random_continental"
-	check(LobbySessionScript.game_rating(names, {"alice": 1278, "bob": 1122}) == 1200
+	check(LobbySessionScript.game_rating(names, {"alice": 1265, "bob": 1135}) == 1200
 		and LobbySessionScript.game_rating(names, {"alice": 1500, "bob": 1500}) == 1400
 		and LobbySessionScript.game_rating([], {}) == 1200, "a game's rating averages its players, 1200 for none")
 	check(lobby.game_columns(true) == ["Name", "Host", "Map", "Rating", "Players", "Status"]
@@ -177,7 +177,7 @@ func run() -> void:
 	var text: String = lobby._details.get_parsed_text()
 	check(lobby._details.visible, "selecting the game shows its details")
 	for want in ["Continental", "Victory Conditions: Conquest, Wonder", "Map Type: Random", "Map Size: Medium",
-			"alice's game", "Host: alice", "Game started at ", "Players: 2/8", "Team 1:\nalice (1278) (Athenians)\nbob (1122) (Spartans)",
+			"alice's game", "Host: alice", "Game started at ", "Players: 2/8", "Team 1:\nalice (1265) (Athenians)\nbob (1135) (Spartans)",
 			"Team 2:\nCleopatra (Random, Hard Aggressive Petra Bot)", "Observer:\ncarol"]:
 		check(text.contains(want), "the details say \"%s\"" % want.replace("\n", " / "))
 	if not text.contains("Team 1:"):

@@ -91,9 +91,13 @@ struct ProductionOrder {
 	uint8_t count = 1;          // batch size
 	uint8_t tech = TECH_NONE;   // the technology this item researches
 	bool started = false;       // Trainer.js Item.Start: the batch's population is reserved
+	uint8_t petra_plan = 0;     // PetraOrderPlan: what Petra queued the batch for (saved SAVE_VERSION_PETRA_ORDER_PLAN)
 	std::array<float, RES_COUNT> paid{}; // refunded when the item is removed (RemoveItem)
 	bool is_tech() const { return tech != TECH_NONE; }
 };
+// The metadata Petra trains a batch with (queueplanTraining.js): a worker (role worker, no
+// plan), a soldier for the attack in preparation or for the raid (plan), or none.
+enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID };
 // ProductionQueue.js MaxQueueSize.
 static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
 
@@ -163,7 +167,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 73; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 74; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
@@ -2406,6 +2410,13 @@ private:
 	// petra_find_position leaves out every structure's influence for houses (set for one call).
 	bool petra_require_houses_ = false;
 	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
+	// queueplanBuilding.js canStart: one foundation per AI turn (HQ.turnCache.buildingBuilt).
+	// Both are set only inside one AI's turn (tick_petra_ai), so a save between ticks never
+	// holds them (not saved); a call from outside a turn isn't limited.
+	bool petra_in_turn_ = false;
+	bool petra_turn_built_ = false;
+	bool petra_building_built() const { return petra_in_turn_ && petra_turn_built_; }
+	uint32_t petra_spawn_foundation(int cx, int cz, uint8_t btype);
 	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
@@ -2889,7 +2900,9 @@ private:
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
 	// wait_for_pop: queue it even with no population room, to wait in the trainer's queue as
 	// 0 A.D.'s ProductionQueue holds an item until there is room.
-	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false);
+	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false,
+	                          uint8_t plan = PETRA_ORDER_NONE);
+	uint32_t petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t max_queue) const;
 	bool petra_relic_targeted(uint32_t relic_id) const;
 	bool petra_unit_target_ok(int32_t t) const;
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
