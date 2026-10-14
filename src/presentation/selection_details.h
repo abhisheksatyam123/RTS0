@@ -157,13 +157,14 @@ inline String gather_tooltip(const Simulation::UnitDetails &d) {
 	return rates.is_empty() ? rates : sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Gather Rates:")}, {"details", rates}});
 }
 
-// getSpeedTooltip: "Speed: 9.0 Walk, 15.0 Run" (RTS0 has no Acceleration).
+// getSpeedTooltip: "Speed: 9.0 Walk, 15.0 Run, 35.0 Acceleration".
 inline String speed_tooltip(const Simulation::UnitDetails &d) {
 	if (d.walk <= 0.0f && d.run <= 0.0f) return String();
 	auto speed = [](float v, const char *kind) {
 		return sprintf0(tr0("%(speed)s %(movementType)s"), {{"speed", fixed(v, 1)}, {"movementType", tr0(kind)}});
 	};
-	return sprintf0(tr0("%(label)s %(speeds)s"), {{"label", tr0("Speed:")}, {"speeds", speed(d.walk, "Walk") + comma() + speed(d.run, "Run")}});
+	return sprintf0(tr0("%(label)s %(speeds)s"), {{"label", tr0("Speed:")}, {"speeds", speed(d.walk, "Walk") + comma() + speed(d.run, "Run") +
+			comma() + speed(d.acceleration, "Acceleration")}});
 }
 
 // getGarrisonTooltip for a holder: "Garrison Limit: 20".
