@@ -904,6 +904,23 @@ void RtsoMain::_ready() {
 	}
 	ui_layer->add_child(pause_overlay_);
 
+	// gameStateNotifications: top right, under the data counter.
+	net_warnings_label_ = memnew(RichTextLabel);
+	net_warnings_label_->set_anchors_preset(Control::PRESET_TOP_RIGHT);
+	net_warnings_label_->set_offset(SIDE_LEFT, -420.0f);
+	net_warnings_label_->set_offset(SIDE_RIGHT, -15.0f);
+	net_warnings_label_->set_offset(SIDE_TOP, 40.0f);
+	net_warnings_label_->set_offset(SIDE_BOTTOM, 140.0f);
+	net_warnings_label_->set_use_bbcode(true);
+	net_warnings_label_->set_fit_content(true);
+	net_warnings_label_->set_scroll_active(false);
+	net_warnings_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	net_warnings_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+	net_warnings_label_->add_theme_constant_override("outline_size", 3);
+	net_warnings_label_->add_theme_font_size_override("normal_font_size", 13);
+	net_warnings_label_->set_visible(false);
+	ui_layer->add_child(net_warnings_label_);
+
 	// NetworkStatusOverlay.xml: the status text on sessionOverlayBackground,
 	// over the whole screen, with the disconnectedExitButton below it.
 	net_status_overlay_ = memnew(Control);
@@ -2083,10 +2100,12 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 // cursor shows what a right-click would do with the current selection.
 // unit_actions.js "unset-rallypoint" getActionInfo: the target is the selected
 // structure itself and it has a rally point.
-// unit_actions.js: right-clicking an enemy with a structure that shoots arrows selected
-// sends Commands.js "focus-fire" (BuildingAI.AddFocusTarget; Shift queues it) instead of
-// setting the rally point there. Lockstep command 50.
+// unit_actions.js "focus-fire": right-clicking an enemy while holding session.focusfire
+// (F) with a structure that shoots arrows selected sends Commands.js "focus-fire"
+// (BuildingAI.AddFocusTarget; Shift queues it) instead of setting the rally point
+// there. Without the hotkey the click sets the rally point, as in 0.28. Lockstep command 50.
 bool RtsoMain::try_focus_fire(const Vector3 &at) {
+	if (!rtso::hotkeys::held("session.focusfire")) return false;
 	const uint8_t me = local_player();
 	const auto bit = std::find_if(sim->buildings().begin(), sim->buildings().end(),
 			[&](const rtso::Simulation::Building &b) { return b.id == selected_building_id; });
@@ -2424,6 +2443,59 @@ void RtsoMain::_on_pause_overlay_pressed() {
 // the host is lost (messages.js handleNetStatusMessage) the match is over for
 // this client: dialogs close, the overlay says why (network.js
 // getDisconnectReason) and stays until Exit.
+void RtsoMain::update_net_warnings() {
+	if (!net_warnings_label_) return;
+	const uint64_t now = (uint64_t)Time::get_singleton()->get_ticks_msec();
+	const bool on = rtso::user_config::get_bool("overlay.netwarnings") && !net_disconnected_;
+	if (on && now - net_warnings_checked_ms_ >= 1000) {
+		net_warnings_checked_ms_ = now;
+		auto warn = [&](const std::string &guid, const String &text) { net_warnings_[guid] = {now, text}; };
+		const bool client = net_host_.getRole() == rtso::NetRole::Client;
+		if (client) {
+			// NetClient::CheckServerConnection.
+			const uint32_t silent = net_host_.hostSilentMs();
+			const uint32_t rtt = net_host_.getStats().rtt_ms;
+			if (silent > rtso::NETWORK_WARNING_TIMEOUT_MS)
+				warn("server", rtso::sprintf0(rtso::tr0("Losing connection to server (%(seconds)ss)"),
+						{{"seconds", String::num_int64((silent + 999) / 1000)}}));
+			else if (rtt > rtso::NETWORK_BAD_PING_MS)
+				warn("server", rtso::sprintf0(rtso::tr0("Bad connection to server (%(milliseconds)sms)"),
+						{{"milliseconds", String::num_int64(rtt)}}));
+		}
+		// NetServer::CheckClientConnections, as every client hears it
+		// (NMT_CLIENT_TIMEOUT, NMT_CLIENT_PERFORMANCE); not about ourselves.
+		const uint32_t me = client ? net_host_.getLocalPeerId() : 0;
+		for (const auto &e : net_host_.clientPerformance()) {
+			if (e.client == 0 || e.client == me) continue;
+			const std::string guid = rtso::peer_guid(e.client);
+			const String who = chat_user(String(guid.c_str()));
+			if (e.silent_ms > rtso::NETWORK_WARNING_TIMEOUT_MS)
+				warn(guid, rtso::sprintf0(rtso::tr0("%(player)s losing connection (%(seconds)ss)"),
+						{{"player", who}, {"seconds", String::num_int64((e.silent_ms + 999) / 1000)}}));
+			else if (e.rtt_ms > rtso::NETWORK_BAD_PING_MS)
+				warn(guid, rtso::sprintf0(rtso::tr0("Bad connection to %(player)s (%(milliseconds)sms)"),
+						{{"player", who}, {"milliseconds", String::num_int64(e.rtt_ms)}}));
+		}
+	}
+	// getNetworkWarnings: drop the old ones and those of clients gone.
+	String text;
+	for (auto it = net_warnings_.begin(); it != net_warnings_.end();) {
+		bool gone = it->first != "server";
+		for (const auto &e : net_host_.playerAssignment())
+			if (rtso::peer_guid(e.client) == it->first && e.status != rtso::PlayerAssignmentMsg::LEFT) gone = false;
+		if (!on || now > it->second.first + rtso::NETWORK_WARNING_SHOW_MS || gone) {
+			it = net_warnings_.erase(it);
+			continue;
+		}
+		++it;
+	}
+	if (net_warnings_.count("server")) text = net_warnings_["server"].second;
+	for (const auto &w : net_warnings_)
+		if (w.first != "server") text += String(text.is_empty() ? "" : "\n") + w.second.second;
+	net_warnings_label_->set_text("[right]" + text + "[/right]");
+	net_warnings_label_->set_visible(!text.is_empty());
+}
+
 void RtsoMain::update_net_status_overlay() {
 	if (net_disconnected_ || !net_status_overlay_) return;
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
@@ -3245,6 +3317,7 @@ void RtsoMain::_process(double delta) {
 		}
 		if (net_game_started_) post_network_chat();
 		update_net_status_overlay();
+		update_net_warnings();
 		// 0 A.D. player list: who plays which player, who has left, who watches.
 		if (lobby_players && net_host_.playerAssignments() != players_shown_) {
 			players_shown_ = net_host_.playerAssignments();
@@ -4680,6 +4753,7 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
+	d["net_warnings"] = net_warnings_label_ && net_warnings_label_->is_visible() ? net_warnings_label_->get_parsed_text() : String();
 	return d;
 }
 
@@ -5226,6 +5300,24 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	turn_mgr_.post_local_command(c);
 }
 
+// 0 A.D. 0.28 [network]: the host's late-observer policy, observer limit and
+// observer lag (NetServer.cpp, NetServerTurnManager.cpp), and a watcher's
+// autocatchup (NetClientTurnManager). Read again at every Host and Join.
+void RtsoMain::apply_net_options() {
+	std::set<std::string> buddies;
+	std::istringstream list(rtso::user_config::get("lobby.buddies"));
+	for (std::string name; std::getline(list, name, ',');) {
+		for (char &c : name) c = (char)std::tolower((unsigned char)c);
+		if (!name.empty()) buddies.insert(name);
+	}
+	const std::string late = rtso::user_config::get("network.lateobservers");
+	turn_mgr_.set_late_observers(late == "buddies" ? rtso::TurnManager::LATE_OBSERVERS_BUDDIES
+			: late == "disabled" ? rtso::TurnManager::LATE_OBSERVERS_DISABLED : rtso::TurnManager::LATE_OBSERVERS_EVERYONE, buddies);
+	turn_mgr_.set_observer_limit(String(rtso::user_config::get("network.observerlimit").c_str()).to_int());
+	turn_mgr_.set_observer_max_lag(String(rtso::user_config::get("network.observermaxlag").c_str()).to_int());
+	turn_mgr_.set_auto_catch_up(rtso::user_config::get_bool("network.autocatchup"));
+}
+
 bool RtsoMain::order_disbands_formation(uint8_t cmd_type) const {
 	using T = rtso::NetCommandType;
 	switch ((T)cmd_type) {
@@ -5263,6 +5355,7 @@ void RtsoMain::_on_lobby_host_pressed() {
 	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);
+	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for Start (NMT_GAME_START) before any lockstep turn
 	net_setup_ = rtso::NetSetupState();
@@ -5614,6 +5707,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 1);
+	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for host's NMT_GAME_START before lockstep turns
 	net_setup_ = rtso::NetSetupState();
