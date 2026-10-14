@@ -11102,5 +11102,6 @@
       "z": -32.49,
       "template": "mace/cavalry_spearman_a"
     }
-  ]
+  ],
+  "circular": true
 }

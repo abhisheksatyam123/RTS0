@@ -18071,5 +18071,6 @@
       "z": -2.35,
       "template": "gaul/champion_fanatic"
     }
-  ]
+  ],
+  "circular": true
 }

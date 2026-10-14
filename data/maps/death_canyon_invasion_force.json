@@ -8884,5 +8884,6 @@
   ],
   "trigger_scripts": [
     "death_canyon_invasion_force_triggers"
-  ]
+  ],
+  "circular": true
 }

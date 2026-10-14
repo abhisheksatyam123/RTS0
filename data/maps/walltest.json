@@ -4444,5 +4444,6 @@
       "z": -62.29,
       "template": "rome/infantry_swordsman_a"
     }
-  ]
+  ],
+  "circular": true
 }

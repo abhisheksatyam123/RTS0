@@ -7786,5 +7786,6 @@
     "saturation": 0.99,
     "bloom": 0.1999,
     "post_effect": "default"
-  }
+  },
+  "circular": false
 }

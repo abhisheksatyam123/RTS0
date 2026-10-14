@@ -11505,5 +11505,6 @@
     "saturation": 0.892578,
     "bloom": 0.1999,
     "post_effect": "default"
-  }
+  },
+  "circular": true
 }

@@ -40041,5 +40041,6 @@
       "z": -74.99,
       "template": "gaul/cavalry_javelineer_a"
     }
-  ]
+  ],
+  "circular": true
 }

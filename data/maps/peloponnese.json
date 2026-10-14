@@ -33025,5 +33025,6 @@
       "z": 192.7,
       "template": "athen/ship_arrow"
     }
-  ]
+  ],
+  "circular": true
 }

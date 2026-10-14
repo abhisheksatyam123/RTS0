@@ -59345,5 +59345,6 @@
       "z": 130.33,
       "template": "pers/support_civilian"
     }
-  ]
+  ],
+  "circular": true
 }

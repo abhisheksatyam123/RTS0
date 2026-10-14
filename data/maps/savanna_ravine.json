@@ -7464,5 +7464,6 @@
       "template": "gaul/defense_tower"
     }
   ],
-  "units": []
+  "units": [],
+  "circular": false
 }
