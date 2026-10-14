@@ -624,7 +624,6 @@ struct NavGrid {
         float water_thresh = 0.0f;
         bool water_valid = false;
         std::vector<uint8_t> tiles; // per heightmap tile, (h_res - 1) a side: steeper than tiles_max_slope
-        std::vector<uint16_t> tile_land; // per tile: its slope land (tile_land_at), 0 for a steep tile
         int tiles_w = 0;
         float tiles_max_slope = 0.0f;
         bool any_tile = false;
@@ -633,36 +632,6 @@ struct NavGrid {
     HeightSampleCache height_cache_;
 
     static bool same_bits(float a, float b) { return std::memcmp(&a, &b, sizeof a) == 0; }
-
-    // Labels c.tile_land: 4-connected regions of c.tiles' flat tiles from 1 (Accessibility.floodFill).
-    static void label_tile_land(HeightSampleCache& c) {
-        const int tw = c.tiles_w;
-        c.tile_land.assign(c.tiles.size(), 0);
-        std::vector<int> stack;
-        uint16_t next = 0;
-        for (size_t k = 0; k < c.tiles.size(); ++k) {
-            if (c.tiles[k] || c.tile_land[k]) continue;
-            if (next == UINT16_MAX) return; // too many regions: the rest stay unknown
-            c.tile_land[k] = ++next;
-            stack.push_back(static_cast<int>(k));
-            while (!stack.empty()) {
-                const int q = stack.back();
-                stack.pop_back();
-                const int qi = q % tw, qj = q / tw;
-                auto visit = [&](int a, int b) {
-                    if (a < 0 || b < 0 || a >= tw || b >= tw) return;
-                    const size_t n = static_cast<size_t>(b) * static_cast<size_t>(tw) + static_cast<size_t>(a);
-                    if (c.tiles[n] || c.tile_land[n]) return;
-                    c.tile_land[n] = next;
-                    stack.push_back(static_cast<int>(n));
-                };
-                visit(qi + 1, qj);
-                visit(qi - 1, qj);
-                visit(qi, qj + 1);
-                visit(qi, qj - 1);
-            }
-        }
-    }
 
     // Drops the cached results unless they came from this heightmap, h_res, res and map_half.
     void sync_height_cache(const std::vector<float>& heights, int h_res) {
@@ -718,7 +687,6 @@ struct NavGrid {
                     }
                 }
             c.tiles_w = std::max(tw, 0);
-            label_tile_land(c);
             c.tiles_max_slope = max_slope;
             c.tiles_valid = true;
         }
@@ -762,43 +730,6 @@ struct NavGrid {
         return i >= 0 && j >= 0 && i < c.tiles_w && j < c.tiles_w &&
                c.tiles[static_cast<size_t>(j) * static_cast<size_t>(c.tiles_w) + static_cast<size_t>(i)] != 0;
     }
-    // The land (x, z) is on as slopes cut it: 0.28 Accessibility's landPassMap over
-    // default-terrain-only passability, where each navcell takes its tile's slope, so its land
-    // regions are 4-connected runs of tiles no steeper than max_slope. Off a steep tile it is the
-    // first of the 8 round it that has one (getAccessValue's look round); 0 when none does, before
-    // the slopes are known, or past 65535 regions. Water doesn't cut it: the nav regions do that.
-    uint16_t tile_land_at(float x, float z) const {
-        const HeightSampleCache& h = height_cache_;
-        if (!tiles_ready_ || h.tile_land.empty()) return 0;
-        const int tw = h.tiles_w;
-        const float inv = static_cast<float>(tw) / (map_half * 2.0f);
-        const int i = std::clamp(static_cast<int>(std::floor((x + map_half) * inv)), 0, tw - 1);
-        const int j = std::clamp(static_cast<int>(std::floor((z + map_half) * inv)), 0, tw - 1);
-        auto at = [&](int a, int b) -> uint16_t {
-            if (a < 0 || b < 0 || a >= tw || b >= tw) return 0;
-            return h.tile_land[static_cast<size_t>(b) * static_cast<size_t>(tw) + static_cast<size_t>(a)];
-        };
-        if (const uint16_t l = at(i, j)) return l;
-        static constexpr int kRound[8][2] = {{-1, -1}, {-1, 0}, {-1, 1}, {0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}};
-        for (const auto& d : kRound)
-            if (const uint16_t l = at(i + d[0], j + d[1])) return l;
-        return 0;
-    }
-    // The slope land of the first tile in [x0, x1) x [z0, z1), row by row, that has one (Petra's
-    // getMapIndices over a territory tile, first land-passable cell); 0 if none.
-    uint16_t tile_land_in(float x0, float z0, float x1, float z1) const {
-        const HeightSampleCache& h = height_cache_;
-        if (!tiles_ready_ || h.tile_land.empty()) return 0;
-        const int tw = h.tiles_w;
-        const float inv = static_cast<float>(tw) / (map_half * 2.0f);
-        auto tile = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) * inv)), 0, tw - 1); };
-        const int i0 = tile(x0), i1 = tile(x1 - 1e-3f), j1 = tile(z1 - 1e-3f);
-        for (int j = tile(z0); j <= j1; ++j)
-            for (int i = i0; i <= i1; ++i)
-                if (const uint16_t l = h.tile_land[static_cast<size_t>(j) * static_cast<size_t>(tw) + static_cast<size_t>(i)]) return l;
-        return 0;
-    }
-
     // A tile steeper than max_slope within c of (x, z) each way. CCmpPathfinder makes every navcell
     // of such a tile impassable to land classes and ExpandImpassableCells grows that by the class
     // Clearance, in squares.

@@ -18759,31 +18759,38 @@ uint16_t Simulation::petra_land_at(float x, float z) const {
 	return 0;
 }
 
-// terrain-analysis.js landPassMap: nav cells that are land by terrain (not deep water, not
-// steeper than MaxTerrainSlope, inside a circular map), flood-filled into lands. Rebuilt only
-// when the nav grid was, and only refilled when that changed which cells are land.
+// terrain-analysis.js landPassMap: cells that are land by terrain (not deep water, not steeper
+// than MaxTerrainSlope, inside a circular map), flood-filled into lands. The cells are the 4 m
+// terrain tiles once their slopes are known, as 0.28 gives each navcell its tile's slope
+// (CCmpPathfinder TerrainUpdateHelper), so a cliff between two tiles splits land as it stops
+// units; a tile also takes its nav cell's water and coarse slope, which long paths keep off.
+// Rebuilt only when the nav grid was, and only refilled when that changed which cells are land.
 uint16_t Simulation::petra_access_at(float x, float z) const {
 	PetraAccess &a = petra_access_;
-	const int res = nav_grid_.res;
 	if (nav_grid_.cells.blank()) return 0;
+	const int nres = nav_grid_.res, tw = nav_grid_.steep_tile_res();
+	const int res = tw > 0 ? tw : nres;
+	const float half = nav_grid_.map_half, cell = 2.0f * half / (float)res;
 	if (a.stamp != nav_terrain_stamp_ || a.res != res) {
 		a.stamp = nav_terrain_stamp_;
 		const auto &wc = nav_grid_.height_cache_;
-		const bool water_known = wc.water_valid && wc.water.size() == (size_t)res * res;
-		const float cell = 2.0f * nav_grid_.map_half / (float)res, r = map_half_ - MAP_EDGE_DIST;
+		const bool water_known = wc.water_valid && wc.water.size() == (size_t)nres * nres;
+		const float per = (float)nres / (float)res, r = map_half_ - MAP_EDGE_DIST;
 		std::vector<uint8_t> pass((size_t)res * res);
-		for (int y = 0; y < res; ++y)
+		for (int y = 0; y < res; ++y) {
+			const int ny = std::min(nres - 1, (int)(((float)y + 0.5f) * per));
 			for (int x0 = 0; x0 < res; ++x0) {
-				const size_t k = (size_t)y * res + x0;
-				const uint8_t c = nav_grid_.cells.at(x0, y);
-				bool land = c != NAV_WATER && !nav_grid_.is_steep(x0, y);
-				if (land && c == NAV_OBSTRUCTED && water_known) land = wc.water[k] != NAV_WATER; // a dock on deep water
+				const int nx = std::min(nres - 1, (int)(((float)x0 + 0.5f) * per));
+				const uint8_t c = nav_grid_.cells.at(nx, ny);
+				bool land = c != NAV_WATER && !nav_grid_.is_steep(nx, ny) && !(tw > 0 && nav_grid_.tile_steep(x0, y));
+				if (land && c == NAV_OBSTRUCTED && water_known) land = wc.water[(size_t)ny * nres + nx] != NAV_WATER; // a dock on deep water
 				if (land && circular_map()) {
-					const float wx = -nav_grid_.map_half + ((float)x0 + 0.5f) * cell, wz = -nav_grid_.map_half + ((float)y + 0.5f) * cell;
+					const float wx = -half + ((float)x0 + 0.5f) * cell, wz = -half + ((float)y + 0.5f) * cell;
 					land = wx * wx + wz * wz < r * r;
 				}
-				pass[k] = land;
+				pass[(size_t)y * res + x0] = land;
 			}
+		}
 		if (a.res != res || pass != a.pass) {
 			a.res = res;
 			a.pass = std::move(pass);
@@ -18810,8 +18817,11 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 			}
 		}
 	}
-	auto [cx, cz] = nav_grid_.world_to_cell(x, z);
-	for (int rr = 0; rr <= 4; ++rr)
+	// Off land, the nearest land within 4 nav cells (8 m tiles), ring by ring.
+	const int cx = std::clamp((int)std::floor((x + half) / cell), 0, res - 1);
+	const int cz = std::clamp((int)std::floor((z + half) / cell), 0, res - 1);
+	const int rings = 4 * res / nres;
+	for (int rr = 0; rr <= rings; ++rr)
 		for (int dz = -rr; dz <= rr; ++dz)
 			for (int dx = -rr; dx <= rr; ++dx) {
 				if (std::abs(dx) != rr && std::abs(dz) != rr) continue;

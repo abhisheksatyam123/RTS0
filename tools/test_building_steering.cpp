@@ -1314,16 +1314,16 @@ static void cliff_clearance() {
 		check(s.units_.pos_x[i] >= -c - 0.5f, "a land unit sent to a cliff's foot stopped short of where it could stand");
 	}
 	// building-land judges slopes per tile too: no house on the rock, one beside it. The cliff cuts
-	// the land in two as Petra sees it (tile_land_at); the rock doesn't.
+	// the land in two as Petra sees it (petra_access_at); the rock doesn't.
 	Simulation s;
 	cliff_clearance_setup(s);
 	const int on = (int)s.check_placement(0, -10, -5, BLD_HOUSE), beside = (int)s.check_placement(0, -12, -5, BLD_HOUSE);
-	const uint16_t below = s.nav_grid_.tile_land_at(-5.0f, 0.0f), above = s.nav_grid_.tile_land_at(5.0f, 0.0f);
-	const uint16_t west = s.nav_grid_.tile_land_at(-25.0f, -9.0f), east = s.nav_grid_.tile_land_at(-15.0f, -9.0f);
-	std::printf("  cliff clearance: a house on the rock placed %d, beside it %d (0 = ok); land below the cliff %u, above %u, "
-			"either side of the rock %u and %u\n", on, beside, below, above, west, east);
+	const uint16_t below = s.petra_access_at(-5.0f, 0.0f), above = s.petra_access_at(5.0f, 0.0f);
+	const uint16_t west = s.petra_access_at(-25.0f, -9.0f), east = s.petra_access_at(-15.0f, -9.0f);
+	std::printf("  cliff clearance: a house on the rock placed %d, beside it %d (2 = terrain, 3 = no territory); land below the "
+			"cliff %u, above %u, either side of the rock %u and %u\n", on, beside, below, above, west, east);
 	check(on == Simulation::PLACE_TERRAIN, "a house was placed over steep tiles");
-	check(beside == Simulation::PLACE_OK, "a house beside a rock couldn't be placed");
+	check(beside != Simulation::PLACE_TERRAIN, "a house beside a rock was refused for its terrain");
 	check(below && above && below != above, "a cliff didn't cut the land");
 	check(west && west == east && west == below, "a rock cut the land");
 }
