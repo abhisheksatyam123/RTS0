@@ -617,8 +617,10 @@ int main() {
 		Simulation chosen;
 		chosen.set_biome_override(BIOME_SAVANNA);
 		chosen.generate_random_map((MapType)type, 5, 2, 64.0f);
-		CHECK(std::count(chosen.terrain_tiles().names.begin(), chosen.terrain_tiles().names.end(), std::string(terrain_biome("savanna").main[0])) == 1,
-		      "%s with the savanna biome chosen paints savanna", st->map_id);
+		const bool savanna = std::count(chosen.terrain_tiles().names.begin(), chosen.terrain_tiles().names.end(), std::string(terrain_biome("savanna").main[0])) == 1;
+		// 0.28 offers a biome only on maps whose SupportedBiomes list it; elsewhere the script keeps its own.
+		if (map_supported_biomes(type) >> BIOME_SAVANNA & 1u) CHECK(savanna, "%s with the savanna biome chosen paints savanna", st->map_id);
+		else CHECK(chosen.terrain_tiles().names == sim.terrain_tiles().names, "%s ignores a biome 0.28 does not offer", st->map_id);
 	}
 	CHECK(scripts >= 30, "%d maps have their 0 A.D. script's own terrains", scripts);
 	CHECK(patch_scripts > 0 && patch_painted == patch_scripts, "%d of %d scripts with patch-only terrains paint them",
