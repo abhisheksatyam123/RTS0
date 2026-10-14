@@ -366,6 +366,40 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"cinema_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "pers",
+						"pop": 1000,
+						"resources": {
+							"food": 10000,
+							"metal": 10000,
+							"stone": 10000,
+							"wood": 10000
+						},
+						"team": 0
+					},
+					{
+						"civ": "sele",
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"cisalpine_winter": {
 			"keywords": [],
 			"type": "skirmish"

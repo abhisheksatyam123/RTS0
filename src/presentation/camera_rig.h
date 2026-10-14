@@ -33,6 +33,8 @@ class RtsoCameraRig : public Node3D {
 	int key_scroll_mode_ = 0;
 	// Unit the camera follows (0 A.D. camera.follow); 0 = none. Any manual pan stops it.
 	uint32_t follow_id_ = 0;
+	// A cinema path flies the camera (cinema_view.h): the rig leaves it alone and ignores input.
+	bool cinema_view_ = false;
 
 protected:
 	static void _bind_methods();
@@ -67,6 +69,8 @@ public:
 	// Keeps the followed unit centred; called every frame by the main node.
 	void follow_to(Vector3 pos);
 	void set_edge_scroll_enabled(bool enabled) { edge_scroll_enabled = enabled; }
+	void set_cinema_view(bool on) { cinema_view_ = on; mmb_dragging = false; }
+	bool cinema_view() const { return cinema_view_; }
 };
 
 #endif

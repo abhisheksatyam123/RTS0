@@ -494,6 +494,7 @@ void RtsoMain::_ready() {
 	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
 	// =========================================================================
 	inspector_.build(this, ui_layer, zeroad_theme, this);
+	command_panel_.set_barter_host(inspector_.barter_host());
 
 	// 0 A.D. selection_details.js: the "i" button opens the Template Viewer
 	// (gui/reference/viewer) for the selected unit or structure.
@@ -778,6 +779,7 @@ void RtsoMain::_ready() {
 	rally_flag->set_visible(false);
 	add_child(rally_flag);
 	range_overlays_.build(this);
+	debug_overlays_.build(this);
 
 	// (Unit selection now happens in apply_match_settings, after the map
 	// exists - the old block here ran before any map loaded and selected
@@ -1007,13 +1009,17 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
-	if (inspector_.kind() == RtsoInspectorView::INSPECT_UNIT || inspector_.kind() == RtsoInspectorView::INSPECT_FAUNA) {
+	if (sim->cinema_playing()) {
+		// ICmpSelectable::SetOverrideVisibility(false): no selection rings while a path plays.
+		view->sync(sim, (float)delta, PackedInt32Array());
+	} else if (inspector_.kind() == RtsoInspectorView::INSPECT_UNIT || inspector_.kind() == RtsoInspectorView::INSPECT_FAUNA) {
 		PackedInt32Array shown = selected_ids;
 		shown.push_back((int32_t)inspector_.id());
 		view->sync(sim, (float)delta, shown);
 	} else {
 		view->sync(sim, (float)delta, selected_ids);
 	}
+	cinema_view_.update(*sim, cam_rig, ui_layer, this, delta);
 	if (cam_rig) {
 		minimap_view->set_local_player(viewer);
 		minimap_view->sync(sim, cam_rig->get_target_pos());
@@ -1336,6 +1342,7 @@ void RtsoMain::_process(double delta) {
 	rtso::update_rally_marker(rally_flag, sim, selected_building_id, local_player());
 	range_overlays_.tick((float)delta);
 	range_overlays_.update(sim, local_player(), selected_building_id, selected_ids.ptr(), selected_ids.size());
+	debug_overlays_.update(sim);
 
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {
 		summary_shown_ = true;

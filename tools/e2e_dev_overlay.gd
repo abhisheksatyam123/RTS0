@@ -5,7 +5,8 @@ extends SceneTree
 # Restrict camera lets the camera leave the map when cleared; Promote selected
 # units raises the selection a rank ("promote"); Change perspective shows the
 # player view dropdown, and picking a player or Observer re-seats this client;
-# Enable time warp snapshots the game every 10 turns and rewinds to the last one.
+# Enable time warp snapshots the game every 10 turns and rewinds to the last one;
+# the pathfinder, obstruction, unit motion and range overlays draw while ticked.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_dev_overlay.gd
 # Exit code 0 = pass.
@@ -29,11 +30,15 @@ func frames(n: int) -> void:
 	for i in n:
 		await process_frame
 
-func box(i: int) -> CheckBox:
+## A row by its 0.28 label.
+func box(label: String) -> CheckBox:
+	var i: int = Array(main.debug_dev_overlay()["commands"]).find(label)
+	if i < 0:
+		check(false, "there is a %s row" % label)
 	return main.find_child("DevCommand%d" % i, true, false)
 
-func press(i: int) -> void:
-	var b := box(i)
+func press(label: String) -> void:
+	var b := box(label)
 	b.set_pressed_no_signal(not b.button_pressed) # what a click does: toggle, then "pressed"
 	b.pressed.emit()
 
@@ -64,38 +69,38 @@ func run() -> void:
 	check(main.debug_dev_overlay()["chat_log"].contains("The Developer Overlay was opened."), "the chat says it was opened")
 
 	main.select_first_own(false)
-	press(1)
+	press("Display selection state")
 	await frames(2)
 	d = main.debug_dev_overlay()
 	check(d["state_shown"] and str(d["state"]).contains("entity: {") and str(d["state"]).contains("hitpoints:"),
 		"Display selection state shows the selected entity")
 
-	press(2)
+	press("Reveal map")
 	await frames(3)
 	check(main.debug_dev_overlay()["map_revealed"], "Reveal map reveals it")
-	press(2)
+	press("Reveal map")
 	await frames(3)
 	check(not main.debug_dev_overlay()["map_revealed"], "and clearing it hides it again")
 
-	press(3)
+	press("Restrict camera")
 	await frames(1)
 	rig.set_target_pos(Vector3(100000, 0, 100000))
 	check(float(main.debug_dev_overlay()["camera_x"]) > 10000.0, "unrestricted, the camera may leave the map")
-	press(3)
+	press("Restrict camera")
 	await frames(1)
 	rig.set_target_pos(Vector3(100000, 0, 100000))
 	check(float(main.debug_dev_overlay()["camera_x"]) < 10000.0, "restricted again, it stays on the map")
 
 	main.debug_selection_grid(true) # every own unit: the citizen soldiers rise a rank, women don't
 	var before: int = int(main.debug_dev_overlay()["selection_ranks"])
-	press(5)
+	press("Promote selected units")
 	await frames(3)
 	var after: int = int(main.debug_dev_overlay()["selection_ranks"])
 	check(after > before, "Promote selected units raises their ranks: %d -> %d" % [before, after])
-	check(not box(5).button_pressed, "its box doesn't stay ticked")
+	check(not box("Promote selected units").button_pressed, "its box doesn't stay ticked")
 
 	check(not main.debug_dev_overlay()["view_picker"] and int(main.debug_dev_overlay()["seat"]) == 0, "a player has no view dropdown")
-	press(0)
+	press("Change perspective")
 	await frames(2)
 	check(main.debug_dev_overlay()["view_picker"], "Change perspective shows the player view dropdown")
 	await pick(2)
@@ -105,7 +110,7 @@ func run() -> void:
 	await pick(1)
 	check(int(main.debug_dev_overlay()["seat"]) == 0, "and picking player 1 plays as player 1 again")
 
-	press(4) # Enable time warp
+	press("Enable time warp")
 	await frames(2)
 	var tw: Node = main.find_child("MessageBox", true, false)
 	check(tw != null and str(tw.find_child("Title", true, false).text) == "Time warp mode", "time warp says what it is")
@@ -125,9 +130,33 @@ func run() -> void:
 	await frames(2)
 	var t_after: float = main.get_match_statistics().get("game_time", 0.0)
 	check(t_after < t_before and main.time_warp_snapshot_count() == snaps - 1, "back in time %.1f -> %.1f, that snapshot used up" % [t_before, t_after])
-	press(4)
+	press("Enable time warp")
 	await frames(1)
 	check(main.time_warp_snapshot_count() == 0, "turning it off drops the snapshots")
+
+	var rows: Array = Array(main.debug_dev_overlay()["commands"])
+	check(rows.slice(0, 6) == ["Change perspective", "Display selection state", "Pathfinder overlay", "Obstruction overlay",
+		"Unit motion overlay", "Range overlay"], "the rows run in 0.28's order: %s" % [rows])
+	for o in ["pathfinder", "obstruction", "unit_motion", "range"]:
+		check(int(main.debug_dev_overlay()[o + "_drawn"]) == 0, "nothing drawn by the %s overlay while it is off" % o)
+	main.debug_selection_grid(true)
+	main._on_minimap_order(Vector2(0, 0))
+	await frames(4)
+	for label in ["Pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay"]:
+		press(label)
+	await frames(2)
+	d = main.debug_dev_overlay()
+	check(int(d["pathfinder_drawn"]) > 0, "the pathfinder overlay fills the navcells land units can't cross (%d)" % int(d["pathfinder_drawn"]))
+	check(int(d["obstruction_drawn"]) > 0, "the obstruction overlay outlines the obstructions (%d)" % int(d["obstruction_drawn"]))
+	check(int(d["unit_motion_drawn"]) > 0, "the unit motion overlay draws the walkers' paths (%d)" % int(d["unit_motion_drawn"]))
+	check(int(d["range_drawn"]) > 0, "the range overlay rings the attackers (%d)" % int(d["range_drawn"]))
+	check(main.find_child("DebugOverlays", true, false).visible, "and they are shown")
+	for label in ["Pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay"]:
+		check(box(label).button_pressed, "%s stays ticked" % label)
+		press(label)
+	await frames(2)
+	check(not main.find_child("DebugOverlays", true, false).visible and int(main.debug_dev_overlay()["obstruction_drawn"]) == 0,
+		"cleared, they are gone")
 
 	main.toggle_dev_overlay()
 	await frames(1)

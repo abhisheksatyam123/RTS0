@@ -111,6 +111,34 @@ def extract_pmp_heights(raw_pmp, target_res=64, height_scale=HEIGHT_PER_METRE):
 
     return heights, vert_side
 
+def extract_cinema_paths(root, center_x, center_z, scale, height_scale):
+    """The map's <Paths> (0 A.D. MapReader ReadPaths) in RTS0 units: each node is
+    [x, y, z, seconds since the spline's previous node]. A <Node> without a <Position>
+    (or <Target>) adds its deltatime to that spline's next node, as MapReader does."""
+    paths = []
+    for p in root.findall("Paths/Path"):
+        nodes, targets = [], []
+        pos_t = tgt_t = 0.0
+        for n in p.findall("Node"):
+            dt = float(n.get("deltatime", 0) or 0)
+            pos_t += dt
+            tgt_t += dt
+            for child in n:
+                x, y, z = (float(child.get(k, 0) or 0) for k in ("x", "y", "z"))
+                v = [round((x - center_x) * scale, 3), round(y * height_scale, 3), round((z - center_z) * scale, 3)]
+                if child.tag == "Position":
+                    nodes.append(v + [round(pos_t, 3)])
+                    pos_t = 0.0
+                elif child.tag == "Target":
+                    targets.append(v + [round(tgt_t, 3)])
+                    tgt_t = 0.0
+        if not nodes:
+            continue
+        paths.append({"name": p.get("name", ""), "timescale": float(p.get("timescale", 1) or 1),
+                      "orientation": p.get("orientation", ""), "mode": p.get("mode", "ease_inout"),
+                      "style": p.get("style", "default"), "nodes": nodes, "targets": targets})
+    return paths
+
 def extract_pmp_terrain(raw_pmp):
     """The per-tile terrain textures (CTerrain STileDesc tex1) after the heights:
     {"res": tiles per side, "names": [0 A.D. terrain ids], "rle": base64 of
@@ -772,6 +800,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             if tpl.lower().startswith("trigger/trigger_point_"):
                 trigger_points.append({"ref": tpl[len("trigger/trigger_point_"):], "owner": ply,
                                        "x": round((rx - center_x) * scale, 2), "z": round((rz - center_z) * scale, 2)})
+        cinema_paths = extract_cinema_paths(root, center_x, center_z, scale, height_scale)
         # units_demo.js only places entities, which units_demo_entities already did.
         scripts = [os.path.splitext(os.path.basename(t))[0] for t in settings.get("TriggerScripts", [])
                    if not t.startswith("scripts/") and t != "scenarios/units_demo.js"]
@@ -784,6 +813,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 old = json.load(f)
             k = old.get("world_size", world_size_m) / world_size_m
             old["trigger_points"] = [dict(p, x=round(p["x"] * k, 2), z=round(p["z"] * k, 2)) for p in trigger_points]
+            if cinema_paths:
+                old["cinema_paths"] = [dict(c, nodes=[[n[0] * k, n[1], n[2] * k, n[3]] for n in c["nodes"]],
+                                            targets=[[n[0] * k, n[1], n[2] * k, n[3]] for n in c["targets"]])
+                                       for c in cinema_paths]
             if scripts:
                 old["trigger_scripts"] = scripts
             with open(out_path, "w") as f:
@@ -995,6 +1028,8 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             map_data["trigger_scripts"] = scripts
         if trigger_points:
             map_data["trigger_points"] = trigger_points
+        if cinema_paths:
+            map_data["cinema_paths"] = cinema_paths
 
         os.makedirs("data/maps", exist_ok=True)
         out_path = f"data/maps/{map_id}.json"
@@ -1284,6 +1319,7 @@ github_scenarios = {
     "unit_dancing_test": ("unit_dancing_test", "mediterranean"),
     "unit_pushing_test": ("unit_pushing_test", "mediterranean"),
     "unit_motion_integration_test": ("unit_motion_integration_test", "mediterranean"),
+    "cinema_demo": ("cinema_demo", "desert"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
@@ -1367,7 +1403,7 @@ if __name__ == "__main__":
         for name in sys.argv[3:] or sorted(github_scenarios):
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))
             port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
-                     source=zipfile.ZipFile(sys.argv[2]))
+                     source=DirSource(sys.argv[2]) if os.path.isdir(sys.argv[2]) else zipfile.ZipFile(sys.argv[2]))
     elif len(sys.argv) > 2 and sys.argv[1] == "--zip-skirmishes":
         # --zip-skirmishes <public.zip or unpacked dir> [names]: like --github, from a 0 A.D. public.zip
         # or a directory holding its maps/ and simulation/.

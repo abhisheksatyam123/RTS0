@@ -476,6 +476,16 @@ void RtsoMain::debug_select_entity(int64_t id) {
 	selected_ids.push_back((int32_t)id);
 }
 
+// Test hook: a finished structure of ours `dx`, `dz` from our Civic Center.
+int64_t RtsoMain::debug_spawn_building(int type, float dx, float dz) {
+	if (!sim) return 0;
+	const uint8_t me = local_player();
+	for (const auto &b : sim->buildings())
+		if (b.team == me && rtso::is_civic_centre(b.type))
+			return sim->spawn_building_world(b.x + dx, b.z + dz, (uint8_t)type, me, 1.0f);
+	return 0;
+}
+
 int64_t RtsoMain::debug_civic_centre_id(int player) const {
 	if (!sim) return 0;
 	for (const auto &b : sim->buildings())
@@ -1793,6 +1803,42 @@ void RtsoMain::_on_pack_pressed(int pack) {
 		sim->order_pack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), pack != 0);
 }
 
+// BarterButton sell press: BarterButtonManager.setSelectedResource.
+void RtsoMain::_on_barter_sell_selected(int resource) {
+	command_panel_.set_barter_sell(resource);
+	update_command_panel();
+}
+
+// The selection's Barter panel, for tests: per resource, its sell and buy buttons.
+Array RtsoMain::debug_barter_panel() {
+	Array out;
+	update_command_panel();
+	Control *host = command_panel_.barter_host();
+	if (!host || !host->is_visible() || host->get_child_count() == 0) return out;
+	Node *panel = host->get_child(host->get_child_count() - 1);
+	for (int i = 0; i < panel->get_child_count(); ++i) {
+		Node *col = panel->get_child(i);
+		Dictionary d;
+		d["name"] = String(col->get_name()).trim_prefix("barter_");
+		for (const char *which : {"sell", "buy"}) {
+			Button *b = Object::cast_to<Button>(col->find_child(which, false, false));
+			if (!b) continue;
+			Dictionary e;
+			e["id"] = (int64_t)b->get_instance_id();
+			e["tip"] = b->get_tooltip_text();
+			Label *cap = Object::cast_to<Label>(b->find_child("caption", false, false));
+			e["caption"] = cap ? cap->get_text() : String();
+			e["selected"] = b->find_child("corners", false, false) != nullptr;
+			bool red = false;
+			for (int k = 0; k < b->get_child_count(); ++k) red = red || Object::cast_to<ColorRect>(b->get_child(k)) != nullptr;
+			e["red"] = red;
+			d[which] = e;
+		}
+		out.push_back(d);
+	}
+	return out;
+}
+
 void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 	if (!sim) return;
 	if (sell_type < 0 || sell_type >= 4 || buy_type < 0 || buy_type >= 4) return;
@@ -2234,6 +2280,18 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_SELECTION_STATE: // SelectionEntityState
 			dev_overlay_.show_state(on);
 			break;
+		case D::DEV_PATHFINDER_OVERLAY: // PathfinderOverlay: SetPathfinderDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::PATHFINDER, on);
+			break;
+		case D::DEV_OBSTRUCTION_OVERLAY: // ObstructionOverlay: SetObstructionDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::OBSTRUCTION, on);
+			break;
+		case D::DEV_UNIT_MOTION_OVERLAY: // UnitMotionOverlay: SetMotionDebugOverlay on every entity
+			debug_overlays_.set(rtso::RtsoDebugOverlays::UNIT_MOTION, on);
+			break;
+		case D::DEV_RANGE_OVERLAY: // RangeOverlay: SetRangeDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::RANGE, on);
+			break;
 		case D::DEV_REVEAL_MAP: // RevealMap: "reveal-map" with enable
 			cheat(rtso::Simulation::CHEAT_DEV_REVEAL_MAP, on ? 1 : 0, {});
 			break;
@@ -2317,6 +2375,11 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
+		using O = rtso::RtsoDebugOverlays;
+		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
+		dev_overlay_.set_checked(D::DEV_OBSTRUCTION_OVERLAY, debug_overlays_.on(O::OBSTRUCTION));
+		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
+		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
 	}
 	if (!dev_overlay_.state_shown()) return;
 	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
@@ -2375,6 +2438,14 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["selection_ranks"] = ranks;
 	d["seat"] = (int)seat_player();
 	d["view_picker"] = observer_view_picker_ && observer_view_picker_->is_visible_in_tree();
+	PackedStringArray commands; // the rows in order
+	for (int i = 0; i < D::DEV_COUNT; ++i) commands.push_back(D::kLabels[i]);
+	d["commands"] = commands;
+	using O = rtso::RtsoDebugOverlays;
+	d["pathfinder_drawn"] = debug_overlays_.drawn(O::PATHFINDER);
+	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
+	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
+	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
 	return d;
 }
 
