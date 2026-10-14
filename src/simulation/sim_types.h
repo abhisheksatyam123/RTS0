@@ -661,6 +661,9 @@ inline float regrow_interval(uint8_t type, uint8_t subtype) {
 }
 // Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
 constexpr float FISH_GATHER_REACH = 4.0f;
+// ResourceGatherer MaxDistance of land gatherers (2 m, template_unit), from a mine's square past the
+// gatherer's clearance: 0.28 measures range between the two obstructions.
+constexpr float MINE_GATHER_REACH = 2.0f / 4.0f;
 
 // 0 A.D. UnitAI.js g_Stances. Values are saved and sent over the wire; 3 was an
 // invented "hold ground" and is now 0 A.D.'s "violent".

@@ -57,6 +57,10 @@
 //     from, aiming just outside its clearance, and gets in; builders stop as soon as the foundation
 //     is within build range and stay there once it is finished (0 A.D. UnitMotion MoveToTargetRange
 //     ends in range, and its goal reaches past the unit's clearance, so any range is reached).
+// 19. Mines: a large mine's 13 m square (template_gaia_rock_large Obstruction/Static) blocks
+//     movement and long paths as a structure's footprint does. A swordsman sent through one walks
+//     round it, one sent along a row of them takes the gaps between, and six women sent to gather
+//     from one all reach it and work it from round its edge.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -895,6 +899,99 @@ static void walk_to_structure_range() {
 	}
 }
 
+// Deepest overlap of any live team-0 unit's building clearance with a mine's square (mine_footprint).
+static float mine_penetration(const Simulation &s) {
+	const Simulation::UnitView u = s.units();
+	float worst = 0.0f;
+	for (size_t r = 0; r < s.resources_.count; ++r) {
+		nav::Footprint m;
+		if (!s.resources_.alive[r] || s.resources_.amount[r] <= 0 || !s.mine_footprint(r, m)) continue;
+		for (size_t i = 0; i < u.count; ++i) {
+			if (!u.alive[i] || u.team[i] != 0) continue;
+			const float c = unit_building_clearance(u.tmpl[i], u.unit_type[i]);
+			const nav::Vec2 l = nav::footprint_local(m, u.pos_x[i], u.pos_z[i]);
+			const float ex = m.hu + c - std::fabs(l.x), ez = m.hv + c - std::fabs(l.y);
+			if (ex > 0.0f && ez > 0.0f) worst = std::max(worst, std::min(ex, ez));
+		}
+	}
+	return worst;
+}
+
+// 19. Mines.
+static void mines() {
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_resource_world(0.0f, 0.0f, RES_STONE, LARGE_MINE_SUPPLY);
+		const uint32_t id = s.spawn_unit(-8.0f, 0.2f, 0, UNIT_SWORDSMAN, 160.0f);
+		s.cmd_move(&id, 1, 8.0f, 0.2f);
+		int arrived = -1;
+		float pen = 0.0f, dev = 0.0f;
+		for (int t = 0; t < 1200 && arrived < 0; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, mine_penetration(s));
+			const int i = index_of(s, id);
+			if (i < 0) break;
+			const Simulation::UnitView u = s.units();
+			if (std::fabs(u.pos_x[i]) < 0.5f) dev = std::max(dev, std::fabs(u.pos_z[i]));
+			if (std::hypot(u.pos_x[i] - 8.0f, u.pos_z[i] - 0.2f) <= 1.0f) arrived = t;
+		}
+		std::printf("  through a mine: arrived after %d ticks (-1 = never in 1200), %.2f off its middle passing it, "
+				"max penetration %.3f\n", arrived, dev, pen);
+		check(arrived >= 0, "a swordsman sent through a mine never got past it");
+		check(dev > 13.0f / 8.0f, "a swordsman walked through a mine");
+		check(pen <= MAX_PENETRATION, "a swordsman overlapped a mine");
+	}
+	{
+		Simulation s;
+		setup(s);
+		// Large mines 6 units (24 m) apart along z = 0: whichever way each is turned, at least 1.4
+		// units lie between two of them.
+		for (int k = -3; k <= 3; ++k) s.spawn_resource_world(6.0f * k, 0.0f, RES_STONE, LARGE_MINE_SUPPLY);
+		const uint32_t id = s.spawn_unit(-3.0f, -10.0f, 0, UNIT_SWORDSMAN, 160.0f);
+		s.cmd_move(&id, 1, -3.0f, 10.0f);
+		int arrived = -1;
+		float pen = 0.0f, cross_x = 99.0f, last_z = -10.0f;
+		for (int t = 0; t < 1200 && arrived < 0; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, mine_penetration(s));
+			const int i = index_of(s, id);
+			if (i < 0) break;
+			const Simulation::UnitView u = s.units();
+			if (last_z < 0.0f && u.pos_z[i] >= 0.0f) cross_x = u.pos_x[i];
+			last_z = u.pos_z[i];
+			if (std::hypot(u.pos_x[i] + 3.0f, u.pos_z[i] - 10.0f) <= 1.0f) arrived = t;
+		}
+		std::printf("  across a row of mines: arrived after %d ticks (-1 = never in 1200), crossed it at x = %.2f, "
+				"max penetration %.3f\n", arrived, cross_x, pen);
+		check(arrived >= 0, "a swordsman never crossed a row of mines");
+		check(std::fabs(cross_x + 3.0f) < 1.0f, "a swordsman went round a row of mines instead of through the gap before it");
+		check(pen <= MAX_PENETRATION, "a swordsman overlapped a mine in the row");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t mine = s.spawn_resource_world(0.0f, 0.0f, RES_STONE, LARGE_MINE_SUPPLY);
+		std::vector<uint32_t> women;
+		for (int k = 0; k < 6; ++k) women.push_back(s.spawn_unit(-8.0f, -2.5f + 1.0f * k, 0, UNIT_FEMALE_CITIZEN));
+		s.order_gather(women.data(), women.size(), mine);
+		std::vector<bool> worked(women.size(), false);
+		float pen = 0.0f;
+		for (int t = 0; t < 1200; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, mine_penetration(s));
+			for (size_t k = 0; k < women.size(); ++k) {
+				const int i = index_of(s, women[k]);
+				if (i >= 0 && s.units_.carry[i] > 0 && s.units_.res_type_carried[i] == RES_STONE) worked[k] = true;
+			}
+		}
+		const int n = (int)std::count(worked.begin(), worked.end(), true);
+		std::printf("  gather from a mine: %d of %zu women worked it, max penetration %.3f\n", n, women.size(), pen);
+		check(n == (int)women.size(), "a woman never reached the mine she was sent to");
+		check(pen <= MAX_PENETRATION, "a gatherer overlapped her mine");
+	}
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -915,6 +1012,7 @@ int main() {
 	chases();
 	large_units_through_gap();
 	walk_to_structure_range();
+	mines();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;
