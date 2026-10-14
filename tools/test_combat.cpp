@@ -1186,6 +1186,41 @@ static void test_razed_target() {
 	check(raze(0, true, ranged), "an archer stops shooting at the rubble");
 }
 
+static void test_uphill_archer() {
+	std::printf("23. a ranged attacker walks into its elevation-adapted range\n");
+	// UnitAI MoveToTargetAttackRange: below its target an archer's parabolic range is shorter
+	// than its MaxRange, so it walks closer before it stops, or it would stand there unable to shoot.
+	auto shoot = [](float hill, float &stood, float &taken) {
+		Simulation s;
+		setup(s);
+		s.set_player_active(1, true, false); // no Petra: its defense would send the target at the archer
+		if (hill > 0.0f) { // a rise from x = 8 to a plateau at x = 14 (the nav grid is left as it was)
+			s.terrain_res_ = 257;
+			s.terrain_heights_.assign((size_t)s.terrain_res_ * s.terrain_res_, 0.0f);
+			for (int z = 0; z < s.terrain_res_; ++z)
+				for (int x = 0; x < s.terrain_res_; ++x) {
+					const float wx = -s.map_half_ + 2.0f * s.map_half_ * (float)x / (float)(s.terrain_res_ - 1);
+					s.terrain_heights_[(size_t)z * s.terrain_res_ + x] = hill * std::clamp((wx - 8.0f) / 6.0f, 0.0f, 1.0f);
+				}
+		}
+		const uint32_t archer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		const uint32_t mark = dummy(s, 18.0f, 0.0f, UNIT_SPEARMAN); // in sight, out of reach
+		const float hp0 = s.units_.hp[idx(s, mark)];
+		s.order_attack(&archer, 1, mark);
+		for (int k = 0; k < 400; ++k) s.tick(DT);
+		const int a = idx(s, archer), m = idx(s, mark);
+		stood = std::hypot(s.units_.pos_x[m] - s.units_.pos_x[a], s.units_.pos_z[m] - s.units_.pos_z[a]);
+		taken = hp0 - s.units_.hp[m];
+		std::printf("      target %.1f up (archer at %.1f): it stops %.2f away (reach %.2f), deals %.0f\n",
+				s.unit_height((size_t)m) - s.unit_height((size_t)a), s.unit_height((size_t)a), stood, s.attack_reach((size_t)a), taken);
+	};
+	float flat_d, flat_hp, up_d, up_hp;
+	shoot(0.0f, flat_d, flat_hp);
+	shoot(3.0f, up_d, up_hp);
+	check(flat_hp > 0.0f, "on level ground the archer shoots its target");
+	check(up_d < flat_d - 1.0f && up_hp > 0.0f, "below its target it walks closer and shoots it");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -1209,6 +1244,7 @@ int main() {
 	test_reach_and_responses();
 	test_attack_rate_and_invulnerable();
 	test_razed_target();
+	test_uphill_archer();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
