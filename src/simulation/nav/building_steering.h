@@ -52,7 +52,10 @@ bool within_reach(const B& b, Vec2 pos, float radius, float reach)
 // A building to steer around: standing, blocks movement, not ignored, within `reach` of `pos` on both
 // axes, and not the destination (its footprint expanded by `radius` does not contain `aim`).
 template <class B>
-bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t ignore_building_id, float reach)
+#if defined(__GNUC__)
+[[gnu::always_inline]] // called per obstacle per moving unit, from every loop below
+#endif
+inline bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t ignore_building_id, float reach)
 {
 	if (!within_reach(b, pos, radius, reach)) return false;
 	if (b.wrecked || b.id == ignore_building_id || !building_blocks_movement(b.type)) return false;
@@ -251,6 +254,15 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 	return true;
 }
 
+// The memo key steer_around_obstacles keeps for a search that found no way, and how far the unit
+// moves before it searches again.
+inline uint32_t no_short_path_key(uint32_t key)
+{
+	const uint32_t k = key ^ 0x9E3779B9u;
+	return k ? k : 4u;
+}
+inline constexpr float NO_SHORT_PATH_MOVE = 0.25f;
+
 // steer_around_buildings with a second, short list of small obstacles near the unit (trees,
 // bushes, treasures: Simulation::gaia_obstacles_near) that only count within `small_range`. A line
 // blocked by a building is searched round both lists within BUILDING_STEER_RANGE; one blocked by
@@ -270,13 +282,19 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 	}
 	const ConcatRange<T> both{buildings, small};
 	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
-	if (memo.key == key && aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK) {
+	const bool same_aim = aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK;
+	if (memo.key == key && same_aim) {
 		const Vec2 w(memo.x, memo.z);
 		if (!segment_blocked_by_buildings(pos, w, aim, radius, both, ignore_building_id)) {
 			out = w;
 			return true;
 		}
 	}
+	// A search from about here that found no way is not repeated until the unit moves, the aim
+	// moves or the obstacles change (in a wood most failed searches would fail again).
+	const uint32_t failed_key = no_short_path_key(key);
+	if (memo.key == failed_key && same_aim && (pos - Vec2(memo.x, memo.z)).lengthSq() < NO_SHORT_PATH_MOVE * NO_SHORT_PATH_MOVE)
+		return false;
 	// Blocked by small obstacles alone: the short path round one is usually just the way to a
 	// corner of the first one in the way, as the visibility graph would find it. Take the corner
 	// that is shortest to the aim through it and in view, on land; search only when none is.
@@ -304,6 +322,8 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 			float best = 0.0f;
 			for (int k = 0; k < 4; ++k) {
 				const Vec2 w = c + u * ((k & 1) ? hu : -hu) + v * ((k & 2) ? hv : -hv);
+				// A unit standing on a corner goes on to the next one, not back to this one.
+				if ((w - pos).lengthSq() < 4.0f * CORNER_MARGIN * CORNER_MARGIN) continue;
 				const auto [ci, cj] = nav.world_to_cell(w.x, w.y);
 				if (!nav.cells.inside(ci, cj) || nav.cells.at(ci, cj) == NAV_WATER) continue;
 				const float cost = (w - pos).length() + (aim - w).length();
@@ -330,7 +350,7 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 	}
 	if (!search_short_path(pos, aim, radius, both, ignore_building_id, nav, out,
 			by_buildings ? BUILDING_STEER_RANGE : small_range)) {
-		memo.key = 0;
+		memo = ShortPathMemo{pos.x, pos.y, aim.x, aim.y, failed_key};
 		return false;
 	}
 	memo = ShortPathMemo{out.x, out.y, aim.x, aim.y, key};
