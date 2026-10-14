@@ -443,6 +443,18 @@ static void test_transport() {
 	s.order_disembark_all(ship3);
 	const int32_t iar = idx(s, archer);
 	CHECK(!aboard(s, ship3, archer) && s.units().alive[iar] && s.get_terrain_height(s.units().pos_x[iar], s.units().pos_z[iar]) > 0.15f);
+	// Order.PickupUnit: a walker who can reach the ship from where it lies is waited for (LOADING).
+	{
+		const float sx = s.units().pos_x[idx(s, ship3)], sz = s.units().pos_z[idx(s, ship3)];
+		const uint32_t walker = s.spawn_unit(40.0f, 26.0f, 0, UNIT_ARCHER);
+		s.order_board_transport(&walker, 1, ship3);
+		run(s, 12.0f);
+		const float moved = std::hypot(s.units().pos_x[idx(s, ship3)] - sx, s.units().pos_z[idx(s, ship3)] - sz);
+		std::printf("  pickup of a walker who can reach the ship: ship moved %.2f, walker %s\n", moved,
+				aboard(s, ship3, walker) ? "aboard" : "ashore");
+		CHECK(moved < 1.5f && aboard(s, ship3, walker)); // pushed a little, not sailed off
+		s.order_disembark_all(ship3);
+	}
 	CHECK(s.units().pos_z[idx(s, ship3)] < 16.0f); // the ship stayed on the water
 	// A full load comes ashore spread out: PickSpawnPoint gives each passenger a spot nobody
 	// stands on, so no two bodies overlap as they land.
@@ -522,10 +534,10 @@ static void test_no_wading() {
 	CHECK(!waded);
 	CHECK(std::fabs(s.units().pos_x[w] + 20.0f) < 2.0f && s.units().pos_z[w] > 10.0f && !s.unit_has_order(walker));
 	CHECK(s.units().pos_z[idx(s, ai_walker)] > 10.0f);
-	CHECK(!aboard(s, ship, boarder));
-	// The ship comes in to the beach: the waiting unit boards.
-	s.cmd_move(&ship, 1, -40.0f, 12.0f);
+	// Its own walk done, the ship comes in to the beach for the waiting unit (UnitAI
+	// PushOrderAfterForced("PickupUnit")), which boards.
 	run(s, 10.0f);
+	std::printf("  the ship came for the boarder: %s\n", aboard(s, ship, boarder) ? "aboard" : "still ashore");
 	CHECK(aboard(s, ship, boarder));
 }
 
@@ -881,6 +893,31 @@ static void test_petra_ship_treasure() {
 	const auto o = s.unit_order(tri);
 	std::printf("Petra ship treasure: order %d target %u (wreck %u)\n", (int)o.kind, o.target, wreck);
 	CHECK(o.kind == ORDER_COLLECT_TREASURE && o.target == wreck);
+}
+
+// worker.js startFishing: Petra's idle boat takes the fish nearest its dock, not the one
+// nearest itself; with no fish left on its sea the boat is deleted.
+static void test_petra_fishing() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t by_dock = s.spawn_resource_world(-36.0f, 6.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t by_boat = s.spawn_resource_world(24.0f, 4.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t boat = s.spawn_unit(20.0f, 8.0f, 1, UNIT_FISHING_BOAT);
+	s.petra_pid_ = 1;
+	s.petra_manage_naval(2.0f);
+	const uint32_t picked = gather_target(s, boat);
+	std::printf("Petra fishing: picked fish %u (by the dock %u, by the boat %u)\n", picked, by_dock, by_boat);
+	CHECK(picked == by_dock);
+
+	for (size_t r = 0; r < s.resources_.count; ++r)
+		if (s.resources_.subtype[r] == RES_SUB_FISH) s.resources_.amount[r] = 0;
+	s.cmd_stop(&boat, 1);
+	s.petra_manage_naval(2.0f);
+	const int32_t bi = s.lookup_unit(boat);
+	std::printf("Petra fishing: boat on an empty sea %s\n", bi >= 0 && s.units().alive[bi] ? "kept" : "deleted");
+	CHECK(bi < 0 || !s.units().alive[bi]);
 }
 
 // startingStrategy.js configFirstBase: on a starting land under 25000 m² Petra keeps to one
@@ -1336,6 +1373,7 @@ int main() {
 	test_petra_cothon();
 	test_ship_treasure();
 	test_petra_ship_treasure();
+	test_petra_fishing();
 	test_petra_small_land_fields();
 	test_petra_dock_position();
 	test_petra_workers_across_water();
