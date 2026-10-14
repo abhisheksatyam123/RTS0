@@ -2312,6 +2312,27 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const float wx0 = -nav_grid_.map_half + nx * nav_cell, wz0 = -nav_grid_.map_half + ny * nav_cell;
 		return nav::footprint_overlaps_box(*rect, wx0, wz0, wx0 + nav_cell, wz0 + nav_cell);
 	};
+	// The same MaxTerrainSlope judged per 4 m terrain tile, as the land units' clearance is
+	// (CCmpPathfinder TerrainUpdateHelper): CheckBuildingPlacement refuses a 1 m navcell under the
+	// footprint (its centre inside) on a steeper tile, so a builder can always reach a foundation's
+	// edge. Tiles the footprint only grazes by less than half a navcell don't count.
+	auto steep_tile_under = [&]() {
+		const float in = 0.125f;
+		if (!nav_grid_.steep_tile_in(x0 + in, z0 + in, x1 - in, z1 - in)) return false;
+		if (!rect) return true;
+		const float half = nav_grid_.map_half;
+		const int tw = nav_grid_.steep_tile_res();
+		const float tile = 2.0f * half / (float)tw;
+		auto at = [&](float v) { return std::clamp((int)std::floor((v + half) / tile), 0, tw - 1); };
+		for (int j = at(z0 + in); j <= at(z1 - in); ++j)
+			for (int i = at(x0 + in); i <= at(x1 - in); ++i) {
+				const float wx0 = -half + i * tile, wz0 = -half + j * tile;
+				if (nav_grid_.tile_steep(i, j) &&
+						nav::footprint_overlaps_box(*rect, wx0 + in, wz0 + in, wx0 + tile - in, wz0 + tile - in))
+					return true;
+			}
+		return false;
+	};
 	if (have_nav) {
 		auto [nx0, ny0] = nav_grid_.world_to_cell(x0 + 0.01f, z0 + 0.01f);
 		auto [nx1, ny1] = nav_grid_.world_to_cell(x1 - 0.01f, z1 - 0.01f);
@@ -2319,6 +2340,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			for (int y = ny0; y <= ny1; ++y)
 				for (int x = nx0; x <= nx1; ++x)
 					if ((is_water(x, y) || nav_grid_.is_steep(x, y)) && under(x, y)) return PLACE_TERRAIN;
+			if (steep_tile_under()) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE && rect) {
 			// A WallSet piece stands wholly where land units can go (CheckFoundation over its
 			// shape with default-terrain-only): no deep water or steep slope under it.
@@ -2327,10 +2349,12 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 					if (!nav_grid_.cells.inside(x, y) || !under(x, y)) continue;
 					if (nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
 				}
+			if (steep_tile_under()) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE) {
 			auto [ncx, ncy] = nav_grid_.world_to_cell(cxw, czw);
 			if (nav_grid_.cells.inside(ncx, ncy) && (nav_grid_.cells.at(ncx, ncy) == NAV_WATER || nav_grid_.is_steep(ncx, ncy)))
 				return PLACE_TERRAIN;
+			if (nav_grid_.near_steep_tile(cxw, czw, 0.0f)) return PLACE_TERRAIN;
 		} else {
 			// CheckShorePlacement: part of the footprint on land, a sea cell at its edge.
 			bool land = false, sea = false;
