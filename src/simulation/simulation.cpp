@@ -11524,7 +11524,27 @@ void Simulation::tick_combat(float dt) {
 		const uint8_t stance = units_.stance[i];
 		const bool explicit_target = units_.order_kind[i] == ORDER_ATTACK && units_.target_unit_id[i] != 0 &&
 				units_.target_unit_id[i] == units_.order_target[i];
-		if (stance == STANCE_PASSIVE && !explicit_target) return;
+		if (stance == STANCE_PASSIVE && !explicit_target) {
+			// SwitchToStance leaves a fight it picked itself going: it keeps hitting while the
+			// target is in reach, and once it isn't, ShouldChaseTargetedEntity says no chase, so
+			// FINDINGNEWTARGET finds nothing and the unit goes back to its order.
+			if (st != ACTION_ATTACK || units_.target_unit_id[i] == 0) return;
+			const int32_t t = lookup_unit(units_.target_unit_id[i]);
+			if (t < 0 || (is_relic_unit(t) && units_.order_kind[i] == ORDER_CAPTURE_RELIC)) return; // driven elsewhere
+			const float dx = units_.pos_x[t] - units_.pos_x[i], dz = units_.pos_z[t] - units_.pos_z[i];
+			const float d2 = dx * dx + dz * dz;
+			const float minr = attack_reach(i) * unit_min_range_ratio(units_.unit_type[i]);
+			if (units_.alive[t] && can_attack(units_.team[i], units_.team[t]) && unit_can_target(i, (size_t)t) &&
+					((in_parabolic_range(d2, unit_height(i), unit_height(t), attack_reach(i)) && d2 >= minr * minr) ||
+					 attack_under_way(i))) {
+				units_.has_order[i] = 0; // no chase
+				target_idx[i] = t;
+				return;
+			}
+			units_.target_unit_id[i] = 0; // fight over: tick_unit_ai sends the unit back to its order
+			if (attack_under_way(i)) stop_attack(i);
+			return;
+		}
 		// Walking to board a friendly ship or siege engine (0 A.D. Garrison order):
 		// keep the order instead of dropping target_unit_id for want of an enemy.
 		if (st == ACTION_MOVE && units_.target_unit_id[i] != 0) {

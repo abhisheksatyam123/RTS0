@@ -2422,6 +2422,26 @@ static void test_unarmed_aggressive_stays() {
 	check(dist(s, healer, -40, 40) > 3.0f, "a passive healer runs off");
 }
 
+static void test_passive_mid_fight() {
+	std::printf("69. set passive mid-fight, a unit hits its target while in reach but never chases it (UnitAI SwitchToStance)\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+	uint32_t e = post(s, 1.5f, 0, UNIT_SPEARMAN, 5000.0f);
+	check(run_until(s, 10.0f, [&] { return target_of(s, a) == e && hp_of(s, e) < 5000.0f; }), "the spearman takes on the enemy by itself");
+	s.order_set_stance(&a, 1, STANCE_PASSIVE);
+	const float hp0 = hp_of(s, e);
+	run(s, 4.0f);
+	check(hp_of(s, e) < hp0, "it keeps hitting while the enemy is in reach");
+	const float ax = x_of(s, a), az = z_of(s, a);
+	s.units_.pos_x[idx_of(s, e)] = 10.0f;
+	run(s, 1.0f);
+	const float hp1 = hp_of(s, e);
+	run(s, 5.0f);
+	check(target_of(s, a) == 0 && act_of(s, a) != ACTION_ATTACK, "once out of reach the fight is over");
+	check(std::hypot(x_of(s, a) - ax, z_of(s, a) - az) < 1.5f && hp_of(s, e) == hp1, "without following it");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2617,6 +2637,7 @@ int main(int argc, char **argv) {
 	test_range_check_between_hits();
 	test_can_patrol();
 	test_unarmed_aggressive_stays();
+	test_passive_mid_fight();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
