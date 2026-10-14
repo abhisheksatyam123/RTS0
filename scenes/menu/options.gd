@@ -18,7 +18,6 @@ const SCHEMA := [
 		["boolean", "pauseonfocusloss", "Background pause", "Pause single-player games when window loses focus."],
 		["boolean", "overlay.fps", "FPS overlay", "Show frames per second in top right corner."],
 		["boolean", "overlay.realtime", "Real time overlay", "Show current system time in top right corner."],
-		["boolean", "overlay.netwarnings", "Network warnings", "Show which player has a bad connection in multiplayer games."],
 		["dropdown", "gui.session.howtoshownames", "Naming of entities.", "How to show entity names.",
 			[["Specific names first", "0"], ["Generic names first", "1"], ["Only specific names", "2"], ["Only generic names", "3"]]],
 	]],
@@ -81,11 +80,12 @@ const SCHEMA := [
 	]],
 	["Networking / Lobby", [
 		["boolean", "lobby.columns.gamerating", "Game rating column", "Show the average rating of the participating players in a column of the gamelist."],
+		["boolean", "overlay.netwarnings", "Network warnings", "Show which player has a bad connection in multiplayer games."],
 		["dropdown", "network.lateobservers", "Late observer joins", "Allow everybody or buddies only to join the game as observer after it started.",
 			[["Everyone", "everyone"], ["Buddies", "buddies"], ["Disabled", "disabled"]]],
 		["number", "network.observerlimit", "Observer limit", "Prevent further observers from joining if the limit is reached.", [0, 32]],
-		["number", "network.observermaxlag", "Max lag for observers", "When hosting, pause the game if observers are lagging more than this many turns. If set to -1, observers are ignored.", [-1, 200]],
-		["boolean", "network.autocatchup", "(Observer) Speed up when lagging.", "When observing a game, automatically speed up if you start lagging."],
+		["number", "network.observermaxlag", "Max lag for observers", "When hosting, pause the game if observers are lagging more than this many turns. If set to -1, observers are ignored.", [-1, 10000]],
+		["boolean", "network.autocatchup", "(Observer) Speed up when lagging.", "When observing a game, automatically speed up if you start lagging, to catch up with the live match."],
 	]],
 	["Game Session", [
 		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],
