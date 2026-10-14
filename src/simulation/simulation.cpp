@@ -9013,9 +9013,10 @@ bool Simulation::walk_in_reach(size_t i, float x, float z) const {
 // their clearances overlap. Each pair pushes within its clearances times Radius plus an extension,
 // with a force that is 1 at Spread of that distance, falls to 0 at its edge and is at most
 // MAX_DISTANCE_FACTOR; the heavier unit pushes harder (UnitMotion Weight). Units that look to have
-// walked through each other get a strong sideways nudge instead. Pushes are compared over the
-// average of where each unit stood before and after move_units, and a unit's total push under
-// MinimalForce per 200 ms turn is dropped, so idle crowds settle instead of drifting for good.
+// walked through each other since the turn began get a strong sideways nudge instead. Pushes are
+// compared over the average of where each unit stood before and after move_units, and a unit's
+// total push under MinimalForce per 200 ms turn is dropped, so idle crowds settle instead of
+// drifting for good.
 // 0 A.D.'s lengths are in metres; RTS0's are at PUSH_SCALE (sim_types.h), and its pushes are made
 // every tick, a quarter of a turn. Pushing pressure (MotionTurn::pressure) builds up once per turn
 // with each pair that pushes, more the more they overlap, and decays by PressureDecay each turn; it
@@ -9081,15 +9082,20 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	if (!grid.build(arena, n, px, pz, units_.alive, map_half_)) return;
 
 	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
-	// after move_units (the pushes compare that), and its pushing data. The widest clearance this
-	// tick bounds every pair's reach: none pushes beyond its clearances times Radius plus the moving
-	// extension.
+	// after move_units (the pushes compare that), where it stood when the turn began (the crossing
+	// test compares that, as 0 A.D. pushes once a turn: over one tick two walkers can't get far
+	// enough past each other to pass PERPENDICULAR_NUDGE_THRESHOLD), and its pushing data. The
+	// widest clearance this tick bounds every pair's reach: none pushes beyond its clearances times
+	// Radius plus the moving extension.
 	struct PushUnit {
 		float sx, sz;
-		float c, w, r; // unit_push_clearance, unit_push_weight, unit_collision_radius
+		float ix, iz; // where it stood when the turn began: before its first step of the turn, if any
+		float r; // unit_collision_radius; its push clearance is r * PUSH_CLEARANCE_PER_RADIUS
 		uint32_t id, group; // group: its formation, 0 for none
+		uint16_t w; // unit_push_weight
 		uint8_t moving, slot; // WALK_MOVING; a formation member that stands or walks in its slot, not off on a task of its own
 	};
+	static_assert(sizeof(PushUnit) == 32, "two to a cache line");
 	PushUnit *pu = arena.alloc_array<PushUnit>(n);
 	if (!pu) return;
 	float c_max = 0.0f;
@@ -9100,14 +9106,16 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		PushUnit &u = pu[i];
 		u.sx = px[i] + (have_steps ? steps.from_x[i] : px[i]);
 		u.sz = pz[i] + (have_steps ? steps.from_z[i] : pz[i]);
-		u.c = unit_push_clearance(type);
-		u.w = unit_push_weight(type);
+		const MotionTurn &m = units_.motion[i];
+		u.ix = m.stepped ? m.from_x : have_steps ? steps.from_x[i] : px[i];
+		u.iz = m.stepped ? m.from_z : have_steps ? steps.from_z[i] : pz[i];
 		u.r = unit_collision_radius(type);
+		u.w = unit_push_weight(units_.tmpl[i], type);
 		u.id = units_.id[i];
 		u.group = i < formation_group_.size() ? formation_group_[i] : 0u;
 		u.moving = have_steps && (steps.moving[i] & WALK_MOVING);
 		u.slot = st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK_MOVE;
-		c_max = std::max(c_max, u.c);
+		c_max = std::max(c_max, u.r * PUSH_CLEARANCE_PER_RADIUS);
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
 
@@ -9119,7 +9127,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		const float ix = have_steps ? steps.from_x[i] : pxi;
 		const float iz = have_steps ? steps.from_z[i] : pzi;
 		const bool mi = a.moving;
-		const float ci = a.c, wi = a.w, ri = a.r;
+		const float ri = a.r, ci = ri * PUSH_CLEARANCE_PER_RADIUS, wi = (float)a.w;
 		const uint32_t idi = a.id;
 		const uint32_t my_group = a.group;
 		const float reach = (ci + c_max) * PUSH_CORRECTION * PUSH_RADIUS + (mi ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);
@@ -9153,20 +9161,18 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			if (h2 > reach2) return;
 			const int moving_push = same_group ? 0 : (int)mi + (int)mj;
 			if (moving_push == 1) return;
-			float combined = (ci + b.c) * PUSH_CORRECTION;
+			float combined = (ci + b.r * PUSH_CLEARANCE_PER_RADIUS) * PUSH_CORRECTION;
 			const float max_dist = same_group ? combined
 					: combined * PUSH_RADIUS + (moving_push ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);
 			if (h2 > max_dist * max_dist) return;
 			combined = max_dist * (moving_push ? PUSH_MOVING_SPREAD : PUSH_STATIC_SPREAD);
-			const float jx = have_steps ? steps.from_x[j] : px[j];
-			const float jz = have_steps ? steps.from_z[j] : pz[j];
 			// a is the unit with the lower id; sign turns i's view into a's.
 			const bool i_is_a = idi < b.id;
 			const float sign = i_is_a ? 1.0f : -1.0f;
 			float ox = sign * hx;
 			float oz = sign * hz;
 			const float pos_x = sign * (pxi - px[j]), pos_z = sign * (pzi - pz[j]);
-			const float init_x = sign * (ix - jx), init_z = sign * (iz - jz);
+			const float init_x = sign * (a.ix - b.ix), init_z = sign * (a.iz - b.iz);
 			float olen;
 			if (!same_group && pos_x * init_x + pos_z * init_z < PUSH_NUDGE_THRESHOLD) {
 				// The pair crossed paths: nudge them apart sideways, whichever way is nearer.
@@ -9202,7 +9208,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			float factor = max_dist - combined;
 			if (factor <= 0.0f || olen < combined * 0.5f) factor = PUSH_MAX_DISTANCE_FACTOR;
 			else factor = std::clamp((max_dist - olen) / factor, 0.0f, PUSH_MAX_DISTANCE_FACTOR);
-			const float k = std::min(b.w / wi * tf, max_k) * factor * sign;
+			const float k = std::min((float)b.w / wi * tf, max_k) * factor * sign;
 			ax += ox * k;
 			az += oz * k;
 			// A constant share makes crowds slower in general; units that overlap a lot add most.
@@ -23674,7 +23680,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 
 	// tributes(), every 30 s: help allies that are short of a resource we have
 	// plenty of. We give when we are the stronger one, or always under allied
-	// victory, and never a resource our own queues are short of; none while saving resources.
+	// victory; none while saving resources.
 	if (dip.elapsed < dip.next_tribute || petra_attack_mgr_.save_resources) return;
 	dip.next_tribute = dip.elapsed + 30.0f;
 	float available[RES_COUNT];
@@ -23685,11 +23691,10 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		available[RES_GOLD] -= acc.gold;
 		available[RES_STONE] -= acc.stone;
 	}
-	// pickMostNeededResources: our two scarcest resources stay home.
-	uint8_t order[RES_COUNT] = { 0, 1, 2, 3 };
-	std::sort(order, order + RES_COUNT, [&](uint8_t x, uint8_t y) {
-		return available[x] != available[y] ? available[x] < available[y] : x < y;
-	});
+	// pickMostNeededResources(...).wanted > 0: a resource our queues still want
+	// gathered (what their plans cost over what we have); only those are asked for.
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
 	const int own_entities = petra_player_entities(me);
 	const int own_pop = pop_current(me);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -23699,8 +23704,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		bool any = false;
 		for (uint8_t r = 0; r < RES_COUNT; ++r) {
 			const float ally = players_[p].res[r];
-			const bool needed = r == order[0] || r == order[1];
-			if (donor && !needed && available[r] >= 200.0f && ally < 0.2f * available[r]) {
+			const bool needed = demand[r] > petra_ps().res[r];
+			if (donor && available[r] > 200.0f && ally < 0.2f * available[r]) {
 				amounts[r] = std::max(0, (int)std::floor(0.3f * available[r] - ally));
 				any |= amounts[r] > 0;
 			} else if (donor && (float)pop_current(p) < std::min(30.0f, 0.5f * (float)own_pop) &&
@@ -23848,8 +23853,9 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 
 void Simulation::petra_last_man_standing_check() {
 	// diplomacyManager.js lastManStandingCheck: once no enemy is left, turn
-	// against the strongest remaining ally or neutral player. Teammates are
-	// locked (RTS0 teams always are), and nothing happens during a ceasefire.
+	// against the strongest remaining ally or neutral player, teammates
+	// included (unlocked teams only set the starting alliances). Nothing
+	// happens with teams locked or during a ceasefire.
 	PetraDiplomacy &dip = petra_diplo_;
 	const uint8_t me = petra_pid_;
 	if (ceasefire_active() || teams_locked()) return;
@@ -23858,7 +23864,7 @@ void Simulation::petra_last_man_standing_check() {
 		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
 		if (is_ally(me, p)) has_allies = true;
 		if (is_hostile(me, p)) has_enemies = true;
-		else if (players_[p].team != players_[me].team) has_others = true;
+		else has_others = true; // hasAllies() || hasNeutrals()
 	}
 	if (!last_man_standing() && has_allies) return; // allied victory: our allies win with us
 	if (has_enemies || !has_others) {
@@ -23883,9 +23889,15 @@ void Simulation::petra_last_man_standing_check() {
 	int target = -1, best = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
-		if (players_[p].team == players_[me].team) continue;
 		int factor = petra_player_entities(p);
 		if (get_diplomacy(me, p) == DIPLO_NEUTRAL) factor += 150; // turn on neutrals first (betrayWeighting)
+		if (has_victory(VK_WONDER)) { // a finished wonder: that player at once; a rising one weighs its progress
+			const Building *w = nullptr;
+			for (const auto &b : buildings_)
+				if (b.team == p && b.type == BLD_WONDER && !b.wrecked && b.hp > 0.0f) { w = &b; break; }
+			if (w && w->build_progress >= 1.0f) { target = p; break; }
+			if (w) factor += (int)(w->build_progress * 100.0f * 2.5f) + 150;
+		}
 		if (has_victory(VK_RELIC)) // and on whoever holds relics
 			for (const Relic &r : relics_)
 				if (r.claimed && r.owner_team == p) factor += 150;
