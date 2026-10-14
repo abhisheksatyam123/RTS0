@@ -16,6 +16,34 @@ const BUSES := {
 	"UI": "sound.uigain",
 }
 const SHADOW_ATLAS := [1024, 2048, 4096, 8192] # shadowquality -1 Low .. 2 Very High
+# shadowscovermap: a cutoff past the largest map's diagonal (Giant, 512 m).
+const SHADOW_COVER_MAP_DISTANCE := 2000.0
+# FidelityFX CAS (CASFilter in 0.28's postproc), on the 3D picture under the GUI.
+const CAS_SHADER := """
+shader_type canvas_item;
+uniform sampler2D screen: hint_screen_texture, filter_linear;
+uniform float sharpness = 0.3;
+void fragment() {
+	vec2 px = SCREEN_PIXEL_SIZE;
+	vec3 a = texture(screen, SCREEN_UV + vec2(-px.x, -px.y)).rgb;
+	vec3 b = texture(screen, SCREEN_UV + vec2(0.0, -px.y)).rgb;
+	vec3 c = texture(screen, SCREEN_UV + vec2(px.x, -px.y)).rgb;
+	vec3 d = texture(screen, SCREEN_UV + vec2(-px.x, 0.0)).rgb;
+	vec3 e = texture(screen, SCREEN_UV).rgb;
+	vec3 f = texture(screen, SCREEN_UV + vec2(px.x, 0.0)).rgb;
+	vec3 g = texture(screen, SCREEN_UV + vec2(-px.x, px.y)).rgb;
+	vec3 h = texture(screen, SCREEN_UV + vec2(0.0, px.y)).rgb;
+	vec3 i = texture(screen, SCREEN_UV + vec2(px.x, px.y)).rgb;
+	vec3 mn = min(min(min(d, e), min(f, b)), h);
+	mn += min(mn, min(min(a, c), min(g, i)));
+	vec3 mx = max(max(max(d, e), max(f, b)), h);
+	mx += max(mx, max(max(a, c), max(g, i)));
+	vec3 amp = clamp(min(mn, 2.0 - mx) / max(mx, vec3(1e-5)), 0.0, 1.0);
+	amp = sqrt(amp);
+	vec3 w = -amp / mix(8.0, 5.0, clamp(sharpness, 0.0, 1.0));
+	COLOR = vec4(clamp((b * w + d * w + f * w + h * w + e) / (1.0 + 4.0 * w), 0.0, 1.0), 1.0);
+}
+"""
 
 ## 0 A.D.'s translations, one merged .po per language (tools/fetch_0ad_l10n.py).
 const L10N_DIR := "res://assets/l10n"
@@ -34,6 +62,8 @@ var cfg := RtsoUserConfig.new()
 var _gen := -1
 var _in_session := false
 var _overlay: CanvasLayer
+var _cas: CanvasLayer
+var _cas_material: ShaderMaterial
 var _overlay_label: Label
 var _overlay_timer := 0.0
 var _locale := ""
@@ -174,6 +204,30 @@ func _apply_viewport() -> void:
 		"msaa8", "msaa16": vp.msaa_3d = Viewport.MSAA_8X
 		_: vp.msaa_3d = Viewport.MSAA_DISABLED
 	vp.content_scale_factor = clampf(cfg.get_number("gui.scale"), 0.75, 2.5)
+	# textures.quality as a mipmap bias: each step below High drops a mip level, as
+	# 0.28's texture manager loads smaller textures.
+	vp.texture_mipmap_bias = float(2 - clampi(int(cfg.get_number("textures.quality")), 0, 2))
+	_apply_sharpening()
+
+## sharpening ("cas") and sharpness, under postproc (options.json dependencies).
+func _apply_sharpening() -> void:
+	var on := cfg.get_bool("postproc") and cfg.get_value("sharpening") == "cas" and not is_headless()
+	if on and _cas == null:
+		_cas = CanvasLayer.new()
+		_cas.layer = -100 # over the 3D view, under every GUI layer
+		var rect := ColorRect.new()
+		rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sh := Shader.new()
+		sh.code = CAS_SHADER
+		_cas_material = ShaderMaterial.new()
+		_cas_material.shader = sh
+		rect.material = _cas_material
+		_cas.add_child(rect)
+		add_child(_cas)
+	if _cas:
+		_cas.visible = on
+		_cas_material.set_shader_parameter("sharpness", clampf(cfg.get_number("sharpness"), 0.0, 1.0))
 
 ## windowed; window.mousegrabinfullscreen / window.mousegrabinwindowmode.
 func _apply_window() -> void:
@@ -216,6 +270,8 @@ func _apply_node(n) -> void:
 		n.shadow_enabled = n.get_meta("rtso_shadow") and cfg.get_bool("shadows")
 		# 0 A.D.'s default cutoff is 300 m; scale the scene's own distance by the setting.
 		n.directional_shadow_max_distance = float(n.get_meta("rtso_shadow_dist")) * clampf(cfg.get_number("shadowscutoffdistance"), 100.0, 1500.0) / 300.0
+		if cfg.get_bool("shadowscovermap"):
+			n.directional_shadow_max_distance = SHADOW_COVER_MAP_DISTANCE
 	elif n is WorldEnvironment and n.environment:
 		var env: Environment = n.environment
 		if not env.has_meta("rtso_fog"):

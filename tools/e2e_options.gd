@@ -82,6 +82,31 @@ func run() -> void:
 	check(is_equal_approx(page._controls["sound.musicgain"][1].get_child(0).value, 0.2), "Reset updates the sliders")
 	page._on_revert()
 	check(cfg.get_value("sound.musicgain") == "0.4", "Revert after Reset restores the saved values")
+	# options.json dependencies: the water sub-options follow Water effects, the cutoff
+	# distance Cover whole map, the sharpness factor Sharpening.
+	var fancy: CheckBox = page._controls["waterfancyeffects"][1]
+	check(not fancy.disabled, "water sub-options are on with water effects")
+	page._controls["watereffects"][1].button_pressed = false
+	await frames(2)
+	check(fancy.disabled and page._controls["waterrealdepth"][1].disabled, "and greyed out without them")
+	page._controls["watereffects"][1].button_pressed = true
+	page._controls["waterrefraction"][1].button_pressed = false
+	await frames(2)
+	check(not fancy.disabled and page._controls["waterrealdepth"][1].disabled, "real depth needs refraction")
+	page._controls["waterrefraction"][1].button_pressed = true
+	check(not page._controls["sharpness"][1].get_child(0).editable, "no sharpness factor while sharpening is off")
+	page._controls["shadowscovermap"][1].button_pressed = true
+	await frames(2)
+	check(not page._controls["shadowscutoffdistance"][1].get_child(0).editable, "covering the map ignores the cutoff distance")
+	page._controls["shadowscovermap"][1].button_pressed = false
+	page._controls["textures.quality"][1].select(0)
+	page._controls["textures.quality"][1].item_selected.emit(0)
+	await frames(2)
+	check(is_equal_approx(root.texture_mipmap_bias, 2.0), "Low texture quality drops two mip levels")
+	page._controls["textures.quality"][1].select(2)
+	page._controls["textures.quality"][1].item_selected.emit(2)
+	await frames(2)
+	check(is_equal_approx(root.texture_mipmap_bias, 0.0), "High uses full textures")
 
 	print("2. hotkey saves keep the settings")
 	hk.set_hotkey("session.stop", PackedStringArray(["Ctrl+J"]))
@@ -131,6 +156,13 @@ func run() -> void:
 	cfg.set_value("fog", "true")
 	await frames(3)
 	check(sun.shadow_enabled and env.fog_enabled, "and back on restores them")
+	var cutoff := sun.directional_shadow_max_distance
+	cfg.set_value("shadowscovermap", "true")
+	await frames(3)
+	check(sun.directional_shadow_max_distance > cutoff, "Cover whole map lengthens the shadow distance")
+	cfg.set_value("shadowscovermap", "false")
+	await frames(3)
+	check(is_equal_approx(sun.directional_shadow_max_distance, cutoff), "and turning it off restores the cutoff")
 	m.get_node("PauseMenu")._on_options_pressed()
 	await frames(3)
 	var overlay = m.find_child("Options", true, false)
