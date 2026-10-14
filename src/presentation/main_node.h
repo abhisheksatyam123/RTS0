@@ -715,6 +715,7 @@ private:
 	std::vector<rtso::PlayerAssignmentMsg::Entry> chat_assignments_;
 	uint64_t chat_assignments_seen_ = 0;
 	size_t kicks_chatted_ = 0;
+	size_t rejoined_chatted_ = 0;
 	void post_network_chat();
 	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
 	void build_replay_view_picker();
