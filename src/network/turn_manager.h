@@ -1,6 +1,7 @@
 #ifndef RTSO_TURN_MANAGER_H
 #define RTSO_TURN_MANAGER_H
 
+#include <utility>
 #include <cstdint>
 #include <map>
 #include <set>
@@ -330,7 +331,22 @@ public:
 	// late-join turn-0 proof.
 	void set_game_start_applied_sim(const Simulation *sim) { game_start_applied_sim_ = sim; }
 
+	// 0 A.D. "playercommand" notifications, for the session's Follow Player: while on,
+	// each executed command is kept with its player (and only the units it owns) until
+	// the session takes them. Presentation only; nothing here reaches the simulation.
+	struct AppliedCommand {
+		uint8_t player;
+		NetCommand cmd;
+	};
+	void set_record_applied(bool on) {
+		record_applied_ = on;
+		if (!on) applied_cmds_.clear();
+	}
+	std::vector<AppliedCommand> take_applied_commands() { return std::exchange(applied_cmds_, {}); }
+
 private:
+	bool record_applied_ = false;
+	std::vector<AppliedCommand> applied_cmds_;
 	uint32_t current_turn_ = 0;
 	float turn_timer_ = 0.0f;
 	std::vector<NetCommand> pending_local_cmds_;
