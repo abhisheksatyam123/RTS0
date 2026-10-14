@@ -6768,7 +6768,7 @@ void Simulation::leave_turret(size_t i, const Building &b) {
 	units_.pos_x[i] = std::clamp(b.x + dx * r, -map_half_ + 1.0f, map_half_ - 1.0f);
 	units_.pos_z[i] = std::clamp(b.z + dz * r, -map_half_ + 1.0f, map_half_ - 1.0f);
 	auto it = turret_prev_stance_.find(units_.id[i]);
-	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i]);
+	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i], units_.tmpl[i]);
 	if (it != turret_prev_stance_.end()) turret_prev_stance_.erase(it);
 	turret_height_.erase(units_.id[i]);
 }
@@ -12056,23 +12056,21 @@ float Simulation::unit_capture_attack_at(size_t i) const {
 	return c;
 }
 
-// Identity class Healer: support healers and the hero healers (template_unit_hero_healer:
-// Hippocrates, Chanakya) that heal with Range 20 and Health 6 instead of 12 and 5.
+// Identity class Healer: support healers, the champion healer (the Seeress) and the hero
+// healers (Hippocrates, Chanakya); unit_heal_range_base/unit_heal_hp_base give each template's Heal.
 bool Simulation::unit_heals(size_t i) const {
 	return unit_is_healer(units_.tmpl[i], units_.unit_type[i]);
 }
 
-static bool hero_healer(uint8_t type) { return type == UNIT_HERO; }
-
 float Simulation::healer_range_of(size_t h) const {
 	float range = healer_range(units_.team[h]);
-	if (hero_healer(units_.unit_type[h])) range += (HERO_HEAL_RANGE - 12.0f) * COMBAT_DISTANCE_SCALE;
+	range += (unit_heal_range_base(units_.tmpl[h], units_.unit_type[h]) - 12.0f) * COMBAT_DISTANCE_SCALE;
 	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) range += rank_bonus(r).heal_range_add * COMBAT_DISTANCE_SCALE;
 	return range;
 }
 
 float Simulation::heal_amount_of(size_t h) const {
-	float hp = hero_healer(units_.unit_type[h]) ? HERO_HEAL_HP : HEAL_HP;
+	float hp = unit_heal_hp_base(units_.tmpl[h], units_.unit_type[h]);
 	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) hp += rank_bonus(r).heal_add;
 	// Heal/Health auras (Hippocrates' Hippocratic Oath: allied healers +1).
 	if (aura_mgr_.has(AURA_HEAL_AMOUNT))
@@ -12105,7 +12103,9 @@ void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_ran
 		units_.attack_range[i] = info.attack_range;
 		units_.attack_damage[i] = info.attack_damage;
 		units_.attack_cooldown[i] = info.attack_cooldown;
-		units_.carry_capacity[i] = info.carry_capacity;
+		// ResourceGatherer/Capacities of the new gatherer class, as at spawn (tech carry is read in carry_cap).
+		const int32_t cap = gather_class_capacity(unit_gather_class(type, target_tmpl));
+		units_.carry_capacity[i] = cap ? cap : info.carry_capacity;
 		apply_tech_mods_to_unit(i);
 		apply_rank_bonus(i, 1, target_rank);
 	} else {
