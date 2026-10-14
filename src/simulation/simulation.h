@@ -1059,6 +1059,18 @@ public:
 	// How often each event was called since the start or the last load: for tests and
 	// debugging only, never saved or hashed.
 	uint32_t trigger_event_calls(uint8_t event) const { return event < TRIGGER_EVENT_COUNT ? trigger_event_calls_[event] : 0; }
+	// GuiInterface PushNotification {"type": "dialog"}: a dialog a trigger script asks the
+	// GUI to show (triggers_demo's yes-no). Handed to the GUI once, never saved, as 0 A.D.'s
+	// notifications live in the GUI.
+	struct TriggerDialog {
+		uint8_t players = 0xFF; // bit p: player p + 1 sees it
+		std::string caption, button1, tooltip1, button2, tooltip2;
+	};
+	std::vector<TriggerDialog> take_trigger_dialogs() {
+		std::vector<TriggerDialog> out;
+		out.swap(trigger_dialogs_);
+		return out;
+	}
 	void mark_players_won(uint8_t mask);
 	void note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance);
 	// A map's TriggerScripts by name ("polar_sea_triggers", "treasure_islands"): registers
@@ -2477,6 +2489,7 @@ private:
 
 	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
 	uint32_t trigger_event_calls_[TRIGGER_EVENT_COUNT] = {}; // trigger_event_calls
+	std::vector<TriggerDialog> trigger_dialogs_; // take_trigger_dialogs
 	uint8_t diplomacy_[MAX_PLAYERS][MAX_PLAYERS] = {};
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;

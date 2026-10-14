@@ -1218,6 +1218,29 @@ void RtsoMain::toggle_diplomacy_colors() {
 
 // 0 A.D. ChatMessageFormatSimulation: who sees which tribute, barter, phase and
 // diplomacy line. Observers (and defeated players) see more, as g_IsObserver does.
+void RtsoMain::show_trigger_dialogs(const std::vector<rtso::Simulation::TriggerDialog> &dialogs) {
+	// messages.js "dialog": a message box with the two buttons, for the players it names.
+	// Its "dialog-answer" command only reaches a script's OnPlayerCommand, which no
+	// ported script reads, so the answer just closes it.
+	const uint8_t me = local_player();
+	if (!sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS) return;
+	for (const auto &d : dialogs) {
+		if (!((d.players >> me) & 1u)) continue;
+		ConfirmationDialog *dlg = memnew(ConfirmationDialog);
+		dlg->set_title("");
+		dlg->set_text(String::utf8(d.caption.c_str()));
+		dlg->set_ok_button_text(String::utf8(d.button1.c_str()));
+		dlg->set_cancel_button_text(String::utf8(d.button2.c_str()));
+		dlg->get_ok_button()->set_tooltip_text(String::utf8(d.tooltip1.c_str()));
+		dlg->get_cancel_button()->set_tooltip_text(String::utf8(d.tooltip2.c_str()));
+		dlg->set_exclusive(false);
+		dlg->connect("confirmed", callable_mp((Node *)dlg, &Node::queue_free));
+		dlg->connect("canceled", callable_mp((Node *)dlg, &Node::queue_free));
+		add_child(dlg);
+		dlg->popup_centered();
+	}
+}
+
 void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices) {
 	if (notices.empty() || !sim || !chat_window_.is_ready() || turn_mgr_.is_replaying()) return;
 	using N = rtso::Simulation::SessionNotice;

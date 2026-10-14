@@ -486,6 +486,7 @@ void Simulation::reset() {
 	petra_ev_captures_.clear();
 	petra_ev_decay_.clear();
 	spies_.clear();
+	trigger_dialogs_.clear();
 	for (CheatMods &cm : cheat_mods_) cm = CheatMods{};
 	std::fill(std::begin(player_pop_cap_), std::end(player_pop_cap_), 0);
 	std::fill(std::begin(unit_pop_bonus_), std::end(unit_pop_bonus_), 0);
@@ -28645,6 +28646,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"danubius_triggers", TRIGGER_ACTION_DANUBIUS_INIT, TUTORIAL_NONE},
 		{"jebel_barkal_triggers", TRIGGER_ACTION_JEBEL_BARKAL_INIT, TUTORIAL_NONE},
 		{"gallic_fields_3p", TRIGGER_ACTION_GALLIC_FIELDS, TUTORIAL_NONE},
+		{"triggers_demo", TRIGGER_ACTION_TRIGGERS_DEMO_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -28889,6 +28891,44 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 				triggers_.vars[2] = (int32_t)data.collection->size();
 			}
 			break;
+		case TRIGGER_ACTION_TRIGGERS_DEMO_INIT: {
+			// scenarios/triggers_demo.js: every listener logs its event; OnAttackDetected is
+			// registered too, but 0.28's Trigger.js never raises it (AttackDetection posts
+			// MT_AttackDetected to the player entity only), so RTS0 has no such event.
+			std::fprintf(stderr, "[triggers] loading the triggers file\n");
+			for (uint8_t e : {TRIGGER_ON_STRUCTURE_BUILT, TRIGGER_ON_CONSTRUCTION_STARTED, TRIGGER_ON_TRAINING_FINISHED,
+			                  TRIGGER_ON_TRAINING_QUEUED, TRIGGER_ON_RESEARCH_FINISHED, TRIGGER_ON_RESEARCH_QUEUED,
+			                  TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ON_PLAYER_COMMAND})
+				triggers_.register_trigger(e, TRIGGER_ACTION_TRIGGERS_DEMO_LOG, true);
+			triggers_.vars[3] = 0; // numberOfTimerTrigger (maxNumberOfTimerTrigger 3)
+			triggers_.vars[4] = triggers_.register_trigger(TRIGGER_ON_INTERVAL, TRIGGER_ACTION_TRIGGERS_DEMO_INTERVAL, true, 5000, 10000);
+			// OnRange round the A points: player 1's units (UnitAI) within 40 m.
+			triggers_.register_range_trigger(TRIGGER_ACTION_TRIGGERS_DEMO_RANGE, 'A', 0.0f, 40.0f / 4.0f, 1u << 0, true, true);
+			break;
+		}
+		case TRIGGER_ACTION_TRIGGERS_DEMO_LOG: {
+			static const char *const kNames[TRIGGER_EVENT_COUNT] = {"OnInitGame", "OnInterval", "OnRange", "OnStructureBuilt",
+				"OnConstructionStarted", "OnTrainingQueued", "OnTrainingFinished", "OnResearchQueued", "OnResearchFinished",
+				"OnOwnershipChanged", "OnPlayerDefeated", "OnPlayerWon", "OnDiplomacyChanged", "OnTreasureCollected",
+				"OnPlayerCommand", "OnDeserialized"};
+			std::fprintf(stderr, "[triggers] The %s event happened with the following data: entity %u, other %u, player %u, from %u, to %u, value %u, count %u\n",
+			             data.event < TRIGGER_EVENT_COUNT ? kNames[data.event] : "?", data.entity, data.other, data.player,
+			             data.from, data.to, data.value, data.count);
+			break;
+		}
+		case TRIGGER_ACTION_TRIGGERS_DEMO_INTERVAL: {
+			std::fprintf(stderr, "[triggers] The OnInterval event happened\n");
+			if (++triggers_.vars[3] >= 3) triggers_.disable_trigger((uint16_t)triggers_.vars[4]);
+			TriggerDialog d;
+			d.players = 0xFF; // players 1-8
+			d.caption = "Testing the yes-no dialog. Do you want to say sure or rather not?";
+			d.button1 = "Sure";
+			d.tooltip1 = "Say sure";
+			d.button2 = "Rather not";
+			d.tooltip2 = "Say rather not";
+			trigger_dialogs_.push_back(d);
+			break;
+		}
 		case TRIGGER_ACTION_DEATH_CANYON_INIT:
 			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
 			// "no_building" modifier emptying Builder/Entities, so their units build nothing.
