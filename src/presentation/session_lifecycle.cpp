@@ -605,6 +605,7 @@ void RtsoMain::_ready() {
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
 	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
+	dev_overlay_.build(ui_layer, this, "_on_dev_command");
 	control_groups_.build(ui_layer, this, "_on_control_group_gui_input");
 	rtso::strip_engine_popups(ui_layer);
 
@@ -1058,6 +1059,7 @@ void RtsoMain::_process(double delta) {
 	tutorial_panel_.refresh(sim);
 	panel_entities_.refresh(*sim, view_player(), (float)Time::get_singleton()->get_ticks_msec() / 1000.0f);
 	research_progress_.refresh(*sim, view_player());
+	refresh_dev_overlay();
 	control_groups_.refresh(*sim, local_player(), selected_groups);
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 

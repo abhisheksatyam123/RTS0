@@ -14820,6 +14820,20 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 	case CHEAT_REVEAL_MAP: // "jame jam": SetLosRevealAll(-1)
 		set_reveal_map(true);
 		return true;
+	case CHEAT_DEV_REVEAL_MAP: // Commands.js "reveal-map": SetLosRevealAll(-1, cmd.enable)
+		set_reveal_map(parameter != 0);
+		return true;
+	case CHEAT_DEV_PROMOTE: // Commands.js "promote": each own unit gains the xp its next rank needs (IncreaseXp)
+		for (size_t k = 0; k < count; ++k) {
+			const int32_t i = lookup_unit(selected[k]);
+			if (i < 0 || !units_.alive[i] || units_.team[i] != player) continue;
+			const float need = promotion_required_xp((size_t)i);
+			if (need < 0.0f) continue;
+			units_.xp[i] = (uint16_t)std::min(65535.0f, std::ceil(need));
+			units_.xp_partial[i] = 0.0f;
+			promote_if_due((size_t)i);
+		}
+		return true;
 	case CHEAT_CONVERT_UNITS: { // "wololo": to the given player, else to yourself
 		const uint8_t to = (parameter >= 0 && parameter < MAX_PLAYERS) || parameter == GAIA_PLAYER ? (uint8_t)parameter : player;
 		cheat_convert(to, selected, count);

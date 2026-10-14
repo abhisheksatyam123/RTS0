@@ -687,7 +687,9 @@ public:
 	enum CheatAction : uint8_t {
 		CHEAT_ADD_RESOURCE, CHEAT_REVEAL_MAP, CHEAT_CONVERT_UNITS, CHEAT_KILL_UNITS, CHEAT_DEFEAT_PLAYER,
 		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META,
-		CHEAT_MAX_POPULATION, CHEAT_CHANGE_MAX_POPULATION, CHEAT_FAST_ACTIONS, CHEAT_COUNT
+		CHEAT_MAX_POPULATION, CHEAT_CHANGE_MAX_POPULATION, CHEAT_FAST_ACTIONS,
+		// The developer overlay's commands (Commands.js "reveal-map" with its enable flag, "promote").
+		CHEAT_DEV_REVEAL_MAP, CHEAT_DEV_PROMOTE, CHEAT_COUNT
 	};
 	// Per-player state of the population and fast-actions cheats (padding-free for saves).
 	struct CheatMods {
