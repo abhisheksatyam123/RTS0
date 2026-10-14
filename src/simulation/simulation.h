@@ -1327,6 +1327,18 @@ public:
 	};
 	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type,
 			float angle = DEFAULT_BUILDING_ROT) const;
+	// What BuildRestrictions.CheckPlacement's GUI message names for `player` placing `b_type`
+	// with its centre at (x, z): the territories the template allows and the one found there
+	// (bits 1 own, 2 ally, 4 neutral, 8 enemy; `connected` false where an own or allied tile
+	// is cut off from its roots), and its Distance FromClass (0.28's class name, or null)
+	// with MinDistance in metres.
+	struct PlacementDetails {
+		uint8_t territory_allowed = 0, territory_found = 0;
+		bool connected = true;
+		const char *distance_class = nullptr;
+		float min_distance_m = 0.0f;
+	};
+	PlacementDetails placement_details(uint8_t player, uint8_t b_type, float x, float z) const;
 
 	// 0 A.D. WallSet walls (helpers/Walls.js GetWallPlacement, Commands.js "construct-wall").
 	struct WallPiece {
