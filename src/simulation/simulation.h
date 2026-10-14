@@ -1538,6 +1538,9 @@ public:
 	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
+	// ICmpTerritoryManager::IsTerritoryBlinking for territory_grid() cell (tx, tz): owned land in a
+	// region holding none of its owner's territory roots. For the renderer's border lines.
+	bool territory_blinking_cell(int tx, int tz) const;
 	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
 	const NavGrid& nav_grid() const { return nav_grid_; }
 	// Barter.js GetPrices as a fraction of a resource's true price (100):

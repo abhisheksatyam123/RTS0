@@ -249,6 +249,19 @@ static void test_unconnected_territory() {
 	CHECK(at(s, 0, 52.0f, 58.0f, BLD_BARRACKS) == Simulation::PLACE_TERRITORY);
 	CHECK(at(s, 0, 52.0f, 58.0f, BLD_OUTPOST) == Simulation::PLACE_OK);          // own neutral
 	CHECK(at(s, 0, 52.0f, 58.0f, BLD_PALISADE) == Simulation::PLACE_OK);
+	// The renderer's per-cell query agrees: the fortress's land blinks, the civic centre's does not.
+	const auto &g = s.territory_grid();
+	auto cell = [&](float x, float z, int &tx, int &tz) {
+		tx = (int)((x + s.map_half()) / (s.map_half() * 2.0f) * (float)g.w);
+		tz = (int)((z + s.map_half()) / (s.map_half() * 2.0f) * (float)g.h);
+	};
+	int fx, fz, cx, cz;
+	cell(45.0f, 55.0f, fx, fz);
+	cell(-45.0f, 55.0f, cx, cz);
+	CHECK(s.territory_blinking_cell(fx, fz));
+	CHECK(!s.territory_blinking_cell(cx, cz));
+	CHECK(!s.territory_blinking_cell(g.w / 2, 0)); // unclaimed land never blinks
+	CHECK(!s.territory_blinking_cell(-1, 0));
 	(void)fort;
 }
 
