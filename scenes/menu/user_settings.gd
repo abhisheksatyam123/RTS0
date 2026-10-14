@@ -370,9 +370,9 @@ func _update_overlay() -> void:
 	_overlay_label.text = "\n".join(lines)
 	_overlay_label.visible = not lines.is_empty()
 
-## 0 A.D. timeToString: "MM:SS", or "H:MM:SS" from an hour on.
+## 0 A.D. timeToString: "MM:SS", or "HH:MM:SS" from an hour on.
 static func _time_string(seconds: float) -> String:
 	var t := int(seconds)
 	if t >= 3600:
-		return "%d:%02d:%02d" % [t / 3600, t / 60 % 60, t % 60]
+		return "%02d:%02d:%02d" % [t / 3600, t / 60 % 60, t % 60]
 	return "%02d:%02d" % [t / 60, t % 60]
