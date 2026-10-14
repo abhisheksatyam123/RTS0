@@ -185,6 +185,8 @@ func _run() -> void:
 					ready_for = int(ns.get("settings_version", 0))
 					main.set_net_ready(1)
 					_say("ready for settings version %d" % ready_for)
+					# 0.28 gamesetup ChatPanel: a line typed in the setup.
+					main.send_setup_chat("hello from bob")
 			if role == "host" and not started and int(st.get("players", 0)) >= 2:
 				if not bool(ns.get("can_start", false)):
 					if not refused:
@@ -193,6 +195,14 @@ func _run() -> void:
 						_say("start_refused=%s" % str(not bool(main.get_lobby_state().get("started", false))))
 				else:
 					started = true
+					# The setup page's chat: the join, the ready and bob's line.
+					var plain := ""
+					for i in 50:
+						plain = RegEx.create_from_string("\\[[^\\]]*\\]").sub(str(main.get_setup_chat().get("text", "")), "", true)
+						if plain.contains("hello from bob"):
+							break
+						await _wait(0.1)
+					_say("setup_chat=" + " | ".join(Array(plain.strip_edges().split("\n")).map(func(l): return l.strip_edges())))
 					_say("both players in and ready, pressing Start")
 					main._on_lobby_start_pressed()
 		if st.get("oos", false):

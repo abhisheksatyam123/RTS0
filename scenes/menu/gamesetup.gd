@@ -1892,6 +1892,7 @@ func _init_net() -> void:
 	_net_state = net_main.get_net_setup_state()
 	_mp_role = "host" if bool(_net_state.get("controller", false)) else "client"
 	_build_net_controls()
+	_build_net_chat()
 	net_main.net_setup_changed.connect(_on_net_setup_changed)
 	if net_main.has_signal("net_setup_refused"):
 		net_main.net_setup_refused.connect(_show_error)
@@ -1936,6 +1937,65 @@ func _build_net_controls() -> void:
 	_rated.owner = self
 	_rated.unique_name_in_owner = true
 	_update_rated()
+
+## 0.28 Panels/Chat/ChatPanel: the chat under the player slots, where single
+## player shows its tips. The input goes through RtsoMain's chat send, so
+## /kick, /ban, /list and /clear (executeNetworkCommand) work here too.
+var _chat_rev := -1
+
+func _build_net_chat() -> void:
+	if not net_main.has_method("get_setup_chat"):
+		return
+	var panel := PanelContainer.new()
+	panel.name = "NetChat"
+	var box := VBoxContainer.new()
+	panel.add_child(box)
+	var log := RichTextLabel.new()
+	log.name = "NetChatLog"
+	log.bbcode_enabled = true
+	log.scroll_following = true
+	log.custom_minimum_size = Vector2(0, 110)
+	log.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	log.add_theme_font_size_override("normal_font_size", 12)
+	box.add_child(log)
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var input := LineEdit.new()
+	input.name = "NetChatInput"
+	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	input.max_length = 256
+	input.text_submitted.connect(func(_t: String) -> void: _send_net_chat())
+	row.add_child(input)
+	var send := Button.new()
+	send.name = "NetChatSend"
+	send.text = "Send"
+	send.pressed.connect(_send_net_chat)
+	row.add_child(send)
+	var right := $VBox/HBox/Right
+	right.add_child(panel)
+	right.move_child(panel, ($VBox/HBox/Right/ErrorLabel as Control).get_index())
+	for n in [panel, log, input, send]:
+		n.owner = self
+		n.unique_name_in_owner = true
+	_update_net_chat()
+
+func _send_net_chat() -> void:
+	var input: LineEdit = %NetChatInput
+	var text := input.text.strip_edges()
+	input.clear()
+	if text != "":
+		net_main.send_setup_chat(text)
+	_update_net_chat()
+
+func _update_net_chat() -> void:
+	if not has_node("%NetChatLog"):
+		return
+	var chat: Dictionary = net_main.get_setup_chat()
+	if int(chat.get("rev", 0)) == _chat_rev:
+		return
+	_chat_rev = int(chat.get("rev", 0))
+	var log: RichTextLabel = %NetChatLog
+	log.text = str(chat.get("text", ""))
 
 ## Rating.js: a lobby game of exactly two players may be rated, and is by
 ## default when it becomes one; Cheats.js: a rated game has no cheats.
@@ -1987,6 +2047,7 @@ func _process(delta: float) -> void:
 		_update_description()
 	if _mp_role == "none":
 		return
+	_update_net_chat()
 	_net_tick += delta
 	if _net_tick < 0.25:
 		return
