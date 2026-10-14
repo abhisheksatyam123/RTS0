@@ -3515,6 +3515,12 @@ Dictionary RtsoMain::get_net_setup_state() const {
 		e["name"] = c >= 0 ? String::utf8(net_setup_.names[c].c_str()) : String();
 		// 0.28 ReadyController: 0 not ready, 1 ready, 2 stay ready (the host is).
 		e["ready"] = c == 0 ? 2 : c < 0 ? 0 : ((net_setup_.stay_ready >> c) & 1) ? 2 : ((net_setup_.ready >> c) & 1) ? 1 : 0;
+		// LobbyGamelistReporter: in the match, who won or was defeated, and
+		// which seated client dropped out (the slot is the player id).
+		if (net_game_started_ && sim) {
+			e["state"] = sim->is_victory_for(i) ? "won" : sim->is_defeated(i) ? "defeated" : "";
+			e["offline"] = host && c > 0 && turn_mgr_.client_left((uint32_t)c);
+		}
 		slots.push_back(e);
 	}
 	d["slots"] = slots;
