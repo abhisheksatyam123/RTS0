@@ -2053,6 +2053,11 @@ private:
 	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	void tick_ship_pickups();
+	void tick_ship_pickup(size_t ship);
+	bool transport_walkers_none() const;
+	bool ship_reachable_by(size_t ship, size_t walker) const;
+	bool petra_steers_ship(uint32_t ship_id) const;
 	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
 	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
