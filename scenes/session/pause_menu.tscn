@@ -50,6 +50,11 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 layout_mode = 2
 theme_override_constants/separation = 8
 
+[node name="BtnManual" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "Manual"
+
 [node name="BtnChat" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
@@ -76,6 +81,11 @@ custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Options"
 
+[node name="BtnHotkeys" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "Hotkeys"
+
 [node name="BtnPause" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
@@ -100,3 +110,5 @@ text = "Exit"
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnPause" to="." method="_on_pause_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnResign" to="." method="_on_resign_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnExit" to="." method="_on_exit_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnManual" to="." method="_on_manual_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnHotkeys" to="." method="_on_hotkeys_pressed"]
