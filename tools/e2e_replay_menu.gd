@@ -3,7 +3,7 @@ extends SceneTree
 # replays written to user://replays:
 #   1. the list has 0 A.D.'s columns, newest first, and sorts by any column;
 #   2. every filter narrows it (player names with Tab completion, month, map,
-#      size, population, duration, single-player / multiplayer, victory,
+#      size, population, duration, single-player / multiplayer, victory, rated,
 #      compatibility);
 #   3. the details show the map, settings and players, the outcome only with
 #      Spoiler, and an incompatible replay can't be started;
@@ -60,10 +60,10 @@ func run() -> void:
 		"players": [player(0, "e2eAlpha", 1, false, "won"), player(1, "Bot One", 1, true, "won"),
 			player(2, "Bot Two", 2, true, "defeated"), player(3, "Bot Three", 2, true, "defeated")],
 		"summary": {"players": []}})
-	# b: multiplayer 1v1, Giant, 50 min, Conquest, February 2030.
+	# b: multiplayer rated 1v1, Giant, 50 min, Conquest, February 2030.
 	write_replay(NAMES[1], {"format": 2, "save_version": v, "timestamp": 1896300000, "map_id": "random_oasis",
 		"map_name": "E2E Oasis", "map_size": 512, "duration": 3000.0, "kind": "mp",
-		"game_start": "map=random_oasis;seed=1;victory=0;popcap=300;worldpop=600",
+		"game_start": "map=random_oasis;seed=1;victory=0;popcap=300;worldpop=600;rated=1",
 		"players": [player(0, "e2eAlpha", 1, false, "active"), player(1, "e2eBeta", 2, false, "active")]})
 	# c: an old save format, so incompatible.
 	write_replay(NAMES[2], {"format": 2, "save_version": v - 1, "timestamp": 1896400000, "map_id": "random_oasis",
@@ -140,6 +140,12 @@ func run() -> void:
 	pick.call(b._victory_filter, "Wonder")
 	check(visible_dirs(b) == [NAMES[0]], "victory condition")
 	pick.call(b._victory_filter, "Any victory condition")
+	pick.call(b._rated_filter, "Rated games")
+	check(visible_dirs(b) == [NAMES[1]], "rated games: two humans, two players, Rated Game")
+	pick.call(b._rated_filter, "Unrated games")
+	check(visible_dirs(b) == [NAMES[0]], "unrated games")
+	check(b.create_selection_data("")["filters"]["ratedGames"] == 2, "the selection data keeps the rated filter's index")
+	pick.call(b._rated_filter, "Rated and unrated games")
 	var month := Time.get_datetime_string_from_unix_time(1893510000 + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).substr(0, 7)
 	pick.call(b._date_filter, month)
 	check(visible_dirs(b) == [NAMES[0]], "month " + month)
