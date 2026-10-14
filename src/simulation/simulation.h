@@ -396,6 +396,8 @@ public:
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
 	uint32_t turret_holder_of(uint32_t unit_id) const;
+	// Commands.js "leave-turret": `player`'s units among `unit_ids` step down from their turret points.
+	void cmd_leave_turret(uint8_t player, const uint32_t *unit_ids, size_t count);
 	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
 	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
 	// One hit that cost an entity health: 0 A.D.'s MT_Attacked message, read by the

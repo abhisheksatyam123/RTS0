@@ -2023,6 +2023,14 @@ void RtsoMain::_on_entity_command(const String &name) {
 		_on_remove_guard_pressed();
 	} else if (name == "unload-all") {
 		_on_ungarrison_pressed();
+	} else if (name == "leave-turret") {
+		// unit_actions.js leaveTurretPoints: every selected unit on a turret point steps down.
+		std::vector<uint32_t> ids;
+		for (int s = 0; s < selected_ids.size(); ++s)
+			if (sim->turret_holder_of((uint32_t)(int64_t)selected_ids[s])) ids.push_back((uint32_t)(int64_t)selected_ids[s]);
+		if (ids.empty()) return;
+		if (turn_cmds()) post_lockstep(13, ids.data(), ids.size(), 0, 0, 0, 2);
+		else sim->cmd_leave_turret(local_player(), ids.data(), ids.size());
 	} else if (name == "select-trading-goods") {
 		_toggle_session_dialog("BarterDialog");
 	} else if (name == "focus-rally") {
