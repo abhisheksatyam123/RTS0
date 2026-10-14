@@ -1468,6 +1468,9 @@ public:
 	float stone_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_STONE] * 6.0f; }
 
 	int order_pop(const ProductionOrder &o, uint8_t player) const;
+	// Player.IsTrainingBlocked: a batch at the head of one of the player's queues waits
+	// for population room (Trainer.js Item.Start, Player.BlockTraining).
+	bool training_blocked(uint8_t player) const;
 	int structure_pop_bonus(uint8_t type, uint8_t player) const;
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
