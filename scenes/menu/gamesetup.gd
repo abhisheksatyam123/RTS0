@@ -342,6 +342,7 @@ func _ready() -> void:
 	_update_preview()
 	_init_net()
 	_render_reset_buttons()
+	_build_tips()
 
 # ---------------------------------------------------------------- maps ---
 
@@ -981,6 +982,46 @@ func description_info() -> Dictionary:
 
 ## The description scrolls in the Map Preview panel, beside the preview under
 ## the map's name line; the panel takes the page's spare height.
+# 0.28 Panels/TipsPanel.js: a hint for newcomers under the player slots, in single
+# player only (multiplayer shows the chat there), until its tick box is cleared
+# (gui.gamesetup.enabletips).
+const SP_TIP := "Although reasonably easy for an experienced player, the default AI level is quite challenging for new players yet to master the basic mechanisms of the game. Beginners are advised to start by playing against a lower level AI (Sandbox or Very Easy). Change the AI level by clicking the gear icon next to the player you want to modify in the selection panel above."
+
+func _build_tips() -> void:
+	if net_main != null or not RtsoUserConfig.new().get_bool("gui.gamesetup.enabletips"):
+		return
+	var panel := PanelContainer.new()
+	panel.name = "SPTips"
+	var box := VBoxContainer.new()
+	panel.add_child(box)
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var gear := Button.new() # _draw_gear draws on a button; this one is only the icon
+	gear.flat = true
+	gear.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gear.focus_mode = Control.FOCUS_NONE
+	gear.custom_minimum_size = Vector2(24, 24)
+	gear.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	gear.draw.connect(func(): _draw_gear(gear))
+	row.add_child(gear)
+	var text := Label.new()
+	text.name = "AITips"
+	text.text = tr(SP_TIP)
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_font_size_override("font_size", 12)
+	row.add_child(text)
+	var tick := CheckBox.new()
+	tick.name = "DisplaySPTips"
+	tick.text = tr("Show this message in the future.")
+	tick.button_pressed = true
+	tick.toggled.connect(func(on: bool):
+		var cfg := RtsoUserConfig.new()
+		cfg.set_value("gui.gamesetup.enabletips", "true" if on else "false")
+		cfg.save())
+	box.add_child(tick)
+	$VBox/HBox/Right.add_child(panel)
+
 func _build_description() -> void:
 	var preview := $VBox/HBox/Right/Preview
 	var lbl := $VBox/HBox/Right/Preview/Label as Label
