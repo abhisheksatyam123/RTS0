@@ -1442,7 +1442,38 @@ static void test_gather_unreachable() {
 	CHECK(gather_target(s, woman) == near_bush && s.units().carry[i] > 0);
 }
 
+// UnitMotion Acceleration (CCmpUnitMotion PerformMove): a fishing boat gains speed at 3.85 m/s^2
+// (template_unit_ship 35 x 0.1, x1.1), so it takes 2.6 s to reach full speed. Ships never stop to turn
+// (InstantTurnAngle 10): one sent back the way it came keeps cos(180 degrees) of its speed, -1, and
+// drifts on for v^2 / 2a before it comes back.
+static void test_ships_accelerate() {
+	static Simulation s;
+	fresh(s);
+	uint32_t boat = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_FISHING_BOAT);
+	const int32_t i = idx(s, boat);
+	const float a = unit_motion(s.units().tmpl[i], UNIT_FISHING_BOAT).acceleration, v = s.unit_move_speed(i);
+	s.cmd_move(&boat, 1, 40.0f, 0.0f);
+	run(s, 1.0f);
+	const float x1 = s.units().pos_x[i] + 40.0f;
+	run(s, 2.0f);
+	const float v3 = std::hypot(s.units().vel_x[i], s.units().vel_z[i]);
+	const float x_back = s.units().pos_x[i];
+	s.cmd_move(&boat, 1, -40.0f, 0.0f);
+	float furthest = x_back;
+	for (int t = 0; t < 160; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		furthest = std::max(furthest, s.units().pos_x[i]);
+	}
+	const float x_end = s.units().pos_x[i];
+	std::printf("  fishing boat: %.3f units/s^2, %.3f after 1 s (%.3f expected), %.3f of %.3f at 3 s; sent back, it"
+	            " drifted on %.2f (%.2f expected) and is at %.2f after 8 s\n",
+	            a, x1, 0.5f * a, v3, v, furthest - x_back, v * v / (2.0f * a), x_end);
+	CHECK(std::fabs(a - 35.0f * 0.1f * 1.1f * 0.356f) < 0.01f && std::fabs(x1 - 0.5f * a) < 0.02f && std::fabs(v3 - v) < 1e-3f);
+	CHECK(std::fabs(furthest - x_back - v * v / (2.0f * a)) < 0.2f && std::fabs(x_end + 40.0f) < 1.0f);
+}
+
 int main() {
+	test_ships_accelerate();
 	test_transport();
 	test_dropsite_own_land();
 	test_dock_takes_all();
