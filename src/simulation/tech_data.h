@@ -529,13 +529,14 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_VISION, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
 		{TSTAT_RANGE, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
 		{TSTAT_HEALTH, TOP_MUL, 78, 1, 1.25f}, // warship_fireship_attack
+		{TSTAT_MELEE_FIRE, TOP_MUL, 78, 1, 1.25f}, // warship_fireship_attack (hand-added: Attack/Melee/Damage/Fire)
 		{TSTAT_VISION, TOP_MUL, 71, 1, 1.1f}, // ship_vision
 		{TSTAT_VISION, TOP_MUL, 79, 1, 1.25f}, // ship_vision
 		{TSTAT_POP_BONUS, TOP_ADD, 82, 1, 10.0f}, // wagon_trains (its Promotion/RequiredXp is in promotion_data.h)
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 199;
+constexpr int TECH_EFFECT_COUNT = 200;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -619,7 +620,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0xbbff, 126, 0, "unlock_civilians_house_generic"},
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 126, 0, "unlock_civilians_house_kush"},
 		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0xbfff, 126, 2, "warship_arrow_attack"},
-		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 195, 1, "warship_fireship_attack"},
+		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 195, 2, "warship_fireship_attack"},
 		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 128, 2, "warship_health"},
 		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 130, 1, "warship_ramming_attack"},
 		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 131, 2, "warship_ranged_attack"},
@@ -663,7 +664,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Bolt Accuracy", "Bolt Shooters −20% ranged attack spread.", 0, 250, 250, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x083b, 181, 1, "siege_bolt_accuracy"},
 		{"Exploration", "Traders and Ships +20% vision range.", 100, 0, 100, 0, 40.0f, 1, BLD_DOCK, TECH_SHIP_VISION, 0x2010, 182, 1, "exploration"},
 		{"Carrier Pigeons", "Outposts +33% vision range.", 300, 0, 0, 0, 40.0f, 1, BLD_OUTPOST, TECH_NONE, 0xbfff, 183, 1, "outpost_vision"},
-		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 196, 2, "ship_vision"},
+		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 197, 2, "ship_vision"},
 		{"Crenellations", "Sentry and Stone Towers +40% more arrows per garrisoned Soldier.", 0, 0, 250, 500, 40.0f, 2, BLD_TOWER, TECH_NONE, 0xbfff, 185, 1, "tower_crenellations"},
 		{"Murder Holes", "Fortresses, Sentry Towers, and Stone Towers have 0 minimum attack range.", 0, 250, 0, 150, 40.0f, 3, BLD_TOWER, TECH_NONE, 0xbfff, 186, 1, "tower_murderholes"},
 		{"Cartography", "See what your allies see, browse their summary and check their resources and population count in the top panel.", 100, 0, 100, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0xbfff, 187, 0, "unlock_shared_los"},
@@ -679,7 +680,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Grove of Fetters", "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.", 0, 600, 300, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x8000, 187, 1, "grove_of_fetters"},
 		{"Migratory Resettlement", "All Structures except for walls do not decay to neutral or enemy territory.", 0, 200, 200, 200, 40.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x8000, 188, 1, "resettlement"},
 		{"Celtic Auxiliaries", "Mercenaries −50% metal cost but +50 food cost.", 0, 0, 550, 0, 45.0f, 3, BLD_EMBASSY, TECH_NONE, 0x0010, 189, 4, "celtic_auxiliaries"},
-		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 198, 1, "wagon_trains"},
+		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 199, 1, "wagon_trains"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

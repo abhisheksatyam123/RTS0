@@ -1472,6 +1472,7 @@ enum TechStat : uint8_t {
 	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
 	TSTAT_TERRITORY_DECAY, // TerritoryDecay/DecayRate (Migratory Resettlement)
 	TSTAT_UNIT_LOOT_FOOD, TSTAT_UNIT_LOOT_WOOD, TSTAT_UNIT_LOOT_STONE, TSTAT_UNIT_LOOT_METAL, // Loot/<res> of the unit itself
+	TSTAT_MELEE_FIRE, TSTAT_RANGED_FIRE, // Attack/<type>/Damage/Fire (fire ships)
 	TSTAT_COUNT
 };
 
