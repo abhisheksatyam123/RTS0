@@ -400,6 +400,31 @@ static void test_transport() {
 	CHECK(isp2 >= 0 && s.units().alive[isp2] && s.get_terrain_height(s.units().pos_x[isp2], s.units().pos_z[isp2]) > 0.15f);
 	CHECK(!s.units().alive[idx(s, rider2)]);
 
+	// Warships (template_unit_ship_warship_arrow/_ram) eject Civilian Infantry Dog: a healer
+	// drowns there but swims from a scout ship (template_unit_ship's list); a cavalry hero
+	// (Hero Cavalry, not Infantry) drowns.
+	{
+		auto up = [&](uint32_t id) { const int32_t i = idx(s, id); return i >= 0 && s.units().alive[i]; };
+		const uint16_t heal_t = tmpl_of("athen/support_healer_b");
+		auto sink = [&](float x, const char *ship_t, uint32_t a, uint32_t b) {
+			const uint32_t sh = s.spawn_unit(x, 13.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of(ship_t));
+			uint32_t party[2] = {a, b};
+			s.order_board_transport(party, b ? 2 : 1, sh);
+			run(s, 3.0f);
+			CHECK(s.get_transport_passenger_count(sh) == (b ? 2u : 1u));
+			s.units_.hp[idx(s, sh)] = 0.0f;
+			s.units_.alive[idx(s, sh)] = 0;
+			run(s, 0.1f);
+		};
+		const uint32_t h1 = s.spawn_unit(-80.0f, 17.5f, 0, UNIT_HEALER, 0.0f, heal_t);
+		const uint32_t hero = s.spawn_unit(-79.0f, 17.5f, 0, UNIT_HERO, 0.0f, tmpl_of("mace/hero_alexander_iii"));
+		sink(-80.0f, "athen/ship_arrow", h1, hero);
+		CHECK(!up(h1) && !up(hero));
+		const uint32_t h2 = s.spawn_unit(-100.0f, 17.5f, 0, UNIT_HEALER, 0.0f, heal_t);
+		sink(-100.0f, "athen/ship_scout", h2, 0);
+		CHECK(up(h2));
+	}
+
 	// EjectClassesOnDestroy is "Civilian Infantry Healer Dog": a 0.28 civilian swims ashore, an
 	// old female citizen (FemaleCitizen Support only) drowns, and a loaded ram (Siege) sinks
 	// with its own passengers (EjectOrKill kills a holder's units when it dies out of the world).

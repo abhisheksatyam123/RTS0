@@ -923,6 +923,8 @@ Dictionary RtsoMain::debug_selected_building() const {
 		d["has_rally"] = b.has_rally_point;
 		d["rally_self"] = b.has_rally_point && b.rally_target_bld_id == b.id;
 		d["autoqueue"] = b.autoqueue;
+		d["queue"] = (int64_t)b.queue.size();
+		d["food"] = sim->player(b.team < rtso::MAX_PLAYERS ? b.team : 0).res[rtso::RES_FOOD];
 		Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 		if (cam) d["screen"] = cam->unproject_position(Vector3(b.x, sim->get_terrain_height(b.x, b.z), b.z));
 	}
@@ -2106,6 +2108,9 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_RESTRICT_CAMERA: // RestrictCamera: GameView_SetConstrainCameraEnabled
 			if (cam_rig) cam_rig->set_constrain_camera(on);
 			break;
+		case D::DEV_TIME_WARP: // EnableTimeWarp: TimeWarp.setEnabled
+			set_time_warp(on);
+			break;
 		case D::DEV_PROMOTE: { // PromoteSelectedUnits: "promote" the selection; checked() is always false
 			std::vector<uint32_t> ids;
 			for (int k = 0; k < selected_ids.size(); ++k) ids.push_back((uint32_t)(int64_t)selected_ids[k]);
@@ -2118,6 +2123,58 @@ void RtsoMain::_on_dev_command(int command) {
 	refresh_dev_overlay();
 }
 
+// TimeWarp.setEnabled: not in networked games (nor replays); turning it on shows
+// TimeWarpMessageBox and starts the snapshots (Engine.EnableTimeWarpRecording(10)).
+void RtsoMain::set_time_warp(bool on) {
+	if (net_lockstep() || turn_mgr_.is_replaying()) on = false;
+	if (on == time_warp_) return;
+	time_warp_ = on;
+	if (!on) {
+		if (time_warp_ff_) game_speed = time_warp_speed_;
+		time_warp_ff_ = false;
+		for (const String &p : time_warp_snapshots_) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(p));
+		time_warp_snapshots_.clear();
+		return;
+	}
+	time_warp_turn_ = UINT32_MAX;
+	quit_confirmation("time_warp");
+}
+
+// CTurnManager time warp: a snapshot of the game every 10 turns, and SetSimRate(20)
+// while the fast forward hotkey is held.
+void RtsoMain::time_warp_tick() {
+	if (!time_warp_ || !sim) return;
+	const bool ff = rtso::hotkeys::held("session.timewarp.fastforward");
+	if (ff != time_warp_ff_) {
+		if (ff) time_warp_speed_ = game_speed;
+		game_speed = ff ? 20.0f : time_warp_speed_;
+		time_warp_ff_ = ff;
+	}
+	const uint32_t turn = turn_mgr_.current_turn();
+	if (turn % 10 != 0 || turn == time_warp_turn_) return;
+	time_warp_turn_ = turn;
+	DirAccess::make_dir_recursive_absolute(ProjectSettings::get_singleton()->globalize_path("user://timewarp"));
+	const String path = "user://timewarp/turn_" + String::num_int64(time_warp_serial_++) + ".rts0sav";
+	if (!sim->save_state(ProjectSettings::get_singleton()->globalize_path(path).utf8().get_data())) return;
+	time_warp_snapshots_.push_back(path);
+	if (time_warp_snapshots_.size() > 100) { // TimeWarp's caption warns of memory: keep the last 100 on disk
+		DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(time_warp_snapshots_.front()));
+		time_warp_snapshots_.erase(time_warp_snapshots_.begin());
+	}
+}
+
+// CTurnManager::RewindTimeWarp: back to the latest snapshot, which is then dropped, so
+// rewinding again goes further back. The game goes on as a new replay from there.
+bool RtsoMain::time_warp_rewind() {
+	if (!time_warp_ || time_warp_snapshots_.empty()) return false;
+	const String path = time_warp_snapshots_.back();
+	time_warp_snapshots_.pop_back();
+	const bool ok = load_game(path);
+	DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(path));
+	time_warp_turn_ = turn_mgr_.current_turn(); // no snapshot of the state just restored
+	return ok;
+}
+
 // The checked() handlers while the overlay is open, and DeveloperOverlayEntityState.update:
 // the first selected entity's state.
 void RtsoMain::refresh_dev_overlay() {
@@ -2127,6 +2184,7 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_REVEAL_MAP, sim->reveal_map());
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
+		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 	}
 	if (!dev_overlay_.state_shown()) return;
 	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
@@ -3522,6 +3580,12 @@ Dictionary RtsoMain::get_tech_tree() const {
 
 void RtsoMain::_on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx) {
 	command_panel_.production_queue().handle_gui_input(event, slot_idx, get_viewport());
+}
+
+// Tests: production queue slot i as the panel shows it.
+Dictionary RtsoMain::debug_queue_slot(int i) {
+	update_command_panel();
+	return command_panel_.production_queue().debug_slot(i);
 }
 
 void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
