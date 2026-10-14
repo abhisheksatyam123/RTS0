@@ -128,6 +128,8 @@ const SCHEMA := [
 		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],
 		["number", "gui.session.batchtrainingsize", "Batch training size", "Number of units trained per batch by default.", [1, 20]],
 		["slider", "gui.session.scrollbatchratio", "Scroll batch increment ratio", "Number of times you have to scroll to increase/decrease the batchsize by 1.", [0.1, 30]],
+		["dropdown", "gui.session.snaptoedges", "Snap to edges", "This option allows to align new structures with nearby structures.",
+			[["Hotkey to enable snapping", "disabled"], ["Hotkey to disable snapping", "enabled"]]],
 		["dropdown", "gui.session.disjointcontrolgroups", "Control group membership", "Decide whether units can be part of multiple control groups.",
 			[["Single", "true"], ["Multiple", "false"]]],
 		["dropdown", "gui.session.formationwalkonly", "Formation control", "Decide whether formations are enabled for all orders or only 'Walk' and 'Patrol'.",

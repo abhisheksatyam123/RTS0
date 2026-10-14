@@ -105,6 +105,7 @@ const Default kDefaults[] = {
 	{"gui.session.minimap.icons.opacity", "1.0"},
 	{"gui.session.minimap.icons.sizescale", "1.0"},
 	{"gui.session.scrollbatchratio", "1"},
+	{"gui.session.snaptoedges", "disabled"},
 	{"gui.session.disjointcontrolgroups", "true"},
 	{"showdetailedtooltips", "false"},
 	{"gui.gamesetup.enabletips", "true"},

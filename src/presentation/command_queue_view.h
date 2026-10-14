@@ -861,8 +861,9 @@ private:
 			roster_list_->set_visible(roster_list_->get_item_count() > 0);
 			return;
 		}
-		// A shrine trains its own civ's Elite Healer (units/{native}/support_healer_e).
-		for (uint16_t i : rtso::civ_roster_ids(b->type == rtso::BLD_SHRINE ? b->civ : civ)) {
+		// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies) offer the
+		// structure's own civ's units.
+		for (uint16_t i : rtso::civ_roster_ids(rtso::building_trains_native(b->type) ? b->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 			if (!(u.trainers & rtso::bld_bit(b->type))) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;

@@ -2818,6 +2818,25 @@ inline bool civ_can_build(uint8_t civ, uint8_t type) {
 	       !civ_building_upgrade_only(type);
 }
 
+// Structures whose 0.28 Trainer list names units/{native}/...: they train their own civ's
+// units whoever holds them (Trainer.js CalculateEntitiesMap): the shrines, the Kushite
+// Noba and Blemmye camps and the Carthaginian embassies.
+inline bool building_trains_native(uint8_t type) {
+	return type == BLD_SHRINE || type == BLD_CAMP_NOBA || type == BLD_CAMP_BLEMMYE ||
+	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
+}
+
+// BuildingAI and Attack/Ranged of a civ's structure: the generic row plus 0.28's one civ
+// override, iber/defense_tower.xml (DefaultArrowCount +1, MinRange 12 m).
+inline BuildingAIInfo civ_building_ai_info(uint8_t civ, uint8_t type) {
+	BuildingAIInfo ai = building_ai_info(type);
+	if (type == BLD_TOWER && civ == CIV_IBERIANS) {
+		ai.default_arrows += 1;
+		ai.min_range = 12.0f * COMBAT_DISTANCE_SCALE;
+	}
+	return ai;
+}
+
 inline bool civ_can_train(uint8_t civ, uint8_t type) {
 	return (civ_train_mask(civ) & unit_bit(type)) != 0;
 }
