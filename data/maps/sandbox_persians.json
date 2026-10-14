@@ -4513,6 +4513,13 @@
       "player": 1,
       "x": -49.13,
       "z": 28.99
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 0.57,
+      "z": 11.3,
+      "template": "pers/inn"
     }
   ],
   "units": [

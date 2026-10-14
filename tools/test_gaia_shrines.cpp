@@ -61,12 +61,12 @@ int main() {
 		CHECK(building_researches_tech(BLD_TRADING_POST, TECH_UNLOCK_SHARED_LOS, CIV_ROMANS));
 		CHECK(building_researches_tech(BLD_TRADING_POST, TECH_UNLOCK_SHARED_DROPSITES, CIV_ROMANS));
 		// Map templates: each keeps its Identity/Civ.
-		CHECK(gaia_structure_template("structures/shrine_greek_02").type == BLD_SHRINE);
-		CHECK(gaia_structure_template("structures/shrine_greek_02").civ == CIV_MACEDONIANS);
-		CHECK(gaia_structure_template("structures/shrine_italian").civ == CIV_ROMANS);
-		CHECK(gaia_structure_template("structures/trading_post_desert").type == BLD_TRADING_POST);
-		CHECK(gaia_structure_template("structures/trading_post_desert").civ == CIV_PERSIANS);
-		CHECK(gaia_structure_template("structures/temple").type == BLD_TYPE_COUNT);
+		CHECK(map_structure_template("structures/shrine_greek_02").type == BLD_SHRINE);
+		CHECK(map_structure_template("structures/shrine_greek_02").civ == CIV_MACEDONIANS);
+		CHECK(map_structure_template("structures/shrine_italian").civ == CIV_ROMANS);
+		CHECK(map_structure_template("structures/trading_post_desert").type == BLD_TRADING_POST);
+		CHECK(map_structure_template("structures/trading_post_desert").civ == CIV_PERSIANS);
+		CHECK(map_structure_template("structures/temple").type == BLD_TYPE_COUNT);
 		// Trainers: each native civ's Elite Healer at the shrine, every Trader at the trading post.
 		for (const char *id : {"mace/support_healer_e", "rome/support_healer_e", "pers/support_healer_e",
 		                       "gaul/support_healer_e", "han/support_healer_e", "ptol/support_healer_e",
