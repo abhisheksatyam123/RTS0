@@ -139,6 +139,8 @@ ZIP_ALIASES = {
     "rome_shrine": "s_romans_temple_vesta", "pers_shrine": "s_persians_shrine",
     "gaul_trading_post": "s_celts_tavern", "pers_trading_post": "s_persians_market",
     "trading_post": "s_persians_market",
+    "inn": "s_persians_alt_building_04", "pers_inn": "s_persians_alt_building_04",
+    "tent": "s_romans_rome_tent", "rome_tent": "s_romans_rome_tent",
 }
 
 # Generic models with no GLB yet: model id -> template under structures/.

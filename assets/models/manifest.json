@@ -49644,6 +49644,22 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_persians_alt_building_04": {
+   "file": "models/buildings/s_persians_alt_building_04.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.881,
+    2.382,
+    3.445
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/persians/alt_building_04.xml",
+    "mesh:props/pers_alt_build_04.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
   "s_persians_blacksmith": {
    "file": "models/buildings/s_persians_blacksmith.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -50576,6 +50592,43 @@
     "skin:structural/rome_struct_2.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_rome_tent": {
+   "file": "models/buildings/s_romans_rome_tent.glb",
+   "origin": "ground-center",
+   "parts": 11,
+   "size_meters": [
+    1.895,
+    1.382,
+    1.844
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/romans/rome_tent.xml",
+    "actor:art/actors/props/structures/romans/rome_tent_a_flaps.xml",
+    "actor:art/actors/props/structures/romans/rome_tent_a_props.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_back_01.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_boss_01_iron.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_handgrip_01.xml",
+    "actor:art/actors/props/units/shields/rome_parma_a.xml",
+    "actor:art/actors/props/units/shields/round_back.xml",
+    "actor:art/actors/props/units/shields/scutum_rome_isp_14.xml",
+    "mesh:props/rome_tent_a.dae",
+    "mesh:props/rome_tent_a_flaps.dae",
+    "mesh:props/rome_tent_a_props.dae",
+    "mesh:props/shield/props/scutum_01_b.dae",
+    "mesh:props/shield/props/scutum_boss_a.dae",
+    "mesh:props/shield/round_s_b.dae",
+    "mesh:props/shield/round_s_f.dae",
+    "mesh:props/shield/scutum_01_f.dae",
+    "skin:props/rome_sb_tent.png",
+    "skin:props/shield/celt_round_back.dds",
+    "skin:props/shield/rome_parma_b.dds",
+    "skin:props/shield/scutum_a_wooden_back_01.png",
+    "skin:props/shield/scutum_rome_25.png",
+    "skin:props/shield/scutum_rome_boss_01_iron.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "s_romans_stable": {
    "file": "models/buildings/s_romans_stable.glb",

@@ -6015,6 +6015,14 @@
 1.0
 ]
 },
+"buildings/s_persians_alt_building_04_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_persians_blacksmith_tex0": {
 "mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
 "tint": [
@@ -6417,6 +6425,30 @@
 },
 "buildings/s_romans_range_tex0": {
 "mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_rome_tent_tex0": {
+"mask": "res://assets/textures/player_masks/props/rome_sb_tent_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_rome_tent_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_25_256x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_rome_tent_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/rome_parma_b_128x128.png",
 "tint": [
 1.0,
 1.0,

@@ -86,6 +86,7 @@
 "iber_wall_medium": "s_iberians_wall_medium",
 "iber_wall_short": "s_iberians_wall_short",
 "ice_house": "s_persians_ice_house",
+"inn": "s_persians_alt_building_04",
 "kush_arsenal": "s_kushites_workshop",
 "kush_camp_blemmye": "s_mercenaries_camp_blemmye",
 "kush_camp_noba": "s_mercenaries_camp_nuba",
@@ -119,6 +120,7 @@
 "pers_blacksmith": "s_persians_blacksmith",
 "pers_great_hall": "s_persians_hall",
 "pers_ice_house": "s_persians_ice_house",
+"pers_inn": "s_persians_alt_building_04",
 "pers_outpost": "s_persians_outpost",
 "pers_palace": "s_persians_hall_palace",
 "pers_range": "s_persians_range",
@@ -158,6 +160,7 @@
 "rome_stable": "s_romans_stable",
 "rome_temple_mars": "s_romans_temple_mars",
 "rome_temple_vesta": "s_romans_temple_vesta",
+"rome_tent": "s_romans_rome_tent",
 "rome_theater": "s_romans_amphitheater_pompeii",
 "rome_wall_gate": "s_romans_wall_gate",
 "rome_wall_long": "s_romans_wall_long",
@@ -195,5 +198,6 @@
 "temple_amun": "s_kushites_temple_amun",
 "temple_mars": "s_romans_temple_mars",
 "temple_vesta": "s_romans_temple_vesta",
+"tent": "s_romans_rome_tent",
 "trading_post": "s_persians_market"
 }
