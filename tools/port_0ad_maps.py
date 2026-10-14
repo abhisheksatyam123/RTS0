@@ -991,6 +991,16 @@ github_scenarios = {
     # skirmish keeps the plain id.
     "sahel": ("sahel_scenario", "savanna"),
     "saharan_oases": ("saharan_oases_scenario", "desert"),
+    # 0.28 scenarios ported from its public.zip (--zip-scenarios).
+    "azure_coast_2p": ("azure_coast_2p", "mediterranean"),
+    "azure_coast_4p": ("azure_coast_4p", "mediterranean"),
+    "azure_coast_8p": ("azure_coast_8p", "mediterranean"),
+    "belgian_bog_night": ("belgian_bog_night", "temperate"),
+    "fast_oasis": ("fast_oasis", "desert"),
+    "peloponnese": ("peloponnese", "aegean"),
+    "savanna_ravine": ("savanna_ravine", "savanna"),
+    "serengeti": ("serengeti", "savanna"),
+    "ship_combat_demo": ("ship_combat_demo", "mediterranean"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
