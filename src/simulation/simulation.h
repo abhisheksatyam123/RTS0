@@ -167,7 +167,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 74; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 75; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
@@ -511,6 +512,9 @@ public:
 	// temperate_large_02 22 x 14 m (48), template_gaia_ruins 7 x 7 m. Mines block movement,
 	// pathfinding and foundations (template_gaia). False for any other supply.
 	bool mine_footprint(size_t r, nav::Footprint &f) const;
+	// Half the width of any other supply's square foundation obstruction, in world units: a
+	// tree's or fruit's template Obstruction/Static (flora_obstruction_m), else 1.5 m.
+	float resource_block_half(size_t r) const;
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
@@ -2204,6 +2208,10 @@ private:
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
+	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
+	bool near_deep_water(float x, float z, float c) const;
+	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
+	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -2690,6 +2698,7 @@ private:
 	std::vector<PetraFoundationWatch> petra_fnd_watch_;
 	mutable Petra petra_fleets_; // per-sea warship registry (navalManager.seaWarShips)
 	float petra_timer_  = 0.0f;
+	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
 	float petra_econ_timer_ = 0.0f;
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
@@ -2988,7 +2997,8 @@ private:
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
-	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_)
+	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
+	X(petra_failed_gather_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

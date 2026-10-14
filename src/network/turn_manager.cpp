@@ -447,24 +447,33 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	client_player_.erase(client_id);
 	rejoin_outbox_.erase(std::remove_if(rejoin_outbox_.begin() + (std::ptrdiff_t)rejoin_outbox_next_, rejoin_outbox_.end(),
 			[&](const auto &e) { return e.first == client_id; }), rejoin_outbox_.end());
-	// A human seat with no client left in the lockstep (0 A.D. rejoins a
-	// client into its old player; RTS0 hands the first such seat over).
+	// 0 A.D. NetServer (HandleConnect, OnAuthenticate): once the game runs, a
+	// client that played and left gets its own player back, matched by name;
+	// one that watched and left watches again. Anyone else may only watch, as
+	// network.lateobservers allows; it never takes a free seat.
+	auto lower = [](std::string n) {
+		for (char &ch : n) ch = (char)std::tolower((unsigned char)ch);
+		return n;
+	};
+	const NetPeer *asker = net_host_->getPeer(client_id);
+	const std::string name = lower(asker ? asker->player_name : std::string());
 	uint8_t seat = 0xFF;
-	for (const auto &cp : client_player_) {
-		if (cp.second >= MAX_PLAYERS || cp.first == 0) continue;
+	bool known_observer = false;
+	for (const auto &cn : client_names_) {
+		if (cn.first == client_id || cn.first == 0 || peer_active(cn.first) || lower(cn.second) != name) continue;
+		auto cp = client_player_.find(cn.first);
+		if (cp == client_player_.end() || cp->second >= MAX_PLAYERS) { known_observer = true; continue; }
 		bool held = false;
 		for (const auto &other : client_player_)
-			if (other.second == cp.second && peer_active(other.first)) held = true;
-		if (!held && (seat == 0xFF || cp.second < seat)) seat = cp.second;
+			if (other.second == cp->second && peer_active(other.first)) held = true;
+		if (!held && (seat == 0xFF || cp->second < seat)) seat = cp->second;
 	}
-	// An observer takes no seat, even a free one.
-	const bool observer = observer_requests_.count(client_id) != 0;
-	if (observer && late_observers_ != LATE_OBSERVERS_EVERYONE) {
+	const bool observer = seat == 0xFF;
+	if (observer) observer_requests_.insert(client_id);
+	else observer_requests_.erase(client_id);
+	if (observer && !known_observer && late_observers_ != LATE_OBSERVERS_EVERYONE) {
 		// 0 A.D. NetServer: lateobservers "buddies" admits the names in the
 		// host's lobby.buddies, "disabled" nobody.
-		const NetPeer *p = net_host_->getPeer(client_id);
-		std::string name = p ? p->player_name : std::string();
-		for (char &ch : name) ch = (char)std::tolower((unsigned char)ch);
 		if (late_observers_ == LATE_OBSERVERS_DISABLED || !buddies_.count(name)) {
 			reject(6);
 			net_host_->refusePeer(client_id);
@@ -479,8 +488,6 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 			if (p.id != client_id && p.connected && p.is_authenticated && p.is_observer) ++watching;
 		if (watching + 1 > observer_limit_) { reject(7); net_host_->refusePeer(client_id); return; }
 	}
-	if (observer) seat = 0xFF;
-	else if (seat == 0xFF) { reject(1); return; }
 	const std::string path = rejoin_path("host");
 	std::vector<uint8_t> world;
 	if (sim.save_state(path.c_str())) {

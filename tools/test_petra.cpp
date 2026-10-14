@@ -3765,7 +3765,9 @@ static void test_personality_draw() {
 	t.set_lock_teams(true);
 	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.3f)) < 1e-5f);
 	t.set_petra_difficulty(2, PETRA_SANDBOX);
-	assert(t.petra_config_for(2).aggressive == 0.85f && t.petra_config_for(2).pop_scaling == 0.5f);
+	// setConfig draws no personality on Sandbox: the default 0.5 whatever the behaviour.
+	assert(t.petra_config_for(2).aggressive == 0.5f && t.petra_config_for(2).defensive == 0.5f &&
+	       t.petra_config_for(2).pop_scaling == 0.5f);
 	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
 }
 

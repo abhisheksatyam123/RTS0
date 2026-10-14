@@ -61,6 +61,10 @@
 //     movement as a structure's footprint does, and long paths on the navcells it covers whole. A swordsman sent through one walks
 //     round it, one sent along a row of them takes the gaps between, and six women sent to gather
 //     from one all reach it and work it from round its edge.
+// 20. Shore clearance: 0 A.D. grows deep water by each land class's clearance (0.8 m; 3 m for siege
+//     and elephants, CCmpPathfinder ExpandImpassableCells). An elephant sent to a spot on the beach
+//     2 m off the water stops 3 m off it, where a swordsman gets to the spot, and a clump of elephants
+//     on the beach pushes apart along it, never out to within 3 m of the water.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -994,6 +998,53 @@ static void mines() {
 	}
 }
 
+// 20. Shore clearance.
+static void shore_clearance() {
+	// channel_setup(s, 16) makes the navcells from z -14 to 14 deep (their centres lie under the sea).
+	auto gap = [](const Simulation &s, uint32_t id) { return s.units_.pos_z[index_of(s, id)] - 14.0f; };
+	for (int large = 0; large < 2; ++large) {
+		Simulation s;
+		channel_setup(s, 16.0f);
+		if (!large) check(s.near_deep_water(0.0f, 13.9f, 0.0f) && !s.near_deep_water(0.0f, 14.1f, 0.0f), "the sea's edge is not at z 14");
+		// The spot (20, 14.5) lies half a unit off the water: within an elephant's 0.75, not a swordsman's 0.2.
+		const uint32_t id = s.spawn_unit(-20.0f, 18.0f, 0, large ? UNIT_ELEPHANT : UNIT_SWORDSMAN);
+		s.cmd_move(&id, 1, 20.0f, 14.5f);
+		float min_gap = 99.0f;
+		int idle = -1;
+		for (int t = 0; t < 1200 && idle < 0; ++t) {
+			s.tick(DT);
+			min_gap = std::min(min_gap, gap(s, id));
+			if (s.units_.action_state[index_of(s, id)] == ACTION_IDLE) idle = t;
+		}
+		const int i = index_of(s, id);
+		const float c = unit_building_clearance(s.units_.tmpl[i], s.units_.unit_type[i]);
+		const float off = std::hypot(s.units_.pos_x[i] - 20.0f, s.units_.pos_z[i] - 14.5f);
+		std::printf("  shore clearance: %s sent 2 m off the water stopped after %d ticks (-1 = never in 1200), %.2f from "
+				"the spot, %.2f off the water at least (clearance %.2f)\n", large ? "elephant" : "swordsman", idle, off, min_gap, c);
+		check(idle >= 0, "a walk to the water's edge never ended");
+		check(min_gap >= c - 0.01f, "a land unit came within its clearance of deep water");
+		check(off <= (large ? 1.0f : 0.5f), "a land unit sent to the water's edge stopped short of where it could stand");
+	}
+	{
+		Simulation s;
+		channel_setup(s, 16.0f);
+		std::vector<uint32_t> herd;
+		for (int k = 0; k < 6; ++k) herd.push_back(s.spawn_unit(0.2f * (float)(k % 3), 14.9f + 0.2f * (float)(k / 3), 0, UNIT_ELEPHANT));
+		float min_gap = 99.0f, spread = 0.0f;
+		for (int t = 0; t < 200; ++t) {
+			s.tick(DT);
+			for (uint32_t id : herd) {
+				min_gap = std::min(min_gap, gap(s, id));
+				spread = std::max(spread, std::fabs(s.units_.pos_x[index_of(s, id)]));
+			}
+		}
+		std::printf("  shore clearance: a clump of 6 elephants on the beach pushed apart to %.2f along it, %.2f off the water at least\n",
+				spread, min_gap);
+		check(min_gap >= CLEARANCE_LARGE - 0.01f, "pushing carried an elephant within its clearance of deep water");
+		check(spread > 2.0f, "a clump of elephants on the beach never pushed apart");
+	}
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -1015,6 +1066,7 @@ int main() {
 	large_units_through_gap();
 	walk_to_structure_range();
 	mines();
+	shore_clearance();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;
