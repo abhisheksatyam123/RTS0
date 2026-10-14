@@ -409,6 +409,23 @@ static void test_diplomacy() {
 	std::printf("  neutrality offers over 6 seeds: accepted %d, declined %d, accepted for tribute %d\n",
 	            accepted, declined, paid);
 
+	// attackManager.js currentEnemyPlayer outlives the attacks: the player AI 1 last
+	// chose to attack is always turned down (handleDiplomacyRequest), even between attacks.
+	{
+		int refused = 0;
+		for (uint32_t seed = 1; seed <= 4; ++seed) {
+			auto s = three_player_match(seed);
+			run_for(*s, 20.0f);
+			s->petra_sent_diplo_.current_enemy = 1; // AI 1 last picked player 0
+			s->clear_petra_chat();
+			s->cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
+			run_for(*s, 10.0f);
+			refused += said_to(*s, 1, 0, PETRA_CHAT_ANSWER_DECLINE) && s->get_diplomacy(1, 0) == Simulation::DIPLO_ENEMY;
+		}
+		std::printf("  neutrality offers from AI 1's current enemy: %d of 4 refused\n", refused);
+		CHECK(refused == 4, "the player Petra last chose to attack is always refused");
+	}
+
 	// Allies with AI 2, then the human declares war: AI 2 answers in kind.
 	{
 		auto s = three_player_match(3);

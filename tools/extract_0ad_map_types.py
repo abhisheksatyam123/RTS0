@@ -96,7 +96,10 @@ def build(public):
         maps[mid] = entry
     random, placements, biomes = {}, {}, {}
     for p in sorted(glob.glob(os.path.join(public, "maps/random/*.json"))):
-        s = json.load(open(p, encoding="utf-8")).get("settings", {})
+        doc = json.load(open(p, encoding="utf-8"))
+        if not isinstance(doc, dict):  # a heightmap image's <name>.png.json, not a map script
+            continue
+        s = doc.get("settings", {})
         name = os.path.basename(p)[:-5]
         random[name] = s.get("Keywords", [])
         if s.get("PlayerPlacements"):
