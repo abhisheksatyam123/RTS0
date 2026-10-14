@@ -122,6 +122,23 @@ static void test_building_mirages() {
 	c.add_building(bld(7, 1, 1, 2, 1000.0f), false);
 	c.end();
 	CHECK(find_b(c, 7) && find_b(c, 7)->team == 1, "mirage keeps the owner it was seen with");
+	// Capturable is mirrored too (Fogging.js componentsToMirage): the inspector shows these.
+	FogMirages cp;
+	Grid4 g3;
+	g3.fill(Simulation::FOW_VISIBLE);
+	FoggedBuilding held = bld(8, 2, 1, 1, 1000.0f);
+	held.capture_points = 2500.0f;
+	held.max_capture_points = 2500.0f;
+	cp.begin(g3.c, 4, 8.0f);
+	cp.add_building(held, false);
+	cp.end();
+	g3.set(2, 1, Simulation::FOW_EXPLORED);
+	held.capture_points = 400.0f;
+	cp.begin(g3.c, 4, 8.0f);
+	cp.add_building(held, false);
+	cp.end();
+	CHECK(find_b(cp, 8) && find_b(cp, 8)->capture_points == 2500.0f && find_b(cp, 8)->max_capture_points == 2500.0f,
+			"mirage keeps the capture points it was seen with");
 	c.begin(g2.c, 4, 8.0f);
 	c.add_building(bld(7, 1, 1, 0, 1000.0f), true);
 	c.end();
