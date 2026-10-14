@@ -865,7 +865,7 @@ inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
 // GarrisonHolder LoadingRange of a structure, 0 A.D. metres to RTS0 (x0.28), counted from
 // its obstruction: 1 m for civic centres (military colonies, wagon encampments and the
 // crannog too), houses and apartments, and Han's ministry, farmstead and storehouse;
-// 6 m for the fortress and the Roman army camp; 4 m for the corral; 2 m elsewhere
+// 6 m for the fortress (and Han's fortress_old) and the Roman army camp; 4 m for the corral; 2 m elsewhere
 // (template_structure_*.xml and the civ templates of 0.28).
 inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
 	switch (type) {
@@ -875,7 +875,7 @@ inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
 			return 1.0f * 0.28f;
 		case BLD_FARMSTEAD: case BLD_STOREHOUSE:
 			return (civ == CIV_HAN ? 1.0f : 2.0f) * 0.28f;
-		case BLD_FORTRESS: case BLD_ARMY_CAMP:
+		case BLD_FORTRESS: case BLD_FORTRESS_OLD: case BLD_ARMY_CAMP:
 			return 6.0f * 0.28f;
 		case BLD_CORRAL:
 			return 4.0f * 0.28f;
@@ -1933,7 +1933,7 @@ inline constexpr float WALL_TURRET_VISION = 20.0f * 0.28f;
 // han/farmstead seat a Minister with the usual 0.1.
 inline float building_eject_health(uint8_t type, uint8_t civ) {
 	switch (type) {
-		case BLD_FORTRESS: return 0.075f;
+		case BLD_FORTRESS: case BLD_FORTRESS_OLD: return 0.075f; // han/fortress_old: a fortress child
 		case BLD_CORRAL: return 0.5f;
 		case BLD_MINISTRY: return 0.0f;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 0.1f : 0.0f;
