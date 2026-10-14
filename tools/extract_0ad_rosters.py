@@ -265,7 +265,12 @@ UNIQUE_BUILDINGS = [
     ("BLD_KUSH_SHRINE", ["shrine"], "kush_shrine", "temple"),
     ("BLD_FORTRESS_OLD", ["fortress_old"], "han_fortress_old", "fortress"),
     ("BLD_LAOZI_GATE", ["laozigate"], "laozi_gate", "temple"),
+    # The Ptolemaic Temple of Isis (ptol/temple_2, City phase, one per player): the
+    # Ptolemaic heroes train there only. Drawn with the civ's temple until its actor is ported.
+    ("BLD_TEMPLE_ISIS", ["temple_2"], "temple", "temple"),
 ]
+# Numbered stems that are a building of their own rather than an upgrade's _N form.
+KEEP_NUMBERED_STEMS = {"temple_2"}
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
 # WallSet pieces keep one cell like the stone wall's: their turned footprint is their length
@@ -774,6 +779,8 @@ def unit_upgrades(loader, name, civ):
 # ---------------------------------------------------------------------------
 
 def structure_kind(stem):
+    if stem in KEEP_NUMBERED_STEMS:
+        return stem
     stem = re.sub(r"_\d+$", "", stem)
     return stem
 
