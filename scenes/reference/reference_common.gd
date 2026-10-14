@@ -119,10 +119,41 @@ static func rich_text() -> RichTextLabel:
 	rt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return rt
 
+## 0.28 CivSelectDropdown: civs sorted by name (sortNameIgnoreCase), item ids are civ ids.
 static func civ_select(parent_handler: Callable) -> Control:
 	var sel = RtsoSafeSelect.new()
 	sel.custom_minimum_size = Vector2(240, 30)
-	for c in ref().get_civs():
+	var civs: Array = ref().get_civs()
+	civs.sort_custom(func(a, b): return str(a["name"]).nocasecmp_to(str(b["name"])) < 0)
+	for c in civs:
 		sel.add_item(c["name"], int(c["id"]))
 	sel.item_selected.connect(parent_handler)
 	return sel
+
+## CivSelectDropdown.prototype.Caption, the heading left of the dropdown.
+static func civ_heading() -> Label:
+	var l := Label.new()
+	l.text = "Civilization:"
+	return l
+
+## Cost and time under the civ's own bonuses (0.28 TemplateParser applies the civ's
+## auto-researched techs and player auras): kind "unit" or "structure", or "tech"
+## researched at the structure type `researcher` (Researcher/TechCostMultiplier).
+static func civ_costed(d: Dictionary, kind: String, civ: int, researcher: int = -1) -> Dictionary:
+	var c: Dictionary = text().get("civs", {}).get(civ_code(civ), {})
+	var f = null
+	match kind:
+		"unit": f = c.get("cost_mult", {}).get(str(d.get("id", "")))
+		"structure": f = c.get("cost_mult", {}).get("s%d" % int(d.get("type", -1)))
+		"tech": f = c.get("tech_cost_mult", {}).get(str(researcher))
+	if f == null or typeof(d.get("cost")) != TYPE_DICTIONARY:
+		return d
+	var out := d.duplicate()
+	var cost: Dictionary = d["cost"].duplicate()
+	for i in 4:
+		var r: String = ["food", "wood", "stone", "metal"][i]
+		cost[r] = roundi(float(cost.get(r, 0)) * float(f[i]))
+	out["cost"] = cost
+	if d.has("time"):
+		out["time"] = float(d["time"]) * float(f[4])
+	return out

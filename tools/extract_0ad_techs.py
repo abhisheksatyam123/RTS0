@@ -713,6 +713,19 @@ def main() -> int:
     w("\t}")
     w("}")
     w("")
+    # globalscripts/Technologies.js DeriveTechnologyRequirements: "supersedes" is one
+    # more required technology (Researcher.js shows a chain's next step only).
+    w("// The technology `tech_id` supersedes (0 A.D. \"supersedes\", a required technology), or TECH_NONE.")
+    w("inline uint8_t tech_supersedes(uint8_t tech_id) {")
+    w("\tswitch (tech_id) {")
+    for name in order:
+        sup = (load(name) or {}).get("supersedes")
+        if sup in ids and not sup.startswith("phase_"):
+            w(f"\t\tcase {ids[name]}: return {ids[sup]};")
+    w("\t\tdefault: return TECH_NONE;")
+    w("\t}")
+    w("}")
+    w("")
     w("#endif // RTSO_TECH_DATA_H")
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")

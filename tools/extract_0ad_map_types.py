@@ -8,7 +8,8 @@ LockTeams, RevealMap, ExploreMap, PlayerData civs, teams and resources ...).
 This writes data/map_types.json: for every ported map in data/maps/ its
 type ("skirmish" or "scenario"), its Keywords (for the Map Filter), and for a
 scenario the settings Game Setup shows locked. Random maps (RTS0's RMS list
-in scenes/menu/gamesetup.gd) get their keywords from maps/random/<script>.json,
+in scenes/menu/gamesetup.gd) get their keywords and their Player Placement
+patterns (PlayerPlacements, in the map's order) from maps/random/<script>.json,
 and their biomes from its SupportedBiomes (gui/gamesetup's Biome dropdown
 lists only those, and is hidden on maps without any): each entry is a 0.28
 rmbiome id ("generic/aegean"), with a folder ("generic/") expanded to every
@@ -93,14 +94,17 @@ def build(public):
             print("no 0.28 map for %s" % mid, file=sys.stderr)
             continue
         maps[mid] = entry
-    random, biomes = {}, {}
+    random, placements, biomes = {}, {}, {}
     for p in sorted(glob.glob(os.path.join(public, "maps/random/*.json"))):
         s = json.load(open(p, encoding="utf-8")).get("settings", {})
-        random[os.path.basename(p)[:-5]] = s.get("Keywords", [])
+        name = os.path.basename(p)[:-5]
+        random[name] = s.get("Keywords", [])
+        if s.get("PlayerPlacements"):
+            placements[name] = s["PlayerPlacements"]
         supported = s.get("SupportedBiomes", [])
         if supported:
-            biomes[os.path.basename(p)[:-5]] = expand_biomes(public, supported)
-    return {"maps": maps, "random_keywords": random, "random_biomes": biomes}
+            biomes[name] = expand_biomes(public, supported)
+    return {"maps": maps, "random_keywords": random, "player_placements": placements, "random_biomes": biomes}
 
 
 def expand_biomes(public, supported):

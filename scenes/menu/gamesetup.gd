@@ -125,15 +125,30 @@ const RMS_MAPS := [
 	["random_migration", "Migration (RMS)", "Random", 8, 128, "temperate", "Home islands on the outside, a rich continent in the middle; ships needed to reach it. Supports 2-8 players."],
 	["random_ngorongoro", "Ngorongoro (RMS)", "Random", 8, 128, "savanna", "Savanna lowlands round the crater's highlands and a central Eden rich in metal, from a real elevation map. Supports 2-8 players."],
 	["random_river_archipelago", "River Archipelago (RMS)", "Random", 8, 128, "india", "Narrow tropical strips of land split by waterways with few shallow bridges; Mauryan tribesmen hold the outermost islands. Supports 2-8 players."],
+	["random_continent", "Continent (RMS)", "Random", 8, 128, "temperate", "All players starts on a continent surrounded by water. Supports 2-8 players."],
+	["random_foothills", "Foothills (RMS)", "Random", 8, 128, "temperate", "A land map with rolling hills and no obstructions. Supports 2-8 players."],
+	["random_coast_range", "Coast Range (RMS)", "Random", 8, 128, "temperate", "All players starts on a continent surrounded by water. This map is designed and balanced for 2 teams only. Supports 2-8 players."],
 ]
 
-# 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
-# 0 A.D. population_capacities.json (default 300), then world_population_capacities.json:
-# a negative value is a World Population shared by the players still in the game.
-const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"],
-	[-100, "World 100"], [-200, "World 200"], [-300, "World 300"], [-400, "World 400"], [-500, "World 500"],
-	[-600, "World 600"], [-700, "World 700"], [-800, "World 800"], [-900, "World 900"], [-1000, "World 1000"],
-	[-1100, "World 1100"], [-1200, "World 1200"], [-1600, "World 1600"], [-2000, "World 2000"], [-2400, "World 2400"]]
+# 0 A.D. 0.28 Population Cap Type and its caps (simulation/data/settings/
+# population_capacities.json): [name, title, tooltip, cap title, cap tooltip,
+# caps, default cap]; 10000 reads "Unlimited". RTS0's pop_cap setting is the
+# cap per player (0 = unlimited), its negative a World Population, and with
+# team_pop the cap a Team Population (Simulation::set_team_pop_cap).
+# Ceasefire lengths in minutes follow.
+const POP_CAP_TYPES := [
+	["player", "Player Population", "Locked population cap for all players.", "Player Population Cap",
+		"Choose the player population cap.", [50, 100, 150, 200, 250, 300, 10000], 300],
+	["team", "Team Population", "Distributes a team's total population cap evenly over all its living members. Enables the setting 'Locked teams'.",
+		"Team Population Cap", "Choose the team population cap.",
+		[100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 700, 800, 1000, 10000], 400],
+	["world", "World Population", "Distributes the total population cap evenly over all living players.", "World Population Cap",
+		"Choose the world population cap.", [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1600, 2000, 2400, 10000], 600],
+]
+const POP_TYPE_PLAYER := 0
+const POP_TYPE_TEAM := 1
+const POP_TYPE_WORLD := 2
+const POP_UNLIMITED := 10000
 const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
 # 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
 const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
@@ -141,14 +156,25 @@ const RELIC_COUNTS := [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
 # 0 A.D. map trigger options: Flood's WaterLevel and Extinct Volcano's SeaLevelRiseTime.
 const WATER_LEVELS := ["Rising water", "Shallow water", "Deep water"]
 const SEA_RISE_TIMES := [0, 5, 10, 15, 20, 25, 30, 40, 50, 60]
-# 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js), index ==
-# rtso::TeamPlacement; offered by the maps whose JSON lists TeamPlacements.
-const TEAM_PLACEMENTS := [["Random", "Select a random team placement pattern when starting the game."],
-	["Circle", "Allied players are grouped and placed with opposing players on one circle spanning the map."],
-	["Line", "Allied players are placed in a linear pattern."],
-	["Random Group", "Allied players are grouped, but otherwise placed randomly on the map."],
-	["Stronghold", "Allied players are grouped in one random place of the map."]]
-const TEAM_PLACEMENT_MAPS := ["random_ambush", "random_frontier"]
+# 0 A.D. 0.28 Player Placement (simulation/data/settings/player_placements.json,
+# gamesetup PlayerPlacement.js), index == rtso::TeamPlacement: [0.28 id, name,
+# description]. A random map offers the patterns its JSON lists in
+# PlayerPlacements (data/map_types.json "player_placements"), in that order,
+# after Random.
+const TEAM_PLACEMENTS := [["random", "Random", "Select a random player placement pattern when starting the game."],
+	["circle", "Circle", "Players are placed in a circle spanning the map."],
+	["groupedLines", "Grouped Lines", "Allied players are placed along opposing radial lines."],
+	["randomGroup", "Random Group", "Allied players are grouped, but otherwise placed randomly on the map."],
+	["stronghold", "Stronghold", "Allied players are tightly grouped together."],
+	["river", "River", "Allied players are placed on two parallel lines."]]
+# RTS0's own random maps whose script name matches a 0.28 map's (Archipelago
+# is random_archipelago_0ad): they take none of its settings.
+const OWN_RMS_MAPS := ["random_archipelago"]
+# The sim places players by pattern on every map that lists one, River (5)
+# included (#429); off, only Ambush and Frontier offer it, without River.
+const PLACEMENT_EVERY_MAP := true
+const PLACEMENT_MAPS_BEFORE := ["random_ambush", "random_frontier"]
+const TEAM_PLACEMENT_TOOLTIP := "Select one of the starting position patterns of this map."
 # 0 A.D. Landscape (unknown.json Landscapes, gamesettings Landscape.js): [name,
 # value, description]; value is RmsGenerator::UNKNOWN_LANDSCAPE_* (3 + landscape).
 const LANDSCAPES := [["Random", 0, "Choose a random landscape."],
@@ -275,6 +301,9 @@ var _color_icons: Array = []
 var _maps: Array = []          # all map dicts
 var _filtered: Array = []      # after filter
 var _sel_map: int = 0
+# The Player Placement picked (rtso::TeamPlacement), kept while maps change.
+var _pop_type := POP_TYPE_PLAYER
+var _team_placement := 0
 var _map_type := "skirmish"
 var _map_filter_name := "default"
 var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
@@ -293,6 +322,7 @@ func _ready() -> void:
 	refresh_map_list()
 	refresh_slots()
 	_update_preview()
+	_init_net()
 
 # ---------------------------------------------------------------- maps ---
 
@@ -325,16 +355,65 @@ func _load_maps() -> void:
 		m["keywords"] = t.get("keywords", [])
 		m["settings"] = t.get("settings", {})
 	var random_kw: Dictionary = types.get("random_keywords", {})
+	var placements: Dictionary = types.get("player_placements", {})
 	for r in RMS_MAPS:
 		# 0 A.D. lists random maps by name alone: the Map Type says they are random.
 		_maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
-			"keywords": random_kw.get(rms_script(r[0]), []), "players": r[3],
+			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS or not (PLACEMENT_EVERY_MAP or r[0] in PLACEMENT_MAPS_BEFORE) else placement_values(placements.get(rms_script(r[0]), [])),
+			"players": r[3],
 			"size": r[4], "biome": r[5], "desc": r[6]})
 
 ## The 0.28 maps/random script an RTS0 random map ports ("random_archipelago_0ad" -> "archipelago").
 static func rms_script(map_id: String) -> String:
 	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
 	return "neareastern_badlands" if s == "nearestern_badlands" else s
+
+## 0.28 PlayerPlacement.render: Random, then the map's patterns; the pick stays
+## when the new map offers it, else Random.
+func _rebuild_team_placement(placements: Array) -> void:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	if slot == null or slot.get_child_count() == 0:
+		return
+	var tpl: RtsoSafeSelect = slot.get_child(0)
+	tpl.clear()
+	tpl.add_item(TEAM_PLACEMENTS[0][1], 0)
+	for v in placements:
+		tpl.add_item(TEAM_PLACEMENTS[v][1], v)
+	var i := ([0] + placements).find(_team_placement)
+	tpl.select(maxi(i, 0))
+	_update_team_placement_tooltip()
+
+func _selected_team_placement() -> int:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	if slot == null or slot.get_child_count() == 0 or not slot.visible:
+		return 0
+	var tpl: RtsoSafeSelect = slot.get_child(0)
+	return maxi(tpl.get_item_id(tpl.get_selected()), 0) if tpl.get_selected() >= 0 else 0
+
+func _on_team_placement_selected(_index: int) -> void:
+	_team_placement = _selected_team_placement()
+	_update_team_placement_tooltip()
+
+## The selected pattern's description (0.28 shows the hovered one), else the title's.
+func _update_team_placement_tooltip() -> void:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	if slot == null or slot.get_child_count() == 0:
+		return
+	var tpl: RtsoSafeSelect = slot.get_child(0)
+	var v := tpl.get_item_id(tpl.get_selected()) if tpl.get_selected() >= 0 else 0
+	tpl.tooltip_text = TEAM_PLACEMENTS[clampi(v, 0, TEAM_PLACEMENTS.size() - 1)][2]
+	var lbl := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel")
+	if lbl:
+		lbl.tooltip_text = TEAM_PLACEMENT_TOOLTIP
+
+## A map's 0.28 PlayerPlacements ids as rtso::TeamPlacement values.
+static func placement_values(ids: Array) -> Array:
+	var out := []
+	for id in ids:
+		var v := TEAM_PLACEMENTS.map(func(p): return p[0]).find(str(id))
+		if v > 0 and (v != 5 or PLACEMENT_EVERY_MAP):
+			out.append(v)
+	return out
 
 static func _map_types_data() -> Dictionary:
 	var f := FileAccess.open(MAP_TYPES_FILE, FileAccess.READ)
@@ -379,6 +458,58 @@ func _read_scenario(map_id: String) -> Dictionary:
 	pl.sort_custom(func(a, b): return int(a.get("id", 0)) < int(b.get("id", 0)))
 	d["map_players"] = pl
 	return d
+
+func _pop_type_select() -> RtsoSafeSelect:
+	return $VBox/HBox/LeftScroll/Left/PopCapTypeSlot.get_child(0)
+
+func _pop_select() -> RtsoSafeSelect:
+	return $VBox/HBox/LeftScroll/Left/PopCapSlot.get_child(0)
+
+## Selects the type and cap a pop_cap setting (and team_pop) stand for, as
+## 0.28's PopulationCapType and PopulationCap dropdowns show them.
+func _select_pop(setting: int, team: bool) -> void:
+	var type := POP_TYPE_TEAM if team and setting > 0 else (POP_TYPE_WORLD if setting < 0 else POP_TYPE_PLAYER)
+	var cap := absi(setting) if setting != 0 else POP_UNLIMITED
+	_set_pop_type(type, cap)
+
+## PopulationCapType.onSelectionChange: the new type's caps at its default.
+func _on_pop_type_selected(i: int) -> void:
+	_set_pop_type(clampi(i, 0, POP_CAP_TYPES.size() - 1), -1)
+
+func _set_pop_type(type: int, cap: int) -> void:
+	_pop_type = type
+	var t: Array = POP_CAP_TYPES[type]
+	_pop_type_select().select(type)
+	_pop_type_select().tooltip_text = tr(t[2])
+	$VBox/HBox/LeftScroll/Left/PopCapLabel.text = tr(t[3])
+	var pop := _pop_select()
+	pop.clear()
+	for v in t[5]:
+		pop.add_item(tr("Unlimited") if int(v) >= POP_UNLIMITED else str(v))
+	var at: int = t[5].find(cap)
+	pop.select(at if at >= 0 else t[5].find(t[6]))
+	pop.tooltip_text = tr(t[4])
+	_update_lock_teams_for_pop()
+
+## The selected cap as RTS0's pop_cap setting.
+func _pop_cap_setting() -> int:
+	var caps: Array = POP_CAP_TYPES[_pop_type][5]
+	var v := int(caps[clampi(_pop_select().get_selected(), 0, caps.size() - 1)])
+	match _pop_type:
+		POP_TYPE_PLAYER:
+			return 0 if v >= POP_UNLIMITED else v
+		POP_TYPE_WORLD:
+			return -v
+	return v
+
+## 0.28 LockedTeams: Team Population turns Locked teams on and keeps it on.
+func _update_lock_teams_for_pop() -> void:
+	var lock: CheckBox = $VBox/HBox/LeftScroll/Left/StartRow/LockTeams
+	if _pop_type == POP_TYPE_TEAM:
+		lock.button_pressed = true
+		lock.disabled = true
+	else:
+		lock.disabled = _is_scenario()
 
 func _make_option(slot: Control) -> RtsoSafeSelect:
 	for c in slot.get_children():
@@ -559,6 +690,7 @@ func _apply_map_locks() -> void:
 	var res: RtsoSafeSelect = left.get_node("ResSlot").get_child(0)
 	var cf: RtsoSafeSelect = left.get_node("CeasefireSlot").get_child(0)
 	pop.disabled = scen
+	_pop_type_select().disabled = scen
 	res.disabled = scen
 	cf.disabled = scen
 	# VictoryConditions.onMapChange: a scenario's list replaces the conditions (an empty
@@ -576,7 +708,8 @@ func _apply_map_locks() -> void:
 			_victory_checks[bit].disabled = true
 	if not scen:
 		pop.select(pop.get_selected())  # back from "Per Player"
-		pop.tooltip_text = ""
+		pop.tooltip_text = tr(POP_CAP_TYPES[_pop_type][4])
+		_update_lock_teams_for_pop()
 		res.select(res.get_selected())
 		if _was_scenario:
 			# The scenario's teams would leave allies without an enemy: no team, as 0 A.D. starts.
@@ -588,10 +721,7 @@ func _apply_map_locks() -> void:
 	_was_scenario = true
 	cf.select(maxi(CEASEFIRES.find(int(s.get("Ceasefire", 0))), 0))
 	var players: Array = s.get("players", [])
-	var cap := int(s.get("PopulationCap", 300))
-	for i in range(POP_CAPS.size()):
-		if int(POP_CAPS[i][0]) == cap:
-			pop.select(i)
+	_select_pop(int(s.get("PopulationCap", 300)), false)
 	# InitGame.js SetPerPlayerPopulationCaps: the map file's pop_limit per player.
 	var map_players: Array = m.get("map_players", [])
 	var per_player: Array = map_players.filter(func(p): return p.has("pop_limit"))
@@ -602,8 +732,6 @@ func _apply_map_locks() -> void:
 			if map_players[i].has("pop_limit"):
 				lines.append("Player %d: %d" % [int(map_players[i].get("id", i + 1)), int(map_players[i]["pop_limit"])])
 		pop.tooltip_text = "Population limits set by the map.\n" + "\n".join(lines)
-	else:
-		pop.tooltip_text = ""
 	res.select(maxi(START_RES_AMOUNTS.find(int(s.get("StartingResources", 300))), 0))
 	if players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("resources")):
 		res.text = "Per Player"
@@ -628,7 +756,9 @@ func _update_map_options() -> void:
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.visible = id == "random_flood"
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseLabel.visible = id == "random_extinct_volcano"
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.visible = id == "random_extinct_volcano"
-	var tp := id in TEAM_PLACEMENT_MAPS
+	var placements: Array = _selected_map().get("placements", [])
+	var tp := not placements.is_empty()
+	_rebuild_team_placement(placements)
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.visible = tp
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.visible = tp
 	var ls := id in LANDSCAPE_MAPS
@@ -752,11 +882,12 @@ func refresh_slots() -> void:
 	for i in range(n):
 		_add_slot_row(grid, i)
 	_rebuilding_slots = false
+	_apply_mp_locks()
 
 func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var row: Dictionary = _slot_rows[i]
 	var name := Label.new()
-	name.text = "P%d%s" % [i + 1, " (You)" if i == 0 and int(row["kind"]) == 0 else ""]
+	name.text = _slot_label(i, row)
 	grid.add_child(name)
 	# kind
 	var kind_slot := Control.new()
@@ -839,6 +970,7 @@ func _on_slot_civ(idx: int, slot: int) -> void:
 		return
 	var order := _civ_order()
 	_slot_rows[slot]["civ"] = int(CIVS[order[idx - 1]]["id"]) if idx >= 1 and idx <= order.size() else RANDOM_CIV
+	_net_request("civ", int(_slot_rows[slot]["civ"]))
 	_update_preview()
 
 var _civ_order_cache: Array = []
@@ -854,6 +986,7 @@ func _on_slot_team(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["team"] = idx
+	_net_request("team", idx)
 
 func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -862,6 +995,10 @@ func _on_slot_diff(idx: int, slot: int) -> void:
 
 func _on_slot_color(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
+		return
+	if _mp_role == "client":
+		# The host swaps nothing for a client: it takes a colour no one uses.
+		_net_request("color", idx)
 		return
 	var old := int(_slot_rows[slot]["color"])
 	for r in _slot_rows:
@@ -907,10 +1044,14 @@ func _build_options() -> void:
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
 	msz.select(DEFAULT_MAP_SIZE)
-	var pop := _make_option($VBox/HBox/LeftScroll/Left/PopCapSlot)
-	for p in POP_CAPS:
-		pop.add_item(p[1])
-	pop.select(5) # 0 A.D. default: 300
+	var popt := _make_option($VBox/HBox/LeftScroll/Left/PopCapTypeSlot)
+	for t in POP_CAP_TYPES:
+		popt.add_item(tr(t[1]))
+	popt.select(POP_TYPE_PLAYER)
+	popt.tooltip_text = tr("Select a population capacity type.")
+	popt.item_selected.connect(_on_pop_type_selected)
+	_make_option($VBox/HBox/LeftScroll/Left/PopCapSlot)
+	_select_pop(300, false) # 0 A.D. default: 300 per player
 	var cf := _make_option($VBox/HBox/LeftScroll/Left/CeasefireSlot)
 	for c in CEASEFIRES:
 		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
@@ -935,12 +1076,8 @@ func _build_options() -> void:
 		sr.add_item("rise at %d min" % t)
 	sr.select(SEA_RISE_TIMES.find(25))
 	var tpl := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot)
-	var tips := PackedStringArray()
-	for p in TEAM_PLACEMENTS:
-		tpl.add_item(p[0])
-		tips.append("%s: %s" % [p[0], p[1]])
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.tooltip_text = "\n".join(tips)
-	tpl.select(0)
+	tpl.item_selected.connect(_on_team_placement_selected)
+	_rebuild_team_placement([])
 	var lsc := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot)
 	var ltips := PackedStringArray()
 	for l in LANDSCAPES:
@@ -1032,7 +1169,7 @@ func _on_victory_toggled(on: bool, bit: int) -> void:
 
 ## The MatchSettings fields game setup restores, also the keys of the persisted file.
 const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man_standing", "nomad",
-	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap",
+	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap", "team_pop",
 	"ceasefire_min", "reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "water_level",
 	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
@@ -1073,7 +1210,7 @@ func page_state() -> Dictionary:
 		"nomad": $VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed,
 		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed,
 		"lock_teams": st["lock_teams"], "disable_spies": st["disable_spies"], "disable_treasures": st["disable_treasures"],
-		"pop_cap": st["pop_cap"], "ceasefire_min": st["ceasefire"], "reveal_map": st["reveal"], "explore_map": st["explore"],
+		"pop_cap": st["pop_cap"], "team_pop": st["team_pop"], "ceasefire_min": st["ceasefire"], "reveal_map": st["reveal"], "explore_map": st["explore"],
 		"ally_view": bool(st.get("ally_view", false)),
 		"wonder_min": st["wonder_min"], "relic_min": st["relic_min"], "relic_count": st["relic_count"],
 		"water_level": st["water_level"], "sea_level_rise_min": st["sea_level_rise_min"],
@@ -1093,7 +1230,8 @@ func _restore_settings() -> void:
 	var src := {}
 	for k in PERSISTED_KEYS:
 		src[k] = m.get(k)
-	var saved := load_persisted()
+	# A networked game's setup is the host's MatchSettings, never this player's saved file.
+	var saved := load_persisted() if net_main == null else {}
 	for k in saved:
 		if src.has(k) and typeof(saved[k]) in [TYPE_FLOAT, TYPE_INT, TYPE_BOOL, TYPE_STRING, TYPE_ARRAY]:
 			src[k] = saved[k]
@@ -1111,10 +1249,7 @@ func _apply_settings(ms: Dictionary) -> void:
 	$VBox/HBox/LeftScroll/Left/StartRow/LockTeams.button_pressed = bool(ms.get("lock_teams"))
 	$VBox/HBox/LeftScroll/Left/MapVisRow/DisableSpies.button_pressed = bool(ms.get("disable_spies"))
 	$VBox/HBox/LeftScroll/Left/StartRow/DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
-	var pop: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/PopCapSlot.get_child(0)
-	for i in range(POP_CAPS.size()):
-		if int(POP_CAPS[i][0]) == int(ms.get("pop_cap")):
-			pop.select(i)
+	_select_pop(int(ms.get("pop_cap")), bool(ms.get("team_pop")))
 	var cf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/CeasefireSlot.get_child(0)
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
 	$VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed = bool(ms.get("reveal_map"))
@@ -1134,8 +1269,8 @@ func _apply_settings(ms: Dictionary) -> void:
 	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
 	var si := SEA_RISE_TIMES.find(int(ms.get("sea_level_rise_min")))
 	sr.select(si if si >= 0 else SEA_RISE_TIMES.find(25))
-	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
-	tpl.select(clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1))
+	_team_placement = clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1)
+	_rebuild_team_placement(_selected_map().get("placements", []))
 	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
 	lsc.select(0)
 	for i in range(LANDSCAPES.size()):
@@ -1189,6 +1324,10 @@ func _apply_settings(ms: Dictionary) -> void:
 # ---------------------------------------------------------------- start ---
 
 func _on_back_pressed() -> void:
+	if _mp_role != "none":
+		# 0 A.D. gamesetup's Back in a networked game: leave it for the lobby.
+		net_main.leave_net_game()
+		return
 	save_persisted() # GameSettingsController.onClose
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
 
@@ -1207,7 +1346,6 @@ func _collect_setup() -> Dictionary:
 	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
 	var wl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
 	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
-	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
 	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
 	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
 	var dsel: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.get_child(0)
@@ -1252,7 +1390,8 @@ func _collect_setup() -> Dictionary:
 	return {"map": m, "seed": seed, "victory": victory_code(vmask),
 		"waves": $VBox/HBox/LeftScroll/Left/Waves.button_pressed,
 		"lms": $VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed,
-		"pop_cap": int(POP_CAPS[maxi(pop.get_selected(), 0)][0]),
+		"pop_cap": _pop_cap_setting(),
+		"team_pop": _pop_type == POP_TYPE_TEAM,
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
 		"reveal": $VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed,
 		"explore": $VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed,
@@ -1262,7 +1401,7 @@ func _collect_setup() -> Dictionary:
 		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
 		"water_level": maxi(wl.get_selected(), 0),
 		"sea_level_rise_min": int(SEA_RISE_TIMES[maxi(sr.get_selected(), 0)]),
-		"team_placement": maxi(tpl.get_selected(), 0),
+		"team_placement": _selected_team_placement(),
 		"landscape": int(LANDSCAPES[maxi(lsc.get_selected(), 0)][1]),
 		# Maps without trigger difficulties play at the default, Medium.
 		"trigger_difficulty": maxi(tdf.get_selected(), 0) + 1 if str(m.get("id", "")) in TRIGGER_DIFFICULTY_MAPS else 3,
@@ -1313,9 +1452,17 @@ func _player_names(types: Array, civs: Array) -> Array:
 	return names
 
 func _on_start_pressed() -> void:
+	if _mp_role == "client":
+		return
 	var st := _collect_setup()
 	if st["map"].is_empty():
 		_show_error("No map selected.")
+		return
+	if _mp_role == "host":
+		# The host's MatchSettings is the setup; RtsoMain starts every peer
+		# once all players are ready (0.28 ReadyController).
+		_host_write_setup(true)
+		net_main._on_lobby_start_pressed()
 		return
 	if int(st["humans"]) < 1 and int(st["ai"]) < 2:
 		_show_error("Watching a game needs at least 2 AI players.")
@@ -1350,6 +1497,7 @@ func _on_start_pressed() -> void:
 	ms.waves_enabled = bool(st["waves"])
 	ms.last_man_standing = bool(st["lms"])
 	ms.pop_cap = int(st["pop_cap"])
+	ms.team_pop = bool(st["team_pop"])
 	ms.ceasefire_min = int(st["ceasefire"])
 	ms.reveal_map = bool(st["reveal"])
 	ms.explore_map = bool(st["explore"])
@@ -1399,3 +1547,267 @@ func _show_error(msg: String) -> void:
 	var err := $VBox/HBox/Right/ErrorLabel as Label
 	if err:
 		err.text = msg
+
+# ------------------------------------------------------- networked setup ---
+# 0 A.D. 0.28 gamesetup in a networked game. The host (the controller) edits
+# the page as in single player; its MatchSettings is the setup RtsoMain sends
+# to every client. A client shows the host's setup, may change only its own
+# slot's civ, team and colour (asked of the host), and presses Ready; the
+# host's Start waits until every player is ready. net_main is the RtsoMain
+# that runs the networked game, set before the page enters the tree.
+
+var net_main: Node = null
+var _mp_role := "none"           # "none", "host" or "client"
+var _net_state := {}             # net_main.get_net_setup_state()
+var _net_sent := {}              # host: the settings written last
+var _net_random_map := ""        # host: the map Random picked, kept while Random stays selected
+var _net_names_key := ""
+var _net_names: Array = []
+var _net_tick := 0.0
+var _ready_btn: Button
+var _wait_label: Label
+var _rated: CheckBox
+var _rated_was_available := false
+## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
+## StayReady); pressing moves to the next state.
+const READY_CAPTIONS := ["I'm ready", "Stay ready", "I'm not ready!"]
+const READY_TOOLTIPS := ["State that you are ready to play.", "Stay ready even when the game settings change.",
+	"State that you are not ready to play."]
+## 0.28 StartGameButton tooltips.
+const START_TOOLTIP := "Start a new game with the current settings."
+const START_WAIT_TOOLTIP := "Start a new game with the current settings (disabled until all players are ready)."
+const WAIT_TEXT := "Waiting for the host to start the game."
+const NET_SLOT_KEYS := ["slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
+
+func _init_net() -> void:
+	if net_main == null or not net_main.has_method("is_net_pregame") or not net_main.is_net_pregame():
+		return
+	_net_state = net_main.get_net_setup_state()
+	_mp_role = "host" if bool(_net_state.get("controller", false)) else "client"
+	_build_net_controls()
+	net_main.net_setup_changed.connect(_on_net_setup_changed)
+	if net_main.has_signal("net_setup_refused"):
+		net_main.net_setup_refused.connect(_show_error)
+	if _mp_role == "client":
+		_on_net_setup_changed()
+	else:
+		_host_write_setup(true)
+		refresh_slots()
+		_update_net_controls()
+
+func _build_net_controls() -> void:
+	var right := $VBox/HBox/Right
+	var start := $VBox/HBox/Right/BtnStart as Button
+	_wait_label = Label.new()
+	_wait_label.name = "NetWaitLabel"
+	_wait_label.text = WAIT_TEXT
+	_wait_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	right.add_child(_wait_label)
+	right.move_child(_wait_label, start.get_index())
+	_ready_btn = Button.new()
+	_ready_btn.name = "BtnReady"
+	_ready_btn.custom_minimum_size = Vector2(0, 48)
+	_ready_btn.pressed.connect(_on_ready_pressed)
+	right.add_child(_ready_btn)
+	right.move_child(_ready_btn, start.get_index())
+	_wait_label.visible = _mp_role == "client"
+	_ready_btn.visible = _mp_role == "client"
+	start.visible = _mp_role == "host"
+	# 0.28 Rating.js "Rated Game", next to Cheats.js, which the host sets in a
+	# networked game (off by default) unless the game is rated.
+	var cheats: CheckBox = $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats
+	cheats.button_pressed = false
+	cheats.disabled = false
+	cheats.toggled.connect(func(_on): _update_rated())
+	_rated = CheckBox.new()
+	_rated.name = "RatedGame"
+	_rated.text = "Rated Game"
+	_rated.tooltip_text = "Toggle 1v1 rated game."
+	_rated.toggled.connect(func(_on): _update_rated())
+	cheats.get_parent().add_child(_rated)
+	cheats.get_parent().move_child(_rated, cheats.get_index() + 1)
+	_update_rated()
+
+## Rating.js: a lobby game of exactly two players may be rated, and is by
+## default when it becomes one; Cheats.js: a rated game has no cheats.
+func _rated_available() -> bool:
+	return has_node("/root/MatchSettings") and str(get_node("/root/MatchSettings").net_lobby) != "" \
+		and _net_rows().size() == 2
+
+func _update_rated() -> void:
+	if _rated == null or _mp_role != "host":
+		return
+	var avail := _rated_available()
+	if avail and not _rated_was_available:
+		_rated.set_pressed_no_signal(true)
+	_rated_was_available = avail
+	_rated.visible = avail
+	var cheats: CheckBox = $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats
+	cheats.disabled = avail and _rated.button_pressed
+	if cheats.disabled:
+		cheats.set_pressed_no_signal(false)
+
+func _update_net_controls() -> void:
+	if _mp_role == "none":
+		return
+	var start := $VBox/HBox/Right/BtnStart as Button
+	if _mp_role == "host":
+		var ok := bool(_net_state.get("can_start", false))
+		start.disabled = not ok
+		start.tooltip_text = START_TOOLTIP if ok else START_WAIT_TOOLTIP
+		return
+	var ready := clampi(int(_net_state.get("ready", 0)), 0, 2)
+	_ready_btn.text = READY_CAPTIONS[ready]
+	_ready_btn.tooltip_text = READY_TOOLTIPS[ready]
+	# An observer has nothing to be ready for.
+	_ready_btn.disabled = int(_net_state.get("my_slot", -1)) < 0
+
+func _on_ready_pressed() -> void:
+	if _mp_role != "client":
+		return
+	net_main.set_net_ready((clampi(int(_net_state.get("ready", 0)), 0, 2) + 1) % 3)
+	_net_state = net_main.get_net_setup_state()
+	refresh_slots()
+	_update_net_controls()
+
+func _process(delta: float) -> void:
+	if _mp_role == "none":
+		return
+	_net_tick += delta
+	if _net_tick < 0.25:
+		return
+	_net_tick = 0.0
+	if _mp_role == "host":
+		_host_write_setup(false)
+	else:
+		_apply_mp_locks() # controls the page rebuilt since
+
+## The rows that are in the setup (Closed slots are dropped, as at Start):
+## the setup's slot k is row _net_rows()[k].
+func _net_rows() -> Array:
+	var rows: Array = []
+	var n := mini(int(_slot_count_node().value), _slot_rows.size())
+	for i in range(n):
+		if i == 0 or int(_slot_rows[i]["kind"]) != 2:
+			rows.append(i)
+	return rows
+
+## Host: the page into MatchSettings, which RtsoMain sends when it changed.
+func _host_write_setup(force: bool) -> void:
+	if _mp_role != "host" or not has_node("/root/MatchSettings"):
+		return
+	var ps := page_state()
+	var keep := _net_rows()
+	for k in NET_SLOT_KEYS:
+		var a: Array = ps[k]
+		ps[k] = keep.filter(func(i): return i < a.size()).map(func(i): return a[i])
+	if not ps["slot_types"].is_empty():
+		ps["slot_types"][0] = mini(int(ps["slot_types"][0]), 1)
+	if str(ps["map_id"]) == RANDOM_MAP_ID:
+		# Every peer must load the same map, so Random picks one at once.
+		var pool := _filtered.filter(func(x): return str(x["id"]) != RANDOM_MAP_ID)
+		if not pool.any(func(x): return str(x["id"]) == _net_random_map) and not pool.is_empty():
+			_net_random_map = str(pool[randi() % pool.size()]["id"])
+		ps["map_id"] = _net_random_map
+	ps["map_locks_players"] = _is_scenario()
+	_update_rated()
+	ps["rated"] = _rated_available() and _rated.button_pressed
+	# Cheats.js: the host's choice in a networked game, never in a rated one.
+	ps["cheats"] = $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.button_pressed and not ps["rated"]
+	if not force and ps == _net_sent:
+		return
+	_net_sent = ps.duplicate(true)
+	var ms := get_node("/root/MatchSettings")
+	for k in ps:
+		ms.set(k, ps[k])
+	var key := str(ps["slot_types"]) + str(ps["slot_civs"])
+	if key != _net_names_key:
+		_net_names_key = key
+		_net_names = _player_names(ps["slot_types"], ps["slot_civs"])
+	ms.slot_names = _net_names
+	ms.player_count = ps["slot_types"].size()
+	ms.campaign_run = ""
+	ms.campaign_level = ""
+	ms.ai_difficulty = 3
+	ms.ai_behavior = 2
+	for i in range(ps["slot_types"].size()):
+		if int(ps["slot_types"][i]) == 1:
+			ms.ai_difficulty = int(ps["slot_diffs"][i])
+			ms.ai_behavior = int(ps["slot_behs"][i])
+			break
+	net_main.push_net_setup()
+
+func _on_net_setup_changed() -> void:
+	_net_state = net_main.get_net_setup_state()
+	var ms := get_node("/root/MatchSettings")
+	if _mp_role == "client":
+		var src := {}
+		for k in PERSISTED_KEYS:
+			src[k] = ms.get(k)
+		_apply_settings(src)
+		refresh_map_list()
+		$VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.set_pressed_no_signal(bool(ms.cheats))
+		_rated.set_pressed_no_signal(bool(ms.rated))
+		_rated.visible = bool(ms.rated)
+	elif _mp_role == "host":
+		# A client's own civ, team or colour, which RtsoMain wrote into MatchSettings.
+		var rows := _net_rows()
+		var fields := {"slot_civs": "civ", "slot_teams": "team", "slot_colors": "color"}
+		for f in fields:
+			var a: Array = ms.get(f)
+			for k in range(mini(a.size(), rows.size())):
+				_slot_rows[rows[k]][fields[f]] = int(a[k])
+				if _net_sent.has(f) and k < _net_sent[f].size():
+					_net_sent[f][k] = int(a[k])
+	refresh_slots()
+	_update_preview()
+	_update_net_controls()
+
+## A client asks the host for its own slot's civ, team or colour.
+func _net_request(key: String, value: int) -> void:
+	if _mp_role == "client" and not _rebuilding_slots:
+		net_main.request_net_player_setting(key, value)
+
+## The slot's name: in a networked game, the client in it and whether it is ready.
+func _slot_label(i: int, row: Dictionary) -> String:
+	if _mp_role == "none":
+		return "P%d%s" % [i + 1, " (You)" if i == 0 and int(row["kind"]) == 0 else ""]
+	var k := _net_rows().find(i) if _mp_role == "host" else i
+	var slots: Array = _net_state.get("slots", [])
+	if k < 0 or k >= slots.size() or int(slots[k].get("client", -1)) < 0:
+		return "P%d" % (i + 1)
+	var e: Dictionary = slots[k]
+	var you := int(e["client"]) == int(_net_state.get("my_client", -2))
+	return "%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if int(e["client"]) > 0 and int(e.get("ready", 0)) > 0 else ""]
+
+## Session UI's single lock pass: a client may change only its own slot's civ,
+## team and colour (none on a map that sets them); only adds disables, after
+## the map's own locks.
+func _apply_mp_locks() -> void:
+	if _mp_role != "client":
+		return
+	var keep := {}
+	if _ready_btn:
+		keep[_ready_btn] = true
+	var k := int(_net_state.get("my_slot", -1))
+	var cells := _slots_grid().get_children().filter(func(c): return not c.is_queued_for_deletion())
+	if k >= 0 and not bool(_net_state.get("locked", false)):
+		for col in [2, 3, 6]:
+			if k * 7 + col < cells.size():
+				keep[cells[k * 7 + col]] = true
+	_lock_tree($VBox/HBox, keep)
+
+func _lock_tree(n: Node, keep: Dictionary) -> void:
+	if keep.has(n):
+		return
+	if n is BaseButton:
+		n.disabled = true
+	elif n is SpinBox:
+		n.editable = false
+	elif n is LineEdit:
+		n.editable = false
+	elif n is ItemList:
+		n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		n.focus_mode = Control.FOCUS_NONE
+	for c in n.get_children():
+		_lock_tree(c, keep)

@@ -134,6 +134,8 @@ func show_template(p_kind: String, p_id: int, p_civ: int, reset_history: bool = 
 		"unit": d = Common.ref().get_unit(id)
 		"structure": d = Common.ref().get_structure(id, civ)
 		"tech": d = Common.ref().get_tech(id, civ)
+	if kind != "tech":
+		d = Common.civ_costed(d, kind, civ)
 	_back.visible = not _history.is_empty()
 	if d.is_empty():
 		_name.text = "[b]Unknown template[/b]"

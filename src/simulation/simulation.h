@@ -163,9 +163,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 71; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 72; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
+	static constexpr uint32_t SAVE_VERSION_TRIGGER_RANGE = 72; // OnRange queries and their collections
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -849,8 +850,9 @@ public:
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
 	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
-	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
+	bool ship_garrison_allowed(size_t ship, size_t unit) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
+	float transport_loading_reach(size_t holder, size_t unit) const;
 	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
 	// this unload are in `taken`), false when there is none; without a passenger, the nearest dry ground.
 	struct SpawnSpot { float x, z, r; };
@@ -2054,6 +2056,11 @@ private:
 	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
+	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
+	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
+	int occupied_slots(const std::vector<uint32_t> &ids) const;  // GarrisonHolder.OccupiedSlots
+	bool garrison_room(const Building &b, size_t unit) const;
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
 	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
@@ -2125,7 +2132,7 @@ private:
 	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
-	bool line_crosses_impassable(float x0, float z0, float x1, float z1) const;
+	bool line_crosses_impassable(float x0, float z0, float x1, float z1, bool ship = false) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -2185,6 +2192,7 @@ private:
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
 	void gain_xp(size_t idx, float amount);
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
+	void award_structure_damage_xp(uint32_t attacker_id, const Building &b, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 			bool target_is_building, float damage, bool melee = false);
@@ -2461,6 +2469,7 @@ private:
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
 	void tick_trigger_watches();
+	void tick_trigger_range_queries();
 	void trigger_survival_init();
 	void trigger_survival_wave();
 	void trigger_gallic_fields(bool attack);

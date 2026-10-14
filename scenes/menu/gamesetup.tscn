@@ -252,7 +252,7 @@ size_flags_horizontal = 3
 layout_mode = 2
 tooltip_text = "Select one of the starting position patterns of this map."
 mouse_filter = 1
-text = "Team placement"
+text = "Player Placement"
 
 [node name="TeamPlacementSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 custom_minimum_size = Vector2(120, 32)
@@ -291,6 +291,14 @@ text = "Daytime"
 custom_minimum_size = Vector2(110, 32)
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="PopCapTypeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
+layout_mode = 2
+text = "Population Cap Type"
+
+[node name="PopCapTypeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
 
 [node name="PopCapLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2

@@ -78,6 +78,36 @@ int main() {
 		CHECK(s.units_.action_state[wi] == ACTION_IDLE && s.units_.order_kind[wi] == ORDER_NONE);
 	}
 
+	// 2b. Treasure.js Reward: the resources are added and the collected counter goes up, but
+	//     they don't count as gathered. FindNearbyTreasure goes on only to a treasure the
+	//     player has seen (CheckTargetVisible), not to one in unexplored ground.
+	{
+		fresh(s);
+		uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		uint32_t t = s.spawn_treasure(2.0f, 0.0f, TREASURE_FOOD_BARREL);
+		uint32_t hidden = s.spawn_treasure(-15.0f, 0.0f, TREASURE_FOOD_BARREL);
+		run(s, 0.5f);
+		CHECK(s.fow_state_at(-15.0f, 0.0f, 0) == Simulation::FOW_UNEXPLORED);
+		const uint32_t gathered0 = s.statistics(0).resources_gathered[RES_FOOD];
+		const uint32_t found0 = s.statistics(0).treasures_collected;
+		s.order_collect_treasure(&w, 1, t);
+		run(s, 4.0f);
+		CHECK(!s.is_treasure_id(t));
+		CHECK(s.statistics(0).treasures_collected == found0 + 1);
+		CHECK(s.statistics(0).resources_gathered[RES_FOOD] == gathered0);
+		CHECK(s.is_treasure_id(hidden) && s.units_.order_kind[s.lookup_unit(w)] == ORDER_NONE);
+		// Once a scout has seen it, the next collection goes on to it.
+		uint32_t scout = s.spawn_unit(-15.0f, 3.0f, 0, UNIT_SPEARMAN);
+		run(s, 0.5f);
+		uint32_t t2 = s.spawn_treasure(-3.0f, 0.0f, TREASURE_FOOD_BARREL);
+		(void)scout;
+		s.order_collect_treasure(&w, 1, t2);
+		run(s, 4.0f);
+		CHECK(!s.is_treasure_id(t2));
+		CHECK(s.units_.order_kind[s.lookup_unit(w)] == ORDER_COLLECT_TREASURE &&
+		      s.units_.order_target[s.lookup_unit(w)] == hidden);
+	}
+
 	// 3. Two players race for one treasure: whoever gets there first takes it, and the other's
 	//    order ends. A war dog has no TreasureCollector.
 	{
