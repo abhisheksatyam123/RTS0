@@ -117,6 +117,9 @@ const SCHEMA := [
 	["Gameplay", [
 		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],
 		["number", "gui.session.batchtrainingsize", "Batch training size", "Number of units trained per batch by default.", [1, 20]],
+		["dropdown", "gui.session.formationwalkonly", "Formation control", "Decide whether formations are enabled for all orders or only 'Walk' and 'Patrol'.",
+			[["Walk/Patrol Only", "true"], ["No override", "false"]]],
+		["boolean", "gui.session.selectformationasone", "Battalion-style formations", "Whether formations are selected as a whole."],
 	]],
 ]
 
