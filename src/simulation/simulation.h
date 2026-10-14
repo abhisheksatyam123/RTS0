@@ -2466,6 +2466,7 @@ private:
 	void occupy_turret(size_t i, Building &b);
 	void leave_turret(size_t i, const Building &b);
 	void tick_turrets();
+	void builder_stand_point(size_t i, const Building &b, float x, float z, float &tx, float &tz) const;
 	std::vector<FormationController> formations_; // in creation order
 	uint32_t next_formation_id_ = 1;
 	// Controller id per unit index, 0 outside formations: members of one formation share an
