@@ -109,7 +109,9 @@ int main(int argc, char **argv) {
 			break;
 		}
 		auto a = std::chrono::steady_clock::now();
-		s.tick(dt);
+		// One lockstep turn is TICKS_PER_TURN sim ticks of FIXED_STEP, as in the game
+		// (Petra plays on sim turns, so a single 0.2 s tick would skew it).
+		for (float left = dt; left > 1e-4f; left -= Simulation::FIXED_STEP) s.tick(Simulation::FIXED_STEP);
 		auto b = std::chrono::steady_clock::now();
 		tick_ms.push_back(std::chrono::duration<double, std::milli>(b - a).count());
 	}
