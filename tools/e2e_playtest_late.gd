@@ -65,12 +65,17 @@ func run() -> void:
 		if picks.count(id) > 1:
 			break
 	print("  picks: ", picks)
-	check(picks.slice(0, 3) == females + traders, "the civilians first, by id, the trader among them: " + str(picks.slice(0, 3)))
-	var rest := picks.slice(3, picks.size() - 1)
+	# The match's own start civilians (0.28 start entities) come in that first block too.
+	var civ_end := picks.find(traders[0]) + 1 if traders.size() > 0 else 0
+	var civs := picks.slice(0, civ_end)
+	var sorted_civs := civs.duplicate()
+	sorted_civs.sort()
+	check(civ_end >= 3 and civs == sorted_civs and females.all(func(id): return civs.has(id)), "the civilians first, by id, the trader among them: " + str(civs))
+	var rest := picks.slice(civ_end, picks.size() - 1)
 	var sorted_rest := rest.duplicate()
 	sorted_rest.sort()
 	check(rest.size() > 0 and rest == sorted_rest and not rest.any(func(id): return females.has(id) or traders.has(id)), "then the citizens by id: " + str(rest))
-	check(picks.size() > 3 and picks[-1] == females[0], "then the first civilian again")
+	check(picks.size() > 3 and picks[-1] == picks[0], "then the first civilian again")
 
 	print("2. Technology text")
 	main.debug_train_buttons(11)  # a dock

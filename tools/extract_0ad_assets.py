@@ -325,6 +325,8 @@ ASSETS = {
     "boar":             ("art/actors/fauna/boar.xml",                          "height", 1.10, None),
     "wolf":             ("art/actors/fauna/wolf.xml",                          "height", 1.00, None),
     "sheep":            ("art/actors/fauna/sheep1.xml",                        "height", 0.90, None),
+    # Gaia sheep: 0.28 gaia/fauna_sheep uses sheep3 (same mesh, no player-colour patch).
+    "sheep_gaia":       ("art/actors/fauna/sheep3.xml",                        "height", 0.90, None),
 
     # 14 BuildingTypes + common military/civ structures
     "town_center":      ("art/actors/structures/hellenes/civic_centre_new.xml","width",  6.20, (0.36, 0.62, 0.94)),
@@ -1117,6 +1119,32 @@ ZIP_PROPS = {
     "treasure_wood_pile": ("art/actors/props/special/eyecandy/wood_pile.xml", "scale", 0.5, None),
     "treasure_golden_fleece": ("art/actors/special/golden_fleece.xml", "scale", 0.5, None),
     "treasure_pegasus": ("art/actors/special/pegasus.xml", "scale", 0.5, None),
+    # Mines per random-map biome (maps/random/rmbiome stoneLarge/stoneSmall/metalLarge/metalSmall),
+    # drawn by world_view_node.cpp pick_mine_models.
+    "mine_stonemine_aegean_large": ("art/actors/geology/stonemine_aegean_large.xml", "scale", 0.25, None),
+    "mine_stonemine_aegean_small": ("art/actors/geology/stonemine_aegean_small.xml", "scale", 0.25, None),
+    "mine_metal_aegean_round": ("art/actors/geology/metal_aegean_round.xml", "scale", 0.25, None),
+    "mine_metal_aegean_small": ("art/actors/geology/metal_aegean_small.xml", "scale", 0.25, None),
+    "mine_stonemine_temperate_quarry_01": ("art/actors/geology/stonemine_temperate_quarry_01.xml", "scale", 0.25, None),
+    "mine_stonemine_granite": ("art/actors/geology/stonemine_granite.xml", "scale", 0.25, None),
+    "mine_metal_temperate_round": ("art/actors/geology/metal_temperate_round.xml", "scale", 0.25, None),
+    "mine_metal_temperate_small": ("art/actors/geology/metal_temperate_small.xml", "scale", 0.25, None),
+    "mine_metal_temperate_square": ("art/actors/geology/metal_temperate_square.xml", "scale", 0.25, None),
+    "mine_stonemine_granite_large": ("art/actors/geology/stonemine_granite_large.xml", "scale", 0.25, None),
+    "mine_metalmine_polar_round_snow": ("art/actors/geology/metalmine_polar_round_snow.xml", "scale", 0.25, None),
+    "mine_stonemine_temperate_quarry": ("art/actors/geology/stonemine_temperate_quarry.xml", "scale", 0.25, None),
+    "mine_stonemine_india_large": ("art/actors/geology/stonemine_india_large.xml", "scale", 0.25, None),
+    "mine_stonemine_india_small": ("art/actors/geology/stonemine_india_small.xml", "scale", 0.25, None),
+    "mine_metal_india_round": ("art/actors/geology/metal_india_round.xml", "scale", 0.25, None),
+    "mine_metal_india_small": ("art/actors/geology/metal_india_small.xml", "scale", 0.25, None),
+    "mine_stonemine_savanna_formations": ("art/actors/geology/stonemine_savanna_formations.xml", "scale", 0.25, None),
+    "mine_stonemine_savanna_small": ("art/actors/geology/stonemine_savanna_small.xml", "scale", 0.25, None),
+    "mine_metal_savanna_round": ("art/actors/geology/metal_savanna_round.xml", "scale", 0.25, None),
+    "mine_metal_savanna_small": ("art/actors/geology/metal_savanna_small.xml", "scale", 0.25, None),
+    "mine_stonemine_desert_quarry": ("art/actors/geology/stonemine_desert_quarry.xml", "scale", 0.25, None),
+    "mine_stonemine_desert_small": ("art/actors/geology/stonemine_desert_small.xml", "scale", 0.25, None),
+    "mine_metal_sahara_round": ("art/actors/geology/metal_sahara_round.xml", "scale", 0.25, None),
+    "mine_metal_sahara_small": ("art/actors/geology/metal_sahara_small.xml", "scale", 0.25, None),
 }
 
 TEMPLATE_BASE = {}
@@ -1741,7 +1769,7 @@ UNIT_IDS = frozenset({
     "hero", "trireme", "elephant", "ram", "siege_ram", "healer", "chariot", "war_dog",
     "bolt_shooter", "fishing_boat", "merchant_ship", "female_citizen", "carnyx",
     "worker_elephant", "archer_maiden", "camel", "scythed_chariot",
-    "deer", "boar", "wolf", "sheep", "bolt_projectile",
+    "deer", "boar", "wolf", "sheep", "sheep_gaia", "bolt_projectile",
     "arrow_projectile", "stone_projectile",
     # G7-H2 map-fauna batch (animated; statics below go to BUILDING/VEGETATION sets)
     "goat", "zebra", "chicken", "crocodile", "giraffe", "rabbit",
@@ -4402,6 +4430,9 @@ UNIT_CFG = {
     "sheep": ("sheep", {
         "Idle": "sheep_idle", "Walk": "sheep_walk", "Run": "sheep_run",
         "Death": "sheep_death"}),
+    "sheep_gaia": ("sheep", {
+        "Idle": "sheep_idle", "Walk": "sheep_walk", "Run": "sheep_run",
+        "Death": "sheep_death"}),
     # G7-H2 map-fauna (skeleton, clips). Actor XML is harvested first; these are
     # fallbacks when an actor variant declares no <animation>. Key counts verified:
     # mesh bones == skeleton bones == PSA keys (0 A.D. CSkeletonAnimDef ENSURE).
@@ -4600,6 +4631,7 @@ _KIND_WANTED_CLIPS = {
     "hawk": ("Idle", "Walk", "Run", "Attack", "Death"),
     "wolf": ("Idle", "Walk", "Run", "Attack", "Death"),
     "sheep": ("Idle", "Walk", "Run", "Death"),
+    "sheep_gaia": ("Idle", "Walk", "Run", "Death"),
 }
 
 

@@ -64,7 +64,15 @@ MODEL = {
 }
 
 
+# 0.28 actors that need their own RTS0 model although the template name maps elsewhere.
+MODEL_BY_ZIP_ACTOR = {
+    "fauna/sheep3.xml": "sheep_gaia",  # Gaia sheep: sheep1 without the player-colour patch
+}
+
+
 def model_for(stem, actor):
+    if actor in MODEL_BY_ZIP_ACTOR:
+        return MODEL_BY_ZIP_ACTOR[actor]
     if actor in MODEL_BY_ACTOR:
         return MODEL_BY_ACTOR[actor]
     key = stem[len("fauna_"):]
