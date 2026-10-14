@@ -16878,7 +16878,7 @@ void Simulation::petra_assign_repairs() {
 	for (size_t k : damaged) {
 		const Building &b = buildings_[k];
 		const bool anchor = is_civic_centre(b.type);
-		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_GATE || b.type == BLD_PALISADE;
+		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_PALISADE || b.type == BLD_SIEGE_WALL || is_gate_type(b.type);
 		const bool wonder = b.type == BLD_WONDER && has_victory(VK_WONDER);
 		const float health = b.hp / b.max_hp;
 		if (near_invaders(b) && (health > 0.5f || !(anchor || wall || wonder))) continue;
@@ -17011,7 +17011,8 @@ void Simulation::petra_staff_foundations() {
 	// is built with invaders near.
 	auto near_invaders = [&](const Building &b) {
 		const bool critical = is_civic_centre(b.type) || b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER ||
-		                      b.type == BLD_GATE || b.type == BLD_PALISADE || (b.type == BLD_WONDER && has_victory(VK_WONDER));
+		                      b.type == BLD_PALISADE || b.type == BLD_SIEGE_WALL || is_gate_type(b.type) ||
+		                      (b.type == BLD_WONDER && has_victory(VK_WONDER));
 		return !critical && petra_near_invading_army(b.x, b.z, 12000.0f / 16.0f);
 	};
 
@@ -21186,7 +21187,7 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 		}
 	if (best) return best;
 	auto conquest = [](uint8_t t) {
-		return t != BLD_WALL_SEGMENT && t != BLD_WALL_TOWER && t != BLD_PALISADE && t != BLD_GATE && t != BLD_FIELD;
+		return t != BLD_WALL_SEGMENT && t != BLD_WALL_TOWER && t != BLD_PALISADE && t != BLD_SIEGE_WALL && !is_gate_type(t) && t != BLD_FIELD;
 	};
 	for (int tier = 0; tier < 3 && !best; ++tier)
 		for (const auto &b : buildings_) {
@@ -21257,7 +21258,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	w.target_player = owner;
 	bool fortified = false;
 	for (const auto &b : buildings_)
-		if (b.team == owner && b.hp > 0.0f && (b.type == BLD_WONDER || b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_GATE ||
+		if (b.team == owner && b.hp > 0.0f && (b.type == BLD_WONDER || b.type == BLD_FORTRESS || is_defense_tower(b.type) || is_gate_type(b.type) ||
 		    (is_civic_centre(b.type) && b.hp > 800.0f))) { fortified = true; break; }
 	auto bit = building_id_to_idx_.find(id);
 	const uint8_t t = bit != building_id_to_idx_.end() ? buildings_[bit->second].type : BLD_TYPE_COUNT;
@@ -21541,11 +21542,14 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 	for (const auto &kv : drawn)
 		if (kv.second > 0) veto.insert(kv.first);
 
-	auto building_value = [&](const Building &b, bool siege_unit) {
+	// Every Gate-class holder (stone, palisade, siege wall) scores 10000 for a unit that can
+	// attack walls (canAttackClass("Wall")); no wall piece is ConquestCritical.
+	auto building_value = [&](int32_t i, const Building &b, bool siege_unit) {
 		const auto &info = building_type_info(b.type);
 		float v = (float)(info.food_cost + info.wood_cost + info.gold_cost + info.stone_cost);
-		const bool walls = b.type == BLD_WALL_SEGMENT || b.type == BLD_PALISADE || b.type == BLD_WALL_TOWER;
-		if (b.type == BLD_GATE) v += 10000.0f;
+		const bool walls = b.type == BLD_WALL_SEGMENT || b.type == BLD_PALISADE || b.type == BLD_WALL_TOWER ||
+		                   b.type == BLD_SIEGE_WALL || is_gate_type(b.type);
+		if (is_gate_type(b.type) && unit_can_target_building((size_t)i, BLD_WALL_SEGMENT)) v += 10000.0f;
 		else if (siege_unit && building_ai_info(b.type).shoots()) v += 1000.0f;
 		else if (!walls && b.type != BLD_FIELD) v += siege_unit ? 200.0f : 100.0f; // ConquestCritical
 		return v;
@@ -21563,11 +21567,11 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			if (siege_unit && b.build_progress <= 0.0f) continue;
 			const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
 			if (dx * dx + dz * dz > range2 || petra_building_land(b) != land) continue;
-			c.push_back({-building_value(b, siege_unit), bi});
+			c.push_back({-building_value(i, b, siege_unit), bi});
 		}
 		if (c.empty()) return -1;
 		std::sort(c.begin(), c.end());
-		return (int32_t)c[buildings_[c[0].second].type == BLD_GATE ? 0 : pick(c.size(), 0.2f)].second;
+		return (int32_t)c[is_gate_type(buildings_[c[0].second].type) ? 0 : pick(c.size(), 0.2f)].second;
 	};
 	auto attack_structure = [&](int32_t i, size_t bi) {
 		const uint32_t uid = units_.id[i];

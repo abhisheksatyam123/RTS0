@@ -1685,6 +1685,41 @@ static void test_attack_targets_target_player() {
 	CHECK(on_third == 0 && on_foe > 0, "an attack's units fight only the target player's units (getEnemyUnits(targetPlayer))");
 }
 
+// attackPlan.js update: a unit that can attack walls goes for a Gate-class structure first
+// (+10000), the palisade and siege wall gates as much as the stone one.
+static void test_siege_prefers_any_gate() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f;
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	const uint32_t gate = s->spawn_building_world(hx + 8.0f, hz, BLD_PALISADE_GATE, 0, 1.0f);
+	const uint32_t house = s->spawn_building_world(hx - 8.0f, hz, BLD_HOUSE, 0, 1.0f);
+	const uint32_t ram = s->spawn_unit(hx, hz + 4.0f, 1, UNIT_SIEGE_RAM, 1.0e5f);
+	s->units_.stance[s->lookup_unit(ram)] = STANCE_STAND_GROUND; // only Petra's orders move it
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = {ram};
+	plan.initial_squad_size = 1;
+	plan.target_player = 0;
+	plan.target_building_id = house;
+	plan.target_x = hx; plan.target_z = hz;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 0.0f;
+	run_ai_turns(*s, 2);
+	const int32_t r = s->lookup_unit(ram);
+	const uint32_t on = r >= 0 ? s->units_.target_building_id[r] : 0;
+	std::printf("  a ram by a palisade gate and a house goes for the %s\n", on == gate ? "gate" : on == house ? "house" : "neither");
+	CHECK(on == gate, "a palisade gate draws a wall-breaker first (Gate class +10000)");
+}
+
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
 // and leave the plan; those of a started attack are held back.
 static void test_mustering_units_defend() {
@@ -4247,6 +4282,7 @@ int main(int argc, char **argv) {
 	RUN(test_entity_limit_placement);
 	RUN(test_army_answers_attackers);
 	RUN(test_attack_targets_target_player);
+	RUN(test_siege_prefers_any_gate);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_relic_capture);
