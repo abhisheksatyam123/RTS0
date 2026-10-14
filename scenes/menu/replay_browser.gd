@@ -25,8 +25,8 @@ const INCOMPATIBLE := Color8(96, 96, 96)
 const COLUMNS := [["months", "Date / Time", 12], ["players", "Players", 44], ["mapName", "Map Name", 14],
 	["mapSize", "Size", 10], ["popCapacity", "Population", 10], ["duration", "Duration", 10]]
 ## g_DurationFilterIntervals, in minutes (-1: open).
-## PopulationCapacities' types in order (the population sort's secondary key);
-## RTS0 has no Team Population. Caps of 10000 or more read "Unlimited".
+## PopulationCapacities' types in order (the population sort's secondary key).
+## Caps of 10000 or more read "Unlimited".
 const POP_TYPES := ["player", "team", "world"]
 const UNLIMITED_POP := 10000
 const DURATIONS := [[-1, -1], [-1, 15], [15, 30], [30, 45], [45, 60], [60, 90], [90, 120], [120, -1]]
@@ -112,11 +112,19 @@ static func _attribs(game_start: String) -> Dictionary:
 static func map_info(map_id: String) -> Dictionary:
 	if _map_info_cache.has(map_id):
 		return _map_info_cache[map_id]
-	var info := {"desc": "", "size": 0, "type": "Scenario"}
+	var info := {"desc": "", "size": 0, "type": "Random"}
+	var random := false
 	for r in SetupPage.RMS_MAPS:
 		if r[0] == map_id:
 			info = {"desc": str(r[6]), "size": 0, "type": "Random"}
-	if info["type"] == "Scenario":
+			random = true
+	if not random:
+		# Map Type's title (Skirmish or Scenario) from the map's map_types.json entry.
+		var type := str(SetupPage._map_types_data().get("maps", {}).get(map_id, {}).get("type", "skirmish"))
+		info["type"] = type.capitalize()
+		for t in SetupPage.MAP_TYPES:
+			if t[0] == type:
+				info["type"] = t[1]
 		var path := "res://data/maps/%s.json" % map_id
 		if FileAccess.file_exists(path):
 			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
@@ -137,10 +145,12 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 	# PopulationCap and PopulationCapType (replay_menu.js sanitizeInitAttributes):
 	# settings.pop_cap is negative for a World Population, 0 for unlimited.
 	var setting_pop := int(settings.get("pop_cap", 300))
+	# A Team Population is a positive pop_cap with team_pop set (teampop= in multiplayer).
 	var world := int(attribs.get("worldpop", -setting_pop if setting_pop < 0 else 0))
+	var team := int(attribs.get("teampop", setting_pop if bool(settings.get("team_pop", false)) and setting_pop > 0 else 0))
 	var pop := int(attribs.get("popcap", maxi(setting_pop, 0)))
-	var pop_type := "world" if world > 0 else "player"
-	pop = world if world > 0 else (UNLIMITED_POP if pop <= 0 else pop)
+	var pop_type := "world" if world > 0 else "team" if team > 0 else "player"
+	pop = world if world > 0 else team if team > 0 else (UNLIMITED_POP if pop <= 0 else pop)
 	var victory := int(attribs.get("victory", settings.get("victory", 0)))
 	var timestamp := int(meta.get("timestamp", 0))
 	var local := timestamp + int(Time.get_time_zone_from_system().get("bias", 0)) * 60

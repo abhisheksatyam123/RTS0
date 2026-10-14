@@ -636,6 +636,10 @@ private:
 	uint32_t replay_written_turn_ = 0;
 	Label *replay_label_ = nullptr;
 	OptionButton *replay_view_picker_ = nullptr;
+	Label *replay_observer_label_ = nullptr; // PlayerViewControl's "Observer Mode"
+	bool replay_view_gaia_ = false;          // Gaia picked (its view is the observer's)
+	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
+	static constexpr int kReplayViewGaiaId = 100;
 	OptionButton *replay_speed_picker_ = nullptr;
 	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
