@@ -79,6 +79,106 @@ def text_of(t, path):
     return " ".join(v.split()) if v else ""
 
 
+def _n(x):
+    """A template number as JSON keeps it short: 2 not 2.0, 0.35 not 0.35000000001."""
+    x = round(float(x), 4)
+    return int(x) if x == int(x) else x
+
+
+def _rates(node):
+    return {k: _n(c.text or 0) for k, c in node.children.items() if c.text and float(c.text)} if node else {}
+
+
+def effects(node):
+    """Capture, Damage and ApplyStatus of an attack or its splash (Templates.js getAttackEffects)."""
+    e = {}
+    if node.get("Capture") is not None:
+        e["capture"] = _n(node.num("Capture"))
+    if node.get("Damage") is not None:
+        e["damage"] = {k: _n(c.text or 0) for k, c in node.get("Damage").children.items()}
+    if node.get("ApplyStatus") is not None:
+        st = {}
+        for code, c in node.get("ApplyStatus").children.items():
+            x = {"name": STATUS_NAMES.get(code, (code, ""))[0], "tooltip": STATUS_NAMES.get(code, (code, ""))[1]}
+            if c.get("Damage") is not None:
+                x["damage"] = {k: _n(v.text or 0) for k, v in c.get("Damage").children.items()}
+            for key, path in (("interval", "Interval"), ("duration", "Duration")):
+                if c.num(path):
+                    x[key] = _n(c.num(path) / 1000.0)
+            x["stackability"] = c.value("Stackability", "")
+            st[code] = x
+        e["status"] = st
+    return e
+
+
+# data/status_effects/*.json statusName and applierTooltip, by code (collect() fills it).
+STATUS_NAMES = {}
+
+
+def viewer(t):
+    """What gui/common/tooltips.js shows of a template that RTS0's tables don't keep:
+    attack names, ranges, splash and status effects, speed, garrison size, turrets,
+    dropsite, supply, trickle, upkeep, treasure, gather rates, capture and status
+    resistance and the rank (GetTemplateDataHelper and TemplateParser.getEntity)."""
+    v = {}
+    atk = t.get("Attack")
+    if atk is not None:
+        attacks = []
+        for kind, node in atk.children.items():
+            if kind == "Slaughter":
+                continue  # used to kill animals, never shown
+            a = {"type": kind, "name": node.value("AttackName", kind),
+                 "min_range": _n(node.num("MinRange")), "max_range": _n(node.num("MaxRange")),
+                 "y_origin": _n(node.num("Origin/Y")), "repeat_time": _n(node.num("RepeatTime") / 1000.0)}
+            a.update(effects(node))
+            sp = node.get("Splash")
+            if sp is not None:
+                a["splash"] = dict(effects(sp), shape=sp.value("Shape", ""),
+                                   friendly_fire=sp.value("FriendlyFire", "true") != "false")
+            attacks.append(a)
+        v["attacks"] = attacks
+    if t.get("Heal") is not None:
+        v["heal"] = {"health": _n(t.num("Heal/Health")), "range": _n(t.num("Heal/Range")),
+                     "interval": _n(t.num("Heal/Interval") / 1000.0)}
+    if t.get("GarrisonHolder") is not None:
+        v["garrison"] = {"capacity": _n(t.num("GarrisonHolder/Max")), "buff_heal": _n(t.num("GarrisonHolder/BuffHeal"))}
+    if t.get("Garrisonable") is not None:
+        v["garrison_size"] = _n(t.num("Garrisonable/Size", 1))
+    if t.get("TurretHolder/TurretPoints") is not None:
+        v["turrets"] = len(t.get("TurretHolder/TurretPoints").children)
+    if t.get("UnitMotion") is not None:
+        walk = t.num("UnitMotion/WalkSpeed")
+        v["speed"] = {"walk": _n(walk), "run": _n(walk * t.num("UnitMotion/RunMultiplier", 1)),
+                      "acceleration": _n(t.num("UnitMotion/Acceleration"))}
+    rg = t.get("ResourceGatherer/Rates")
+    if rg is not None:
+        base = t.num("ResourceGatherer/BaseSpeed", 1)
+        v["gather"] = {k: _n(float(c.text) * base) for k, c in rg.children.items()
+                       if c.text and float(c.text) > 0 and not k.endswith(".ruins")}
+    if t.tokens("ResourceDropsite/Types"):
+        v["dropsite"] = t.tokens("ResourceDropsite/Types")
+    if t.get("ResourceSupply") is not None:
+        mx = t.value("ResourceSupply/Max", "")
+        v["supply"] = {"type": t.value("ResourceSupply/Type", "").split(".")[0],
+                       "amount": "Infinity" if mx == "Infinity" else _n(t.num("ResourceSupply/Max"))}
+    for key, path in (("trickle", "ResourceTrickle"), ("upkeep", "Upkeep")):
+        rates = _rates(t.get(path + "/Rates"))
+        if rates:
+            v[key] = {"interval": _n(t.num(path + "/Interval") / 1000.0), "rates": rates}
+    treasure = _rates(t.get("Treasure/Resources"))
+    if treasure:
+        v["treasure"] = treasure
+    res = t.get("Resistance/Entity")
+    if res is not None and res.get("Capture") is not None:
+        v["capture_resistance"] = _n(res.num("Capture"))
+    if res is not None and res.get("ApplyStatus") is not None:
+        v["status_resistance"] = {k: {"block": _n(c.num("BlockChance")), "duration": _n(c.num("Duration", 1))}
+                                  for k, c in res.get("ApplyStatus").children.items()}
+    if t.value("Identity/Rank"):
+        v["rank"] = t.value("Identity/Rank")
+    return v
+
+
 def identity(t):
     return {
         "generic_name": text_of(t, "Identity/GenericName"),
@@ -131,6 +231,12 @@ def tech_text(path):
 def collect(zad, prev=None):
     sim_root = sim_root_of(zad)
     loader = TemplateLoader(sim_root)
+    sdir = os.path.join(sim_root, "data", "status_effects")
+    for fn in sorted(os.listdir(sdir)) if os.path.isdir(sdir) else []:
+        if fn.endswith(".json"):
+            with open(os.path.join(sdir, fn), encoding="utf-8") as f:
+                j = json.load(f)
+            STATUS_NAMES[j["code"]] = (j.get("statusName", j["code"]), j.get("applierTooltip", ""))
     prev_loader = TemplateLoader(sim_root_of(prev)) if prev else None
     with open(ROSTERS, encoding="utf-8") as f:
         rosters = json.load(f)
@@ -145,6 +251,7 @@ def collect(zad, prev=None):
         t = ld.load(name)
         d = identity(t)
         d["builds"] = build_list(ld, t, r["civ"])
+        d["viewer"] = viewer(t)
         units[r["id"]] = d
     structures = {}
     for civ in CIVS:
@@ -153,8 +260,10 @@ def collect(zad, prev=None):
             name = structure_template(loader, civ, enum)
             if name is None:
                 continue
-            d = identity(loader.load(name))
+            t = loader.load(name)
+            d = identity(t)
             d["template"] = name
+            d["viewer"] = viewer(t)
             rows[str(i)] = d
         structures[civ] = rows
     techs = {}

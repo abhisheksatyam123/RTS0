@@ -99,7 +99,9 @@ def mount_kind(actor, kind):
         return "chariot"
     if "camel" in base:
         return "camel"
-    if base.endswith("_m.xml") or "cavalry" in base:
+    # "_m" marks a mounted actor, except 0.28's mercenary infantry
+    # (carthaginians/infantry_spearman_b_m.xml, the Italic spearman).
+    if (base.endswith("_m.xml") and not base.startswith("infantry_")) or "cavalry" in base:
         return "cavalry"
     return kind
 
