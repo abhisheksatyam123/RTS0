@@ -2998,7 +2998,8 @@ void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo 
 	const TechMods::Template *tm = tmpl < CIV_UNIT_TEMPLATE_COUNT ? &tech_mods(pid).tmpl[tmpl] : nullptr;
 	for (int r = 0; r < RES_COUNT; ++r)
 		out[r] = std::round(std::max(0.0f, out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
-		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f)));
+		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f) +
+		                    civ_team_bonus_cost_add(civ, allies, (int8_t)r, tmpl)));
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
@@ -25999,10 +26000,9 @@ void Simulation::update_fauna_los() {
 
 float Simulation::building_vision_range(const Building &b) const {
 	if (b.build_progress < 1.0f) return 0.0f;
-	float bvr = 18.0f; // default building vision
-	if (is_defense_tower(b.type) || b.type == BLD_FORTRESS) bvr = 24.0f;
-	if (b.type == BLD_DOCK) bvr = 28.0f;
-	if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
+	// 0 A.D. Vision/Range of the structure's template (vision_data.h): 90 m for a Civic Centre,
+	// 20 m for a house, 4 m for walls, none for fields.
+	float bvr = structure_vision_range(b.type);
 	if (b.team < MAX_PLAYERS) { // Carrier Pigeons, Arrow Shooters: multiplied, then added metres x0.28
 		const TechMods &m = tech_mods(b.team);
 		bvr = bvr * m.bld_vision[b.type] + m.bld_vision_add[b.type] * 0.28f;
