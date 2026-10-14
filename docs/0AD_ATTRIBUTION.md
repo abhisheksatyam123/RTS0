@@ -26,6 +26,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/simulation/grid_nav.h` | `Grid.h`, `HierarchicalPathfinder.*`, `Pathfinding.h` | Port |
 | `src/simulation/grid_nav.h` (`walk_line`, `line_clear`), `simulation.cpp` (`line_crosses_impassable`) | `source/simulation2/helpers/Pathfinding.cpp` (`CheckLineMovement`: the navcells a line passes through, and leaving impassable start cells) | Port |
 | `src/simulation/simulation.cpp` (`distribute_around`, `cmd_move_individual`) | `source/simulation2/components/CCmpPathfinder.cpp` (`DistributeAround`), `simulation/helpers/Commands.js` ("walk", "attack-walk", "patrol") | Port |
+| `src/simulation/simulation.cpp` (`mine_footprint`, `append_mine_obstacles`, `gather_in_reach`), `sim_types.h` (`MINE_GATHER_REACH`) | `simulation/templates/template_gaia.xml`, `template_gaia_ore*.xml`, `template_gaia_rock*.xml`, `gaia/rock/temperate_large_02.xml`, `template_gaia_ruins.xml` (Obstruction), `template_unit.xml` (ResourceGatherer MaxDistance) | Port (values) |
 | `src/simulation/grid_nav.h` (`LAND_MAX_TERRAIN_SLOPE`, `SHORE_MAX_TERRAIN_SLOPE`) | `mod/simulation/data/pathfinder.xml` (MaxTerrainSlope of default, large, building-land, building-shore) | Port (constants) |
 | `src/simulation/petra_ai.h`, `simulation.*` | `simulation/ai/petra/*.js`, `simulation/components/UnitAI.js` and other components | Port / native rewrite of game logic |
 | `PetraConfig::gather_rate`/`build_time`, `ai_gather_mult`/`ai_time_mult` | `simulation/helpers/InitGame.js` ("AI Bonus" difficulty modifiers) | Port |
