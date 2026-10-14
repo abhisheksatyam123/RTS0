@@ -436,6 +436,10 @@ public:
 	std::vector<std::pair<int, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	void notify_setup_joins(uint8_t before, uint8_t after);
+	// gui.session.formationwalkonly: this order takes its units out of their formations.
+	bool order_disbands_formation(uint8_t cmd_type) const;
+	// gui.session.selectformationasone: the unit and the rest of its formation.
+	std::vector<int32_t> formation_mates(int32_t uid) const;
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
