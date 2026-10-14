@@ -1682,7 +1682,7 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 			int nth = (int)parameter.to_int();
 			for (int t = 1; t < rtso::TECH_COUNT && nth > 0; ++t) {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (ti.researcher != btype || !(ti.civ_mask & rtso::civ_bit(sim->player_civ(me)))) continue;
+				if (!rtso::building_researches_tech((uint8_t)btype, (uint8_t)t, sim->player_civ(me)) || !(ti.civ_mask & rtso::civ_bit(sim->player_civ(me)))) continue;
 				if (--nth == 0) extra = (uint32_t)t;
 			}
 		} else {
