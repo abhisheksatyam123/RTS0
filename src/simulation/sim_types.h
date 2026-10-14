@@ -1825,10 +1825,6 @@ inline constexpr int SIEGE_TOWER_GARRISON = 20;
 inline constexpr int SIEGE_RAM_GARRISON = 10;
 inline constexpr int SIEGE_TOWER_MAX_ARROWS = 10;
 inline constexpr float SIEGE_EJECT_HEALTH = 0.1f;
-inline bool siege_garrison_allowed(uint8_t unit_type) {
-	return (unit_tech_classes(unit_type) & (TC_INFANTRY | TC_CIVILIAN)) != 0;
-}
-
 inline TechClasses building_tech_classes(uint8_t type) {
 	const TechClasses c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
