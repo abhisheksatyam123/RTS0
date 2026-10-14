@@ -443,6 +443,8 @@ static void test_transport() {
 	s.order_disembark_all(ship3);
 	const int32_t iar = idx(s, archer);
 	CHECK(!aboard(s, ship3, archer) && s.units().alive[iar] && s.get_terrain_height(s.units().pos_x[iar], s.units().pos_z[iar]) > 0.15f);
+	// ... its class clearance off deep water (CheckUnitPlacement's expanded grid).
+	CHECK(!s.near_deep_water(s.units().pos_x[iar], s.units().pos_z[iar], s.unit_clearance_at((size_t)iar)));
 	// Order.PickupUnit: a walker who can reach the ship from where it lies is waited for (LOADING).
 	{
 		const float sx = s.units().pos_x[idx(s, ship3)], sz = s.units().pos_z[idx(s, ship3)];
@@ -546,6 +548,34 @@ static void test_no_wading() {
 	run(s, 10.0f);
 	std::printf("  the ship came for the boarder: %s\n", aboard(s, ship, boarder) ? "aboard" : "still ashore");
 	CHECK(aboard(s, ship, boarder));
+}
+
+// A bank where the water deepens fast: the navcells below z = 16 count as deep water, while the
+// ground rises above the water line at 15.8.
+static float bank_at(float, float z) { return std::clamp((std::fabs(z) - 15.5f) * 0.5f, -3.0f, 3.0f); }
+
+// CheckUnitPlacement tests a spawn point on the grid grown by the unit's class clearance: a unit
+// trained by a building on the bank, or set ashore by a ship, stands its clearance (0.8 m, 3 m for
+// elephants and siege) off deep water, not at its edge.
+static void test_spawn_clearance() {
+	static Simulation s;
+	fresh(s, bank_at);
+	// A footprint 0.5 across 1.5 units up the bank, its rally point out at sea: the spots in front
+	// of it lie at the edge of the deep water.
+	float x = 0.0f, z = 0.0f;
+	const bool found = s.pick_spawn_point_box(0.0f, 17.5f, 0.0f, 0.5f, 0.5f, 0.0f, true, 0.0f, 0.0f,
+			UNIT_ELEPHANT, 0, false, x, z);
+	std::printf("  an elephant trained on the bank spawns at (%.2f, %.2f)\n", x, z);
+	CHECK(found && !s.near_deep_water(x, z, CLEARANCE_LARGE));
+	const uint32_t ship = s.spawn_unit(0.0f, 13.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t elephant = s.spawn_unit(30.0f, 30.0f, 0, UNIT_ELEPHANT);
+	const size_t is = (size_t)idx(s, ship);
+	float ex = 0.0f, ez = 0.0f, fx = 0.0f, fz = 0.0f;
+	const bool ashore = s.ship_unload_point(is, ex, ez, (size_t)idx(s, elephant));
+	const bool any = s.ship_unload_point(is, fx, fz, s.units().count);
+	std::printf("  set ashore at (%.2f, %.2f), an elephant at (%.2f, %.2f)\n", fx, fz, ex, ez);
+	CHECK(any && !s.near_deep_water(fx, fz, CLEARANCE_DEFAULT));
+	CHECK(ashore && !s.near_deep_water(ex, ez, CLEARANCE_LARGE));
 }
 
 // A task walk's line is tested on every navcell it passes through, as CheckLineMovement walks
@@ -1498,6 +1528,7 @@ int main() {
 	test_dropsite_own_land();
 	test_dock_takes_all();
 	test_no_wading();
+	test_spawn_clearance();
 	test_line_clips_water();
 	test_gather_around_lake();
 	test_dock_trade();

@@ -4327,7 +4327,8 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 // footprint, the first row half a gap out, as far as MaxSpawnDistance (7 m, x0.28); a circle has
 // rings of 6 * (dist + row) points instead of the square's rows. Each row is walked from the point
 // nearest the rally point (the front without one), alternating either way round; the first point
-// whose navcell the unit's passability allows and where no other unit stands wins
+// whose navcell the unit's passability allows, a land unit's class clearance off deep water as on its
+// steps (the expanded grid CheckUnitPlacement tests), and where no other unit stands wins
 // (CheckUnitPlacement). dry_ground also rejects points under the water line (the siege landing rule).
 bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
 		bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
@@ -4392,12 +4393,14 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 				y >= dist_y ? dist_y + r : y <= -dist_y ? -dist_y - r : y);
 	}
 	const uint8_t pass = unit_is_ship(type) ? PASS_SHIP : PASS_INFANTRY;
+	const float clearance = unit_building_clearance(CIV_UNIT_TEMPLATE_COUNT, type);
 	auto free_at = [&](float px, float pz) {
 		if (std::fabs(px) >= map_half_ - rad || std::fabs(pz) >= map_half_ - rad) return false;
 		if (dry_ground && get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) return false;
 		if (!nav_grid_.cells.blank()) {
 			const auto [gx, gy] = nav_grid_.world_to_cell(px, pz);
 			if (!nav_grid_.is_passable_for(gx, gy, pass)) return false;
+			if (pass == PASS_INFANTRY && near_deep_water(px, pz, clearance)) return false;
 		}
 		for (size_t j = 0; j < units_.count; ++j) {
 			if (!units_.alive[j] || units_.id[j] == skip_uid) continue;
@@ -6161,8 +6164,9 @@ bool Simulation::nearest_water_for_ship(size_t ship, float x, float z, float &ou
 	return true;
 }
 
-// PickSpawnPoint for a ship: the nearest dry ground within loading reach of its
-// hull, scanned in a fixed order so every peer picks the same spot. For a passenger it is
+// PickSpawnPoint for a ship: the nearest dry ground within loading reach of its hull, the
+// passenger's class clearance off deep water (CheckUnitPlacement's expanded grid; infantry's when no
+// passenger is named), scanned in a fixed order so every peer picks the same spot. For a passenger it is
 // the nearest such spot where its body overlaps no unit standing ashore and no passenger
 // already set down (`taken`), as Footprint.PickSpawnPoint skips obstructed points; when the
 // shore is full there is none, and the passenger stays aboard.
@@ -6172,6 +6176,7 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 	const float reach = SHIP_LOADING_RANGE + unit_collision_radius(units_.unit_type[ship]) + 0.5f;
 	const bool spread = passenger < units_.count;
 	const float pr = spread ? unit_collision_radius(units_.unit_type[passenger]) : 0.0f;
+	const float pc = spread ? unit_clearance_at(passenger) : CLEARANCE_DEFAULT;
 	std::vector<SpawnSpot> ashore;
 	if (spread) {
 		for (size_t i = 0; i < units_.count; ++i) {
@@ -6210,6 +6215,7 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 			// The passengers' own passability (PickSpawnPoint): not a cliff a footman can't stand on,
 			// where separation would shove them back into the sea.
 			if (!nav_grid_.cells.blank() && nav_grid_.cells.inside(nx, ny) && !nav_grid_.is_passable_for(nx, ny, PASS_INFANTRY)) continue;
+			if (near_deep_water(cx, cz, pc)) continue;
 			if (std::any_of(hulls.begin(), hulls.end(), [&](const Hull &h) {
 				    return (h.x - cx) * (h.x - cx) + (h.z - cz) * (h.z - cz) < h.r2; }))
 				continue;
@@ -8494,7 +8500,8 @@ float Simulation::unit_base_walk_speed(size_t i) const {
 
 // CCmpUnitMotion::PerformMove: pushing pressure (separation) slows a unit down, not at all up to
 // 10, to the floor at 175, so crowds move slower. The floor is 1.5 m/s at the rosters' speed scale,
-// or the unit's own walk speed if that is slower.
+// or the unit's template walk speed if that is slower (m_TemplateWalkSpeed: before technologies,
+// auras and running).
 float Simulation::unit_move_speed(size_t i) const {
 	float spd = unit_walk_speed(i);
 	const int pressure = units_.motion[i].pressure;
@@ -8503,7 +8510,7 @@ float Simulation::unit_move_speed(size_t i) const {
 		constexpr float FLOOR_SPEED = 1.5f * FORMATION_METRE;
 		const int slowdown = MAX_SLOWDOWN - std::min(MAX_SLOWDOWN, std::max(0, pressure - MIN_THRESHOLD));
 		spd *= (float)slowdown / (float)MAX_SLOWDOWN;
-		spd = std::max(std::min(units_.speed[i], FLOOR_SPEED), spd);
+		spd = std::max(std::min(unit_info_at(i).speed, FLOOR_SPEED), spd);
 	}
 	return spd;
 }
@@ -9196,6 +9203,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 // that is within the search range, as ComputeGoal shapes it, so a worker finds a free spot beside a
 // tree others already stand at. A walker already within reach of its task (walk_in_reach) stays where
 // it is instead. Ships are left to separation().
+// CCmpUnitMotion::ShortPathSearchRange: 12 m, 4 m more for each failed turn after the first, at
+// most 56 m (map lengths: 4 m a unit).
+static float short_path_search_range(uint8_t failed) {
+	constexpr float RANGE_MIN = 12.0f / 4.0f, RANGE_STEP = 4.0f / 4.0f, RANGE_MAX = 56.0f / 4.0f;
+	return std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1));
+}
+
 void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, const float *aim_x, const float *aim_z,
 		float *npx, float *npz, float *want_x, float *want_z, uint8_t *blocked) {
 	const size_t n = units_.count;
@@ -9224,7 +9238,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	if (!crew) return;
 	for (size_t i = 0; i < n; ++i) crew[i] = control_group(i);
 
-	constexpr float RANGE_MIN = 12.0f / 4.0f, RANGE_STEP = 4.0f / 4.0f, RANGE_MAX = 56.0f / 4.0f; // map lengths: 4 m a unit
+	constexpr float RANGE_MAX = 56.0f / 4.0f; // map lengths: 4 m a unit
 	constexpr float RANGE_CORNER = 32.0f / 4.0f; // a search on from a corner
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(0.2f / dt)); // 0 A.D. turns last 200 ms
 	const uint32_t key = idle_path_key(), corner_key = idle_corner_key(), stuck_key = idle_stuck_key();
@@ -9405,8 +9419,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		// structure beside the units in the way, as 0 A.D.'s nearer subgoals (the next long waypoint,
 		// at most 11 m on) seldom do, a short search finds nothing, turn after turn.
 		const float range = from_corner ? RANGE_CORNER
-				: std::max(no_way ? RANGE_CORNER : 0.0f,
-				           std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1)));
+				: std::max(no_way ? RANGE_CORNER : 0.0f, short_path_search_range(failed));
 		thread_local std::vector<nav::ShortPathSquare> squares;
 		squares.clear();
 		const float cull = range * 1.6f + c_max;
@@ -9947,8 +9960,9 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		if (++m.failed >= FAILED_AT) {
 			move_failed = true;
 			m.failed = 0;
-		} else if (m.failed < OBSTRUCTED_AT) {
-			continue;
+		} else {
+			if (formations_.empty() || formation_group_[i] == 0) obstructed_long_path(i, m.failed);
+			if (m.failed < OBSTRUCTED_AT) continue;
 		}
 		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
 		if (!formations_.empty() && formation_group_[i] != 0) continue;
@@ -10041,6 +10055,40 @@ bool Simulation::chase_falls_short(size_t i) const {
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
 	return structure_gap(b, ex, ez, unit_clearance_at(i)) > reach;
+}
+
+// HandleObstructedMove's fixes for a unit obstructed on its way along a long path, more than
+// LONG_PATH_MIN_DIST (16 m) from where it is going (nearer, 0 A.D. paths straight to the goal, as
+// avoid_idle_units' search does): the next waypoint, when others follow it and it lies within
+// max(ShortPathSearchRange / 3, 8 m), is dropped, since units may stand on it; else on the third
+// failed turn (ShouldAlternatePathfinder) the whole path is planned again from where the unit
+// stands, in case it went down a dead end.
+void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
+	if (i >= unit_paths_.size()) return;
+	WaypointPath &wp = unit_paths_[i];
+	const int cnt = units_.waypoint_count[i], cur = units_.waypoint_cur[i];
+	if (cnt <= 0 || cnt != wp.count || cur < 0 || cur >= cnt) return;
+	const float x = units_.pos_x[i], z = units_.pos_z[i];
+	const float goal_x = wp.has_goal ? wp.goal_x : units_.target_x[i], goal_z = wp.has_goal ? wp.goal_z : units_.target_z[i];
+	constexpr float LONG_PATH_MIN_DIST = 16.0f / 4.0f, SKIP_MIN = 8.0f / 4.0f; // map lengths: 4 m a unit
+	if ((goal_x - x) * (goal_x - x) + (goal_z - z) * (goal_z - z) < LONG_PATH_MIN_DIST * LONG_PATH_MIN_DIST) return;
+	const float skip = std::max(short_path_search_range(failed) / 3.0f, SKIP_MIN);
+	const float wx = wp.xs[cur] - x, wz = wp.zs[cur] - z;
+	if (cur + 1 < cnt && wx * wx + wz * wz < skip * skip) {
+		units_.waypoint_cur[i] = static_cast<int16_t>(cur + 1);
+		wp.cur = cur + 1;
+		return;
+	}
+	if (failed != 3) return; // ALTERNATE_PATH_TYPE_DELAY
+	const uint8_t ut = units_.unit_type[i];
+	const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
+	const bool has_goal = wp.has_goal;
+	find_path(x, z, goal_x, goal_z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : mounted ? PASS_CAVALRY : PASS_INFANTRY);
+	wp.has_goal = has_goal;
+	wp.goal_x = goal_x;
+	wp.goal_z = goal_z;
+	units_.waypoint_cur[i] = static_cast<int16_t>(wp.cur);
+	units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
 }
 
 // A walk, attack-move or patrol leg whose unit has walked all of its long path, which ends short of
