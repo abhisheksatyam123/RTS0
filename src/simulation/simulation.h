@@ -1389,6 +1389,9 @@ public:
 		TECH_ERR_DISABLED // the map's trigger script disabled it (cmpPlayer.SetDisabledTechnologies)
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// What researching `tech_id` costs this player at a researcher of `bld_type` (BLD_TYPE_COUNT:
+	// a unit): Researcher/TechCostMultiplier, team bonuses and the Library of Alexandria, as paid.
+	void tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type, float paid[RES_COUNT], float &time) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
 	float healer_range(uint8_t player_id) const;
 	float healer_rate(uint8_t player_id) const; // hit points per second
@@ -1661,7 +1664,7 @@ public:
 	struct Treasure {
 		uint32_t id;
 		float x, z;
-		float collect_progress;   // seconds spent collecting by collector_id
+		float collect_progress;   // the longest collector timer (collector_id), each kept in its pack_elapsed
 		uint32_t collector_id;
 		uint8_t type;             // TreasureType (gaia_data.h)
 		uint8_t pad[3];
@@ -2056,6 +2059,11 @@ private:
 	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	void tick_ship_pickups();
+	void tick_ship_pickup(size_t ship);
+	bool transport_walkers_none() const;
+	bool ship_reachable_by(size_t ship, size_t walker) const;
+	bool petra_steers_ship(uint32_t ship_id) const;
 	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
 	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
@@ -2719,6 +2727,7 @@ private:
 	bool petra_is_critical_ent(size_t unit_idx) const;
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
+	bool petra_is_critical_relic(size_t unit_idx) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
 	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"

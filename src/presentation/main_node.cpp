@@ -4594,10 +4594,14 @@ void RtsoMain::update_command_panel() {
 					if (!cost.is_empty()) cost += ",";
 					cost += String::num_int64(v) + suffix;
 				};
-				add_cost(ti.food_cost, "f");
-				add_cost(ti.wood_cost, "w");
-				add_cost(ti.gold_cost, "g");
-				add_cost(ti.stone_cost, "s");
+				// Researcher.js GetTechnologyData: the price after this researcher's TechCostMultiplier,
+				// team bonuses and the Library of Alexandria, as cmd_research charges it.
+				float paid[rtso::RES_COUNT], rtime = 0.0f;
+				sim->tech_price(local_player(), (uint8_t)t, found_b->type, paid, rtime);
+				add_cost((int)paid[rtso::RES_FOOD], "f");
+				add_cost((int)paid[rtso::RES_WOOD], "w");
+				add_cost((int)paid[rtso::RES_GOLD], "g");
+				add_cost((int)paid[rtso::RES_STONE], "s");
 				btn->set_text(String::utf8(ti.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 				if (t == rtso::TECH_PHASE_TOWN || t == rtso::TECH_PHASE_CITY) {
 					btn->set_button_icon(load_tex(t == rtso::TECH_PHASE_TOWN
@@ -4608,7 +4612,8 @@ void RtsoMain::update_command_panel() {
 				// 0.28 Research panel: names, tooltip, cost, requirements, needed resources.
 				String tip = String::utf8(ti.name);
 				if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
-				const rtso::CostTip tech_cost{ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost, 0, (int64_t)std::ceil(ti.research_time)};
+				const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
+						(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 				const String tech_cost_tip = rtso::cost_tooltip(tech_cost);
 				if (!tech_cost_tip.is_empty()) tip += "\n" + tech_cost_tip;
 				String why;
@@ -5328,13 +5333,16 @@ bool RtsoMain::update_unit_roster(uint32_t unit_id) {
 			if (!costs.is_empty()) costs += " ";
 			costs += String::num_int64(v) + suffix;
 		};
-		add_cost(ti.food_cost, "f");
-		add_cost(ti.wood_cost, "w");
-		add_cost(ti.stone_cost, "s");
-		add_cost(ti.gold_cost, "m");
+		float paid[rtso::RES_COUNT], rtime = 0.0f;
+		sim->tech_price(pid, t, rtso::BLD_TYPE_COUNT, paid, rtime); // as cmd_research_from_unit charges it
+		add_cost((int)paid[rtso::RES_FOOD], "f");
+		add_cost((int)paid[rtso::RES_WOOD], "w");
+		add_cost((int)paid[rtso::RES_STONE], "s");
+		add_cost((int)paid[rtso::RES_GOLD], "m");
 		const int idx = roster_list->add_item(String::utf8(ti.name) + " (" + costs + ")");
 		roster_list->set_item_metadata(idx, ROSTER_TECH | (int)t);
-		const rtso::CostTip tech_cost{ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost, 0, (int64_t)std::ceil(ti.research_time)};
+		const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
+				(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 		String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\n" + rtso::cost_tooltip(tech_cost);
 		if (check != rtso::Simulation::TECH_OK && check != rtso::Simulation::TECH_ERR_COST) {
 			roster_list->set_item_disabled(idx, true);
@@ -8197,12 +8205,18 @@ Dictionary RtsoMain::get_tech_tree() const {
 		e["desc"] = String::utf8(ti.desc ? ti.desc : "");
 		e["phase"] = (int)ti.required_phase;
 		e["researcher"] = String(rtso::building_type_info(ti.researcher).name);
-		e["food"] = ti.food_cost;
-		e["wood"] = ti.wood_cost;
-		e["metal"] = ti.gold_cost;
-		e["stone"] = ti.stone_cost;
-		e["time"] = ti.research_time;
-		e["prerequisite"] = ti.prerequisite ? String::utf8(rtso::tech_info(ti.prerequisite).name) : String();
+		float paid[rtso::RES_COUNT], rtime = 0.0f;
+		sim->tech_price(local_player(), (uint8_t)t, ti.researcher, paid, rtime); // this player's price
+		e["food"] = (int)paid[rtso::RES_FOOD];
+		e["wood"] = (int)paid[rtso::RES_WOOD];
+		e["metal"] = (int)paid[rtso::RES_GOLD];
+		e["stone"] = (int)paid[rtso::RES_STONE];
+		e["time"] = rtime;
+		// The prerequisite and the technology it supersedes (DeriveTechnologyRequirements).
+		String req = ti.prerequisite ? String::utf8(rtso::tech_info(ti.prerequisite).name) : String();
+		if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE && sup != ti.prerequisite)
+			req += (req.is_empty() ? String() : String(", ")) + String::utf8(rtso::tech_info(sup).name);
+		e["prerequisite"] = req;
 		e["researched"] = sim->player(local_player()).has_tech((uint8_t)t);
 		techs.push_back(e);
 	}
