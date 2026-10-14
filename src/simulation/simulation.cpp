@@ -5289,7 +5289,9 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 		} else {
 			dist = std::hypot(tx - fc.x, tz - fc.z);
 		}
-		const float range = task == FTASK_GARRISON ? GARRISON_LOADING_RANGE + nav::kClearanceExtensionRadius
+		const float range = task == FTASK_GARRISON && fc.target_building
+				? structure_loading_range(buildings_[building_id_to_idx_.at(fc.target_building)].type,
+						buildings_[building_id_to_idx_.at(fc.target_building)].civ) + nav::kClearanceExtensionRadius
 				: 10.0f * FORMATION_METRE;
 		return dist <= range;
 	}
@@ -5861,6 +5863,12 @@ float Simulation::ship_loading_reach(size_t ship, size_t unit) const {
 	return SHIP_LOADING_RANGE + unit_collision_radius(units_.unit_type[ship]) + unit_collision_radius(units_.unit_type[unit]);
 }
 
+// The same for any transport: a ship's 10 m, or a ram's or siege tower's 2 m.
+float Simulation::transport_loading_reach(size_t holder, size_t unit) const {
+	if (unit_is_ship(units_.unit_type[holder])) return ship_loading_reach(holder, unit);
+	return SIEGE_LOADING_RANGE + unit_collision_radius(units_.unit_type[holder]) + unit_collision_radius(units_.unit_type[unit]);
+}
+
 // The water cell of the ship's own sea nearest to (x, z), searched out to 16
 // cells: where a ship stops to meet units on the shore.
 bool Simulation::nearest_water_for_ship(size_t ship, float x, float z, float &out_x, float &out_z) const {
@@ -6252,7 +6260,7 @@ bool Simulation::garrison_in_range(size_t i, const Building &b, float x, float z
 	const float ex = gap.x, ez = gap.y;
 	// LoadingRange counts from where a unit can stand: its radius plus the navcell
 	// clearance extension around the structure (0 A.D. measures from the obstruction).
-	const float reach = GARRISON_LOADING_RANGE + unit_collision_radius(units_.unit_type[i]) +
+	const float reach = structure_loading_range(b.type, b.civ) + unit_collision_radius(units_.unit_type[i]) +
 			nav::kClearanceExtensionRadius;
 	return ex * ex + ez * ez <= reach * reach;
 }
@@ -7281,7 +7289,7 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 		float dx = units_.pos_x[uidx] - tx;
 		float dz = units_.pos_z[uidx] - tz;
 		float d2 = dx * dx + dz * dz;
-		const float reach = unit_is_ship(units_.unit_type[tidx]) ? ship_loading_reach((size_t)tidx, (size_t)uidx) : 4.5f;
+		const float reach = transport_loading_reach((size_t)tidx, (size_t)uidx);
 
 		if (d2 <= reach * reach) {
 			units_.action_state[uidx] = ACTION_GARRISONED;
@@ -8628,7 +8636,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (tidx >= 0 && units_.alive[tidx] && is_transport(units_.id[tidx]) && can_board((size_t)tidx, i)) {
 				float dx = px[i] - px[tidx];
 				float dz = pz[i] - pz[tidx];
-				const float reach = unit_is_ship(units_.unit_type[tidx]) ? ship_loading_reach((size_t)tidx, i) : 4.5f;
+				const float reach = transport_loading_reach((size_t)tidx, i);
 				if (dx * dx + dz * dz <= reach * reach) {
 					auto &passengers = transport_passengers_[units_.id[tidx]];
 					int max_pcap = get_transport_capacity(units_.id[tidx]);
@@ -8753,7 +8761,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// garrison_in_range's LoadingRange, which counts from the unit's centre (square adds its radius).
 			const auto bit = building_id_to_idx_.find(units_.order_target[i]);
 			return bit != building_id_to_idx_.end() &&
-			       square(buildings_[bit->second], GARRISON_LOADING_RANGE + nav::kClearanceExtensionRadius);
+			       square(buildings_[bit->second], structure_loading_range(buildings_[bit->second].type,
+						buildings_[bit->second].civ) + nav::kClearanceExtensionRadius);
 		}
 		if (st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) {
 			// The dropsite (tick_gather) or market (the trader tick) at the walk's target, or a
@@ -27099,10 +27108,9 @@ void Simulation::tick_treasures(float dt) {
 			static const uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
 			PlayerState &ps = player(owner);
 			for (int r = 0; r < 4; ++r) ps.res[kRes[r]] += (float)info.amount[r];
-			// TreasureCollector.js: a treasure counts as collected and as gathered.
+			// Treasure.js Reward: Player.AddResources and IncreaseTreasuresCollectedCounter only,
+			// so the resources don't count as gathered, and no alert is raised.
 			stats_[owner].treasures_collected++;
-			for (int r = 0; r < 4; ++r) stat_gathered(owner, kRes[r], (int)info.amount[r], false);
-			raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, t.x, t.z, t.id, owner);
 			// TreasureCollector.js: Engine.PostMessage(..., MT_TreasureCollected, {player, type, ...}).
 			TriggerEventData ev;
 			ev.entity = units_.id[c];
@@ -27139,7 +27147,10 @@ void Simulation::tick_treasures(float dt) {
 		if (q != order_queues_.end() && !q->second.empty()) continue;
 		uint32_t best = 0;
 		float best_d2 = (64.0f * COMBAT_DISTANCE_SCALE) * (64.0f * COMBAT_DISTANCE_SCALE);
+		const uint8_t owner = units_.team[i];
 		for (const Treasure &t : treasures_) {
+			// CheckTargetVisible: only a treasure the player sees or has seen (it stays in the fog).
+			if (owner < MAX_PLAYERS && fow_state_at(t.x, t.z, owner) == FOW_UNEXPLORED) continue;
 			const float d2 = (t.x - nt.x) * (t.x - nt.x) + (t.z - nt.z) * (t.z - nt.z);
 			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
 		}
