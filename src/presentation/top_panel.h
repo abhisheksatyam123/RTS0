@@ -59,6 +59,10 @@ public:
 		civ_emblem_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		civ_emblem_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 		civ_emblem_->set_texture(rtso::load_ui_texture(rtso::civ_info(initial_civ).emblem_path));
+		// CivIcon's civIconOverlay: a click reopens the last reference page viewed.
+		civ_emblem_->set_name("CivIcon");
+		civ_emblem_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+		civ_emblem_->connect("gui_input", Callable(owner, "_on_civ_icon_gui_input"));
 		top_hbox->add_child(civ_emblem_);
 
 		// 2. Phase Emblem Badge (Village, Town, City)
@@ -207,6 +211,10 @@ public:
 			const auto &cinfo = rtso::civ_info(sim->player_civ(me));
 			if (civ_emblem_) {
 				civ_emblem_->set_texture(rtso::load_ui_texture(cinfo.emblem_path));
+				if (tooltip_civ_ != (int)sim->player_civ(me)) {
+					tooltip_civ_ = (int)sim->player_civ(me);
+					civ_emblem_->set_tooltip_text(civ_icon_tooltip(cinfo.name));
+				}
 			}
 			if (phase_emblem_) {
 				uint8_t pphase = sim->player_phase(me);
@@ -294,6 +302,17 @@ public:
 			if (dialog_btns_[i]) dialog_btns_[i]->set_tooltip_text(keys[i].is_empty() ? godot::String(names[i]) : "[" + keys[i] + "] " + names[i]);
 	}
 
+	// CivIcon.rebuild's tooltip keys (colorizeHotkey "civinfo" and "structree").
+	void set_civ_icon_keys(const godot::String &civinfo, const godot::String &structree) {
+		civ_keys_[0] = civinfo;
+		civ_keys_[1] = structree;
+		tooltip_civ_ = -1;
+	}
+	godot::String civ_icon_tooltip(const char *civ_name) const {
+		return rtso::sprintf0(rtso::tr0("%(civ)s\n%(hotkey_civinfo)s: View Civilization Overview\n%(hotkey_structree)s: View Structure Tree\nLast opened view will be reopened on click."),
+				{{"civ", rtso::tr0(civ_name)}, {"hotkey_civinfo", civ_keys_[0]}, {"hotkey_structree", civ_keys_[1]}});
+	}
+
 	// tooltips.js abbreviateLargeNumbers.
 	static godot::String abbreviate(int64_t n) {
 		using godot::String;
@@ -309,6 +328,8 @@ public:
 	}
 
 private:
+	godot::String civ_keys_[2];
+	int tooltip_civ_ = -1;
 	static int sort_order() {
 		const std::string v = rtso::user_config::get("gui.session.respoptooltipsort");
 		return v == "1" ? 1 : v == "-1" ? -1 : 0;
