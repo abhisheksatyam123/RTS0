@@ -90,9 +90,59 @@ func _send(path: String, method: int, body: String, cb: Callable) -> void:
 			cb.call(0, null)
 
 
-func sign_in(addr: String, name: String, cb: Callable) -> void:
+# 0 A.D. EncryptPassword (source/lobby/pkcs5_pbkdf2.cpp): the lobby gets
+# PBKDF2-HMAC-SHA256 of the password, 1337 rounds, salted with SHA-256 of a
+# fixed base and the lower-case name, as upper-case hex; never the typed text.
+# tools/lobby_server.py encrypt_password is the same.
+const ENCRYPT_SALT_BASE := [244, 243, 249, 244, 32, 33, 34, 35, 10, 11, 12, 13, 14, 15, 16, 17,
+	18, 19, 20, 32, 33, 244, 224, 127, 129, 130, 140, 153, 133, 123, 234, 123]
+const ENCRYPT_ITERATIONS := 1337
+
+static func encrypt_password(password: String, username: String) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	ctx.update(PackedByteArray(ENCRYPT_SALT_BASE))
+	ctx.update(username.to_lower().to_utf8_buffer())
+	var salt := ctx.finish()
+	var crypto := Crypto.new()
+	var key := password.to_utf8_buffer()
+	var u := crypto.hmac_digest(HashingContext.HASH_SHA256, key, salt + PackedByteArray([0, 0, 0, 1]))
+	var out := u.duplicate()
+	for _i in ENCRYPT_ITERATIONS - 1:
+		u = crypto.hmac_digest(HashingContext.HASH_SHA256, key, u)
+		for j in out.size():
+			out[j] ^= u[j]
+	return out.hex_encode().to_upper()
+
+
+## 0 A.D. prelobby checkUsername / checkPassword for a new account.
+static func register_problem(who: String, password: String, confirm: String) -> String:
+	if who == "":
+		return "Please enter your username"
+	var re := RegEx.create_from_string("^[A-Za-z0-9._-]{1,20}$")
+	if re.search(who) == null:
+		return "Invalid username"
+	if password == "":
+		return "Please enter your password"
+	if password != confirm:
+		return "Passwords do not match"
+	return ""
+
+
+# 0 A.D. prelobby Register: an account the lobby keeps (tools/lobby_server.py --accounts).
+func register(addr: String, name: String, password: String, cb: Callable) -> void:
 	address = addr
-	post_json("/login", {"name": name}, func(code: int, obj) -> void:
+	post_json("/register", {"name": name, "password": encrypt_password(password, name)}, cb)
+
+
+# encrypted is encrypt_password's (what lobby.password keeps when the password
+# is remembered); empty signs in as a guest, on a lobby that allows them.
+func sign_in(addr: String, name: String, cb: Callable, encrypted: String = "") -> void:
+	address = addr
+	var body := {"name": name}
+	if encrypted != "":
+		body["password"] = encrypted
+	post_json("/login", body, func(code: int, obj) -> void:
 		if code == 200 and obj is Dictionary:
 			token = str(obj.get("token", ""))
 			player_name = str(obj.get("name", name))
