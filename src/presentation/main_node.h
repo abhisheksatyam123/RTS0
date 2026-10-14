@@ -568,6 +568,8 @@ public:
 	Dictionary debug_command_button(const String &prefix);
 	Dictionary debug_selection_grid(bool select_all);
 	void debug_set_carry(int64_t unit_id, int res, int amount);
+	void debug_set_resource(int res, float amount);
+	bool debug_placing() const;
 	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
