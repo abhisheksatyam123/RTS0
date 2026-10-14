@@ -435,7 +435,7 @@ public:
 	// The seat this client plays: its lockstep slot in multiplayer, player 0
 	// offline; 0xFF for an observer (multiplayer, or every slot AI).
 	uint8_t seat_player() const {
-		if (net_lockstep()) return turn_mgr_.local_player();
+		if (net_lockstep() || turn_mgr_.perspective_changed()) return turn_mgr_.local_player();
 		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0;
 	}
 	// This client only watches: an observer, or a player who was defeated
@@ -665,6 +665,10 @@ private:
 	// An observer's perspective (0 A.D. session "viewPlayer" dropdown): the whole
 	// map, or one player's sight and panels. Presentation only.
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
+	// The developer overlay's Change perspective: the player view dropdown shows for a
+	// player too, and picking in it takes that player over (PlayerViewControl.setChangePerspective).
+	bool change_perspective_ = false;
+	int perspective_pick_ = -1; // the dropdown item picked, until the lockstep turn seats us there
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;
 	// 0 A.D. top_panel/FollowPlayer (g_FollowPlayer): an observer or replay viewer
