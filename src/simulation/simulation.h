@@ -167,13 +167,14 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 77; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 78; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_TRIGGER_RANGE = 72; // OnRange queries and their collections
-	static constexpr uint32_t SAVE_VERSION_WONDER_TIMERS = 77; // each wonder's own countdown, owner and allies
+	static constexpr uint32_t SAVE_VERSION_WONDER_TIMERS = 78; // each wonder's own countdown, owner and allies
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -375,9 +376,16 @@ public:
 	// The speed it moves at now: its walk speed, slowed by the pushing pressure it is under.
 	float unit_move_speed(size_t i) const;
 	// How far it moves this tick heading (ux, uz) at up to max_speed, starting from velocity (vx, vz),
-	// with its template's acceleration and turn rule; *speed is its speed at the end of the tick.
+	// with its template's acceleration, turn rate and turn rule; turns its heading (heading_x/z) and
+	// sets *speed to its speed at the end of the tick.
 	float accelerated_step(size_t i, float vx, float vz, float ux, float uz, float max_speed, float dt,
-			float *speed) const;
+			float *speed);
+	// How far it goes in time t from speed s along its heading, gaining speed at its template's
+	// acceleration up to max_speed; *speed is its speed at the end.
+	float accelerate(size_t i, float s, float max_speed, float t, float *speed) const;
+	// Trainer.js SpawnUnits and Garrisonable.UnLoad: a unit put out of a structure at (x, z) faces away
+	// from it.
+	void face_away_from(size_t i, float x, float z);
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
@@ -402,6 +410,8 @@ public:
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
 	uint32_t turret_holder_of(uint32_t unit_id) const;
+	// Commands.js "leave-turret": `player`'s units among `unit_ids` step down from their turret points.
+	void cmd_leave_turret(uint8_t player, const uint32_t *unit_ids, size_t count);
 	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
 	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
 	// One hit that cost an entity health: 0 A.D.'s MT_Attacked message, read by the
@@ -1347,6 +1357,7 @@ public:
 		const uint16_t *tmpl; // civ roster template (civ_unit_template), CIV_UNIT_TEMPLATE_NONE = generic
 		const uint8_t *pack_state; // PackState: siege engines pack to move and unpack to fire
 		const float *pack_elapsed; // seconds into the current pack/unpack
+		const float *heading_x, *heading_z; // the way each unit faces (UnitSoA heading)
 		size_t count;
 	};
 	UnitView units() const;
@@ -2597,6 +2608,21 @@ private:
 	void trigger_survival_wave();
 	void trigger_gallic_fields(bool attack);
 	void trigger_pickup_test(int step);
+	void trigger_unit_chasing(int step);
+	void trigger_unit_chasing_ownership(const TriggerEventData &data);
+	void trigger_unit_dancing(int step);
+	void trigger_unit_dancing_event(const TriggerEventData &data);
+	// The unit motion test scripts' helpers: 0 A.D. metres from the map corner to world units,
+	// QuickSpawn (followed as TriggerWatch role/label unless role is 0xFF), WalkTo, and removing
+	// every unit an experiment (role) followed.
+	std::pair<float, float> script_metres(float mx, float mz) const;
+	uint32_t script_spawn(float mx, float mz, const char *tmpl_id, uint8_t team, uint8_t role = 0xFF, uint8_t label = 0);
+	void script_walk(uint32_t id, float mx, float mz, bool queued);
+	void script_delete_role(uint8_t role);
+	// Their ModifiersManager.AddModifiers (no promotions; the dancing test's 5 m vision and
+	// spread off), from the script that is running: kept out of the save as they follow from it.
+	uint16_t unit_test_script() const;
+	void script_modifiers(uint8_t player_id, TechMods &m) const;
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
 	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").
@@ -3182,6 +3208,7 @@ private:
 	bool flee_done(size_t i);
 	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
+	std::vector<uint16_t> combat_herd_scratch_; // tick_combat: players' animals out of their corrals (structure targets)
 	std::vector<uint32_t> combat_look_again_scratch_; // tick_combat: units that hit a non-preferred target
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;

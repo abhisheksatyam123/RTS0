@@ -250,8 +250,12 @@ public:
 	// save_state of its world) into oos_dump_dir if one is set.
 	const std::vector<std::string>& oos_players() const { return oos_players_; }
 	bool oos_reported_by_host() const { return oos_from_host_; }
+	// OutOfSyncNetwork's "identical to / differs from the hosts game state": the
+	// host's own state is the expected one.
+	bool oos_matches_host() const;
 	void set_oos_dump_dir(const std::string &dir) { oos_dump_dir_ = dir; }
 	const std::string& oos_dump_path() const { return oos_dump_written_; }
+	bool oos_dump_pending() const { return oos_dump_pending_; }
 
 	// 0 A.D. NMT_CLIENT_PAUSED: any client can pause the match; turns stop on
 	// every peer while at least one client is paused, and resume when the last

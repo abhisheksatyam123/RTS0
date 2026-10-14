@@ -34,6 +34,7 @@
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_triggers && /tmp/test_triggers
 // Private access only to register a test trigger and read the trigger state.
+#include <map>
 #include <set>
 #define private public
 #include "simulation/simulation.h"
@@ -667,6 +668,70 @@ static void check_pickup_test() {
 	if (failures == before) std::printf("pickup_test_map: rams, ships and 95 archers at 200 ms, the close ram fills: ok\n");
 }
 
+static void check_unit_chasing() {
+	// scenarios/unit_chasing_test_triggers.js: at 3 s 30 chase experiments (the two muskox ones
+	// hunt a Gaia animal), nobody promotes, and a pair that loses a unit is removed whole.
+	const int before = failures;
+	static Simulation s;
+	s.reset();
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	CHECK(s.register_trigger_script("unit_chasing_test_triggers"), "unit_chasing_test_triggers not registered");
+	run_to(s, 2.9f);
+	CHECK(s.triggers_.watched.empty(), "nothing before 3 s");
+	run_to(s, 3.1f);
+	CHECK(s.triggers_.watched.size() == 58, "%zu units followed, want 28 pairs and 2 hunters", s.triggers_.watched.size());
+	const int32_t u = s.lookup_unit(s.triggers_.watched[0].id);
+	CHECK(u >= 0 && s.promotion_required_xp((size_t)u) > 10000.0f, "promotions are off: %.0f xp", u >= 0 ? s.promotion_required_xp((size_t)u) : 0.0f);
+	run_to(s, 90.0f);
+	std::map<uint8_t, int> left;
+	for (const TriggerWatch &w : s.triggers_.watched) ++left[w.role];
+	bool whole = s.triggers_.watched.size() < 58;
+	for (const auto &[role, n] : left) whole &= n == 2 || role == 12 || role == 13;
+	CHECK(whole, "pairs go whole: %zu units followed after 90 s", s.triggers_.watched.size());
+	if (failures == before) std::printf("unit_chasing_test: 30 experiments at 3 s, no promotions, pairs removed whole (%zu left): ok\n",
+	                                    s.triggers_.watched.size());
+}
+
+static void check_unit_dancing() {
+	// scenarios/unit_dancing_test_triggers.js: 26 experiments at 3 s and again at 151 s with
+	// spread off; player 1 sees 5 m; each ends when its dancer dies or stops; player 2 wins at 300 s.
+	const int before = failures;
+	static Simulation s;
+	s.reset();
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	CHECK(s.register_trigger_script("unit_dancing_test_triggers"), "unit_dancing_test_triggers not registered");
+	run_to(s, 3.1f);
+	CHECK(s.triggers_.watched.size() == 154, "%zu units followed, want 86 dancers and 68 attackers", s.triggers_.watched.size());
+	size_t dancer = 0, attacker = 0;
+	for (const TriggerWatch &w : s.triggers_.watched) {
+		const int32_t u = s.lookup_unit(w.id);
+		if (u < 0) continue;
+		if (w.player == 1 && !dancer) dancer = (size_t)u;
+		if (w.player == 3 && !attacker) attacker = (size_t)u;
+	}
+	CHECK(dancer && s.unit_vision_at(dancer) < 2.0f, "player 1 sees 5 m: %.2f", dancer ? s.unit_vision_at(dancer) : 0.0f);
+	CHECK(attacker && s.unit_vision_at(attacker) > 5.0f, "player 2 keeps its vision: %.2f", attacker ? s.unit_vision_at(attacker) : 0.0f);
+	run_to(s, 149.0f);
+	const int32_t done = s.triggers_.vars[2] + s.triggers_.vars[3];
+	CHECK(done > 0, "experiments finish in the first run: %d killed, %d not", s.triggers_.vars[2], s.triggers_.vars[3]);
+	CHECK(s.triggers_.vars[0] == 0, "spread still on");
+	run_to(s, 151.5f);
+	CHECK(s.triggers_.vars[0] == 1, "spread off for the second run");
+	size_t second = 0;
+	for (const TriggerWatch &w : s.triggers_.watched) second += w.role >= 26;
+	CHECK(second == 154, "second run: %zu units followed", second);
+	run_to(s, 300.5f);
+	CHECK(s.is_game_over() || s.victory_, "player 2 wins at 300 s");
+	if (failures == before) std::printf("unit_dancing_test: two runs of 26, 5 m vision, %d killed and %d not, the end at 300 s: ok\n",
+	                                    s.triggers_.vars[2], s.triggers_.vars[3]);
+}
+
 static void check_gallic_fields() {
 	// skirmishes/gallic_fields_3p.js: a Roman champion at each B or C point after a minute,
 	// attack-walking to its owner's A point; each wave waits 1-3 times longer and grows as much.
@@ -1137,6 +1202,8 @@ int main() {
 	check_gallic_fields();
 	check_triggers_demo();
 	check_pickup_test();
+	check_unit_chasing();
+	check_unit_dancing();
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
 	check_on_range();
