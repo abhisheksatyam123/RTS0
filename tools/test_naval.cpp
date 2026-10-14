@@ -883,6 +883,31 @@ static void test_petra_ship_treasure() {
 	CHECK(o.kind == ORDER_COLLECT_TREASURE && o.target == wreck);
 }
 
+// worker.js startFishing: Petra's idle boat takes the fish nearest its dock, not the one
+// nearest itself; with no fish left on its sea the boat is deleted.
+static void test_petra_fishing() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t by_dock = s.spawn_resource_world(-36.0f, 6.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t by_boat = s.spawn_resource_world(24.0f, 4.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t boat = s.spawn_unit(20.0f, 8.0f, 1, UNIT_FISHING_BOAT);
+	s.petra_pid_ = 1;
+	s.petra_manage_naval(2.0f);
+	const uint32_t picked = gather_target(s, boat);
+	std::printf("Petra fishing: picked fish %u (by the dock %u, by the boat %u)\n", picked, by_dock, by_boat);
+	CHECK(picked == by_dock);
+
+	for (size_t r = 0; r < s.resources_.count; ++r)
+		if (s.resources_.subtype[r] == RES_SUB_FISH) s.resources_.amount[r] = 0;
+	s.cmd_stop(&boat, 1);
+	s.petra_manage_naval(2.0f);
+	const int32_t bi = s.lookup_unit(boat);
+	std::printf("Petra fishing: boat on an empty sea %s\n", bi >= 0 && s.units().alive[bi] ? "kept" : "deleted");
+	CHECK(bi < 0 || !s.units().alive[bi]);
+}
+
 // startingStrategy.js configFirstBase: on a starting land under 25000 m² Petra keeps to one
 // field and lays a corral as well (saveSpace, maxFields 1, needCorral); a finished market
 // lifts the field cap.
@@ -1336,6 +1361,7 @@ int main() {
 	test_petra_cothon();
 	test_ship_treasure();
 	test_petra_ship_treasure();
+	test_petra_fishing();
 	test_petra_small_land_fields();
 	test_petra_dock_position();
 	test_petra_workers_across_water();

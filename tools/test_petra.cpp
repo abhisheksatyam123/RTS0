@@ -958,6 +958,19 @@ static void test_hunters_028() {
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a full carcass is skipped (isSupplyFull)");
 	full.on_carcass[meat] = 0;
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) == meat, "the same carcass with room is picked");
+
+	// getOwnDropsites("food") holds the supply wagon; getAnyDropsites adds a mutual ally's
+	// shared farmstead only once we have Diaspora (hasSharedDropsites).
+	const size_t drops0 = s->petra_hunt_scan().food_drops.size();
+	s->spawn_unit(px - 10.0f, pz + 10.0f, 1, UNIT_WAGON);
+	CHECK(s->petra_hunt_scan().food_drops.size() == drops0 + 1, "the supply wagon is a food dropsite for hunting");
+	s->set_player_active(2, true, false);
+	s->set_diplomacy(1, 2, Simulation::DIPLO_ALLY);
+	s->set_diplomacy(2, 1, Simulation::DIPLO_ALLY);
+	s->spawn_building_world(px - 14.0f, pz - 14.0f, BLD_FARMSTEAD, 2);
+	CHECK(s->petra_hunt_scan().food_drops.size() == drops0 + 1, "an ally's farmstead is not ours without Diaspora");
+	s->complete_research(1, TECH_UNLOCK_SHARED_DROPSITES);
+	CHECK(s->petra_hunt_scan().food_drops.size() == drops0 + 2, "an ally's shared farmstead counts with Diaspora");
 }
 
 // startingStrategy.js buildFirstBase: Petra loses its Town Center; the wood for a

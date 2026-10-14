@@ -2754,12 +2754,14 @@ private:
 	uint8_t petra_gather_kind(size_t r) const;
 	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
 	struct PetraHuntScan {
-		std::vector<std::pair<float, float>> food_drops;
+		struct FoodDrop { float x, z; uint16_t land[4]; }; // the lands it borders (getLandAccess)
+		std::vector<FoodDrop> food_drops;
 		std::unordered_map<uint32_t, int> on_animal;  // live animal id -> units hunting it
 		std::unordered_map<uint32_t, int> on_carcass; // meat resource id -> units gathering it
 		std::vector<uint32_t> treasures_taken;        // treasures one of ours is already on its way to
 	};
 	PetraHuntScan petra_hunt_scan() const;
+	bool petra_food_drop_near(const PetraHuntScan &scan, uint16_t land, float x, float z, float d2) const;
 	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
 	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water = false); // entityExtend.js gatherTreasure
