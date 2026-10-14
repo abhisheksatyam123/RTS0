@@ -263,7 +263,7 @@ static float edge_distance(const Simulation::Building &b, float x, float z) {
 }
 
 // 0 A.D. ObstructionManager IsInTargetRange against a structure: the gap between the
-// unit's obstruction (a circle of its collision radius) and the structure's footprint,
+// unit's obstruction (its class clearance, unit_clearance_at) and the structure's footprint,
 // not the distance to its centre, so a long wall or a dock on the shore is reached from
 // any side at the same range.
 static float structure_gap(const Simulation::Building &b, float x, float z, float radius) {
@@ -4626,7 +4626,7 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 
 		stand_outside(b, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
-				&units_.target_x[uidx], &units_.target_z[uidx]);
+				&units_.target_x[uidx], &units_.target_z[uidx], unit_clearance_at((size_t)uidx) + kStandMargin);
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_ATTACK;
 		units_.target_building_id[uidx] = target_building_id;
@@ -8322,7 +8322,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// A ship stops in the water beside the dock, a little further out.
 		const float reach = ttype == UNIT_MERCHANT_SHIP ? 4.0f : 2.0f;
 		if (dx * dx + dz * dz >= 2.5f * 2.5f &&
-				structure_gap(dest, px[ti], pz[ti], unit_collision_radius(ttype)) >= reach) continue;
+				structure_gap(dest, px[ti], pz[ti], unit_clearance_at((size_t)ti)) >= reach) continue;
 
 		// Arrived (Trader.js PerformTrade). The goods loaded at the other market pay what was
 		// worked out when they were loaded (GenerateResources): the trader's owner its gain and,
@@ -8633,7 +8633,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f &&
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 				const float reach = capture ? CAPTURE_RANGE : attack_reach(i);
-				const float eff_d = structure_gap(b, px[i], pz[i], unit_collision_radius(units_.unit_type[i]));
+				const float eff_d = structure_gap(b, px[i], pz[i], unit_clearance_at(i));
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
 			}
@@ -8910,7 +8910,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// capture ranges here.
 			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			return bit != building_id_to_idx_.end() &&
-			       square(buildings_[bit->second], 0.9f * std::min(units_.attack_range[i], CAPTURE_RANGE));
+			       square(buildings_[bit->second], 0.9f * std::min(units_.attack_range[i], CAPTURE_RANGE) +
+						unit_clearance_at(i) - r);
 		}
 		if (st == ACTION_BUILD && units_.target_building_id[i] != 0) { // tick_construction
 			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
@@ -9608,7 +9609,7 @@ bool Simulation::chase_falls_short(size_t i) const {
 		return dx * dx + dz * dz > reach * reach;
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
-	return structure_gap(b, ex, ez, unit_collision_radius(units_.unit_type[i])) > reach;
+	return structure_gap(b, ex, ez, unit_clearance_at(i)) > reach;
 }
 
 // ShouldAbandonChase on the COMBAT timer: FinishOrder. A fight the unit picked itself ends and
@@ -10561,7 +10562,7 @@ void Simulation::tick_pack(float dt) {
 				const Building &b = buildings_[bit->second];
 				if (is_hostile(units_.team[i], b.team)) {
 					const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i],
-							unit_collision_radius(units_.unit_type[i]));
+							unit_clearance_at(i));
 					target_in_range = in_parabolic_range(eff_d * eff_d, att_y, get_terrain_height(b.x, b.z),
 							attack_reach(i));
 				}
@@ -11017,7 +11018,7 @@ void Simulation::tick_combat(float dt) {
 		const float dz = units_.pos_z[i] - b.z;
 		// 0 A.D. ObstructionManager IsInTargetRange: the gap between the two obstructions,
 		// so the attacker's own radius counts (melee units could not reach a wall otherwise).
-		const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_collision_radius(units_.unit_type[i]));
+		const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i));
 
 		float att_y = unit_height(i);
 		float bld_y = get_terrain_height(b.x, b.z);
@@ -11028,7 +11029,7 @@ void Simulation::tick_combat(float dt) {
 			// Move toward building if out of range
 			stand_outside(b, units_.id[i],
 					units_.pos_x[i], units_.pos_z[i],
-					&units_.target_x[i], &units_.target_z[i]);
+					&units_.target_x[i], &units_.target_z[i], unit_clearance_at(i) + kStandMargin);
 			units_.has_order[i] = 1;
 			units_.action_state[i] = ACTION_ATTACK;
 		}
@@ -11142,7 +11143,7 @@ void Simulation::tick_combat(float dt) {
 		};
 		auto building_ok = [&](const Building &ob) {
 			if (ob.wrecked || ob.hp <= 0.0f || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
-			const float gap = structure_gap(ob, sx, sz, unit_collision_radius(units_.unit_type[i]));
+			const float gap = structure_gap(ob, sx, sz, unit_clearance_at(i));
 			if (!in_parabolic_range(gap * gap, sy, get_terrain_height(ob.x, ob.z), range)) return false;
 			return !check_los || los_explored(team, ob.x, ob.z);
 		};
@@ -13769,7 +13770,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		if (!unit_can_target_building(i, sb->type)) return;
 	}
 	if (stance == STANCE_STAND_GROUND) {
-		const float gap = sb ? structure_gap(*sb, units_.pos_x[i], units_.pos_z[i], unit_collision_radius(units_.unit_type[i]))
+		const float gap = sb ? structure_gap(*sb, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i))
 				: sqrtf(d2);
 		if (gap > range) return;
 	}
@@ -14088,7 +14089,7 @@ void Simulation::tick_unit_ai(float dt) {
 			const Building &b = buildings_[bit->second];
 			const float reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
 			if (now == ACTION_IDLE ||
-					structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_collision_radius(units_.unit_type[i])) < reach) {
+					structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i)) < reach) {
 				units_.action_state[i] = ACTION_RETURN_DROPSITE;
 				units_.target_resource_id[i] = 0;
 			}
