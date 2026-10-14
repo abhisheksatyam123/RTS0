@@ -28,6 +28,9 @@ const RE_OPERATOR := "(<=|>=|<|>|=)"
 
 ## The mods packs were loaded for at startup, in order.
 static var loaded: Array = []
+## Engine.GetIncompatibleMods: the enabled mods that are missing, invalid or
+## lack a dependency, found at startup.
+static var incompatible: Array = []
 
 static func _full(re: String) -> RegEx:
 	return RegEx.create_from_string("^" + re + "$")
@@ -135,14 +138,19 @@ static func sort_enabled(folders: Array, mods: Dictionary) -> Array:
 			j -= 1
 	return out
 
-## At startup (UserSettings): each enabled, valid mod whose dependencies are
-## met loads its .pck and .zip files, in the enabled order.
+## At startup (UserSettings): the enabled mods load their .pck and .zip
+## files, in the enabled order. As 0.28's CheckAndEnableMods, one missing,
+## invalid or lacking a dependency loads none of them: the game starts as it
+## ships and opens the Mod Selection with the Incompatible mods notice.
 static func load_enabled_packs(dir: String = MODS_DIR) -> Array:
 	loaded.clear()
 	var mods := available(dir)
 	var on := enabled()
+	incompatible = on.filter(func(f): return f != PUBLIC and not dependencies_met(f, on, mods))
+	if not incompatible.is_empty():
+		return loaded
 	for folder in on:
-		if folder == PUBLIC or not dependencies_met(folder, on, mods):
+		if folder == PUBLIC:
 			continue
 		var d := DirAccess.open(dir.path_join(folder))
 		if d == null:
