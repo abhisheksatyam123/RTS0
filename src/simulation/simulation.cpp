@@ -9239,7 +9239,26 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			const float tx = units_.target_x[i], tz = units_.target_z[i];
 			for (const SteerObstacle &b : steer_obstacles_)
 				if (b.x == tx && b.z == tz) return square(b, st == ACTION_TRADE ? 2.0f : 1.5f);
-			return st == ACTION_RETURN_DROPSITE && circle(tx, tz, 2.5f);
+			if (st != ACTION_RETURN_DROPSITE) return false;
+			// A supply wagon or worker elephant standing still obstructs the way as a unit does, and
+			// the circle round its centre lies inside that square, where no search reaches. Its goal is
+			// tick_gather's band round its body instead, at 2/3 of it in the corners as round a
+			// structure, and just outside its square where that band is narrower.
+			int32_t drop = -1;
+			grid.visit_radius_within(tx, tz, 0.25f, 0.25f, [&](int32_t j) {
+				if (drop < 0 && unit_is_mobile_dropsite(units_.unit_type[j]) &&
+				    std::fabs(px[j] - tx) < 0.25f && std::fabs(pz[j] - tz) < 0.25f)
+					drop = j;
+			});
+			if (drop < 0) return circle(tx, tz, 2.5f);
+			const uint8_t kind = units_.unit_type[drop];
+			g.type = nav::ShortPathGoal::SQUARE;
+			g.center = nav::Vec2(px[drop], pz[drop]);
+			g.u = U;
+			g.v = V;
+			g.hw = g.hh = std::max(unit_collision_radius(kind) + (1.5f + r) * (2.0f / 3.0f),
+					unit_push_clearance(kind) + unit_push_clearance(units_.unit_type[i]) + 0.01f);
+			return true;
 		}
 		return false;
 	};
