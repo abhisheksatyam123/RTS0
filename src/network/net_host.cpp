@@ -627,7 +627,26 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 				send_wire_packet(from_ip, from_port, 0, NET_FLAG_DISCONNECT, NDR_SERVER_FULL, nullptr, 0, false);
 			} else {
 				NetPeer np;
-				np.id = next_peer_id_++;
+				// Before Start, a joiner takes the lowest id 1-7 no connected peer
+				// holds: the setup seats and lists clients 0-7 (8-bit masks), so ids
+				// burnt by leavers and refused passwords must not push it past them.
+				// 0 A.D. keys assignments by GUID instead; after Start ids stay
+				// unique, since the turn manager still knows a dropped client's id.
+				uint32_t id = 0;
+				if (!game_start_sent_)
+					for (uint32_t c = 1; c < 8 && !id; ++c)
+						if (std::none_of(peers_.begin(), peers_.end(),
+									[c](const NetPeer &p) { return p.id == c && p.connected; }))
+							id = c;
+				if (id) {
+					peers_.erase(std::remove_if(peers_.begin(), peers_.end(),
+										 [id](const NetPeer &p) { return p.id == id; }),
+							peers_.end());
+				} else {
+					id = next_peer_id_++;
+				}
+				next_peer_id_ = std::max(next_peer_id_, id + 1);
+				np.id = id;
 				np.address = from_ip;
 				np.port = from_port;
 				np.connected = true;
@@ -1031,6 +1050,15 @@ void NetHost::send_heartbeats(uint64_t now_ms) {
 
 void NetHost::check_peer_timeouts(uint64_t now_ms) {
 	for (auto &p : peers_) {
+		// An ENet connect nobody answers times out with reason 0 (0.28
+		// reportConnectionRequestTimeOut); the connect request itself stops
+		// resending after 10 s, so waiting longer would wait forever.
+		if (isClient() && p.id == 0 && !p.connected && disconnect_reason_ < 0 && auth_result_ < 0 &&
+				p.last_seen_ms > 0 && now_ms - p.last_seen_ms > kConnectTimeoutMs) {
+			std::cout << "[NetHost] The connection request to " << server_ip_ << ":" << server_port_ << " timed out\n";
+			lose_host(0);
+			continue;
+		}
 		// enet_peer_disconnect_later: the refusal or kick notice goes out
 		// reliably first. Closing the link at the fixed 2 s dropped it whenever
 		// loss outlasted that, and the client waited without a reason.

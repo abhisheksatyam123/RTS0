@@ -2380,6 +2380,96 @@ static void test_structure_arrows_and_force() {
 	check(s.units_.target_building_id[idx_of(s, violent)] == tower, "a violent one answers even on a forced walk");
 }
 
+static void test_can_patrol() {
+	std::printf("67. support units and civilian ships walk instead of patrolling (UnitAI CanPatrol)\n");
+	Simulation s;
+	setup(s);
+	uint32_t woman = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t spartan = s.spawn_unit(0, 4, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_unit_template_by_id("spart/support_female_citizen"));
+	uint32_t trader = s.spawn_unit(0, 8, 0, UNIT_TRADER);
+	uint32_t soldier = s.spawn_unit(0, -4, 0, UNIT_SPEARMAN);
+	for (uint32_t u : {woman, spartan, trader, soldier}) s.order_patrol(&u, 1, 20, 0);
+	check(s.unit_order(woman).kind == ORDER_WALK, "a woman walks to the point");
+	check(s.unit_order(trader).kind == ORDER_WALK, "so does a trader");
+	check(s.unit_order(spartan).kind == ORDER_PATROL, "a Spartan woman patrols");
+	check(s.unit_order(soldier).kind == ORDER_PATROL, "a soldier patrols");
+	check(run_until(s, 20.0f, [&] { return dist(s, woman, 20, 0) < 2.0f; }), "the woman gets there");
+	run(s, 10.0f);
+	check(dist(s, woman, 20, 0) < 2.0f, "and stays, not walking back");
+}
+
+static void test_unarmed_aggressive_stays() {
+	std::printf("68. an aggressive unit with no attack ignores attackers; only passive ones flee (UnitAI respondFlee)\n");
+	Simulation s;
+	setup(s);
+	uint32_t hero = s.spawn_unit(0, 0, 0, UNIT_HERO, 0.0f, civ_unit_template_by_id("athen/hero_hippocrates"));
+	uint32_t healer = s.spawn_unit(-40, 40, 0, UNIT_HEALER); // out of the hero's sight, so it isn't healed
+	check(s.units_.stance[idx_of(s, hero)] == STANCE_AGGRESSIVE && s.units_.attack_damage[idx_of(s, hero)] <= 0.0f,
+			"Hippocrates is aggressive with no attack");
+	uint32_t a = s.spawn_unit(1.5f, 0, 1, UNIT_SWORDSMAN);
+	uint32_t b = s.spawn_unit(-38.5f, 40, 1, UNIT_SWORDSMAN);
+	s.order_attack(&a, 1, hero);
+	s.order_attack(&b, 1, healer);
+	bool fled = false;
+	const bool hit = run_until(s, 10.0f, [&] {
+		fled = fled || act_of(s, hero) == ACTION_FLEE;
+		return hp_of(s, hero) < s.units_.max_hp[idx_of(s, hero)];
+	});
+	run(s, 2.0f);
+	fled = fled || act_of(s, hero) == ACTION_FLEE;
+	check(hit, "the hero is hit");
+	check(!fled && dist(s, hero, 0, 0) < 1.5f, "and stays where it is");
+	check(dist(s, healer, -40, 40) > 3.0f, "a passive healer runs off");
+}
+
+static void test_passive_mid_fight() {
+	std::printf("69. set passive mid-fight, a unit hits its target while in reach but never chases it (UnitAI SwitchToStance)\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+	uint32_t e = post(s, 1.5f, 0, UNIT_SPEARMAN, 5000.0f);
+	check(run_until(s, 10.0f, [&] { return target_of(s, a) == e && hp_of(s, e) < 5000.0f; }), "the spearman takes on the enemy by itself");
+	s.order_set_stance(&a, 1, STANCE_PASSIVE);
+	const float hp0 = hp_of(s, e);
+	run(s, 4.0f);
+	check(hp_of(s, e) < hp0, "it keeps hitting while the enemy is in reach");
+	const float ax = x_of(s, a), az = z_of(s, a);
+	s.units_.pos_x[idx_of(s, e)] = 10.0f;
+	run(s, 1.0f);
+	const float hp1 = hp_of(s, e);
+	run(s, 5.0f);
+	check(target_of(s, a) == 0 && act_of(s, a) != ACTION_ATTACK, "once out of reach the fight is over");
+	check(std::hypot(x_of(s, a) - ax, z_of(s, a) - az) < 1.5f && hp_of(s, e) == hp1, "without following it");
+}
+
+static void test_stance_held_position() {
+	std::printf("70. a stance change holds where the unit stands, skips garrisoned units and unknown stances; defensive units keep it while hitting structures (SwitchToStance)\n");
+	Simulation s;
+	setup(s);
+	uint32_t d = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+	s.order_walk(&d, 1, -10, 0);
+	check(run_until(s, 20.0f, [&] { return dist(s, d, -10, 0) < 1.0f && act_of(s, d) == ACTION_IDLE; }), "walks to its post");
+	s.units_.anchor_x[idx_of(s, d)] = 30.0f; // somewhere else
+	s.order_set_stance(&d, 1, STANCE_DEFENSIVE);
+	check(std::hypot(s.units_.anchor_x[idx_of(s, d)] - x_of(s, d), s.units_.anchor_z[idx_of(s, d)] - z_of(s, d)) < 1e-3f,
+			"the held position is where it stands");
+	s.order_set_stance(&d, 1, 9);
+	check(s.units_.stance[idx_of(s, d)] == STANCE_DEFENSIVE, "an unknown stance changes nothing");
+	const uint32_t bk = s.spawn_building_world(-40.0f, -30.0f, BLD_BARRACKS, 0, 1.0f);
+	uint32_t g = s.spawn_unit(-40.0f, -22.0f, 0, UNIT_SPEARMAN);
+	s.order_garrison(&g, 1, bk);
+	check(run_until(s, 15.0f, [&] { const auto *gg = s.get_garrisoned_units(bk); return gg && gg->size() == 1; }),
+			"a spearman garrisons");
+	s.order_set_stance(&g, 1, STANCE_STAND_GROUND);
+	check(s.units_.stance[idx_of(s, g)] != STANCE_STAND_GROUND, "a garrisoned one keeps its stance");
+	// A defensive unit away from its post that picks an enemy structure keeps its post.
+	const float hx = s.units_.anchor_x[idx_of(s, d)], hz = s.units_.anchor_z[idx_of(s, d)];
+	s.units_.pos_x[idx_of(s, d)] = -6.0f;
+	s.spawn_building_world(-2.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+	check(run_until(s, 5.0f, [&] { return s.units_.target_building_id[idx_of(s, d)] != 0; }), "it goes for an enemy house");
+	check(s.units_.anchor_x[idx_of(s, d)] == hx && s.units_.anchor_z[idx_of(s, d)] == hz, "its held position stays");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2573,6 +2663,10 @@ int main(int argc, char **argv) {
 	test_scenery_capture();
 	test_arakamani_temples();
 	test_range_check_between_hits();
+	test_can_patrol();
+	test_unarmed_aggressive_stays();
+	test_passive_mid_fight();
+	test_stance_held_position();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

@@ -7,6 +7,7 @@
 //       src/network/net_host.cpp -lpthread -o /tmp/test_fauna && /tmp/test_fauna
 #define private public
 #include "simulation/simulation.h"
+#include "simulation/entity_limits_data.h"
 #undef private
 #include "network/turn_manager.h"
 #include <cmath>
@@ -870,6 +871,155 @@ int main() {
 		s.order_herd(&herder, 1, sheep);
 		run(s, 30.0f);
 		CHECK(f_alive(s, sheep) && s.fauna_.behavior[fidx(s, sheep)] != FAUNA_CORRALLED);
+	}
+
+	// 14. 0.28 audit (fauna/audit-028.md) fixes.
+	{
+		// e. UnitAI's attack filter takes any entity an enemy owns: a soldier goes for its sheep.
+		fresh(s);
+		uint32_t u = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t sheep = s.spawn_fauna(4.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.fauna_.behavior[fidx(s, sheep)] = FAUNA_IDLE_GRAZE;
+		s.fauna_.state_timer[fidx(s, sheep)] = 1000.0f;
+		run(s, 0.5f);
+		CHECK(s.units_.target_unit_id[uidx(s, u)] == sheep);
+		// Its own livestock, and an ally's, are left alone.
+		fresh(s);
+		uint32_t u2 = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t own = s.spawn_fauna(4.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 0);
+		run(s, 0.5f);
+		CHECK(s.units_.target_unit_id[uidx(s, u2)] != own);
+		s.set_mutual_ally(0, 1);
+		uint32_t allied = s.spawn_fauna(-4.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		run(s, 0.5f);
+		CHECK(s.units_.target_unit_id[uidx(s, u2)] != allied);
+	}
+	{
+		// f. EntityLimits counts the player's livestock wherever it is, not only when penned.
+		fresh(s);
+		const int base = s.entity_limit_count(1, LIMIT_ANIMAL);
+		s.spawn_fauna(10.0f, 10.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.spawn_fauna(12.0f, 10.0f, FAUNA_GOAT_TRAINABLE, 1);
+		s.spawn_fauna(14.0f, 10.0f, FAUNA_SHEEP_TRAINABLE, 0);
+		CHECK(s.entity_limit_count(1, LIMIT_ANIMAL) == base + 2);
+		uint32_t pen = s.spawn_building_world(20.0f, 20.0f, BLD_CORRAL, 1, 1.0f);
+		uint32_t gaia = s.spawn_fauna(20.0f, 20.0f, FAUNA_SHEEP);
+		s.fauna_.behavior[fidx(s, gaia)] = FAUNA_CORRALLED;
+		s.fauna_.corral_id[fidx(s, gaia)] = pen;
+		CHECK(s.entity_limit_count(1, LIMIT_ANIMAL) == base + 3);
+	}
+	{
+		// g. A captured corral ejects the livestock its new owner may not hold.
+		fresh(s);
+		uint32_t pen = s.spawn_building_world(20.0f, 20.0f, BLD_CORRAL, 1, 1.0f);
+		uint32_t ewe = s.spawn_fauna(20.0f, 20.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.fauna_.behavior[fidx(s, ewe)] = FAUNA_CORRALLED;
+		s.fauna_.corral_id[fidx(s, ewe)] = pen;
+		auto *b = &s.buildings_[s.building_id_to_idx_.at(pen)];
+		CHECK(b->max_capture_points > 0.0f);
+		b->capture_points_by_team.fill(0.0f);
+		b->capture_points_by_team[0] = b->max_capture_points;
+		s.tick(Simulation::FIXED_STEP);
+		b = &s.buildings_[s.building_id_to_idx_.at(pen)];
+		CHECK(b->team == 0);
+		CHECK(f_alive(s, ewe) && s.fauna_.behavior[fidx(s, ewe)] != FAUNA_CORRALLED);
+		CHECK(s.corral_count(pen) == 0);
+	}
+	{
+		// h. GarrisonHolder IsOwnedByMutualAllyOfEntity: livestock walks into an ally's corral.
+		fresh(s);
+		s.set_mutual_ally(0, 1);
+		uint32_t pen = s.spawn_building_world(20.0f, 20.0f, BLD_CORRAL, 0, 1.0f);
+		uint32_t ewe = s.spawn_fauna(16.0f, 20.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.order_fauna_walk(1, &ewe, 1, 20.0f, 20.0f, pen);
+		run(s, 10.0f);
+		CHECK(f_alive(s, ewe) && s.fauna_.behavior[fidx(s, ewe)] == FAUNA_CORRALLED);
+		CHECK(s.corral_count(pen) == 1);
+		// An enemy's corral is only walked to.
+		fresh(s);
+		uint32_t pen2 = s.spawn_building_world(20.0f, 20.0f, BLD_CORRAL, 0, 1.0f);
+		uint32_t ewe2 = s.spawn_fauna(16.0f, 20.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.order_fauna_walk(1, &ewe2, 1, 20.0f, 20.0f, pen2);
+		run(s, 10.0f);
+		CHECK(f_alive(s, ewe2) && s.fauna_.behavior[fidx(s, ewe2)] != FAUNA_CORRALLED);
+	}
+	{
+		// i. FINDINGNEWTARGET: a bear hunter goes on to the next bear (same template), not a
+		// stranger's; and CheckTargetVisible: no animal the hunter can't see now.
+		fresh(s);
+		uint32_t h = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t bear = s.spawn_fauna(6.0f, 0.0f, FAUNA_BEAR_BROWN);
+		run(s, 0.5f);
+		const int32_t hi = uidx(s, h);
+		CHECK(s.find_nearby_prey((size_t)hi, 0.0f, 0.0f, 400.0f) == 0);
+		CHECK(s.find_nearby_prey((size_t)hi, 0.0f, 0.0f, 400.0f, FAUNA_BEAR_BROWN + 1) == bear);
+		uint32_t far_deer = s.spawn_fauna(-30.0f, 30.0f, FAUNA_DEER);
+		run(s, 0.5f);
+		CHECK(!s.los_visible(0, -30.0f, 30.0f));
+		CHECK(s.find_nearby_prey((size_t)uidx(s, h), -30.0f, 28.0f, 400.0f) != far_deer);
+		s.set_reveal_map(true);
+		CHECK(s.find_nearby_prey((size_t)uidx(s, h), -30.0f, 28.0f, 400.0f) == far_deer);
+	}
+
+	{
+		// j. Animals use the long pathfinder (UnitMotion): out of a pocket of houses and round it.
+		auto pocket = [](Simulation &sim) {
+			// A U of houses open to -x: back row at x = 8, arms along z = +-8 back to x = -2.
+			for (int k = -4; k <= 4; ++k) sim.spawn_building_world(8.0f, 2.0f * k, BLD_HOUSE, 0, 1.0f);
+			for (int k = 0; k < 5; ++k) {
+				sim.spawn_building_world(6.0f - 2.0f * k, 8.0f, BLD_HOUSE, 0, 1.0f);
+				sim.spawn_building_world(6.0f - 2.0f * k, -8.0f, BLD_HOUSE, 0, 1.0f);
+			}
+		};
+		fresh(s);
+		pocket(s);
+		uint32_t ewe = s.spawn_fauna(4.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.order_fauna_walk(1, &ewe, 1, 16.0f, 0.0f);
+		run(s, 40.0f);
+		int32_t e = fidx(s, ewe);
+		std::printf("pathing: ewe ended at (%.1f, %.1f) for (16, 0)\n", s.fauna_.pos_x[e], s.fauna_.pos_z[e]);
+		CHECK(std::hypot(s.fauna_.pos_x[e] - 16.0f, s.fauna_.pos_z[e]) < 1.0f);
+		// A wolf in the pocket chases a soldier standing behind it.
+		fresh(s);
+		pocket(s);
+		uint32_t u = s.spawn_unit(16.0f, 0.0f, 1, UNIT_SPEARMAN);
+		s.order_set_stance(&u, 1, STANCE_STAND_GROUND);
+		uint32_t wolf = s.spawn_fauna(4.0f, 0.0f, FAUNA_WOLF);
+		s.fauna_start_attack((size_t)fidx(s, wolf), u);
+		float closest = 1e9f;
+		for (int t = 0; t < 600 && f_alive(s, wolf); ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			const int32_t w = fidx(s, wolf), ui = uidx(s, u);
+			if (w < 0 || ui < 0) break;
+			closest = std::min(closest, std::hypot(s.fauna_.pos_x[w] - s.units_.pos_x[ui], s.fauna_.pos_z[w] - s.units_.pos_z[ui]));
+		}
+		std::printf("pathing: wolf got within %.1f of the spearman\n", closest);
+		CHECK(closest < fauna_type_info(FAUNA_WOLF).attack_range + 1.0f);
+	}
+
+	{
+		// k. GATHER/COMBAT MovementUpdate likelyFailure: a hunter whose path ends on the shore,
+		// short of an animal across deep water, gives the hunt up instead of standing there.
+		s.set_sim_seed(7);
+		s.reset();
+		s.set_map_half(64.0f);
+		const int res = 65;
+		std::vector<float> h((size_t)res * res);
+		for (int j = 0; j < res; ++j)
+			for (int k = 0; k < res; ++k) h[(size_t)j * res + k] = std::fabs(-64.0f + 128.0f * j / (res - 1)) < 16.0f ? -3.0f : 3.0f;
+		s.set_terrain_data(h, res, 0.0f);
+		s.begin_bulk_spawn();
+		s.end_bulk_spawn();
+		for (uint8_t p = 0; p < 2; ++p) s.set_player_active(p, true, false);
+		s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		uint32_t u = s.spawn_unit(0.0f, -22.0f, 0, UNIT_SPEARMAN);
+		uint32_t pig = s.spawn_fauna(0.0f, 24.0f, FAUNA_PIG);
+		s.order_hunt(&u, 1, pig);
+		CHECK(s.units_.target_unit_id[uidx(s, u)] == pig);
+		run(s, 15.0f);
+		const int32_t ui = uidx(s, u);
+		std::printf("unreachable hunt: hunter at (%.1f, %.1f), state %d\n", s.units_.pos_x[ui], s.units_.pos_z[ui], s.units_.action_state[ui]);
+		CHECK(s.units_.target_unit_id[ui] == 0 && s.units_.action_state[ui] == ACTION_IDLE);
 	}
 
 	if (failures) {

@@ -10,6 +10,7 @@
 #undef private
 #include "simulation/entity_limits_data.h"
 #include <cmath>
+#include <tuple>
 #include <cstdio>
 #include <cstring>
 
@@ -215,6 +216,17 @@ int main() {
 		const size_t i = idx(s, uid);
 		CHECK(s.units_.rank[i] == 2);
 		CHECK(s.units_.xp[i] <= 2);
+	}
+
+	// 6b. So do the Han academy and the Ptolemaic mercenary camp (both barracks children).
+	for (const auto &[civ, type, tmpl] : {std::tuple{CIV_HAN, BLD_ACADEMY, "han/infantry_spearman_b"},
+				std::tuple{CIV_PTOLEMIES, BLD_MERCENARY_CAMP, "ptol/infantry_spearman_merc_b"}}) {
+		fresh(s, civ);
+		const uint32_t bar = s.spawn_building_world(-30.0f, -30.0f, type, 0, 1.0f);
+		const uint32_t uid = s.spawn_unit(-30.0f, -36.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of(tmpl));
+		CHECK(s.garrison_unit_now(uid, bar));
+		for (int t = 0; t < (int)std::lround(10.5f / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
+		CHECK(s.units_.xp[idx(s, uid)] >= 9.5f && s.units_.xp[idx(s, uid)] <= 11.0f);
 	}
 
 	// 7. Gaia units from a map's _e template start Elite.

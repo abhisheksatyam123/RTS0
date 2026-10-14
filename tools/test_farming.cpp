@@ -54,7 +54,7 @@ int main() {
 
 	// Table: 26 generic building types plus area D's civ-specific ones; every
 	// one has a name, cost and sane stats.
-	CHECK(BLD_EMBASSY == 25 && CIV_BUILDING_FIRST == 26 && BLD_TYPE_COUNT == 85);
+	CHECK(BLD_EMBASSY == 25 && CIV_BUILDING_FIRST == 26 && BLD_TYPE_COUNT == 86);
 	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
 		const BuildingTypeInfo &bi = building_type_info(t);
 		CHECK(bi.name && bi.name[0] && bi.max_hp > 0.0f && bi.build_time > 0.0f);
@@ -108,6 +108,20 @@ int main() {
 	CHECK(s.record().total_food_gathered > gathered0);
 	int32_t amount = 0;
 	CHECK(count_grain(s, &amount) == 1 && amount == FIELD_FOOD_SUPPLY);
+
+	// A field doesn't block movement, so its foundation starts at once (Foundation.js Commit
+	// checks blockers only for BlockMovement obstructions): a unit that can't make way (a
+	// packed catapult) standing on the site doesn't keep the builder waiting.
+	fresh(s);
+	field = s.cmd_build(0, 4, 4, BLD_FIELD);
+	fb = find_bld(s, field);
+	fx = fb->x, fz = fb->z;
+	s.spawn_unit(fx, fz, 0, UNIT_CATAPULT);
+	woman = s.spawn_unit(fx + 4.0f, fz, 0, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&woman, 1, field);
+	run(s, 6.0f);
+	CHECK(find_bld(s, field)->build_progress > 0.0f);
+	CHECK(!building_blocks_movement(BLD_LAOZI_GATE)); // han/laozigate: BlockMovement false
 
 	// Right-clicking a finished field with workers farms it; at most 5 per
 	// field, the rest move to a free field or stop.
