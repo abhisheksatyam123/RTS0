@@ -1375,6 +1375,17 @@ void Simulation::rebuild_nav_grid() {
 	const float nav_cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
 	const rtso::nav::Vec2 nav_origin(-nav_grid_.map_half, -nav_grid_.map_half);
 	for (const auto &b : buildings_) {
+		// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
+		if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
+			for_each_gate_side(b, [&](float x, float z, float hu) {
+				rtso::nav::rasterize_rect_with_clearance(
+					rtso::nav::Vec2(x, z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
+					rtso::nav::Vec2(hu, b.hv), 0.0f, nav_cell, nav_origin,
+					nav_grid_.cells.w, nav_grid_.cells.h,
+					[&](int cx, int cy) { nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED; });
+			});
+			continue;
+		}
 		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
 		if ((b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
 		int covered = 0;
@@ -9146,6 +9157,10 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			steer_obstacles_.push_back(steer_obstacle(b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type));
 			if (is_gate_type(b.type) && b.build_progress >= 1.0f)
 				closed_gates_.push_back(steer_obstacles_.back());
+		} else if (gate_open_now(b)) {
+			for_each_gate_side(b, [&](float x, float z, float hu) {
+				steer_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, b.hv, b.type));
+			});
 		}
 	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
 	steer_obstacles_.insert(steer_obstacles_.end(), mines.begin(), mines.end());
@@ -10115,9 +10130,14 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	// The standing buildings and the mines that block movement now, for the building pass below and
 	// for tick_fauna's steps (fauna_can_step), so it is built every tick, with or without units.
 	sep_obstacles_.clear();
-	for (const Building &b : buildings_)
+	for (const Building &b : buildings_) {
 		if (!b.wrecked && blocks_movement_now(b))
 			sep_obstacles_.push_back(steer_obstacle(b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type));
+		else if (gate_open_now(b))
+			for_each_gate_side(b, [&](float x, float z, float hu) {
+				sep_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, b.hv, b.type));
+			});
+	}
 	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
 	sep_obstacles_.insert(sep_obstacles_.end(), mines.begin(), mines.end());
 	sep_grid_.build(sep_obstacles_, map_half_);
