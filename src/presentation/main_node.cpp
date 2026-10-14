@@ -6106,7 +6106,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// 1. Right click on Allied War Trireme / Transport (Board Naval Transport)
 			uint32_t clicked_transport_id = 0;
 			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || uview.team[i] != local_player() || uview.unit_type[i] != rtso::UNIT_TRIREME) continue;
+				if (!uview.alive[i] || !sim->is_ally(local_player(), uview.team[i]) || uview.unit_type[i] != rtso::UNIT_TRIREME) continue; // own or a mutual ally's
 				float dx = uview.pos_x[i] - click_pos.x;
 				float dz = uview.pos_z[i] - click_pos.z;
 				if (dx * dx + dz * dz <= 3.2f * 3.2f) {
