@@ -2226,6 +2226,12 @@ static void test_research_choices() {
 	for (uint8_t t = 1; t < TECH_COUNT; ++t) all3 += s->players_[1].has_tech(t);
 	std::printf("  city phase: %d forge techs (%d techs in all)\n", fights3, all3);
 	CHECK(fights3 >= 2, "researches other technologies at random in the city phase");
+	// Config.unusedNoAllyTechs: Cartography, Diaspora and the international trade bonus
+	// only with an ally.
+	CHECK(s->petra_skips_random_tech(TECH_UNLOCK_SHARED_LOS, false) && s->petra_skips_random_tech(TECH_UNLOCK_SHARED_DROPSITES, false),
+	      "no shared vision or dropsites without an ally");
+	CHECK(!s->petra_skips_random_tech(TECH_UNLOCK_SHARED_LOS, true) && !s->petra_skips_random_tech(TECH_UNLOCK_SHARED_DROPSITES, true),
+	      "both with an ally");
 }
 
 // headquarters.js trainMoreWorkers: the civic centre trains citizen infantry as workers
