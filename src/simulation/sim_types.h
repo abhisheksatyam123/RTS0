@@ -1001,14 +1001,6 @@ inline float unit_push_clearance(uint8_t type) {
 	return unit_collision_radius(type) * (0.8f * PUSH_SCALE / 0.5f);
 }
 
-// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines, elephants (war
-// and worker: template_unit_elephant, template_unit_support_elephant) and the supply wagon.
-// A heavy unit pushes harder and is harder to push.
-inline float unit_push_weight(uint8_t type) {
-	return unit_is_siege_engine(type) || type == UNIT_ELEPHANT || type == UNIT_WORKER_ELEPHANT || type == UNIT_WAGON
-		? 50.0f : 10.0f;
-}
-
 // 0 A.D. ResourceDropsite on a unit: the Mauryan worker elephant (template_unit_support_elephant)
 // and the supply wagon (template_unit_support_wagon) take food, wood, stone and metal. Only the
 // wagon is Sharable, and ResourceDropsite.js shares a sharable dropsite by default.
@@ -2156,6 +2148,18 @@ inline bool unit_is_large(uint16_t tmpl, uint8_t type) {
 	if (type == UNIT_CATAFALQUE || type == UNIT_WAGON) return true;
 	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & (TC_SIEGE | TC_ELEPHANT | TC_CHARIOT)) != 0;
+}
+
+// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines, every elephant
+// (template_unit_elephant and the champion, hero and support elephants) and the supply wagon,
+// three times for chariots (mixins/chariot: the champion and hero chariots) and ten times for
+// catafalques (template_unit_catafalque). A heavy unit pushes harder and is harder to push.
+inline float unit_push_weight(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_CATAFALQUE) return 100.0f;
+	if (unit_is_siege_engine(type) || type == UNIT_ELEPHANT || type == UNIT_WORKER_ELEPHANT || type == UNIT_WAGON) return 50.0f;
+	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	if ((c & (TC_SIEGE | TC_ELEPHANT)) != 0) return 50.0f;
+	return (c & TC_CHARIOT) != 0 ? 30.0f : 10.0f;
 }
 
 // How close a unit's centre comes to a building: its passability class Clearance. Ships keep

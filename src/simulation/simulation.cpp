@@ -8950,9 +8950,10 @@ bool Simulation::walk_in_reach(size_t i, float x, float z) const {
 // their clearances overlap. Each pair pushes within its clearances times Radius plus an extension,
 // with a force that is 1 at Spread of that distance, falls to 0 at its edge and is at most
 // MAX_DISTANCE_FACTOR; the heavier unit pushes harder (UnitMotion Weight). Units that look to have
-// walked through each other get a strong sideways nudge instead. Pushes are compared over the
-// average of where each unit stood before and after move_units, and a unit's total push under
-// MinimalForce per 200 ms turn is dropped, so idle crowds settle instead of drifting for good.
+// walked through each other since the turn began get a strong sideways nudge instead. Pushes are
+// compared over the average of where each unit stood before and after move_units, and a unit's
+// total push under MinimalForce per 200 ms turn is dropped, so idle crowds settle instead of
+// drifting for good.
 // 0 A.D.'s lengths are in metres; RTS0's are at PUSH_SCALE (sim_types.h), and its pushes are made
 // every tick, a quarter of a turn. Pushing pressure (MotionTurn::pressure) builds up once per turn
 // with each pair that pushes, more the more they overlap, and decays by PressureDecay each turn; it
@@ -9018,11 +9019,14 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	if (!grid.build(arena, n, px, pz, units_.alive, map_half_)) return;
 
 	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
-	// after move_units (the pushes compare that), and its pushing data. The widest clearance this
-	// tick bounds every pair's reach: none pushes beyond its clearances times Radius plus the moving
-	// extension.
+	// after move_units (the pushes compare that), where it stood when the turn began (the crossing
+	// test compares that, as 0 A.D. pushes once a turn: over one tick two walkers can't get far
+	// enough past each other to pass PERPENDICULAR_NUDGE_THRESHOLD), and its pushing data. The
+	// widest clearance this tick bounds every pair's reach: none pushes beyond its clearances times
+	// Radius plus the moving extension.
 	struct PushUnit {
 		float sx, sz;
+		float ix, iz; // where it stood when the turn began: before its first step of the turn, if any
 		float c, w, r; // unit_push_clearance, unit_push_weight, unit_collision_radius
 		uint32_t id, group; // group: its formation, 0 for none
 		uint8_t moving, slot; // WALK_MOVING; a formation member that stands or walks in its slot, not off on a task of its own
@@ -9037,8 +9041,11 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		PushUnit &u = pu[i];
 		u.sx = px[i] + (have_steps ? steps.from_x[i] : px[i]);
 		u.sz = pz[i] + (have_steps ? steps.from_z[i] : pz[i]);
+		const MotionTurn &m = units_.motion[i];
+		u.ix = m.stepped ? m.from_x : have_steps ? steps.from_x[i] : px[i];
+		u.iz = m.stepped ? m.from_z : have_steps ? steps.from_z[i] : pz[i];
 		u.c = unit_push_clearance(type);
-		u.w = unit_push_weight(type);
+		u.w = unit_push_weight(units_.tmpl[i], type);
 		u.r = unit_collision_radius(type);
 		u.id = units_.id[i];
 		u.group = i < formation_group_.size() ? formation_group_[i] : 0u;
@@ -9095,15 +9102,13 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 					: combined * PUSH_RADIUS + (moving_push ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);
 			if (h2 > max_dist * max_dist) return;
 			combined = max_dist * (moving_push ? PUSH_MOVING_SPREAD : PUSH_STATIC_SPREAD);
-			const float jx = have_steps ? steps.from_x[j] : px[j];
-			const float jz = have_steps ? steps.from_z[j] : pz[j];
 			// a is the unit with the lower id; sign turns i's view into a's.
 			const bool i_is_a = idi < b.id;
 			const float sign = i_is_a ? 1.0f : -1.0f;
 			float ox = sign * hx;
 			float oz = sign * hz;
 			const float pos_x = sign * (pxi - px[j]), pos_z = sign * (pzi - pz[j]);
-			const float init_x = sign * (ix - jx), init_z = sign * (iz - jz);
+			const float init_x = sign * (a.ix - b.ix), init_z = sign * (a.iz - b.iz);
 			float olen;
 			if (!same_group && pos_x * init_x + pos_z * init_z < PUSH_NUDGE_THRESHOLD) {
 				// The pair crossed paths: nudge them apart sideways, whichever way is nearer.

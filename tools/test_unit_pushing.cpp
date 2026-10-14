@@ -23,12 +23,18 @@
 //     an idle rider standing by a barracks. Each new order starts its failed turns again, so its short
 //     path searches stay short, and the point it walks to counts at the search box's nearest point to
 //     it, inside the barracks: after a search that finds no way, the next one looks 32 m round.
+//  9. Two swordsmen walking head-on through each other sidestep: 0 A.D. compares where a pair stands
+//     with where it stood when the 200 ms turn began, and nudges a pair that crossed sideways. Over
+//     one 50 ms tick two walkers never get far enough past each other to count as crossed.
+// 10. UnitMotion Weight by template: chariots (champion and hero) 30, elephants (a hero's too) and
+//     siege 50, catafalques 100, others 10.
 #define private public
 #include "simulation/simulation.h"
 #undef private
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 using namespace rtso;
@@ -253,6 +259,42 @@ int main() {
 		const float d1 = std::hypot(s->units_.pos_x[hi] + 24.89f, s->units_.pos_z[hi] + 24.89f);
 		std::printf("  hero ordered home every turn past an idle rider: %.1f from its Civic Center, %.1f after 20 s\n", d0, d1);
 		CHECK(d1 < 4.0f, "a walker ordered again every turn gets past an idle unit by a structure");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		uint32_t a = s->spawn_unit(-10.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f);
+		uint32_t b = s->spawn_unit(10.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f);
+		s->cmd_move(&a, 1, 10.0f, 0.0f);
+		s->cmd_move(&b, 1, -10.0f, 0.0f);
+		float apart = 0.0f;
+		int done = -1;
+		for (int t = 0; t < 400 && done < 0; ++t) {
+			s->tick(DT);
+			const int ia = idx(*s, a), ib = idx(*s, b);
+			apart = std::max(apart, std::fabs(s->units_.pos_z[ia] - s->units_.pos_z[ib]));
+			if (!s->units_.has_order[ia] && !s->units_.has_order[ib]) done = t;
+		}
+		std::printf("  two swordsmen head-on: %.2f apart sideways at most, both arrived after %d ticks\n", apart, done);
+		CHECK(apart > 0.3f, "walkers that pass through each other are nudged sideways");
+		CHECK(done > 0 && done <= 120, "and both arrive");
+	}
+	{
+		auto tmpl = [](const char *id) {
+			for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+				if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+			return (uint16_t)CIV_UNIT_TEMPLATE_NONE;
+		};
+		const float chariot = unit_push_weight(tmpl("brit/champion_chariot"), UNIT_CHARIOT);
+		const float hero_chariot = unit_push_weight(tmpl("pers/hero_darius_i"), UNIT_HERO);
+		const float hero_elephant = unit_push_weight(tmpl("maur/hero_chandragupta"), UNIT_HERO);
+		const float catafalque = unit_push_weight(tmpl("athen/catafalque"), UNIT_CATAFALQUE);
+		const float spearman = unit_push_weight(tmpl("athen/infantry_spearman_b"), UNIT_SPEARMAN);
+		std::printf("  weights: chariot %.0f, hero chariot %.0f, hero elephant %.0f, catafalque %.0f, spearman %.0f, ram %.0f\n",
+		            chariot, hero_chariot, hero_elephant, catafalque, spearman, unit_push_weight(CIV_UNIT_TEMPLATE_NONE, UNIT_SIEGE_RAM));
+		CHECK(chariot == 30.0f && hero_chariot == 30.0f, "chariots weigh 30 (mixins/chariot)");
+		CHECK(hero_elephant == 50.0f && unit_push_weight(CIV_UNIT_TEMPLATE_NONE, UNIT_SIEGE_RAM) == 50.0f, "elephants and siege 50");
+		CHECK(catafalque == 100.0f && spearman == 10.0f, "catafalques 100, foot soldiers 10");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
