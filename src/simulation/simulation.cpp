@@ -4691,9 +4691,10 @@ void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float
 	}
 }
 
-// 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz).
+// 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz), at units only
+// (unit_actions.js g_PatrolTargets ["Unit"]).
 void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
-	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
+	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
 	// Formations patrol as a whole (FORMATIONCONTROLLER PATROL); the rest walk on their own.
 	const std::vector<uint32_t> rest = !queued && !formations_.empty() ? formation_take_patrol(now, tx, tz) : now;
@@ -4703,7 +4704,7 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.action_state[idx] = ACTION_PATROL;
-			set_order(idx, ORDER_PATROL, ORDER_FLAG_FORCE, 0, units_.target_x[idx], units_.target_z[idx]);
+			set_order(idx, ORDER_PATROL, o.flags, 0, units_.target_x[idx], units_.target_z[idx]);
 		}
 	}
 }
@@ -5528,7 +5529,7 @@ std::vector<uint32_t> Simulation::formation_take_patrol(const std::vector<uint32
 		formation_move_members_into(ci, true, true);
 		for (uint32_t id : fc.members) {
 			const int32_t idx = lookup_unit(id);
-			if (idx >= 0) set_order((size_t)idx, ORDER_PATROL, ORDER_FLAG_FORCE, 0, tx, tz);
+			if (idx >= 0) set_order((size_t)idx, ORDER_PATROL, ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY, 0, tx, tz);
 		}
 	}
 	return individual;
@@ -5659,7 +5660,7 @@ void Simulation::tick_formations(float dt) {
 				// points loop and other queued orders run in turn.
 				UnitOrder leg;
 				leg.kind = ORDER_PATROL;
-				leg.flags = ORDER_FLAG_FORCE;
+				leg.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY;
 				leg.x = fc.goal_x;
 				leg.z = fc.goal_z;
 				if (fc.queue.size() < 64) fc.queue.push_back(leg);
@@ -14575,7 +14576,8 @@ uint32_t Simulation::nearest_dropsite(size_t i) const {
 	return best;
 }
 
-void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued) {
+void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued,
+		bool units_only, bool allow_capture) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
 		if (i < 0 || !units_.alive[i]) continue;
@@ -14590,7 +14592,7 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 				q = true;
 			}
 		}
-		order_attack_move(&uid, 1, x, z, q);
+		order_attack_move(&uid, 1, x, z, q, units_only, allow_capture);
 	}
 }
 
