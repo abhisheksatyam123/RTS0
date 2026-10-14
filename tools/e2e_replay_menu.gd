@@ -175,8 +175,8 @@ func run() -> void:
 	check(b.replay_list.get_selected().get_custom_color(1) == b.INCOMPATIBLE, "an incompatible replay is greyed out")
 	b.start_replay()
 	await frames(1)
-	check(b._message.visible and b._message.dialog_text.contains("save format"), "and can't be started")
-	b._message.hide()
+	check(b._message != null and b._message.message.contains("save format"), "and can't be started")
+	b._message.find_child("Button1", true, false).pressed.emit() # OK
 
 	print("4. delete")
 	var ev := InputEventKey.new()

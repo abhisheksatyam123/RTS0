@@ -18,6 +18,7 @@ extends Control
 const REPLAY_ROOT := "user://replays"
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
 const SummaryPage = preload("res://scenes/session/summary_screen.gd")
+const MSGBOX := preload("res://scenes/common/msgbox.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 ## compatibilityColor: incompatible replays are greyed out.
 const INCOMPATIBLE := Color8(96, 96, 96)
@@ -70,8 +71,9 @@ var _spoiler: CheckBox
 var _btn_start: Button
 var _btn_delete: Button
 var _btn_summary: Button
-var _confirm: ConfirmationDialog
-var _message: AcceptDialog
+# The open message box (scenes/common/msgbox.gd), null when closed.
+var _confirm: Control
+var _message: Control
 var _hotkeys = null
 static var _map_info_cache := {}
 ## replaySelectionData: what start_replay leaves for the menu that opens after
@@ -481,9 +483,11 @@ func start_replay() -> void:
 
 ## displayReplayCompatibilityError.
 func _compatibility_error(r: Dictionary) -> void:
-	_message.title = "Incompatible replay"
-	_message.dialog_text = "This replay is not compatible with your version of the game!\n" + r["why"]
-	_message.popup_centered()
+	_show_message("This replay is not compatible with your version of the game!\n" + r["why"], "Incompatible replay")
+
+func _show_message(text: String, title: String) -> void:
+	_message = MSGBOX.open(self, 500, 200, text, tr(title))
+	_message.answered.connect(func(_i): _message = null)
 
 ## showReplaySummary.
 func show_summary() -> void:
@@ -494,9 +498,7 @@ func show_summary() -> void:
 		_compatibility_error(r)
 		return
 	if not r["meta"].has("summary"):
-		_message.title = "Error"
-		_message.dialog_text = "No summary data available."
-		_message.popup_centered()
+		_show_message(tr("No summary data available."), "Error")
 		return
 	var s = load("res://scenes/session/summary_screen.tscn").instantiate()
 	add_child(s)
@@ -513,8 +515,11 @@ func delete_pressed(no_confirmation := false) -> void:
 	if no_confirmation:
 		delete_selected()
 		return
-	_confirm.dialog_text = "Are you sure you want to delete this replay permanently?\n%s" % ProjectSettings.globalize_path(r["dir"])
-	_confirm.popup_centered()
+	_confirm = MSGBOX.open(self, 500, 200, "Are you sure you want to delete this replay permanently?\n%s" % ProjectSettings.globalize_path(r["dir"]),
+		tr("Delete replay"), [tr("No"), tr("Yes")])
+	_confirm.answered.connect(func(i: int):
+		_confirm = null
+		if i == 1: delete_selected())
 
 func delete_selected() -> void:
 	var r := _selected()
@@ -746,14 +751,6 @@ func _build() -> void:
 	_btn_delete = bottom.get_node("DeleteButton")
 	_btn_summary = bottom.get_node("SummaryButton")
 	_btn_start = bottom.get_node("StartReplayButton")
-	_confirm = ConfirmationDialog.new()
-	_confirm.title = "Delete replay"
-	_confirm.ok_button_text = "Yes" # messageBox buttons No, Yes
-	_confirm.cancel_button_text = "No"
-	_confirm.confirmed.connect(delete_selected)
-	add_child(_confirm)
-	_message = AcceptDialog.new()
-	add_child(_message)
 	_singleplayer_filter.clear()
 	_refill(_singleplayer_filter, SINGLEPLAYER)
 
@@ -799,7 +796,7 @@ func _fired(event: InputEvent, hotkey: String) -> bool:
 	return false
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventKey) or not event.pressed or find_child("SummaryScreen", false, false):
+	if not (event is InputEventKey) or not event.pressed or find_child("SummaryScreen", false, false) or _confirm != null or _message != null:
 		return
 	if _fired_ignoring_modifiers(event, "session.savedgames.delete") and not _players_filter.has_focus():
 		get_viewport().set_input_as_handled()
