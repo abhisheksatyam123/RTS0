@@ -1,3 +1,4 @@
+#include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
 #include <godot_cpp/classes/color_rect.hpp>
@@ -432,7 +433,7 @@ void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
 	RtsoTopPanel::cycle_order();
-	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time);
+	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
 }
 
 // Test hook: destroys the units (Delete's command) without touching the selection,
@@ -457,6 +458,7 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["barter"] = barter ? bool(barter->call("is_open")) : false;
 	d["overlay"] = pause_overlay_ && pause_overlay_->is_visible();
 	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
+	d["overlay_by"] = pause_by_label_ ? pause_by_label_->get_text() : String();
 	d["chat_log"] = chat_window_.log_text();
 	return d;
 }
@@ -698,7 +700,8 @@ bool RtsoMain::chat_network_command(const String &text) {
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
-	if (rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare hotkey wins
+	if (flare_armed_ || rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare wins
+		flare_armed_ = false;
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
 	}
@@ -982,7 +985,8 @@ void RtsoMain::toggle_pause() {
 }
 
 // PauseOverlay.rebuild: shown for your own pause and while another client
-// pauses; the resume line only for your own; "Paused by" in multiplayer.
+// pauses; the resume line only for your own; "Paused by" in multiplayer, each
+// name in its player's colour (colorizePlayernameByGUID: white for an observer).
 void RtsoMain::update_pause_overlay() {
 	if (!pause_overlay_) return;
 	const bool networked = net_lockstep() && !turn_mgr_.is_replaying();
@@ -992,19 +996,25 @@ void RtsoMain::update_pause_overlay() {
 		for (uint32_t c : turn_mgr_.paused_clients()) {
 			others = others || c != turn_mgr_.local_client_id();
 			String name;
+			uint8_t pl = 0xFF;
 			for (const auto &e : net_host_.playerAssignment())
-				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str());
-			if (name.is_empty()) {
-				const uint8_t pl = turn_mgr_.player_for_client(c);
-				name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
-			}
-			who += (who.is_empty() ? "" : ", ") + name;
+				if (e.client == c) {
+					if (!e.name.empty()) name = String::utf8(e.name.c_str());
+					pl = e.player;
+				}
+			if (pl == 0xFF) pl = turn_mgr_.player_for_client(c);
+			const bool seated = pl < rtso::MAX_PLAYERS;
+			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
+			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
+			who += String(who.is_empty() ? "" : ", ") + "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" +
+					name.replace("[", "[lb]") + "[/color]";
 		}
 	const bool show = hotkey_paused_ || others;
 	if (pause_overlay_->is_visible() != show) pause_overlay_->set_visible(show);
 	if (!show) return;
 	pause_resume_label_->set_visible(hotkey_paused_);
-	const String by = networked && !who.is_empty() ? sprintf0(tr("Paused by %(players)s"), {{"players", who}}) : String();
+	const String by = networked && !who.is_empty()
+			? "[center]" + sprintf0(tr("Paused by %(players)s"), {{"players", who}}) + "[/center]" : String();
 	if (pause_by_label_->get_text() != by) pause_by_label_->set_text(by);
 }
 
@@ -1811,7 +1821,7 @@ bool RtsoMain::spectating() const {
 // to Observer; a win keeps the player's own (PlayerViewControl.js onPlayerFinished).
 // "Observer Mode" shows while the view is Observer or Gaia.
 void RtsoMain::update_observer_view_picker() {
-	if (!spectating()) {
+	if (!spectating() && !change_perspective_) {
 		if (observer_view_picker_) observer_view_picker_->get_parent()->call("set_visible", false);
 		return;
 	}
@@ -1831,7 +1841,9 @@ void RtsoMain::update_observer_view_picker() {
 		add_child(layer);
 		layer->add_child(row);
 		const uint8_t seat = seat_player();
-		if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat) && !sim->is_defeated(seat)) {
+		if (!spectating()) {
+			sync_observer_view_picker(); // Change perspective: the player's own seat
+		} else if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat) && !sim->is_defeated(seat)) {
 			observer_view_ = seat; // the winner keeps watching their own side
 			sync_observer_view_picker();
 		} else {
@@ -1839,11 +1851,31 @@ void RtsoMain::update_observer_view_picker() {
 		}
 	}
 	observer_view_picker_->get_parent()->call("set_visible", true);
+	if (perspective_pick_ >= 0) {
+		const uint8_t seat = seat_player();
+		if (perspective_pick_ == (seat < rtso::MAX_PLAYERS ? seat + 1 : 0)) { // the turn has seated us
+			perspective_pick_ = -1;
+			sync_observer_view_picker();
+		}
+	}
 }
 
 void RtsoMain::_on_observer_view_selected(int index) {
 	if (!observer_view_picker_ || index < 0 || index >= observer_view_picker_->get_item_count()) return;
 	const int id = observer_view_picker_->get_item_id(index);
+	if (change_perspective_) {
+		// Engine.SetPlayerID: this client plays the picked player (or watches) from the next turn.
+		if (id == kReplayViewGaiaId || !turn_cmds()) {
+			sync_observer_view_picker(); // RTS0 can't seat a client as Gaia
+			return;
+		}
+		rtso::NetCommand c;
+		c.cmd_type = 39;
+		c.param = rtso::Simulation::CHEAT_DEV_PERSPECTIVE;
+		c.target_id = id == 0 ? 0xFFu : (uint32_t)(id - 1);
+		turn_mgr_.post_local_command(c); // not post_lockstep: an observer may send it too
+		perspective_pick_ = id;
+	}
 	set_observer_view(id == kReplayViewGaiaId ? (int)rtso::GAIA_PLAYER : id - 1);
 }
 
@@ -1857,11 +1889,13 @@ void RtsoMain::set_observer_view(int player) {
 
 void RtsoMain::sync_observer_view_picker() {
 	if (observer_view_picker_) {
-		const int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
+		int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
+		if (!spectating() && seat_player() < rtso::MAX_PLAYERS) // Change perspective: the seat, or the pick on its way
+			want = perspective_pick_ >= 0 ? perspective_pick_ : seat_player() + 1;
 		for (int i = 0; i < observer_view_picker_->get_item_count(); ++i)
 			if (observer_view_picker_->get_item_id(i) == want) observer_view_picker_->select(i);
 	}
-	if (observer_mode_label_) observer_mode_label_->set_visible(observer_view_ == rtso::OBSERVER_VIEW);
+	if (observer_mode_label_) observer_mode_label_->set_visible(spectating() && observer_view_ == rtso::OBSERVER_VIEW);
 }
 
 std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
@@ -1872,7 +1906,13 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 }
 
 void RtsoMain::update_hud() {
-	top_panel_.update(sim, local_player(), match_elapsed_time);
+	top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
+	if (sim) {
+		const uint8_t me = local_player();
+		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
+		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
+				turn_mgr_.is_replaying());
+	}
 	// GameSpeedButton is hidden in networked games; a replay's own row has the speed list.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep() && !turn_mgr_.is_replaying());
 }
@@ -1985,6 +2025,10 @@ void RtsoMain::_on_dev_command(int command) {
 		else sim->cmd_cheat(me, action, parameter, 0, ids.data(), ids.size());
 	};
 	switch (command) {
+		case D::DEV_CHANGE_PERSPECTIVE: // ChangePerspective: PlayerViewControl.setChangePerspective
+			change_perspective_ = on;
+			update_observer_view_picker();
+			break;
 		case D::DEV_SELECTION_STATE: // SelectionEntityState
 			dev_overlay_.show_state(on);
 			break;
@@ -2071,6 +2115,8 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 				if (v.alive[i] && v.id[i] == (uint32_t)selected_ids[k]) ranks += v.rank[i];
 	}
 	d["selection_ranks"] = ranks;
+	d["seat"] = (int)seat_player();
+	d["view_picker"] = observer_view_picker_ && observer_view_picker_->is_visible_in_tree();
 	return d;
 }
 
@@ -3449,6 +3495,10 @@ uint8_t RtsoMain::chat_player_of(const String &sender_guid) {
 	if (!net_lockstep()) return local_player();
 	uint32_t client = turn_mgr_.local_client_id();
 	if (sender_guid.begins_with("peer-")) client = (uint32_t)sender_guid.substr(5).to_int();
+	return chat_player_of_client(client);
+}
+
+uint8_t RtsoMain::chat_player_of_client(uint32_t client) const {
 	for (const auto &e : net_host_.playerAssignment())
 		if (e.client == client) return e.player;
 	return turn_mgr_.player_for_client(client);
@@ -3456,18 +3506,16 @@ uint8_t RtsoMain::chat_player_of(const String &sender_guid) {
 
 // ChatAddressees.js AddresseeTypes isAddressee, with the local player as the receiver.
 bool RtsoMain::chat_is_addressee(const String &sender_guid, const String &tag) {
-	const uint8_t from = chat_player_of(sender_guid), me = local_player();
-	const bool from_obs = from >= rtso::MAX_PLAYERS, me_obs = me >= rtso::MAX_PLAYERS;
-	if (tag == "[Observers]") return me_obs;
-	if (tag == "[Allies]")
-		return !from_obs && !me_obs && sim && sim->get_diplomacy(from, me) == rtso::Simulation::DIPLO_ALLY &&
-				sim->get_diplomacy(me, from) == rtso::Simulation::DIPLO_ALLY;
-	if (tag == "[Enemies]") return !from_obs && !me_obs && sim && sim->get_diplomacy(from, me) == rtso::Simulation::DIPLO_ENEMY;
-	if (tag.begins_with("[Player-")) {
-		const int target = tag.substr(8, tag.length() - 9).to_int(); // player id + 1, 0 for an observer
-		return (me_obs ? target == 0 : target == (int)me + 1) && (!from_obs || me_obs);
-	}
-	return true;
+	return chat_reaches(chat_player_of(sender_guid), local_player(), tag.utf8().get_data());
+}
+
+// chat_routing.h chat_tag_reaches on this match's diplomacy: the receiver's
+// check above, and the host's relay (NetHost::setChatRouter, _ready).
+bool RtsoMain::chat_reaches(uint8_t from, uint8_t to, const std::string &tag) const {
+	auto stance = [this](uint8_t a, uint8_t b, uint8_t s) { return sim && sim->get_diplomacy(a, b) == s; };
+	return rtso::chat_tag_reaches(from, to, tag, rtso::MAX_PLAYERS,
+			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ALLY); },
+			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY); });
 }
 
 bool RtsoMain::chat_local_observer() { return local_player() >= rtso::MAX_PLAYERS; }
@@ -3545,6 +3593,38 @@ String RtsoMain::match_settings_player_state() const {
 
 // session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
 // settings close together; opening one of them closes the others first.
+// MiniMapFlareButton.onPress (and session.flareactivate): INPUT_FLARE, so the
+// next left click on the map or minimap sends a flare; never in a replay.
+void RtsoMain::_on_flare_button_pressed() {
+	if (turn_mgr_.is_replaying()) return;
+	flare_armed_ = true;
+}
+
+// Test hook: the minimap panel's buttons.
+Dictionary RtsoMain::debug_minimap_panel() const {
+	Dictionary d;
+	const char *names[3] = {"idle", "diplomacy", "flare"};
+	for (int i = 0; i < 3; ++i) {
+		TextureButton *b = minimap_panel_.button(i);
+		Dictionary e;
+		e["disabled"] = b ? b->is_disabled() : true;
+		e["tooltip"] = b ? b->get_tooltip_text() : String();
+		e["texture"] = b && b->get_texture_normal().is_valid() ? b->get_texture_normal()->get_path() : String();
+		d[names[i]] = e;
+	}
+	d["idle_count"] = minimap_panel_.idle_count_text();
+	d["flare_armed"] = flare_armed_;
+	return d;
+}
+
+// CivIcon.onPress: a left click on the top panel's civ emblem reopens the
+// reference page last viewed (the Structure Tree at first).
+void RtsoMain::_on_civ_icon_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("open_last");
+}
+
 bool RtsoMain::close_open_dialogs() {
 	bool any = false;
 	if (Node *menu = get_node_or_null(NodePath("PauseMenu")))

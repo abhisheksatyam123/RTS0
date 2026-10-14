@@ -23,6 +23,9 @@ import tempfile
 import time
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# TurnManager::COMMAND_DELAY, which the saved-game case's expected turns follow.
+with open(os.path.join(REPO_ROOT, "src", "network", "turn_manager.h")) as _f:
+    COMMAND_DELAY = int(re.search(r"COMMAND_DELAY = (\d+);", _f.read()).group(1))
 
 # Minimal translation units discovered by link probing (see docs/MULTIPLAYER.md
 # "Playtest harness"). src/core/diagnostics/* is deliberately excluded: it pulls
@@ -815,7 +818,7 @@ def run_saved_game_case(binary: str, seed: int, speed: float, loss: float, port:
         "the joiner kept its seat": start_j.get("player") == "1",
         # The lockstep took it at turn 1 + COMMAND_DELAY + 1: the host was still at turn 1.
         "no turn ran before it loaded": first == 2 and bool(h) and sorted(h)[0] == 2
-                                        and "in the lockstep from turn 4" in (outs["host"] or ""),
+                                        and f"in the lockstep from turn {COMMAND_DELAY + 2}" in (outs["host"] or ""),
         "both ran every turn in sync": len(h) == turns - 1 and sorted(j) == sorted(h) and bad is None,
     }
     ok = all(checks.values())

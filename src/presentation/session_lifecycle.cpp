@@ -2,6 +2,7 @@
 // the 3D scene and the session HUD, _process runs the frame (sim ticks, lockstep, HUD refresh).
 // Split out of main_node.cpp (PLAN P4.6); the state they set up is RtsoMain's.
 
+#include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
 #include <godot_cpp/classes/style_box_flat.hpp>
@@ -49,6 +50,12 @@ void RtsoMain::_ready() {
 	// thread from net_host_.poll() (_process), so appending to the chat
 	// widget (chat_window.h) is safe.
 	// net_host.cpp:540 dispatch -> onChat (:395) -> display here.
+	// 0 A.D. NetServer OnChat: as host, an addressed line goes only to the
+	// clients it is for (the receivers keep their own check too).
+	net_host_.setChatRouter([this](uint32_t from, uint32_t to, const std::string &message) {
+		const std::string tag = rtso::chat_wire_tag(message);
+		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag);
+	});
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
 		String msg = String::utf8(cm.message.c_str());
 		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
@@ -156,13 +163,12 @@ void RtsoMain::_ready() {
 		mm_btns->set_offset(SIDE_BOTTOM, -206.0f);
 		mm_btns->add_theme_constant_override("separation", 4);
 		struct MmBtn { const char *label; const char *method; };
-		const MmBtn mm_btn_defs[4] = {
+		const MmBtn mm_btn_defs[3] = {
 			// 3-state shroud cycle (RtsoMiniMapView::cycle_shroud, minimap_view.h ShroudMode):
 			// On -> terrain-only -> off -> On. 0AD MiniMapPanel.js:8-11 panel buttons.
 			{"Shroud", "cycle_shroud"},
 			{"Terr", "toggle_territory"},
 			{"Res", "toggle_resources"},
-			{"Diplo", "toggle_diplomacy"},
 		};
 		for (const MmBtn &d : mm_btn_defs) {
 			Button *b = memnew(Button);
@@ -175,6 +181,7 @@ void RtsoMain::_ready() {
 		}
 		ui_layer->add_child(mm_btns);
 	}
+	minimap_panel_.build(ui_layer, this, [](const String &path) { return rtso::load_ui_texture(path); });
 
 	// =========================================================================
 	// 1. TOP HUD BAR PANEL (Civ Crest, 4 Resources, Pop, Idle, Clock, Speed, Menu)
@@ -219,22 +226,27 @@ void RtsoMain::_ready() {
 			const auto *combos = rtso::hotkeys::table().get(name);
 			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
 		};
+		top_panel_.set_civ_icon_keys(first_key("civinfo"), first_key("structree"));
+		minimap_panel_.set_hotkeys(first_key("selection.idleworker"), first_key("session.diplomacycolors"), first_key("session.flare"));
 		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
 				first_key("session.gui.barter.toggle"),
 				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
 	}
 
-	time_notification_label_ = memnew(Label);
+	time_notification_label_ = memnew(RichTextLabel);
+	time_notification_label_->set_name("TimeNotificationText");
+	time_notification_label_->set_use_bbcode(true);
+	time_notification_label_->set_fit_content(true);
+	time_notification_label_->set_scroll_active(false);
 	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
 	time_notification_label_->set_anchor(SIDE_RIGHT, 1.0f);
 	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
 	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
 	time_notification_label_->set_offset(SIDE_TOP, 62.0f);
 	time_notification_label_->set_offset(SIDE_BOTTOM, 140.0f);
-	time_notification_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	time_notification_label_->add_theme_font_size_override("font_size", 16);
-	time_notification_label_->add_theme_color_override("font_color", Color(1.0f, 0.92f, 0.6f));
+	time_notification_label_->add_theme_font_size_override("normal_font_size", 16);
+	time_notification_label_->add_theme_color_override("default_color", Color(1.0f, 0.92f, 0.6f));
 	time_notification_label_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
 	time_notification_label_->add_theme_constant_override("outline_size", 4);
 	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -555,7 +567,22 @@ void RtsoMain::_ready() {
 		};
 		caption(tr("Game Paused"), -20.0f, 28);
 		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
-		pause_by_label_ = caption("", 50.0f, 14);
+		// "Paused by" names each client in its player's colour, so it is bbcode.
+		pause_by_label_ = memnew(RichTextLabel);
+		pause_by_label_->set_use_bbcode(true);
+		pause_by_label_->set_fit_content(true);
+		pause_by_label_->set_scroll_active(false);
+		pause_by_label_->set_anchor(SIDE_LEFT, 0.3f);
+		pause_by_label_->set_anchor(SIDE_RIGHT, 0.7f);
+		pause_by_label_->set_anchor(SIDE_TOP, 0.4f);
+		pause_by_label_->set_anchor(SIDE_BOTTOM, 0.4f);
+		pause_by_label_->set_offset(SIDE_TOP, 50.0f);
+		pause_by_label_->set_offset(SIDE_BOTTOM, 72.0f);
+		pause_by_label_->add_theme_font_size_override("normal_font_size", 14);
+		pause_by_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		pause_by_label_->add_theme_constant_override("outline_size", 4);
+		pause_by_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		pause_overlay_->add_child(pause_by_label_);
 	}
 	ui_layer->add_child(pause_overlay_);
 
@@ -999,15 +1026,19 @@ void RtsoMain::_process(double delta) {
 	update_hud();
 	update_net_delay_overlay(delta);
 	if (sim && time_notification_label_) {
+		// l10n.js timeToString: "mm:ss", or "HH:mm:ss" from an hour on (whole seconds dropped down).
+		auto time_to_string = [](int64_t ms) {
+			const int64_t t = std::max<int64_t>(0, ms) / 1000;
+			return t < 3600 ? vformat("%02d:%02d", t / 60, t % 60) : vformat("%02d:%02d:%02d", t / 3600, t / 60 % 60, t % 60);
+		};
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
 			if (!txt.is_empty()) txt += "\n";
 			// GuiInterface time notifications: %(time)s is the time left (timeToString).
-			String line = String::utf8(n->text);
+			String line = String::utf8(n->text).replace("[", "[lb]"); // a map's text, not markup
 			if (line.contains("%(time)s")) {
 				const uint32_t now = sim->trigger_state().time_ms;
-				const int left_s = n->end_ms > now ? (int)((n->end_ms - now + 999) / 1000) : 0;
-				line = line.replace("%(time)s", vformat("%d:%02d", left_s / 60, left_s % 60));
+				line = line.replace("%(time)s", time_to_string(n->end_ms > now ? (int64_t)(n->end_ms - now) : 0));
 			}
 			txt += line;
 		}
@@ -1024,7 +1055,7 @@ void RtsoMain::_process(double delta) {
 					if (q != p && ((sim->participant_mask() >> q) & 1) && !sim->is_defeated(q) && mutual(p, q)) m |= (uint8_t)(1u << q);
 				return m;
 			};
-			auto clock = [](float s) { const int t = (int)std::ceil(std::max(0.0f, s)); return vformat("%d:%02d", t / 60, t % 60); };
+			auto clock = [&](float s) { return time_to_string((int64_t)(s * 1000.0f)); };
 			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
 			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
 				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
@@ -1059,10 +1090,11 @@ void RtsoMain::_process(double delta) {
 		if (sim->ceasefire_seconds() > 0.0f) {
 			const float left = sim->ceasefire_seconds() - sim->game_time();
 			String line;
-			if (left > 0.0f && left <= 10.0f) line = "You can attack in 0:" + String(left > 9.0f ? "" : "0") + String::num_int64((int64_t)std::ceil(left));
+			if (left > 0.0f && left <= 10.0f) line = "You can attack in " + time_to_string((int64_t)(left * 1000.0f));
 			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
 			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
+		if (!txt.is_empty()) txt = "[center]" + txt + "[/center]";
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
 	if (sim && chat_window_.is_ready()) {
@@ -1161,7 +1193,7 @@ void RtsoMain::_process(double delta) {
 			std::vector<rtso::Simulation::WallPiece> pieces;
 			uint32_t start_tower = 0, end_tower = 0;
 			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
-			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
+			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind, sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_COUNT);
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
@@ -1175,6 +1207,10 @@ void RtsoMain::_process(double delta) {
 			uint8_t pciv = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
 			// Pieces of this wall don't block each other; the towers it snaps onto don't block it.
 			const uint32_t snapped[2] = {start_tower, end_tower};
+			// GuiInterface.js SetWallPlacementPreview: from the first piece that can't go down (or
+			// can't be paid for, as cmd_build_wall stops there too) on, every piece is invalid.
+			bool chain_ok = true;
+			float spent[rtso::RES_COUNT] = {};
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
 				MeshInstance3D *g = wall_ghosts[i];
@@ -1199,7 +1235,17 @@ void RtsoMain::_process(double delta) {
 					g->set_global_position(Vector3(p.x, h + 0.05f, p.z));
 				}
 				g->set_rotation(Vector3(0.0f, p.rot - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
-				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+				if (chain_ok && sim) {
+					float c[rtso::RES_COUNT];
+					sim->wall_piece_cost(local_player(), p, c);
+					const auto &ps = sim->player(local_player());
+					for (int r = 0; r < rtso::RES_COUNT; ++r) {
+						spent[r] += c[r];
+						chain_ok = chain_ok && spent[r] <= ps.res[r] + 1e-3f;
+					}
+					chain_ok = chain_ok && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+				}
+				const bool ok = sim && chain_ok;
 				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
 				g->set_visible(true);
 			}

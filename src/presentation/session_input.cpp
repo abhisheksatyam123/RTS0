@@ -159,6 +159,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			_toggle_session_dialog("BarterDialog");
 			return;
 		}
+		if (fired("session.flareactivate")) { _on_flare_button_pressed(); return; } // MiniMap.xml flareButton hotkey
 		if (fired("structree")) {
 			if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("toggle");
 			return;
@@ -343,8 +344,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 			if (mb->is_pressed()) {
-				// Hold K and click to send a flare (0 A.D. session.flare).
-				if (rtso::hotkeys::held("session.flare")) {
+				// Hold K and click to send a flare (0 A.D. session.flare), or click once
+				// the flare button armed it (INPUT_FLARE).
+				if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
+					flare_armed_ = false;
 					const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 					trigger_flare(click_pos.x, click_pos.z);
 					return;
@@ -353,8 +356,27 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (build_mode) {
 					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE ||
 							current_build_type == rtso::BLD_SIEGE_WALL) {
-						wall_drag_mode = true;
-						wall_drag_start_pos = get_ground_click_pos(mouse_pos);
+						// input.js INPUT_BUILDING_WALL_CLICK / _PATHING: a press sets the start, the next press
+						// the end; with Shift (session.queue) the end starts the next wall.
+						const Vector3 click = get_ground_click_pos(mouse_pos);
+						if (!wall_drag_mode) {
+							wall_drag_mode = true;
+							wall_drag_start_pos = click;
+							return;
+						}
+						const bool queued = rtso::hotkeys::held("session.queue");
+						if (!try_place_wall(click, queued)) {
+							session_audio_.play_invalid_placement(); // "Cannot build wall here!"
+							return;
+						}
+						if (queued) {
+							wall_drag_start_pos = click;
+						} else {
+							wall_drag_mode = false;
+							for (auto *wg : wall_ghosts)
+								if (wg) wg->set_visible(false);
+							enter_build_mode(false);
+						}
 						return;
 					}
 					// The site is fixed at the press; the release places it (input.js INPUT_BUILDING_CLICK).
@@ -422,39 +444,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 					return;
 				}
-				if (wall_drag_mode) {
-					wall_drag_mode = false;
-					for (auto *wg : wall_ghosts) {
-						if (wg) wg->set_visible(false);
-					}
-					const Vector3 drag_end_pos = get_ground_click_pos(mouse_pos);
-					// Commands.js "construct-wall": the sim lays the pieces (helpers/Walls.js) and
-					// snaps the ends onto the player's wall towers, the same on every peer.
-					// Alt hands the whole wall to one builder (popOneFromSelection).
-					const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
-					const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
-					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
-					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
-					const bool queued = rtso::hotkeys::held("session.queue");
-					const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
-					const bool any = sim && !sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
-							drag_end_pos.x, drag_end_pos.z, nullptr, nullptr, wall_kind).empty();
-					if (any) {
-						if (turn_cmds()) {
-							post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_BUILD_WALL, builders, builder_n,
-									drag_end_pos.x, drag_end_pos.z,
-									rtso::Simulation::pack_wall_point(wall_drag_start_pos.x, wall_drag_start_pos.z),
-									(uint8_t)(wall_kind | (queued ? rtso::NET_PARAM_QUEUED : 0)));
-						} else {
-							sim->cmd_build_wall(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
-									drag_end_pos.x, drag_end_pos.z, builders, builder_n, queued, wall_kind);
-						}
-						play_civ_voice("build");
-						if (order_one) pop_from_selection(selected_ids, one_builder);
-					}
-					enter_build_mode(false);
-					return;
-				}
+				if (wall_drag_mode) return; // the start is set: the next press sets the end (input.js INPUT_BUILDING_WALL_PATHING)
 				if (dragging) {
 					dragging = false;
 					sel_rect->set_rect(Vector2(), Vector2(), false);
@@ -660,6 +650,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 				}
 			}
+		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed() && flare_armed_) {
+			flare_armed_ = false; // INPUT_FLARE: a right click cancels the flare
+			return;
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
 			// A right-click while band-boxing cancels the box and gives no order
 			// (input.js INPUT_BANDBOXING: right button resets to INPUT_NORMAL).
@@ -1199,4 +1192,33 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	if (mm.is_valid() && dragging) {
 		sel_rect->set_rect(drag_start, mm->get_position(), true);
 	}
+}
+
+bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
+	if (!sim) return false;
+	// Commands.js "construct-wall": the sim lays the pieces (helpers/Walls.js) and snaps the ends
+	// onto the player's wall towers, the same on every peer. Alt hands the whole wall to one
+	// builder (popOneFromSelection).
+	const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
+	const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
+	const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
+	const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
+	const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
+	// GuiInterface.js SetWallPlacementPreview: the wall is placeable when its first piece is.
+	uint32_t snapped[2] = {0, 0};
+	const std::vector<rtso::Simulation::WallPiece> pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x,
+			wall_drag_start_pos.z, end.x, end.z, &snapped[0], &snapped[1], wall_kind);
+	if (pieces.empty() || sim->check_wall_piece(local_player(), pieces[0], snapped, 2) != rtso::Simulation::PLACE_OK)
+		return false;
+	if (turn_cmds()) {
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_BUILD_WALL, builders, builder_n, end.x, end.z,
+				rtso::Simulation::pack_wall_point(wall_drag_start_pos.x, wall_drag_start_pos.z),
+				(uint8_t)(wall_kind | (queued ? rtso::NET_PARAM_QUEUED : 0)));
+	} else if (sim->cmd_build_wall(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z, end.x, end.z, builders,
+					   builder_n, queued, wall_kind) == 0) {
+		return false;
+	}
+	play_civ_voice("build");
+	if (order_one) pop_from_selection(selected_ids, one_builder);
+	return true;
 }
