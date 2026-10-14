@@ -40,6 +40,11 @@ import urllib.error
 import time
 import base64
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from extract_0ad_flora import ORDER as _FLORA_ORDER, family_of_fruit, family_of_tree  # noqa: E402
+
+FLORA_TEMPLATES = frozenset(_FLORA_ORDER)
+
 zip_path = "/home/abhi/project/0ad/binaries/data/mods/public/public.zip"
 GITHUB_RAW = "https://raw.githubusercontent.com/0ad/0ad/master/binaries/data/mods/public/"
 NAV_WATER_MARGIN = 0.3
@@ -341,29 +346,31 @@ def unit_class(ltpl):
     return None
 
 # 0 A.D. gaia/tree/* and gaia/fruit/* templates by the plant RTS0 draws for them
-# (FloraKind in sim_types.h, models in assets/models/vegetation).
+# (FloraKind in sim_types.h and flora_data.h, models in assets/models/vegetation): a
+# template with its own kind by its "<tree|fruit>/<stem>" name, else its family.
 def flora_kind(ltpl):
     name = ltpl.rsplit("/", 1)[-1]
-    # First match wins: the specific species before the families they share words with.
-    for keys, kind in ((["dead"], "dead"), (["bush_tropic"], "tropic_bush"), (["bush", "sapling", "shrub"], "bush"),
-                       (["baobab"], "baobab"), (["acacia"], "acacia"), (["bamboo"], "bamboo"),
-                       (["fan_palm"], "fan_palm"), (["palm_tropic", "palmyra", "palm_doum", "senegal_date"], "tropic_palm"),
-                       (["palm", "date"], "palm"), (["aleppo", "pine_maritime", "pine_black"], "aleppo_pine"),
-                       (["fir", "pine_w"], "fir"), (["cypress"], "cypress"), (["juniper"], "juniper"),
-                       (["pine", "cedar", "spruce", "larch", "yew"], "pine"), (["oak"], "oak"), (["carob"], "carob"),
-                       (["poplar"], "poplar"), (["beech"], "beech"), (["olive"], "olive"),
-                       (["banyan", "strangler"], "banyan"), (["maple"], "maple"), (["teak", "toona"], "teak")):
-        if any(k in name for k in keys):
-            return kind
-    return "broadleaf"
+    if "tree/" + name in FLORA_TEMPLATES and ltpl.startswith("gaia/tree/"):
+        return "tree/" + name
+    return family_of_tree(name)
 
 
 def fruit_kind(ltpl):
     name = ltpl.rsplit("/", 1)[-1]
-    for keys, kind in ((["berry", "grape"], "berry"), (["apple", "fig"], "apple"), (["date"], "date")):
-        if any(k in name for k in keys):
-            return kind
-    return "food"
+    if "fruit/" + name in FLORA_TEMPLATES and ltpl.startswith("gaia/fruit/"):
+        return "fruit/" + name
+    kind = family_of_fruit(name)
+    return "food" if kind == "tree" else kind
+
+
+def supply_family(rtype):
+    """A resource type with a template plant ("tree/elm", "fruit/fig") as its family's name."""
+    if rtype.startswith("tree/"):
+        return family_of_tree(rtype[len("tree/"):])
+    if rtype.startswith("fruit/"):
+        kind = family_of_fruit(rtype[len("fruit/"):])
+        return "food" if kind == "tree" else kind
+    return rtype
 
 
 def gaia_resource(source, ltpl, wx, wz):
@@ -882,18 +889,20 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 old = json.load(f)
             have = old.get("resources", [])
             k = old.get("world_size", world_size_m) / world_size_m
-            if len(have) != len(resources) or any(a["type"] != b["type"] or abs(a["x"] - b["x"] * k) > 0.5 or
+            if len(have) != len(resources) or any(supply_family(a["type"]) != supply_family(b["type"]) or
+                                                  abs(a["x"] - b["x"] * k) > 0.5 or
                                                   abs(a["z"] - b["z"] * k) > 0.5 for a, b in zip(have, resources)):
                 print(f"  !! {out_path}: {len(have)} resources, 0 A.D. has {len(resources)}; not refreshed")
                 return
             changed = 0
             for a, b in zip(have, resources):
-                before = (a.get("amount"), a.get("max_gatherers"))
+                before = (a.get("type"), a.get("amount"), a.get("max_gatherers"))
+                a["type"] = b["type"]  # a template with its own FloraKind names itself (flora_kind)
                 a["amount"] = b["amount"]
                 a.pop("max_gatherers", None)
                 if "max_gatherers" in b:
                     a["max_gatherers"] = b["max_gatherers"]
-                changed += before != (a.get("amount"), a.get("max_gatherers"))
+                changed += before != (a.get("type"), a.get("amount"), a.get("max_gatherers"))
             if changed:
                 with open(out_path, "w") as f:
                     json.dump(old, f, indent=2)

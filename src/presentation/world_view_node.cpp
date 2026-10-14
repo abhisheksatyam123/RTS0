@@ -404,8 +404,9 @@ void RtsoWorldView::_ready() {
 		// family). Bushes and saplings are small leafy trees; a date fruit supply is a short
 		// date palm. Scales as in pick_tree_kinds.
 		static_assert(FLORA_KINDS == rtso::FLORA_COUNT, "one batch per FloraKind");
+		static_assert(rtso::FLORA_FAMILY_COUNT == 27, "kKinds lists the families");
 		struct Kind { const char *id; float scale; bool tree; };
-		static const Kind kKinds[FLORA_KINDS] = {
+		static const Kind kKinds[rtso::FLORA_FAMILY_COUNT] = {
 			{ nullptr, 1.0f, true }, { "tree", 1.0f, true }, { "pine", 1.0f, true }, { "palm", 1.0f, true },
 			{ "oak", 1.15f, true }, { "baobab", 0.45f, true }, { "acacia", 0.6f, true }, { "bamboo", 1.0f, true },
 			{ "tree", 0.45f, true }, { "fruit_bush", 1.0f, false }, { "apple", 1.0f, false }, { "palm", 0.7f, false },
@@ -417,14 +418,22 @@ void RtsoWorldView::_ready() {
 			{ "maple", 0.3f, true }, { "juniper", 0.3f, true }, { "teak", 0.21f, true },
 		};
 		for (int k = 1; k < FLORA_KINDS; ++k) {
+			// A template kind draws its own 0.28 actor (extract_0ad_assets.py ZIP_FLORA keeps
+			// 0 A.D.'s metres, as fetch_0ad_trees.py does); a fruit supply does not sway.
+			Kind kd{ nullptr, 0.3f, true };
+			if (k < rtso::FLORA_FAMILY_COUNT) kd = kKinds[k];
+			else {
+				const auto &t = rtso::flora_template_info(k - rtso::FLORA_TEMPLATE_FIRST);
+				kd = Kind{ t.model_id, 0.3f, !t.fruit };
+			}
 			rtso::ModelLibrary::Entry models[TREE_VARIANTS];
-			flora_variants[k] = tree_family_models(kKinds[k].id, models, TREE_VARIANTS);
-			flora_scale[k] = kKinds[k].scale;
+			flora_variants[k] = tree_family_models(kd.id, models, TREE_VARIANTS);
+			flora_scale[k] = kd.scale;
 			for (int v = 0; v < flora_variants[k]; ++v) {
 				const auto &e = models[v];
 				enable_instance_tint(e.mesh);
-				flora_mm[k][v] = create_multimesh(kKinds[k].tree ? wind_mesh(e.mesh) : e.mesh, true);
-				flora_y[k][v] = e.y_offset * kKinds[k].scale;
+				flora_mm[k][v] = create_multimesh(kd.tree ? wind_mesh(e.mesh) : e.mesh, true);
+				flora_y[k][v] = e.y_offset * kd.scale;
 				flora_mmi[k][v] = memnew(MultiMeshInstance3D);
 				flora_mmi[k][v]->set_multimesh(flora_mm[k][v]);
 				add_child(flora_mmi[k][v]);
