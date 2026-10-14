@@ -52,8 +52,8 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Great Hall", "great_hall", "great_hall", 2000.0f, 2, 0, 0, 200, 200, 0, 10, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/germ/great_hall */ \
 		{"Wagon Encampment", "encampment", "army_camp", 1750.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 2500.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment */ \
 		{"Fortified Wagon Encampment", "encampment_fortified", "army_camp", 2625.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 3000.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment_fortified */ \
-		{"Shrine", "temple", "temple", 1000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 0.0f}, /* structures/shrine_greek_01 */ \
-		{"Trading Post", "market", "market", 1000.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/trading_post_desert */ \
+		{"Shrine", "shrine", "temple", 1000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 0.0f}, /* structures/shrine_greek_01 */ \
+		{"Trading Post", "trading_post", "market", 1000.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/trading_post_desert */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.

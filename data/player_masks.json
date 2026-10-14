@@ -5087,6 +5087,22 @@
 1.0
 ]
 },
+"buildings/s_celts_tavern_tex0": {
+"mask": "res://assets/textures/player_masks/structural/celt_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_celts_tavern_tex1": {
+"mask": "res://assets/textures/player_masks/props/celt_props_new_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_celts_wall_gate_tex0": {
 "mask": "res://assets/textures/player_masks/structural/celt_murus_512x512.png",
 "tint": [
@@ -5447,6 +5463,14 @@
 1.0
 ]
 },
+"buildings/s_han_pagoda_tex0": {
+"mask": "res://assets/textures/player_masks/structural/han_struct_02_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_han_tower_small_tex0": {
 "mask": "res://assets/textures/player_masks/structural/han_struct_02_512x256.png",
 "tint": [
@@ -5529,6 +5553,30 @@
 },
 "buildings/s_han_wall_short_tex1": {
 "mask": "res://assets/textures/player_masks/structural/han_wall_gutter_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_hellenes_shrine_01_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_hellenes_shrine_01_tex2": {
+"mask": "res://assets/textures/player_masks/props/hele_decor_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_hellenes_shrine_01_tex3": {
+"mask": "res://assets/textures/player_masks/props/hele_props_a_512x256.png",
 "tint": [
 1.0,
 1.0,
@@ -6007,7 +6055,23 @@
 1.0
 ]
 },
+"buildings/s_persians_market_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_persians_range_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_persians_shrine_tex0": {
 "mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
 "tint": [
 1.0,
@@ -6113,6 +6177,22 @@
 },
 "buildings/s_ptolemies_blacksmith_tex0": {
 "mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_kiosk_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_kiosk_tex2": {
+"mask": "res://assets/textures/player_masks/structural/ptol_statues_female_512x512.png",
 "tint": [
 1.0,
 1.0,

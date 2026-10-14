@@ -997,6 +997,15 @@ ZIP_STRUCTURES = {
     # its fortified Upgrade at the same scale (its palisade rings the wagons).
     "s_germans_encampment":           ("art/actors/structures/germans/encampment.xml",           "width", 4.0, None),
     "s_germans_encampment_fortified": ("art/actors/structures/germans/encampment_fortified.xml", "scale", 0.1146, None),
+    # The Gaia shrines and the Celtic trading post maps place (BLD_SHRINE, BLD_TRADING_POST),
+    # at the Roman temple of Vesta's scale (the Italian shrine's actor), metres x 0.21.
+    "s_hellenes_shrine_01":           ("art/actors/structures/hellenes/shrine_01.xml",            "scale", 0.21, None),
+    "s_celts_small_stone_monument":   ("art/actors/structures/celts/small_stone_monument.xml",   "scale", 0.21, None),
+    "s_ptolemies_kiosk":              ("art/actors/structures/ptolemies/kiosk.xml",              "scale", 0.21, None),
+    "s_persians_shrine":              ("art/actors/structures/persians/shrine.xml",              "scale", 0.21, None),
+    "s_celts_tavern":                 ("art/actors/structures/celts/tavern.xml",                 "scale", 0.21, None),
+    "s_han_pagoda":                   ("art/actors/structures/han/pagoda.xml",                   "scale", 0.21, None),
+    "s_persians_market":              ("art/actors/structures/persians/market.xml",              "scale", 0.21, None),
 }
 
 # Units only 0.28 has, drawn by RTS0's generic unit models of the same id

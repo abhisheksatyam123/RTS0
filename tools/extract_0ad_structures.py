@@ -131,6 +131,14 @@ ZIP_ALIASES = {
     "germ_encampment": "s_germans_encampment", "encampment": "s_germans_encampment",
     "germ_encampment_fortified": "s_germans_encampment_fortified",
     "encampment_fortified": "s_germans_encampment_fortified",
+    # The Gaia shrines and trading posts (BLD_SHRINE, BLD_TRADING_POST) keep their template's
+    # civ (sim_types.h gaia_structure_template), so each civ's id names its template's actor;
+    # kush_shrine is extract_0ad_assets.py's own, and Macedonia's shrine_greek_02 draws _01.
+    "gaul_shrine": "s_celts_small_stone_monument", "han_shrine": "s_han_pagoda",
+    "ptol_shrine": "s_ptolemies_kiosk", "mace_shrine": "s_hellenes_shrine_01",
+    "rome_shrine": "s_romans_temple_vesta", "pers_shrine": "s_persians_shrine",
+    "gaul_trading_post": "s_celts_tavern", "pers_trading_post": "s_persians_market",
+    "trading_post": "s_persians_market",
 }
 
 # Generic models with no GLB yet: model id -> template under structures/.

@@ -47323,6 +47323,77 @@
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   },
+  "s_celts_small_stone_monument": {
+   "file": "models/buildings/s_celts_small_stone_monument.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.649,
+    1.122,
+    2.363
+   ],
+   "sources": [
+    "actor:art/actors/structures/celts/small_stone_monument.xml",
+    "mesh:structural/celt_hc.dae",
+    "skin:structural/wrld_stone_celt.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_celts_tavern": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Death",
+    "Run",
+    "Attack"
+   ],
+   "bones": 49,
+   "file": "models/buildings/s_celts_tavern.glb",
+   "origin": "ground-center",
+   "parts": 14,
+   "size_meters": [
+    4.051,
+    3.168,
+    4.29
+   ],
+   "skeleton": "horse",
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_barrel1.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_barrel2.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_bucket_food.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_bucket_water.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_shield1.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_shield2.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_shield3.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_shield4.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_table.xml",
+    "actor:art/actors/props/structures/celts/celt_tavern_table_eyecandy.xml",
+    "actor:art/actors/props/structures/mauryas/stable_horse_c.xml",
+    "actor:art/actors/structures/celts/tavern.xml",
+    "mesh:props/celt_tavern_bucket_food.dae",
+    "mesh:props/celt_tavern_bucket_water.dae",
+    "mesh:props/celt_tavern_shield1.dae",
+    "mesh:props/celt_tavern_shield2.dae",
+    "mesh:props/celt_tavern_shield3.dae",
+    "mesh:props/celt_tavern_shield4.dae",
+    "mesh:props/celt_tavern_table.dae",
+    "mesh:props/celt_tavern_table_eyecandy.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:props/wrld_barrel_a.dae",
+    "mesh:skeletal/horse_marwari.dae",
+    "mesh:structural/celt_tavern.dae",
+    "skin:props/celt_prop_1.png",
+    "skin:props/celt_props_new.dds",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/ao/gaul_tavern_ao.png",
+    "skin:structural/celt_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_celts_wall_gate": {
    "file": "models/buildings/s_celts_wall_gate.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -48076,6 +48147,26 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_han_pagoda": {
+   "file": "models/buildings/s_han_pagoda.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.287,
+    5.46,
+    2.225
+   ],
+   "sources": [
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/han/pagoda.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/han_pagoda.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/han_pagoda.png",
+    "skin:structural/han_struct_02.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_han_tower_small": {
    "file": "models/buildings/s_han_tower_small.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -48232,6 +48323,37 @@
     "skin:structural/ao/han_wall_short.png",
     "skin:structural/han_struct_02.png",
     "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_hellenes_shrine_01": {
+   "file": "models/buildings/s_hellenes_shrine_01.glb",
+   "origin": "ground-center",
+   "parts": 6,
+   "size_meters": [
+    5.348,
+    3.786,
+    4.195
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/shrine_01_decor.xml",
+    "actor:art/actors/props/structures/hellenes/shrine_01_nature.xml",
+    "actor:art/actors/props/structures/hellenes/shrine_01_props_a.xml",
+    "actor:art/actors/props/structures/hellenes/shrine_01_roof.xml",
+    "actor:art/actors/props/structures/hellenes/shrine_01_tiles.xml",
+    "actor:art/actors/structures/hellenes/shrine_01.xml",
+    "mesh:structural/hele_shrine_01_decor.dae",
+    "mesh:structural/hele_shrine_01_nature.dae",
+    "mesh:structural/hele_shrine_01_props_a.dae",
+    "mesh:structural/hele_shrine_01_roof.dae",
+    "mesh:structural/hele_shrine_01_struct.dae",
+    "mesh:structural/hele_shrine_01_tiles.dae",
+    "skin:props/hele_decor.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_b.dds",
+    "skin:props/structs_nature.png",
+    "skin:structural/ao/athen_civic_centre.png",
+    "skin:structural/hele_struct.dds"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
@@ -49212,6 +49334,37 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_persians_market": {
+   "file": "models/buildings/s_persians_market.glb",
+   "origin": "ground-center",
+   "parts": 8,
+   "size_meters": [
+    5.65,
+    4.021,
+    5.151
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/persians/market_a_stall1.xml",
+    "actor:art/actors/props/structures/persians/market_a_stall2.xml",
+    "actor:art/actors/props/structures/persians/market_a_stall3.xml",
+    "actor:art/actors/props/structures/persians/market_a_stall4.xml",
+    "actor:art/actors/props/structures/persians/market_a_stall5.xml",
+    "actor:art/actors/props/structures/persians/market_a_stall6.xml",
+    "actor:art/actors/props/structures/persians/market_a_stall7.xml",
+    "actor:art/actors/structures/persians/market.xml",
+    "mesh:props/pers_market_a_stall1.dae",
+    "mesh:props/pers_market_a_stall2.dae",
+    "mesh:props/pers_market_a_stall3.dae",
+    "mesh:props/pers_market_a_stall4.dae",
+    "mesh:props/pers_market_a_stall5.dae",
+    "mesh:props/pers_market_a_stall6.dae",
+    "mesh:props/pers_market_a_stall7.dae",
+    "mesh:structural/pers_market_a.dae",
+    "skin:structural/ao/pers_market_a.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_persians_outpost": {
    "file": "models/buildings/s_persians_outpost.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -49250,6 +49403,23 @@
     "actor:art/actors/structures/persians/range.xml",
     "mesh:structural/pers_range.dae",
     "skin:structural/ao/pers_range_AO.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_persians_shrine": {
+   "file": "models/buildings/s_persians_shrine.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.203,
+    4.507,
+    2.203
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/shrine.xml",
+    "mesh:structural/pers_shrine.dae",
+    "skin:structural/ao/pers_shrine.png",
     "skin:structural/pers_struct.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
@@ -49499,6 +49669,29 @@
     "actor:art/actors/structures/ptolemies/blacksmith.xml",
     "mesh:structural/ptol_blacksmith.dae",
     "skin:structural/ao/ptol_blacksmith.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_kiosk": {
+   "file": "models/buildings/s_ptolemies_kiosk.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    4.239,
+    4.93,
+    5.527
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/ptolemies/temple_paintings.xml",
+    "actor:art/actors/props/structures/ptolemies/temple_statue.xml",
+    "actor:art/actors/structures/ptolemies/kiosk.xml",
+    "mesh:props/ptol_temple_paintings.dae",
+    "mesh:props/ptol_temple_statue.dae",
+    "mesh:structural/ptol_temple.dae",
+    "skin:structural/ao/ptol_temple.png",
+    "skin:structural/ptol_paintings.png",
+    "skin:structural/ptol_statues_female.png",
     "skin:structural/ptol_struct.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"

@@ -244,8 +244,8 @@ UNIQUE_BUILDINGS = [
     ("BLD_WAGON_ENCAMPMENT_FORTIFIED", ["encampment_fortified"], "encampment_fortified", "army_camp"),
     # Gaia structures maps place (GAIA_UNIQUE): nobody builds them; captured, never destroyed.
     # The type's row is read from the first template; each placed one keeps its template's civ.
-    ("BLD_SHRINE", ["shrine_greek_01"], "temple", "temple"),
-    ("BLD_TRADING_POST", ["trading_post_desert"], "market", "market"),
+    ("BLD_SHRINE", ["shrine_greek_01"], "shrine", "temple"),
+    ("BLD_TRADING_POST", ["trading_post_desert"], "trading_post", "market"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
