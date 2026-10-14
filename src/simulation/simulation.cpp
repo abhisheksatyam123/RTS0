@@ -27191,6 +27191,7 @@ void Simulation::tick_treasures(float dt) {
 	std::vector<uint8_t> in_range(treasures_.size(), 0);
 	struct NextTreasure { uint32_t uid; float x, z; };
 	std::vector<NextTreasure> next_hunt; // collectors whose treasure is gone
+	std::vector<uint8_t> collecting(n, 0);
 	for (size_t i = 0; i < n; ++i) {
 		const uint32_t tid = units_.target_unit_id[i];
 		if (tid == 0 || !units_.alive[i] || lookup_unit(tid) >= 0) continue;
@@ -27201,20 +27202,22 @@ void Simulation::tick_treasures(float dt) {
 			if (t.id != tid) continue;
 			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
 			const float reach = treasure_reach(i);
-			if (reach < 0.0f || dx * dx + dz * dz > reach * reach) break;
-			// One collector at a time; another in range takes over if it stops.
-			if (t.collector_id == 0 || lookup_unit(t.collector_id) < 0 || !units_.alive[lookup_unit(t.collector_id)] ||
-			    units_.target_unit_id[lookup_unit(t.collector_id)] != t.id) {
+			if (reach < 0.0f || units_.pack_state[i] != PACK_NONE || dx * dx + dz * dz > reach * reach) break;
+			// TreasureCollector.js: each collector in range runs its own CollectTime timer and the
+			// first to finish takes it. Collectors never pack, so pack_elapsed holds the timer.
+			collecting[i] = 1;
+			units_.pack_elapsed[i] += dt;
+			if (!in_range[k] || units_.pack_elapsed[i] > t.collect_progress) {
 				t.collector_id = units_.id[i];
-				t.collect_progress = 0.0f;
+				t.collect_progress = units_.pack_elapsed[i];
 			}
-			if (t.collector_id == units_.id[i] && !in_range[k]) {
-				in_range[k] = 1;
-				t.collect_progress += dt;
-			}
+			in_range[k] = 1;
 			break;
 		}
 	}
+	// A collector that stops or leaves loses its timer, as its CollectTreasure order ends.
+	for (size_t i = 0; i < n; ++i)
+		if (!collecting[i] && units_.pack_state[i] == PACK_NONE) units_.pack_elapsed[i] = 0.0f;
 	for (size_t k = 0; k < treasures_.size();) {
 		Treasure &t = treasures_[k];
 		if (!in_range[k]) {
