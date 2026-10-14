@@ -99,6 +99,7 @@ bool NetHost::startHost(const NetConfig &c) {
 	next_peer_id_ = 1;
 	banned_names_.clear();
 	banned_addresses_.clear();
+	failed_passwords_.clear();
 	kicks_.clear();
 	next_seq_ = 1;
 	peers_.clear();
@@ -603,9 +604,12 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 	uint32_t sender_peer_id = hdr.peer_id;
 
 	if (isHost()) {
+		// Only a session still open speaks for its address: a client that left
+		// keeps its entry, and the OS can hand its port to a new client, whose
+		// connect must then open a session of its own (not be told the old id).
 		NetPeer *peer = nullptr;
 		for (auto &p : peers_) {
-			if (p.address == from_ip && p.port == from_port) {
+			if (p.connected && p.address == from_ip && p.port == from_port) {
 				peer = &p;
 				break;
 			}
@@ -892,13 +896,17 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 				AuthenticateResultMsg res;
 				res.host_id = static_cast<uint16_t>(peerId);
 				res.is_controller = 0;
-				if (banned_names_.count(auth.name) || banned_addresses_.count(p->address)) {
+				int &failed = failed_passwords_[auth.name.empty() ? p->address : auth.name];
+				if (banned_names_.count(auth.name) || banned_addresses_.count(p->address) ||
+						failed >= FAILED_PASSWORD_TRIES_BEFORE_BAN) {
 					res.code = ARC_BANNED;
 					res.message = "You have been banned from this game";
 				} else if (!password_.empty() && auth.password != password_) {
+					++failed;
 					res.code = ARC_PASSWORD_INVALID;
 					res.message = "Wrong password";
 				} else {
+					failed = 0;
 					res.code = ARC_OK;
 					res.message = "Welcome " + auth.name;
 				}

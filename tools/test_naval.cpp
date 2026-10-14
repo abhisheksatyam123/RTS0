@@ -688,6 +688,30 @@ static void test_petra_navy() {
 
 // attackPlan.js overseas: an attack on the other land waits for a transport ship,
 // which navalManager.js trains (getBestShip "transport"), then sails across.
+// transportPlan.js getBoardingPos with avoidEnnemy: an army lands on the shore of the
+// target's land nearest the ship and target outside enemy territory, not on the beach
+// below an enemy Civic Centre.
+static void test_petra_landing_spot() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(20.0f, -30.0f, BLD_TOWN_CENTER, 0);
+	run(s, 2.0f);
+	s.petra_pid_ = 1;
+	const uint16_t land = s.petra_land_at(20.0f, -40.0f);
+	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	CHECK(s.territory_owner_at(20.0f, -18.0f) == 0);
+	float nx = 0.0f, nz = 0.0f, ax = 0.0f, az = 0.0f;
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, 20.0f, -40.0f, false, nx, nz));
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, 20.0f, -40.0f, true, ax, az));
+	std::printf("Petra landing spot: (%.1f, %.1f) nearest, (%.1f, %.1f) outside enemy land\n", nx, nz, ax, az);
+	CHECK(std::fabs(nx - 20.0f) < 3.0f && nz < -15.0f && nz > -20.0f); // the beach below the target
+	CHECK(s.territory_owner_at(ax, az) != 0 && az < -15.0f && az > -20.0f); // a beach outside the enemy's land
+	CHECK(s.petra_land_at(ax, az) == land);
+}
+
 static void test_petra_overseas_attack() {
 	static Simulation s;
 	fresh(s);
@@ -1541,6 +1565,7 @@ int main() {
 	test_warships_keep_off_shore();
 	test_petra_navy();
 	test_petra_overseas_attack();
+	test_petra_landing_spot();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
 	test_petra_concurrent_transports();

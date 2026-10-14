@@ -945,6 +945,46 @@ static void test_reach_and_responses() {
 	}
 }
 
+static void test_attack_rate_and_invulnerable() {
+	std::printf("21. attack-rate auras and invulnerable targets\n");
+	// Cleopatra's Patriot multiplies Attack/*/RepeatTime by 0.8 (not damage by 1.25).
+	{
+		Simulation s;
+		setup(s);
+		const uint16_t cleo = template_named("ptol/hero_cleopatra_vii");
+		const uint16_t pike = template_named("ptol/infantry_pikeman_b");
+		check(cleo != CIV_UNIT_TEMPLATE_NONE && pike != CIV_UNIT_TEMPLATE_NONE, "roster has Cleopatra and a pikeman");
+		s.spawn_unit(0.0f, 0.0f, 0, UNIT_HERO, 0.0f, cleo);
+		const uint32_t near_u = s.spawn_unit(3.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, pike);
+		const uint32_t far_u = s.spawn_unit(40.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, pike);
+		s.rebuild_auras();
+		const int n = idx(s, near_u), f = idx(s, far_u);
+		check(std::fabs(s.unit_repeat_time(n) - 0.8f * s.units_.attack_cooldown[n]) < 1e-4f, "a pikeman near her attacks 20% sooner");
+		check(s.unit_repeat_time(f) == s.units_.attack_cooldown[f], "one out of her range doesn't");
+		check(s.aura_mgr_.query_modifier(s.units_.pos_x[n], s.units_.pos_z[n], 0, AURA_ATTACK, s.units_.tmpl[n],
+				&s.unit_combat_at(n).classes) == 0.0f, "and hits no harder");
+	}
+	// helpers/Attack.js HandleAttackEffects: an invulnerable target takes no damage, gives
+	// no xp, sends no Attacked message and takes no status.
+	{
+		Simulation s;
+		setup(s);
+		uint32_t sw = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		const uint32_t v = dummy(s, 1.5f, 0.0f, UNIT_SWORDSMAN, 100.0f);
+		s.triggers_.invulnerable.push_back(v);
+		const float hp0 = s.units_.hp[idx(s, v)];
+		s.order_attack(&sw, 1, v);
+		for (int k = 0; k < 200; ++k) s.tick(DT);
+		const int a = idx(s, sw), t = idx(s, v);
+		check(s.units_.hp[t] == hp0, "the invulnerable unit takes no damage");
+		check(s.units_.xp[a] == 0 && s.units_.xp_partial[a] == 0.0f, "its attacker gains no xp");
+		check(s.units_.attacked_by[t] == 0, "and it isn't told it was attacked");
+		const CombatProfile &mp = unit_combat(template_named("maur/champion_maiden_archer"), UNIT_ARCHER_MAIDEN);
+		s.apply_status((size_t)t, mp, sw, 0);
+		check(s.units_.status_effects[t] == 0, "nor poisoned");
+	}
+}
+
 static void test_germanic_auras() {
 	std::printf("18. Germanic hero and champion auras\n");
 	Simulation s;
@@ -1080,6 +1120,7 @@ int main() {
 	test_germanic_auras();
 	test_aura_stacking();
 	test_reach_and_responses();
+	test_attack_rate_and_invulnerable();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
