@@ -113,6 +113,9 @@ def test_http():
     check(call("/players")[1]["players"] == [{"name": "carol", "status": "available"}], "HTTP players")
     check(call("/rooms/punch", {"token": me["token"], "id": "r", "ip": "127.0.0.1", "port": 40000})[0] == 200, "HTTP punch")
     check(call("/rooms/punch?id=r&since=0")[1]["endpoints"][0]["port"] == 40000, "HTTP punch list")
+    check(call("/register", {"name": "dave", "password": "ABC"})[0] == 200, "HTTP account registration")
+    check(call("/login", {"name": "dave", "password": "XYZ"})[0] == 401, "HTTP sign in with the wrong password")
+    check(call("/login", {"name": "dave", "password": "ABC"})[0] == 200, "HTTP sign in with the password")
     check(call("/nope")[0] == 404, "unknown path is 404")
     req = urllib.request.Request(base + "/login", data=b"[1]", headers={"Content-Type": "application/json"})
     try:
@@ -213,7 +216,33 @@ def test_punch():
     sock.close()
 
 
+def test_accounts():
+    import tempfile
+    path = os.path.join(tempfile.mkdtemp(), "accounts.json")
+    lb = lobby_server.Lobby(accounts_path=path)
+    pw = lobby_server.encrypt_password("hunter22", "Alice")
+    check(len(pw) == 64 and pw == pw.upper() and pw == lobby_server.encrypt_password("hunter22", "alice"),
+          "EncryptPassword is 64 upper-case hex digits, salted by the name in any case")
+    check(pw != lobby_server.encrypt_password("hunter22", "bob"), "another name salts the same password differently")
+    check(lb.register_account("Alice", pw)[0] == 200, "register an account")
+    check(lb.register_account("alice", pw)[0] == 409, "the name, in any case, can be registered once")
+    check(lb.register_account("bad name!", pw)[0] == 400, "a name outside a-z 0-9 . _ - is refused")
+    check(lb.register_account("x" * 21, pw)[0] == 400, "a name over 20 characters is refused")
+    check("hunter22" not in open(path).read() and pw not in open(path).read(),
+          "the accounts file keeps neither the password nor what the client sent")
+    check(lb.login("alice", "wrong")[0] == 401, "the wrong password is refused")
+    check(lb.login("alice")[0] == 401, "a registered name needs its password")
+    code, obj = lb.login("alice", pw)
+    check(code == 200 and obj["name"] == "Alice", "the right password signs in, under the registered spelling")
+    check(lb.login("bob", pw)[0] == 401, "a password for a name with no account is refused")
+    check(lb.login("guest")[0] == 200, "a name with no account signs in as a guest")
+    strict = lobby_server.Lobby(accounts_path=path, accounts_only=True)
+    check(strict.login("carol")[0] == 401, "with --accounts-only a name with no account is refused")
+    check(strict.login("ALICE", pw)[0] == 200, "accounts load from the file")
+
+
 if __name__ == "__main__":
+    test_accounts()
     test_object()
     test_punch()
     test_ratings()

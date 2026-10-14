@@ -8,7 +8,14 @@ they are playing, chat in the lobby room, and see the list of games that hosts
 register (name, host, map, players, state). This server keeps the same data
 behind a small JSON API:
 
-  POST /login     {name}                 -> {token, name}; 409 if the name is in use
+  POST /register  {name, password}       -> {name}; creates an account (0 A.D. prelobby
+                                         Register). 409 if the name is registered, 400 for a
+                                         name that is not 1-20 of a-z 0-9 . _ -
+  POST /login     {name, password}       -> {token, name}; 409 if the name is in use, 401 for
+                                         a registered name with the wrong password (or none)
+                                         or, with --accounts-only, a name with no account.
+                                         Without --accounts-only an unregistered name signs
+                                         in with no password, as a guest
   POST /logout    {token}
   POST /presence  {token, status}        status: available, away or playing
   GET  /players                          -> {players: [{name, status}]}
@@ -44,6 +51,11 @@ GET /rooms. With --stun-port the server also answers STUN Binding Requests
 (RFC 5389) on UDP, as 0 A.D.'s lobby.stun.server does, so a player learns the
 public address and port its NAT gives the game's socket.
 
+A password is what the client sends, 0 A.D.'s EncryptPassword(password,
+username): the server never sees the typed one, and keeps only a salted SHA-256
+of it. Accounts live as long as the server, or in the JSON file given with
+--accounts.
+
 Players with a rated game carry their "rating" in GET /players. Ratings live as
 long as the server, or in the JSON file given with --ratings.
 
@@ -51,7 +63,9 @@ A signed-in player or a game that has not been heard from for TIMEOUT seconds
 is dropped, as the XMPP server drops a client that went away.
 """
 import argparse
+import hashlib
 import json
+import re
 import os
 import secrets
 import socket
@@ -76,6 +90,22 @@ STUN_MAGIC_COOKIE = 0x2112A442
 # lobby-bots xpartamupp/elo.py and leaderboard.py.
 LEADERBOARD_DEFAULT_RATING = 1200
 ELO_SURE_WIN_DIFFERENCE = 600.0     # a "sure win": nothing gained or lost
+# 0 A.D. source/lobby/pkcs5_pbkdf2.cpp EncryptPassword: what a client sends as
+# its password. PBKDF2-HMAC-SHA256, 1337 rounds, salted with SHA-256 of a fixed
+# base and the (lower-case) name, as upper-case hex. LobbySession.encrypt_password
+# computes the same in the game; tests check the two agree.
+ENCRYPT_SALT_BASE = bytes([244, 243, 249, 244, 32, 33, 34, 35, 10, 11, 12, 13, 14, 15, 16, 17,
+                           18, 19, 20, 32, 33, 244, 224, 127, 129, 130, 140, 153, 133, 123, 234, 123])
+ENCRYPT_ITERATIONS = 1337
+
+
+def encrypt_password(password, username):
+    salt = hashlib.sha256(ENCRYPT_SALT_BASE + username.lower().encode("utf-8")).digest()
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, ENCRYPT_ITERATIONS).hex().upper()
+
+
+# 0 A.D. prelobby checkUsername for a new account.
+ACCOUNT_NAME = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
 ELO_K_FACTOR_CONSTANT_RATING = 2200.0  # ratings above this move at its rate
 VOLATILITY_CONSTANT = 20.0          # games after which a rating is stable
 ANTI_INFLATION = 0.015
@@ -134,7 +164,8 @@ def _split_list(value):
 
 
 class Lobby:
-    def __init__(self, timeout=TIMEOUT, clock=time.monotonic, ratings_path=None):
+    def __init__(self, timeout=TIMEOUT, clock=time.monotonic, ratings_path=None,
+                 accounts_path=None, accounts_only=False):
         self.timeout = timeout
         self.clock = clock
         self.lock = threading.Lock()
@@ -152,6 +183,16 @@ class Lobby:
                     self.ratings = json.load(f)
             except (OSError, ValueError):
                 self.ratings = {}
+        # name (lower case) -> {name, salt, hash}: hash = sha256(salt + password)
+        self.accounts = {}
+        self.accounts_path = accounts_path
+        self.accounts_only = accounts_only
+        if accounts_path:
+            try:
+                with open(accounts_path, encoding="utf-8") as f:
+                    self.accounts = json.load(f)
+            except (OSError, ValueError):
+                self.accounts = {}
 
     def expire(self):
         now = self.clock()
@@ -172,10 +213,43 @@ class Lobby:
             p["seen"] = self.clock()
         return p
 
-    def login(self, name):
+    @staticmethod
+    def _hash(salt, password):
+        return hashlib.sha256((salt + str(password)).encode("utf-8")).hexdigest()
+
+    def _save_accounts(self):
+        if not self.accounts_path:
+            return
+        tmp = self.accounts_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.accounts, f)
+        os.replace(tmp, self.accounts_path)
+
+    def register_account(self, name, password):
+        """0 A.D. prelobby Register: an XMPP in-band registration."""
+        name = str(name or "").strip()
+        if not ACCOUNT_NAME.match(name):
+            return 400, {"error": "Invalid username"}
+        if not password:
+            return 400, {"error": "Please enter your password"}
+        if name.lower() in self.accounts:
+            return 409, {"error": "Username already taken"}
+        salt = secrets.token_hex(16)
+        self.accounts[name.lower()] = {"name": name, "salt": salt, "hash": self._hash(salt, password)}
+        self._save_accounts()
+        return 200, {"name": name}
+
+    def login(self, name, password=None):
         name = " ".join(str(name or "").split())[:MAX_NAME]
         if not name:
             return 400, {"error": "a name is required"}
+        acct = self.accounts.get(name.lower())
+        if acct:
+            if not password or not secrets.compare_digest(self._hash(acct["salt"], password), acct["hash"]):
+                return 401, {"error": "Wrong username or password"}
+            name = acct["name"]
+        elif password or self.accounts_only:
+            return 401, {"error": "Wrong username or password" if password else "Register an account first"}
         if any(p["name"].lower() == name.lower() for p in self.players.values()):
             return 409, {"error": "that name is in use"}
         token = secrets.token_hex(16)
@@ -464,7 +538,9 @@ class LobbyHandler(BaseHTTPRequestHandler):
                 elif path == "/rooms/unregister":
                     code, obj = LOBBY.unregister(data.get("id"))
                 elif path == "/login":
-                    code, obj = LOBBY.login(data.get("name"))
+                    code, obj = LOBBY.login(data.get("name"), data.get("password"))
+                elif path == "/register":
+                    code, obj = LOBBY.register_account(data.get("name"), data.get("password"))
                 elif path == "/logout":
                     code, obj = LOBBY.logout(data.get("token"))
                 elif path == "/presence":
@@ -533,11 +609,15 @@ def main():
                         help="seconds without a request before a player or game is dropped")
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--ratings", help="JSON file that keeps the ratings between runs")
+    parser.add_argument("--accounts", help="JSON file that keeps the accounts between runs")
+    parser.add_argument("--accounts-only", action="store_true",
+                        help="refuse names with no account (0 A.D.'s lobby has no guests)")
     parser.add_argument("--stun-port", type=int, default=3478,
                         help="UDP port that answers STUN Binding Requests (0 A.D. lobby.stun.port); 0 = off")
     args = parser.parse_args()
     global LOBBY
-    LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings)
+    LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings, accounts_path=args.accounts,
+                  accounts_only=args.accounts_only)
     if args.stun_port:
         serve_stun(args.bind, args.stun_port)
     serve(args.bind, args.port, not args.quiet).serve_forever()
