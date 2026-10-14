@@ -1,8 +1,9 @@
 extends CanvasLayer
-# The session menu: 0 A.D. 0.28 gui/session/Menu.js and MenuButtons.js (Chat,
-# Save, Summary, Lobby, Options, Pause, Resign, Exit). Opening it doesn't pause
-# the game; its Pause button does, and Save and Options pause a single-player
-# game while their page is open (PauseControl.implicitPause). It processes while
+# The session menu: 0 A.D. 0.28 gui/session/Menu.js and MenuButtons.js (Manual,
+# Chat, Save, Summary, Lobby, Options, Hotkeys, Pause, Resign, Exit). Opening it
+# doesn't pause the game; its Pause button does, and Manual, Save, Options and
+# Hotkeys pause a single-player game while their page is open
+# (PauseControl.implicitPause). It processes while
 # paused so its buttons, Esc ("cancel") and the menu hotkey keep working.
 
 const L10n = preload("res://scenes/menu/l10n.gd")
@@ -57,6 +58,18 @@ func _on_chat_pressed():
 func _on_options_pressed():
 	_close()
 	var page = load("res://scenes/menu/options.gd").open_overlay(get_parent())
+	_implicit_pause(page, "closed")
+
+# MenuButtons Manual: the game manual (gui/manual).
+func _on_manual_pressed():
+	_close()
+	var page = load("res://scenes/reference/manual.gd").open_overlay(get_parent())
+	_implicit_pause(page, "closed")
+
+# MenuButtons Hotkeys: the hotkey editor (gui/hotkeys) over the game.
+func _on_hotkeys_pressed():
+	_close()
+	var page = load("res://scenes/menu/hotkeys.gd").open_overlay(get_parent())
 	_implicit_pause(page, "closed")
 
 # MenuButtons Pause: PauseControl.setPaused(!explicitPause, true).

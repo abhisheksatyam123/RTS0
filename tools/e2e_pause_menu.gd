@@ -56,7 +56,7 @@ func run() -> void:
 	await frames(30)
 	var menu = main.get_node("PauseMenu")
 	var names: Array = menu.get_node("CenterContainer/Panel/VBox").get_children().map(func(c): return str(c.name))
-	check(names == ["BtnChat", "BtnSave", "BtnSummary", "BtnLobby", "BtnOptions", "BtnPause", "BtnResign", "BtnExit"],
+	check(names == ["BtnManual", "BtnChat", "BtnSave", "BtnSummary", "BtnLobby", "BtnOptions", "BtnHotkeys", "BtnPause", "BtnResign", "BtnExit"],
 		"0.28's buttons in order, no Load: " + str(names))
 	main._on_menu_button_pressed()
 	await frames(2)
@@ -92,5 +92,20 @@ func run() -> void:
 		dlg[0].close()
 	await frames(2)
 	check(not paused, "closing the page resumes")
+
+	for b in [["BtnHotkeys", "Hotkeys"], ["BtnManual", "Manual"]]:
+		main._on_menu_button_pressed()
+		await frames(2)
+		await click(btn(menu, b[0]).get_global_rect().get_center())
+		await frames(3)
+		var pages: Array = main.find_children(b[1], "Control", true, false)
+		check(not menu.visible and pages.size() == 1 and paused, b[1] + " opens over the game and pauses it")
+		if pages.size() == 1:
+			if b[1] == "Hotkeys":
+				pages[0]._on_close()
+			else:
+				pages[0].close_page()
+		await frames(3)
+		check(not paused and main.find_children(b[1], "Control", true, false).is_empty(), b[1] + " closes back to the running game")
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
