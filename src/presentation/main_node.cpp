@@ -309,6 +309,11 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 	return inspector_.debug_state();
 }
 
+// Test hook: a unit carries `amount` of resource `res` (0 wood, 1 metal, 2 stone, 3 food).
+void RtsoMain::debug_set_carry(int64_t unit_id, int res, int amount) {
+	if (sim) sim->debug_set_carry((uint32_t)unit_id, (uint8_t)res, amount);
+}
+
 Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 	Dictionary d;
 	if (!sim) return d;
@@ -413,6 +418,7 @@ Array RtsoMain::debug_command_row() {
 		e["disabled"] = btn->is_disabled();
 		e["id"] = (int64_t)btn->get_instance_id();
 		e["paired"] = paired; // one of a research pair (selection_panels.js Research)
+		e["corners"] = btn->find_child("corners", false, false) != nullptr; // guiSelection
 		Label *cnt = Object::cast_to<Label>(btn->find_child("unitUpgradeCount", false, false));
 		e["count"] = cnt ? cnt->get_text().to_int() : 0;
 		e["progress"] = btn->has_meta("progress") ? (int)btn->get_meta("progress") : -1; // pixels left
@@ -1487,6 +1493,11 @@ void RtsoMain::_on_entity_command(const String &name) {
 	};
 	if (name == "delete") {
 		request_delete();
+	} else if (name == "autoqueue-on" || name == "autoqueue-off") { // turnAutoQueueOn / Off
+		_on_autoqueue_pressed(name == "autoqueue-on" ? 1 : 0);
+	} else if (name == "share-dropsite") { // set-dropsite-sharing, toggled
+		for (const auto &b : sim->buildings())
+			if (b.id == selected_building_id) { _on_dropsite_sharing_pressed(b.dropsite_shared ? 0 : 1); break; }
 	} else if (name == "stop") { // stopUnits
 		if (n == 0) return;
 		if (turn_cmds())
@@ -1801,6 +1812,26 @@ void RtsoMain::_on_pack_pressed(int pack) {
 				selected_ids.size(), 0, 0, 0, pack ? 1 : 0);
 	else
 		sim->order_pack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), pack != 0);
+}
+
+// 0.28 cancelPackUnit: only the selected engines packing (pack 1) or unpacking (pack 0)
+// go back; Order.CancelPack / CancelUnpack (the opposite order, while in progress).
+void RtsoMain::_on_pack_cancel_pressed(int pack) {
+	if (!sim || selected_ids.is_empty()) return;
+	const uint8_t want = pack ? rtso::PACK_PACKING : rtso::PACK_UNPACKING;
+	std::vector<uint32_t> ids;
+	auto uv = sim->units();
+	for (int s = 0; s < selected_ids.size(); ++s)
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)selected_ids[s]) {
+				if (uv.alive[i] && uv.pack_state[i] == want) ids.push_back(uv.id[i]);
+				break;
+			}
+	if (ids.empty()) return;
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_PACK, ids.data(), ids.size(), 0, 0, 0, pack ? 0 : 1);
+	else
+		sim->order_pack(ids.data(), ids.size(), pack == 0);
 }
 
 // BarterButton sell press: BarterButtonManager.setSelectedResource.

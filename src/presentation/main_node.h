@@ -378,6 +378,7 @@ public:
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_barter_sell_selected(int resource);
+	void _on_pack_cancel_pressed(int pack);
 	Array debug_barter_panel();
 	uint32_t selected_garrison_holder() const;
 	Array debug_garrison_icons() const;
@@ -563,6 +564,7 @@ public:
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
 	Dictionary debug_selection_grid(bool select_all);
+	void debug_set_carry(int64_t unit_id, int res, int amount);
 	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();

@@ -548,6 +548,13 @@ public:
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
+	// Test hook: a unit carries `amount` of resource `res`.
+	void debug_set_carry(uint32_t unit_id, uint8_t res, int32_t amount) {
+		const int32_t idx = lookup_unit(unit_id);
+		if (idx < 0 || res >= RES_COUNT) return;
+		units_.res_type_carried[idx] = res;
+		units_.carry[idx] = amount;
+	}
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
 	// The civ of a structure's own template (Identity/Civ): a map's Gaia shrine or trading post.

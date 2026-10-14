@@ -846,7 +846,7 @@ public:
 			stats_->set_text("");
 			extra_->set_text("");
 			ungarrison_btn_->set_visible(false);
-			selection_grid_.update(groups, "Click to select only these, Ctrl+click or right-click to deselect them.");
+			selection_grid_.update(selection_groups(*sim, uview, groups), "");
 			show_selection_grid = true;
 		}
 		panel_->set_visible(true);
@@ -1087,6 +1087,54 @@ private:
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
 	godot::Control *barter_host_ = nullptr;
+
+	// 0.28's Selection panel (g_SelectionPanels.Selection setupButton): each group's tooltip
+	// is its names, what its units carry (a trader counts its goods' total gain) and, for an
+	// observer, the owner, whose colour then shows behind the icon.
+	std::vector<RtsoSelectionGrid::Group> selection_groups(const rtso::Simulation &sim,
+			const rtso::Simulation::UnitView &uview, std::vector<RtsoSelectionGrid::Group> groups) {
+		const PackedInt32Array &selected_ids = host_->ui_selected_ids();
+		const bool observer = host_->local_player() >= rtso::MAX_PLAYERS;
+		for (auto &g : groups) {
+			rtso::seldet::Amounts carried;
+			for (int s = 0; s < selected_ids.size(); ++s) {
+				size_t i = 0;
+				for (; i < uview.count; ++i)
+					if (uview.id[i] == (uint32_t)selected_ids[s]) break;
+				if (i == uview.count || !uview.alive[i]) continue;
+				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+				if (RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) != g.key) continue;
+				const uint8_t res = uview.res_type_carried[i];
+				if (res >= rtso::RES_COUNT) continue;
+				uint32_t route_a = 0, route_b = 0;
+				int route_leg = 0;
+				if (rtso::unit_is_trader(uview.unit_type[i]) && sim.trader_route(uview.id[i], route_a, route_b, route_leg)) {
+					const rtso::Simulation::Building *ma = nullptr, *mb = nullptr;
+					for (const auto &bb : sim.buildings()) {
+						if (bb.id == route_a) ma = &bb;
+						if (bb.id == route_b) mb = &bb;
+					}
+					if (ma && mb) {
+						const auto gain = sim.calculate_trade_gain(*ma, *mb, uview.team[i], uview.unit_type[i]);
+						carried.res[res] += gain.trader + gain.market1 + gain.market2;
+					}
+				} else if (uview.carry[i] > 0) {
+					carried.res[res] += uview.carry[i];
+				}
+			}
+			const auto &info = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(g.tmpl, g.unit_type) : rtso::unit_type_info(g.unit_type);
+			const char *specific = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(g.tmpl).specific_name : nullptr;
+			g.tip = rtso::entity_names(String::utf8(info.name), String::utf8(specific ? specific : ""));
+			if (carried.any()) g.tip += "\n" + rtso::seldet::amounts_list(carried, false);
+			if (observer) {
+				g.tip += "\n" + rtso::sprintf0(rtso::tr0("Player: %(playername)s"), {{"playername", host_->player_display_name(g.player)}});
+				const uint32_t rgb = rtso::display_colors::rgb(sim, g.player);
+				g.bg = Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 160.0f / 255.0f);
+			}
+			g.tip += "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+		}
+		return groups;
+	}
 
 	// g_SelectionPanels.Garrison for a structure, ship, ram or siege tower: up to 12 icons,
 	// one per template and owner, on the owner's colour. A click unloads one (Shift: all of
