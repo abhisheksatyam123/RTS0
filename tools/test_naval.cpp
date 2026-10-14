@@ -915,8 +915,8 @@ static void test_petra_transport_ship_lost() {
 }
 
 // DeathDamage.js: a fire ship ignited (Upgrade/Ignition to ship_fire_fire, mixins/fireship.xml)
-// burns down at RegenRate -5 and, dying, deals 500 Fire over 20 m to everyone, its own side
-// too, with quadratic falloff. Before ignition it neither burns nor blasts. Other ships and
+// burns down at RegenRate -200 and, dying, deals Crush 500 over 22 m (x3 vs Ship and Building)
+// to enemies only, with quadratic falloff. Before ignition it neither burns nor blasts. Other ships and
 // structures deal nothing when they die.
 // TreasureCollector (0.28 template_unit_ship): ships collect treasures within 12 m, a shipwreck
 // out at sea and one on the shore alike; warships too, rams and siege engines on land not.
@@ -1157,18 +1157,18 @@ static void test_fire_ship() {
 	s.order_set_stance(&all[3], 1, STANCE_PASSIVE);
 	auto hp = [&](uint32_t id) { const int32_t i = idx(s, id); return i >= 0 ? s.units().hp[i] : -1.0f; };
 	const float f0 = hp(fire), e0 = hp(enemy), o0 = hp(own), x0 = hp(far_enemy);
-	run(s, 10.0f);
+	run(s, 0.5f);
 	const float burnt = f0 - hp(fire);
-	std::printf("fire ship: %.1f hp burnt in 10 s\n", burnt);
-	CHECK(burnt > 45.0f && burnt < 55.0f);
+	std::printf("fire ship: %.1f hp burnt in 0.5 s\n", burnt);
+	CHECK(burnt > 90.0f && burnt < 110.0f);
 	s.set_unit_hp(fire, 1.0f);
 	run(s, 1.0f);
 	CHECK(!s.units().alive[idx(s, fire)]);
 	std::printf("fire ship blast: enemy %.0f -> %.0f, own %.0f -> %.0f, far %.0f -> %.0f\n",
 			e0, hp(enemy), o0, hp(own), x0, hp(far_enemy));
 	CHECK(hp(enemy) < e0 - 100.0f);       // close: most of 500
-	CHECK(hp(own) < o0 - 50.0f);          // friendly fire
-	CHECK(hp(far_enemy) == x0);           // 16 units away is outside 20 m (x0.6)
+	CHECK(hp(own) == o0);                 // no FriendlyFire
+	CHECK(hp(far_enemy) == x0);           // 16 units away is outside 22 m (x0.6)
 
 	// A trireme that sinks hurts nobody (no DeathDamage in template_unit_ship).
 	const uint32_t a = s.spawn_unit(-3.0f, 20.0f, 0, UNIT_TRIREME);

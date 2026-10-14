@@ -1,7 +1,7 @@
 // RTS0 siege packing test (headless: no SCons, no Godot).
 // Checks the port of 0 A.D.'s Pack.js and UnitAI's pack rules (Simulation::tick_pack):
-// stone throwers and bolt shooters move packed, take 10 s (Pack/Time 10000) to unpack before
-// they can fire, and 10 s to pack again before they can move.
+// stone throwers and bolt shooters move packed, take 5 s (Pack/Time 5000) to unpack before
+// they can fire, and 5 s to pack again before they can move.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_pack.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -12,7 +12,7 @@
 //     and siege towers (ROSTER_SIEGE_TOWER) never do.
 //  2. Attack in range: a packed catapult ordered to attack a target in range stays put and
 //     holds fire while it unpacks, then fires.
-//  3. Move while unpacked: a walk order makes it pack first (no movement for 10 s), then move.
+//  3. Move while unpacked: a walk order makes it pack first (no movement for 5 s), then move.
 //  4. Walk cancels unpacking at once (UnitAI g_OrdersCancelUnpacking).
 //  5. Target out of range: an unpacked bolt shooter packs, closes in, unpacks and fires.
 //  6. order_pack (the Pack/Unpack command) and save/load keep the pack state.
@@ -114,12 +114,12 @@ static void test_attack_in_range() {
 	s.order_attack(&cat, 1, tgt);
 	run(s, 1.0f);
 	check(pack_of(s, cat) == PACK_UNPACKING, "starts unpacking");
-	run(s, 8.0f); // 9 s in
-	check(pack_of(s, cat) == PACK_UNPACKING, "still unpacking at 9 s");
+	run(s, 3.0f); // 4 s in
+	check(pack_of(s, cat) == PACK_UNPACKING, "still unpacking at 4 s");
 	check(std::fabs(x_of(s, cat)) < 0.3f && std::fabs(z_of(s, cat)) < 0.3f, "does not move while unpacking");
 	check(hp_of(s, tgt) == hp0 && s.projectiles().empty(), "holds fire while unpacking");
 	run(s, 1.4f);
-	check(pack_of(s, cat) == PACK_UNPACKED, "unpacked after 10 s");
+	check(pack_of(s, cat) == PACK_UNPACKED, "unpacked after 5 s");
 	// PrepareTime (3 s) after unpacking it shoots; a stone can land wide (Spread).
 	bool fired = false;
 	for (int i = 0; i < 40; ++i) {
@@ -136,15 +136,15 @@ static void test_move_while_unpacked() {
 	setup(s);
 	uint32_t cat = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
 	s.order_pack(&cat, 1, false);
-	run(s, 10.4f);
-	check(pack_of(s, cat) == PACK_UNPACKED, "order_pack(false) unpacks in 10 s");
+	run(s, 5.4f);
+	check(pack_of(s, cat) == PACK_UNPACKED, "order_pack(false) unpacks in 5 s");
 	s.cmd_move(&cat, 1, -30.0f, 0.0f);
 	run(s, 1.0f);
 	check(pack_of(s, cat) == PACK_PACKING, "walk order starts packing");
-	run(s, 8.0f);
+	run(s, 3.0f);
 	check(std::fabs(x_of(s, cat)) < 0.3f, "does not move while packing");
 	run(s, 1.4f);
-	check(pack_of(s, cat) == PACK_PACKED, "packed after 10 s");
+	check(pack_of(s, cat) == PACK_PACKED, "packed after 5 s");
 	run(s, 3.0f);
 	check(x_of(s, cat) < -2.0f, "moves once packed");
 }
@@ -251,7 +251,7 @@ static void test_retreat_under_fire() {
 	// unpacking again for the enemy still in range.
 	s.cmd_move(&cat, 1, -30.0f, 0.0f);
 	run(s, 10.4f);
-	check(pack_of(s, cat) == PACK_PACKED, "packs within 10 s");
+	check(pack_of(s, cat) == PACK_PACKED, "packs within 5 s");
 	run(s, 6.0f);
 	check(x_of(s, cat) < -2.0f, "and walks away");
 }

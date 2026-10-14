@@ -28,8 +28,9 @@ struct RecentDeath {
 // DeathDamage.js: Circular splash when the entity dies (Range in RTS0 units, Damage summed).
 struct DeathDamageInfo {
 	float range;
-	float damage;
+	float damage; // Damage/Crush, against the target's crush Resistance
 	bool friendly_fire;
+	float ship_building_mult; // Bonuses: Classes "Ship Building" Multiplier
 };
 enum BiomeType : uint8_t {
 	BIOME_AEGEAN = 0,
@@ -883,12 +884,13 @@ inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
 }
 // template_unit_siege_ram.xml and template_unit_siege_tower.xml LoadingRange, 2 m.
 inline constexpr float SIEGE_LOADING_RANGE = 2.0f * 0.28f;
-// Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
-// 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
+// Attack.js Ranged MinRange as a share of MaxRange (0.28): template_unit_siege_stonethrower.xml
+// 26 of 85, template_unit_siege_stonethrower_onager.xml 20 of 60, template_unit_siege_boltshooter.xml
+// 15 of 80; template_unit_siege_tower.xml has none. Scaled to each unit's own range.
 inline float unit_min_range_ratio(uint8_t type) {
 	switch (type) {
 		case UNIT_CATAPULT: return 26.0f / 85.0f;
-		case UNIT_BOLT_SHOOTER: return 15.0f / 90.0f;
+		case UNIT_BOLT_SHOOTER: return 15.0f / 80.0f;
 		default: return 0.0f;
 	}
 }
@@ -2338,6 +2340,16 @@ inline float unit_heal_range_base(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_RANGE;
 	return 12.0f;
 }
+// unit_min_range_ratio for the unit's template: siege towers have no MinRange, the onager 20 of 60.
+inline float unit_min_range_ratio(uint8_t type, uint16_t tmpl) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (t.flags & ROSTER_SIEGE_TOWER) return 0.0f;
+		if (type == UNIT_CATAPULT && std::strstr(t.id, "onager")) return 20.0f / 60.0f;
+	}
+	return unit_min_range_ratio(type);
+}
+
 // UnitAI/DefaultStance of the unit's template where it differs from its RTS0 class: siege towers
 // (template_unit_siege) and the Seeress (template_unit_champion_support_healer) are aggressive.
 inline uint8_t unit_default_stance(uint8_t type, uint16_t tmpl) {
@@ -2426,8 +2438,16 @@ inline bool unit_has_slaughter(uint8_t unit_type, uint16_t tmpl) {
 
 // 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
 // workers build and repair; cavalry, champions, heroes, siege and ships do not.
+// Mercenary infantry keep Builder in 0.28 though their ResourceGatherer is gone (template_unit_infantry
+// pulls in mixins/builder); the Neodamodes, no mercenaries, disable it.
 inline bool unit_can_build(uint8_t unit_type, uint16_t tmpl) {
 	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER || unit_type == UNIT_WORKER_ELEPHANT) return true;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint16_t f = civ_unit_template(tmpl).flags;
+		if ((f & ROSTER_MERCENARY) && (f & ROSTER_CITIZEN) && !(f & ROSTER_CHAMPION) &&
+				(unit_tech_classes(unit_type) & TC_INFANTRY) && !(unit_tech_classes(unit_type) & TC_CAVALRY))
+			return true;
+	}
 	return unit_gather_class(unit_type, tmpl) == GATHER_INFANTRY;
 }
 
@@ -2622,7 +2642,7 @@ enum PackState : uint8_t {
 	PACK_PACKING = 3, // unpacked -> packed in progress
 	PACK_UNPACKING = 4, // packed -> unpacked in progress
 };
-inline constexpr float PACK_TIME_S = 10.0f; // template_unit_siege_*.xml Pack/Time 10000 ms
+inline constexpr float PACK_TIME_S = 5.0f; // 0.28 template_unit_siege_stonethrower/_boltshooter Pack/Time 5000 ms
 
 inline bool unit_has_pack(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return (civ_unit_template(tmpl).flags & ROSTER_PACKABLE) != 0;
