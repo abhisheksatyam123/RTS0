@@ -88,10 +88,13 @@ func _on_summary_pressed():
 	if main.has_method("toggle_summary"):
 		main.toggle_summary()
 
+# MenuButtons Lobby: the multiplayer lobby page over the game, only with a
+# lobby connection.
 func _on_lobby_pressed():
 	_close()
-	get_tree().paused = false
-	MatchSettings.go("res://scenes/menu/lobby.tscn")
+	var main := get_parent()
+	if main.has_method("has_lobby_client") and main.has_lobby_client():
+		main._on_lobby_button_pressed()
 
 # MenuButtons Save: 0 A.D.'s saved-game page in save mode (gui/savedgames); 0.28's
 # session menu has no Load, which stays on the main menu and F6 (quickload).
@@ -124,6 +127,12 @@ func toggle():
 	visible = !visible
 	$CenterContainer.visible = visible
 	rebuild_pause()
+	var lobby: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnLobby")
+	if lobby:
+		lobby.disabled = not (get_parent().has_method("has_lobby_client") and get_parent().has_lobby_client())
+		var keys: Array = _hotkeys.get_hotkey_map().get("lobby", [])
+		lobby.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to open the multiplayer lobby page without leaving the game."),
+			{"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")})
 	var resign_btn := get_node_or_null("CenterContainer/Panel/VBox/BtnResign")
 	if resign_btn and visible and get_parent().has_method("get_summary_gui"):
 		resign_btn.disabled = get_parent().get_summary_gui(false).get("isObserver", true)

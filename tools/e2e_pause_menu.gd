@@ -61,6 +61,7 @@ func run() -> void:
 	main._on_menu_button_pressed()
 	await frames(2)
 	check(menu.visible and not paused and not main.is_game_paused(), "the menu opens over the running game")
+	check(btn(menu, "BtnLobby").disabled, "Lobby is disabled without a lobby connection")
 	await key(KEY_ESCAPE)
 	check(not menu.visible, "Esc closes the menu")
 
