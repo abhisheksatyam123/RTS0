@@ -94,6 +94,9 @@ const Default kDefaults[] = {
 	{"network.observermaxlag", "-1"},
 	{"network.autocatchup", "true"},
 	{"network.duplicateplayernames", "false"},
+	// 0.28 maps the host's port with UPnP when built with miniupnpc
+	// (NetServer SetupUPnP); RTS0 makes that build switch a setting.
+	{"network.upnp", "true"},
 	{"overlay.netwarnings", "true"},
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},

@@ -48,7 +48,7 @@ Every peer runs the same simulation and exchanges only player commands. A hash o
 - **Custom UDP (`NetHost`, `src/network/net_host.{h,cpp}`):** raw BSD sockets (`socket(AF_INET, SOCK_DGRAM)`, `sendto` / `recvfrom`). Packets carry a `NetWireHeader` with the 0 A.D. protocol magic (`PS_PROTOCOL_MAGIC`, `net_types.h`), flags for connect / ack / reliable / heartbeat, and ACK-based retry for reliable packets (`PendingReliablePacket`). Default port 20595 (`PS_DEFAULT_PORT`).
 - **Not ENet.** No ENet dependency appears in `SConstruct` or `src/`. The vendored `src/0ad/network/` is reference only and is not built.
 - **Lobby:** HTTP JSON room list on TCP 8088, served by `tools/lobby_server.py` (`--port`, default 8088). Client: `src/network/lobby_client.h`.
-- **NAT:** no STUN or UPnP code in RTS0. Play over LAN or a forwarded UDP port.
+- **NAT:** STUN and hole punching through the lobby, and a host maps its UDP port on the router with UPnP (0.28 NetServer SetupUPnP; `network.upnp = false` turns it off). Without either, play over LAN or a forwarded UDP port.
 - **Not implemented:** storefront lobbies and overlay, and a relay fallback for carrier NAT.
 
 ## Mobile UX adaptations (plan early)
