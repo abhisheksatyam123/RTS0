@@ -30,7 +30,8 @@ enum AuraType : uint8_t {
     AURA_GATHER_RATE = 16, // ResourceGatherer/Rates of units; value = gather_rate_range_auras() row
     AURA_RANGE_ADD = 17, // Attack/*/MaxRange added to units; value = range_add_range_auras() row
     AURA_VISION_ADD = 18, // Vision/Range metres added (0 A.D. metres; Lugius' Terror Cimbricus)
-    AURA_COUNT  = 19
+    AURA_ATTACK_RATE = 19, // Attack/*/RepeatTime multiplier (Cleopatra's Patriot, Chandragupta's Elephant Corps)
+    AURA_COUNT  = 20
 };
 
 // 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).
@@ -169,7 +170,7 @@ public:
     // template (hero auras skip units their 0 A.D. "affects" classes exclude) and
     // qclasses its 0 A.D. classes.
     //   AURA_HEAL: sum of hp/s. AURA_GATHER: strongest bonus plus strongest penalty.
-    //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION / AURA_REQUIRED_XP: the
+    //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION / AURA_REQUIRED_XP / AURA_ATTACK_RATE: the
     //     product of every aura reaching the unit (0 when none does).
     //   AURA_ARMOR / AURA_HEAL_AMOUNT / AURA_VISION_ADD: the sum of every aura reaching it.
     //   As Auras.js and ModifiersManager do, each aura counts once however many sources
@@ -189,7 +190,7 @@ public:
         int16_t once[16]; // auras already counted (non-stackable AURA_BUILD ones for AURA_BUILD)
         int once_n = 0;
         const bool mul = type == AURA_ATTACK || type == AURA_SPEED || type == AURA_HEALTH || type == AURA_VISION
-            || type == AURA_REQUIRED_XP;
+            || type == AURA_REQUIRED_XP || type == AURA_ATTACK_RATE;
         // Only this type's sources, in the order they were registered.
         for (uint32_t k : of_type_[type]) {
             const AuraSource &s = sources[k];

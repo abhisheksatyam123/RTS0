@@ -461,9 +461,10 @@ public:
 	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
 	String chat_user(const String &sender_guid) override;
-	// NMT_CHAT, or a host's 0 A.D. chat command (/kick name, /ban name).
+	// NMT_CHAT (the chat commands are chat_network_command).
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
+	bool chat_network_command(const String &text) override;
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
 	std::vector<std::pair<int, String>> chat_private_targets() override;
@@ -715,6 +716,7 @@ private:
 	std::vector<rtso::PlayerAssignmentMsg::Entry> chat_assignments_;
 	uint64_t chat_assignments_seen_ = 0;
 	size_t kicks_chatted_ = 0;
+	size_t rejoined_chatted_ = 0;
 	void post_network_chat();
 	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
 	void build_replay_view_picker();

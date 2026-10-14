@@ -167,13 +167,14 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 77; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 78; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_TRIGGER_RANGE = 72; // OnRange queries and their collections
+	static constexpr uint32_t SAVE_VERSION_WONDER_TIMERS = 78; // each wonder's own countdown, owner and allies
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -277,6 +278,11 @@ public:
 		// in order; empty: FireArrows picks its own. Saved in save_tick_state (SAVE_VERSION_FOCUS_FIRE).
 		std::vector<uint32_t> focus_targets;
 		bool is_burning = false; // Structure fire under 33% HP
+		// WonderVictory.js wonderVictoryMessages[ent]: this wonder's own countdown, the player it
+		// runs for (255: none) and that player's mutual allies when it started (allied victory).
+		float wonder_hold = 0.0f;
+		uint8_t wonder_owner = 255;
+		uint8_t wonder_allies = 0;
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -1040,6 +1046,23 @@ public:
 	void set_circular_map(bool on);
 	// Off the world on a circular map: outside the circle of radius map_half() round the centre.
 	bool off_world(float x, float z) const { return circular_map() && x * x + z * z >= map_half_ * map_half_; }
+	// Past a circular map's passable edge, MAP_EDGE_DIST inside the circle, less a clearance c
+	// (0.28 CCmpPathfinder grows the impassable edge by each class's Clearance).
+	bool past_map_edge(float x, float z, float c = 0.0f) const {
+		if (!circular_map()) return false;
+		const float r = map_half_ - MAP_EDGE_DIST - c;
+		return r <= 0.0f || x * x + z * z > r * r;
+	}
+	// A footprint reaching past a circular map's passable edge (CheckBuildingPlacement).
+	template <class F>
+	bool footprint_past_map_edge(const F &f) const {
+		if (!circular_map()) return false;
+		const nav::Vec2 u = nav::footprint_u(f), v = nav::footprint_v(f);
+		for (float su : {-1.0f, 1.0f})
+			for (float sv : {-1.0f, 1.0f})
+				if (past_map_edge(f.x + su * f.hu * u.x + sv * f.hv * v.x, f.z + su * f.hu * u.y + sv * f.hv * v.y)) return true;
+		return false;
+	}
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -1832,6 +1855,16 @@ public:
 		auto it = field_res_by_bld_.find(building_id);
 		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
 	}
+	// Whether any of these units can gather this supply (unit_actions "gather" getActionInfo).
+	bool any_can_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id) const {
+		auto rit = res_id_to_idx_.find(resource_id);
+		if (rit == res_id_to_idx_.end()) return false;
+		for (size_t k = 0; k < count; ++k) {
+			const int32_t u = lookup_unit(unit_ids[k]);
+			if (u >= 0 && units_.alive[u] && can_gather((size_t)u, rit->second)) return true;
+		}
+		return false;
+	}
 	const std::vector<Scenery> &scenery() const { return scenery_; }
 	// A Gaia-owned unit from a 0 A.D. map (Player 0): roster template `template_id`
 	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the
@@ -2135,7 +2168,8 @@ private:
 	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
-	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz);
+	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz, uint32_t follow = 0);
+	bool follow_walk_target(size_t i);
 	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread = true);
 	// CCmpPathfinder::DistributeAround: a point round (x, z) for each unit.
@@ -2158,7 +2192,8 @@ private:
 	void attack_done(size_t i, bool in_range, float repeat);
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
-	void unit_attack_effects(size_t i, float out[4]) const; // hack, pierce, crush, fire
+	void unit_attack_effects(size_t i, float out[4]) const;
+	float unit_repeat_time(size_t i) const; // hack, pierce, crush, fire
 	void unit_tech_damage(size_t i, float out[4]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
@@ -2250,6 +2285,11 @@ private:
 	bool near_impassable_terrain(float x, float z, float c) const; // deep water or a steep tile
 	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
 	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
+	// A unit with clearance c may not step past a circular map's edge (past_map_edge); one already
+	// past it may step back in.
+	bool edge_step_barred(float x0, float z0, float x1, float z1, float c) const {
+		return past_map_edge(x1, z1, c) && x1 * x1 + z1 * z1 > x0 * x0 + z0 * z0;
+	}
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -2655,7 +2695,9 @@ private:
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
-	float wonder_hold_[MAX_PLAYERS] = {}; // seconds each player has held a finished wonder
+	float wonder_hold_[MAX_PLAYERS] = {}; // the longest countdown of each player's wonders (Building::wonder_hold)
+	// GetPlayersByDiplomacy("IsExclusiveMutualAlly") under allied victory, else nobody.
+	uint8_t wonder_allies_of(uint8_t p) const { return (uint8_t)(side_of(p) & ~(1u << p)); }
 
 	MatchRecord record_;
 	// StatisticsTracker state, saved through tick_state_io (save v19+).
@@ -3177,6 +3219,26 @@ private:
 	std::vector<SteerObstacle> mine_obstacles_;
 	uint64_t mine_obstacles_tick_ = ~uint64_t{0};
 	const std::vector<SteerObstacle> &tick_mine_obstacles();
+	// Trees, fruit bushes and treasures, which block land units' movement (template_gaia_tree,
+	// _fruit and _treasure Obstruction/Static: flora_obstruction_m, TreasureTypeInfo width x depth)
+	// but not paths (RTS0's navcells are wider than a tree). Too many for the per-unit scans of
+	// steer_obstacles_, so units steer round only those near them (gaia_obstacles_near) and
+	// separation() pushes them out of these. Rebuilt with gaia_grid_ when the set changes.
+	static constexpr uint8_t GAIA_OBSTACLE = 0xFE;
+	static constexpr float GAIA_STEER_REACH = 2.5f; // world units round a walker whose trees it steers by
+	std::vector<SteerObstacle> gaia_obstacles_;
+	std::vector<uint32_t> gaia_res_idx_; // each one's supply index in resources_, UINT32_MAX for a treasure
+	std::vector<uint32_t> mine_candidates_; // the supplies that are mines, for append_mine_obstacles
+	// A tree or bush stays listed once cut down (ensure_gaia_obstacles); a treasure leaves at once.
+	bool gaia_obstacle_live(uint32_t k) const {
+		const uint32_t r = gaia_res_idx_[k];
+		return r == UINT32_MAX || (resources_.alive[r] && resources_.amount[r] > 0);
+	}
+	nav::BucketGrid gaia_grid_;
+	uint64_t gaia_obstacles_sig_ = 0;
+	void ensure_gaia_obstacles();
+	// Appends to `out` the Gaia obstacles that may reach into the box (x, z) +- reach.
+	void gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const;
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
