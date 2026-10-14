@@ -167,8 +167,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 78; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 79; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
+	static constexpr uint32_t SAVE_VERSION_PETRA_HUNT_SEARCH = 79; // each Petra hunter's last fruitless hunt search; storehouse checks per base
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
@@ -1553,7 +1554,6 @@ public:
 	// baseManager.js findBestDropsiteLocation for res; no_site: no spot reached min_quality.
 	// fund_above: past this quality, set the dropsites account to the storehouse's cost first
 	// (startingStrategy.js buildFirstBase setAccounts); negative: never.
-	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f);
 	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
@@ -2807,6 +2807,14 @@ private:
 	mutable Petra petra_fleets_; // per-sea warship registry (navalManager.seaWarShips)
 	float petra_timer_  = 0.0f;
 	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
+	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
+	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
+	struct PetraHuntSearch { uint32_t id; float time; };
+	std::vector<PetraHuntSearch> petra_hunt_search_;
+	// baseManager.js gatherers[type]: each base's storehouse check, by its civic centre or colony's id
+	// (petra_dropsite_check_ keeps only a pending storehouse from saves before v78).
+	struct PetraBaseDropsiteCheck { uint32_t anchor_id; PetraDropsiteCheck check; };
+	std::vector<PetraBaseDropsiteCheck> petra_base_dropsite_checks_;
 	float petra_econ_timer_ = 0.0f;
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
@@ -3061,7 +3069,7 @@ private:
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 	// queueplanBuilding.js findPosition (basesMap, influences, findBestTile).
 	struct PetraBasesMap {
-		struct Anchor { float x, z; uint16_t land; };
+		struct Anchor { float x, z; uint16_t land; uint32_t id; }; // id: the civic centre or colony
 		std::vector<Anchor> anchors;
 		std::vector<uint8_t> base; // territory tiles x0..x1, z0..z1: base number from 1, 0 none
 		int w = 0, x0 = 0, z0 = 0, x1 = -1, z1 = -1;
@@ -3071,6 +3079,9 @@ private:
 		uint16_t land(uint16_t l) const { return naval || !l ? l : 1; }
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
+	// `bmap` and `base` (from 1) limit the search to that base's territory.
+	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f,
+	                              const PetraBasesMap *bmap = nullptr, int base = 0);
 	int petra_military_base(const PetraBasesMap &m) const;
 	bool petra_find_position(uint8_t btype, const float *base_at, const float *favor_at, bool military_base, int &out_cx,
 	                         int &out_cz);
@@ -3107,7 +3118,7 @@ private:
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
-	X(petra_failed_gather_)
+	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
