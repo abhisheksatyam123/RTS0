@@ -1165,10 +1165,11 @@ void RtsoMain::update_net_warnings() {
 void RtsoMain::update_net_status_overlay() {
 	if (net_disconnected_ || !net_status_overlay_) return;
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
-	// Before Start too, once the host let us in (0.28 gamesetup ChatInputPanel
-	// reportDisconnect): the setup page closes for "Lost connection to the server.".
+	// Before Start too (0.28 reportDisconnect): once the host let us in, the
+	// setup page closes for "Lost connection to the server."; a join it refused
+	// or never answered reads "Failed to connect to the server.".
 	const bool joined = net_game_started_ || net_setup_overlay_ || net_host_.authResult() == rtso::ARC_OK;
-	if (client && joined && net_host_.connectionLost()) {
+	if (client && net_host_.connectionLost()) {
 		net_disconnected_ = true;
 		finished_asked_ = true; // no quit question over the overlay
 		close_open_dialogs();
@@ -1184,8 +1185,19 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = tr("Different game engine versions or different mods loaded."); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
-		net_status_label_->set_text((net_game_started_ ? tr("Connection to the server has been lost.")
-				: tr("Lost connection to the server.")) + "\n" + why);
+		String text = (net_game_started_ ? tr("Connection to the server has been lost.")
+				: joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n" + why;
+		if (!joined && net_host_.disconnectReason() == 0) {
+			// reportConnectionRequestTimeOut, with getRequestTimeOutMessage's
+			// address advice only outside the lobby.
+			Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
+			const bool lobby = ls && bool(ls->call("signed_in"));
+			text = tr("Failed to connect to the server.") + " " + tr("The connection request has timed out.") + "\n\n" +
+					(lobby ? String() : tr("Please ensure that you entered the correct server name or IP address, and port number.") + "\n\n") +
+					tr("If you haven't yet, try to connect again and to different hosts.") + "\n" +
+					tr("If the issue persists or occurs regularly, visit the official FAQ for detailed guidance and troubleshooting steps.");
+		}
+		net_status_label_->set_text(text);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
 		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
