@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -59,6 +60,10 @@ public:
 		civ_emblem_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		civ_emblem_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 		civ_emblem_->set_texture(rtso::load_ui_texture(rtso::civ_info(initial_civ).emblem_path));
+		// CivIcon's civIconOverlay: a click reopens the last reference page viewed.
+		civ_emblem_->set_name("CivIcon");
+		civ_emblem_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+		civ_emblem_->connect("gui_input", Callable(owner, "_on_civ_icon_gui_input"));
 		top_hbox->add_child(civ_emblem_);
 
 		// 2. Phase Emblem Badge (Village, Town, City)
@@ -123,19 +128,14 @@ public:
 		pop_box->add_child(pop_label_);
 
 		pop_stats_ = memnew(Label);
+		pop_stats_->set_name("PopGatherers");
 		pop_stats_->set_custom_minimum_size(Vector2(24, 26));
 		pop_stats_->add_theme_font_size_override("font_size", 11);
 		pop_stats_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 		pop_box->add_child(pop_stats_);
 		top_hbox->add_child(pop_box);
 
-		// 5. Idle Worker Button
-		idle_worker_btn_ = memnew(Button);
-		idle_worker_btn_->set_custom_minimum_size(Vector2(90, 30));
-		idle_worker_btn_->set_text("Idle: 0");
-		idle_worker_btn_->add_theme_font_size_override("font_size", 12);
-		idle_worker_btn_->connect("pressed", Callable(owner, "_on_idle_worker_clicked"));
-		top_hbox->add_child(idle_worker_btn_);
+		// 5. (The idle worker button is on the minimap, as 0.28's MiniMapIdleWorkerButton.)
 
 		// 6. IconButtons: DiplomacyDialogButton, TradeDialogButton, MatchSettingsDialogButton.
 		// Tooltips lead with the hotkey like colorizeHotkey; owner->_toggle_session_dialog opens them.
@@ -188,7 +188,10 @@ public:
 	}
 
 	// `me` is the local player whose economy the panel shows.
-	void update(rtso::Simulation *sim, uint8_t me, double match_elapsed_time) {
+	// observer: g_IsObserver (an observer, a replay viewer, or a player who won or lost),
+	// whose tooltips list every player even while following one.
+	void update(rtso::Simulation *sim, uint8_t me, double match_elapsed_time, bool observer = false) {
+		observer_ = observer;
 		using namespace godot;
 		if (!sim || !res_labels_[0]) return;
 
@@ -207,6 +210,10 @@ public:
 			const auto &cinfo = rtso::civ_info(sim->player_civ(me));
 			if (civ_emblem_) {
 				civ_emblem_->set_texture(rtso::load_ui_texture(cinfo.emblem_path));
+				if (tooltip_civ_ != (int)sim->player_civ(me)) {
+					tooltip_civ_ = (int)sim->player_civ(me);
+					civ_emblem_->set_tooltip_text(civ_icon_tooltip(cinfo.name));
+				}
 			}
 			if (phase_emblem_) {
 				uint8_t pphase = sim->player_phase(me);
@@ -215,14 +222,32 @@ public:
 				else phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/city.png"));
 			}
 
-			// CounterResource / CounterPopulation. Gatherers are units in the gather
-			// state (0 A.D. Player.AddResourceGatherer counts them while they gather).
+			// CounterResource / CounterPopulation. Gatherers are units in UnitAI's GATHER
+			// state (Player.AddResourceGatherer on enter, RemoveResourceGatherer on leave):
+			// walking to the resource, gathering and taking it back, counted under the
+			// type of the resource they were sent to.
 			int gatherers[4] = {0, 0, 0, 0};
 			auto uv = sim->units();
+			std::unordered_map<uint32_t, uint8_t> target_type;
 			for (size_t i = 0; i < uv.count; ++i)
-				if (uv.alive[i] && uv.team[i] == me && uv.action_state[i] == rtso::ACTION_GATHER &&
-						uv.res_type_carried[i] < rtso::RES_COUNT)
-					++gatherers[uv.res_type_carried[i]];
+				if (uv.alive[i] && uv.team[i] == me && uv.target_resource_id[i] &&
+						(uv.action_state[i] == rtso::ACTION_GATHER || uv.action_state[i] == rtso::ACTION_RETURN_DROPSITE))
+					target_type.emplace(uv.target_resource_id[i], rtso::RES_COUNT);
+			if (!target_type.empty()) {
+				const auto rv = sim->resources();
+				for (size_t k = 0; k < rv.count; ++k) {
+					auto it = target_type.find(rv.id[k]);
+					if (it != target_type.end()) it->second = rv.type[k];
+				}
+			}
+			for (size_t i = 0; i < uv.count; ++i) {
+				if (!uv.alive[i] || uv.team[i] != me) continue;
+				const uint8_t st = uv.action_state[i];
+				if (st != rtso::ACTION_GATHER && st != rtso::ACTION_RETURN_DROPSITE) continue;
+				auto it = uv.target_resource_id[i] ? target_type.find(uv.target_resource_id[i]) : target_type.end();
+				const uint8_t type = it != target_type.end() && it->second < rtso::RES_COUNT ? it->second : uv.res_type_carried[i];
+				if (type < rtso::RES_COUNT && (st == rtso::ACTION_GATHER || it != target_type.end())) ++gatherers[type];
+			}
 			const auto &ps = sim->player(me);
 			int total = 0;
 			for (int i = 0; i < 4; ++i) {
@@ -249,10 +274,6 @@ public:
 			}));
 		}
 
-		auto idle_workers = sim->get_idle_workers(me);
-		idle_worker_btn_->set_text("Idle: " + String::num_int64(idle_workers.size()));
-		if (!idle_workers.empty()) idle_worker_btn_->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
-		else idle_worker_btn_->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.88f));
 
 		// Clock & Wave
 		int mins = (int)match_elapsed_time / 60;
@@ -294,13 +315,24 @@ public:
 			if (dialog_btns_[i]) dialog_btns_[i]->set_tooltip_text(keys[i].is_empty() ? godot::String(names[i]) : "[" + keys[i] + "] " + names[i]);
 	}
 
+	// CivIcon.rebuild's tooltip keys (colorizeHotkey "civinfo" and "structree").
+	void set_civ_icon_keys(const godot::String &civinfo, const godot::String &structree) {
+		civ_keys_[0] = civinfo;
+		civ_keys_[1] = structree;
+		tooltip_civ_ = -1;
+	}
+	godot::String civ_icon_tooltip(const char *civ_name) const {
+		return rtso::sprintf0(rtso::tr0("%(civ)s\n%(hotkey_civinfo)s: View Civilization Overview\n%(hotkey_structree)s: View Structure Tree\nLast opened view will be reopened on click."),
+				{{"civ", rtso::tr0(civ_name)}, {"hotkey_civinfo", civ_keys_[0]}, {"hotkey_structree", civ_keys_[1]}});
+	}
+
 	// tooltips.js abbreviateLargeNumbers.
 	static godot::String abbreviate(int64_t n) {
 		using godot::String;
 		if (n >= 1000000) return String::num_int64(n / 1000000) + "M";
 		if (n >= 100000) return String::num_int64(n / 1000) + "k";
 		if (n >= 10000) {
-			const int64_t tenths = n / 100; // toFixed(1) after /1e3, rounded down like the floor above
+			const int64_t tenths = (n + 50) / 100; // toFixed(1) after /1e3 rounds: 12960 is "13k"
 			String s = String::num_int64(tenths / 10);
 			if (tenths % 10) s += "." + String::num_int64(tenths % 10);
 			return s + "k";
@@ -309,6 +341,9 @@ public:
 	}
 
 private:
+	godot::String civ_keys_[2];
+	int tooltip_civ_ = -1;
+	bool observer_ = false;
 	static int sort_order() {
 		const std::string v = rtso::user_config::get("gui.session.respoptooltipsort");
 		return v == "1" ? 1 : v == "-1" ? -1 : 0;
@@ -327,7 +362,7 @@ private:
 	godot::String ally_stats(rtso::Simulation *sim, uint8_t me,
 			const std::function<std::pair<godot::String, int64_t>(uint8_t)> &stat) const {
 		using godot::String;
-		const bool observer = me >= rtso::MAX_PLAYERS || sim->is_defeated(me);
+		const bool observer = observer_ || me >= rtso::MAX_PLAYERS || sim->is_defeated(me);
 		struct Row { String text; int64_t order; };
 		std::vector<Row> rows;
 		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
@@ -370,7 +405,6 @@ private:
 	godot::Label *res_labels_[4] = {nullptr};
 	godot::TextureRect *pop_icon_ = nullptr;
 	godot::Label *pop_label_ = nullptr;
-	godot::Button *idle_worker_btn_ = nullptr;
 	godot::Label *clock_label_ = nullptr;
 	godot::Label *wave_label_ = nullptr;
 };

@@ -31,6 +31,7 @@ Needs a Godot 4.3 binary (--godot or $GODOT) and an imported project
 """
 import argparse
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -262,6 +263,10 @@ def play(args, lobby, leave):
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
     ok = ok and not any("> /list" in outs[role] for role in ("host", "join"))
+    # 0.28 PauseOverlay: the host's pause reads on the client as its name in its player colour.
+    paused_by = said("join", "paused_by")
+    ok = ok and re.fullmatch(r"\[center\]Paused by \[color=#[0-9a-f]{6}\]alice\[/color\]\[/center\]", paused_by) is not None
+    ok = ok and "#ffffff]alice" not in paused_by
     picks = {k: (h.get(k), j.get(k)) for k in ("speed", "civ1", "team1", "color1")}
     ok = ok and picks == {"speed": ("1.5", "1.5"), "civ1": ("15", "15"), "team1": ("2", "2"), "color1": ("5", "5")}
     if leave == "join":
@@ -281,6 +286,7 @@ def play(args, lobby, leave):
         print(f"[gmp] PASS while the client was frozen at the start, the host showed: {waited}; "
               f"network warning: {net_warning}")
         print("[gmp] PASS /list on both read: Users (2): alice, bob")
+        print(f"[gmp] PASS the host's pause showed on the client as: {paused_by}")
     if ok and leave == "join":
         print(f"[gmp] PASS the client left and the host's chat said: {said('host', 'chat_left')}")
     elif ok:

@@ -53,7 +53,7 @@ void RtsoMain::update_cursor() {
 	const Vector2 mouse = vp->get_mouse_position();
 	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
 	if (!over_ui && !build_mode) {
-		if (rtso::hotkeys::held("session.flare")) {
+		if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
 			want = "action-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
 			if (over_own_rally_structure(get_ground_click_pos(mouse))) {
@@ -275,6 +275,10 @@ Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
 // with session.attackmove), queued with session.queue.
 void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 	if (!sim) return;
+	if (flare_armed_) { // INPUT_FLARE: a right click cancels it
+		flare_armed_ = false;
+		return;
+	}
 	if (rtso::hotkeys::held("session.flare")) {
 		trigger_flare(world_pos.x, world_pos.y);
 		return;

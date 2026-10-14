@@ -4,6 +4,7 @@
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/label.hpp>
+#include <godot_cpp/classes/rich_text_label.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/check_box.hpp>
@@ -71,6 +72,7 @@
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
 #include "dev_overlay_view.h"
+#include "minimap_panel_view.h"
 #include "control_groups_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
@@ -99,6 +101,10 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// 1. Top HUD Bar
 	Panel *top_hud_panel = nullptr;
 	RtsoTopPanel top_panel_;
+	// 0.28 MiniMapPanel's idle worker, diplomacy colours and flare buttons.
+	rtso::RtsoMiniMapPanel minimap_panel_;
+	// input.js INPUT_FLARE: the flare button (or session.flareactivate) armed a flare.
+	bool flare_armed_ = false;
 	Button *speed_btn = nullptr;
 	Button *menu_btn = nullptr;
 	RtsoSafeSelect *map_selector = nullptr;
@@ -184,7 +190,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Panel *banner_panel = nullptr;
 	Label *banner_label = nullptr;
 	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
-	Label *time_notification_label_ = nullptr;
+	RichTextLabel *time_notification_label_ = nullptr; // notificationText: player names in their colours
 	// 0.28 NetworkDelayOverlay: "Delay to live stream" while this peer holds more
 	// than MAX_LIVE_DELAY turns it hasn't run yet; checked once a second.
 	Label *net_delay_label_ = nullptr;
@@ -697,9 +703,12 @@ private:
 	// and in multiplayer "Paused by" the pausing players.
 	Button *pause_overlay_ = nullptr;
 	Label *pause_resume_label_ = nullptr;
-	Label *pause_by_label_ = nullptr;
+	RichTextLabel *pause_by_label_ = nullptr;
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
+	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
+	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
+	Dictionary debug_minimap_panel() const;
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while

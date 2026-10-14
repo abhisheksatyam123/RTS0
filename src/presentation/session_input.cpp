@@ -159,6 +159,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			_toggle_session_dialog("BarterDialog");
 			return;
 		}
+		if (fired("session.flareactivate")) { _on_flare_button_pressed(); return; } // MiniMap.xml flareButton hotkey
 		if (fired("structree")) {
 			if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("toggle");
 			return;
@@ -343,8 +344,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 			if (mb->is_pressed()) {
-				// Hold K and click to send a flare (0 A.D. session.flare).
-				if (rtso::hotkeys::held("session.flare")) {
+				// Hold K and click to send a flare (0 A.D. session.flare), or click once
+				// the flare button armed it (INPUT_FLARE).
+				if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
+					flare_armed_ = false;
 					const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 					trigger_flare(click_pos.x, click_pos.z);
 					return;
@@ -647,6 +650,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 				}
 			}
+		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed() && flare_armed_) {
+			flare_armed_ = false; // INPUT_FLARE: a right click cancels the flare
+			return;
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
 			// A right-click while band-boxing cancels the box and gives no order
 			// (input.js INPUT_BANDBOXING: right button resets to INPUT_NORMAL).
