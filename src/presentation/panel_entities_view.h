@@ -29,6 +29,7 @@
 #include "l10n.h"
 #include "production_queue.h"
 #include "selection_details.h"
+#include "template_portraits.h"
 
 namespace rtso {
 
@@ -145,17 +146,7 @@ public:
 	}
 
 	// The template's Identity/Icon (data/reference/templates.json units.<id>.icon), else the class portrait.
-	static godot::Ref<godot::Texture2D> portrait(uint16_t tmpl, uint8_t type) {
-		using namespace godot;
-		if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
-			const String icon = unit_text(civ_unit_template(tmpl).id).get("icon", "");
-			if (!icon.is_empty()) {
-				Ref<Texture2D> t = load_ui_texture("res://assets/textures/ui/archive/portraits/" + icon);
-				if (t.is_valid()) return t;
-			}
-		}
-		return load_ui_texture(String("res://assets/textures/ui/portraits/") + unit_type_portrait(type) + ".png");
-	}
+	static godot::Ref<godot::Texture2D> portrait(uint16_t tmpl, uint8_t type) { return portraits::unit(tmpl, type); }
 
 private:
 	struct Slot {
@@ -171,18 +162,6 @@ private:
 		const auto &info = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_template_unit_info(tmpl, type) : unit_type_info(type);
 		const char *specific = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).specific_name : nullptr;
 		return entity_names(godot::String::utf8(info.name), godot::String::utf8(specific ? specific : ""));
-	}
-
-	static godot::Dictionary unit_text(const char *id) {
-		using namespace godot;
-		static Dictionary units;
-		static bool loaded = false;
-		if (!loaded) {
-			loaded = true;
-			Ref<FileAccess> f = FileAccess::open("res://data/reference/templates.json", FileAccess::READ);
-			if (f.is_valid()) units = Dictionary(JSON::parse_string(f->get_as_text())).get("units", Dictionary());
-		}
-		return units.get(String(id ? id : ""), Dictionary());
 	}
 
 	godot::Control *row_ = nullptr;

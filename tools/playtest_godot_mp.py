@@ -74,6 +74,7 @@ def main():
     for leave in ("join", "host"):
         ok = play(args, lobby, leave) and ok
     ok = play_saved(args, lobby) and ok
+    ok = play_setup_leave(args, lobby) and ok
     server.shutdown()
     stun.close()
     return 0 if ok else 1
@@ -146,6 +147,53 @@ def play_saved(args, lobby):
           f"hosted={hosted} loaded={loaded}")
     return False
 
+
+def play_setup_leave(args, lobby):
+    """0.28 reportDisconnect in the game setup: the host leaves before Start;
+    the client's setup page closes for "Lost connection to the server." with
+    the reason, and its OK goes back to the lobby."""
+    print("[gmp] ---- the host leaves the game setup before Start ----")
+    port = args.port + 3
+    def client(role, name):
+        cmd = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
+               f"role={role}", f"name={name}", f"lobby={lobby}", f"port={port}", f"timeout={args.timeout}",
+               f"stun={args.stun_port}", "lan=0", "setup_leave=1"]
+        if not args.no_firewall:
+            cmd.append("net_firewall=1")
+        log = tempfile.TemporaryFile(mode="w+")
+        p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, text=True)
+        p.log = log
+        return p
+    host = client("host", "alice")
+    time.sleep(2.0)
+    join = client("join", "bob")
+    outs = {}
+    for role, p in (("join", join), ("host", host)):
+        try:
+            p.wait(timeout=args.timeout + 30)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+        p.log.seek(0)
+        outs[role] = p.log.read()
+    def said(key):
+        return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs["join"]) if f" {key}=" in l), "")
+    status = said("setup_status")
+    ok = (host.returncode == 0 and join.returncode == 0
+          and status == "Lost connection to the server. | The host has ended the game. reason=2 saw_page=true page=false"
+          and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn")
+    for role in ("host", "join"):
+        for line in gmp_lines(outs[role]):
+            print("   " + line)
+    if ok:
+        print(f"[gmp] PASS the host left the setup; the client's page closed for: {status.split(' reason=')[0]}; "
+              f"OK went back to the lobby")
+        return True
+    for role in ("host", "join"):
+        print(f"---- {role} output ----")
+        print("\n".join(l for l in outs[role].splitlines() if "NetHost" in l or "[gmp]" in l)[-4000:])
+    print(f"[gmp] FAIL setup leave rc host/join={host.returncode}/{join.returncode} status={status!r}")
+    return False
 
 def play(args, lobby, leave):
     print(f"[gmp] ---- one match; then the {leave} leaves ----")

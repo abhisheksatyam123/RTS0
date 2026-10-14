@@ -74,6 +74,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_research_progress_pressed", "slot"), &RtsoMain::_on_research_progress_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_dev_overlay"), &RtsoMain::toggle_dev_overlay);
 	ClassDB::bind_method(D_METHOD("_on_dev_command", "command"), &RtsoMain::_on_dev_command);
+	ClassDB::bind_method(D_METHOD("time_warp_rewind"), &RtsoMain::time_warp_rewind);
+	ClassDB::bind_method(D_METHOD("time_warp_snapshot_count"), &RtsoMain::time_warp_snapshot_count);
 	ClassDB::bind_method(D_METHOD("debug_dev_overlay"), &RtsoMain::debug_dev_overlay);
 	ClassDB::bind_method(D_METHOD("debug_set_net_delay", "turns"), &RtsoMain::debug_set_net_delay);
 	ClassDB::bind_method(D_METHOD("debug_net_delay_text"), &RtsoMain::debug_net_delay_text);
@@ -101,6 +103,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_civ_icon_gui_input", "event"), &RtsoMain::_on_civ_icon_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_flare_button_pressed"), &RtsoMain::_on_flare_button_pressed);
 	ClassDB::bind_method(D_METHOD("debug_minimap_panel"), &RtsoMain::debug_minimap_panel);
+	ClassDB::bind_method(D_METHOD("debug_selected_building"), &RtsoMain::debug_selected_building);
 	ClassDB::bind_method(D_METHOD("get_summary_gui", "in_game"), &RtsoMain::summary_gui);
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
@@ -156,6 +159,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count"), &RtsoMain::debug_spawn_units);
 	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
+	ClassDB::bind_method(D_METHOD("debug_structure_types"), &RtsoMain::debug_structure_types);
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);

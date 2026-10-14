@@ -1116,6 +1116,7 @@ void RtsoMain::_process(double delta) {
 	update_inspector();
 	update_command_panel();
 	follow_player_tick();
+	time_warp_tick();
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());

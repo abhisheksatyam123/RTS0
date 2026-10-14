@@ -88,9 +88,11 @@ int main() {
 		run(s, t + 2.0f);
 		CHECK(bld(s, b).queue.size() == 1 && !bld(s, b).queue.front().started);
 		CHECK(bld(s, b).queue.front().timer == 0.0f);
+		CHECK(s.training_blocked(0) && !s.training_blocked(1)); // Player.IsTrainingBlocked: the counter flashes
 		s.spawn_building_world(30.0f, 30.0f, BLD_HOUSE, 0, 1.0f);
 		run(s, 0.5f);
 		CHECK(bld(s, b).queue.front().started);
+		CHECK(!s.training_blocked(0));
 		const int pop_started = s.pop_current(0);
 		run(s, t + 1.0f);
 		CHECK(bld(s, b).queue.empty());
