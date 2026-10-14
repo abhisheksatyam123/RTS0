@@ -92,6 +92,7 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_TRIGGERS_DEMO_INIT = 34,        // scenarios/triggers_demo.js top level
 	TRIGGER_ACTION_TRIGGERS_DEMO_LOG = 35,         // its <Event>Action listeners: warn(uneval(data))
 	TRIGGER_ACTION_TRIGGERS_DEMO_INTERVAL = 36,    // IntervalAction: the yes-no dialog, three times
+	TRIGGER_ACTION_PICKUP_TEST = 37,               // scenarios/pickup_test_map_triggers.js: arg 0 init, 1 experiments, 2 second walker
 	TRIGGER_ACTION_COUNT
 };
 
