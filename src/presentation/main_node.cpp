@@ -5386,7 +5386,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (p.has("team")) {
 				const int t = (int)p["team"];
 				map_team_[team] = (uint8_t)(t >= 0 && t < rtso::MAX_PLAYERS ? t + 1 : 0);
-				map_has_teams_ = true;
+				// port_0ad_maps.py gives every player "team": id - 1 by default; only a
+				// map with LockTeams (another value somewhere) sets the teams itself.
+				if (t != id - 1) map_has_teams_ = true;
 			}
 		}
 		// Civs before the units: spawn_unit takes its owner's roster.
