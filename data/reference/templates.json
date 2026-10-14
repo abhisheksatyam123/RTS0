@@ -829,6 +829,20 @@
      1.0,
      0.8
     ],
+    "s69": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.8
+    ],
+    "s70": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.8
+    ],
     "brit/support_healer_b": [
      0.8,
      1.0,
@@ -1083,6 +1097,20 @@
      1.0,
      1.0,
      0.8
+    ],
+    "s69": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.8
+    ],
+    "s70": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.8
     ]
    }
   },
@@ -1204,6 +1232,13 @@
      0.5,
      0.5,
      0.5
+    ],
+    "69": [
+     0.5,
+     0.5,
+     0.5,
+     0.5,
+     0.5
     ]
    },
    "cost_mult": {
@@ -1234,6 +1269,13 @@
      1.0,
      1.0,
      0.8
+    ],
+    "s69": [
+     1.0,
+     1.0,
+     0.5,
+     1.0,
+     0.5
     ],
     "maur/champion_elephant": [
      1.0,
@@ -1395,6 +1437,13 @@
      1.5
     ],
     "s13": [
+     1.0,
+     0.6,
+     1.0,
+     1.0,
+     1.5
+    ],
+    "s70": [
      1.0,
      0.6,
      1.0,
@@ -20269,56 +20318,6 @@
     }
    }
   },
-  "rome/cavalry_auxiliary_b": {
-   "generic_name": "Auxiliary Cavalry",
-   "specific_name": "Eques Alaris",
-   "tooltip": "",
-   "history": "",
-   "classes": [
-    "Citizen",
-    "Soldier",
-    "Cavalry",
-    "Ranged",
-    "Javelineer",
-    "Auxiliary"
-   ],
-   "icon": "units/rome/cavalry_auxiliary.png",
-   "builds": [],
-   "viewer": {
-    "attacks": [
-     {
-      "type": "Capture",
-      "name": "Capture",
-      "min_range": 0,
-      "max_range": 4,
-      "y_origin": 0,
-      "repeat_time": 1,
-      "capture": 2.5
-     },
-     {
-      "type": "Ranged",
-      "name": "Javelin",
-      "min_range": 0,
-      "max_range": 30,
-      "y_origin": 0,
-      "repeat_time": 1.25,
-      "damage": {
-       "Pierce": 18
-      }
-     }
-    ],
-    "garrison_size": 1,
-    "speed": {
-     "walk": 16.2,
-     "run": 22.68,
-     "acceleration": 31.5
-    },
-    "gather": {
-     "food.meat": 5
-    },
-    "rank": "Basic"
-   }
-  },
   "rome/infantry_antesignanus": {
    "generic_name": "Legionary Skirmisher",
    "specific_name": "Antesignānus",
@@ -24814,6 +24813,162 @@
      "metal"
     ]
    }
+  },
+  "pers/support_healer_e": {
+   "generic_name": "Median Magus",
+   "specific_name": "Maguš Māda",
+   "tooltip": "Heal units.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Healer"
+   ],
+   "icon": "units/pers/support_healer.png",
+   "builds": [],
+   "viewer": {
+    "heal": {
+     "health": 5,
+     "range": 12,
+     "interval": 2
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    },
+    "rank": "Elite"
+   }
+  },
+  "rome/support_healer_e": {
+   "generic_name": "Doctor",
+   "specific_name": "Medicus",
+   "tooltip": "Heal units.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Healer"
+   ],
+   "icon": "units/rome/support_healer.png",
+   "builds": [],
+   "viewer": {
+    "heal": {
+     "health": 5,
+     "range": 12,
+     "interval": 2
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    },
+    "rank": "Elite"
+   }
+  },
+  "mace/support_healer_e": {
+   "generic_name": "Surgeon",
+   "specific_name": "Iatros",
+   "tooltip": "Heal units.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Healer"
+   ],
+   "icon": "units/hele/support_healer.png",
+   "builds": [],
+   "viewer": {
+    "heal": {
+     "health": 5,
+     "range": 12,
+     "interval": 2
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    },
+    "rank": "Elite"
+   }
+  },
+  "gaul/support_healer_e": {
+   "generic_name": "Druid",
+   "specific_name": "Druid",
+   "tooltip": "Heal units.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Healer"
+   ],
+   "icon": "units/celt/support_healer.png",
+   "builds": [],
+   "viewer": {
+    "heal": {
+     "health": 5,
+     "range": 12,
+     "interval": 2
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    },
+    "rank": "Elite"
+   }
+  },
+  "ptol/support_healer_e": {
+   "generic_name": "Surgeon",
+   "specific_name": "Iatros",
+   "tooltip": "Heal units.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Healer"
+   ],
+   "icon": "units/ptol/support_healer.png",
+   "builds": [],
+   "viewer": {
+    "heal": {
+     "health": 5,
+     "range": 12,
+     "interval": 2
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    },
+    "rank": "Elite"
+   }
+  },
+  "han/support_healer_e": {
+   "generic_name": "Healer",
+   "specific_name": "Yīshī",
+   "tooltip": "Heal units.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Healer"
+   ],
+   "icon": "units/han/support_healer.png",
+   "builds": [],
+   "viewer": {
+    "heal": {
+     "health": 5,
+     "range": 12,
+     "interval": 2
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    },
+    "rank": "Elite"
+   }
   }
  },
  "structures": {
@@ -25586,6 +25741,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "spart": {
@@ -26357,6 +26546,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "pers": {
@@ -27250,6 +27473,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "rome": {
@@ -28131,6 +28388,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "cart": {
@@ -28954,6 +29245,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "mace": {
@@ -29701,6 +30026,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "brit": {
@@ -30494,6 +30853,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "gaul": {
@@ -31241,6 +31634,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "iber": {
@@ -31984,6 +32411,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "maur": {
@@ -32751,6 +33212,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "kush": {
@@ -33593,6 +34088,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "ptol": {
@@ -34434,6 +34963,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "sele": {
@@ -35226,6 +35789,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "han": {
@@ -36093,6 +36690,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   },
   "germ": {
@@ -36924,6 +37555,40 @@
       }
      }
     }
+   },
+   "69": {
+    "generic_name": "Shrine",
+    "specific_name": "Naos",
+    "tooltip": "Train Elite Healers and heal garrisoned units.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Temple",
+     "Shrine"
+    ],
+    "icon": "structures/temple.png",
+    "template": "structures/shrine_greek_01",
+    "viewer": {
+     "garrison": {
+      "capacity": 20,
+      "buff_heal": 3
+     }
+    }
+   },
+   "70": {
+    "generic_name": "Trading Post",
+    "specific_name": "Desert Bazaar",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "icon": "structures/market.png",
+    "template": "structures/trading_post_desert",
+    "viewer": {}
    }
   }
  },
@@ -37935,12 +38600,6 @@
    "description": "A bronze beak at the prow of the ship, used for ramming enemy ships.",
    "requirements_tooltip": "Unlocked in City Phase.",
    "icon": "ship_ram.png"
-  },
-  "warship_ramming_speed": {
-   "tooltip": "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”",
-   "description": "The flanking maneuver was attempted in order to position the ship for a successful ram. To pull this off in the chaos of a sea battle, a ship's crew needed to be highly trained and well-motivated.",
-   "requirements_tooltip": "Unlocked in Town Phase.",
-   "icon": "trihemiolia.png"
   },
   "warship_ranged_attack": {
    "tooltip": "Ranged Warships +10% attack damage.",

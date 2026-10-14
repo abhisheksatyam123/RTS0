@@ -47710,6 +47710,146 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_germans_encampment": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Attack",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 35,
+   "file": "models/buildings/s_germans_encampment.glb",
+   "origin": "ground-center",
+   "parts": 41,
+   "size_meters": [
+    4.0,
+    0.927,
+    3.941
+   ],
+   "skeleton": "cow",
+   "sources": [
+    "actor:art/actors/fauna/bull.xml",
+    "actor:art/actors/fauna/cow.xml",
+    "actor:art/actors/props/special/eyecandy/campfire.xml",
+    "actor:art/actors/props/special/eyecandy/campfire_decal.xml",
+    "actor:art/actors/props/special/eyecandy/sword_heap_03.xml",
+    "actor:art/actors/props/special/eyecandy/treasure_weapons.xml",
+    "actor:art/actors/props/special/eyecandy/treasure_weapons_barrels.xml",
+    "actor:art/actors/props/special/eyecandy/wood_sm_pile_b.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_armorstand_armor.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_armorstand_wood.xml",
+    "actor:art/actors/props/structures/germans/fence_wicker_medium.xml",
+    "actor:art/actors/props/structures/germans/fence_wicker_short.xml",
+    "actor:art/actors/props/structures/germans/wagon.xml",
+    "actor:art/actors/props/structures/germans/wagon_roof_a.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_a.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_b.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_c.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_d.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_e.xml",
+    "actor:art/actors/structures/germans/encampment.xml",
+    "mesh:props/celt_blacksmith_armorstand_rome_csp_a.dae",
+    "mesh:props/celt_blacksmith_armorstand_struct.dae",
+    "mesh:props/celt_sword_heap_03.dae",
+    "mesh:props/germ_wagon_cc.dae",
+    "mesh:props/special/campfire.dae",
+    "mesh:props/sword_rack.dae",
+    "mesh:props/wagon_props.dae",
+    "mesh:props/wicker_fence_medium.dae",
+    "mesh:props/wicker_fence_short.dae",
+    "mesh:props/wrld_barrel_a_empty.dae",
+    "mesh:props/wrld_wood_sm_pile_b.dae",
+    "mesh:skeletal/bull_a.dae",
+    "mesh:skeletal/cattle_female_a.dae",
+    "mesh:structural/germans/encampment_base.dae",
+    "mesh:structural/wagon_roof_a.dae",
+    "skin:props/celt_prop_1.png",
+    "skin:props/sail_stripes_1.png",
+    "skin:props/wrld_wood_1.dds",
+    "skin:skeletal/animal_cattle_black.png",
+    "skin:skeletal/animal_cattle_black_and_white.png",
+    "skin:skeletal/celt/chainmail_02_01.png",
+    "skin:structural/celt_struct.dds",
+    "skin:structural/celt_struct_1.dds",
+    "skin:structural/germ_struct.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_germans_encampment_fortified": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Attack",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 35,
+   "file": "models/buildings/s_germans_encampment_fortified.glb",
+   "origin": "ground-center",
+   "parts": 44,
+   "size_meters": [
+    4.879,
+    1.106,
+    4.879
+   ],
+   "skeleton": "cow",
+   "sources": [
+    "actor:art/actors/fauna/bull.xml",
+    "actor:art/actors/fauna/cow.xml",
+    "actor:art/actors/props/special/eyecandy/campfire.xml",
+    "actor:art/actors/props/special/eyecandy/campfire_decal.xml",
+    "actor:art/actors/props/special/eyecandy/sword_heap_03.xml",
+    "actor:art/actors/props/special/eyecandy/treasure_weapons.xml",
+    "actor:art/actors/props/special/eyecandy/treasure_weapons_barrels.xml",
+    "actor:art/actors/props/special/eyecandy/wood_sm_pile_b.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_armorstand_armor.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_armorstand_wood.xml",
+    "actor:art/actors/props/structures/germans/encampment_palisade.xml",
+    "actor:art/actors/props/structures/germans/fence_wicker_medium.xml",
+    "actor:art/actors/props/structures/germans/fence_wicker_short.xml",
+    "actor:art/actors/props/structures/germans/wagon.xml",
+    "actor:art/actors/props/structures/germans/wagon_roof_a.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_a.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_b.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_c.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_d.xml",
+    "actor:art/actors/props/structures/germans/wagon_unyoked_e.xml",
+    "actor:art/actors/structures/germans/encampment_fortified.xml",
+    "mesh:props/celt_blacksmith_armorstand_rome_csp_a.dae",
+    "mesh:props/celt_blacksmith_armorstand_struct.dae",
+    "mesh:props/celt_sword_heap_03.dae",
+    "mesh:props/germ_encampment_palisade.dae",
+    "mesh:props/germ_wagon_cc.dae",
+    "mesh:props/special/campfire.dae",
+    "mesh:props/sword_rack.dae",
+    "mesh:props/wagon_props.dae",
+    "mesh:props/wicker_fence_medium.dae",
+    "mesh:props/wicker_fence_short.dae",
+    "mesh:props/wrld_barrel_a_empty.dae",
+    "mesh:props/wrld_wood_sm_pile_b.dae",
+    "mesh:skeletal/bull_a.dae",
+    "mesh:skeletal/cattle_female_a.dae",
+    "mesh:structural/germans/encampment_base.dae",
+    "mesh:structural/wagon_roof_a.dae",
+    "skin:props/celt_prop_1.png",
+    "skin:props/sail_stripes_1.png",
+    "skin:props/wrld_wood_1.dds",
+    "skin:skeletal/animal_cattle_black.png",
+    "skin:skeletal/animal_cattle_black_and_white.png",
+    "skin:skeletal/celt/chainmail_02_01.png",
+    "skin:structural/celt_struct.dds",
+    "skin:structural/celt_struct_1.dds",
+    "skin:structural/germ_struct.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "s_germans_forge": {
    "file": "models/buildings/s_germans_forge.glb",
    "origin": "ground-center",
@@ -55863,6 +56003,449 @@
     "skin:structural/rome_ram.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "treasure_amphorae": {
+   "file": "models/props/treasure_amphorae.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.692,
+    1.084,
+    2.8
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/amphorae.xml",
+    "mesh:props/amphorae_treasure.dae",
+    "skin:props/hele_props_a.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "treasure_barrel_a": {
+   "file": "models/props/treasure_barrel_a.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    0.854,
+    1.107,
+    0.854
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrel_a.xml",
+    "mesh:props/wrld_barrel_a.dae",
+    "skin:props/celt_prop_1.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "treasure_barrels_buried": {
+   "file": "models/props/treasure_barrels_buried.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.621,
+    1.096,
+    2.592
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrels_buried.xml",
+    "mesh:props/special/floating_barrels.dae",
+    "skin:props/hele_props_a.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "treasure_barrels_floating": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Attack",
+    "Death",
+    "Run"
+   ],
+   "bones": 6,
+   "file": "models/props/treasure_barrels_floating.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.31,
+    0.548,
+    1.296
+   ],
+   "skeleton": "",
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrels_floating.xml",
+    "mesh:props/special/floating_barrels.dae",
+    "skin:props/hele_props_a.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "treasure_brick_pile_06": {
+   "file": "models/props/treasure_brick_pile_06.glb",
+   "origin": "actor-center",
+   "parts": 4,
+   "size_meters": [
+    2.029,
+    2.689,
+    1.992
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/brick.xml",
+    "actor:art/actors/props/special/eyecandy/brick_pile_06.xml",
+    "actor:art/actors/props/units/tools/mallet.xml",
+    "mesh:props/brick.dae",
+    "mesh:props/brick_pile_06.dae",
+    "mesh:props/prop_mallet.dae",
+    "skin:props/prop_weap.dds",
+    "skin:structural/foundation.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "treasure_crate_a": {
+   "file": "models/props/treasure_crate_a.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    0.625,
+    0.625,
+    0.625
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/crate_a.xml",
+    "mesh:props/wrld_crate_a.dae",
+    "skin:props/celt_prop_1.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "treasure_golden_fleece": {
+   "file": "models/props/treasure_golden_fleece.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    0.664,
+    1.574,
+    1.921
+   ],
+   "sources": [
+    "actor:art/actors/special/golden_fleece.xml",
+    "mesh:skeletal/goat_male.dae",
+    "skin:skeletal/special_fleece.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "treasure_pegasus": {
+   "animated": true,
+   "animations": [
+    "Run",
+    "Idle",
+    "Walk",
+    "Death",
+    "Attack",
+    "Slaughter",
+    "GatherMeat"
+   ],
+   "bones": 49,
+   "file": "models/props/treasure_pegasus.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    1.06,
+    2.778,
+    3.49
+   ],
+   "skeleton": "horse",
+   "sources": [
+    "actor:art/actors/props/horse/horse_hair_mane_pure_white.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_pure_white.xml",
+    "actor:art/actors/props/special/pegasus_wings.xml",
+    "actor:art/actors/special/pegasus.xml",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:props/special/pegasus_wings.dae",
+    "mesh:skeletal/horse_lusitano.dae",
+    "skin:props/horse/hair_pure_white.png",
+    "skin:props/wings.dds",
+    "skin:skeletal/horse_white.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "treasure_persian_food_big": {
+   "file": "models/props/treasure_persian_food_big.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    5.897,
+    1.345,
+    4.778
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/treasure_persian_food_big.xml",
+    "mesh:props/treasure_pers_4.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "treasure_persian_food_small": {
+   "file": "models/props/treasure_persian_food_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    3.133,
+    1.648,
+    3.128
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/treasure_persian_food_small.xml",
+    "mesh:props/treasure_pers_1.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "treasure_persian_metal_big": {
+   "file": "models/props/treasure_persian_metal_big.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    3.603,
+    2.944,
+    3.925
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/treasure_persian_metal_big.xml",
+    "mesh:props/treasure_pers_2.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "treasure_persian_metal_small": {
+   "file": "models/props/treasure_persian_metal_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.705,
+    1.417,
+    2.817
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/treasure_persian_metal_small.xml",
+    "mesh:props/treasure_pers_3.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "treasure_produce_bin_a": {
+   "file": "models/props/treasure_produce_bin_a.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    0.911,
+    0.913,
+    1.316
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/produce_bin_a.xml",
+    "mesh:props/wrld_producebin_a.dae",
+    "skin:props/celt_prop_1.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "treasure_shipwreck_argo": {
+   "file": "models/props/treasure_shipwreck_argo.glb",
+   "origin": "actor-center",
+   "parts": 4,
+   "size_meters": [
+    6.253,
+    2.575,
+    3.011
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/shipwreck_argo.xml",
+    "actor:art/actors/props/structures/hellenes/blacksmith_barrel.xml",
+    "mesh:props/hele_blacksmith_barrel_propsa.dae",
+    "mesh:props/special/shipwreck_ram_bow.dae",
+    "skin:props/ao/shipwreck_ram_bow_ao.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/wooden_shipwreck.png",
+    "skin:structural/ao/hele_blacksmith.png"
+   ],
+   "upstream_material": "basic_trans_ao_norm_spec.xml"
+  },
+  "treasure_shipwreck_ram_bow": {
+   "file": "models/props/treasure_shipwreck_ram_bow.glb",
+   "origin": "actor-center",
+   "parts": 4,
+   "size_meters": [
+    6.253,
+    2.575,
+    3.011
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/shipwreck_ram_bow.xml",
+    "actor:art/actors/props/structures/hellenes/blacksmith_barrel.xml",
+    "mesh:props/hele_blacksmith_barrel_propsa.dae",
+    "mesh:props/special/shipwreck_ram_bow.dae",
+    "skin:props/ao/shipwreck_ram_bow_ao.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/wooden_shipwreck.png",
+    "skin:structural/ao/hele_blacksmith.png"
+   ],
+   "upstream_material": "basic_trans_ao_norm_spec.xml"
+  },
+  "treasure_shipwreck_ram_side": {
+   "file": "models/props/treasure_shipwreck_ram_side.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    5.772,
+    3.056,
+    3.305
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/shipwreck_ram_side.xml",
+    "mesh:props/special/shipwreck_ram_side.dae",
+    "skin:props/ao/shipwreck_ram_side_ao.png",
+    "skin:props/wooden_shipwreck.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "treasure_shipwreck_sail_boat": {
+   "file": "models/props/treasure_shipwreck_sail_boat.glb",
+   "origin": "actor-center",
+   "parts": 8,
+   "size_meters": [
+    2.482,
+    2.56,
+    3.471
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/basket_iber_a.xml",
+    "actor:art/actors/props/special/eyecandy/basket_rome_a.xml",
+    "actor:art/actors/props/special/eyecandy/shipwreck_sail_boat.xml",
+    "mesh:props/special/shipwreck_sail_boat.dae",
+    "mesh:props/wrld_basket_a.dae",
+    "skin:props/ao/shipwreck_sail_boat_ao.png",
+    "skin:props/basket_iber_1.dds",
+    "skin:props/basket_rome_1.dds",
+    "skin:props/wooden_shipwreck.png"
+   ],
+   "upstream_material": "basic_trans_ao_norm_spec.xml"
+  },
+  "treasure_shipwreck_sail_boat_cut": {
+   "file": "models/props/treasure_shipwreck_sail_boat_cut.glb",
+   "origin": "actor-center",
+   "parts": 6,
+   "size_meters": [
+    2.382,
+    1.521,
+    4.878
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/basket_iber_a.xml",
+    "actor:art/actors/props/special/eyecandy/shipwreck_sail_boat_cut.xml",
+    "actor:art/actors/props/structures/hellenes/blacksmith_barrel.xml",
+    "mesh:props/hele_blacksmith_barrel_propsa.dae",
+    "mesh:props/special/shipwreck_sail_boat_cut.dae",
+    "mesh:props/wrld_basket_a.dae",
+    "skin:props/ao/shipwreck_sail_boat_cut_ao.png",
+    "skin:props/basket_iber_1.dds",
+    "skin:props/hele_props_a.dds",
+    "skin:props/wooden_shipwreck.png",
+    "skin:structural/ao/hele_blacksmith.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "treasure_standing_stones": {
+   "file": "models/props/treasure_standing_stones.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    1.215,
+    1.898,
+    0.893
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/standing_stones.xml",
+    "mesh:props/standingstone_a.dae",
+    "skin:structural/celt_temple.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "treasure_stone_pile": {
+   "file": "models/props/treasure_stone_pile.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.461,
+    0.767,
+    2.25
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/stone_pile.xml",
+    "mesh:props/stone_pile.dae",
+    "skin:structural/foundation.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "treasure_stone_pile_red": {
+   "file": "models/props/treasure_stone_pile_red.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.461,
+    0.767,
+    2.25
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/stone_pile_red.xml",
+    "mesh:props/stone_pile.dae",
+    "skin:gaia/stone_savanna_a.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "treasure_stone_pile_sandstone": {
+   "file": "models/props/treasure_stone_pile_sandstone.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.461,
+    0.767,
+    2.25
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/stone_pile_sandstone.xml",
+    "mesh:props/stone_pile.dae",
+    "skin:gaia/stone_desert_small_a.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "treasure_weapons": {
+   "file": "models/props/treasure_weapons.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    1.711,
+    1.422,
+    0.184
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/treasure_weapons.xml",
+    "mesh:props/sword_rack.dae",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "treasure_wood_pile": {
+   "file": "models/props/treasure_wood_pile.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    1.975,
+    0.61,
+    3.479
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/wood_pile.xml",
+    "mesh:props/wood_pile.dae",
+    "skin:props/wood_c.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
   },
   "tree": {
    "file": "models/vegetation/tree.glb",

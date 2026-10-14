@@ -7,6 +7,7 @@
 // the selected structure, units or livestock, or the foreign entity a click inspected.
 
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/panel.hpp>
@@ -18,12 +19,14 @@
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/color.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 
 #include <algorithm>
+#include <initializer_list>
 #include <cstdint>
 #include <vector>
 
@@ -31,6 +34,7 @@
 #include "attack_detection.h"
 #include "hotkeys.h"
 #include "l10n.h"
+#include "selection_details.h"
 #include "selection_grid.h"
 #include "top_panel.h" // rtso::load_ui_texture
 
@@ -181,6 +185,11 @@ public:
 		ungarrison_btn_->set_visible(false);
 		panel_->add_child(ungarrison_btn_);
 
+		// selection_details.js tooltips: the portrait (name, auras), the title (a group's
+		// garrison size, carried resources and loot) and the stats (attack, resistance...).
+		for (Control *c : std::initializer_list<Control *>{portrait_, title_, stats_, extra_, aura_label_})
+			c->set_mouse_filter(Control::MOUSE_FILTER_PASS);
+
 		// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
 		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 10, 36.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
@@ -196,6 +205,25 @@ public:
 	uint32_t id() const { return id_; }
 	// A selection of the player's own replaces whatever a click inspected.
 	void clear() { kind_ = INSPECT_NONE; }
+	// Tests: inspect an entity as a click would, and read back what the panel shows.
+	void inspect(uint8_t kind, uint32_t id) {
+		kind_ = kind;
+		id_ = id;
+	}
+	godot::Dictionary debug_state() const {
+		godot::Dictionary d;
+		d["visible"] = panel_ && panel_->is_visible();
+		d["title"] = title_->get_text();
+		d["title_tooltip"] = title_->get_tooltip_text();
+		d["portrait_tooltip"] = portrait_->get_tooltip_text();
+		d["health"] = hp_label_->get_text();
+		d["xp"] = xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
+		d["stats"] = stats_->get_text();
+		d["stats_tooltip"] = stats_->get_tooltip_text();
+		d["extra"] = extra_->get_text();
+		d["extra_tooltip"] = extra_->get_tooltip_text();
+		return d;
+	}
 
 	// What a click on (x, z) inspects when it hits nothing of the player's own: another
 	// player's unit, an animal, another player's structure or a resource, nearest first by
@@ -286,13 +314,13 @@ public:
 					: host_->player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
 		};
 		auto health = [&](float hp, float max) {
-			bar(hp_bar_, hp_label_, max > 0.0f, hp, max,
-					"Health: " + String::num((double)hp, 0) + " / " + String::num((double)max, 0));
+			bar(hp_bar_, hp_label_, max > 0.0f, hp, max, rtso::seldet::health(hp, max));
 		};
 		bar(capture_bar_, capture_label_, false);
 		bar(xp_bar_, xp_label_, false);
 		bar(aura_bar_, aura_label_, false);
 		extra_->set_text("");
+		clear_tooltips();
 
 		if (kind_ == INSPECT_UNIT) {
 			auto uv = sim->units();
@@ -306,12 +334,10 @@ public:
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
 			portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
 			static const char *kRank[] = {"", "", "Advanced ", "Elite "};
-			title_->set_text(String(kRank[std::min(std::max(1, (int)uv.rank[u]), 3)]) + String::utf8(uinfo.name));
+			title_->set_text(rank_prefix(uv.rank[u]) + String::utf8(uinfo.name));
 			class_->set_text(owner_text(uv.team[u]));
 			health(uv.hp[u], uv.max_hp[u]);
-			String stats;
-			if (uinfo.attack_damage > 0.0f) stats = "Attack: " + String::num(uinfo.attack_damage, 1) + ", interval " + String::num(uinfo.attack_cooldown, 2) + " s\n";
-			stats_->set_text(stats + inspect_armour(uinfo.hack_armor, uinfo.pierce_armor, uinfo.crush_armor));
+			fill_unit_details(*sim, u, title_->get_text());
 			return true;
 		}
 		if (kind_ == INSPECT_FAUNA) {
@@ -328,10 +354,23 @@ public:
 			title_->set_text(String::utf8(fi.name));
 			class_->set_text(owner_text(owner));
 			health(fv.hp[f], fv.max_hp[f]);
-			String stats;
-			if (fi.attack_damage() > 0.0f) stats = "Attack: " + String::num(fi.attack_damage(), 1) + ", interval " + String::num(fi.attack_cooldown, 2) + " s\n";
-			stats_->set_text(stats + inspect_armour(fi.hack_armor, fi.pierce_armor, fi.crush_armor));
-			if (fv.food_amount[f] > 0) extra_->set_text("Food: " + String::num_int64(fv.food_amount[f]));
+			// An animal's Attack/Melee and Resistance as tooltips.js shows a unit's.
+			rtso::Simulation::UnitDetails d;
+			d.damage[0] = fi.hack_damage;
+			d.damage[1] = fi.pierce_damage;
+			d.damage[2] = fi.crush_damage;
+			d.interval = fi.attack_cooldown;
+			d.max_range = fi.attack_range;
+			d.resistance[0] = fi.hack_armor;
+			d.resistance[1] = fi.pierce_armor;
+			d.resistance[2] = fi.crush_armor;
+			const String attack = rtso::seldet::attack_tooltip(d), resistance = rtso::seldet::resistance_tooltip(d.resistance);
+			stats_->set_text(rtso::seldet::join_lines({body_lines(attack), body_lines(resistance)}));
+			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance}));
+			// resourceSection: the meat it yields, "Food: 100 / 100".
+			if (fv.food_amount[f] > 0)
+				extra_->set_text(rtso::seldet::resource_label(rtso::RES_FOOD) + " " +
+						rtso::seldet::amount_of(fv.food_amount[f], std::max(fi.food_amount, fv.food_amount[f])));
 			return true;
 		}
 		if (kind_ == INSPECT_BUILDING) {
@@ -346,9 +385,10 @@ public:
 			health(found->hp, found->max_hp);
 			if (found->max_capture_points > 0.0f)
 				bar(capture_bar_, capture_label_, true, found->capture_points, found->max_capture_points,
-						"Capture points: " + String::num((double)found->capture_points, 0) + " / " + String::num((double)found->max_capture_points, 0));
+						rtso::seldet::capture(found->capture_points, found->max_capture_points));
 			stats_->set_text(found->build_progress < 1.0f
 					? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : String());
+			stats_->set_tooltip_text(structure_tooltip(*sim, *found));
 			return true;
 		}
 		if (kind_ == INSPECT_TREASURE) {
@@ -390,8 +430,20 @@ public:
 		title_->set_text(title);
 		class_->set_text("Gaia");
 		bar(hp_bar_, hp_label_, false);
-		stats_->set_text(kind + ": " + String::num_int64(rv.amount[r]) + "\nGatherers: up to " +
-				String::num_int64(sim->resource_max_gatherers(rv.id[r])));
+		// resourceSection ("Wood:" and amount / max, ∞ for a field) and the gatherers count
+		// (current / max, "Current/max gatherers").
+		(void)kind;
+		int gatherers = 0;
+		{
+			auto uv = sim->units();
+			for (size_t i = 0; i < uv.count; ++i)
+				if (uv.alive[i] && uv.target_resource_id[i] == rv.id[r] && uv.action_state[i] == rtso::ACTION_GATHER) ++gatherers;
+		}
+		stats_->set_text(rtso::seldet::resource_label(rv.type[r]) + " " +
+				rtso::seldet::resource_amount(rv.amount[r], sim->resource_supply_max(rv.id[r]),
+						rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY) +
+				"\n" + rtso::seldet::amount_of(gatherers, sim->resource_max_gatherers(rv.id[r])));
+		stats_->set_tooltip_text(rtso::tr0("Current/max gatherers"));
 		return true;
 	}
 
@@ -434,6 +486,7 @@ public:
 		};
 		// The stamina bar has no 0 A.D. counterpart.
 		show_bar(stamina_bar_, stamina_label_, false);
+		clear_tooltips();
 		// Each grid shows if a branch below asks for it; the guard applies the
 		// result once, whichever way update_inspector returns.
 		bool show_selection_grid = false, show_garrison_grid = false;
@@ -463,12 +516,11 @@ public:
 						? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
 						: String()));
 
-				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp,
-						"Health: " + String::num((double)found_b->hp, 0) + " / " + String::num((double)found_b->max_hp, 0));
+				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health(found_b->hp, found_b->max_hp));
 
 				if (found_b->max_capture_points > 0.0f)
 					set_bar(capture_bar_, capture_label_, found_b->capture_points, found_b->max_capture_points,
-							"Capture points: " + String::num((double)found_b->capture_points, 0) + " / " + String::num((double)found_b->max_capture_points, 0));
+							rtso::seldet::capture(found_b->capture_points, found_b->max_capture_points));
 				else
 					show_bar(capture_bar_, capture_label_, false);
 
@@ -500,6 +552,7 @@ public:
 							String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
 							String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 				stats_->set_text(status);
+				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
 				// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
 				const int penned = found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0;
 				String extra = found_b->has_rally_point ? "Rally point set" : "";
@@ -544,8 +597,7 @@ public:
 			hp_sum += g.hp;
 			hp_max_sum += g.max_hp;
 		}
-		set_bar(hp_bar_, hp_label_, hp_sum, hp_max_sum,
-				"Health: " + String::num((double)hp_sum, 0) + " / " + String::num((double)hp_max_sum, 0));
+		set_bar(hp_bar_, hp_label_, hp_sum, hp_max_sum, rtso::seldet::health(hp_sum, hp_max_sum));
 		show_bar(capture_bar_, capture_label_, false);
 
 		if (selected_ids.size() == 1 && !groups.empty()) {
@@ -562,10 +614,8 @@ public:
 			portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
 
 			// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
-			const int rank = std::max(1, (int)uview.rank[u]);
-			static const char *kRank[] = {"", "", "Advanced ", "Elite "};
 			const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
-			const String name = String(kRank[std::min(rank, 3)]) +
+			const String name = rank_prefix(uview.rank[u]) +
 					rtso::entity_names(String::utf8(uinfo.name), String::utf8(specific ? specific : ""));
 			title_->set_text(name);
 			const uint8_t owner = uview.team[u];
@@ -574,8 +624,7 @@ public:
 
 			// Experience toward the next rank (Promotion.js GetRequiredXp after technologies).
 			if (const float need = sim->promotion_required_xp(u); need > 0.0f) {
-				set_bar(xp_bar_, xp_label_, (float)uview.xp[u], need,
-						"Experience: " + String::num_int64(uview.xp[u]) + " / " + String::num(need, 0));
+				set_bar(xp_bar_, xp_label_, (float)uview.xp[u], need, rtso::seldet::experience(uview.xp[u], need));
 			} else {
 				show_bar(xp_bar_, xp_label_, false);
 			}
@@ -591,27 +640,8 @@ public:
 			if (!auras.is_empty()) set_bar(aura_bar_, aura_label_, 1.0f, 1.0f, "Auras: " + auras);
 			else show_bar(aura_bar_, aura_label_, false);
 
-			// Attack and armour (gui/common/tooltips.js getAttackTooltip / getArmorTooltip).
-			String stats;
-			if (uinfo.attack_damage > 0.0f) {
-				String dmg;
-				auto add = [&](float v, const char *kind) {
-					if (v <= 0.0f) return;
-					if (!dmg.is_empty()) dmg += ", ";
-					dmg += String::num(v, 1) + " " + kind;
-				};
-				add(uinfo.hack_damage, "hack");
-				add(uinfo.pierce_damage, "pierce");
-				add(uinfo.crush_damage, "crush");
-				if (dmg.is_empty()) dmg = String::num(uinfo.attack_damage, 1);
-				stats = "Attack: " + dmg + ", interval " + String::num(uinfo.attack_cooldown, 2) + " s";
-				if (uinfo.attack_range > 2.5f) stats += ", range " + String::num(uinfo.attack_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
-				stats += "\n";
-			}
-			stats += armour_text(uinfo.hack_armor, uinfo.pierce_armor, uinfo.crush_armor);
-			stats_->set_text(stats);
+			fill_unit_details(*sim, u, name);
 
-			static const char *kRes[] = {"wood", "metal", "stone", "food"};
 			String extra;
 			uint32_t route_a = 0, route_b = 0;
 			int route_leg = 0;
@@ -624,16 +654,32 @@ public:
 					if (bb.id == route_b) mb = &bb;
 				}
 				if (ma && mb) {
+					// resourceCarrying for traders: the goods and the total gain, "Gain: 30 (Alice), 5 (Bob)"
+					// as the tooltip (getTradingTooltip: market1 pays the arrival market's owner, market2
+					// the starting market's).
 					const auto g = sim->calculate_trade_gain(*ma, *mb, uview.team[u], uview.unit_type[u]);
 					const uint8_t goods = uview.res_type_carried[u];
-					extra = "Trading " + String(goods < rtso::RES_COUNT ? kRes[goods] : "goods") + ", gain " +
-							String::num_int64(g.trader + g.market1 + g.market2) + " (" + String::num_int64(g.trader) +
-							" to you)";
+					extra = rtso::seldet::resource_name(goods) + " " + String::num_int64(g.trader + g.market1 + g.market2);
+					const uint8_t owner = uview.team[u];
+					const struct { int gain; uint8_t owner; } markets[] = {{g.market1, mb->team}, {g.market2, ma->team}};
+					String primary = String::num_int64(g.trader);
+					for (const auto &m : markets)
+						if (m.gain && m.owner == owner) primary += rtso::tr0("+") + String::num_int64(m.gain);
+					auto gain_of = [&](const String &gain, uint8_t pid) {
+						return rtso::sprintf0(rtso::tr0("%(gain)s (%(player)s)"), {{"gain", gain}, {"player", host_->player_display_name(pid)}});
+					};
+					String gains = gain_of(primary, owner);
+					for (const auto &m : markets)
+						if (m.gain && m.owner != owner) gains += rtso::tr0(", ") + gain_of(String::num_int64(m.gain), m.owner);
+					extra_->set_tooltip_text(rtso::sprintf0(rtso::tr0("Gain: %(gain)s"), {{"gain", gains}}));
 				} else {
 					extra = "Trade route lost";
 				}
-			} else if (uview.carry[u] > 0 && uview.res_type_carried[u] < rtso::RES_COUNT)
-				extra = "Carrying " + String::num_int64(uview.carry[u]) + " " + kRes[uview.res_type_carried[u]];
+			} else if (uview.carry[u] > 0 && uview.res_type_carried[u] < rtso::RES_COUNT) {
+				// resourceCarrying: the resource and "amount / max".
+				extra = rtso::seldet::resource_name(uview.res_type_carried[u]) + " " +
+						rtso::seldet::amount_of(uview.carry[u], sim->unit_details(u).carry_max);
+			}
 			if (sim->is_transport((uint32_t)selected_ids[0])) {
 				const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
 				extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(sim->get_transport_capacity((uint32_t)selected_ids[0]));
@@ -647,6 +693,29 @@ public:
 			portrait_->set_texture(groups.empty() ? Ref<Texture2D>()
 					: rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(groups.front().unit_type)) + ".png"));
 			title_->set_text(String::num_int64(selected_ids.size()) + " units selected");
+			// displayMultiple's numberOfUnits tooltip: garrison size, carried resources, loot.
+			{
+				rtso::seldet::Amounts carrying, loot;
+				int64_t garrison_size = 0;
+				for (int s = 0; s < selected_ids.size(); ++s) {
+					size_t i = 0;
+					for (; i < uview.count; ++i)
+						if (uview.id[i] == (uint32_t)selected_ids[s]) break;
+					if (i == uview.count || !uview.alive[i]) continue;
+					if (!rtso::unit_is_ship(uview.unit_type[i])) ++garrison_size;
+					const rtso::LootInfo l = sim->unit_details(i).loot;
+					loot.res[rtso::RES_FOOD] += l.food;
+					loot.res[rtso::RES_WOOD] += l.wood;
+					loot.res[rtso::RES_STONE] += l.stone;
+					loot.res[rtso::RES_GOLD] += l.metal;
+					loot.xp += l.xp;
+					if (uview.carry[i] > 0 && uview.res_type_carried[i] < rtso::RES_COUNT) {
+						carrying.res[uview.res_type_carried[i]] += uview.carry[i];
+						loot.res[uview.res_type_carried[i]] += uview.carry[i];
+					}
+				}
+				title_->set_tooltip_text(rtso::seldet::multiple_tooltip(garrison_size, carrying, loot));
+			}
 			class_->set_text(String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
 			show_bar(xp_bar_, xp_label_, false);
 			show_bar(aura_bar_, aura_label_, false);
@@ -660,8 +729,58 @@ public:
 	}
 
 private:
-	static String inspect_armour(float hack, float pierce, float crush) {
-		return "Armor: " + String::num(hack, 0) + " hack, " + String::num(pierce, 0) + " pierce, " + String::num(crush, 0) + " crush";
+	void clear_tooltips() {
+		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_}) c->set_tooltip_text("");
+	}
+	// The rank glyph's "%(rank)s Rank" reads as a prefix of the name here: "Advanced", "Elite".
+	static String rank_prefix(uint8_t rank) {
+		if (rank == 2) return rtso::tr0("Advanced") + " ";
+		if (rank >= 3) return rtso::tr0("Elite") + " ";
+		return String();
+	}
+	// A "%(label)s\n%(details)s" tooltip's details, unindented, for the stats lines.
+	static String body_lines(const String &tip) {
+		const int nl = tip.find("\n");
+		if (nl < 0) return tip;
+		String out;
+		for (const String &line : tip.substr(nl + 1).split("\n")) out += String(out.is_empty() ? "" : "\n") + line.strip_edges();
+		return out;
+	}
+	// displaySingle for a unit: the attack and resistance lines, the detailed tooltip
+	// (getAttackTooltip, getHealerTooltip, getResistanceTooltip, getGatherTooltip,
+	// getSpeedTooltip, getLootTooltip) and the portrait's (name, then getAurasTooltip).
+	void fill_unit_details(const rtso::Simulation &sim, size_t u, const String &name) {
+		using namespace rtso::seldet;
+		const rtso::Simulation::UnitDetails d = sim.unit_details(u);
+		const String attack = attack_tooltip(d), resistance = resistance_tooltip(d.resistance);
+		stats_->set_text(join_lines({body_lines(attack), body_lines(resistance)}));
+		auto uv = sim.units();
+		Amounts loot;
+		loot.res[rtso::RES_FOOD] = d.loot.food;
+		loot.res[rtso::RES_WOOD] = d.loot.wood;
+		loot.res[rtso::RES_STONE] = d.loot.stone;
+		loot.res[rtso::RES_GOLD] = d.loot.metal;
+		loot.xp = d.loot.xp;
+		if (uv.carry[u] > 0 && uv.res_type_carried[u] < rtso::RES_COUNT) loot.res[uv.res_type_carried[u]] += uv.carry[u];
+		stats_->set_tooltip_text(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d), loot_tooltip(loot)}));
+		String auras;
+		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
+		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE)
+			for (int16_t a : rtso::civ_unit_template(tmpl).auras) {
+				if (a < 0) continue;
+				const auto &aura = rtso::civ_hero_aura(a);
+				auras = join_lines({auras, aura_line(String::utf8(aura.name), String::utf8(aura.description ? aura.description : ""), aura.radius)});
+			}
+		portrait_->set_tooltip_text(join_lines({name, auras}));
+		aura_label_->set_tooltip_text(auras);
+	}
+	// displaySingle's detailed tooltip for a structure: its arrows (getAttackTooltip with
+	// BuildingAI), resistance and garrison limit (getGarrisonTooltip).
+	static String structure_tooltip(const rtso::Simulation &sim, const rtso::Simulation::Building &b) {
+		using namespace rtso::seldet;
+		float res[3];
+		sim.structure_resistance(b, res);
+		return join_lines({resistance_tooltip(res), garrison_limit_tooltip(b.garrison_cap)});
 	}
 	static String flora_title(uint8_t flora) {
 		static const char *const kNames[] = {"Tree", "Tree", "Pine", "Date Palm", "Oak", "Baobab", "Acacia", "Bamboo", "Bush",

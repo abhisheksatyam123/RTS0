@@ -66,9 +66,9 @@ struct EntityAttackSounds {
 	uint8_t a, b, c, d;
 };
 
-inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 457;
+inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 463;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
-inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 69;
+inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 71;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
 
 // Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).
@@ -531,6 +531,12 @@ inline const EntityAttackSounds *roster_attack_sounds() {
 		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_first
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_wagon
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_wagon_house
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/support_healer_e
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/support_healer_e
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/support_healer_e
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/support_healer_e
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/support_healer_e
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/support_healer_e
 	};
 	return kRows;
 }
@@ -642,6 +648,8 @@ inline const EntityAttackSounds &building_attack_sounds(uint8_t type) {
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_GREAT_HALL: structures/germ/great_hall
 		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_WAGON_ENCAMPMENT: structures/germ/encampment
 		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_SHRINE: structures/shrine_greek_01
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TRADING_POST: structures/trading_post_desert
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // default: template_structure
 	};
 	return kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];

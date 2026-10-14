@@ -146,6 +146,32 @@ static void test_structure_vision_ranges() {
 	CHECK(!s->los_visible(3, 30.0f, 30.0f), "a field sees nothing");
 }
 
+// The fog a player sees is its LOS: plain circles, as CCmpRangeManager's, with no terrain in
+// the way (0 A.D. lets a unit see over a hill).
+static void test_fog_is_los() {
+	std::printf("fog is the line of sight\n");
+	auto s = make_sim(64.0f);
+	const int res = 65;
+	std::vector<float> h((size_t)res * res, 0.0f);
+	for (int j = 0; j < res; ++j)
+		for (int i = 0; i < res; ++i) {
+			const float x = -64.0f + 128.0f * (float)i / (float)(res - 1);
+			if (x > 4.0f && x < 8.0f) h[(size_t)j * res + i] = 30.0f; // a steep ridge east of the unit
+		}
+	s->set_terrain_data(h, res, -5.0f);
+	s->spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+	s->tick(0.25f); // one LOS and fog update (4 Hz)
+	const float vr = s->unit_vision_at(0);
+	CHECK(vr > 12.0f, "the spearman sees past the ridge's far side");
+	CHECK(s->fow_state_at(vr - 3.0f, 0.0f, 0) == Simulation::FOW_VISIBLE, "the fog shows the cells past the ridge");
+	CHECK(s->fow_state_at(vr + 3.0f, 0.0f, 0) == Simulation::FOW_UNEXPLORED, "but nothing past the vision range");
+	bool same = true;
+	for (float x = -40.0f; x <= 40.0f; x += 2.0f)
+		for (float z = -40.0f; z <= 40.0f; z += 2.0f)
+			same = same && ((s->fow_state_at(x, z, 0) == Simulation::FOW_VISIBLE) == s->los_visible(0, x, z));
+	CHECK(same, "every cell the fog shows is one the LOS sees, and back");
+}
+
 static void test_revealed_and_explored_map() {
 	std::printf("game setup options\n");
 	auto s = make_sim(64.0f);
@@ -160,6 +186,7 @@ int main() {
 	test_buildings_and_capture();
 	test_many_moves_and_save();
 	test_structure_vision_ranges();
+	test_fog_is_los();
 	test_revealed_and_explored_map();
 	std::printf("%s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;

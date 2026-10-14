@@ -9,7 +9,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 188;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 189;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -201,6 +201,7 @@ inline const char *unit_template_draw_model(int k) {
 		"rome_cavalry_spearman_auxiliary_b",
 		"rome_champion_infantry_swordsman_first",
 		"rome_infantry_spearman_conscript",
+		"wagon_house",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -665,7 +666,13 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		185, // rome/cavalry_spearman_auxiliary_b
 		186, // rome/champion_infantry_swordsman_first
 		-1, // germ/support_wagon
-		-1, // germ/support_wagon_house
+		188, // germ/support_wagon_house (structures/germans/wagon_house.xml)
+		-1, // pers/support_healer_e
+		-1, // rome/support_healer_e
+		-1, // mace/support_healer_e
+		-1, // gaul/support_healer_e
+		-1, // ptol/support_healer_e
+		-1, // han/support_healer_e
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -842,6 +849,6 @@ inline const UnitTemplateModel *find_unit_template_model(const char *id) {
 	return nullptr;
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 457, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 463, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso

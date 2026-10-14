@@ -1,0 +1,65 @@
+extends SceneTree
+# The selection details as 0 A.D. 0.28 gui/session/selection_details.js fills them,
+# with gui/common/tooltips.js strings: a unit's health, attack and resistance lines,
+# its detailed tooltip (attack, resistance with reduction percentages, gather rates,
+# speed, loot), a group's garrison size and loot, a structure's resistance and
+# garrison limit, a tree's supply and gatherers, an animal's food.
+#
+#   godot --headless --path . --fixed-fps 20 -s tools/e2e_selection_details.gd
+# Exit code 0 = pass.
+
+var main
+var failures := 0
+
+func check(cond: bool, what: String) -> void:
+	print("  ok   " if cond else "  FAIL ", what)
+	if not cond:
+		failures += 1
+
+func _initialize() -> void:
+	main = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	run.call_deferred()
+
+func frames(n: int) -> void:
+	for i in n:
+		await process_frame
+
+func run() -> void:
+	await frames(60)
+	var u: Dictionary = main.debug_inspector("unit")
+	print("unit: ", u)
+	check(u["visible"], "a selected unit shows the details panel")
+	check(String(u["health"]).begins_with("Health: ") and " / " in String(u["health"]), "health reads \"Health: current / max\"")
+	var tip := String(u["stats_tooltip"])
+	check(tip.begins_with("Attack:\n"), "the detailed tooltip opens with the attack")
+	check("Hack" in tip and "Interval: " in tip and "Range: " in tip, "the attack names its damage types, range and interval")
+	check("Resistance:\n  Damage: " in tip and "%)" in tip, "resistance lists levels with reduction percentages")
+	check("Gather Rates: " in tip and "Speed: " in tip and " Walk, " in tip, "gather rates and walk and run speeds follow")
+	check("Loot: " in tip, "the loot closes the tooltip")
+	check(String(u["stats"]).contains("Damage: "), "the stats lines show the attack and resistance")
+	check(String(u["portrait_tooltip"]).begins_with(String(u["title"]).trim_prefix("Advanced ").trim_prefix("Elite ")) or String(u["portrait_tooltip"]) != "", "the portrait tooltip names the unit")
+
+	var m: Dictionary = main.debug_inspector("multi")
+	print("multi: ", m)
+	check(String(m["title_tooltip"]).begins_with("Garrison Size: "), "a group's tooltip gives its garrison size")
+	check("Loot: " in String(m["title_tooltip"]), "and its loot")
+
+	var b: Dictionary = main.debug_inspector("building")
+	print("building: ", b)
+	check(String(b["stats_tooltip"]).begins_with("Resistance:\n"), "a structure's tooltip gives its resistance")
+	check("Garrison Limit: " in String(b["stats_tooltip"]), "and its garrison limit")
+
+	var r: Dictionary = main.debug_inspector("resource")
+	print("resource: ", r)
+	check(String(r["stats"]).begins_with("Wood: "), "a tree shows \"Wood:\" and its supply")
+	check(String(r["stats"]).split("\n").size() == 2 and " / " in String(r["stats"]).split("\n")[1], "and its gatherers, current / max")
+	check(String(r["stats_tooltip"]) == "Current/max gatherers", "with 0.28's gatherers tooltip")
+
+	var f: Dictionary = main.debug_inspector("fauna")
+	print("fauna: ", f)
+	check(String(f["extra"]).begins_with("Food: ") and " / " in String(f["extra"]), "an animal shows its food, amount / max")
+	check(String(f["stats_tooltip"]).contains("Resistance:"), "and its resistance")
+
+	print("e2e_selection_details: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
+	quit(0 if failures == 0 else 1)

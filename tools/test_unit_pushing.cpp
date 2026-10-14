@@ -12,7 +12,8 @@
 //     pressure dampens the pushes of a crowd that has just come together). On the way no two walkers
 //     come closer than the distance 0 A.D. treats as overlapping (Push: half the moving pair's
 //     MovingSpread of its reach), where the push between them is at its strongest.
-//  4. Two groups walking through each other both arrive.
+//  4. Two groups walking through each other both arrive (within 24 s: a walker obstructed by one
+//     already standing starts again from rest, test 11).
 //  5. The heavier unit pushes harder: a ram and a spearman standing on each other part mostly by
 //     the spearman moving (UnitMotion Weight 50 against 10).
 //  6. A walker that runs into a pocket of idle spearmen open towards it gets out and round them:
@@ -28,6 +29,10 @@
 //     one 50 ms tick two walkers never get far enough past each other to count as crossed.
 // 10. UnitMotion Weight by template: chariots (champion and hero) 30, elephants (a hero's too) and
 //     siege 50, catafalques 100, others 10.
+// 11. UnitMotion Acceleration (PerformMove): a ram gains speed at 4.2 m/s^2 and a spearman at 35, so
+//     from rest a ram covers a t^2 / 2 for its first 1.7 s and a spearman is at full speed within
+//     0.26 s. Turning past InstantTurnAngle (0.75 rad for siege, 1.5 for infantry) starts it again from
+//     rest; a gentler turn keeps cos(angle) of its speed.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -175,7 +180,7 @@ int main() {
 		for (uint32_t id : g2) far2 = std::max(far2, std::hypot(s->units_.pos_x[idx(*s, id)] + 15.0f, s->units_.pos_z[idx(*s, id)]));
 		std::printf("  two groups crossing: done after %d ticks, %.2f and %.2f from their points at most, pressure up to %d\n",
 		            done, far1, far2, pressure);
-		CHECK(done > 0 && done <= 320 && far1 < 6.0f && far2 < 6.0f, "two groups walk through each other");
+		CHECK(done > 0 && done <= 480 && far1 < 6.0f && far2 < 6.0f, "two groups walk through each other");
 		CHECK(pressure > 10, "and the crowd's pushing pressure slows them");
 	}
 	{
@@ -226,7 +231,9 @@ int main() {
 		s->order_walk(&w, 1, 30.0f, 0.0f);
 		const int wi = idx(*s, w);
 		s->units_.motion[wi].pressure = 200;
-		const float speed = s->unit_walk_speed(wi), x0 = s->units_.pos_x[wi];
+		const float speed = s->unit_walk_speed(wi);
+		s->tick(DT); // from rest: the floor speed is reached within the first tick (test 11)
+		const float x0 = s->units_.pos_x[wi];
 		s->tick(DT);
 		const float slow = (s->units_.pos_x[wi] - x0) / DT;
 		for (int t = 0; t < 60; ++t) s->tick(DT);
@@ -309,6 +316,57 @@ int main() {
 			}
 		}
 		CHECK(wrong == 0, "every roster row weighs what its classes say");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		uint32_t ram = s->spawn_unit(-20.0f, 10.0f, 0, UNIT_SIEGE_RAM, 0.0f);
+		uint32_t spear = s->spawn_unit(-20.0f, -10.0f, 0, UNIT_SPEARMAN, 0.0f);
+		const int ir = idx(*s, ram), is = idx(*s, spear);
+		const float a_ram = unit_motion(s->units_.tmpl[ir], UNIT_SIEGE_RAM).acceleration;
+		const float a_spear = unit_motion(s->units_.tmpl[is], UNIT_SPEARMAN).acceleration;
+		const float v_ram = s->unit_move_speed(ir), v_spear = s->unit_move_speed(is);
+		s->cmd_move(&ram, 1, 20.0f, 10.0f);
+		s->cmd_move(&spear, 1, 20.0f, -10.0f);
+		auto speed = [&](int i) { return std::hypot(s->units_.vel_x[i], s->units_.vel_z[i]); };
+		// Distance from rest after t seconds at acceleration a up to speed v.
+		auto from_rest = [](float a, float v, float t) {
+			const float ta = std::min(t, v / a);
+			return 0.5f * a * ta * ta + v * (t - ta);
+		};
+		for (int t = 0; t < 10; ++t) s->tick(DT);
+		const float ram_05 = s->units_.pos_x[ir] + 20.0f, spear_05 = s->units_.pos_x[is] + 20.0f;
+		for (int t = 0; t < 10; ++t) s->tick(DT);
+		const float ram_10 = s->units_.pos_x[ir] + 20.0f, ram_v10 = speed(ir);
+		for (int t = 0; t < 30; ++t) s->tick(DT);
+		const float ram_v25 = speed(ir);
+		std::printf("  acceleration: ram %.2f, spearman %.2f units/s^2; after 0.5 s the ram has gone %.3f (%.3f expected,"
+		            " %.3f at full speed), the spearman %.3f (%.3f, %.3f); the ram at 1 s %.3f (%.3f) at %.2f of %.2f\n",
+		            a_ram, a_spear, ram_05, from_rest(a_ram, v_ram, 0.5f), v_ram * 0.5f, spear_05,
+		            from_rest(a_spear, v_spear, 0.5f), v_spear * 0.5f, ram_10, from_rest(a_ram, v_ram, 1.0f), ram_v10, v_ram);
+		CHECK(std::fabs(a_ram - 4.2f * 0.356f) < 0.01f && std::fabs(a_spear - 35.0f * 0.356f) < 0.01f,
+		      "rams accelerate at 4.2 m/s^2 and spearmen at 35, at the speed scale");
+		CHECK(std::fabs(ram_05 - from_rest(a_ram, v_ram, 0.5f)) < 0.02f && std::fabs(ram_10 - from_rest(a_ram, v_ram, 1.0f)) < 0.03f,
+		      "a ram from rest covers a t^2 / 2");
+		CHECK(std::fabs(spear_05 - from_rest(a_spear, v_spear, 0.5f)) < 0.03f, "a spearman reaches full speed within 0.26 s");
+		CHECK(ram_v10 < 0.7f * v_ram && std::fabs(ram_v25 - v_ram) < 1e-3f, "the ram reaches full speed after 1.7 s");
+		// Turn back: past InstantTurnAngle, so both start again from rest.
+		const float rx = s->units_.pos_x[ir], sx = s->units_.pos_x[is];
+		s->cmd_move(&ram, 1, -20.0f, 10.0f);
+		s->cmd_move(&spear, 1, -20.0f, -10.0f);
+		s->tick(DT);
+		std::printf("  turned back: the ram moved %.4f in the first tick at %.3f, the spearman %.4f at %.3f\n",
+		            rx - s->units_.pos_x[ir], speed(ir), sx - s->units_.pos_x[is], speed(is));
+		CHECK(std::fabs(speed(ir) - a_ram * DT) < 1e-3f && std::fabs(speed(is) - a_spear * DT) < 1e-3f,
+		      "turning back starts a unit again from rest");
+		// A gentle turn: 30 degrees off a full-speed walk keeps cos(30) of the speed.
+		for (int t = 0; t < 40; ++t) s->tick(DT);
+		const float v0 = speed(ir);
+		s->cmd_move(&ram, 1, s->units_.pos_x[ir] - 10.0f * std::cos(0.5236f), s->units_.pos_z[ir] + 10.0f * std::sin(0.5236f));
+		s->tick(DT);
+		const float want = std::min(v_ram, v0 * std::cos(0.5236f) + a_ram * DT);
+		std::printf("  a 30 degree turn at %.3f: %.3f after one tick (%.3f expected)\n", v0, speed(ir), want);
+		CHECK(std::fabs(v0 - v_ram) < 1e-3f && std::fabs(speed(ir) - want) < 2e-3f, "a turn short of InstantTurnAngle keeps cos(angle) of the speed");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

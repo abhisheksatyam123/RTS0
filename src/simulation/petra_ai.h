@@ -306,7 +306,8 @@ struct PetraSentDiplomacy {
 	float next_tribute_request[4] = {};  // per resource
 	uint8_t sent_type[8] = {};        // 0 none, 1 ally, 2 neutral
 	uint8_t warned_trade = 0;         // tradeManager.js warnedAllies: players told of a route with them, by bit
-	uint8_t pad[7] = {};
+	uint8_t current_enemy = 0;        // attackManager.js currentEnemyPlayer + 1 (0: none), kept between attacks
+	uint8_t pad[6] = {};
 };
 static_assert(sizeof(PetraSentDiplomacy) == 72, "PetraSentDiplomacy is saved raw: keep it padding-free");
 
@@ -401,7 +402,9 @@ struct PetraAttackManager {
 	// buildManager.js unbuildables for "room": a bit per kind of structure (petra_room_bit) whose
 	// last search found no spot; cleared when one is placed or a new base widens the territory.
 	uint8_t missing_room = 0;
-	uint8_t pad[1] = {};
+	// victoryManager.js tryCaptureGaiaRelicLapseTime: 2 s steps left before an attack may go
+	// for Gaia's relics again (0: it may, tryCaptureGaiaRelic).
+	uint8_t gaia_relic_lapse = 0;
 	int32_t rush_size[3] = {};
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total
