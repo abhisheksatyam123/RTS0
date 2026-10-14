@@ -1812,7 +1812,7 @@ bool RtsoMain::spectating() const {
 // to Observer; a win keeps the player's own (PlayerViewControl.js onPlayerFinished).
 // "Observer Mode" shows while the view is Observer or Gaia.
 void RtsoMain::update_observer_view_picker() {
-	if (!spectating()) {
+	if (!spectating() && !change_perspective_) {
 		if (observer_view_picker_) observer_view_picker_->get_parent()->call("set_visible", false);
 		return;
 	}
@@ -1832,7 +1832,9 @@ void RtsoMain::update_observer_view_picker() {
 		add_child(layer);
 		layer->add_child(row);
 		const uint8_t seat = seat_player();
-		if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat) && !sim->is_defeated(seat)) {
+		if (!spectating()) {
+			sync_observer_view_picker(); // Change perspective: the player's own seat
+		} else if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat) && !sim->is_defeated(seat)) {
 			observer_view_ = seat; // the winner keeps watching their own side
 			sync_observer_view_picker();
 		} else {
@@ -1840,11 +1842,31 @@ void RtsoMain::update_observer_view_picker() {
 		}
 	}
 	observer_view_picker_->get_parent()->call("set_visible", true);
+	if (perspective_pick_ >= 0) {
+		const uint8_t seat = seat_player();
+		if (perspective_pick_ == (seat < rtso::MAX_PLAYERS ? seat + 1 : 0)) { // the turn has seated us
+			perspective_pick_ = -1;
+			sync_observer_view_picker();
+		}
+	}
 }
 
 void RtsoMain::_on_observer_view_selected(int index) {
 	if (!observer_view_picker_ || index < 0 || index >= observer_view_picker_->get_item_count()) return;
 	const int id = observer_view_picker_->get_item_id(index);
+	if (change_perspective_) {
+		// Engine.SetPlayerID: this client plays the picked player (or watches) from the next turn.
+		if (id == kReplayViewGaiaId || !turn_cmds()) {
+			sync_observer_view_picker(); // RTS0 can't seat a client as Gaia
+			return;
+		}
+		rtso::NetCommand c;
+		c.cmd_type = 39;
+		c.param = rtso::Simulation::CHEAT_DEV_PERSPECTIVE;
+		c.target_id = id == 0 ? 0xFFu : (uint32_t)(id - 1);
+		turn_mgr_.post_local_command(c); // not post_lockstep: an observer may send it too
+		perspective_pick_ = id;
+	}
 	set_observer_view(id == kReplayViewGaiaId ? (int)rtso::GAIA_PLAYER : id - 1);
 }
 
@@ -1858,11 +1880,13 @@ void RtsoMain::set_observer_view(int player) {
 
 void RtsoMain::sync_observer_view_picker() {
 	if (observer_view_picker_) {
-		const int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
+		int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
+		if (!spectating() && seat_player() < rtso::MAX_PLAYERS) // Change perspective: the seat, or the pick on its way
+			want = perspective_pick_ >= 0 ? perspective_pick_ : seat_player() + 1;
 		for (int i = 0; i < observer_view_picker_->get_item_count(); ++i)
 			if (observer_view_picker_->get_item_id(i) == want) observer_view_picker_->select(i);
 	}
-	if (observer_mode_label_) observer_mode_label_->set_visible(observer_view_ == rtso::OBSERVER_VIEW);
+	if (observer_mode_label_) observer_mode_label_->set_visible(spectating() && observer_view_ == rtso::OBSERVER_VIEW);
 }
 
 std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
@@ -1986,6 +2010,10 @@ void RtsoMain::_on_dev_command(int command) {
 		else sim->cmd_cheat(me, action, parameter, 0, ids.data(), ids.size());
 	};
 	switch (command) {
+		case D::DEV_CHANGE_PERSPECTIVE: // ChangePerspective: PlayerViewControl.setChangePerspective
+			change_perspective_ = on;
+			update_observer_view_picker();
+			break;
 		case D::DEV_SELECTION_STATE: // SelectionEntityState
 			dev_overlay_.show_state(on);
 			break;
@@ -2072,6 +2100,8 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 				if (v.alive[i] && v.id[i] == (uint32_t)selected_ids[k]) ranks += v.rank[i];
 	}
 	d["selection_ranks"] = ranks;
+	d["seat"] = (int)seat_player();
+	d["view_picker"] = observer_view_picker_ && observer_view_picker_->is_visible_in_tree();
 	return d;
 }
 
@@ -3548,6 +3578,14 @@ String RtsoMain::match_settings_player_state() const {
 
 // session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
 // settings close together; opening one of them closes the others first.
+// CivIcon.onPress: a left click on the top panel's civ emblem reopens the
+// reference page last viewed (the Structure Tree at first).
+void RtsoMain::_on_civ_icon_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("open_last");
+}
+
 bool RtsoMain::close_open_dialogs() {
 	bool any = false;
 	if (Node *menu = get_node_or_null(NodePath("PauseMenu")))
