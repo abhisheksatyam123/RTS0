@@ -374,7 +374,7 @@ public:
 	// Capturable.js CanCapture / Attack.js Capture: may unit i capture relic unit r?
 	bool can_capture_relic(size_t i, int32_t r) const;
 	bool unit_can_target_building(size_t i, uint8_t building_type) const {
-		return combat_can_target(unit_combat_at(i), building_combat(building_type));
+		return structure_has_health(building_type) && combat_can_target(unit_combat_at(i), building_combat(building_type));
 	}
 	uint16_t unit_template(uint32_t unit_id) const;
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
@@ -497,6 +497,8 @@ public:
 			float rot = DEFAULT_BUILDING_ROT);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
+	// The civ of a structure's own template (Identity/Civ): a map's Gaia shrine or trading post.
+	void set_building_civ(uint32_t building_id, uint8_t civ);
 	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
 	uint32_t spawn_relic(float x, float z, int civ_pick = -1); // civ_pick: which catafalque (-1: from the id)
 	std::vector<std::pair<float, float>> relic_spawn_points() const; // TriggerHelper.GetLandSpawnPoints
