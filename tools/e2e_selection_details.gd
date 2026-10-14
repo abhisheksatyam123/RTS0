@@ -52,7 +52,10 @@ func run() -> void:
 
 	var b: Dictionary = main.debug_inspector("building")
 	print("building: ", b)
-	check(String(b["stats_tooltip"]).begins_with("Resistance:\n"), "a structure's tooltip gives its resistance")
+	check(String(b["stats_tooltip"]).begins_with("Attack:\n  Bow: ") and " arrows / " in String(b["stats_tooltip"]), "a Civic Center's tooltip opens with its arrows, \"Rate: n arrows / 4 seconds\"")
+	check("\nResistance:\n" in String(b["stats_tooltip"]), "then its resistance")
+	check("Projectile Limit: " in String(b["stats_tooltip"]) and ", Per Unit: " in String(b["stats_tooltip"]), "its projectile limit, default and per unit")
+	check("Population Bonus: " in String(b["stats_tooltip"]) and "\nLoot: " in String(b["stats_tooltip"]), "its population bonus and loot")
 	check("Garrison Limit: " in String(b["stats_tooltip"]), "and its garrison limit")
 	check(String(b["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/structures/"), "a Civic Center shows its template's 0.28 icon")
 

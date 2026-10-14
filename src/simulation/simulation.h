@@ -895,6 +895,29 @@ public:
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
 	float building_arrow_range(const Building &b) const;
+	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
+	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
+	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
+	struct StructureDetails {
+		bool shoots = false;
+		float damage[3] = {};       // BuildingAI's Attack/Ranged/Damage: hack, pierce, crush
+		float min_range = 0.0f, max_range = 0.0f; // RTS0 units, from the structure's edge
+		float repeat_time = 0.0f;   // seconds
+		int arrows = 0;             // BuildingAI.GetArrowCount now
+		int default_arrows = 0;     // DefaultArrowCount
+		float per_unit = 0.0f;      // GarrisonArrowMultiplier
+		int projectile_limit = 0;   // min(MaxArrowCount, default + round(per unit x capacity)); 0 = none
+		float heal = 0.0f;          // GarrisonHolder BuffHeal, hitpoints per second
+		int pop_bonus = 0;          // Population/Bonus
+		int turrets = 0;            // TurretHolder points
+		bool trickles = false;
+		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per TRICKLE_STRUCTURE_INTERVAL
+	};
+	StructureDetails structure_details(const Building &b) const;
+	static constexpr float TRICKLE_STRUCTURE_INTERVAL = 2.0f; // the wonder's, ice house's and tachara's Interval 2000
+	// ResourceTrickle.js Rates of `b` after its owner's technologies and global auras; false
+	// when it has no ResourceTrickle.
+	bool structure_trickle_rates(const Building &b, float rate[RES_COUNT]) const;
 	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
 	void structure_resistance(const Building &b, float out[3]) const;
 	void unit_resistance(size_t i, float out[3]) const;
