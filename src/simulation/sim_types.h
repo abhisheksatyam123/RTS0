@@ -514,7 +514,8 @@ enum BuildingType : uint8_t {
 	BLD_KUSH_SHRINE = 82,     // kush/shrine (a temple that trains and researches nothing)
 	BLD_FORTRESS_OLD = 83,    // han/fortress_old (the fortress with the old actor)
 	BLD_LAOZI_GATE = 84,      // han/laozigate (not capturable)
-	BLD_TYPE_COUNT = 85
+	BLD_TEMPLE_ISIS = 85,     // ptol/temple_2 (Temple of Isis: City, one per player, trains the heroes)
+	BLD_TYPE_COUNT = 86
 };
 
 #include "civ_building_data.h"
@@ -538,7 +539,7 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	          type == BLD_TOWER_DOUBLE) ? (uint8_t)BLD_TOWER
 	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN) ? (uint8_t)BLD_HOUSE
 	       : type == BLD_FORTRESS_OLD ? (uint8_t)BLD_FORTRESS
-	       : type == BLD_KUSH_SHRINE ? (uint8_t)BLD_TEMPLE
+	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS) ? (uint8_t)BLD_TEMPLE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -578,7 +579,7 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"pers/hall", BLD_HALL, CIV_PERSIANS}, {"pers/warehouse", BLD_WAREHOUSE, CIV_PERSIANS},
 		{"gaul/tavern", BLD_TAVERN, CIV_GAULS}, {"maur/tower_double", BLD_TOWER_DOUBLE, CIV_MAURYANS},
 		{"kush/shrine", BLD_KUSH_SHRINE, CIV_KUSHITES}, {"han/fortress_old", BLD_FORTRESS_OLD, CIV_HAN},
-		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN},
+		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN}, {"ptol/temple_2", BLD_TEMPLE_ISIS, CIV_PTOLEMIES},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -1651,6 +1652,7 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 // and temple_vesta, kush/camp_blemmye and camp_noba, spart/gerousia, athen/gymnasium,
 // iber/monument, cart/super_dock, mace/arsenal and maur/elephant_stable are Town.
 inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
+	if (type == BLD_TEMPLE_ISIS) return 0; // ptol/temple_2: VisibleClasses -Town City
 	if (type == BLD_TENT) return 0; // rome/tent: VisibleClasses -Village
 	if (type == BLD_STOA) return 2; // template_structure_civic_stoa: Town
 	if (type == BLD_TAVERN || type == BLD_LAOZI_GATE) return 2; // gaul/tavern -Village Town, han/laozigate Town
@@ -1844,6 +1846,8 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return tech_id == TECH_TOWER_HEALTH;
 	case BLD_TENT: return false;
 	case BLD_KUSH_SHRINE: return false; // kush/shrine: Researcher disable=
+	// ptol/temple_2 adds pair_unlock_cult_ptol (Pharaonic and Serapis Cult) to the temple's list.
+	case BLD_TEMPLE_ISIS: return r == BLD_TEMPLE || r == BLD_TEMPLE_ISIS;
 	default: return r == building_research_base(type);
 	}
 }
@@ -1915,7 +1919,8 @@ inline float building_garrison_heal(uint8_t type) {
 		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: case BLD_MILITARY_COLONY:
 		case BLD_WAGON_ENCAMPMENT: return 1.0f;
 		// kush/temple_amun, rome/temple_mars, rome/temple_vesta and the shrines keep template_structure_civic_temple's 3
-		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE: return 3.0f;
+		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE:
+		case BLD_TEMPLE_ISIS: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
 	}
@@ -1963,7 +1968,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_FORTRESS: case BLD_FORTRESS_OLD: return c | TC_FORTRESS | TC_DEFENSIVE;
 		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
-		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: return c | TC_TEMPLE | TC_CIVIC;
+		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
 		case BLD_STABLE: case BLD_ELEPHANT_STABLE: return c | TC_STABLE;

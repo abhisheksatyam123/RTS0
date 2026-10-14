@@ -358,6 +358,7 @@ public:
 	void _on_call_to_arms_pressed();
 	void _on_template_info_pressed();
 	void _on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ);
+	void _on_portrait_gui_input(const Ref<InputEvent> &event);
 	void _on_alert_pressed(int end);
 	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
@@ -374,8 +375,19 @@ public:
 	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
+	uint32_t selected_garrison_holder() const;
+	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
+	// AutoFormation.js setDefault: right-click on a formation button; the hotkey
+	// session.toggledefaultformation switches between none and the last one used.
+	void _on_formation_gui_input(const Ref<InputEvent> &event, int formation);
+	void set_default_formation(uint8_t formation);
+	void toggle_default_formation();
+	// AutoFormation.getDefault on a walk or patrol: units in no formation are put
+	// into the default one first (Commands.js GetFormationUnitAIs).
+	void apply_default_formation(const uint32_t *ids, size_t n);
+	uint8_t last_default_formation_ = rtso::FORMATION_BOX;
 	void _on_train_pressed(int utype);
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
 	void _on_roster_gui_input(const Ref<InputEvent> &event);
@@ -422,6 +434,9 @@ public:
 	void request_net_player_setting(const String &key, int value);
 	void set_net_ready(int status);
 	void leave_net_game();
+	// 0.28 gamesetup ChatPanel: the chat before Start, shown on the setup page.
+	Dictionary get_setup_chat() const; // {rev, text}: the chat log's bbcode
+	void send_setup_chat(const String &text);
 	// The lockstep state hash this client computed for a turn (0 if not kept).
 	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();
@@ -478,6 +493,10 @@ public:
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
+	// 0.28 gamesetup ChatMessages: joined, left, ready and not ready lines.
+	void post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after);
+	String setup_client_name(const rtso::NetSetupState &n, uint32_t client) const;
+	void post_kick_chat();
 	// gui.session.formationwalkonly: this order takes its units out of their formations.
 	bool order_disbands_formation(uint8_t cmd_type) const;
 	// gui.session.selectformationasone: the unit and the rest of its formation.
@@ -545,7 +564,11 @@ public:
 	Dictionary debug_selection_state();
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
-	PackedInt32Array debug_spawn_units(const String &template_id, int count);
+	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
+	void debug_select_entity(int64_t id);
+	void debug_select_units(const PackedInt32Array &ids);
+	int64_t debug_civic_centre_id(int player) const;
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);

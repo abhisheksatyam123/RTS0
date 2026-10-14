@@ -34,6 +34,7 @@ import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -75,6 +76,7 @@ def main():
         ok = play(args, lobby, leave) and ok
     ok = play_saved(args, lobby) and ok
     ok = play_setup_leave(args, lobby) and ok
+    ok = play_connect_timeout(args, lobby) and ok
     server.shutdown()
     stun.close()
     return 0 if ok else 1
@@ -145,6 +147,42 @@ def play_saved(args, lobby):
                         if "[RTS0]" in l or "TurnManager" in l or "NetHost" in l or "[gmp]" in l))
     print(f"[gmp] FAIL saved game rc host/join={host.returncode}/{join.returncode} host={h} join={j} "
           f"hosted={hosted} loaded={loaded}")
+    return False
+
+
+def play_connect_timeout(args, lobby):
+    """0.28 reportConnectionRequestTimeOut: a join at an address where nobody
+    answers gives up with "Failed to connect to the server. The connection
+    request has timed out." instead of waiting forever."""
+    print("[gmp] ---- a join nobody answers ----")
+    dead = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    dead.bind(("127.0.0.1", 0))  # a port that swallows datagrams
+    cmd = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
+           "role=join", "name=carol", f"lobby={lobby}", f"timeout={args.timeout}",
+           f"stun={args.stun_port}", "lan=0", f"join_addr=127.0.0.1:{dead.getsockname()[1]}"]
+    log = tempfile.TemporaryFile(mode="w+")
+    t0 = time.time()
+    p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, text=True)
+    try:
+        p.wait(timeout=args.timeout + 30)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        p.wait()
+    dead.close()
+    log.seek(0)
+    out = log.read()
+    status = next((l.split(" connect_status=", 1)[1] for l in gmp_lines(out) if " connect_status=" in l), "")
+    scene = next((l.split(" connect_exit_scene=", 1)[1] for l in gmp_lines(out) if " connect_exit_scene=" in l), "")
+    ok = (p.returncode == 0 and status.startswith("Failed to connect to the server. The connection request has timed out.")
+          and "Please ensure" not in status and status.endswith("reason=0") and scene == "res://scenes/menu/lobby.tscn")
+    for line in gmp_lines(out):
+        print("   " + line)
+    if ok:
+        print(f"[gmp] PASS a join nobody answered gave up after {time.time() - t0:.0f}s with: {status.split(' | ')[0]}; "
+              "Exit went back to the lobby")
+        return True
+    print("\n".join(l for l in out.splitlines() if "NetHost" in l or "[gmp]" in l)[-3000:])
+    print(f"[gmp] FAIL connect timeout rc={p.returncode} status={status!r} scene={scene!r}")
     return False
 
 
@@ -307,6 +345,9 @@ def play(args, lobby, leave):
     ok = ok and net_warning.startswith("bob losing connection (")
     ok = ok and said("host", "start_refused") == "true"
     ok = ok and said("join", "refused") == "Another player has that color"
+    # 0.28 gamesetup ChatPanel: the host's setup chat shows bob join, get ready and talk.
+    setup_chat = said("host", "setup_chat")
+    ok = ok and all(t in setup_chat for t in ("bob has joined", "* bob is ready!", "hello from bob"))
     # 0.28 /list on both: the users by seat, and the command is not a chat line.
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
@@ -334,6 +375,7 @@ def play(args, lobby, leave):
         print(f"[gmp] PASS while the client was frozen at the start, the host showed: {waited}; "
               f"network warning: {net_warning}")
         print("[gmp] PASS /list on both read: Users (2): alice, bob")
+        print(f"[gmp] PASS the host's setup chat read: {setup_chat}")
         print(f"[gmp] PASS the host's pause showed on the client as: {paused_by}")
     if ok and leave == "join":
         print(f"[gmp] PASS the client left and the host's chat said: {said('host', 'chat_left')}")

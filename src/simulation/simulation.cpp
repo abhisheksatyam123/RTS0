@@ -1083,6 +1083,13 @@ void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
 	resources_.z[it->second] = z;
 }
 
+void Simulation::set_fauna_position(uint32_t fauna_id, float x, float z) {
+	auto it = fauna_id_to_idx_.find(fauna_id);
+	if (it == fauna_id_to_idx_.end()) return;
+	fauna_.pos_x[it->second] = fauna_.home_x[it->second] = x;
+	fauna_.pos_z[it->second] = fauna_.home_z[it->second] = z;
+}
+
 void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	auto it = res_id_to_idx_.find(res_id);
 	if (it == res_id_to_idx_.end()) return;
@@ -6687,6 +6694,41 @@ int Simulation::building_arrow_count(const Building &b) const {
 	return std::max(count, 0);
 }
 
+Simulation::StructureDetails Simulation::structure_details(const Building &b) const {
+	StructureDetails d;
+	const BuildingAIInfo ai = civ_building_ai_info(b.civ, b.type);
+	const bool owned = b.team < MAX_PLAYERS;
+	if (ai.shoots()) {
+		d.shoots = true;
+		d.damage[0] = ai.hack;
+		d.damage[1] = ai.pierce * (owned ? tech_mods(b.team).bld_attack[b.type] : 1.0f);
+		d.damage[2] = ai.crush;
+		d.min_range = ai.min_range;
+		d.max_range = building_arrow_range(b);
+		d.repeat_time = ai.repeat_time;
+		d.arrows = building_arrow_count(b);
+		float def = (float)ai.default_arrows;
+		float per_unit = ai.garrison_arrow_multiplier;
+		if (owned) {
+			const TechMods &m = tech_mods(b.team);
+			def = def * m.bld_arrow_mul[b.type] + m.bld_arrow_add[b.type];
+			per_unit *= m.bld_garrison_arrows[b.type];
+		}
+		d.default_arrows = (int)std::lround(def);
+		d.per_unit = per_unit;
+		if (b.garrison_cap > 0) {
+			int limit = d.default_arrows + (int)std::lround(per_unit * b.garrison_cap);
+			if (ai.max_arrows > 0) limit = std::min(limit, (int)ai.max_arrows);
+			d.projectile_limit = std::max(limit, 0);
+		}
+	}
+	if (b.garrison_cap > 0) d.heal = structure_garrison_heal(b);
+	if (owned) d.pop_bonus = structure_pop_bonus(b.type, b.team);
+	if (const TurretPointSet *t = turret_points_of(b)) d.turrets = t->count;
+	d.trickles = structure_trickle_rates(b, d.trickle);
+	return d;
+}
+
 float Simulation::building_arrow_range(const Building &b) const {
 	const BuildingAIInfo &ai = building_ai_info(b.type);
 	if (!ai.shoots()) return 0.0f;
@@ -7675,14 +7717,26 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	}
 }
 
-std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t building_id) const {
+std::vector<uint32_t> Simulation::holder_contents(uint32_t holder_id, uint8_t *holder_owner) const {
+	if (auto bit = building_id_to_idx_.find(holder_id); bit != building_id_to_idx_.end()) {
+		const Building &b = buildings_[bit->second];
+		if (holder_owner) *holder_owner = b.team;
+		return b.garrisoned_units;
+	}
+	const int32_t t = lookup_unit(holder_id);
+	if (t < 0 || !units_.alive[t] || !is_transport(holder_id)) return {};
+	if (holder_owner) *holder_owner = units_.team[t];
+	const auto pit = transport_passengers_.find(holder_id);
+	return pit == transport_passengers_.end() ? std::vector<uint32_t>() : pit->second;
+}
+
+std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t holder_id) const {
+	uint8_t owner = 0xFF;
+	std::vector<uint32_t> inside = holder_contents(holder_id, &owner);
+	if (owner == player || inside.empty()) return inside;
 	std::vector<uint32_t> out;
-	auto bit = building_id_to_idx_.find(building_id);
-	if (bit == building_id_to_idx_.end()) return out;
-	const Building &b = buildings_[bit->second];
-	if (b.team == player) return b.garrisoned_units;
-	if (!is_ally(player, b.team)) return out;
-	for (uint32_t uid : b.garrisoned_units)
+	if (!is_ally(player, owner)) return out;
+	for (uint32_t uid : inside)
 		if (const int32_t i = lookup_unit(uid); i >= 0 && units_.team[i] == player) out.push_back(uid);
 	return out;
 }
@@ -9380,6 +9434,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (units_.target_unit_id[i] != 0 && fauna_.count != 0 && slaughters_target(i))
 				r_att = SLAUGHTER_RANGE + 1.0f; // Attack/Slaughter MaxRange: walk up to the animal
 			if (r_att > 3.0f) {
+				// UnitAI MoveToTargetAttackRange: a Ranged attack walks to its elevation-adapted
+				// range (GetEffectiveParabolicRange, the one tick_combat fires within), or halfway
+				// there when height lengthens it ("the parabole changes while walking").
+				if (units_.target_unit_id[i] != 0) {
+					const int32_t t = lookup_unit(units_.target_unit_id[i]);
+					if (t >= 0) {
+						const float h = unit_height((size_t)t) - unit_height(i);
+						const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
+						r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
+					}
+				}
 				// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance
 				stop_dist = std::max(2.5f, r_att * 0.85f);
 			} else {
@@ -12018,6 +12083,14 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
+		// A razed structure stays as a wreck (rubble), where 0 A.D. destroys the entity: its
+		// attackers' target is gone, as above. Arrows on the way razing it, or another unit
+		// felling it, would otherwise leave archers shooting at rubble and melee units looting it again.
+		if (b.wrecked || b.hp <= 0.0f) {
+			units_.target_building_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
 		const bool capture = capture_strength > 0.0f && units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 		if (!capture && (!can_attack(units_.team[i], b.team) || units_.attack_damage[i] <= 0.0f ||
 				!unit_can_target_building(i, b.type))) { // dogs never attack structures, rams never fields
@@ -13352,6 +13425,21 @@ void Simulation::tick_status_effects(float dt) {
 	// 0 A.D., take no damage from it.
 }
 
+int Simulation::statuses_on(uint8_t target_kind, uint32_t target, StatusView *out, int max) const {
+	int n = 0;
+	for (const StatusInstance &st : statuses_) {
+		if (st.target_kind != target_kind || st.target != target) continue;
+		if (n < max && out) {
+			out[n].kind = st.kind;
+			out[n].damage = st.damage;
+			out[n].interval = st.interval;
+			out[n].remaining = std::max(0.0f, st.duration - st.elapsed); // Duration - _timeElapsed
+		}
+		++n;
+	}
+	return n;
+}
+
 // One ExecuteEffect of status st on its target. False when the target is gone.
 bool Simulation::status_tick(const StatusInstance &st) {
 	const float dmg = st.damage;
@@ -13937,6 +14025,49 @@ Simulation::ResourceView Simulation::resources() const {
 	};
 }
 
+// ResourceTrickle.js: the Rates `b` adds to its owner every TRICKLE_STRUCTURE_INTERVAL seconds, after
+// its owner's technologies and global auras; false for a structure with no ResourceTrickle.
+bool Simulation::structure_trickle_rates(const Building &b, float rate[RES_COUNT]) const {
+	static constexpr uint8_t kTrickleRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	auto is_player_trickle = [](const TechEffect &e) {
+		return e.stat >= TSTAT_TRICKLE_FOOD && e.stat <= TSTAT_TRICKLE_METAL && e.affects_count == 0;
+	};
+	for (int r = 0; r < RES_COUNT; ++r) rate[r] = 0.0f;
+	if (b.team >= MAX_PLAYERS) return false;
+	if (b.type == BLD_WONDER) {
+		rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
+	} else if (b.type == BLD_ICE_HOUSE) {
+		rate[RES_FOOD] = 1.0f;
+	} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
+		// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
+		rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
+	} else if (b.type == BLD_TACHARA) {
+		// structures/pers/tachara.xml: every Rate 0, which modifiers can still raise.
+	} else {
+		return false;
+	}
+	const PlayerState &ps = players_[b.team];
+	const TechClasses classes = building_tech_classes(b.type);
+	for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+		if (!ps.has_tech(id)) continue;
+		const TechInfo &ti = tech_info(id);
+		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+		for (uint16_t k = 0; k < ti.effect_count; ++k) {
+			const TechEffect &e = fx[k];
+			if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || is_player_trickle(e)
+			    || !tech_effect_applies(e, classes)) continue;
+			float &v = rate[kTrickleRes[e.stat - TSTAT_TRICKLE_FOOD]];
+			v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
+		}
+	}
+	// Global auras with no classes (Macedonian Financial Reorganization, +1 metal) modify
+	// every owned ResourceTrickle that lists the resource: the wonder's and each tachara's
+	// Rates name all four; the ice house's names food only.
+	if (b.type != BLD_ICE_HOUSE)
+		for (int r = 0; r < RES_COUNT; ++r) rate[r] += tech_mods_[b.team].trickle_add[r];
+	return true;
+}
+
 void Simulation::tick_trickle(float dt) {
 	(void)dt;
 	// 0 A.D. ResourceTrickle.js: each trickling entity adds its Rates to its owner every
@@ -13993,42 +14124,13 @@ void Simulation::tick_trickle(float dt) {
 	// (Subterranean Aqueducts: ice houses +1 food). A corral's own rate is 0; each
 	// garrisoned animal adds 1, 2 or 3 food every 5 s by its size
 	// (corral_garrison_{small,medium,large}.json).
-	const bool two_s = due(2.0f), corral_due = due(CORRAL_TRICKLE_INTERVAL);
+	const bool two_s = due(TRICKLE_STRUCTURE_INTERVAL), corral_due = due(CORRAL_TRICKLE_INTERVAL);
 	if (two_s) {
 		for (const auto &b : buildings_) {
 			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			float rate[RES_COUNT] = {};
-			if (b.type == BLD_WONDER) {
-				rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
-			} else if (b.type == BLD_ICE_HOUSE) {
-				rate[RES_FOOD] = 1.0f;
-			} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
-				// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
-				rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
-			} else if (b.type == BLD_TACHARA) {
-				// structures/pers/tachara.xml: every Rate 0, which modifiers can still raise.
-			} else {
-				continue;
-			}
+			float rate[RES_COUNT];
+			if (!structure_trickle_rates(b, rate)) continue;
 			PlayerState &ps = players_[b.team];
-			const TechClasses classes = building_tech_classes(b.type);
-			for (uint8_t id = 1; id < TECH_COUNT; ++id) {
-				if (!ps.has_tech(id)) continue;
-				const TechInfo &ti = tech_info(id);
-				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
-				for (uint16_t k = 0; k < ti.effect_count; ++k) {
-					const TechEffect &e = fx[k];
-					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || is_player_trickle(e)
-					    || !tech_effect_applies(e, classes)) continue;
-					float &v = rate[kTrickleRes[e.stat - TSTAT_TRICKLE_FOOD]];
-					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
-				}
-			}
-			// Global auras with no classes (Macedonian Financial Reorganization, +1 metal) modify
-			// every owned ResourceTrickle that lists the resource: the wonder's and each tachara's
-			// Rates name all four; the ice house's names food only.
-			if (b.type != BLD_ICE_HOUSE)
-				for (int r = 0; r < RES_COUNT; ++r) rate[r] += tech_mods_[b.team].trickle_add[r];
 			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += rate[r];
 		}
 	}
@@ -28061,8 +28163,8 @@ uint8_t Simulation::fow_state_at(float x, float z, uint8_t viewer_team) const {
 }
 
 bool Simulation::is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team) const {
-	// Teams and reciprocal alliances expose allied entities, never enemies.
-	if (is_ally(viewer_team, entity_team)) return true;
+	// Own entities, and an ally's once sight is shared (Cartography); the rest only in sight.
+	if (shares_los(viewer_team, entity_team)) return true;
 	return fow_state_at(x, z, viewer_team) == FOW_VISIBLE;
 }
 
@@ -29753,7 +29855,7 @@ void Simulation::rebuild_auras() {
 	// Kushite pyramids and Temple of Amun, the Mauryan pillar, the civ temples' healing).
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.team >= MAX_PLAYERS) continue;
-		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE) { // the shrines keep the temple's Auras
+		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE || b.type == BLD_TEMPLE_ISIS) { // temple_2 and the shrines keep the temple's Auras
 			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
 				b.x, b.z, -1, CC_HUMAN);
 		}

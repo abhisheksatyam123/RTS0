@@ -192,6 +192,14 @@ int main() {
 					      map_type_info(mt).id, size, rv.x[r], rv.z[r]);
 			}
 			steep_mines += on_steep;
+			// 2c. Nothing starts in a circular map's impassable edge ring (rmgen MAP_BORDER_WIDTH).
+			if (sim.circular_map()) {
+				int ringed = 0;
+				for (size_t r = 0; r < rv.count; ++r) ringed += rv.alive[r] && sim.past_map_edge(rv.x[r], rv.z[r]);
+				const auto fv = sim.fauna();
+				for (size_t f = 0; f < fv.count; ++f) ringed += fv.alive[f] && sim.past_map_edge(fv.pos_x[f], fv.pos_z[f]);
+				CHECK(ringed == 0, "%s %d: %d animals and resources start past the circle's edge", map_type_info(mt).id, size, ringed);
+			}
 		}
 	}
 	std::printf("paths between town centres: %d, hit the %d-waypoint cap: %d; mines on cliff tiles: %d\n", paths, WaypointPath::MAX_WP, truncated, steep_mines);

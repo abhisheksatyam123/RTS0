@@ -7,6 +7,7 @@
 // built from 0.28's msgid through tr0/sprintf0 so a language can reorder it. Resource
 // names stand in for 0 A.D.'s inline resource icons; Godot tooltips have no font tags.
 
+#include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 #include <cmath>
@@ -168,6 +169,79 @@ inline String speed_tooltip(const Simulation::UnitDetails &d) {
 }
 
 // getGarrisonTooltip for a holder: "Garrison Limit: 20".
+// getAttackTooltip for a structure's BuildingAI: "Bow: 12.0 Pierce, Range: 60 meters, Rate: 3
+// arrows / 2 seconds", or "Garrison to fire arrows" while it has none (attackRateDetails).
+inline String structure_attack_tooltip(const float damage[3], float min_m, float max_m, float repeat_s, int projectiles) {
+	String effects;
+	for (int k = 0; k < 3; ++k) {
+		if (damage[k] <= 0.0f) continue;
+		if (!effects.is_empty()) effects += comma();
+		effects += sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(damage[k], 1)}, {"damageType", damage_type_name(k)}});
+	}
+	String rate;
+	if (projectiles == 0) {
+		rate = tr0("Garrison to fire arrows");
+	} else {
+		const String secs = sprintf0(tr0("%(time)s %(second)s"),
+				{{"time", String::num(repeat_s, 2)}, {"second", tr0(repeat_s == 1.0f ? "second" : "seconds")}});
+		if (projectiles > 1)
+			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Rate:")},
+					{"details", sprintf0(tr0("%(projectileString)s / %(attackRateString)s"),
+							{{"projectileString", sprintf0(tr0("%(projectileCount)s %(projectileName)s"),
+									{{"projectileCount", num(projectiles)}, {"projectileName", tr0(projectiles == 1 ? "arrow" : "arrows")}})},
+							 {"attackRateString", secs}})}});
+		else
+			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", secs}});
+	}
+	const String line = sprintf0(tr0("%(attackLabel)s: %(effects)s, %(range)s, %(rate)s%(statusEffects)s%(splash)s"),
+			{{"attackLabel", tr0("Bow")}, {"effects", effects}, {"range", range_details(min_m, max_m)}, {"rate", rate},
+			 {"statusEffects", ""}, {"splash", ""}});
+	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", tr0("Attack:")}, {"details", "  " + line}});
+}
+
+// getGarrisonTooltip's heal line: "Heal: 1 Health / second".
+inline String garrison_heal_tooltip(float heal) {
+	if (heal <= 0.0f) return String();
+	return sprintf0(tr0("%(healRateLabel)s %(value)s %(health)s / %(second)s"),
+			{{"healRateLabel", tr0("Heal:")}, {"value", num((int64_t)std::lround(heal))}, {"health", tr0("Health")}, {"second", tr0("second")}});
+}
+
+// getTurretsTooltip: "Turret Positions: 4".
+inline String turrets_tooltip(int count) {
+	if (count <= 0) return String();
+	return sprintf0(tr0("%(label)s: %(turretsLimit)s"), {{"label", tr0("Turret Positions")}, {"turretsLimit", num(count)}});
+}
+
+// getPopulationBonusTooltip: "Population Bonus: 10".
+inline String population_bonus_tooltip(int bonus) {
+	if (bonus <= 0) return String();
+	return sprintf0(tr0("%(label)s %(bonus)s"), {{"label", tr0("Population Bonus:")}, {"bonus", num(bonus)}});
+}
+
+// getProjectilesTooltip: "Projectile Limit: 23, Default: 3, Per Unit: 1".
+inline String projectiles_tooltip(int limit, int default_arrows, float per_unit) {
+	if (limit <= 0) return String();
+	auto part = [](const char *label, const String &v) { return sprintf0(tr0("%(label)s: %(value)s"), {{"label", tr0(label)}, {"value", v}}); };
+	return part("Projectile Limit", num(limit)) + comma() + part("Default", num(default_arrows)) + comma() +
+			part("Per Unit", String::num(std::round(per_unit * 100.0f) / 100.0f));
+}
+
+// getResourceTrickleTooltip: "Resource Trickle: Food 1  Wood 1 / 2 seconds".
+inline String trickle_tooltip(const float rate[RES_COUNT], float interval_s) {
+	static const uint8_t kOrder[] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	String res;
+	for (uint8_t r : kOrder) {
+		if (rate[r] == 0.0f) continue;
+		if (!res.is_empty()) res += "  ";
+		res += sprintf0(tr0("%(resourceIcon)s %(rate)s"), {{"resourceIcon", resource_name(r)}, {"rate", String::num(rate[r])}});
+	}
+	if (res.is_empty()) return String();
+	const String secs = sprintf0(tr0("%(time)s %(second)s"),
+			{{"time", String::num(interval_s, 2)}, {"second", tr0(interval_s == 1.0f ? "second" : "seconds")}});
+	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Resource Trickle:")},
+			{"details", sprintf0(tr0("%(resources)s / %(time)s"), {{"resources", res}, {"time", secs}})}});
+}
+
 inline String garrison_limit_tooltip(int capacity) {
 	if (capacity <= 0) return String();
 	return sprintf0(tr0("%(label)s: %(garrisonLimit)s"), {{"label", tr0("Garrison Limit")}, {"garrisonLimit", num(capacity)}});
@@ -223,6 +297,56 @@ inline String multiple_tooltip(int64_t garrison_size, const Amounts &carrying, c
 	if (loot.any())
 		tip += sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Loot:")}, {"details", amounts_list(loot, true)}});
 	return tip.strip_edges();
+}
+
+// getSecondsString: "1 second", "7.5 seconds".
+inline String seconds_string(float seconds) {
+	return sprintf0(tr0("%(time)s %(second)s"),
+			{{"time", String::num(seconds, 3)}, {"second", tr0(std::fabs(seconds - 1.0f) < 1e-4f ? "second" : "seconds")}});
+}
+
+// getStatusEffectsTooltip for a receiver (a status icon of selection_details.js):
+// "Burning: 5.0 Fire, Interval: 1 second, Duration: 7.5 seconds, This unit is burning."
+// with the Duration still to run (Duration - _timeElapsed).
+inline String status_tooltip(uint8_t kind, float damage, float interval, float remaining) {
+	const bool burning = kind == 2;
+	String info;
+	if (damage > 0.0f)
+		info = sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(damage, 1)}, {"damageType", tr0(burning ? "Fire" : "Poison")}});
+	if (interval > 0.0f)
+		info += (info.is_empty() ? String() : comma()) +
+				sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", seconds_string(interval)}});
+	info += (info.is_empty() ? String() : comma()) +
+			sprintf0(tr0("%(durName)s: %(duration)s"), {{"durName", tr0("Duration")}, {"duration", seconds_string(remaining)}});
+	info += comma() + tr0(burning ? "This unit is burning." : "This unit is poisoned.");
+	return sprintf0(tr0("%(statusName)s: %(statusInfo)s"), {{"statusName", tr0(burning ? "Burning" : "Poisoned")}, {"statusInfo", info}});
+}
+
+// getVisibleEntityClassesFormatted: "Classes: Infantry, Melee, Spearman".
+inline String classes_line(const godot::Array &classes) {
+	if (classes.is_empty()) return String();
+	String list;
+	for (int i = 0; i < classes.size(); ++i) list += (i ? tr0(", ") : String()) + tr0(String(classes[i]));
+	return tr0("Classes:") + " " + list;
+}
+
+// getTreasureTooltip: "Reward: Food 100  Wood 50" (resource names for the icons), from
+// amounts in 0 A.D.'s order: food, wood, stone, metal.
+inline String reward_tooltip(const int amount[4]) {
+	static const uint8_t kRes[] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	String details;
+	for (int k = 0; k < 4; ++k)
+		if (amount[k] > 0)
+			details += (details.is_empty() ? "" : "  ") +
+					sprintf0(tr0("%(resourceIcon)s %(reward)s"), {{"resourceIcon", resource_name(kRes[k])}, {"reward", num(amount[k])}});
+	if (details.is_empty()) return String();
+	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Reward:")}, {"details", details}});
+}
+
+// The portrait's last line: getFollowOnLeftClickTooltip (a unit) or getFocusOnLeftClickTooltip,
+// then getTemplateViewerOnRightClickTooltip.
+inline String portrait_click_line(bool unit) {
+	return tr0(unit ? "Left-click to follow." : "Left-click to focus.") + " " + tr0("Right-click for more information.");
 }
 
 // Joins the non-empty tooltips with newlines.
