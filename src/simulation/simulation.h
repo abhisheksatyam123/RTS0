@@ -381,7 +381,10 @@ public:
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
-		return units_.unit_type[j] != UNIT_CATAFALQUE && combat_can_target(unit_combat_at(i), unit_combat_at(j));
+		if (units_.unit_type[j] == UNIT_CATAFALQUE || !combat_can_target(unit_combat_at(i), unit_combat_at(j))) return false;
+		// Attack.js CanAttack: no attack whose MaxRange is less than the height offset between
+		// the two (an archer on a wall's turret point is out of a swordsman's reach).
+		return turret_height_.empty() || std::fabs(unit_height_offset(i) - unit_height_offset(j)) <= units_.attack_range[i];
 	}
 	// Capturable.js CanCapture / Attack.js Capture: may unit i capture relic unit r?
 	bool can_capture_relic(size_t i, int32_t r) const;
@@ -2201,7 +2204,7 @@ private:
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
-			float ox, float oz, float dir_x, float dir_z);
+			float ox, float oz, float dir_x, float dir_z, bool melee = false);
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
