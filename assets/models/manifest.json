@@ -54368,11 +54368,11 @@
    "bones": 46,
    "file": "models/units/spart_hero_brasidas.glb",
    "origin": "ground-center",
-   "parts": 7,
+   "parts": 9,
    "size_meters": [
-    0.855,
+    0.786,
     1.85,
-    1.088
+    1.001
    ],
    "skeleton": "biped",
    "sources": [

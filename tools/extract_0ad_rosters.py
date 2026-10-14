@@ -927,7 +927,8 @@ def load_team_bonuses(sim_root, rows):
             if v.startswith("Cost/Resources/"):
                 res = RES_INDEX[parts[2]]
                 if units:
-                    entries.append(("TEAM_BONUS_UNIT_COST", res, [], units))
+                    # ModifiersManager adds "add" after the multipliers (Stolen Arms: -5 metal).
+                    entries.append(("TEAM_BONUS_UNIT_COST_ADD" if "add" in m else "TEAM_BONUS_UNIT_COST", res, [], units))
                 if blds:
                     entries.append(("TEAM_BONUS_BUILDING_COST", res, blds, []))
             elif v == "Cost/BuildTime":
