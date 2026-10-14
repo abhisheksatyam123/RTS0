@@ -4553,7 +4553,8 @@
       "type": "gate",
       "player": 1,
       "x": 3.19,
-      "z": -38.46
+      "z": -38.46,
+      "template": "han/laozigate"
     },
     {
       "type": "barracks",
