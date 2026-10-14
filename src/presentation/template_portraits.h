@@ -56,28 +56,66 @@ inline godot::Ref<godot::Texture2D> class_portrait(const char *portrait_id) {
 	return load_ui_texture(godot::String("res://assets/textures/ui/portraits/") + (portrait_id ? portrait_id : "") + ".png");
 }
 
-inline godot::String section_icon(const char *section, const godot::String &key) {
+inline godot::Dictionary section_entry(const char *section, const godot::String &key) {
 	const godot::Dictionary sec = reference().get(section, godot::Dictionary());
-	return godot::Dictionary(sec.get(key, godot::Dictionary())).get("icon", godot::String());
+	return sec.get(key, godot::Dictionary());
+}
+inline godot::String section_icon(const char *section, const godot::String &key) {
+	return section_entry(section, key).get("icon", godot::String());
+}
+
+// The templates.json entries (generic_name, tooltip, classes, icon...) of an entity's template.
+inline godot::Dictionary unit_entry(uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return godot::Dictionary();
+	return section_entry("units", godot::String::utf8(civ_unit_template(tmpl).id));
+}
+inline godot::Dictionary structure_entry(uint8_t civ, uint8_t type) {
+	if (civ >= CIV_COUNT) return godot::Dictionary();
+	const godot::Dictionary by_civ = godot::Dictionary(reference().get("structures", godot::Dictionary()))
+			.get(godot::String(civ_info(civ).code), godot::Dictionary());
+	return by_civ.get(godot::String::num_int64(type), godot::Dictionary());
+}
+inline godot::Dictionary fauna_entry(uint8_t fauna_type) {
+	return section_entry("gaia", godot::String("gaia/") + fauna_type_info(fauna_type).template_name);
+}
+inline godot::Dictionary treasure_entry(uint8_t treasure_type) {
+	const godot::Dictionary e = section_entry("gaia", godot::String("gaia/treasure/") + treasure_type_info(treasure_type).template_name);
+	return e.is_empty() ? section_entry("gaia", "template_gaia_treasure") : e;
+}
+// A resource entity's Gaia template: every gaia/tree and gaia/fruit template inherits
+// template_gaia_tree's or template_gaia_fruit's icon; mines template_gaia_ore (metal) or
+// template_gaia_rock (stone); ruins template_gaia_ruins. Fish, carcasses and fields have none here.
+inline godot::String resource_key(uint8_t type, uint8_t subtype, uint8_t flora) {
+	switch (subtype) {
+	case RES_SUB_RUINS: return "template_gaia_ruins";
+	case RES_SUB_FISH: case RES_SUB_MEAT: case RES_SUB_GRAIN: return godot::String();
+	default: break;
+	}
+	switch (type) {
+	case RES_WOOD: return "template_gaia_tree";
+	case RES_GOLD: return "template_gaia_ore";
+	case RES_STONE: return "template_gaia_rock";
+	default: break;
+	}
+	const bool fruit_tree = flora >= FLORA_TEMPLATE_FIRST ? flora_template_info(flora - FLORA_TEMPLATE_FIRST).fruit : true;
+	return fruit_tree ? "template_gaia_fruit" : "template_gaia_tree";
+}
+inline godot::Dictionary resource_entry(uint8_t type, uint8_t subtype, uint8_t flora) {
+	const godot::String key = resource_key(type, subtype, flora);
+	return key.is_empty() ? godot::Dictionary() : section_entry("gaia", key);
 }
 
 // A roster unit's icon, else its class portrait.
 inline godot::Ref<godot::Texture2D> unit(uint16_t tmpl, uint8_t type) {
-	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
-		godot::Ref<godot::Texture2D> t = icon(section_icon("units", godot::String::utf8(civ_unit_template(tmpl).id)));
-		if (t.is_valid()) return t;
-	}
+	godot::Ref<godot::Texture2D> t = icon(unit_entry(tmpl).get("icon", godot::String()));
+	if (t.is_valid()) return t;
 	return class_portrait(unit_type_portrait(type < UNIT_TYPE_COUNT ? type : 0));
 }
 
 // A civ's structure of this BuildingType, else the type's portrait.
 inline godot::Ref<godot::Texture2D> structure(uint8_t civ, uint8_t type) {
-	if (civ < CIV_COUNT) {
-		const godot::Dictionary by_civ = godot::Dictionary(reference().get("structures", godot::Dictionary()))
-				.get(godot::String(civ_info(civ).code), godot::Dictionary());
-		godot::Ref<godot::Texture2D> t = icon(godot::Dictionary(by_civ.get(godot::String::num_int64(type), godot::Dictionary())).get("icon", godot::String()));
-		if (t.is_valid()) return t;
-	}
+	godot::Ref<godot::Texture2D> t = icon(structure_entry(civ, type).get("icon", godot::String()));
+	if (t.is_valid()) return t;
 	return class_portrait(building_type_info(type).portrait_id);
 }
 
@@ -87,34 +125,23 @@ inline godot::Ref<godot::Texture2D> gaia(const godot::String &template_name) {
 }
 
 inline godot::Ref<godot::Texture2D> fauna(uint8_t fauna_type) {
-	godot::Ref<godot::Texture2D> t = gaia(godot::String("gaia/") + fauna_type_info(fauna_type).template_name);
+	godot::Ref<godot::Texture2D> t = icon(fauna_entry(fauna_type).get("icon", godot::String()));
 	return t.is_valid() ? t : icon("gaia/fauna_generic.png");
 }
 
 inline godot::Ref<godot::Texture2D> treasure(uint8_t treasure_type) {
-	godot::Ref<godot::Texture2D> t = gaia(godot::String("gaia/treasure/") + treasure_type_info(treasure_type).template_name);
-	return t.is_valid() ? t : gaia("template_gaia_treasure");
+	return icon(treasure_entry(treasure_type).get("icon", godot::String()));
 }
 
-// A resource entity: every gaia/tree and gaia/fruit template inherits template_gaia_tree's or
-// template_gaia_fruit's icon; mines template_gaia_ore (metal) or template_gaia_rock (stone);
-// ruins template_gaia_ruins; fish and carcasses the fish and generic animal icons; a field its structure.
+// A resource entity: its Gaia template's icon (resource_key); fish and carcasses the fish and
+// generic animal icons; a field its structure.
 inline godot::Ref<godot::Texture2D> resource(uint8_t type, uint8_t subtype, uint8_t flora) {
 	switch (subtype) {
-	case RES_SUB_RUINS: return gaia("template_gaia_ruins");
 	case RES_SUB_FISH: return icon("gaia/fauna_fish.png");
 	case RES_SUB_MEAT: return icon("gaia/fauna_generic.png");
 	case RES_SUB_GRAIN: return icon("structures/field.png");
-	default: break;
+	default: return gaia(resource_key(type, subtype, flora));
 	}
-	switch (type) {
-	case RES_WOOD: return gaia("template_gaia_tree");
-	case RES_GOLD: return gaia("template_gaia_ore");
-	case RES_STONE: return gaia("template_gaia_rock");
-	default: break;
-	}
-	const bool fruit_tree = flora >= FLORA_TEMPLATE_FIRST ? flora_template_info(flora - FLORA_TEMPLATE_FIRST).fruit : true;
-	return gaia(fruit_tree ? "template_gaia_fruit" : "template_gaia_tree");
 }
 
 } // namespace portraits
