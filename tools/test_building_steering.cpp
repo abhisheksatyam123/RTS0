@@ -1313,6 +1313,25 @@ static void cliff_clearance() {
 		check(-max_x >= c - 0.01f, "a land unit came within its clearance of a cliff");
 		check(s.units_.pos_x[i] >= -c - 0.5f, "a land unit sent to a cliff's foot stopped short of where it could stand");
 	}
+	{
+		// A unit set down within its clearance of the rock may walk on across it, as CheckLineMovement
+		// lets a unit on impassable navcells cross more of them; it stuck there before.
+		Simulation s;
+		cliff_clearance_setup(s);
+		const uint32_t id = s.spawn_unit(-20.1f, -9.0f, 0, UNIT_SWORDSMAN);
+		const bool inside = s.nav_grid_.near_steep_tile(-20.1f, -9.0f, CLEARANCE_DEFAULT) && !s.nav_grid_.near_steep_tile(-20.1f, -9.0f, 0.0f);
+		s.cmd_move(&id, 1, -16.0f, -9.0f);
+		int arrived = -1;
+		for (int t = 0; t < 600 && arrived < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			if (std::hypot(s.units_.pos_x[i] + 16.0f, s.units_.pos_z[i] + 9.0f) < 0.5f) arrived = t;
+		}
+		std::printf("  cliff clearance: a swordsman inside the rock's clearance (%s) walked across it in %d ticks (-1 = never in 600)\n",
+				inside ? "yes" : "no", arrived);
+		check(inside, "the swordsman didn't start within its clearance of the rock");
+		check(arrived >= 0, "a unit within its clearance of a rock couldn't walk across it");
+	}
 	// building-land judges slopes per tile too: no house on the rock, one beside it. The cliff cuts
 	// the land in two as Petra sees it (petra_access_at); the rock doesn't.
 	Simulation s;
