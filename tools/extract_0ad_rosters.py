@@ -991,7 +991,8 @@ def load_team_bonuses(sim_root, rows):
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
 AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
-             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7, "AURA_VISION_ADD": 18}
+             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7, "AURA_VISION_ADD": 18,
+             "AURA_ATTACK_RATE": 19}
 MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
@@ -1050,7 +1051,7 @@ def aura_modifications(a):
         if v.startswith("Attack/") and "/Damage/" in v and "multiply" in m:
             kind, value = "AURA_ATTACK", m["multiply"]
         elif v.startswith("Attack/") and v.endswith("/RepeatTime") and "multiply" in m and m["multiply"] > 0:
-            kind, value = "AURA_ATTACK", 1.0 / m["multiply"]
+            kind, value = "AURA_ATTACK_RATE", m["multiply"]
         elif v == "UnitMotion/WalkSpeed" and "multiply" in m:
             kind, value = "AURA_SPEED", m["multiply"]
         elif v == "Health/Max" and "multiply" in m:
@@ -1070,6 +1071,8 @@ def aura_modifications(a):
         if kind is None:
             continue
         gain = value - 1.0 if kind in MULTIPLY_AURAS else value
+        if kind == "AURA_ATTACK_RATE":  # a shorter RepeatTime helps
+            gain = 1.0 / value - 1.0
         if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR", "AURA_HEAL", "AURA_HEAL_AMOUNT", "AURA_VISION_ADD"):
             gain = -gain
         out.append((kind, value, gain))
