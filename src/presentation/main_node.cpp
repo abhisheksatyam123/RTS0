@@ -1,6 +1,7 @@
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
+#include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
@@ -209,8 +210,16 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	// The units it trains (the civ's roster list), then its other buttons.
 	if (command_panel_.roster_list() && command_panel_.roster_list()->is_visible())
 		for (int i = 0; i < command_panel_.roster_list()->get_item_count(); ++i) out.push_back(command_panel_.roster_list()->get_item_text(i));
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i)
-		if (Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i))) out.push_back(btn->get_text());
+	// Icon buttons (research, construction) by their label; a research pair's two buttons.
+	auto add = [&out](Node *n) {
+		if (Button *btn = Object::cast_to<Button>(n)) out.push_back(btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text());
+	};
+	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
+		Node *n = command_panel_.production_bar()->get_child(i);
+		add(n);
+		if (!Object::cast_to<Button>(n))
+			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j));
+	}
 	return out;
 }
 
@@ -395,15 +404,23 @@ Dictionary RtsoMain::debug_selection_state() {
 Array RtsoMain::debug_command_row() {
 	Array out;
 	update_command_panel();
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i)
-		if (Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i))) {
-			Dictionary e;
-			e["text"] = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
-			e["tip"] = btn->get_tooltip_text();
-			e["disabled"] = btn->is_disabled();
-			e["id"] = (int64_t)btn->get_instance_id();
-			out.push_back(e);
-		}
+	auto add = [&out](Node *n, bool paired) {
+		Button *btn = Object::cast_to<Button>(n);
+		if (!btn) return;
+		Dictionary e;
+		e["text"] = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
+		e["tip"] = btn->get_tooltip_text();
+		e["disabled"] = btn->is_disabled();
+		e["id"] = (int64_t)btn->get_instance_id();
+		e["paired"] = paired; // one of a research pair (selection_panels.js Research)
+		out.push_back(e);
+	};
+	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
+		Node *n = command_panel_.production_bar()->get_child(i);
+		add(n, false);
+		if (!Object::cast_to<Button>(n))
+			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j), true);
+	}
 	return out;
 }
 
@@ -3580,6 +3597,69 @@ Dictionary RtsoMain::get_tech_tree() const {
 
 void RtsoMain::_on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx) {
 	command_panel_.production_queue().handle_gui_input(event, slot_idx, get_viewport());
+}
+
+// 0.28 placementTooltip: BackgroundErrorTooltip for a refusal, else
+// BackgroundInformationTooltip, beside the cursor; hidden with no message.
+void RtsoMain::set_placement_tip(const String &text, bool error) {
+	if (!placement_tip_) return;
+	placement_tip_->set_visible(!text.is_empty());
+	if (text.is_empty()) return;
+	if (placement_tip_->get_text() != text) placement_tip_->set_text(text);
+	if (error != placement_tip_error_ || !placement_tip_->has_theme_stylebox_override("normal")) {
+		placement_tip_error_ = error;
+		Ref<StyleBoxFlat> bg;
+		bg.instantiate();
+		bg->set_bg_color(error ? Color(0.35f, 0.04f, 0.04f, 0.85f) : Color(0.05f, 0.05f, 0.08f, 0.85f));
+		bg->set_border_width_all(1);
+		bg->set_border_color(error ? Color(0.75f, 0.25f, 0.2f) : Color(0.55f, 0.5f, 0.35f));
+		bg->set_content_margin_all(5.0f);
+		placement_tip_->add_theme_stylebox_override("normal", bg);
+	}
+	placement_tip_->set_size(Vector2());
+	placement_tip_->set_position(get_viewport()->get_mouse_position() + Vector2(24, 20));
+}
+
+// BuildRestrictions.js CheckPlacement's message for a refused placement of `btype` centred at (x, z).
+String RtsoMain::placement_failure_text(int result, uint8_t btype, float x, float z) const {
+	using S = rtso::Simulation;
+	if (!sim || result == S::PLACE_OK) return String();
+	const String name = rtso::tr0(String::utf8(rtso::civ_building_type_info(sim->player_civ(local_player()), btype).name));
+	auto named = [&](const char *msg) { return rtso::sprintf0(rtso::tr0(msg), {{"name", name}}); };
+	switch (result) {
+		case S::PLACE_OBSTRUCTED: return named("%(name)s cannot be built on another building or resource");
+		case S::PLACE_TERRAIN: return named("%(name)s cannot be built on invalid terrain");
+		case S::PLACE_SHORE: return named("%(name)s must be built on a valid shoreline");
+		case S::PLACE_TERRITORY: {
+			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
+			// markForTranslationWithContext("Territory type", ...) and the template's Territory list.
+			const char *found = d.territory_found == 1 ? (d.connected ? "own" : "unconnected own")
+					: d.territory_found == 2 ? (d.connected ? "allied" : "unconnected allied")
+					: d.territory_found == 4 ? "neutral" : "enemy";
+			String valid;
+			const char *const kinds[] = {"own", "ally", "neutral", "enemy"};
+			for (int i = 0; i < 4; ++i)
+				if (d.territory_allowed & (1 << i)) valid += (valid.is_empty() ? String() : rtso::tr0(", ")) + rtso::tr0(kinds[i]);
+			return rtso::sprintf0(rtso::tr0("%(name)s cannot be built in %(territoryType)s territory. Valid territories: %(validTerritories)s"),
+					{{"name", name}, {"territoryType", rtso::tr0(found)}, {"validTerritories", valid}});
+		}
+		case S::PLACE_DISTANCE: {
+			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
+			const int64_t m = (int64_t)std::lround(d.min_distance_m);
+			return rtso::sprintf0(rtso::tr0(m == 1 ? "%(name)s too close to a %(category)s, must be at least %(distance)s meter away"
+							: "%(name)s too close to a %(category)s, must be at least %(distance)s meters away"),
+					{{"name", name}, {"category", rtso::tr0(d.distance_class ? d.distance_class : "")}, {"distance", String::num_int64(m)}});
+		}
+		default: return named("%(name)s cannot be built due to unknown error");
+	}
+}
+
+Dictionary RtsoMain::debug_placement_tip() const {
+	Dictionary d;
+	d["visible"] = placement_tip_ && placement_tip_->is_visible();
+	d["text"] = placement_tip_ ? placement_tip_->get_text() : String();
+	d["error"] = placement_tip_error_;
+	return d;
 }
 
 // Tests: production queue slot i as the panel shows it.
