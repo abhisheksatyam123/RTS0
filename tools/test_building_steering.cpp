@@ -1251,6 +1251,7 @@ static void circular_map_edge() {
 			(float)(cell_x + foot) * Simulation::GRID, (int)res[0], (int)res[1]);
 	check(res[0] == Simulation::PLACE_OK, "a house by a square map's edge couldn't be placed");
 	check(res[1] == Simulation::PLACE_OBSTRUCTED, "a house reaching past a circular map's edge was placed");
+}
 
 // 23. Cliff clearance. A flat map with heights every unit (a terrain tile a unit, as on generated
 // maps), a cliff rising 8 over the tile x 0 to 1, and a rock: the height sample at (-20, -9) raised
