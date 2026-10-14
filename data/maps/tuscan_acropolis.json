@@ -8759,25 +8759,25 @@
       "amount": 400
     },
     {
-      "type": "teak",
+      "type": "tree/toona",
       "x": -60.15,
       "z": -175.97,
       "amount": 200
     },
     {
-      "type": "teak",
+      "type": "tree/toona",
       "x": -62.52,
       "z": -174.21,
       "amount": 200
     },
     {
-      "type": "teak",
+      "type": "tree/toona",
       "x": -61.84,
       "z": -169.78,
       "amount": 200
     },
     {
-      "type": "teak",
+      "type": "tree/toona",
       "x": -53.9,
       "z": -165.02,
       "amount": 200
@@ -10307,7 +10307,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 1.77,
       "z": -50.35,
       "amount": 400
@@ -10349,361 +10349,361 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -9.44,
       "z": -52.55,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -6.01,
       "z": -55.5,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 0.88,
       "z": -54.47,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 15.99,
       "z": -49.18,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 17.04,
       "z": -44.6,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 17.46,
       "z": -38.49,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 13.28,
       "z": -34.45,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 9.18,
       "z": -28.22,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -1.09,
       "z": -30.77,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -8.66,
       "z": -32.03,
       "amount": 300
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -16.01,
       "z": -47.94,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -9.09,
       "z": -52.64,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -4.06,
       "z": -53.2,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 6.08,
       "z": -54.09,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 11.13,
       "z": -52.21,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 14.89,
       "z": -51.2,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -14.21,
       "z": -38.97,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -10.94,
       "z": -34.76,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -2.37,
       "z": -24.19,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -9.5,
       "z": -26.3,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -17.19,
       "z": -28.66,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 2.81,
       "z": -24.59,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 7.64,
       "z": -26.61,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 15.51,
       "z": -24.74,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 18.73,
       "z": -29.32,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 17.97,
       "z": -31.29,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 15.47,
       "z": -30.35,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 13.16,
       "z": -26.71,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 9.84,
       "z": -24.27,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 5.72,
       "z": -23.86,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 2.97,
       "z": -14.23,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 7.63,
       "z": -21.79,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 7.74,
       "z": -14.17,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 7.74,
       "z": -11.7,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 4.06,
       "z": -9.18,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 3.51,
       "z": -4.38,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -0.65,
       "z": -0.77,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -5.9,
       "z": 0.38,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -8.21,
       "z": 0.77,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -6.32,
       "z": -6.71,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -10.5,
       "z": -10.47,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -22.02,
       "z": -11.05,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -24.25,
       "z": -6.52,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -30.2,
       "z": -2.25,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -18.51,
       "z": -0.16,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -19.15,
       "z": -10.46,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -14.96,
       "z": -15.4,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -9.5,
       "z": -19.95,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -6.9,
       "z": -22.75,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 4.03,
       "z": -14.34,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 10.23,
       "z": -12.18,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 12.36,
       "z": -14.26,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 13.52,
       "z": -19.17,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -0.56,
       "z": -16.1,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -2.27,
       "z": -11.91,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -27.16,
       "z": -1.19,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -27.82,
       "z": -8.83,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -23.93,
       "z": -14.33,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -16.46,
       "z": -19.72,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -14.4,
       "z": -25.83,
       "amount": 200
@@ -14069,25 +14069,25 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -89.4,
       "z": 87.83,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -103.59,
       "z": 101.1,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -109.45,
       "z": 107.79,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -119.56,
       "z": 117.61,
       "amount": 300

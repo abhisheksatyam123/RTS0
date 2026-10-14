@@ -7537,50 +7537,50 @@
       "amount": 1000
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -103.48,
       "z": -52.2,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -96.39,
       "z": -57.52,
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -112.23,
       "z": -54.19,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -95.43,
       "z": -54.94,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -83.37,
       "z": -60.52,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -43.1,
       "z": -47.33,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -63.84,
       "z": -62.3,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -73.35,
       "z": -74.98,
       "amount": 300
@@ -7658,7 +7658,7 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -145.13,
       "z": -46.13,
       "amount": 300
@@ -7892,35 +7892,35 @@
       "amount": 5000
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -145.8,
       "z": -50.66,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -103.01,
       "z": -50.14,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -96.88,
       "z": -55.77,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -94.95,
       "z": -56.46,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -84.63,
       "z": -62.73,
       "amount": 100,
@@ -8011,49 +8011,49 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -26.99,
       "z": -52.64,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -23.44,
       "z": -29.23,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -20.95,
       "z": -38.0,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -64.1,
       "z": -46.94,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -70.02,
       "z": -34.18,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -58.63,
       "z": -56.09,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 8.23,
       "z": -2.23,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 9.51,
       "z": -0.87,
       "amount": 300
@@ -8131,25 +8131,25 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 40.31,
       "z": 44.7,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 38.84,
       "z": 42.26,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 35.81,
       "z": 44.7,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 31.79,
       "z": 44.05,
       "amount": 300
@@ -8287,411 +8287,411 @@
       "amount": 1000
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 33.58,
       "z": 33.62,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 34.59,
       "z": 33.96,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 34.28,
       "z": 32.7,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 38.01,
       "z": 33.58,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 35.93,
       "z": 33.6,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 36.68,
       "z": 33.46,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 38.39,
       "z": 32.54,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 38.88,
       "z": 34.26,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 40.5,
       "z": 37.11,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 36.42,
       "z": 34.36,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 37.73,
       "z": 35.37,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 32.86,
       "z": 32.89,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 40.5,
       "z": 32.58,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 40.43,
       "z": 34.7,
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 29.99,
       "z": 34.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 32.25,
       "z": 39.61,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 39.49,
       "z": 39.37,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 29.08,
       "z": 21.65,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 32.54,
       "z": 20.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 32.11,
       "z": 3.09,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 27.19,
       "z": 4.22,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 37.32,
       "z": 5.98,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 26.62,
       "z": 0.4,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 14.86,
       "z": 0.37,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 14.56,
       "z": 7.54,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 20.13,
       "z": 15.42,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 4.08,
       "z": 0.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 3.29,
       "z": -6.64,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 7.06,
       "z": -8.67,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 1.37,
       "z": -12.1,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -2.37,
       "z": 2.07,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -10.22,
       "z": -32.73,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -4.61,
       "z": -26.63,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -13.36,
       "z": -29.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -22.29,
       "z": -31.94,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -15.12,
       "z": -42.86,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -23.42,
       "z": -43.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -16.94,
       "z": -48.15,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -32.08,
       "z": -53.16,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -31.8,
       "z": -43.76,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -40.66,
       "z": -40.75,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -36.4,
       "z": -50.23,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -55.12,
       "z": -45.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -54.23,
       "z": -45.09,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -53.88,
       "z": -54.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -77.93,
       "z": -58.88,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -79.56,
       "z": -62.21,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -81.07,
       "z": -68.87,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -70.63,
       "z": -73.95,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -89.65,
       "z": -58.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -84.99,
       "z": -53.01,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -90.98,
       "z": -47.35,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -106.68,
       "z": -50.92,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -111.7,
       "z": -58.78,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -128.02,
       "z": -40.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -135.57,
       "z": -47.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -134.34,
       "z": -50.05,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -134.87,
       "z": -64.1,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -1.16,
       "z": -19.0,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 2.62,
       "z": 3.53,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 4.53,
       "z": -9.75,
       "amount": 300
@@ -8775,25 +8775,25 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -96.38,
       "z": -37.4,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -141.28,
       "z": -27.31,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -149.83,
       "z": -28.36,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -153.6,
       "z": -27.87,
       "amount": 300
@@ -8871,32 +8871,32 @@
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -36.79,
       "z": -41.34,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -36.26,
       "z": -41.14,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -35.83,
       "z": -39.49,
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -37.17,
       "z": -42.64,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -29.28,
       "z": -44.04,
       "amount": 100,
@@ -8933,49 +8933,49 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -29.95,
       "z": -53.42,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -26.81,
       "z": -50.82,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -13.39,
       "z": -34.23,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -13.62,
       "z": -38.95,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -15.73,
       "z": -39.92,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -15.19,
       "z": -41.39,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -17.0,
       "z": -40.92,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -18.81,
       "z": -43.62,
       "amount": 300
@@ -9197,49 +9197,49 @@
       "amount": 1000
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -31.14,
       "z": -10.22,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -31.11,
       "z": -3.11,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -24.49,
       "z": 0.99,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -22.03,
       "z": -19.46,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -7.5,
       "z": -7.53,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -12.84,
       "z": -17.8,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -10.83,
       "z": 0.15,
       "amount": 100,
@@ -9474,13 +9474,13 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 26.37,
       "z": 48.36,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 26.49,
       "z": 52.56,
       "amount": 300
@@ -9492,133 +9492,133 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 1.31,
       "z": 71.69,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 2.82,
       "z": 76.14,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 0.35,
       "z": 78.09,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 0.55,
       "z": 74.01,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 5.26,
       "z": 75.93,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -2.53,
       "z": 74.91,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -18.89,
       "z": 65.12,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -15.87,
       "z": 62.48,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -36.5,
       "z": 77.32,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -34.1,
       "z": 77.39,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -37.12,
       "z": 75.02,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -32.64,
       "z": 75.45,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -53.53,
       "z": 92.17,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -51.46,
       "z": 94.62,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -36.64,
       "z": 95.74,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -35.5,
       "z": 100.17,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -33.64,
       "z": 98.54,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -24.48,
       "z": 96.32,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -25.1,
       "z": 101.87,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -21.01,
       "z": 101.89,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -20.72,
       "z": 97.84,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 0.66,
       "z": 69.58,
       "amount": 300
@@ -9660,7 +9660,7 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -17.06,
       "z": 65.47,
       "amount": 300
@@ -9672,7 +9672,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 17.42,
       "z": 64.7,
       "amount": 400
@@ -9714,19 +9714,19 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -8.69,
       "z": 38.37,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -9.61,
       "z": 41.27,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -4.97,
       "z": 42.4,
       "amount": 300
@@ -9762,25 +9762,25 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -23.28,
       "z": 48.05,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -23.18,
       "z": 49.64,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -20.87,
       "z": 46.34,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -20.06,
       "z": 44.38,
       "amount": 300
@@ -9954,13 +9954,13 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 3.6,
       "z": 78.02,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -0.25,
       "z": 80.85,
       "amount": 300
@@ -10020,13 +10020,13 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 9.1,
       "z": 54.55,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 12.01,
       "z": 38.57,
       "amount": 300
@@ -10164,25 +10164,25 @@
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 22.29,
       "z": 27.2,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -13.03,
       "z": 77.44,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -13.55,
       "z": 74.29,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -14.39,
       "z": 71.45,
       "amount": 200
@@ -10194,7 +10194,7 @@
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -5.58,
       "z": 23.37,
       "amount": 200
@@ -10218,191 +10218,191 @@
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -45.15,
       "z": 92.74,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -43.7,
       "z": 93.08,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -44.41,
       "z": 91.04,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -45.09,
       "z": 89.44,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": -46.21,
       "z": 91.4,
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": 6.94,
       "z": 46.51,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": 2.32,
       "z": 38.23,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": 2.96,
       "z": 39.21,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": 5.84,
       "z": 24.74,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -15.17,
       "z": 33.12,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -26.11,
       "z": 38.29,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -28.76,
       "z": 52.59,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -30.44,
       "z": 74.47,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -17.9,
       "z": 81.57,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -44.89,
       "z": 87.57,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -46.43,
       "z": 91.49,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -28.28,
       "z": 104.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -29.89,
       "z": 105.56,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -28.26,
       "z": 106.41,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -13.46,
       "z": 100.42,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -3.65,
       "z": 88.73,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -0.73,
       "z": 61.63,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -0.31,
       "z": 58.37,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": 6.24,
       "z": 46.87,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": 10.48,
       "z": 48.4,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": 2.15,
       "z": 49.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -15.11,
       "z": 54.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -17.42,
       "z": 57.19,
       "amount": 100,
@@ -10433,377 +10433,377 @@
       "amount": 1000
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -47.19,
       "z": 14.05,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -45.18,
       "z": 14.22,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -44.34,
       "z": 12.04,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -41.48,
       "z": 10.01,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -41.73,
       "z": 11.86,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -42.01,
       "z": 13.22,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -40.61,
       "z": 14.22,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -39.17,
       "z": 12.51,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -38.73,
       "z": 9.41,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -37.79,
       "z": 9.51,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -36.33,
       "z": 12.34,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -36.58,
       "z": 12.69,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -35.35,
       "z": 14.18,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -34.85,
       "z": 13.81,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -39.82,
       "z": 10.66,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -46.13,
       "z": 11.77,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -38.17,
       "z": 13.97,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -35.93,
       "z": 10.33,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -41.31,
       "z": 15.18,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -42.38,
       "z": 17.69,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -47.9,
       "z": 15.88,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -36.96,
       "z": 16.59,
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -47.93,
       "z": 16.0,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -48.51,
       "z": 14.26,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -48.09,
       "z": 12.94,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -47.05,
       "z": 13.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -45.44,
       "z": 12.83,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -45.09,
       "z": 11.31,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -43.18,
       "z": 11.45,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -42.67,
       "z": 12.62,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -42.11,
       "z": 10.94,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -40.59,
       "z": 9.36,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -39.44,
       "z": 9.91,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -38.46,
       "z": 11.12,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -37.54,
       "z": 10.17,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -35.71,
       "z": 10.39,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -46.06,
       "z": 16.46,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -42.91,
       "z": 16.2,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -40.28,
       "z": 16.93,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -37.68,
       "z": 16.52,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -36.04,
       "z": 16.04,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -34.69,
       "z": 16.28,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -34.15,
       "z": 15.14,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -33.93,
       "z": 14.45,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -33.05,
       "z": 13.1,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -34.89,
       "z": 12.25,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -43.33,
       "z": 16.1,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -44.23,
       "z": 16.32,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -44.87,
       "z": 18.09,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -44.65,
       "z": 19.11,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -47.5,
       "z": 17.49,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -48.68,
       "z": 15.84,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -44.09,
       "z": 10.54,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -42.92,
       "z": 9.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -41.72,
       "z": 10.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -41.31,
       "z": 9.06,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -46.67,
       "z": 11.44,
       "amount": 100,
@@ -10924,115 +10924,115 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -69.06,
       "z": 5.23,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -52.99,
       "z": -10.39,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -64.55,
       "z": -14.66,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -59.94,
       "z": -30.13,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -72.64,
       "z": -2.45,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -74.14,
       "z": 20.23,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -57.0,
       "z": 28.63,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -52.04,
       "z": 25.12,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -35.8,
       "z": 30.71,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -27.46,
       "z": 21.26,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -23.86,
       "z": 13.34,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -33.41,
       "z": 7.89,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -39.59,
       "z": -2.61,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -50.17,
       "z": 1.87,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -39.49,
       "z": -7.72,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -53.66,
       "z": -24.08,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -84.48,
       "z": -30.32,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -92.31,
       "z": -25.99,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -85.57,
       "z": -16.16,
       "amount": 400
@@ -11062,357 +11062,357 @@
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -48.51,
       "z": -16.83,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -49.73,
       "z": -19.36,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -49.21,
       "z": -21.4,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -47.45,
       "z": -21.99,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -46.93,
       "z": -21.47,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -45.26,
       "z": -21.64,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -44.58,
       "z": -22.35,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -43.27,
       "z": -22.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -42.2,
       "z": -21.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -40.79,
       "z": -21.37,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -40.38,
       "z": -20.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -48.78,
       "z": -19.06,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -48.88,
       "z": -17.62,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -47.47,
       "z": -16.93,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -46.35,
       "z": -15.94,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -45.75,
       "z": -14.09,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -45.2,
       "z": -14.19,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -43.79,
       "z": -14.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -42.96,
       "z": -14.54,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -41.83,
       "z": -15.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -41.05,
       "z": -17.39,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -40.32,
       "z": -18.12,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -39.62,
       "z": -19.56,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -41.86,
       "z": -14.95,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -46.28,
       "z": -22.62,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -48.5,
       "z": -22.67,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -49.57,
       "z": -21.86,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -47.49,
       "z": -22.39,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -77.16,
       "z": -8.35,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -78.89,
       "z": -10.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -80.29,
       "z": -12.01,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -81.49,
       "z": -13.6,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -81.72,
       "z": -14.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -81.74,
       "z": -16.71,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -79.7,
       "z": -17.0,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -78.72,
       "z": -17.63,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -78.88,
       "z": -19.09,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -79.1,
       "z": -20.02,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -77.95,
       "z": -19.72,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -76.59,
       "z": -18.3,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -76.1,
       "z": -16.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -74.88,
       "z": -16.35,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -74.42,
       "z": -15.07,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -75.24,
       "z": -13.04,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -74.66,
       "z": -11.08,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -75.16,
       "z": -10.42,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -75.78,
       "z": -8.42,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -77.96,
       "z": -19.53,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -80.81,
       "z": -17.61,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -75.98,
       "z": -9.3,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -78.17,
       "z": -10.78,
       "amount": 100,
@@ -11551,266 +11551,266 @@
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -71.4,
       "z": 22.56,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -72.04,
       "z": 19.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -70.89,
       "z": 18.01,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -68.97,
       "z": 18.29,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -67.51,
       "z": 17.65,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -66.42,
       "z": 17.23,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -66.19,
       "z": 19.37,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -66.54,
       "z": 20.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -67.63,
       "z": 22.6,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -68.96,
       "z": 18.02,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -66.08,
       "z": 18.52,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -65.55,
       "z": 20.51,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -69.77,
       "z": 21.8,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -70.03,
       "z": 23.21,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -72.36,
       "z": 20.87,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -24.29,
       "z": -3.91,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -16.82,
       "z": -3.06,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -17.86,
       "z": -2.06,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -26.3,
       "z": -15.53,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -25.62,
       "z": -17.07,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -25.42,
       "z": -17.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -24.96,
       "z": -17.25,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -23.22,
       "z": -16.99,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -23.05,
       "z": -17.83,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -23.15,
       "z": -18.93,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -24.66,
       "z": -18.88,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -26.36,
       "z": -16.91,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -25.13,
       "z": -19.55,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -24.01,
       "z": -20.01,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -26.33,
       "z": -18.74,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -21.04,
       "z": -17.46,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -21.91,
       "z": -16.93,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -20.61,
       "z": -16.49,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -19.11,
       "z": -17.24,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -19.97,
       "z": -18.74,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -43.27,
       "z": 1.46,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -45.45,
       "z": 0.51,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -46.5,
       "z": 1.71,
       "amount": 100,
@@ -12339,623 +12339,623 @@
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 4.37,
       "z": 97.1,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 5.54,
       "z": 94.41,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 7.17,
       "z": 93.63,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 9.27,
       "z": 91.15,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 10.08,
       "z": 92.31,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 9.63,
       "z": 94.89,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 9.75,
       "z": 96.1,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 9.52,
       "z": 98.46,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 8.38,
       "z": 102.4,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 6.99,
       "z": 105.93,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 5.24,
       "z": 103.77,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 6.09,
       "z": 99.21,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 10.93,
       "z": 103.63,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 11.43,
       "z": 100.39,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 12.3,
       "z": 99.2,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 12.56,
       "z": 97.99,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 13.75,
       "z": 98.51,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 13.37,
       "z": 101.09,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 13.29,
       "z": 102.35,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 15.03,
       "z": 100.4,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 15.71,
       "z": 98.12,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 15.8,
       "z": 96.99,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 15.9,
       "z": 95.61,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 17.24,
       "z": 95.2,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 18.17,
       "z": 96.05,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 19.06,
       "z": 97.92,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 20.08,
       "z": 96.69,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 19.38,
       "z": 95.14,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 19.7,
       "z": 93.3,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 21.29,
       "z": 97.35,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 20.11,
       "z": 99.72,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 21.52,
       "z": 101.8,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 18.56,
       "z": 103.07,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 17.32,
       "z": 103.82,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 18.38,
       "z": 104.46,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 19.87,
       "z": 105.94,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 17.26,
       "z": 107.76,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 15.75,
       "z": 108.4,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 13.86,
       "z": 108.53,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 14.99,
       "z": 110.28,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 15.88,
       "z": 111.26,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 18.59,
       "z": 109.61,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 19.16,
       "z": 110.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 18.24,
       "z": 111.61,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 24.34,
       "z": 103.69,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 24.13,
       "z": 103.47,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 24.94,
       "z": 102.1,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 25.41,
       "z": 100.93,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 25.66,
       "z": 100.07,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 25.37,
       "z": 98.31,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 26.96,
       "z": 97.27,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 27.9,
       "z": 99.04,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 28.41,
       "z": 101.81,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 27.79,
       "z": 104.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 27.07,
       "z": 104.87,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 24.86,
       "z": 105.17,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 24.04,
       "z": 100.75,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 13.38,
       "z": 97.49,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 14.56,
       "z": 96.37,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 14.29,
       "z": 97.55,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 18.05,
       "z": 93.9,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 18.67,
       "z": 92.53,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 21.7,
       "z": 93.86,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 21.43,
       "z": 91.31,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 20.35,
       "z": 90.83,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 19.29,
       "z": 91.19,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 7.62,
       "z": 92.03,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 6.24,
       "z": 94.97,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 4.94,
       "z": 96.94,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 4.17,
       "z": 98.24,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 4.87,
       "z": 100.38,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 5.2,
       "z": 102.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 4.92,
       "z": 105.53,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 7.14,
       "z": 107.55,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 8.72,
       "z": 102.76,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 9.64,
       "z": 99.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 10.45,
       "z": 97.41,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 10.49,
       "z": 96.63,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 10.36,
       "z": 94.24,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 16.7,
       "z": 93.64,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 23.92,
       "z": 104.98,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 22.35,
       "z": 104.64,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 22.89,
       "z": 101.13,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 23.72,
       "z": 101.38,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 22.89,
       "z": 103.13,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 17.34,
       "z": 106.26,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 16.84,
       "z": 99.36,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 18.33,
       "z": 101.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 18.35,
       "z": 101.82,
       "amount": 100,
@@ -13562,1218 +13562,1218 @@
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 42.98,
       "z": 82.19,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 44.2,
       "z": 80.51,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 46.66,
       "z": 78.75,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 46.93,
       "z": 77.38,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.36,
       "z": 75.66,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 50.49,
       "z": 77.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 51.04,
       "z": 79.11,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 52.11,
       "z": 78.7,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.03,
       "z": 77.31,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.27,
       "z": 80.21,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 57.21,
       "z": 85.68,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 56.68,
       "z": 86.15,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.39,
       "z": 97.57,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.07,
       "z": 96.13,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.54,
       "z": 93.88,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.69,
       "z": 90.7,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 56.29,
       "z": 89.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.84,
       "z": 88.25,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.82,
       "z": 86.68,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 56.66,
       "z": 84.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 56.48,
       "z": 82.56,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.77,
       "z": 81.89,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.75,
       "z": 84.16,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.39,
       "z": 91.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.9,
       "z": 91.42,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 56.46,
       "z": 92.12,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.15,
       "z": 93.37,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 52.65,
       "z": 94.77,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 52.48,
       "z": 96.6,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 50.63,
       "z": 98.02,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.1,
       "z": 108.67,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 50.21,
       "z": 105.72,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 51.48,
       "z": 105.21,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.58,
       "z": 106.12,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.52,
       "z": 107.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.41,
       "z": 109.26,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.9,
       "z": 110.64,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.32,
       "z": 111.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.17,
       "z": 114.08,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.29,
       "z": 115.83,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.77,
       "z": 117.53,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.12,
       "z": 119.23,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.79,
       "z": 121.16,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.04,
       "z": 122.47,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.87,
       "z": 123.49,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 51.65,
       "z": 126.01,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 51.32,
       "z": 126.68,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 50.79,
       "z": 128.3,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.16,
       "z": 110.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.92,
       "z": 111.15,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.13,
       "z": 113.02,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.87,
       "z": 109.17,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.43,
       "z": 112.11,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.41,
       "z": 115.83,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.0,
       "z": 118.96,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.89,
       "z": 120.77,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.3,
       "z": 121.66,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 46.91,
       "z": 123.4,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 46.19,
       "z": 124.65,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.84,
       "z": 124.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 50.6,
       "z": 124.3,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.33,
       "z": 117.15,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.66,
       "z": 115.21,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.81,
       "z": 110.78,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.05,
       "z": 110.21,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.19,
       "z": 122.35,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 45.98,
       "z": 122.86,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 52.24,
       "z": 107.42,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 52.81,
       "z": 108.13,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.25,
       "z": 109.52,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.22,
       "z": 113.46,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.57,
       "z": 114.77,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.69,
       "z": 117.84,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.86,
       "z": 110.25,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.78,
       "z": 85.84,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.56,
       "z": 82.54,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.04,
       "z": 80.15,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.16,
       "z": 78.79,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.31,
       "z": 78.12,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 50.38,
       "z": 77.36,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.37,
       "z": 77.44,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.91,
       "z": 80.04,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 43.19,
       "z": 82.47,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 40.73,
       "z": 88.36,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 41.1,
       "z": 90.18,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 42.89,
       "z": 91.66,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 45.13,
       "z": 93.44,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 45.77,
       "z": 94.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 46.31,
       "z": 94.9,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.3,
       "z": 96.55,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.58,
       "z": 97.11,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.52,
       "z": 100.03,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 50.25,
       "z": 100.38,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.49,
       "z": 100.45,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 51.39,
       "z": 98.32,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.69,
       "z": 98.13,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.76,
       "z": 98.05,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 44.29,
       "z": 95.19,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 42.68,
       "z": 93.99,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 39.83,
       "z": 89.34,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 38.97,
       "z": 90.49,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 37.66,
       "z": 91.04,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 38.44,
       "z": 87.77,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 38.52,
       "z": 86.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 38.69,
       "z": 83.91,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 56.36,
       "z": 65.83,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.15,
       "z": 62.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.42,
       "z": 60.44,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.49,
       "z": 58.78,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 52.13,
       "z": 56.95,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 50.5,
       "z": 55.77,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.43,
       "z": 54.84,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 46.82,
       "z": 53.88,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 46.33,
       "z": 52.47,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 45.22,
       "z": 51.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 43.13,
       "z": 52.81,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 41.44,
       "z": 54.07,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 41.3,
       "z": 57.01,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 42.02,
       "z": 58.52,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 43.26,
       "z": 60.64,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.25,
       "z": 54.98,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 54.28,
       "z": 69.83,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 51.49,
       "z": 70.52,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 50.6,
       "z": 69.76,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.64,
       "z": 69.12,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.0,
       "z": 68.26,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.15,
       "z": 66.72,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.57,
       "z": 65.78,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.34,
       "z": 64.82,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.91,
       "z": 63.2,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.17,
       "z": 63.26,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.07,
       "z": 62.76,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.7,
       "z": 61.71,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 46.87,
       "z": 60.56,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 45.52,
       "z": 60.65,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 44.47,
       "z": 60.49,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 42.89,
       "z": 59.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 42.41,
       "z": 58.54,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 41.19,
       "z": 58.57,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 40.39,
       "z": 53.84,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.32,
       "z": 54.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.76,
       "z": 51.87,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.53,
       "z": 49.47,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 45.79,
       "z": 50.28,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 53.16,
       "z": 57.77,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 55.59,
       "z": 60.71,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 57.44,
       "z": 64.89,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.01,
       "z": 65.51,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 45.93,
       "z": 63.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 43.77,
       "z": 62.55,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 45.92,
       "z": 62.71,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.27,
       "z": 64.98,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 47.36,
       "z": 64.5,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 45.07,
       "z": 45.71,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 41.39,
       "z": 40.2,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 39.98,
       "z": 39.83,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 37.17,
       "z": 39.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 35.72,
       "z": 39.07,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 34.85,
       "z": 39.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 33.71,
       "z": 40.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 32.88,
       "z": 41.18,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 30.62,
       "z": 42.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 27.89,
       "z": 44.9,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 27.56,
       "z": 45.02,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 38.08,
       "z": 47.04,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 41.46,
       "z": 49.19,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 44.86,
       "z": 48.79,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 42.21,
       "z": 43.12,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.15,
       "z": 80.41,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 48.89,
       "z": 78.92,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 49.33,
       "z": 78.4,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 46.43,
       "z": 81.92,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 44.75,
       "z": 82.33,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": 44.54,
       "z": 82.44,
       "amount": 100,
@@ -17450,157 +17450,157 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -38.93,
       "z": 129.02,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -37.21,
       "z": 131.15,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -36.31,
       "z": 128.74,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -33.96,
       "z": 131.14,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -33.18,
       "z": 133.65,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -31.8,
       "z": 132.07,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -29.56,
       "z": 131.72,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -40.23,
       "z": 127.08,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -12.51,
       "z": 145.05,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -14.8,
       "z": 145.15,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -15.4,
       "z": 144.07,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -15.45,
       "z": 142.83,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -15.51,
       "z": 141.75,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -15.09,
       "z": 140.55,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -14.07,
       "z": 139.85,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -12.17,
       "z": 139.64,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -10.35,
       "z": 139.86,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -8.84,
       "z": 141.11,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -8.43,
       "z": 142.3,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -8.41,
       "z": 143.48,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -9.87,
       "z": 144.38,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -10.2,
       "z": 144.57,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -13.19,
       "z": 142.6,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -11.94,
       "z": 141.79,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -11.81,
       "z": 141.75,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -10.9,
       "z": 142.21,
       "amount": 300
