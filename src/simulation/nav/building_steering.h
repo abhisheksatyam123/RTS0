@@ -99,15 +99,17 @@ inline bool line_blocked_by_terrain(const NavGrid& nav, Vec2 pos, Vec2 aim, floa
 // Calls fn(rows, cell, origin, w, h) with the short path's terrain grid: rows(i, j, n, out) fills
 // out[0..n) with 1 for ground a land unit may cross and 0 for deep water, steep ground and outside
 // the grid. Building navcells are left to the statics, as the destination building's own navcells
-// must stay open. Without steep terrain tiles the grid is the navcells (deep water alone); with
-// them it is the heightmap's tiles, a navcell's deep water and the tile's own slope
-// (NavGrid::near_steep_tile).
+// must stay open. Where no steep terrain tile lies within reach of a search from `pos` over `range`
+// (the box compute_short_path may shift towards its goal, grown by the clearance) the grid is the
+// navcells (deep water alone), four times fewer cells; otherwise it is the heightmap's tiles, a
+// navcell's deep water and the tile's own slope (NavGrid::near_steep_tile).
 template <class Fn>
-auto with_terrain_rows(const NavGrid& nav, Fn&& fn)
+auto with_terrain_rows(const NavGrid& nav, Vec2 pos, float range, float clearance, Fn&& fn)
 {
 	const Vec2 origin(-nav.map_half, -nav.map_half);
 	const Grid<uint8_t>& cells = nav.cells;
-	if (nav.any_steep_tile()) {
+	const float reach = range * 1.6f + clearance + 4.0f * nav.map_half / static_cast<float>(std::max(nav.res, 1));
+	if (nav.steep_tile_in(pos.x - reach, pos.y - reach, pos.x + reach, pos.y + reach)) {
 		const int tw = nav.steep_tile_res();
 		const float tile = 2.0f * nav.map_half / static_cast<float>(tw);
 		const float per = static_cast<float>(nav.res) / static_cast<float>(tw); // navcells a tile
@@ -245,7 +247,7 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 
 	// Terrain edges: deep water and steep ground, kept `radius` off (0 A.D. expands impassable
 	// terrain by the class clearance).
-	detail::with_terrain_rows(nav, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
+	detail::with_terrain_rows(nav, pos, range, radius, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
 		return compute_short_path(req, statics, no_units, rows, cell, origin, w, h, scratch, path);
 	});
 	if (path.empty()) return false;
@@ -283,7 +285,7 @@ bool search_short_path_with_units(Vec2 pos, Vec2 aim, const ShortPathGoal& goal,
 	req.unit_clearance_bias = radius - unit_radius; // unit squares grow by unit_radius
 	req.goal = goal;
 	req.terrain_clearance = radius;
-	detail::with_terrain_rows(nav, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
+	detail::with_terrain_rows(nav, pos, range, radius, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
 		return compute_short_path(req, statics, units, rows, cell, origin, w, h, scratch, path);
 	});
 	if (path.empty()) return false;
