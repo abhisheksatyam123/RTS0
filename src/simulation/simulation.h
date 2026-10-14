@@ -1832,6 +1832,16 @@ public:
 		auto it = field_res_by_bld_.find(building_id);
 		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
 	}
+	// Whether any of these units can gather this supply (unit_actions "gather" getActionInfo).
+	bool any_can_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id) const {
+		auto rit = res_id_to_idx_.find(resource_id);
+		if (rit == res_id_to_idx_.end()) return false;
+		for (size_t k = 0; k < count; ++k) {
+			const int32_t u = lookup_unit(unit_ids[k]);
+			if (u >= 0 && units_.alive[u] && can_gather((size_t)u, rit->second)) return true;
+		}
+		return false;
+	}
 	const std::vector<Scenery> &scenery() const { return scenery_; }
 	// A Gaia-owned unit from a 0 A.D. map (Player 0): roster template `template_id`
 	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the

@@ -10416,13 +10416,12 @@ void Simulation::tick_gather(float dt) {
 			if (field_it != field_bld_by_res_.end()) {
 				auto bit = building_id_to_idx_.find(field_it->second);
 				FieldGatherers &fg = field_gatherers_[units_.target_resource_id[i]];
-				// Our own fields, and Gaia's: 0 A.D.'s ResourceGatherer has no owner check, so a map's
-				// Gaia field (structures/*/field owned by Player 0) is anyone's to farm.
-				bool own = bit != building_id_to_idx_.end() &&
-						(buildings_[bit->second].team == uteam || buildings_[bit->second].team == GAIA_PLAYER);
-				if (!own || fg.slots_taken >= FIELD_MAX_GATHERERS) {
-					// Field full or not ours: try our nearest field with a free slot.
-					uint32_t alt = own ? find_free_field(uteam, units_.pos_x[i], units_.pos_z[i]) : 0;
+				// Any player's field: 0 A.D.'s ResourceGatherer has no owner check, so Gaia's, an
+				// ally's and even an enemy's field are farmed like our own.
+				bool exists = bit != building_id_to_idx_.end();
+				if (!exists || fg.slots_taken >= FIELD_MAX_GATHERERS) {
+					// Field full or gone: try our nearest field with a free slot.
+					uint32_t alt = exists ? find_free_field(uteam, units_.pos_x[i], units_.pos_z[i]) : 0;
 					if (alt != 0) {
 						fg.total--;
 						field_gatherers_[alt].total++;
