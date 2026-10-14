@@ -16835,10 +16835,10 @@ void Simulation::petra_manage_military_production(float dt) {
 			float cost[RES_COUNT];
 			unit_train_cost(petra_pid_, tmpl, ui, cost);
 			float value = 0.1f;
-			if (st.strength > 0.0f) value += petra_template_strength(ui) * st.strength;
+			if (st.strength > 0.0f) value += petra_template_strength(ui, tmpl, t.unit_type) * st.strength;
 			if (st.siege_strength > 0.0f) {
 				const float vs = combat_bonus(unit_combat(tmpl, t.unit_type), building_combat(BLD_BARRACKS), 255);
-				value += petra_template_strength(ui, vs) * st.siege_strength;
+				value += petra_template_strength(ui, tmpl, t.unit_type, vs) * st.siege_strength;
 			}
 			for (int r = 0; r < RES_COUNT; ++r)
 				if (cost[r] > 0.0f) value *= penalty[r];
@@ -17187,6 +17187,10 @@ int Simulation::petra_train_more_workers() {
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 		if (gcls == GATHER_SUPPORT) { ++workers; ++supports; }
 		else if (petra_is_worker(i) && !in_plan(units_.id[i])) ++workers;
+		// Mercenaries trained as workers keep the Worker role in 0.28 though they cannot gather.
+		else if (unit_is_mercenary_infantry(units_.unit_type[i], units_.tmpl[i]) && !in_plan(units_.id[i]) &&
+				!std::binary_search(petra_army_ids_[petra_pid_].begin(), petra_army_ids_[petra_pid_].end(), units_.id[i]))
+			++workers;
 	}
 	// What is in training: support units, and the citizen infantry queued as workers (role
 	// worker and no plan; an attack's soldiers and the emergency units have one).
@@ -17197,7 +17201,9 @@ int Simulation::petra_train_more_workers() {
 			if (o.is_tech() || o.unit_type >= UNIT_TYPE_COUNT) continue;
 			in_training += o.count;
 			if (unit_gather_class(o.unit_type, o.tmpl) == GATHER_SUPPORT) queued_supports += o.count;
-			else if (o.petra_plan == PETRA_ORDER_WORKER && unit_gather_class(o.unit_type, o.tmpl) == GATHER_INFANTRY) queued_soldiers += o.count;
+			else if (o.petra_plan == PETRA_ORDER_WORKER && (unit_gather_class(o.unit_type, o.tmpl) == GATHER_INFANTRY ||
+					unit_is_mercenary_infantry(o.unit_type, o.tmpl)))
+				queued_soldiers += o.count;
 		}
 	}
 	const int total = workers + queued_supports + queued_soldiers;
@@ -17210,7 +17216,8 @@ int Simulation::petra_train_more_workers() {
 	if (in_training > 15) return shortfall;
 	if (!petra_turn_mod(4, 0)) return shortfall; // headquarters.js:2283, every 4th turn
 
-	int size = workers < 12 ? 1 : std::min(5, (workers + 9) / 10);
+	// numberOfWorkers counts the worker-role units in training too.
+	int size = total < 12 ? 1 : std::min(5, (total + 9) / 10);
 	const int room = petra_pop_room();
 	if (room <= 0) return shortfall;
 	size = std::min(size, room);
@@ -17218,14 +17225,31 @@ int Simulation::petra_train_more_workers() {
 	// config.js Economy.supportRatio by difficulty; alpha lower while rushes are still to come
 	// and higher during a ceasefire.
 	const uint8_t d = petra_config_.difficulty;
-	const float support_ratio = d < PETRA_EASY ? 0.5f : d < PETRA_MEDIUM ? 0.4f : 0.3f;
-	float alpha = petra_attack_mgr_.rush_number < petra_attack_mgr_.max_rushes ? 0.7f : 0.85f;
+	float support_ratio = d < PETRA_EASY ? 0.5f : d < PETRA_MEDIUM ? 0.4f : 0.3f;
+	if (triggers_.building_disabled(petra_pid_, BLD_FIELD)) support_ratio = std::min(support_ratio, 0.1f);
+	// 0.7 while rushes are still to come or one is mustering (upcomingAttacks[Rush]).
+	const bool rush_upcoming = petra_attack_plan_.state == AttackPlan::MUSTER && petra_attack_mgr_.kind == PETRA_ATTACK_RUSH;
+	float alpha = petra_attack_mgr_.rush_number < petra_attack_mgr_.max_rushes || rush_upcoming ? 0.7f : 0.85f;
 	if (ceasefire_active())
 		alpha += (1.0f - alpha) * std::min(std::max(ceasefire_remaining() - 120.0f, 0.0f), 180.0f) / 180.0f;
 	const float support_max = support_ratio * (float)target;
 	const float support_num = support_max * (1.0f - std::exp(-alpha * (float)total / support_max));
 
-	if ((float)(supports + queued_supports) > support_num) {
+	// findBestTrainableUnit(["Support+Worker"], costsResource food): the civ's 0.28 civilian
+	// (support_civilian at the civic centre), the cheapest that a civic centre of ours trains.
+	uint16_t civilian = CIV_UNIT_TEMPLATE_NONE;
+	float civilian_cost = 0.0f;
+	for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (!(t.flags & ROSTER_CIVILIAN) || t.phase > petra_ps().phase || triggers_.template_disabled(tmpl)) continue;
+		if (!petra_best_trainer(tmpl, t.unit_type, SIZE_MAX)) continue; // trainable here, queues full or not
+		float cost[RES_COUNT];
+		unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
+		const float sum = cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE];
+		if (civilian == CIV_UNIT_TEMPLATE_NONE || sum < civilian_cost) { civilian = tmpl; civilian_cost = sum; }
+	}
+	// No civilian to train (map-disabled): soldiers instead, as 0.28's !templateDef.
+	if (civilian == CIV_UNIT_TEMPLATE_NONE || (float)(supports + queued_supports) > support_num) {
 		// findBestTrainableUnit over CitizenSoldier+Infantry, plus one of Ranged, Melee or
 		// any (pickRandom), so at least a third of each.
 		// The template's own classes (mercenaries are CitizenSoldier too in 0.28), no hero or
@@ -17259,7 +17283,7 @@ int Simulation::petra_train_more_workers() {
 			unit_train_cost(petra_pid_, tmpl, ui, cost);
 			float value = 0.1f;
 			if (total < 45) value += ui.speed / FORMATION_METRE * 0.5f; // walkSpeed in m/s
-			else value += petra_template_strength(ui);
+			else value += petra_template_strength(ui, tmpl, t.unit_type);
 			for (int r = 0; r < RES_COUNT; ++r)
 				if (cost[r] > 0.0f) value *= penalty[r];
 			value /= 1.0f + cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE];
@@ -17276,34 +17300,27 @@ int Simulation::petra_train_more_workers() {
 			return shortfall;
 	}
 
-	// findBestTrainableUnit(["Support+Worker"], costsResource food): the civ's 0.28 civilian
-	// (support_civilian at the civic centre), the cheapest that a civic centre of ours trains.
-	uint16_t civilian = CIV_UNIT_TEMPLATE_NONE;
-	float civilian_cost = 0.0f;
-	for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
-		const CivUnitTemplate &t = civ_unit_template(tmpl);
-		if (!(t.flags & ROSTER_CIVILIAN) || t.phase > petra_ps().phase || triggers_.template_disabled(tmpl)) continue;
-		if (!petra_best_trainer(tmpl, t.unit_type, PRODUCTION_QUEUE_MAX)) continue;
-		float cost[RES_COUNT];
-		unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
-		const float sum = cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE];
-		if (civilian == CIV_UNIT_TEMPLATE_NONE || sum < civilian_cost) { civilian = tmpl; civilian_cost = sum; }
-	}
 	if (civilian == CIV_UNIT_TEMPLATE_NONE) return shortfall;
 	petra_train_template(PETRA_Q_VILLAGER, petra_best_trainer(civilian, civ_unit_template(civilian).unit_type, PRODUCTION_QUEUE_MAX),
 	                     civilian, size, false, PETRA_ORDER_WORKER);
 	return shortfall;
 }
 
+// getMaxStrength's Capture attack: MaxRange 4 m x 0.0125 + RepeatTime 1000 / 1e5.
+static constexpr float PETRA_CAPTURE_STRENGTH = 4.0f * 0.0125f + 1000.0f / 100000.0f;
+
 // PETRA.getMaxStrength for a template at its base stats (petra_unit_strength reads a unit),
 // its damage times `attack_mult` (getMultiplierAgainst for a class it is measured against).
-float Simulation::petra_template_strength(const UnitTypeInfo &ui, float attack_mult) const {
+float Simulation::petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult) const {
 	float s = 0.0f;
 	if (ui.attack_damage > 0.0f) {
 		s += (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage) * attack_mult / 4.0f;
-		s += ui.attack_range / (ui.attack_range > 4.0f ? 0.28f : 0.6f) * 0.0125f;
+		const bool ranged = (unit_classes(tmpl, type) & TC_RANGED) != 0;
+		s += ui.attack_range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
 		s += ui.attack_cooldown * 1000.0f / 100000.0f;
 	}
+	// attackTypes() lists Capture too: no attackStrengths, but its MaxRange 4 and RepeatTime 1000.
+	if (unit_capture_attack(tmpl, type) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
 	s += (0.075f * ui.hack_armor + 0.085f * ui.pierce_armor + 0.045f * ui.crush_armor) / 4.0f;
 	return s * ui.hp / 100.0f;
 }
@@ -20470,7 +20487,8 @@ int Simulation::petra_accounted_workers() const {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
-		if (gcls == GATHER_FISHING || ((gcls == GATHER_SUPPORT || gcls == GATHER_INFANTRY) && !set_off(units_.id[i])))
+		const bool soldier = gcls == GATHER_INFANTRY || unit_is_mercenary_infantry(units_.unit_type[i], units_.tmpl[i]);
+		if (gcls == GATHER_FISHING || ((gcls == GATHER_SUPPORT || soldier) && !set_off(units_.id[i])))
 			++workers;
 	}
 	for (const Building &b : buildings_) {
@@ -20478,7 +20496,9 @@ int Simulation::petra_accounted_workers() const {
 		for (const ProductionOrder &o : b.queue) {
 			if (o.is_tech() || o.unit_type >= UNIT_TYPE_COUNT) continue;
 			const uint8_t gcls = unit_gather_class(o.unit_type, o.tmpl);
-			if (gcls == GATHER_SUPPORT || gcls == GATHER_INFANTRY || gcls == GATHER_FISHING) workers += o.count;
+			if (gcls == GATHER_SUPPORT || gcls == GATHER_INFANTRY || gcls == GATHER_FISHING ||
+					unit_is_mercenary_infantry(o.unit_type, o.tmpl))
+				workers += o.count;
 		}
 	}
 	return workers;
@@ -24591,6 +24611,7 @@ float Simulation::petra_unit_strength(size_t i) const {
 		s += units_.attack_range[i] / (ranged ? 0.28f : 0.6f) * 0.0125f; // back to 0 A.D. metres
 		s += units_.attack_cooldown[i] * 1000.0f / 100000.0f;
 	}
+	if (unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
 	float res[3];
 	unit_resistance(i, res);
 	s += (0.075f * res[0] + 0.085f * res[1] + 0.045f * res[2]) / 4.0f;
