@@ -15366,5 +15366,6 @@
       "z": 69.0,
       "template": "germ/support_civilian"
     }
-  ]
+  ],
+  "circular": true
 }

@@ -5753,5 +5753,6 @@
       "z": -61.12,
       "template": "cart/cavalry_spearman_ital_e"
     }
-  ]
+  ],
+  "circular": true
 }

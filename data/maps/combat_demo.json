@@ -4613,5 +4613,6 @@
       "z": 6.83,
       "template": "athen/infantry_marine_archer_e"
     }
-  ]
+  ],
+  "circular": false
 }

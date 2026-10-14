@@ -4415,5 +4415,6 @@
       "z": 43.77,
       "template": "athen/infantry_spearman_b"
     }
-  ]
+  ],
+  "circular": false
 }

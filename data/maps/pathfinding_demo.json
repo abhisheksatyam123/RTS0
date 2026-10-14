@@ -4938,5 +4938,6 @@
       "z": -11.1,
       "template": "rome/siege_ballista_packed"
     }
-  ]
+  ],
+  "circular": false
 }

@@ -6264,5 +6264,6 @@
       "z": -87.75,
       "template": "spart/infantry_spearman_a"
     }
-  ]
+  ],
+  "circular": true
 }

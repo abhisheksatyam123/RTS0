@@ -16204,5 +16204,6 @@
       "z": -57.32,
       "template": "sele/infantry_pikeman_b"
     }
-  ]
+  ],
+  "circular": true
 }

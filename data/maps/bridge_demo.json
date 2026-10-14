@@ -12860,5 +12860,6 @@
       "z": 31.05,
       "template": "gaul/infantry_spearman_e"
     }
-  ]
+  ],
+  "circular": false
 }
