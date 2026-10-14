@@ -74,6 +74,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_research_progress_pressed", "slot"), &RtsoMain::_on_research_progress_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_dev_overlay"), &RtsoMain::toggle_dev_overlay);
 	ClassDB::bind_method(D_METHOD("_on_dev_command", "command"), &RtsoMain::_on_dev_command);
+	ClassDB::bind_method(D_METHOD("time_warp_rewind"), &RtsoMain::time_warp_rewind);
+	ClassDB::bind_method(D_METHOD("time_warp_snapshot_count"), &RtsoMain::time_warp_snapshot_count);
 	ClassDB::bind_method(D_METHOD("debug_dev_overlay"), &RtsoMain::debug_dev_overlay);
 	ClassDB::bind_method(D_METHOD("debug_set_net_delay", "turns"), &RtsoMain::debug_set_net_delay);
 	ClassDB::bind_method(D_METHOD("debug_net_delay_text"), &RtsoMain::debug_net_delay_text);
