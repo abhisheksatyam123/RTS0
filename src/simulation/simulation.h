@@ -11,6 +11,7 @@
 #include "cell_set.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "map_biomes_data.h"
 #include "statistics_tracker.h"
 #include "triggers.h"
 #include "tutorial_data.h"
@@ -917,6 +918,11 @@ public:
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }
+	// The Game Setup biome a random map takes: the override when the map's 0.28 SupportedBiomes
+	// list it (map_biomes_data.h), else -1 and the map keeps its own biome.
+	int map_biome_pick(int type) const {
+		return biome_override_ >= 0 && (map_supported_biomes(type) >> biome_override_ & 1u) ? biome_override_ : -1;
+	}
 	// 0 A.D. Team Placement (TEAM_PLACEMENT_*) for the random maps that offer it
 	// (map_has_team_placement); setup-time only, like the biome.
 	void set_team_placement(int t) { team_placement_ = (uint8_t)((t >= 0 && t < TEAM_PLACEMENT_COUNT) ? t : TEAM_PLACEMENT_RANDOM); }

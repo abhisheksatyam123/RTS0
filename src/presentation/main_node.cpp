@@ -7009,7 +7009,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		// 0 A.D. template stem ("bear_brown" / "fauna_bear_brown"); older maps use deer/boar/sheep/wolf.
 		uint8_t ftype = rtso::fauna_type_by_name(ftype_str.utf8().get_data());
 		if (ftype >= rtso::FAUNA_COUNT) ftype = rtso::FAUNA_DEER;
-		sim->spawn_fauna(fx, fz, ftype);
+		// A player's livestock carries its owner (map player 1 is slot 0).
+		const int fp = (int)f.get("player", 0);
+		const uint8_t owner = fp <= 0 ? rtso::GAIA_PLAYER : (uint8_t)std::min(fp - 1, rtso::MAX_PLAYERS - 1);
+		sim->spawn_fauna(fx, fz, ftype, owner);
 	}
 	// 0 A.D. gaia/treasure/* and gaia/ruins/* by template stem (tools/port_0ad_maps.py).
 	Array treasure_arr = d.get("treasures", Array());

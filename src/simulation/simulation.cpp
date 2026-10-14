@@ -1178,7 +1178,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "desert") == 0 || std::strcmp(minfo.biome, "persia") == 0) cfg.biome = BIOME_OASIS;
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
-	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
+	const int biome_pick = map_biome_pick(type);
+	if (biome_pick >= 0) cfg.biome = (BiomeType)biome_pick;
 	cfg.team_placement = team_placement_;
 	cfg.landscape = map_landscape_;
 	cfg.trigger_difficulty = trigger_difficulty_;
@@ -1199,11 +1200,11 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 			map_daytime_ = first ? 1 : 2;
 		}
 	}
-	if (biome_override_ >= 0) {
+	if (biome_pick >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
 				"steppe", "savanna", "polar", "india"};
-		current_map_biome_ = kBiomeNames[biome_override_];
+		current_map_biome_ = kBiomeNames[biome_pick];
 	}
 	// 0 A.D. per-tile terrain textures from the final biome.
 	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
