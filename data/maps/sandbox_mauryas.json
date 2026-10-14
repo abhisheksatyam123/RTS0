@@ -4328,7 +4328,8 @@
       "type": "tower",
       "player": 1,
       "x": 26.19,
-      "z": -2.95
+      "z": -2.95,
+      "template": "maur/tower_double"
     },
     {
       "type": "tower",
