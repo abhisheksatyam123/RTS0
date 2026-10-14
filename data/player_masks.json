@@ -4967,8 +4967,56 @@
 1.0
 ]
 },
+"buildings/s_carthaginians_apartment_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_carthaginians_blacksmith_tex0": {
 "mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_celtic_tex0": {
+"mask": "res://assets/textures/player_masks/structural/celt_struct_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_celtic_tex1": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_iberian_tex0": {
+"mask": "res://assets/textures/player_masks/structural/iber_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_iberian_tex1": {
+"mask": "res://assets/textures/player_masks/props/iber_prop_shields_128x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_italic_tex0": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_512x512.png",
 "tint": [
 1.0,
 1.0,
