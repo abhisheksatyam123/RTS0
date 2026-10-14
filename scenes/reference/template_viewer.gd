@@ -143,7 +143,7 @@ func show_template(p_kind: String, p_id: int, p_civ: int, reset_history: bool = 
 	if kind == "unit":
 		civ = int(d["civ"])
 	var extra := _text_for(d)
-	_icon.texture = Common.texture(d.get("portrait", ""))
+	_icon.texture = Common.icon_for(kind, d, civ)
 	var specific: String = extra.get("specific_name", d.get("specific_name", ""))
 	var generic: String = d["name"]
 	var title := "[font_size=22][b]%s[/b][/font_size]" % (specific if specific != "" and specific != generic else generic)
