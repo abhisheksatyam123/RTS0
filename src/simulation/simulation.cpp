@@ -4566,7 +4566,8 @@ void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach
 		const float range = healer_range_of(i) + reach;
 		const float dx = units_.pos_x[i] - tx, dz = units_.pos_z[i] - tz;
 		const float d = std::sqrt(dx * dx + dz * dz);
-		const float stop = 0.9f * range; // well inside, as UnitMotion stops once in range
+		// Well inside, as UnitMotion stops once in range: the walk ends within ARRIVE_DIST of the point.
+		const float stop = std::max(0.0f, std::min(0.9f * range, range - ARRIVE_DIST));
 		if (d <= range) {
 			wx = units_.pos_x[i];
 			wz = units_.pos_z[i];
@@ -8195,6 +8196,29 @@ float Simulation::unit_move_speed(size_t i) const {
 	return spd;
 }
 
+// CCmpUnitMotion::PerformMove: a unit gains speed at its template's Acceleration up to its speed, and
+// drops to a lower one at once. Facing further from its way on than its InstantTurnAngle it stops (and
+// turns); nearer, it keeps cos(angle) of its speed. Ships never stop (InstantTurnAngle 10), so one
+// turning more than a right angle drifts on backwards until its speed passes zero, as 0.28's signed
+// speed does. Its velocity at the start of the tick (vel_x/z, saved) is its speed and facing, so a
+// unit at rest starts from nothing; turning time is not modelled. The step is negative while it drifts.
+float Simulation::accelerated_step(size_t i, float vx, float vz, float ux, float uz, float max_speed, float dt,
+		float *speed) const {
+	const UnitMotionProfile &m = unit_motion(units_.tmpl[i], units_.unit_type[i]);
+	float s = std::sqrt(vx * vx + vz * vz);
+	if (s > 0.0f) {
+		const float c = (vx * ux + vz * uz) / s;
+		s = c < m.cos_instant_turn ? 0.0f : s * c;
+	}
+	if (s >= max_speed || m.acceleration <= 0.0f) {
+		*speed = max_speed;
+		return max_speed * dt;
+	}
+	const float t = std::min(dt, (max_speed - s) / m.acceleration);
+	*speed = s + m.acceleration * t;
+	return s * t + 0.5f * m.acceleration * t * t + max_speed * (dt - t);
+}
+
 // How close a guard keeps to the unit it guards (Guard.js/UnitAI guardRange).
 static constexpr float GUARD_RANGE = 3.0f;
 
@@ -8681,12 +8705,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		float inv = 1.0f / sqrtf(d2);
 		float ux = dx * inv;
 		float uz = dz * inv;
-		const float spd = guard_cap[i] > 0.0f ? std::min(unit_move_speed(i), guard_cap[i]) : unit_move_speed(i);
+		const float max_spd = guard_cap[i] > 0.0f ? std::min(unit_move_speed(i), guard_cap[i]) : unit_move_speed(i);
+		float spd;
+		const float step = accelerated_step(i, vx[i], vz[i], ux, uz, max_spd, dt, &spd);
 		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
-		float move_dx = ux * spd * dt;
-		float move_dz = uz * spd * dt;
+		float move_dx = ux * step;
+		float move_dz = uz * step;
 		// A short-path waypoint reached this tick is done: next tick searches from the corner.
-		if (steered && d2 <= (spd * dt) * (spd * dt)) units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+		if (steered && step > 0.0f && d2 <= step * step) units_.short_path[i].key = round_units ? idle_corner_key() : 0;
 		want_x[i] = move_dx;
 		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
@@ -8725,6 +8751,9 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				else { npx[i] = px[i]; npz[i] = pz[i]; }
 			}
 		}
+		// A step that ends where it started (at the shore, or a closed gate) loses its speed, as a move
+		// that fails does in 0 A.D.
+		if (npx[i] == px[i] && npz[i] == pz[i]) spd = 0.0f;
 		vx[i] = ux * spd;
 		vz[i] = uz * spd;
 	});
@@ -8902,6 +8931,16 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			});
 			return hit;
 		};
+		// A unit still gaining speed is tested on the step it would take at full speed (no further than
+		// its waypoint or aim): steps from rest are a sixteenth of 0 A.D.'s 200 ms ones, and tested as
+		// they are they creep it onto an idle unit's edge, where its short path search finds no way.
+		const float full_step = unit_move_speed(i) * dt;
+		auto full_step_blocked = [&](float ex, float ez, float to_x, float to_z) {
+			const float dx = ex - x0, dz = ez - z0, l = std::sqrt(dx * dx + dz * dz);
+			const float probe = std::min(full_step, std::hypot(to_x - x0, to_z - z0));
+			if (l <= 0.0f || l >= probe) return step_blocked(ex, ez);
+			return step_blocked(x0 + dx / l * probe, z0 + dz / l * probe);
+		};
 		// A unit that reached a waypoint of its short path last tick searches on from there, as 0 A.D.
 		// follows the whole path: heading straight for its aim could take it back to where it was
 		// stuck, such as a dead end between idle units.
@@ -8911,7 +8950,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 				mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
 		if (memo.key == corner_key) memo.key = 0;
 		const uint8_t failed = units_.motion[i].failed;
-		const bool obstructed = step_blocked(npx[i], npz[i]);
+		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i]);
 		bool no_way = false;
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
@@ -8976,7 +9015,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			return;
 		}
 		if (!obstructed && w.x == next.x && w.y == next.y) return; // the way on from the corner is clear
-		const float reach = unit_move_speed(i) * dt;
+		// The step move_units gave it toward its aim (accelerated_step), or one from rest when it was
+		// obstructed: 0 A.D. loses the speed of a move that fails.
+		float speed = std::sqrt(units_.vel_x[i] * units_.vel_x[i] + units_.vel_z[i] * units_.vel_z[i]);
+		const float reach = obstructed ? accelerated_step(i, 0.0f, 0.0f, 1.0f, 0.0f, unit_move_speed(i), dt, &speed)
+		                               : std::sqrt(want_x[i] * want_x[i] + want_z[i] * want_z[i]);
 		// A first waypoint within this tick's step is reached now and the unit keeps the second, as
 		// 0 A.D. follows the whole short path: heading straight for the aim from that corner would
 		// walk it back into the obstruction it is going round.
@@ -8988,7 +9031,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if (len < 1e-4f) return;
 		const float step = std::min(len, reach);
 		const float sx = x0 + to.x / len * step, sz = z0 + to.y / len * step;
-		if (step_blocked(sx, sz)) return;
+		if (full_step_blocked(sx, sz, w.x, w.y)) return;
 		// As in move_units, a land unit doesn't step off dry land into deep water.
 		if (!nav_grid_.cells.blank()) {
 			auto deep = [&](float x, float z) {
@@ -9002,8 +9045,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		want_x[i] = sx - x0;
 		want_z[i] = sz - z0;
 		blocked[i] = 0;
-		units_.vel_x[i] = want_x[i] / dt;
-		units_.vel_z[i] = want_z[i] / dt;
+		units_.vel_x[i] = to.x / len * speed;
+		units_.vel_z[i] = to.y / len * speed;
 		memo = ShortPathMemo{keep.x, keep.y, aim.x, aim.y, key};
 	});
 }
@@ -14083,6 +14126,11 @@ void Simulation::tick_unit_ai(float dt) {
 				start_cheer(i);
 			continue;
 		}
+		// COLLECTTREASURE.COLLECTING: a collector whose walk ended within reach of the treasure stands
+		// there while its CollectTime timer runs (tick_treasures), which ends the order.
+		if (now == ACTION_IDLE && !interrupted && units_.order_kind[i] == ORDER_COLLECT_TREASURE &&
+				treasure_in_reach(i, units_.order_target[i]))
+			continue;
 		if (now == ACTION_IDLE) {
 			if (interrupted) resume_order(i);
 			else if (units_.order_kind[i] != ORDER_NONE) finish_order(i);
@@ -20125,6 +20173,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	// the next try waits 240 s, 30 s less per difficulty level above Medium.
 	auto pick_enemy = [&] {
 		const uint8_t e = petra_enemy_player(kind);
+		petra_note_enemy(e);
 		if (e == GAIA_PLAYER) {
 			const int wait = 240 - 30 * ((int)petra_config_.difficulty - (int)PETRA_MEDIUM);
 			const_cast<PetraAttackManager &>(petra_attack_mgr_).gaia_relic_lapse = (uint8_t)std::clamp((wait + 1) / 2, 1, 255);
@@ -20243,7 +20292,8 @@ void Simulation::petra_plan_sizes(uint8_t kind) {
 uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
-	const uint8_t enemy = prefer < MAX_PLAYERS && petra_foe(prefer) && !is_defeated(prefer) ? prefer : petra_enemy_player(PETRA_ATTACK_RUSH);
+	uint8_t enemy = prefer;
+	if (!(prefer < MAX_PLAYERS && petra_foe(prefer) && !is_defeated(prefer))) petra_note_enemy(enemy = petra_enemy_player(PETRA_ATTACK_RUSH));
 	if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, enemy, bx, bz, 0, out_tx, out_tz)) return id;
 	for (int p = 0; p < MAX_PLAYERS; ++p) // rushTargetFinder(gameState): any enemy
 		if (p != enemy && petra_foe(p) && !is_defeated((uint8_t)p))
@@ -21204,8 +21254,16 @@ void Simulation::petra_attack_remove_unit(uint32_t uid) {
 	sf.erase(std::remove(sf.begin(), sf.end(), uid), sf.end());
 }
 
-// The owner of the newest started attack's target, else of the plan in preparation's.
+// attackManager.js getEnemyPlayer, for a new attack: the player it picked is remembered
+// as currentEnemyPlayer (Gaia, for its relics, clears it) until the next pick.
+void Simulation::petra_note_enemy(uint8_t enemy) const {
+	const_cast<PetraSentDiplomacy &>(petra_sent_diplo_).current_enemy = enemy < MAX_PLAYERS ? (uint8_t)(enemy + 1) : 0;
+}
+
+// attackManager.js currentEnemyPlayer; before any pick, the owner of the newest started
+// attack's target, else of the plan in preparation's.
 uint8_t Simulation::petra_attack_enemy() const {
+	if (petra_sent_diplo_.current_enemy) return (uint8_t)(petra_sent_diplo_.current_enemy - 1);
 	auto owner = [&](const AttackPlan &p) -> uint8_t {
 		auto it = building_id_to_idx_.find(p.target_building_id);
 		return it != building_id_to_idx_.end() ? buildings_[it->second].team : 0xFF;
@@ -27205,6 +27263,17 @@ float Simulation::treasure_reach(size_t i) const {
 		}
 	}
 	return m * 0.6f + 1.0f;
+}
+
+bool Simulation::treasure_in_reach(size_t i, uint32_t id) const {
+	const float reach = treasure_reach(i);
+	if (reach < 0.0f || units_.target_unit_id[i] != id || units_.pack_state[i] != PACK_NONE) return false;
+	for (const Treasure &t : treasures_)
+		if (t.id == id) {
+			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
+			return dx * dx + dz * dz <= reach * reach;
+		}
+	return false;
 }
 
 // UnitAI Order.CollectTreasure: walk to the treasure, for units with a TreasureCollector.
