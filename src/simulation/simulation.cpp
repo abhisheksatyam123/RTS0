@@ -12554,12 +12554,14 @@ void Simulation::promote_if_due(size_t i) {
 	}
 }
 
-// Promotion/TrickleRate: units garrisoned in a barracks, stable or elephant stable gain
-// 1 xp a second (data/auras/structures/xp_trickle.json "Rigorous Training").
+// Promotion/TrickleRate: units garrisoned in a barracks, stable or elephant stable (and the Han
+// academy and Ptolemaic mercenary camp, barracks children) gain 1 xp a second (data/auras/structures/xp_trickle.json "Rigorous Training").
 void Simulation::tick_promotion(float dt) {
 	for (const Building &b : buildings_) {
 		if (b.garrisoned_units.empty() || b.build_progress < 1.0f) continue;
-		if (b.type != BLD_BARRACKS && b.type != BLD_STABLE && b.type != BLD_ELEPHANT_STABLE) continue;
+		if (b.type != BLD_BARRACKS && b.type != BLD_STABLE && b.type != BLD_ELEPHANT_STABLE &&
+				b.type != BLD_ACADEMY && b.type != BLD_MERCENARY_CAMP)
+			continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0 || !promotion_link(units_.tmpl[u], units_.unit_type[u], units_.rank[u])) continue;

@@ -84,6 +84,8 @@ int main() {
 	CHECK(building_ai_info(BLD_TOWER_DOUBLE).default_arrows == 2 && is_defense_tower(BLD_TOWER_DOUBLE));
 	CHECK(building_researches_tech(BLD_TOWER_DOUBLE, TECH_TOWER_WATCH, CIV_MAURYANS));
 	CHECK(building_ai_info(BLD_FORTRESS_OLD).default_arrows == 10);
+	CHECK(building_eject_health(BLD_FORTRESS_OLD, CIV_HAN) == building_eject_health(BLD_FORTRESS, CIV_HAN)); // a fortress child
+	CHECK(structure_loading_range(BLD_FORTRESS_OLD, CIV_HAN) == structure_loading_range(BLD_FORTRESS, CIV_HAN));
 	// kush/shrine: a temple with Researcher and Trainer disabled.
 	CHECK(!building_researches_tech(BLD_KUSH_SHRINE, TECH_HEAL_RATE, CIV_KUSHITES));
 	CHECK(building_tech_classes(BLD_KUSH_SHRINE) & TC_TEMPLE);
