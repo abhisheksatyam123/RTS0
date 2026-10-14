@@ -218,6 +218,32 @@ def test_room_owners():
           [r["id"] for r in lb.room_list()[1]["rooms"]] == ["room-20595"], "a host removes its own game")
 
 
+def test_moderation():
+    """0 A.D. XmppClient kick and ban, MUC roles and the room subject."""
+    lb = lobby_server.Lobby(timeout=60.0, clock=lambda: 1000.0, moderators=["Mod"], subject="Welcome")
+    mod = lb.login("mod")[1]["token"]
+    bob = lb.login("bob")[1]["token"]
+    carol = lb.login("carol")[1]["token"]
+    code, obj = lb.player_list()
+    rows = {r["name"]: r for r in obj["players"]}
+    check(rows["mod"].get("moderator") is True and "moderator" not in rows["bob"] and obj["subject"] == "Welcome",
+          "moderators are marked and the subject is listed")
+    check(lb.kick(bob, "carol")[0] == 403 and carol in lb.players, "a player who is no moderator cannot kick")
+    check(lb.set_subject(bob, "x")[0] == 403 and lb.set_subject(mod, " Be nice ")[1]["subject"] == "Be nice",
+          "only a moderator sets the subject")
+    check(lb.kick(mod, "nobody")[0] == 404, "kicking someone not in the lobby is refused")
+    check(lb.kick(mod, "Bob", "spam")[0] == 200 and bob not in lb.players, "a moderator kicks bob")
+    check(lb.chat[-1]["text"] == "bob has been kicked from the lobby. Reason: spam", "the lobby is told why")
+    check(lb.presence(bob, "available") == (401, {"error": "not signed in",
+          "kicked": "You have been kicked from the lobby! Reason: spam"}), "bob's next request says he was kicked")
+    check(lb.presence(bob, "available")[1] == {"error": "not signed in"}, "once")
+    check(lb.login("bob")[0] == 200, "a kicked player may sign in again")
+    check(lb.kick(mod, "carol", "", True)[0] == 200 and lb.post_chat(carol, "hi")[1].get("kicked") ==
+          "You have been banned from the lobby!", "a ban removes carol and tells her")
+    check(lb.chat[-1]["text"] == "carol has been banned from the lobby.", "the lobby hears of the ban")
+    check(lb.login("carol")[0] == 403 and lb.login("CAROL")[0] == 403, "a banned name cannot sign in")
+
+
 def test_punch():
     now = [1000.0]
     lb = lobby_server.Lobby(timeout=60.0, clock=lambda: now[0])
@@ -295,6 +321,7 @@ if __name__ == "__main__":
     test_accounts()
     test_object()
     test_room_owners()
+    test_moderation()
     test_punch()
     test_ratings()
     test_http()
