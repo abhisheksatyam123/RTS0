@@ -671,8 +671,10 @@ struct NavGrid {
         // tile ("exact slopes give kind of weird output"), GetSlopeFixed's highest corner less its
         // lowest over the tile's size. A heightmap tile is a 0.28 tile, half a navcell a side, so a
         // steep tile marks the cliff itself where a steep navcell may span the ground at its foot too.
+        // A heightmap coarser than the navcells (a ported map's heights, a sample every 4 units or
+        // more) has no finer slope to give: it keeps no tiles and the navcells' slopes serve alone.
         if (!c.tiles_valid || !same_bits(c.tiles_max_slope, max_slope)) {
-            const int tw = h_res - 1;
+            const int tw = h_res - 1 >= res ? h_res - 1 : 0;
             const float tile = (map_half * 2.0f) / static_cast<float>(std::max(tw, 1));
             c.tiles.assign(static_cast<size_t>(std::max(tw, 0)) * static_cast<size_t>(std::max(tw, 0)), 0);
             c.any_tile = false;

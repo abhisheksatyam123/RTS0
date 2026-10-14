@@ -78,9 +78,20 @@ inline bool segment_near_steep(const NavGrid& nav, Vec2 a, Vec2 b, float radius)
 	const Vec2 d = b - a;
 	const float step = 0.5f * nav.map_half / static_cast<float>(nav.steep_tile_res());
 	const int n = std::max(1, static_cast<int>(std::ceil(d.length() / step)));
-	for (int k = 1; k <= n; ++k) {
-		const Vec2 p = a + d * (static_cast<float>(k) / static_cast<float>(n));
-		if (nav.near_steep_tile(p.x, p.y, radius)) return true;
+	// The samples in runs of eight: a run whose box (grown by `radius`) holds no steep tile is passed
+	// over whole, with the same answer, as the box holds every sample of the run.
+	constexpr int RUN = 8;
+	for (int k0 = 1; k0 <= n; k0 += RUN) {
+		const int k1 = std::min(n, k0 + RUN - 1);
+		const Vec2 p0 = a + d * (static_cast<float>(k0) / static_cast<float>(n));
+		const Vec2 p1 = a + d * (static_cast<float>(k1) / static_cast<float>(n));
+		if (!nav.steep_tile_in(std::min(p0.x, p1.x) - radius, std::min(p0.y, p1.y) - radius,
+		                       std::max(p0.x, p1.x) + radius, std::max(p0.y, p1.y) + radius))
+			continue;
+		for (int k = k0; k <= k1; ++k) {
+			const Vec2 p = a + d * (static_cast<float>(k) / static_cast<float>(n));
+			if (nav.near_steep_tile(p.x, p.y, radius)) return true;
+		}
 	}
 	return false;
 }
@@ -463,6 +474,8 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 				const float cost = (w - pos).length() + (aim - w).length();
 				if (found && cost >= best) continue;
 				if (segment_blocked_by_buildings(pos, w, aim, radius, both, ignore_building_id)) continue;
+				// Nor into or across a cliff's clearance, where the unit's steps are refused.
+				if (detail::segment_near_steep(nav, pos, w, radius - TERRAIN_EDGE_SLACK)) continue;
 				// The corner may lie inside a neighbour's clearance (trees close together).
 				bool inside = false;
 				for (const T& o : small)
