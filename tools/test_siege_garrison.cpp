@@ -3,7 +3,7 @@
 // (none when empty), and both unload below 10% health or when destroyed.
 // Passengers survive save/load and are in the lockstep hash. A tower or ram sets each
 // passenger down on its own free spot round the engine (PickSpawnPoint); one with no spot
-// stays aboard, and a forced eject puts it at the engine's centre. Military Engineers
+// stays aboard, or dies when the engine drops below EjectHealth (EjectOrKill). Military Engineers
 // cuts siege pack and unpack time by 40%.
 //   g++ -std=c++20 -O2 -Isrc tools/test_siege_garrison.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -317,7 +317,7 @@ int main() {
 	}
 
 	// 9. A crowd round the engine leaves few spots free. A normal unload leaves the passengers with
-	// none aboard; a forced eject (EjectHealth) puts everyone out, those without a spot at the centre.
+	// none aboard; below EjectHealth (EjectOrKill, not forced) those without a spot die.
 	{
 		fresh(s);
 		uint32_t ram = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SIEGE_RAM);
@@ -357,10 +357,11 @@ int main() {
 				if (!(std::fabs(dx) < 1.0f && std::fabs(dz) < 1.5f)) ++outside;
 			}
 		}
-		std::printf("siege ram forced eject in a crowd: %d out, %d on spots, %d at the engine centre\n",
-			out, on_spot, at_centre);
-		CHECK(out == 5);
-		CHECK(on_spot >= 1 && at_centre >= 1 && on_spot + at_centre == 5);
+		int dead = 0;
+		for (uint32_t id : ids) dead += alive(s, id) ? 0 : 1;
+		std::printf("siege ram EjectOrKill in a crowd: %d out on spots, %d at the engine centre, %d killed\n",
+			on_spot, at_centre, dead);
+		CHECK(on_spot >= 1 && at_centre == 0 && dead >= 1 && out + dead == 5);
 		CHECK(outside == on_spot);
 	}
 
