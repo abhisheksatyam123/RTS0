@@ -390,6 +390,7 @@ Simulation::Simulation() {
 	resources_.init(512);
 	unit_paths_.assign(UNIT_CAP, WaypointPath{});
 	nav_grid_.init(map_half_, grid_res_);
+	++nav_terrain_stamp_;
 	// Default civ per slot (game setup overrides via set_team_civ). Slots 0-3 keep the legacy
 	// player_civ_[4] defaults; teams start free-for-all (each player its own team).
 	static constexpr Civilization kDefaultCivs[MAX_PLAYERS] = {
@@ -421,6 +422,7 @@ void Simulation::set_map_half(float h) {
 	// The nav grid caches map_half for world<->cell conversion, so it must be
 	// re-initialised whenever the extent changes.
 	nav_grid_.init(map_half_, grid_res_);
+	++nav_terrain_stamp_;
 	territory_grid_.clear();
 	influence_grid_.clear();
 }
@@ -599,6 +601,7 @@ void Simulation::reset() {
 	apply_petra_config();
 	unit_paths_.assign(UNIT_CAP, WaypointPath{});
 	nav_grid_.init(map_half_, grid_res_);
+	++nav_terrain_stamp_;
 	territory_grid_.clear();
 	influence_grid_.clear();
 	territory_timer_ = 0.0f;
@@ -1427,6 +1430,7 @@ void Simulation::rebuild_nav_grid() {
 		nav_grid_.dirty.fill(1);
 	}
 	nav_grid_.rebuild_dirty_regions();
+	++nav_terrain_stamp_;
 }
 
 void Simulation::rebuild_territory() {
@@ -17405,7 +17409,7 @@ void Simulation::petra_manage_economy(float dt) {
 			else if (b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) takes = 1 << RES_FOOD;
 			if (!takes) continue;
 			const int base = bmap.at(b.x, b.z, map_half_);
-			if (base > 0) drops.push_back({b.x, b.z, base, takes, bmap.land(petra_building_land(b))});
+			if (base > 0) drops.push_back({b.x, b.z, base, takes, petra_access_at(b.x, b.z)});
 		}
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
@@ -17431,7 +17435,7 @@ void Simulation::petra_manage_economy(float dt) {
 			}
 			const uint32_t ci = (uint32_t)candidates.size();
 			candidates.push_back({resources_.id[r], resources_.x[r], resources_.z[r], resources_.type[r], slots, users,
-			                      bmap.land(petra_land_at(resources_.x[r], resources_.z[r])), resources_.amount[r],
+			                      petra_access_at(resources_.x[r], resources_.z[r]), resources_.amount[r],
 			                      field ? bmap.at(resources_.x[r], resources_.z[r], map_half_) : -1});
 			if (field) continue;
 			const uint8_t type = resources_.type[r];
@@ -17496,7 +17500,7 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 
 		const float wx = units_.pos_x[widx], wz = units_.pos_z[widx];
-		const uint16_t wland = bmap.land(petra_land_at(wx, wz));
+		const uint16_t wland = petra_access_at(wx, wz);
 		// The worker's base: the one whose tile it stands on, else the nearest on its land.
 		int my_base = bmap.at(wx, wz, map_half_);
 		if (my_base > 0 && bmap.anchors[my_base - 1].land != wland) my_base = 0;
@@ -17552,7 +17556,7 @@ void Simulation::petra_manage_economy(float dt) {
 			for (auto &e : field_builders) {
 				if (e.second >= FIELD_MAX_GATHERERS) continue;
 				const Building &f = buildings_[building_id_to_idx_.at(e.first)];
-				if (bmap.at(f.x, f.z, map_half_) != base || bmap.land(petra_building_land(f)) != land) continue;
+				if (bmap.at(f.x, f.z, map_half_) != base || petra_access_at(f.x, f.z) != land) continue;
 				const float d2 = (f.x - wx) * (f.x - wx) + (f.z - wz) * (f.z - wz);
 				if (d2 <= fbest) { fbest = d2; fb = &e; }
 			}
@@ -17599,7 +17603,7 @@ void Simulation::petra_manage_economy(float dt) {
 					const bool takes = is_civic_centre(b.type) || civ_building_is_dropsite(b.type) ||
 					                   (b.type == BLD_STOREHOUSE && rt != RES_FOOD) ||
 					                   ((b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD);
-					if (!takes || bmap.land(petra_building_land(b)) != wland) continue;
+					if (!takes || petra_access_at(b.x, b.z) != wland) continue;
 					order_build_or_repair(&uid, 1, b.id);
 					return true;
 				}
@@ -17607,7 +17611,8 @@ void Simulation::petra_manage_economy(float dt) {
 			// nearby supplies, then (food) their fields and field foundations, then their medium
 			// supplies, then a dropsite foundation there.
 			auto ship_to = [&](uint16_t land, float x, float z) {
-				return petra_require_worker_transport(widx, wland, land, x, z);
+				(void)land; // transports go by the nav grid's regions, as the rest of the naval code
+				return petra_require_worker_transport(widx, petra_land_at(wx, wz), petra_land_at(x, z), x, z);
 			};
 			if (bmap.naval) {
 				for (size_t a = 1; a < supplies.size(); ++a) {
@@ -17636,7 +17641,7 @@ void Simulation::petra_manage_economy(float dt) {
 						const bool takes = is_civic_centre(b.type) || civ_building_is_dropsite(b.type) ||
 						                   (b.type == BLD_STOREHOUSE && rt != RES_FOOD) ||
 						                   ((b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD);
-						const uint16_t land = takes ? bmap.land(petra_building_land(b)) : 0;
+						const uint16_t land = takes ? petra_access_at(b.x, b.z) : 0;
 						if (land && land != wland && ship_to(land, b.x, b.z)) return true;
 					}
 			}
@@ -18028,9 +18033,7 @@ void Simulation::petra_manage_fields() {
 	// civic centre or colony on its land, as basesMap gives its tile.
 	struct Anchor { float x, z; uint16_t land; };
 	std::vector<Anchor> anchors;
-	uint16_t home = 0;
-	const bool naval = petra_classified_topo(home).naval_map;
-	auto land_of = [&](float x, float z) -> uint16_t { const uint16_t l = petra_land_at(x, z); return naval || !l ? l : 1; };
+	auto land_of = [&](float x, float z) -> uint16_t { return petra_access_at(x, z); };
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY))
 			anchors.push_back({b.x, b.z, land_of(b.x, b.z)});
@@ -18702,6 +18705,69 @@ uint16_t Simulation::petra_land_at(float x, float z) const {
 				if (std::abs(dx) != r && std::abs(dz) != r) continue;
 				const uint16_t l = nav_grid_.global_region_at(cx + dx, cz + dz, PASS_INFANTRY);
 				if (l) return l;
+			}
+	return 0;
+}
+
+// terrain-analysis.js landPassMap: nav cells that are land by terrain (not deep water, not
+// steeper than MaxTerrainSlope, inside a circular map), flood-filled into lands. Rebuilt only
+// when the nav grid was, and only refilled when that changed which cells are land.
+uint16_t Simulation::petra_access_at(float x, float z) const {
+	PetraAccess &a = petra_access_;
+	const int res = nav_grid_.res;
+	if (nav_grid_.cells.blank()) return 0;
+	if (a.stamp != nav_terrain_stamp_ || a.res != res) {
+		a.stamp = nav_terrain_stamp_;
+		const auto &wc = nav_grid_.height_cache_;
+		const bool water_known = wc.water_valid && wc.water.size() == (size_t)res * res;
+		const float cell = 2.0f * nav_grid_.map_half / (float)res, r = map_half_ - MAP_EDGE_DIST;
+		std::vector<uint8_t> pass((size_t)res * res);
+		for (int y = 0; y < res; ++y)
+			for (int x0 = 0; x0 < res; ++x0) {
+				const size_t k = (size_t)y * res + x0;
+				const uint8_t c = nav_grid_.cells.at(x0, y);
+				bool land = c != NAV_WATER && !nav_grid_.is_steep(x0, y);
+				if (land && c == NAV_OBSTRUCTED && water_known) land = wc.water[k] != NAV_WATER; // a dock on deep water
+				if (land && circular_map()) {
+					const float wx = -nav_grid_.map_half + ((float)x0 + 0.5f) * cell, wz = -nav_grid_.map_half + ((float)y + 0.5f) * cell;
+					land = wx * wx + wz * wz < r * r;
+				}
+				pass[k] = land;
+			}
+		if (a.res != res || pass != a.pass) {
+			a.res = res;
+			a.pass = std::move(pass);
+			a.land.assign((size_t)res * res, 0);
+			uint16_t next = 0;
+			std::vector<uint32_t> stack;
+			for (size_t k0 = 0; k0 < a.pass.size(); ++k0) {
+				if (!a.pass[k0] || a.land[k0]) continue;
+				if (next < 0xFFFF) ++next;
+				a.land[k0] = next;
+				stack.push_back((uint32_t)k0);
+				while (!stack.empty()) {
+					const uint32_t k = stack.back();
+					stack.pop_back();
+					const int kx = (int)(k % res), ky = (int)(k / res);
+					const int nb[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+					for (const auto &d : nb) {
+						const int nx = kx + d[0], ny = ky + d[1];
+						if (nx < 0 || ny < 0 || nx >= res || ny >= res) continue;
+						const size_t n = (size_t)ny * res + nx;
+						if (a.pass[n] && !a.land[n]) { a.land[n] = next; stack.push_back((uint32_t)n); }
+					}
+				}
+			}
+		}
+	}
+	auto [cx, cz] = nav_grid_.world_to_cell(x, z);
+	for (int rr = 0; rr <= 4; ++rr)
+		for (int dz = -rr; dz <= rr; ++dz)
+			for (int dx = -rr; dx <= rr; ++dx) {
+				if (std::abs(dx) != rr && std::abs(dz) != rr) continue;
+				const int nx = cx + dx, nz = cz + dz;
+				if (nx < 0 || nz < 0 || nx >= res || nz >= res) continue;
+				if (const uint16_t l = a.land[(size_t)nz * res + nx]) return l;
 			}
 	return 0;
 }
@@ -19939,7 +20005,7 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 			if (rit != res_id_to_idx_.end()) { x = resources_.x[rit->second]; z = resources_.z[rit->second]; }
 			int k = bmap.at(x, z, map_half_);
 			if (k <= 0) { // outside our territory: the nearest base on the gatherer's land
-				const uint16_t land = bmap.land(petra_land_at(units_.pos_x[i], units_.pos_z[i]));
+				const uint16_t land = petra_access_at(units_.pos_x[i], units_.pos_z[i]);
 				float best = 1e30f;
 				for (size_t a = 0; a < bmap.anchors.size(); ++a) {
 					if (bmap.anchors[a].land != land) continue;
@@ -21280,11 +21346,11 @@ void Simulation::petra_set_rushes() {
 	// skips other land accesses, so another island's trees don't count) within
 	// maxDistResourceSquare, 360 m.
 	float wood = petra_ps().res[RES_WOOD];
-	const uint16_t land = petra_land_at(base->x, base->z);
+	const uint16_t land = petra_access_at(base->x, base->z);
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD) continue;
 		const float dx = resources_.x[r] - base->x, dz = resources_.z[r] - base->z;
-		if (dx * dx + dz * dz < 90.0f * 90.0f && petra_land_at(resources_.x[r], resources_.z[r]) == land)
+		if (dx * dx + dz * dz < 90.0f * 90.0f && petra_access_at(resources_.x[r], resources_.z[r]) == land)
 			wood += resources_.amount[r];
 	}
 	// startingStrategy.js gameStart: under 6000 wood, saveResources and an earlier town phase.
@@ -23304,7 +23370,7 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 	m.naval = petra_classified_topo(home).naval_map;
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY))
-			m.anchors.push_back({b.x, b.z, m.land(petra_land_at(b.x, b.z)), b.id});
+			m.anchors.push_back({b.x, b.z, petra_access_at(b.x, b.z), b.id});
 	m.w = std::max(1, (int)std::floor(2.0f * map_half_ / GRID));
 	m.x0 = m.z0 = 0;
 	m.x1 = m.z1 = -1;
@@ -23327,7 +23393,7 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 			const float x = centre(ix), z = centre(iz);
 			if (territory_owner_at(x, z) != (int)petra_pid_) continue;
 			// The tile's land (getLandAccess): a tile under a structure takes the land around it.
-			const uint16_t land = m.land(petra_land_at(x, z));
+			const uint16_t land = petra_access_at(x, z);
 			if (!land) continue;
 			float best = 1e30f;
 			for (size_t a = 0; a < m.anchors.size(); ++a) {
@@ -23356,7 +23422,7 @@ int Simulation::petra_military_base(const PetraBasesMap &m) const {
 			continue;
 		const bool enemy = petra_foe(e.team);
 		if (enemy_found && !enemy) continue;
-		const uint16_t land = m.land(petra_land_at(e.x, e.z));
+		const uint16_t land = petra_access_at(e.x, e.z);
 		for (size_t a = 0; a < m.anchors.size(); ++a) {
 			if (m.anchors[a].land != land) continue;
 			const float d = (m.anchors[a].x - e.x) * (m.anchors[a].x - e.x) + (m.anchors[a].z - e.z) * (m.anchors[a].z - e.z);
