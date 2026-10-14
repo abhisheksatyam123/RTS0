@@ -11949,8 +11949,13 @@ uint8_t Simulation::side_of(uint8_t pid) const {
 	return side;
 }
 
-void Simulation::end_match(uint8_t winners) {
+void Simulation::end_match(uint8_t winners, uint8_t reason) {
 	winners &= (uint8_t)~defeated_mask_; // a defeated ally stays defeated (0 A.D.)
+	// EndGameManager.MarkPlayersAsWon / SetPlayerWon: "X and Y have won (wonder victory)."
+	// for the winners, and the players a wonder, relics or a scenario beat are named too.
+	const uint8_t beaten = (uint8_t)(participant_mask_ & ~winners & ~defeated_mask_);
+	if (winners) note_session({SessionNotice::WON, 0, winners, reason, {}});
+	if (beaten && (reason == SessionNotice::END_WONDER || reason == SessionNotice::END_RELIC)) note_session({SessionNotice::LOST, 0, beaten, reason, {}});
 	winner_mask_ = winners;
 	convert_to_gaia((uint8_t)(participant_mask_ & ~winners & ~defeated_mask_));
 	defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
@@ -11960,7 +11965,7 @@ void Simulation::end_match(uint8_t winners) {
 
 void Simulation::set_player_won(uint8_t pid) {
 	if (game_over_ || victory_ || pid >= MAX_PLAYERS) return;
-	end_match(side_of(pid));
+	end_match(side_of(pid), SessionNotice::END_GAME_MODE);
 }
 
 void Simulation::check_victory_conditions(float dt) {
@@ -12014,7 +12019,7 @@ void Simulation::check_victory_conditions(float dt) {
 		has_active_wonder_ = any_ours;
 		wonder_victory_timer_ = ours;
 		if (holder >= 0) {
-			end_match(side_of((uint8_t)holder));
+			end_match(side_of((uint8_t)holder), SessionNotice::END_WONDER);
 			return;
 		}
 	}
@@ -12040,7 +12045,7 @@ void Simulation::check_victory_conditions(float dt) {
 			if (all_claimed && owner >= 0 && owner < MAX_TEAMS) {
 				relic_victory_timer_ += dt;
 				if (relic_victory_timer_ >= relic_duration_) {
-					end_match(side);
+					end_match(side, SessionNotice::END_RELIC);
 					return;
 				}
 			} else {
@@ -12054,7 +12059,8 @@ void Simulation::check_victory_conditions(float dt) {
 	// ("ConquestCritical Unit+!Animal" and the like: critical OR its own class) can only
 	// empty after its first, so the first decides.
 	const uint8_t vk = victory_conditions();
-	auto defeated = [&](int t) {
+	using SN = SessionNotice;
+	auto defeated = [&](int t) -> int { // the reason, or -1 while the player holds on
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
 		// A query whose list starts empty never fires, so a nomad who has not built a civic
@@ -12064,11 +12070,12 @@ void Simulation::check_victory_conditions(float dt) {
 		// loss, so a player that never lost anything (a test's lone market) stays in until it
 		// holds nothing at all.
 		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
-		return ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) ||
-		       ((vk & VK_CONQUEST_UNITS) && no_units) ||
-		       ((vk & VK_CONQUEST_STRUCTURES) && no_structures) ||
-		       ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) ||
-		       ((vk & VK_REGICIDE) && regicide_hero_lost(t));
+		if ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) return SN::END_CONQUEST;
+		if ((vk & VK_CONQUEST_UNITS) && no_units) return SN::END_UNITS;
+		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures) return SN::END_STRUCTURES;
+		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) return SN::END_CIVIC_CENTRES;
+		if ((vk & VK_REGICIDE) && regicide_hero_lost(t)) return SN::END_HERO;
+		return -1;
 	};
 
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
@@ -12076,7 +12083,11 @@ void Simulation::check_victory_conditions(float dt) {
 	uint8_t fallen = 0;
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (!((participant_mask_ >> t) & 1) || is_defeated((uint8_t)t)) continue;
-		if (defeated(t) || (waves_enabled_ && t == 0 && tc_count[0] == 0)) fallen |= (uint8_t)(1u << t);
+		int why = defeated(t);
+		if (why < 0 && waves_enabled_ && t == 0 && tc_count[0] == 0) why = SN::END_OBJECTIVE;
+		if (why < 0) continue;
+		fallen |= (uint8_t)(1u << t);
+		note_session({SN::DEFEATED, (uint8_t)t, 0, (uint8_t)why, {}});
 	}
 	if (fallen) {
 		convert_to_gaia(fallen);
@@ -16879,10 +16890,10 @@ bool Simulation::petra_line_in_enemy_territory(float x1, float z1, float x2, flo
 	return false;
 }
 
-// tradeManager.js checkRoutes. Our markets (foundations too) against our exclusive allies'
-// markets, or against each other when no ally has one. A land route joins two markets on
-// one land that doesn't cross enemy territory, a sea route two docks on one sea (RTS0's
-// land traders only trade at markets and merchant ships only at docks).
+// tradeManager.js checkRoutes. Our markets and docks (the Trade class, foundations too)
+// against our exclusive allies', or against each other when no ally has one. A land route
+// joins two of them on one land without crossing enemy territory (land traders trade at
+// docks too), a sea route two docks on one sea; a land route is priced for a land trader.
 void Simulation::petra_check_routes(PetraTradeRoutes &out) const {
 	out = PetraTradeRoutes();
 	uint16_t home = 0;
@@ -16899,22 +16910,18 @@ void Simulation::petra_check_routes(PetraTradeRoutes &out) const {
 	const std::vector<const Building *> &others = only_ours ? own : ally;
 	const int minimal = petra_trade_minimal_gain();
 	for (const Building *m1 : own) {
-		const uint16_t land1 = m1->type == BLD_MARKET ? (topo.naval_map ? petra_building_land(*m1, &topo) : 1) : 0;
+		const uint16_t land1 = topo.naval_map ? petra_building_land(*m1, &topo) : 1;
 		const uint16_t sea1 = m1->type == BLD_DOCK ? dock_sea(*m1) : 0;
 		for (const Building *m2 : others) {
 			if (only_ours && m1->id >= m2->id) continue;
-			if (m1->type != m2->type) continue;
 			PetraTradeRoute r;
-			if (m1->type == BLD_MARKET) {
-				r.land = topo.naval_map ? petra_building_land(*m2, &topo) : 1;
-				if (!land1 || r.land != land1) continue;
-				if (petra_line_in_enemy_territory(m1->x, m1->z, m2->x, m2->z)) continue;
-			} else {
-				r.sea = dock_sea(*m2);
-				if (!sea1 || r.sea != sea1) continue;
-			}
-			r.gain = trader_gain_at(m1->x - m2->x, m1->z - m2->z, petra_pid_,
-			                        m1->type == BLD_DOCK ? UNIT_MERCHANT_SHIP : UNIT_TRADER);
+			const uint16_t land2 = topo.naval_map ? petra_building_land(*m2, &topo) : 1;
+			const uint16_t sea2 = m2->type == BLD_DOCK ? dock_sea(*m2) : 0;
+			r.land = land1 && land1 == land2 ? land1 : 0;
+			r.sea = sea1 && sea1 == sea2 ? sea1 : 0;
+			if (!r.land && !r.sea) continue;
+			if (r.land && petra_line_in_enemy_territory(m1->x, m1->z, m2->x, m2->z)) continue;
+			r.gain = trader_gain_at(m1->x - m2->x, m1->z - m2->z, petra_pid_, r.land ? UNIT_TRADER : UNIT_MERCHANT_SHIP);
 			if (r.gain < minimal) continue;
 			r.source = m1->id;
 			r.target = m2->id;
@@ -16944,13 +16951,14 @@ const Simulation::PetraTradeRoute *Simulation::petra_route_for(const PetraTradeR
 int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_gain) const {
 	out_gain = 0;
 	std::vector<const Building *> markets;
+	auto trade = [](const Building &b) { return (b.type == BLD_MARKET || b.type == BLD_DOCK) && b.hp > 0.0f && !b.wrecked; };
 	for (const Building &b : buildings_)
-		if (b.type == BLD_MARKET && b.hp > 0.0f && !b.wrecked && b.team < MAX_PLAYERS && b.team != petra_pid_ &&
-		    is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team))
+		if (trade(b) && b.team < MAX_PLAYERS && b.team != petra_pid_ && is_ally(petra_pid_, b.team) &&
+		    !is_hostile(petra_pid_, b.team))
 			markets.push_back(&b);
 	if (markets.empty())
 		for (const Building &b : buildings_)
-			if (b.type == BLD_MARKET && b.hp > 0.0f && !b.wrecked && b.team == petra_pid_) markets.push_back(&b);
+			if (trade(b) && b.team == petra_pid_) markets.push_back(&b);
 	if (markets.empty() || territory_grid_.blank()) return 0; // the first market: anywhere
 
 	uint16_t home = 0;
@@ -17028,8 +17036,8 @@ void Simulation::petra_prospect_market(const PetraTradeRoutes &routes) {
 		return;
 	bool any = false;
 	for (const Building &b : buildings_) {
-		if (b.type != BLD_MARKET || b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS) continue;
-		if (b.team == petra_pid_ && b.build_progress < 1.0f) return; // one market at a time
+		if ((b.type != BLD_MARKET && b.type != BLD_DOCK) || b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS) continue;
+		if (b.type == BLD_MARKET && b.team == petra_pid_ && b.build_progress < 1.0f) return; // one market at a time
 		if (b.team == petra_pid_ || (is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team))) any = true;
 	}
 	if (!any) return;
@@ -27768,6 +27776,7 @@ void Simulation::defeat_player(uint8_t pid) {
 	// Player.js SetState("defeated"): everything it owns goes to Gaia.
 	convert_to_gaia((uint8_t)(1u << pid));
 	defeated_mask_ |= (uint8_t)(1u << pid);
+	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_OBJECTIVE, {}});
 }
 
 bool Simulation::cmd_resign(uint8_t pid) {
@@ -27776,6 +27785,7 @@ bool Simulation::cmd_resign(uint8_t pid) {
 	participant_mask_ |= bit; // a player that resigns before it held anything is still out
 	convert_to_gaia(bit);
 	defeated_mask_ |= bit;
+	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_RESIGNED, {}}); // Commands.js "resign"
 	return true;
 }
 
