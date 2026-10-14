@@ -10940,7 +10940,9 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 
 bool Simulation::try_commit_foundation(Building &b) {
 	bool blocked = false;
-	for (size_t i = 0; i < units_.count; ++i) {
+	// Only a foundation whose obstruction blocks movement waits for the site to clear (Foundation.js
+	// Commit: GetBlockMovementFlag): a field is walked across all the time, so it starts at once.
+	for (size_t i = 0; building_blocks_movement(b.type) && i < units_.count; ++i) {
 		if (!units_.alive[i] || unit_is_ship(units_.unit_type[i])) continue;
 		// A unit stands on the site when its centre is inside the footprint (builders work
 		// from just outside it, outside_and_in_build_range).

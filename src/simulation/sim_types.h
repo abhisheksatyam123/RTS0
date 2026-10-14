@@ -1616,9 +1616,9 @@ inline float field_gather_efficiency(int gatherers) {
 	return (1.0f - p) / (1.0f - FIELD_DIMINISHING_RETURNS) / (float)gatherers;
 }
 
-// 0 A.D. Obstruction BlockMovement=false: fields don't block units.
+// 0 A.D. Obstruction BlockMovement=false: fields and the Han paifang (han/laozigate) don't block units.
 inline bool building_blocks_movement(uint8_t type) {
-	return type != BLD_FIELD;
+	return type != BLD_FIELD && type != BLD_LAOZI_GATE;
 }
 
 inline const char *building_type_name(uint8_t type) { return building_type_info(type).name; }
