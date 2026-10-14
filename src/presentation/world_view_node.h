@@ -68,6 +68,7 @@ class RtsoWorldView : public Node3D {
 		Node3D *carry_prop = nullptr; // BoneAttachment3D holding the carried shuttle
 		uint8_t carry_clip = 0;       // ClipId the prop was attached for
 		int64_t player_rgba = -1;     // owner colour last pushed to the model (-1: none yet)
+		int64_t silhouette_rgba = -1; // silhouette colour last pushed (-1: none yet, -2: silhouettes off)
 	};
 
 	struct BuildingVis {
@@ -285,6 +286,13 @@ class RtsoWorldView : public Node3D {
 	static constexpr int MAX_DETAILED_UNITS = 24;
 	float anim_time = 0.0f;
 	uint32_t unit_vis_stamp = 1;
+	// 0 A.D.'s "silhouettes" option (shaders/silhouette.gdshader): units hidden
+	// behind structures, trees or terrain show their outline in the owner's colour.
+	Ref<ShaderMaterial> silhouette_mat_;
+	bool silhouettes_ = true;
+	uint32_t silhouette_gen_ = 0xFFFFFFFFu;
+	void refresh_silhouettes();
+	void set_silhouette(Node *model, const Color &c);
 
 	// 3D Positional Combat Acoustics
 	static constexpr size_t SPATIAL_AUDIO_POOL_SIZE = 32;

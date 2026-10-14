@@ -730,7 +730,10 @@ void RtsoMain::_ready() {
 
 	// A replay or a saved game picked in the menus brings its own setup;
 	// otherwise Game Setup's match starts and is recorded as a replay.
-	if (!start_pending_replay() && !load_pending_save()) {
+	if (start_pending_replay()) {
+	} else if (load_pending_save()) {
+		if (!net_saved_game_.is_empty()) call_deferred("_start_menu_net"); // Host Saved Game
+	} else {
 		apply_match_settings();
 		begin_match_recording(nullptr);
 		call_deferred("_start_menu_net");
@@ -765,7 +768,11 @@ void RtsoMain::_process(double delta) {
 			start_net_speed(net_setup_.seq ? net_setup_.setup.speed : 100);
 			selected_ids.clear();
 			selected_building_id = 0;
-			if (lobby_status)
+			if (lobby_status && net_setup_.seq && net_setup_.setup.saved_game)
+				lobby_status->set_text(turn_mgr_.local_player() < rtso::MAX_PLAYERS
+						? "Loaded the host's saved game as Player " + String::num_int64(turn_mgr_.local_player() + 1)
+						: String("Loaded the host's saved game as an observer"));
+			else if (lobby_status)
 				lobby_status->set_text("Rejoined the match at turn " + String::num_int64(turn_mgr_.rejoin_turn()) +
 						" as Player " + String::num_int64(turn_mgr_.local_player() + 1));
 		}

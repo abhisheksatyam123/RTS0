@@ -365,6 +365,8 @@ struct GameSetupParams {
 	                        // combination (VICTORY_COMBINED, sim_types.h)
 	uint8_t waves = 0;      // 1 = legacy wave-defense mode on
 	uint8_t lms = 0;        // 1 = Last Man Standing (no allied victory)
+	uint8_t saved_game = 0; // 1 = the host continues a saved game (0 A.D. NMT_SAVED_GAME_START):
+	                        // joiners take the host's world by the rejoin transfer
 	uint16_t pop_cap = 200;  // per-player population limit, 0 = unlimited
 	uint16_t world_pop = 0;  // 0 A.D. World Population (shared by live players), 0 = off; wins over pop_cap
 	uint16_t team_pop = 0;   // 0 A.D. 0.28 Team Population (per team, shared by its live players), 0 = off; wins over pop_cap
@@ -452,6 +454,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";victory=" + std::to_string((unsigned)p.victory);
 	s += ";waves=" + std::to_string((unsigned)p.waves);
 	s += ";lms=" + std::to_string((unsigned)p.lms);
+	if (p.saved_game) s += ";saved=1";
 	s += ";popcap=" + std::to_string((unsigned)p.pop_cap);
 	if (p.world_pop) s += ";worldpop=" + std::to_string((unsigned)p.world_pop);
 	if (p.team_pop) s += ";teampop=" + std::to_string((unsigned)p.team_pop);
@@ -573,6 +576,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 255, x) && (x <= 6 || x >= 0x80)) out.victory = x; }
 			else if (k == "waves") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.waves = x; }
 			else if (k == "lms") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lms = x; }
+			else if (k == "saved") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.saved_game = x; }
 			else if (k == "ceasefire") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.ceasefire = x; }
 			else if (k == "reveal") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.reveal = x; }
 			else if (k == "explore") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.explore = x; }

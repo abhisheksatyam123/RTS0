@@ -12,6 +12,9 @@ extends SceneTree
 # In game setup the client asks for its own civ, team and colour and then
 # presses Ready; the host's Start is refused until it does, and the match
 # plays at the host's game speed on both.
+# role=make_save saves=NAME plays a two-player match alone for a while and saves
+# it as NAME; the host given saved=NAME then hosts that save (0 A.D. Host Saved
+# Game): the joiner gets the host's world at Start, and the turn hashes match.
 
 var args := {}
 
@@ -46,7 +49,7 @@ func _run() -> void:
 	if args.has("stun"):
 		# The playtest's own STUN responder (tools/lobby_server.py serve_stun).
 		RtsoUserConfig.new().set_value("lobby.stun.port", args["stun"])
-	if role == "host":
+	if role == "host" or role == "make_save":
 		# Two human slots: the joiner takes the second.
 		ms.slot_types = [0, 0]
 		ms.slot_civs = [0, 1]
@@ -55,6 +58,9 @@ func _run() -> void:
 		ms.map_size = 128
 		ms.slot_colors = [0, 1]
 		ms.game_speed = 1.5
+	if role == "make_save":
+		await _make_save(ms, args.get("saves", "mp_saved"))
+		return
 	var lobby = load("res://scenes/menu/lobby.tscn").instantiate()
 	root.add_child(lobby)
 	current_scene = lobby
@@ -73,6 +79,10 @@ func _run() -> void:
 	if role == "host":
 		lobby._host_name.text = "Godot session"
 		lobby._host_port.text = str(port)
+		if args.has("saved"):
+			# Host Saved Game, with the save the load page would hand over.
+			ms.load_save_path = "user://saves/%s.rts0sav" % args["saved"]
+			ms.net_saved_game = true
 		lobby._on_host_pressed()
 	else:
 		var row = null
@@ -184,4 +194,22 @@ func _run() -> void:
 				break
 	session.sign_out()
 	await _wait(0.5)
+	quit(0)
+
+
+# A match of two human slots played alone for 20 s of game time, then saved.
+func _make_save(ms, name: String) -> void:
+	ms.go("res://scenes/main.tscn")
+	var main = null
+	for i in 600:
+		await _wait(0.1)
+		if current_scene != null and current_scene.has_method("save_game_as"):
+			main = current_scene
+			break
+	if main == null:
+		return _fail("no match scene to save")
+	await _wait(20.0)
+	if not main.save_game_as(name, "multiplayer saved game test"):
+		return _fail("could not save")
+	_say("saved " + name)
 	quit(0)

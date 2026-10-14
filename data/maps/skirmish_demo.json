@@ -5649,109 +5649,169 @@
       "template": "units/default_support_civilian"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -58.59,
       "z": -67.15,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -59.31,
       "z": -66.12,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -60.16,
       "z": -65.11,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -61.05,
       "z": -63.89,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -62.01,
       "z": -62.79,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -60.35,
       "z": -61.88,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -59.5,
       "z": -63.07,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -58.58,
       "z": -64.21,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -57.64,
       "z": -65.35,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -56.72,
       "z": -66.41,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -55.41,
       "z": -65.62,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -56.24,
       "z": -64.71,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -57.3,
       "z": -63.66,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -57.87,
       "z": -62.32,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 2,
       "x": -58.95,
       "z": -61.12,
-      "template": "cart/cavalry_spearman_ital_e"
+      "template": "cart/cavalry_spearman_ital_e",
+      "parents": [
+        "cart/cavalry_spearman_ital_a",
+        "cart/cavalry_spearman_ital_b"
+      ]
     }
   ]
 }

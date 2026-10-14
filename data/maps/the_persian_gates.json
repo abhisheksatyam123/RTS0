@@ -15411,331 +15411,463 @@
       "type": "hero",
       "player": 1,
       "x": -98.38,
-      "z": 52.12
+      "z": 52.12,
+      "template": "mace/hero_alexander_iii"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -99.79,
-      "z": 57.96
+      "z": 57.96,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -99.52,
-      "z": 58.5
+      "z": 58.5,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -99.12,
-      "z": 58.86
+      "z": 58.86,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -98.92,
-      "z": 59.36
+      "z": 59.36,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -98.64,
-      "z": 59.8
+      "z": 59.8,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -98.48,
-      "z": 60.36
+      "z": 60.36,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -99.17,
-      "z": 57.48
+      "z": 57.48,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -98.89,
-      "z": 57.97
+      "z": 57.97,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -98.67,
-      "z": 58.42
+      "z": 58.42,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -98.44,
-      "z": 58.96
+      "z": 58.96,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -98.19,
-      "z": 59.45
+      "z": 59.45,
+      "template": "mace/champion_infantry_spearman"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -97.91,
-      "z": 60.05
+      "z": 60.05,
+      "template": "mace/champion_infantry_spearman"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -100.09,
-      "z": 52.04
+      "z": 52.04,
+      "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -99.77,
-      "z": 52.5
+      "z": 52.5,
+      "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -99.51,
-      "z": 52.93
+      "z": 52.93,
+      "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -99.01,
-      "z": 53.54
+      "z": 53.54,
+      "template": "mace/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -98.51,
-      "z": 53.96
+      "z": 53.96,
+      "template": "mace/champion_cavalry"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -103.59,
-      "z": -82.25
+      "z": -82.25,
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -103.18,
-      "z": -81.84
+      "z": -81.84,
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -102.73,
-      "z": -81.47
+      "z": -81.47,
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -102.31,
-      "z": -81.06
+      "z": -81.06,
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -101.87,
-      "z": -80.67
+      "z": -80.67,
+      "template": "mace/infantry_pikeman_e",
+      "parents": [
+        "mace/infantry_pikeman_a",
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -104.05,
-      "z": -81.83
+      "z": -81.83,
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -103.69,
-      "z": -81.5
+      "z": -81.5,
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -103.34,
-      "z": -81.14
+      "z": -81.14,
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -102.96,
-      "z": -80.76
+      "z": -80.76,
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -102.59,
-      "z": -80.31
+      "z": -80.31,
+      "template": "mace/infantry_pikeman_a",
+      "parents": [
+        "mace/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -104.65,
-      "z": -81.31
+      "z": -81.31,
+      "template": "mace/infantry_pikeman_b"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -104.15,
-      "z": -80.92
+      "z": -80.92,
+      "template": "mace/infantry_pikeman_b"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -103.8,
-      "z": -80.5
+      "z": -80.5,
+      "template": "mace/infantry_pikeman_b"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -103.4,
-      "z": -80.15
+      "z": -80.15,
+      "template": "mace/infantry_pikeman_b"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -102.98,
-      "z": -79.66
+      "z": -79.66,
+      "template": "mace/infantry_pikeman_b"
     },
     {
       "type": "hero",
       "player": 2,
       "x": -99.98,
-      "z": -80.11
+      "z": -80.11,
+      "template": "mace/hero_craterus"
     },
     {
       "type": "archer",
       "player": 3,
       "x": 114.14,
-      "z": 23.36
+      "z": 23.36,
+      "template": "pers/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": 114.65,
-      "z": 24.08
+      "z": 24.08,
+      "template": "pers/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": 115.28,
-      "z": 24.74
+      "z": 24.74,
+      "template": "pers/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": 115.89,
-      "z": 25.32
+      "z": 25.32,
+      "template": "pers/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": 116.66,
-      "z": 26.11
+      "z": 26.11,
+      "template": "pers/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": 117.32,
-      "z": 26.79
+      "z": 26.79,
+      "template": "pers/infantry_archer_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 115.73,
-      "z": -42.03
+      "z": -42.03,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 116.58,
-      "z": -41.26
+      "z": -41.26,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 117.25,
-      "z": -40.4
+      "z": -40.4,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 117.98,
-      "z": -39.88
+      "z": -39.88,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 118.73,
-      "z": -39.29
+      "z": -39.29,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 119.47,
-      "z": -38.56
+      "z": -38.56,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 116.93,
-      "z": -43.09
+      "z": -43.09,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 117.81,
-      "z": -42.38
+      "z": -42.38,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 118.24,
-      "z": -41.87
+      "z": -41.87,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 118.84,
-      "z": -41.36
+      "z": -41.36,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 119.54,
-      "z": -40.8
+      "z": -40.8,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 120.26,
-      "z": -40.02
+      "z": -40.02,
+      "template": "pers/champion_cavalry"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 3,
       "x": 116.62,
-      "z": 21.84
+      "z": 21.84,
+      "template": "pers/cavalry_archer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 3,
       "x": 118.17,
-      "z": 23.41
+      "z": 23.41,
+      "template": "pers/cavalry_archer_b"
+    },
+    {
+      "type": "cavalry",
+      "player": 3,
+      "x": 119.6,
+      "z": 24.9,
+      "template": "pers/cavalry_archer_b"
     },
     {
       "type": "archer",
       "player": 3,
-      "x": 119.6,
-      "z": 24.9
+      "x": 113.5,
+      "z": 24.09,
+      "template": "pers/infantry_javelineer_b"
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 113.97,
+      "z": 24.66,
+      "template": "pers/infantry_javelineer_b"
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 114.42,
+      "z": 25.21,
+      "template": "pers/infantry_javelineer_b"
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 115.17,
+      "z": 26.03,
+      "template": "pers/infantry_javelineer_b"
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 116.16,
+      "z": 26.78,
+      "template": "pers/infantry_javelineer_b"
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 116.82,
+      "z": 27.61,
+      "template": "pers/infantry_javelineer_b"
     }
   ],
   "treasures": [],

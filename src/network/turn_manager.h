@@ -129,6 +129,17 @@ public:
 	// This client watches the match without a seat.
 	bool is_observer() const;
 	bool apply_pending_rejoin(Simulation &sim);
+	// --- A saved game in multiplayer (0 A.D. NMT_SAVED_GAME_START) ----------
+	// Host: the saved world is already loaded in sim. Every client the host
+	// starts with is sent that world as a rejoiner is, and takes the seat given
+	// in seats (client id -> player, 0xFF watches); the host plays seats[0].
+	// No turn runs until each of them has loaded or left (0 A.D. waits for
+	// every client's NMT_LOADED_GAME), or SAVED_GAME_WAIT_MS has passed.
+	void start_saved_game(const std::map<uint32_t, uint8_t> &seats, const Simulation *sim);
+	bool saved_game() const { return saved_game_; }
+	static constexpr uint64_t SAVED_GAME_WAIT_MS = 120000;
+	// Host: the clients a saved game still waits on.
+	const std::set<uint32_t> &saved_game_waiting() const { return saved_waiting_; }
 	bool rejoin_requested() const { return rejoin_wanted_; }
 	// Client: the host's NMT_GAME_START seated us, so the request made at
 	// connect is moot and must not be asked again (apply_pending_rejoin).
@@ -407,6 +418,11 @@ private:
 	// rejoiner to the turn manager on NMT_LOADED_GAME), so the match runs on
 	// through the transfer.
 	std::map<uint32_t, uint8_t> rejoin_loading_;
+	bool saved_game_ = false;
+	std::map<uint32_t, uint8_t> saved_seats_; // host: the seat each client of a saved game takes
+	std::set<uint32_t> saved_waiting_;        // host: clients of a saved game not yet loaded
+	uint64_t saved_since_ms_ = 0;
+	bool saved_game_hold();
 	// Client: loaded a rejoin world as a player, waiting for the host's LOCKSTEP.
 	bool rejoin_lockstep_wait_ = false;
 	void admit_rejoiner(uint32_t client_id);

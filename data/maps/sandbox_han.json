@@ -4929,199 +4929,267 @@
       "type": "spearman",
       "player": 1,
       "x": 6.9,
-      "z": -35.26
+      "z": -35.26,
+      "template": "han/infantry_pikeman_e",
+      "parents": [
+        "han/infantry_pikeman_a",
+        "han/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 7.78,
-      "z": -35.01
+      "z": -35.01,
+      "template": "han/infantry_pikeman_e",
+      "parents": [
+        "han/infantry_pikeman_a",
+        "han/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 8.68,
-      "z": -35.64
+      "z": -35.64,
+      "template": "han/infantry_pikeman_e",
+      "parents": [
+        "han/infantry_pikeman_a",
+        "han/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 7.49,
-      "z": -36.98
+      "z": -36.98,
+      "template": "han/infantry_pikeman_e",
+      "parents": [
+        "han/infantry_pikeman_a",
+        "han/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 8.09,
-      "z": -34.09
+      "z": -34.09,
+      "template": "han/infantry_pikeman_a",
+      "parents": [
+        "han/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 8.37,
-      "z": -34.51
+      "z": -34.51,
+      "template": "han/infantry_pikeman_a",
+      "parents": [
+        "han/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 8.89,
-      "z": -34.89
+      "z": -34.89,
+      "template": "han/infantry_pikeman_a",
+      "parents": [
+        "han/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 9.07,
-      "z": -35.39
+      "z": -35.39,
+      "template": "han/infantry_pikeman_a",
+      "parents": [
+        "han/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 8.34,
-      "z": -37.31
+      "z": -37.31,
+      "template": "han/infantry_pikeman_e",
+      "parents": [
+        "han/infantry_pikeman_a",
+        "han/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 9.47,
-      "z": -36.13
+      "z": -36.13,
+      "template": "han/infantry_pikeman_a",
+      "parents": [
+        "han/infantry_pikeman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -2.0,
-      "z": -33.83
+      "z": -33.83,
+      "template": "han/champion_cavalry_spearman_academy"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 3.0,
-      "z": -41.99
+      "z": -41.99,
+      "template": "han/champion_cavalry_spearman_academy"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -2.58,
-      "z": -35.67
+      "z": -35.67,
+      "template": "han/champion_cavalry_spearman_academy"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -3.57,
-      "z": -37.26
+      "z": -37.26,
+      "template": "han/champion_infantry_archer_academy"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 0.94,
-      "z": -39.48
+      "z": -39.48,
+      "template": "han/champion_infantry_spearman_academy"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 5.4,
-      "z": -33.37
+      "z": -33.37,
+      "template": "han/champion_infantry_spearman_academy"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 0.23,
-      "z": -39.92
+      "z": -39.92,
+      "template": "han/champion_infantry_spearman_academy"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 0.93,
-      "z": -33.59
+      "z": -33.59,
+      "template": "han/champion_infantry_spearman_academy"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -1.35,
-      "z": -39.14
+      "z": -39.14,
+      "template": "han/champion_infantry_spearman_academy"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 5.54,
-      "z": -39.48
+      "z": -39.48,
+      "template": "han/champion_infantry_spearman_academy"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 4.88,
-      "z": -39.35
+      "z": -39.35,
+      "template": "han/champion_infantry_spearman_academy"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -1.44,
-      "z": -37.56
+      "z": -37.56,
+      "template": "han/champion_infantry_spearman_academy"
     },
     {
       "type": "siege_ram",
       "player": 1,
       "x": 12.84,
-      "z": -67.19
+      "z": -67.19,
+      "template": "han/siege_ram"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": -45.3,
-      "z": -41.42
+      "z": -41.42,
+      "template": "han/ship_arrow"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": -50.54,
-      "z": -43.53
+      "z": -43.53,
+      "template": "han/ship_siege"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": -42.15,
-      "z": -39.32
+      "z": -39.32,
+      "template": "han/ship_scout"
     },
     {
       "type": "hero",
       "player": 1,
       "x": -1.19,
-      "z": -58.57
+      "z": -58.57,
+      "template": "han/hero_han_xin"
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -0.61,
-      "z": -57.83
+      "z": -57.83,
+      "template": "han/hero_han_xin_horse"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 2.69,
-      "z": -58.62
+      "z": -58.62,
+      "template": "han/hero_liu_bang"
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": 3.36,
-      "z": -58.43
+      "z": -58.43,
+      "template": "han/hero_liu_bang_horse"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 6.1,
-      "z": -58.11
+      "z": -58.11,
+      "template": "han/hero_wei_qing"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 8.27,
-      "z": -58.52
+      "z": -58.52,
+      "template": "han/hero_wei_qing_chariot"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 3.13,
-      "z": -38.72
+      "z": -38.72,
+      "template": "han/champion_infantry_crossbowman_academy"
     }
   ],
   "treasures": [],

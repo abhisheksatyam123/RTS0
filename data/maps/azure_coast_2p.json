@@ -39591,14 +39591,20 @@
       "player": 1,
       "x": 168.53,
       "z": -49.08,
-      "template": "athen/infantry_spearman_a"
+      "template": "athen/infantry_spearman_a",
+      "parents": [
+        "athen/infantry_spearman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 164.55,
       "z": -45.41,
-      "template": "athen/cavalry_swordsman_a"
+      "template": "athen/cavalry_swordsman_a",
+      "parents": [
+        "athen/cavalry_swordsman_b"
+      ]
     },
     {
       "type": "villager",
@@ -39633,56 +39639,80 @@
       "player": 2,
       "x": 79.72,
       "z": 122.1,
-      "template": "gaul/infantry_javelineer_a"
+      "template": "gaul/infantry_javelineer_a",
+      "parents": [
+        "gaul/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 79.14,
       "z": 121.63,
-      "template": "gaul/infantry_javelineer_a"
+      "template": "gaul/infantry_javelineer_a",
+      "parents": [
+        "gaul/infantry_javelineer_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 78.57,
       "z": 121.12,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 77.8,
       "z": 120.81,
-      "template": "gaul/cavalry_javelineer_a"
+      "template": "gaul/cavalry_javelineer_a",
+      "parents": [
+        "gaul/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": -69.22,
       "z": 135.15,
-      "template": "gaul/cavalry_javelineer_a"
+      "template": "gaul/cavalry_javelineer_a",
+      "parents": [
+        "gaul/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": -68.92,
       "z": 135.97,
-      "template": "gaul/infantry_javelineer_a"
+      "template": "gaul/infantry_javelineer_a",
+      "parents": [
+        "gaul/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": -68.51,
       "z": 136.33,
-      "template": "gaul/infantry_javelineer_a"
+      "template": "gaul/infantry_javelineer_a",
+      "parents": [
+        "gaul/infantry_javelineer_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -67.98,
       "z": 136.81,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "villager",
@@ -39759,42 +39789,60 @@
       "player": 2,
       "x": 19.92,
       "z": 26.25,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 19.41,
       "z": 25.92,
-      "template": "gaul/infantry_javelineer_a"
+      "template": "gaul/infantry_javelineer_a",
+      "parents": [
+        "gaul/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 18.87,
       "z": 25.61,
-      "template": "gaul/infantry_javelineer_a"
+      "template": "gaul/infantry_javelineer_a",
+      "parents": [
+        "gaul/infantry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 18.23,
       "z": 25.33,
-      "template": "gaul/cavalry_javelineer_a"
+      "template": "gaul/cavalry_javelineer_a",
+      "parents": [
+        "gaul/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": 169.05,
       "z": -49.66,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": 169.74,
       "z": -50.15,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "villager",
@@ -39843,56 +39891,80 @@
       "player": 1,
       "x": 105.58,
       "z": -51.87,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": 104.91,
       "z": -52.45,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 104.28,
       "z": -52.95,
-      "template": "athen/infantry_spearman_a"
+      "template": "athen/infantry_spearman_a",
+      "parents": [
+        "athen/infantry_spearman_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": 102.12,
       "z": -52.22,
-      "template": "athen/cavalry_javelineer_a"
+      "template": "athen/cavalry_javelineer_a",
+      "parents": [
+        "athen/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -68.33,
       "z": -103.5,
-      "template": "athen/cavalry_javelineer_a"
+      "template": "athen/cavalry_javelineer_a",
+      "parents": [
+        "athen/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -70.03,
       "z": -104.71,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -70.54,
       "z": -105.28,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -71.06,
       "z": -106.09,
-      "template": "athen/infantry_spearman_a"
+      "template": "athen/infantry_spearman_a",
+      "parents": [
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "villager",
@@ -39958,32 +40030,44 @@
       "template": "athen/support_civilian"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -134.08,
       "z": 22.71,
-      "template": "athen/cavalry_javelineer_a"
+      "template": "athen/cavalry_javelineer_a",
+      "parents": [
+        "athen/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -136.72,
       "z": 18.23,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -137.39,
       "z": 17.93,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -138.05,
       "z": 17.62,
-      "template": "athen/infantry_spearman_a"
+      "template": "athen/infantry_spearman_a",
+      "parents": [
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "villager",
@@ -40018,28 +40102,40 @@
       "player": 2,
       "x": 24.34,
       "z": -79.33,
-      "template": "gaul/infantry_javelineer_a"
+      "template": "gaul/infantry_javelineer_a",
+      "parents": [
+        "gaul/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 24.91,
       "z": -79.87,
-      "template": "gaul/infantry_javelineer_a"
+      "template": "gaul/infantry_javelineer_a",
+      "parents": [
+        "gaul/infantry_javelineer_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 25.39,
       "z": -80.17,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 30.22,
       "z": -74.99,
-      "template": "gaul/cavalry_javelineer_a"
+      "template": "gaul/cavalry_javelineer_a",
+      "parents": [
+        "gaul/cavalry_javelineer_b"
+      ]
     }
   ]
 }

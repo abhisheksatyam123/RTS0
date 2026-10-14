@@ -31,7 +31,7 @@ func frames(n: int) -> void:
 		await process_frame
 
 func left(page, path: String):
-	return page.get_node("VBox/HBox/LeftScroll/Left/" + path)
+	return page.get_node("%" + path.get_file())
 
 func items(sel) -> Array:
 	return range(sel.get_item_count()).map(func(i): return sel.get_item_text(i))
