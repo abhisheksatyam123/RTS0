@@ -1655,7 +1655,7 @@ public:
 	struct Treasure {
 		uint32_t id;
 		float x, z;
-		float collect_progress;   // seconds spent collecting by collector_id
+		float collect_progress;   // the longest collector timer (collector_id), each kept in its pack_elapsed
 		uint32_t collector_id;
 		uint8_t type;             // TreasureType (gaia_data.h)
 		uint8_t pad[3];
