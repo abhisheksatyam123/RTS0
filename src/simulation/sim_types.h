@@ -2507,16 +2507,19 @@ inline bool unit_has_slaughter(uint8_t unit_type, uint16_t tmpl) {
 
 // 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
 // workers build and repair; cavalry, champions, heroes, siege and ships do not.
+// Mercenary citizen infantry (CitizenSoldier Infantry with ResourceGatherer disabled).
+inline bool unit_is_mercenary_infantry(uint8_t unit_type, uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const uint16_t f = civ_unit_template(tmpl).flags;
+	return (f & ROSTER_MERCENARY) && (f & ROSTER_CITIZEN) && !(f & ROSTER_CHAMPION) &&
+			(unit_tech_classes(unit_type) & TC_INFANTRY) && !(unit_tech_classes(unit_type) & TC_CAVALRY);
+}
+
 // Mercenary infantry keep Builder in 0.28 though their ResourceGatherer is gone (template_unit_infantry
 // pulls in mixins/builder); the Neodamodes, no mercenaries, disable it.
 inline bool unit_can_build(uint8_t unit_type, uint16_t tmpl) {
 	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER || unit_type == UNIT_WORKER_ELEPHANT) return true;
-	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
-		const uint16_t f = civ_unit_template(tmpl).flags;
-		if ((f & ROSTER_MERCENARY) && (f & ROSTER_CITIZEN) && !(f & ROSTER_CHAMPION) &&
-				(unit_tech_classes(unit_type) & TC_INFANTRY) && !(unit_tech_classes(unit_type) & TC_CAVALRY))
-			return true;
-	}
+	if (unit_is_mercenary_infantry(unit_type, tmpl)) return true;
 	return unit_gather_class(unit_type, tmpl) == GATHER_INFANTRY;
 }
 
