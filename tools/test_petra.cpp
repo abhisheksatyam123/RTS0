@@ -1361,6 +1361,44 @@ static void test_regicide_hero() {
 	CHECK(healing, "an attacked hero below 70% health garrisons in a healing structure");
 }
 
+// victoryManager.js reacts to every Attacked event on the hero: a hurt hero
+// under a tower's arrows, with no unit targeting it, still goes to heal.
+static void test_regicide_hero_tower_fire() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	s->set_regicide_garrison(true);
+	run_for(*s, 1.0f);
+	auto &u = s->units_;
+	const uint32_t hero = s->regicide_hero(1);
+	CHECK(hero != 0, "regicide gives AI 1 a hero");
+	if (!hero) return;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = tx * 0.6f, hz = tz * 0.6f;
+	int32_t h = s->lookup_unit(hero);
+	u.pos_x[h] = hx; u.pos_z[h] = hz;
+	const uint32_t stance_hero = hero;
+	s->order_set_stance(&stance_hero, 1, STANCE_STAND_GROUND);
+	s->spawn_building_world(hx + 5.0f, hz + 5.0f, BLD_TOWER, 0, 1.0f);
+	bool hit = false, reacted = false;
+	for (float t = 0.0f; t < 12.0f && !reacted; t += Simulation::FIXED_STEP) {
+		h = s->lookup_unit(hero);
+		if (h < 0 || !u.alive[h]) break;
+		if (u.action_state[h] != ACTION_GARRISONED) u.hp[h] = u.max_hp[h] * 0.6f;
+		s->tick(Simulation::FIXED_STEP);
+		h = s->lookup_unit(hero);
+		if (h < 0) break;
+		hit |= u.attacked_by[h] != 0;
+		reacted = u.order_kind[h] == ORDER_GARRISON || u.action_state[h] == ACTION_GARRISONED || u.stance[h] == STANCE_PASSIVE;
+	}
+	std::printf("  regicide hero under tower fire: hit %s, retreats %s\n", hit ? "yes" : "no", reacted ? "yes" : "no");
+	CHECK(hit && reacted, "a hurt hero under tower fire retreats to heal");
+}
+
 // With RegicideGarrison off the hero can't garrison: victoryManager.js
 // pickCriticalEntRetreatLocation sends it home on foot instead (no garrison
 // order that is refused and retried every turn).
@@ -3105,6 +3143,30 @@ static void test_defensive_location() {
 	if (s->petra_find_defensive_location(BLD_SENTRY_TOWER, cx2, cz2))
 		CHECK(std::hypot((float)(cx2 - cx) * Simulation::GRID, (float)(cz2 - cz) * Simulation::GRID) >= 30.0f / 4.0f - 1.0f,
 		      "the next tower keeps 30 m from it");
+
+	// Wonder victory with our wonder up: the frontier rule is dropped and the tower
+	// goes just beyond 50 m of the wonder's footprint, ringing it.
+	{
+		auto w = std::make_unique<Simulation>();
+		w->set_sim_seed(42);
+		w->reset();
+		w->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		w->set_victory_condition(VICTORY_WONDER);
+		run_for(*w, 20.0f);
+		w->petra_pid_ = 1;
+		const float dx = ox - ex, dz = oz - ez, dl = std::hypot(dx, dz);
+		const uint32_t wid = w->spawn_building_world(ox + dx / dl * 14.0f, oz + dz / dl * 14.0f, BLD_WONDER, 1, 1.0f);
+		auto wit = w->building_id_to_idx_.find(wid);
+		CHECK(wit != w->building_id_to_idx_.end(), "a wonder for AI 1");
+		if (wit == w->building_id_to_idx_.end()) return;
+		const auto &wb = w->buildings_[wit->second];
+		int wx = 0, wz = 0;
+		const bool got = w->petra_find_defensive_location(BLD_SENTRY_TOWER, wx, wz);
+		const float px = (float)wx * Simulation::GRID + foot, pz = (float)wz * Simulation::GRID + foot;
+		const float d = std::hypot(px - wb.x, pz - wb.z), dmin = 50.0f / 4.0f + wb.half_size;
+		std::printf("  wonder victory: sentry tower spot %.1f from our wonder (at least %.1f)\n", d, dmin);
+		CHECK(got && d >= dmin - 1.5f && d < dmin + 6.0f, "the tower rings our wonder just beyond 50 m");
+	}
 }
 
 // attackPlan.js addUnits for a raid: every free FastMoving soldier but two, kept back to hunt.
@@ -3583,6 +3645,7 @@ int main() {
 	test_emergency();
 	test_regicide_hero();
 	test_regicide_hero_no_garrison();
+	test_regicide_hero_tower_fire();
 	test_nomad_first_base();
 	test_entity_limit_placement();
 	test_army_answers_attackers();
