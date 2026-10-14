@@ -988,9 +988,7 @@ func _on_type_selected(i: int, n: int) -> void:
 func _y_number(v: Variant, type: String) -> float:
 	if type != "" and v is Dictionary:
 		v = v.get(type, 0)
-	if v is float and is_inf(v):
-		return 0.0
-	return float(v)
+	return float(v) # an infinite ratio stays infinite: the chart leaves it out
 
 func _update_chart(n: int, cat: int, item: int, type: String) -> void:
 	chart_format[n] = panels[cat]["headings"][item + 1].get("format", "INTEGER")
@@ -1050,12 +1048,15 @@ func _draw_chart(n: int) -> void:
 	var max_x := -INF
 	var min_y := 0.0
 	var max_y := 0.0
+	# CChart::UpdateBounds: infinite values (a kill/death ratio with no deaths) set no bounds.
 	for s in series[n]:
 		for pt in s["points"]:
-			min_x = minf(min_x, pt.x)
-			max_x = maxf(max_x, pt.x)
-			min_y = minf(min_y, pt.y)
-			max_y = maxf(max_y, pt.y)
+			if not is_inf(pt.x):
+				min_x = minf(min_x, pt.x)
+				max_x = maxf(max_x, pt.x)
+			if not is_inf(pt.y):
+				min_y = minf(min_y, pt.y)
+				max_y = maxf(max_y, pt.y)
 	if min_x == INF:
 		min_x = 0.0
 		max_x = 1.0
@@ -1073,15 +1074,32 @@ func _draw_chart(n: int) -> void:
 		chart.draw_string(font, Vector2(gx - 20, chart.size.y - 2), format_axis(min_x + (max_x - min_x) * g / 4.0, "DURATION_SHORT"),
 			HORIZONTAL_ALIGNMENT_CENTER, 40, 11, axis_color)
 	chart.draw_line(Vector2(left, top), Vector2(left, bottom), axis_color, 1.0)
+	# CChart::Draw: an infinite point is not drawn and breaks the line there.
 	for s in series[n]:
-		var pts := PackedVector2Array()
-		for pt in s["points"]:
-			pts.append(Vector2(left + (right - left) * (pt.x - min_x) / (max_x - min_x),
-				bottom - (bottom - top) * (pt.y - min_y) / (max_y - min_y)))
-		if pts.size() == 1:
-			chart.draw_circle(pts[0], 2.5, s["color"])
-		elif pts.size() > 1:
-			chart.draw_polyline(pts, s["color"], 2.0, true)
+		for line in chart_lines(s["points"]):
+			var pts := PackedVector2Array()
+			for pt in line:
+				pts.append(Vector2(left + (right - left) * (pt.x - min_x) / (max_x - min_x),
+					bottom - (bottom - top) * (pt.y - min_y) / (max_y - min_y)))
+			if pts.size() == 1:
+				chart.draw_circle(pts[0], 2.5, s["color"])
+			elif pts.size() > 1:
+				chart.draw_polyline(pts, s["color"], 2.0, true)
+
+## A series' runs of finite points, split where a point is infinite (CChart::Draw).
+static func chart_lines(points: PackedVector2Array) -> Array:
+	var out := []
+	var cur := PackedVector2Array()
+	for pt in points:
+		if is_inf(pt.x) or is_inf(pt.y):
+			if not cur.is_empty():
+				out.append(cur)
+			cur = PackedVector2Array()
+		else:
+			cur.append(pt)
+	if not cur.is_empty():
+		out.append(cur)
+	return out
 
 # --- Buttons and hotkeys -------------------------------------------------------
 
