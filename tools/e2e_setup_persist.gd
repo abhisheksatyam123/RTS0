@@ -52,7 +52,7 @@ func run() -> void:
 	print("2. Back keeps the page")
 	page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value = 3
 	await frames(2)
-	page._on_slot_civ(Setup.CIVS.size(), 1)  # Random
+	page._on_slot_civ(0, 1)  # Random
 	page._on_slot_kind(2, 2)                 # Closed
 	var pop: RtsoSafeSelect = page.get_node("VBox/HBox/LeftScroll/Left/PopCapSlot").get_child(0)
 	pop.select(2)

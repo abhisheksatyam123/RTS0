@@ -38,7 +38,8 @@ ex = atk.ex
 
 def tech_classes():
     """TechClass names (tech_data.h) by 0 A.D. class, e.g. Soldier -> TC_SOLDIER."""
-    names = re.findall(r"^\t(TC_[A-Z0-9_]+) = 1ull << \d+,", open(TECH_DATA).read(), re.M)
+    names = re.findall(r"^(?:\t|inline constexpr TechClasses )(TC_[A-Z0-9_]+) = (?:1ull << \d+,|tc_bit\(\d+\);)",
+                       open(TECH_DATA).read(), re.M)
     return {n[3:]: n for n in names}
 
 
@@ -84,7 +85,7 @@ def emit(rows):
     w("\tuint8_t default_arrows; // DefaultArrowCount; 0 with no garrison bonus = never shoots")
     w("\tuint8_t max_arrows; // MaxArrowCount, 0 = no limit")
     w("\tfloat garrison_arrow_multiplier; // GarrisonArrowMultiplier")
-    w("\tuint64_t garrison_arrow_classes; // GarrisonArrowClasses as TechClass bits, any of them")
+    w("\tTechClasses garrison_arrow_classes; // GarrisonArrowClasses as TechClass bits, any of them")
     w("\tfloat hack, pierce, crush; // Attack/Ranged/Damage")
     w("\tfloat min_range, max_range; // from the structure's edge")
     w("\tfloat origin_y; // Attack/Ranged/Origin/Y: height the parabolic range is measured from")
