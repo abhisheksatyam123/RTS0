@@ -360,6 +360,10 @@ public:
 	float unit_walk_speed(size_t i) const;
 	// The speed it moves at now: its walk speed, slowed by the pushing pressure it is under.
 	float unit_move_speed(size_t i) const;
+	// How far it moves this tick heading (ux, uz) at up to max_speed, starting from velocity (vx, vz),
+	// with its template's acceleration and turn rule; *speed is its speed at the end of the tick.
+	float accelerated_step(size_t i, float vx, float vz, float ux, float uz, float max_speed, float dt,
+			float *speed) const;
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
@@ -1700,6 +1704,8 @@ public:
 	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
 	float treasure_reach(size_t i) const;
+	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
+	bool treasure_in_reach(size_t i, uint32_t id) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }
 	bool is_treasure_id(uint32_t id) const {
 		for (const auto &t : treasures_) if (t.id == id) return true;
