@@ -1404,6 +1404,18 @@ void Simulation::rebuild_nav_grid() {
 					nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
 			}
 	}
+	// Off-world passability (CCmpPathfinder::UpdateGrid): on a circular map every navcell whose
+	// centre lies past its edge is impassable to every class, ships included.
+	if (circular_map()) {
+		const float r = map_half_ - MAP_EDGE_DIST, r2 = r * r;
+		for (int y = 0; y < nav_grid_.res; ++y) {
+			const float wz = nav_origin.y + ((float)y + 0.5f) * nav_cell;
+			for (int x = 0; x < nav_grid_.res; ++x) {
+				const float wx = nav_origin.x + ((float)x + 0.5f) * nav_cell;
+				if (wx * wx + wz * wz >= r2) nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+			}
+		}
+	}
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
 	// grid was freshly initialised (no snapshot to diff against).
@@ -2118,6 +2130,8 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 	nav::footprint_axis(rot, ux, uz);
 	if (uz == 0.0f) { // unturned, or a quarter turn of a square: its square of cells
 		if (!can_place(cell_x, cell_y, foot)) return PLACE_OBSTRUCTED;
+		// CheckBuildingPlacement: no class may stand past a circular map's edge.
+		if (footprint_past_map_edge(nav::Footprint{cxw, czw, 1.0f, 0.0f, 0.5f * (x1 - x0), 0.5f * (z1 - z0)})) return PLACE_OBSTRUCTED;
 		std::vector<std::pair<int, int>> cells;
 		cells.reserve((size_t)(foot * foot));
 		for (int dz = 0; dz < foot; ++dz)
@@ -2139,6 +2153,7 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 	const int limit = (int)(map_half_ / GRID) - foot;
 	for (const auto &[cx, cy] : cells)
 		if (std::abs(cx) > limit || std::abs(cy) > limit) return PLACE_OBSTRUCTED;
+	if (footprint_past_map_edge(turned)) return PLACE_OBSTRUCTED;
 	const float e = nav::footprint_extent(turned);
 	return check_placement_cells(player, b_type, cells, cxw - e, czw - e, cxw + e, czw + e, cxw, czw, &turned, nullptr);
 }
@@ -4448,6 +4463,7 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 	const float clearance = unit_building_clearance(CIV_UNIT_TEMPLATE_COUNT, type);
 	auto free_at = [&](float px, float pz) {
 		if (std::fabs(px) >= map_half_ - rad || std::fabs(pz) >= map_half_ - rad) return false;
+		if (past_map_edge(px, pz, clearance)) return false; // nor past a circular map's edge
 		if (dry_ground && get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) return false;
 		if (!nav_grid_.cells.blank()) {
 			const auto [gx, gy] = nav_grid_.world_to_cell(px, pz);
@@ -9212,6 +9228,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (!nav_grid_.cells.blank()) {
 			const float c = unit_clearance_at(i);
 			auto barred = [&](float x, float z) {
+				if (edge_step_barred(px[i], pz[i], x, z, c)) return true; // a circular map's edge
 				if (!ship) return land_step_barred(px[i], pz[i], x, z, c);
 				auto off = [&](float wx, float wz) {
 					auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
@@ -9572,7 +9589,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float sx = x0 + to.x / len * step, sz = z0 + to.y / len * step;
 		if (full_step_blocked(sx, sz, w.x, w.y)) return;
 		// As in move_units, a land unit keeps its clearance off deep water.
-		if (land_step_barred(x0, z0, sx, sz, unit_clearance_at(i))) return;
+		if (land_step_barred(x0, z0, sx, sz, unit_clearance_at(i)) || edge_step_barred(x0, z0, sx, sz, unit_clearance_at(i))) return;
 		npx[i] = sx;
 		npz[i] = sz;
 		want_x[i] = sx - x0;
@@ -9999,6 +10016,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 					return;
 			}
 			if (pass == PASS_INFANTRY && land_step_barred(px[i], pz[i], nx, nz, unit_clearance_at(i))) return;
+			if (edge_step_barred(px[i], pz[i], nx, nz, unit_clearance_at(i))) return; // nor past a circular map's edge
 		}
 		px[i] = nx;
 		pz[i] = nz;
@@ -27385,8 +27403,10 @@ float Simulation::building_vision_range(const Building &b) const {
 }
 
 void Simulation::set_circular_map(bool on) {
+	const bool was = circular_map();
 	set_setup_flag(SETUP_CIRCULAR_MAP, on);
 	los_.set_circular(on);
+	if (was != circular_map() && !nav_grid_.cells.blank()) rebuild_nav_grid(); // the edge's navcells
 }
 
 void Simulation::reset_los() {
