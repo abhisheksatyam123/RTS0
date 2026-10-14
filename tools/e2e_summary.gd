@@ -125,7 +125,8 @@ func run() -> void:
 	check(misc.has("Civilianization") and not misc.has("Feminization"), "0.28's Civilianization column: " + str(misc))
 	var res: Dictionary = s.player_value(1, 3, 0)
 	check(res.keys() == ["count", "gathered", "used"] and res.gathered > 0, "resources count / gathered / used: " + str(res))
-	check(not s.format_value(res).contains(str(res["count"]) + "[/color]"), "the count is charted, not shown in the table")
+	var shown: String = s.format_value({"count": 7, "gathered": 5, "used": 3})
+	check(not shown.contains("7"), "the count is charted, not shown in the table: " + shown)
 	check(s.panels[3].headings.map(func(h): return h.id).has("livestock") and s.player_value(1, 3, 8) is int, "Livestock bred")
 	var by = s.get_script()
 	check(by._by({"unitsTrained": {"total": 3, "Unit": 5}}, "unitsTrained", "Unit") == 5
