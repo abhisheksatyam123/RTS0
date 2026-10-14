@@ -56,6 +56,39 @@ public:
 	// tools/test_netcode.cpp --net-peer to prove reliable delivery survives loss.
 	void set_simulated_loss(float fraction, uint32_t seed = 1) { sim_loss_ = fraction; sim_loss_rng_ = seed ? seed : 1; }
 
+	// Test hook: a stateful firewall or restricted-cone NAT in front of this
+	// socket. Datagrams from an endpoint this socket never sent to are dropped,
+	// so a peer gets in only after a hole punch (tools/test_nat.cpp).
+	void set_simulated_firewall(bool on);
+	uint32_t firewalledPackets() const { return firewalled_; }
+
+	// NAT traversal (0 A.D. StunClient.cpp and its Jingle hole punching).
+	// Ask a STUN server, from this game socket, which public address and port
+	// the NAT maps it to; works for a host and a client. stunState(): 0 never
+	// asked, 1 waiting, 2 found (publicIp/publicPort), 3 no answer in
+	// STUN_TIMEOUT_MS or the server name did not resolve.
+	void queryStun(const std::string &server, uint16_t port);
+	int stunState() const { return stun_state_; }
+	const std::string &publicIp() const { return public_ip_; }
+	uint16_t publicPort() const { return public_port_; }
+	// Send another peer's public endpoint HOLE_PUNCH_SENDS small datagrams,
+	// HOLE_PUNCH_DELAY_MS apart (lobby.stun.delay), so this side's NAT lets
+	// that peer's packets in (0 A.D. SendHolePunchingMessages).
+	void holePunch(const std::string &ip, uint16_t port);
+	// This socket's local port, and this machine's LAN address (0 A.D.
+	// StunClient::FindLocalIP; "" if there is no route).
+	uint16_t localPort() const;
+	static std::string localIp();
+	const std::string &lanIp() const { return lan_ip_; } // localIp() as of queryStun
+	// Client: connect to another address instead, keeping what is queued (0 A.D.
+	// joins a host behind the same public address at its LAN address, since
+	// not every router loops back to its own public address).
+	void retargetHost(const std::string &ip, uint16_t port);
+	static constexpr uint64_t STUN_RESEND_MS = 500;
+	static constexpr uint64_t STUN_TIMEOUT_MS = 3000;
+	static constexpr int HOLE_PUNCH_SENDS = 3;
+	static constexpr uint64_t HOLE_PUNCH_DELAY_MS = 200;
+
 	// Packet transmission
 	void sendCommand(uint32_t peer_id, const uint8_t *data, size_t size);
 	void sendCommand(uint32_t peer_id, const std::vector<uint8_t> &data);
@@ -235,6 +268,21 @@ private:
 	std::function<void(uint32_t)> peer_disconnected_cb_;
 	std::function<void(const ChatMsg&)> chat_cb_;
 	std::function<bool(uint32_t, uint32_t, uint32_t &, uint32_t &)> join_sync_request_cb_;
+
+	void check_stun(uint64_t now_ms);
+	void send_hole_punches(uint64_t now_ms);
+	bool sim_firewall_ = false;
+	uint32_t firewalled_ = 0;
+	std::set<std::string> sent_to_; // "ip:port" this socket sent to (sim firewall)
+	int stun_state_ = 0;
+	std::string stun_server_ip_;
+	uint16_t stun_server_port_ = 0;
+	uint8_t stun_txn_[12] = {};
+	uint64_t stun_started_ms_ = 0, stun_sent_ms_ = 0;
+	std::string public_ip_, lan_ip_;
+	uint16_t public_port_ = 0;
+	struct HolePunch { std::string ip; uint16_t port = 0; uint64_t next_ms = 0; int left = 0; };
+	std::vector<HolePunch> hole_punches_;
 
 	std::vector<LobbyRoom> lobby_rooms_;
 	std::string local_player_name_ = "Player";

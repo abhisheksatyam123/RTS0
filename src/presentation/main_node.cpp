@@ -180,6 +180,10 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
 	ClassDB::bind_method(D_METHOD("_start_menu_net"), &RtsoMain::_start_menu_net);
 	ClassDB::bind_method(D_METHOD("get_lobby_state"), &RtsoMain::get_lobby_state);
+	ClassDB::bind_method(D_METHOD("get_net_nat_state"), &RtsoMain::get_net_nat_state);
+	ClassDB::bind_method(D_METHOD("net_query_stun", "server", "port"), &RtsoMain::net_query_stun);
+	ClassDB::bind_method(D_METHOD("net_hole_punch", "ip", "port"), &RtsoMain::net_hole_punch);
+	ClassDB::bind_method(D_METHOD("net_retarget_host", "ip", "port"), &RtsoMain::net_retarget_host);
 	ClassDB::bind_method(D_METHOD("get_turn_hash", "turn"), &RtsoMain::get_turn_hash);
 
 	const StringName cls = get_class_static();
@@ -4698,7 +4702,8 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		roster_list->set_visible(roster_list->get_item_count() > 0);
 		return;
 	}
-	for (uint16_t i : rtso::civ_roster_ids(civ)) {
+	// A shrine trains its own civ's Elite Healer (units/{native}/support_healer_e).
+	for (uint16_t i : rtso::civ_roster_ids(b->type == rtso::BLD_SHRINE ? b->civ : civ)) {
 		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
 		// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
@@ -6470,9 +6475,12 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			gaia_structure_ids[i] = spawn_map_wall(*sim, b, rtso::GAIA_PLAYER);
 			continue;
 		}
-		const uint8_t btype = map_building_type(b.get("type", ""));
+		// structures/shrine_* and trading_post_*: their own types, keeping the template's civ.
+		const rtso::GaiaStructureTemplate gt = rtso::gaia_structure_template(String(b.get("template", "")).utf8().get_data());
+		const uint8_t btype = gt.type < rtso::BLD_TYPE_COUNT ? gt.type : map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
+		if (gt.type < rtso::BLD_TYPE_COUNT) sim->set_building_civ(gaia_structure_ids[i], gt.civ);
 	}
 	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
 	Array scenery_arr = d.get("scenery", Array());
@@ -6683,6 +6691,10 @@ void RtsoMain::_start_menu_net() {
 	if (lobby_btn) lobby_btn->set_visible(true);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
+	// tools/playtest_godot_mp.py --firewall: each peer drops datagrams from
+	// endpoints it never sent to, as a NAT does, so only a hole punch lets
+	// the other side in.
+	if (OS::get_singleton()->get_cmdline_user_args().has("net_firewall=1")) net_host_.set_simulated_firewall(true);
 }
 
 Dictionary RtsoMain::get_lobby_state() const {
@@ -6708,6 +6720,31 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
 	return d;
+}
+
+Dictionary RtsoMain::get_net_nat_state() const {
+	Dictionary d;
+	d["stun"] = net_host_.stunState();
+	d["public_ip"] = String(net_host_.publicIp().c_str());
+	d["public_port"] = (int)net_host_.publicPort();
+	d["local_ip"] = String(net_host_.lanIp().c_str());
+	d["local_port"] = (int)net_host_.localPort();
+	return d;
+}
+
+void RtsoMain::net_query_stun(const String &server, int port) {
+	if (port <= 0 || port > 65535 || server.is_empty()) return;
+	net_host_.queryStun(server.utf8().get_data(), (uint16_t)port);
+}
+
+void RtsoMain::net_hole_punch(const String &ip, int port) {
+	if (port <= 0 || port > 65535) return;
+	net_host_.holePunch(ip.utf8().get_data(), (uint16_t)port);
+}
+
+void RtsoMain::net_retarget_host(const String &ip, int port) {
+	if (port <= 0 || port > 65535 || net_game_started_) return;
+	net_host_.retargetHost(ip.utf8().get_data(), (uint16_t)port);
 }
 
 int64_t RtsoMain::get_turn_hash(int64_t turn) const {
