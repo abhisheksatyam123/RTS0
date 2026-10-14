@@ -59,9 +59,9 @@
 				"name": "Toggle barter",
 				"desc": "Toggle in-game barter/trade page."
 			},
-			"session.gui.objectives.toggle": {
-				"name": "Toggle objectives",
-				"desc": "Toggle in-game objectives page."
+			"session.gui.matchsettings.toggle": {
+				"name": "Toggle match settings",
+				"desc": "Toggle in-game match settings page."
 			},
 			"session.gui.tutorial.toggle": {
 				"name": "Toggle tutorial",
