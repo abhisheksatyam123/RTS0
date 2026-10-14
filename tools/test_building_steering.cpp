@@ -1165,6 +1165,38 @@ static void shore_clearance() {
 	}
 }
 
+// 22. A wood too thick to walk through closes its navcells to long paths (0 A.D. rasterizes each
+// tree grown by the class clearance onto 1 m navcells, so oaks even 4 m apart leave no navcell
+// between them), a sparse one doesn't, and felling a lane through the thick one opens it again.
+static void forest_cells() {
+	Simulation s;
+	setup(s);
+	auto cell_at = [&](float x, float z) {
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(x, z);
+		return s.nav_grid_.cells.at(cx, cy);
+	};
+	std::vector<uint32_t> lane;
+	for (int x = -12; x <= 12; ++x)
+		for (int z = -12; z <= 12; ++z) {
+			const uint32_t id = s.spawn_resource_world(0.5f * (float)x, 0.5f * (float)z, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+			if (std::abs(z) <= 1) lane.push_back(id);
+		}
+	for (int x = -3; x <= 3; ++x)
+		for (int z = -3; z <= 3; ++z)
+			s.spawn_resource_world(20.0f + 2.0f * (float)x, 2.0f * (float)z, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+	s.tick(DT);
+	const bool thick = cell_at(0.0f, 3.0f) == NAV_OBSTRUCTED, sparse = cell_at(21.0f, 1.0f) == NAV_OBSTRUCTED;
+	for (uint32_t id : lane) s.set_resource_amount(id, 0);
+	s.tick(DT);
+	const bool felled = cell_at(0.0f, 0.0f) == NAV_OBSTRUCTED, rest = cell_at(0.0f, 3.0f) == NAV_OBSTRUCTED;
+	std::printf("  woods: a wood of oaks 2 m apart closes its navcells (%d), one 8 m apart doesn't (%d); "
+			"a lane felled through the first opens (%d) and the rest stays shut (%d)\n", thick, !sparse, !felled, rest);
+	check(thick, "a wood of oaks 2 m apart stayed open to long paths");
+	check(!sparse, "a wood of oaks 8 m apart was closed to long paths");
+	check(!felled, "a lane felled through a thick wood stayed closed to long paths");
+	check(rest, "felling a lane opened the rest of a thick wood");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -1188,6 +1220,7 @@ int main() {
 	mines();
 	shore_clearance();
 	trees();
+	forest_cells();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

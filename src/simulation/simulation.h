@@ -3204,7 +3204,27 @@ private:
 	void ensure_gaia_obstacles();
 	// Appends to `out` the Gaia obstacles that may reach into the box (x, z) +- reach.
 	void gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const;
+	// Whether the trees in the way matter to a walker at (x, z) heading for (ax, az): one of them
+	// crosses the first `reach` of that line, kept `radius` off, or holds the walker. Only then does
+	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
+	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
+	// Navcells a wood closes to long paths: 1 where trees and bushes leave no way across the cell
+	// (forest_cell_closed). rebuild_nav_grid marks them obstructed. Recomputed when the Gaia
+	// obstacles change (update_forest_cells), and the nav grid rebuilt when a cell opens or closes.
+	std::vector<uint8_t> forest_cells_;
+	uint64_t forest_sig_ = 0;
+	bool forest_removals_only_ = false; // tick_gather felled trees from up-to-date forest_cells_
+	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
+	bool forest_cell_closed(int cx, int cy) const;
+	bool update_forest_cells();
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
+	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
+	// looks only at those under the line (the same answer as nav::line_blocked_by_buildings over
+	// all of them).
+	nav::ObstacleGrid steer_grid_;
+	uint32_t steer_grid_key_ = 0;
+	float steer_grid_half_ = 0.0f;
+	bool steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len, float radius, uint32_t ignore) const;
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
 	struct CaptureTally { int count[MAX_PLAYERS]; float strength[MAX_PLAYERS]; };
