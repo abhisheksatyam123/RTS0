@@ -76,6 +76,7 @@ func run() -> void:
 		"Athenian bonuses: Delian League (tech), Silver Owls (civ json), Democracy (team)")
 	check(athen.contains("[hint=") and athen.contains("Ships −25% construction time."), "entries carry an info hover and the tooltip text")
 	var own: Array = Common.text()["civs"]["athen"]["specific_structures"]
+	check(athen.contains("Specific Structures"), "Athenians have specific structures")
 	check(athen.contains("Long Walls") and not athen.contains("Wicker Baskets"), "specific technologies only")
 	check(athen.contains("Gymnasium") and athen.count("[url=structure:") == own.size(), "specific structures only (%d)" % own.size())
 	# 0.28 structree: the civ header, a production row per phase under each box, the

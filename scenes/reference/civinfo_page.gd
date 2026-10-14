@@ -121,7 +121,9 @@ func gameplay_text(d: Dictionary) -> String:
 			tx.get("tooltip", "")))
 	t += "\n" + _heading("Specific Technology", "Specific Technologies", lines.size()) + "".join(lines)
 	# Specific Structures: "CivSpecific Structure" classes.
-	var own: Array = civ_ref.get("specific_structures", [])
+	var own := [] # JSON numbers are floats; the structure types are ints
+	for x in civ_ref.get("specific_structures", []):
+		own.append(int(x))
 	lines = PackedStringArray()
 	for s in d["structures"]:
 		if not (int(s["type"]) in own if civ_ref.has("specific_structures") else bool(s.get("unique", false))):
