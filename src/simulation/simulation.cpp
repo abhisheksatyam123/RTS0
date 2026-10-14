@@ -6651,6 +6651,41 @@ int Simulation::building_arrow_count(const Building &b) const {
 	return std::max(count, 0);
 }
 
+Simulation::StructureDetails Simulation::structure_details(const Building &b) const {
+	StructureDetails d;
+	const BuildingAIInfo ai = civ_building_ai_info(b.civ, b.type);
+	const bool owned = b.team < MAX_PLAYERS;
+	if (ai.shoots()) {
+		d.shoots = true;
+		d.damage[0] = ai.hack;
+		d.damage[1] = ai.pierce * (owned ? tech_mods(b.team).bld_attack[b.type] : 1.0f);
+		d.damage[2] = ai.crush;
+		d.min_range = ai.min_range;
+		d.max_range = building_arrow_range(b);
+		d.repeat_time = ai.repeat_time;
+		d.arrows = building_arrow_count(b);
+		float def = (float)ai.default_arrows;
+		float per_unit = ai.garrison_arrow_multiplier;
+		if (owned) {
+			const TechMods &m = tech_mods(b.team);
+			def = def * m.bld_arrow_mul[b.type] + m.bld_arrow_add[b.type];
+			per_unit *= m.bld_garrison_arrows[b.type];
+		}
+		d.default_arrows = (int)std::lround(def);
+		d.per_unit = per_unit;
+		if (b.garrison_cap > 0) {
+			int limit = d.default_arrows + (int)std::lround(per_unit * b.garrison_cap);
+			if (ai.max_arrows > 0) limit = std::min(limit, (int)ai.max_arrows);
+			d.projectile_limit = std::max(limit, 0);
+		}
+	}
+	if (b.garrison_cap > 0) d.heal = structure_garrison_heal(b);
+	if (owned) d.pop_bonus = structure_pop_bonus(b.type, b.team);
+	if (const TurretPointSet *t = turret_points_of(b)) d.turrets = t->count;
+	d.trickles = structure_trickle_rates(b, d.trickle);
+	return d;
+}
+
 float Simulation::building_arrow_range(const Building &b) const {
 	const BuildingAIInfo &ai = building_ai_info(b.type);
 	if (!ai.shoots()) return 0.0f;
@@ -13882,6 +13917,49 @@ Simulation::ResourceView Simulation::resources() const {
 	};
 }
 
+// ResourceTrickle.js: the Rates `b` adds to its owner every TRICKLE_STRUCTURE_INTERVAL seconds, after
+// its owner's technologies and global auras; false for a structure with no ResourceTrickle.
+bool Simulation::structure_trickle_rates(const Building &b, float rate[RES_COUNT]) const {
+	static constexpr uint8_t kTrickleRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	auto is_player_trickle = [](const TechEffect &e) {
+		return e.stat >= TSTAT_TRICKLE_FOOD && e.stat <= TSTAT_TRICKLE_METAL && e.affects_count == 0;
+	};
+	for (int r = 0; r < RES_COUNT; ++r) rate[r] = 0.0f;
+	if (b.team >= MAX_PLAYERS) return false;
+	if (b.type == BLD_WONDER) {
+		rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
+	} else if (b.type == BLD_ICE_HOUSE) {
+		rate[RES_FOOD] = 1.0f;
+	} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
+		// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
+		rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
+	} else if (b.type == BLD_TACHARA) {
+		// structures/pers/tachara.xml: every Rate 0, which modifiers can still raise.
+	} else {
+		return false;
+	}
+	const PlayerState &ps = players_[b.team];
+	const TechClasses classes = building_tech_classes(b.type);
+	for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+		if (!ps.has_tech(id)) continue;
+		const TechInfo &ti = tech_info(id);
+		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+		for (uint16_t k = 0; k < ti.effect_count; ++k) {
+			const TechEffect &e = fx[k];
+			if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || is_player_trickle(e)
+			    || !tech_effect_applies(e, classes)) continue;
+			float &v = rate[kTrickleRes[e.stat - TSTAT_TRICKLE_FOOD]];
+			v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
+		}
+	}
+	// Global auras with no classes (Macedonian Financial Reorganization, +1 metal) modify
+	// every owned ResourceTrickle that lists the resource: the wonder's and each tachara's
+	// Rates name all four; the ice house's names food only.
+	if (b.type != BLD_ICE_HOUSE)
+		for (int r = 0; r < RES_COUNT; ++r) rate[r] += tech_mods_[b.team].trickle_add[r];
+	return true;
+}
+
 void Simulation::tick_trickle(float dt) {
 	(void)dt;
 	// 0 A.D. ResourceTrickle.js: each trickling entity adds its Rates to its owner every
@@ -13938,42 +14016,13 @@ void Simulation::tick_trickle(float dt) {
 	// (Subterranean Aqueducts: ice houses +1 food). A corral's own rate is 0; each
 	// garrisoned animal adds 1, 2 or 3 food every 5 s by its size
 	// (corral_garrison_{small,medium,large}.json).
-	const bool two_s = due(2.0f), corral_due = due(CORRAL_TRICKLE_INTERVAL);
+	const bool two_s = due(TRICKLE_STRUCTURE_INTERVAL), corral_due = due(CORRAL_TRICKLE_INTERVAL);
 	if (two_s) {
 		for (const auto &b : buildings_) {
 			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			float rate[RES_COUNT] = {};
-			if (b.type == BLD_WONDER) {
-				rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
-			} else if (b.type == BLD_ICE_HOUSE) {
-				rate[RES_FOOD] = 1.0f;
-			} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
-				// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
-				rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
-			} else if (b.type == BLD_TACHARA) {
-				// structures/pers/tachara.xml: every Rate 0, which modifiers can still raise.
-			} else {
-				continue;
-			}
+			float rate[RES_COUNT];
+			if (!structure_trickle_rates(b, rate)) continue;
 			PlayerState &ps = players_[b.team];
-			const TechClasses classes = building_tech_classes(b.type);
-			for (uint8_t id = 1; id < TECH_COUNT; ++id) {
-				if (!ps.has_tech(id)) continue;
-				const TechInfo &ti = tech_info(id);
-				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
-				for (uint16_t k = 0; k < ti.effect_count; ++k) {
-					const TechEffect &e = fx[k];
-					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || is_player_trickle(e)
-					    || !tech_effect_applies(e, classes)) continue;
-					float &v = rate[kTrickleRes[e.stat - TSTAT_TRICKLE_FOOD]];
-					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
-				}
-			}
-			// Global auras with no classes (Macedonian Financial Reorganization, +1 metal) modify
-			// every owned ResourceTrickle that lists the resource: the wonder's and each tachara's
-			// Rates name all four; the ice house's names food only.
-			if (b.type != BLD_ICE_HOUSE)
-				for (int r = 0; r < RES_COUNT; ++r) rate[r] += tech_mods_[b.team].trickle_add[r];
 			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += rate[r];
 		}
 	}
