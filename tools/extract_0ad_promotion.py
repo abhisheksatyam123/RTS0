@@ -27,7 +27,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from extract_0ad_rosters import TemplateLoader, tech_class_bits, tech_enums  # noqa: E402
+from extract_0ad_rosters import TemplateLoader, tech_class_bits, tech_classes_literal, tech_enums  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_HEADER = os.path.join(REPO, "src", "simulation", "promotion_data.h")
@@ -158,7 +158,8 @@ def xp_tech_rows(sim_root):
         for m in tech.get("modifications", []):
             if m["value"] != "Promotion/RequiredXp":
                 continue
-            for aff in m.get("affects") or tech.get("affects") or [""]:
+            affects = m.get("affects") or tech.get("affects") or [""]
+            for aff in [affects] if isinstance(affects, str) else affects:  # wagon_trains: "Wagon"
                 toks = aff.split()
                 rank = sum(RANKS[t] for t in toks if t in RANKS)
                 need = [t for t in toks if not t.startswith("!") and t not in RANKS]
@@ -251,14 +252,14 @@ def emit(rows, starts, dropped, interim, advanced, elite, xp_techs):
     w("\tuint8_t tech;")
     w("\tfloat multiply;")
     w("\tbool replace_zero;")
-    w("\tuint64_t need;")
-    w("\tuint64_t forbid;")
+    w("\tTechClasses need;")
+    w("\tTechClasses forbid;")
     w("\tuint8_t rank;")
     w("};")
     w("")
     w("inline constexpr PromotionXpTech PROMOTION_XP_TECHS[] = {")
     for tech, mul, rep, need, forbid, rank in xp_techs:
-        w(f"\t{{{tech}, {f(mul)}, {'true' if rep else 'false'}, 0x{need:x}ull, 0x{forbid:x}ull, {rank}}},")
+        w(f"\t{{{tech}, {f(mul)}, {'true' if rep else 'false'}, {tech_classes_literal(need)}, {tech_classes_literal(forbid)}, {rank}}},")
     w("};")
     w("")
     w("} // namespace rtso")

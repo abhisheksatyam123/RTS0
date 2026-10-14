@@ -98,7 +98,7 @@ func run() -> void:
 	check(d.details.visible and d.labels.name.text == "E2E Continental"
 		and d.labels.preview.texture == load("res://scenes/menu/gamesetup.gd").map_preview("random_continental"), "the map and its preview")
 	check(d.labels.players.text == "2" and d.labels.time.text == "12:34" and d.labels.type.text == "Random"
-		and d.labels.size.text == "Medium" and d.labels.victory.text == "Conquest, Wonder",
+		and d.labels.size.text == "Normal" and d.labels.victory.text == "Conquest, Wonder",
 		"players, played time, type, size, victory: %s %s %s %s %s" % [d.labels.players.text, d.labels.time.text, d.labels.type.text, d.labels.size.text, d.labels.victory.text])
 	check(d.labels.version.text == "Save format: v%d" % v and d.players_text.get_parsed_text().contains("e2eAlpha (Athenians)"), "save format and players")
 

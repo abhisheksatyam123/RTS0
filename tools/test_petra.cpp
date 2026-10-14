@@ -556,13 +556,13 @@ static void test_attack_plans() {
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
-		// At 0 A.D.'s gather rates the HugeAttack starts mustering around minute 14-16 on this
-		// map; 20 min leaves room for map changes.
+		// At 0 A.D.'s gather rates the HugeAttack starts mustering around minute 14-27 on this
+		// map (later once traders take a market-dock route); 30 min leaves room for map changes.
 		// An army that razes the idle player finds it rebuilt, so every plan has a target.
 		float home_x = 0.0f, home_z = 0.0f;
 		for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { home_x = b.x; home_z = b.z; }
 		int step = 0;
-		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		for (float t = 0.0f; t < 30.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (++step % 200 == 0) {
 				bool any = false;
@@ -1103,6 +1103,39 @@ static void test_market_prospection() {
 	std::printf("  third market spot gain %d: %d markets\n", third == 1 ? gain : 0, markets);
 	CHECK((markets == 3) == (third == 1 && (gain >= 2 * routes.potential.gain || gain >= routes.potential.gain + 20)),
 	      "a third market only when it would double the route's gain");
+}
+
+// checkRoutes: docks are Trade markets too, so a market and a dock on one land make a land
+// route, priced for a land trader.
+static void test_market_dock_route() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float len = std::sqrt(tx * tx + tz * tz);
+	s->spawn_building_world(tx - tx / len * 50.0f, tz - tz / len * 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	run_for(*s, 2.0f);
+	s->petra_pid_ = 1;
+	s->players_[1].phase = 2;
+	const uint32_t market = s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 1.0f);
+	const uint32_t dock = s->spawn_building((int)((tx - tx / len * 45.0f) / Simulation::GRID), (int)((tz - tz / len * 45.0f + 10.0f) / Simulation::GRID),
+	                                        BLD_DOCK, 1, 1.0f);
+	CHECK(market && dock, "a market and a dock for AI 1");
+	Simulation::PetraTradeRoutes routes;
+	s->petra_check_routes(routes);
+	const Simulation::Building *m = nullptr, *d = nullptr;
+	for (const auto &b : s->buildings()) { if (b.id == market) m = &b; if (b.id == dock) d = &b; }
+	const int land_gain = s->trader_gain_at(m->x - d->x, m->z - d->z, 1, UNIT_TRADER);
+	std::printf("  market-dock route: gain %d (land trader %d, minimal %d), land %u\n", routes.potential.gain, land_gain,
+	            s->petra_trade_minimal_gain(), routes.potential.land);
+	CHECK(land_gain < s->petra_trade_minimal_gain() ||
+	      (routes.potential.land != 0 && routes.potential.gain == land_gain), "the market and the dock make a land route");
+	CHECK(land_gain >= s->petra_trade_minimal_gain(), "the test spots are far enough apart to pay");
 }
 
 static void test_civ_structures() {
@@ -3088,7 +3121,7 @@ static void test_emergency_units() {
 	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)];
 	bool infantry = false, unstarted_other = false;
 	for (const auto &o : cc->queue) {
-		const uint64_t cls = unit_tech_classes(o.unit_type);
+		const TechClasses cls = unit_tech_classes(o.unit_type);
 		if ((cls & TC_INFANTRY) && (cls & TC_CITIZENSOLDIER)) infantry = true;
 		else if (!o.started && o.timer <= 0.0f) unstarted_other = true;
 	}
@@ -3384,6 +3417,7 @@ int main() {
 	test_first_base();
 	test_barter();
 	test_market_prospection();
+	test_market_dock_route();
 	test_civ_structures();
 	test_emergency();
 	test_regicide_hero();
