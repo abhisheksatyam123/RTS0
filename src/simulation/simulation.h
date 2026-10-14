@@ -1996,6 +1996,7 @@ private:
 	bool chase_path_kept(size_t i) const;
 	bool chase_falls_short(size_t i) const;
 	bool walk_falls_short(size_t i) const;
+	void obstructed_long_path(size_t i, uint8_t failed);
 	void abandon_chase(size_t i);
 	void give_up_attack(size_t i);
 	void tick_gather(float dt);
