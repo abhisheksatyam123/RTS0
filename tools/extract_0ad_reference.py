@@ -186,6 +186,7 @@ def identity(t):
         "tooltip": t.value("Identity/Tooltip", "").strip(),
         "history": text_of(t, "Identity/History"),
         "classes": t.tokens("Identity/VisibleClasses"),
+        "icon": t.value("Identity/Icon", ""),
     }
 
 
@@ -225,6 +226,7 @@ def tech_text(path):
         "tooltip": j.get("tooltip", ""),
         "description": j.get("description", ""),
         "requirements_tooltip": j.get("requirementsTooltip", ""),
+        "icon": j.get("icon", ""),
     }
 
 
