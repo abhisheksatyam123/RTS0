@@ -1398,6 +1398,11 @@ void Simulation::rebuild_nav_grid() {
 				}
 		}
 	}
+	// Woods too thick to cross (forest_cell_closed).
+	update_forest_cells();
+	if (forest_cells_.size() == nav_grid_.cells.data.size())
+		for (size_t i = 0; i < forest_cells_.size(); ++i)
+			if (forest_cells_[i] && nav_grid_.cells.data[i] != NAV_WATER) nav_grid_.cells.data[i] = NAV_OBSTRUCTED;
 	// Gaia mines block pathfinding (template_gaia BlockPathfinding): the navcells their turned square
 	// (mine_footprint), grown by the default class clearance, covers whole. 0 A.D.'s navcells are 1 m,
 	// RTS0's 8 m, as wide as a small mine: a navcell a mine only partly covers stays open to long paths,
@@ -1998,6 +2003,131 @@ void Simulation::gaia_obstacles_near(float x, float z, float reach, std::vector<
 		if (std::fabs(o.x - x) <= reach + o.ext && std::fabs(o.z - z) <= reach + o.ext && gaia_obstacle_live(k))
 			out.push_back(o);
 	});
+}
+
+bool Simulation::gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const {
+	if (gaia_grid_.empty()) return false;
+	const nav::Vec2 pos(x, z), aim(ax, az), dir = aim - pos;
+	const float len = dir.length();
+	const nav::Vec2 end = len > reach ? pos + dir * (reach / len) : aim;
+	const float bx0 = std::min(x, end.x) - radius, bz0 = std::min(z, end.y) - radius;
+	const float bx1 = std::max(x, end.x) + radius, bz1 = std::max(z, end.y) + radius;
+	return gaia_grid_.any_in_box(bx0, bz0, bx1, bz1, [&](uint32_t k) {
+		const SteerObstacle &o = gaia_obstacles_[k];
+		if (o.x + o.ext < bx0 || o.x - o.ext > bx1 || o.z + o.ext < bz0 || o.z - o.ext > bz1) return false;
+		if (!nav::detail::is_steering_obstacle(o, pos, aim, radius, ignore, reach) || !gaia_obstacle_live(k)) return false;
+		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + radius, o.hv + radius);
+		return nav::PointIsInSquare(pos - c, u, v, half) || nav::TestRaySquare(pos - c, end - c, u, v, half);
+	});
+}
+
+// 0 A.D. rasterizes each tree's Obstruction/Static square, grown by the class clearance, onto 1 m
+// navcells (a navcell is blocked when its centre lies inside), so a wood of trees closer than
+// twice the clearance is a wall to long paths, and a sparse one is not. RTS0's navcells are
+// wider (2 world units, 8 m, on a Tiny map): each is split into cells of about 1 m (at most 8 x 8),
+// rasterized the same way with the default class clearance, and closed when no 4-connected run of
+// open cells joins two of its sides.
+bool Simulation::forest_cell_closed(int cx, int cy) const {
+	const float cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
+	const int N = std::clamp((int)std::lround(cell / 0.25f), 1, 8);
+	const float s = cell / (float)N;
+	const float x0 = -nav_grid_.map_half + (float)cx * cell, z0 = -nav_grid_.map_half + (float)cy * cell;
+	const float x1 = x0 + cell, z1 = z0 + cell, clr = CLEARANCE_DEFAULT;
+	uint64_t blocked = 0;
+	gaia_grid_.for_each_in_box(x0 - clr, z0 - clr, x1 + clr, z1 + clr, [&](uint32_t k) {
+		if (gaia_res_idx_[k] == UINT32_MAX || !gaia_obstacle_live(k)) return; // treasures don't close a wood
+		const SteerObstacle &o = gaia_obstacles_[k];
+		const float e = o.ext + clr;
+		if (o.x + e < x0 || o.x - e > x1 || o.z + e < z0 || o.z - e > z1) return;
+		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + clr, o.hv + clr);
+		const int i0 = std::max(0, (int)std::floor((o.x - e - x0) / s)), i1 = std::min(N - 1, (int)std::floor((o.x + e - x0) / s));
+		const int j0 = std::max(0, (int)std::floor((o.z - e - z0) / s)), j1 = std::min(N - 1, (int)std::floor((o.z + e - z0) / s));
+		for (int j = j0; j <= j1; ++j)
+			for (int i = i0; i <= i1; ++i)
+				if (nav::PointIsInSquare(nav::Vec2(x0 + ((float)i + 0.5f) * s, z0 + ((float)j + 0.5f) * s) - c, u, v, half))
+					blocked |= uint64_t{1} << (j * 8 + i);
+	});
+	if (!blocked) return false;
+	// Rows of 8 bits whatever N, so a shift by 1 or 8 moves one cell; the cells past N stay out.
+	constexpr uint64_t ROW_FIRST = 0x0101010101010101ull, ROW_LAST = ROW_FIRST << 7; // bit 0 and 7 of each row
+	const uint64_t row = (uint64_t{1} << N) - 1;
+	uint64_t all = 0, col0 = 0, coln = 0;
+	for (int j = 0; j < N; ++j) {
+		all |= row << (8 * j);
+		col0 |= uint64_t{1} << (8 * j);
+		coln |= uint64_t{1} << (8 * j + N - 1);
+	}
+	const uint64_t row0 = row, rown = row << (8 * (N - 1));
+	for (uint64_t open = all & ~blocked; open;) {
+		uint64_t comp = open & (~open + 1); // the lowest open cell, grown to its run
+		for (;;) {
+			const uint64_t g = (comp | ((comp << 1) & ~ROW_FIRST) | ((comp >> 1) & ~ROW_LAST) | (comp << 8) | (comp >> 8)) & open;
+			if (g == comp) break;
+			comp = g;
+		}
+		if (((comp & col0) != 0) + ((comp & coln) != 0) + ((comp & row0) != 0) + ((comp & rown) != 0) >= 2) return false;
+		open &= ~comp;
+	}
+	return true;
+}
+
+bool Simulation::update_forest_cells() {
+	ensure_gaia_obstacles();
+	if (nav_grid_.cells.blank()) return false;
+	const size_t cells = (size_t)nav_grid_.res * nav_grid_.res;
+	const uint64_t sig = forest_sig_of_gaia();
+	const bool removals_only = forest_removals_only_ && forest_cells_.size() == cells;
+	forest_removals_only_ = false;
+	if (sig == forest_sig_ && forest_cells_.size() == cells) return false;
+	forest_sig_ = sig;
+	if (removals_only) {
+		bool changed = false;
+		for (size_t c = 0; c < cells; ++c)
+			if (forest_cells_[c] && !forest_cell_closed((int)(c % nav_grid_.res), (int)(c / nav_grid_.res))) {
+				forest_cells_[c] = 0;
+				changed = true;
+			}
+		return changed;
+	}
+	thread_local std::vector<uint8_t> next;
+	next.assign(cells, 0);
+	const float clr = CLEARANCE_DEFAULT;
+	// Every navcell a tree or bush reaches into, once (2 marks it tested).
+	for (size_t k = 0; k < gaia_obstacles_.size(); ++k) {
+		if (gaia_res_idx_[k] == UINT32_MAX || !gaia_obstacle_live(k)) continue;
+		const SteerObstacle &o = gaia_obstacles_[k];
+		const float e = o.ext + clr;
+		const auto [ca, cb] = nav_grid_.world_to_cell(o.x - e, o.z - e);
+		const auto [cc, cd] = nav_grid_.world_to_cell(o.x + e, o.z + e);
+		for (int cy = cb; cy <= cd; ++cy)
+			for (int cx = ca; cx <= cc; ++cx) {
+				uint8_t &f = next[(size_t)cy * nav_grid_.res + cx];
+				if (f == 0) f = forest_cell_closed(cx, cy) ? 1 : 2;
+			}
+	}
+	for (uint8_t &f : next) f = f == 1;
+	if (next == forest_cells_) return false;
+	forest_cells_.swap(next);
+	return true;
+}
+
+bool Simulation::steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len, float radius, uint32_t ignore) const {
+	const nav::Vec2 to_aim = aim - pos;
+	const float len = to_aim.length();
+	if (len < 1e-3f) return false;
+	const nav::Vec2 end = len > max_len ? pos + to_aim * (max_len / len) : aim;
+	const float reach = std::min(len, max_len);
+	const nav::detail::SegmentBox box(pos, end, radius);
+	bool blocked = false, holds = false;
+	if (steer_grid_.size() == steer_obstacles_.size() &&
+			steer_grid_.for_each_in_box(box.x0 - box.radius, box.z0 - box.radius, box.x1 + box.radius, box.z1 + box.radius, [&](uint32_t k) {
+				const int hit = nav::detail::line_hit(steer_obstacles_[k], pos, end, aim, radius, ignore, reach, box);
+				holds = hit == nav::detail::LINE_HOLDS_POS;
+				blocked = blocked || hit == nav::detail::LINE_CROSSES;
+				return holds;
+			}))
+		return blocked && !holds;
+	return nav::line_blocked_by_buildings(pos, aim, max_len, radius, steer_obstacles_, ignore);
 }
 
 float Simulation::resource_block_half(size_t r) const {
@@ -8812,6 +8942,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		mixf(terrain_water_height_);
 		short_path_key_ = key ? key : 1u;
 	}
+	if (steer_grid_key_ != short_path_key_ || steer_grid_half_ != map_half_ || steer_grid_.size() != steer_obstacles_.size()) {
+		steer_grid_.build(steer_obstacles_, map_half_);
+		steer_grid_key_ = short_path_key_;
+		steer_grid_half_ = map_half_;
+	}
 
 	// UnitAI ESCORTING Timer: a guard within 3 guard ranges of the unit it guards walks no
 	// faster than that unit moves now (TryMatchTargetSpeed, mayRun false). Read before the
@@ -8922,9 +9057,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			const float gdx = wp.goal_x - tx[i];
 			const float gdz = wp.goal_z - tz[i];
 			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
-			if (!task_path && ((!closing_in && !ship && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
-					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_clearance_at(i),
-					steer_obstacles_, units_.target_building_id[i])) ||
+			if (!task_path && ((!closing_in && !ship && steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]),
+					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_clearance_at(i), units_.target_building_id[i])) ||
 					line_crosses_impassable(px[i], pz[i], tx[i], tz[i], ship ? unit_ship_pass(units_.unit_type[i]) : 0))) {
 				const uint8_t ut = units_.unit_type[i];
 				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
@@ -9177,10 +9311,15 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// further ones once it nears them.
 			thread_local std::vector<SteerObstacle> near_gaia;
 			near_gaia.clear();
-			if (!round_units) gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, near_gaia);
+			const float clear = unit_clearance_at(i);
 			if (round_units || rtso::nav::steer_around_obstacles(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
-					unit_clearance_at(i), steer_obstacles_, near_gaia, GAIA_STEER_REACH,
-					units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer)) {
+					clear, steer_obstacles_,
+					steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z), nav::BUILDING_STEER_RANGE, clear,
+							units_.target_building_id[i]),
+					near_gaia,
+					gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, units_.target_building_id[i]),
+					[&](std::vector<SteerObstacle> &out) { gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, out); },
+					GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer)) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
 				if (sdx * sdx + sdz * sdz > 1e-6f) {
@@ -10749,8 +10888,15 @@ void Simulation::tick_gather(float dt) {
 	}
 
 	bool mine_gone = false;
+	// Felling only opens woods: when the closed navcells were up to date, only they need testing again.
+	bool forest_current = false, removed = false;
 	for (size_t r = 0; r < resources_.count; ) {
 		if (resources_.amount[r] <= 0) {
+			if (!removed) {
+				removed = true;
+				ensure_gaia_obstacles();
+				forest_current = forest_sig_ == forest_sig_of_gaia() && forest_cells_.size() == (size_t)nav_grid_.res * nav_grid_.res;
+			}
 			nav::Footprint m;
 			mine_gone = mine_footprint(r, m) || mine_gone;
 			res_id_to_idx_.erase(resources_.id[r]);
@@ -10761,7 +10907,9 @@ void Simulation::tick_gather(float dt) {
 			++r;
 		}
 	}
-	if (mine_gone) rebuild_nav_grid(); // a worked-out mine no longer blocks paths
+	// A worked-out mine no longer blocks paths, nor a wood thinned enough to cross.
+	forest_removals_only_ = forest_current;
+	if (update_forest_cells() || mine_gone) rebuild_nav_grid();
 }
 
 // Foundation.js / Repairable.js CalculateBuildMultiplier: n builders at work
