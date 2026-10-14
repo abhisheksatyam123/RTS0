@@ -1491,6 +1491,31 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"third_macedonian_war": {
+			"keywords": [],
+			"settings": {
+				"LockTeams": true,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "rome",
+						"team": 1
+					},
+					{
+						"civ": "mace",
+						"team": 0
+					},
+					{
+						"civ": "athen",
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"treasure_islands": {
 			"keywords": [
 				"trigger",

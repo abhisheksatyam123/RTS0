@@ -7,6 +7,7 @@
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include "simulation/petra_chat.h"
+#include "simulation/rms_generator.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -55,6 +56,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_speed_selected", "id"), &RtsoMain::_on_speed_selected);
 	ClassDB::bind_method(D_METHOD("set_game_speed", "speed"), &RtsoMain::set_game_speed);
 	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
+	ClassDB::bind_method(D_METHOD("get_overlay_times"), &RtsoMain::get_overlay_times);
 	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
 	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
 	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
@@ -81,6 +83,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
 	ClassDB::bind_method(D_METHOD("_on_train_pressed", "utype"), &RtsoMain::_on_train_pressed);
 	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
+	ClassDB::bind_method(D_METHOD("_on_roster_gui_input", "event"), &RtsoMain::_on_roster_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "choice"), &RtsoMain::_on_upgrade_pressed);
@@ -902,6 +905,23 @@ void RtsoMain::_ready() {
 	}
 	ui_layer->add_child(pause_overlay_);
 
+	// gameStateNotifications: top right, under the data counter.
+	net_warnings_label_ = memnew(RichTextLabel);
+	net_warnings_label_->set_anchors_preset(Control::PRESET_TOP_RIGHT);
+	net_warnings_label_->set_offset(SIDE_LEFT, -420.0f);
+	net_warnings_label_->set_offset(SIDE_RIGHT, -15.0f);
+	net_warnings_label_->set_offset(SIDE_TOP, 40.0f);
+	net_warnings_label_->set_offset(SIDE_BOTTOM, 140.0f);
+	net_warnings_label_->set_use_bbcode(true);
+	net_warnings_label_->set_fit_content(true);
+	net_warnings_label_->set_scroll_active(false);
+	net_warnings_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	net_warnings_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+	net_warnings_label_->add_theme_constant_override("outline_size", 3);
+	net_warnings_label_->add_theme_font_size_override("normal_font_size", 13);
+	net_warnings_label_->set_visible(false);
+	ui_layer->add_child(net_warnings_label_);
+
 	// NetworkStatusOverlay.xml: the status text on sessionOverlayBackground,
 	// over the whole screen, with the disconnectedExitButton below it.
 	net_status_overlay_ = memnew(Control);
@@ -1185,6 +1205,8 @@ void RtsoMain::play_civ_voice(const char *action) {
 void RtsoMain::debug_gather_nearest() {
 	if (!sim || net_lockstep()) return;
 	std::vector<uint32_t> idle = sim->get_idle_workers(local_player());
+	if (idle.empty()) // no idle worker: the selection gathers (e2e_formation_options)
+		for (int i = 0; i < selected_ids.size(); ++i) idle.push_back((uint32_t)(int64_t)selected_ids[i]);
 	if (idle.empty()) return;
 	auto uv = sim->units();
 	float x = 0.0f, z = 0.0f;
@@ -1466,6 +1488,15 @@ Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 // Test hook: the selection, the selected structure's rally point, and every own
 // unit with its template, rank, idleness, whether it is a Civilian,
 // world position and screen position.
+// The top-right counters (user_settings.gd): match time, sim speed, ceasefire left.
+Dictionary RtsoMain::get_overlay_times() const {
+	Dictionary d;
+	d["elapsed"] = match_elapsed_time;
+	d["speed"] = game_speed;
+	d["ceasefire"] = sim ? sim->ceasefire_remaining() : 0.0f;
+	return d;
+}
+
 Dictionary RtsoMain::debug_selection_state() {
 	Dictionary d;
 	if (!sim) return d;
@@ -1483,6 +1514,7 @@ Dictionary RtsoMain::debug_selection_state() {
 		u["tmpl"] = (int64_t)uview.tmpl[i];
 		u["rank"] = (int64_t)uview.rank[i];
 		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
+		u["formation"] = (int64_t)sim->formation_of_unit(uview.id[i]);
 		u["idle"] = uview.action_state[i] == rtso::ACTION_IDLE;
 		const rtso::TechClasses tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
 				: rtso::unit_tech_classes(uview.unit_type[i]);
@@ -2040,7 +2072,7 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			// EndGameManager's, WonderVictory.js's and CaptureTheRelic.js's win lines.
 			static const char *kWhy[] = {"lost all critical units and structures", "lost all units", "lost all structures",
 					"lost all civic centers", "lost hero", "", "objective", "last players alive", "wonder victory",
-					"Capture the Relic", "game mode"};
+					"Capture the Relic", "game mode", "lost civic center"};
 			const String why = n.tech < sizeof(kWhy) / sizeof(kWhy[0]) ? String(kWhy[n.tech]) : String("game mode");
 			if (n.kind == N::DEFEATED) {
 				line = sprintf0(tr(n.tech == N::END_RESIGNED ? String("%(player)s has resigned.")
@@ -2069,10 +2101,12 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 // cursor shows what a right-click would do with the current selection.
 // unit_actions.js "unset-rallypoint" getActionInfo: the target is the selected
 // structure itself and it has a rally point.
-// unit_actions.js: right-clicking an enemy with a structure that shoots arrows selected
-// sends Commands.js "focus-fire" (BuildingAI.AddFocusTarget; Shift queues it) instead of
-// setting the rally point there. Lockstep command 50.
+// unit_actions.js "focus-fire": right-clicking an enemy while holding session.focusfire
+// (F) with a structure that shoots arrows selected sends Commands.js "focus-fire"
+// (BuildingAI.AddFocusTarget; Shift queues it) instead of setting the rally point
+// there. Without the hotkey the click sets the rally point, as in 0.28. Lockstep command 50.
 bool RtsoMain::try_focus_fire(const Vector3 &at) {
+	if (!rtso::hotkeys::held("session.focusfire")) return false;
 	const uint8_t me = local_player();
 	const auto bit = std::find_if(sim->buildings().begin(), sim->buildings().end(),
 			[&](const rtso::Simulation::Building &b) { return b.id == selected_building_id; });
@@ -2151,7 +2185,7 @@ void RtsoMain::update_cursor() {
 						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
 							const uint16_t tm = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
 							healer = healer || rtso::unit_is_healer(tm, uv.unit_type[i]);
-							builder = builder || rtso::unit_can_build(uv.unit_type[i], tm);
+							builder = builder || (rtso::unit_can_build(uv.unit_type[i], tm) && !sim->nonbuilder(uv.id[i]));
 							break;
 						}
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
@@ -2410,6 +2444,59 @@ void RtsoMain::_on_pause_overlay_pressed() {
 // the host is lost (messages.js handleNetStatusMessage) the match is over for
 // this client: dialogs close, the overlay says why (network.js
 // getDisconnectReason) and stays until Exit.
+void RtsoMain::update_net_warnings() {
+	if (!net_warnings_label_) return;
+	const uint64_t now = (uint64_t)Time::get_singleton()->get_ticks_msec();
+	const bool on = rtso::user_config::get_bool("overlay.netwarnings") && !net_disconnected_;
+	if (on && now - net_warnings_checked_ms_ >= 1000) {
+		net_warnings_checked_ms_ = now;
+		auto warn = [&](const std::string &guid, const String &text) { net_warnings_[guid] = {now, text}; };
+		const bool client = net_host_.getRole() == rtso::NetRole::Client;
+		if (client) {
+			// NetClient::CheckServerConnection.
+			const uint32_t silent = net_host_.hostSilentMs();
+			const uint32_t rtt = net_host_.getStats().rtt_ms;
+			if (silent > rtso::NETWORK_WARNING_TIMEOUT_MS)
+				warn("server", rtso::sprintf0(rtso::tr0("Losing connection to server (%(seconds)ss)"),
+						{{"seconds", String::num_int64((silent + 999) / 1000)}}));
+			else if (rtt > rtso::NETWORK_BAD_PING_MS)
+				warn("server", rtso::sprintf0(rtso::tr0("Bad connection to server (%(milliseconds)sms)"),
+						{{"milliseconds", String::num_int64(rtt)}}));
+		}
+		// NetServer::CheckClientConnections, as every client hears it
+		// (NMT_CLIENT_TIMEOUT, NMT_CLIENT_PERFORMANCE); not about ourselves.
+		const uint32_t me = client ? net_host_.getLocalPeerId() : 0;
+		for (const auto &e : net_host_.clientPerformance()) {
+			if (e.client == 0 || e.client == me) continue;
+			const std::string guid = rtso::peer_guid(e.client);
+			const String who = chat_user(String(guid.c_str()));
+			if (e.silent_ms > rtso::NETWORK_WARNING_TIMEOUT_MS)
+				warn(guid, rtso::sprintf0(rtso::tr0("%(player)s losing connection (%(seconds)ss)"),
+						{{"player", who}, {"seconds", String::num_int64((e.silent_ms + 999) / 1000)}}));
+			else if (e.rtt_ms > rtso::NETWORK_BAD_PING_MS)
+				warn(guid, rtso::sprintf0(rtso::tr0("Bad connection to %(player)s (%(milliseconds)sms)"),
+						{{"player", who}, {"milliseconds", String::num_int64(e.rtt_ms)}}));
+		}
+	}
+	// getNetworkWarnings: drop the old ones and those of clients gone.
+	String text;
+	for (auto it = net_warnings_.begin(); it != net_warnings_.end();) {
+		bool gone = it->first != "server";
+		for (const auto &e : net_host_.playerAssignment())
+			if (rtso::peer_guid(e.client) == it->first && e.status != rtso::PlayerAssignmentMsg::LEFT) gone = false;
+		if (!on || now > it->second.first + rtso::NETWORK_WARNING_SHOW_MS || gone) {
+			it = net_warnings_.erase(it);
+			continue;
+		}
+		++it;
+	}
+	if (net_warnings_.count("server")) text = net_warnings_["server"].second;
+	for (const auto &w : net_warnings_)
+		if (w.first != "server") text += String(text.is_empty() ? "" : "\n") + w.second.second;
+	net_warnings_label_->set_text("[right]" + text + "[/right]");
+	net_warnings_label_->set_visible(!text.is_empty());
+}
+
 void RtsoMain::update_net_status_overlay() {
 	if (net_disconnected_ || !net_status_overlay_) return;
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
@@ -2717,6 +2804,20 @@ void RtsoMain::_on_formation_selected(int formation) {
 
 void RtsoMain::_on_train_pressed(int utype) {
 	try_train_unit((rtso::UnitType)utype);
+}
+
+// input.js OnTrainMouseWheel: Shift+wheel over the trainable units changes the batch
+// size by 1 / gui.session.scrollbatchratio per notch.
+void RtsoMain::_on_roster_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || !rtso::hotkeys::held("session.batchtrain")) return;
+	const int dir = mb->get_button_index() == MOUSE_BUTTON_WHEEL_UP ? 1 : mb->get_button_index() == MOUSE_BUTTON_WHEEL_DOWN ? -1 : 0;
+	if (!dir) return;
+	const double ratio = rtso::user_config::get_number("gui.session.scrollbatchratio");
+	user_opts_.batch_scroll += dir / (float)(ratio > 0.0 ? ratio : 1.0);
+	if (!(user_opts_.batch_scroll >= 1.0f)) user_opts_.batch_scroll = 1.0f;
+	user_opts_.batch_size = std::max(1, (int)std::lround(user_opts_.batch_scroll));
+	if (command_panel_.roster_list()) command_panel_.roster_list()->accept_event();
 }
 
 void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) {
@@ -3063,7 +3164,13 @@ void RtsoMain::refresh_user_options() {
 	namespace uc = rtso::user_config;
 	if (user_opts_.generation == uc::generation()) return;
 	user_opts_.generation = uc::generation();
-	user_opts_.batch_size = std::clamp((int)uc::get_number("gui.session.batchtrainingsize"), 1, 20);
+	// input.js updateDefaultBatchSize: only a new default resets a scrolled batch.
+	const int batch_default = std::clamp((int)uc::get_number("gui.session.batchtrainingsize"), 1, 20);
+	if (batch_default != user_opts_.batch_default) {
+		user_opts_.batch_default = batch_default;
+		user_opts_.batch_scroll = (float)batch_default;
+		user_opts_.batch_size = batch_default;
+	}
 	user_opts_.wounded_fraction = (float)std::clamp(uc::get_number("gui.session.woundedunithotkeythreshold"), 0.0, 100.0) / 100.0f;
 	user_opts_.flare_time = (float)std::clamp(uc::get_number("gui.session.flarelifetime"), 0.0, 60.0);
 	user_opts_.drag_delta = (float)std::clamp(uc::get_number("gui.session.dragdelta"), 1.0, 200.0);
@@ -3211,6 +3318,7 @@ void RtsoMain::_process(double delta) {
 		}
 		if (net_game_started_) post_network_chat();
 		update_net_status_overlay();
+		update_net_warnings();
 		// 0 A.D. player list: who plays which player, who has left, who watches.
 		if (lobby_players && net_host_.playerAssignments() != players_shown_) {
 			players_shown_ = net_host_.playerAssignments();
@@ -4287,6 +4395,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	int h_res = (int)d.get("heightmap_res", 64);
 
 	sim->set_map_half(world_size * 0.5f);
+	// 0.28 ScriptSettings CircularMap ("circular", from port_0ad_maps.py); square when absent.
+	sim->set_circular_map((bool)d.get("circular", false));
 	sim->set_map_info(map_id.utf8().get_data(), name.utf8().get_data(), biome.utf8().get_data());
 
 	Array h_arr = d.get("heightmap", Array());
@@ -4432,9 +4542,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
-		// The map's own roster template when RTS0 has it ("spart/infantry_javelineer_b").
-		const uint16_t tmpl = u.has("template")
-				? rtso::civ_unit_template_by_id(String(u["template"]).utf8().get_data()) : rtso::CIV_UNIT_TEMPLATE_NONE;
+		// The map's own roster template when RTS0 has it ("spart/infantry_javelineer_b"); a
+		// skirmish map's skirmish/units/* becomes the owner's civ unit, or nothing.
+		uint16_t tmpl = rtso::CIV_UNIT_TEMPLATE_NONE;
+		if (u.has("template")) {
+			const CharString t = String(u["template"]).utf8();
+			const int replaced = rtso::skirmish_replace(sim->team_civ(team), t.get_data(), tmpl);
+			if (replaced < 0) continue;
+			if (!replaced) tmpl = rtso::civ_unit_template_by_id(t.get_data());
+		}
 		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
 			unit_ids[i] = sim->spawn_unit(ux, uz, team, (rtso::UnitType)rtso::civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
 			continue;
@@ -4646,6 +4762,7 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
+	d["net_warnings"] = net_warnings_label_ && net_warnings_label_->is_visible() ? net_warnings_label_->get_parsed_text() : String();
 	return d;
 }
 
@@ -5173,7 +5290,65 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_id = tid;
 	c.param = param;
 	if (spectating()) return; // observers and defeated players order nothing
+	if (ids && n && order_disbands_formation(cmd_type)) {
+		// 0 A.D. AutoFormation.getNull: with gui.session.formationwalkonly every order but
+		// walk and patrol carries the null formation, so the units leave their formations
+		// first (Commands.js GetFormationUnitAIs). Sent ahead in the same turn.
+		std::vector<uint32_t> formed;
+		for (const auto &fc : sim->formations())
+			for (uint32_t m : fc.members)
+				if (std::find(ids, ids + n, m) != ids + n) formed.push_back(m);
+		if (!formed.empty()) {
+			rtso::NetCommand leave;
+			leave.cmd_type = (uint8_t)rtso::NetCommandType::NET_CMD_FORMATION;
+			leave.entity_ids = std::move(formed);
+			leave.param = rtso::FORMATION_NONE;
+			turn_mgr_.post_local_command(leave);
+		}
+	}
 	turn_mgr_.post_local_command(c);
+}
+
+// 0 A.D. 0.28 [network]: the host's late-observer policy, observer limit and
+// observer lag (NetServer.cpp, NetServerTurnManager.cpp), and a watcher's
+// autocatchup (NetClientTurnManager). Read again at every Host and Join.
+void RtsoMain::apply_net_options() {
+	std::set<std::string> buddies;
+	std::istringstream list(rtso::user_config::get("lobby.buddies"));
+	for (std::string name; std::getline(list, name, ',');) {
+		for (char &c : name) c = (char)std::tolower((unsigned char)c);
+		if (!name.empty()) buddies.insert(name);
+	}
+	const std::string late = rtso::user_config::get("network.lateobservers");
+	turn_mgr_.set_late_observers(late == "buddies" ? rtso::TurnManager::LATE_OBSERVERS_BUDDIES
+			: late == "disabled" ? rtso::TurnManager::LATE_OBSERVERS_DISABLED : rtso::TurnManager::LATE_OBSERVERS_EVERYONE, buddies);
+	turn_mgr_.set_observer_limit(String(rtso::user_config::get("network.observerlimit").c_str()).to_int());
+	turn_mgr_.set_observer_max_lag(String(rtso::user_config::get("network.observermaxlag").c_str()).to_int());
+	turn_mgr_.set_auto_catch_up(rtso::user_config::get_bool("network.autocatchup"));
+}
+
+bool RtsoMain::order_disbands_formation(uint8_t cmd_type) const {
+	using T = rtso::NetCommandType;
+	switch ((T)cmd_type) {
+	case T::NET_CMD_ATTACK: case T::NET_CMD_GATHER: case T::NET_CMD_BUILD: case T::NET_CMD_ATTACK_MOVE:
+	case T::NET_CMD_GARRISON: case T::NET_CMD_ATTACK_BUILD: case T::NET_CMD_BUILD_REPAIR: case T::NET_CMD_HUNT:
+	case T::NET_CMD_BOARD: case T::NET_CMD_GUARD: case T::NET_CMD_HEAL: case T::NET_CMD_RETURN_RESOURCE:
+	case T::NET_CMD_SETUP_TRADE_ROUTE: case T::NET_CMD_CALL_TO_ARMS: case T::NET_CMD_BUILD_WALL:
+		return rtso::user_config::get_bool("gui.session.formationwalkonly");
+	default:
+		return false; // walk and patrol keep (or make) formations
+	}
+}
+
+std::vector<int32_t> RtsoMain::formation_mates(int32_t uid) const {
+	// selection.js addFormationMembers: with gui.session.selectformationasone a unit in a
+	// formation is selected with the whole formation, unless selection.singleselection is held.
+	if (sim && rtso::user_config::get_bool("gui.session.selectformationasone") &&
+			!rtso::hotkeys::held("selection.singleselection"))
+		for (const auto &fc : sim->formations())
+			if (std::find(fc.members.begin(), fc.members.end(), (uint32_t)uid) != fc.members.end())
+				return std::vector<int32_t>(fc.members.begin(), fc.members.end());
+	return {uid};
 }
 
 void RtsoMain::_on_lobby_host_pressed() {
@@ -5189,6 +5364,7 @@ void RtsoMain::_on_lobby_host_pressed() {
 	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);
+	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for Start (NMT_GAME_START) before any lockstep turn
 	net_setup_ = rtso::NetSetupState();
@@ -5540,6 +5716,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 1);
+	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for host's NMT_GAME_START before lockstep turns
 	net_setup_ = rtso::NetSetupState();

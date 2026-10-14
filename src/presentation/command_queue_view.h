@@ -19,6 +19,8 @@
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/theme.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/script.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/color.hpp>
@@ -32,6 +34,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <unordered_map>
 #include <vector>
 
 #include "../simulation/simulation.h"
@@ -99,6 +102,7 @@ public:
 		if (theme.is_valid()) roster_list_->set_theme(theme);
 		roster_list_->set_visible(false);
 		roster_list_->connect("item_clicked", Callable(owner_, "_on_roster_item_clicked"));
+		roster_list_->connect("gui_input", Callable(owner_, "_on_roster_gui_input"));
 		parent->add_child(roster_list_);
 
 		title_ = memnew(Label);
@@ -505,7 +509,7 @@ public:
 					for (size_t u = 0; u < uview.count; ++u) {
 						if (uview.id[u] == (uint32_t)selected_ids[i]) {
 							uint8_t ut = uview.unit_type[u];
-							if (rtso::unit_can_build(ut, uview.tmpl[u])) {
+							if (rtso::unit_can_build(ut, uview.tmpl[u]) && !sim->nonbuilder(uview.id[u])) {
 								has_worker = true;
 								break;
 							}
@@ -617,7 +621,7 @@ public:
 				// its getInfo would (any selected unit it applies to).
 				{
 					bool any_guarding = false, any_busy = false, any_work = false, any_fighter = false;
-					bool any_guard = false, any_can_add_guard = false, any_garrison = false;
+					bool any_guard = false, any_can_add_guard = false, any_garrison = false, any_deletable = false;
 					int passengers = 0;
 					for (int s = 0; s < selected_ids.size(); ++s) {
 						const uint32_t id = (uint32_t)selected_ids[s];
@@ -638,16 +642,18 @@ public:
 							any_can_add_guard = any_can_add_guard || (can_guard && !guarding);
 							any_garrison = any_garrison || !rtso::unit_is_ship(ut); // Garrisonable
 							if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
+							any_deletable = any_deletable || (ut != rtso::UNIT_CATAFALQUE && !sim->undeletable_unit(id)); // isUndeletable
 							break;
 						}
 					}
 					if (passengers > 0)
 						add_entity_command("unload-all", "Unload All", "session.unload",
 								"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, passengers);
-					add_entity_command("delete", "Delete", "session.kill",
-							String("Self-Destruct\nDestroy the selected entities.\nUse ") +
-									rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
-							"kill_small.png");
+					if (any_deletable)
+						add_entity_command("delete", "Delete", "session.kill",
+								String("Self-Destruct\nDestroy the selected entities.\nUse ") +
+										rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
+								"kill_small.png");
 					if (any_busy)
 						add_entity_command("stop", "Abort", "session.stop",
 								"Abort\nCancel the current orders for the selected units.", "stop.png");
@@ -810,9 +816,12 @@ private:
 		const uint64_t key = ((uint64_t)b->id << 32) | ((uint64_t)sim->ally_civ_mask(pid) << 12) |
 			(unlocks << 8) | ((uint64_t)(civ & 0x3F) << 2) | (uint64_t)(phase & 0x3);
 		// A changed option (gui.session.howtoshownames) rebuilds it too.
-		if (key == roster_list_key_ && roster_list_gen_ == rtso::user_config::generation()) return;
+		if (key == roster_list_key_ && roster_list_gen_ == rtso::user_config::generation() &&
+				roster_list_batch_ == host_->ui_batch_size())
+			return;
 		roster_list_key_ = key;
 		roster_list_gen_ = rtso::user_config::generation();
+		roster_list_batch_ = host_->ui_batch_size(); // Shift+wheel changes the batch line
 		roster_list_->clear();
 		// A corral trains its civ's animals (structures/<civ>/corral.xml Trainer/Entities);
 		// metadata ROSTER_ANIMAL | FaunaType tells the click handler to breed one.
@@ -957,8 +966,18 @@ private:
 				(int64_t)cost[rtso::RES_GOLD], (int64_t)u.pop_cost, (int64_t)std::ceil(u.train_time)};
 		const String cost_tip = rtso::cost_tooltip(unit_cost);
 		if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
-		tip += "\n" + rtso::label_details("Health:", String::num_int64((int64_t)u.hp));
-		if (u.attack_damage > 0.0f) tip += "\n" + rtso::label_details("Attack:", String::num(u.attack_damage, 1));
+		// Options' Detailed tooltips (showdetailedtooltips, off by default): health, attack,
+		// healer, resistance, garrison, turrets, projectiles, speed and dropsite, from the
+		// Template Viewer's lines (template_viewer.gd detailed_tooltip).
+		if (rtso::user_config::get_bool("showdetailedtooltips")) {
+			auto it = detailed_tips_.find(i);
+			if (it == detailed_tips_.end()) {
+				Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+				String lines = viewer.is_valid() ? (String)viewer->call("detailed_tooltip", (int)i) : String();
+				it = detailed_tips_.emplace(i, lines).first;
+			}
+			if (!it->second.is_empty()) tip += "\n" + it->second;
+		}
 		const String batch = rtso::batch_training_string(1, host_->ui_batch_size(), 0);
 		if (!batch.is_empty()) tip += "\n" + batch;
 		return idx;
@@ -1102,6 +1121,8 @@ private:
 	// roster_list_key_ changes so hover and tooltips survive between frames.
 	godot::ItemList *roster_list_ = nullptr;
 	uint64_t roster_list_key_ = ~0ull;
+	int roster_list_batch_ = 0; // the batch size the tooltips' batch line was built for
+	std::unordered_map<uint16_t, godot::String> detailed_tips_; // template -> detailed_tooltip()
 	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
 	uint32_t trainer_unit_id_ = 0;
 	RtsoProductionQueue production_queue_;

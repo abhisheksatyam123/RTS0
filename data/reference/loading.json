@@ -1,144 +1,487 @@
 {
-	"tips": {
-		"army_camp": {
-			"title": "ROMAN ARMY CAMP",
-			"lines": [
-				"Buildable in neutral or enemy territory. Good for building a secret base behind enemy lines or to consolidate gains within enemy territory.",
-				"Construct rams and train citizen soldiers.",
-				"Garrison units to slowly heal them and protect the army camp from attacks and decay."
+	"categories": [
+		{
+			"name": "Beginner",
+			"sp": 0.33,
+			"mp": 0.15,
+			"tips": [
+				"autoqueue",
+				"barracks",
+				"barter",
+				"batch_training",
+				"fruits",
+				"cavalry_stable",
+				"civic_center",
+				"defense_tower",
+				"dock",
+				"fishing",
+				"forge",
+				"fortress",
+				"gathering",
+				"outposts",
+				"palisades",
+				"resource_counter",
+				"spearmen",
+				"storehouse",
+				"temple",
+				"town_bell",
+				"trading",
+				"treasure"
 			]
 		},
+		{
+			"name": "Intermediate",
+			"sp": 0.33,
+			"mp": 0.25,
+			"tips": [
+				"arrow_ship",
+				"biomes",
+				"battering_rams",
+				"briton_war_dog",
+				"bolt_shooters",
+				"catapults",
+				"city_walls",
+				"elephant_stable",
+				"embassies",
+				"experience",
+				"idle_units",
+				"formations",
+				"heroes",
+				"loot",
+				"map_flare",
+				"pikemen",
+				"queue_orders",
+				"ramming_ship",
+				"savanna_biome",
+				"siege_ship",
+				"siege_tower",
+				"snapping",
+				"territory_decay",
+				"territory_extend",
+				"theater",
+				"war_elephants",
+				"wonder"
+			]
+		},
+		{
+			"name": "Advanced",
+			"sp": 0.33,
+			"mp": 0.3,
+			"tips": [
+				"army_camp",
+				"building_control",
+				"carth_sacred_band",
+				"carth_shipyard",
+				"celtic_war_barge",
+				"control_groups",
+				"default_formation",
+				"tributes",
+				"diplomacy_colors",
+				"fire_ship",
+				"freehand_position",
+				"lighthouse",
+				"mauryan_worker_elephant",
+				"meroe_pyramids",
+				"nomad_mode",
+				"order_one_unit",
+				"persian_architecture",
+				"resource_lost",
+				"select_wounded_units",
+				"shrine",
+				"spartan_hoplites",
+				"syntagma",
+				"whales"
+			]
+		},
+		{
+			"name": "Multiplayer",
+			"sp": 0.0,
+			"mp": 0.3,
+			"tips": [
+				"dont_cheat",
+				"password_safety",
+				"report_violations",
+				"stay_friendly",
+				"prevent_phishing",
+				"unauthorized_software"
+			]
+		}
+	],
+	"tips": {
 		"autoqueue": {
 			"title": "AUTOQUEUE",
 			"lines": [
 				"Enable the autoqueue feature to automatically train units.",
 				"Works as long as you have enough resources, then it will stop."
+			],
+			"images": [
+				"autoqueue.png"
 			]
 		},
 		"barracks": {
 			"title": "BARRACKS",
 			"lines": [
-				"Train all citizen soldiers. Some civilizations can unlock the training of champions as well.",
-				"Units gain experience while garrisoned inside the building.",
-				"Build one early to train citizen soldiers while you phase up your settlement.",
-				"Build in a forward base to resupply your assault with fresh troops."
+				"Trains all Citizen Infantry. Some civilizations can unlock the training of Champions in it as well.",
+				"Units gain experience while garrisoned inside.",
+				"Build one early to train Citizen Soldiers while you phase up your settlement.",
+				"Build near the front lines to resupply your assault with fresh troops."
+			],
+			"images": [
+				"barracks.png"
 			]
 		},
-		"biomes": {
-			"title": "BIOMES",
+		"barter": {
+			"title": "BARTER",
 			"lines": [
-				"Biomes can be used on some random maps and determine which region of the world the map represents.",
-				"They influence the appearence of the maps and also the amount of resources that are available."
+				"At the Market structure, a player can exchange a resource for another of a different type.",
+				"Rates are affected globally by all players. Turn this into an advantage by checking prices regularly."
+			],
+			"images": [
+				"barter.png"
 			]
 		},
-		"briton_war_dog": {
-			"title": "WAR DOG",
+		"batch_training": {
+			"title": "BATCH TRAINING",
 			"lines": [
-				"A dog that the Britons can train at the cavalry stable.",
-				"Has low health, but is fast and will fearlessly attack enemies.",
-				"Use them as support in your army or for quick raids."
+				"Hold down the 'Batch Production' hotkey (by default SHIFT) while left-clicking on the desired unit on the training panel.",
+				"Left-click repeatedly to add the same number of units to the batch every time.",
+				"Customize the default batch size in the game options or scroll on the mousewheel while pressing the said hotkey to temporarily adjust it during a game.",
+				"Combine with the autoqueue for maximum efficiency."
+			],
+			"images": [
+				"batch_training.png"
 			]
 		},
-		"carth_sacred_band": {
-			"title": "CARTHAGINIAN SACRED BAND",
+		"fruits": {
+			"title": "FRUITS",
 			"lines": [
-				"Champion Spearmen and Champion Cavalry Spearmen for Carthage.",
-				"Both are trainable from the Temple, instead of the Fortress like most other champions.",
-				"Use the Spearmen as heavy infantry against cavalry. Use the Cavalry as heavy shock against siege weapons and skirmishers."
-			]
-		},
-		"carth_shipyard": {
-			"title": "CARTHAGINIAN NAVAL SHIPYARD",
-			"lines": [
-				"Special dock of the Carthaginians to construct warships.",
-				"Garrison ships inside to slowly repair them.",
-				"Much stronger than other docks, but also more expensive."
-			]
-		},
-		"catapults": {
-			"title": "CATAPULTS",
-			"lines": [
-				"Ranged siege engines that are good against structures.",
-				"Expensive and slow.",
-				"Pack up into carts for movement, and unpack into stationary engines for attack!"
+				"Apples, bananas, grapes, dates, and more...",
+				"Grow on specific bushes and trees found on nearly all maps and count towards the resource 'food'.",
+				"Are collected quickly and even slowly regrow over time as long as not fully depleted. But are usually only available in very small quantities.",
+				"Expert tip: For maximum yield, distribute your Workers evenly when collecting a patch."
+			],
+			"images": [
+				"bananas.png",
+				"berries.png",
+				"dates.png",
+				"grapes.png"
 			]
 		},
 		"cavalry_stable": {
 			"title": "CAVALRY STABLE",
 			"lines": [
-				"Trains cavalry units and lets you research cavalry specific technologies.",
+				"Trains Cavalry Units and lets you research cavalry-specific technologies.",
 				"Units gain experience while garrisoned inside the structure."
+			],
+			"images": [
+				"cavalry_stable.png"
 			]
 		},
-		"celtic_war_barge": {
-			"title": "CELTIC HEAVY ARROW SHIP",
-			"lines": [
-				"The main warship for the Britons, Gauls, and Iberians.",
-				"Can transport up to 40 units.",
-				"Can be improved with greater health and garrison capacity."
-			]
-		},
-		"city_walls": {
-			"title": "CITY WALLS",
-			"lines": [
-				"Strong stone walls that help you protect your city.",
-				"When your ranged infantry units are occupying the turrets, they have additional armor and can shoot at the enemy.",
-				"Vulnerable to siege weapons like catapults, rams and war elephants."
-			]
-		},
-		"civic_centres": {
-			"title": "CIVIC CENTERS",
+		"civic_center": {
+			"title": "CIVIC CENTER",
 			"lines": [
 				"The foundation of your new colony.",
-				"Claim large tracts of territory.",
-				"Can be built in friendly and neutral territory.",
-				"Train citizens: female citizens, infantry citizen-soldiers, and cavalry citizen-soldiers."
+				"Claim large tracts of land by building them in previously unclaimed territory.",
+				"Trains all Workers: Civilians, Citizen Infantry, and Citizen Cavalry."
+			],
+			"images": [
+				"civic_center.png"
 			]
 		},
-		"default_formation": {
-			"title": "DEFAULT FORMATION",
+		"defense_tower": {
+			"title": "DEFENSE TOWER",
 			"lines": [
-				"Right-click an icon to set the default formation: units that are ordered to walk or patrol will automatically use it.",
-				"Can be de-activated by choosing “no formation” as the default.",
-				"The “Formation control” option lets you choose whether formations disband for orders other than walking or patrolling."
+				"Defend a vulnerable position by building these strong watchtowers.",
+				"Has a large vision range and shoots arrows at any enemy in sight.",
+				"Garrison Infantry inside to increase its firepower."
+			],
+			"images": [
+				"defense_tower.png"
 			]
 		},
-		"defense_towers": {
-			"title": "DEFENSE TOWERS",
+		"dock": {
+			"title": "DOCK",
 			"lines": [
-				"Strong watchtowers, which help you defend your position.",
-				"They have a large vision range and will shoot arrows at the enemy in sight.",
-				"You can garrison more infantry inside them to increase the number of arrows they shoot."
-			]
-		},
-		"elephant_stable": {
-			"title": "ELEPHANT STABLE",
-			"lines": [
-				"The structure is available to some civilizations to train elephant units.",
-				"Units gain experience while garrisoned inside the building."
-			]
-		},
-		"embassies": {
-			"title": "EMBASSIES AND MERCENARY CAMPS",
-			"lines": [
-				"Special structures allowing you to hire mercenaries for your army.",
-				"Mercenaries will not gather resources and cost only metal, but they are experienced and strong."
+				"Buildable in neutral and allied territory.",
+				"Constructs various Ships for economic and military needs.",
+				"Also serves as a resource dropsite.",
+				"Can be set up as a trade point for both naval and land Traders."
+			],
+			"images": [
+				"dock.png"
 			]
 		},
 		"fishing": {
 			"title": "FISHING",
 			"lines": [
 				"Fish the seas for a bountiful harvest.",
-				"Fishing boats carry a large amount of food per trip.",
-				"Fishing is faster than gathering food on fields.",
+				"Fishing boats can carry a large amount of food and gather faster than Workers on fields.",
 				"Careful! Fish are not an infinite resource! Although they do slowly repopulate when left alone."
+			],
+			"images": [
+				"fishing.png"
 			]
 		},
 		"forge": {
 			"title": "FORGE",
 			"lines": [
-				"Research structure for all factions.",
-				"Research weapon and armor upgrades for your units."
+				"Research structure for all civilizations.",
+				"Provides valuable weapon and armor upgrades for your units."
+			],
+			"images": [
+				"forge_iber.png",
+				"forge_maur.png",
+				"forge_rome.png"
+			]
+		},
+		"fortress": {
+			"title": "FORTRESS",
+			"lines": [
+				"Usually the strongest structure of a civilization.",
+				"Garrison soldiers inside to add more firepower to its defense."
+			],
+			"images": [
+				"fortress_han.png",
+				"fortress_iber.png",
+				"fortress_maur.png"
+			]
+		},
+		"gathering": {
+			"title": "RESOURCE GATHERING",
+			"lines": [
+				"Use Workers to gather resources.",
+				"Civilians are best at gathering fruit and grain.",
+				"Citizen Infantry excel at gathering wood, stone, and metal.",
+				"Citizen Cavalry can only gather meat, but do so very quickly."
+			],
+			"images": [
+				"gathering.png"
+			]
+		},
+		"outposts": {
+			"title": "OUTPOSTS",
+			"lines": [
+				"Build in neutral or own territory to monitor large areas of the map.",
+				"Cheap and quickly built, but weak and easily captured.",
+				"Garrison Infantry to extend the vision range, and to prevent losing control over it due to territory decay."
+			],
+			"images": [
+				"outposts.png"
+			]
+		},
+		"palisades": {
+			"title": "PALISADE WALLS",
+			"lines": [
+				"A quick, cheap wooden wall for moderate defense.",
+				"Available to most civilizations in Village Phase."
+			],
+			"images": [
+				"palisades.png"
+			]
+		},
+		"resource_counter": {
+			"title": "RESOURCE COUNTER",
+			"lines": [
+				"Located in the top left corner of the screen.",
+				"Keep tabs on how much of each resource you've stockpiled in your treasury and how many units are currently gathering them.",
+				"Keep an eye on it while playing to avoid running out in crucial moments."
+			],
+			"images": [
+				"resource_counter.png"
+			]
+		},
+		"spearmen": {
+			"title": "SPEARMEN",
+			"lines": [
+				"The basic Melee Infantry available to every civilization in the game.",
+				"Use against Cavalry for an attack bonus.",
+				"Decent melee hack damage makes them good front line troops.",
+				"Countered by ranged units and Swordsmen, so support your Spearmen with those or Cavalry yourself."
+			],
+			"images": [
+				"spearmen.png"
+			]
+		},
+		"storehouse": {
+			"title": "STOREHOUSE",
+			"lines": [
+				"A cheap dropsite for non-food resources (wood, stone, and metal).",
+				"Research technologies to improve the gathering rates of your Workers."
+			],
+			"images": [
+				"storehouse_1.png",
+				"storehouse_2.png"
+			]
+		},
+		"temple": {
+			"title": "TEMPLE",
+			"lines": [
+				"Town Phase structure available to all civilizations.",
+				"Trains Healers to heal your troops on the battlefield.",
+				"Offers a series of helpful healing technologies.",
+				"Its aura heals nearby units.",
+				"Garrison wounded units inside for even quicker healing."
+			],
+			"images": [
+				"temple_gaul.png",
+				"temple_greek.png",
+				"temple_pers.png"
+			]
+		},
+		"town_bell": {
+			"title": "TOWN BELL",
+			"lines": [
+				"When under attack use the gold bell to notify Civilians to garrison in structures.",
+				"Use the silver bell to notify units to return to work.",
+				"The bell is available in Civic Centers and Dropsites."
+			],
+			"images": [
+				"town_bell.png"
+			]
+		},
+		"trading": {
+			"title": "TRADING",
+			"lines": [
+				"Train Traders for trading on land at the Market and Merchantmen for seaborne trade at the Dock.",
+				"Create a trade route by selecting a Trader or Merchantman and right-clicking on two trade points (Dock or Market). Longer distances yield more profits!",
+				"Open the \"Barter & Trade\" dialog next to the menu in the top right corner to set how much of each resource type you want to trade for."
+			],
+			"images": [
+				"trading.png"
+			]
+		},
+		"treasure": {
+			"title": "TREASURES",
+			"lines": [
+				"Collectible chests, bare resources on land, and shipwrecks in the sea.",
+				"Provide you with an instant resource boost, so keep an eye out for them as you explore."
+			],
+			"images": [
+				"treasure.png"
+			]
+		},
+		"arrow_ship": {
+			"title": "ARROW SHIPS",
+			"lines": [
+				"The basic Warship for most civilizations.",
+				"Transports up to 30 troops across the water.",
+				"Good against melee Warships, such as Ramming Ships and Fire Ships.",
+				"Countered by Siege Ships and other Arrow Ships."
+			],
+			"images": [
+				"arrow_ship.png"
+			]
+		},
+		"biomes": {
+			"title": "BIOMES",
+			"lines": [
+				"Biomes can be used on some random maps to determine which region of the world the map represents.",
+				"They influence the appearance of the maps and also the available amount of different resources."
+			],
+			"images": [
+				"biomes.png"
+			]
+		},
+		"battering_rams": {
+			"title": "BATTERING RAMS",
+			"lines": [
+				"Heavy Siege Engines designed to breach fortifications.",
+				"Bulky and slow, but deal devastating amounts of Crush damage.",
+				"Garrison soldiers inside for a speed boost and to transport them under cover of enemy fire.",
+				"Almost invincible against arrows, but countered by Swordsmen and Catapults."
+			],
+			"images": [
+				"battering_rams_athen.png",
+				"battering_rams_kush.png"
+			]
+		},
+		"briton_war_dog": {
+			"title": "WAR DOG",
+			"lines": [
+				"A unique dog unit that the Britons can train at the Cavalry Stable.",
+				"Has low health, but is fast and will fearlessly attack enemies.",
+				"Cannot capture or destroy structures.",
+				"Use them as support in your army or for quick raids."
+			],
+			"images": [
+				"briton_war_dog.png"
+			]
+		},
+		"bolt_shooters": {
+			"title": "BOLT SHOOTERS",
+			"lines": [
+				"Long-ranged Siege Engines effective against units.",
+				"Expensive and slow, but deal the most Pierce damage in the game.",
+				"Can be destroyed easily, so always keep some guards around them.",
+				"Use them to shatter tight infantry formations and to defend terrain choke points."
+			],
+			"images": [
+				"polybolos.png",
+				"scorpio.png"
+			]
+		},
+		"catapults": {
+			"title": "CATAPULTS",
+			"lines": [
+				"Long-ranged Siege Engines.",
+				"Devastating against structures, but also expensive and slow.",
+				"Pack up into carts for movement, and unpack into stationary engines for attack!"
+			],
+			"images": [
+				"catapults.png"
+			]
+		},
+		"city_walls": {
+			"title": "CITY WALLS",
+			"lines": [
+				"Strong stone walls that help you protect your city.",
+				"Occupy the turrets with Ranged Infantry for increased defense and greater vision range.",
+				"Knock them down with Siege Engines like Catapults, Battering Rams, or War Elephants."
+			],
+			"images": [
+				"city_walls.png"
+			]
+		},
+		"elephant_stable": {
+			"title": "ELEPHANT STABLE",
+			"lines": [
+				"Available to some civilizations to train Elephants.",
+				"Units gain experience while garrisoned inside."
+			],
+			"images": [
+				"elephant_stable.png"
+			]
+		},
+		"embassies": {
+			"title": "EMBASSIES AND MERCENARY CAMPS",
+			"lines": [
+				"Special structures allowing you to hire Mercenaries for your army.",
+				"Mercenaries cannot gather resources, but only cost metal, are trained quickly, and start at Advanced rank."
+			],
+			"images": [
+				"embassies.png"
+			]
+		},
+		"experience": {
+			"title": "EXPERIENCE AND RANKS",
+			"lines": [
+				"Soldiers gain experience while fighting or being garrisoned in their training facility.",
+				"Experience progresses them through a set of ranks, \"Basic\" => \"Advanced\" => \"Elite\", displayed by an icon above their healthbar.",
+				"Higher ranks increase a unit's damage and resistance, but lower its gather rates.",
+				"As they advance, they even change their visual appearance too - i.e. upgrading their equipment!"
+			],
+			"images": [
+				"ranks_pers.png",
+				"ranks_han.png"
+			]
+		},
+		"idle_units": {
+			"title": "SELECT IDLE UNITS",
+			"lines": [
+				"Hold down the idle units hotkey ('I' by default) and drag to select only idle units."
+			],
+			"images": [
+				"idle_units.png"
 			]
 		},
 		"formations": {
@@ -146,31 +489,9 @@
 			"lines": [
 				"Arrange your soldiers in formations to keep them organized during battles.",
 				"Formations are selected as a whole by default, but that can be changed in the game settings."
-			]
-		},
-		"fortress": {
-			"title": "FORTRESS",
-			"lines": [
-				"Usually the strongest structure of a civilization and the place where you can train Heroes.",
-				"Garrison soldiers inside to add more firepower to its defense."
-			]
-		},
-		"freehand_position": {
-			"title": "FREEHAND POSITION",
-			"lines": [
-				"Gain an advantage on the battleground by tactically positioning your units!",
-				"Therefore select some units, press and hold the right mouse button, draw any line, then release the button.",
-				"Your units will now spread out on this line."
-			]
-		},
-		"gathering": {
-			"title": "RESOURCE GATHERING",
-			"lines": [
-				"Use citizen-soldiers and female citizens to gather resources.",
-				"Female citizens gather vegetable resources faster.",
-				"Infantry citizen-soldiers are faster gathering minerals.",
-				"Cavalry citizen-soldiers are faster gathering meat.",
-				"The higher the level of a citizen-soldier (advanced, elite), the better he fights, but the less efficient he is at gathering resources."
+			],
+			"images": [
+				"formations.png"
 			]
 		},
 		"heroes": {
@@ -180,92 +501,62 @@
 				"A lot of health and very strong attacks.",
 				"Have auras which alter the stats of other units or structures.",
 				"Caution: Each hero can be recruited only once per match!"
+			],
+			"images": [
+				"heroes.png"
 			]
 		},
-		"iber_fireship": {
-			"title": "FIRESHIPS",
+		"loot": {
+			"title": "LOOT",
 			"lines": [
-				"Available to the Britons, Gauls, and Iberians.",
-				"Construct them, move them near enemy ships, then ignite them to set them ablaze.",
-				"They cause Fire damage to nearby enemy ships and themselves start to lose health.",
-				"Very good against Siege Ships."
-			]
-		},
-		"lighthouse": {
-			"title": "LIGHTHOUSE",
-			"lines": [
-				"Special Ptolemaic structures to increase your vision range when built on the shore."
+				"When you kill units or destroy structures, you will gain a certain number of resources, plus what they are carrying."
+			],
+			"images": [
+				"loot.png"
 			]
 		},
 		"map_flare": {
 			"title": "MAP FLARE",
 			"lines": [
 				"Use this feature to let your team know where on the map something important happens.",
-				"They will see the flare on their minimap."
-			]
-		},
-		"meroe_pyramids": {
-			"title": "PYRAMIDS OF MEROË",
-			"lines": [
-				"Special structures available for the Kushites.",
-				"The small pyramids improve the gathering rate of the workers around them.",
-				"The large pyramids increase the military capabilities of soldiers around them."
-			]
-		},
-		"outposts": {
-			"title": "OUTPOSTS",
-			"lines": [
-				"Build in neutral or own territory.",
-				"Cheap and quickly built, but weak.",
-				"Garrison infantry for extensive vision, and to prevent losing control of the outpost due to territory decay."
-			]
-		},
-		"palisades": {
-			"title": "PALISADE WALLS",
-			"lines": [
-				"A quick, cheap wooden wall available to all factions.",
-				"Most factions have access to them in Village Phase."
-			]
-		},
-		"persian_architecture": {
-			"title": "ACHAEMENID ARCHITECTURE",
-			"lines": [
-				"Special technology for the Persians.",
-				"Structures +25% health.",
-				"Build time lengthened by +20% as a consequence.",
-				"Persians also have access to a great number of structural and defensive technologies."
+				"They will also see the flare on their minimap."
+			],
+			"images": [
+				"map_flare.png"
 			]
 		},
 		"pikemen": {
 			"title": "PIKEMEN",
 			"lines": [
-				"Heavily armored and slow. Low attack.",
-				"Used against cavalry or against other melee infantry to pin them in place.",
-				"Available to: Kushites, Macedonians, Ptolemies, and Seleucids."
+				"Available to the Kushites, Macedonians, Ptolemies, and Seleucids.",
+				"Heavily armored, but low attack damage.",
+				"Use against Cavalry or against other Melee Infantry to pin them in place."
+			],
+			"images": [
+				"pikemen.png"
 			]
 		},
-		"quinquereme": {
-			"title": "SIEGE WARSHIP",
+		"queue_orders": {
+			"title": "QUEUE ORDERS",
 			"lines": [
-				"The heaviest standard warship. Available to: Carthaginians, Ptolemies, Romans, Seleucids, and Han Chinese.",
-				"Strong crush damage and long range make them good against Arrow Ships and Buildings near the shore.",
-				"Countered by melee ships, such as Ramming Ships and Fire Ships, and other Siege Ships."
+				"While holding the “Queue order” hotkey (by default SHIFT), queue multiple tasks for units by right-clicking.",
+				"Once a task is done they will automatically execute their next task.",
+				"The queue will be reset if the unit receives a manual order."
+			],
+			"images": [
+				"queue_orders.png"
 			]
 		},
-		"ramming_ships": {
-			"title": "RAMMING SHIPS",
+		"ramming_ship": {
+			"title": "RAMMING SHIP",
 			"lines": [
-				"A strong and fast melee ship available to Mediterranean civilizations.",
-				"Transport up to 30 troops swiftly across the water.",
-				"Good against Siege Ships due to speed and strong ramming attack.",
+				"Strong and fast melee ship available to Mediterranean civilizations.",
+				"Transports up to 30 troops swiftly across the water.",
+				"Good against Siege Ships due to its speed and strong ramming attack.",
 				"Countered by Arrow Ships and Defense Towers."
-			]
-		},
-		"resource_counter": {
-			"title": "RESOURCE COUNTER",
-			"lines": [
-				"The resource counter panel shows you how much of each resources you have at the moment.",
-				"The number below it shows you how many citizens are currently gathering them."
+			],
+			"images": [
+				"ramming_ship.png"
 			]
 		},
 		"savanna_biome": {
@@ -274,7 +565,304 @@
 				"Generally flat, with a few watering holes and rocky outcrops.",
 				"Chock full of herd animals for plentiful hunting.",
 				"Rich in all types of mining.",
-				"Wood tends to be sparse, but consists of high-yield Baobab trees."
+				"Trees tend to be sparse, but include high-yield Baobab trees."
+			],
+			"images": [
+				"savanna_biome.png"
+			]
+		},
+		"siege_ship": {
+			"title": "SIEGE WARSHIP",
+			"lines": [
+				"The heaviest standard warship. Available to the Carthaginians, Ptolemies, Romans, Seleucids, and Han Chinese.",
+				"Strong crush damage and long range make it good against Arrow Ships and structures near the shore.",
+				"Countered by melee ships, such as Ramming Ships and Fire Ships, and other Siege Ships."
+			],
+			"images": [
+				"siege_ship.png"
+			]
+		},
+		"siege_tower": {
+			"title": "SIEGE TOWER",
+			"lines": [
+				"A mobile tower that shoots projectiles at any enemy in sight.",
+				"An empty siege tower fires no projectiles. Garrison up to 10 units to maximize firepower.",
+				"Up to 10 additional units can be garrisoned for protection, but they do not increase firepower.",
+				"Countered by Rams and Cavalry Swordsmen.",
+				"Available to the Han, Macedonians, Ptolemies, and Seleucids."
+			],
+			"images": [
+				"siege_tower.png"
+			]
+		},
+		"snapping": {
+			"title": "SNAPPING",
+			"lines": [
+				"Align structures by keeping the snap hotkey pressed during placement.",
+				"Conserves space for future construction, and comes in useful for obstructing raiding enemies."
+			],
+			"images": [
+				"snapping.png"
+			]
+		},
+		"territory_decay": {
+			"title": "TERRITORY DECAY",
+			"lines": [
+				"Structures too far off an allied territory root (usually a Civic Center) gradually lose capture points.",
+				"Slow down or reverse the decay process by garrisoning some units in the structure.",
+				"When the decay is completed, the structure will be given to the player owning the closest territory root or Gaia."
+			],
+			"images": [
+				"territory_decay.png"
+			]
+		},
+		"territory_extend": {
+			"title": "EXTEND TERRITORY",
+			"lines": [
+				"Build at the edge of your territory to reach resources slightly out of range.",
+				"Be careful though, since structures further from your Civic Center are more difficult to defend."
+			],
+			"images": [
+				"territory_extend.png"
+			]
+		},
+		"theater": {
+			"title": "THEATER",
+			"lines": [
+				"Special structures of the Hellenic civilizations to increase the size of your territory while you control it."
+			],
+			"images": [
+				"theater.png"
+			]
+		},
+		"war_elephants": {
+			"title": "WAR ELEPHANTS",
+			"lines": [
+				"Available to the Carthaginians, Kushites, Mauryas, Persians, Ptolemies, and Seleucids.",
+				"Huge beasts from Africa and India, trained for war.",
+				"High Food and Metal cost, but very powerful.",
+				"Attack individual units, but also deal splash damage to others nearby. Use them to break apart tight formations."
+			],
+			"images": [
+				"war_elephants.png"
+			]
+		},
+		"wonder": {
+			"title": "WONDER",
+			"lines": [
+				"A powerful and expensive late-game structure available to all civilizations.",
+				"Represents an actual monumental structure built by that culture in antiquity.",
+				"Provides the technology “Glorious Expansion” which increases your maximum population capacity by 20%.",
+				"Enable the victory condition “Wonder” in the game setup and race to see who can build one first (and control it for a certain amount of time)!"
+			],
+			"images": [
+				"wonder_gaul.png",
+				"wonder_han.png"
+			]
+		},
+		"army_camp": {
+			"title": "ROMAN ARMY CAMP",
+			"lines": [
+				"Buildable in neutral or enemy territory. Good for setting up a secret base behind enemy lines or to consolidate gains within enemy territory.",
+				"Constructs Rams and trains high-rank Citizen Soldiers.",
+				"Fires arrows at any enemies in sight.",
+				"Garrison units inside for protection and additional arrows."
+			],
+			"images": [
+				"army_camp.png"
+			]
+		},
+		"building_control": {
+			"title": "CONTROLLING BUILDINGS",
+			"lines": [
+				"You can control a building's arrows independently from its rally point:",
+				"Right-click with the hotkey \"Focus Fire\" (\"F\" by default) to direct all arrow fire to a target unit or building. (Left)",
+				"Right-click alone to set the rally point on a unit. (Right)"
+			],
+			"images": [
+				"building_control.png"
+			]
+		},
+		"carth_sacred_band": {
+			"title": "CARTHAGINIAN SACRED BAND",
+			"lines": [
+				"Champion Spearmen and Champion Cavalry Spearmen for the Carthaginians.",
+				"Trainable from the Temple, unlike most other Champions.",
+				"Use the Spearmen to counter enemy Cavalry. Use the Cavalry as heavy shock against Siege Weapons and Ranged Infantry."
+			],
+			"images": [
+				"carth_sacred_band.png"
+			]
+		},
+		"carth_shipyard": {
+			"title": "CARTHAGINIAN NAVAL SHIPYARD",
+			"lines": [
+				"Special Dock of the Carthaginians to construct Warships.",
+				"Garrison Ships inside to slowly repair them.",
+				"Much stronger than other Docks, but also more expensive."
+			],
+			"images": [
+				"carth_shipyard.png"
+			]
+		},
+		"celtic_war_barge": {
+			"title": "CELTIC HEAVY ARROW SHIP",
+			"lines": [
+				"The main Warship for the Britons, Gauls, and Iberians.",
+				"Can transport up to 40 units.",
+				"Research special technologies to improve them with greater health and garrison capacity."
+			],
+			"images": [
+				"celtic_war_barge.png"
+			]
+		},
+		"control_groups": {
+			"title": "CONTROL GROUPS",
+			"lines": [
+				"Save your current selection to a hotkey by pressing CTRL + a number from 0 to 9 (by default) simultaneously.",
+				"After the control group has been created, quickly select them again by pressing the assigned number.",
+				"A double click additionally centers the camera to the selection."
+			],
+			"images": [
+				"control_groups.png"
+			]
+		},
+		"default_formation": {
+			"title": "DEFAULT FORMATION",
+			"lines": [
+				"Right-click an icon to set the default formation: units that are ordered to walk or patrol will automatically use it.",
+				"Can be deactivated by choosing “no formation” as the default.",
+				"The “Formation control” option lets you choose whether formations disband for orders other than walking or patrolling."
+			],
+			"images": [
+				"default_formation.png"
+			]
+		},
+		"tributes": {
+			"title": "TRIBUTES",
+			"lines": [
+				"In multiplayer games use the diplomacy panel (Ctrl-H) to tribute resources to allies.",
+				"By default, multiples of 100 units are sent. Holding Shift increases this to multiples of 500 units."
+			],
+			"images": [
+				"tributes.png"
+			]
+		},
+		"diplomacy_colors": {
+			"title": "DIPLOMACY COLORS",
+			"lines": [
+				"Enable diplomacy colors by clicking the icon beside the minimap or pressing Alt+X.",
+				"Allies are shown in green, enemies in red, and your own units in blue."
+			],
+			"images": [
+				"diplomacy_colors.png"
+			]
+		},
+		"fire_ship": {
+			"title": "FIRESHIP",
+			"lines": [
+				"Available to the Britons, Gauls, and Iberians.",
+				"Causes fire damage to nearby Ships, but gradually loses health over time as well.",
+				"Construct a few, move them to the enemy fleet, then ignite them to set them ablaze.",
+				"Very good against Siege Ships."
+			],
+			"images": [
+				"fire_ship.png"
+			]
+		},
+		"freehand_position": {
+			"title": "FREEHAND POSITION",
+			"lines": [
+				"Gain an advantage on the battleground by tactically positioning your units!",
+				"To do it, select some units, press and hold the right mouse button, draw any line, then release the button.",
+				"Your units will now spread out on this line."
+			],
+			"images": [
+				"freehand_position.png"
+			]
+		},
+		"lighthouse": {
+			"title": "LIGHTHOUSE",
+			"lines": [
+				"Special structure solely available to the Ptolemies.",
+				"Increases your vision range when built on the shore."
+			],
+			"images": [
+				"lighthouse.png"
+			]
+		},
+		"mauryan_worker_elephant": {
+			"title": "MAURYAN WORKER ELEPHANT",
+			"lines": [
+				"Exclusively available to the Mauryas, right from the Village Phase.",
+				"Serves as a mobile dropsite, enabling you to efficiently gather resources outside of your territory.",
+				"Can also build structures."
+			],
+			"images": [
+				"mauryan_worker_elephant.png"
+			]
+		},
+		"meroe_pyramids": {
+			"title": "PYRAMIDS OF MEROË",
+			"lines": [
+				"Special structures available to the Kushites.",
+				"The small pyramids improve the gathering rate of workers around them.",
+				"The large pyramids increase the military capabilities of soldiers around them."
+			],
+			"images": [
+				"meroe_pyramids.png"
+			]
+		},
+		"nomad_mode": {
+			"title": "NOMAD MODE",
+			"lines": [
+				"Only available for the \"Random\" map type.",
+				"Players will be randomly dropped on the map without a Civic Center.",
+				"Requires the \"Medium\" starting resource setting in order for players to be able to build their first one.",
+				"Don't immediately start building the Civic Center, scout for a good location for your base first."
+			],
+			"images": [
+				"nomad_mode.png"
+			]
+		},
+		"order_one_unit": {
+			"title": "ORDER ONE UNIT",
+			"lines": [
+				"When right-clicking While holding the “Order one unit” hotkey (by default ALT), only one random unit from the current selection will perform the assigned task."
+			],
+			"images": [
+				"order_one_unit.png"
+			]
+		},
+		"persian_architecture": {
+			"title": "ACHAEMENID ARCHITECTURE",
+			"lines": [
+				"Special technology exclusive to the Persians.",
+				"Structures gain +25% health, but their build time lengthened by +20% as a consequence.",
+				"Persians also have access to a great number of other structural and defensive technologies."
+			],
+			"images": [
+				"persian_architecture.png"
+			]
+		},
+		"resource_lost": {
+			"title": "LOST RESOURCES",
+			"lines": [
+				"Workers cannot carry more than one type of resource at once:",
+				"Order them to drop off their current resources at a dropsite before sending them to a new one."
+			],
+			"images": [
+				"resource_lost.png"
+			]
+		},
+		"select_wounded_units": {
+			"title": "SELECT WOUNDED UNITS",
+			"lines": [
+				"Hold down the “Select only wounded units” hotkey ('O' by default) and drag to select only wounded units.",
+				"Customize the threshold in Settings > Game Session."
+			],
+			"images": [
+				"select_wounded_units.png"
 			]
 		},
 		"shrine": {
@@ -282,95 +870,97 @@
 			"lines": [
 				"Capturable map objects. Cannot be built or destroyed.",
 				"Train Elite Healers and heal garrisoned units."
-			]
-		},
-		"snapping": {
-			"title": "SNAPPING",
-			"lines": [
-				"Structures can be aligned by keeping the snap hotkey pressed during placement.",
-				"Aligning structures allows to conserve space for future construction.",
-				"Tightly packed groups of structures can also be used for obstructing raiding enemies."
+			],
+			"images": [
+				"shrine.png"
 			]
 		},
 		"spartan_hoplites": {
 			"title": "SPARTIATES",
 			"lines": [
-				"Strongest infantry unit in the game.",
-				"Champion Infantry available to the Spartans.",
-				"Use them to slaughter enemy cavalry or as a shock force to support your regular infantry."
+				"Champion Infantry Spearmen available to the Spartans.",
+				"One of the strongest units in the game.",
+				"Use them to slaughter enemy Cavalry or as a shock force to support your regular Infantry."
+			],
+			"images": [
+				"spartan_hoplites.png"
 			]
 		},
-		"spearmen": {
-			"title": "SPEARMEN",
+		"syntagma": {
+			"title": "SYNTAGMA",
 			"lines": [
-				"The basic melee infantry for every faction in the game.",
-				"Used against cavalry for an attack bonus.",
-				"Decent hack attack make them good front line troops.",
-				"They are countered by ranged units and swordsmen, so support your spearmen with slingers or cavalry."
-			]
-		},
-		"storehouses": {
-			"title": "STOREHOUSES",
-			"lines": [
-				"A cheap dropsite for non-food resources (Wood, Stone, Metal).",
-				"Research technologies to improve the gathering capabilities of your citizens."
-			]
-		},
-		"temples": {
-			"title": "TEMPLES",
-			"lines": [
-				"Town Phase structure.",
-				"Recruit Healers to heal your troops on the battlefield.",
-				"Research healing technologies.",
-				"Its aura heals nearby units.",
-				"Garrison wounded units inside for quicker healing."
-			]
-		},
-		"territory_decay": {
-			"title": "TERRITORY DECAY",
-			"lines": [
-				"Decay happens when structures are not connected to an allied Civil Center.",
-				"The decay process can be slowed down or reversed by garrisoning some units in the structure.",
-				"When the decay is completed, the structure will be given to the most influential neighbor."
-			]
-		},
-		"theater": {
-			"title": "THEATER",
-			"lines": [
-				"Special structures of the Hellenic civilizations to increase the size of your territory while you control it."
-			]
-		},
-		"treasure": {
-			"title": "TREASURES",
-			"lines": [
-				"Collectible chests and bare resources on land and shipwrecks on the shore.",
-				"Provide you with a resource boost, so keep an eye out for them as you explore."
-			]
-		},
-		"triremes": {
-			"title": "ARROW SHIPS",
-			"lines": [
-				"The basic Warship for most factions.",
-				"Transport up to 30 troops across the water.",
-				"Good against melee Warships, such as Ramming Ships and Fire Ships.",
-				"Countered by Siege Ships and other Arrow Ships."
-			]
-		},
-		"war_elephants": {
-			"title": "WAR ELEPHANTS",
-			"lines": [
-				"Huge beasts from Africa and India, trained for war.",
-				"High Food and Metal cost, but very powerful.",
-				"Available to: Carthaginians, Kushites, Mauryas, Persians, Ptolemies, and Seleucids."
+				"A unique historical formation formed by Macedonian Pikemen.",
+				"Forms the men into tight ranks and deep files, allowing a wall of forward-thrusting pikes to pierce any enemy soldier foolish enough launch a frontal assault.",
+				"Support them with more flexible units to prevent encirclement."
+			],
+			"images": [
+				"syntagma.png"
 			]
 		},
 		"whales": {
 			"title": "WHALES",
 			"lines": [
-				"An oceanic resource.",
-				"2000 Food.",
+				"An oceanic resource providing 2000 food.",
 				"Gatherable by Fishing Boats after the whale is killed.",
 				"Roam around the oceans of the game and flee when attacked."
+			],
+			"images": [
+				"whales.png"
+			]
+		},
+		"dont_cheat": {
+			"title": "DON'T CHEAT",
+			"lines": [
+				"Cheating in multiplayer games ruins the experience for others and undermines your own accomplishments. Focus on improving your skills through practice rather than exploits."
+			],
+			"images": [
+				"go_climb_a_mountain.png"
+			]
+		},
+		"password_safety": {
+			"title": "PASSWORD SAFETY",
+			"lines": [
+				"Never share your password, even with friends or family. Be cautious about entering your password on public or shared devices.",
+				"Wildfire Games staff or moderators will never ask you for your password."
+			],
+			"images": [
+				"give_them_a_volley.png"
+			]
+		},
+		"report_violations": {
+			"title": "REPORT VIOLATIONS OF THE TERMS OF USE",
+			"lines": [
+				"If you see someone breaking the rules, report it to one of the moderators."
+			],
+			"images": [
+				"meeting.png"
+			]
+		},
+		"stay_friendly": {
+			"title": "STAY FRIENDLY",
+			"lines": [
+				"Treat others online as you would in real life. Empathy can prevent toxic behavior and foster a welcoming community."
+			],
+			"images": [
+				"on_the_line.png"
+			]
+		},
+		"prevent_phishing": {
+			"title": "SUSPICIOUS LINKS AND PHISHING",
+			"lines": [
+				"Do not open unexpected or suspicious links, especially those asking for login credentials. Always verify the authenticity of a link."
+			],
+			"images": [
+				"denial.png"
+			]
+		},
+		"unauthorized_software": {
+			"title": "UNAUTHORIZED SOFTWARE",
+			"lines": [
+				"Do not use bots, hacks, or unauthorized software when playing multiplayer games. Such tools can result in bans or other penalties."
+			],
+			"images": [
+				"defense_tower.png"
 			]
 		}
 	},
@@ -517,7 +1107,7 @@
 		"“War is sweet to those who have no experience of it, but the experienced man fears its approach in his heart.” \n— Pindar (fragment 110)",
 		"“Themistocles robbed his fellow citizens of spear and shield, and degraded the people of Athens to the rowing-pad and the oar.” \n— Plato, no friend of the Athenian navy (Plutarch, “Parallel Lives”, “Themistocles”, sec. 3)",
 		"“No guest is so welcome in a friend's house that he will not become a nuisance after three days.” \n— Plautus (“The Swaggering Soldier”, Act III, scene 1, 146)",
-		"“You cannot eat your cake and have it too, unless you think your money is immortal.”\n— Plautus (“Trinummus”, Act II, scene 4, 13–14)",
+		"“If you spend a thing you cannot have it too.”\n— Plautus (“Trinummus”, Act II, scene 4, 13–14)",
 		"“He [Alexander] thought nothing invincible for the courageous, and nothing secure for the cowardly.” \n— Plutarch (“Parallel Lives”, “Alexander”, sec. 58)",
 		"“One […] shot an arrow at him with such accuracy and force that it pierced his breastplate and got stuck in his ribs. […] Alexander recoiled and sank to his knees. […] At last Alexander killed the barbarian. But he received many wounds, at last was struck on the neck with a mace, and leaned against the city wall, his eyes still fixed upon his foes.” \n— Plutarch about the Mallian Campaign (“Parallel Lives”, “Alexander”, sec. 63)",
 		"“When the pirates demanded a ransom of twenty talents for him, Caesar burst out laughing. They did not know, he said, who it was that they had captured, and he volunteered to pay fifty.” \n— Plutarch, who mentions later that Caesar got his money back and had his captors crucified (“Parallel Lives”, “Caesar”, sec. 2)",
@@ -573,6 +1163,17 @@
 		"“I suppose you understand, men, that pursuing, dealing blows and death, plunder, fame, freedom, power – all these are prizes for the winners; the cowardly, of course, suffer the reverse.” \n— Xenophon (“The Education of Cyrus”, 7.1.13)",
 		"“The man who wants that must be scheming and cunning, wily and deceitful, a thief and a robber, overreaching the enemy at every point.” \n— Xenophon on how best to gain advantage over the enemy (“The Education of Cyrus”, 1.6.26)",
 		"“My men have turned into women, and my women into men!” \n— Xerxes, watching Artemisia ram a ship while most of his fleet suffered the reverse, not knowing that the sunk vessel was his own (Herodotus, “The Histories”, VIII. 88)",
-		"“For a thinking man is where Wisdom is at home.” \n— Zoroaster, founder of the Zoroastrian religion (“Ahunuvaiti Gatha”, yasna 30.9)"
+		"“For a thinking man is where Wisdom is at home.” \n— Zoroaster, founder of the Zoroastrian religion (“Ahunuvaiti Gatha”, yasna 30.9)",
+		"“Do not, I beg you, disturb that.” \n— Archimedes to a Roman soldier who was about to kill him while he was studying mathematical figures on the ground (Valerius Maximus, “Memorable Deeds and Sayings” Book VIII, ext. 7)",
+		"“It was a greater victory for him to conquer his resentment than to defeat the enemy.” \n— Marcus Furius Camillus (Livy, “Ab Urbe Condita” Book 21)",
+		"“These [my children] are my jewels.” \n— Cornelia Africana (mother of Tiberius and Gaius Gracchus) to a wealthy visitor showing off her opulent jewelry (Valerius Maximus, “Memorable Deeds and Sayings” Book IV, Chapter 4)",
+		"“I will appeal to Philip, but to Philip sober.” \n— Foreign woman to King Philip of Macedon having received a poor ruling while he was drunk (Valerius Maximus, “Memorable Deeds and Sayings” Book VI, Chapter 2)",
+		"“Now the empire has fallen from gold to iron and rust.” \n— Cassius Dio referring to the Year of the Five Emperors (“Roman History” Book 73)",
+		"“The man who struck his wife or child, laid violent hands on the holiest of holy things.” \n— Plutarch (“Life of Cato”, 20)",
+		"“It is unbearable to lose one's native land.” \n— Seneca the Younger (“Consolatio ad Helvium”, 12.6)",
+		"“I believed I was perishing with the world, and the world with me.” \n— Pliny the Younger describing the eruption of Vesuvius (Letter 2: Epistulae 6.20)",
+		"“This is a woman's resolve; as for men, they may live and be slaves.” \n— Boudicca, rallying against Roman occupation (Tacitus's Annals, Book 14, Chapter 35)",
+		"“There are two things, knowledge and opinion; one makes its possessor know, the other to be ignorant.” \n— (Hippocratic treatise known as “The Law”, part of the Hippocratic Corpus)",
+		"“Let them hate me, so long as they fear me.” \n— Caligula (Suetonius, The Twelve Caesars, Book 30)"
 	]
 }

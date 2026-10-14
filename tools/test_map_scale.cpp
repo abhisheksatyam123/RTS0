@@ -223,7 +223,7 @@ int main() {
 	{
 		Simulation sim;
 		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
-		const float x = -100.0f, z = 100.0f;
+		const float x = -80.0f, z = 80.0f; // inside Mainland's circle
 		sim.spawn_unit(x, z, 2, UNIT_SPEARMAN);
 		sim.spawn_unit(-x, -z, 3, UNIT_SPEARMAN);
 		sim.set_player_team(2, 5);
@@ -244,14 +244,15 @@ int main() {
 	{
 		Simulation sim;
 		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
-		sim.spawn_unit(-100.0f, 100.0f, 2, UNIT_SPEARMAN);
+		sim.spawn_unit(-80.0f, 80.0f, 2, UNIT_SPEARMAN); // inside Mainland's circle
 		sim.set_explore_map(true);
 		sim.set_fow_viewer(2);
 		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
-		CHECK(sim.fow_state_at(100.0f, -100.0f, 0) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for player 0");
-		CHECK(sim.fow_state_at(100.0f, -100.0f, 2) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for the viewer");
-		CHECK(sim.fow_state_at(-100.0f, 100.0f, 2) == Simulation::FOW_VISIBLE, "explored map: viewer can't see its own unit");
-		CHECK(!sim.is_entity_visible_to_viewer(-100.0f, 100.0f, 2, 0), "explored map shows player 0 an enemy unit");
+		CHECK(sim.fow_state_at(80.0f, -80.0f, 0) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for player 0");
+		CHECK(sim.fow_state_at(80.0f, -80.0f, 2) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for the viewer");
+		CHECK(sim.fow_state_at(-80.0f, 80.0f, 2) == Simulation::FOW_VISIBLE, "explored map: viewer can't see its own unit");
+		CHECK(!sim.is_entity_visible_to_viewer(-80.0f, 80.0f, 2, 0), "explored map shows player 0 an enemy unit");
+		CHECK(sim.fow_state_at(120.0f, -120.0f, 2) == Simulation::FOW_UNEXPLORED, "explored map explores off the circular map");
 	}
 	{
 		Simulation sim;
@@ -259,13 +260,17 @@ int main() {
 		sim.set_reveal_map(true);
 		sim.set_fow_viewer(3);
 		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
-		const int n = sim.fow_res() * sim.fow_res();
+		// Mainland is circular: everything inside the circle (m_LosStateRevealed), nothing off it.
+		const int res = sim.fow_res();
+		const float cell = 2.0f * sim.map_half() / (float)res;
 		bool all0 = true, all3 = true;
-		for (int i = 0; i < n; ++i) {
-			all0 &= sim.fow_grid(0)[i] == Simulation::FOW_VISIBLE;
-			all3 &= sim.fow_grid(3)[i] == Simulation::FOW_VISIBLE;
+		for (int i = 0; i < res * res; ++i) {
+			const float cx = -sim.map_half() + ((float)(i % res) + 0.5f) * cell, cz = -sim.map_half() + ((float)(i / res) + 0.5f) * cell;
+			const uint8_t want = sim.off_world(cx, cz) ? Simulation::FOW_UNEXPLORED : Simulation::FOW_VISIBLE;
+			all0 &= sim.fow_grid(0)[i] == want;
+			all3 &= sim.fow_grid(3)[i] == want;
 		}
-		CHECK(all0 && all3, "revealed map: some cell is not visible");
+		CHECK(all0 && all3, "revealed map: some in-world cell is not visible, or an off-world one is");
 		CHECK(sim.map_scale_stats().fow_calls > 0, "fow never ticked");
 	}
 
@@ -541,9 +546,9 @@ int main() {
 		int baobabs = 0, baobab_600 = 0, acacias = 0, acacia_200 = 0, bushes = 0, bush_ok = 0;
 		for (size_t i = 0; i < rv.count; ++i) {
 			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
-			if (rv.flora[i] == FLORA_BAOBAB) { ++baobabs; baobab_600 += rv.amount[i] == 600; }
-			if (rv.flora[i] == FLORA_ACACIA) { ++acacias; acacia_200 += rv.amount[i] == 200; }
-			if (rv.flora[i] == FLORA_BUSH) { ++bushes; bush_ok += rv.amount[i] == 50 || rv.amount[i] == 100; }
+			if (flora_family(rv.flora[i]) == FLORA_BAOBAB) { ++baobabs; baobab_600 += rv.amount[i] == 600; }
+			if (flora_family(rv.flora[i]) == FLORA_ACACIA) { ++acacias; acacia_200 += rv.amount[i] == 200; }
+			if (flora_family(rv.flora[i]) == FLORA_BUSH) { ++bushes; bush_ok += rv.amount[i] == 50 || rv.amount[i] == 100; }
 		}
 		CHECK(baobabs > 0 && baobab_600 == baobabs, "savanna: %d of %d baobabs hold 600 wood", baobab_600, baobabs);
 		CHECK(acacias > 0 && acacia_200 == acacias, "savanna: %d of %d acacias hold 200 wood", acacia_200, acacias);
@@ -553,8 +558,9 @@ int main() {
 		for (size_t i = 0; i < rv.count; ++i) {
 			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
 			const int mg = sim.resource_max_gatherers(rv.id[i]);
-			mg_bad += rv.flora[i] == FLORA_BAOBAB ? mg != 9 : rv.flora[i] == FLORA_BUSH || rv.flora[i] == FLORA_TROPIC_BUSH ? mg != 4
-					: rv.flora[i] == FLORA_ACACIA ? mg != 8 : 0;
+			const uint8_t fam = flora_family(rv.flora[i]);
+			mg_bad += fam == FLORA_BAOBAB ? mg != 9 : fam == FLORA_BUSH || fam == FLORA_TROPIC_BUSH ? mg != 4
+					: fam == FLORA_ACACIA ? mg != 8 : 0;
 		}
 		CHECK(mg_bad == 0, "savanna: %d trees with the wrong gatherer limit", mg_bad);
 		// set_resource_amount: a tree's amount; a fruit bush's regrowth Max follows it.
@@ -698,7 +704,8 @@ int main() {
 		const auto rv = sim.resources();
 		bool oak = false, pine = false, aleppo = false;
 		for (size_t i = 0; i < rv.count; ++i) {
-			oak |= rv.flora[i] == FLORA_OAK; pine |= rv.flora[i] == FLORA_PINE; aleppo |= rv.flora[i] == FLORA_ALEPPO_PINE;
+			const uint8_t fam = flora_family(rv.flora[i]);
+			oak |= fam == FLORA_OAK; pine |= fam == FLORA_PINE; aleppo |= fam == FLORA_ALEPPO_PINE;
 		}
 		CHECK(oak && pine && aleppo, "temperate mixes oak (tree1/tree2) and pine and maritime pine (tree4/tree5) forests");
 		CHECK(flora_kind_by_name("aleppo_pine") == FLORA_ALEPPO_PINE && flora_kind_by_name("teak") == FLORA_TEAK &&
@@ -707,6 +714,13 @@ int main() {
 		      flora_kind_by_name("tree") == FLORA_DEFAULT && flora_kind_by_name("food") == FLORA_DEFAULT &&
 		      flora_kind_by_name("stone") == FLORA_COUNT && flora_is_fruit(FLORA_DATE) && !flora_is_fruit(FLORA_PALM),
 		      "map JSON plant names resolve");
+		// 0.28 templates with their own model (flora_data.h) resolve to their own kind, keeping
+		// their family for game logic.
+		CHECK(flora_kind_by_name("tree/elm") == FLORA_TREE_ELM && flora_family(FLORA_TREE_ELM) == FLORA_BROADLEAF &&
+		      flora_kind_by_name("fruit/fig") == FLORA_FRUIT_FIG && flora_is_fruit(FLORA_FRUIT_FIG) &&
+		      flora_family(FLORA_FRUIT_FIG) == FLORA_APPLE && !flora_is_fruit(FLORA_TREE_DATE_PALM) &&
+		      flora_kind_by_name("tree/no_such_tree") == FLORA_COUNT && flora_family(FLORA_COUNT) == FLORA_DEFAULT,
+		      "template flora kinds resolve");
 		const uint32_t id = sim.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 100, RES_SUB_NONE, 1, FLORA_BAMBOO);
 		CHECK(sim.resource_max_gatherers(id) == 1, "a JSON tree keeps its MaxGatherers");
 		sim.set_resource_flora(id, 200);

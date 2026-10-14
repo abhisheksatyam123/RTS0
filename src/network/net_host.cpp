@@ -1126,6 +1126,12 @@ void NetHost::send_hole_punches(uint64_t now_ms) {
 	}
 }
 
+uint32_t NetHost::hostSilentMs() const {
+	if (!isClient() || peers_.empty() || !peers_[0].last_seen_ms) return 0;
+	const uint64_t now = get_now_ms();
+	return now > peers_[0].last_seen_ms ? (uint32_t)std::min<uint64_t>(now - peers_[0].last_seen_ms, 0xFFFFFFFFu) : 0;
+}
+
 uint16_t NetHost::localPort() const {
 	if (socket_fd_ < 0) return 0;
 	sockaddr_in a{};

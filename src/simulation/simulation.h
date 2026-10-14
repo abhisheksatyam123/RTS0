@@ -432,7 +432,7 @@ public:
 			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
-			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE };
+			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -990,6 +990,15 @@ public:
 	// 0 A.D. AllyView (InitGame.js): every player starts with Diplomacy's SharedLosTech researched.
 	void set_ally_view(bool on) { set_setup_flag(SETUP_ALLY_VIEW, on); }
 	bool ally_view() const { return setup_flags_ & SETUP_ALLY_VIEW; }
+	// 0 A.D. "Circular map" (settings.CircularMap): the map is the circle inside the square.
+	// The choice is 0 = the map's own (map_circular), 1 = circular, 2 = square; generate_random_map
+	// applies it. Hooks: LOS (los_grid off_world), passability and the minimap read circular_map().
+	void set_circular_map_choice(int c) { circular_map_choice_ = (uint8_t)((c >= 0 && c <= 2) ? c : 0); }
+	uint8_t circular_map_choice() const { return circular_map_choice_; }
+	bool circular_map() const { return setup_flags_ & SETUP_CIRCULAR_MAP; }
+	void set_circular_map(bool on);
+	// Off the world on a circular map: outside the circle of radius map_half() round the centre.
+	bool off_world(float x, float z) const { return circular_map() && x * x + z * z >= map_half_ * map_half_; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -1035,7 +1044,8 @@ public:
 	void set_player_won(uint8_t pid);
 	// TriggerHelper.DefeatPlayer (cmpPlayer.SetState("defeated")): pid's units and
 	// structures turn Gaia and it watches the rest of the match.
-	void defeat_player(uint8_t pid);
+	// `reason` is the chat line's (DefeatPlayer's message): objective unless the script names one.
+	void defeat_player(uint8_t pid, uint8_t reason = SessionNotice::END_OBJECTIVE);
 	// 0 A.D. "resign" (Commands.js: cmpPlayer.Defeat("%(player)s has resigned.")): the
 	// issuing player is defeated as by conquest. Its units and structures turn Gaia, its
 	// allies play on, and it watches the rest of the match. False when it is already out.
@@ -1043,6 +1053,12 @@ public:
 	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
 	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
 	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
+	// The map scripts' only invulnerable units are Survival of the Fittest's treasure seekers,
+	// placed as "nonbuilder|undeletable|...": no Builder, Identity/Undeletable.
+	bool nonbuilder(uint32_t unit_id) const { return invulnerable(unit_id); }
+	bool undeletable_unit(uint32_t unit_id) const { return invulnerable(unit_id); }
+	// unit_can_build (Builder) for unit i, less a nonbuilder.
+	bool unit_builds(size_t i) const { return unit_can_build(units_.unit_type[i], units_.tmpl[i]) && !nonbuilder(units_.id[i]); }
 	bool has_map_triggers() const { return !triggers_.triggers.empty(); }
 	// Commands.js ProcessCommand's OnPlayerCommand (kind: TriggerCommand). target and other
 	// are the command's targets (see TriggerCommand), hunt 1 when target is an animal,
@@ -1824,6 +1840,7 @@ public:
 	const std::vector<Relic> &relics() const { return relics_; }
 
 	std::vector<uint32_t> get_idle_workers(uint8_t team = 0) const;
+	std::vector<uint32_t> petra_idle_builders() const;
 
 	size_t unit_count() const { return units_.count; }
 	size_t building_count() const { return buildings_.size(); }
@@ -2232,6 +2249,8 @@ private:
 	// The match ends with these players as the winners; everyone else has lost.
 	void end_match(uint8_t winners, uint8_t reason = SessionNotice::END_LAST_ALIVE);
 	void spawn_regicide_heroes();
+	// Footprint.PickSpawnPoint round a point: the nearest passable spot no unit stands on.
+	void free_spot_near(float px, float pz, uint8_t utype, float &x, float &z) const;
 
 	struct FaunaStorage {
 		static constexpr size_t MAX_FAUNA = 1024; // dead animals are compacted out each tick
@@ -2422,6 +2441,7 @@ private:
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
 	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
+	uint8_t circular_map_choice_ = 0; // setup-time Circular map choice (set_circular_map_choice)
 	uint8_t map_daytime_choice_ = 0, map_daytime_ = 0; // setup-time Daytime and the one the map used
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
@@ -2429,7 +2449,7 @@ private:
 	void spawn_nomad_treasures();
 	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
 	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_DISABLE_SPIES = 8,
-		SETUP_ALLY_VIEW = 16, SETUP_FLAGS_ALL = 31;
+		SETUP_ALLY_VIEW = 16, SETUP_CIRCULAR_MAP = 32, SETUP_FLAGS_ALL = 63;
 	std::vector<Spy> spies_; // VisionSharing spies, oldest first
 	CheatMods cheat_mods_[MAX_PLAYERS] = {};
 	int32_t unit_pop_bonus_[MAX_PLAYERS] = {}; // Population/Bonus of each player's units (refresh_unit_pop_bonus)
@@ -2835,7 +2855,8 @@ private:
 	float petra_template_strength(const UnitTypeInfo &ui, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
-	bool petra_ring_clear(int cell_x, int cell_y, int footprint) const;
+	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
+	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};

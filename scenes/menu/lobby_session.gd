@@ -198,7 +198,8 @@ func _join_nat_tick(main: Node, nat: Dictionary) -> void:
 	if _punch_wait > 0.0:
 		_punch_wait -= NAT_TICK_S
 		if _punch_wait <= 0.0:
-			main.net_hole_punch(MatchSettings.net_ip, MatchSettings.net_port)
+			var ms := get_node("/root/MatchSettings")
+			main.net_hole_punch(ms.net_ip, ms.net_port)
 		return
 	if _nat_sent or int(nat.get("stun", 0)) != 2:
 		return

@@ -8759,25 +8759,25 @@
       "amount": 400
     },
     {
-      "type": "teak",
+      "type": "tree/toona",
       "x": -60.15,
       "z": -175.97,
       "amount": 200
     },
     {
-      "type": "teak",
+      "type": "tree/toona",
       "x": -62.52,
       "z": -174.21,
       "amount": 200
     },
     {
-      "type": "teak",
+      "type": "tree/toona",
       "x": -61.84,
       "z": -169.78,
       "amount": 200
     },
     {
-      "type": "teak",
+      "type": "tree/toona",
       "x": -53.9,
       "z": -165.02,
       "amount": 200
@@ -10307,7 +10307,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 1.77,
       "z": -50.35,
       "amount": 400
@@ -10349,361 +10349,361 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -9.44,
       "z": -52.55,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -6.01,
       "z": -55.5,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 0.88,
       "z": -54.47,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 15.99,
       "z": -49.18,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 17.04,
       "z": -44.6,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 17.46,
       "z": -38.49,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 13.28,
       "z": -34.45,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": 9.18,
       "z": -28.22,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -1.09,
       "z": -30.77,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -8.66,
       "z": -32.03,
       "amount": 300
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -16.01,
       "z": -47.94,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -9.09,
       "z": -52.64,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -4.06,
       "z": -53.2,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 6.08,
       "z": -54.09,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 11.13,
       "z": -52.21,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 14.89,
       "z": -51.2,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -14.21,
       "z": -38.97,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -10.94,
       "z": -34.76,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -2.37,
       "z": -24.19,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -9.5,
       "z": -26.3,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -17.19,
       "z": -28.66,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 2.81,
       "z": -24.59,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 7.64,
       "z": -26.61,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 15.51,
       "z": -24.74,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 18.73,
       "z": -29.32,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 17.97,
       "z": -31.29,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 15.47,
       "z": -30.35,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 13.16,
       "z": -26.71,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 9.84,
       "z": -24.27,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 5.72,
       "z": -23.86,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 2.97,
       "z": -14.23,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 7.63,
       "z": -21.79,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 7.74,
       "z": -14.17,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 7.74,
       "z": -11.7,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 4.06,
       "z": -9.18,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 3.51,
       "z": -4.38,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -0.65,
       "z": -0.77,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -5.9,
       "z": 0.38,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -8.21,
       "z": 0.77,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -6.32,
       "z": -6.71,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -10.5,
       "z": -10.47,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -22.02,
       "z": -11.05,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -24.25,
       "z": -6.52,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -30.2,
       "z": -2.25,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -18.51,
       "z": -0.16,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -19.15,
       "z": -10.46,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -14.96,
       "z": -15.4,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -9.5,
       "z": -19.95,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -6.9,
       "z": -22.75,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 4.03,
       "z": -14.34,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 10.23,
       "z": -12.18,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 12.36,
       "z": -14.26,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": 13.52,
       "z": -19.17,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -0.56,
       "z": -16.1,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -2.27,
       "z": -11.91,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -27.16,
       "z": -1.19,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -27.82,
       "z": -8.83,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -23.93,
       "z": -14.33,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -16.46,
       "z": -19.72,
       "amount": 200
     },
     {
-      "type": "poplar",
+      "type": "tree/poplar",
       "x": -14.4,
       "z": -25.83,
       "amount": 200
@@ -14069,25 +14069,25 @@
       "amount": 200
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -89.4,
       "z": 87.83,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -103.59,
       "z": 101.1,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -109.45,
       "z": 107.79,
       "amount": 300
     },
     {
-      "type": "oak",
+      "type": "tree/oak_large",
       "x": -119.56,
       "z": 117.61,
       "amount": 300
@@ -16610,241 +16610,281 @@
       "type": "archer",
       "player": 2,
       "x": 4.31,
-      "z": 131.32
+      "z": 131.32,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 2,
       "x": 5.12,
-      "z": 130.63
+      "z": 130.63,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "hero",
       "player": 2,
       "x": -6.94,
-      "z": 132.77
+      "z": 132.77,
+      "template": "units/special_starting_unit"
     },
     {
       "type": "cavalry",
       "player": 2,
       "x": -4.66,
-      "z": 134.76
+      "z": 134.76,
+      "template": "units/default_cavalry"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -3.55,
-      "z": 125.42
+      "z": 125.42,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -3.06,
-      "z": 124.83
+      "z": 124.83,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -2.49,
-      "z": 124.37
+      "z": 124.37,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -1.98,
-      "z": 123.95
+      "z": 123.95,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": 4.7,
-      "z": 123.26
+      "z": 123.26,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": 5.37,
-      "z": 123.78
+      "z": 123.78,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": 121.88,
-      "z": -3.87
+      "z": -3.87,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": 122.69,
-      "z": -4.57
+      "z": -4.57,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "hero",
       "player": 1,
       "x": 108.83,
-      "z": -4.26
+      "z": -4.26,
+      "template": "units/special_starting_unit"
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": 110.44,
-      "z": -2.98
+      "z": -2.98,
+      "template": "units/default_cavalry"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 113.6,
-      "z": -11.45
+      "z": -11.45,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 114.08,
-      "z": -12.04
+      "z": -12.04,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 114.66,
-      "z": -12.49
+      "z": -12.49,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 115.17,
-      "z": -12.91
+      "z": -12.91,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 121.18,
-      "z": -13.05
+      "z": -13.05,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 121.85,
-      "z": -12.53
+      "z": -12.53,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": -105.62,
-      "z": -1.33
+      "z": -1.33,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": -104.81,
-      "z": -2.03
+      "z": -2.03,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "hero",
       "player": 3,
       "x": -121.73,
-      "z": -2.95
+      "z": -2.95,
+      "template": "units/special_starting_unit"
     },
     {
       "type": "cavalry",
       "player": 3,
       "x": -118.98,
-      "z": -0.8
+      "z": -0.8,
+      "template": "units/default_cavalry"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -119.54,
-      "z": -10.16
+      "z": -10.16,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -119.05,
-      "z": -10.75
+      "z": -10.75,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -118.48,
-      "z": -11.2
+      "z": -11.2,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": -117.97,
-      "z": -11.62
+      "z": -11.62,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": -110.29,
-      "z": -11.33
+      "z": -11.33,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": -109.63,
-      "z": -10.81
+      "z": -10.81,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "archer",
       "player": 4,
       "x": -2.14,
-      "z": -126.73
+      "z": -126.73,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 4,
       "x": -1.32,
-      "z": -127.42
+      "z": -127.42,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "hero",
       "player": 4,
       "x": -12.46,
-      "z": -128.27
+      "z": -128.27,
+      "template": "units/special_starting_unit"
     },
     {
       "type": "cavalry",
       "player": 4,
       "x": -11.65,
-      "z": -127.6
+      "z": -127.6,
+      "template": "units/default_cavalry"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -11.16,
-      "z": -134.05
+      "z": -134.05,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -10.68,
-      "z": -134.64
+      "z": -134.64,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -10.1,
-      "z": -135.1
+      "z": -135.1,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -9.59,
-      "z": -135.52
+      "z": -135.52,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -3.15,
-      "z": -135.78
+      "z": -135.78,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -2.49,
-      "z": -135.26
+      "z": -135.26,
+      "template": "units/default_infantry_melee_b"
     }
   ],
   "treasures": [
