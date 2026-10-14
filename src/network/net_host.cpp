@@ -449,6 +449,7 @@ void NetHost::route_chat(ChatMsg chat, uint32_t author) {
 	const std::vector<std::string> receivers = std::move(chat.receivers);
 	chat.receivers.clear();
 	auto wants = [&](uint32_t id) {
+		if (chat_router_ && !chat_router_(author, id, chat.message)) return false;
 		return receivers.empty() || std::find(receivers.begin(), receivers.end(), peer_guid(id)) != receivers.end();
 	};
 	if (author != local_peer_id_ && wants(local_peer_id_) && chat_cb_) chat_cb_(chat);
