@@ -89,6 +89,10 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_JEBEL_BARKAL_OWNERSHIP = 31,    // JebelBarkal_OwnershipChange
 	TRIGGER_ACTION_GALLIC_FIELDS = 32,             // skirmishes/gallic_fields_3p.js: arg 0 init, 1 SpawnAndAttack
 	TRIGGER_ACTION_TRIGGERS_DEMO_RANGE = 33,       // scenarios/triggers_demo.js RangeAction (logs the OnRange data)
+	TRIGGER_ACTION_TRIGGERS_DEMO_INIT = 34,        // scenarios/triggers_demo.js top level
+	TRIGGER_ACTION_TRIGGERS_DEMO_LOG = 35,         // its <Event>Action listeners: warn(uneval(data))
+	TRIGGER_ACTION_TRIGGERS_DEMO_INTERVAL = 36,    // IntervalAction: the yes-no dialog, three times
+	TRIGGER_ACTION_PICKUP_TEST = 37,               // scenarios/pickup_test_map_triggers.js: arg 0 init, 1 experiments, 2 second walker
 	TRIGGER_ACTION_COUNT
 };
 

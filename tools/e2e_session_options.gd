@@ -116,6 +116,27 @@ func run() -> void:
 	await modifier(KEY_CTRL, false)
 	await tap(KEY_1)
 	check(selected().size() == all.size(), "Multiple: group 1 keeps it (%d of %d)" % [selected().size(), all.size()])
+	# selection_group_icons.xml: groups 1 and 2 have buttons, numbered like the keys.
+	var panel: Node = main.find_child("UnitGroupPanel", true, false)
+	var shown: Array = panel.get_children().filter(func(b): return b.visible).map(func(b): return str(b.name))
+	check(shown == ["UnitGroupButton0", "UnitGroupButton1"], "group buttons for groups 1 and 2: " + str(shown))
+	var b2: Button = panel.get_child(1)
+	check(b2.get_child(1).text == "2" and b2.get_child(0).texture != null, "the second reads 2 and shows a portrait")
+	var press := func(b: Button, idx: MouseButton, double := false):
+		var mb := InputEventMouseButton.new()
+		mb.button_index = idx
+		mb.pressed = true
+		mb.double_click = double
+		b.gui_input.emit(mb)
+	press.call(b2, MOUSE_BUTTON_LEFT)
+	await frames(2)
+	check(selected() == one, "a click selects group 2")
+	press.call(panel.get_child(0), MOUSE_BUTTON_LEFT)
+	await frames(2)
+	check(selected().size() == all.size(), "a click on 1 selects group 1")
+	press.call(b2, MOUSE_BUTTON_RIGHT)
+	await frames(2)
+	check(not b2.visible, "a right click disbands group 2")
 
 	print("3. Scroll batch increment ratio")
 	main.select_first_own(true)

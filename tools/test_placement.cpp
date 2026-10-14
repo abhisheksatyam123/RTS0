@@ -343,6 +343,34 @@ int main() {
 	s.spawn_resource_world(-20.0f, 30.0f, RES_FOOD, 100, RES_SUB_MEAT);
 	CHECK(at(s, 0, -20.0f, 30.0f, BLD_HOUSE) == Simulation::PLACE_OK);
 
+	// Mines block foundations across their Obstruction/Static: 13 m for a large one, 7 m for a small
+	// one or ruins, 22 x 14 m for the 48-gatherer temperate_large_02, turned as the world view draws
+	// them. A house whose nearest point is 1.5 units (6 m) from a mine's centre lies inside a large
+	// mine's square whichever way it is turned, and outside a small one's.
+	{
+		auto foot = [&](uint32_t id, nav::Footprint &f) { return s.mine_footprint(s.res_id_to_idx_.at(id), f); };
+		nav::Footprint f;
+		const uint32_t big = s.spawn_resource_world(-24.5f, 55.0f, RES_STONE, LARGE_MINE_SUPPLY);
+		CHECK(foot(big, f) && f.hu == 13.0f / 8.0f && f.hv == 13.0f / 8.0f);
+		CHECK(at(s, 0, -27.0f, 55.0f, BLD_HOUSE) == Simulation::PLACE_OBSTRUCTED);
+		CHECK(at(s, 0, -29.0f, 55.0f, BLD_HOUSE) == Simulation::PLACE_OK);
+		const auto [bcx, bcy] = s.nav_grid_.world_to_cell(-24.5f, 55.0f);
+		CHECK(s.nav_grid_.cells.at(bcx, bcy) == NAV_OBSTRUCTED); // and long paths
+		const uint32_t small = s.spawn_resource_world(-24.5f, 45.0f, RES_GOLD, MINE_SUPPLY);
+		CHECK(foot(small, f) && f.hu == 7.0f / 8.0f && f.hv == 7.0f / 8.0f);
+		CHECK(at(s, 0, -27.0f, 45.0f, BLD_HOUSE) == Simulation::PLACE_OK);
+		CHECK(at(s, 0, -25.0f, 45.0f, BLD_HOUSE) == Simulation::PLACE_OBSTRUCTED);
+		const uint32_t ruins = s.spawn_resource_world(-14.5f, 45.0f, RES_STONE, 500, RES_SUB_RUINS, 1);
+		CHECK(foot(ruins, f) && f.hu == 7.0f / 8.0f && f.hv == 7.0f / 8.0f);
+		s.set_resource_max_gatherers(big, 48);
+		CHECK(foot(big, f) && std::max(f.hu, f.hv) == 22.0f / 8.0f && std::min(f.hu, f.hv) == 14.0f / 8.0f);
+		CHECK(!foot(s.spawn_resource_world(-14.5f, 55.0f, RES_WOOD, 200), f)); // trees keep their small square
+		// A worked-out mine frees its cells and navcells.
+		s.set_resource_amount(big, 0);
+		CHECK(at(s, 0, -27.0f, 55.0f, BLD_HOUSE) == Simulation::PLACE_OK);
+		CHECK(s.nav_grid_.cells.at(bcx, bcy) == NAV_PASSABLE);
+	}
+
 	// Civic Centres 200 m (50 tiles) apart, measured between footprints, and in
 	// own or neutral territory.
 	CHECK(at(s, 0, 10.0f, 40.0f, BLD_TOWN_CENTER) == Simulation::PLACE_DISTANCE);

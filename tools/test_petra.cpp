@@ -1773,10 +1773,13 @@ static void test_relic_capture() {
 	s->relics_.clear();
 	s->spawn_relic(tx + 12.0f, tz - 12.0f);
 	s->spawn_relic(-tx, -tz); // far side, unseen
-	run_for(*s, 150.0f);
+	// Until the capture, up to 3 min: when the points run out depends on which starting
+	// units Petra frees from work (0.28's StartEntities since #578), not on the relic code.
+	float t = 0.0f;
+	for (; t < 180.0f && !s->relics_[0].claimed; t += 1.0f) run_for(*s, 1.0f);
 	const auto &near = s->relics_[0], &far = s->relics_[1];
-	std::printf("  relics: own-territory relic %s, unseen relic %s\n",
-		near.claimed ? (near.owner_team == 1 ? "taken by AI 1" : "taken by another") : "left", far.claimed ? "taken" : "left alone");
+	std::printf("  relics: own-territory relic %s after %.0f s, unseen relic %s\n",
+		near.claimed ? (near.owner_team == 1 ? "taken by AI 1" : "taken by another") : "left", t, far.claimed ? "taken" : "left alone");
 	CHECK(near.claimed && near.owner_team == 1, "Petra captures a Gaia relic in its territory");
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
 	// abortCaptureGaiaRelic: a relic someone else takes first ends the expedition.
@@ -2226,6 +2229,12 @@ static void test_research_choices() {
 	for (uint8_t t = 1; t < TECH_COUNT; ++t) all3 += s->players_[1].has_tech(t);
 	std::printf("  city phase: %d forge techs (%d techs in all)\n", fights3, all3);
 	CHECK(fights3 >= 2, "researches other technologies at random in the city phase");
+	// Config.unusedNoAllyTechs: Cartography, Diaspora and the international trade bonus
+	// only with an ally.
+	CHECK(s->petra_skips_random_tech(TECH_UNLOCK_SHARED_LOS, false) && s->petra_skips_random_tech(TECH_UNLOCK_SHARED_DROPSITES, false),
+	      "no shared vision or dropsites without an ally");
+	CHECK(!s->petra_skips_random_tech(TECH_UNLOCK_SHARED_LOS, true) && !s->petra_skips_random_tech(TECH_UNLOCK_SHARED_DROPSITES, true),
+	      "both with an ally");
 }
 
 // headquarters.js trainMoreWorkers: the civic centre trains citizen infantry as workers
@@ -2774,12 +2783,23 @@ static void test_defense_armies() {
 	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
 	std::printf("  defense: two groups 18 units apart make %zu armies, %zu with defenders\n", armies.size(), with_defenders);
 	CHECK(armies.size() == 2 && with_defenders == 2, "one army per group of foes, each defended (makeIntoArmy, assignDefenders)");
-	// The western group joins the eastern one.
+	// The western group joins the eastern one where its fight has taken it (a mine beside the
+	// eastern group's spawn point blocks movement, so it can't stay put).
+	float ex = 0.0f, ez = 0.0f;
+	int en = 0;
+	for (uint32_t id : east) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		ex += s->units_.pos_x[i];
+		ez += s->units_.pos_z[i];
+		++en;
+	}
+	if (en) { ex /= (float)en; ez /= (float)en; } else { ex = cx + 10.0f; ez = cz - 7.0f; }
 	for (size_t k = 0; k < west.size(); ++k) {
 		const int32_t i = s->lookup_unit(west[k]);
 		if (i < 0) continue;
-		s->units_.pos_x[i] = cx + 10.0f;
-		s->units_.pos_z[i] = cz - 8.0f + (float)k;
+		s->units_.pos_x[i] = ex + 1.0f;
+		s->units_.pos_z[i] = ez - 1.0f + (float)k;
 	}
 	run_ai_turns(*s, 1);
 	std::printf("  defense: after the groups meet, %zu army\n", armies.size());
@@ -3646,6 +3666,43 @@ static void test_building_plan_028() {
 // back lays a storehouse by a forest at least 15 tiles from our dropsites, and its foundation
 // restarts every count; headquarters.js buildFarmstead lays one farmstead once there is a
 // storehouse and a house.
+// queues.dropsites keeps a storehouse plan until it is funded: a check that decides on one it
+// can't pay for keeps the decision (and freezes the counts) instead of counting afresh.
+static void test_pending_dropsite() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->petra_pid_ = 1;
+	for (auto &b : s->buildings_)
+		if (b.team == 1) b.build_progress = 1.0f; // no storehouse foundation restarting the counts
+	auto storehouses = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == BLD_STOREHOUSE && b.hp > 0.0f;
+		return n;
+	};
+	for (auto &a : s->petra_queues_.accounts) a = {0, 0, 0, 0};
+	s->set_player_resources(1, 0, 0, 0, 0);
+	auto &dc = s->petra_dropsite_check_;
+	dc = PetraDropsiteCheck{};
+	dc.used[0] = 120;
+	dc.lost[0] = 40; // 25% walking back
+	const int before = storehouses();
+	s->petra_check_resource_levels(500);
+	CHECK(storehouses() == before && dc.pending == RES_WOOD + 1, "an unpaid wood storehouse stays decided");
+	CHECK(dc.used[0] == 0 && dc.lost[0] == 0, "the counts restart once it is decided");
+	const char *path = "/tmp/rtso_test_petra_pending.sav";
+	CHECK(s->save_state(path), "saves");
+	auto t = std::make_unique<Simulation>();
+	CHECK(t->load_state(path), "loads");
+	std::remove(path);
+	CHECK(t->petra_dropsite_check_.pending == RES_WOOD + 1, "the pending storehouse survives a save");
+	fund_queues(*s);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_check_resource_levels(501);
+	CHECK(storehouses() == before + 1 && dc.pending == 0, "once funded the storehouse goes up");
+}
+
 static void test_dropsites() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -3751,7 +3808,9 @@ static void test_personality_draw() {
 	t.set_lock_teams(true);
 	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.3f)) < 1e-5f);
 	t.set_petra_difficulty(2, PETRA_SANDBOX);
-	assert(t.petra_config_for(2).aggressive == 0.85f && t.petra_config_for(2).pop_scaling == 0.5f);
+	// setConfig draws no personality on Sandbox: the default 0.5 whatever the behaviour.
+	assert(t.petra_config_for(2).aggressive == 0.5f && t.petra_config_for(2).defensive == 0.5f &&
+	       t.petra_config_for(2).pop_scaling == 0.5f);
 	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
 }
 
@@ -4148,6 +4207,7 @@ int main(int argc, char **argv) {
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);
 	RUN(test_chat_text);
+	RUN(test_pending_dropsite);
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

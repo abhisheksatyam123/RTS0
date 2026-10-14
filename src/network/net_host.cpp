@@ -181,7 +181,7 @@ bool NetHost::startClient(const std::string &h, uint16_t p) {
 
 	// Send initial connection request with client handshake
 	ClientHandshakeMsg chm;
-	chm.engine_version = "RTS0-0.1";
+	chm.engine_version = software_version_;
 	std::vector<uint8_t> chm_payload = NetPacketSerializer::frame_client_handshake(chm);
 	std::vector<uint8_t> chm_msg = NetPacketSerializer::pack_message(NetMessageType::NMT_CLIENT_HANDSHAKE, 0, chm_payload);
 
@@ -612,7 +612,15 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 		}
 
 		if (!peer && (hdr.flags & NET_FLAG_CONNECT_REQ)) {
-			if (peers_.size() < static_cast<size_t>(cfg.maxPlayers + cfg.maxObservers)) {
+			// Sessions that left keep their entry (ids stay unique), so count
+			// only the connected ones, as 0 A.D. counts m_Sessions.
+			const size_t live = (size_t)std::count_if(peers_.begin(), peers_.end(),
+					[](const NetPeer &p) { return p.connected; });
+			if (live >= NET_MAX_CLIENTS) {
+				// NDR_SERVER_FULL, in the disconnect's channel byte; sent each
+				// time it asks, since the client resends its connect.
+				send_wire_packet(from_ip, from_port, 0, NET_FLAG_DISCONNECT, NDR_SERVER_FULL, nullptr, 0, false);
+			} else {
 				NetPeer np;
 				np.id = next_peer_id_++;
 				np.address = from_ip;
@@ -631,7 +639,7 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 
 				// Send server handshake
 				ServerHandshakeMsg shm;
-				shm.engine_version = "RTS0-0.1";
+				shm.engine_version = software_version_;
 				std::vector<uint8_t> payload = NetPacketSerializer::frame_server_handshake(shm);
 				std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_SERVER_HANDSHAKE, 0, payload);
 				send_wire_packet(from_ip, from_port, peer->id, 0, cfg.commandChannel, msg.data(), msg.size(), true);
@@ -662,6 +670,7 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			if (hdr.flags & NET_FLAG_DISCONNECT) {
 				const bool refused = auth_result_ >= 0 && auth_result_ != ARC_OK;
 				lose_host(kicked_self_ ? (banned_self_ ? 7 : 6)
+						: hdr.channel ? hdr.channel // a reason the host named (NDR_*)
 						: refused && auth_result_ == ARC_BANNED ? 7
 						: refused && auth_result_ == ARC_PASSWORD_INVALID ? 14 : 2);
 			}
@@ -864,9 +873,22 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 		AuthenticateMsg auth;
 		if (NetPacketSerializer::parse_authenticate(msg.payload.data(), msg.payload.size(), auth)) {
 			NetPeer *p = getPeer(peerId);
-			if (isHost() && p && !p->is_authenticated) {
-				// 0 A.D. NetServer::OnAuthenticate: a banned name or address, or the
-				// wrong password, is refused and the link closed.
+			if (isHost() && p && !p->is_authenticated && !p->kick_disconnect_ms) {
+				// 0 A.D. NetServer::OnAuthenticate: a name already in the game is
+				// refused, or with network.duplicateplayernames made unique
+				// (DeduplicatePlayerName); unnamed (test) clients are left alone.
+				if (!auth.name.empty() && name_taken(auth.name, p)) {
+					if (!duplicate_names_) {
+						std::cout << "[NetHost] Refused peer " << p->id << ": the name " << auth.name << " is in use\n";
+						refuse_with(*p, NDR_PLAYERNAME_IN_USE);
+						return;
+					}
+					std::string name;
+					for (int i = 2; name_taken(name = auth.name + " (" + std::to_string(i) + ")", p); ++i) {}
+					auth.name = name;
+				}
+				// A banned name or address, or the wrong password, is refused and
+				// the link closed.
 				AuthenticateResultMsg res;
 				res.host_id = static_cast<uint16_t>(peerId);
 				res.is_controller = 0;
@@ -915,7 +937,16 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_CLIENT_HANDSHAKE)) {
 		ClientHandshakeMsg chm;
 		if (NetPacketSerializer::parse_client_handshake(msg.payload.data(), msg.payload.size(), chm)) {
-			if (isHost()) {
+			NetPeer *p = isHost() ? getPeer(author) : nullptr;
+			// 0 A.D. CNetServerWorker::OnClientHandshake: another protocol, or
+			// another engine version or mods (CheckHandshake), closes the link.
+			if (p && !p->kick_disconnect_ms &&
+					(chm.protocol_version != PS_PROTOCOL_VERSION || chm.engine_version != software_version_)) {
+				std::cout << "[NetHost] Refused peer " << peerId << ": it runs " << chm.engine_version << "\n";
+				refuse_with(*p, chm.protocol_version != PS_PROTOCOL_VERSION ? NDR_INCORRECT_PROTOCOL_VERSION
+						: NDR_INCORRECT_SOFTWARE_VERSION);
+				return;
+			} else if (p && !p->kick_disconnect_ms) {
 				ServerHandshakeResponseMsg srm;
 				srm.use_protocol_version = PS_PROTOCOL_VERSION;
 				srm.flags = 0;
@@ -1001,7 +1032,7 @@ void NetHost::check_peer_timeouts(uint64_t now_ms) {
 			continue;
 		if (p.connected && p.kick_disconnect_ms && now_ms >= p.kick_disconnect_ms) {
 			for (int i = 0; i < kDisconnectSends; ++i)
-				send_wire_packet(p.address, p.port, p.id, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);
+				send_wire_packet(p.address, p.port, p.id, NET_FLAG_DISCONNECT, p.disconnect_reason, nullptr, 0, false);
 			p.connected = false;
 			continue;
 		}
@@ -1187,6 +1218,18 @@ void NetHost::lose_host(int reason) {
 	peers_[0].connected = false;
 	std::cout << "[NetHost] Lost the connection to the host (reason " << reason << ")\n";
 	if (peer_disconnected_cb_) peer_disconnected_cb_(0);
+}
+
+void NetHost::refuse_with(NetPeer &p, uint8_t reason) {
+	p.disconnect_reason = reason;
+	p.kick_disconnect_ms = get_now_ms();
+}
+
+bool NetHost::name_taken(const std::string &name, const NetPeer *self) const {
+	if (name == local_player_name_) return true;
+	for (const auto &p : peers_)
+		if (&p != self && p.id != 0 && admitted(p) && p.player_name == name) return true;
+	return false;
 }
 
 void NetHost::refusePeer(uint32_t peer_id) {

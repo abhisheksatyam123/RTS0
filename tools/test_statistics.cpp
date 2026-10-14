@@ -11,6 +11,9 @@
 //   5. Resource and population counts (GetResourceCounts, GetPopulationCount),
 //      livestock bred at a corral (unitsTrained.Domestic, not in the total) and
 //      successful and failed bribes (VisionSharing.AddSpy, Commands.js).
+//   7. Gathered resources count as they are gathered (ResourceGatherer PerformGather), by
+//      the supply's type then: a load never dropped off still counts, and only fruit
+//      and grain count as vegetarian food.
 //   6. Deleting a unit or a structure counts as neither lost nor killed: only
 //      Attacking.js TargetKilled reports deaths, Health.Kill does not.
 //
@@ -215,6 +218,47 @@ static void test_match() {
 	std::remove(path);
 }
 
+static void test_gathered_each_tick() {
+	std::printf("resources gathered on each gather tick\n");
+	Simulation s;
+	s.reset();
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(0, true, false);
+	s.set_player_active(1, true, false);
+	s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(40.0f, -40.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	// Far from any dropsite, so nothing is dropped off during the test.
+	const uint32_t bush = s.spawn_resource_world(30.0f, 40.0f, RES_FOOD, 200, RES_SUB_NONE);
+	const uint32_t tree = s.spawn_resource_world(-30.0f, 40.0f, RES_WOOD, 200);
+	const uint32_t woman = s.spawn_unit(30.0f, 38.0f, 0, UNIT_FEMALE_CITIZEN);
+	const uint32_t cutter = s.spawn_unit(-30.0f, 38.0f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&woman, 1, bush);
+	s.order_gather(&cutter, 1, tree);
+	run(s, 6 * 20);
+	PlayerStatistics a = s.statistics(0);
+	const int wi = s.lookup_unit(woman), ci = s.lookup_unit(cutter);
+	CHECK(wi >= 0 && ci >= 0);
+	const int carried_food = s.units_.carry[wi], carried_wood = s.units_.carry[ci];
+	std::printf("  carried food %d wood %d; gathered food %u (vegetarian %u) wood %u; stockpile food %.0f\n", carried_food, carried_wood,
+		a.resources_gathered[RES_FOOD], a.vegetarian_food_gathered, a.resources_gathered[RES_WOOD], s.players_[0].res[RES_FOOD]);
+	CHECK(carried_food > 0 && a.resources_gathered[RES_FOOD] == (uint32_t)carried_food);
+	CHECK(a.vegetarian_food_gathered == a.resources_gathered[RES_FOOD]);
+	CHECK(carried_wood > 0 && a.resources_gathered[RES_WOOD] == (uint32_t)carried_wood);
+	// The loads die with the gatherers and stay counted.
+	const uint32_t ids[2] = {woman, cutter};
+	s.cmd_delete(0, ids, 2);
+	run(s, 20);
+	PlayerStatistics b = s.statistics(0);
+	CHECK(b.resources_gathered[RES_FOOD] == a.resources_gathered[RES_FOOD] && b.resources_gathered[RES_WOOD] == a.resources_gathered[RES_WOOD]);
+	// Meat is food, but not vegetarian.
+	const uint32_t carcass = s.spawn_resource_world(30.0f, 40.0f, RES_FOOD, 100, RES_SUB_MEAT);
+	const uint32_t hunter = s.spawn_unit(30.0f, 38.0f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&hunter, 1, carcass);
+	run(s, 6 * 20);
+	PlayerStatistics c = s.statistics(0);
+	CHECK(c.resources_gathered[RES_FOOD] > b.resources_gathered[RES_FOOD] && c.vegetarian_food_gathered == b.vegetarian_food_gathered);
+}
+
 static void test_counts() {
 	std::printf("resource and population counts, livestock, bribes\n");
 	Simulation s;
@@ -289,6 +333,7 @@ int main() {
 	test_delete_not_lost();
 	test_tribute_barter();
 	test_counts();
+	test_gathered_each_tick();
 	test_map_measures();
 	test_match();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

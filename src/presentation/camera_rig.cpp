@@ -21,6 +21,9 @@ void RtsoCameraRig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_target_pos", "pos"), &RtsoCameraRig::set_target_pos);
 	ClassDB::bind_method(D_METHOD("zoom", "delta_zoom"), &RtsoCameraRig::zoom);
 	ClassDB::bind_method(D_METHOD("reset_camera"), &RtsoCameraRig::reset_camera);
+	ClassDB::bind_method(D_METHOD("toggle_birds_eye"), &RtsoCameraRig::toggle_birds_eye);
+	ClassDB::bind_method(D_METHOD("is_birds_eye"), &RtsoCameraRig::is_birds_eye);
+	ClassDB::bind_method(D_METHOD("get_pitch_deg"), &RtsoCameraRig::get_pitch_deg);
 	ClassDB::bind_method(D_METHOD("set_edge_scroll_enabled", "enabled"), &RtsoCameraRig::set_edge_scroll_enabled);
 	ClassDB::bind_method(D_METHOD("is_edge_scroll_enabled"), &RtsoCameraRig::is_edge_scroll_enabled);
 }
@@ -53,6 +56,19 @@ void RtsoCameraRig::reset_camera() {
 	target_yaw = 0.0f;
 	target_zoom = 28.0f;
 	target_pitch_deg = 50.6f;
+	birds_eye_ = false;
+}
+
+// 0.28 camera.togglebirdseyeview (Shift+Tab): "Toggle between regular and bird's
+// eye (top-down) views". Just short of 90 degrees keeps the camera's offset finite.
+void RtsoCameraRig::toggle_birds_eye() {
+	birds_eye_ = !birds_eye_;
+	if (birds_eye_) {
+		pre_birds_eye_pitch_ = target_pitch_deg;
+		target_pitch_deg = 89.9f;
+	} else {
+		target_pitch_deg = pre_birds_eye_pitch_;
+	}
 }
 
 void RtsoCameraRig::follow_to(Vector3 pos) {
@@ -163,8 +179,8 @@ void RtsoCameraRig::_process(double delta) {
 		if (on("camera.right")) input_dir.x += 1.0f;
 		if (on("camera.rotate.cw")) target_yaw += 2.0f * (float)delta;
 		if (on("camera.rotate.ccw")) target_yaw -= 2.0f * (float)delta;
-		if (on("camera.rotate.up")) target_pitch_deg = Math::clamp(target_pitch_deg - 40.0f * (float)delta, 25.0f, 85.0f);
-		if (on("camera.rotate.down")) target_pitch_deg = Math::clamp(target_pitch_deg + 40.0f * (float)delta, 25.0f, 85.0f);
+		if (!birds_eye_ && on("camera.rotate.up")) target_pitch_deg = Math::clamp(target_pitch_deg - 40.0f * (float)delta, 25.0f, 85.0f);
+		if (!birds_eye_ && on("camera.rotate.down")) target_pitch_deg = Math::clamp(target_pitch_deg + 40.0f * (float)delta, 25.0f, 85.0f);
 		if (on("camera.zoom.in")) zoom(-30.0f * (float)delta);
 		if (on("camera.zoom.out")) zoom(30.0f * (float)delta);
 	}

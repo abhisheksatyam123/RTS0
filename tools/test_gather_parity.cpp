@@ -14,6 +14,7 @@
 //       src/network/net_host.cpp -lpthread -o /tmp/test_gather_parity && /tmp/test_gather_parity
 #define private public
 #include "simulation/simulation.h"
+#include "simulation/nav/footprint.h"
 #undef private
 #include <cmath>
 #include <cstdio>
@@ -217,6 +218,60 @@ int main() {
 				wbefore, s.carry_cap(w, RES_WOOD), (int)s.units_.tmpl[u]);
 		CHECK(s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT && s.carry_cap(u, RES_WOOD) == before + 5 &&
 		      s.carry_cap(w, RES_WOOD) == wbefore + 5);
+	}
+
+	// 9. MaxGatherers (0.28 ResourceSupply.AddGatherer on APPROACHING enter): a unit over a full
+	// tree's cap is sent to another tree at once, not after walking to the full one.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_building_world(40.0f, 20.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t full = s.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 200);
+		const uint32_t other = s.spawn_resource_world(0.0f, 6.0f, RES_WOOD, 200);
+		s.set_resource_max_gatherers(full, 2);
+		uint32_t women[3];
+		for (int k = 0; k < 3; ++k) women[k] = s.spawn_unit(30.0f, -1.0f + k, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(women, 3, full);
+		run(s, 1.0f);
+		int on_full = 0, on_other = 0;
+		float other_x = 0.0f;
+		for (uint32_t id : women) {
+			const int32_t u = s.lookup_unit(id);
+			if (s.units_.target_resource_id[u] == full) ++on_full;
+			if (s.units_.target_resource_id[u] == other) { ++on_other; other_x = s.units_.pos_x[u]; }
+		}
+		std::printf("  max gatherers: %d on the full tree, %d sent on from x %.1f\n", on_full, on_other, other_x);
+		CHECK(on_full == 2 && on_other == 1 && other_x > 20.0f);
+	}
+
+	// 10. 0.28 FindNearestDropsite measures to the footprint (DistanceToPoint): a civic centre
+	// whose edge is nearer wins over a storehouse whose centre is nearer.
+	{
+		static Simulation s;
+		fresh(s);
+		const uint32_t cc = s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const Simulation::Building *c = nullptr;
+		for (const auto &b : s.buildings()) if (b.id == cc) c = &b;
+		const float cc_edge = c->x + std::max(c->hu, c->hv);
+		const float wx = cc_edge + 3.0f; // 3 from the civic centre's edge
+		const uint32_t store = s.spawn_building_world(wx + (wx - c->x) - 0.5f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t woman = s.spawn_unit(wx, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const int32_t w = s.lookup_unit(woman);
+		const Simulation::Building *st = nullptr;
+		for (const auto &b : s.buildings()) if (b.id == store) st = &b;
+		for (const auto &b : s.buildings()) if (b.id == cc) c = &b;
+		const nav::Vec2 gc = nav::footprint_gap(*c, wx, 0.0f), gs = nav::footprint_gap(*st, wx, 0.0f);
+		const float dc = std::hypot(gc.x, gc.y), ds = std::hypot(gs.x, gs.y);
+		const float cc_centre = std::fabs(wx - c->x), st_centre = std::fabs(st->x - wx);
+		s.units_.res_type_carried[w] = RES_WOOD;
+		s.units_.carry[w] = s.carry_cap((size_t)w, RES_WOOD);
+		s.units_.action_state[w] = ACTION_RETURN_DROPSITE;
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t w2 = s.lookup_unit(woman);
+		std::printf("  dropsite: edge %.1f / %.1f, centre %.1f / %.1f (cc / storehouse); nearest %s, heading to x %.1f\n",
+				dc, ds, cc_centre, st_centre, s.nearest_dropsite((size_t)w2) == cc ? "cc" : "storehouse", s.units_.target_x[w2]);
+		CHECK(dc < ds && st_centre < cc_centre); // the setup
+		CHECK(s.nearest_dropsite((size_t)w2) == cc && s.units_.target_x[w2] == c->x);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
