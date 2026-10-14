@@ -521,6 +521,16 @@ int main() {
 			if (rv.alive[i] && rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd_wood += !woods.count(rv.amount[i]);
 		CHECK(odd_wood == 0, "%s: %d trees hold wood no slot's template gives", f->biome, odd_wood);
 	}
+	// 10b''''. 0.28's Autumn and Nubia biomes paint their rmbiome terrains.
+	for (int biome : {BIOME_AUTUMN, BIOME_NUBIA}) {
+		Simulation sim;
+		sim.set_biome_override(biome);
+		sim.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
+		const char *name = biome == BIOME_AUTUMN ? "autumn" : "nubia";
+		const auto &names = sim.terrain_tiles().names;
+		CHECK(sim.current_map_biome() == name && std::count(names.begin(), names.end(), std::string(terrain_biome(name).main[0])) == 1,
+		      "%s: Mainland paints the biome's main terrain", name);
+	}
 	// 10b'. Savanna: tree1 is gaia/tree/baobab (ResourceSupply/Max 600), tree2 acacia (200) and
 	// tree4/tree5 bush_tropic (50) and bush_temperate (100).
 	{

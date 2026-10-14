@@ -32,7 +32,7 @@ func run() -> void:
 
 	print("1. Learn to Play")
 	var labels: Array = menu.submenu_data["learn"]["items"].map(func(it): return it["label"])
-	check(labels == ["Manual", "Tutorial", "Structure Tree", "Civilization Overview", "Catafalque Overview", "Map Overview"],
+	check(labels == ["Manual", "Tutorial", "Tips and Tricks", "Structure Tree", "Civilization Overview", "Catafalque Overview", "Map Overview"],
 		"0 A.D.'s items: " + str(labels))
 
 	print("2. Catafalque Overview")

@@ -38,6 +38,8 @@
 #include <godot_cpp/classes/curve.hpp>
 #include <godot_cpp/classes/curve_texture.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/sprite3d.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/texture2d_array.hpp>
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
@@ -174,6 +176,22 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 		v.hp_fg->set_mesh(hp_fg_mesh);
 		v.hp_fg->set_material_override(hp_green_mat);
 		add_child(v.hp_fg);
+
+		v.xp_bg = memnew(MeshInstance3D);
+		v.xp_bg->set_mesh(xp_bg_mesh);
+		v.xp_bg->set_material_override(hp_bg_mat);
+		add_child(v.xp_bg);
+
+		v.xp_fg = memnew(MeshInstance3D);
+		v.xp_fg->set_mesh(xp_fg_mesh);
+		v.xp_fg->set_material_override(xp_mat);
+		add_child(v.xp_fg);
+
+		v.rank_icon = memnew(Sprite3D);
+		v.rank_icon->set_billboard_mode(BaseMaterial3D::BILLBOARD_ENABLED);
+		v.rank_icon->set_draw_flag(SpriteBase3D::FLAG_SHADED, false);
+		v.rank_icon->set_alpha_cut_mode(SpriteBase3D::ALPHA_CUT_DISCARD);
+		add_child(v.rank_icon);
 	}
 	UnitVis &v = unit_pool[slot];
 	v.sim_id = sim_id;
@@ -181,6 +199,9 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 	v.root->set_visible(true);
 	v.hp_bg->set_visible(false);
 	v.hp_fg->set_visible(false);
+	v.xp_bg->set_visible(false);
+	v.xp_fg->set_visible(false);
+	v.rank_icon->set_visible(false);
 	unit_slot[sim_id] = slot;
 	return v;
 }
@@ -279,6 +300,15 @@ void RtsoWorldView::_ready() {
 	hp_blue_mat.instantiate();
 	hp_blue_mat->set_albedo(Color(0.25f, 0.65f, 1.0f, 0.95f));
 	hp_blue_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+
+	// The experience bar: 2/3 of a health bar's height (StatusBars AddExperienceBar).
+	xp_bg_mesh.instantiate();
+	xp_bg_mesh->set_size(Vector3(0.9f, 0.055f, 0.04f));
+	xp_fg_mesh.instantiate();
+	xp_fg_mesh->set_size(Vector3(0.88f, 0.045f, 0.05f));
+	xp_mat.instantiate();
+	xp_mat->set_albedo(Color(0.95f, 0.75f, 0.2f, 0.95f));
+	xp_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
 
 	// Terrain Plane
 	plane_mesh.instantiate();
@@ -1556,6 +1586,9 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.ring) v.ring->set_visible(false);
 	if (v.hp_bg) v.hp_bg->set_visible(false);
 	if (v.hp_fg) v.hp_fg->set_visible(false);
+	if (v.xp_bg) v.xp_bg->set_visible(false);
+	if (v.xp_fg) v.xp_fg->set_visible(false);
+	if (v.rank_icon) v.rank_icon->set_visible(false);
 	if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
 		v.anim->set_active(false);
 }
@@ -2012,6 +2045,8 @@ void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
 		{ "persia", { { "palm", 1.0f }, { "acacia", 0.5f }, { "tree", 0.9f } } },
 		{ "india", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "tree", 1.0f } } },
 		{ "tropical", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "palm", 1.2f } } },
+		{ "autumn", { { "oak", 1.15f }, { "tree", 1.0f }, { "oak", 1.0f } } },
+		{ "nubia", { { "acacia", 0.6f }, { "baobab", 0.45f }, { "palm", 1.0f } } },
 		{ "volcanic", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
 	};
 	const Set *set = &kSets[0];
@@ -2152,6 +2187,8 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 		{ "persia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
 		{ "volcanic", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
 		{ "tropical", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f } }, // india
+		{ "autumn", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
+		{ "nubia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
 	};
 	const Env *e = &kEnvs[0];
 	for (const auto &x : kEnvs)
@@ -2639,6 +2676,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	std::unordered_set<uint32_t> active_unit_ids;
 
+	const bool status_rank_icon = rtso::user_config::get_bool("gui.session.rankabovestatusbar");
+	const bool status_xp_bar = rtso::user_config::get_bool("gui.session.experiencestatusbar");
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint32_t id = uview.id[i];
@@ -2824,6 +2863,34 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Vector3 fg_offset((hp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f);
 			v.hp_fg->set_transform(Transform3D(fg_basis, hp_pos + fg_offset));
 		}
+		// StatusBars.js: the experience bar under the health bar and the rank icon on top,
+		// per gui.session.experiencestatusbar and gui.session.rankabovestatusbar.
+		const float need_xp = show_hp && status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
+		const bool show_xp = need_xp > 0.0f;
+		v.xp_bg->set_visible(show_xp);
+		v.xp_fg->set_visible(show_xp);
+		if (show_xp) {
+			const float xp_ratio = Math::clamp((float)uview.xp[i] / need_xp, 0.0f, 1.0f);
+			Vector3 xp_pos(x, v.hp_bg->get_transform().origin.y - 0.08f, z);
+			v.xp_bg->set_transform(Transform3D(Basis(), xp_pos));
+			Basis xb;
+			xb.scale(Vector3(std::max(xp_ratio, 0.001f), 1.0f, 1.0f));
+			v.xp_fg->set_transform(Transform3D(xb, xp_pos + Vector3((xp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f)));
+		}
+		const uint8_t rank = show_hp && status_rank_icon ? uview.rank[i] : 0;
+		if (rank >= 2) {
+			if (v.rank_shown != rank) {
+				v.rank_shown = rank;
+				v.rank_icon->set_texture(ResourceLoader::get_singleton()->load(rank >= 3 ?
+						"res://assets/textures/ui/archive/icons/ranks/Elite.png" :
+						"res://assets/textures/ui/archive/icons/ranks/Advanced.png"));
+				const Ref<Texture2D> tex = v.rank_icon->get_texture();
+				// Half a bar wide (StatusBars AddRankIcon: BarWidth / 2).
+				if (tex.is_valid() && tex->get_width() > 0) v.rank_icon->set_pixel_size(0.45f / tex->get_width());
+			}
+			v.rank_icon->set_position(Vector3(x, v.hp_bg->get_transform().origin.y + 0.3f, z));
+		}
+		v.rank_icon->set_visible(rank >= 2);
 	}
 
 	for (size_t s = 0; s < unit_pool.size(); ++s) {

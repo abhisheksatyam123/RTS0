@@ -10,7 +10,7 @@ struct TerritoryInfluenceInfo {
 	bool root; // Root: connects the territory around it
 };
 
-inline constexpr uint8_t TERRITORY_INFLUENCE_ROWS = 71;
+inline constexpr uint8_t TERRITORY_INFLUENCE_ROWS = 78;
 inline const TerritoryInfluenceInfo &territory_influence_info(uint8_t type) {
 	static const TerritoryInfluenceInfo kTable[TERRITORY_INFLUENCE_ROWS + 1] = {
 		{39.2f, 10000, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre (140 m)
@@ -84,6 +84,13 @@ inline const TerritoryInfluenceInfo &territory_influence_info(uint8_t type) {
 		{0.0f, 0, false}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
 		{0.0f, 0, false}, // BLD_SHRINE: structures/shrine_greek_01
 		{0.0f, 0, false}, // BLD_TRADING_POST: structures/trading_post_desert
+		{8.96f, 30000, false}, // BLD_TOWER_BOLT: structures/athen/tower_bolt (32 m)
+		{8.96f, 30000, false}, // BLD_TOWER_ARTILLERY: structures/athen/tower_artillery (32 m)
+		{11.2f, 65535, false}, // BLD_STOA: structures/athen/royal_stoa (40 m)
+		{10.08f, 65535, false}, // BLD_HELLENIC_STOA: structures/hellenic_stoa (36 m)
+		{7.28f, 65535, false}, // BLD_INN: structures/pers/inn (26 m)
+		{0.0f, 0, false}, // BLD_TENT: structures/rome/tent
+		{0.0f, 0, false}, // BLD_TRIUMPHAL_ARCH: structures/rome/arch
 		{0.0f, 0, false}, // out of range
 	};
 	return kTable[type < TERRITORY_INFLUENCE_ROWS ? type : TERRITORY_INFLUENCE_ROWS];
