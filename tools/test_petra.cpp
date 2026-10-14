@@ -3730,7 +3730,7 @@ static void test_pending_dropsite() {
 	s->petra_check_resource_levels(500);
 	CHECK(storehouses() == before && dc.pending == RES_WOOD + 1, "an unpaid wood storehouse stays decided");
 	CHECK(dc.used[0] == 0 && dc.lost[0] == 0, "the counts restart once it is decided");
-	// worker.js lastHuntSearch rides in the same save (v78).
+	// worker.js lastHuntSearch rides in the same save (v79).
 	s->petra_hunt_search_ = {{1234u, 56.5f}};
 	const char *path = "/tmp/rtso_test_petra_pending.sav";
 	CHECK(s->save_state(path), "saves");

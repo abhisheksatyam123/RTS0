@@ -15407,6 +15407,25 @@
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
+  "brit_ship_fire_fire": {
+   "file": "models/units/brit_ship_fire_fire.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    2.746,
+    2.882,
+    7.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/iberians/fireship_wood.xml",
+    "actor:art/actors/structures/iberians/fireship_fire.xml",
+    "mesh:props/iber_fireship_wood.dae",
+    "mesh:structural/iber_fireship.dae",
+    "skin:props/wood_burned.png",
+    "skin:structural/iber_ship.dds"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "brit_ship_scout": {
    "file": "models/units/brit_ship_scout.glb",
    "origin": "ground-center",
@@ -30070,6 +30089,71 @@
     "skin:structural/iber_struct.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "iber_infantry_javelineer_b": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Carry",
+    "Attack",
+    "Slaughter",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Death",
+    "Gather",
+    "Death2",
+    "Capture"
+   ],
+   "bones": 46,
+   "file": "models/units/iber_infantry_javelineer_b.glb",
+   "origin": "ground-center",
+   "parts": 19,
+   "size_meters": [
+    1.067,
+    1.8,
+    1.604
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_iber_isl_b.xml",
+    "actor:art/actors/props/units/shields/iber_round_small_01_basic.xml",
+    "actor:art/actors/props/units/tools/axe.xml",
+    "actor:art/actors/props/units/tools/hoe.xml",
+    "actor:art/actors/props/units/tools/mallet.xml",
+    "actor:art/actors/props/units/tools/pick.xml",
+    "actor:art/actors/props/units/weapons/blades/jav_blade.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
+    "actor:art/actors/props/units/weapons/jav.xml",
+    "actor:art/actors/props/units/weapons/jav_ammo.xml",
+    "actor:art/actors/props/units/weapons/jav_loaded.xml",
+    "actor:art/actors/units/iberians/infantry_javelinist_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "mesh:props/jav_blade.dae",
+    "mesh:props/new/head_longhair.dae",
+    "mesh:props/prop_mallet.dae",
+    "mesh:props/shield/round_small_boss.dae",
+    "mesh:props/tool_axe.dae",
+    "mesh:props/tool_hoe.dae",
+    "mesh:props/tool_pick.dae",
+    "mesh:props/weap_javelin_shaft_a.dae",
+    "mesh:props/weap_javelin_shaft_loaded_a.dae",
+    "mesh:props/weap_javelin_shaft_quiver.dae",
+    "mesh:props/weapons/dagger_01.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/iber_isp_b_1.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/iber_round_01_03.png",
+    "skin:skeletal/iber/tunic_01_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "iber_infantry_swordsman_b": {
    "animated": true,
