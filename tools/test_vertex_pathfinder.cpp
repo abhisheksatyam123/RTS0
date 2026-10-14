@@ -5,7 +5,9 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_vertex_pathfinder.cpp -o /tmp/tvp && /tmp/tvp
 //
 // Checks, over deterministic random scenes (buildings incl. rotated ones, unit clusters,
-// impassable terrain, random clearance/range, point and circle/square goals):
+// impassable terrain, random clearance/range, point and circle/square goals; in half the scenes
+// the terrain keeps the unit off by a random terrain_clearance, which grows every impassable
+// navcell by that much on both axes here):
 //  1. Collision: every segment of every returned path is collision-free against the statics and
 //     units expanded by the clearance (geometry.h TestRaySquare), against impassable navcells
 //     (open interior), and stays in the search box. Waypoints are never inside an expanded shape.
@@ -53,6 +55,7 @@ struct Scene {
 	std::vector<ShortPathSquare> units;
 	std::vector<uint8_t> blocked;
 	float clearance = 1.0f;
+	float tc = 0.0f; // ShortPathRequest::terrain_clearance
 	float bias = 0.0f;
 	float range = 20.0f;
 	Vec2 start;
@@ -127,13 +130,14 @@ bool pointInsideSolid(const Solid& s, P p, double eps) {
 	return std::fabs(dot(p - s.c, s.u)) < s.hw - eps && std::fabs(dot(p - s.c, s.v)) < s.hh - eps;
 }
 
-// Does the closed segment a-b cross the open interior of an impassable navcell?
+// Does the closed segment a-b cross the open interior of an impassable navcell grown by the
+// terrain clearance?
 bool segHitsTerrain(const Scene& s, P a, P b) {
-	const double eps = 1e-4;
-	int i0 = static_cast<int>(std::floor((std::min(a.x, b.x) - ORIGIN.x) / CELL)) - 1;
-	int i1 = static_cast<int>(std::floor((std::max(a.x, b.x) - ORIGIN.x) / CELL)) + 1;
-	int j0 = static_cast<int>(std::floor((std::min(a.y, b.y) - ORIGIN.y) / CELL)) - 1;
-	int j1 = static_cast<int>(std::floor((std::max(a.y, b.y) - ORIGIN.y) / CELL)) + 1;
+	const double eps = 1e-4, tc = s.tc;
+	int i0 = static_cast<int>(std::floor((std::min(a.x, b.x) - tc - ORIGIN.x) / CELL)) - 1;
+	int i1 = static_cast<int>(std::floor((std::max(a.x, b.x) + tc - ORIGIN.x) / CELL)) + 1;
+	int j0 = static_cast<int>(std::floor((std::min(a.y, b.y) - tc - ORIGIN.y) / CELL)) - 1;
+	int j1 = static_cast<int>(std::floor((std::max(a.y, b.y) + tc - ORIGIN.y) / CELL)) + 1;
 	i0 = std::max(i0, 0);
 	j0 = std::max(j0, 0);
 	i1 = std::min(i1, W - 1);
@@ -141,9 +145,22 @@ bool segHitsTerrain(const Scene& s, P a, P b) {
 	for (int j = j0; j <= j1; ++j)
 		for (int i = i0; i <= i1; ++i) {
 			if (s.passable(i, j)) continue;
-			double x0 = ORIGIN.x + i * CELL, z0 = ORIGIN.y + j * CELL;
-			if (segHitsRect(a, b, x0 + eps, x0 + CELL - eps, z0 + eps, z0 + CELL - eps)) return true;
+			double x0 = ORIGIN.x + i * CELL - tc, z0 = ORIGIN.y + j * CELL - tc, side = CELL + 2.0 * tc;
+			if (segHitsRect(a, b, x0 + eps, x0 + side - eps, z0 + eps, z0 + side - eps)) return true;
 		}
+	return false;
+}
+
+// Is p within `margin` of an impassable navcell grown by the terrain clearance?
+bool nearTerrain(const Scene& s, P p, double margin) {
+	const double r = s.tc + margin;
+	const int i0 = static_cast<int>(std::floor((p.x - r - ORIGIN.x) / CELL));
+	const int i1 = static_cast<int>(std::floor((p.x + r - ORIGIN.x) / CELL));
+	const int j0 = static_cast<int>(std::floor((p.y - r - ORIGIN.y) / CELL));
+	const int j1 = static_cast<int>(std::floor((p.y + r - ORIGIN.y) / CELL));
+	for (int j = j0; j <= j1; ++j)
+		for (int i = i0; i <= i1; ++i)
+			if (!s.passable(i, j)) return true;
 	return false;
 }
 
@@ -206,8 +223,8 @@ struct Oracle {
 	}
 
 	// Vertex set: start, then the corners of every expanded solid pushed outward by delta,
-	// then the convex corners of impassable terrain pushed outward by delta. Only vertices in
-	// the box and outside every expanded solid are kept.
+	// then the convex corners of impassable terrain pushed outward by the terrain clearance and
+	// delta. Only vertices in the box and outside every expanded solid are kept.
 	std::vector<P> vertices() const {
 		std::vector<P> v;
 		v.push_back(toP(s.start));
@@ -219,19 +236,20 @@ struct Oracle {
 			for (const P& p : sx)
 				if (box.contains(p, 0.0) && !insideAnySolid(p)) v.push_back(p);
 		}
+		const double out = delta + s.tc;
 		for (int j = 0; j < H; ++j)
 			for (int i = 0; i < W; ++i) {
 				if (s.passable(i, j)) continue;
 				const double x = ORIGIN.x + i * CELL, z = ORIGIN.y + j * CELL;
 				// Convex corner in the +x,+z direction: the 2x2 block around it is passable apart from this cell.
 				if (s.passable(i + 1, j) && s.passable(i, j + 1) && s.passable(i + 1, j + 1))
-					pushTerrain(v, P{x + CELL + delta, z + CELL + delta});
+					pushTerrain(v, P{x + CELL + out, z + CELL + out});
 				if (s.passable(i - 1, j) && s.passable(i, j + 1) && s.passable(i - 1, j + 1))
-					pushTerrain(v, P{x - delta, z + CELL + delta});
+					pushTerrain(v, P{x - out, z + CELL + out});
 				if (s.passable(i + 1, j) && s.passable(i, j - 1) && s.passable(i + 1, j - 1))
-					pushTerrain(v, P{x + CELL + delta, z - delta});
+					pushTerrain(v, P{x + CELL + out, z - out});
 				if (s.passable(i - 1, j) && s.passable(i, j - 1) && s.passable(i - 1, j - 1))
-					pushTerrain(v, P{x - delta, z - delta});
+					pushTerrain(v, P{x - out, z - out});
 			}
 		return v;
 	}
@@ -293,6 +311,9 @@ bool buildScene(uint32_t seed, int nStatic, int nUnit, float bias, Scene& s) {
 			for (int i = ci; i < std::min(ci + wi, W - 1); ++i)
 				s.blocked[static_cast<size_t>(j * W + i)] = 1;
 	}
+	// Half the scenes keep the unit off the terrain (drawn apart, so the other draws stay as they were).
+	Rng trng(seed * 40503u + 7u);
+	s.tc = trng.in(0, 1) ? static_cast<float>(trng.uni(0.1, 1.0)) : 0.0f;
 
 	for (int k = 0; k < nStatic; ++k) {
 		ShortPathSquare b;
@@ -345,7 +366,7 @@ bool buildScene(uint32_t seed, int nStatic, int nUnit, float bias, Scene& s) {
 		if (ok) {
 			const int i = static_cast<int>(std::floor((s.start.x - ORIGIN.x) / CELL));
 			const int j = static_cast<int>(std::floor((s.start.y - ORIGIN.y) / CELL));
-			if (!s.passable(i, j)) ok = false;
+			if (!s.passable(i, j) || (s.tc > 0.0f && nearTerrain(s, toP(s.start), SAMPLE_MARGIN))) ok = false;
 		}
 		found = ok;
 	}
@@ -380,6 +401,7 @@ bool runQuery(const Scene& s, float weight, std::vector<Vec2>& out) {
 	req.goal = s.goal;
 	req.unit_clearance_bias = s.bias;
 	req.heuristic_weight = weight;
+	req.terrain_clearance = s.tc;
 	const Scene* sc = &s;
 	auto pass = [sc](int i, int j) { return sc->passable(i, j); };
 	return compute_short_path(req, s.statics, s.units, pass, CELL, ORIGIN, W, H, out);
