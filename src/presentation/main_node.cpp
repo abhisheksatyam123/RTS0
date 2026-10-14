@@ -606,7 +606,8 @@ void RtsoMain::_ready() {
 	// Speed & Menu
 	speed_btn = memnew(Button);
 	speed_btn->set_custom_minimum_size(Vector2(45, 28));
-	speed_btn->set_text("1x");
+	speed_btn->set_text(speed_text(1.0f));
+	speed_btn->set_tooltip_text("Choose game speed");
 	speed_btn->add_theme_font_size_override("font_size", 12);
 	speed_btn->connect("pressed", Callable(this, "_on_speed_button_pressed"));
 	top_hbox->add_child(speed_btn);
@@ -2242,20 +2243,45 @@ void RtsoMain::update_cursor() {
 	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
 }
 
-// Game speeds offered in the session's speed menu (as 0 A.D.'s game-speed
-// dropdown); a replay also offers the fast speeds for skimming through it.
 static const char *const kQuicksavePath = "user://saves/quicksave.rts0sav";
 
-static const float kGameSpeeds[] = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
-static const float kReplaySpeeds[] = {3.0f, 5.0f, 10.0f, 20.0f};
+// 0 A.D. 0.28 simulation/data/settings/game_speeds.json: the session's speed
+// dropdown. The Fast Forward speeds are offered only while this client has no
+// active player (GameSpeedControl.js): a replay, an observer, or a player who
+// has been defeated or has won.
+struct GameSpeed {
+	float speed;
+	const char *title;
+	bool fast_forward;
+};
+static const GameSpeed kGameSpeeds[] = {
+	{0.1f, "Turtle (0.1×)", false},
+	{0.25f, "Slow (0.25×)", false},
+	{0.5f, "Leisurely (0.5×)", false},
+	{0.75f, "Relaxed (0.75×)", false},
+	{1.0f, "Normal (1×)", false},
+	{1.25f, "Fast (1.25×)", false},
+	{1.5f, "Very Fast (1.5×)", false},
+	{2.0f, "Insane (2×)", false},
+	{5.0f, "Fast Forward (5×)", true},
+	{10.0f, "Fast Forward (10×)", true},
+	{20.0f, "Fast Forward (20×)", true},
+};
 
-String RtsoMain::speed_text(float speed) { return String::num(speed, 2) + "x"; }
+String RtsoMain::speed_text(float speed) { return String::num(speed, 2) + String::utf8("×"); }
 
-Array RtsoMain::speed_choices(bool replay) {
+String RtsoMain::speed_title(float speed) {
+	for (const GameSpeed &g : kGameSpeeds)
+		if (g.speed == speed) return String::utf8(g.title);
+	return speed_text(speed);
+}
+
+bool RtsoMain::fast_forward_allowed() const { return turn_mgr_.is_replaying() || spectating(); }
+
+Array RtsoMain::speed_choices(bool fast_forward) {
 	Array out;
-	for (float sp : kGameSpeeds) out.push_back(sp);
-	if (replay)
-		for (float sp : kReplaySpeeds) out.push_back(sp);
+	for (const GameSpeed &g : kGameSpeeds)
+		if (fast_forward || !g.fast_forward) out.push_back(g.speed);
 	return out;
 }
 
@@ -2267,30 +2293,26 @@ void RtsoMain::_on_speed_button_pressed() {
 		speed_btn->add_child(speed_menu_);
 	}
 	speed_menu_->clear();
-	int id = 0;
-	for (float sp : kGameSpeeds) speed_menu_->add_radio_check_item(speed_text(sp), id++);
-	if (turn_mgr_.is_replaying())
-		for (float sp : kReplaySpeeds) speed_menu_->add_radio_check_item(speed_text(sp), id++);
-	for (int i = 0; i < speed_menu_->get_item_count(); ++i) {
-		const int k = speed_menu_->get_item_id(i);
-		const float sp = k < (int)std::size(kGameSpeeds) ? kGameSpeeds[k] : kReplaySpeeds[k - std::size(kGameSpeeds)];
-		speed_menu_->set_item_checked(i, sp == game_speed);
+	const Array speeds = speed_choices(fast_forward_allowed());
+	for (int i = 0; i < speeds.size(); ++i) {
+		speed_menu_->add_radio_check_item(speed_title((float)speeds[i]), i);
+		speed_menu_->set_item_metadata(i, speeds[i]);
+		speed_menu_->set_item_checked(i, (float)speeds[i] == game_speed);
 	}
 	speed_menu_->set_position(Vector2i(speed_btn->get_screen_position() + Vector2(0, speed_btn->get_size().y)));
 	speed_menu_->popup();
 }
 
 void RtsoMain::_on_speed_selected(int id) {
-	const int n = (int)std::size(kGameSpeeds);
-	if (id >= 0 && id < n) set_game_speed(kGameSpeeds[id]);
-	else if (id >= n && id < n + (int)std::size(kReplaySpeeds)) set_game_speed(kReplaySpeeds[id - n]);
+	if (speed_menu_ && id >= 0 && id < speed_menu_->get_item_count())
+		set_game_speed((float)speed_menu_->get_item_metadata(speed_menu_->get_item_index(id)));
 }
 
 // Offline and in replays only: networked games run at the host's speed.
 void RtsoMain::set_game_speed(float speed) {
 	if (net_lockstep() || !(speed > 0.0f)) return;
-	const float most = turn_mgr_.is_replaying() ? kReplaySpeeds[std::size(kReplaySpeeds) - 1] : kGameSpeeds[std::size(kGameSpeeds) - 1];
-	game_speed = std::clamp(speed, kGameSpeeds[0], most);
+	const Array speeds = speed_choices(fast_forward_allowed());
+	game_speed = std::clamp(speed, (float)speeds[0], (float)speeds[speeds.size() - 1]);
 	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
 	if (replay_speed_picker_)
 		for (int i = 0; i < replay_speed_picker_->get_item_count(); ++i)
@@ -3546,12 +3568,14 @@ void RtsoMain::_process(double delta) {
 bool RtsoMain::spectating() const {
 	if (turn_mgr_.is_replaying() || !sim) return false;
 	const uint8_t seat = seat_player();
-	return seat >= rtso::MAX_PLAYERS || sim->is_defeated(seat);
+	return seat >= rtso::MAX_PLAYERS || sim->is_defeated(seat) || sim->is_victory_for(seat);
 }
 
 // 0 A.D. session "viewPlayer" dropdown (gui/session/top_panel/PlayerViewControl):
-// an observer, or a player once defeated, watches the whole map or follows
-// one player's sight and panels. Shown from the moment this client spectates.
+// an observer, or a player once defeated or victorious (isPlayerObserver), watches
+// the whole map or follows one player's sight and panels. A loss switches the view
+// to Observer; a win keeps the player's own (PlayerViewControl.js onPlayerFinished).
+// "Observer Mode" shows while the view is Observer or Gaia.
 void RtsoMain::update_observer_view_picker() {
 	if (!spectating()) {
 		if (observer_view_picker_) observer_view_picker_->get_parent()->call("set_visible", false);
@@ -3560,39 +3584,48 @@ void RtsoMain::update_observer_view_picker() {
 	if (!observer_view_picker_) {
 		HBoxContainer *row = memnew(HBoxContainer);
 		row->set_position(Vector2(16.0f, 64.0f));
-		Label *caption = memnew(Label);
-		caption->set_text("Player view:");
-		row->add_child(caption);
-		observer_view_picker_ = memnew(OptionButton);
-		observer_view_picker_->add_item("Observer", 0);
-		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
-			if (!sim->player_in_match(p) && !((sim->participant_mask() >> p) & 1)) continue;
-			observer_view_picker_->add_item(player_display_name(p) + " (" + String(rtso::civ_info(sim->player(p).civ).name) + ")", p + 1);
-		}
-		observer_view_picker_->set_focus_mode(Control::FOCUS_NONE);
+		observer_view_picker_ = new_player_view_picker();
 		observer_view_picker_->connect("item_selected", Callable(this, "_on_observer_view_selected"));
 		row->add_child(observer_view_picker_);
+		observer_mode_label_ = memnew(Label);
+		observer_mode_label_->set_text("Observer Mode");
+		row->add_child(observer_mode_label_);
 		CanvasLayer *layer = memnew(CanvasLayer);
 		layer->set_layer(5);
 		add_child(layer);
 		layer->add_child(row);
-		set_observer_view(-1);
+		const uint8_t seat = seat_player();
+		if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat) && !sim->is_defeated(seat)) {
+			observer_view_ = seat; // the winner keeps watching their own side
+			sync_observer_view_picker();
+		} else {
+			set_observer_view(-1);
+		}
 	}
 	observer_view_picker_->get_parent()->call("set_visible", true);
 }
 
 void RtsoMain::_on_observer_view_selected(int index) {
-	if (observer_view_picker_ && index >= 0 && index < observer_view_picker_->get_item_count())
-		set_observer_view(observer_view_picker_->get_item_id(index) - 1);
+	if (!observer_view_picker_ || index < 0 || index >= observer_view_picker_->get_item_count()) return;
+	const int id = observer_view_picker_->get_item_id(index);
+	set_observer_view(id == kReplayViewGaiaId ? (int)rtso::GAIA_PLAYER : id - 1);
 }
 
+// Gaia sees everything, so its view is the observer's (as in a replay).
 void RtsoMain::set_observer_view(int player) {
+	observer_view_gaia_ = player == rtso::GAIA_PLAYER;
 	observer_view_ = player >= 0 && player < rtso::MAX_PLAYERS ? (uint8_t)player : rtso::OBSERVER_VIEW;
 	clear_selection();
-	if (observer_view_picker_)
+	sync_observer_view_picker();
+}
+
+void RtsoMain::sync_observer_view_picker() {
+	if (observer_view_picker_) {
+		const int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
 		for (int i = 0; i < observer_view_picker_->get_item_count(); ++i)
-			if (observer_view_picker_->get_item_id(i) == (observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1))
-				observer_view_picker_->select(i);
+			if (observer_view_picker_->get_item_id(i) == want) observer_view_picker_->select(i);
+	}
+	if (observer_mode_label_) observer_mode_label_->set_visible(observer_view_ == rtso::OBSERVER_VIEW);
 }
 
 Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
@@ -3686,8 +3719,8 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 
 void RtsoMain::update_hud() {
 	top_panel_.update(sim, local_player(), match_elapsed_time);
-	// GameSpeedButton is hidden in networked games.
-	if (speed_btn) speed_btn->set_visible(!net_lockstep());
+	// GameSpeedButton is hidden in networked games; a replay's own row has the speed list.
+	if (speed_btn) speed_btn->set_visible(!net_lockstep() && !turn_mgr_.is_replaying());
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
