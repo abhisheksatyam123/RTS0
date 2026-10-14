@@ -2,7 +2,7 @@ extends Control
 ## Credits, ported from 0 A.D. gui/credits (credits.js, credits.xml): one tab
 ## per credits file in 0 A.D.'s order, each listing its sections as
 ## "nick — name" lines (parseHelper). The RTS0 tab comes first; the 0 A.D.
-## files are copied as is to data/reference/credits/ (0 A.D. 61a3b95).
+## files are copied as is to data/reference/credits/ (0 A.D. 0.28.0).
 
 const DIR := "res://data/reference/credits/"
 ## credits.js g_OrderTabNames.

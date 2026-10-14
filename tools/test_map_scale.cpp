@@ -721,6 +721,10 @@ int main() {
 		      flora_family(FLORA_FRUIT_FIG) == FLORA_APPLE && !flora_is_fruit(FLORA_TREE_DATE_PALM) &&
 		      flora_kind_by_name("tree/no_such_tree") == FLORA_COUNT && flora_family(FLORA_COUNT) == FLORA_DEFAULT,
 		      "template flora kinds resolve");
+		CHECK(flora_obstruction_m(FLORA_OAK, false) == 1.6f && flora_obstruction_m(FLORA_TREE_BAOBAB_3_MATURE, false) == 6.0f &&
+		      flora_obstruction_m(FLORA_BANYAN, false) == 6.0f && flora_obstruction_m(FLORA_FRUIT_FIG, true) == 5.0f &&
+		      flora_obstruction_m(FLORA_DEFAULT, true) == 2.5f && flora_obstruction_m(FLORA_DEFAULT, false) == 1.6f,
+		      "tree and fruit obstructions are their 0.28 templates' (1.6 m trees, 2.5 m fruit, 6 m baobab)");
 		const uint32_t id = sim.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 100, RES_SUB_NONE, 1, FLORA_BAMBOO);
 		CHECK(sim.resource_max_gatherers(id) == 1, "a JSON tree keeps its MaxGatherers");
 		sim.set_resource_flora(id, 200);

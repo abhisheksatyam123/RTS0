@@ -700,6 +700,15 @@ inline bool flora_is_fruit(uint8_t kind) {
 	return kind == FLORA_BERRY || kind == FLORA_APPLE || kind == FLORA_DATE;
 }
 
+// The width (= depth) in metres of a tree or fruit supply's Obstruction/Static: its
+// template's (flora_data.h), else its family's, else template_gaia_fruit's 2.5 for food
+// and template_gaia_tree's 1.6 for wood.
+inline float flora_obstruction_m(uint8_t kind, bool food) {
+	float w = kind >= FLORA_TEMPLATE_FIRST ? (kind < FLORA_COUNT ? flora_template_info(kind - FLORA_TEMPLATE_FIRST).obstruction : 0.0f)
+	                                       : flora_family_obstruction(kind);
+	return w > 0.0f ? w : food ? 2.5f : 1.6f;
+}
+
 // 0 A.D. Gaia ResourceSupply Max amounts that random maps place: gaia/tree/* hold
 // 200 wood, template_gaia_ore and template_gaia_rock 1000 metal or stone, and their
 // _large variants 5000. (Ported JSON maps read each entity's own template instead.)
