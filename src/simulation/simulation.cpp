@@ -15375,8 +15375,10 @@ void Simulation::petra_manage_military_production(float dt) {
 	const uint8_t phase = petra_ps().phase;
 
 	// The building of ours that trains roster unit `tmpl` soonest (TrainingPlan.getBestTrainers).
+	// A hero, wanted once, is not kept off a civic centre busy with worker batches.
 	auto trainer_for = [&](uint16_t tmpl) -> uint32_t {
-		return petra_best_trainer(tmpl, civ_unit_template(tmpl).unit_type, 4);
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		return petra_best_trainer(tmpl, t.unit_type, (t.flags & ROSTER_HERO) ? PRODUCTION_QUEUE_MAX : 4);
 	};
 
 	// attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
@@ -20870,6 +20872,29 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			if (ready && !plan.forced && plan.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2 &&
 			    siege_units == 0 && plan.state_timer < 240.0f)
 				ready = false;
+			// attackPlan.js mustStart wants every unitStat class at its targetSize: a HugeAttack
+			// waits for its hero (Hero targetSize 1) while one of the civ's heroes can still be
+			// trained (MatchLimit) or is training, bounded like the wait below.
+			if (ready && !plan.forced && !capped && mgr.kind == PETRA_ATTACK_HUGE && plan.state_timer < 300.0f) {
+				bool hero = false;
+				for (uint32_t uid : squad) {
+					const int32_t idx = lookup_unit(uid);
+					if (idx >= 0 && (unit_classes(units_.tmpl[idx], units_.unit_type[idx]) & TC_HERO).any()) { hero = true; break; }
+				}
+				for (const auto &b : buildings_) {
+					if (hero) break;
+					if (b.team != petra_pid_) continue;
+					for (const auto &o : b.queue)
+						if (o.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(o.tmpl).flags & ROSTER_HERO)) ready = false;
+				}
+				for (uint16_t t : civ_roster_ids(petra_ps().civ)) {
+					if (hero || !ready) break;
+					const CivUnitTemplate &ct = civ_unit_template(t);
+					if ((ct.flags & ROSTER_HERO) && ct.phase <= petra_ps().phase && !triggers_.template_disabled(t) &&
+					    match_limit_allows(petra_pid_, t, 1) && petra_best_trainer(t, ct.unit_type, PRODUCTION_QUEUE_MAX))
+						ready = false;
+				}
+			}
 			// attackPlan.js updatePreparation: a plan that must start keeps on while its units
 			// finish training (countOwnQueuedEntitiesWithMetadata "plan"): the batches under way
 			// for it (bounded, as a queue may never empty).
