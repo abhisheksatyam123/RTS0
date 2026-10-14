@@ -370,6 +370,15 @@ public:
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
+	// AutoFormation.js setDefault: right-click on a formation button; the hotkey
+	// session.toggledefaultformation switches between none and the last one used.
+	void _on_formation_gui_input(const Ref<InputEvent> &event, int formation);
+	void set_default_formation(uint8_t formation);
+	void toggle_default_formation();
+	// AutoFormation.getDefault on a walk or patrol: units in no formation are put
+	// into the default one first (Commands.js GetFormationUnitAIs).
+	void apply_default_formation(const uint32_t *ids, size_t n);
+	uint8_t last_default_formation_ = rtso::FORMATION_BOX;
 	void _on_train_pressed(int utype);
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
 	void _on_roster_gui_input(const Ref<InputEvent> &event);

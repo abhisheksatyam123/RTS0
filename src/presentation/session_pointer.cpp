@@ -307,7 +307,10 @@ void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 	if (turn_cmds())
 		post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
 	else
-		sim->order_walk(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, true);
+		{
+			apply_default_formation(sel_ptr, sel_n);
+			sim->order_walk(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, true);
+		}
 	play_civ_voice("move");
 }
 

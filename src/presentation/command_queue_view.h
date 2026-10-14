@@ -56,6 +56,14 @@ public:
 
 class RtsoCommandPanelView {
 public:
+	// 0 A.D. AutoFormation.js: gui.session.defaultformation names the formation walk and
+	// patrol orders put units into; the null formation (or anything unknown) turns it off.
+	static uint8_t default_formation() {
+		const std::string name = rtso::user_config::get("gui.session.defaultformation");
+		for (uint8_t f = 1; f < rtso::FORMATION_COUNT; ++f)
+			if (name == rtso::formation_template(f).path) return f;
+		return rtso::FORMATION_NONE;
+	}
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	static constexpr int ROSTER_TECH = 0x20000;   // roster_list metadata flag: a training unit's technology
 
@@ -474,18 +482,39 @@ public:
 						any_can_form = sim->unit_can_use_formation(sel_ids[i], f);
 				}
 				const uint32_t available = any_can_form ? sim->player_formation_mask(local_player()) : 0u;
+				const uint8_t default_f = default_formation();
 				for (uint8_t f = 0; f < rtso::FORMATION_COUNT; ++f) {
 					if (!((available >> f) & 1u)) continue;
+					// getItems: only the formations some selected unit can take.
+					bool someone_can = f == rtso::FORMATION_NONE;
+					for (size_t i = 0; i < sel_n && !someone_can; ++i) someone_can = sim->unit_can_use_formation(sel_ids[i], f);
+					if (!someone_can) continue;
 					const rtso::FormationTemplate &ft = rtso::formation_template(f);
 					const bool enabled = f == rtso::FORMATION_NONE || sim->can_move_into_formation(sel_ids, sel_n, f);
 					// The Formation panel's buttons are icons; the name is on the tooltip.
 					Button *fb = memnew(Button);
 					fb->set_custom_minimum_size(Vector2(26, 26));
 					fb->set_clip_text(true);
+					// setupButton: name, description, the default-formation line, then why not.
 					String tip = String::utf8(ft.name);
-					const char *why = enabled ? ft.tooltip : ft.disabled_tooltip;
-					if (why && *why) tip += String("\n") + String::utf8(why);
+					if (ft.tooltip && *ft.tooltip) tip += String("\n") + String::utf8(ft.tooltip);
+					const bool is_default = f == default_f;
+					if (f == rtso::FORMATION_NONE)
+						tip += is_default ? "\nDefault formation is disabled." : "\nRight-click to disable the default formation feature.";
+					else
+						tip += is_default ? "\nThis is the default formation, used for movement orders." : "\nRight-click to set this as the default formation.";
+					if (!enabled && ft.disabled_tooltip && *ft.disabled_tooltip)
+						tip += String("\n") + String::utf8(ft.disabled_tooltip);
 					fb->set_tooltip_text(tip);
+					if (is_default) { // countDisplay: the default formation is marked
+						Label *mark = memnew(Label);
+						mark->set_text(U"\u2605");
+						mark->add_theme_font_size_override("font_size", 9);
+						mark->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
+						mark->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+						mark->set_position(Vector2(16, -2));
+						fb->add_child(mark);
+					}
 					Ref<Texture2D> f_ico = rtso::load_ui_texture(String("res://assets/textures/ui/formations/") + kFormationIcons[f] + ".png");
 					if (f_ico.is_valid()) {
 						fb->set_button_icon(f_ico);
@@ -504,6 +533,7 @@ public:
 					}
 					fb->set_disabled(!enabled);
 					fb->connect("pressed", Callable(owner_, "_on_formation_selected").bind((int)f));
+					fb->connect("gui_input", Callable(owner_, "_on_formation_gui_input").bind((int)f));
 					actions_bar_->add_child(fb);
 				}
 
