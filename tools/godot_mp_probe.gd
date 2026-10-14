@@ -119,6 +119,7 @@ func _run() -> void:
 	var refusals: Array = []
 	var setup_leave: bool = args.get("setup_leave", "") == "1"
 	var saw_setup := false
+	var saw_observer := false
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -145,7 +146,23 @@ func _run() -> void:
 			# 0.28 reportDisconnect in the setup: the host leaves before Start, and
 			# the client's page gives way to "Lost connection to the server.".
 			saw_setup = saw_setup or bool(st.get("setup_page", false))
+			if role == "join" and not saw_observer and main.is_net_pregame():
+				var ns: Dictionary = main.get_net_setup_state()
+				if int(ns.get("my_slot", 0)) == -1 and Array(ns.get("observers", [])).any(func(e): return str(e.get("name", "")) == "bob"):
+					saw_observer = true
+					var obs = root.find_child("NetObservers", true, false)
+					_say("moved_to_observers=%s" % (obs.text if obs else "-"))
 			if role == "host" and main.is_net_pregame() and int(st.get("players", 0)) >= 2:
+				await _wait(2.0)
+				# 0.28 PlayerAssignment: the host makes bob an observer from his slot's dropdown.
+				var cell := root.find_child("Assign1", true, false)
+				var pick = cell.find_child("AssignSelect", true, false) if cell else null
+				if pick:
+					for idx in pick.get_item_count():
+						if pick.get_item_text(idx) == "Unassigned":
+							pick.select(idx)
+							pick.item_selected.emit(idx)
+					_say("unassigned slot 2")
 				await _wait(3.0)
 				_say("leaving the setup")
 				main.leave_net_game()
@@ -185,6 +202,8 @@ func _run() -> void:
 					ready_for = int(ns.get("settings_version", 0))
 					main.set_net_ready(1)
 					_say("ready for settings version %d" % ready_for)
+					# 0.28 gamesetup ChatPanel: a line typed in the setup.
+					main.send_setup_chat("hello from bob")
 			if role == "host" and not started and int(st.get("players", 0)) >= 2:
 				if not bool(ns.get("can_start", false)):
 					if not refused:
@@ -193,6 +212,14 @@ func _run() -> void:
 						_say("start_refused=%s" % str(not bool(main.get_lobby_state().get("started", false))))
 				else:
 					started = true
+					# The setup page's chat: the join, the ready and bob's line.
+					var plain := ""
+					for i in 50:
+						plain = RegEx.create_from_string("\\[[^\\]]*\\]").sub(str(main.get_setup_chat().get("text", "")), "", true)
+						if plain.contains("hello from bob"):
+							break
+						await _wait(0.1)
+					_say("setup_chat=" + " | ".join(Array(plain.strip_edges().split("\n")).map(func(l): return l.strip_edges())))
 					_say("both players in and ready, pressing Start")
 					main._on_lobby_start_pressed()
 		if st.get("oos", false):

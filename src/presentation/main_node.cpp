@@ -413,6 +413,12 @@ Array RtsoMain::debug_command_row() {
 		e["disabled"] = btn->is_disabled();
 		e["id"] = (int64_t)btn->get_instance_id();
 		e["paired"] = paired; // one of a research pair (selection_panels.js Research)
+		Label *cnt = Object::cast_to<Label>(btn->find_child("unitUpgradeCount", false, false));
+		e["count"] = cnt ? cnt->get_text().to_int() : 0;
+		e["progress"] = btn->has_meta("progress") ? (int)btn->get_meta("progress") : -1; // pixels left
+		e["grey"] = false;
+		for (int k = 0; k < btn->get_child_count(); ++k)
+			if (TextureRect *ic = Object::cast_to<TextureRect>(btn->get_child(k))) e["grey"] = ic->get_material().is_valid();
 		out.push_back(e);
 	};
 	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
@@ -456,6 +462,11 @@ int RtsoMain::debug_put_inside(const PackedInt32Array &ids, int64_t holder) {
 	return n;
 }
 
+void RtsoMain::debug_select_units(const PackedInt32Array &ids) {
+	selected_building_id = 0;
+	selected_ids = ids;
+}
+
 void RtsoMain::debug_select_entity(int64_t id) {
 	if (!sim) return;
 	selected_ids.clear();
@@ -463,6 +474,16 @@ void RtsoMain::debug_select_entity(int64_t id) {
 	for (const auto &b : sim->buildings())
 		if (b.id == (uint32_t)id) { selected_building_id = b.id; return; }
 	selected_ids.push_back((int32_t)id);
+}
+
+// Test hook: a finished structure of ours `dx`, `dz` from our Civic Center.
+int64_t RtsoMain::debug_spawn_building(int type, float dx, float dz) {
+	if (!sim) return 0;
+	const uint8_t me = local_player();
+	for (const auto &b : sim->buildings())
+		if (b.team == me && rtso::is_civic_centre(b.type))
+			return sim->spawn_building_world(b.x + dx, b.z + dz, (uint8_t)type, me, 1.0f);
+	return 0;
 }
 
 int64_t RtsoMain::debug_civic_centre_id(int player) const {
@@ -1297,12 +1318,7 @@ void RtsoMain::post_network_chat() {
 		}
 		chat_assignments_ = now;
 	}
-	const auto &kicks = net_host_.kicks();
-	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
-		const auto &k = kicks[kicks_chatted_];
-		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		chat_window_.append_line(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n");
-	}
+	post_kick_chat();
 	// NMT_REJOINED, once the rejoiner has loaded (ChatMessageFormatNetwork rejoined).
 	const auto &rejoined = turn_mgr_.rejoined_clients();
 	for (; rejoined_chatted_ < rejoined.size(); ++rejoined_chatted_)
@@ -1360,6 +1376,27 @@ void RtsoMain::_on_template_details_input(const Ref<InputEvent> &event, const St
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || !ui_layer) return;
 	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
 	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
+}
+
+// The selection panel portrait (selection_details.js iconBorder): a left click follows the unit
+// or looks at the structure (setCameraFollow), or at an animal, tree or treasure; a right click
+// opens the Template Viewer (showTemplateDetails).
+void RtsoMain::_on_portrait_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || !cam_rig) return;
+	if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
+		if (const uint32_t id = inspector_.portrait_follow_id()) {
+			follow_focus(id, false);
+		} else {
+			const Vector2 p = inspector_.portrait_position();
+			cam_rig->set_follow_id(0);
+			cam_rig->set_target_pos(Vector3(p.x, 0, p.y));
+		}
+	} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && ui_layer && !inspector_.portrait_viewer_kind().is_empty()) {
+		Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+		if (viewer.is_valid())
+			viewer->call("open", ui_layer, inspector_.portrait_viewer_kind(), inspector_.portrait_viewer_id(), inspector_.portrait_viewer_civ());
+	}
 }
 
 // Tests: select the local player's first structure or first live unit.
@@ -1764,6 +1801,42 @@ void RtsoMain::_on_pack_pressed(int pack) {
 				selected_ids.size(), 0, 0, 0, pack ? 1 : 0);
 	else
 		sim->order_pack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), pack != 0);
+}
+
+// BarterButton sell press: BarterButtonManager.setSelectedResource.
+void RtsoMain::_on_barter_sell_selected(int resource) {
+	command_panel_.set_barter_sell(resource);
+	update_command_panel();
+}
+
+// The selection's Barter panel, for tests: per resource, its sell and buy buttons.
+Array RtsoMain::debug_barter_panel() {
+	Array out;
+	update_command_panel();
+	Control *host = command_panel_.barter_host();
+	if (!host || !host->is_visible() || host->get_child_count() == 0) return out;
+	Node *panel = host->get_child(host->get_child_count() - 1);
+	for (int i = 0; i < panel->get_child_count(); ++i) {
+		Node *col = panel->get_child(i);
+		Dictionary d;
+		d["name"] = String(col->get_name()).trim_prefix("barter_");
+		for (const char *which : {"sell", "buy"}) {
+			Button *b = Object::cast_to<Button>(col->find_child(which, false, false));
+			if (!b) continue;
+			Dictionary e;
+			e["id"] = (int64_t)b->get_instance_id();
+			e["tip"] = b->get_tooltip_text();
+			Label *cap = Object::cast_to<Label>(b->find_child("caption", false, false));
+			e["caption"] = cap ? cap->get_text() : String();
+			e["selected"] = b->find_child("corners", false, false) != nullptr;
+			bool red = false;
+			for (int k = 0; k < b->get_child_count(); ++k) red = red || Object::cast_to<ColorRect>(b->get_child(k)) != nullptr;
+			e["red"] = red;
+			d[which] = e;
+		}
+		out.push_back(d);
+	}
+	return out;
 }
 
 void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
@@ -2207,6 +2280,18 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_SELECTION_STATE: // SelectionEntityState
 			dev_overlay_.show_state(on);
 			break;
+		case D::DEV_PATHFINDER_OVERLAY: // PathfinderOverlay: SetPathfinderDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::PATHFINDER, on);
+			break;
+		case D::DEV_OBSTRUCTION_OVERLAY: // ObstructionOverlay: SetObstructionDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::OBSTRUCTION, on);
+			break;
+		case D::DEV_UNIT_MOTION_OVERLAY: // UnitMotionOverlay: SetMotionDebugOverlay on every entity
+			debug_overlays_.set(rtso::RtsoDebugOverlays::UNIT_MOTION, on);
+			break;
+		case D::DEV_RANGE_OVERLAY: // RangeOverlay: SetRangeDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::RANGE, on);
+			break;
 		case D::DEV_REVEAL_MAP: // RevealMap: "reveal-map" with enable
 			cheat(rtso::Simulation::CHEAT_DEV_REVEAL_MAP, on ? 1 : 0, {});
 			break;
@@ -2290,6 +2375,11 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
+		using O = rtso::RtsoDebugOverlays;
+		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
+		dev_overlay_.set_checked(D::DEV_OBSTRUCTION_OVERLAY, debug_overlays_.on(O::OBSTRUCTION));
+		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
+		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
 	}
 	if (!dev_overlay_.state_shown()) return;
 	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
@@ -2348,6 +2438,14 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["selection_ranks"] = ranks;
 	d["seat"] = (int)seat_player();
 	d["view_picker"] = observer_view_picker_ && observer_view_picker_->is_visible_in_tree();
+	PackedStringArray commands; // the rows in order
+	for (int i = 0; i < D::DEV_COUNT; ++i) commands.push_back(D::kLabels[i]);
+	d["commands"] = commands;
+	using O = rtso::RtsoDebugOverlays;
+	d["pathfinder_drawn"] = debug_overlays_.drawn(O::PATHFINDER);
+	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
+	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
+	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
 	return d;
 }
 
@@ -3200,8 +3298,74 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		net_host_.sendGameSetup(rtso::format_net_setup(n));
 	}
 	notify_setup_joins(net_setup_.clients, n.clients);
+	post_setup_chat(net_setup_, n);
 	net_setup_ = n;
 	if (force || changed) emit_signal("net_setup_changed");
+}
+
+// ClientKicked.js and ChatMessageFormatNetwork kicked/banned, in the setup and the match.
+void RtsoMain::post_kick_chat() {
+	const auto &kicks = net_host_.kicks();
+	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
+		const auto &k = kicks[kicks_chatted_];
+		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
+		chat_window_.append_line(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n");
+	}
+}
+
+// colorizePlayernameByGUID in the setup: the client's name in its slot's colour,
+// white while it has no slot.
+String RtsoMain::setup_client_name(const rtso::NetSetupState &n, uint32_t client) const {
+	String name = client < 8 ? String::utf8(n.names[client].c_str()) : String();
+	if (name.is_empty()) name = String::utf8(rtso::peer_guid(client).c_str());
+	const int slot = n.slot_of(client);
+	const uint32_t rgb = slot >= 0 && n.setup.colors[slot] < rtso::PLAYER_COLOR_COUNT
+			? rtso::PLAYER_COLORS[n.setup.colors[slot]] & 0xFFFFFFu : 0xFFFFFFu;
+	return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name.replace("[", "[lb]") + "[/color]";
+}
+
+// 0.28 gamesetup ChatMessages: "has joined" / "has left" (ClientConnection.js),
+// "* ... is ready!" / "* ... is not ready." for a seated client (ClientReady.js;
+// staying ready says nothing). A ready the host's settings change took back
+// sends no ready message in 0.28, so it posts no "not ready" line here either.
+void RtsoMain::post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after) {
+	if (before.clients) {
+		for (uint32_t c = 1; c < 8; ++c) {
+			const bool was = (before.clients >> c) & 1, is = (after.clients >> c) & 1;
+			if (!was && is)
+				chat_window_.append_line(sprintf0(tr("%(username)s has joined"),
+						{{"username", String::utf8(after.names[c].c_str()).replace("[", "[lb]")}}) + "\n");
+			else if (was && !is)
+				chat_window_.append_line(sprintf0(tr("%(username)s has left"), {{"username", setup_client_name(before, c)}}) + "\n");
+		}
+		const bool same_settings = before.settings_version == after.settings_version;
+		for (uint32_t c = 1; c < 8; ++c) {
+			if (!((before.clients >> c) & (after.clients >> c) & 1) || after.slot_of(c) < 0) continue;
+			const bool stay = (after.stay_ready >> c) & 1;
+			const bool was = (before.ready >> c) & 1, is = (after.ready >> c) & 1;
+			if (!stay && !was && is)
+				chat_window_.append_line("[b]" + sprintf0(tr("* %(username)s is ready!"), {{"username", setup_client_name(after, c)}}) + "[/b]\n");
+			else if (!stay && was && !is && same_settings)
+				chat_window_.append_line("[b]" + sprintf0(tr("* %(username)s is not ready."), {{"username", setup_client_name(after, c)}}) + "[/b]\n");
+		}
+	}
+	post_kick_chat();
+}
+
+Dictionary RtsoMain::get_setup_chat() const {
+	Dictionary d;
+	d["rev"] = (int64_t)chat_window_.history_rev();
+	d["text"] = chat_window_.history();
+	return d;
+}
+
+// The setup page's chat input: the chat window's send, so /kick, /ban, /list
+// and /clear (executeNetworkCommand) run before anything is sent.
+void RtsoMain::send_setup_chat(const String &text) {
+	LineEdit *in = chat_window_.input();
+	if (!in || text.strip_edges().is_empty()) return;
+	in->set_text(text);
+	chat_window_.send_pressed();
 }
 
 // 0.28 sound.notify.gamesetup.join (off by default): a chime when a client joins
@@ -3258,9 +3422,14 @@ void RtsoMain::client_net_setup_tick() {
 	}
 	if (!have) return;
 	notify_setup_joins(net_setup_.clients, best.clients);
+	post_setup_chat(net_setup_, best);
 	net_setup_ = std::move(best);
-	// 0.28 ReadyController: a change to the settings takes our ready back.
-	if (net_ready_ == 1 && net_ready_version_ != net_setup_.settings_version) net_ready_ = 0;
+	// 0.28 ReadyController: a change to the settings takes our ready back
+	// (GameSettingsChanged.js tells us so).
+	if (net_ready_ == 1 && net_ready_version_ != net_setup_.settings_version) {
+		net_ready_ = 0;
+		chat_window_.append_line(tr("Game settings have been changed") + "\n");
+	}
 	store_net_setup_in_match_settings(net_setup_.setup);
 	emit_signal("net_setup_changed");
 }
@@ -3809,6 +3978,8 @@ void RtsoMain::_on_chat_channel_btn_pressed(int channel_idx) {
 String RtsoMain::chat_user(const String &sender_guid) {
 	uint32_t client = turn_mgr_.local_client_id();
 	if (sender_guid.begins_with("peer-")) client = (uint32_t)sender_guid.substr(5).to_int();
+	// Before Start the setup knows every client's name and slot colour.
+	if (is_net_pregame()) return setup_client_name(net_setup_, client);
 	String name;
 	uint8_t pl = 0xFF;
 	if (net_lockstep()) {

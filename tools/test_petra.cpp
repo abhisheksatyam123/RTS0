@@ -248,6 +248,23 @@ static void test_no_free_income() {
 	CHECK(s->ai_gather_mult(1) == 0.75f && s->ai_time_mult(1) == 1.10f, "easy gathers slower and builds slower");
 }
 
+// headquarters.js trainMoreWorkers / getAccountedWorkers: mercenaries trained as workers keep the
+// Worker role though they cannot gather, so they count toward the worker target.
+static void test_mercenary_workers() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->petra_pid_ = 1;
+	const int before = s->petra_accounted_workers();
+	uint16_t merc = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (!std::strcmp(civ_unit_template(t).id, "athen/infantry_archer_b")) merc = t;
+	CHECK(merc != CIV_UNIT_TEMPLATE_NONE && unit_is_mercenary_infantry(UNIT_ARCHER, merc), "Cretan archers are mercenary infantry");
+	for (int k = 0; k < 3; ++k) s->spawn_unit(10.0f + 2.0f * (float)k, 10.0f, 1, UNIT_ARCHER, 0.0f, merc);
+	std::printf("  mercenary workers: accounted %d -> %d\n", before, s->petra_accounted_workers());
+	CHECK(s->petra_accounted_workers() == before + 3, "three idle mercenaries count as workers");
+}
+
 // Petra runs once per seated AI slot and never for a human slot.
 static void test_ai_slots() {
 	// Two humans: player 1 is seated as a human, so Petra must leave it alone.
@@ -1966,9 +1983,11 @@ static void test_relic_gaia_target() {
 		const int32_t i = s->lookup_unit(uid);
 		capturing += i >= 0 && s->units_.order_kind[i] == ORDER_CAPTURE_RELIC && s->units_.order_target[i] == relic;
 	}
-	run_for(*s, 50.0f);
+	// 60 s: a one-tile ridge beside the relic's spot keeps one captor at its margin, and pushing
+	// edges its neighbour in and out of reach, so a pulse is now and then missed (about 52 s).
+	run_for(*s, 60.0f);
 	const int32_t r = s->lookup_unit(relic);
-	std::printf("  Gaia relic: %d of 4 soldiers sent to capture it, held by player %d after 50 s\n", capturing, r >= 0 ? (int)s->units_.team[r] : -1);
+	std::printf("  Gaia relic: %d of 4 soldiers sent to capture it, held by player %d after 60 s\n", capturing, r >= 0 ? (int)s->units_.team[r] : -1);
 	CHECK(capturing == 4, "the army at the relic goes to capture it");
 	CHECK(r >= 0 && s->units_.team[r] == 1, "and takes it");
 }
@@ -2244,7 +2263,8 @@ static void test_research_parity_028() {
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
 	const uint32_t cc_id = cc->id;
-	const int cx = (int)(cc->x / Simulation::GRID), cz = (int)(cc->z / Simulation::GRID);
+	const float ccx = cc->x, ccz = cc->z; // cc points into buildings_, which the spawns below may move
+	const int cx = (int)(ccx / Simulation::GRID), cz = (int)(ccz / Simulation::GRID);
 	s->players_[1].civ = CIV_HAN;
 	s->players_[1].phase = 3;
 	std::vector<uint8_t> techs;
@@ -2262,7 +2282,7 @@ static void test_research_parity_028() {
 
 	s->players_[1].phase = 1;
 	s->players_[1].civ = CIV_ATHENIANS;
-	for (int k = 0; k < 160; ++k) s->spawn_unit(cc->x - 12.0f + (float)(k % 16), cc->z - 12.0f - (float)(k / 16), 1, UNIT_FEMALE_CITIZEN);
+	for (int k = 0; k < 160; ++k) s->spawn_unit(ccx - 12.0f + (float)(k % 16), ccz - 12.0f - (float)(k / 16), 1, UNIT_FEMALE_CITIZEN);
 	const bool phasing = s->petra_phasing();
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
 	for (int k = 0; k < 5; ++k) s->spawn_building(cx - 12 + 4 * k, cz + 10, BLD_HOUSE, 1);
@@ -4348,6 +4368,7 @@ int main(int argc, char **argv) {
 	RUN(test_no_early_rush);
 	RUN(test_phase_up);
 	RUN(test_no_free_income);
+	RUN(test_mercenary_workers);
 	RUN(test_roster_army);
 	RUN(test_diplomacy);
 	RUN(test_ai_slots);
