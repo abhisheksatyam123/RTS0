@@ -746,7 +746,9 @@ static void test_petra_overseas_base() {
 	const Simulation::Building *b = cc ? bld(s, cc) : nullptr;
 	int south_workers = 0, north_gathering_south = 0;
 	for (size_t i = 0; i < s.units().count; ++i) {
-		if (!s.units().alive[i] || s.units().team[i] != 1 || s.units().unit_type[i] != UNIT_VILLAGER) continue;
+		// Support workers: the starting villagers and the civilians Petra trains (#578).
+		if (!s.units().alive[i] || s.units().team[i] != 1 ||
+		    unit_gather_class(s.units().unit_type[i], s.units().tmpl[i]) != GATHER_SUPPORT) continue;
 		const uint16_t l = s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]);
 		if (l == south) ++south_workers;
 		const uint32_t rid = s.units().target_resource_id[i];
