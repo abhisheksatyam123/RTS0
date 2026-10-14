@@ -13359,6 +13359,21 @@ void Simulation::tick_status_effects(float dt) {
 	// 0 A.D., take no damage from it.
 }
 
+int Simulation::statuses_on(uint8_t target_kind, uint32_t target, StatusView *out, int max) const {
+	int n = 0;
+	for (const StatusInstance &st : statuses_) {
+		if (st.target_kind != target_kind || st.target != target) continue;
+		if (n < max && out) {
+			out[n].kind = st.kind;
+			out[n].damage = st.damage;
+			out[n].interval = st.interval;
+			out[n].remaining = std::max(0.0f, st.duration - st.elapsed); // Duration - _timeElapsed
+		}
+		++n;
+	}
+	return n;
+}
+
 // One ExecuteEffect of status st on its target. False when the target is gone.
 bool Simulation::status_tick(const StatusInstance &st) {
 	const float dmg = st.damage;

@@ -464,6 +464,18 @@ static void test_status() {
 	s.apply_status((size_t)idx(s, v), mp);
 	s.apply_status((size_t)idx(s, v), mp);
 	s.apply_status((size_t)idx(s, ram), mp);
+	{
+		// selection_details.js statusEffectsIcons: each stacked copy, its Damage, Interval and
+		// the Duration still to run.
+		Simulation::StatusView sv[5];
+		check(s.statuses_on(Simulation::STATUS_ON_UNIT, v, sv, 5) == 2 && sv[1].kind == 1 && sv[1].damage == 2.0f &&
+				std::fabs(sv[1].interval - 0.6f) < 1e-6f && std::fabs(sv[1].remaining - 3.6f) < 1e-4f,
+				"the details panel lists both poison stacks with their full duration");
+		check(s.statuses_on(Simulation::STATUS_ON_UNIT, ram, sv, 5) == 0, "and none on the immune ram");
+		for (int k = 0; k < 15; ++k) s.tick(DT); // the first tick, then one Interval later
+		s.statuses_on(Simulation::STATUS_ON_UNIT, v, sv, 5);
+		check(std::fabs(sv[0].remaining - 3.0f) < 1e-3f, "the duration counts down an Interval at a time");
+	}
 	for (int k = 0; k < 500; ++k) s.tick(DT);
 	// StatusEffectsReceiver Stack: each hit is its own status, ticking at once and every 0.6 s
 	// until 3.6 s have passed, 7 ticks of 2.

@@ -1362,6 +1362,27 @@ void RtsoMain::_on_template_details_input(const Ref<InputEvent> &event, const St
 	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
 }
 
+// The selection panel portrait (selection_details.js iconBorder): a left click follows the unit
+// or looks at the structure (setCameraFollow), or at an animal, tree or treasure; a right click
+// opens the Template Viewer (showTemplateDetails).
+void RtsoMain::_on_portrait_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || !cam_rig) return;
+	if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
+		if (const uint32_t id = inspector_.portrait_follow_id()) {
+			follow_focus(id, false);
+		} else {
+			const Vector2 p = inspector_.portrait_position();
+			cam_rig->set_follow_id(0);
+			cam_rig->set_target_pos(Vector3(p.x, 0, p.y));
+		}
+	} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && ui_layer && !inspector_.portrait_viewer_kind().is_empty()) {
+		Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+		if (viewer.is_valid())
+			viewer->call("open", ui_layer, inspector_.portrait_viewer_kind(), inspector_.portrait_viewer_id(), inspector_.portrait_viewer_civ());
+	}
+}
+
 // Tests: select the local player's first structure or first live unit.
 // unit_actions.js "garrison" actionCheck: some selected unit may garrison in this own or allied
 // structure (its GarrisonHolder List, IsOwnedByMutualAllyOfEntity). Room is not checked.

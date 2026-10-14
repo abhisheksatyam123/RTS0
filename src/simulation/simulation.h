@@ -922,6 +922,15 @@ public:
 		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per TRICKLE_STRUCTURE_INTERVAL
 	};
 	StructureDetails structure_details(const Building &b) const;
+	// The statuses on an entity, as selection_details.js lists entState.statusEffects: each
+	// stacked copy with its Damage, Interval and the Duration still to run (seconds). Returns
+	// how many there are; at most `max` are written to `out`.
+	static constexpr uint8_t STATUS_ON_UNIT = 0, STATUS_ON_STRUCTURE = 1, STATUS_ON_FAUNA = 2;
+	struct StatusView {
+		uint8_t kind = 0; // 1 Poisoned, 2 Burning
+		float damage = 0.0f, interval = 0.0f, remaining = 0.0f;
+	};
+	int statuses_on(uint8_t target_kind, uint32_t target, StatusView *out, int max) const;
 	static constexpr float TRICKLE_STRUCTURE_INTERVAL = 2.0f; // the wonder's, ice house's and tachara's Interval 2000
 	// ResourceTrickle.js Rates of `b` after its owner's technologies and global auras; false
 	// when it has no ResourceTrickle.
@@ -2504,7 +2513,6 @@ private:
 		uint8_t src_owner = 0xFF; // status.source.owner
 		uint8_t first = 1;        // _firstTime: the first tick adds no Interval
 	};
-	static constexpr uint8_t STATUS_ON_UNIT = 0, STATUS_ON_STRUCTURE = 1, STATUS_ON_FAUNA = 2;
 	static constexpr uint32_t MAX_STATUSES = 1u << 16;
 	std::vector<StatusInstance> statuses_;
 	bool status_tick(const StatusInstance &st); // one ExecuteEffect; false once its target is gone
