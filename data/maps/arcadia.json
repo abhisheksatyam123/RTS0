@@ -12547,85 +12547,131 @@
       "type": "villager",
       "player": 1,
       "x": 76.19,
-      "z": 78.5
+      "z": 78.5,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 77.1,
-      "z": 78.94
+      "z": 78.94,
+      "template": "spart/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 77.95,
-      "z": 79.8
+      "z": 79.8,
+      "template": "spart/support_civilian"
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 77.55,
-      "z": 76.82
+      "z": 76.82,
+      "template": "spart/infantry_spearman_e",
+      "parents": [
+        "spart/infantry_spearman_a",
+        "spart/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 78.31,
-      "z": 77.65
+      "z": 77.65,
+      "template": "spart/infantry_spearman_e",
+      "parents": [
+        "spart/infantry_spearman_a",
+        "spart/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 79.02,
-      "z": 78.46
+      "z": 78.46,
+      "template": "spart/infantry_spearman_e",
+      "parents": [
+        "spart/infantry_spearman_a",
+        "spart/infantry_spearman_b"
+      ]
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": 80.2,
-      "z": 76.1
+      "z": 76.1,
+      "template": "spart/cavalry_javelineer_e",
+      "parents": [
+        "spart/cavalry_javelineer_a",
+        "spart/cavalry_javelineer_b"
+      ]
     },
     {
       "type": "villager",
       "player": 2,
       "x": -91.44,
-      "z": -85.94
+      "z": -85.94,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -87.97,
-      "z": -83.27
+      "z": -83.27,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -87.23,
-      "z": -82.75
+      "z": -82.75,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -90.56,
-      "z": -87.81
+      "z": -87.81,
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -87.34,
-      "z": -85.16
+      "z": -85.16,
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -86.68,
-      "z": -84.5
+      "z": -84.5,
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": -88.84,
-      "z": -89.79
+      "z": -89.79,
+      "template": "gaul/cavalry_swordsman_e",
+      "parents": [
+        "gaul/cavalry_swordsman_a",
+        "gaul/cavalry_swordsman_b"
+      ]
     }
   ],
   "treasures": [
@@ -12928,5 +12974,6 @@
     "saturation": 0.867188,
     "bloom": 0.127734,
     "post_effect": "hdr"
-  }
+  },
+  "circular": false
 }

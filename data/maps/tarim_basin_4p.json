@@ -12023,5 +12023,6 @@
       "z": -121.07,
       "template": "units/default_support_civilian"
     }
-  ]
+  ],
+  "circular": true
 }

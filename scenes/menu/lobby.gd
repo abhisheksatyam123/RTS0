@@ -11,7 +11,10 @@ extends Control
 # under it (LobbyPage/ProfilePanel.js) and the Leaderboard (LeaderboardPage).
 # Selecting a game shows its details (LobbyPage/GameDetails.js); Options'
 # lobby.columns.gamerating adds the game list's Rating column and filter
-# (GameList.js, GameListFilters/Rating.js).
+# (GameList.js, GameListFilters/Rating.js). The game list filters on map size,
+# map type, player count and open games (GameListFilters); Mark as Buddy
+# (Buttons/BuddyButton.js) keeps lobby.buddies, and buddies and the games they
+# are in carry the "•" mark (gamedescription.js g_BuddySymbol).
 
 const REFRESH_S := 3.0
 
@@ -49,7 +52,15 @@ var _ratings := {} # player name -> rating, from the player list
 var _details: RichTextLabel
 var _rating_column := false # lobby.columns.gamerating
 var _rating_filter: OptionButton
-var _shown_rooms: Array = [] # _rooms past the Rating filter
+var _shown_rooms: Array = [] # _rooms past the filters
+var _open_filter: CheckBox
+var _size_filter: OptionButton
+var _type_filter: OptionButton
+var _count_filter: OptionButton
+var _buddy_btn: Button
+
+const BUDDY_SYMBOL := "•"
+const MAX_PLAYERS := 8
 
 const GAME_COLUMNS := ["Name", "Host", "Map", "Players", "Status"]
 const RATING_COL := 3 # where the Rating column goes when shown
@@ -131,6 +142,23 @@ func _build() -> void:
 	var games_title := _label("Games")
 	games_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	games_head.add_child(games_title)
+	# GameListFilters.xml: open games, map size, map type, player count, rating.
+	_open_filter = CheckBox.new()
+	_open_filter.text = "Show only open games"
+	_open_filter.toggled.connect(func(_on: bool) -> void: _show_rooms())
+	games_head.add_child(_open_filter)
+	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
+	_size_filter = _filter_dropdown(["Any"] + setup.MAP_SIZES.map(func(sz) -> String: return str(sz[1]).get_slice(" (", 0)),
+		"Filter the games by map size.")
+	games_head.add_child(_size_filter)
+	_type_filter = _filter_dropdown(["Any"] + setup.MAP_TYPES.map(func(t) -> String: return str(t[1])),
+		"Filter the games by map type.")
+	games_head.add_child(_type_filter)
+	var counts := ["Any"]
+	for i in MAX_PLAYERS:
+		counts.append(str(i + 1))
+	_count_filter = _filter_dropdown(counts, "Filter the games by their number of player slots.")
+	games_head.add_child(_count_filter)
 	_rating_filter = OptionButton.new()
 	for f in RATING_FILTERS:
 		_rating_filter.add_item("Any" if f == "" else "%s %s" % [f.substr(0, 1), f.substr(1)])
@@ -187,6 +215,10 @@ func _build() -> void:
 	_host_pwd.secret = true
 	host.add_child(_host_pwd)
 	host.add_child(_button("Host Game", _on_host_pressed))
+	# LobbyPage hostSavedGameButton: pick a save, then host it.
+	var saved_btn := _button("Host Saved Game", _on_host_saved_pressed)
+	saved_btn.tooltip_text = "Continue playing a game from a savegame."
+	host.add_child(saved_btn)
 
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -206,8 +238,13 @@ func _build() -> void:
 		if picked == _selected_player:
 			return # the refresh re-selecting it
 		_selected_player = picked
+		_update_buddy_button()
 		_request_profile(_selected_player))
 	right.add_child(_players)
+	_buddy_btn = _button("Mark as Buddy", _on_buddy_pressed)
+	_buddy_btn.disabled = true
+	right.add_child(_buddy_btn)
+	_players.item_activated.connect(_on_buddy_pressed) # PlayerList double click
 	_profile = _build_profile()
 	right.add_child(_profile)
 	_leaderboard = _build_leaderboard()
@@ -364,6 +401,7 @@ func _update_signed_in() -> void:
 		_rooms = []
 		_shown_rooms = []
 		_details.visible = false
+	_update_buddy_button()
 	_say(("Signed in as %s." % LobbySession.player_name) if on
 		else "Sign in to see the games and players, or join an address directly.")
 
@@ -484,7 +522,10 @@ func _show_rooms() -> void:
 	if sel:
 		keep = str(sel.get_metadata(0))
 	var filter: String = RATING_FILTERS[_rating_filter.selected] if _rating_column and _rating_filter.selected >= 0 else ""
-	_shown_rooms = _rooms.filter(func(r) -> bool: return rating_passes(filter, _room_rating(r)))
+	var f := _filters()
+	_shown_rooms = _rooms.filter(func(r) -> bool:
+		return rating_passes(filter, _room_rating(r)) and room_passes(r, f))
+	var buddy_list := buddies()
 	var col := func(name: String) -> int: return game_columns(_rating_column).find(name)
 	_games.clear()
 	var top := _games.create_item()
@@ -492,7 +533,8 @@ func _show_rooms() -> void:
 	for r in _shown_rooms:
 		var it := _games.create_item(top)
 		var title := str(r.get("name", "")) if str(r.get("name", "")) != "" else str(r.get("id", ""))
-		it.set_text(0, title + (" (password)" if int(r.get("password", 0)) else ""))
+		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + title
+			+ (" (password)" if int(r.get("password", 0)) else ""))
 		it.set_text(1, str(r.get("host_name", "")))
 		it.set_text(2, str(r.get("map_name", "")) if str(r.get("map_name", "")) != "" else str(r.get("map_id", "")))
 		if _rating_column:
@@ -509,6 +551,82 @@ func _show_rooms() -> void:
 		_show_details({})
 
 
+func _filter_dropdown(items: Array, tip: String) -> OptionButton:
+	var o := OptionButton.new()
+	for t in items:
+		o.add_item(str(t))
+	o.tooltip_text = tip
+	o.item_selected.connect(func(_i: int) -> void: _show_rooms())
+	return o
+
+
+func _filters() -> Dictionary:
+	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
+	var size_i := _size_filter.selected - 1
+	var type_i := _type_filter.selected - 1
+	return {"open": _open_filter.button_pressed,
+		"map_size": str(setup.MAP_SIZES[size_i][1]).get_slice(" (", 0) if size_i >= 0 else "",
+		"map_type": str(setup.MAP_TYPES[type_i][0]) if type_i >= 0 else "",
+		"players": _count_filter.selected if _count_filter.selected > 0 else 0}
+
+
+## GameListFilters: MapSize and MapType match the game's, PlayerCount its
+## slots (maxnbp), OpenGame one still in setup with a free slot.
+static func room_passes(r: Dictionary, f: Dictionary) -> bool:
+	if f.get("open", false) and not (str(r.get("state", "init")) == "init"
+			and int(r.get("players", 1)) < int(r.get("max_players", MAX_PLAYERS))):
+		return false
+	if str(f.get("map_size", "")) != "" and str(r.get("map_size", "")) != str(f["map_size"]):
+		return false
+	if str(f.get("map_type", "")) != "" and str(r.get("map_type", "")) != str(f["map_type"]):
+		return false
+	return int(f.get("players", 0)) == 0 or int(r.get("max_players", MAX_PLAYERS)) == int(f["players"])
+
+
+## gamedescription.js g_Buddies (kept in lobby_session.gd for the game details).
+static func buddies() -> PackedStringArray:
+	return preload("res://scenes/menu/lobby_session.gd").buddies()
+
+
+## Game.js hasBuddies: 2 a buddy plays in it, 1 a buddy only watches, 0 none.
+static func room_buddies(r: Dictionary, list: PackedStringArray) -> int:
+	var found := 0
+	for p in r.get("player_names", []):
+		if list.has(str(p.get("name", ""))) and not p.get("ai", false):
+			found = maxi(found, 1 if p.get("observer", false) else 2)
+	return found
+
+
+## BuddyButton.onPress: mark or unmark a player; never oneself, nor a name
+## holding the list's delimiter. An empty list is saved as "," (0.28 too).
+static func toggle_buddy(name: String, own: String) -> bool:
+	if name == "" or name == own or name.contains(","):
+		return false
+	var list := buddies()
+	if list.has(name):
+		list.remove_at(list.find(name))
+	else:
+		list.append(name)
+	var cfg := RtsoUserConfig.new()
+	cfg.set_value("lobby.buddies", ",".join(list) if not list.is_empty() else ",")
+	cfg.save()
+	return true
+
+
+func _update_buddy_button() -> void:
+	_buddy_btn.text = "Unmark as Buddy" if buddies().has(_selected_player) else "Mark as Buddy"
+	_buddy_btn.disabled = not LobbySession.signed_in() or _selected_player == "" \
+		or _selected_player == LobbySession.player_name
+
+
+func _on_buddy_pressed() -> void:
+	if not LobbySession.signed_in() or not toggle_buddy(_selected_player, LobbySession.player_name):
+		return
+	_update_buddy_button()
+	LobbySession.get_json("/players", _on_players) # the marks follow
+	_show_rooms()
+
+
 func _show_details(r: Dictionary) -> void:
 	_details.visible = not r.is_empty()
 	if not r.is_empty():
@@ -522,6 +640,7 @@ func _on_players(code: int, obj) -> void:
 		return
 	_players.clear()
 	_ratings = {}
+	var buddy_list := buddies()
 	var top := _players.create_item()
 	for p in obj.get("players", []):
 		if p.get("rating") != null:
@@ -531,7 +650,7 @@ func _on_players(code: int, obj) -> void:
 		var col: Color = {"available": Color(0.6, 0.9, 0.6), "away": Color(0.9, 0.8, 0.4), "playing": Color(0.9, 0.5, 0.5)}.get(st, Color.WHITE)
 		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Playing"}.get(st, st))
 		it.set_custom_color(0, col)
-		it.set_text(1, str(p.get("name", "")))
+		it.set_text(1, (BUDDY_SYMBOL + " " if buddy_list.has(str(p.get("name", ""))) else "") + str(p.get("name", "")))
 		it.set_text(2, str(p.get("rating", "")))
 		it.set_metadata(0, str(p.get("name", "")))
 		if str(p.get("name", "")) == _selected_player:
@@ -625,6 +744,10 @@ static func multiplayer_name() -> String:
 	return n if not n.is_empty() else "Player"
 
 
+func _on_host_saved_pressed() -> void:
+	_on_host_pressed(true)
+
+
 func _on_join_pressed() -> void:
 	var port := _join_port.text.to_int()
 	if _join_ip.text.strip_edges() == "" or port <= 0 or port > 65535:
@@ -646,7 +769,7 @@ func _on_join_pressed() -> void:
 	MatchSettings.go("res://scenes/main.tscn")
 
 
-func _on_host_pressed() -> void:
+func _on_host_pressed(saved := false) -> void:
 	var port := _host_port.text.to_int()
 	if port <= 0 or port > 65535:
 		_say("Type a port for the game.")
@@ -658,6 +781,16 @@ func _on_host_pressed() -> void:
 	MatchSettings.net_port = port
 	MatchSettings.net_password = _host_pwd.text
 	MatchSettings.net_observe = false
+	if saved:
+		# gamesetup_mp.js handleAuthenticated: the host picks the save (the
+		# load page), and the match scene hosts it once loaded
+		# and registers its game in the lobby.
+		MatchSettings.net_saved_game = true
+		var d: Node = load("res://scenes/session/savegame_dialog.gd").open(self, "load")
+		d.closed.connect(func() -> void:
+			MatchSettings.net_saved_game = false
+			MatchSettings.net_mode = "")
+		return
 	if LobbySession.signed_in():
 		# The same id main_node registers, so both update one entry.
 		LobbySession.host_game({

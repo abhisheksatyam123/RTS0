@@ -104,7 +104,7 @@ func run() -> void:
 		"the setup drops the Closed slot and keeps Random (%s %s)" % [str(ms.slot_types), str(ms.slot_civs)])
 	check(host.pushes > 0 and not ms.cheats, "the host sends its setup, cheats off")
 	check(cells(page)[0].text == "alice (You)" and cells(page)[6].text == "bob", "slots show their players")
-	var vis := "VBox/HBox/LeftScroll/Left/MapVisRow/"
+	var vis := "%"
 	var rated: CheckBox = page.get_node(vis + "RatedGame")
 	var cheats: CheckBox = page.get_node(vis + "Cheats")
 	check(rated.visible and rated.button_pressed and cheats.disabled and not cheats.button_pressed and ms.rated,
@@ -123,7 +123,7 @@ func run() -> void:
 	page._on_slot_kind(2, 2)
 	await create_timer(0.4).timeout
 	check(rated.visible and ms.rated, "two again")
-	page.get_node("VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed").value = 99
+	page.get_node("%SpinSeed").value = 99
 	await create_timer(0.4).timeout
 	check(ms.seed == 99, "a change on the page reaches MatchSettings")
 	ms.slot_civs = [1, 15]
@@ -164,14 +164,15 @@ func run() -> void:
 	start = page.get_node("VBox/HBox/Right/BtnStart")
 	var ready_btn: Button = page.get_node("VBox/HBox/Right/BtnReady")
 	check(not start.visible and page.get_node("VBox/HBox/Right/NetWaitLabel").visible, "no Start: waiting for the host")
-	check(page.get_node("VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed").value == 1234 and page._slot_rows[1]["civ"] == 3,
+	check(page.get_node("%SpinSeed").value == 1234 and page._slot_rows[1]["civ"] == 3,
 		"the host's setup shows")
-	check(page.get_node("VBox/HBox/LeftScroll/Left/MapVisRow/RatedGame").visible
-		and page.get_node("VBox/HBox/LeftScroll/Left/MapVisRow/RatedGame").button_pressed
-		and page.get_node("VBox/HBox/LeftScroll/Left/MapVisRow/RatedGame").disabled, "the host's Rated Game shows, locked")
-	check(not page.get_node("VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed").editable
-		and page.get_node("VBox/HBox/LeftScroll/Left/MapList").mouse_filter == Control.MOUSE_FILTER_IGNORE
-		and page.get_node("VBox/HBox/LeftScroll/Left/Waves").disabled, "the host's settings are locked")
+	check(page.get_node("%RatedGame").visible
+		and page.get_node("%RatedGame").button_pressed
+		and page.get_node("%RatedGame").disabled, "the host's Rated Game shows, locked")
+	check(not page.get_node("%SpinSeed").editable
+		and page.get_node("%MapList").mouse_filter == Control.MOUSE_FILTER_IGNORE
+		and page.get_node("%Waves").disabled, "the host's settings are locked")
+	check(page._tab == -1 and not page.get_node("%MapTab").visible, "a client starts with no settings tab open (GameSettingTabs.onLoad)")
 	check(picker(page, 0, 2).disabled and picker(page, 0, 3).disabled and picker(page, 1, 1).disabled and picker(page, 1, 4).disabled,
 		"other slots, and our slot's type and AI, are locked")
 	check(not picker(page, 1, 2).disabled and not picker(page, 1, 3).disabled and not picker(page, 1, 5).disabled,
@@ -192,7 +193,7 @@ func run() -> void:
 	client.is_ready = 0 # RtsoMain takes a Ready (not a Stay ready) back when a setting changes
 	client.net_setup_changed.emit()
 	await frames(3)
-	check(page.get_node("VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed").value == 555 and ready_btn.text == "I'm ready",
+	check(page.get_node("%SpinSeed").value == 555 and ready_btn.text == "I'm ready",
 		"a new setup shows, and Ready is back")
 	check(not picker(page, 1, 2).disabled and picker(page, 0, 2).disabled, "the locks hold after the update")
 	client.net_setup_refused.emit("That colour is taken.")
@@ -212,9 +213,9 @@ func run() -> void:
 	ms.rated = false
 	page = await open_page(null)
 	check(page._mp_role == "none" and page.get_node("VBox/HBox/Right/BtnStart").visible
-		and not page.has_node("VBox/HBox/Right/BtnReady") and not page.get_node("VBox/HBox/LeftScroll/Left/Waves").disabled
-		and not page.has_node("VBox/HBox/LeftScroll/Left/MapVisRow/RatedGame")
-		and page.get_node("VBox/HBox/LeftScroll/Left/MapVisRow/Cheats").disabled,
+		and not page.has_node("VBox/HBox/Right/BtnReady") and not page.get_node("%Waves").disabled
+		and not page.has_node("%RatedGame")
+		and page.get_node("%Cheats").disabled,
 		"the single-player page")
 	page.queue_free()
 	cfg.set_value("persistmatchsettings", saved_persist)

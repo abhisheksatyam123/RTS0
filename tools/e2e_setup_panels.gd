@@ -5,7 +5,10 @@ extends SceneTree
 #   2. ResetCivsButton.js / ResetTeamsButton.js: every civ back to Random and
 #      every team back to None; neither shows on a scenario;
 #   3. TipsPanel.js: single player shows the newcomer tip under the slots until its
-#      tick box is cleared (gui.gamesetup.enabletips); cleared, the next page has none.
+#      tick box is cleared (gui.gamesetup.enabletips); cleared, the next page has none;
+#   4. GameSettingTabs.js: the Map, Player and Game Type tabs each show their own
+#      settings (GameSettingsLayout.js), the open one's button closes it, so does
+#      Escape (cancel), and the host or single player starts on Map.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_setup_panels.gd
 # Exit code 0 = pass.
@@ -83,5 +86,33 @@ func run() -> void:
 	check(current_scene.get_node_or_null("VBox/HBox/Right/SPTips") == null, "and the next Game Setup has none")
 	cfg.set_value("gui.gamesetup.enabletips", keep_tips)
 	cfg.save()
+
+	print("4. Settings tabs")
+	page = current_scene
+	var shown := func() -> Array:
+		return ["MapTab", "PlayerTab", "GameTypeTab"].filter(func(t): return page.get_node("%" + t).visible)
+	check(shown.call() == ["MapTab"] and page.get_node("%TabMap").button_pressed, "single player opens on the Map tab")
+	check(page.get_node("%MapList").get_parent().name == "MapTab" and page.get_node("%Nomad").is_visible_in_tree()
+		and not page.get_node("%PopCapSlot").is_visible_in_tree() and not page.get_node("%Waves").is_visible_in_tree(),
+		"Map shows the map settings only")
+	page.get_node("%TabPlayer").pressed.emit()
+	await frames(1)
+	check(shown.call() == ["PlayerTab"] and page.get_node("%PopCapSlot").is_visible_in_tree() and page.get_node("%Cheats").is_visible_in_tree(),
+		"Player shows population, resources, spies and cheats")
+	page.get_node("%TabGameType").pressed.emit()
+	await frames(1)
+	check(shown.call() == ["GameTypeTab"] and page.get_node("%VictorySlot").is_visible_in_tree() and page.get_node("%LockTeams").is_visible_in_tree()
+		and page.get_node("%SpeedSlot").is_visible_in_tree(), "Game Type shows victory, speed, ceasefire and teams")
+	check(page.get_node("%TabGameType").tooltip_text == "Click to toggle the Game Type settings tab.", "with 0.28's tooltip")
+	page.get_node("%TabGameType").pressed.emit()
+	await frames(1)
+	check(shown.call().is_empty() and not page.get_node("%TabGameType").button_pressed, "pressing the open tab closes it")
+	page.select_tab(1)
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.physical_keycode = KEY_ESCAPE
+	esc.pressed = true
+	page._unhandled_input(esc)
+	check(shown.call().is_empty(), "Escape closes it too")
 	print("PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)
