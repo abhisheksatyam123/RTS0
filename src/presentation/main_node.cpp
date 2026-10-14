@@ -141,6 +141,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("resign"), &RtsoMain::resign);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
+	ClassDB::bind_method(D_METHOD("get_target_marker_actor_count"), &RtsoMain::get_target_marker_actor_count);
 	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
@@ -1058,14 +1059,23 @@ void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 	}
 }
 
+// The sender's displayed colour (Ownership on flare_target_marker, MiniMap.flare's player colour).
+Color RtsoMain::player_flare_color(uint8_t pid) const {
+	if (!sim || pid >= rtso::MAX_PLAYERS) return Color(1.0f, 0.45f, 0.1f);
+	const uint32_t rgb = rtso::display_colors::rgb(*sim, pid);
+	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
+}
+
 // input.js triggerFlareAction: one flare per g_FlareCooldown (3 s), shown in the
 // world and on the minimap and sent to the other players.
 void RtsoMain::trigger_flare(float x, float z) {
 	const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
 	if (now < last_flare_time_ + 3.0) return;
 	last_flare_time_ = now;
-	range_overlays_.add_marker(x, z, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
-	if (minimap_view) minimap_view->add_ping(Vector2(x, z), Color(1.0f, 0.4f, 0.2f));
+	// The flare_target_marker and minimap flare take the sender's colour.
+	const Color c = player_flare_color(local_player());
+	range_overlays_.add_flare(x, z, c, user_opts_.flare_time);
+	if (minimap_view) minimap_view->add_ping(Vector2(x, z), c);
 	_on_flare_requested(Vector2(x, z));
 	play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 }
@@ -1093,7 +1103,7 @@ void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 	if (selected_ids.is_empty()) return;
 	const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
 	const size_t sel_n = selected_ids.size();
-	range_overlays_.add_marker(world_pos.x, world_pos.y, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+	range_overlays_.add_target_marker(world_pos.x, world_pos.y);
 	const bool units_only = rtso::hotkeys::held("session.attackmoveUnit"); // targetClasses Unit
 	if (rtso::hotkeys::held("session.attackmove") || units_only) {
 		if (turn_cmds())

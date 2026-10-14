@@ -60,8 +60,10 @@ void RtsoMain::_ready() {
 			if (comma > 0) {
 				float fx = coords.substr(0, comma).to_float();
 				float fz = coords.substr(comma + 1).to_float();
-				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
-				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
+				const uint8_t sender = chat_player_of(guid);
+				const Color c = player_flare_color(sender);
+				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), c);
+				range_overlays_.add_flare(fx, fz, c, user_opts_.flare_time);
 				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 				// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
 				// "never", "observer" (only while observing) or "always".

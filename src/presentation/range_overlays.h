@@ -6,12 +6,20 @@
 // selected defensive structures (session.toggleattackrange, Alt+C), aura rings
 // (session.toggleaurasrange, Alt+V), healer range rings
 // (session.togglehealrange, Alt+B), and a line from a selected structure to its
-// rally point; and target markers (special/target_marker, a flag where a walk
-// order was given that decays after 0.5 s, and special/flare_target_marker,
-// a flare in the sender's colour for 6 s). Drawn as one ImmediateMesh that
-// follows the terrain.
+// rally point, drawn as one ImmediateMesh that follows the terrain; and target
+// markers, 0 A.D.'s own actors: special/target_marker (four arrows closing on
+// where a walk order was given, decaying after 0.5 s) and
+// special/flare_target_marker (an exclamation mark in the sender's colour for
+// 6 s), each playing its Idle animation (assets/models/props/*.dae).
 
+#include <godot_cpp/classes/animation.hpp>
+#include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/immediate_mesh.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/shader_material.hpp>
+#include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
@@ -46,16 +54,32 @@ public:
 		inst_->set_material_override(mat);
 		inst_->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 		parent->add_child(inst_);
+		parent_ = parent;
+		load_actors();
 	}
 
 	// GuiInterface.AddTargetMarker. Decay DelayTime: target_marker 0.5 s, flare_target_marker 6 s.
 	static constexpr float kMoveMarkerTime = 0.5f;
 	static constexpr float kFlareMarkerTime = 6.0f;
-	void add_marker(float x, float z, const Color &c, float ttl) { markers_.push_back({x, z, c, ttl}); }
-	// Ages the markers by real (unscaled) time.
+	void add_target_marker(float x, float z) { add(x, z, Color(1, 1, 1, 0.9f), kMoveMarkerTime, false); }
+	// flare_target_marker has an Ownership: the sender's colour.
+	void add_flare(float x, float z, const Color &c, float ttl) { add(x, z, c, ttl, true); }
+	// Ages the markers by real (unscaled) time. Decay SinkRate 10000: gone at once.
 	void tick(float dt) {
-		for (auto &m : markers_) m.ttl -= dt;
+		for (auto &m : markers_) {
+			m.ttl -= dt;
+			if (m.ttl <= 0.0f && m.actor) {
+				m.actor->queue_free();
+				m.actor = nullptr;
+			}
+		}
 		std::erase_if(markers_, [](const Marker &m) { return m.ttl <= 0.0f; });
+	}
+	// Markers drawn with their 0 A.D. actor (tests).
+	int marker_actor_count() const {
+		int n = 0;
+		for (const auto &m : markers_) n += m.actor != nullptr;
+		return n;
 	}
 	size_t marker_count() const { return markers_.size(); }
 
@@ -63,7 +87,10 @@ public:
 		if (!inst_ || !sim) return;
 		mesh_->clear_surfaces();
 		begun_ = false;
-		for (const auto &m : markers_) flag(sim, m.x, m.z, m.color);
+		for (auto &m : markers_) {
+			if (m.actor) m.actor->set_position(Vector3(m.x, sim->get_terrain_height(m.x, m.z), m.z));
+			else flag(sim, m.x, m.z, m.color);
+		}
 		if (building_id != 0) {
 			for (const auto &b : sim->buildings()) {
 				if (b.id != building_id) continue;
@@ -156,12 +183,92 @@ private:
 		seg(base + Vector3(-0.15f, 0.0f, 0.0f), base + Vector3(0.15f, 0.0f, 0.0f), c);
 	}
 
+	struct Actor {
+		Ref<PackedScene> scene;
+		Ref<Material> material;
+		float scale = 1.0f, speed = 1.0f;
+	};
+
+	// Godot scales a Collada mesh by its <unit>; 0 A.D.'s converter ignores it,
+	// so undo that, then 0 A.D. metres to RTS0 units (1 unit = 4 m).
+	void load_actors() {
+		ResourceLoader *rl = ResourceLoader::get_singleton();
+		target_.scene = rl->load("res://assets/models/props/target_marker.dae");
+		Ref<StandardMaterial3D> tm; // basic_trans_norm_spec: alpha blended
+		tm.instantiate();
+		tm->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, rl->load("res://assets/models/props/target_marker_red_and_gold.png"));
+		tm->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		tm->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+		target_.material = tm;
+		target_.scale = 0.25f / 0.0254f; // <unit name="inch">
+		target_.speed = 1.5f;            // Idle speed="150"
+		flare_.scene = rl->load("res://assets/models/props/flare_target_marker.dae");
+		// player_trans_norm_spec: USE_PLAYERCOLOR, the texture's alpha keeping its own colour.
+		Ref<Shader> sh;
+		sh.instantiate();
+		sh->set_code(R"(shader_type spatial;
+render_mode cull_disabled;
+uniform sampler2D tex : source_color;
+uniform vec3 player : source_color = vec3(1.0);
+void fragment() {
+	vec4 t = texture(tex, UV);
+	ALBEDO = t.rgb * mix(player, vec3(1.0), t.a);
+	ROUGHNESS = 0.5;
+}
+)");
+		Ref<ShaderMaterial> fm;
+		fm.instantiate();
+		fm->set_shader(sh);
+		fm->set_shader_parameter("tex", rl->load("res://assets/models/props/flare_target_marker_diffuse.png"));
+		flare_.material = fm;
+		flare_.scale = 0.25f;
+	}
+
+	void add(float x, float z, const Color &c, float ttl, bool flare) {
+		Marker m{ x, z, c, ttl, nullptr };
+		const Actor &a = flare ? flare_ : target_;
+		if (parent_ && a.scene.is_valid()) {
+			if (Node3D *n = Object::cast_to<Node3D>(a.scene->instantiate())) {
+				n->set_scale(Vector3(a.scale, a.scale, a.scale));
+				Ref<Material> mat = a.material;
+				if (flare) {
+					Ref<ShaderMaterial> own = a.material->duplicate();
+					own->set_shader_parameter("player", Color(c.r, c.g, c.b));
+					mat = own;
+				}
+				TypedArray<Node> meshes = n->find_children("*", "MeshInstance3D", true, false);
+				for (int i = 0; i < meshes.size(); ++i) {
+					MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(meshes[i]);
+					mi->set_material_override(mat);
+					mi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+				}
+				TypedArray<Node> players = n->find_children("*", "AnimationPlayer", true, false);
+				if (players.size() > 0) {
+					AnimationPlayer *ap = Object::cast_to<AnimationPlayer>(players[0]);
+					PackedStringArray names = ap->get_animation_list();
+					if (names.size() > 0) {
+						Ref<Animation> anim = ap->get_animation(names[0]);
+						if (anim.is_valid()) anim->set_loop_mode(Animation::LOOP_LINEAR);
+						ap->set_speed_scale(a.speed);
+						ap->play(names[0]);
+					}
+				}
+				parent_->add_child(n);
+				m.actor = n;
+			}
+		}
+		markers_.push_back(m);
+	}
+
 	struct Marker {
 		float x, z;
 		Color color;
 		float ttl;
+		Node3D *actor;
 	};
 	std::vector<Marker> markers_;
+	Node *parent_ = nullptr;
+	Actor target_, flare_;
 	Ref<ImmediateMesh> mesh_;
 	MeshInstance3D *inst_ = nullptr;
 	bool begun_ = false;

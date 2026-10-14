@@ -307,6 +307,7 @@ public:
 	void _on_minimap_clicked(Vector2 world_pos);
 	void _on_minimap_order(Vector2 world_pos);
 	void trigger_flare(float x, float z);
+	Color player_flare_color(uint8_t pid) const;
 	void _on_flare_requested(Vector2 world_pos);
 	// g_EntityCommands (unit_actions.js): the command row's presses and their hotkeys.
 	void _on_entity_command(const String &name);
@@ -502,6 +503,7 @@ public:
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
+	int get_target_marker_actor_count() const { return range_overlays_.marker_actor_count(); } // tests
 	bool select_first_own(bool building); // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
