@@ -218,6 +218,15 @@ def test_room_owners():
           [r["id"] for r in lb.room_list()[1]["rooms"]] == ["room-20595"], "a host removes its own game")
 
 
+def test_player_states():
+    """LobbyGamelistReporter: a running game's players carry State and Offline."""
+    out = lobby_server._player_names([{"name": "alice", "state": "won"}, {"name": "bob", "state": "defeated", "offline": 1},
+                                      {"name": "AI", "ai": 1, "offline": True, "state": "active"}])
+    check(out[0].get("state") == "won" and out[1].get("offline") is True and out[1].get("state") == "defeated"
+          and "offline" not in out[2] and "state" not in out[2] and "offline" not in out[0],
+          "won, defeated and offline are kept, anything else dropped")
+
+
 def test_moderation():
     """0 A.D. XmppClient kick and ban, MUC roles and the room subject."""
     lb = lobby_server.Lobby(timeout=60.0, clock=lambda: 1000.0, moderators=["Mod"], subject="Welcome")
@@ -322,6 +331,7 @@ if __name__ == "__main__":
     test_object()
     test_room_owners()
     test_moderation()
+    test_player_states()
     test_punch()
     test_ratings()
     test_http()

@@ -367,6 +367,7 @@ def play(args, lobby, leave):
         left = said("host", "chat_left")
         # Once, when bob really leaves: a slow start must not read as a leave.
         ok = ok and left.endswith("bob has left the game.") and said("host", "chat_left_lines") == "1"
+        ok = ok and said("host", "report_offline") == "bob"
     else:
         status = said("join", "net_status")
         ok = (ok and status.startswith("Connection to the server has been lost. | The host has ended the game.")
