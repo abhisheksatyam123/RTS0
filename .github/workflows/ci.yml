@@ -153,6 +153,11 @@ jobs:
           g++ -std=c++20 -O2 -Isrc tools/test_civ_units.cpp src/simulation/simulation.cpp \
             src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_civ_units
           /tmp/test_civ_units
+      - name: Wagon Trains tests (the Germans' supply wagon, Wagon Encampment and wagon houses)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_wagon_trains.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_wagon_trains
+          /tmp/test_wagon_trains
       - name: Statistics tests (0 A.D. StatisticsTracker for every player)
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_statistics.cpp src/simulation/simulation.cpp \

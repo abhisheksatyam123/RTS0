@@ -93,14 +93,14 @@ uint8_t promotion_start_rank(uint16_t tmpl) {
 
 const RankBonus &rank_bonus(uint8_t rank) { return rank >= 3 ? RANK_BONUS_ELITE : RANK_BONUS_ADVANCED; }
 
-uint64_t unit_classes(uint16_t tmpl, uint8_t type) {
+TechClasses unit_classes(uint16_t tmpl, uint8_t type) {
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 }
 
 // Classes a GarrisonHolder List sees: RTS0's villager plays 0 A.D.'s support civilian
 // (template_unit_support_slave: Support), which its roster row doesn't list.
-uint64_t garrison_classes(uint16_t tmpl, uint8_t type) {
-	return unit_classes(tmpl, type) | (type == UNIT_VILLAGER ? (uint64_t)TC_CIVILIAN : 0);
+TechClasses garrison_classes(uint16_t tmpl, uint8_t type) {
+	return unit_classes(tmpl, type) | (type == UNIT_VILLAGER ? (TechClasses)TC_CIVILIAN : 0);
 }
 
 // One entry of a unit's Trainer list (unit_trainer_data.h), by roster template.
@@ -507,6 +507,7 @@ void Simulation::reset() {
 	spies_.clear();
 	for (CheatMods &cm : cheat_mods_) cm = CheatMods{};
 	std::fill(std::begin(player_pop_cap_), std::end(player_pop_cap_), 0);
+	std::fill(std::begin(unit_pop_bonus_), std::end(unit_pop_bonus_), 0);
 	// A new game brings its own terrain (set_terrain_data or load_state); the
 	// previous map's heights would otherwise move projectiles and water.
 	terrain_heights_.clear();
@@ -646,20 +647,32 @@ int Simulation::pop_current(uint8_t player) const {
 }
 
 // Population/Bonus of a finished structure for its owner (the big house for nine civs,
-// Population/Bonus technologies).
+// Population/Bonus technologies, multiplied then added as ApplyValueModifications does).
 int Simulation::structure_pop_bonus(uint8_t type, uint8_t player) const {
 	const int base = civ_building_type_info(civ_of(player), type).pop_bonus;
-	return base ? (int)std::lround(base * tech_mods(player).bld_pop_bonus[type]) : 0;
+	if (!base) return 0;
+	const TechMods &m = tech_mods(player);
+	return (int)std::lround(base * m.bld_pop_bonus[type] + m.bld_pop_bonus_add[type]);
 }
 
 int Simulation::pop_max_uncapped(uint8_t player) const {
-	// Player.js popBonuses start at 0: a Civic Centre gives 20, houses 5 or 10.
+	// Player.js popBonuses start at 0: a Civic Centre gives 20, houses 5 or 10, a wagon house 5.
 	int cap = 0;
 	for (const auto &b : buildings_) {
 		if (b.team == player && b.build_progress >= 1.0f) cap += structure_pop_bonus(b.type, player);
 	}
-	if (player < MAX_PLAYERS) cap += cheat_mods_[player].pop_bonus;
+	if (player < MAX_PLAYERS) cap += cheat_mods_[player].pop_bonus + unit_pop_bonus_[player];
 	return cap;
+}
+
+// Population.js on units: an owned unit adds its Population/Bonus, garrisoned too.
+void Simulation::refresh_unit_pop_bonus() {
+	std::fill(std::begin(unit_pop_bonus_), std::end(unit_pop_bonus_), 0);
+	if (!CIV_UNIT_POP_BONUS_COUNT) return;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (units_.team[i] >= MAX_PLAYERS || !(units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED)) continue;
+		if (const int b = unit_pop_bonus(units_.tmpl[i])) unit_pop_bonus_[units_.team[i]] += b;
+	}
 }
 
 int Simulation::pop_limit(uint8_t player) const {
@@ -1782,6 +1795,8 @@ BuildRestriction build_restriction(uint8_t type) {
 	// Civ-specific: civil_centre_military_colony (own neutral, 120 m from a
 	// CivilCentre), ptol/lighthouse and cart/super_dock (shore, own ally neutral).
 	case BLD_MILITARY_COLONY: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 120.0f / 4.0f};
+	// germ/encampment: own neutral, 1 m from a CivilCentre.
+	case BLD_WAGON_ENCAMPMENT: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 1.0f / 4.0f};
 	case BLD_SUPER_DOCK:
 	case BLD_LIGHTHOUSE: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};
@@ -2506,7 +2521,7 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 	// A roster row carries its own 0 A.D. Identity/Requirements tech (champion
 	// spearmen and swordsmen share their RTS0 class with citizen soldiers).
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return gate(civ_unit_template(tmpl).unlock_tech);
-	const uint64_t c = unit_tech_classes(unit_type);
+	const TechClasses c = unit_tech_classes(unit_type);
 	if (!(c & TC_CHAMPION)) return TECH_NONE;
 	if (c & TC_CHARIOT) return gate(TECH_UNLOCK_CHAMPION_CHARIOTS);
 	if (c & TC_CAVALRY) return gate(TECH_UNLOCK_CHAMPION_CAVALRY);
@@ -3449,6 +3464,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
 		m.bld_health[b] = m.bld_attack[b] = m.bld_build_time[b] = m.bld_pop_bonus[b] = 1.0f;
+		m.bld_pop_bonus_add[b] = 0.0f;
 		m.bld_research_time[b] = m.bld_arrow_mul[b] = 1.0f;
 		m.bld_batch_time_add[b] = 0.0f;
 		m.bld_range[b] = m.bld_arrow_add[b] = m.bld_garrison_heal[b] = 0.0f;
@@ -3577,7 +3593,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_BATCH_TIME:
 						if (e.op == TOP_ADD) m.bld_batch_time_add[b] += e.value;
 						break;
-					case TSTAT_POP_BONUS: apply(m.bld_pop_bonus[b]); break;
+					case TSTAT_POP_BONUS:
+						if (e.op == TOP_ADD) m.bld_pop_bonus_add[b] += e.value;
+						else apply(m.bld_pop_bonus[b]);
+						break;
 					// BuildingAI arrow counts: Sentries multiplies, Professional Garrisons adds.
 					case TSTAT_ARROWS:
 						if (e.op == TOP_MUL) m.bld_arrow_mul[b] *= e.value;
@@ -3612,7 +3631,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 		for (uint16_t k = 0; k < ti.effect_count; ++k) {
 			const TechEffect &e = fx[k];
-			apply_mod(e, [&](uint64_t cls) { return tech_effect_applies(e, cls); });
+			apply_mod(e, [&](TechClasses cls) { return tech_effect_applies(e, cls); });
 		}
 	}
 	// Global relic and hero auras reaching this player. Same-named auras don't stack
@@ -3639,7 +3658,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 				default: break;
 			}
 			const TechEffect e{rm.stat, rm.op, 0, 0, rm.value};
-			apply_mod(e, [&](uint64_t cls) { return relic_modifier_applies(rm, cls); });
+			apply_mod(e, [&](TechClasses cls) { return relic_modifier_applies(rm, cls); });
 		}
 	}
 	// attack: the damage total after technologies over the template's, which scales attack_damage.
@@ -5792,8 +5811,8 @@ int Simulation::ship_template_capacity(uint8_t unit_type, uint16_t tmpl) {
 // (template_unit_ship.xml); merchant ships add Support and Cavalry, warships
 // add Support and Soldier, and arrow, ram and siege ships add Siege.
 bool Simulation::ship_garrison_allowed(size_t ship, uint8_t unit_type) const {
-	const uint64_t c = unit_tech_classes(unit_type);
-	uint64_t allowed = TC_FEMALECITIZEN | TC_INFANTRY | TC_HEALER | TC_DOG;
+	const TechClasses c = unit_tech_classes(unit_type);
+	TechClasses allowed = TC_FEMALECITIZEN | TC_INFANTRY | TC_HEALER | TC_DOG;
 	if (units_.unit_type[ship] == UNIT_MERCHANT_SHIP) allowed |= TC_CIVILIAN | TC_CAVALRY;
 	if (units_.unit_type[ship] == UNIT_TRIREME) {
 		allowed |= TC_CIVILIAN | TC_SOLDIER | TC_HERO;
@@ -6078,7 +6097,7 @@ void Simulation::unload_sunk_ship(size_t ship) {
 	if (pit == transport_passengers_.end()) return;
 	float lx = 0.0f, lz = 0.0f;
 	const bool shore = ship_unload_point(ship, lx, lz);
-	const uint64_t ejected = TC_FEMALECITIZEN | TC_INFANTRY | TC_HEALER | TC_DOG;
+	const TechClasses ejected = TC_FEMALECITIZEN | TC_INFANTRY | TC_HEALER | TC_DOG;
 	std::vector<SpawnSpot> taken;
 	for (uint32_t puid : pit->second) {
 		const int32_t p = lookup_unit(puid);
@@ -6199,7 +6218,7 @@ void Simulation::garrison_now(size_t i, Building &b) {
 // ---------------------------------------------------------------------------
 
 bool Simulation::unit_turretable(size_t i) const {
-	const uint64_t c = unit_classes(units_.tmpl[i], units_.unit_type[i]);
+	const TechClasses c = unit_classes(units_.tmpl[i], units_.unit_type[i]);
 	return (c & TC_INFANTRY) && (c & TC_RANGED);
 }
 
@@ -6252,7 +6271,7 @@ int Simulation::structure_garrison_cap(const Building &b) const {
 
 // GarrisonHolder/List of the structure's own template: a captured Han storehouse keeps its
 // Minister seat, and a Han player capturing another civ's structure gains none.
-bool Simulation::structure_accepts_classes(const Building &b, uint64_t classes) const {
+bool Simulation::structure_accepts_classes(const Building &b, TechClasses classes) const {
 	return garrison_list_matches(structure_garrison_list(b.type, b.civ), classes);
 }
 
@@ -6863,7 +6882,7 @@ std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t buildin
 }
 
 static bool alert_filter(uint8_t unit_type, bool traders) {
-	const uint64_t c = unit_tech_classes(unit_type);
+	const TechClasses c = unit_tech_classes(unit_type);
 	return traders ? (c & TC_TRADER) && !(c & TC_SHIP) : (c & TC_FEMALECITIZEN) != 0;
 }
 
@@ -7867,6 +7886,7 @@ void Simulation::tick(float dt) {
 	}
 
 	tick_spies(dt);
+	refresh_unit_pop_bonus(); // Population.js: units that appeared, died or changed hands this tick
 
 	// Fog of War (Paced at 4 Hz to avoid unnecessary main thread recalculations)
 	fow_timer_ += dt;
@@ -11144,7 +11164,7 @@ float Simulation::promotion_required_xp(size_t i) const {
 	float xp = l->xp;
 	const uint8_t team = units_.team[i];
 	if (team < MAX_PLAYERS) {
-		const uint64_t cls = unit_classes(units_.tmpl[i], units_.unit_type[i]);
+		const TechClasses cls = unit_classes(units_.tmpl[i], units_.unit_type[i]);
 		for (const PromotionXpTech &t : PROMOTION_XP_TECHS)
 			if ((t.tech == TECH_NONE || players_[team].has_tech(t.tech)) && (!t.rank || t.rank == units_.rank[i]) &&
 					(cls & t.need) == t.need && !(cls & t.forbid))
@@ -11210,7 +11230,7 @@ float Simulation::heal_amount_of(size_t h) const {
 
 // Health/Max x1.25 and, for melee units, Attack/Melee damage x1.2 for each rank gained.
 void Simulation::apply_rank_bonus(size_t i, uint8_t from_rank, uint8_t to_rank) {
-	const bool melee = unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_MELEE;
+	const bool melee = (unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_MELEE).any();
 	for (uint8_t r = std::max<uint8_t>(from_rank, 1) + 1; r <= std::min<uint8_t>(to_rank, 3); ++r) {
 		const RankBonus &b = rank_bonus(r);
 		units_.max_hp[i] *= b.health_mul;
@@ -11948,8 +11968,13 @@ uint8_t Simulation::side_of(uint8_t pid) const {
 	return side;
 }
 
-void Simulation::end_match(uint8_t winners) {
+void Simulation::end_match(uint8_t winners, uint8_t reason) {
 	winners &= (uint8_t)~defeated_mask_; // a defeated ally stays defeated (0 A.D.)
+	// EndGameManager.MarkPlayersAsWon / SetPlayerWon: "X and Y have won (wonder victory)."
+	// for the winners, and the players a wonder, relics or a scenario beat are named too.
+	const uint8_t beaten = (uint8_t)(participant_mask_ & ~winners & ~defeated_mask_);
+	if (winners) note_session({SessionNotice::WON, 0, winners, reason, {}});
+	if (beaten && (reason == SessionNotice::END_WONDER || reason == SessionNotice::END_RELIC)) note_session({SessionNotice::LOST, 0, beaten, reason, {}});
 	winner_mask_ = winners;
 	convert_to_gaia((uint8_t)(participant_mask_ & ~winners & ~defeated_mask_));
 	defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
@@ -11959,7 +11984,7 @@ void Simulation::end_match(uint8_t winners) {
 
 void Simulation::set_player_won(uint8_t pid) {
 	if (game_over_ || victory_ || pid >= MAX_PLAYERS) return;
-	end_match(side_of(pid));
+	end_match(side_of(pid), SessionNotice::END_GAME_MODE);
 }
 
 void Simulation::check_victory_conditions(float dt) {
@@ -12013,7 +12038,7 @@ void Simulation::check_victory_conditions(float dt) {
 		has_active_wonder_ = any_ours;
 		wonder_victory_timer_ = ours;
 		if (holder >= 0) {
-			end_match(side_of((uint8_t)holder));
+			end_match(side_of((uint8_t)holder), SessionNotice::END_WONDER);
 			return;
 		}
 	}
@@ -12039,7 +12064,7 @@ void Simulation::check_victory_conditions(float dt) {
 			if (all_claimed && owner >= 0 && owner < MAX_TEAMS) {
 				relic_victory_timer_ += dt;
 				if (relic_victory_timer_ >= relic_duration_) {
-					end_match(side);
+					end_match(side, SessionNotice::END_RELIC);
 					return;
 				}
 			} else {
@@ -12053,7 +12078,8 @@ void Simulation::check_victory_conditions(float dt) {
 	// ("ConquestCritical Unit+!Animal" and the like: critical OR its own class) can only
 	// empty after its first, so the first decides.
 	const uint8_t vk = victory_conditions();
-	auto defeated = [&](int t) {
+	using SN = SessionNotice;
+	auto defeated = [&](int t) -> int { // the reason, or -1 while the player holds on
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
 		// A query whose list starts empty never fires, so a nomad who has not built a civic
@@ -12063,11 +12089,12 @@ void Simulation::check_victory_conditions(float dt) {
 		// loss, so a player that never lost anything (a test's lone market) stays in until it
 		// holds nothing at all.
 		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
-		return ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) ||
-		       ((vk & VK_CONQUEST_UNITS) && no_units) ||
-		       ((vk & VK_CONQUEST_STRUCTURES) && no_structures) ||
-		       ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) ||
-		       ((vk & VK_REGICIDE) && regicide_hero_lost(t));
+		if ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) return SN::END_CONQUEST;
+		if ((vk & VK_CONQUEST_UNITS) && no_units) return SN::END_UNITS;
+		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures) return SN::END_STRUCTURES;
+		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) return SN::END_CIVIC_CENTRES;
+		if ((vk & VK_REGICIDE) && regicide_hero_lost(t)) return SN::END_HERO;
+		return -1;
 	};
 
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
@@ -12075,7 +12102,11 @@ void Simulation::check_victory_conditions(float dt) {
 	uint8_t fallen = 0;
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (!((participant_mask_ >> t) & 1) || is_defeated((uint8_t)t)) continue;
-		if (defeated(t) || (waves_enabled_ && t == 0 && tc_count[0] == 0)) fallen |= (uint8_t)(1u << t);
+		int why = defeated(t);
+		if (why < 0 && waves_enabled_ && t == 0 && tc_count[0] == 0) why = SN::END_OBJECTIVE;
+		if (why < 0) continue;
+		fallen |= (uint8_t)(1u << t);
+		note_session({SN::DEFEATED, (uint8_t)t, 0, (uint8_t)why, {}});
 	}
 	if (fallen) {
 		convert_to_gaia(fallen);
@@ -12426,7 +12457,7 @@ void Simulation::tick_trickle(float dt) {
 				continue;
 			}
 			PlayerState &ps = players_[b.team];
-			const uint64_t classes = building_tech_classes(b.type);
+			const TechClasses classes = building_tech_classes(b.type);
 			for (uint8_t id = 1; id < TECH_COUNT; ++id) {
 				if (!ps.has_tech(id)) continue;
 				const TechInfo &ti = tech_info(id);
@@ -14247,7 +14278,7 @@ void Simulation::tick_heal(size_t h) {
 // ships (template_unit_ship_fire) disable it.
 float Simulation::unit_repair_time_ratio(size_t t) const {
 	const uint16_t tmpl = units_.tmpl[t];
-	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(units_.unit_type[t]);
+	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(units_.unit_type[t]);
 	if (!(c & (TC_SIEGE | TC_SHIP)) || is_fire_ship(tmpl)) return 0.0f;
 	return UNIT_REPAIR_TIME_RATIO;
 }
@@ -14991,7 +15022,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	};
 	struct UnitStat {
-		uint64_t classes;
+		TechClasses classes;
 		float priority;
 		int min, target, batch;
 		float strength, siege_strength, stone, metal; // interests; 1 = no costsResource penalty
@@ -15027,7 +15058,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		float best_value = 0.0f;
 		for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
-			const uint64_t c = classes_of(tmpl, t.unit_type);
+			const TechClasses c = classes_of(tmpl, t.unit_type);
 			if ((c & st.classes) != st.classes || t.phase > phase) continue;
 			if (!hero_wanted && (t.flags & ROSTER_HERO)) continue;
 			if ((t.flags & ROSTER_SIEGE_TOWER) || (c & TC_SIEGETOWER)) continue;
@@ -15073,7 +15104,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		// attackPlan.js constructor unitStat: {classes, priority, minSize, targetSize, batchSize,
 		// strength, costsResource stone, costsResource metal}.
 		std::vector<UnitStat> stats;
-		const uint64_t CS = TC_CITIZENSOLDIER, INF = TC_INFANTRY, FM = TC_CAVALRY, CH = TC_CHAMPION;
+		const TechClasses CS = TC_CITIZENSOLDIER, INF = TC_INFANTRY, FM = TC_CAVALRY, CH = TC_CHAMPION;
 		if (kind == PETRA_ATTACK_RUSH) {
 			// Infantry at the rush's own targetSize (petra_plan_sizes counted this rush already).
 			const int r = petra_attack_mgr_.rush_size[std::clamp(petra_attack_mgr_.rush_number - 1, 0, 2)];
@@ -15116,12 +15147,12 @@ void Simulation::petra_manage_military_production(float dt) {
 		// trains (Siege+Melee, Siege+Ranged, Elephant+Melee, starting from the plan's number), as
 		// many as its difficulty allows, picked by siegeStrength.
 		if (kind == PETRA_ATTACK_ATTACK || kind == PETRA_ATTACK_HUGE) {
-			const uint64_t siege_classes[3] = {TC_SIEGE | TC_MELEE, TC_SIEGE | TC_RANGED, TC_ELEPHANT | TC_MELEE};
+			const TechClasses siege_classes[3] = {TC_SIEGE | TC_MELEE, TC_SIEGE | TC_RANGED, TC_ELEPHANT | TC_MELEE};
 			bool has_trainer[3] = {};
 			for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
 				const CivUnitTemplate &t = civ_unit_template(tmpl);
 				if (t.phase > phase || !trainer_for(tmpl)) continue;
-				const uint64_t c = classes_of(tmpl, t.unit_type);
+				const TechClasses c = classes_of(tmpl, t.unit_type);
 				for (int k = 0; k < 3; ++k)
 					if ((c & siege_classes[k]) == siege_classes[k]) has_trainer[k] = true;
 			}
@@ -15137,7 +15168,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		// What the plan has, each unit counted once in the first class it matches, plus what is
 		// in training for it (at a building other than a civic centre, where Petra trains its
 		// workers; heroes anywhere).
-		auto tally = [&](uint64_t c, int n) {
+		auto tally = [&](TechClasses c, int n) {
 			for (UnitStat &st : stats)
 				if ((c & st.classes) == st.classes) { st.count += n; return; }
 		};
@@ -15148,7 +15179,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_) continue;
 			for (const auto &o : b.queue) {
-				const uint64_t c = classes_of(o.tmpl, o.unit_type);
+				const TechClasses c = classes_of(o.tmpl, o.unit_type);
 				if (is_civic_centre(b.type) && !(c & TC_HERO)) continue;
 				tally(c, o.count);
 			}
@@ -15171,9 +15202,9 @@ void Simulation::petra_manage_military_production(float dt) {
 			unit_train_cost(petra_pid_, tmpl, ui, cost);
 			// trainMoreUnits: siege engines and heroes in the plan's siege queue, champions in its
 			// champion queue, the rest in its own.
-			const uint64_t tc = classes_of(tmpl, t.unit_type);
-			const uint8_t queue = (tc & (TC_SIEGE | TC_HERO)) ? PETRA_Q_PLAN_SIEGE
-			                    : (tc & TC_CHAMPION) ? PETRA_Q_PLAN_CHAMP : PETRA_Q_PLAN;
+			const TechClasses tc = classes_of(tmpl, t.unit_type);
+			const uint8_t queue = (tc & (TC_SIEGE | TC_HERO)).any() ? PETRA_Q_PLAN_SIEGE
+			                    : (tc & TC_CHAMPION).any() ? PETRA_Q_PLAN_CHAMP : PETRA_Q_PLAN;
 			// The military queue's account seldom holds a whole batch while the other queues draw
 			// on the same income, so a smaller batch goes when the full one cannot (RTS0).
 			for (int n = batch; n >= 1; --n) {
@@ -15291,14 +15322,14 @@ bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, 
 	const bool autogarrison = garrisoned < structure_garrison_cap(cc) && structure_has_enough_health(cc);
 	const bool ranged_wanted = sim_rng_.range_int(0, 1) == 1 && autogarrison;
 
-	const uint64_t arrow_classes = building_ai_info(cc.type).garrison_arrow_classes;
+	const TechClasses arrow_classes = building_ai_info(cc.type).garrison_arrow_classes;
 	uint16_t found = CIV_UNIT_TEMPLATE_NONE;
 	for (uint16_t tmpl : civ_roster_ids(civ)) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		// The anchor's own Trainer list, less the map's disabled templates.
 		if (!(t.trainers & bld_bit(cc.type)) || triggers_.template_disabled(tmpl)) continue;
 		if (t.phase > petra_ps().phase || !can_train_at(petra_pid_, t.unit_type, cc.type, tmpl)) continue;
-		const uint64_t cls = unit_classes(tmpl, t.unit_type);
+		const TechClasses cls = unit_classes(tmpl, t.unit_type);
 		if (!(cls & TC_INFANTRY) || !(cls & TC_CITIZENSOLDIER)) continue;
 		if (autogarrison && arrow_classes && !(cls & arrow_classes)) continue;
 		float cost[RES_COUNT];
@@ -15439,7 +15470,7 @@ int Simulation::petra_train_more_workers() {
 		float best_value = 0.0f;
 		for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
-			const uint64_t cls = unit_classes(tmpl, t.unit_type);
+			const TechClasses cls = unit_classes(tmpl, t.unit_type);
 			if (t.phase > petra_ps().phase || (cls & (TC_CITIZENSOLDIER | TC_INFANTRY)) != (TC_CITIZENSOLDIER | TC_INFANTRY)) continue;
 			if ((t.flags & (ROSTER_HERO | ROSTER_SIEGE_TOWER)) || (cls & (TC_HERO | TC_SIEGETOWER)) || triggers_.template_disabled(tmpl)) continue;
 			const bool ranged = (cls & TC_RANGED) != 0, melee = (cls & TC_MELEE) != 0;
@@ -16878,10 +16909,10 @@ bool Simulation::petra_line_in_enemy_territory(float x1, float z1, float x2, flo
 	return false;
 }
 
-// tradeManager.js checkRoutes. Our markets (foundations too) against our exclusive allies'
-// markets, or against each other when no ally has one. A land route joins two markets on
-// one land that doesn't cross enemy territory, a sea route two docks on one sea (RTS0's
-// land traders only trade at markets and merchant ships only at docks).
+// tradeManager.js checkRoutes. Our markets and docks (the Trade class, foundations too)
+// against our exclusive allies', or against each other when no ally has one. A land route
+// joins two of them on one land without crossing enemy territory (land traders trade at
+// docks too), a sea route two docks on one sea; a land route is priced for a land trader.
 void Simulation::petra_check_routes(PetraTradeRoutes &out) const {
 	out = PetraTradeRoutes();
 	uint16_t home = 0;
@@ -16898,22 +16929,18 @@ void Simulation::petra_check_routes(PetraTradeRoutes &out) const {
 	const std::vector<const Building *> &others = only_ours ? own : ally;
 	const int minimal = petra_trade_minimal_gain();
 	for (const Building *m1 : own) {
-		const uint16_t land1 = m1->type == BLD_MARKET ? (topo.naval_map ? petra_building_land(*m1, &topo) : 1) : 0;
+		const uint16_t land1 = topo.naval_map ? petra_building_land(*m1, &topo) : 1;
 		const uint16_t sea1 = m1->type == BLD_DOCK ? dock_sea(*m1) : 0;
 		for (const Building *m2 : others) {
 			if (only_ours && m1->id >= m2->id) continue;
-			if (m1->type != m2->type) continue;
 			PetraTradeRoute r;
-			if (m1->type == BLD_MARKET) {
-				r.land = topo.naval_map ? petra_building_land(*m2, &topo) : 1;
-				if (!land1 || r.land != land1) continue;
-				if (petra_line_in_enemy_territory(m1->x, m1->z, m2->x, m2->z)) continue;
-			} else {
-				r.sea = dock_sea(*m2);
-				if (!sea1 || r.sea != sea1) continue;
-			}
-			r.gain = trader_gain_at(m1->x - m2->x, m1->z - m2->z, petra_pid_,
-			                        m1->type == BLD_DOCK ? UNIT_MERCHANT_SHIP : UNIT_TRADER);
+			const uint16_t land2 = topo.naval_map ? petra_building_land(*m2, &topo) : 1;
+			const uint16_t sea2 = m2->type == BLD_DOCK ? dock_sea(*m2) : 0;
+			r.land = land1 && land1 == land2 ? land1 : 0;
+			r.sea = sea1 && sea1 == sea2 ? sea1 : 0;
+			if (!r.land && !r.sea) continue;
+			if (r.land && petra_line_in_enemy_territory(m1->x, m1->z, m2->x, m2->z)) continue;
+			r.gain = trader_gain_at(m1->x - m2->x, m1->z - m2->z, petra_pid_, r.land ? UNIT_TRADER : UNIT_MERCHANT_SHIP);
 			if (r.gain < minimal) continue;
 			r.source = m1->id;
 			r.target = m2->id;
@@ -16943,13 +16970,14 @@ const Simulation::PetraTradeRoute *Simulation::petra_route_for(const PetraTradeR
 int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_gain) const {
 	out_gain = 0;
 	std::vector<const Building *> markets;
+	auto trade = [](const Building &b) { return (b.type == BLD_MARKET || b.type == BLD_DOCK) && b.hp > 0.0f && !b.wrecked; };
 	for (const Building &b : buildings_)
-		if (b.type == BLD_MARKET && b.hp > 0.0f && !b.wrecked && b.team < MAX_PLAYERS && b.team != petra_pid_ &&
-		    is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team))
+		if (trade(b) && b.team < MAX_PLAYERS && b.team != petra_pid_ && is_ally(petra_pid_, b.team) &&
+		    !is_hostile(petra_pid_, b.team))
 			markets.push_back(&b);
 	if (markets.empty())
 		for (const Building &b : buildings_)
-			if (b.type == BLD_MARKET && b.hp > 0.0f && !b.wrecked && b.team == petra_pid_) markets.push_back(&b);
+			if (trade(b) && b.team == petra_pid_) markets.push_back(&b);
 	if (markets.empty() || territory_grid_.blank()) return 0; // the first market: anywhere
 
 	uint16_t home = 0;
@@ -17027,8 +17055,8 @@ void Simulation::petra_prospect_market(const PetraTradeRoutes &routes) {
 		return;
 	bool any = false;
 	for (const Building &b : buildings_) {
-		if (b.type != BLD_MARKET || b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS) continue;
-		if (b.team == petra_pid_ && b.build_progress < 1.0f) return; // one market at a time
+		if ((b.type != BLD_MARKET && b.type != BLD_DOCK) || b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS) continue;
+		if (b.type == BLD_MARKET && b.team == petra_pid_ && b.build_progress < 1.0f) return; // one market at a time
 		if (b.team == petra_pid_ || (is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team))) any = true;
 	}
 	if (!any) return;
@@ -18290,7 +18318,7 @@ static bool petra_tech_modifies(uint8_t tech_id, std::initializer_list<uint8_t> 
 }
 
 // Does any of the technology's effects list `cls` alone among its affects?
-static bool petra_tech_affects_only(uint8_t tech_id, uint64_t cls) {
+static bool petra_tech_affects_only(uint8_t tech_id, TechClasses cls) {
 	const TechInfo &ti = tech_info(tech_id);
 	if (ti.effect_count == 0) return false;
 	const TechEffect *fx = tech_effects_table() + ti.effect_begin;
@@ -18302,7 +18330,7 @@ static bool petra_tech_affects_only(uint8_t tech_id, uint64_t cls) {
 	return true;
 }
 
-static bool petra_tech_affects(uint8_t tech_id, uint64_t cls) {
+static bool petra_tech_affects(uint8_t tech_id, TechClasses cls) {
 	const TechInfo &ti = tech_info(tech_id);
 	const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 	for (uint16_t i = 0; i < ti.effect_count; ++i)
@@ -18863,7 +18891,7 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 			if (b.team >= MAX_PLAYERS || b.team == petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
 			const bool foe = is_hostile(petra_pid_, b.team);
 			if (hostile ? !foe : (foe || is_ally(petra_pid_, b.team))) continue;
-			const uint64_t c = building_tech_classes(b.type);
+			const TechClasses c = building_tech_classes(b.type);
 			if (c & (TC_CIVCENTRE | TC_FORTRESS | TC_TOWER)) foes.push_back({b.x, b.z, (c & TC_CIVCENTRE) != 0});
 		}
 	};
@@ -19801,7 +19829,7 @@ uint8_t Simulation::petra_attack_avoid(const AttackPlan &plan, bool siege) const
 	const Building *t = it != building_id_to_idx_.end() ? &buildings_[it->second] : nullptr;
 	uint8_t avoid = t && building_ai_info(t->type).default_arrows > 0 ? ORDER_AVOID_ECONOMY : 0;
 	if (siege) return avoid;
-	const uint64_t c = t ? building_tech_classes(t->type) : 0;
+	const TechClasses c = t ? building_tech_classes(t->type) : 0;
 	uint8_t set = ORDER_AVOID_WALLS_FORTRESS;
 	if (plan.kind == PETRA_ATTACK_RUSH) set = ORDER_AVOID_WALLS_TOWERS;
 	else if (c & TC_FORTRESS) set = ORDER_AVOID_WALLS;
@@ -19940,7 +19968,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			else if (it != drawn.end() && it->second > 0) { needs = true; --it->second; }
 		}
 		if (!needs) continue;
-		const uint64_t c = cls(i);
+		const TechClasses c = cls(i);
 		float range = 60.0f * M;
 		if (c & TC_RANGED) range = 30.0f * M + units_.attack_range[i];
 		else if (c & TC_CAVALRY) range = 90.0f * M;
@@ -21911,7 +21939,7 @@ Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
 		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
 		if (dx * dx + dz * dz > range * range) continue;
-		const uint64_t c = unit_tech_classes(units_.unit_type[i]);
+		const TechClasses c = unit_tech_classes(units_.unit_type[i]);
 		if (c & TC_SIEGE) {
 			if (c & TC_MELEE) around.melee_siege = true;
 			else around.range_siege = true;
@@ -21928,7 +21956,7 @@ Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 // and its hero for an emergency.
 bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const PetraAround &around) const {
 	const uint8_t type = units_.unit_type[i];
-	const uint64_t c = unit_tech_classes(type);
+	const TechClasses c = unit_tech_classes(type);
 	const float health = units_.max_hp[i] > 0.0f ? units_.hp[i] / units_.max_hp[i] : 1.0f;
 	const bool heals = structure_garrison_heal(holder) > 0.0f && unit_is_human(type);
 	const bool needs_heal = heals && health < 1.0f;
@@ -21963,7 +21991,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 	std::vector<std::pair<float, uint32_t>> near;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-		const uint64_t c = unit_tech_classes(units_.unit_type[i]);
+		const TechClasses c = unit_tech_classes(units_.unit_type[i]);
 		if (!(c & TC_INFANTRY) || units_.unit_type[i] == UNIT_HERO || (!allow_melee && (c & TC_MELEE)) || !unit_garrisonable(i)) continue;
 		if (decay && unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) <= 0.0f) continue;
 		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
@@ -22164,7 +22192,7 @@ void Simulation::petra_manage_garrisons() {
 		const int32_t t = lookup_unit(units_.target_unit_id[i]);
 		if (t < 0 || !units_.alive[t] || units_.team[t] != petra_pid_ || units_.order_kind[t] == ORDER_GARRISON) continue;
 		if (petra_unit_reserved(units_.id[t])) continue;
-		const uint64_t c = unit_tech_classes(units_.unit_type[t]);
+		const TechClasses c = unit_tech_classes(units_.unit_type[t]);
 		const float health = units_.max_hp[t] > 0.0f ? units_.hp[t] / units_.max_hp[t] : 1.0f;
 		if (petra_is_critical_ent((size_t)t)) continue; // the victoryManager handles our hero
 		uint32_t holder = 0;
@@ -24453,6 +24481,7 @@ bool Simulation::load_state(const char *filepath) {
 	}
 
 	rebuild_all_tech_mods();
+	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
 	if (version >= 26) trigger_event(TRIGGER_ON_DESERIALIZED); // Trigger.js OnGlobalDeserialized
 	petra_decay_events_.clear(); // rebuilding the loaded territory is no change of it
@@ -27433,12 +27462,12 @@ constexpr uint32_t kPushNotificationMs = 10000;
 
 // The 0.28 trigger scripts' "Civilian" class: support_civilian(_house), the worker that replaced
 // the female citizen. Until a roster has those rows its female citizens stand in for them.
-bool trigger_civilian_class(uint64_t c) {
+bool trigger_civilian_class(TechClasses c) {
 	return (c & TC_CIVILIAN) && (c & TC_WORKER) && !(c & (TC_TRADER | TC_HEALER));
 }
 // GetTemplateNamesByClasses("Civilian") over roster rows (id, classes): the civilian rows, or the
 // female citizens on rosters without them (0.28's female citizens have no Civilian class).
-std::vector<uint16_t> trigger_civilians(const std::vector<std::pair<uint16_t, uint64_t>> &rows) {
+std::vector<uint16_t> trigger_civilians(const std::vector<std::pair<uint16_t, TechClasses>> &rows) {
 	std::vector<uint16_t> civ, fem;
 	for (const auto &[id, c] : rows) {
 		if (trigger_civilian_class(c) && !(c & TC_FEMALECITIZEN)) civ.push_back(id);
@@ -27767,6 +27796,7 @@ void Simulation::defeat_player(uint8_t pid) {
 	// Player.js SetState("defeated"): everything it owns goes to Gaia.
 	convert_to_gaia((uint8_t)(1u << pid));
 	defeated_mask_ |= (uint8_t)(1u << pid);
+	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_OBJECTIVE, {}});
 }
 
 bool Simulation::cmd_resign(uint8_t pid) {
@@ -27775,6 +27805,7 @@ bool Simulation::cmd_resign(uint8_t pid) {
 	participant_mask_ |= bit; // a player that resigns before it held anything is still out
 	convert_to_gaia(bit);
 	defeated_mask_ |= bit;
+	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_RESIGNED, {}}); // Commands.js "resign"
 	return true;
 }
 
@@ -27922,7 +27953,7 @@ void Simulation::trigger_survival_wave() {
 	// GetTemplateNamesByClasses: "Hero", "Champion+!Elephant", "Siege Champion+Elephant".
 	std::vector<uint16_t> heroes, champions, siege;
 	for (uint16_t t : civ_roster_ids(civ)) {
-		const uint64_t c = civ_unit_template(t).tech_classes;
+		const TechClasses c = civ_unit_template(t).tech_classes;
 		if (c & TC_HERO) heroes.push_back(t);
 		else if ((c & TC_SIEGE) || ((c & TC_CHAMPION) && (c & TC_ELEPHANT))) siege.push_back(t);
 		else if (c & TC_CHAMPION) champions.push_back(t);
@@ -28068,7 +28099,7 @@ void Simulation::tutorial_launch_attack() {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != TUTORIAL_ENEMY) continue;
 		const uint16_t t = units_.tmpl[i];
-		const uint64_t c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
+		const TechClasses c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
 		if (!(c & TC_CITIZENSOLDIER)) continue;
 		attackers.push_back(units_.id[i]);
 		TriggerWatch w;
@@ -28088,7 +28119,7 @@ void Simulation::tutorial_remove_champions() {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != TUTORIAL_ENEMY) continue;
 		const uint16_t t = units_.tmpl[i];
-		const uint64_t c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
+		const TechClasses c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
 		if (!(c & TC_CHAMPION) || --keep >= 0) continue;
 		units_.hp[i] = 0.0f; // Health.Kill
 		units_.alive[i] = 0;
@@ -28227,16 +28258,16 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		}
 	}
 
-	auto bld_classes = [&](uint32_t bid) -> uint64_t {
+	auto bld_classes = [&](uint32_t bid) -> TechClasses {
 		auto it = building_id_to_idx_.find(bid);
 		return it == building_id_to_idx_.end() ? 0 : building_tech_classes(buildings_[it->second].type);
 	};
 	auto command = [&](uint16_t kind) { return d.event == TRIGGER_ON_PLAYER_COMMAND && d.value == kind; };
 	auto gather = [&](uint8_t res) { return command(TRIGGER_CMD_GATHER) && tutorial_resource_kind(d.entity, d.from == 1) == res; };
-	auto repair = [&](uint64_t cls) { return command(TRIGGER_CMD_REPAIR) && (bld_classes(d.entity) & cls); };
+	auto repair = [&](TechClasses cls) { return command(TRIGGER_CMD_REPAIR) && (bld_classes(d.entity) & cls); };
 	auto construct = [&](uint8_t type) { return command(TRIGGER_CMD_CONSTRUCT) && d.count == type; };
 	auto rally_gather = [&](uint8_t res) { return command(TRIGGER_CMD_SET_RALLY) && d.entity && tutorial_resource_kind(d.entity, false) == res; };
-	auto queued_at = [&](uint64_t cls) { return d.event == TRIGGER_ON_RESEARCH_QUEUED && (bld_classes(d.entity) & cls); };
+	auto queued_at = [&](TechClasses cls) { return d.event == TRIGGER_ON_RESEARCH_QUEUED && (bld_classes(d.entity) & cls); };
 	auto event = [&](uint8_t e) { return d.event == e; };
 	auto done_next = [&]() { if (tutorial_goal_done(g)) tutorial_next_goal(); };
 	// 0.28's units/{civ}/support_civilian, or the female citizen while the roster lacks it.
@@ -28331,7 +28362,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 				break;
 			case 21:
 				if (command(TRIGGER_CMD_REPAIR)) {
-					const uint64_t c = bld_classes(d.entity);
+					const TechClasses c = bld_classes(d.entity);
 					if (c & TC_MARKET) v[kTutFlagA] = 1;
 					if (c & TC_TEMPLE) v[kTutFlagB] = 1;
 					done_next();
@@ -28459,18 +28490,18 @@ void Simulation::trigger_elephantine_init() {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != GAIA_PLAYER) continue;
 		const uint16_t t = units_.tmpl[i];
-		const uint64_t c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
+		const TechClasses c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
 		if (c & TC_SOLDIER) soldiers.push_back(units_.id[i]);
 	}
 	if (!soldiers.empty()) order_set_stance(soldiers.data(), soldiers.size(), STANCE_DEFENSIVE);
 	// GetTemplateNamesByClasses("CitizenSoldier+Infantry", "kush", , "Elite", true) and
 	// ("Civilian Healer", "kush", , "Elite", true): the elite rank of each _b row.
 	std::vector<uint16_t> infantry, support;
-	std::vector<std::pair<uint16_t, uint64_t>> civilian_rows;
+	std::vector<std::pair<uint16_t, TechClasses>> civilian_rows;
 	for (uint16_t t : civ_roster_ids(CIV_KUSHITES)) {
 		const CivUnitTemplate &u = civ_unit_template(t);
 		if (std::strstr(u.id, "rts0_")) continue;
-		const uint64_t c = u.tech_classes;
+		const TechClasses c = u.tech_classes;
 		const size_t len = std::strlen(u.id);
 		const bool basic = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0;
 		if ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY) && !std::strstr(u.id, "_merc")) {
@@ -28541,11 +28572,11 @@ struct DanubiusTemplates {
 const DanubiusTemplates &danubius_templates() {
 	static const DanubiusTemplates t = [] {
 		DanubiusTemplates d;
-		std::vector<std::pair<uint16_t, uint64_t>> civilian_rows;
+		std::vector<std::pair<uint16_t, TechClasses>> civilian_rows;
 		for (uint16_t id : civ_roster_ids(CIV_GAULS)) {
 			const CivUnitTemplate &u = civ_unit_template(id);
 			if (std::strstr(u.id, "rts0_")) continue;
-			const uint64_t c = u.tech_classes;
+			const TechClasses c = u.tech_classes;
 			const size_t len = std::strlen(u.id);
 			const int ranks = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0 ? 3 : 1;
 			auto add = [&](std::vector<uint16_t> &v, int max_rank) {
@@ -28586,7 +28617,7 @@ uint32_t Simulation::danubius_spawn(uint16_t key, float x, float z) {
 	return spawn_gaia_unit(x, z, (UnitType)u.unit_type, u.id, 1 + (key >> kDanubiusRankShift));
 }
 
-uint64_t Simulation::unit_classes_at(size_t i) const {
+TechClasses Simulation::unit_classes_at(size_t i) const {
 	const uint16_t t = units_.tmpl[i];
 	return t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
 }
@@ -28651,7 +28682,7 @@ void Simulation::danubius_attack_and_patrol(const std::vector<uint32_t> &ids, ui
 	for (uint32_t id : ids) {
 		const int32_t u = lookup_unit(id);
 		if (u < 0) continue;
-		const uint64_t c = unit_classes_at((size_t)u);
+		const TechClasses c = unit_classes_at((size_t)u);
 		if (c & (TC_HERO | TC_CHAMPION)) heroes.push_back(id);
 		if (c & TC_SOLDIER) soldiers.push_back(id);
 		if (!units_.alive[u]) continue;
@@ -28714,7 +28745,7 @@ void Simulation::trigger_danubius_init() {
 	std::vector<std::pair<uint32_t, const std::vector<uint16_t> *>> holders;
 	for (const Building &b : buildings_) {
 		if (b.team != GAIA_PLAYER || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
-		const uint64_t c = building_tech_classes(b.type);
+		const TechClasses c = building_tech_classes(b.type);
 		if (c & TC_HOUSE) holders.push_back({b.id, &house});
 		else if (is_civic_centre(b.type) || (c & TC_TEMPLE)) holders.push_back({b.id, &t.champions});
 		else if (c & TC_TOWER) holders.push_back({b.id, &t.champion_infantry});
@@ -28939,14 +28970,14 @@ struct JebelTemplates {
 const JebelTemplates &jebel_templates() {
 	static const JebelTemplates t = [] {
 		JebelTemplates j;
-		std::vector<std::pair<uint16_t, uint64_t>> civilian_rows;
+		std::vector<std::pair<uint16_t, TechClasses>> civilian_rows;
 		for (uint16_t id : civ_roster_ids(CIV_KUSHITES)) {
 			const CivUnitTemplate &u = civ_unit_template(id);
 			if (std::strstr(u.id, "rts0_")) continue;
 			const size_t len = std::strlen(u.id);
 			if (len > 2 && (std::strcmp(u.id + len - 2, "_a") == 0 || std::strcmp(u.id + len - 2, "_e") == 0)) continue;
-			const uint64_t c = u.tech_classes;
-			const bool melee = c & TC_MELEE, ranged = c & TC_RANGED, inf = c & TC_INFANTRY, cav = c & TC_CAVALRY;
+			const TechClasses c = u.tech_classes;
+			const bool melee = (c & TC_MELEE).any(), ranged = (c & TC_RANGED).any(), inf = (c & TC_INFANTRY).any(), cav = (c & TC_CAVALRY).any();
 			if (c & TC_HERO) j.heroes.push_back(id);
 			if (c & TC_CHAMPION) {
 				((c & TC_ELEPHANT) ? j.elephants : j.champions).push_back(id);
@@ -28988,7 +29019,7 @@ enum : uint8_t {
 	JB_STABLE = 1 << 6, JB_ELEPHANT_STABLE = 1 << 7,
 };
 uint8_t jebel_classes(uint8_t type) {
-	const uint64_t c = building_tech_classes(type);
+	const TechClasses c = building_tech_classes(type);
 	uint8_t r = 0;
 	if (c & TC_WONDER) r |= JB_WONDER;
 	if (c & TC_TEMPLE) r |= JB_TEMPLE;
@@ -29052,7 +29083,7 @@ void Simulation::trigger_jebel_barkal_init() {
 	for (const Building &b : buildings_) {
 		if (b.team != GAIA_PLAYER || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 		const uint8_t jc = jebel_classes(b.type);
-		const uint64_t c = building_tech_classes(b.type);
+		const TechClasses c = building_tech_classes(b.type);
 		if (jc & (JB_WONDER | JB_TEMPLE | JB_CIVCENTRE | JB_FORTRESS)) holders.push_back({b.id, &t.champions, 1.0f});
 		else if (jc & (JB_BARRACKS | JB_EMBASSY)) holders.push_back({b.id, &barracks, 1.0f});
 		else if (c & TC_TOWER) holders.push_back({b.id, &t.champion_infantry, 1.0f});
@@ -29166,14 +29197,14 @@ void Simulation::trigger_jebel_barkal_attack() {
 			if (target != TARGET_STRUCTURES)
 				for (size_t i = 0; i < units_.count; ++i) {
 					if (!units_.alive[i] || units_.team[i] != p) continue;
-					const uint64_t c = unit_classes_at(i);
+					const TechClasses c = unit_classes_at(i);
 					if (target == TARGET_UNITS ? !unit_is_ship(units_.unit_type[i]) : (c & TC_SIEGE) != 0)
 						mine.push_back({units_.pos_x[i], units_.pos_z[i]});
 				}
 			if (target != TARGET_UNITS)
 				for (const Building &b : buildings_) {
 					if (b.team != p || b.hp <= 0.0f || b.wrecked) continue;
-					const uint64_t c = building_tech_classes(b.type);
+					const TechClasses c = building_tech_classes(b.type);
 					if (target == TARGET_STRUCTURES || (c & (TC_DEFENSIVE | TC_WONDER)) || b.type == BLD_MONUMENT) mine.push_back({b.x, b.z});
 				}
 			for (size_t i = mine.size(); i > 1; --i) std::swap(mine[i - 1], mine[(size_t)sim_rng_.range_int(0, (int)i - 1)]);
