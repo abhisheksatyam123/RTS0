@@ -506,7 +506,14 @@ enum BuildingType : uint8_t {
 	BLD_INN = 75,             // pers/inn (a house: Population/Bonus 15)
 	BLD_TENT = 76,            // rome/tent (a house: Population/Bonus 5)
 	BLD_TRIUMPHAL_ARCH = 77,  // rome/arch (not capturable)
-	BLD_TYPE_COUNT = 78
+	BLD_HALL = 78,            // pers/hall (Gate of All Nations: template_structure_special)
+	BLD_WAREHOUSE = 79,       // pers/warehouse (a house: Population/Bonus 5)
+	BLD_TAVERN = 80,          // gaul/tavern (a Town house: Population/Bonus 10)
+	BLD_TOWER_DOUBLE = 81,    // maur/tower_double (a stone tower: DefaultArrowCount 2)
+	BLD_KUSH_SHRINE = 82,     // kush/shrine (a temple that trains and researches nothing)
+	BLD_FORTRESS_OLD = 83,    // han/fortress_old (the fortress with the old actor)
+	BLD_LAOZI_GATE = 84,      // han/laozigate (not capturable)
+	BLD_TYPE_COUNT = 85
 };
 
 #include "civ_building_data.h"
@@ -526,8 +533,11 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
 	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG) ? (uint8_t)BLD_TOWN_CENTER
-	       : (type == BLD_TOWER_GREAT || type == BLD_TOWER_BOLT || type == BLD_TOWER_ARTILLERY) ? (uint8_t)BLD_TOWER
-	       : (type == BLD_INN || type == BLD_TENT) ? (uint8_t)BLD_HOUSE
+	       : (type == BLD_TOWER_GREAT || type == BLD_TOWER_BOLT || type == BLD_TOWER_ARTILLERY ||
+	          type == BLD_TOWER_DOUBLE) ? (uint8_t)BLD_TOWER
+	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN) ? (uint8_t)BLD_HOUSE
+	       : type == BLD_FORTRESS_OLD ? (uint8_t)BLD_FORTRESS
+	       : type == BLD_KUSH_SHRINE ? (uint8_t)BLD_TEMPLE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -564,6 +574,10 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"spart/royal_stoa", BLD_STOA, CIV_SPARTANS}, {"hellenic_stoa", BLD_HELLENIC_STOA, CIV_GAIA},
 		{"pers/inn", BLD_INN, CIV_PERSIANS}, {"rome/tent", BLD_TENT, CIV_ROMANS},
 		{"rome/arch", BLD_TRIUMPHAL_ARCH, CIV_ROMANS},
+		{"pers/hall", BLD_HALL, CIV_PERSIANS}, {"pers/warehouse", BLD_WAREHOUSE, CIV_PERSIANS},
+		{"gaul/tavern", BLD_TAVERN, CIV_GAULS}, {"maur/tower_double", BLD_TOWER_DOUBLE, CIV_MAURYANS},
+		{"kush/shrine", BLD_KUSH_SHRINE, CIV_KUSHITES}, {"han/fortress_old", BLD_FORTRESS_OLD, CIV_HAN},
+		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -593,7 +607,7 @@ inline constexpr bool is_conquest_critical(uint8_t type) {
 		case BLD_LIBRARY: case BLD_MONUMENT: case BLD_PILLAR: case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL:
 		case BLD_LIGHTHOUSE: case BLD_ICE_HOUSE: case BLD_TOWER_GREAT: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: case BLD_TRADING_POST: case BLD_TOWER_BOLT:
-		case BLD_TOWER_ARTILLERY: case BLD_STOA: case BLD_TRIUMPHAL_ARCH:
+		case BLD_TOWER_ARTILLERY: case BLD_STOA: case BLD_TRIUMPHAL_ARCH: case BLD_TOWER_DOUBLE:
 			return false;
 		default:
 			return type < BLD_TYPE_COUNT;
@@ -604,9 +618,9 @@ inline constexpr bool is_conquest_critical_unit(uint8_t utype) {
 	return utype != UNIT_CATAFALQUE && utype != UNIT_TRADER && utype != UNIT_HEALER &&
 	       utype != UNIT_FISHING_BOAT && utype != UNIT_MERCHANT_SHIP;
 }
-// The defense tower and its Han Great Archery Tower form (StoneTower).
+// The defense tower, its Han Great Archery Tower form and the maps' Mauryan rampart tower (StoneTower).
 inline constexpr bool is_defense_tower(uint8_t type) {
-	return type == BLD_TOWER || type == BLD_TOWER_GREAT;
+	return type == BLD_TOWER || type == BLD_TOWER_GREAT || type == BLD_TOWER_DOUBLE;
 }
 // TerritoryInfluence/Root: civic centres, wonders and a few civ structures (the
 // military colony, palace, tachara, ministry, Cothon); territory connects through them.
@@ -1552,6 +1566,7 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 	if (type == BLD_TENT) return 0; // rome/tent: VisibleClasses -Village
 	if (type == BLD_STOA) return 2; // template_structure_civic_stoa: Town
+	if (type == BLD_TAVERN || type == BLD_LAOZI_GATE) return 2; // gaul/tavern -Village Town, han/laozigate Town
 	switch (building_research_base(type)) {
 		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
 		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE: case BLD_KENNEL:
@@ -1741,6 +1756,7 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	// rome/tent has Researcher disable="" (pers/inn keeps the house's list).
 	case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return tech_id == TECH_TOWER_HEALTH;
 	case BLD_TENT: return false;
+	case BLD_KUSH_SHRINE: return false; // kush/shrine: Researcher disable=
 	default: return r == building_research_base(type);
 	}
 }
@@ -1847,20 +1863,20 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_BARRACKS: return c | TC_BARRACKS;
 		case BLD_STOREHOUSE: return c | TC_STOREHOUSE;
-		case BLD_TOWER: case BLD_TOWER_GREAT: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
+		case BLD_TOWER: case BLD_TOWER_GREAT: case BLD_TOWER_DOUBLE: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
 		case BLD_SENTRY_TOWER: return c | TC_TOWER | TC_SENTRYTOWER | TC_DEFENSIVE;
 		case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return c | TC_TOWER | TC_DEFENSIVE; // not StoneTower
-		case BLD_INN: case BLD_TENT: return c | TC_HOUSE | TC_CIVIC;
+		case BLD_INN: case BLD_TENT: case BLD_WAREHOUSE: case BLD_TAVERN: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_STOA: case BLD_HELLENIC_STOA: return c | TC_CIVIC;
 		case BLD_WALL_TOWER: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_FARMSTEAD: return c | TC_FARMSTEAD;
 		case BLD_FIELD: return c | TC_FIELD;
 		case BLD_CORRAL: return c | TC_CORRAL;
 		case BLD_MARKET: case BLD_TRADING_POST: return c | TC_MARKET;
-		case BLD_FORTRESS: return c | TC_FORTRESS | TC_DEFENSIVE;
+		case BLD_FORTRESS: case BLD_FORTRESS_OLD: return c | TC_FORTRESS | TC_DEFENSIVE;
 		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
-		case BLD_TEMPLE: case BLD_SHRINE: return c | TC_TEMPLE | TC_CIVIC;
+		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
 		case BLD_STABLE: case BLD_ELEPHANT_STABLE: return c | TC_STABLE;
@@ -1916,7 +1932,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
 		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
 		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
-		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL: case BLD_SHRINE: case BLD_STOA:
+		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL: case BLD_SHRINE: case BLD_STOA: case BLD_HALL:
 			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
 		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
 		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;

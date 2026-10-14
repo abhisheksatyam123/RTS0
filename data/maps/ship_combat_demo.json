@@ -10307,5 +10307,6 @@
       "template": "spart/ship_arrow"
     }
   ],
-  "pop_limit": 500
+  "pop_limit": 500,
+  "circular": true
 }

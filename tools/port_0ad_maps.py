@@ -21,6 +21,8 @@
   python3 tools/port_0ad_maps.py --player-data-only DIR  # refresh each ported map's PlayerData (civs, starting
                                                   # resources, locked teams, PopulationLimit) from an unpacked
                                                   # 0 A.D. public.zip at DIR (maps/ under it)
+  python3 tools/port_0ad_maps.py --circular-only DIR  # refresh each ported map's "circular" (ScriptSettings
+                                                  # CircularMap) from an unpacked 0 A.D. public.zip at DIR
 
 Maps fetched with --github get their world size from the .pmp (one RTS0 world unit per
 0 A.D. tile, clamped to 128..512) and a heightmap of one sample per 4 tiles.
@@ -184,7 +186,24 @@ def gaia_entity(ltpl, wx, wz):
 
 _TEMPLATE_CACHE = {}
 # Structures only maps place, which RTS0 finds by template (sim_types.h map_structure_template).
-MAP_ONLY_STRUCTURE = re.compile(r"(^|/)(\w+/tower_bolt|\w+/tower_artillery|\w+/royal_stoa|hellenic_stoa|pers/inn|rome/tent|rome/arch)$")
+MAP_ONLY_STRUCTURE = re.compile(r"(^|/)(\w+/tower_bolt|\w+/tower_artillery|\w+/royal_stoa|hellenic_stoa|pers/inn|rome/tent|rome/arch"
+                                r"|pers/hall|pers/warehouse|gaul/tavern|maur/tower_double|kush/shrine|han/fortress_old|han/laozigate)$")
+
+def unit_parents(source, tpl):
+    """The units/ templates a unit template inherits from, nearest first
+    (rome/champion_infantry_swordsman_03 -> _02, then champion_infantry_swordsman), so RTS0
+    can stand in the nearest roster row for a map-only variant."""
+    out = []
+    rel = tpl
+    while len(out) < 8:
+        root = _read_template(source, rel)
+        parent = root.get("parent", "") if root is not None else ""
+        if not parent.startswith("units/") or "|" in parent:
+            break
+        out.append(parent.split("/", 1)[1])
+        rel = parent
+    return out
+
 
 def _read_template(source, rel):
     """Parsed simulation/templates/<rel>.xml, or None if 0 A.D. has no such file."""
@@ -601,7 +620,7 @@ def apply_player_data(players, settings):
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
              terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False,
              supplies_only=False, walls_only=False, livestock_only=False, structures_only=False,
-             units_only=False):
+             units_only=False, circular_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -614,6 +633,19 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         name = settings.get("Name", map_id.replace("_", " ").title())
         desc = settings.get("Description", "")
         environment = extract_environment(root)
+        # ScriptSettings CircularMap: the map's playable area is the inscribed circle.
+        circular = bool(settings.get("CircularMap", False))
+        if circular_only:
+            out_path = f"data/maps/{map_id}.json"
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            old["circular"] = circular
+            with open(out_path, "w") as f:
+                json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: circular {circular}")
+            return
         if player_data_only:
             # Keep the existing map; only refresh what its PlayerData sets.
             out_path = f"data/maps/{map_id}.json"
@@ -868,14 +900,15 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     pass
                 elif any(k in ltpl for k in ["villager", "support_civilian", "citizen", "female"]):
                     units.append({"type": "villager", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["cavalry", "horse"]):
+                    # Before the infantry names: cavalry_spearman, cavalry_javelineer are cavalry.
+                    units.append({"type": "cavalry", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["infantry_melee", "swordsman", "champion"]):
                     units.append({"type": "swordsman", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["spearman", "hoplite", "phalanx", "pikeman"]):
                     units.append({"type": "spearman", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["infantry_ranged", "archer", "slinger", "skirmisher", "javelin", "ranged"]):
                     units.append({"type": "archer", "player": ply, "x": wx, "z": wz})
-                elif any(k in ltpl for k in ["cavalry", "horse"]):
-                    units.append({"type": "cavalry", "player": ply, "x": wx, "z": wz})
                 elif "trader" in ltpl:
                     units.append({"type": "trader", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["catapult", "onager", "ballista"]):
@@ -904,6 +937,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 if len(units) > n_units:
                     unit_index[uid] = n_units
                     units[-1]["template"] = short
+                    parents = unit_parents(files, tpl) if tpl.startswith("units/") else []
+                    if parents:
+                        units[-1]["parents"] = parents
                 if len(structures) > n_structures:
                     structures[-1]["template"] = short
 
@@ -934,6 +970,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "desc": desc,
             "biome": biome,
             "nomad": nomad,
+            "circular": circular,
             "world_size": world_size_m,
             "water_height": water_height,
             "heightmap_res": target_res,
@@ -1259,7 +1296,7 @@ for _civ in ["athenians", "britons", "carthaginians", "gauls", "han", "iberians"
     github_scenarios[f"sandbox_{_civ}"] = (f"sandbox_{_civ}", "mediterranean")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 2 and sys.argv[1] == "--player-data-only":
+    if len(sys.argv) > 2 and sys.argv[1] in ("--player-data-only", "--circular-only"):
         src = DirSource(sys.argv[2])
         tables = [(mid, xrel) for mid, xrel, *_ in maps_list]
         tables += [(mid, f"maps/skirmishes/{name}.xml") for name, (mid, _) in github_skirmishes.items()]
@@ -1267,7 +1304,8 @@ if __name__ == "__main__":
                    ("tutorials", github_tutorials)) for name, (mid, _) in table.items()]
         for mid, xrel in sorted(set(tables)):
             try:
-                port_map(mid, xrel, None, source=src, player_data_only=True)
+                port_map(mid, xrel, None, source=src, **({"player_data_only": True} if sys.argv[1] == "--player-data-only"
+                                                          else {"circular_only": True}))
             except FileNotFoundError:
                 print(f"  !! {mid}: no {xrel} in 0 A.D.")
     elif len(sys.argv) > 2 and sys.argv[1] in ("--supplies-only", "--livestock-only", "--structures-only", "--units-only"):

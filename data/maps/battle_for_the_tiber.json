@@ -22999,307 +22999,358 @@
       "type": "swordsman",
       "player": 2,
       "x": -44.39,
-      "z": 78.76
+      "z": 78.76,
+      "template": "samnite_swordsman"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": -44.14,
-      "z": 79.01
+      "z": 79.01,
+      "template": "samnite_swordsman"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": -43.95,
-      "z": 79.23
+      "z": 79.23,
+      "template": "samnite_swordsman"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": -43.76,
-      "z": 79.46
+      "z": 79.46,
+      "template": "samnite_swordsman"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": -43.58,
-      "z": 79.67
+      "z": 79.67,
+      "template": "samnite_swordsman"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -44.83,
-      "z": 79.11
+      "z": 79.11,
+      "template": "samnite_skirmisher"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -44.62,
-      "z": 79.37
+      "z": 79.37,
+      "template": "samnite_skirmisher"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -44.45,
-      "z": 79.61
+      "z": 79.61,
+      "template": "samnite_skirmisher"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -44.26,
-      "z": 79.8
+      "z": 79.8,
+      "template": "samnite_skirmisher"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -44.08,
-      "z": 80.11
+      "z": 80.11,
+      "template": "samnite_skirmisher"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -44.0,
-      "z": 78.3
+      "z": 78.3,
+      "template": "samnite_spearman"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -43.82,
-      "z": 78.5
+      "z": 78.5,
+      "template": "samnite_spearman"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -43.6,
-      "z": 78.77
+      "z": 78.77,
+      "template": "samnite_spearman"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -43.41,
-      "z": 79.0
+      "z": 79.0,
+      "template": "samnite_spearman"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -43.18,
-      "z": 79.28
+      "z": 79.28,
+      "template": "samnite_spearman"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 81.05,
-      "z": 77.23
+      "z": 77.23,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 81.35,
-      "z": 77.7
+      "z": 77.7,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 81.63,
-      "z": 77.95
+      "z": 77.95,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 81.92,
-      "z": 78.46
+      "z": 78.46,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 82.15,
-      "z": 78.84
+      "z": 78.84,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 82.42,
-      "z": 79.2
+      "z": 79.2,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 81.59,
-      "z": 76.93
+      "z": 76.93,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 81.81,
-      "z": 77.05
+      "z": 77.05,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 82.01,
-      "z": 77.41
+      "z": 77.41,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 82.19,
-      "z": 77.79
+      "z": 77.79,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 82.36,
-      "z": 78.12
+      "z": 78.12,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 82.59,
-      "z": 78.63
+      "z": 78.63,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -85.96,
-      "z": -88.04
+      "z": -88.04,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -85.82,
-      "z": -87.84
+      "z": -87.84,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -85.59,
-      "z": -87.44
+      "z": -87.44,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -85.4,
-      "z": -87.14
+      "z": -87.14,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -85.14,
-      "z": -86.78
+      "z": -86.78,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -84.82,
-      "z": -86.4
+      "z": -86.4,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -85.38,
-      "z": -88.25
+      "z": -88.25,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -85.23,
-      "z": -88.04
+      "z": -88.04,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -85.04,
-      "z": -87.76
+      "z": -87.76,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -84.83,
-      "z": -87.43
+      "z": -87.43,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -84.61,
-      "z": -87.1
+      "z": -87.1,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": -84.36,
-      "z": -86.78
+      "z": -86.78,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -87.0,
-      "z": -87.3
+      "z": -87.3,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -86.67,
-      "z": -86.89
+      "z": -86.89,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -86.34,
-      "z": -86.5
+      "z": -86.5,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -86.03,
-      "z": -86.17
+      "z": -86.17,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -85.68,
-      "z": -85.81
+      "z": -85.81,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": -85.37,
-      "z": -85.36
+      "z": -85.36,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": 79.53,
-      "z": 78.36
+      "z": 78.36,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": 79.77,
-      "z": 78.67
+      "z": 78.67,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": 80.13,
-      "z": 79.05
+      "z": 79.05,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": 80.39,
-      "z": 79.38
+      "z": 79.38,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": 80.63,
-      "z": 79.63
+      "z": 79.63,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": 80.94,
-      "z": 79.9
+      "z": 79.9,
+      "template": "gaul/support_civilian"
     }
   ],
   "treasures": [
@@ -24050,5 +24101,6 @@
     ],
     "water_waviness": 4.0,
     "water_murkiness": 0.491211
-  }
+  },
+  "circular": true
 }

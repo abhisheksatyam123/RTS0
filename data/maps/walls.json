@@ -9848,5 +9848,6 @@
       "z": 66.92,
       "template": "cart/support_civilian"
     }
-  ]
+  ],
+  "circular": true
 }

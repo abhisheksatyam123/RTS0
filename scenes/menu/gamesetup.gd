@@ -344,6 +344,28 @@ func _ready() -> void:
 	_init_net()
 	_render_reset_buttons()
 	_build_tips()
+	_build_tabs()
+
+# ---------------------------------------------------------------- tabs ---
+
+## 0.28 GameSettingTabs.js and selectPanel: the Map, Player and Game Type buttons
+## each open their settings (GameSettingsLayout.js); pressing the open one, or the
+## cancel hotkey, closes it. A client, who can't change them, starts with none open.
+const SETTING_TABS := ["MapTab", "PlayerTab", "GameTypeTab"]
+const TAB_BUTTONS := ["TabMap", "TabPlayer", "TabGameType"]
+var _tab := -1
+
+func _build_tabs() -> void:
+	for i in TAB_BUTTONS.size():
+		var b: Button = get_node("%" + TAB_BUTTONS[i])
+		b.pressed.connect(func(): select_tab(-1 if _tab == i else i))
+	select_tab(-1 if _mp_role == "client" else 0)
+
+func select_tab(i: int) -> void:
+	_tab = i
+	for k in SETTING_TABS.size():
+		(get_node("%" + SETTING_TABS[k]) as Control).visible = k == i
+		(get_node("%" + TAB_BUTTONS[k]) as Button).set_pressed_no_signal(k == i)
 
 # ---------------------------------------------------------------- maps ---
 
@@ -410,7 +432,7 @@ static func rms_script(map_id: String) -> String:
 ## 0.28 gamesetup Biome: only the map's SupportedBiomes, hidden on a map with none;
 ## "Map default" first (the map's own biome); the pick stays when the new map offers it.
 func _rebuild_biomes(values: Array) -> void:
-	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot")
+	var slot := get_node_or_null("%BiomeSlot")
 	if slot == null or slot.get_child_count() == 0:
 		return
 	var bio: RtsoSafeSelect = slot.get_child(0)
@@ -420,10 +442,10 @@ func _rebuild_biomes(values: Array) -> void:
 		bio.add_item(BIOMES[v], v)
 	bio.select(maxi(([0] + values).find(_biome), 0))
 	slot.visible = not values.is_empty()
-	$VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeLabel.visible = not values.is_empty()
+	%BiomeLabel.visible = not values.is_empty()
 
 func _selected_biome() -> int:
-	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot")
+	var slot := get_node_or_null("%BiomeSlot")
 	if slot == null or slot.get_child_count() == 0 or not slot.visible:
 		return 0
 	var bio: RtsoSafeSelect = slot.get_child(0)
@@ -435,7 +457,7 @@ func _on_biome_selected(_index: int) -> void:
 ## 0.28 PlayerPlacement.render: Random, then the map's patterns; the pick stays
 ## when the new map offers it, else Random.
 func _rebuild_team_placement(placements: Array) -> void:
-	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	var slot := get_node_or_null("%TeamPlacementSlot")
 	if slot == null or slot.get_child_count() == 0:
 		return
 	var tpl: RtsoSafeSelect = slot.get_child(0)
@@ -448,7 +470,7 @@ func _rebuild_team_placement(placements: Array) -> void:
 	_update_team_placement_tooltip()
 
 func _selected_team_placement() -> int:
-	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	var slot := get_node_or_null("%TeamPlacementSlot")
 	if slot == null or slot.get_child_count() == 0 or not slot.visible:
 		return 0
 	var tpl: RtsoSafeSelect = slot.get_child(0)
@@ -460,13 +482,13 @@ func _on_team_placement_selected(_index: int) -> void:
 
 ## The selected pattern's description (0.28 shows the hovered one), else the title's.
 func _update_team_placement_tooltip() -> void:
-	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	var slot := get_node_or_null("%TeamPlacementSlot")
 	if slot == null or slot.get_child_count() == 0:
 		return
 	var tpl: RtsoSafeSelect = slot.get_child(0)
 	var v := tpl.get_item_id(tpl.get_selected()) if tpl.get_selected() >= 0 else 0
 	tpl.tooltip_text = TEAM_PLACEMENTS[clampi(v, 0, TEAM_PLACEMENTS.size() - 1)][2]
-	var lbl := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel")
+	var lbl := get_node_or_null("%TeamPlacementLabel")
 	if lbl:
 		lbl.tooltip_text = TEAM_PLACEMENT_TOOLTIP
 
@@ -524,10 +546,10 @@ static func _read_scenario(map_id: String) -> Dictionary:
 	return d
 
 func _pop_type_select() -> RtsoSafeSelect:
-	return $VBox/HBox/LeftScroll/Left/PopCapTypeSlot.get_child(0)
+	return %PopCapTypeSlot.get_child(0)
 
 func _pop_select() -> RtsoSafeSelect:
-	return $VBox/HBox/LeftScroll/Left/PopCapSlot.get_child(0)
+	return %PopCapSlot.get_child(0)
 
 ## Selects the type and cap a pop_cap setting (and team_pop) stand for, as
 ## 0.28's PopulationCapType and PopulationCap dropdowns show them.
@@ -545,7 +567,7 @@ func _set_pop_type(type: int, cap: int) -> void:
 	var t: Array = POP_CAP_TYPES[type]
 	_pop_type_select().select(type)
 	_pop_type_select().tooltip_text = tr(t[2])
-	$VBox/HBox/LeftScroll/Left/PopCapLabel.text = tr(t[3])
+	%PopCapLabel.text = tr(t[3])
 	var pop := _pop_select()
 	pop.clear()
 	for v in t[5]:
@@ -568,7 +590,7 @@ func _pop_cap_setting() -> int:
 
 ## 0.28 LockedTeams: Team Population turns Locked teams on and keeps it on.
 func _update_lock_teams_for_pop() -> void:
-	var lock: CheckBox = $VBox/HBox/LeftScroll/Left/StartRow/LockTeams
+	var lock: CheckBox = %LockTeams
 	if _pop_type == POP_TYPE_TEAM:
 		lock.button_pressed = true
 		lock.disabled = true
@@ -585,7 +607,7 @@ func _make_option(slot: Control) -> RtsoSafeSelect:
 
 ## 0 A.D. gamesetup MapType dropdown.
 func _build_map_type() -> void:
-	var t := _make_option($VBox/HBox/LeftScroll/Left/MapTypeSlot)
+	var t := _make_option(%MapTypeSlot)
 	for mt in MAP_TYPES:
 		t.add_item(mt[1])
 	t.select(0)
@@ -593,7 +615,7 @@ func _build_map_type() -> void:
 	t.item_selected.connect(_on_map_type_selected)
 
 func _update_map_type_tooltip() -> void:
-	var t: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapTypeSlot.get_child(0)
+	var t: RtsoSafeSelect = %MapTypeSlot.get_child(0)
 	for i in range(MAP_TYPES.size()):
 		if MAP_TYPES[i][0] == _map_type:
 			t.select(i)
@@ -608,7 +630,7 @@ func _on_map_type_selected(idx: int) -> void:
 
 ## 0 A.D. gamesetup MapFilter dropdown: the filters with maps of this type.
 func _build_map_filter() -> void:
-	var f := _make_option($VBox/HBox/LeftScroll/Left/MapFilterSlot)
+	var f := _make_option(%MapFilterSlot)
 	f.item_selected.connect(_on_map_filter_selected)
 	_rebuild_map_filter()
 
@@ -630,7 +652,7 @@ static func filtered_maps(maps: Array, map_type: String, filter_name: String) ->
 	return out
 
 func _rebuild_map_filter() -> void:
-	var f: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapFilterSlot.get_child(0)
+	var f: RtsoSafeSelect = %MapFilterSlot.get_child(0)
 	f.clear()
 	_filter_names.clear()
 	for flt in available_filters(_maps, _map_type):
@@ -639,8 +661,8 @@ func _rebuild_map_filter() -> void:
 	if not _filter_names.has(_map_filter_name):
 		_map_filter_name = _filter_names[0] if not _filter_names.is_empty() else "default"
 	var shown := not _filter_names.is_empty()
-	$VBox/HBox/LeftScroll/Left/MapFilterLabel.visible = shown
-	$VBox/HBox/LeftScroll/Left/MapFilterSlot.visible = shown
+	%MapFilterLabel.visible = shown
+	%MapFilterSlot.visible = shown
 	if shown:
 		var i := _filter_names.find(_map_filter_name)
 		f.select(i)
@@ -679,7 +701,7 @@ func _select_map_id(map_id: String) -> void:
 	_want_map_id = map_id
 
 func _build_map_list() -> void:
-	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
+	var list: ItemList = %MapList
 	list.clear()
 	list.item_selected.connect(_on_map_list_selected)
 	# 0.28 Single/Buttons/MapBrowser.js "Browse Maps" and Panels/MapPreview.js: both open the Map Browser.
@@ -723,16 +745,20 @@ func _on_map_browsed(map_id: String, map_type: String, map_filter: String) -> vo
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
-	if MAP_BROWSER_HOTKEY in _hotkeys.fired(event):
+	var fired = _hotkeys.fired(event)
+	if MAP_BROWSER_HOTKEY in fired:
 		get_viewport().set_input_as_handled()
 		_open_map_browser()
+	elif "cancel" in fired and _tab >= 0:
+		get_viewport().set_input_as_handled()
+		select_tab(-1)
 
 ## MapFilters.getFilteredMaps: the maps of the type the filter matches, by
 ## name, after the Random entry for random maps; keeps the selected map if listed.
 func refresh_map_list() -> void:
 	var keep := _want_map_id if not _want_map_id.is_empty() else str(_selected_map().get("id", ""))
 	_want_map_id = ""
-	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
+	var list: ItemList = %MapList
 	list.clear()
 	_filtered = filtered_maps(_maps, _map_type, _map_filter_name)
 	_sel_map = 0
@@ -792,21 +818,20 @@ func _apply_map_locks() -> void:
 	var scen := _is_scenario()
 	var s: Dictionary = m.get("settings", {}) if scen else {}
 	_slot_count_node().editable = m.is_empty() or str(m.get("type", "")) == "random"
-	var left := $VBox/HBox/LeftScroll/Left
 	# 0.28 MapSize.available: random maps only.
-	left.get_node("MapSizeLabel").visible = _slot_count_node().editable
-	left.get_node("MapSizeSlot").visible = _slot_count_node().editable
+	%MapSizeLabel.visible = _slot_count_node().editable
+	%MapSizeSlot.visible = _slot_count_node().editable
 	var checks := {"LastManStanding": "LastManStanding", "StartRow/LockTeams": "LockTeams",
 		"StartRow/DisableTreasures": "DisableTreasures", "MapVisRow/RevealMap": "RevealMap",
 		"MapVisRow/ExploreMap": "ExploreMap", "MapVisRow/AlliedView": "AllyView", "MapVisRow/DisableSpies": "DisableSpies"}
 	for path in checks:
-		var cb: BaseButton = left.get_node(path)
+		var cb: BaseButton = get_node("%" + path.get_file())
 		cb.disabled = scen
 		if scen:
 			cb.button_pressed = bool(s.get(checks[path], false))
-	var pop: RtsoSafeSelect = left.get_node("PopCapSlot").get_child(0)
-	var res: RtsoSafeSelect = left.get_node("ResSlot").get_child(0)
-	var cf: RtsoSafeSelect = left.get_node("CeasefireSlot").get_child(0)
+	var pop: RtsoSafeSelect = %PopCapSlot.get_child(0)
+	var res: RtsoSafeSelect = %ResSlot.get_child(0)
+	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
 	pop.disabled = scen
 	_pop_type_select().disabled = scen
 	res.disabled = scen
@@ -867,35 +892,35 @@ func _apply_map_locks() -> void:
 # read them, and TeamPlacement only for the maps that list placement patterns.
 func _update_map_options() -> void:
 	var id := str(_selected_map().get("id", ""))
-	var row := $VBox/HBox/LeftScroll/Left/MapOptionsRow
+	var row := %MapOptionsRow
 	if row == null:
 		return
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelLabel.visible = id == "random_flood"
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.visible = id == "random_flood"
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseLabel.visible = id == "random_extinct_volcano"
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.visible = id == "random_extinct_volcano"
+	%WaterLevelLabel.visible = id == "random_flood"
+	%WaterLevelSlot.visible = id == "random_flood"
+	%SeaRiseLabel.visible = id == "random_extinct_volcano"
+	%SeaRiseSlot.visible = id == "random_extinct_volcano"
 	var placements: Array = _selected_map().get("placements", [])
 	var tp := not placements.is_empty()
 	_rebuild_team_placement(placements)
 	_rebuild_biomes(_selected_map().get("biomes", []))
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.visible = tp
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.visible = tp
+	%TeamPlacementLabel.visible = tp
+	%TeamPlacementSlot.visible = tp
 	var ls := id in LANDSCAPE_MAPS
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeLabel.visible = ls
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.visible = ls
+	%LandscapeLabel.visible = ls
+	%LandscapeSlot.visible = ls
 	var td := id in TRIGGER_DIFFICULTY_MAPS
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultyLabel.visible = td
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.visible = td
+	%TriggerDifficultyLabel.visible = td
+	%TriggerDifficultySlot.visible = td
 	var dt := DAYTIMES.has(id)
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeLabel.visible = dt
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.visible = dt
+	%DaytimeLabel.visible = dt
+	%DaytimeSlot.visible = dt
 	if dt:
 		_fill_daytimes(id)
 	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls or td or dt
 
 ## The Daytime dropdown for map `id`: Random, then the map's own options.
 func _fill_daytimes(id: String) -> void:
-	var slot := $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot
+	var slot := %DaytimeSlot
 	if slot.get_child_count() == 0:
 		return
 	var dsel: RtsoSafeSelect = slot.get_child(0)
@@ -906,7 +931,7 @@ func _fill_daytimes(id: String) -> void:
 	for d in DAYTIMES[id]:
 		dsel.add_item(d[0])
 		tips.append("%s: %s" % [d[0], d[1]])
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeLabel.tooltip_text = "Select whether the match starts by day or by night.\n" + "\n".join(tips)
+	%DaytimeLabel.tooltip_text = "Select whether the match starts by day or by night.\n" + "\n".join(tips)
 	dsel.select(clampi(keep, 0, dsel.get_item_count() - 1))
 
 func _selected_map() -> Dictionary:
@@ -936,7 +961,7 @@ func _update_preview() -> void:
 	if m.is_empty():
 		if lbl: lbl.text = "No map selected."
 		return
-	var seed_txt := "Random seed" if int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value) == 0 else "Seed %d" % int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value)
+	var seed_txt := "Random seed" if int(%SpinSeed.value) == 0 else "Seed %d" % int(%SpinSeed.value)
 	if lbl:
 		lbl.text = "%s • %s • %s • %dm • %d players • %s" % [
 			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt]
@@ -979,7 +1004,7 @@ func description_info() -> Dictionary:
 		"team_placement": st["team_placement"], "trigger_difficulty": st["trigger_difficulty"], "nomad": st["nomad"],
 		"start_res": st["res"], "pop_cap": pop, "disable_treasures": st["disable_treasures"],
 		"explore_map": st["explore"], "reveal_map": st["reveal"], "ally_view": st["ally_view"],
-		"cheats": $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.button_pressed if _mp_role != "none" else true}
+		"cheats": %Cheats.button_pressed if _mp_role != "none" else true}
 
 ## The description scrolls in the Map Preview panel, beside the preview under
 ## the map's name line; the panel takes the page's spare height.
@@ -1320,82 +1345,82 @@ func _build_options() -> void:
 		cb.text = k[1]
 		cb.tooltip_text = k[2]
 		cb.toggled.connect(_on_victory_toggled.bind(int(k[0])))
-		$VBox/HBox/LeftScroll/Left/VictorySlot.add_child(cb)
+		%VictorySlot.add_child(cb)
 		_victory_checks[int(k[0])] = cb
 	_set_victory_mask(1)
-	var msz := _make_option($VBox/HBox/LeftScroll/Left/MapSizeSlot)
+	var msz := _make_option(%MapSizeSlot)
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
 	msz.select(DEFAULT_MAP_SIZE)
-	var popt := _make_option($VBox/HBox/LeftScroll/Left/PopCapTypeSlot)
+	var popt := _make_option(%PopCapTypeSlot)
 	for t in POP_CAP_TYPES:
 		popt.add_item(tr(t[1]))
 	popt.select(POP_TYPE_PLAYER)
 	popt.tooltip_text = tr("Select a population capacity type.")
 	popt.item_selected.connect(_on_pop_type_selected)
-	_make_option($VBox/HBox/LeftScroll/Left/PopCapSlot)
+	_make_option(%PopCapSlot)
 	_select_pop(300, false) # 0 A.D. default: 300 per player
-	var cf := _make_option($VBox/HBox/LeftScroll/Left/CeasefireSlot)
+	var cf := _make_option(%CeasefireSlot)
 	for c in CEASEFIRES:
 		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
 	cf.select(0)
-	var wt := _make_option($VBox/HBox/LeftScroll/Left/VictoryTimesRow/WonderTimeSlot)
-	var rt := _make_option($VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicTimeSlot)
+	var wt := _make_option(%WonderTimeSlot)
+	var rt := _make_option(%RelicTimeSlot)
 	for t in VICTORY_TIMES:
 		wt.add_item("%d min" % t)
 		rt.add_item("hold %d min" % t)
 	wt.select(VICTORY_TIMES.find(20))
 	rt.select(VICTORY_TIMES.find(20))
-	var rc := _make_option($VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot)
+	var rc := _make_option(%RelicCountSlot)
 	for c in RELIC_COUNTS:
 		rc.add_item(str(c))
 	rc.select(RELIC_COUNTS.find(2))
-	var wl := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot)
+	var wl := _make_option(%WaterLevelSlot)
 	for w in WATER_LEVELS:
 		wl.add_item(w)
 	wl.select(0)
-	var sr := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot)
+	var sr := _make_option(%SeaRiseSlot)
 	for t in SEA_RISE_TIMES:
 		sr.add_item("rise at %d min" % t)
 	sr.select(SEA_RISE_TIMES.find(25))
-	var tpl := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot)
+	var tpl := _make_option(%TeamPlacementSlot)
 	tpl.item_selected.connect(_on_team_placement_selected)
 	_rebuild_team_placement([])
-	var lsc := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot)
+	var lsc := _make_option(%LandscapeSlot)
 	var ltips := PackedStringArray()
 	for l in LANDSCAPES:
 		lsc.add_item(l[0])
 		ltips.append("%s: %s" % [l[0], l[2]])
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeLabel.tooltip_text = "\n".join(ltips)
+	%LandscapeLabel.tooltip_text = "\n".join(ltips)
 	lsc.select(0)
-	var tdf := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot)
+	var tdf := _make_option(%TriggerDifficultySlot)
 	var dtips := PackedStringArray()
 	for d in TRIGGER_DIFFICULTIES:
 		tdf.add_item(d[0])
 		dtips.append("%s: %s" % [d[0], d[1]])
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultyLabel.tooltip_text = "Select the difficulty of this scenario.\n" + "\n".join(dtips)
+	%TriggerDifficultyLabel.tooltip_text = "Select the difficulty of this scenario.\n" + "\n".join(dtips)
 	tdf.select(2)
-	var dsel := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot)
+	var dsel := _make_option(%DaytimeSlot)
 	dsel.add_item("Random")
 	dsel.select(0)
-	var res := _make_option($VBox/HBox/LeftScroll/Left/ResSlot)
+	var res := _make_option(%ResSlot)
 	for r in START_RES:
 		res.add_item(r)
 	res.select(1)
-	var bio := _make_option($VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot)
+	var bio := _make_option(%BiomeSlot)
 	bio.add_item(BIOMES[0], 0)
 	bio.select(0)
 	bio.item_selected.connect(_on_biome_selected)
-	var spd := _make_option($VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot)
+	var spd := _make_option(%SpeedSlot)
 	for sp in SPEEDS:
 		spd.add_item(sp[1])
 	spd.select(2)
-	_mute_spin($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed)
+	_mute_spin(%SpinSeed)
 	_mute_spin($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots)
 	$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value_changed.connect(
 		func(_v: float) -> void: refresh_slots())
-	$VBox/HBox/LeftScroll/Left/SeedRow/BtnReroll.pressed.connect(_on_reroll_seed)
-	$VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value_changed.connect(
+	%BtnReroll.pressed.connect(_on_reroll_seed)
+	%SpinSeed.value_changed.connect(
 		func(_v: float) -> void: _update_preview())
 
 func _mute_spin(sb: SpinBox) -> void:
@@ -1404,7 +1429,7 @@ func _mute_spin(sb: SpinBox) -> void:
 		MatchSettings.strip_engine_popups(sb)
 
 func _on_reroll_seed() -> void:
-	$VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value = randi() % 1000000000
+	%SpinSeed.value = randi() % 1000000000
 	_update_preview()
 
 ## The checked victory conditions as a VictoryKind mask.
@@ -1430,7 +1455,7 @@ func _set_victory_mask(mask: int) -> void:
 ## 0.28 WonderDuration / RelicCount / RelicDuration: shown only while their condition
 ## is checked, and fixed (disabled) on a scenario.
 func _refresh_victory_times(mask: int) -> void:
-	var row := $VBox/HBox/LeftScroll/Left/VictoryTimesRow
+	var row := %VictoryTimesRow
 	var wonder := (mask & 16) != 0
 	var relic := (mask & 32) != 0
 	row.visible = wonder or relic
@@ -1490,8 +1515,8 @@ func page_state() -> Dictionary:
 	var rows: Array = _slot_rows.slice(0, n)
 	return {"map_id": str(st["map"].get("id", "")), "seed": st["seed"], "victory": st["victory"],
 		"waves_enabled": st["waves"], "last_man_standing": st["lms"],
-		"nomad": $VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed,
-		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed,
+		"nomad": %Nomad.button_pressed,
+		"regicide_garrison": %RegicideGarrison.button_pressed,
 		"lock_teams": st["lock_teams"], "disable_spies": st["disable_spies"], "disable_treasures": st["disable_treasures"],
 		"pop_cap": st["pop_cap"], "team_pop": st["team_pop"], "ceasefire_min": st["ceasefire"], "reveal_map": st["reveal"], "explore_map": st["explore"],
 		"ally_view": bool(st.get("ally_view", false)),
@@ -1521,51 +1546,51 @@ func _restore_settings() -> void:
 	_apply_settings(src)
 
 func _apply_settings(ms: Dictionary) -> void:
-	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
-	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
+	var res: RtsoSafeSelect = %ResSlot.get_child(0)
+	var spd: RtsoSafeSelect = %SpeedSlot.get_child(0)
 	_set_victory_mask(victory_mask(int(ms.get("victory"))))
-	$VBox/HBox/LeftScroll/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
-	$VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
-	$VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed = bool(ms.get("nomad"))
-	$VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed = bool(ms.get("regicide_garrison"))
-	$VBox/HBox/LeftScroll/Left/StartRow/LockTeams.button_pressed = bool(ms.get("lock_teams"))
-	$VBox/HBox/LeftScroll/Left/MapVisRow/DisableSpies.button_pressed = bool(ms.get("disable_spies"))
-	$VBox/HBox/LeftScroll/Left/StartRow/DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
+	%Waves.button_pressed = bool(ms.get("waves_enabled"))
+	%LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
+	%Nomad.button_pressed = bool(ms.get("nomad"))
+	%RegicideGarrison.button_pressed = bool(ms.get("regicide_garrison"))
+	%LockTeams.button_pressed = bool(ms.get("lock_teams"))
+	%DisableSpies.button_pressed = bool(ms.get("disable_spies"))
+	%DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
 	_select_pop(int(ms.get("pop_cap")), bool(ms.get("team_pop")))
-	var cf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/CeasefireSlot.get_child(0)
+	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
-	$VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed = bool(ms.get("reveal_map"))
-	$VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed = bool(ms.get("explore_map"))
-	$VBox/HBox/LeftScroll/Left/MapVisRow/AlliedView.button_pressed = bool(ms.get("ally_view"))
-	var wt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
-	var rt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
-	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
+	%RevealMap.button_pressed = bool(ms.get("reveal_map"))
+	%ExploreMap.button_pressed = bool(ms.get("explore_map"))
+	%AlliedView.button_pressed = bool(ms.get("ally_view"))
+	var wt: RtsoSafeSelect = %WonderTimeSlot.get_child(0)
+	var rt: RtsoSafeSelect = %RelicTimeSlot.get_child(0)
+	var rc: RtsoSafeSelect = %RelicCountSlot.get_child(0)
 	var wi := VICTORY_TIMES.find(int(ms.get("wonder_min")))
 	var ri := VICTORY_TIMES.find(int(ms.get("relic_min")))
 	var ci := RELIC_COUNTS.find(int(ms.get("relic_count")))
 	wt.select(wi if wi >= 0 else VICTORY_TIMES.find(20))
 	rt.select(ri if ri >= 0 else VICTORY_TIMES.find(20))
 	rc.select(ci if ci >= 0 else RELIC_COUNTS.find(2))
-	var wl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
+	var wl: RtsoSafeSelect = %WaterLevelSlot.get_child(0)
 	wl.select(clampi(int(ms.get("water_level")), 0, WATER_LEVELS.size() - 1))
-	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
+	var sr: RtsoSafeSelect = %SeaRiseSlot.get_child(0)
 	var si := SEA_RISE_TIMES.find(int(ms.get("sea_level_rise_min")))
 	sr.select(si if si >= 0 else SEA_RISE_TIMES.find(25))
 	_team_placement = clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1)
 	_rebuild_team_placement(_selected_map().get("placements", []))
-	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
+	var lsc: RtsoSafeSelect = %LandscapeSlot.get_child(0)
 	lsc.select(0)
 	for i in range(LANDSCAPES.size()):
 		if int(LANDSCAPES[i][1]) == int(ms.get("landscape")):
 			lsc.select(i)
-	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
+	var tdf: RtsoSafeSelect = %TriggerDifficultySlot.get_child(0)
 	tdf.select(clampi(int(ms.get("trigger_difficulty", 3)) - 1, 0, TRIGGER_DIFFICULTIES.size() - 1))
-	var dsel: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.get_child(0)
+	var dsel: RtsoSafeSelect = %DaytimeSlot.get_child(0)
 	if dsel.get_item_count() < 3:
 		for i in range(dsel.get_item_count(), 3):
 			dsel.add_item("Option %d" % i)
 	dsel.select(clampi(int(ms.get("map_daytime", 0)), 0, 2))
-	var msz: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapSizeSlot.get_child(0)
+	var msz: RtsoSafeSelect = %MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
@@ -1575,7 +1600,7 @@ func _apply_settings(ms: Dictionary) -> void:
 	for i in range(SPEEDS.size()):
 		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
 			spd.select(i)
-	$VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value = int(ms.get("seed"))
+	%SpinSeed.value = int(ms.get("seed"))
 	# Restore map selection by id, with its map type.
 	_select_map_id(str(ms.get("map_id")))
 	# Restore slots.
@@ -1616,21 +1641,21 @@ func _on_back_pressed() -> void:
 
 func _collect_setup() -> Dictionary:
 	var m := _selected_map()
-	var seed := int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value)
+	var seed := int(%SpinSeed.value)
 	var vmask := _victory_mask()
-	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
-	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
-	var msz: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapSizeSlot.get_child(0)
-	var pop: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/PopCapSlot.get_child(0)
-	var cf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/CeasefireSlot.get_child(0)
-	var wt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
-	var rt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
-	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
-	var wl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
-	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
-	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
-	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
-	var dsel: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.get_child(0)
+	var res: RtsoSafeSelect = %ResSlot.get_child(0)
+	var spd: RtsoSafeSelect = %SpeedSlot.get_child(0)
+	var msz: RtsoSafeSelect = %MapSizeSlot.get_child(0)
+	var pop: RtsoSafeSelect = %PopCapSlot.get_child(0)
+	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
+	var wt: RtsoSafeSelect = %WonderTimeSlot.get_child(0)
+	var rt: RtsoSafeSelect = %RelicTimeSlot.get_child(0)
+	var rc: RtsoSafeSelect = %RelicCountSlot.get_child(0)
+	var wl: RtsoSafeSelect = %WaterLevelSlot.get_child(0)
+	var sr: RtsoSafeSelect = %SeaRiseSlot.get_child(0)
+	var lsc: RtsoSafeSelect = %LandscapeSlot.get_child(0)
+	var tdf: RtsoSafeSelect = %TriggerDifficultySlot.get_child(0)
+	var dsel: RtsoSafeSelect = %DaytimeSlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -1670,14 +1695,14 @@ func _collect_setup() -> Dictionary:
 			beh = int(_slot_rows[i]["beh"])
 			break
 	return {"map": m, "seed": seed, "victory": victory_code(vmask),
-		"waves": $VBox/HBox/LeftScroll/Left/Waves.button_pressed,
-		"lms": $VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed,
+		"waves": %Waves.button_pressed,
+		"lms": %LastManStanding.button_pressed,
 		"pop_cap": _pop_cap_setting(),
 		"team_pop": _pop_type == POP_TYPE_TEAM,
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
-		"reveal": $VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed,
-		"explore": $VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed,
-		"ally_view": $VBox/HBox/LeftScroll/Left/MapVisRow/AlliedView.button_pressed,
+		"reveal": %RevealMap.button_pressed,
+		"explore": %ExploreMap.button_pressed,
+		"ally_view": %AlliedView.button_pressed,
 		"wonder_min": int(VICTORY_TIMES[maxi(wt.get_selected(), 0)]),
 		"relic_min": int(VICTORY_TIMES[maxi(rt.get_selected(), 0)]),
 		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
@@ -1694,13 +1719,13 @@ func _collect_setup() -> Dictionary:
 		"speed": float(SPEEDS[maxi(spd.get_selected(), 0)][0]),
 		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors, "names": names,
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
-		"nomad": $VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
-		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed and (vmask & VK_REGICIDE) != 0,
-		"lock_teams": $VBox/HBox/LeftScroll/Left/StartRow/LockTeams.button_pressed,
+		"nomad": %Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
+		"regicide_garrison": %RegicideGarrison.button_pressed and (vmask & VK_REGICIDE) != 0,
+		"lock_teams": %LockTeams.button_pressed,
 		# Cheats.js: always on in single-player, "the choice of that one player".
 		"cheats": true,
-		"disable_spies": $VBox/HBox/LeftScroll/Left/MapVisRow/DisableSpies.button_pressed,
-		"disable_treasures": $VBox/HBox/LeftScroll/Left/StartRow/DisableTreasures.button_pressed,
+		"disable_spies": %DisableSpies.button_pressed,
+		"disable_treasures": %DisableTreasures.button_pressed,
 		"humans": humans, "ai": ai_total, "slots": types.size()}
 
 ## functions_utility.js singleplayerName: Options' "Player name (single-player)",
@@ -1895,9 +1920,9 @@ func _build_net_controls() -> void:
 	_wait_label.visible = _mp_role == "client"
 	_ready_btn.visible = _mp_role == "client"
 	start.visible = _mp_role == "host"
-	# 0.28 Rating.js "Rated Game", next to Cheats.js, which the host sets in a
+	# 0.28 Rating.js "Rated Game" and Cheats.js, which the host sets in a
 	# networked game (off by default) unless the game is rated.
-	var cheats: CheckBox = $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats
+	var cheats: CheckBox = %Cheats
 	cheats.button_pressed = false
 	cheats.disabled = false
 	cheats.toggled.connect(func(_on): _update_rated())
@@ -1906,8 +1931,10 @@ func _build_net_controls() -> void:
 	_rated.text = "Rated Game"
 	_rated.tooltip_text = "Toggle 1v1 rated game."
 	_rated.toggled.connect(func(_on): _update_rated())
-	cheats.get_parent().add_child(_rated)
-	cheats.get_parent().move_child(_rated, cheats.get_index() + 1)
+	# GameSettingsLayout.js: Rating closes the Game Type tab.
+	%TeamsRow.add_child(_rated)
+	_rated.owner = self
+	_rated.unique_name_in_owner = true
 	_update_rated()
 
 ## Rating.js: a lobby game of exactly two players may be rated, and is by
@@ -1924,7 +1951,7 @@ func _update_rated() -> void:
 		_rated.set_pressed_no_signal(true)
 	_rated_was_available = avail
 	_rated.visible = avail
-	var cheats: CheckBox = $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats
+	var cheats: CheckBox = %Cheats
 	cheats.disabled = avail and _rated.button_pressed
 	if cheats.disabled:
 		cheats.set_pressed_no_signal(false)
@@ -2000,7 +2027,7 @@ func _host_write_setup(force: bool) -> void:
 	_update_rated()
 	ps["rated"] = _rated_available() and _rated.button_pressed
 	# Cheats.js: the host's choice in a networked game, never in a rated one.
-	ps["cheats"] = $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.button_pressed and not ps["rated"]
+	ps["cheats"] = %Cheats.button_pressed and not ps["rated"]
 	if not force and ps == _net_sent:
 		return
 	_net_sent = ps.duplicate(true)
@@ -2033,7 +2060,7 @@ func _on_net_setup_changed() -> void:
 			src[k] = ms.get(k)
 		_apply_settings(src)
 		refresh_map_list()
-		$VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.set_pressed_no_signal(bool(ms.cheats))
+		%Cheats.set_pressed_no_signal(bool(ms.cheats))
 		_rated.set_pressed_no_signal(bool(ms.rated))
 		_rated.visible = bool(ms.rated)
 	elif _mp_role == "host":

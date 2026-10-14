@@ -5732,70 +5732,106 @@
       "player": 1,
       "x": -10.64,
       "z": -32.55,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -10.16,
       "z": -31.98,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -9.69,
       "z": -31.49,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -9.22,
       "z": -30.99,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -8.77,
       "z": -30.47,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -9.58,
       "z": -33.98,
-      "template": "gaul/infantry_spearman_e"
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -9.09,
       "z": -33.62,
-      "template": "gaul/infantry_spearman_e"
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -8.71,
       "z": -33.17,
-      "template": "gaul/infantry_spearman_e"
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -8.21,
       "z": -32.3,
-      "template": "gaul/infantry_spearman_e"
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -7.72,
       "z": -31.82,
-      "template": "gaul/infantry_spearman_e"
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     }
-  ]
+  ],
+  "circular": true
 }

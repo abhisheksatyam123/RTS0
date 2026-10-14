@@ -82,6 +82,7 @@ var submenu_data = {
 			{"label": "Game Lobby", "tooltip": "%(hotkey)s: Launch the multiplayer lobby to join and host publicly visible games and chat with other players.", "hotkey": "lobby", "action": "open_lobby"},
 			{"label": "Connect by IP", "tooltip": "Joining an existing multiplayer game at a given IP address.", "action": "open_lobby"},
 			{"label": "Host New Game", "tooltip": "Host a new multiplayer game. Other players can connect directly to you via your IP address.", "action": "open_lobby"},
+			{"label": "Host Saved Game", "tooltip": "Continue playing a game from a savegame.", "action": "open_lobby"},
 			{"label": "Replays", "tooltip": "Playback previous games.", "action": "open_replays_mp"}
 		]
 	},
@@ -90,6 +91,7 @@ var submenu_data = {
 		"items": [
 			{"label": "Options", "tooltip": "Adjust game settings.", "action": "open_options"},
 			{"label": "Hotkeys", "tooltip": "Adjust hotkeys.", "action": "open_hotkeys"},
+			{"label": "Language", "tooltip": "Choose the language of the game.", "action": "open_locale"},
 			{"label": "Mod Selection", "tooltip": "Select and download mods for the game.", "action": "open_mods"},
 			{"label": "Welcome Screen", "tooltip": "Show the Welcome Screen again. Useful if you hid it by mistake.", "action": "open_splash"}
 		]
@@ -146,8 +148,12 @@ func _ready() -> void:
 
 	# 0.28 SplashScreenHandler: the welcome page over the menu shown at startup
 	# (not under a -s test script).
+	# With incompatible mods 0.28 starts in the Mod Selection instead (modmod.js).
 	if get_tree().get_script() == null:
-		load("res://scenes/menu/splashscreen.gd").open_at_startup(self)
+		if not preload("res://scenes/menu/mods.gd").incompatible.is_empty():
+			load("res://scenes/menu/modmod.gd").open_incompatible(self)
+		else:
+			load("res://scenes/menu/splashscreen.gd").open_at_startup(self)
 
 	# Connect hover sounds
 	for btn in $MainPanel/Buttons.get_children():
@@ -319,6 +325,9 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/lobby.tscn")
 		"open_options":
 			_go_to_scene("res://scenes/menu/options.tscn")
+		"open_locale":
+			_close_submenu()
+			load("res://scenes/menu/locale_page.gd").open(self)
 		"open_mods":
 			_close_submenu()
 			load("res://scenes/menu/modmod.gd").open(self)

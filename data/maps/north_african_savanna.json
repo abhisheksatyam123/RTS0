@@ -11212,5 +11212,6 @@
       "template": "structures/default_civil_centre"
     }
   ],
-  "units": []
+  "units": [],
+  "circular": true
 }

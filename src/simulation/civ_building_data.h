@@ -61,6 +61,13 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Inn", "inn", "house", 2500.0f, 2, 0, 75, 0, 0, 15, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/inn */ \
 		{"Tent", "tent", "house", 200.0f, 1, 0, 50, 0, 0, 5, 5, 7.5f, 500.0f, 5.0f, 1.0f, 1.0f}, /* structures/rome/tent */ \
 		{"Triumphal Arch", "triumphal_arch", "arch", 2000.0f, 2, 0, 0, 400, 200, 0, 0, 50.0f, 0.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/arch */ \
+		{"Gate of All Nations", "pers_hall", "palace", 3000.0f, 2, 0, 0, 250, 250, 0, 10, 75.0f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/pers/hall */ \
+		{"Warehouse", "warehouse", "storehouse", 2000.0f, 2, 0, 75, 0, 0, 5, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/warehouse */ \
+		{"Tavern", "tavern", "house", 1500.0f, 2, 0, 100, 0, 100, 10, 3, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/gaul/tavern */ \
+		{"Rampart Tower", "maur_tower_double", "tower", 1200.0f, 1, 0, 100, 0, 200, 0, 5, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/maur/tower_double */ \
+		{"Shrine", "kush_shrine", "temple", 2000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 20.0f}, /* structures/kush/shrine */ \
+		{"Fortress", "han_fortress_old", "fortress", 5200.0f, 2, 0, 300, 0, 600, 0, 20, 112.5f, 4000.0f, 45.0f, 1.0f, 40.0f}, /* structures/han/fortress_old */ \
+		{"LaoziGate", "laozi_gate", "temple", 1200.0f, 2, 0, 200, 0, 100, 0, 0, 30.0f, 0.0f, 5.0f, 1.0f, 0.0f}, /* structures/han/laozigate */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -117,6 +124,13 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 15, 0, 0}, /* structures/pers/inn */ \
 		{0, 0, 10, 0, 0}, /* structures/rome/tent */ \
 		{0, 0, 0, 40, 80}, /* structures/rome/arch */ \
+		{0, 0, 0, 50, 50}, /* structures/pers/hall */ \
+		{0, 0, 15, 0, 0}, /* structures/pers/warehouse */ \
+		{0, 0, 20, 20, 0}, /* structures/gaul/tavern */ \
+		{0, 0, 20, 40, 0}, /* structures/maur/tower_double */ \
+		{0, 0, 0, 60, 0}, /* structures/kush/shrine */ \
+		{0, 0, 60, 120, 0}, /* structures/han/fortress_old */ \
+		{0, 0, 0, 20, 20}, /* structures/han/laozigate */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -182,6 +196,13 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_INN: return 0x0000; // 
 		case BLD_TENT: return 0x0000; // 
 		case BLD_TRIUMPHAL_ARCH: return 0x0000; // 
+		case BLD_HALL: return 0x0000; // 
+		case BLD_WAREHOUSE: return 0x0000; // 
+		case BLD_TAVERN: return 0x0000; // 
+		case BLD_TOWER_DOUBLE: return 0x0000; // 
+		case BLD_KUSH_SHRINE: return 0x0000; // 
+		case BLD_FORTRESS_OLD: return 0x0000; // 
+		case BLD_LAOZI_GATE: return 0x0000; // 
 		default: return 0xFFFF;
 	}
 }
@@ -241,6 +262,13 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_INN: return 1;
 		case BLD_TENT: return 1;
 		case BLD_TRIUMPHAL_ARCH: return 3;
+		case BLD_HALL: return 3;
+		case BLD_WAREHOUSE: return 1;
+		case BLD_TAVERN: return 2;
+		case BLD_TOWER_DOUBLE: return 3;
+		case BLD_KUSH_SHRINE: return 2;
+		case BLD_FORTRESS_OLD: return 3;
+		case BLD_LAOZI_GATE: return 2;
 		default: return 0;
 	}
 }
@@ -278,6 +306,8 @@ inline float civ_building_vision(uint8_t type) {
 		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 27.0f;
 		case BLD_TOWER_BOLT: return 24.0f;
 		case BLD_TOWER_ARTILLERY: return 24.0f;
+		case BLD_TOWER_DOUBLE: return 24.0f;
+		case BLD_FORTRESS_OLD: return 27.0f;
 		default: return 0.0f;
 	}
 }

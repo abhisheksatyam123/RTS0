@@ -300,9 +300,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			rtso::user_config::save();
 			refresh_user_options();
 		};
+		if (fired("session.devcommands.toggle")) { toggle_dev_overlay(); return; }
 		if (fired("session.toggleattackrange")) { toggle_overlay("gui.session.attackrange"); return; }
 		if (fired("session.toggleaurasrange")) { toggle_overlay("gui.session.aurasrange"); return; }
 		if (fired("session.togglehealrange")) { toggle_overlay("gui.session.healrange"); return; }
+		// 0 A.D. hotkeys/misc.xml "silhouettes": Renderer_SetSilhouettesEnabled, for this run only.
+		if (fired("silhouettes")) {
+			rtso::user_config::set("silhouettes", rtso::user_config::get_bool("silhouettes") ? "false" : "true");
+			return;
+		}
 		// OverlayCounterElapsedTime / RemainingCeasefire Hotkey: the top-right counters.
 		if (fired("timeelapsedcounter.toggle")) { toggle_overlay("gui.session.timeelapsedcounter"); return; }
 		if (fired("ceasefirecounter.toggle")) { toggle_overlay("gui.session.ceasefirecounter"); return; }

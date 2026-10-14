@@ -102,67 +102,6 @@ void RtsoMain::play_voice(const char *path) {
 	}
 }
 
-void RtsoMain::play_civ_voice(const char *action) {
-	if (!voice_player) return;
-	static uint32_t voice_rand_idx = 0;
-	++voice_rand_idx;
-
-	std::string act(action);
-
-	if (use_english_voice_orders_) {
-		// Pure English orders voice lines
-		if (act == "select") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/select_1.ogg",
-				"res://assets/sounds/voice/select_2.ogg",
-				"res://assets/sounds/voice/select_3.ogg"
-			};
-			play_voice(opts[voice_rand_idx % 3]);
-		} else if (act == "move") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/move_1.ogg",
-				"res://assets/sounds/voice/move_2.ogg"
-			};
-			play_voice(opts[voice_rand_idx % 2]);
-		} else if (act == "attack") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/attack_1.ogg",
-				"res://assets/sounds/voice/attack_2.ogg"
-			};
-			play_voice(opts[voice_rand_idx % 2]);
-		} else if (act == "build") {
-			play_voice("res://assets/sounds/voice/build_1.ogg");
-		} else if (act == "gather") {
-			play_voice("res://assets/sounds/voice/gather_1.ogg");
-		} else if (act == "repair") {
-			play_voice("res://assets/sounds/voice/repair_1.ogg");
-		}
-		return;
-	}
-
-	// 0 A.D. plays the voice of the selection's first unit (its template's
-	// SoundGroups), in its civ's language and phenotype.
-	if (!sim) return;
-	if (selected_ids.is_empty()) {
-		if (selected_building_id != 0 && act == "select")
-			for (const auto &b : sim->buildings())
-				if (b.id == selected_building_id) {
-					session_audio_.play_building_select(b.type);
-					break;
-				}
-		return;
-	}
-	const uint32_t first = (uint32_t)(int64_t)selected_ids[0];
-	auto uv = sim->units();
-	for (size_t i = 0; i < uv.count; ++i) {
-		if (uv.id[i] != first) continue;
-		// A male Civilian speaks with the civ's male citizen voice (rtso::civilian_is_male).
-		const uint8_t voice_type = rtso::civilian_is_male(uv.tmpl[i], uv.id[i]) ? (uint8_t)rtso::UNIT_VILLAGER : uv.unit_type[i];
-		session_audio_.play_voice(sim->player_civ(uv.team[i]), voice_type, act);
-		return;
-	}
-}
-
 // music.js states: civ peace tracks for the local player's civ, battle while
 // BattleDetection says the player is fighting, victory or defeat at the end
 // (with alarm_victory / alarm_defeated).
@@ -758,81 +697,6 @@ void RtsoMain::cycle_idle_worker() {
 	find_idle_unit(IDLE_WORKER);
 }
 
-// 0 A.D. findIdleUnit (gui/session/input.js:1659) with the class lists from
-// session.js g_WorkerTypes / g_MilitaryTypes and hotkeys/misc.xml, and
-// GuiInterface FindIdleUnits / IdleUnitFilter: selects the next idle unit after
-// the last one found and centres the camera on it. The class list is walked in
-// order from the class of the last find (all idle civilians before the
-// traders, and so on), units garrisoned or on a turret don't count, and once a
-// class runs out the next one follows. selection.add (Shift) appends;
-// selection.offscreen (Alt) selects every idle unit of the kind at once.
-void RtsoMain::find_idle_unit(IdleKind kind) {
-	if (!sim) return;
-	std::vector<rtso::TechClasses> classes;
-	switch (kind) {
-		case IDLE_WORKER: classes = {rtso::TC_CIVILIAN, rtso::TC_TRADER, rtso::TC_FISHINGBOAT, rtso::TC_CITIZEN}; break;
-		case IDLE_WARRIOR: classes = {rtso::TC_MELEE, rtso::TC_RANGED}; break;
-		case IDLE_BUILDER: classes = {rtso::TC_WORKER | rtso::TC_CITIZEN}; break;
-		case IDLE_ANY: classes = {rtso::TechClasses(~0ull, ~0ull)}; break;
-	}
-	const size_t n = classes.size();
-	const bool append = rtso::hotkeys::held("selection.add");
-	const bool select_all = rtso::hotkeys::held("selection.offscreen");
-	if (select_all || kind != last_idle_kind_) {
-		last_idle_unit_ = 0;
-		idle_class_index_ = 0;
-	}
-	last_idle_kind_ = kind;
-
-	// Bucket of each idle unit: the first class it matches, counted from the
-	// current class; current-class units at or before the last find go last.
-	auto uview = sim->units();
-	size_t best = SIZE_MAX, best_bucket = SIZE_MAX, best_index = 0;
-	std::vector<size_t> idle;
-	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i] || uview.team[i] != local_player() || uview.action_state[i] != rtso::ACTION_IDLE) continue;
-		if (sim->turret_holder_of(uview.id[i])) continue;
-		if (append && selected_ids.has((int32_t)uview.id[i])) continue;
-		// The roster row's Identity classes (a female citizen is a villager by UnitType).
-		const uint16_t tmpl = uview.tmpl[i];
-		const rtso::TechClasses tc = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).tech_classes
-				: rtso::unit_tech_classes(uview.unit_type[i]);
-		size_t bucket = n;
-		for (size_t k = 0; k < n; ++k) {
-			if (tc & classes[(idle_class_index_ + k) % n]) { bucket = k; break; }
-		}
-		if (bucket == n) continue;
-		idle.push_back(i);
-		const size_t index = bucket;
-		if (bucket == 0 && last_idle_unit_ && uview.id[i] <= last_idle_unit_) bucket = n;
-		if (bucket < best_bucket || (bucket == best_bucket && uview.id[i] < uview.id[best])) {
-			best = i;
-			best_bucket = bucket;
-			best_index = index;
-		}
-	}
-	if (idle.empty()) {
-		last_idle_unit_ = 0;
-		idle_class_index_ = 0;
-		session_audio_.play_no_idle_unit();
-		return;
-	}
-	if (!append) {
-		selected_ids.clear();
-		selected_building_id = 0;
-	}
-	if (select_all) {
-		for (size_t i : idle) selected_ids.push_back((int32_t)uview.id[i]);
-		play_civ_voice("select");
-		return;
-	}
-	last_idle_unit_ = uview.id[best];
-	idle_class_index_ = (idle_class_index_ + best_index) % n;
-	selected_ids.push_back((int32_t)uview.id[best]);
-	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[best], 0, uview.pos_z[best]));
-	play_civ_voice("select");
-}
-
 // Under-attack alerts (0 A.D. AttackDetection.js AttackAlert, called for every
 // Attacked message): a hit on one of the local player's entities by another
 // player runs 0 A.D.'s suppression rules (attack_detection.h) and may notify.
@@ -847,8 +711,11 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 	for (const auto &a : attacks) {
 		// Attacks against other players, or dealt by myself, are not registered.
 		if (a.target_owner != me || a.attacker_owner == me) continue;
-		if (attack_detection_.report(a.x, a.z, match_elapsed_time))
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time)) {
 			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0);
+			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
+			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
+		}
 	}
 }
 
@@ -903,111 +770,6 @@ void RtsoMain::show_trigger_dialogs(const std::vector<rtso::Simulation::TriggerD
 		dlg->connect("canceled", callable_mp((Node *)dlg, &Node::queue_free));
 		add_child(dlg);
 		dlg->popup_centered();
-	}
-}
-
-void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices) {
-	if (notices.empty() || !sim || !chat_window_.is_ready() || turn_mgr_.is_replaying()) return;
-	using N = rtso::Simulation::SessionNotice;
-	const uint8_t me = local_player();
-	const bool observer = me >= rtso::MAX_PLAYERS || sim->is_defeated(me);
-	auto mutual_ally = [&](uint8_t a, uint8_t b) {
-		return a < rtso::MAX_PLAYERS && b < rtso::MAX_PLAYERS && sim->get_diplomacy(a, b) == rtso::Simulation::DIPLO_ALLY &&
-				sim->get_diplomacy(b, a) == rtso::Simulation::DIPLO_ALLY;
-	};
-	// getLocalizedResourceAmounts: "100 food, 50 wood and 200 metal".
-	// tooltips.js: "%(amount)s %(resourceType)s" each, the last joined by
-	// "%(previousAmounts)s and %(lastAmount)s", the others by ", ".
-	auto amounts_text = [this](const int32_t *amounts, const uint8_t *types, int n) {
-		// resourceNameWithinSentence: the resource's name in the "withinSentence"
-		// context; English keeps it lower case ("200 food, 100 wood and 300 metal").
-		static const char *kNames[rtso::RES_COUNT] = {"Wood", "Metal", "Stone", "Food"}; // RES_* order
-		PackedStringArray parts;
-		for (int i = 0; i < n; ++i)
-			if (amounts[i] > 0 && types[i] < rtso::RES_COUNT) {
-				const String name = tr(kNames[types[i]]);
-				parts.push_back(sprintf0(tr("%(amount)s %(resourceType)s"), {{"amount", String::num_int64(amounts[i])},
-						{"resourceType", name == kNames[types[i]] ? name.to_lower() : name}}));
-			}
-		if (parts.size() < 2) return parts.is_empty() ? String() : parts[0];
-		const String last = parts[parts.size() - 1];
-		parts.remove_at(parts.size() - 1);
-		return sprintf0(tr("%(previousAmounts)s and %(lastAmount)s"),
-				{{"previousAmounts", String(tr(", ")).join(parts)}, {"lastAmount", last}});
-	};
-	for (const N &n : notices) {
-		String line;
-		if (n.kind == N::TRIBUTE) {
-			// GetTributableCodes order: food, wood, stone, metal.
-			static const uint8_t kOrder[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
-			int32_t a[4];
-			for (int i = 0; i < 4; ++i) a[i] = n.amounts[kOrder[i]];
-			const String what = amounts_text(a, kOrder, 4);
-			if (n.other == me)
-				line = sprintf0(tr("%(player)s has sent you %(amounts)s."), {{"player", colored_player_name(n.player)}, {"amounts", what}});
-			else if (n.player == me)
-				line = sprintf0(tr("You have sent %(player2)s %(amounts)s."), {{"player2", colored_player_name(n.other)}, {"amounts", what}});
-			else if (user_opts_.tribute_notice &&
-					(observer || (sim->teams_locked() && mutual_ally(n.player, me) && mutual_ally(n.other, me))))
-				line = sprintf0(tr("%(player)s has sent %(player2)s %(amounts)s."),
-						{{"player", colored_player_name(n.player)}, {"player2", colored_player_name(n.other)}, {"amounts", what}});
-		} else if (n.kind == N::BARTER) {
-			if (observer && user_opts_.barter_notice) {
-				const String given = amounts_text(&n.amounts[0], &n.other, 1);
-				const String gained = amounts_text(&n.amounts[1], &n.tech, 1);
-				line = sprintf0(tr("%(player)s bartered %(amountGiven)s for %(amountGained)s."),
-						{{"player", colored_player_name(n.player)}, {"amountGiven", given}, {"amountGained", gained}});
-			}
-		} else if (n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED || n.kind == N::PHASE_COMPLETED) {
-			if (user_opts_.phase_notice == 0 || (n.player != me && !observer && !mutual_ally(n.player, me))) continue;
-			const String phase = tr(String::utf8(rtso::tech_info(n.tech).name));
-			const String player = colored_player_name(n.player);
-			if (n.kind == N::PHASE_COMPLETED)
-				line = sprintf0(tr("%(player)s has reached the %(phaseName)s."), {{"player", player}, {"phaseName", phase}});
-			else if (user_opts_.phase_notice == 2 && n.kind == N::PHASE_STARTED)
-				line = sprintf0(tr("%(player)s is advancing to the %(phaseName)s."), {{"player", player}, {"phaseName", phase}});
-			else if (user_opts_.phase_notice == 2)
-				line = sprintf0(tr("The %(phaseName)s of %(player)s has been aborted."), {{"player", player}, {"phaseName", phase}});
-		} else if (n.kind == N::DIPLOMACY) {
-			// ChatMessageFormatSimulation.diplomacy's three message sets.
-			static const char *kObserver[3] = {"%(player)s is now allied with %(player2)s.",
-					"%(player)s is now neutral with %(player2)s.", "%(player)s is now at war with %(player2)s."};
-			static const char *kMine[3] = {"You are now allied with %(player)s.",
-					"You are now neutral with %(player)s.", "You are now at war with %(player)s."};
-			static const char *kTheirs[3] = {"%(player)s is now allied with you.",
-					"%(player)s is now neutral with you.", "%(player)s is now at war with you."};
-			const int w = n.tech <= rtso::Simulation::DIPLO_ENEMY ? n.tech : 2;
-			if (observer)
-				line = sprintf0(tr(kObserver[w]), {{"player", colored_player_name(n.player)}, {"player2", colored_player_name(n.other)}});
-			else if (n.player == me) line = sprintf0(tr(kMine[w]), {{"player", colored_player_name(n.other)}});
-			else if (n.other == me) line = sprintf0(tr(kTheirs[w]), {{"player", colored_player_name(n.player)}});
-		} else if (n.kind == N::DEFEATED || n.kind == N::WON || n.kind == N::LOST) {
-			// ChatMessageFormatSimulation.playerstate, shown to everyone: the defeat reasons of
-			// Conquest*.js, Regicide.js, Commands.js "resign" and TriggerHelper.DefeatPlayer, and
-			// EndGameManager's, WonderVictory.js's and CaptureTheRelic.js's win lines.
-			static const char *kWhy[] = {"lost all critical units and structures", "lost all units", "lost all structures",
-					"lost all civic centers", "lost hero", "", "objective", "last players alive", "wonder victory",
-					"Capture the Relic", "game mode", "lost civic center"};
-			const String why = n.tech < sizeof(kWhy) / sizeof(kWhy[0]) ? String(kWhy[n.tech]) : String("game mode");
-			if (n.kind == N::DEFEATED) {
-				line = sprintf0(tr(n.tech == N::END_RESIGNED ? String("%(player)s has resigned.")
-						: "%(player)s has been defeated (" + why + ")."), {{"player", colored_player_name(n.player)}});
-			} else {
-				std::vector<String> names;
-				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
-					if ((n.other >> p) & 1) names.push_back(colored_player_name(p));
-				if (names.empty()) continue;
-				// translatePlural of the sim's message; the enumeration comma is translated too.
-				String list;
-				for (size_t i = 0; i + 1 < names.size(); ++i) list += (i ? tr(", ") : String()) + names[i];
-				const bool one = names.size() == 1;
-				const String reason = n.kind == N::WON && n.tech == N::END_LAST_ALIVE && one ? String("last player alive") : why;
-				const String msg = (one ? String("%(lastPlayer)s ") : String("%(players)s and %(lastPlayer)s ")) +
-						(n.kind == N::WON ? (one ? "has won (" : "have won (") : (one ? "has been defeated (" : "have been defeated (")) + reason + ").";
-				line = sprintf0(tr(msg), {{"players", list}, {"lastPlayer", names.back()}});
-			}
-		}
-		if (!line.is_empty()) chat_window_.append_line(line + "\n");
 	}
 }
 
@@ -2015,6 +1777,8 @@ void RtsoMain::update_observer_view_picker() {
 		observer_mode_label_ = memnew(Label);
 		observer_mode_label_->set_text("Observer Mode");
 		row->add_child(observer_mode_label_);
+		observer_follow_box_ = new_follow_player_box();
+		row->add_child(observer_follow_box_);
 		CanvasLayer *layer = memnew(CanvasLayer);
 		layer->set_layer(5);
 		add_child(layer);
@@ -2151,6 +1915,116 @@ void RtsoMain::_on_research_progress_pressed(int slot) {
 		if (cam_rig) cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 		return;
 	}
+}
+
+// DeveloperOverlay.toggle: only with cheats in a networked game; DeveloperOverlay.sendNotification
+// tells the other players ("aichat", shown as the player's chat line).
+void RtsoMain::toggle_dev_overlay() {
+	if (!sim || (net_lockstep() && !sim->cheats_enabled())) return;
+	const bool open = !dev_overlay_.is_open();
+	dev_overlay_.set_open(open);
+	chat_window_.post_own(tr(open ? "The Developer Overlay was opened." : "The Developer Overlay was closed."));
+	refresh_dev_overlay();
+}
+
+// DeveloperOverlayControlCheckboxes.js onPress handlers.
+void RtsoMain::_on_dev_command(int command) {
+	using D = rtso::RtsoDevOverlay;
+	if (!sim) return;
+	const bool on = dev_overlay_.checked(command);
+	const uint8_t me = local_player();
+	auto cheat = [&](uint8_t action, int32_t parameter, const std::vector<uint32_t> &ids) {
+		if (turn_cmds()) post_lockstep(39, ids.data(), ids.size(), 0.0f, 0.0f, (uint32_t)parameter, action);
+		else sim->cmd_cheat(me, action, parameter, 0, ids.data(), ids.size());
+	};
+	switch (command) {
+		case D::DEV_SELECTION_STATE: // SelectionEntityState
+			dev_overlay_.show_state(on);
+			break;
+		case D::DEV_REVEAL_MAP: // RevealMap: "reveal-map" with enable
+			cheat(rtso::Simulation::CHEAT_DEV_REVEAL_MAP, on ? 1 : 0, {});
+			break;
+		case D::DEV_RESTRICT_CAMERA: // RestrictCamera: GameView_SetConstrainCameraEnabled
+			if (cam_rig) cam_rig->set_constrain_camera(on);
+			break;
+		case D::DEV_PROMOTE: { // PromoteSelectedUnits: "promote" the selection; checked() is always false
+			std::vector<uint32_t> ids;
+			for (int k = 0; k < selected_ids.size(); ++k) ids.push_back((uint32_t)(int64_t)selected_ids[k]);
+			if (!ids.empty()) cheat(rtso::Simulation::CHEAT_DEV_PROMOTE, 0, ids);
+			break;
+		}
+		default:
+			break;
+	}
+	refresh_dev_overlay();
+}
+
+// The checked() handlers while the overlay is open, and DeveloperOverlayEntityState.update:
+// the first selected entity's state.
+void RtsoMain::refresh_dev_overlay() {
+	using D = rtso::RtsoDevOverlay;
+	if (!sim) return;
+	if (dev_overlay_.is_open()) {
+		dev_overlay_.set_checked(D::DEV_REVEAL_MAP, sim->reveal_map());
+		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
+		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
+	}
+	if (!dev_overlay_.state_shown()) return;
+	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
+	const uint32_t first = !selected_ids.is_empty() ? (uint32_t)(int64_t)selected_ids[0] : 0;
+	if (first) {
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (uv.id[i] != first) continue;
+			const uint16_t tmpl = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+			const char *tid = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).id : "";
+			text += "\n\nentity: {\n";
+			text += vformat("  id:%d\n  template:\"%s\"\n  player:%d\n", (int64_t)uv.id[i], String::utf8(tid ? tid : ""), (int64_t)uv.team[i]);
+			text += vformat("  hitpoints:%.1f\n  maxHitpoints:%.1f\n", uv.hp[i], uv.max_hp[i]);
+			text += vformat("  position:{x:%.2f, z:%.2f}\n  heading:{x:%.2f, z:%.2f}\n", uv.pos_x[i], uv.pos_z[i],
+					uv.heading_x ? uv.heading_x[i] : 0.0f, uv.heading_z ? uv.heading_z[i] : 1.0f);
+			text += vformat("  unitType:%d\n  actionState:%d\n  stance:%d\n  rank:%d\n  xp:%d\n  kills:%d\n",
+					(int64_t)uv.unit_type[i], (int64_t)uv.action_state[i], (int64_t)uv.stance[i], (int64_t)uv.rank[i],
+					(int64_t)(uv.xp ? uv.xp[i] : 0), (int64_t)(uv.kills ? uv.kills[i] : 0));
+			text += vformat("  carrying:{type:%d, amount:%d}\n  formation:%d\n}", (int64_t)uv.res_type_carried[i],
+					(int64_t)uv.carry[i], (int64_t)uv.formation[i]);
+			break;
+		}
+	} else if (selected_building_id) {
+		for (const auto &b : sim->buildings()) {
+			if (b.id != selected_building_id) continue;
+			text += "\n\nentity: {\n";
+			text += vformat("  id:%d\n  type:%d\n  player:%d\n  hitpoints:%.1f\n  maxHitpoints:%.1f\n", (int64_t)b.id,
+					(int64_t)b.type, (int64_t)b.team, b.hp, b.max_hp);
+			text += vformat("  position:{x:%.2f, z:%.2f}\n  buildProgress:%.2f\n  queue:%d\n}", b.x, b.z, b.build_progress,
+					(int64_t)b.queue.size());
+			break;
+		}
+	}
+	dev_overlay_.set_state_text(text);
+}
+
+// Test hook: the overlay's open state, its boxes, the state text and the camera constraint.
+Dictionary RtsoMain::debug_dev_overlay() const {
+	using D = rtso::RtsoDevOverlay;
+	Dictionary d;
+	d["open"] = dev_overlay_.is_open();
+	d["reveal"] = dev_overlay_.checked(D::DEV_REVEAL_MAP);
+	d["restrict"] = dev_overlay_.checked(D::DEV_RESTRICT_CAMERA);
+	d["state_shown"] = dev_overlay_.state_shown();
+	d["state"] = dev_overlay_.state_text();
+	d["map_revealed"] = sim ? sim->reveal_map() : false;
+	d["chat_log"] = chat_window_.log_text();
+	d["camera_x"] = cam_rig ? cam_rig->get_target_pos().x : 0.0f;
+	int ranks = 0; // the selection's ranks added up
+	if (sim) {
+		auto v = sim->units();
+		for (int k = 0; k < selected_ids.size(); ++k)
+			for (size_t i = 0; i < v.count; ++i)
+				if (v.alive[i] && v.id[i] == (uint32_t)selected_ids[k]) ranks += v.rank[i];
+	}
+	d["selection_ranks"] = ranks;
+	return d;
 }
 
 // The group's living units (dead ones leave it), then selected or added;
@@ -2343,6 +2217,109 @@ void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count
 	}
 	if (sim->cmd_train_template(local_player(), building_id, tmpl, count))
 		play_civ_voice("select");
+}
+
+// FollowPlayer.xml: a "Follow Player" tick box with that tooltip, shown while an
+// observer or replay viewer watches one player (not Observer).
+CheckBox *RtsoMain::new_follow_player_box() {
+	CheckBox *box = memnew(CheckBox);
+	box->set_text("Follow Player");
+	box->set_tooltip_text("Follow Player");
+	box->set_focus_mode(Control::FOCUS_NONE);
+	box->set_pressed_no_signal(follow_player_);
+	box->set_visible(false);
+	box->connect("toggled", Callable(this, "set_follow_player"));
+	return box;
+}
+
+// The player an observer or replay viewer is watching, or -1 (Observer, Gaia, or playing).
+int RtsoMain::followed_view() const {
+	if (turn_mgr_.is_replaying()) return replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
+	if (spectating()) return observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
+	return -1;
+}
+
+void RtsoMain::set_follow_player(bool on) {
+	follow_player_ = on;
+	for (CheckBox *box : {observer_follow_box_, replay_follow_box_})
+		if (box) box->set_pressed_no_signal(on);
+}
+
+// messages.js "playercommand": with Follow Player on, each command the watched player
+// gives moves the camera to it and selects the units it ordered. Commands come from the
+// TurnManager, so these are the commands players gave; Petra's own orders are not
+// commands in RTS0 and only its attacks are followed.
+void RtsoMain::follow_player_tick() {
+	const int view = followed_view();
+	for (CheckBox *box : {observer_follow_box_, replay_follow_box_})
+		if (box) box->set_visible(view >= 0);
+	const bool on = follow_player_ && view >= 0 && sim;
+	turn_mgr_.set_record_applied(on);
+	if (!on) return;
+	for (const auto &a : turn_mgr_.take_applied_commands())
+		if ((int)a.player == view) follow_command(a.cmd);
+}
+
+void RtsoMain::follow_command(const rtso::NetCommand &c) {
+	using rtso::NetCommandType;
+	const auto type = (NetCommandType)c.cmd_type;
+	if (!cam_rig) return;
+	if (type == NetCommandType::NET_CMD_BUILD_REPAIR) {
+		// Focus the structure to build.
+		for (const auto &b : sim->buildings())
+			if (b.id == c.target_id) {
+				cam_rig->set_follow_id(0);
+				cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+				break;
+			}
+	} else if (type != NetCommandType::NET_CMD_TRAIN && type != NetCommandType::NET_CMD_RESEARCH &&
+			type != NetCommandType::NET_CMD_TRAIN_TEMPLATE && type != NetCommandType::NET_CMD_TRAIN_FROM_UNIT &&
+			type != NetCommandType::NET_CMD_RALLY && !c.entity_ids.empty()) {
+		// Focus the commanded entities, but keep the focus when training.
+		follow_focus(c.entity_ids[0], false);
+	}
+	// Select the units the command affected, and its target.
+	if (type == NetCommandType::NET_CMD_RALLY) return;
+	clear_selection();
+	auto uv = sim->units();
+	auto pick = [&](uint32_t id) {
+		if (!id) return;
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == id) {
+				if (uv.alive[i]) selected_ids.push_back((int32_t)id);
+				return;
+			}
+		if (selected_building_id == 0)
+			for (const auto &b : sim->buildings())
+				if (b.id == id && !b.wrecked) selected_building_id = id;
+	};
+	for (uint32_t id : c.entity_ids) pick(id);
+	pick(c.target_id);
+}
+
+// selection_panels_helpers.js setCameraFollow: a unit is followed, a structure looked at.
+void RtsoMain::follow_focus(uint32_t id, bool select) {
+	if (!sim || !cam_rig || !id) return;
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i)
+		if (uv.id[i] == id && uv.alive[i]) {
+			cam_rig->set_follow_id(id);
+			if (select) {
+				clear_selection();
+				selected_ids.push_back((int32_t)id);
+			}
+			return;
+		}
+	for (const auto &b : sim->buildings())
+		if (b.id == id && !b.wrecked) {
+			cam_rig->set_follow_id(0);
+			cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+			if (select) {
+				clear_selection();
+				selected_building_id = id;
+			}
+			return;
+		}
 }
 
 void RtsoMain::clear_selection() {
@@ -3176,6 +3153,10 @@ void RtsoMain::_on_lobby_start_pressed() {
 		emit_signal("net_setup_refused", String("Not every player is ready"));
 		return;
 	}
+	if (!net_saved_game_.is_empty()) {
+		host_start_saved_game();
+		return;
+	}
 	rtso::GameSetupParams setup;
 	match_settings_setup(setup);
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
@@ -3227,6 +3208,15 @@ void RtsoMain::apply_net_game_start() {
 	turn_mgr_.set_game_start_applied_sim(sim);
 	rtso::GameSetupParams setup;
 	if (!turn_mgr_.take_pending_game_start_full(setup)) return;
+	if (setup.saved_game) {
+		// NMT_SAVED_GAME_START: not our world but the host's, sent as a rejoiner
+		// gets it; _process plays on once apply_pending_rejoin has loaded it.
+		net_setup_.setup = setup;
+		++net_setup_.seq;
+		turn_mgr_.request_rejoin(lobby_observe && lobby_observe->is_pressed());
+		if (lobby_status) lobby_status->set_text("Loading the host's saved game");
+		return;
+	}
 	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START
 	turn_mgr_.cancel_rejoin();
 	// The host numbers joiners 1, 2, ... in connect order; that id is our client id.
