@@ -146,6 +146,9 @@ func _ready() -> void:
 
 	$CivSwitcher.pressed.connect(_cycle_background)
 
+	# 0 A.D.'s -autostart command line starts the match without the menus.
+	if preload("res://scenes/menu/autostart.gd").run(get_node_or_null("/root/MatchSettings")):
+		return
 	# 0.28 SplashScreenHandler: the welcome page over the menu shown at startup
 	# (not under a -s test script).
 	# With incompatible mods 0.28 starts in the Mod Selection instead (modmod.js).
