@@ -692,7 +692,9 @@ public:
 		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META,
 		CHEAT_MAX_POPULATION, CHEAT_CHANGE_MAX_POPULATION, CHEAT_FAST_ACTIONS,
 		// The developer overlay's commands (Commands.js "reveal-map" with its enable flag, "promote").
-		CHEAT_DEV_REVEAL_MAP, CHEAT_DEV_PROMOTE, CHEAT_COUNT
+		// CHEAT_DEV_PERSPECTIVE (Change perspective: Engine.SetPlayerID) is applied by the
+		// TurnManager, which seats the sender as `parameter` (0xFF: observer).
+		CHEAT_DEV_REVEAL_MAP, CHEAT_DEV_PROMOTE, CHEAT_DEV_PERSPECTIVE, CHEAT_COUNT
 	};
 	// Per-player state of the population and fast-actions cheats (padding-free for saves).
 	struct CheatMods {
