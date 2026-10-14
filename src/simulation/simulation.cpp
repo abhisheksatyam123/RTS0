@@ -18008,8 +18008,17 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		const float drop_d2 = fast ? PETRA_HUNT_DROP_FAST_D2 : (can_flee ? PETRA_HUNT_DROP_FLEE_D2 : PETRA_HUNT_DROP_D2);
 		if (!petra_food_drop_near(scan, land, x, z, drop_d2)) return;
 		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
-		// getLandAccess; a supply on a blocked cell (by a tree, a wreck) is reached from beside it.
-		if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
+		// getLandAccess; a supply on a blocked cell (by a tree, a wreck) is reached from beside it,
+		// so one with no reachable cell beside it either (deep in a circular map's edge) is skipped.
+		if (nav_grid_.is_passable_for(cx, cz, pass)) {
+			if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
+		} else {
+			bool beside = false;
+			for (int dz = -1; dz <= 1 && !beside; ++dz)
+				for (int dx = -1; dx <= 1 && !beside; ++dx)
+					beside = nav_grid_.is_passable_for(cx + dx, cz + dz, pass) && nav_grid_.reachable(ucx, ucz, cx + dx, cz + dz, pass);
+			if (!beside) return;
+		}
 		best_d2 = d2;
 		best = id;
 		live = is_live;
@@ -23915,7 +23924,7 @@ bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const P
 	if (type == UNIT_HERO) // TYPE_EMERGENCY
 		return around.unit || around.defense_structure || around.melee_siege ||
 			(around.range_siege && health < petra_config_.garrison_hp_high) || needs_heal;
-	if (c & TC_INFANTRY) { // the holder's GarrisonArrowClasses
+	if (unit_classes_at(i) & building_ai_info(holder.type).garrison_arrow_classes) { // the holder's GarrisonArrowClasses
 		if (around.unit || around.defense_structure) return true;
 		if (around.melee_siege || around.range_siege) return !(c & TC_MELEE) || health < petra_config_.garrison_hp_low;
 		return false;
@@ -23926,8 +23935,9 @@ bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const P
 	return needs_heal;
 }
 
-// defenseManager.js garrisonUnitsInside: our nearest infantry (melee too unless
-// only siege threatens it) fill a shooting structure an enemy is in range of, or
+// defenseManager.js garrisonUnitsInside: our nearest units of the holder's GarrisonArrowClasses,
+// heroes and cavalry too (melee too unless only siege threatens it), on its land, fill a
+// shooting structure an enemy is in range of, or
 // bring a decaying one up to min_garrison with units that can capture.
 // Units in an attack or raid plan stay with it; defenders leave the army.
 void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming, int min_garrison) {
@@ -23939,18 +23949,19 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 	const bool holds_decay = decay && min_garrison <= holder.garrison_cap;
 	int slots = (int)holder.garrisoned_units.size() + incoming[holder_idx];
 	if (slots >= want) return;
+	const TechClasses arrow_classes = building_ai_info(holder.type).garrison_arrow_classes; // Soldier, a tower's Infantry
 	std::vector<std::pair<float, uint32_t>> near;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		const TechClasses c = unit_tech_classes(units_.unit_type[i]);
-		if (!(c & TC_INFANTRY) || units_.unit_type[i] == UNIT_HERO || (!allow_melee && (c & TC_MELEE)) || !unit_garrisonable(i)) continue;
+		if (!(unit_classes_at(i) & arrow_classes) || (!allow_melee && (c & TC_MELEE)) || !unit_garrisonable(i)) continue;
 		if (decay && unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) <= 0.0f) continue;
 		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED || petra_passenger(units_.id[i])) continue;
 		if (!structure_accepts_garrison(holder, i)) continue; // garrisonManager.garrison: the holder's List
 		const uint32_t uid = units_.id[i];
 		if (!petra_attack_can_spare(uid, holds_decay)) continue;
-		if (decay && !petra_same_land(i, holder)) continue;
+		if (!petra_same_land(i, holder)) continue; // getLandAccess(ent) == access
 		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
 		near.push_back({dx * dx + dz * dz, uid});
 	}

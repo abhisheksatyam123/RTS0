@@ -698,7 +698,7 @@ private:
 	// and in multiplayer "Paused by" the pausing players.
 	Button *pause_overlay_ = nullptr;
 	Label *pause_resume_label_ = nullptr;
-	Label *pause_by_label_ = nullptr;
+	RichTextLabel *pause_by_label_ = nullptr;
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
 	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
