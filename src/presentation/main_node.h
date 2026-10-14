@@ -568,7 +568,7 @@ private:
 	// 0 A.D. selects what the player doesn't own too (another player's unit or
 	// structure, an animal, a tree or a mine) to show its details, with no commands
 	// (EntitySelection; the command panels need the player's own entities).
-	enum InspectKind : uint8_t { INSPECT_NONE, INSPECT_UNIT, INSPECT_BUILDING, INSPECT_FAUNA, INSPECT_RESOURCE };
+	enum InspectKind : uint8_t { INSPECT_NONE, INSPECT_UNIT, INSPECT_BUILDING, INSPECT_FAUNA, INSPECT_RESOURCE, INSPECT_TREASURE };
 	uint8_t inspected_kind_ = INSPECT_NONE;
 	uint32_t inspected_id_ = 0;
 	bool inspect_at(const Vector3 &click_pos);
