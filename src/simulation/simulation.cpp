@@ -2541,6 +2541,27 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	return PLACE_OK;
 }
 
+Simulation::PlacementDetails Simulation::placement_details(uint8_t player, uint8_t b_type, float x, float z) const {
+	PlacementDetails d;
+	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return d;
+	BuildRestriction rule = build_restriction(b_type, civ_of(player));
+	if (players_[player].has_tech(TECH_LONG_WALLS) && rule.placement == PLACE_LAND_SHORE) rule.territory |= TERR_NEUTRAL;
+	d.territory_allowed = rule.territory;
+	if (!territory_grid_.blank()) {
+		const int owner = territory_owner_at(x, z);
+		if (owner == (int)player) d.territory_found = TERR_OWN;
+		else if (owner < 0 || owner >= MAX_PLAYERS) d.territory_found = TERR_NEUTRAL;
+		else if (is_ally(player, (uint8_t)owner) && is_ally((uint8_t)owner, player)) d.territory_found = TERR_ALLY;
+		else d.territory_found = TERR_ENEMY;
+		d.connected = d.territory_found == TERR_NEUTRAL || d.territory_found == TERR_ENEMY || territory_connected_at(x, z);
+	}
+	static const char *const kClasses[] = {nullptr, "CivilCentre", "Tower", "Fortress", "Outpost", "ArmyCamp",
+			"MercenaryCamp", "Monument", "Pillar"};
+	if (rule.distance_class < sizeof(kClasses) / sizeof(kClasses[0])) d.distance_class = kClasses[rule.distance_class];
+	d.min_distance_m = rule.min_distance * 4.0f;
+	return d;
+}
+
 float Simulation::dock_angle(float x, float z, float half_size) const {
 	// Commands.js GetDockAngle: sample 16 points on a circle, find the longest run of
 	// consecutive water points and face its middle; widen the circle while every
