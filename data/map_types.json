@@ -372,6 +372,29 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"gorge": {
+			"keywords": [
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "pers",
+						"team": -1
+					},
+					{
+						"civ": "cart",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"greek_acropolis": {
 			"keywords": [],
 			"type": "skirmish"
@@ -1367,6 +1390,29 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"temperate_map": {
+			"keywords": [
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"temperate_roadway": {
 			"keywords": [],
 			"type": "skirmish"
@@ -1491,6 +1537,43 @@
 		"via_augusta": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"walltest": {
+			"keywords": [
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"pop": 100000,
+						"resources": {
+							"food": 100000,
+							"metal": 100000,
+							"stone": 100000,
+							"wood": 100000
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"pop": 2,
+						"resources": {
+							"food": 5000,
+							"metal": 5000,
+							"stone": 5000,
+							"wood": 5000
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"watering_holes": {
 			"keywords": [],
