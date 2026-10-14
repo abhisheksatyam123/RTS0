@@ -165,6 +165,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player"), &RtsoMain::debug_spawn_units, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_put_inside", "ids", "holder"), &RtsoMain::debug_put_inside);
 	ClassDB::bind_method(D_METHOD("debug_select_entity", "id"), &RtsoMain::debug_select_entity);
+	ClassDB::bind_method(D_METHOD("debug_select_units", "ids"), &RtsoMain::debug_select_units);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_id", "player"), &RtsoMain::debug_civic_centre_id);
 	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
 	ClassDB::bind_method(D_METHOD("debug_structure_types"), &RtsoMain::debug_structure_types);
@@ -191,6 +192,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("request_net_player_setting", "key", "value"), &RtsoMain::request_net_player_setting);
 	ClassDB::bind_method(D_METHOD("set_net_ready", "status"), &RtsoMain::set_net_ready);
 	ClassDB::bind_method(D_METHOD("leave_net_game"), &RtsoMain::leave_net_game);
+	ClassDB::bind_method(D_METHOD("get_setup_chat"), &RtsoMain::get_setup_chat);
+	ClassDB::bind_method(D_METHOD("send_setup_chat", "text"), &RtsoMain::send_setup_chat);
 	ClassDB::bind_method(D_METHOD("_on_lobby_seat_selected", "index", "client"), &RtsoMain::_on_lobby_seat_selected);
 	ClassDB::bind_method(D_METHOD("apply_net_game_start"), &RtsoMain::apply_net_game_start);
 	ClassDB::bind_method(D_METHOD("load_map_seeded", "map_id", "seed"), &RtsoMain::load_map_seeded);

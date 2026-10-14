@@ -413,6 +413,12 @@ Array RtsoMain::debug_command_row() {
 		e["disabled"] = btn->is_disabled();
 		e["id"] = (int64_t)btn->get_instance_id();
 		e["paired"] = paired; // one of a research pair (selection_panels.js Research)
+		Label *cnt = Object::cast_to<Label>(btn->find_child("unitUpgradeCount", false, false));
+		e["count"] = cnt ? cnt->get_text().to_int() : 0;
+		e["progress"] = btn->has_meta("progress") ? (int)btn->get_meta("progress") : -1; // pixels left
+		e["grey"] = false;
+		for (int k = 0; k < btn->get_child_count(); ++k)
+			if (TextureRect *ic = Object::cast_to<TextureRect>(btn->get_child(k))) e["grey"] = ic->get_material().is_valid();
 		out.push_back(e);
 	};
 	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
@@ -454,6 +460,11 @@ int RtsoMain::debug_put_inside(const PackedInt32Array &ids, int64_t holder) {
 	int n = 0;
 	for (uint32_t u : v) n += sim->garrison_unit_now(u, (uint32_t)holder) ? 1 : 0;
 	return n;
+}
+
+void RtsoMain::debug_select_units(const PackedInt32Array &ids) {
+	selected_building_id = 0;
+	selected_ids = ids;
 }
 
 void RtsoMain::debug_select_entity(int64_t id) {
@@ -1297,12 +1308,7 @@ void RtsoMain::post_network_chat() {
 		}
 		chat_assignments_ = now;
 	}
-	const auto &kicks = net_host_.kicks();
-	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
-		const auto &k = kicks[kicks_chatted_];
-		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		chat_window_.append_line(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n");
-	}
+	post_kick_chat();
 	// NMT_REJOINED, once the rejoiner has loaded (ChatMessageFormatNetwork rejoined).
 	const auto &rejoined = turn_mgr_.rejoined_clients();
 	for (; rejoined_chatted_ < rejoined.size(); ++rejoined_chatted_)
@@ -3221,8 +3227,74 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		net_host_.sendGameSetup(rtso::format_net_setup(n));
 	}
 	notify_setup_joins(net_setup_.clients, n.clients);
+	post_setup_chat(net_setup_, n);
 	net_setup_ = n;
 	if (force || changed) emit_signal("net_setup_changed");
+}
+
+// ClientKicked.js and ChatMessageFormatNetwork kicked/banned, in the setup and the match.
+void RtsoMain::post_kick_chat() {
+	const auto &kicks = net_host_.kicks();
+	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
+		const auto &k = kicks[kicks_chatted_];
+		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
+		chat_window_.append_line(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n");
+	}
+}
+
+// colorizePlayernameByGUID in the setup: the client's name in its slot's colour,
+// white while it has no slot.
+String RtsoMain::setup_client_name(const rtso::NetSetupState &n, uint32_t client) const {
+	String name = client < 8 ? String::utf8(n.names[client].c_str()) : String();
+	if (name.is_empty()) name = String::utf8(rtso::peer_guid(client).c_str());
+	const int slot = n.slot_of(client);
+	const uint32_t rgb = slot >= 0 && n.setup.colors[slot] < rtso::PLAYER_COLOR_COUNT
+			? rtso::PLAYER_COLORS[n.setup.colors[slot]] & 0xFFFFFFu : 0xFFFFFFu;
+	return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name.replace("[", "[lb]") + "[/color]";
+}
+
+// 0.28 gamesetup ChatMessages: "has joined" / "has left" (ClientConnection.js),
+// "* ... is ready!" / "* ... is not ready." for a seated client (ClientReady.js;
+// staying ready says nothing). A ready the host's settings change took back
+// sends no ready message in 0.28, so it posts no "not ready" line here either.
+void RtsoMain::post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after) {
+	if (before.clients) {
+		for (uint32_t c = 1; c < 8; ++c) {
+			const bool was = (before.clients >> c) & 1, is = (after.clients >> c) & 1;
+			if (!was && is)
+				chat_window_.append_line(sprintf0(tr("%(username)s has joined"),
+						{{"username", String::utf8(after.names[c].c_str()).replace("[", "[lb]")}}) + "\n");
+			else if (was && !is)
+				chat_window_.append_line(sprintf0(tr("%(username)s has left"), {{"username", setup_client_name(before, c)}}) + "\n");
+		}
+		const bool same_settings = before.settings_version == after.settings_version;
+		for (uint32_t c = 1; c < 8; ++c) {
+			if (!((before.clients >> c) & (after.clients >> c) & 1) || after.slot_of(c) < 0) continue;
+			const bool stay = (after.stay_ready >> c) & 1;
+			const bool was = (before.ready >> c) & 1, is = (after.ready >> c) & 1;
+			if (!stay && !was && is)
+				chat_window_.append_line("[b]" + sprintf0(tr("* %(username)s is ready!"), {{"username", setup_client_name(after, c)}}) + "[/b]\n");
+			else if (!stay && was && !is && same_settings)
+				chat_window_.append_line("[b]" + sprintf0(tr("* %(username)s is not ready."), {{"username", setup_client_name(after, c)}}) + "[/b]\n");
+		}
+	}
+	post_kick_chat();
+}
+
+Dictionary RtsoMain::get_setup_chat() const {
+	Dictionary d;
+	d["rev"] = (int64_t)chat_window_.history_rev();
+	d["text"] = chat_window_.history();
+	return d;
+}
+
+// The setup page's chat input: the chat window's send, so /kick, /ban, /list
+// and /clear (executeNetworkCommand) run before anything is sent.
+void RtsoMain::send_setup_chat(const String &text) {
+	LineEdit *in = chat_window_.input();
+	if (!in || text.strip_edges().is_empty()) return;
+	in->set_text(text);
+	chat_window_.send_pressed();
 }
 
 // 0.28 sound.notify.gamesetup.join (off by default): a chime when a client joins
@@ -3279,9 +3351,14 @@ void RtsoMain::client_net_setup_tick() {
 	}
 	if (!have) return;
 	notify_setup_joins(net_setup_.clients, best.clients);
+	post_setup_chat(net_setup_, best);
 	net_setup_ = std::move(best);
-	// 0.28 ReadyController: a change to the settings takes our ready back.
-	if (net_ready_ == 1 && net_ready_version_ != net_setup_.settings_version) net_ready_ = 0;
+	// 0.28 ReadyController: a change to the settings takes our ready back
+	// (GameSettingsChanged.js tells us so).
+	if (net_ready_ == 1 && net_ready_version_ != net_setup_.settings_version) {
+		net_ready_ = 0;
+		chat_window_.append_line(tr("Game settings have been changed") + "\n");
+	}
 	store_net_setup_in_match_settings(net_setup_.setup);
 	emit_signal("net_setup_changed");
 }
@@ -3830,6 +3907,8 @@ void RtsoMain::_on_chat_channel_btn_pressed(int channel_idx) {
 String RtsoMain::chat_user(const String &sender_guid) {
 	uint32_t client = turn_mgr_.local_client_id();
 	if (sender_guid.begins_with("peer-")) client = (uint32_t)sender_guid.substr(5).to_int();
+	// Before Start the setup knows every client's name and slot colour.
+	if (is_net_pregame()) return setup_client_name(net_setup_, client);
 	String name;
 	uint8_t pl = 0xFF;
 	if (net_lockstep()) {

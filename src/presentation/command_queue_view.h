@@ -45,6 +45,7 @@
 #include "../simulation/simulation.h"
 #include "hotkeys.h"
 #include "l10n.h"
+#include "template_portraits.h"
 #include "production_queue.h"
 #include "user_config.h"
 
@@ -659,70 +660,145 @@ public:
 					}
 				}
 
-				// 0 A.D. unit upgrades (selection_panels.js "Upgrade"): one button per target the
-				// selected units can upgrade to, enabled while any of them can start it, and
-				// a cancel button while any of them is upgrading.
+				// 0.28's Upgrade panel (g_SelectionPanels.Upgrade): only when every selected unit has
+				// the same template, an icon button per target (the target's portrait).
 				{
+					std::vector<uint32_t> own; // the selected units we own, all of one template
+					uint16_t tmpl0 = rtso::CIV_UNIT_TEMPLATE_NONE;
+					bool same = true;
 					uint16_t targets[8];
 					int target_n = 0;
-					bool any_upgrading = false;
-					for (int i = 0; i < selected_ids.size(); ++i) {
+					for (int i = 0; i < selected_ids.size() && same; ++i) {
 						const uint32_t id = (uint32_t)selected_ids[i];
-						if (sim->unit_upgrade_of(id)) any_upgrading = true;
 						for (size_t u = 0; u < uview.count; ++u) {
-							if (uview.id[u] != id || uview.team[u] != local_player()) continue;
+							if (uview.id[u] != id) continue;
+							const uint16_t t = uview.tmpl ? uview.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
+							if (own.empty() && tmpl0 == rtso::CIV_UNIT_TEMPLATE_NONE) tmpl0 = t;
+							if (t != tmpl0) { same = false; break; }
+							if (uview.team[u] != local_player()) break;
+							own.push_back(id);
 							for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF; ++up) {
-								if (up->from != uview.tmpl[u] || (up->from_rank && uview.rank[u] < up->from_rank)) continue;
+								if (up->from != t || (up->from_rank && uview.rank[u] < up->from_rank)) continue;
 								bool seen = false;
-								for (int t = 0; t < target_n; ++t) seen = seen || targets[t] == up->to;
+								for (int k = 0; k < target_n; ++k) seen = seen || targets[k] == up->to;
 								if (!seen && target_n < 8) targets[target_n++] = up->to;
 							}
 							break;
 						}
 					}
-					for (int t = 0; t < target_n; ++t) {
-						const uint16_t to = targets[t];
+					if (!same || own.empty()) target_n = 0;
+					const auto &ps = sim->player(local_player());
+					for (int k = 0; k < target_n; ++k) {
+						const uint16_t to = targets[k];
 						const rtso::CivUnitUpgrade *row = nullptr;
-						String why = "Already upgrading";
-						for (int i = 0; i < selected_ids.size(); ++i) {
-							const rtso::Simulation::UpgradeCheck c = sim->unit_upgrade_check(local_player(), (uint32_t)selected_ids[i], to);
-							if (c == rtso::Simulation::UPGRADE_OK) { why = String(); break; }
-							if (c == rtso::Simulation::UPGRADE_ERR_COST) why = "\x01"; // needed resources, below
-							else if (c == rtso::Simulation::UPGRADE_ERR_PHASE) why = requires_text("City Phase");
-							else if (c == rtso::Simulation::UPGRADE_ERR_LIMIT) why = "Limit reached";
-						}
 						for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF && !row; ++up)
-							if (up->to == to) row = up;
-						String cost;
-						auto add_cost = [&](int v, const char *suffix) {
-							if (v <= 0) return;
-							if (!cost.is_empty()) cost += ",";
-							cost += String::num_int64(v) + suffix;
-						};
-						add_cost(row->food_cost, "f");
-						add_cost(row->wood_cost, "w");
-						add_cost(row->gold_cost, "g");
-						add_cost(row->stone_cost, "s");
-						Button *btn = memnew(Button);
-						btn->set_text(String("Upgrade to ") + String::utf8(rtso::civ_unit_template(to).name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+							if (up->from == tmpl0 && up->to == to) row = up;
+						if (!row) continue;
 						const rtso::CivUnitTemplate &tt = rtso::civ_unit_template(to);
-						const rtso::CostTip row_cost{row->food_cost, row->wood_cost, row->stone_cost, row->gold_cost, 0, (int64_t)std::ceil(row->time)};
-						String tip = rtso::entity_names(String::utf8(tt.name), String::utf8(tt.specific_name ? tt.specific_name : "")) +
-								"\n" + rtso::cost_tooltip(row_cost);
-						if (why == "\x01") why = needed_text(row_cost);
-						if (!why.is_empty()) {
-							tip += "\n" + owner_->tr(why);
-							btn->set_disabled(true);
+						// upgradingEntStates (to this target) and upgradableEntStates (not upgrading).
+						int upgrading = 0, upgradable = 0;
+						float progress = 0.0f;
+						rtso::Simulation::UpgradeCheck check = rtso::Simulation::UPGRADE_ERR_NONE;
+						for (uint32_t id : own) {
+							const rtso::Simulation::UnitUpgrade *uu = sim->unit_upgrade_of(id);
+							if (uu && uu->to == to) {
+								++upgrading;
+								progress = std::max(progress, uu->time > 0.0f ? uu->elapsed / uu->time : 1.0f);
+							} else if (!uu) {
+								++upgradable;
+								const rtso::Simulation::UpgradeCheck c = sim->unit_upgrade_check(local_player(), id, to);
+								if (check == rtso::Simulation::UPGRADE_ERR_NONE || c == rtso::Simulation::UPGRADE_OK) check = c;
+							}
 						}
-						btn->set_tooltip_text(tip);
-						btn->connect("pressed", Callable(owner_, "_on_unit_upgrade_pressed").bind((int)to));
-						production_bar_->add_child(btn);
-					}
-					if (any_upgrading) {
 						Button *btn = memnew(Button);
-						btn->set_text("Cancel upgrade");
-						btn->set_tooltip_text("Stop upgrading and get the resources back");
-						btn->connect("pressed", Callable(owner_, "_on_unit_upgrade_pressed").bind(-1));
+						btn->set_meta("label", String::utf8(tt.name));
+						btn->set_custom_minimum_size(Vector2(38, 38));
+						btn->set_focus_mode(Control::FOCUS_NONE);
+						TextureRect *icon = memnew(TextureRect);
+						icon->set_name("unitUpgradeIcon");
+						icon->set_position(Vector2(3, 3));
+						icon->set_size(Vector2(32, 32));
+						icon->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+						icon->set_stretch_mode(TextureRect::STRETCH_SCALE);
+						icon->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+						icon->set_texture(rtso::portraits::unit(to, tt.unit_type));
+						btn->add_child(icon);
+						auto grey = [&]() {
+							icon->set_material(grayscale_material());
+							icon->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
+						};
+						auto count_label = [&](int n) {
+							if (n < 2) return;
+							Label *cnt = memnew(Label);
+							cnt->set_name("unitUpgradeCount");
+							cnt->set_text(String::num_int64(n));
+							cnt->add_theme_font_size_override("font_size", 11);
+							cnt->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+							cnt->add_theme_constant_override("outline_size", 3);
+							cnt->set_position(Vector2(22, 20));
+							cnt->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+							btn->add_child(cnt);
+						};
+						String tip;
+						if (upgrading == 0 && upgradable > 0) {
+							// "Upgrade to a <specific> (<generic>).", the cost for the whole selection,
+							// requirements, the resources the upgradable ones lack, the right-click line.
+							const String specific = String::utf8(tt.specific_name ? tt.specific_name : "");
+							tip = specific.is_empty()
+									? rtso::sprintf0(rtso::tr0("Upgrade to a %(primaryName)s."), {{"primaryName", String::utf8(tt.name)}})
+									: rtso::sprintf0(rtso::tr0("Upgrade to a %(primaryName)s (%(secondaryName)s)."),
+											{{"primaryName", specific}, {"secondaryName", String::utf8(tt.name)}});
+							const int n_all = (int)own.size();
+							const rtso::CostTip all_cost{(int64_t)row->food_cost * n_all, (int64_t)row->wood_cost * n_all,
+									(int64_t)row->stone_cost * n_all, (int64_t)row->gold_cost * n_all, 0, (int64_t)std::ceil(row->time)};
+							const String cost_tip = rtso::cost_tooltip(all_cost);
+							if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
+							if (check == rtso::Simulation::UPGRADE_ERR_PHASE) tip += "\n" + requires_text("City Phase");
+							else if (check == rtso::Simulation::UPGRADE_ERR_LIMIT) tip += "\n" + owner_->tr("Limit reached");
+							const rtso::CostTip need_cost{(int64_t)row->food_cost * upgradable, (int64_t)row->wood_cost * upgradable,
+									(int64_t)row->stone_cost * upgradable, (int64_t)row->gold_cost * upgradable, 0, 0};
+							const String need = rtso::needed_resources_tooltip(need_cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+									ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD]);
+							if (!need.is_empty()) tip += "\n" + need;
+							tip += "\n" + right_click_tooltip();
+							if (check == rtso::Simulation::UPGRADE_ERR_PHASE || check == rtso::Simulation::UPGRADE_ERR_LIMIT) {
+								btn->set_disabled(true);
+								grey();
+							} else if (!need.is_empty()) {
+								btn->set_disabled(true);
+								ColorRect *mask = memnew(ColorRect);
+								mask->set_position(Vector2(3, 3));
+								mask->set_size(Vector2(32, 32));
+								mask->set_color(Color(0.8f, 0.0f, 0.0f, 0.45f));
+								mask->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+								btn->add_child(mask);
+							}
+							count_label(upgradable);
+							btn->connect("pressed", Callable(owner_, "_on_unit_upgrade_pressed").bind((int)to));
+						} else if (upgrading > 0) {
+							// "Cancel Upgrading" over the progress (unitUpgradeProgressSlider, the
+							// leading upgrade's share left, shrinking from the top).
+							tip = rtso::tr0("Cancel Upgrading");
+							count_label(upgrading);
+							const int left_px = (int)std::lround((1.0f - std::min(progress, 1.0f)) * 32.0f);
+							btn->set_meta("progress", left_px);
+							ColorRect *slider = memnew(ColorRect);
+							slider->set_name("unitUpgradeProgressSlider");
+							slider->set_position(Vector2(3, 3));
+							slider->set_size(Vector2(32, (float)left_px));
+							slider->set_color(Color(0.0f, 1.0f, 0.0f, 0.5f));
+							slider->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+							btn->add_child(slider);
+							btn->connect("pressed", Callable(owner_, "_on_unit_upgrade_pressed").bind(-1));
+						} else {
+							tip = own.size() > 1
+									? rtso::tr0("Cannot upgrade when all entities are training, researching or already upgrading.")
+									: rtso::tr0("Cannot upgrade when the entity is training, researching or already upgrading.");
+							btn->set_disabled(true);
+							grey();
+						}
+						on_right_click_details(btn, "unit", to, sim->player_civ(local_player()));
+						btn->set_tooltip_text(tip);
 						production_bar_->add_child(btn);
 					}
 				}
@@ -1195,6 +1271,7 @@ private:
 			return s;
 		}
 		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
+		if (b->has_meta("progress")) s += String("\x1fg") + String::num_int64((int64_t)b->get_meta("progress"));
 		Ref<Texture2D> ico = b->get_button_icon();
 		if (ico.is_valid()) s += String("\x1fi") + (ico->get_path().is_empty() ? String::num_int64(ico->get_instance_id()) : ico->get_path());
 		s += String("\x1fm") + String(Variant(b->get_custom_minimum_size()));
