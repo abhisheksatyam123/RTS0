@@ -519,7 +519,6 @@ void RtsoWorldView::_ready() {
 		return Ref<AudioStream>();
 	};
 
-	sfx_building_fire = load_s("res://assets/sounds/building/building_fire.ogg");
 
 	// Fog overlay: 0 A.D. model_common.fs multiplies every model by the LOS
 	// texture. Imported models keep their StandardMaterial3D, so a structure
@@ -944,7 +943,10 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 				"  float los = 1.0;\n"
 				"  if (los_map_half > 0.0) los = texture(los_tex, (wpos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r;\n"
 				"  ALBEDO = COLOR.rgb * mix(0.5, 1.0, los) * dash;\n"
-				"  ALPHA = max(core, glow) * smoothstep(0.02, 0.25, los);\n"
+				// CCmpTerritoryManager::Interpolate: a region cut off from its owner's
+				// civic centres (COLOR.a 0) blinks, alpha * (0.2 + 0.8 |cos(t pi)|).
+				"  float blink = mix(0.2 + 0.8 * abs(cos(TIME * PI)), 1.0, COLOR.a);\n"
+				"  ALPHA = max(core, glow) * smoothstep(0.02, 0.25, los) * blink;\n"
 				"}\n");
 		border_mat_.instantiate();
 		border_mat_->set_shader(sh);
@@ -965,12 +967,24 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	PackedColorArray cols;
 	PackedVector2Array uvs;
 	PackedInt32Array idx;
-	auto boundaries = rtso::compute_territory_boundaries(grid.data.data(), grid.w, grid.h);
+	// TERRITORY_BLINKING_MASK: cells of a region holding none of its owner's
+	// territory roots get their own outline, which blinks.
+	constexpr uint8_t kBlinking = 0x40;
+	std::vector<uint8_t> cells(grid.data.begin(), grid.data.end());
+	for (int j = 0; j < grid.h; ++j) {
+		for (int i = 0; i < grid.w; ++i) {
+			uint8_t &c = cells[(size_t)j * grid.w + i];
+			if (c && c < kBlinking && sim->territory_blinking_cell(i, j)) c |= kBlinking;
+		}
+	}
+	auto boundaries = rtso::compute_territory_boundaries(cells.data(), grid.w, grid.h);
 	for (auto &b : boundaries) {
 		if (b.points.size() < 3) continue;
 		rtso::smooth_points_average(b.points);
 		rtso::interpolate_points_rns(b.points, separation / cell);
-		const Color col = player_display_color(sim, (uint8_t)(b.owner - 1));
+		const bool blinking = (b.owner & kBlinking) != 0;
+		Color col = player_display_color(sim, (uint8_t)((b.owner & ~kBlinking) - 1));
+		col.a = blinking ? 0.0f : 1.0f;
 		const int n = (int)b.points.size();
 		const int base = verts.size();
 		float run = 0.0f;
@@ -3119,24 +3133,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			st.hp = b.hp;
 			st.max_hp = b.max_hp;
 			st.type = b.type;
-			st.fire_timer = ((float)(rand() % 100) / 100.0f) * 2.0f;
 			st.live = !b.miraged;
 			tracked_buildings[b.id] = st;
 		} else if (b.miraged) {
-			// A memory: no live hit points to crackle over.
+			// A memory: no live hit points.
 			bit->second.live = false;
 		} else {
 			bit->second.live = true;
 			bit->second.hp = b.hp;
 			bit->second.max_hp = b.max_hp;
-			bit->second.fire_timer += delta;
-
-			// If damaged below 50% HP, periodically trigger fire crackle acoustics
-			if (b.hp < b.max_hp * 0.5f && b.hp > 0.0f && bit->second.fire_timer >= 2.8f) {
-				bit->second.fire_timer = 0.0f;
-				float by = sim->get_terrain_height(b.x, b.z);
-				play_spatial_sound(sfx_building_fire, Vector3(b.x, by + 1.5f, b.z), -4.0f, 55.0f, 0.95f + ((float)(rand() % 15) / 100.0f));
-			}
+			// 0.28 plays no sound for a damaged structure: Health.js only switches its
+			// damage variant (template_structure DamageVariants).
 		}
 	}
 
