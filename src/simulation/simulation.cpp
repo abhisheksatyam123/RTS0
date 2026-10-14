@@ -4377,14 +4377,14 @@ void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, floa
 // CCmpPathfinder::DistributeAround: points on a spiral round (x, z), the first ring 1 m out and each
 // next 1.75 m further, 9/pi m (2.9 m) apart along a ring, then handed out so that no swap of two
 // units' points cuts their squared travel (in whole metres, rounded up as fixed ToInt_RoundToInfinity
-// does). Lengths are at the formation scale.
+// does). Lengths are at the crowd scale (PUSH_SCALE), which keeps 0.28's spacing for RTS0's bigger bodies.
 std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_t *unit_ids, size_t count, float x, float z) const {
 	std::vector<std::pair<float, float>> points;
 	points.reserve(count);
 	constexpr float kPi = 3.14159265f;
 	float angle = 0.0f, radius = 1.0f, step = 9.0f / (kPi * radius);
 	for (size_t i = 0; i < count; ++i) {
-		points.emplace_back(x + radius * std::cos(angle) * FORMATION_METRE, z - radius * std::sin(angle) * FORMATION_METRE);
+		points.emplace_back(x + radius * std::cos(angle) * PUSH_SCALE, z - radius * std::sin(angle) * PUSH_SCALE);
 		angle += step;
 		if (angle >= 2.0f * kPi) {
 			angle = 0.0f;
@@ -4399,8 +4399,8 @@ std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_
 		at[i] = {units_.pos_x[idx], units_.pos_z[idx]};
 	}
 	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
-		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / FORMATION_METRE);
-		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / FORMATION_METRE);
+		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
+		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
 		return dx * dx + dz * dz;
 	};
 	bool improved;
