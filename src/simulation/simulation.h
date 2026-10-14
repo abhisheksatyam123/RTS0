@@ -2011,6 +2011,7 @@ private:
 			float cost[RES_COUNT];
 			float cost_add[RES_COUNT]; // Cost/Resources added after the multipliers (Nastasen's Gift of Warships)
 			float loot_mul[RES_COUNT], loot_add[RES_COUNT]; // the unit's own Loot/<res> (Celtic Auxiliaries)
+			int16_t carry[RES_COUNT]; // ResourceGatherer/Capacities added (Wicker Baskets: Worker, infantry too)
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;

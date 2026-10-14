@@ -3496,6 +3496,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &c : tm.cost_add) c = 0.0f;
 		for (float &l : tm.loot_mul) l = 1.0f;
 		for (float &l : tm.loot_add) l = 0.0f;
+		for (int16_t &c : tm.carry) c = 0;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
@@ -3599,6 +3600,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_SPREAD: if (ranged) apply(tm.spread); break;
 					case TSTAT_CAPTURE_ATTACK: apply(tm.capture); break;
 					case TSTAT_REQUIRED_XP: apply(tm.required_xp); break;
+					case TSTAT_CARRY_FOOD: tm.carry[RES_FOOD] += (int16_t)e.value; break;
+					case TSTAT_CARRY_WOOD: tm.carry[RES_WOOD] += (int16_t)e.value; break;
+					case TSTAT_CARRY_STONE: tm.carry[RES_STONE] += (int16_t)e.value; break;
+					case TSTAT_CARRY_METAL: tm.carry[RES_GOLD] += (int16_t)e.value; break;
 					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
 						if (!ranged) apply_damage(tm.atk_mul[e.stat - TSTAT_MELEE_HACK], tm.atk_add[e.stat - TSTAT_MELEE_HACK]);
 						break;
@@ -3870,6 +3875,8 @@ void Simulation::refresh_tech_mods(uint8_t player_id) {
 int32_t Simulation::carry_cap(size_t i, uint8_t res) const {
 	uint8_t team = units_.team[i], t = units_.unit_type[i];
 	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT || res >= RES_COUNT) return units_.carry_capacity[i];
+	// A roster unit's techs match its template's own classes (citizen infantry are Workers in 0.28).
+	if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT) return units_.carry_capacity[i] + tech_mods_[team].tmpl[units_.tmpl[i]].carry[res];
 	return units_.carry_capacity[i] + tech_mods_[team].carry[t][res];
 }
 
@@ -10024,7 +10031,9 @@ void Simulation::tick_gather(float dt) {
 					continue;
 				}
 				fg.slots_taken++;
-				field_efficiency = field_gather_efficiency(std::min(fg.total, FIELD_MAX_GATHERERS));
+				// StartGathering takes the rate before AddActiveGatherer, and APPROACHING.leave has
+				// already removed this farmer: the diminishing returns count the others only.
+				field_efficiency = field_gather_efficiency(std::min(fg.total, FIELD_MAX_GATHERERS) - 1);
 			}
 			float dx = units_.pos_x[i] - resources_.x[ridx];
 			float dz = units_.pos_z[i] - resources_.z[ridx];
