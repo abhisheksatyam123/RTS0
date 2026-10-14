@@ -1168,7 +1168,7 @@ void RtsoMain::_process(double delta) {
 			std::vector<rtso::Simulation::WallPiece> pieces;
 			uint32_t start_tower = 0, end_tower = 0;
 			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
-			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
+			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind, sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_COUNT);
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
@@ -1182,6 +1182,10 @@ void RtsoMain::_process(double delta) {
 			uint8_t pciv = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
 			// Pieces of this wall don't block each other; the towers it snaps onto don't block it.
 			const uint32_t snapped[2] = {start_tower, end_tower};
+			// GuiInterface.js SetWallPlacementPreview: from the first piece that can't go down (or
+			// can't be paid for, as cmd_build_wall stops there too) on, every piece is invalid.
+			bool chain_ok = true;
+			float spent[rtso::RES_COUNT] = {};
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
 				MeshInstance3D *g = wall_ghosts[i];
@@ -1206,7 +1210,17 @@ void RtsoMain::_process(double delta) {
 					g->set_global_position(Vector3(p.x, h + 0.05f, p.z));
 				}
 				g->set_rotation(Vector3(0.0f, p.rot - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
-				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+				if (chain_ok && sim) {
+					float c[rtso::RES_COUNT];
+					sim->wall_piece_cost(local_player(), p, c);
+					const auto &ps = sim->player(local_player());
+					for (int r = 0; r < rtso::RES_COUNT; ++r) {
+						spent[r] += c[r];
+						chain_ok = chain_ok && spent[r] <= ps.res[r] + 1e-3f;
+					}
+					chain_ok = chain_ok && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+				}
+				const bool ok = sim && chain_ok;
 				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
 				g->set_visible(true);
 			}
