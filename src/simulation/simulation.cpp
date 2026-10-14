@@ -159,9 +159,14 @@ struct ScopedUs {
 	}
 };
 constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m map)
-// 0 A.D. Builder.GetRange: max ≈ 2 + unit obstruction. Stand on the AABB edge, never inside.
-constexpr float kBuildStandOff = 0.80f;
+// 0 A.D. Builder.GetRange: max ≈ 2 + unit obstruction.
 constexpr float kBuildReach = 2.20f;
+// An attacker's stand point beside a structure (it stops once within reach on its way there).
+constexpr float kBuildStandOff = 0.80f;
+// A builder's or a garrisoning unit's stand point lies this far outside its building clearance:
+// as close as it can stand, so the walk always gets within the task's range (0 A.D. UnitMotion
+// moves to the range itself, which reaches past the unit's clearance), and the walk ends there.
+constexpr float kStandMargin = 0.05f;
 
 // The save version that added UnitAI orders (tick_state_io section 4).
 static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
@@ -211,9 +216,9 @@ static constexpr uint32_t SAVE_VERSION_PLAYER_POP_CAP = 68;
 // Each structure's focus-fire targets (BuildingAI focusTargets).
 static constexpr uint32_t SAVE_VERSION_FOCUS_FIRE = 68;
 
-// Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
+// Stand `off` outside the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
-		float from_x, float from_z, float *ox, float *oz) {
+		float from_x, float from_z, float off, float *ox, float *oz) {
 	float minx = bx - hx, maxx = bx + hx;
 	float minz = bz - hz, maxz = bz + hz;
 	float spread = ((int)(uid % 5) - 2) * 0.55f;
@@ -221,28 +226,28 @@ static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t 
 	if (!inside) {
 		if (std::abs(from_x - std::clamp(from_x, minx, maxx)) >=
 				std::abs(from_z - std::clamp(from_z, minz, maxz))) {
-			*ox = (from_x < bx) ? (minx - kBuildStandOff) : (maxx + kBuildStandOff);
+			*ox = (from_x < bx) ? (minx - off) : (maxx + off);
 			*oz = std::clamp(from_z + spread, minz, maxz);
 		} else {
 			*ox = std::clamp(from_x + spread, minx, maxx);
-			*oz = (from_z < bz) ? (minz - kBuildStandOff) : (maxz + kBuildStandOff);
+			*oz = (from_z < bz) ? (minz - off) : (maxz + off);
 		}
 		return;
 	}
 	float dl = from_x - minx, dr = maxx - from_x, db = from_z - minz, dt = maxz - from_z;
 	float m = std::min({dl, dr, db, dt});
 	if (m == dl) {
-		*ox = minx - kBuildStandOff;
+		*ox = minx - off;
 		*oz = std::clamp(from_z + spread, minz, maxz);
 	} else if (m == dr) {
-		*ox = maxx + kBuildStandOff;
+		*ox = maxx + off;
 		*oz = std::clamp(from_z + spread, minz, maxz);
 	} else if (m == db) {
 		*ox = std::clamp(from_x + spread, minx, maxx);
-		*oz = minz - kBuildStandOff;
+		*oz = minz - off;
 	} else {
 		*ox = std::clamp(from_x + spread, minx, maxx);
-		*oz = maxz + kBuildStandOff;
+		*oz = maxz + off;
 	}
 }
 
@@ -273,11 +278,12 @@ static bool outside_and_in_build_range(float bx, float bz, float hx, float hz, f
 
 // The two above in a building's own frame, so a turned footprint (nav/footprint.h) gets the same
 // stand points and reach as an unturned one.
-static void stand_outside(const Simulation::Building &b, uint32_t uid, float from_x, float from_z, float *ox, float *oz) {
-	if (nav::footprint_aligned(b)) return stand_outside_rect(b.x, b.z, b.hu, b.hv, uid, from_x, from_z, ox, oz);
+static void stand_outside(const Simulation::Building &b, uint32_t uid, float from_x, float from_z, float *ox, float *oz,
+		float off = kBuildStandOff) {
+	if (nav::footprint_aligned(b)) return stand_outside_rect(b.x, b.z, b.hu, b.hv, uid, from_x, from_z, off, ox, oz);
 	const nav::Vec2 l = nav::footprint_local(b, from_x, from_z);
 	float lu, lv;
-	stand_outside_rect(0.0f, 0.0f, b.hu, b.hv, uid, l.x, l.y, &lu, &lv);
+	stand_outside_rect(0.0f, 0.0f, b.hu, b.hv, uid, l.x, l.y, off, &lu, &lv);
 	const nav::Vec2 w = nav::footprint_world(b, lu, lv);
 	*ox = w.x;
 	*oz = w.y;
@@ -4720,7 +4726,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 
 		stand_outside(b, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
-				&units_.target_x[uidx], &units_.target_z[uidx]);
+				&units_.target_x[uidx], &units_.target_z[uidx], unit_clearance_at((size_t)uidx) + kStandMargin);
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_BUILD;
 		units_.target_building_id[uidx] = building_id;
@@ -6282,9 +6288,14 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 			if (structure_has_enough_health(b)) garrison_now((size_t)uidx, b);
 			continue;
 		}
+		// MoveToTargetRange: towards the side of the structure the unit comes from, as close as it
+		// can stand (a walk to its centre would end on whichever side the centre is pushed out to).
+		float sx, sz;
+		stand_outside(b, unit_ids[i], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz,
+				unit_clearance_at((size_t)uidx) + kStandMargin);
 		const bool was = applying_queued_;
 		applying_queued_ = true; // keep the unit's queue: this is the garrison order, not a walk
-		cmd_move(&unit_ids[i], 1, b.x, b.z);
+		cmd_move(&unit_ids[i], 1, sx, sz);
 		applying_queued_ = was;
 		set_order((size_t)uidx, ORDER_GARRISON, ORDER_FLAG_FORCE, building_id, b.x, b.z);
 	}
@@ -8416,7 +8427,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				const Building &bb = buildings_[bit->second];
 				if (!bb.wrecked && bb.hp > 0.0f) {
 					stand_outside(bb, units_.id[i],
-							px[i], pz[i], &tx[i], &tz[i]);
+							px[i], pz[i], &tx[i], &tz[i], unit_clearance_at(i) + kStandMargin);
 					has[i] = 1;
 				}
 			}
@@ -8606,6 +8617,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
 			}
+		} else if ((units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0) ||
+				(units_.action_state[i] == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON)) {
+			// UnitMotion MoveToTargetRange for a builder (REPAIR.APPROACHING) and a unit on its way
+			// into a structure (GARRISON.APPROACHING): the walk ends once the structure is within the
+			// task's range, and until then goes right up to its stand point, as close as the unit can
+			// stand, so it gets within any range past its clearance.
+			at_building = walk_in_reach(i, px[i], pz[i]);
+			if (!at_building) stop_dist = ARRIVE_DIST * 0.25f;
 		}
 		if (at_building) {
 			d2 = 0.0f; // in reach: stop here
@@ -13865,6 +13884,7 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		const uint32_t f = find_nearby_foundation(b.x, b.z, b.team);
 		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
 		set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
+		units_.has_order[k] = 0; // FinishOrder: it stays where it built from, in range
 	}
 }
 
@@ -23325,11 +23345,17 @@ void Simulation::petra_manage_victory(float dt) {
 	if (has_victory(VK_WONDER) || has_victory(VK_REGICIDE) || has_victory(VK_RELIC)) petra_manage_critical_ent_guards();
 
 	if (has_victory(VK_REGICIDE)) {
-		// A hero back above high health fights again.
+		// A Soldier hero back above high health fights again; any other hero
+		// (a healer hero) stays passive, its stance from init().
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!petra_is_critical_ent(i) || units_.stance[i] == STANCE_AGGRESSIVE) continue;
-			if (units_.max_hp[i] > 0.0f && units_.hp[i] / units_.max_hp[i] <= petra_config_.garrison_hp_high) continue;
+			if (!petra_is_critical_ent(i)) continue;
 			const uint32_t uid = units_.id[i];
+			if (!(unit_classes_at(i) & TC_SOLDIER)) {
+				if (units_.stance[i] != STANCE_PASSIVE) order_set_stance(&uid, 1, STANCE_PASSIVE);
+				continue;
+			}
+			if (units_.stance[i] == STANCE_AGGRESSIVE) continue;
+			if (units_.max_hp[i] > 0.0f && units_.hp[i] / units_.max_hp[i] <= petra_config_.garrison_hp_high) continue;
 			order_set_stance(&uid, 1, STANCE_AGGRESSIVE);
 		}
 		petra_manage_critical_ent_healers();
@@ -23497,10 +23523,10 @@ void Simulation::petra_manage_critical_ent_healers() {
 }
 
 // victoryManager.js update / captureGaiaRelic: go for a Gaia relic in our
-// territory, or one our units can see outside enemy territory, one new
-// relic per update; send the nearest units that can capture it until they beat its regen.
+// territory (then no other new one this update), or any our units can see
+// outside enemy territory; send the nearest units that can capture it until they beat its regen.
 void Simulation::petra_capture_gaia_relics() {
-	bool started = false;
+	bool own_started = false; // a new relic in our territory ends the search for new ones
 	for (const auto &rel : relics_) {
 		const int32_t r = lookup_unit(rel.id);
 		if (!is_relic_unit(r)) continue;
@@ -23530,9 +23556,10 @@ void Simulation::petra_capture_gaia_relics() {
 				capture += unit_capture_attack_at(i);
 		if (capture > RELIC_CAPTURE_POINTS / 50.0f) continue; // enough on the way
 		if (capture <= -(float)RELIC_REGEN_RATE) { // not targeted yet
-			if (started) continue;
+			if (own_started) continue;
 			const int terr = territory_owner_at(rel.x, rel.z);
 			bool go = terr == (int)petra_pid_;
+			own_started = go;
 			if (!go && (terr < 0 || !is_hostile(petra_pid_, (uint8_t)terr))) {
 				for (size_t i = 0; i < units_.count && !go; ++i) {
 					if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
@@ -23542,8 +23569,8 @@ void Simulation::petra_capture_gaia_relics() {
 				}
 			}
 			if (!go) continue;
-			started = true;
 		}
+		const bool fresh = capture <= -(float)RELIC_REGEN_RATE;
 		auto [rx, rz] = nav_grid_.world_to_cell(rel.x, rel.z);
 		const uint16_t land = nav_grid_.global_region_at(rx, rz, PASS_INFANTRY);
 		std::vector<std::pair<float, uint32_t>> near;
@@ -23564,6 +23591,8 @@ void Simulation::petra_capture_gaia_relics() {
 			capture += unit_capture_attack_at((size_t)lookup_unit(near[k].second));
 			expedition.push_back(near[k].second);
 		}
+		// A new expedition too weak to out-capture a hundredth of the points stays home.
+		if (expedition.empty() || (fresh && capture < RELIC_CAPTURE_POINTS / 100.0f)) continue;
 		order_capture_relic(expedition.data(), expedition.size(), rel.id);
 	}
 }
@@ -23590,6 +23619,13 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	if (petra_diplo_timer_ < 8.0f) return;
 	petra_diplo_timer_ = 0.0f;
 	const uint8_t me = petra_pid_;
+
+	// checkEvents PlayerDefeated: a defeated player's requests, received and sent, are dropped.
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if (p != me && is_defeated(p)) {
+			dip.received[p] = PetraReceivedRequest{};
+			petra_sent_diplo_.sent_type[p] = 0;
+		}
 
 	// checkEvents TributeExchanged: a tribute of the asked resource and amount
 	// from a player we are waiting on seals the requested stance.
@@ -23629,6 +23665,13 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	// checkEvents DiplomacyChanged / init: another player's stance toward us
 	// changed. Allying with us or going neutral is a request we answer; RTS0
 	// also answers a declaration of war in kind, so our units fight back.
+	// init: a mutual ally (a teammate too) at the start counts as an accepted alliance.
+	if (!dip.seen_init)
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+			if (p != me && is_ally(me, p) && (players_[p].active || ((participant_mask_ >> p) & 1))) {
+				dip.received[p] = PetraReceivedRequest{};
+				dip.received[p].status = PetraReceivedRequest::ACCEPTED;
+			}
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		if (p == me || players_[p].team == players_[me].team) continue;
 		const uint8_t theirs = get_diplomacy(p, me);
@@ -23910,10 +23953,13 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 		petra_say(PETRA_CHAT_ANSWER_ACCEPT, player, player, type);
 		return;
 	}
-	// Accept for a tribute of the resource we are shortest of.
+	// Accept for a tribute of pickMostNeededResources()[0]: what our queues are
+	// furthest short of.
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
 	uint8_t need = RES_FOOD;
-	for (uint8_t r = 0; r < RES_COUNT; ++r)
-		if (petra_ps().res[r] < petra_ps().res[need]) need = r;
+	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD})
+		if (demand[r] - petra_ps().res[r] > demand[need] - petra_ps().res[need]) need = r;
 	int own_units = 0;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == me) ++own_units;
