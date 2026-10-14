@@ -23579,7 +23579,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 
 	// tributes(), every 30 s: help allies that are short of a resource we have
 	// plenty of. We give when we are the stronger one, or always under allied
-	// victory, and never a resource our own queues are short of; none while saving resources.
+	// victory; none while saving resources.
 	if (dip.elapsed < dip.next_tribute || petra_attack_mgr_.save_resources) return;
 	dip.next_tribute = dip.elapsed + 30.0f;
 	float available[RES_COUNT];
@@ -23590,11 +23590,10 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		available[RES_GOLD] -= acc.gold;
 		available[RES_STONE] -= acc.stone;
 	}
-	// pickMostNeededResources: our two scarcest resources stay home.
-	uint8_t order[RES_COUNT] = { 0, 1, 2, 3 };
-	std::sort(order, order + RES_COUNT, [&](uint8_t x, uint8_t y) {
-		return available[x] != available[y] ? available[x] < available[y] : x < y;
-	});
+	// pickMostNeededResources(...).wanted > 0: a resource our queues still want
+	// gathered (what their plans cost over what we have); only those are asked for.
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
 	const int own_entities = petra_player_entities(me);
 	const int own_pop = pop_current(me);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -23604,8 +23603,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		bool any = false;
 		for (uint8_t r = 0; r < RES_COUNT; ++r) {
 			const float ally = players_[p].res[r];
-			const bool needed = r == order[0] || r == order[1];
-			if (donor && !needed && available[r] >= 200.0f && ally < 0.2f * available[r]) {
+			const bool needed = demand[r] > petra_ps().res[r];
+			if (donor && available[r] > 200.0f && ally < 0.2f * available[r]) {
 				amounts[r] = std::max(0, (int)std::floor(0.3f * available[r] - ally));
 				any |= amounts[r] > 0;
 			} else if (donor && (float)pop_current(p) < std::min(30.0f, 0.5f * (float)own_pop) &&
@@ -23753,8 +23752,9 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 
 void Simulation::petra_last_man_standing_check() {
 	// diplomacyManager.js lastManStandingCheck: once no enemy is left, turn
-	// against the strongest remaining ally or neutral player. Teammates are
-	// locked (RTS0 teams always are), and nothing happens during a ceasefire.
+	// against the strongest remaining ally or neutral player, teammates
+	// included (unlocked teams only set the starting alliances). Nothing
+	// happens with teams locked or during a ceasefire.
 	PetraDiplomacy &dip = petra_diplo_;
 	const uint8_t me = petra_pid_;
 	if (ceasefire_active() || teams_locked()) return;
@@ -23763,7 +23763,7 @@ void Simulation::petra_last_man_standing_check() {
 		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
 		if (is_ally(me, p)) has_allies = true;
 		if (is_hostile(me, p)) has_enemies = true;
-		else if (players_[p].team != players_[me].team) has_others = true;
+		else has_others = true; // hasAllies() || hasNeutrals()
 	}
 	if (!last_man_standing() && has_allies) return; // allied victory: our allies win with us
 	if (has_enemies || !has_others) {
@@ -23788,9 +23788,15 @@ void Simulation::petra_last_man_standing_check() {
 	int target = -1, best = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
-		if (players_[p].team == players_[me].team) continue;
 		int factor = petra_player_entities(p);
 		if (get_diplomacy(me, p) == DIPLO_NEUTRAL) factor += 150; // turn on neutrals first (betrayWeighting)
+		if (has_victory(VK_WONDER)) { // a finished wonder: that player at once; a rising one weighs its progress
+			const Building *w = nullptr;
+			for (const auto &b : buildings_)
+				if (b.team == p && b.type == BLD_WONDER && !b.wrecked && b.hp > 0.0f) { w = &b; break; }
+			if (w && w->build_progress >= 1.0f) { target = p; break; }
+			if (w) factor += (int)(w->build_progress * 100.0f * 2.5f) + 150;
+		}
 		if (has_victory(VK_RELIC)) // and on whoever holds relics
 			for (const Relic &r : relics_)
 				if (r.claimed && r.owner_team == p) factor += 150;
