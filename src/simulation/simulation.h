@@ -167,8 +167,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 76; // save_state's format; see the history beside it
-	static constexpr uint32_t SAVE_VERSION_HEADING = 76; // each unit's heading (Position rotation, turned at TurnRate)
+	static constexpr uint32_t SAVE_VERSION = 77; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
