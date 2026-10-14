@@ -710,14 +710,30 @@ void Simulation::filter_owned_units(uint8_t player, const uint32_t *unit_ids, si
 		if (owns_unit(player, unit_ids[i])) out.push_back(unit_ids[i]);
 }
 
+// GuiInterface FindIdleUnits with session.js g_WorkerTypes (Civilian, Trader, FishingBoat,
+// Citizen): the idle units the idle-worker button counts. Units on a turret are not idle
+// (IdleUnitFilter skips garrisoned ones).
 std::vector<uint32_t> Simulation::get_idle_workers(uint8_t team) const {
+	constexpr TechClasses kWorkerTypes = TC_CIVILIAN | TC_TRADER | TC_FISHINGBOAT | TC_CITIZEN;
 	std::vector<uint32_t> idle;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.alive[i] && units_.team[i] == team &&
-			units_.unit_type[i] == UNIT_VILLAGER &&
-			units_.action_state[i] == ACTION_IDLE) {
-			idle.push_back(units_.id[i]);
-		}
+		if (!units_.alive[i] || units_.team[i] != team || units_.action_state[i] != ACTION_IDLE) continue;
+		if (!(unit_classes(units_.tmpl[i], units_.unit_type[i]) & kWorkerTypes)) continue;
+		if (turret_holder_of(units_.id[i])) continue;
+		idle.push_back(units_.id[i]);
+	}
+	return idle;
+}
+
+// Petra's idle support workers (its civ's civilians, or RTS0's villager), the ones it sends
+// to a new foundation.
+std::vector<uint32_t> Simulation::petra_idle_builders() const {
+	std::vector<uint32_t> idle;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_IDLE) continue;
+		if (unit_gather_class(units_.unit_type[i], units_.tmpl[i]) != GATHER_SUPPORT) continue;
+		if (turret_holder_of(units_.id[i])) continue;
+		idle.push_back(units_.id[i]);
 	}
 	return idle;
 }
@@ -18394,7 +18410,7 @@ void Simulation::petra_manage_naval(float dt) {
 				if (!petra_find_dock_position(land, sea, cx, cz)) break;
 				if (!petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
 				const uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
-				auto idle = get_idle_workers(petra_pid_);
+				auto idle = petra_idle_builders();
 				if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
 			}
 		}
@@ -18436,7 +18452,7 @@ void Simulation::petra_manage_naval(float dt) {
 							placed = true;
 							if (!petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_SUPER_DOCK)) break;
 							const uint32_t bid = spawn_building(cx, cz, BLD_SUPER_DOCK, petra_pid_, 0.0f);
-							auto idle = get_idle_workers(petra_pid_);
+							auto idle = petra_idle_builders();
 							if (bid && !idle.empty()) petra_order_builders(idle, 4, bid);
 						}
 			}
@@ -18710,7 +18726,7 @@ void Simulation::petra_manage_buildings(float dt) {
 			if (n_barracks + n_ranges == 0 && want != BLD_STABLE)
 				petra_change_priority(PETRA_Q_MILITARY_BUILDING, 2 * petra_queue_base_priority(PETRA_Q_MILITARY_BUILDING), PETRA_Q_MILITARY_BUILDING);
 			if (const uint32_t bid = petra_place_generic(want, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, true)) { // militaryBase
-				auto idle = get_idle_workers(petra_pid_);
+				auto idle = petra_idle_builders();
 				if (!idle.empty()) petra_order_builders(idle, 3, bid);
 			}
 		}
@@ -18761,7 +18777,7 @@ void Simulation::petra_build_advanced() {
 	auto build = [&](uint8_t t) {
 		const uint32_t bid = petra_place_generic(t, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, true); // militaryBase
 		if (!bid) return;
-		auto idle = get_idle_workers(petra_pid_);
+		auto idle = petra_idle_builders();
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
 	};
 	// canBuild (the civ's 0 A.D. Builder lists); the elephant stable and arsenal
@@ -19072,7 +19088,7 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 	petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(BLD_STOREHOUSE);
 	const uint32_t bid = spawn_building(best_cx, best_cz, BLD_STOREHOUSE, petra_pid_, 0.0f);
 	if (bid) {
-		auto idle = get_idle_workers(petra_pid_);
+		auto idle = petra_idle_builders();
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
 	}
 	return bid;
@@ -19092,7 +19108,7 @@ void Simulation::petra_build_farmstead() {
 	    triggers_.building_disabled(petra_pid_, BLD_FARMSTEAD)) return;
 	const uint32_t bid = petra_place_generic(BLD_FARMSTEAD, PETRA_Q_ECONOMIC_BUILDING);
 	if (bid) {
-		auto idle = get_idle_workers(petra_pid_);
+		auto idle = petra_idle_builders();
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
 	}
 }
@@ -19171,7 +19187,7 @@ bool Simulation::petra_build_new_base(int res) {
 	uint16_t home_land = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(home_land);
 	const bool overseas = topo.naval_map && petra_land_at(x, z) != home_land;
-	auto idle = get_idle_workers(petra_pid_);
+	auto idle = petra_idle_builders();
 	if (!idle.empty() && !overseas) petra_order_builders(idle, 4, bid);
 	return bid != 0;
 }
@@ -19520,7 +19536,7 @@ void Simulation::petra_build_defenses() {
 			if (!has_fortress && home) bid = petra_place_building(BLD_FORTRESS, home->x, home->z, 4, 12, PETRA_Q_DEFENSE_BUILDING);
 		}
 		if (bid) {
-			auto idle = get_idle_workers(petra_pid_);
+			auto idle = petra_idle_builders();
 			if (!idle.empty()) petra_order_builders(idle, btype == BLD_FORTRESS ? 4 : 2, bid);
 		}
 		return;
@@ -23485,7 +23501,7 @@ void Simulation::petra_manage_victory(float dt) {
 		if (wonder_id == 0) {
 			uint32_t bid = petra_place_generic(BLD_WONDER, PETRA_Q_WONDER);
 			if (bid != 0) {
-				auto builders = get_idle_workers(petra_pid_);
+				auto builders = petra_idle_builders();
 				if (builders.size() < 4) {
 					for (size_t i = 0; i < units_.count && builders.size() < 8; ++i) {
 						if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_gather_class(units_.unit_type[i], units_.tmpl[i]) == GATHER_SUPPORT)
@@ -23497,7 +23513,7 @@ void Simulation::petra_manage_victory(float dt) {
 				}
 			}
 		} else if (!complete) {
-			auto builders = get_idle_workers(petra_pid_);
+			auto builders = petra_idle_builders();
 			if (!builders.empty()) {
 				petra_order_builders(builders, 8, wonder_id);
 			}

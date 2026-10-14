@@ -7,6 +7,7 @@
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include "simulation/petra_chat.h"
+#include "simulation/rms_generator.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -4539,9 +4540,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
-		// The map's own roster template when RTS0 has it ("spart/infantry_javelineer_b").
-		const uint16_t tmpl = u.has("template")
-				? rtso::civ_unit_template_by_id(String(u["template"]).utf8().get_data()) : rtso::CIV_UNIT_TEMPLATE_NONE;
+		// The map's own roster template when RTS0 has it ("spart/infantry_javelineer_b"); a
+		// skirmish map's skirmish/units/* becomes the owner's civ unit, or nothing.
+		uint16_t tmpl = rtso::CIV_UNIT_TEMPLATE_NONE;
+		if (u.has("template")) {
+			const CharString t = String(u["template"]).utf8();
+			const int replaced = rtso::skirmish_replace(sim->team_civ(team), t.get_data(), tmpl);
+			if (replaced < 0) continue;
+			if (!replaced) tmpl = rtso::civ_unit_template_by_id(t.get_data());
+		}
 		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
 			unit_ids[i] = sim->spawn_unit(ux, uz, team, (rtso::UnitType)rtso::civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
 			continue;

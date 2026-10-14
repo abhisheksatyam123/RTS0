@@ -3,7 +3,9 @@ extends SceneTree
 #   1. GameDescription.js: the settings as getGameDescription words them,
 #      following a change (Regicide) without anything else being touched;
 #   2. ResetCivsButton.js / ResetTeamsButton.js: every civ back to Random and
-#      every team back to None; neither shows on a scenario.
+#      every team back to None; neither shows on a scenario;
+#   3. TipsPanel.js: single player shows the newcomer tip under the slots until its
+#      tick box is cleared (gui.gamesetup.enabletips); cleared, the next page has none.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_setup_panels.gd
 # Exit code 0 = pass.
@@ -60,5 +62,26 @@ func run() -> void:
 		page._on_map_type_selected(2)
 		await frames(2)
 		check(not page._is_scenario() or (not civs.visible and not teams.visible), "a scenario hides them")
+
+	print("3. Tips")
+	var cfg := RtsoUserConfig.new()
+	var keep_tips: String = cfg.get_value("gui.gamesetup.enabletips")
+	cfg.set_value("gui.gamesetup.enabletips", "true")
+	change_scene_to_file("res://scenes/menu/gamesetup.tscn")
+	await frames(12)
+	page = current_scene
+	var tips: Control = page.get_node_or_null("VBox/HBox/Right/SPTips")
+	check(tips != null and tips.visible and tips.find_child("AITips", true, false).text.begins_with("Although reasonably easy"),
+		"the newcomer tip shows in single player")
+	if tips:
+		var tick: CheckBox = tips.find_child("DisplaySPTips", true, false)
+		tick.button_pressed = false
+		await frames(1)
+		check(not cfg.get_bool("gui.gamesetup.enabletips"), "clearing the tick box turns the tips off")
+	change_scene_to_file("res://scenes/menu/gamesetup.tscn")
+	await frames(12)
+	check(current_scene.get_node_or_null("VBox/HBox/Right/SPTips") == null, "and the next Game Setup has none")
+	cfg.set_value("gui.gamesetup.enabletips", keep_tips)
+	cfg.save()
 	print("PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)
