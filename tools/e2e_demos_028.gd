@@ -13,7 +13,7 @@ const MAPS := [
 	"road_demo", "sandbox_germans", "sandbox_ptolemies_02", "ship_formations", "shipattacks",
 	"territory_demo", "test_foundation", "tropical_island", "walls", "we_are_legion",
 	"units_demo", "combat_demo_huge", "vertex_pathfinder_test", "triggers_demo",
-	"pickup_test_map",
+	"pickup_test_map", "unit_chasing_test", "unit_dancing_test",
 ]
 
 var failures := 0

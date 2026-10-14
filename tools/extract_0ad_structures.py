@@ -141,6 +141,9 @@ ZIP_ALIASES = {
     "trading_post": "s_persians_market",
     "inn": "s_persians_alt_building_04", "pers_inn": "s_persians_alt_building_04",
     "tent": "s_romans_rome_tent", "rome_tent": "s_romans_rome_tent",
+    # The Germans' Cerannus totem is their Revered Monument; their wallset is wooden.
+    "germ_monument": "s_germans_cult_statue",
+    "germ_gate": "s_germans_wooden_wall_gate", "germ_wall_segment": "s_germans_wooden_wall_long",
 }
 
 # Generic models with no GLB yet: model id -> template under structures/.

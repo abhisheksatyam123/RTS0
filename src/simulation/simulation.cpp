@@ -2911,8 +2911,9 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
-	// A shrine trains units/{native}/support_healer_e: its own civ's, whoever holds it.
-	if (t.civ != (b.type == BLD_SHRINE ? b.civ : ps.civ)) return false;
+	// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies) train the
+	// structure's own civ's units, whoever holds it.
+	if (t.civ != (building_trains_native(b.type) ? b.civ : ps.civ)) return false;
 	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
@@ -3883,6 +3884,31 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			m.bld_research_time[b] *= 0.01f;
 		}
 	}
+	script_modifiers(player_id, m);
+}
+
+uint16_t Simulation::unit_test_script() const {
+	for (const TriggerRegistration &r : triggers_.triggers)
+		if (r.event == TRIGGER_ON_INIT_GAME && (r.action == TRIGGER_ACTION_UNIT_CHASING || r.action == TRIGGER_ACTION_UNIT_DANCING))
+			return r.action;
+	return 0;
+}
+
+void Simulation::script_modifiers(uint8_t player_id, TechMods &m) const {
+	const uint16_t script = unit_test_script();
+	if (!script || player_id > 1) return;
+	auto each = [&](auto &&f) {
+		for (int t = 0; t < UNIT_TYPE_COUNT; ++t) f(m.vision[t], m.vision_add[t], m.spread[t], m.required_xp[t]);
+		for (auto &tm : m.tmpl) f(tm.vision, tm.vision_add, tm.spread, tm.required_xp);
+	};
+	// "Prevent promotions, messes up things": Promotion/RequiredXp replaced by 50000 for both
+	// players (here a thousandfold, past any XP these tests give).
+	each([](float &, float &, float &, float &xp) { xp *= 1000.0f; });
+	if (script != TRIGGER_ACTION_UNIT_DANCING) return;
+	// "Reduce player 1 vision range (or patrolling units react)": Vision/Range replaced by 5 m.
+	if (player_id == 0) each([](float &v, float &add, float &, float &) { v = 0.0f; add = 5.0f; });
+	// RemoveSpread: player 2's Attack/Ranged/Projectile/Spread replaced by 0 for the second run.
+	if (player_id == 1 && triggers_.vars[0]) each([](float &, float &, float &spread, float &) { spread = 0.0f; });
 }
 
 // Bit g of masks[p]: relic_global_auras() row g reaches player p, from an owned relic or a
@@ -6290,7 +6316,7 @@ int Simulation::siege_tower_arrows(size_t i) const {
 // added, then rounded) + round(garrisoned GarrisonArrowClasses units x
 // GarrisonArrowMultiplier), at most MaxArrowCount; a garrisoned Caros multiplies both.
 int Simulation::building_arrow_count(const Building &b) const {
-	const BuildingAIInfo &ai = building_ai_info(b.type);
+	const BuildingAIInfo ai = civ_building_ai_info(b.civ, b.type);
 	if (b.team >= MAX_PLAYERS && b.team != GAIA_PLAYER) return 0;
 	float def = (float)ai.default_arrows;
 	if (b.team < MAX_PLAYERS) {
@@ -10855,7 +10881,7 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 		auto bit = building_id_to_idx_.find(building_ids[k]);
 		if (bit == building_id_to_idx_.end()) continue;
 		Building &b = buildings_[bit->second];
-		const BuildingAIInfo &ai = building_ai_info(b.type);
+		const BuildingAIInfo ai = civ_building_ai_info(b.civ, b.type);
 		if (b.team != player || !ai.shoots() || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 		const float max_r = building_arrow_range(b);
 		const float tech_min = tech_mods(b.team).bld_min_range[b.type];
@@ -10997,10 +11023,15 @@ void Simulation::tick_combat(float dt) {
 	// Dangerous animals (UnitAI IsDangerousAnimal) are targets too; there are few.
 	std::vector<uint16_t> &wild = combat_wild_scratch_;
 	wild.clear();
-	for (size_t f = 0; f < fauna_.count; ++f)
-		if (fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED &&
-				fauna_type_info(fauna_.fauna_type[f]).is_dangerous())
-			wild.push_back((uint16_t)f);
+	// A player's livestock draws its enemies' structure arrows (BuildingAI's enemy query
+	// takes every entity with Resistance; IsDangerousAnimal filters only Gaia's).
+	std::vector<uint16_t> &herd = combat_herd_scratch_;
+	herd.clear();
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CORRALLED) continue;
+		if (fauna_type_info(fauna_.fauna_type[f]).is_dangerous()) wild.push_back((uint16_t)f);
+		else if (fauna_owner_[f] < MAX_PLAYERS) herd.push_back((uint16_t)f);
+	}
 
 	// 1. Target Acquisition & Stance Evaluation (0 A.D. UnitAI.js)
 	// again: the unit just hit a target it looks past (look_again below); an attack-move or
@@ -11615,7 +11646,7 @@ void Simulation::tick_combat(float dt) {
 	// (SetupGaiaRangeQuery, OnRangeUpdate's IsDangerousAnimal filter). Gaia structures have
 	// no UnitAI, so they are not shot.
 	for (auto &b : buildings_) {
-		const BuildingAIInfo &ai = building_ai_info(b.type);
+		const BuildingAIInfo ai = civ_building_ai_info(b.civ, b.type);
 		if (!ai.shoots() || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked || (b.team >= MAX_PLAYERS && b.team != GAIA_PLAYER)) continue;
 		if (b.arrow_timer_on) {
 			b.attack_timer -= dt;
@@ -11645,13 +11676,16 @@ void Simulation::tick_combat(float dt) {
 		const bool shoots_gaia = b.team != GAIA_PLAYER && is_hostile(b.team, GAIA_PLAYER);
 		auto fauna_target = [&](int32_t f) {
 			const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-			return shoots_gaia && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
+			const uint8_t owner = fauna_owner_[f];
+			const bool foe = owner < MAX_PLAYERS ? b.team != GAIA_PLAYER && can_attack(b.team, owner) : shoots_gaia;
+			return foe && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
 		};
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
 			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) { any = any || unit_target(i); });
 			for (size_t k = 0; k < wild.size() && !any; ++k) any = fauna_target(wild[k]);
+			for (size_t k = 0; k < herd.size() && !any; ++k) any = fauna_target(herd[k]);
 			for (size_t o = 0; o < buildings_.size() && !any; ++o) any = building_target(buildings_[o]);
 			if (!any) continue;
 			b.arrow_timer_on = true;
@@ -11676,12 +11710,13 @@ void Simulation::tick_combat(float dt) {
 				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(preferred ? 0 : 49), dx * dx + dz * dz});
 			});
 		}
-		for (const int32_t f : wild) {
-			if (!fauna_target(f)) continue;
-			in_reach = true;
-			const float dx = fauna_.pos_x[f] - b.x, dz = fauna_.pos_z[f] - b.z;
-			if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 49, dx * dx + dz * dz});
-		}
+		for (const std::vector<uint16_t> *list : {&wild, &herd})
+			for (const int32_t f : *list) {
+				if (!fauna_target(f)) continue;
+				in_reach = true;
+				const float dx = fauna_.pos_x[f] - b.x, dz = fauna_.pos_z[f] - b.z;
+				if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 49, dx * dx + dz * dz});
+			}
 		// Structures have Resistance and Health too, so enemy buildings in range draw arrows.
 		for (size_t o = 0; o < buildings_.size(); ++o) {
 			if (!building_target(buildings_[o])) continue;
@@ -11757,7 +11792,7 @@ void Simulation::tick_combat(float dt) {
 			const float dmg = hack * powf(0.9f, armor[0]) + pierce * powf(0.9f, armor[1]) + crush * powf(0.9f, armor[2]);
 			const float dx = units_.pos_x[u] - b.x, dz = units_.pos_z[u] - b.z;
 			const float dist = sqrtf(dx * dx + dz * dz);
-			const float flight = dist / projectile_speed(0);
+			const float flight = dist / projectile_speed_of(b.id, 0); // Attack.js PredictTimeToTarget at its own Projectile/Speed
 			const float aim_x = units_.pos_x[u] + units_.vel_x[u] * flight;
 			const float aim_z = units_.pos_z[u] + units_.vel_z[u] * flight;
 			const float sigma = spread * dist / 100.0f;
@@ -23824,7 +23859,7 @@ void Simulation::petra_manage_defense(float dt) {
 			// evaluateStrength: 6 per default arrow of a foe structure (else 4), and a small
 			// 2 for one of ours that only needs its points back.
 			const Building &b = buildings_[building_id_to_idx_.at(armies[a].foe_ids[0])];
-			const int arrows = building_ai_info(b.type).default_arrows;
+			const int arrows = civ_building_ai_info(b.civ, b.type).default_arrows;
 			foe_strength = b.team == petra_pid_ ? 2.0f : arrows ? 6.0f * (float)arrows : 4.0f;
 			n.land = petra_land_at(b.x, b.z);
 		}
@@ -28720,6 +28755,8 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"gallic_fields_3p", TRIGGER_ACTION_GALLIC_FIELDS, TUTORIAL_NONE},
 		{"triggers_demo", TRIGGER_ACTION_TRIGGERS_DEMO_INIT, TUTORIAL_NONE},
 		{"pickup_test_map_triggers", TRIGGER_ACTION_PICKUP_TEST, TUTORIAL_NONE},
+		{"unit_chasing_test_triggers", TRIGGER_ACTION_UNIT_CHASING, TUTORIAL_NONE},
+		{"unit_dancing_test_triggers", TRIGGER_ACTION_UNIT_DANCING, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -28956,6 +28993,18 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_PICKUP_TEST:
 			trigger_pickup_test((int)arg);
+			break;
+		case TRIGGER_ACTION_UNIT_CHASING:
+			trigger_unit_chasing((int)arg);
+			break;
+		case TRIGGER_ACTION_UNIT_CHASING_OWNERSHIP:
+			trigger_unit_chasing_ownership(data);
+			break;
+		case TRIGGER_ACTION_UNIT_DANCING:
+			trigger_unit_dancing((int)arg);
+			break;
+		case TRIGGER_ACTION_UNIT_DANCING_EVENT:
+			trigger_unit_dancing_event(data);
 			break;
 		case TRIGGER_ACTION_TRIGGERS_DEMO_RANGE:
 			// RangeAction: warn(uneval(data)). vars 0-2 count what it saw (the demo keeps no state).
@@ -29410,6 +29459,267 @@ void Simulation::trigger_pickup_test(int step) {
 	board(bad, ISLAND_1, 3);
 	// WalkTo(567, 53): 0 A.D. metres from the map corner, 1024 m across.
 	if (bad) order_walk(&bad, 1, (567.0f - 512.0f) / 4.0f, (53.0f - 512.0f) / 4.0f);
+}
+
+// Shared by the unit motion test scripts: metres from the map corner (0 A.D.'s
+// coordinates) to RTS0 units, kept on the map.
+std::pair<float, float> Simulation::script_metres(float mx, float mz) const {
+	const float lim = map_half_ - 1.0f;
+	return {std::clamp(mx / 4.0f - map_half_, -lim, lim), std::clamp(mz / 4.0f - map_half_, -lim, lim)};
+}
+
+uint32_t Simulation::script_spawn(float mx, float mz, const char *tmpl_id, uint8_t team, uint8_t role, uint8_t label) {
+	// QuickSpawn: Engine.AddEntity, SetOwner, JumpTo. role >= 0xFF: not followed.
+	const uint16_t tmpl = roster_template_named(tmpl_id);
+	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return 0;
+	const auto [x, z] = script_metres(mx, mz);
+	const uint32_t id = spawn_unit(x, z, team, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+	if (id && role != 0xFF) {
+		TriggerWatch w;
+		w.id = id;
+		w.owner = team;
+		w.role = role;
+		w.player = label;
+		triggers_.watched.push_back(w);
+	}
+	return id;
+}
+
+void Simulation::script_walk(uint32_t id, float mx, float mz, bool queued) {
+	if (!id) return;
+	const auto [x, z] = script_metres(mx, mz);
+	order_walk(&id, 1, x, z, queued);
+}
+
+void Simulation::script_delete_role(uint8_t role) {
+	// Engine.DestroyEntity / "delete-entities" with controlAllUnits for every entity the
+	// experiment followed; they stop being followed first, so their deaths raise nothing.
+	std::vector<uint32_t> ids;
+	for (const TriggerWatch &w : triggers_.watched)
+		if (w.role == role) ids.push_back(w.id);
+	triggers_.watched.erase(std::remove_if(triggers_.watched.begin(), triggers_.watched.end(),
+			[role](const TriggerWatch &w) { return w.role == role; }), triggers_.watched.end());
+	for (const uint32_t id : ids) {
+		const int32_t u = lookup_unit(id);
+		if (u >= 0 && units_.alive[u]) cmd_delete(units_.team[u], &id, 1);
+	}
+}
+
+namespace {
+// unit_chasing_test_triggers.js and unit_dancing_test_triggers.js templates.
+constexpr const char *kArcher = "maur/infantry_archer_b";
+constexpr const char *kJav = "mace/infantry_javelineer_b";
+constexpr const char *kReg = "athen/infantry_spearman_b";
+constexpr const char *kFast = "athen/cavalry_swordsman_b";
+constexpr const char *kFast2 = "athen/cavalry_javelineer_b";
+constexpr uint8_t kChaseTeam = 0, kAttackerTeam = 1; // 0 A.D. players 1 and 2 (ATTACKER)
+}
+
+void Simulation::trigger_unit_chasing(int step) {
+	// maps/scenarios/unit_chasing_test_triggers.js. Promotions are off for both players
+	// (script_modifiers); a pair that loses either unit is removed (OwnershipChanged).
+	if (step == 0) {
+		triggers_.register_trigger(TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ACTION_UNIT_CHASING_OWNERSHIP, true);
+		triggers_.set_timeout(3000, TRIGGER_ACTION_UNIT_CHASING, 1.0f);
+		rebuild_all_tech_mods();
+		return;
+	}
+	if (step != 1) return;
+	// SetupUnits: each experiment's pair 15 m east of the last.
+	struct Exp { uint8_t kind; bool attacker_first; const char *attacker, *target; bool walk; };
+	enum { LINE, GARRISON, HUNT };
+	static const Exp kExps[] = {
+		{LINE, false, kFast, kFast2, true}, {LINE, true, kFast, kFast2, true},                 // fast_on_fast
+		{LINE, false, kFast, kArcher, true}, {LINE, true, kFast, kArcher, true},               // fast_on_slow
+		{LINE, false, kReg, "mace/infantry_pikeman_b", true}, {LINE, true, kReg, "mace/infantry_pikeman_b", true},
+		{LINE, false, kFast, "mace/support_trader", true}, {LINE, true, kFast, "mace/support_trader", true},
+		{LINE, false, kJav, "mace/support_trader", false}, {LINE, true, kJav, "mace/support_trader", false},
+		{LINE, false, kReg, "mace/support_trader", false}, {LINE, true, kReg, "mace/support_trader", false},
+		{HUNT, false, kFast, nullptr, true}, {HUNT, true, kFast, nullptr, true},               // fast_on_muskox
+		{LINE, false, kFast, "mace/support_civilian", false}, {LINE, true, kFast, "mace/support_civilian", false},
+		{LINE, false, kReg, "mace/support_civilian", false}, {LINE, true, kReg, "mace/support_civilian", false},
+		{GARRISON, false, kReg, "mace/siege_ram", true}, {GARRISON, true, kReg, "mace/siege_ram", true},
+		{LINE, false, kArcher, kReg, true}, {LINE, true, kArcher, kReg, true},                 // archer_on_spearman
+		{LINE, false, kJav, kReg, true}, {LINE, true, kJav, kReg, true},                       // jav_on_spearman
+		{LINE, false, kFast2, kReg, true}, {LINE, true, kFast2, kReg, true},                   // fast_archer_on_spearman
+		{LINE, false, kFast2, kArcher, true}, {LINE, true, kFast2, kArcher, true},             // fast_on_semi
+		{LINE, false, kFast2, "mace/support_civilian", false}, {LINE, true, kFast2, "mace/support_civilian", false},
+	};
+	float gx = 130.0f, gy = 150.0f;
+	uint8_t role = 0;
+	for (const Exp &e : kExps) {
+		if (e.kind == GARRISON) {
+			// straight_line_garrison: player 1's spearman garrisons into its own ram walking north.
+			uint32_t chaser = 0, chasee = 0;
+			if (e.attacker_first) chaser = script_spawn(gx, gy, e.attacker, kChaseTeam, role);
+			chasee = script_spawn(gx, gy + 50.0f, e.target, kChaseTeam, role);
+			if (!e.attacker_first) chaser = script_spawn(gx, gy, e.attacker, kChaseTeam, role);
+			script_walk(chasee, gx, 900.0f, true);
+			if (chaser && chasee) order_board_transport(&chaser, 1, chasee);
+		} else if (e.kind == HUNT) {
+			// The muskox is player 1's in 0 A.D.; RTS0's animals are Gaia's and are hunted, not
+			// attacked, so the cavalryman hunts a Gaia muskox (not followed: animals have no owner).
+			uint32_t chaser = 0, chasee = 0;
+			const auto [mx, mz] = script_metres(gx, 120.0f);
+			if (e.attacker_first) chaser = script_spawn(gx, 80.0f, e.attacker, kAttackerTeam, role);
+			chasee = spawn_fauna(mx, mz, FAUNA_MUSKOX);
+			if (!e.attacker_first) chaser = script_spawn(gx, 80.0f, e.attacker, kAttackerTeam, role);
+			if (chaser && chasee) order_gather(&chaser, 1, chasee, true);
+		} else {
+			// straight_line: player 2's chaser 40 m behind its target, a forced queued attack.
+			uint32_t chaser = 0, chasee = 0;
+			if (e.attacker_first) chaser = script_spawn(gx, 80.0f, e.attacker, kAttackerTeam, role);
+			chasee = script_spawn(gx, 120.0f, e.target, kChaseTeam, role);
+			if (!e.attacker_first) chaser = script_spawn(gx, 80.0f, e.attacker, kAttackerTeam, role);
+			if (e.walk) script_walk(chasee, gx, 900.0f, true);
+			if (chaser && chasee) order_attack(&chaser, 1, chasee, true);
+		}
+		++role;
+		gx += 15.0f;
+		if (gx >= 620.0f) {
+			gx = 120.0f;
+			gy += 70.0f;
+		}
+	}
+}
+
+void Simulation::trigger_unit_chasing_ownership(const TriggerEventData &data) {
+	// OwnershipChanged: msg.to === -1 for either unit of a pair destroys both.
+	if (data.to == 0xFF) script_delete_role((uint8_t)data.value);
+}
+
+void Simulation::trigger_unit_dancing(int step) {
+	// maps/scenarios/unit_dancing_test_triggers.js. Player 1's units see 5 m and nobody
+	// promotes (script_modifiers). Two runs of 26 experiments, the second (151 s) without
+	// ranged spread; at 300 s player 2 wins. vars 0: the spread is off.
+	// Watched roles are the experiment (0-25 first run, 26-51 second); label 1 is the
+	// dancer the script hooks (dancers[0]), 2 any other dancer, 3 an attacker.
+	switch (step) {
+		case 0:
+			triggers_.register_trigger(TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ACTION_UNIT_DANCING_EVENT, true);
+			triggers_.set_timeout(3000, TRIGGER_ACTION_UNIT_DANCING, 1.0f);
+			triggers_.set_timeout(150000, TRIGGER_ACTION_UNIT_DANCING, 2.0f);
+			triggers_.set_timeout(151000, TRIGGER_ACTION_UNIT_DANCING, 1.0f);
+			triggers_.set_timeout(300000, TRIGGER_ACTION_UNIT_DANCING, 3.0f);
+			triggers_.register_trigger(TRIGGER_ON_INTERVAL, TRIGGER_ACTION_UNIT_DANCING_EVENT, true, 500, 3500);
+			rebuild_all_tech_mods();
+			return;
+		case 2: // RemoveSpread
+			triggers_.vars[0] = 1;
+			rebuild_all_tech_mods();
+			return;
+		case 3: // EndGame
+			set_player_won(kAttackerTeam);
+			return;
+		default:
+			break;
+	}
+	std::fprintf(stderr, "[triggers] Experiment start\n");
+	triggers_.vars[1] = (int32_t)triggers_.time_ms; // start
+	const uint8_t base = triggers_.vars[0] ? 26 : 0;
+	enum { MANUAL, SQUARE, ZIGZAG, PATROL, FORMATION, AVOIDANCE };
+	struct Exp { uint8_t kind; const char *attacker, *target; float dance, att; int n; };
+	static const Exp kExps[] = {
+		{MANUAL, kArcher, kReg, 5, 50, 1}, {MANUAL, kArcher, kReg, 20, 50, 1}, {MANUAL, kArcher, kReg, 5, 50, 4},
+		{MANUAL, kArcher, kFast, 5, 50, 1}, {MANUAL, kArcher, kFast, 20, 50, 1},
+		{MANUAL, kJav, kReg, 5, 20, 1}, {MANUAL, kJav, kReg, 20, 20, 1}, {MANUAL, kJav, kReg, 5, 20, 4},
+		{MANUAL, kJav, kFast, 5, 20, 1}, {MANUAL, kJav, kFast, 20, 20, 1},
+		{PATROL, kArcher, kFast, 5, 50, 1}, {PATROL, kJav, kFast, 5, 20, 1},
+		{SQUARE, kArcher, kReg, 5, 50, 1}, {SQUARE, kArcher, kReg, 5, 50, 5},
+		{SQUARE, kArcher, kFast, 5, 50, 1}, {SQUARE, kArcher, kFast, 5, 50, 5},
+		{ZIGZAG, kArcher, kReg, 3, 50, 1}, {ZIGZAG, kArcher, kReg, 3, 50, 5}, {ZIGZAG, kJav, kReg, 3, 20, 5},
+		{ZIGZAG, kArcher, kFast, 3, 50, 1}, {ZIGZAG, kArcher, kFast, 3, 50, 5},
+		{FORMATION, kArcher, kReg, 25, 50, 5}, {FORMATION, kArcher, kFast, 25, 50, 5},
+		{FORMATION, kArcher, kReg, 50, 50, 5}, {FORMATION, kArcher, kFast, 50, 50, 5},
+		{AVOIDANCE, kFast, kFast2, 0, 10, 1}, // fast_on_fast
+	};
+	float gx = 100.0f, gy = 100.0f;
+	for (size_t k = 0; k < sizeof(kExps) / sizeof(kExps[0]); ++k) {
+		const Exp &e = kExps[k];
+		const uint8_t role = (uint8_t)(base + k);
+		std::vector<uint32_t> dancers;
+		const float d = e.dance;
+		if (e.kind == AVOIDANCE) {
+			const uint32_t dancer = script_spawn(200.0f, 300.0f, e.target, kChaseTeam, role, 1);
+			for (int i = 0; i < 5; ++i) {
+				script_walk(dancer, 300.0f, 400.0f, true);
+				script_walk(dancer, 400.0f, 300.0f, true);
+				script_walk(dancer, 300.0f, 200.0f, true);
+				script_walk(dancer, 200.0f, 300.0f, true);
+			}
+			const uint32_t a = script_spawn(200.0f, 290.0f, e.attacker, kAttackerTeam, role, 3);
+			if (a && dancer) order_attack(&a, 1, dancer, true);
+		} else {
+			if (e.kind == FORMATION) {
+				for (int x = 0; x < 4; ++x)
+					for (int z = 0; z < 4; ++z)
+						if (const uint32_t u = script_spawn(gx + (float)x, gy + (float)z, e.target, kChaseTeam, role, dancers.empty() ? 1 : 2))
+							dancers.push_back(u);
+				if (!dancers.empty()) {
+					order_set_formation(dancers.data(), dancers.size(), FORMATION_BOX);
+					for (int i = 0; i < 100; ++i) {
+						const auto [x, z] = script_metres(gx, gy + d * (float)(i % 2));
+						order_walk(dancers.data(), dancers.size(), x, z, i != 0);
+					}
+				}
+			} else if (const uint32_t dancer = script_spawn(gx, gy, e.target, kChaseTeam, role, 1)) {
+				dancers.push_back(dancer);
+				if (e.kind == MANUAL) {
+					for (int i = 0; i < 100; ++i) script_walk(dancer, gx, gy + d * (float)(i % 2), true);
+				} else if (e.kind == SQUARE) {
+					for (int i = 0; i < 25; ++i) {
+						script_walk(dancer, gx + d / 2, gy + d / 2, true);
+						script_walk(dancer, gx + d / 2, gy - d / 2, true);
+						script_walk(dancer, gx - d / 2, gy - d / 2, true);
+						script_walk(dancer, gx - d / 2, gy + d / 2, true);
+					}
+				} else if (e.kind == ZIGZAG) {
+					static const int kSteps[12] = {1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2};
+					for (int i = 0; i < 12; ++i)
+						for (int s = 0; s < 12; ++s)
+							script_walk(dancer, gx + d * (float)kSteps[s], gy + (s % 2 ? -d : d), true);
+				} else { // PATROL
+					const auto [x, z] = script_metres(gx, gy + d);
+					order_patrol(&dancer, 1, x, z, true);
+				}
+			}
+			// Each attacker walks up beside the dance, then attacks dancers[0].
+			for (int i = 0; i < e.n && !dancers.empty(); ++i)
+				if (const uint32_t a = script_spawn(gx + e.att + (float)i, gy, e.attacker, kAttackerTeam, role, 3)) {
+					script_walk(a, gx + e.att, gy + (float)i * 2.0f, true);
+					order_attack(&a, 1, dancers[0], true);
+				}
+		}
+		gx += 70.0f;
+		if (gx >= 520.0f) {
+			gx = 100.0f;
+			gy += 70.0f;
+		}
+	}
+}
+
+void Simulation::trigger_unit_dancing_event(const TriggerEventData &data) {
+	// ReportResults, from the hooked dancer's UnitAI: OnDestroy (killed), or FindNewTargets
+	// once its dance is over and it looks round (not killed: a failure). Then both sides go.
+	auto report = [&](uint8_t role, bool killed) {
+		std::fprintf(stderr, "[triggers] Exp %u finished in %u, target was %s\n", (unsigned)role,
+		             triggers_.time_ms - (uint32_t)triggers_.vars[1], killed ? "killed" : "not killed (failure)");
+		triggers_.vars[killed ? 2 : 3] += 1;
+		script_delete_role(role);
+	};
+	if (data.event == TRIGGER_ON_OWNERSHIP_CHANGED) {
+		if (data.to == 0xFF && data.player == 1) report((uint8_t)data.value, true);
+		return;
+	}
+	std::vector<uint8_t> idle;
+	for (const TriggerWatch &w : triggers_.watched) {
+		if (w.player != 1) continue;
+		const int32_t u = lookup_unit(w.id);
+		if (u < 0 || !units_.alive[u] || units_.action_state[u] != ACTION_IDLE) continue;
+		const auto q = order_queues_.find(w.id);
+		if (q == order_queues_.end() || q->second.empty()) idle.push_back(w.role);
+	}
+	for (const uint8_t role : idle) report(role, false);
 }
 
 void Simulation::trigger_survival_wave() {
