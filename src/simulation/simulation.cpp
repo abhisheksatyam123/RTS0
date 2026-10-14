@@ -10745,6 +10745,8 @@ void Simulation::tick_gather(float dt) {
 			float drop_x = 0, drop_z = 0, drop_half = 0; // drop_half: a mobile dropsite's radius
 			const Building *drop = nullptr; // a structure, else the mobile dropsite at drop_x, drop_z
 			bool found_dropsite = false;
+			bool drop_same_land = false; // the pick is on the worker's land
+			int in_pocket = -1; // stands_in_pocket(i), worked out when first needed
 
 			for (const auto &b : buildings_) {
 				if (b.build_progress < 1.0f || !dropsite_usable_by(uteam, b)) continue;
@@ -10760,12 +10762,18 @@ void Simulation::tick_gather(float dt) {
 					// load is dropped off, not to the centre.
 					const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
 					const float d2 = gap.x * gap.x + gap.y * gap.y;
-					// Only a dropsite the worker can walk to (0 A.D. picks reachable ones): one on
-					// another island is out, so the worker waits for a local one.
-					if (d2 < best_d2 && (units_.unit_type[i] == UNIT_FISHING_BOAT || petra_same_land(i, b))) {
+					// Only a dropsite on the worker's land: one on another island is out, so the
+					// worker waits for a local one. A worker shut in among trees stands on a land
+					// of a few navcells with no dropsite at all: it takes the nearest one, as
+					// 0.28's FindNearestDropsite (no reachability test) would, rather than stand
+					// in return for good.
+					const bool reach = units_.unit_type[i] == UNIT_FISHING_BOAT || petra_same_land(i, b);
+					if (!reach && (in_pocket < 0 ? (in_pocket = stands_in_pocket(i)) : in_pocket) == 0) continue;
+					if (reach ? (d2 < best_d2 || !drop_same_land) : (!drop_same_land && d2 < best_d2)) {
 						best_d2 = d2;
 						drop_x = b.x; drop_z = b.z; drop = &b;
 						found_dropsite = true;
+						drop_same_land = reach;
 					}
 				}
 			}
@@ -24348,6 +24356,31 @@ bool Simulation::petra_mobile_dropsite_on_land(size_t i) const {
 		if (land == 0 || petra_land_at(units_.pos_x[e], units_.pos_z[e]) == land) return true;
 	}
 	return false;
+}
+
+bool Simulation::stands_in_pocket(size_t i) const {
+	// A flood over the unit's PASS_INFANTRY land that gives up past POCKET_CELLS navcells.
+	constexpr int POCKET_CELLS = 16;
+	auto [ux, uz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
+	const uint16_t land = nav_grid_.global_region_at(ux, uz, PASS_INFANTRY);
+	if (land == 0) return false;
+	std::pair<int, int> seen[POCKET_CELLS + 1];
+	int count = 0, head = 0;
+	seen[count++] = {ux, uz};
+	while (head < count) {
+		const auto [cx, cz] = seen[head++];
+		static const int kStep[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+		for (const auto &d : kStep) {
+			const int nx = cx + d[0], nz = cz + d[1];
+			if (!nav_grid_.cells.inside(nx, nz) || nav_grid_.global_region_at(nx, nz, PASS_INFANTRY) != land) continue;
+			bool known = false;
+			for (int k = 0; k < count && !known; ++k) known = seen[k].first == nx && seen[k].second == nz;
+			if (known) continue;
+			if (count == POCKET_CELLS + 1) return false;
+			seen[count++] = {nx, nz};
+		}
+	}
+	return true;
 }
 
 bool Simulation::petra_same_land(size_t i, const Building &b) const {
