@@ -541,6 +541,24 @@ static void test_no_wading() {
 	CHECK(aboard(s, ship, boarder));
 }
 
+// A task walk's line is tested on every navcell it passes through, as CheckLineMovement walks
+// them: one that clips a deep-water navcell between its ends crosses it, where a Bresenham line
+// from navcell to navcell stepped round that cell.
+static void test_line_clips_water() {
+	static Simulation s;
+	fresh(s);
+	NavGrid &g = s.nav_grid_;
+	const float cell = 2.0f * g.map_half / g.res;
+	const auto [bx, by] = g.world_to_cell(-20.0f, 40.0f); // dry land north of the sea
+	auto wx = [&](float c) { return -g.map_half + cell * c; };
+	const float x0 = wx(bx + 0.5f), z0 = wx(by + 0.5f), x1 = wx(bx + 2.5f), z1 = wx(by + 1.5f);
+	const bool before = s.line_crosses_impassable(x0, z0, x1, z1);
+	g.cells.at(bx + 1, by) = NAV_WATER;
+	const bool after = s.line_crosses_impassable(x0, z0, x1, z1), back = s.line_crosses_impassable(x1, z1, x0, z0);
+	std::printf("  a line clipping one water navcell: crosses %d (both ways %d), %d before the water\n", after, back, before);
+	CHECK(!before && after && back);
+}
+
 // A ship moored beside a house on the shore still sails off: its path starts on
 // the centre of its own cell, closer to the house than the ship can stand, which
 // move_units' crowded-waypoint skip passes over for ships too (seen on an island
@@ -1460,6 +1478,7 @@ int main() {
 	test_dropsite_own_land();
 	test_dock_takes_all();
 	test_no_wading();
+	test_line_clips_water();
 	test_gather_around_lake();
 	test_dock_trade();
 	test_fishing();

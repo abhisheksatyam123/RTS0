@@ -1088,6 +1088,37 @@ def register_civ_unit_assets(assets, zf=None):
 
 # Template model id -> the RTS0 model kind it is drawn as (spearman, cavalry...),
 # and the extracted model whose clips a mesh-only template model borrows.
+# The treasures' actors (gaia/treasure/*.xml VisualActor; templates sharing an actor
+# share its GLB), written to models/props/. Wrecks are sized like the ships (1 unit =
+# 4 m, a trireme is 7 long); the small props at twice that, next to units drawn about
+# 1 unit = 1 m tall.
+ZIP_PROPS = {
+    "treasure_barrel_a": ("art/actors/props/special/eyecandy/barrel_a.xml", "scale", 0.5, None),
+    "treasure_barrels_buried": ("art/actors/props/special/eyecandy/barrels_buried.xml", "scale", 0.5, None),
+    "treasure_produce_bin_a": ("art/actors/props/special/eyecandy/produce_bin_a.xml", "scale", 0.5, None),
+    "treasure_crate_a": ("art/actors/props/special/eyecandy/crate_a.xml", "scale", 0.5, None),
+    "treasure_amphorae": ("art/actors/props/special/eyecandy/amphorae.xml", "scale", 0.5, None),
+    "treasure_persian_food_big": ("art/actors/props/special/eyecandy/treasure_persian_food_big.xml", "scale", 0.5, None),
+    "treasure_persian_food_small": ("art/actors/props/special/eyecandy/treasure_persian_food_small.xml", "scale", 0.5, None),
+    "treasure_persian_metal_big": ("art/actors/props/special/eyecandy/treasure_persian_metal_big.xml", "scale", 0.5, None),
+    "treasure_persian_metal_small": ("art/actors/props/special/eyecandy/treasure_persian_metal_small.xml", "scale", 0.5, None),
+    "treasure_weapons": ("art/actors/props/special/eyecandy/treasure_weapons.xml", "scale", 0.5, None),
+    "treasure_shipwreck_ram_side": ("art/actors/props/special/eyecandy/shipwreck_ram_side.xml", "scale", 0.25, None),
+    "treasure_barrels_floating": ("art/actors/props/special/eyecandy/barrels_floating.xml", "scale", 0.25, None),
+    "treasure_shipwreck_ram_bow": ("art/actors/props/special/eyecandy/shipwreck_ram_bow.xml", "scale", 0.25, None),
+    "treasure_shipwreck_sail_boat": ("art/actors/props/special/eyecandy/shipwreck_sail_boat.xml", "scale", 0.25, None),
+    "treasure_shipwreck_sail_boat_cut": ("art/actors/props/special/eyecandy/shipwreck_sail_boat_cut.xml", "scale", 0.25, None),
+    "treasure_shipwreck_argo": ("art/actors/props/special/eyecandy/shipwreck_argo.xml", "scale", 0.25, None),
+    "treasure_standing_stones": ("art/actors/props/special/eyecandy/standing_stones.xml", "scale", 0.5, None),
+    "treasure_stone_pile": ("art/actors/props/special/eyecandy/stone_pile.xml", "scale", 0.5, None),
+    "treasure_brick_pile_06": ("art/actors/props/special/eyecandy/brick_pile_06.xml", "scale", 0.5, None),
+    "treasure_stone_pile_red": ("art/actors/props/special/eyecandy/stone_pile_red.xml", "scale", 0.5, None),
+    "treasure_stone_pile_sandstone": ("art/actors/props/special/eyecandy/stone_pile_sandstone.xml", "scale", 0.5, None),
+    "treasure_wood_pile": ("art/actors/props/special/eyecandy/wood_pile.xml", "scale", 0.5, None),
+    "treasure_golden_fleece": ("art/actors/special/golden_fleece.xml", "scale", 0.5, None),
+    "treasure_pegasus": ("art/actors/special/pegasus.xml", "scale", 0.5, None),
+}
+
 TEMPLATE_BASE = {}
 TEMPLATE_DONOR = {}
 
@@ -3538,12 +3569,14 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=
     dim = (maxx-minx, maxy-miny, maxz-minz)
     scale = _fit_scale(fit, target, dim)
     cx, cz = (minx+maxx)/2, (minz+maxz)/2
+    # Props keep the actor's origin height, so a wreck floats as deep as in 0 A.D.
+    base_y = 0.0 if asset_id in ZIP_PROPS else miny
     # rewrite primitive positions in place
     for pi, prim in enumerate(glb.primitives):
         pos, nrm, uv, idx, mi = prim[0], prim[1], prim[2], prim[3], prim[4]
         pos2, nrm2 = [], []
         for x, y, z in pos:
-            px, py, pz = (x - cx) * scale, (y - miny) * scale, (z - cz) * scale
+            px, py, pz = (x - cx) * scale, (y - base_y) * scale, (z - cz) * scale
             pos2.append(_rot_y((px, py, pz), yaw) if yaw else (px, py, pz))
         if yaw:
             nrm2 = [_rot_y(n, yaw) for n in nrm]
@@ -3568,7 +3601,7 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=
         "file": os.path.relpath(out_path, out_dir).replace(os.sep, "/"),
         "parts": len(parts),
         "size_meters": [round(final_dim[0], 3), round(final_dim[1], 3), round(final_dim[2], 3)],
-        "origin": "ground-center",
+        "origin": "actor-center" if asset_id in ZIP_PROPS else "ground-center",
         "sources": sorted(f"{kind}:{ref}" for kind, ref in sources),
         "upstream_material": material_name,
     }
@@ -4241,6 +4274,8 @@ def asset_dir(asset_id):
         return "models/buildings"
     if asset_id in VEGETATION_IDS:
         return "models/vegetation"
+    if asset_id in ZIP_PROPS:
+        return "models/props"
     raise ValueError(f"unknown asset id {asset_id!r} — add it to UNIT_IDS, BUILDING_IDS, or VEGETATION_IDS")
 
 
@@ -4678,6 +4713,7 @@ def main():
         assets = dict(ASSETS)
         civ_ids = register_civ_unit_assets(assets, zf)
         bld_ids = register_civ_building_assets(assets, zf)
+        assets.update({k: v for k, v in ZIP_PROPS.items() if v[0] in vfs._names})
         print(f"[civ] registered {len(civ_ids)} civilization unit meshes + {len(bld_ids)} buildings")
         terrain = dict(TERRAIN_TILES)
         archive_actors = []
@@ -4720,6 +4756,7 @@ def main():
             known.update(FULL_ASSETS)
             register_civ_unit_assets(known, zf)
             register_civ_building_assets(known, zf)
+            known.update({k: v for k, v in ZIP_PROPS.items() if v[0] in vfs._names})
             known.update({k: assets[k] for k in TEMPLATE_BASE if k in assets})
             only = set(args.only)
             def wanted(aid):
