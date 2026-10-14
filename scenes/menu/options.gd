@@ -95,6 +95,8 @@ const SCHEMA := [
 	["Display", [
 		["dropdown", "gui.session.howtoshownames", "Naming of entities.", "How to show entity names.",
 			[["Specific names first", "0"], ["Generic names first", "1"], ["Only specific names", "2"], ["Only generic names", "3"]]],
+		["boolean", "gui.session.rankabovestatusbar", "Rank icon above status bar", "Show rank icons above status bars."],
+		["boolean", "gui.session.experiencestatusbar", "Experience status bar", "Show an experience status bar above each selected unit."],
 		["dropdown", "gui.session.respoptooltipsort", "Sort resources and population tooltip", "Dynamically sort players in the resources and population tooltip by value.",
 			[["Unordered", "0"], ["Ascending", "-1"], ["Descending", "1"]]],
 		["boolean", "overlay.fps", "FPS overlay", "Show frames per second in top right corner."],
