@@ -4381,7 +4381,7 @@
       "amount": 1000
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -52.23,
       "z": 50.13,
       "amount": 200
@@ -4532,25 +4532,25 @@
       "max_gatherers": 9
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -37.93,
       "z": 65.12,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -34.97,
       "z": 59.82,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -54.36,
       "z": 80.38,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -52.47,
       "z": 76.72,
       "amount": 200
@@ -4562,13 +4562,13 @@
       "amount": 5000
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -75.06,
       "z": 34.39,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -81.4,
       "z": 37.98,
       "amount": 200
@@ -6185,109 +6185,109 @@
       "amount": 1000
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 33.85,
       "z": 21.79,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 40.96,
       "z": 22.0,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 61.8,
       "z": 36.41,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 64.46,
       "z": 45.1,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 33.39,
       "z": 72.93,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 27.83,
       "z": 74.29,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 52.04,
       "z": -53.15,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 47.14,
       "z": -52.2,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 72.32,
       "z": -77.38,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 78.27,
       "z": -67.24,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 13.2,
       "z": -51.4,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 20.39,
       "z": -51.09,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -29.12,
       "z": -56.78,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -37.51,
       "z": -54.37,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -59.29,
       "z": -49.77,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -62.93,
       "z": -43.25,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -37.74,
       "z": -87.63,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -43.08,
       "z": -86.49,
       "amount": 200
@@ -6353,67 +6353,67 @@
       "amount": 1000
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": -77.32,
       "z": 69.79,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": -61.1,
       "z": 31.55,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": -26.18,
       "z": 17.23,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": 52.03,
       "z": 37.41,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": 59.6,
       "z": 67.66,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": 44.25,
       "z": -55.63,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": 69.92,
       "z": -80.57,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": -4.11,
       "z": -81.4,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": -72.65,
       "z": -43.7,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": -54.44,
       "z": -74.03,
       "amount": 400
     },
     {
-      "type": "date",
+      "type": "fruit/date",
       "x": -40.45,
       "z": -23.25,
       "amount": 400

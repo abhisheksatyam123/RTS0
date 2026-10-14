@@ -4306,31 +4306,31 @@
   ],
   "resources": [
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -25.84,
       "z": -94.23,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -25.53,
       "z": -95.53,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -26.81,
       "z": -96.94,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -25.36,
       "z": -95.66,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -22.95,
       "z": -96.49,
       "amount": 200
@@ -4366,31 +4366,31 @@
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 96.68,
       "z": -30.34,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 96.44,
       "z": -30.15,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 96.51,
       "z": -30.52,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 96.63,
       "z": -30.0,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 96.38,
       "z": -31.51,
       "amount": 200
@@ -4426,31 +4426,31 @@
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 33.26,
       "z": 73.45,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 34.17,
       "z": 73.25,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 35.33,
       "z": 71.91,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 35.72,
       "z": 71.16,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": 35.13,
       "z": 72.33,
       "amount": 200
@@ -4486,31 +4486,31 @@
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -93.67,
       "z": 23.97,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -94.43,
       "z": 24.47,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -94.22,
       "z": 20.63,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -95.83,
       "z": 24.24,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/berry_03",
       "x": -93.65,
       "z": 22.86,
       "amount": 200

@@ -5214,7 +5214,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 							sim.spawn_fauna(x, z, FAUNA_GOAT);
 							continue;
 						}
-						const char *id = r.kind == 0 ? "gaul/support_female_citizen" : kWarriors[rng.range_int(0, 2)];
+						const char *id = r.kind == 0 ? "gaul/support_civilian" : kWarriors[rng.range_int(0, 2)]; // oCivilian
 						const uint16_t t = civ_unit_template_by_id(id);
 						if (t != CIV_UNIT_TEMPLATE_NONE) sim.spawn_gaia_unit(x, z, (UnitType)civ_unit_template(t).unit_type, id);
 					}
@@ -5230,6 +5230,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 				const float x = cx + std::cos(a) * (city_r - 4.0f), z = cz + std::sin(a) * (city_r - 4.0f);
 				if (kind == V_HOUSE) building(x, z, BLD_HOUSE, false);
 				else if (kind == V_TEMPLE) building(x, z, BLD_TEMPLE, false);
+				else if (size >= 320.0f && sim.nomad()) building(x, z, BLD_SENTRY_TOWER, false); // sentry_tower
 				else if (size >= 320.0f) building(x, z, BLD_TOWER, true); // gaul/defense_tower
 				else building(x, z, BLD_SENTRY_TOWER, false);              // palisades_watchtower
 			}
