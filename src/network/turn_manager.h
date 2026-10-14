@@ -250,8 +250,12 @@ public:
 	// save_state of its world) into oos_dump_dir if one is set.
 	const std::vector<std::string>& oos_players() const { return oos_players_; }
 	bool oos_reported_by_host() const { return oos_from_host_; }
+	// OutOfSyncNetwork's "identical to / differs from the hosts game state": the
+	// host's own state is the expected one.
+	bool oos_matches_host() const;
 	void set_oos_dump_dir(const std::string &dir) { oos_dump_dir_ = dir; }
 	const std::string& oos_dump_path() const { return oos_dump_written_; }
+	bool oos_dump_pending() const { return oos_dump_pending_; }
 
 	// 0 A.D. NMT_CLIENT_PAUSED: any client can pause the match; turns stop on
 	// every peer while at least one client is paused, and resume when the last
@@ -398,6 +402,15 @@ private:
 	// Host: the client list last sent as NMT_PLAYER_ASSIGNMENT, and every
 	// client's name as last seen (a client that left keeps it in the list).
 	std::vector<PlayerAssignmentMsg::Entry> sent_assignment_;
+	// Host: rejoining players served a world but not yet loaded (seat by
+	// client). Nobody waits on them until they say they loaded (0 A.D. adds a
+	// rejoiner to the turn manager on NMT_LOADED_GAME), so the match runs on
+	// through the transfer.
+	std::map<uint32_t, uint8_t> rejoin_loading_;
+	// Client: loaded a rejoin world as a player, waiting for the host's LOCKSTEP.
+	bool rejoin_lockstep_wait_ = false;
+	void admit_rejoiner(uint32_t client_id);
+	void send_rejoin_msg(uint32_t to, const RejoinMsg &m);
 	std::unordered_map<uint32_t, std::string> client_names_;
 	void send_player_assignment();
 	bool rejoin_wanted_ = false, rejoin_have_header_ = false, rejoined_ = false;

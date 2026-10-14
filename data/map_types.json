@@ -392,6 +392,25 @@
 			},
 			"type": "scenario"
 		},
+		"combat_demo_huge": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"corinthian_isthmus": {
 			"keywords": [],
 			"type": "skirmish"
@@ -1129,6 +1148,28 @@
 		"persian_highlands": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"pickup_test_map": {
+			"keywords": [
+				"demo",
+				"trigger"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"polynesia": {
 			"keywords": [
@@ -2231,6 +2272,34 @@
 			},
 			"type": "scenario"
 		},
+		"triggers_demo": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"resources": {
+							"food": 50000,
+							"metal": 50000,
+							"stone": 50000,
+							"wood": 50000
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"tropical_island": {
 			"keywords": [
 				"demo"
@@ -2259,6 +2328,146 @@
 		"two_seas": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"unit_chasing_test": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"unit_dancing_test": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"unit_motion_integration_test": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"unit_pushing_test": {
+			"keywords": [
+				"trigger",
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"units_demo": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"RevealMap": true,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
+		"vertex_pathfinder_test": {
+			"keywords": [
+				"demo"
+			],
+			"settings": {
+				"AllyView": false,
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "han",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"vesuvius": {
 			"keywords": [],

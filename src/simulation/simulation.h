@@ -167,7 +167,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 75; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 77; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
 	static constexpr uint32_t SAVE_VERSION_PETRA_TURNS = 73; // Petra's events kept between its 1.6 s turns
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
@@ -364,12 +365,21 @@ public:
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
 	// Walk speed of the unit at SoA index i: its speed with technologies times any speed aura it stands in.
 	float unit_walk_speed(size_t i) const;
+	// The same before running (a fleeing, chasing or slot-walking unit runs at RunMultiplier times it).
+	float unit_base_walk_speed(size_t i) const;
 	// The speed it moves at now: its walk speed, slowed by the pushing pressure it is under.
 	float unit_move_speed(size_t i) const;
 	// How far it moves this tick heading (ux, uz) at up to max_speed, starting from velocity (vx, vz),
-	// with its template's acceleration and turn rule; *speed is its speed at the end of the tick.
+	// with its template's acceleration, turn rate and turn rule; turns its heading (heading_x/z) and
+	// sets *speed to its speed at the end of the tick.
 	float accelerated_step(size_t i, float vx, float vz, float ux, float uz, float max_speed, float dt,
-			float *speed) const;
+			float *speed);
+	// How far it goes in time t from speed s along its heading, gaining speed at its template's
+	// acceleration up to max_speed; *speed is its speed at the end.
+	float accelerate(size_t i, float s, float max_speed, float t, float *speed) const;
+	// Trainer.js SpawnUnits and Garrisonable.UnLoad: a unit put out of a structure at (x, z) faces away
+	// from it.
+	void face_away_from(size_t i, float x, float z);
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
@@ -394,6 +404,8 @@ public:
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
 	uint32_t turret_holder_of(uint32_t unit_id) const;
+	// Commands.js "leave-turret": `player`'s units among `unit_ids` step down from their turret points.
+	void cmd_leave_turret(uint8_t player, const uint32_t *unit_ids, size_t count);
 	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
 	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
 	// One hit that cost an entity health: 0 A.D.'s MT_Attacked message, read by the
@@ -882,7 +894,7 @@ public:
 		float min_range = 0.0f, max_range = 0.0f;
 		bool ranged = false;
 		float resistance[3] = {}; // hack, pierce, crush levels
-		float walk = 0.0f, run = 0.0f;
+		float walk = 0.0f, run = 0.0f, acceleration = 0.0f; // m/s, m/s^2
 		float gather[7] = {};     // grain, fruit, meat, fish, wood, stone, metal a second
 		int32_t carry_max = 0;    // what it can carry of the resource it holds
 		float heal_hp = 0.0f, heal_range = 0.0f, heal_interval = 0.0f; // 0 hp: no Heal
@@ -922,6 +934,11 @@ public:
 	void set_victory_conditions(uint8_t mask) { victory_condition_ = (VictoryCondition)victory_code(mask); }
 	bool has_victory(uint8_t kind) const { return (victory_mask(victory_condition_) & kind) != 0; }
 	float relic_victory_timer() const { return relic_victory_timer_; }
+	// CaptureTheRelic.js relicsVictoryCountdownPlayers: who the running countdown would make win.
+	uint8_t relic_countdown_players() const { return relic_countdown_players_; }
+	// CheckCaptureTheRelicCountdown's winningPlayers from the current relic owners and
+	// diplomacy, or 0 while Gaia holds a relic, nobody holds one or the owners are not allies.
+	uint8_t relic_winners() const;
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
@@ -1059,6 +1076,18 @@ public:
 	// How often each event was called since the start or the last load: for tests and
 	// debugging only, never saved or hashed.
 	uint32_t trigger_event_calls(uint8_t event) const { return event < TRIGGER_EVENT_COUNT ? trigger_event_calls_[event] : 0; }
+	// GuiInterface PushNotification {"type": "dialog"}: a dialog a trigger script asks the
+	// GUI to show (triggers_demo's yes-no). Handed to the GUI once, never saved, as 0 A.D.'s
+	// notifications live in the GUI.
+	struct TriggerDialog {
+		uint8_t players = 0xFF; // bit p: player p + 1 sees it
+		std::string caption, button1, tooltip1, button2, tooltip2;
+	};
+	std::vector<TriggerDialog> take_trigger_dialogs() {
+		std::vector<TriggerDialog> out;
+		out.swap(trigger_dialogs_);
+		return out;
+	}
 	void mark_players_won(uint8_t mask);
 	void note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance);
 	// A map's TriggerScripts by name ("polar_sea_triggers", "treasure_islands"): registers
@@ -1322,6 +1351,7 @@ public:
 		const uint16_t *tmpl; // civ roster template (civ_unit_template), CIV_UNIT_TEMPLATE_NONE = generic
 		const uint8_t *pack_state; // PackState: siege engines pack to move and unpack to fire
 		const float *pack_elapsed; // seconds into the current pack/unpack
+		const float *heading_x, *heading_z; // the way each unit faces (UnitSoA heading)
 		size_t count;
 	};
 	UnitView units() const;
@@ -2281,7 +2311,7 @@ private:
 	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
 		if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) note_session({kind, player, 0, tech, {}});
 	}
-	void note_phases_aborted(const Building &b); // a lost or captured structure's queued phases
+	void reset_production_queue(Building &b); // ResetQueue: refund a lost or captured structure's queue
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
@@ -2338,6 +2368,9 @@ private:
 	// obstruction group and don't push each other in separation(). Derived from formations_
 	// by formation_refresh_groups() whenever membership changes, so it is never saved.
 	std::vector<uint32_t> formation_group_;
+	// Per unit index, 1 while it walks to its slot with a walking controller: UnitMotion's
+	// IsMovingAsFormation, so it runs there. Derived with formation_group_.
+	std::vector<uint8_t> formation_slot_walk_;
 	void formation_refresh_groups();
 
 	UnitSoA units_;
@@ -2357,6 +2390,10 @@ private:
 	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
+	// Derived, not saved: relic_winners() as the end of the last tick saw it (a load rebuilds
+	// it), and whether a relic changed hands this tick (tick_relics, read by the victory check).
+	uint8_t relic_countdown_players_ = 0;
+	bool relic_changed_hands_ = false;
 	std::vector<BattleAlert> pending_alerts_;
 	float last_alert_time_[6] = {};
 	std::unordered_map<uint32_t, size_t> unit_id_to_idx_;
@@ -2477,6 +2514,7 @@ private:
 
 	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
 	uint32_t trigger_event_calls_[TRIGGER_EVENT_COUNT] = {}; // trigger_event_calls
+	std::vector<TriggerDialog> trigger_dialogs_; // take_trigger_dialogs
 	uint8_t diplomacy_[MAX_PLAYERS][MAX_PLAYERS] = {};
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
@@ -2563,6 +2601,27 @@ private:
 	void trigger_survival_init();
 	void trigger_survival_wave();
 	void trigger_gallic_fields(bool attack);
+	void trigger_pickup_test(int step);
+	void trigger_unit_chasing(int step);
+	void trigger_unit_chasing_ownership(const TriggerEventData &data);
+	void trigger_unit_dancing(int step);
+	void trigger_unit_dancing_event(const TriggerEventData &data);
+	void trigger_unit_pushing(int step);
+	void trigger_unit_motion(int step);
+	uint32_t script_structure(float mx, float mz, uint8_t type, uint8_t team, float progress);
+	uint32_t script_palisade(float mx, float mz, float length_m, float angle);
+	uint32_t script_tree(float mx, float mz, int32_t amount = 200);
+	// The unit motion test scripts' helpers: 0 A.D. metres from the map corner to world units,
+	// QuickSpawn (followed as TriggerWatch role/label unless role is 0xFF), WalkTo, and removing
+	// every unit an experiment (role) followed.
+	std::pair<float, float> script_metres(float mx, float mz) const;
+	uint32_t script_spawn(float mx, float mz, const char *tmpl_id, uint8_t team, uint8_t role = 0xFF, uint8_t label = 0);
+	void script_walk(uint32_t id, float mx, float mz, bool queued);
+	void script_delete_role(uint8_t role);
+	// Their ModifiersManager.AddModifiers (no promotions; the dancing test's 5 m vision and
+	// spread off; the pushing test's gather speed), from the script that is running: kept out of the save as they follow from it.
+	uint16_t unit_test_script() const;
+	void script_modifiers(uint8_t player_id, TechMods &m) const;
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
 	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").
@@ -2756,6 +2815,7 @@ private:
 	bool petra_can_fish_safely(float x, float z, uint16_t sea) const;
 	void petra_manage_buildings(float dt);
 	void petra_manage_research(float dt);
+	bool petra_skips_random_tech(uint8_t tech_id, bool has_ally) const;
 	// researchManager.js: the techs Petra could research now at a structure it owns
 	// (gamestate.js findAvailableTech, phases left out), and one research start.
 	void petra_available_techs(std::vector<uint8_t> &out) const;
@@ -3165,6 +3225,7 @@ private:
 	bool flee_done(size_t i);
 	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
+	std::vector<uint16_t> combat_herd_scratch_; // tick_combat: players' animals out of their corrals (structure targets)
 	std::vector<uint32_t> combat_look_again_scratch_; // tick_combat: units that hit a non-preferred target
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;

@@ -2,7 +2,8 @@ extends CanvasLayer
 # The session's quit questions, ports of 0 A.D. gui/session/message_box
 # (GPL-2.0-or-later): SessionMessageBox, QuitConfirmation, QuitConfirmationMenu
 # (the menu's Exit), QuitConfirmationDefeat (the player has won or lost) and
-# QuitConfirmationReplay (the replay has finished) and OutOfSyncReplay, with session.js endGame:
+# QuitConfirmationReplay (the replay has finished), OutOfSyncReplay and
+# OutOfSyncNetwork (a multiplayer match fell out of sync), with session.js endGame:
 # "Quit and View Summary" leaves the match for the summary page, "Quit" for the
 # main menu (the replay menu after a replay), "Stay" goes back to the game.
 #
@@ -19,6 +20,17 @@ const CAPTION_CLIENT := "Are you sure you want to quit?"
 const CAPTION_REPLAY := "The replay has finished. What do you want to do?"
 const TITLE_OOS := "Out of Sync"
 const CAPTIONS_OOS := ["Out-Of-Sync error on turn %d.", "The current game state is different from the original game state."]
+const CAPTIONS_OOS_NET := {
+	"turn": "Out-Of-Sync error on turn %s.",
+	"players": "Players: %s",
+	"identical": "Your game state is identical to the hosts game state.",
+	"differs": "Your game state differs from the hosts game state.",
+	"ai": "Rejoining Multiplayer games with AIs is not supported yet!",
+	"mods": "Ensure all players use the same mods.",
+	"bug": "Click on \"Report a Bug\" in the main menu to help fix this.",
+	"replay": "Replay saved to %s",
+	"dump": "Dumping current state to %s",
+}
 const TITLE_VICTORY := "VICTORIOUS!"
 const TITLE_DEFEATED := "DEFEATED!"
 const STATE_MESSAGES := {"won": "You have won!", "defeated": "You have been defeated!"} # messages.js g_PlayerStateMessages
@@ -32,6 +44,7 @@ var caption := ""
 var buttons: Array = []
 var main: Node
 var _paused_by_me := false
+var box_size := Vector2.ZERO # the box's own size (0: SessionMessageBox's)
 
 ## QuitConfirmationMenu: the menu's Exit. Single player, replays and observers
 ## who aren't the host get QuitConfirmation; the host is told the others will
@@ -83,6 +96,22 @@ static func out_of_sync_replay(m: Node) -> Node:
 	var turn := int(m.get_replay_status().get("out_of_sync_turn", 0))
 	return _open(m, TITLE_OOS, "\n".join(CAPTIONS_OOS) % turn, [])
 
+## OutOfSyncNetwork: the host found a peer whose state differs (NMT_SYNC_ERROR).
+## The match runs on behind the box; OK closes it.
+static func out_of_sync_network(m: Node) -> Node:
+	var s: Dictionary = m.get_lobby_state()
+	var c := CAPTIONS_OOS_NET
+	var txt := [c["turn"] % str(int(s.get("oos_turn", 0))),
+		c["players"] % ", ".join(s.get("oos_players", [])),
+		c["identical"] if s.get("oos_identical", false) else c["differs"], ""]
+	if int(s.get("oos_turn", 0)) > 1 and s.get("oos_ai", false):
+		txt.append(c["ai"])
+	else:
+		txt.append_array([c["mods"], c["bug"], c["replay"] % str(s.get("oos_replay", "")),
+			c["dump"] % str(s.get("oos_dump", ""))])
+	var q := _open(m, TITLE_OOS, "\n".join(txt), [], Vector2(600, 280))
+	return q
+
 ## session.js endGame: leave the match, for the summary page or the menu the
 ## match came from: the campaign's menu in a campaign, else the lobby while
 ## signed in to it, the replay menu after a replay, else the main menu.
@@ -118,7 +147,7 @@ static func _quit(m: Node, t: String, text: String) -> Node:
 
 ## SessionMessageBox.display: close other dialogs, pause a single-player game
 ## until the question is answered.
-static func _open(m: Node, t: String, text: String, b: Array) -> Node:
+static func _open(m: Node, t: String, text: String, b: Array, size := Vector2.ZERO) -> Node:
 	for old in m.get_children():
 		if old.get_script() == load("res://scenes/session/quit_confirmation.gd"):
 			old.queue_free()
@@ -130,6 +159,7 @@ static func _open(m: Node, t: String, text: String, b: Array) -> Node:
 	q.title = t
 	q.caption = text
 	q.buttons = b
+	q.box_size = size
 	m.add_child(q)
 	return q
 
@@ -165,7 +195,7 @@ func _build() -> void:
 	var panel := PanelContainer.new()
 	panel.name = "MessageBox"
 	# SessionMessageBox 400 x 200; QuitConfirmation 600 x 200.
-	panel.custom_minimum_size = Vector2(600 if buttons == BUTTONS else 400, 200)
+	panel.custom_minimum_size = box_size if box_size != Vector2.ZERO else Vector2(600 if buttons == BUTTONS else 400, 200)
 	center.add_child(panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
