@@ -17386,6 +17386,7 @@ void Simulation::petra_build_first_base() {
 
 	// The civilCentre queue outranks every other (queueManager.js priority 950): pay
 	// from the stockpile at once, ahead of this tick's other spending.
+	if (petra_building_built()) return;
 	const BuildingTypeInfo &info = building_type_info(goal);
 	const int sx = (int)(points[best].x / GRID), sz = (int)(points[best].z / GRID);
 	const int max_r = goal == BLD_DOCK ? 24 : 12;
@@ -17397,7 +17398,7 @@ void Simulation::petra_build_first_base() {
 				float cf, cw, cg, cs;
 				petra_structure_cost(goal, cf, cw, cg, cs);
 				petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
-				const uint32_t bid = spawn_building(sx + dx, sz + dz, goal, petra_pid_, 0.0f);
+				const uint32_t bid = petra_spawn_foundation(sx + dx, sz + dz, goal);
 				if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
 				return;
 			}
@@ -18748,10 +18749,17 @@ void Simulation::petra_manage_naval(float dt) {
 					petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3]); // registers the want
 					break;
 				}
+				if (petra_building_built()) { // canStart: the plan stays queued for the next turn
+					PetraQueueAccount &w = petra_queues_.wants[PETRA_Q_DOCK];
+					w.food = std::max(w.food, cost[0]); w.wood = std::max(w.wood, cost[1]);
+					w.gold = std::max(w.gold, cost[2]); w.stone = std::max(w.stone, cost[3]);
+					petra_queues_.want_age[PETRA_Q_DOCK] = 0.0f;
+					break;
+				}
 				int cx = 0, cz = 0;
 				if (!petra_find_dock_position(land, sea, cx, cz)) break;
 				if (!petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
-				const uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
+				const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
 				auto idle = petra_idle_builders();
 				if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
 			}
@@ -18771,7 +18779,7 @@ void Simulation::petra_manage_naval(float dt) {
 			else if (b.type == BLD_MARKET) market = true;
 			else if (b.type == BLD_DOCK && b.build_progress >= 1.0f && !first_sea) first_sea = dock_sea(b);
 		}
-		if (first_sea && !shipyard && (market || !civ_can_build(civ_of(petra_pid_), BLD_MARKET))) {
+		if (first_sea && !shipyard && (market || !civ_can_build(civ_of(petra_pid_), BLD_MARKET)) && !petra_building_built()) {
 			const BuildingTypeInfo &info = building_type_info(BLD_SUPER_DOCK);
 			bool placed = false;
 			for (const PetraBase &base : petra_bases_) {
@@ -18793,7 +18801,7 @@ void Simulation::petra_manage_naval(float dt) {
 							if (dock_sea(probe) != first_sea || petra_building_land(probe, &topo, land) != land) continue;
 							placed = true;
 							if (!petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_SUPER_DOCK)) break;
-							const uint32_t bid = spawn_building(cx, cz, BLD_SUPER_DOCK, petra_pid_, 0.0f);
+							const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_SUPER_DOCK);
 							auto idle = petra_idle_builders();
 							if (bid && !idle.empty()) petra_order_builders(idle, 4, bid);
 						}
@@ -19361,7 +19369,7 @@ static uint8_t petra_room_bit(uint8_t t);
 // is on that scale (checkResourceLevels asks for 50).
 uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *no_site, float fund_above) {
 	if (no_site) *no_site = false;
-	if (!civ_can_build(petra_ps().civ, BLD_STOREHOUSE)) return 0;
+	if (!civ_can_build(petra_ps().civ, BLD_STOREHOUSE) || petra_building_built()) return 0;
 	const int k = res == RES_WOOD ? 0 : res == RES_STONE ? 1 : res == RES_GOLD ? 2 : -1;
 	if (k < 0) return 0;
 	constexpr float kCcTile = 2.0f;
@@ -19431,7 +19439,7 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 	}
 	if (!petra_try_pay_structure(PETRA_Q_DROPSITES, BLD_STOREHOUSE)) return 0;
 	petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(BLD_STOREHOUSE);
-	const uint32_t bid = spawn_building(best_cx, best_cz, BLD_STOREHOUSE, petra_pid_, 0.0f);
+	const uint32_t bid = petra_spawn_foundation(best_cx, best_cz, BLD_STOREHOUSE);
 	if (bid) {
 		auto idle = petra_idle_builders();
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
@@ -19518,6 +19526,7 @@ bool Simulation::petra_build_new_base(int res) {
 	else if (can_build(BLD_TOWN_CENTER)) btype = BLD_TOWN_CENTER;
 	else if (!own_cc && can_build(BLD_MILITARY_COLONY)) btype = BLD_MILITARY_COLONY;
 	else return false;
+	if (petra_building_built()) return false;
 
 	float x = 0.0f, z = 0.0f;
 	if (res >= 0 ? !petra_find_economic_cc_location(btype, (uint8_t)res, false, x, z)
@@ -19527,7 +19536,7 @@ bool Simulation::petra_build_new_base(int res) {
 	const int foot = info.footprint;
 	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
 	if (!petra_try_pay_structure(PETRA_Q_CIVIL_CENTRE, btype)) return false;
-	const uint32_t bid = spawn_building(cx, cz, btype, petra_pid_, 0.0f);
+	const uint32_t bid = petra_spawn_foundation(cx, cz, btype);
 	// Overseas, petra_staff_foundations ships the builders across.
 	uint16_t home_land = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(home_land);
@@ -19865,12 +19874,13 @@ void Simulation::petra_build_defenses() {
 			petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs);
 			return;
 		}
+		if (petra_building_built()) return; // the plan waits for a later turn
 		d.pending = 0;
 		int cx = 0, cz = 0;
 		uint32_t bid = 0;
 		if (petra_find_defensive_location(btype, cx, cz)) {
 			if (petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
-				bid = spawn_building(cx, cz, btype, petra_pid_, 0.0f);
+				bid = petra_spawn_foundation(cx, cz, btype);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
 			// takes the standard placement.
@@ -22828,11 +22838,19 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 	return best_tile(0);
 }
 
+// Every Petra foundation goes down here: queueplanBuilding.js start sets
+// HQ.turnCache.buildingBuilt, and canStart refuses further structures this AI turn.
+uint32_t Simulation::petra_spawn_foundation(int cx, int cz, uint8_t btype) {
+	const uint32_t bid = spawn_building(cx, cz, btype, petra_pid_, 0.0f);
+	if (bid) petra_turn_built_ = true;
+	return bid;
+}
+
 // A structure placed by petra_find_position and paid from `queue`.
 uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const float *base_at, const float *favor_at,
                                          bool military_base) {
 	petra_place_no_room_ = false;
-	if (btype >= BLD_TYPE_COUNT || !petra_limit_allows_building(btype)) return 0;
+	if (btype >= BLD_TYPE_COUNT || !petra_limit_allows_building(btype) || petra_building_built()) return 0;
 	int cx = 0, cz = 0;
 	if (!petra_find_position(btype, base_at, favor_at, military_base, cx, cz)) {
 		petra_place_no_room_ = true;
@@ -22842,13 +22860,14 @@ uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const flo
 	const BuildingTypeInfo &info = building_type_info(btype);
 	if (!petra_try_pay_structure(queue, btype)) return 0;
 	petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);
-	return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
+	return petra_spawn_foundation(cx, cz, btype);
 }
 
 uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue) {
 	petra_place_no_room_ = false;
-	// queueManager/canBuild: no search for a structure the EntityLimits refuse.
-	if (btype < BLD_TYPE_COUNT && !petra_limit_allows_building(btype)) return 0;
+	// queueManager/canBuild: no search for a structure the EntityLimits refuse; canStart:
+	// none once a foundation went down this turn.
+	if ((btype < BLD_TYPE_COUNT && !petra_limit_allows_building(btype)) || petra_building_built()) return 0;
 	const BuildingTypeInfo &info = building_type_info(btype);
 	int start_cx = (int)(near_x / GRID);
 	int start_cz = (int)(near_z / GRID);
@@ -22881,7 +22900,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 					return 0;
 				}
 				if (remember) petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);
-				return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
+				return petra_spawn_foundation(cx, cz, btype);
 			}
 		}
 	}
@@ -24833,7 +24852,10 @@ void Simulation::tick_petra_ai(float dt) {
 		// The game time since this AI's last turn (a whole turn, or the first tick).
 		const float turn_dt = ticks_ == 0 ? FIXED_STEP
 		                      : (float)std::min<uint64_t>(ticks_, PETRA_TURN_TICKS) * FIXED_STEP;
+		petra_in_turn_ = true;
+		petra_turn_built_ = false;
 		tick_petra_ai_player(turn_dt);
+		petra_in_turn_ = petra_turn_built_ = false;
 		petra_process_attack_requests();
 		if (parked) {
 			petra_swap_slot(pid);
