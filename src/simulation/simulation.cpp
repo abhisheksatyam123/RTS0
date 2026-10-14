@@ -9413,6 +9413,15 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		}
 		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
 		if (!formations_.empty() && formation_group_[i] != 0) continue;
+		// GATHER APPROACHING MovementUpdate with likelyFailure: FINDINGNEWTARGET, which goes on to
+		// the next order, another resource of the kind nearby (not the one it couldn't reach) or the
+		// dropsite. A boat's fish are on its own sea, so its walks to them don't fail this way.
+		if (move_failed && units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
+				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i])) {
+			m.failed = 0;
+			finish_order(i, true);
+			continue;
+		}
 		// A chase gives up on MoveFailed (UnitAI COMBAT.APPROACHING / CHASING MovementUpdate with
 		// likelyFailure). UnitMotion fails it within two turns once its long path can't reach the
 		// target (the short-path hack sets m_FailedMovements to MAX_FAILED_MOVEMENTS - 2).
@@ -13365,11 +13374,13 @@ void Simulation::patrol_next_leg(size_t i) {
 	apply_order(units_.id[i], back);
 }
 
-void Simulation::finish_order(size_t i) {
+// find_new_target: a gather order whose resource is still there ends as one whose resource is gone
+// (GATHER FINDINGNEWTARGET), as when the walk to it failed.
+void Simulation::finish_order(size_t i, bool find_new_target) {
 	const uint32_t uid = units_.id[i];
 	auto queued = order_queues_.find(uid);
-	if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i)) && queued != order_queues_.end() &&
-			!queued->second.empty()) {
+	const bool finding = units_.order_kind[i] == ORDER_GATHER && (find_new_target || !order_still_valid(i, current_order(i)));
+	if (finding && queued != order_queues_.end() && !queued->second.empty()) {
 		// GATHER FINDINGNEWTARGET: FinishOrder comes first. A unit carrying a load drops it
 		// off before a next order that isn't a ReturnResource or a gather of the same type.
 		const UnitOrder &n = queued->second.front();
@@ -13387,19 +13398,20 @@ void Simulation::finish_order(size_t i) {
 				queued->second.insert(queued->second.begin(), ret);
 			}
 		}
-	} else if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
+	} else if (finding) {
 		// FINDINGNEWTARGET with no orders queued: the same kind of resource, near the unit
 		// (not for a forced order: it may have sent the unit across the map on purpose),
-		// else near where it was.
+		// else near where it was; never the one it had ("previousTarget == ent").
 		const int sub = (units_.order_flags[i] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
 		// UnitAI.js FINDINGNEWTARGET: "type.specific != 'meat' || resourceTemplate == template",
 		// so a hunter goes on only to the animal it was hunting (a carcass or a live one).
 		const uint8_t species = sub == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
+		const uint32_t previous = units_.target_resource_id[i];
 		uint32_t r = 0;
 		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
-			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, 0, species);
+			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
 		if (r == 0)
-			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, 0, species);
+			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
@@ -13638,8 +13650,8 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != res_type) continue;
 		if (subtype >= 0 && resources_.subtype[r] != subtype) continue; // the same kind (type.specific)
 		if (fauna != 0 && resources_.fauna[r] != fauna) continue; // meat: the same template
+		if (resources_.id[r] == skip) continue;
 		if (busy) {
-			if (resources_.id[r] == skip) continue;
 			auto g = busy->find(resources_.id[r]);
 			if (g != busy->end() && g->second.total >= resources_.max_gatherers[r]) continue;
 		}
