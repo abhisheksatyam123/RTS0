@@ -1054,6 +1054,13 @@ void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
 	gaia_obstacles_sig_ = 0; // its obstruction size (resource_block_half)
 }
 
+void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
+	auto it = res_id_to_idx_.find(res_id);
+	if (it == res_id_to_idx_.end()) return;
+	resources_.x[it->second] = x;
+	resources_.z[it->second] = z;
+}
+
 void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	auto it = res_id_to_idx_.find(res_id);
 	if (it == res_id_to_idx_.end()) return;
@@ -1234,6 +1241,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	// 0 A.D. per-tile terrain textures from the final biome.
 	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
 	RmsGenerator::plant_flora(*this, seed, (uint8_t)type);
+	RmsGenerator::keep_resources_passable(*this);
 	RmsGenerator::set_mine_gatherers(*this, (uint8_t)type);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
