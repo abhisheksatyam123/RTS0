@@ -11,7 +11,8 @@ extends SceneTree
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_match_settings.gd
 # Exit code 0 = pass.
 
-const GameDescription = preload("res://scenes/session/game_description.gd")
+# Loaded at run time: under -s the script compiles before the autoloads exist.
+var GameDescription: GDScript
 
 var failures := 0
 
@@ -31,6 +32,7 @@ func has_line(text: String, label: String, details: String) -> bool:
 	return text.split("\n").has("[color=orange]%s[/color] %s" % [label, details])
 
 func run() -> void:
+	GameDescription = load("res://scenes/session/game_description.gd")
 	var ms = root.get_node("MatchSettings")
 	ms.map_id = "random_continental"
 	ms.seed = 99
@@ -68,6 +70,11 @@ func run() -> void:
 	check(has_line(text, "Map Name", "Continental"), "Map Name")
 	check(has_line(text, "Map Type", "Random"), "Map Type")
 	check(has_line(text, "Map Size", "Small"), "Map Size")
+	check(has_line(text, "Random Player Placement", "Randomly select a player placement from the list.") == not GameDescription.map_placements("random_continental").is_empty(), "the placement line follows Game Setup's list")
+	var placed: Dictionary = main.get_match_settings_info()
+	placed["map_id"] = "random_ambush"
+	placed["team_placement"] = 1
+	check(has_line(GameDescription.describe(placed), "Circle", "Players are placed in a circle spanning the map."), "a chosen placement reads its title and description")
 	check(has_line(text, "Nomad Mode", "Players start with only few units and have to find a suitable place to build their city."), "Nomad Mode")
 	check(has_line(text, "Starting Resources", "High (1000)"), "Starting Resources")
 	check(has_line(text, "Population Cap Type", "World Population"), "Population Cap Type")
@@ -96,7 +103,7 @@ func run() -> void:
 	info["map_id"] = "laconia"
 	info["map_name"] = "Laconia"
 	info["pop_cap"] = 300
-	var scen := GameDescription.describe(info)
+	var scen: String = GameDescription.describe(info)
 	check(has_line(scen, "Map Type", "Scenario"), "a scenario's map type")
 	check(has_line(scen, "Starting Resources", "Per Player"), "its own resources read Per Player")
 	check(has_line(scen, "Population Cap", "300"), "a player cap")

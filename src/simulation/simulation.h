@@ -360,6 +360,10 @@ public:
 	float unit_walk_speed(size_t i) const;
 	// The speed it moves at now: its walk speed, slowed by the pushing pressure it is under.
 	float unit_move_speed(size_t i) const;
+	// How far it moves this tick heading (ux, uz) at up to max_speed, starting from velocity (vx, vz),
+	// with its template's acceleration and turn rule; *speed is its speed at the end of the tick.
+	float accelerated_step(size_t i, float vx, float vz, float ux, float uz, float max_speed, float dt,
+			float *speed) const;
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
@@ -487,6 +491,11 @@ public:
 		auto it = res_id_to_idx_.find(res_id);
 		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
 	}
+	// ResourceSupply/Max a regrowing supply (fruit) returns to, 0 when RTS0 keeps none.
+	int32_t resource_supply_max(uint32_t res_id) const {
+		auto it = res_id_to_idx_.find(res_id);
+		return it == res_id_to_idx_.end() ? 0 : resources_.max_amount[it->second];
+	}
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
@@ -544,9 +553,6 @@ public:
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
-		fow_cell_height_.clear();
-		fow_cell_hmax_.clear();
-		fow_block_hmax_.clear();
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -847,6 +853,23 @@ public:
 	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
 	void structure_resistance(const Building &b, float out[3]) const;
 	void unit_resistance(size_t i, float out[3]) const;
+	// GetEntityState for the selection details (selection_details.js, tooltips.js): unit i's
+	// live numbers in 0 A.D.'s own units (metres, metres a second), technologies, rank and
+	// auras applied.
+	struct UnitDetails {
+		float damage[4] = {};     // hack, pierce, crush, fire
+		float capture = 0.0f;     // Attack/Capture
+		float interval = 0.0f;    // seconds between attacks
+		float min_range = 0.0f, max_range = 0.0f;
+		bool ranged = false;
+		float resistance[3] = {}; // hack, pierce, crush levels
+		float walk = 0.0f, run = 0.0f;
+		float gather[7] = {};     // grain, fruit, meat, fish, wood, stone, metal a second
+		int32_t carry_max = 0;    // what it can carry of the resource it holds
+		float heal_hp = 0.0f, heal_range = 0.0f, heal_interval = 0.0f; // 0 hp: no Heal
+		LootInfo loot{};
+	};
+	UnitDetails unit_details(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
@@ -1427,7 +1450,9 @@ public:
 	void petra_build_defenses();
 	void petra_check_resource_levels(int32_t turn);
 	// baseManager.js findBestDropsiteLocation for res; no_site: no spot reached min_quality.
-	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr);
+	// fund_above: past this quality, set the dropsites account to the storehouse's cost first
+	// (startingStrategy.js buildFirstBase setAccounts); negative: never.
+	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f);
 	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
@@ -1679,6 +1704,8 @@ public:
 	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
 	float treasure_reach(size_t i) const;
+	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
+	bool treasure_in_reach(size_t i, uint32_t id) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }
 	bool is_treasure_id(uint32_t id) const {
 		for (const auto &t : treasures_) if (t.id == id) return true;
@@ -2018,7 +2045,9 @@ private:
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
 	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz);
 	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
-	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
+	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread = true);
+	// CCmpPathfinder::DistributeAround: a point round (x, z) for each unit.
+	std::vector<std::pair<float, float>> distribute_around(const uint32_t *unit_ids, size_t count, float x, float z) const;
 	void tick_promotion(float dt);
 	void promote_if_due(size_t i); // Promotion.js IncreaseXp: promote while xp covers RequiredXp
 	void promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank); // Promotion.js Promote
@@ -2119,33 +2148,10 @@ private:
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
 	void reset_los();
-	void ensure_fow_cell_heights();
-	// The cells one viewer lit, kept while it stands still (CCmpRangeManager likewise redoes a
-	// viewer's LOS only when it moves). Derived from the terrain alone: never saved or hashed, and
-	// a viewer at another position, or terrain rebuilt since, recomputes. Row k of `rows` holds the
-	// lit cells of FoW row cz - r + k, bit i for column cx - r + i.
-	struct FowView {
-		uint32_t sx = 0, sz = 0, vr = 0; // the bits of the last call's sx, sz and vr
-		uint32_t gen = 0; // fow_view_gen_ of that call; 0: no call yet
-		bool stored = false; // rows filled for that call
-		uint64_t rows[64];
-		// Whether a call with these arguments would find this view's last call.
-		bool same_spot(float x, float z, float r, uint32_t now) const {
-			return gen == now && sx == std::bit_cast<uint32_t>(x) && sz == std::bit_cast<uint32_t>(z) && vr == std::bit_cast<uint32_t>(r);
-		}
-	};
-	static constexpr int FOW_VIEW_MAX_R = 31; // widest view the rows hold: 2r + 1 <= 63
-	struct FowViews {
-		std::vector<FowView> units, buildings;
-	};
-	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr, FowView *view = nullptr) const;
-	template <typename SharesVision>
-	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision, FowViews &views);
-	template <typename UnitVision, typename BuildingVision>
-	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
-	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
+	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
+	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
-	bool line_crosses_impassable(float x0, float z0, float x1, float z1, bool ship = false) const;
+	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -2363,6 +2369,9 @@ private:
 		uint8_t pid, btype;
 	};
 	std::vector<PetraPlaceMiss> petra_place_misses_;
+	// headquarters.js requireHouses: a house the phase needs and no room for one, so
+	// petra_find_position leaves out every structure's influence for houses (set for one call).
+	bool petra_require_houses_ = false;
 	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
 	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
@@ -2424,7 +2433,6 @@ private:
 	std::vector<Spy> spies_; // VisionSharing spies, oldest first
 	CheatMods cheat_mods_[MAX_PLAYERS] = {};
 	int32_t unit_pop_bonus_[MAX_PLAYERS] = {}; // Population/Bonus of each player's units (refresh_unit_pop_bonus)
-	std::vector<uint8_t> spy_mask_; // tick_fow scratch: per unit index, the players its spies see for
 	void tick_spies(float dt);
 	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);
 	uint8_t setup_flags_ = 0;
@@ -2696,6 +2704,7 @@ private:
 	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
 	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
 	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none
+	void petra_note_enemy(uint8_t enemy) const; // remember getEnemyPlayer's pick as currentEnemyPlayer
 	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
 	// read by Petra later in the same tick; cleared at the end of tick(), so never saved.
 	struct CivicCentreCapture { uint32_t building_id; uint8_t from, to; };
@@ -2843,6 +2852,8 @@ private:
 	// wait_for_pop: queue it even with no population room, to wait in the trainer's queue as
 	// 0 A.D.'s ProductionQueue holds an item until there is room.
 	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false);
+	bool petra_relic_targeted(uint32_t relic_id) const;
+	bool petra_unit_target_ok(int32_t t) const;
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
 	bool petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions);
 	bool petra_emergency_rally(const Building &b) const {
@@ -2890,6 +2901,10 @@ private:
 	std::vector<LosSource> los_fauna_src_; // the circle each fauna_ index's owned animal adds (rebuilt on load)
 	float owned_fauna_vision(size_t f) const;
 	void update_fauna_los();
+	// VisionSharing.AddSpy: a bribed unit sees for the briber (its allies sharing that LOS)
+	// while the spy lasts. Rebuilt from spies_ each LOS update and on load, never saved.
+	std::vector<LosSource> los_spy_src_;
+	void update_spy_los();
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
@@ -2918,14 +2933,6 @@ private:
 	template <class Ar> friend void tick_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();
 	PetraConfig &petra_config_slot(uint8_t pid);
-	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
-	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
-	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
-	std::vector<float> fow_block_hmax_; // fow_cell_hmax_ max per block, filled with fow_cell_height_
-	uint32_t fow_view_gen_ = 0; // bumped each time fow_cell_height_ is filled, so FowViews from older terrain miss
-	// reveal_fow() views of units (by index) and buildings (by buildings_ index) for update_player_fow().
-	FowViews player_fow_views_;
-	std::vector<uint32_t> fow_moved_units_; // reveal_viewers() scratch: units revealed last
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
