@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Checks tools/lobby_server.py: sign-in, presence, chat, the game list and
-timeouts, first on the Lobby object with a fake clock, then over real HTTP."""
+timeouts, first on the Lobby object with a fake clock, then over real HTTP,
+and the NAT traversal pieces (hole-punch relay, STUN responder)."""
 import json
 import os
+import socket
+import struct
 import sys
 import threading
 import urllib.error
@@ -108,6 +111,8 @@ def test_http():
     check(call("/rooms", {"id": "r", "host_port": 20601, "name": "Test"})[0] == 201, "HTTP register")
     check(call("/rooms/")[1]["rooms"][0]["name"] == "Test", "HTTP game list")
     check(call("/players")[1]["players"] == [{"name": "carol", "status": "available"}], "HTTP players")
+    check(call("/rooms/punch", {"token": me["token"], "id": "r", "ip": "127.0.0.1", "port": 40000})[0] == 200, "HTTP punch")
+    check(call("/rooms/punch?id=r&since=0")[1]["endpoints"][0]["port"] == 40000, "HTTP punch list")
     check(call("/nope")[0] == 404, "unknown path is 404")
     req = urllib.request.Request(base + "/login", data=b"[1]", headers={"Content-Type": "application/json"})
     try:
@@ -160,8 +165,57 @@ def test_ratings():
           "ratings outlive the server in the --ratings file")
 
 
+def test_punch():
+    now = [1000.0]
+    lb = lobby_server.Lobby(timeout=60.0, clock=lambda: now[0])
+    lb.register({"id": "g", "host_ip": "198.51.100.4", "host_port": 40001,
+                 "local_ip": "192.168.1.10", "local_port": 20595})
+    tok = lb.login("dave")[1]["token"]
+    check(lb.add_punch({"id": "g", "ip": "203.0.113.9", "port": 51000})[0] == 401, "a punch needs a signed-in player")
+    room = lb.room_list()[1]["rooms"][0]
+    check("local_ip" not in room and "punch" not in room, "the host's LAN address stays out of the game list")
+    check(lb.add_punch({"token": tok, "id": "nope", "ip": "203.0.113.9", "port": 5})[0] == 404, "a punch needs a game")
+    check(lb.add_punch({"token": tok, "id": "g", "ip": "", "port": 5})[0] == 400, "a punch needs an endpoint")
+    check(lb.add_punch({"token": tok, "id": "g", "ip": "203.0.113.9", "port": 51000}) == (200, {}),
+          "a joiner on another network gets no LAN address")
+    code, obj = lb.punches("g", 0)
+    check(code == 200 and obj["endpoints"] == [{"seq": 1, "ip": "203.0.113.9", "port": 51000}] and obj["last"] == 1,
+          "the host reads the joiner's endpoint")
+    check(lb.punches("g", 1)[1]["endpoints"] == [], "since= skips endpoints already punched")
+    check(lb.add_punch({"token": tok, "id": "g", "ip": "198.51.100.4", "port": 52000}) ==
+          (200, {"local_ip": "192.168.1.10", "local_port": 20595}),
+          "a joiner behind the host's public address is given the LAN address")
+    lb.register({"id": "g", "players": 2})
+    check(lb.punches("g", 0)[1]["last"] == 2, "a heartbeat keeps the endpoints")
+    now[0] += lobby_server.PUNCH_TIMEOUT + 1
+    lb.register({"id": "g"})
+    lb.presence(tok, "available")
+    check(lb.punches("g", 0)[1]["endpoints"] == [], "endpoints expire")
+    for i in range(lobby_server.PUNCH_KEEP + 4):
+        lb.add_punch({"token": tok, "id": "g", "ip": "203.0.113.9", "port": 1000 + i})
+    check(len(lb.punches("g", 0)[1]["endpoints"]) == lobby_server.PUNCH_KEEP, "at most PUNCH_KEEP endpoints per game")
+
+    sock = lobby_server.serve_stun("127.0.0.1", 0)
+    cli = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    cli.bind(("127.0.0.1", 0))
+    cli.settimeout(2)
+    txn = bytes(range(12))
+    cli.sendto(struct.pack("!HHI", 1, 0, lobby_server.STUN_MAGIC_COOKIE) + txn, sock.getsockname())
+    resp, _ = cli.recvfrom(512)
+    kind, length, cookie = struct.unpack("!HHI", resp[:8])
+    atype, alen, _, fam, xport, xip = struct.unpack("!HHBBHI", resp[20:32])
+    ip = socket.inet_ntoa(struct.pack("!I", xip ^ lobby_server.STUN_MAGIC_COOKIE))
+    check(kind == 0x0101 and resp[8:20] == txn and atype == 0x0020 and fam == 1 and
+          (ip, xport ^ (lobby_server.STUN_MAGIC_COOKIE >> 16)) == cli.getsockname(),
+          "the STUN responder names the request's own address and port")
+    check(lobby_server.stun_answer(b"RTS0 not stun", ("127.0.0.1", 1)) is None, "non-STUN datagrams get no answer")
+    cli.close()
+    sock.close()
+
+
 if __name__ == "__main__":
     test_object()
+    test_punch()
     test_ratings()
     test_http()
     print(f"{'FAILED ' + str(len(FAILS)) if FAILS else 'all lobby checks passed'}")

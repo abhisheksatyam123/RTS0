@@ -1670,6 +1670,9 @@ public:
 		uint8_t pad[3];
 	};
 	uint32_t spawn_treasure(float x, float z, uint8_t type);
+	// A treasure's facing (radians), fixed by its id; the world view draws it so and its
+	// Obstruction/Static rectangle blocks foundations along it.
+	static float treasure_angle(uint32_t id) { return (float)(id % 12) * 0.52f; }
 	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
 	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).

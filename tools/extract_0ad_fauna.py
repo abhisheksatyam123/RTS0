@@ -185,11 +185,14 @@ def treasure_rows(loader):
         t = loader.load("gaia/treasure/" + stem)
         res = t.get("Treasure/Resources")
         amounts = {k: int(res.num(k)) for k in RES} if res is not None else {}
+        st = t.get("Obstruction/Static")
         rows.append({
             "stem": stem,
             "name": t.value("Identity/SpecificName", t.value("Identity/GenericName", stem)),
             "collect": t.num("Treasure/CollectTime") / 1000.0,
             "amounts": [amounts.get(k, 0) for k in ("food", "wood", "stone", "metal")],
+            "width": float(st.attrs.get("width", 1)) if st is not None else 1.0,
+            "depth": float(st.attrs.get("depth", 1)) if st is not None else 1.0,
         })
     return rows
 
@@ -419,13 +422,14 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tconst char *name;")
     w("\tfloat collect_time;        // Treasure/CollectTime, seconds")
     w("\tint amount[4];             // food, wood, stone, metal")
+    w("\tfloat width, depth;       // Obstruction/Static in metres")
     w("};")
     w("")
     w("inline const TreasureTypeInfo &treasure_type_info(uint8_t t) {")
     w("\tstatic const TreasureTypeInfo kTable[TREASURE_TYPE_COUNT] = {")
     for r in treasures:
         a = r["amounts"]
-        w(f"\t\t{{{cstr(r['stem'])}, {cstr(r['name'])}, {f(r['collect'])}, {{{a[0]}, {a[1]}, {a[2]}, {a[3]}}}}},")
+        w(f"\t\t{{{cstr(r['stem'])}, {cstr(r['name'])}, {f(r['collect'])}, {{{a[0]}, {a[1]}, {a[2]}, {a[3]}}}, {f(r['width'])}, {f(r['depth'])}}},")
     w("\t};")
     w("\treturn kTable[t < TREASURE_TYPE_COUNT ? t : 0];")
     w("}")
