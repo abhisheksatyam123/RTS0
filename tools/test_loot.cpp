@@ -85,6 +85,12 @@ static void test_tables() {
 	uint16_t tower = find_template(ROSTER_SIEGE_TOWER, UNIT_TYPE_NONE);
 	LootInfo t = unit_loot(tower, civ_unit_template(tower).unit_type);
 	check(tower != CIV_UNIT_TEMPLATE_NONE && t.wood == 100 && t.metal == 60, "siege tower: wood 100, metal 60");
+	// Each roster unit pays its own 0.28 template's Loot, mixins included.
+	auto tl = [](const char *id) { for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k) if (!std::strcmp(civ_unit_template(k).id, id)) return unit_loot(k, civ_unit_template(k).unit_type); return LootInfo{}; };
+	const LootInfo scout = tl("athen/ship_scout"), eleph = tl("pers/champion_elephant"), arch = tl("athen/infantry_archer_b");
+	check(scout.xp == 20 && scout.food == 5 && scout.wood == 8 && scout.metal == 0, "a scout ship pays its own 20 xp, 5 food, 8 wood");
+	check(eleph.xp == 330 && eleph.food == 33 && eleph.metal == 22, "an Indian elephant pays x1.1 (elephant_indian)");
+	check(arch.xp == 100 && arch.food == 0 && arch.wood == 0 && arch.metal == 6, "a Cretan mercenary archer pays 6 metal");
 	LootInfo tc = building_loot(BLD_TOWN_CENTER);
 	check(tc.wood == 60 && tc.stone == 60 && tc.metal == 50 && tc.xp == 0, "civic centre: wood 60, stone 60, metal 50");
 	LootInfo past = building_loot(BLD_TYPE_COUNT + 7);
@@ -136,7 +142,8 @@ static void test_rank() {
 		float m = rank == 2 ? 1.2f : 1.44f;
 		print_gain(a, b);
 		// Loot.js GetResources floors each modified amount.
-		check(gained(a, b, std::floor(5 * m), std::floor(4 * m), 0, std::floor(1 * m)), rank == 2 ? "advanced: x1.2" : "elite: x1.44");
+		// Player 1 is Spartan: its swordsman is spart/champion_infantry_swordsman (Loot food 5, wood 4, metal 4).
+		check(gained(a, b, std::floor(5 * m), std::floor(4 * m), 0, std::floor(4 * m)), rank == 2 ? "advanced: x1.2" : "elite: x1.44");
 	}
 }
 
@@ -188,7 +195,8 @@ static void test_damage_xp() {
 	melee_kill(s, killer, fem);
 	int c = idx_of(s, killer);
 	std::printf("      killer xp %u + %.3f\n", s.units_.xp[c], s.units_.xp_partial[c]);
-	check(near(s.units_.xp[c] + s.units_.xp_partial[c], 3.0f), "killing a female citizen gives her 3 xp, not a flat 100");
+	// spart/support_civilian: template_unit_support_civilian's 3 xp, +1.
+	check(near(s.units_.xp[c] + s.units_.xp_partial[c], 4.0f), "killing a Spartan civilian gives her 4 xp, not a flat 100");
 }
 
 static void test_healer_xp() {
@@ -265,6 +273,23 @@ static void test_structures() {
 	s.collect_building_loot(sw, 0, fake);
 	b = res_of(s, 0);
 	check(gained(a, b, 0, 0, 0, 0), "an unknown building type pays nothing");
+	// special/filter/foundation.xml keeps no Loot: a destroyed foundation pays nothing.
+	Simulation::Building found = *bp;
+	found.build_progress = 0.5f;
+	a = res_of(s, 0);
+	s.collect_building_loot(sw, 0, found);
+	b = res_of(s, 0);
+	check(gained(a, b, 0, 0, 0, 0), "a barracks foundation pays nothing");
+	// Health.js: hitting the Han Imperial Ministry (Loot xp 200) pays its xp share of the damage.
+	uint32_t mins = s.spawn_building_world(-30.0f, -30.0f, BLD_MINISTRY, 1, 1.0f);
+	const Simulation::Building *mp = nullptr;
+	for (const auto &bb : s.buildings_) if (bb.id == mins) mp = &bb;
+	const int swi = idx_of(s, sw);
+	const float xp0 = s.units_.xp[swi] + s.units_.xp_partial[swi];
+	s.award_structure_damage_xp(sw, *mp, mp->max_hp * 0.25f);
+	const float got = s.units_.xp[swi] + s.units_.xp_partial[swi] - xp0;
+	std::printf("      a quarter of the ministry's health pays %.2f xp\n", got);
+	check(building_loot(BLD_MINISTRY).xp == 200 && near(got, 50.0f), "damaging the Han ministry pays 50 xp per quarter of its health");
 	// Sun-dried Mud Bricks (civbonuses/ptol_structures.json): Ptolemaic houses yield Loot/wood x0.6.
 	uint32_t ph = s.spawn_building_world(-20.0f, 20.0f, BLD_HOUSE, 1, 1.0f);
 	const Simulation::Building *php = nullptr;
@@ -272,7 +297,19 @@ static void test_structures() {
 	a = res_of(s, 0);
 	s.collect_building_loot(sw, 0, *php);
 	b = res_of(s, 0);
-	check(gained(a, b, 0, 15, 0, 0), "an Athenian house pays wood 15");
+	check(gained(a, b, 0, 30, 0, 0), "an Athenian house (template_structure_civic_house_big) pays wood 30");
+	// Each civ's own template and each WallSet piece's length (structure_loot).
+	check(structure_loot(BLD_TOWER, CIV_IBERIANS, 1.0f).stone == 50 && structure_loot(BLD_TOWER, CIV_ATHENIANS, 1.0f).stone == 20,
+		"the Iberian tower pays 50 stone, a generic one 20");
+	check(structure_loot(BLD_BARRACKS, CIV_GAULS, 1.0f).wood == 60 && structure_loot(BLD_BARRACKS, CIV_GAULS, 1.0f).stone == 0,
+		"a Gallic wooden barracks pays 60 wood");
+	const WallSetInfo &stone = wallset_info(WALLSET_STONE), &pal = wallset_info(WALLSET_PALISADE);
+	check(structure_loot(BLD_WALL_SEGMENT, CIV_ATHENIANS, 0.5f * stone.lengths[2]).stone == 3 &&
+		structure_loot(BLD_WALL_SEGMENT, CIV_ATHENIANS, 0.5f * stone.lengths[0]).stone == 7 &&
+		structure_loot(BLD_WALL_SEGMENT, CIV_MAURYANS, 0.5f * stone.lengths[1]).wood == 5,
+		"wall pieces pay by length: short 3, long 7 stone; a Mauryan medium one 5 wood");
+	check(structure_loot(BLD_PALISADE, CIV_GAULS, 0.5f * pal.lengths[0]).wood == 3 && structure_loot(BLD_PALISADE, CIV_GAULS, pal.tower_half).wood == 3 &&
+		structure_loot(BLD_PALISADE, CIV_GAULS, 0.5f * pal.lengths[2]).wood == 1, "palisades pay 3, 1 and their tower 3 wood");
 	s.set_team_civ(1, CIV_PTOLEMIES);
 	a = res_of(s, 0);
 	s.collect_building_loot(sw, 0, *php);

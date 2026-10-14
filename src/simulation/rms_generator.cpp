@@ -4403,6 +4403,9 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 	}
 }
 
+// The landscape synth_unknown picked for this generation (unknown.js g_StartingTreasures).
+thread_local int g_unknown_landscape = -1;
+
 // Gaia treasures and ruins, where 0 A.D.'s random map scripts place them (maps/random/*.js);
 // most scripts place none. Capture the Relic's relics come from the victory condition
 // (Simulation::apply_relic_count), not the map.
@@ -4444,7 +4447,85 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 			}
 	};
 
+	// rmgen scaleByMapSize.
+	const float size_frac = std::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f);
+	auto scale = [&](float a, float b) { return (int)std::lround(a + (b - a) * size_frac); };
+	auto wet = [&](float x, float z) {
+		return std::abs(x) < half - 3.0f && std::abs(z) < half - 3.0f && hm.sample_world(x, z) < water_h - 0.5f;
+	};
+	// Every sample within r of (x, z) passes `pred` (stayClasses / avoidClasses on a tile class).
+	auto all_within = [&](float x, float z, float r, auto pred) {
+		for (int k = 0; k < 8; ++k) {
+			const float a = 0.7853982f * (float)k;
+			if (!pred(x + std::cos(a) * r, z + std::sin(a) * r)) return false;
+		}
+		return pred(x, z);
+	};
+	auto any_within = [&](float x, float z, float r, auto pred) {
+		for (int k = 0; k < 8; ++k) {
+			const float a = 0.7853982f * (float)k;
+			if (pred(x + std::cos(a) * r, z + std::sin(a) * r)) return true;
+		}
+		return false;
+	};
+	// Shipwrecks: `groups` groups of lo-hi treasures within `spread`, each where `ok` holds,
+	// 8 apart (avoidClasses(clFood, 8)).
+	std::vector<std::pair<float, float>> wrecks;
+	auto scatter_water = [&](uint8_t type, int groups, int lo, int hi, float spread, auto ok) {
+		for (int g = 0, tries = 0; g < groups && tries < groups * 100; ++tries) {
+			const float x = rng.range_float(-half * 0.95f, half * 0.95f), z = rng.range_float(-half * 0.95f, half * 0.95f);
+			if (!ok(x, z)) continue;
+			bool clear = true;
+			for (const auto &w : wrecks) clear = clear && std::hypot(w.first - x, w.second - z) >= 8.0f;
+			if (!clear) continue;
+			for (int k = 0, n = rng.range_int(lo, hi); k < n; ++k) {
+				const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(0.0f, spread);
+				const float tx = x + std::cos(a) * r, tz = z + std::sin(a) * r;
+				if (wet(tx, tz)) sim.spawn_treasure(tx, tz, type);
+			}
+			wrecks.push_back({x, z});
+			++g;
+		}
+	};
+
 	switch (config.map_type) {
+		case MAP_BAHRAIN: // bahrain.js: 1 to players wood, then food treasures, 25 from bases, and 0-1 wrecks
+			for (uint8_t t : {TREASURE_WOOD, TREASURE_FOOD_BIN})
+				scatter(t, rng.range_int(1, std::max(1, np)), 1, 1, 25.0f);
+			scatter_water(TREASURE_SHIPWRECK_SAIL_BOAT_CUT, rng.range_int(0, 1), 1, 1, 1.0f,
+					[&](float x, float z) { return all_within(x, z, 2.0f, wet); });
+			break;
+		case MAP_CYCLADIC_ARCHIPELAGO: // cycladic_archipelago.js: shipwrecks and debris in the sea
+			scatter_water(TREASURE_SHIPWRECK, scale(6, 16), 1, 1, 3.0f, [&](float x, float z) { return all_within(x, z, 1.0f, wet); });
+			scatter_water(TREASURE_SHIPWRECK_DEBRIS, scale(10, 20), 1, 2, 4.0f, [&](float x, float z) { return all_within(x, z, 1.0f, wet); });
+			break;
+		case MAP_ISLAND_STRONGHOLD: // island_stronghold.js: shipwrecks and debris 4 off the land
+			scatter_water(TREASURE_SHIPWRECK, scale(12, 16), 1, 1, 1.0f, [&](float x, float z) { return all_within(x, z, 4.0f, wet); });
+			scatter_water(TREASURE_SHIPWRECK_DEBRIS, scale(10, 20), 1, 1, 1.0f, [&](float x, float z) { return all_within(x, z, 4.0f, wet); });
+			break;
+		case MAP_ARCHIPELAGO_0AD: // archipelago.js and islands.js: 14 wood treasures in each base
+		case MAP_ISLANDS:
+			base_ring(TREASURE_WOOD, 14);
+			break;
+		case MAP_UNKNOWN: // unknown.js: 14 in each base on its Archipelago landscape only
+			if (g_unknown_landscape == 0) base_ring(TREASURE_WOOD, 14);
+			break;
+		case MAP_ARCTIC_SUMMER: // arctic_summer.js: 10 wood treasures in each base
+			base_ring(TREASURE_WOOD, 10);
+			break;
+		case MAP_SAHARAN_OASES: { // saharan_oases.js: 3 x scaleByMapSize(5, 20) food bins, then wood, by the oases' shores
+			auto shore = [&](float x, float z) { return dry(x, z) && any_within(x, z, 5.0f, wet); };
+			for (uint8_t t : {TREASURE_FOOD_BIN, TREASURE_WOOD}) {
+				const int n = 3 * scale(5, 20);
+				for (int g = 0, tries = 0; g < n && tries < n * 50; ++tries) {
+					const float x = rng.range_float(-half * 0.9f, half * 0.9f), z = rng.range_float(-half * 0.9f, half * 0.9f);
+					if (!shore(x, z)) continue;
+					cluster(x, z, t, 1, 2.0f);
+					++g;
+				}
+			}
+			break;
+		}
 		case MAP_THE_NILE: { // the_nile.js: 3 x scaleByMapSize(5, 20) food bins, then as many wood treasures
 			const int n = (int)std::lround(3.0f * (5.0f + 15.0f * std::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f)));
 			scatter(TREASURE_FOOD_BIN, n, 1, 1, 20.0f);
@@ -9737,6 +9818,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 	else if (landscape_choice >= UNKNOWN_LANDSCAPE_FIRST && landscape_choice < UNKNOWN_LANDSCAPE_FIRST + UNKNOWN_LANDSCAPE_COUNT)
 		landscape = landscape_choice - UNKNOWN_LANDSCAPE_FIRST;
 	else landscape = rng.range_int(0, 12);
+	g_unknown_landscape = landscape; // distribute_relics: only Archipelago places starting treasures
 	switch (landscape) {
 		case 0: { // Archipelago
 			circle(0.35f * size, rng.range_float(0.0f, kTau));
@@ -11390,6 +11472,31 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 		if (wood != 0 && rv.amount[r] == TREE_WOOD_SUPPLY) sim.set_resource_amount(rv.id[r], wood);
 		if (gatherers != 8) sim.set_resource_max_gatherers(rv.id[r], gatherers);
 	}
+}
+
+void RmsGenerator::set_mine_gatherers(Simulation &sim, uint8_t type) {
+	// 0.28's maps/random scripts that place their quarries as g_Gaia.stoneLarge (rmgen2's
+	// gaia.js included); the others name their own rock templates, all at 24 gatherers.
+	switch (type) {
+	case MAP_AFRICAN_PLAINS: case MAP_ALPINE_LAKES: case MAP_ALPINE_VALLEY: case MAP_ARCHIPELAGO_0AD:
+	case MAP_BAHRAIN: case MAP_CANTABRIAN_HIGHLANDS: case MAP_CANYON: case MAP_COAST_RANGE: case MAP_CONTINENT:
+	case MAP_CORINTHIAN_ISTHMUS: case MAP_FLOOD: case MAP_FOOTHILLS: case MAP_GEAR: case MAP_GULF_OF_BOTHNIA:
+	case MAP_HELLAS: case MAP_HYRCANIAN_SHORES: case MAP_ISLAND_STRONGHOLD: case MAP_ISLANDS: case MAP_LAKE:
+	case MAP_LAND_GRAB: case MAP_MAINLAND: case MAP_MIGRATION: case MAP_NEARESTERN_BADLANDS:
+	case MAP_PERSIAN_HIGHLANDS: case MAP_RATUMACOS: case MAP_RIVERS: case MAP_SNOWFLAKE_SEAROCKS: case MAP_UNKNOWN:
+	case MAP_WILD_LAKE: case MAP_AMBUSH: case MAP_EMPIRE: case MAP_FRONTIER: case MAP_HARBOR: case MAP_HELLS_PASS:
+	case MAP_LIONS_DEN: case MAP_MARMARA: case MAP_NGORONGORO: case MAP_RED_SEA: case MAP_STRONGHOLD: {
+		const std::string &biome = sim.current_map_biome();
+		if (biome != "temperate" && biome != "alpine") return;
+		break;
+	}
+	case MAP_CALEDONIAN_MEADOWS: break; // placeMine(pos, "gaia/rock/temperate_large_02")
+	default: return;
+	}
+	const auto rv = sim.resources();
+	for (size_t r = 0; r < rv.count; ++r)
+		if (rv.alive[r] && rv.type[r] == RES_STONE && rv.subtype[r] == RES_SUB_NONE && rv.amount[r] == LARGE_MINE_SUPPLY)
+			sim.set_resource_max_gatherers(rv.id[r], 48);
 }
 
 void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {

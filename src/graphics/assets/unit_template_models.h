@@ -9,7 +9,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 183;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 188;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -196,6 +196,11 @@ inline const char *unit_template_draw_model(int k) {
 		"germ_infantry_javelineer_b",
 		"germ_ship_scout",
 		"germ_siege_ram_siege_ram_pivot",
+		"cart_infantry_spearman_ital_b",
+		"rome_cavalry_javelineer_auxiliary_b",
+		"rome_cavalry_spearman_auxiliary_b",
+		"rome_champion_infantry_swordsman_first",
+		"rome_infantry_spearman_conscript",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -654,11 +659,13 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // germ/rts0_villager
 		1, // germ/catafalque (no German actor)
 		19, // germ/ship_fire_fire (the Iberian fireship, as for the Celts)
-		-1, // rome/infantry_spearman_conscript
-		-1, // cart/infantry_spearman_ital_b
-		135, // rome/cavalry_javelineer_auxiliary_b
-		-1, // rome/cavalry_spearman_auxiliary_b
-		-1, // rome/champion_infantry_swordsman_first
+		187, // rome/infantry_spearman_conscript
+		183, // cart/infantry_spearman_ital_b
+		184, // rome/cavalry_javelineer_auxiliary_b
+		185, // rome/cavalry_spearman_auxiliary_b
+		186, // rome/champion_infantry_swordsman_first
+		-1, // germ/support_wagon
+		-1, // germ/support_wagon_house
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -669,7 +676,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 134;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 149;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -702,6 +709,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"cart_hero_maharbal", "cart_cavalry", "cart_cavalry"},
 		{"cart_infantry_javelineer_iber_b", "cart_archer", nullptr},
 		{"cart_infantry_spearman_b", "cart_spearman", nullptr},
+		{"cart_infantry_spearman_ital_b", "cart_spearman", nullptr},
 		{"cart_infantry_swordsman_gaul_b", "cart_swordsman", nullptr},
 		{"cart_ship_ram", "cart_trireme", nullptr},
 		{"cart_ship_scout", "cart_trireme", nullptr},
@@ -713,6 +721,16 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"gaul_hero_viridomarus", "gaul_hero", nullptr},
 		{"gaul_infantry_javelineer_b", "gaul_archer", nullptr},
 		{"gaul_infantry_spearman_b", "gaul_spearman", nullptr},
+		{"germ_cavalry_javelineer_b", "germ_cavalry", "germ_cavalry"},
+		{"germ_champion_cavalry", "germ_cavalry", "germ_cavalry"},
+		{"germ_champion_healer", "germ_healer", nullptr},
+		{"germ_champion_infantry_axeman", "germ_swordsman", "germ_swordsman"},
+		{"germ_champion_infantry_maceman", "germ_swordsman", nullptr},
+		{"germ_hero_boiorix", "germ_cavalry", nullptr},
+		{"germ_hero_lugius", "germ_cavalry", nullptr},
+		{"germ_infantry_javelineer_b", "germ_archer", nullptr},
+		{"germ_ship_scout", "germ_trireme", nullptr},
+		{"germ_siege_ram_siege_ram_pivot", "germ_ram", nullptr},
 		{"han_cavalry_spearman_b", "han_cavalry", nullptr},
 		{"han_champion_chariot_academy", "han_chariot", nullptr},
 		{"han_hero_wei_qing_chariot", "han_chariot", nullptr},
@@ -771,17 +789,21 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"ptol_ship_siege", "ptol_trireme", nullptr},
 		{"ptol_siege_tower", "ptol_bolt_shooter", nullptr},
 		{"rome_cavalry_auxiliary_b", "rome_cavalry", "rome_cavalry"},
+		{"rome_cavalry_javelineer_auxiliary_b", "rome_cavalry", nullptr},
 		{"rome_cavalry_javelineer_b", "rome_cavalry", "rome_cavalry"},
+		{"rome_cavalry_spearman_auxiliary_b", "rome_cavalry", nullptr},
 		{"rome_champion_cavalry", "rome_cavalry", "rome_cavalry"},
 		{"rome_champion_infantry_spear_gladiator", "rome_spearman", nullptr},
 		{"rome_champion_infantry_sword_gladiator", "rome_swordsman", nullptr},
 		{"rome_champion_infantry_swordsman_centurion", "rome_swordsman", nullptr},
+		{"rome_champion_infantry_swordsman_first", "rome_swordsman", nullptr},
 		{"rome_hero_marcellus", "rome_cavalry", "rome_cavalry"},
 		{"rome_hero_maximus", "rome_cavalry", "rome_cavalry"},
 		{"rome_hero_scipio", "rome_cavalry", "rome_cavalry"},
 		{"rome_infantry_antesignanus", "rome_archer", nullptr},
 		{"rome_infantry_legionary", "rome_swordsman", nullptr},
 		{"rome_infantry_spearman_a", "rome_spearman", "rome_spearman"},
+		{"rome_infantry_spearman_conscript", "rome_spearman", nullptr},
 		{"rome_infantry_swordsman_a", "rome_swordsman", nullptr},
 		{"rome_infantry_swordsman_b", "rome_swordsman", nullptr},
 		{"rome_ship_ram", "rome_trireme", nullptr},
@@ -820,6 +842,6 @@ inline const UnitTemplateModel *find_unit_template_model(const char *id) {
 	return nullptr;
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 455, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 457, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso

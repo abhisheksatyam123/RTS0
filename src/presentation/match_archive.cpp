@@ -22,6 +22,7 @@
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/viewport_texture.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
@@ -37,7 +38,7 @@ namespace {
 // Game Setup keys a match is rebuilt from (scenes/menu/match_settings.gd).
 const char *const kSetupKeys[] = {
 	"map_id", "victory", "waves_enabled", "last_man_standing", "pop_cap", "team_pop", "ceasefire_min",
-	"reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "map_size",
+	"reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
 	"player_civ", "ai_civ", "campaign_run", "campaign_level", "lock_teams",
 	// Everything else apply_match_settings reads: the options that shape the rebuilt map
@@ -102,6 +103,8 @@ Dictionary stats_dict(const rtso::PlayerStatistics &st) {
 	d["enemyUnitsKilled"] = by_class(st.enemy_units_killed, true);
 	d["unitsLostValue"] = (int64_t)st.units_lost_value;
 	d["enemyUnitsKilledValue"] = (int64_t)st.enemy_units_killed_value;
+	d["unitsCaptured"] = by_class(st.units_captured, true);
+	d["unitsCapturedValue"] = (int64_t)st.units_captured_value;
 	d["buildingsConstructed"] = by_class(st.buildings_constructed, false);
 	d["buildingsLost"] = by_class(st.buildings_lost, false);
 	d["enemyBuildingsDestroyed"] = by_class(st.enemy_buildings_destroyed, false);
@@ -145,8 +148,8 @@ int economy_score(const rtso::PlayerStatistics &st) {
 	return (int)std::llround((double)total / 10.0);
 }
 int military_score(const rtso::PlayerStatistics &st) {
-	return (int)std::llround((double)(st.enemy_units_killed_value + st.enemy_buildings_destroyed_value +
-	                                  st.buildings_captured_value) / 10.0);
+	return (int)std::llround((double)(st.enemy_units_killed_value + st.units_captured_value +
+	                                  st.enemy_buildings_destroyed_value + st.buildings_captured_value) / 10.0);
 }
 // RangeManager GetPercentMapExplored is a whole percent in 0 A.D.
 int exploration_score(float percent_explored) { return (int)std::floor(percent_explored) * 10; }
@@ -515,6 +518,12 @@ Dictionary RtsoMain::get_replay_status() const {
 	d["recording"] = replay_recording_;
 	d["replay_dir"] = replay_dir_;
 	d["view"] = turn_mgr_.is_replaying() && replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
+	d["view_gaia"] = replay_view_gaia_;
+	Array views;
+	if (replay_view_picker_)
+		for (int i = 0; i < replay_view_picker_->get_item_count(); ++i) views.push_back(replay_view_picker_->get_item_text(i));
+	d["view_items"] = views;
+	d["observer_mode"] = replay_observer_label_ && replay_observer_label_->is_visible();
 	// The player whose counters and time notifications show (local_player()); -1 for none.
 	d["hud_player"] = local_player() < rtso::MAX_PLAYERS ? (int)local_player() : -1;
 	d["start_time"] = (double)replay_meta_.get("start_time", 0.0);
@@ -549,8 +558,14 @@ void RtsoMain::tick_match_archive() {
 	// A replay continued from a save shows the game clock, which starts at the save's time.
 	const int64_t start_turns = (int64_t)((double)replay_meta_.get("start_time", 0.0) / rtso::TurnManager::TURN_DURATION + 0.5);
 	String text = "REPLAY  " + clock(start_turns + turn) + " / " + clock(start_turns + total);
-	if (turn_mgr_.replay_out_of_sync())
+	if (turn_mgr_.replay_out_of_sync()) {
 		text += "  (out of sync at turn " + String::num_int64(turn_mgr_.replay_out_of_sync_turn()) + ")";
+		// OutOfSyncReplay: an "Out of Sync" message box that pauses the replay until answered.
+		if (!replay_oos_shown_) {
+			replay_oos_shown_ = true;
+			quit_confirmation("out_of_sync_replay");
+		}
+	}
 	if (!replay_finished_ && turn_mgr_.replay_complete()) {
 		replay_finished_ = true;
 		quit_confirmation("replay_finished"); // QuitConfirmationReplay
@@ -559,25 +574,34 @@ void RtsoMain::tick_match_archive() {
 	replay_label_->set_text(text);
 }
 
-// 0 A.D. replay "Player view": Observer (everything revealed) or one player's
-// sight and panels. Presentation only, so the replay's hashes are unaffected.
+// 0 A.D. replay "Player view" (PlayerViewControl): Observer (everything revealed),
+// then every player, Gaia first, as "■ name" with the square in the player's colour;
+// "Observer Mode" shows while the view is Observer or Gaia. Presentation only, so the
+// replay's hashes are unaffected.
 void RtsoMain::build_replay_view_picker() {
 	if (replay_view_picker_ || !replay_label_) return;
 	HBoxContainer *row = memnew(HBoxContainer);
 	row->set_position(Vector2(16.0f, 92.0f));
-	Label *caption = memnew(Label);
-	caption->set_text("Player view:");
-	row->add_child(caption);
 	replay_view_picker_ = memnew(OptionButton);
+	replay_view_picker_->set_tooltip_text("Choose player to view");
 	replay_view_picker_->add_item("Observer", 0);
+	auto add_player = [&](uint8_t pid, const String &name, int id) {
+		const uint32_t rgb = sim->player_color(pid);
+		Ref<Image> img = Image::create(12, 12, false, Image::FORMAT_RGB8);
+		img->fill(Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f));
+		replay_view_picker_->add_icon_item(ImageTexture::create_from_image(img), name, id);
+	};
+	add_player(rtso::GAIA_PLAYER, "Gaia", kReplayViewGaiaId);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		if (!sim->player_in_match(p) && !((sim->participant_mask() >> p) & 1)) continue;
-		const String name = "Player " + String::num_int64(p + 1) + " (" + String(rtso::civ_info(sim->player(p).civ).name) + ")";
-		replay_view_picker_->add_item(name, p + 1);
+		add_player(p, player_display_name(p), p + 1);
 	}
 	replay_view_picker_->set_focus_mode(Control::FOCUS_NONE);
 	replay_view_picker_->connect("item_selected", Callable(this, "_on_replay_view_selected"));
 	row->add_child(replay_view_picker_);
+	replay_observer_label_ = memnew(Label);
+	replay_observer_label_->set_text("Observer Mode");
+	row->add_child(replay_observer_label_);
 	// Game speed and pause, as the session menu offers them in a 0 A.D. replay.
 	Label *speed_caption = memnew(Label);
 	speed_caption->set_text("  Speed:");
@@ -607,14 +631,17 @@ void RtsoMain::_on_replay_speed_selected(int index) {
 
 void RtsoMain::_on_replay_view_selected(int index) {
 	if (!replay_view_picker_) return;
-	set_replay_view(replay_view_picker_->get_item_id(index) - 1);
+	const int id = replay_view_picker_->get_item_id(index);
+	set_replay_view(id == kReplayViewGaiaId ? (int)rtso::GAIA_PLAYER : id - 1);
 }
 
 void RtsoMain::set_replay_view(int player) {
 	if (!turn_mgr_.is_replaying()) return;
+	replay_view_gaia_ = player == rtso::GAIA_PLAYER;
 	if (player < 0 || player >= rtso::MAX_PLAYERS) {
 		// g_ViewedPlayer -1: the counters, civ icon and player panels go, and
-		// time notifications are the ones every observer sees.
+		// time notifications are the ones every observer sees. Gaia (0) sees
+		// everything, so its view is the observer's.
 		replay_view_ = rtso::OBSERVER_VIEW;
 		replay_hud_player_ = 0xFF; // seat_player()'s observer
 	} else {
@@ -624,8 +651,10 @@ void RtsoMain::set_replay_view(int player) {
 	clear_selection();
 	if (replay_view_picker_)
 		for (int i = 0; i < replay_view_picker_->get_item_count(); ++i)
-			if (replay_view_picker_->get_item_id(i) == (replay_view_ == rtso::OBSERVER_VIEW ? 0 : replay_view_ + 1))
+			if (replay_view_picker_->get_item_id(i) ==
+					(replay_view_gaia_ ? kReplayViewGaiaId : replay_view_ == rtso::OBSERVER_VIEW ? 0 : replay_view_ + 1))
 				replay_view_picker_->select(i);
+	if (replay_observer_label_) replay_observer_label_->set_visible(replay_view_ == rtso::OBSERVER_VIEW);
 }
 
 // --- Saved games ---------------------------------------------------------------

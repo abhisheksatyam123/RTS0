@@ -21,10 +21,16 @@
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <functional>
+#include <string>
+#include <vector>
 
 #include "../simulation/simulation.h"
+#include "l10n.h"
+#include "user_config.h"
 
 #ifndef RTSO_UI_LOAD_TEXTURE
 #define RTSO_UI_LOAD_TEXTURE
@@ -69,6 +75,7 @@ public:
 			rc->add_theme_constant_override("separation", 4);
 			rc->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 			res_panels_[i] = rc;
+			rc->connect("gui_input", Callable(owner, "_on_top_counter_gui_input"));
 
 			res_icons_[i] = memnew(TextureRect);
 			res_icons_[i]->set_custom_minimum_size(Vector2(26, 26));
@@ -99,6 +106,7 @@ public:
 		pop_box->add_theme_constant_override("separation", 4);
 		pop_box->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 		pop_box->set_tooltip_text("Population: current/limit (max)");
+		pop_box->connect("gui_input", Callable(owner, "_on_top_counter_gui_input"));
 		pop_panel_ = pop_box;
 		pop_icon_ = memnew(TextureRect);
 		pop_icon_->set_custom_minimum_size(Vector2(26, 26));
@@ -160,7 +168,7 @@ public:
 		top_hbox->add_child(clock_label_);
 
 		wave_label_ = memnew(Label);
-		// Takes what the bar has left and clips the rest ("Wonder Victory in ... |
+		// Takes what the bar has left and clips the rest ("Ceasefire 4:59 |
 		// Village Phase"), so the buttons after it stay on screen at 1280 wide.
 		wave_label_->set_custom_minimum_size(Vector2(100, 26));
 		wave_label_->set_clip_text(true);
@@ -222,19 +230,23 @@ public:
 				res_labels_[i]->set_text(abbreviate((int64_t)std::floor(ps.res[r])));
 				set_gatherers(res_stats_[i], gatherers[r]);
 				total += gatherers[r];
-				res_panels_[i]->set_tooltip_text(String(kResTitle[i]) + "\n\nGatherers: current " +
-						String::num_int64(gatherers[r]) + "\nIncome: " + String::num(rate(sim, me, r), 0) + " per minute");
+				// CounterResource.rebuild: the name, then the allies' stocks.
+				res_panels_[i]->set_tooltip_text(rtso::tr0(kResTitle[i]) + ally_stats(sim, me, [sim, r](uint8_t p) {
+					const int64_t v = (int64_t)std::llround(sim->player(p).res[r]);
+					return std::make_pair(godot::String::num_int64(v), v);
+				}));
 			}
 
 			const int cur_pop = sim->pop_current(me);
 			const int max_pop = sim->pop_max(me);
-			pop_label_->set_text(String::num_int64(cur_pop) + "/" + String::num_int64(max_pop) + " (" +
-					String::num_int64(sim->pop_cap(me)) + ")");
+			pop_label_->set_text(pop_caption(sim, me));
 			// CounterPopulation flashes orange while training is blocked; RTS0 refuses to
 			// queue past the limit instead, so a full house shows orange.
 			pop_label_->add_theme_color_override("font_color", cur_pop >= max_pop ? Color(1.0f, 0.65f, 0.0f) : Color(1, 1, 1));
 			set_gatherers(pop_stats_, total);
-			pop_panel_->set_tooltip_text(String("Population: current/limit (max)\n\nGatherers: current ") + String::num_int64(total));
+			pop_panel_->set_tooltip_text(rtso::tr0("Population: current/limit (max)") + ally_stats(sim, me, [this, sim](uint8_t p) {
+				return std::make_pair(pop_caption(sim, p), (int64_t)sim->pop_current(p));
+			}));
 		}
 
 		auto idle_workers = sim->get_idle_workers(me);
@@ -250,13 +262,7 @@ public:
 		clock_label_->set_text(min_str + ":" + sec_str);
 
 		String phase_name = (sim->player_phase(me) == 1) ? "Village Phase" : ((sim->player_phase(me) == 2) ? "Town Phase" : "City Phase");
-		if (sim->is_wonder_active()) {
-			int wmins = (int)sim->wonder_time_remaining() / 60;
-			int wsecs = (int)sim->wonder_time_remaining() % 60;
-			String wmin_str = (wmins < 10 ? "0" : "") + String::num_int64(wmins);
-			String wsec_str = (wsecs < 10 ? "0" : "") + String::num_int64(wsecs);
-			wave_label_->set_text("Wonder Victory in " + wmin_str + ":" + wsec_str + " | " + phase_name);
-		} else if (sim->ceasefire_active()) {
+		if (sim->ceasefire_active()) {
 			int cs = (int)sim->ceasefire_remaining();
 			wave_label_->set_text("Ceasefire " + String::num_int64(cs / 60) + ":" + (cs % 60 < 10 ? "0" : "") +
 				String::num_int64(cs % 60) + " | " + phase_name);
@@ -266,6 +272,18 @@ public:
 		} else {
 			wave_label_->set_text(phase_name);
 		}
+	}
+
+	// The player name before each ally stat (colorizePlayernameHelper "■" and the
+	// name), set by the owner.
+	void set_ally_name(std::function<godot::String(uint8_t)> f) { ally_name_ = std::move(f); }
+
+	// CounterManager.onPress: a click on a counter cycles the allies' order
+	// (gui.session.respoptooltipsort: 0 unordered, 1 descending, -1 ascending).
+	static void cycle_order() {
+		const int order = sort_order();
+		rtso::user_config::set("gui.session.respoptooltipsort", std::to_string((order + 2) % 3 - 1));
+		rtso::user_config::save();
 	}
 
 	// Hotkey text for the IconButtons' tooltips, e.g. "Ctrl+B" (set by the owner).
@@ -291,17 +309,49 @@ public:
 	}
 
 private:
+	static int sort_order() {
+		const std::string v = rtso::user_config::get("gui.session.respoptooltipsort");
+		return v == "1" ? 1 : v == "-1" ? -1 : 0;
+	}
+
+	// CounterPopulation.CounterCaption.
+	static godot::String pop_caption(rtso::Simulation *sim, uint8_t p) {
+		using godot::String;
+		return rtso::sprintf0(rtso::tr0("%(popCount)s/%(popLimit)s (%(popMax)s)"), {{"popCount", String::num_int64(sim->pop_current(p))},
+				{"popLimit", String::num_int64(sim->pop_max(p))}, {"popMax", String::num_int64(sim->pop_cap(p))}});
+	}
+
+	// CounterManager.getAllyStatTooltip: for observers (and defeated players), and
+	// for a player who shares its mutual allies' vision (Cartography), each other
+	// undefeated player's stat, "%(playername)s: %(statValue)s", in the chosen order.
+	godot::String ally_stats(rtso::Simulation *sim, uint8_t me,
+			const std::function<std::pair<godot::String, int64_t>(uint8_t)> &stat) const {
+		using godot::String;
+		const bool observer = me >= rtso::MAX_PLAYERS || sim->is_defeated(me);
+		struct Row { String text; int64_t order; };
+		std::vector<Row> rows;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			if (!sim->player(p).active) continue;
+			if (p == me || sim->is_defeated(p)) continue;
+			if (!observer && !sim->shares_los(me, p)) continue;
+			const auto v = stat(p);
+			rows.push_back({rtso::sprintf0(rtso::tr0("%(playername)s: %(statValue)s"),
+					{{"playername", ally_name_ ? ally_name_(p) : String::num_int64(p + 1)}, {"statValue", v.first}}), v.second});
+		}
+		if (rows.empty()) return String();
+		const int order = sort_order();
+		if (order) std::stable_sort(rows.begin(), rows.end(), [order](const Row &a, const Row &b) { return order * (b.order - a.order) < 0; });
+		static const char *kOrder[3] = {"Ascending", "Unordered", "Descending"};
+		String out = "\n" + rtso::sprintf0(rtso::tr0("%(order)s: %(hotkey)s to change order."),
+				{{"order", rtso::tr0(kOrder[order + 1])}, {"hotkey", "[Click]"}});
+		for (const Row &r : rows) out += "\n" + r.text;
+		return out;
+	}
+
+	std::function<godot::String(uint8_t)> ally_name_;
 	static constexpr int kResType[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
 	static constexpr const char *kResIcon[4] = {"food", "wood", "stone", "metal"};
 	static constexpr const char *kResTitle[4] = {"Food", "Wood", "Stone", "Metal"};
-	static float rate(rtso::Simulation *sim, uint8_t me, int r) {
-		switch (r) {
-			case rtso::RES_FOOD: return sim->food_rate(me);
-			case rtso::RES_WOOD: return sim->wood_rate(me);
-			case rtso::RES_STONE: return sim->stone_rate(me);
-			default: return sim->gold_rate(me);
-		}
-	}
 
 	// DefaultResourceGatherersColor gold, "200 200 200" at zero.
 	static void set_gatherers(godot::Label *l, int n) {

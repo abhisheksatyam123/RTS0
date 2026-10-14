@@ -1,5 +1,5 @@
 // Naval tests: merchant ships trading dock to dock (0 A.D. Trader.js, Market.js
-// TradeType "naval", Market.js CalculateTraderGain, the Carthaginian ship bonus).
+// TradeType "land naval", Market.js CalculateTraderGain, the Carthaginian ship bonus).
 //   g++ -std=c++20 -O2 -Isrc tools/test_naval.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_naval && /tmp/test_naval
@@ -7,6 +7,7 @@
 #define private public
 #include "simulation/simulation.h"
 #undef private
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -29,14 +30,14 @@ static float height_at(float x, float z) {
 	return 3.0f;
 }
 
-static void fresh(Simulation &s) {
+static void fresh(Simulation &s, float (*height)(float, float) = height_at) {
 	s.set_sim_seed(7);
 	s.reset();
 	s.set_map_half(HALF);
 	std::vector<float> h((size_t)RES * RES);
 	for (int j = 0; j < RES; ++j)
 		for (int i = 0; i < RES; ++i)
-			h[(size_t)j * RES + i] = height_at(-HALF + 2.0f * HALF * i / (RES - 1), -HALF + 2.0f * HALF * j / (RES - 1));
+			h[(size_t)j * RES + i] = height(-HALF + 2.0f * HALF * i / (RES - 1), -HALF + 2.0f * HALF * j / (RES - 1));
 	s.set_terrain_data(h, RES, 0.0f);
 	s.begin_bulk_spawn();
 	s.end_bulk_spawn(); // marks the water on the nav grid
@@ -82,16 +83,17 @@ static void test_dock_trade() {
 	CHECK(bw && be && bl && bm);
 	if (!bw || !be || !bl || !bm) return;
 
-	// Market TradeType: ships trade at docks, caravans at markets.
+	// Market TradeType: docks are "land naval", markets "land", so ships trade at
+	// docks and caravans at both.
 	CHECK(s.can_trade_at(0, *bw, UNIT_MERCHANT_SHIP));
-	CHECK(!s.can_trade_at(0, *bw, UNIT_TRADER));
+	CHECK(s.can_trade_at(0, *bw, UNIT_TRADER));
 	CHECK(s.can_trade_at(0, *bm, UNIT_TRADER));
 	CHECK(!s.can_trade_at(0, *bm, UNIT_MERCHANT_SHIP));
 	// The sea docks share a sea, the lake dock doesn't.
 	CHECK(s.dock_sea(*bw) != 0 && s.dock_sea(*bw) == s.dock_sea(*be));
 	CHECK(s.dock_sea(*bl) != 0 && s.dock_sea(*bl) != s.dock_sea(*bw));
 	CHECK(s.has_trade_route(0, UNIT_MERCHANT_SHIP));
-	CHECK(!s.has_trade_route(0, UNIT_TRADER)); // one market only
+	CHECK(s.has_trade_route(0, UNIT_TRADER)); // the market and a dock
 
 	// Gain: Trade.js with Trader/GainMultiplier 0.75 and Carthage's +25% on ships only.
 	const double map_size = 2.0 * HALF * 4.0;
@@ -106,22 +108,40 @@ static void test_dock_trade() {
 
 	// A merchant ship in the sea finds the route itself and is paid on each arrival.
 	const uint32_t ship = s.spawn_unit(-40.0f, 8.0f, 0, UNIT_MERCHANT_SHIP);
-	const uint32_t caravan = s.spawn_unit(-30.0f, -40.0f, 0, UNIT_TRADER);
 	run(s, 240.0f);
 	const int earned = total(s, 0);
 	std::printf("Carthaginian merchant ship earned %d in 240 s\n", earned);
 	CHECK(earned >= cart_ship);
 	CHECK(earned % cart_ship == 0); // only whole dock-to-dock deliveries, never the lake
-	// The caravan has no second market, so it never trades at a dock.
 	const auto &u = s.units();
 	for (size_t i = 0; i < u.count; ++i) {
-		if (u.id[i] == caravan) CHECK(u.action_state[i] != ACTION_TRADE);
 		if (u.id[i] == ship) {
 			CHECK(u.action_state[i] == ACTION_TRADE);
 			auto [cx, cy] = s.nav_grid().world_to_cell(u.pos_x[i], u.pos_z[i]);
 			CHECK(s.nav_grid().is_passable_for(cx, cy, PASS_SHIP)); // stayed on the water
 		}
 	}
+
+	// A caravan on the south shore trades between its market and the dock on the
+	// same shore, never the docks across the sea or on the lake.
+	static Simulation c;
+	fresh(c);
+	c.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0);
+	const uint32_t south = c.spawn_building_world(48.0f, -20.0f, BLD_DOCK, 0);
+	c.spawn_building_world(44.0f, 56.0f, BLD_DOCK, 0);
+	const uint32_t cmarket = c.spawn_building_world(-40.0f, -40.0f, BLD_MARKET, 0);
+	c.spawn_building_world(5.0f, -45.0f, BLD_TOWN_CENTER, 0); // territory, or both decay to Gaia
+	const uint32_t caravan = c.spawn_unit(-30.0f, -40.0f, 0, UNIT_TRADER);
+	run(c, 240.0f);
+	const auto route = c.trader_routes_.find(caravan);
+	CHECK(route != c.trader_routes_.end());
+	if (route != c.trader_routes_.end())
+		CHECK(std::min(route->second.first, route->second.second) == std::min(cmarket, south) &&
+		      std::max(route->second.first, route->second.second) == std::max(cmarket, south));
+	const int caravan_gain = c.calculate_trade_gain(*bld(c, cmarket), *bld(c, south), 0, UNIT_TRADER).trader;
+	const int caravan_earned = total(c, 0);
+	std::printf("caravan between market and dock earned %d in 240 s (%d a trip)\n", caravan_earned, caravan_gain);
+	CHECK(caravan_earned >= caravan_gain && caravan_earned % caravan_gain == 0);
 
 	// An enemy's dock ends the route (Trader.js CanTrade).
 	static Simulation t;
@@ -330,6 +350,9 @@ static void test_transport() {
 	CHECK(s.get_transport_capacity(merchant) == 15);
 	CHECK(s.get_transport_capacity(fisher) == 1);
 	CHECK(!s.is_transport(fire));
+	// Per-civ GarrisonHolder/Max: Briton arrow ships hold 40.
+	const uint32_t brit_arrow = s.spawn_unit(-30.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_arrow"));
+	CHECK(s.get_transport_capacity(brit_arrow) == 40);
 
 	// Lists: cavalry boards a warship or a merchant ship but not a fishing boat;
 	// siege boards an arrow ship but not a scout ship.
@@ -376,6 +399,38 @@ static void test_transport() {
 	std::printf("  sunk by the beach: spearman %s at z %.1f\n", isp2 >= 0 && s.units().alive[isp2] ? "ashore" : "drowned", isp2 >= 0 ? s.units().pos_z[isp2] : 0.0f);
 	CHECK(isp2 >= 0 && s.units().alive[isp2] && s.get_terrain_height(s.units().pos_x[isp2], s.units().pos_z[isp2]) > 0.15f);
 	CHECK(!s.units().alive[idx(s, rider2)]);
+
+	// EjectClassesOnDestroy is "Civilian Infantry Healer Dog": a 0.28 civilian swims ashore, an
+	// old female citizen (FemaleCitizen Support only) drowns, and a loaded ram (Siege) sinks
+	// with its own passengers (EjectOrKill kills a holder's units when it dies out of the world).
+	{
+		const uint16_t civ_t = tmpl_of("athen/support_civilian"), fem_t = tmpl_of("athen/support_female_citizen");
+		const uint32_t ship4 = s.spawn_unit(-60.0f, 13.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+		const uint32_t civ = s.spawn_unit(-60.0f, 17.5f, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_t);
+		const uint32_t fem = s.spawn_unit(-61.0f, 17.5f, 0, UNIT_FEMALE_CITIZEN, 0.0f, fem_t);
+		const uint32_t ram4 = s.spawn_unit(-59.0f, 17.5f, 0, UNIT_SIEGE_RAM);
+		uint32_t crew4[2] = {s.spawn_unit(-59.0f, 19.0f, 0, UNIT_SPEARMAN), s.spawn_unit(-58.0f, 19.0f, 0, UNIT_SPEARMAN)};
+		s.order_board_transport(crew4, 2, ram4);
+		CHECK(s.get_transport_passenger_count(ram4) == 2);
+		const uint32_t party4[] = {civ, fem, ram4};
+		s.order_board_transport(party4, 3, ship4);
+		run(s, 3.0f);
+		CHECK(s.get_transport_passenger_count(ship4) == 3);
+		s.units_.hp[idx(s, ship4)] = 0.0f;
+		s.units_.alive[idx(s, ship4)] = 0;
+		run(s, 0.1f);
+		CHECK(s.units().alive[idx(s, civ)] && !s.units().alive[idx(s, fem)] && !s.units().alive[idx(s, ram4)]);
+		CHECK(!s.units().alive[idx(s, crew4[0])] && !s.units().alive[idx(s, crew4[1])]);
+		CHECK(s.get_transport_passengers(ram4) == nullptr);
+		// A fishing boat (template_unit_ship's List) takes a civilian, not an old female citizen.
+		const int32_t ifb = idx(s, fisher);
+		const uint32_t civ2 = s.spawn_unit(30.0f, 20.0f, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_t);
+		const uint32_t fem2 = s.spawn_unit(31.0f, 20.0f, 0, UNIT_FEMALE_CITIZEN, 0.0f, fem_t);
+		CHECK(s.can_board(ifb, idx(s, civ2)) && !s.can_board(ifb, idx(s, fem2)));
+		// Relics ride warships and merchant ships (List Relic), not fishing boats.
+		const uint32_t relic = s.spawn_unit(32.0f, 20.0f, 0, UNIT_CATAFALQUE);
+		CHECK(s.can_board(ia, idx(s, relic)) && s.can_board(im, idx(s, relic)) && !s.can_board(ifb, idx(s, relic)));
+	}
 
 	// Pickup: an idle ship sails toward units ordered aboard from inland.
 	const uint32_t ship3 = s.spawn_unit(40.0f, -2.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
@@ -1154,6 +1209,54 @@ static void test_petra_unreachable_target() {
 	CHECK(attack == house && rush == house && up_there == barracks);
 }
 
+// Land north of z 24 and a headland down the middle (|x| < 6) to z -36: the sea south of it joins
+// its two sides.
+static float headland_at(float x, float z) {
+	return z > 24.0f || (std::fabs(x) < 6.0f && z > -36.0f) ? 3.0f : -3.0f;
+}
+
+// Ships sail round land on every task, as 0 A.D. UnitMotion paths every move on the ship's
+// passability class: a fishing boat to its fish, a merchant ship between docks and a warship to
+// its target, each across the headland, never stepping ashore.
+static void test_ships_sail_round_land() {
+	static Simulation s;
+	fresh(s, headland_at);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_reveal_map(true); // the warship's target stays in sight
+	const uint32_t west = s.spawn_building_world(-30.0f, 28.0f, BLD_DOCK, 0);
+	const uint32_t east = s.spawn_building_world(30.0f, 28.0f, BLD_DOCK, 0);
+	const uint32_t fish = s.spawn_resource_world(24.0f, 0.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t boat = s.spawn_unit(-24.0f, 0.0f, 0, UNIT_FISHING_BOAT);
+	const uint32_t trader = s.spawn_unit(-30.0f, 16.0f, 0, UNIT_MERCHANT_SHIP);
+	const uint32_t tri = s.spawn_unit(-40.0f, -8.0f, 0, UNIT_TRIREME);
+	const uint32_t prey = s.spawn_unit(44.0f, -8.0f, 1, UNIT_FISHING_BOAT);
+	s.order_gather(&boat, 1, fish);
+	s.order_trade(&trader, 1, west, east);
+	s.order_attack(&tri, 1, prey);
+	const uint32_t ships[3] = {boat, trader, tri};
+	int ashore[3] = {0, 0, 0}, east_side[3] = {0, 0, 0};
+	for (int t = 0; t < (int)(150.0f / Simulation::FIXED_STEP); ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		for (int k = 0; k < 3; ++k) {
+			const int32_t i = s.lookup_unit(ships[k]);
+			if (i < 0 || !s.units().alive[i]) continue;
+			auto [cx, cy] = s.nav_grid().world_to_cell(s.units().pos_x[i], s.units().pos_z[i]);
+			ashore[k] += !s.nav_grid().is_passable_for(cx, cy, PASS_SHIP);
+			east_side[k] |= s.units().pos_x[i] > 8.0f;
+		}
+	}
+	const int32_t pi = s.lookup_unit(prey);
+	const bool prey_hit = pi < 0 || !s.units().alive[pi] || s.units().hp[pi] < s.units().max_hp[pi];
+	std::printf("ships round the headland: ticks ashore boat %d, merchant %d, warship %d; food %d, trade %d, prey %s\n",
+			ashore[0], ashore[1], ashore[2], s.player_resource(0, RES_FOOD), total(s, 0) - s.player_resource(0, RES_FOOD),
+			prey_hit ? "hit" : "untouched");
+	CHECK(ashore[0] == 0 && ashore[1] == 0 && ashore[2] == 0);
+	CHECK(east_side[0] && east_side[1] && east_side[2]);
+	CHECK(s.player_resource(0, RES_FOOD) > 0); // the boat landed fish at a dock
+	CHECK(total(s, 0) > s.player_resource(0, RES_FOOD)); // the merchant ship was paid at a dock
+	CHECK(prey_hit);
+}
+
 // template_unit_ship_fishing.xml Harpoon and UnitAI GATHER: a fishing boat ordered onto a
 // whale harpoons it, gathers the carcass (food.fish) to a dock, and when the carcass is
 // eaten goes on to the next whale (FindNearbyResource takes live whales too).
@@ -1223,6 +1326,7 @@ int main() {
 	test_petra_trader_transport();
 	test_ship_height();
 	test_ship_leaves_shore_house();
+	test_ships_sail_round_land();
 	test_petra_navy();
 	test_petra_overseas_attack();
 	test_petra_unreachable_target();

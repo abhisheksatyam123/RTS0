@@ -1,9 +1,8 @@
 // The Han Imperial Minister (units/han/support_minister): trained at the Imperial
 // Ministry in the town phase for 100 food and 100 metal, a passive support unit that
-// gathers nothing. Garrisoned ministers add 0.1 wood, stone and metal to the ministry's
-// trickle each (han_minister_garrison_ministry.json) and cut the cost and time of
-// technologies researched in any other structure by 2% each (han_minister_garrison.json).
-// The Civil Service pair acts on them.
+// gathers nothing. In 0.28 its only auras are range ones (han_minister_gathering and
+// han_minister_building); garrisoned, it gives a structure nothing: the ministry has no
+// ResourceTrickle and no technology gets cheaper. The Civil Service pair acts on it.
 //   g++ -std=c++20 -O2 -Isrc tools/test_minister.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_minister && /tmp/test_minister
@@ -96,7 +95,7 @@ int main() {
 		std::printf("ministry trained an Imperial Minister\n");
 	}
 
-	// 3. Two ministers garrisoned in the ministry: 0.3 wood, stone and metal every 2 s.
+	// 3. Two ministers garrisoned in the ministry: no income (0.28's ministry has no ResourceTrickle).
 	{
 		fresh(s);
 		ministry = s.spawn_building_world(-30.0f, -20.0f, BLD_MINISTRY, 0, 1.0f);
@@ -104,15 +103,15 @@ int main() {
 		s.order_garrison(two, 2, ministry);
 		run(s, 6.0f);
 		const auto &b = s.buildings_[s.building_id_to_idx_.at(ministry)];
-		CHECK(s.garrisoned_ministers(b) == 2);
+		CHECK(b.garrisoned_units.size() == 2);
 		const float w0 = s.players_[0].res[RES_WOOD];
 		run(s, 10.0f);
-		CHECK(near(s.players_[0].res[RES_WOOD] - w0, 1.5f));
+		CHECK(near(s.players_[0].res[RES_WOOD] - w0, 0.0f));
 		std::printf("ministry with 2 ministers: +%.1f wood in 10 s\n", s.players_[0].res[RES_WOOD] - w0);
 	}
 
-	// 4. Ministers garrisoned in another structure: its technologies cost 2% less and take
-	//    2% less time per minister; the ministry's own technologies don't change. A Han
+	// 4. Ministers garrisoned in another structure leave its technologies' cost and time
+	//    alone (0.28 has no han_minister_garrison aura). A Han
 	//    farmstead seats one (structures/han/farmstead.xml GarrisonHolder Max 1, List Minister),
 	//    a Han barracks ten (List Infantry Minister).
 	{
@@ -121,12 +120,12 @@ int main() {
 		uint32_t pair[2] = {spawn_minister(s, -30.0f, 5.0f), spawn_minister(s, -29.0f, 5.0f)};
 		s.order_garrison(pair, 2, farmstead);
 		run(s, 6.0f);
-		CHECK(s.garrisoned_ministers(s.buildings_[s.building_id_to_idx_.at(farmstead)]) == 1);
+		CHECK(s.buildings_[s.building_id_to_idx_.at(farmstead)].garrisoned_units.size() == 1);
 		const uint32_t farm = s.spawn_building_world(-30.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
 		uint32_t two[2] = {spawn_minister(s, -30.0f, -13.0f), spawn_minister(s, -29.0f, -13.0f)};
 		s.order_garrison(two, 2, farm);
 		run(s, 6.0f);
-		CHECK(s.garrisoned_ministers(s.buildings_[s.building_id_to_idx_.at(farm)]) == 2);
+		CHECK(s.buildings_[s.building_id_to_idx_.at(farm)].garrisoned_units.size() == 2);
 		uint8_t tech = TECH_NONE; // a Han barracks technology
 		for (uint8_t t = 1; t < TECH_COUNT && tech == TECH_NONE; ++t)
 			if (tech_info(t).researcher == BLD_BARRACKS && s.research_check(0, t, farm) == Simulation::TECH_OK) tech = t;
@@ -134,7 +133,7 @@ int main() {
 		const TechInfo &ti = tech_info(tech);
 		const float before[RES_COUNT] = {s.players_[0].res[0], s.players_[0].res[1], s.players_[0].res[2], s.players_[0].res[3]};
 		CHECK(s.cmd_research(0, farm, tech));
-		const float k = 0.98f * 0.98f;
+		const float k = 1.0f;
 		CHECK(near(before[RES_FOOD] - s.players_[0].res[RES_FOOD], std::round(ti.food_cost * k)));
 		CHECK(near(before[RES_WOOD] - s.players_[0].res[RES_WOOD], std::round(ti.wood_cost * k)));
 		const auto &fb = s.buildings_[s.building_id_to_idx_.at(farm)];

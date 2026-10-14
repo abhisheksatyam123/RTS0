@@ -4967,8 +4967,56 @@
 1.0
 ]
 },
+"buildings/s_carthaginians_apartment_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_carthaginians_blacksmith_tex0": {
 "mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_celtic_tex0": {
+"mask": "res://assets/textures/player_masks/structural/celt_struct_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_celtic_tex1": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_iberian_tex0": {
+"mask": "res://assets/textures/player_masks/structural/iber_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_iberian_tex1": {
+"mask": "res://assets/textures/player_masks/props/iber_prop_shields_128x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_embassy_italic_tex0": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_512x512.png",
 "tint": [
 1.0,
 1.0,
@@ -8552,6 +8600,22 @@
 ]
 },
 "units/cart_infantry_spearman_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_cart_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_infantry_spearman_ital_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/ital/tunic_pattern_06_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_infantry_spearman_ital_b_tex2": {
 "mask": "res://assets/textures/player_masks/props/shield/aspis_cart_01_256x256.png",
 "tint": [
 0.36,
@@ -14783,8 +14847,48 @@
 0.94
 ]
 },
+"units/rome_cavalry_javelineer_auxiliary_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_cavalry_javelineer_auxiliary_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/tunic_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/rome_cavalry_javelineer_auxiliary_b_tex8": {
+"mask": "res://assets/textures/player_masks/props/shield/clipeus_03_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/rome_cavalry_javelineer_b_tex3": {
 "mask": "res://assets/textures/player_masks/skeletal/ital/tunic_pattern_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_cavalry_spearman_auxiliary_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_cavalry_spearman_auxiliary_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/tunic_01_03_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -14896,6 +15000,38 @@
 ]
 },
 "units/rome_champion_infantry_swordsman_centurion_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_imp_back_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_champion_infantry_swordsman_first_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/chainmail_05_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_champion_infantry_swordsman_first_tex5": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_champion_infantry_swordsman_first_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_imp_marian_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_champion_infantry_swordsman_first_tex9": {
 "mask": "res://assets/textures/player_masks/props/shield/scutum_rome_imp_back_256x512.png",
 "tint": [
 0.92,
@@ -15121,6 +15257,22 @@
 },
 "units/rome_infantry_spearman_a_tex8": {
 "mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_infantry_spearman_conscript_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/chainmail_04_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_infantry_spearman_conscript_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_01_256x512.png",
 "tint": [
 0.36,
 0.62,

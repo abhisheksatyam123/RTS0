@@ -174,6 +174,18 @@ int main() {
 	CHECK(s.is_tech_researched(TECH_PHASE_TOWN));
 	CHECK(s.player_phase() == 2);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN) == Simulation::TECH_ERR_RESEARCHED);
+	// 0.28 "supersedes" is a requirement: Wheelbarrow waits for Baskets, Iron Weapons for Bronze Weapons.
+	CHECK(tech_supersedes(TECH_GATHER_CAPACITY_WHEELBARROW) == TECH_GATHER_CAPACITY_BASKET);
+	CHECK(tech_supersedes(TECH_SOLDIER_ATTACK_MELEE_02) == TECH_WEAPONS_1 && tech_supersedes(TECH_WEAPONS_1) == TECH_NONE);
+	CHECK(s.research_check(0, TECH_GATHER_CAPACITY_WHEELBARROW) == Simulation::TECH_ERR_PREREQUISITE);
+	CHECK(s.research_check(0, TECH_SOLDIER_ATTACK_MELEE_02) == Simulation::TECH_ERR_PREREQUISITE);
+	s.player(0).techs.set(TECH_GATHER_CAPACITY_BASKET);
+	CHECK(s.research_check(0, TECH_GATHER_CAPACITY_WHEELBARROW) == Simulation::TECH_OK);
+	// 0.28 Identity classes: civ structures count toward the phases too.
+	CHECK(building_phase_class(BLD_SYSSITON) == 1 && building_phase_class(BLD_MINISTRY) == 1 && building_phase_class(BLD_KENNEL) == 1);
+	CHECK(building_phase_class(BLD_GYMNASIUM) == 2 && building_phase_class(BLD_SUPER_DOCK) == 2 && building_phase_class(BLD_ARMY_CAMP) == 2);
+	CHECK(building_phase_class(BLD_ARSENAL, CIV_MACEDONIANS) == 2 && building_phase_class(BLD_ARSENAL, CIV_ROMANS) == 0);
+	CHECK(building_phase_class(BLD_ELEPHANT_STABLE, CIV_MAURYANS) == 2 && building_phase_class(BLD_ELEPHANT_STABLE, CIV_PERSIANS) == 0);
 	// City Phase needs three Town structures.
 	CHECK(s.research_check(0, TECH_PHASE_CITY, tc) == Simulation::TECH_ERR_STRUCTURES);
 
@@ -719,7 +731,7 @@ int main() {
 		CHECK(ship_t < CIV_UNIT_TEMPLATE_COUNT && sling_t < CIV_UNIT_TEMPLATE_COUNT);
 		const size_t ship = idx(n.spawn_unit(0.0f, 30.0f, 0, (UnitType)civ_unit_template(ship_t).unit_type, 0.0f, ship_t));
 		const size_t sling = idx(n.spawn_unit(4.0f, 30.0f, 0, (UnitType)civ_unit_template(sling_t).unit_type, 0.0f, sling_t));
-		float d[3];
+		float d[4];
 		n.unit_tech_damage(ship, d);
 		CHECK(d[0] == 0.0f && std::fabs(d[1] - 32.0f) < 1e-3f && d[2] == 0.0f);
 		n.complete_research(0, TECH_WARSHIP_ARROW_ATTACK);
@@ -736,6 +748,38 @@ int main() {
 		n.unit_tech_damage(ship, d);
 		CHECK(std::fabs(d[2] - ship_crush) < 1e-3f); // Poison Arrows is for soldiers
 		std::printf("attack per damage kind: Arrow Ship 0/32/0 -> %.1f/%.1f/%.1f with Naval Oxybeles\n", 0.0f, 32.0f, ship_crush);
+	}
+
+	// Fire ships (template_unit_ship_fire): Melee Fire 15 every 0.8 s, 3x against Ships and
+	// Buildings, Burning 1 a second for 10 s; nothing resists Fire. Burning Pitch scales the
+	// ignited ship's Fire by 1.25 (Attack/Melee/Damage/Fire, affects Ignited).
+	{
+		static Simulation n;
+		fresh(n);
+		auto idx = [&](uint32_t id) { auto u = n.units(); for (size_t i = 0; i < u.count; ++i) if (u.id[i] == id) return i; return (size_t)0; };
+		const uint16_t fire_t = civ_unit_template_by_id("brit/ship_fire");
+		const uint16_t lit_t = civ_unit_template_by_id("brit/ship_fire_fire");
+		const uint16_t foe_t = civ_unit_template_by_id("athen/ship_arrow");
+		const uint16_t hop_t = civ_unit_template_by_id("athen/infantry_spearman_b");
+		CHECK(fire_t < CIV_UNIT_TEMPLATE_COUNT && lit_t < CIV_UNIT_TEMPLATE_COUNT);
+		CHECK(civ_unit_template(fire_t).attack_damage == 15.0f && std::fabs(civ_unit_template(fire_t).attack_cooldown - 0.8f) < 1e-4f);
+		const size_t fire = idx(n.spawn_unit(0.0f, 30.0f, 0, (UnitType)civ_unit_template(fire_t).unit_type, 0.0f, fire_t));
+		const size_t lit = idx(n.spawn_unit(4.0f, 30.0f, 0, (UnitType)civ_unit_template(lit_t).unit_type, 0.0f, lit_t));
+		const size_t foe = idx(n.spawn_unit(8.0f, 30.0f, 1, (UnitType)civ_unit_template(foe_t).unit_type, 0.0f, foe_t));
+		const size_t hop = idx(n.spawn_unit(8.0f, 34.0f, 1, UNIT_SPEARMAN, 0.0f, hop_t));
+		float d[4];
+		n.unit_tech_damage(fire, d);
+		CHECK(d[0] == 0.0f && d[1] == 0.0f && d[2] == 0.0f && std::fabs(d[3] - 15.0f) < 1e-3f);
+		const float vs_ship = n.unit_attack_damage(fire, foe), vs_soldier = n.unit_attack_damage(fire, hop);
+		CHECK(std::fabs(vs_ship - 45.0f) < 1e-3f && std::fabs(vs_soldier - 15.0f) < 1e-3f);
+		CHECK(n.unit_combat_at(fire).status == 2 && std::fabs(n.unit_combat_at(fire).status_dps - 1.0f) < 1e-4f);
+		n.complete_research(0, TECH_WARSHIP_FIRESHIP_ATTACK);
+		n.unit_tech_damage(lit, d);
+		CHECK(std::fabs(d[3] - 18.75f) < 1e-3f && std::fabs(n.units_.attack_damage[lit] - 18.75f) < 1e-3f);
+		n.unit_tech_damage(fire, d);
+		CHECK(std::fabs(d[3] - 15.0f) < 1e-3f); // only the Ignited one
+		std::printf("fire ship: %.1f vs a ship, %.1f vs a soldier; ignited with Burning Pitch %.2f\n", vs_ship, vs_soldier,
+				n.units_.attack_damage[lit]);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

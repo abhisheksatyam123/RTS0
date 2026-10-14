@@ -69,8 +69,17 @@ int main() {
 	// corral 1 (EjectHealth 0.5), military 0, fortress EjectHealth 0.075.
 	CHECK(building_garrison_heal(BLD_TEMPLE) == 3.0f && building_garrison_heal(BLD_TOWN_CENTER) == 1.0f);
 	CHECK(building_garrison_heal(BLD_WONDER) == 5.0f && building_garrison_heal(BLD_BARRACKS) == 0.0f);
-	CHECK(building_eject_health(BLD_FORTRESS) == 0.075f && building_eject_health(BLD_CORRAL) == 0.5f);
-	CHECK(building_eject_health(BLD_BARRACKS) == 0.1f);
+	CHECK(building_eject_health(BLD_FORTRESS, CIV_ROMANS) == 0.075f && building_eject_health(BLD_CORRAL, CIV_ROMANS) == 0.5f);
+	CHECK(building_eject_health(BLD_BARRACKS, CIV_ROMANS) == 0.1f);
+	// han/ministry ejects only on destruction; Han storehouses and farmsteads seat a Minister (0.1).
+	CHECK(building_eject_health(BLD_MINISTRY, CIV_HAN) == 0.0f);
+	CHECK(building_eject_health(BLD_STOREHOUSE, CIV_HAN) == 0.1f && building_eject_health(BLD_FARMSTEAD, CIV_HAN) == 0.1f);
+	CHECK(building_eject_health(BLD_STOREHOUSE, CIV_ROMANS) == 0.0f);
+	// 0.28 BuffHeal: temple variants 3, military colonies and wagon encampments 1.
+	CHECK(building_garrison_heal(BLD_TEMPLE_AMUN) == 3.0f && building_garrison_heal(BLD_TEMPLE_MARS) == 3.0f &&
+	      building_garrison_heal(BLD_TEMPLE_VESTA) == 3.0f);
+	CHECK(building_garrison_heal(BLD_MILITARY_COLONY) == 1.0f && building_garrison_heal(BLD_WAGON_ENCAMPMENT) == 1.0f &&
+	      building_garrison_heal(BLD_WAGON_ENCAMPMENT_FORTIFIED) == 1.0f);
 	const TechInfo &lc = tech_info(TECH_GARRISON_HEAL);
 	CHECK(lc.food_cost == 500 && lc.gold_cost == 250 && lc.required_phase == 2 && lc.researcher == BLD_TEMPLE);
 
@@ -242,6 +251,8 @@ int main() {
 		CHECK(takes(BLD_FORGE, UNIT_HEALER) && takes(BLD_FORGE, UNIT_ARCHER) && !takes(BLD_FORGE, UNIT_CAVALRY));
 		CHECK(!takes(BLD_CORRAL, UNIT_FEMALE_CITIZEN) && !takes(BLD_TOWER, UNIT_CAVALRY) && takes(BLD_TOWER, UNIT_FEMALE_CITIZEN));
 		CHECK(!garrison_list_matches(structure_garrison_list(BLD_BARRACKS, CIV_ATHENIANS), unit_tech_classes(UNIT_MINISTER)));
+		// germ/great_hall: template_structure_special's Support Infantry Cavalry.
+		CHECK(takes(BLD_GREAT_HALL, UNIT_SPEARMAN) && takes(BLD_GREAT_HALL, UNIT_CAVALRY) && !takes(BLD_GREAT_HALL, UNIT_CATAPULT));
 		CHECK(garrison_list_matches(structure_garrison_list(BLD_BARRACKS, CIV_HAN), unit_tech_classes(UNIT_MINISTER)));
 		fresh(s);
 		uint32_t bk = s.spawn_building_world(0.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
@@ -362,6 +373,64 @@ int main() {
 		CHECK(s.get_garrison_capacity(h) == 6); // Han: big house
 		s.set_team_civ(0, CIV_BRITONS);
 		CHECK(s.get_garrison_capacity(h) == 3 && s.get_garrison_capacity(bk) == 10);
+	}
+
+	// 16. UnitAI.Garrison: a unit the holder can't take (full, or not on its List) walks to it
+	// instead; one already on its way when the holder fills arrives and stops there
+	// (GARRISONING: Garrison fails, FinishOrder). The LoadingRange is 0.28's per template:
+	// 1 m for a house, 6 m for a fortress, 4 m for a corral.
+	{
+		CHECK(std::fabs(structure_loading_range(BLD_HOUSE, CIV_ROMANS) - 0.28f) < 1e-4f &&
+		      std::fabs(structure_loading_range(BLD_FORTRESS, CIV_ROMANS) - 6.0f * 0.28f) < 1e-4f &&
+		      std::fabs(structure_loading_range(BLD_CORRAL, CIV_ROMANS) - 4.0f * 0.28f) < 1e-4f &&
+		      std::fabs(structure_loading_range(BLD_STOREHOUSE, CIV_HAN) - 0.28f) < 1e-4f &&
+		      std::fabs(structure_loading_range(BLD_BARRACKS, CIV_ROMANS) - 2.0f * 0.28f) < 1e-4f);
+		fresh(s);
+		s.set_team_civ(0, CIV_BRITONS);
+		uint32_t h = s.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 1.0f); // holds 3
+		CHECK(s.get_garrison_capacity(h) == 3);
+		uint32_t in[3];
+		for (int k = 0; k < 3; ++k) in[k] = s.spawn_unit(-2.0f + 2.0f * k, 8.0f, 0, UNIT_VILLAGER);
+		garrison(s, in, 3, h);
+		CHECK(s.get_garrison_count(h) == 3);
+		uint32_t late = s.spawn_unit(0.0f, 30.0f, 0, UNIT_VILLAGER); // house List: Support
+		s.order_garrison(&late, 1, h);
+		run(s, 12.0f);
+		int32_t li = idx_of(s, late);
+		const float near = std::hypot(s.units().pos_x[li], s.units().pos_z[li]);
+		std::printf("ordered into a full house: walked from 30 to %.1f wu, garrisoned %d\n", near,
+				s.get_garrison_count(h));
+		CHECK(s.units().alive[li] && near < 10.0f && s.get_garrison_count(h) == 3);
+		// Two walk to a house with one free seat: the first in takes it, the second stops beside it.
+		s.cmd_unload(0, h, nullptr, 0);
+		run(s, 0.5f);
+		s.order_garrison(in, 2, h);
+		run(s, 3.0f);
+		CHECK(s.get_garrison_count(h) == 2);
+		uint32_t pair[2] = {in[2], late};
+		const int32_t a = idx_of(s, in[2]), c = idx_of(s, late);
+		const_cast<float *>(s.units().pos_x)[a] = 0.0f; const_cast<float *>(s.units().pos_z)[a] = 20.0f;
+		const_cast<float *>(s.units().pos_x)[c] = 0.0f; const_cast<float *>(s.units().pos_z)[c] = 40.0f;
+		s.order_garrison(pair, 2, h);
+		CHECK(s.units().action_state[c] == ACTION_MOVE); // a seat was free when it set off
+		run(s, 15.0f);
+		const float stop = std::hypot(s.units().pos_x[idx_of(s, late)], s.units().pos_z[idx_of(s, late)]);
+		std::printf("house filled while walking: garrisoned %d, the other stopped %.1f wu from it\n",
+				s.get_garrison_count(h), stop);
+		CHECK(s.get_garrison_count(h) == 3 && s.units().alive[idx_of(s, late)] && stop < 10.0f);
+		CHECK(s.units().action_state[idx_of(s, late)] == ACTION_IDLE);
+		// A burning barracks (under EjectHealth): the unit walks up and stays outside.
+		uint32_t bk = s.spawn_building_world(40.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
+		Simulation::Building *bb = find_bld(s, bk);
+		bb->hp = bb->max_hp * 0.05f;
+		uint32_t spear = s.spawn_unit(40.0f, 30.0f, 0, UNIT_SPEARMAN);
+		s.order_garrison(&spear, 1, bk);
+		CHECK(s.units().action_state[idx_of(s, spear)] == ACTION_MOVE);
+		run(s, 15.0f);
+		const int32_t li2 = idx_of(s, spear);
+		const float to_bk = std::hypot(s.units().pos_x[li2] - 40.0f, s.units().pos_z[li2]);
+		std::printf("ordered into a burning barracks: %.1f wu from it, garrisoned %d\n", to_bk, s.get_garrison_count(bk));
+		CHECK(s.get_garrison_count(bk) == 0 && s.units().alive[li2] && to_bk < 12.0f);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

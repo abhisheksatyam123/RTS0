@@ -143,9 +143,31 @@ enum TechnologyId : uint8_t {
 	TECH_GROVE_OF_FETTERS = 134, // grove_of_fetters
 	TECH_RESETTLEMENT = 135, // resettlement
 	TECH_CELTIC_AUXILIARIES = 136, // celtic_auxiliaries (hand-added: Loot/<res> of the unit)
-	TECH_COUNT = 137
+	TECH_WAGON_TRAINS = 137, // wagon_trains
+	TECH_COUNT = 138
 };
 
+// A set of 0 A.D. classes (TechClass bits 0..63 in lo, 64..127 in hi).
+struct TechClasses {
+	uint64_t lo = 0, hi = 0;
+	constexpr TechClasses() = default;
+	constexpr TechClasses(uint64_t l) : lo(l) {}
+	constexpr TechClasses(uint64_t l, uint64_t h) : lo(l), hi(h) {}
+	constexpr bool any() const { return (lo | hi) != 0; }
+	constexpr explicit operator bool() const { return any(); }
+	constexpr bool contains(TechClasses o) const { return (lo & o.lo) == o.lo && (hi & o.hi) == o.hi; }
+	constexpr bool intersects(TechClasses o) const { return ((lo & o.lo) | (hi & o.hi)) != 0; }
+	friend constexpr TechClasses operator|(TechClasses a, TechClasses b) { return {a.lo | b.lo, a.hi | b.hi}; }
+	friend constexpr TechClasses operator&(TechClasses a, TechClasses b) { return {a.lo & b.lo, a.hi & b.hi}; }
+	friend constexpr TechClasses operator~(TechClasses a) { return {~a.lo, ~a.hi}; }
+	friend constexpr bool operator==(TechClasses a, TechClasses b) { return a.lo == b.lo && a.hi == b.hi; }
+	friend constexpr bool operator!=(TechClasses a, TechClasses b) { return !(a == b); }
+	constexpr TechClasses &operator|=(TechClasses o) { lo |= o.lo; hi |= o.hi; return *this; }
+	constexpr TechClasses &operator&=(TechClasses o) { lo &= o.lo; hi &= o.hi; return *this; }
+};
+constexpr TechClasses tc_bit(int i) { return i < 64 ? TechClasses(1ull << i, 0) : TechClasses(0, 1ull << (i - 64)); }
+
+// Bits 0..63; 0 A.D. classes from bit 64 up are TechClasses constants below.
 enum TechClass : uint64_t {
 	TC_UNIT = 1ull << 0,
 	TC_ORGANIC = 1ull << 1,
@@ -212,9 +234,12 @@ enum TechClass : uint64_t {
 	TC_MINISTER = 1ull << 62,
 	TC_ICEHOUSE = 1ull << 63,
 };
+inline constexpr TechClasses TC_WAGON = tc_bit(64);
+inline constexpr TechClasses TC_COLONY = tc_bit(65);
+inline constexpr TechClasses TC_AUXILIARY = tc_bit(66);
 
 // One 0 A.D. "affects" alternative: every `need` class and no `forbid` class.
-struct TechClassExpr { uint64_t need; uint64_t forbid; };
+struct TechClassExpr { TechClasses need; TechClasses forbid; };
 
 inline const TechClassExpr *tech_affects_table() {
 	static const TechClassExpr kAffects[] = {
@@ -300,6 +325,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_SCOUTSHIP, 0},
 		{TC_RAM, 0}, // siege_health: Ram or SiegeTower
 		{TC_SIEGETOWER, 0},
+		{TC_COLONY, 0},
 	};
 	return kAffects;
 }
@@ -503,12 +529,14 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_VISION, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
 		{TSTAT_RANGE, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
 		{TSTAT_HEALTH, TOP_MUL, 78, 1, 1.25f}, // warship_fireship_attack
+		{TSTAT_MELEE_FIRE, TOP_MUL, 78, 1, 1.25f}, // warship_fireship_attack (hand-added: Attack/Melee/Damage/Fire)
 		{TSTAT_VISION, TOP_MUL, 71, 1, 1.1f}, // ship_vision
 		{TSTAT_VISION, TOP_MUL, 79, 1, 1.25f}, // ship_vision
+		{TSTAT_POP_BONUS, TOP_ADD, 82, 1, 10.0f}, // wagon_trains (its Promotion/RequiredXp is in promotion_data.h)
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 198;
+constexpr int TECH_EFFECT_COUNT = 200;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -592,7 +620,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0xbbff, 126, 0, "unlock_civilians_house_generic"},
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 126, 0, "unlock_civilians_house_kush"},
 		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0xbfff, 126, 2, "warship_arrow_attack"},
-		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 195, 1, "warship_fireship_attack"},
+		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 195, 2, "warship_fireship_attack"},
 		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 128, 2, "warship_health"},
 		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 130, 1, "warship_ramming_attack"},
 		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 131, 2, "warship_ranged_attack"},
@@ -636,7 +664,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Bolt Accuracy", "Bolt Shooters −20% ranged attack spread.", 0, 250, 250, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x083b, 181, 1, "siege_bolt_accuracy"},
 		{"Exploration", "Traders and Ships +20% vision range.", 100, 0, 100, 0, 40.0f, 1, BLD_DOCK, TECH_SHIP_VISION, 0x2010, 182, 1, "exploration"},
 		{"Carrier Pigeons", "Outposts +33% vision range.", 300, 0, 0, 0, 40.0f, 1, BLD_OUTPOST, TECH_NONE, 0xbfff, 183, 1, "outpost_vision"},
-		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 196, 2, "ship_vision"},
+		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 197, 2, "ship_vision"},
 		{"Crenellations", "Sentry and Stone Towers +40% more arrows per garrisoned Soldier.", 0, 0, 250, 500, 40.0f, 2, BLD_TOWER, TECH_NONE, 0xbfff, 185, 1, "tower_crenellations"},
 		{"Murder Holes", "Fortresses, Sentry Towers, and Stone Towers have 0 minimum attack range.", 0, 250, 0, 150, 40.0f, 3, BLD_TOWER, TECH_NONE, 0xbfff, 186, 1, "tower_murderholes"},
 		{"Cartography", "See what your allies see, browse their summary and check their resources and population count in the top panel.", 100, 0, 100, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0xbfff, 187, 0, "unlock_shared_los"},
@@ -652,6 +680,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Grove of Fetters", "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.", 0, 600, 300, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x8000, 187, 1, "grove_of_fetters"},
 		{"Migratory Resettlement", "All Structures except for walls do not decay to neutral or enemy territory.", 0, 200, 200, 200, 40.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x8000, 188, 1, "resettlement"},
 		{"Celtic Auxiliaries", "Mercenaries −50% metal cost but +50 food cost.", 0, 0, 550, 0, 45.0f, 3, BLD_EMBASSY, TECH_NONE, 0x0010, 189, 4, "celtic_auxiliaries"},
+		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 199, 1, "wagon_trains"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
@@ -670,6 +699,50 @@ inline uint8_t tech_pair_partner(uint8_t tech_id) {
 		case TECH_SERAPIS_CULT: return TECH_PHARAONIC_CULT;
 		case TECH_REFORMED_ARMY_SELE: return TECH_TRADITIONAL_ARMY_SELE;
 		case TECH_TRADITIONAL_ARMY_SELE: return TECH_REFORMED_ARMY_SELE;
+		default: return TECH_NONE;
+	}
+}
+
+// The technology `tech_id` supersedes (0 A.D. "supersedes", a required technology), or TECH_NONE.
+inline uint8_t tech_supersedes(uint8_t tech_id) {
+	switch (tech_id) {
+		case TECH_FISHING_BOAT_GATHER_CAPACITY: return TECH_FISHING_BOAT_GATHER_RATE;
+		case TECH_GATHER_CAPACITY_CARTS: return TECH_GATHER_CAPACITY_WHEELBARROW;
+		case TECH_GATHER_CAPACITY_WHEELBARROW: return TECH_GATHER_CAPACITY_BASKET;
+		case TECH_GATHER_FARMING_CHAIN_PUMP: return TECH_GATHER_FARMING_WATER_WEEDING;
+		case TECH_GATHER_FARMING_FERTILIZER: return TECH_GATHER_FARMING_TRAINING;
+		case TECH_GATHER_FARMING_FERTILIZER_PTOL: return TECH_GATHER_FARMING_TRAINING_PTOL;
+		case TECH_GATHER_FARMING_TRAINING: return TECH_FARMING_1;
+		case TECH_GATHER_FARMING_TRAINING_PTOL: return TECH_FARMING_1;
+		case TECH_GATHER_FARMING_WATER_WEEDING: return TECH_GATHER_FARMING_SEED_DRILL;
+		case TECH_GATHER_LUMBERING_SHARPAXES: return TECH_GATHER_LUMBERING_STRONGERAXES;
+		case TECH_GATHER_LUMBERING_STRONGERAXES: return TECH_WOODCUTTING_1;
+		case TECH_GATHER_MINING_SERFS: return TECH_GATHER_MINING_SERVANTS;
+		case TECH_GATHER_MINING_SHAFTMINING: return TECH_MINING_1;
+		case TECH_GATHER_MINING_SILVERMINING: return TECH_GATHER_MINING_SHAFTMINING;
+		case TECH_GATHER_MINING_SLAVES: return TECH_GATHER_MINING_SERFS;
+		case TECH_HEAL_RANGE_2: return TECH_HEAL_RANGE;
+		case TECH_HEAL_RATE_2: return TECH_HEAL_RATE;
+		case TECH_JUGGERNAUTS: return TECH_DOCK_EFFICIENCY;
+		case TECH_NISEAN_HORSES: return TECH_CAVALRY_HEALTH;
+		case TECH_POP_HOUSE_02: return TECH_POP_HOUSE_01;
+		case TECH_SHIP_HEALTH: return TECH_DOCK_EFFICIENCY;
+		case TECH_SHIP_MOVEMENT_SPEED: return TECH_DOCK_EFFICIENCY;
+		case TECH_SOLDIER_ATTACK_MELEE_02: return TECH_WEAPONS_1;
+		case TECH_SOLDIER_ATTACK_MELEE_03: return TECH_SOLDIER_ATTACK_MELEE_02;
+		case TECH_SOLDIER_ATTACK_MELEE_03_VARIANT: return TECH_SOLDIER_ATTACK_MELEE_02;
+		case TECH_SOLDIER_ATTACK_RANGED_02: return TECH_SOLDIER_ATTACK_RANGED_01;
+		case TECH_SOLDIER_ATTACK_RANGED_03: return TECH_SOLDIER_ATTACK_RANGED_02;
+		case TECH_SOLDIER_RESISTANCE_HACK_02: return TECH_ARMOR_1;
+		case TECH_SOLDIER_RESISTANCE_HACK_03: return TECH_SOLDIER_RESISTANCE_HACK_02;
+		case TECH_SOLDIER_RESISTANCE_PIERCE_02: return TECH_SOLDIER_RESISTANCE_PIERCE_01;
+		case TECH_SOLDIER_RESISTANCE_PIERCE_03: return TECH_SOLDIER_RESISTANCE_PIERCE_02;
+		case TECH_TRADE_GAIN_02: return TECH_TRADE_GAIN_01;
+		case TECH_WARSHIP_RANGED_ATTACK: return TECH_DOCK_EFFICIENCY;
+		case TECH_SILK_ROAD: return TECH_TRADE_GAIN_02;
+		case TECH_ARSENAL_PHILON: return TECH_DOCK_EFFICIENCY;
+		case TECH_SPY_COUNTER: return TECH_UNLOCK_SPIES;
+		case TECH_EXPLORATION: return TECH_SHIP_VISION;
 		default: return TECH_NONE;
 	}
 }

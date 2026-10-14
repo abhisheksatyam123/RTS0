@@ -477,13 +477,18 @@ enum BuildingType : uint8_t {
 	BLD_SIEGE_WALL_GATE = 64, // rome/siege_wall_gate (a siege_wall_long Upgrade)
 	BLD_CRANNOG = 65,         // brit/crannog (a Civic Center on the shore: is_civic_centre)
 	BLD_GREAT_HALL = 66,      // germ/great_hall (Town phase; champions and the ram)
-	BLD_TYPE_COUNT = 67
+	BLD_WAGON_ENCAMPMENT = 67, // germ/encampment (a Colony that claims no territory; researches Wagon Trains)
+	BLD_WAGON_ENCAMPMENT_FORTIFIED = 68, // germ/encampment_fortified (its City-phase Upgrade; also trains the log ram)
+	BLD_TYPE_COUNT = 69
 };
 
 #include "civ_building_data.h"
 #include "territory_data.h"
 static_assert(TERRITORY_INFLUENCE_ROWS == BLD_TYPE_COUNT,
 	"a new BuildingType needs its TerritoryInfluence row: run tools/extract_0ad_territory.py");
+#include "vision_data.h"
+static_assert(STRUCTURE_VISION_ROWS == BLD_TYPE_COUNT,
+	"a new BuildingType needs its Vision row: run tools/extract_0ad_vision.py");
 
 // The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
 // forms research the Tachara's technologies, the apartment the house's, the Han
@@ -493,6 +498,7 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
 	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG) ? (uint8_t)BLD_TOWN_CENTER
 	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER
+	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
 
@@ -529,6 +535,7 @@ inline constexpr bool is_defense_tower(uint8_t type) {
 // TerritoryInfluence/Root: civic centres, wonders and a few civ structures (the
 // military colony, palace, tachara, ministry, Cothon); territory connects through them.
 inline bool is_territory_root(uint8_t type) { return territory_influence_info(type).root; }
+
 // Structures that claim territory (TerritoryInfluence); docks, fields, outposts,
 // palisades and camps claim none.
 inline bool has_territory_influence(uint8_t type) { return territory_influence_info(type).radius > 0.0f; }
@@ -726,14 +733,36 @@ struct AlertRaiserInfo {
 inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
 	constexpr float S = 0.28f;
 	switch (building_research_base(type)) {
-		case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: out = {false, 120 * S, 180 * S, 100 * S}; return true;
+		case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: case BLD_WAGON_ENCAMPMENT: out = {false, 120 * S, 180 * S, 100 * S}; return true;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: out = {false, 50 * S, 100 * S, 100 * S}; return true;
 		case BLD_MARKET: out = {true, -1.0f, -1.0f, 100 * S}; return true;
 		default: return false;
 	}
 }
 
-inline constexpr float GARRISON_LOADING_RANGE = 2.0f * 0.28f; // 0 A.D. metres to RTS0, plus the unit's radius
+// GarrisonHolder LoadingRange of a structure, 0 A.D. metres to RTS0 (x0.28), counted from
+// its obstruction: 1 m for civic centres (military colonies, wagon encampments and the
+// crannog too), houses and apartments, and Han's ministry, farmstead and storehouse;
+// 6 m for the fortress and the Roman army camp; 4 m for the corral; 2 m elsewhere
+// (template_structure_*.xml and the civ templates of 0.28).
+inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
+	switch (type) {
+		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: case BLD_CRANNOG: case BLD_MILITARY_COLONY:
+		case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED:
+		case BLD_HOUSE: case BLD_APARTMENT: case BLD_MINISTRY:
+			return 1.0f * 0.28f;
+		case BLD_FARMSTEAD: case BLD_STOREHOUSE:
+			return (civ == CIV_HAN ? 1.0f : 2.0f) * 0.28f;
+		case BLD_FORTRESS: case BLD_ARMY_CAMP:
+			return 6.0f * 0.28f;
+		case BLD_CORRAL:
+			return 4.0f * 0.28f;
+		default:
+			return 2.0f * 0.28f;
+	}
+}
+// template_unit_siege_ram.xml and template_unit_siege_tower.xml LoadingRange, 2 m.
+inline constexpr float SIEGE_LOADING_RANGE = 2.0f * 0.28f;
 // Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
 // 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
 inline float unit_min_range_ratio(uint8_t type) {
@@ -1138,6 +1167,19 @@ inline bool civ_has_big_house(uint8_t civ) {
 	}
 }
 
+// TerritoryInfluence of the civ's own template where it differs: the big house
+// (template_structure_civic_house_big: 20 m at Weight 40000) and the Iberian tower (38 m).
+inline TerritoryInfluenceInfo structure_territory_influence(uint8_t type, uint8_t civ) {
+	TerritoryInfluenceInfo ti = territory_influence_info(type);
+	if (type == BLD_HOUSE && civ_has_big_house(civ)) {
+		ti.radius = 20.0f * 0.28f;
+		ti.weight = 40000;
+	} else if (type == BLD_TOWER && civ == CIV_IBERIANS) {
+		ti.radius = 38.0f * 0.28f;
+	}
+	return ti;
+}
+
 // Whether a civ's structure of `type` has a round 0 A.D. Footprint (<Circle>) rather than a square
 // one. 0 A.D.'s obstruction stays square either way, so this only shapes where trained and
 // unloaded units step out (Footprint.PickSpawnPoint). RTS0 draws the circle on the structure's
@@ -1401,13 +1443,22 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 // 0 A.D. VisibleClasses "Village" (1) / "Town" (2): the structures that count
 // toward phase_town_generic (five Village) and phase_city_generic (three Town).
 // Civic centres, fields, towers and walls count toward neither.
-inline uint8_t building_phase_class(uint8_t type) {
+// Civ structures carry their own: brit/kennel, ptol/mercenary_camp, han/ministry,
+// kush/pyramid_small, spart/syssiton and pers/ice_house are Village; rome/army_camp
+// and temple_vesta, kush/camp_blemmye and camp_noba, spart/gerousia, athen/gymnasium,
+// iber/monument, cart/super_dock, mace/arsenal and maur/elephant_stable are Town.
+inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 	switch (building_research_base(type)) {
 		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
-		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE:
+		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE: case BLD_KENNEL:
+		case BLD_MERCENARY_CAMP: case BLD_MINISTRY: case BLD_PYRAMID_SMALL: case BLD_SYSSITON: case BLD_ICE_HOUSE:
 			return 1;
-		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY:
+		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY: case BLD_ARMY_CAMP:
+		case BLD_TEMPLE_VESTA: case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_GEROUSIA: case BLD_GYMNASIUM:
+		case BLD_MONUMENT: case BLD_SUPER_DOCK:
 			return 2;
+		case BLD_ARSENAL: return civ == CIV_MACEDONIANS ? 2 : 0;
+		case BLD_ELEPHANT_STABLE: return civ == CIV_MAURYANS ? 2 : 0;
 		default:
 			return 0;
 	}
@@ -1469,6 +1520,7 @@ enum TechStat : uint8_t {
 	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
 	TSTAT_TERRITORY_DECAY, // TerritoryDecay/DecayRate (Migratory Resettlement)
 	TSTAT_UNIT_LOOT_FOOD, TSTAT_UNIT_LOOT_WOOD, TSTAT_UNIT_LOOT_STONE, TSTAT_UNIT_LOOT_METAL, // Loot/<res> of the unit itself
+	TSTAT_MELEE_FIRE, TSTAT_RANGED_FIRE, // Attack/<type>/Damage/Fire (fire ships)
 	TSTAT_COUNT
 };
 
@@ -1558,12 +1610,17 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	case BLD_MILITARY_COLONY:
 		return r == BLD_MILITARY_COLONY || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
 		                                    && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
+	// germ/encampment shares the military colony's parent template and adds wagon_trains; its
+	// fortified Upgrade keeps the list.
+	case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED:
+		return r == BLD_WAGON_ENCAMPMENT || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
+		                                     && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
 	default: return r == building_research_base(type);
 	}
 }
 
 // Does an entity with these TechClass bits match effect `e`'s affects list?
-inline bool tech_effect_applies(const TechEffect &e, uint64_t classes) {
+inline bool tech_effect_applies(const TechEffect &e, TechClasses classes) {
 	if (e.affects_count == 0) return true;
 	const TechClassExpr *rows = tech_affects_table() + e.affects;
 	for (uint16_t i = 0; i < e.affects_count; ++i)
@@ -1572,9 +1629,9 @@ inline bool tech_effect_applies(const TechEffect &e, uint64_t classes) {
 }
 
 // 0 A.D. Identity/Classes for RTS0's unit types, as far as technologies need them.
-inline uint64_t unit_tech_classes(uint8_t type) {
-	const uint64_t org = TC_UNIT | TC_ORGANIC;
-	const uint64_t cs = org | TC_SOLDIER | TC_CITIZENSOLDIER | TC_CITIZEN;
+inline TechClasses unit_tech_classes(uint8_t type) {
+	const TechClasses org = TC_UNIT | TC_ORGANIC;
+	const TechClasses cs = org | TC_SOLDIER | TC_CITIZENSOLDIER | TC_CITIZEN;
 	switch (type) {
 		case UNIT_VILLAGER: return org | TC_WORKER | TC_CITIZEN | TC_CIVILIAN;
 		case UNIT_FEMALE_CITIZEN: return org | TC_WORKER | TC_CITIZEN | TC_CIVILIAN | TC_FEMALECITIZEN;
@@ -1594,7 +1651,7 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_CARNYX: return org | TC_SOLDIER | TC_INFANTRY | TC_MELEE;
 		case UNIT_ARCHER_MAIDEN: return org | TC_SOLDIER | TC_INFANTRY | TC_RANGED | TC_ARCHER | TC_CHAMPION;
 		case UNIT_WORKER_ELEPHANT: return org | TC_WORKER | TC_ELEPHANT;
-		case UNIT_WAGON: return org | TC_CIVILIAN; // Support (Civilian) Wagon
+		case UNIT_WAGON: return org | TC_CIVILIAN | TC_WAGON; // Support (Civilian) Wagon
 		case UNIT_CATAPULT: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_STONETHROWER;
 		case UNIT_BOLT_SHOOTER: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_BOLTSHOOTER;
 		case UNIT_SIEGE_RAM: return TC_UNIT | TC_SIEGE | TC_MELEE | TC_RAM;
@@ -1624,8 +1681,12 @@ inline bool unit_is_human(uint8_t type) {
 // garrison in 0 A.D. (storehouse, farmstead, market, gate, dock, walls, outpost).
 inline float building_garrison_heal(uint8_t type) {
 	switch (building_research_base(type)) {
-		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: return 1.0f; // han/ministry BuffHeal 1
-		case BLD_TEMPLE: return 3.0f;
+		// han/ministry, ptol and sele military_colony (template_structure_civic_civil_centre_military_colony)
+		// and germ/encampment BuffHeal 1
+		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: case BLD_MILITARY_COLONY:
+		case BLD_WAGON_ENCAMPMENT: return 1.0f;
+		// kush/temple_amun, rome/temple_mars and rome/temple_vesta keep template_structure_civic_temple's 3
+		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
 	}
@@ -1634,11 +1695,15 @@ inline float building_garrison_heal(uint8_t type) {
 // +3 resistance to each damage type and +20 m vision (x0.28 like every Vision range).
 inline constexpr float WALL_TURRET_ARMOR = 3.0f;
 inline constexpr float WALL_TURRET_VISION = 20.0f * 0.28f;
-inline float building_eject_health(uint8_t type) {
+// han/ministry unloads only when destroyed (EjectHealth 0); han/storehouse and
+// han/farmstead seat a Minister with the usual 0.1.
+inline float building_eject_health(uint8_t type, uint8_t civ) {
 	switch (type) {
 		case BLD_FORTRESS: return 0.075f;
 		case BLD_CORRAL: return 0.5f;
-		case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
+		case BLD_MINISTRY: return 0.0f;
+		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 0.1f : 0.0f;
+		case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
 		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return 0.0f;
 		default: return 0.1f;
@@ -1653,8 +1718,8 @@ inline bool siege_garrison_allowed(uint8_t unit_type) {
 	return (unit_tech_classes(unit_type) & (TC_INFANTRY | TC_CIVILIAN)) != 0;
 }
 
-inline uint64_t building_tech_classes(uint8_t type) {
-	const uint64_t c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
+inline TechClasses building_tech_classes(uint8_t type) {
+	const TechClasses c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
 		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
@@ -1678,13 +1743,16 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_ARSENAL: return c | TC_ARSENAL;
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
+		case BLD_MILITARY_COLONY: return c | TC_COLONY;
+		// germ/encampment: VisibleClasses Civic Defensive Colony Encampment (no CivCentre).
+		case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED: return c | TC_CIVIC | TC_DEFENSIVE | TC_COLONY;
 		default: return c;
 	}
 }
 
 // Whether an attack-move with these avoid bits skips a structure of `type`.
 inline bool attack_move_avoids(uint8_t flags, uint8_t type) {
-	const uint64_t c = building_tech_classes(type);
+	const TechClasses c = building_tech_classes(type);
 	if ((flags & ORDER_AVOID_ECONOMY) && (c & (TC_HOUSE | TC_STOREHOUSE | TC_FARMSTEAD | TC_FIELD | TC_FORGE))) return true;
 	switch ((flags & ORDER_AVOID_MASK) >> ORDER_AVOID_SHIFT) {
 		case ORDER_AVOID_WALLS_FORTRESS: return (c & (TC_WALL | TC_FORTRESS)) != 0;
@@ -1714,16 +1782,16 @@ inline int structure_garrison_max(uint8_t type, uint8_t civ) {
 // the Han lists add Minister (structures/han/*.xml), all but the sentry and wall towers.
 struct GarrisonClassList { uint8_t n; TechClassExpr e[5]; };
 inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
-	constexpr uint64_t SUP = TC_CIVILIAN, INF = TC_INFANTRY, CAV = TC_CAVALRY;
+	constexpr TechClasses SUP = TC_CIVILIAN, INF = TC_INFANTRY, CAV = TC_CAVALRY;
 	GarrisonClassList l{};
-	auto add = [&](uint64_t need, uint64_t forbid = 0) { l.e[l.n++] = {need, forbid}; };
+	auto add = [&](TechClasses need, TechClasses forbid = 0) { l.e[l.n++] = {need, forbid}; };
 	switch (building_research_base(type)) { // the court and great tower keep their parent's List
 		case BLD_TOWN_CENTER: case BLD_TEMPLE: case BLD_EMBASSY: case BLD_THEATER: case BLD_GYMNASIUM:
 		case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_SYSSITON: case BLD_TACHARA: case BLD_AMPHITHEATER:
 		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
 		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
 		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
-		case BLD_TACHARA_METAL:
+		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL:
 			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
 		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
 		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;
@@ -1743,7 +1811,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 	if (civ == CIV_HAN && type != BLD_SENTRY_TOWER && type != BLD_WALL_TOWER && l.n < 5) add(TC_MINISTER);
 	return l;
 }
-inline bool garrison_list_matches(const GarrisonClassList &l, uint64_t classes) {
+inline bool garrison_list_matches(const GarrisonClassList &l, TechClasses classes) {
 	for (uint8_t k = 0; k < l.n; ++k)
 		if ((classes & l.e[k].need) == l.e[k].need && (classes & l.e[k].forbid) == 0) return true;
 	return false;
@@ -1907,7 +1975,7 @@ struct CivUnitTemplate {
 	int16_t carry_capacity;
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
-	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
+	TechClasses tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
 	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
 };
 
@@ -1923,6 +1991,12 @@ struct CivUnitUpgrade {
 	int16_t stone_cost;
 	float time; // seconds
 	uint8_t phase; // phase the choice's Requirements name, 1 = none
+};
+
+// 0 A.D. Population/Bonus on a unit (Population.js), the Germans' wagon house.
+struct CivUnitPopBonus {
+	uint16_t tmpl; // civ_unit_template_table() row, 0xFFFF ends the table
+	int16_t bonus;
 };
 
 #include "civ_roster_data.h"
@@ -1972,7 +2046,7 @@ inline int builder_rate_aura_index(int16_t aura) {
 }
 
 // Does an entity with these TechClass bits match relic aura modifier `m`?
-inline bool relic_modifier_applies(const RelicAuraModifier &m, uint64_t classes) {
+inline bool relic_modifier_applies(const RelicAuraModifier &m, TechClasses classes) {
 	if (m.alt_count == 0) return true;
 	for (uint8_t i = 0; i < m.alt_count; ++i)
 		if ((classes & m.alts[i].need) == m.alts[i].need && (classes & m.alts[i].forbid) == 0) return true;
@@ -2068,9 +2142,18 @@ inline int unit_pop_cost(uint16_t tmpl, uint8_t type) {
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).pop_cost : unit_type_info(type).pop_cost;
 }
 
+// Population/Bonus of a unit: the population space it adds for its owner while it exists
+// (units/germ/support_wagon_house 5). Units without a roster template add none.
+inline int unit_pop_bonus(uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return 0;
+	for (const CivUnitPopBonus *b = civ_unit_pop_bonus_table(); b->tmpl != 0xFFFF; ++b)
+		if (b->tmpl == tmpl) return b->bonus;
+	return 0;
+}
+
 // Identity class Healer (Heal component): support healers and hero healers.
 inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
-	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & TC_HEALER) != 0;
 }
 
@@ -2083,7 +2166,7 @@ inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
 // is not).
 inline bool unit_is_large(uint16_t tmpl, uint8_t type) {
 	if (type == UNIT_CATAFALQUE || type == UNIT_WAGON) return true;
-	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & (TC_SIEGE | TC_ELEPHANT | TC_CHARIOT)) != 0;
 }
 
@@ -2379,22 +2462,12 @@ inline LootInfo unit_class_loot(uint8_t type) {
 	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
 }
 
-// A roster unit takes its 0 A.D. rank template's loot: heroes, champions and siege towers
-// differ from the class their RTS0 UnitType names.
+// A roster unit takes its own 0 A.D. template's Loot (civ_attack_data.h, mixins such as
+// elephant_indian's x1.1 applied); RTS0-only rows (the male villager) take their class's.
 inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
-		const uint16_t flags = civ_unit_template(tmpl).flags;
-		if (flags & ROSTER_HERO) return {400, 10, 0, 0, 25};          // template_unit_hero
-		if (flags & ROSTER_SIEGE_TOWER) return {250, 0, 100, 0, 60};  // template_unit_siege_tower
-		if (flags & ROSTER_CHAMPION) {
-			switch (type) {
-				case UNIT_SWORDSMAN: case UNIT_ARCHER: case UNIT_SPEARMAN: case UNIT_ARCHER_MAIDEN:
-					return {150, 8, 6, 0, 8};                              // template_unit_champion_infantry
-				case UNIT_CAVALRY: case UNIT_CAMEL:
-					return {200, 15, 8, 0, 10};                            // template_unit_champion_cavalry
-				default: break;
-			}
-		}
+		const CombatProfile &c = combat_template_table()[tmpl];
+		if (c.has_loot) return {c.loot[0], c.loot[1], c.loot[2], c.loot[3], c.loot[4]};
 	}
 	return unit_class_loot(type);
 }
@@ -2433,6 +2506,39 @@ inline LootInfo building_loot(uint8_t type) {
 	};
 	static_assert(sizeof(table) / sizeof(table[0]) == BLD_TYPE_COUNT, "one loot row per BuildingType");
 	return type < BLD_TYPE_COUNT ? table[type] : LootInfo{};
+}
+// A structure's own 0.28 template Loot: the civ's template where it differs (big houses 30 wood;
+// Celtic and Mauryan wooden barracks, stables and temples; the Iberian tower; the Carthaginian
+// dock; Mauryan wooden walls) and each WallSet piece's length (wall_long, _medium, _short 7, 5
+// and 3 stone; palisades 3, 2, 1 wood and their tower 3; siege walls 12, 8, 4 wood and the
+// tower 16).
+inline LootInfo structure_loot(uint8_t type, uint8_t civ, float half_w) {
+	LootInfo l = building_loot(type);
+	const bool celt_or_maur = civ == CIV_BRITONS || civ == CIV_GAULS || civ == CIV_MAURYANS;
+	auto set = [&l](uint16_t wood, uint16_t stone) { l.wood = wood; l.stone = stone; };
+	switch (type) {
+		case BLD_HOUSE: if (civ_has_big_house(civ)) set(30, 0); break;
+		case BLD_BARRACKS: if (celt_or_maur) set(60, 0); break;
+		case BLD_STABLE: if (celt_or_maur) set(50, 0); break;
+		case BLD_TEMPLE: if (civ == CIV_BRITONS || civ == CIV_GAULS) set(60, 0); break;
+		case BLD_TOWER: if (civ == CIV_IBERIANS) set(10, 50); break;
+		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) set(30, 0); break;
+		case BLD_GATE: if (civ == CIV_MAURYANS) set(6, 0); break;
+		case BLD_WALL_TOWER: if (civ == CIV_MAURYANS) set(12, 0); break;
+		default: break;
+	}
+	if (!is_wallset_piece(type, half_w) || is_gate_type(type)) return l;
+	const uint8_t kind = wallset_kind_of(type);
+	const WallSetInfo &ws = wallset_info(kind);
+	int k = 3; // the set's tower
+	if (!is_wallset_tower_piece(type, half_w))
+		for (k = 0; k < 2 && std::fabs(0.5f * ws.lengths[k] - half_w) >= 0.01f; ++k) {}
+	static constexpr uint16_t STONE[4] = {7, 5, 3, 10}, PALISADE[4] = {3, 2, 1, 3}, SIEGE[4] = {12, 8, 4, 16};
+	if (kind == WALLSET_PALISADE) set(PALISADE[k], 0);
+	else if (kind == WALLSET_SIEGE) set(SIEGE[k], 0);
+	else if (civ == CIV_MAURYANS) set(STONE[k], 0); // maur/wall_*: wood
+	else set(0, STONE[k]);
+	return l;
 }
 // 0 A.D. unit_advanced.json and unit_elite.json each multiply Loot/* by 1.2.
 inline float loot_rank_multiplier(uint8_t rank) {
