@@ -99,6 +99,7 @@ bool NetHost::startHost(const NetConfig &c) {
 	next_peer_id_ = 1;
 	banned_names_.clear();
 	banned_addresses_.clear();
+	failed_passwords_.clear();
 	kicks_.clear();
 	next_seq_ = 1;
 	peers_.clear();
@@ -895,13 +896,17 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 				AuthenticateResultMsg res;
 				res.host_id = static_cast<uint16_t>(peerId);
 				res.is_controller = 0;
-				if (banned_names_.count(auth.name) || banned_addresses_.count(p->address)) {
+				int &failed = failed_passwords_[auth.name.empty() ? p->address : auth.name];
+				if (banned_names_.count(auth.name) || banned_addresses_.count(p->address) ||
+						failed >= FAILED_PASSWORD_TRIES_BEFORE_BAN) {
 					res.code = ARC_BANNED;
 					res.message = "You have been banned from this game";
 				} else if (!password_.empty() && auth.password != password_) {
+					++failed;
 					res.code = ARC_PASSWORD_INVALID;
 					res.message = "Wrong password";
 				} else {
+					failed = 0;
 					res.code = ARC_OK;
 					res.message = "Welcome " + auth.name;
 				}
