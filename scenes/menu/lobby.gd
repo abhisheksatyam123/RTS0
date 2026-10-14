@@ -858,6 +858,7 @@ func _on_host_pressed(saved := false) -> void:
 	MatchSettings.net_port = port
 	MatchSettings.net_password = _host_pwd.text
 	MatchSettings.net_observe = false
+	LobbySession.map_upnp(port)
 	if saved:
 		# gamesetup_mp.js handleAuthenticated: the host picks the save (the
 		# load page), and the match scene hosts it once loaded

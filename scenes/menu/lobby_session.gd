@@ -56,6 +56,54 @@ func _ready() -> void:
 	add_child(_nat_timer)
 
 
+## NetServer SetupUPnP: a host asks the router (an UPnP IGD) to forward its
+## game port, on a thread so hosting never waits on it: discovery for 2 s,
+## then a permanent "0AD Multiplayer" UDP mapping, checked by reading it back.
+## 0.28 builds do this when compiled with miniupnpc; network.upnp turns it off.
+## upnp_status is the last attempt's outcome, as NetServer logs it.
+var upnp_status := ""
+var _upnp_thread: Thread
+
+func map_upnp(port: int) -> void:
+	if not RtsoUserConfig.new().get_bool("network.upnp"):
+		upnp_status = "off"
+		return
+	if _upnp_thread != null:
+		if _upnp_thread.is_alive():
+			return
+		_upnp_thread.wait_to_finish()
+	upnp_status = "discovering"
+	_upnp_thread = Thread.new()
+	_upnp_thread.start(_upnp_run.bind(port))
+
+func upnp_busy() -> bool:
+	return _upnp_thread != null and _upnp_thread.is_alive()
+
+func _upnp_run(port: int) -> void:
+	var u := UPNP.new()
+	var out := ""
+	if u.discover(2000, 2, "InternetGatewayDevice") != UPNP.UPNP_RESULT_SUCCESS or u.get_gateway() == null:
+		out = "No IGD found"
+	elif not u.get_gateway().is_valid_gateway():
+		out = "No valid IGD found"
+	else:
+		var ext := u.query_external_address()
+		var r := u.add_port_mapping(port, port, "0AD Multiplayer", "UDP", 0)
+		if r != UPNP.UPNP_RESULT_SUCCESS:
+			out = "AddPortMapping(%d) failed with code %d" % [port, r]
+		else:
+			out = "External %s:%d UDP is redirected to %s:%d" % [ext, port, u.get_gateway().igd_our_addr, port]
+	print("Net server: UPnP: ", out)
+	_upnp_done.call_deferred(out)
+
+func _upnp_done(out: String) -> void:
+	upnp_status = out
+
+func _exit_tree() -> void:
+	if _upnp_thread != null:
+		_upnp_thread.wait_to_finish()
+
+
 func signed_in() -> bool:
 	return token != ""
 
