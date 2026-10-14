@@ -1737,6 +1737,7 @@ void RtsoMain::update_net_status_overlay() {
 			case 2: why = tr("The host has ended the game."); break;
 			case 6: why = tr("You have been kicked."); break;
 			case 7: why = tr("You have been banned."); break;
+			case rtso::NDR_SERVER_FULL: why = tr("Server full."); break;
 			case 14: why = tr("Password is invalid."); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
