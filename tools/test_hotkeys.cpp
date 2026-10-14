@@ -87,14 +87,20 @@ int main() {
 	CHECK(t.is_held_exclusive("camera.rotate.cw", held({"A", "Ctrl"})));
 	CHECK(t.is_held_exclusive("camera.left", held({"LeftArrow"})));
 
+	// 0.28: F is the attack and focus-fire modifier, the arrows also page items.
+	CHECK(t.label("session.attack") == "F" && t.label("session.focusfire") == "F");
+	CHECK(t.label("item.next") == "RightArrow" && t.label("item.prev") == "LeftArrow");
+	CHECK(t.get("camera.follow")->empty() && t.get("session.showstatusbars")->empty());
+	CHECK(t.label("session.gui.matchsettings.toggle") == "Ctrl+O");
+
 	// user.cfg overrides replace a whole binding list, and diff_cfg writes them back.
 	HotkeyTable user = t;
-	CHECK(user.load_cfg("hotkey.session.stop = \"Ctrl+X\"\n[hotkey.camera]\nfollow = \"\" ; unbind\n") == 2);
+	CHECK(user.load_cfg("hotkey.session.stop = \"Ctrl+X\"\n[hotkey.camera]\nreset = \"\" ; unbind\n") == 2);
 	CHECK(user.label("session.stop") == "Ctrl+X");
-	CHECK(user.get("camera.follow")->empty());
+	CHECK(user.get("camera.reset")->empty());
 	CHECK(!fires(user, "H", {}, "session.stop"));
 	const std::string diff = user.diff_cfg(t);
-	CHECK(diff == "hotkey.camera.follow = \"\"\nhotkey.session.stop = \"Ctrl+X\"\n");
+	CHECK(diff == "hotkey.camera.reset = \"\"\nhotkey.session.stop = \"Ctrl+X\"\n");
 	HotkeyTable again = t;
 	again.load_cfg(diff);
 	CHECK(again.diff_cfg(t) == diff);

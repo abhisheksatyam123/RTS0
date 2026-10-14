@@ -2,6 +2,7 @@
 #define RTSO_TURN_MANAGER_H
 
 #include <cstdint>
+#include <map>
 #include <set>
 #include <vector>
 #include <string>
@@ -101,9 +102,27 @@ public:
 	// observe: join as an observer instead (0 A.D. observer late join): the
 	// client takes no seat, sends no batches and nobody waits on it.
 	void request_rejoin(bool observe = false);
-	// Host: whether clients may join a running match as observers (0 A.D.
-	// network.lateobservers, "everyone" by default).
-	void set_allow_late_observers(bool allow) { allow_late_observers_ = allow; }
+	// Host: who may join a running match as an observer (0 A.D.
+	// network.lateobservers): everyone (the default), only the players named
+	// in lobby.buddies, or nobody. Anyone else is refused with reason 6.
+	enum LateObservers : uint8_t { LATE_OBSERVERS_EVERYONE, LATE_OBSERVERS_BUDDIES, LATE_OBSERVERS_DISABLED };
+	void set_late_observers(uint8_t mode, std::set<std::string> buddies = {}) {
+		late_observers_ = mode;
+		buddies_ = std::move(buddies);
+	}
+	void set_allow_late_observers(bool allow) { late_observers_ = allow ? LATE_OBSERVERS_EVERYONE : LATE_OBSERVERS_DISABLED; }
+	// Host: an observer more than this many turns behind the host holds the
+	// match until it catches up (0 A.D. network.observermaxlag). -1, the
+	// default, never waits on observers; like 0 A.D., above 10000 is -1 too.
+	void set_observer_max_lag(int turns) { observer_max_lag_ = turns < 0 || turns > 10000 ? -1 : turns; }
+	// Observer: while more than CATCH_UP_TURNS of the turns it already holds
+	// are still to run, run one every tick instead of one per turn length, so
+	// a late joiner reaches the players (0 A.D. network.autocatchup).
+	void set_auto_catch_up(bool on) { auto_catch_up_ = on; }
+	static constexpr uint32_t CATCH_UP_TURNS = 4;
+	// Turns after the current one whose every batch is already here (capped
+	// at 64): how far this peer is behind the host.
+	uint32_t turns_behind();
 	// Host: at most this many observers in a running match (0 A.D.
 	// network.observerlimit, 8); one more is refused with reason 7.
 	void set_observer_limit(int limit) { observer_limit_ = limit < 0 ? 0 : limit; }
@@ -369,8 +388,13 @@ private:
 	std::vector<uint32_t> rejoin_requests_;
 	std::set<uint32_t> observer_requests_; // host: rejoin requests that asked to observe
 	bool rejoin_observe_ = false;
-	bool allow_late_observers_ = true;
+	uint8_t late_observers_ = LATE_OBSERVERS_EVERYONE;
+	std::set<std::string> buddies_; // lowercase
 	int observer_limit_ = 8;
+	int observer_max_lag_ = -1;
+	bool auto_catch_up_ = true;
+	std::map<uint32_t, uint32_t> observer_turn_; // host: each observer's newest sync-check turn
+	bool lagging_observer(uint32_t client) const;
 	// Host: the client list last sent as NMT_PLAYER_ASSIGNMENT, and every
 	// client's name as last seen (a client that left keeps it in the list).
 	std::vector<PlayerAssignmentMsg::Entry> sent_assignment_;

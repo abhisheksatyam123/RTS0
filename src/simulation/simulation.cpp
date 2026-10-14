@@ -160,6 +160,10 @@ struct ScopedUs {
 };
 constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m map)
 // 0 A.D. Builder.GetRange: max ≈ 2 + unit obstruction.
+// Builder.GetRange max = 2 m (x0.28 like LoadingRange) + the builder's obstruction size, from
+// its obstruction (a square of its class clearance) to the structure's.
+constexpr float kBuildRange = 2.0f * 0.28f;
+// Between units (repairing a ram or a ship), RTS0 keeps the units' collision radii.
 constexpr float kBuildReach = 2.20f;
 // An attacker's stand point beside a structure (it stops once within reach on its way there).
 constexpr float kBuildStandOff = 0.80f;
@@ -273,7 +277,9 @@ static bool outside_and_in_build_range(float bx, float bz, float hx, float hz, f
 		return false;
 	float cx = std::clamp(x, minx, maxx);
 	float cz = std::clamp(z, minz, maxz);
-	return std::hypot(x - cx, z - cz) - radius <= kBuildReach; // edge to edge, as structure_gap
+	// Edge to edge, as structure_gap: Builder range plus the obstruction size (`radius`, the
+	// builder's class clearance).
+	return std::hypot(x - cx, z - cz) - radius <= kBuildRange + radius;
 }
 
 // The two above in a building's own frame, so a turned footprint (nav/footprint.h) gets the same
@@ -6289,10 +6295,9 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 bool Simulation::garrison_in_range(size_t i, const Building &b, float x, float z) const {
 	const nav::Vec2 gap = nav::footprint_gap(b, x, z);
 	const float ex = gap.x, ez = gap.y;
-	// LoadingRange counts from where a unit can stand: its radius plus the navcell
-	// clearance extension around the structure (0 A.D. measures from the obstruction).
-	const float reach = structure_loading_range(b.type, b.civ) + unit_collision_radius(units_.unit_type[i]) +
-			nav::kClearanceExtensionRadius;
+	// LoadingRange counts from the unit's obstruction (a square of its class clearance) to the
+	// structure's (GarrisonHolder.IsInTargetRange).
+	const float reach = structure_loading_range(b.type, b.civ) + unit_clearance_at(i);
 	return ex * ex + ez * ez <= reach * reach;
 }
 
@@ -8849,7 +8854,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	float c_max = 0.0f;
 	for (size_t i = 0; i < n; ++i) {
 		const bool land = units_.alive[i] && !unit_is_ship(units_.unit_type[i]);
-		idle[i] = land && !(walk[i] & WALK_MOVING);
+		// Turretable.OccupyTurret turns a turret unit's obstruction off: it blocks no one.
+		idle[i] = land && !(walk[i] & WALK_MOVING) &&
+				(turret_height_.empty() || !turret_height_.count(units_.id[i]));
 		if (idle[i]) {
 			any_idle = true;
 			c_max = std::max(c_max, unit_push_clearance(units_.unit_type[i]));
@@ -8909,14 +8916,18 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		}
 		if (st == ACTION_BUILD && units_.target_building_id[i] != 0) { // tick_construction
 			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
-			return bit != building_id_to_idx_.end() && square(buildings_[bit->second], kBuildReach);
+			// outside_and_in_build_range: the centre within Builder range plus twice the clearance
+			// (square adds the radius).
+			return bit != building_id_to_idx_.end() &&
+			       square(buildings_[bit->second], kBuildRange + 2.0f * unit_clearance_at(i) - r);
 		}
 		if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) {
-			// garrison_in_range's LoadingRange, which counts from the unit's centre (square adds its radius).
+			// garrison_in_range's LoadingRange plus the clearance, from the unit's centre (square
+			// adds the radius).
 			const auto bit = building_id_to_idx_.find(units_.order_target[i]);
 			return bit != building_id_to_idx_.end() &&
 			       square(buildings_[bit->second], structure_loading_range(buildings_[bit->second].type,
-						buildings_[bit->second].civ) + nav::kClearanceExtensionRadius);
+						buildings_[bit->second].civ) + unit_clearance_at(i) - r);
 		}
 		if (st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) {
 			// The dropsite (tick_gather) or market (the trader tick) at the walk's target, or a
@@ -9093,7 +9104,7 @@ bool Simulation::walk_in_reach(size_t i, float x, float z) const {
 		// within reach, in tick_gather.)
 		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 		return bit != building_id_to_idx_.end() &&
-				outside_and_in_build_range(buildings_[bit->second], x, z, unit_collision_radius(units_.unit_type[i]));
+				outside_and_in_build_range(buildings_[bit->second], x, z, unit_clearance_at(i));
 	}
 	if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) {
 		// The garrison order gets in within LoadingRange.
@@ -10140,7 +10151,7 @@ void Simulation::tick_construction(float dt) {
 			if (bit == building_id_to_idx_.end()) continue;
 			const Building &b = buildings_[bit->second];
 			if (b.build_progress < 1.0f && outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
-				unit_collision_radius(units_.unit_type[i])))
+				unit_clearance_at(i)))
 				builders_per_bld[b.id]++;
 		}
 	}
@@ -10171,7 +10182,7 @@ void Simulation::tick_construction(float dt) {
 		}
 
 		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
-				unit_collision_radius(units_.unit_type[i]))) {
+				unit_clearance_at(i))) {
 			// 0 A.D. Foundation.Commit: the first builder on a clear site starts it; until the
 			// units standing on it have left, nobody builds.
 			if (!b.committed) {
@@ -10292,7 +10303,7 @@ void Simulation::tick_repair(float dt) {
 				const Building &b = buildings_[bit->second];
 				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp &&
 						outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
-				unit_collision_radius(units_.unit_type[i]))) {
+				unit_clearance_at(i))) {
 					repairers_per_bld[b.id]++;
 				}
 			}
@@ -10307,7 +10318,7 @@ void Simulation::tick_repair(float dt) {
 		if (b.build_progress < 1.0f || b.hp <= 0.0f || b.hp >= b.max_hp) continue;
 
 		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
-				unit_collision_radius(units_.unit_type[i]))) {
+				unit_clearance_at(i))) {
 			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio x BuildTime): 2.0, or 4.5 on
 			// stone walls, gates and wall towers (template_structure_defensive_wall.xml).
@@ -25134,6 +25145,21 @@ bool Simulation::load_state(const char *filepath) {
 		projectiles_.clear();
 	}
 
+	// The units on turret points, as the saving game's last tick_turrets left them (move_units reads
+	// them before this tick's tick_turrets).
+	turret_height_.clear();
+	for (const Building &b : buildings_) {
+		const TurretPointSet *pts = b.garrisoned_units.empty() ? nullptr : turret_points_of(b);
+		if (!pts) continue;
+		bool taken[TURRET_POINTS_MAX] = {};
+		for (size_t k = 0; k < b.garrisoned_units.size() && (int)k < pts->count; ++k) {
+			const int32_t u = lookup_unit(b.garrisoned_units[k]);
+			if (u < 0 || !units_.alive[u]) continue;
+			const int pi = nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u], taken);
+			taken[pi] = true;
+			turret_height_[b.garrisoned_units[k]] = pts->pt[pi].y;
+		}
+	}
 	rebuild_all_tech_mods();
 	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
@@ -29599,11 +29625,15 @@ uint8_t jebel_classes(uint8_t type) {
 	const TechClasses c = building_tech_classes(type);
 	uint8_t r = 0;
 	if (c & TC_WONDER) r |= JB_WONDER;
-	if (c & TC_TEMPLE) r |= JB_TEMPLE;
+	// The Grand Temple of Amun (and Rome's two) are template_structure_civic_temple, and the
+	// Noba and Blemmye camps template_structure_military_embassy, in 0.28.
+	if ((c & TC_TEMPLE) || type == BLD_TEMPLE_AMUN || type == BLD_TEMPLE_MARS || type == BLD_TEMPLE_VESTA) r |= JB_TEMPLE;
 	if (is_civic_centre(type)) r |= JB_CIVCENTRE;
 	if (c & TC_FORTRESS) r |= JB_FORTRESS;
 	if (c & TC_BARRACKS) r |= JB_BARRACKS;
-	if (type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) r |= JB_EMBASSY;
+	if (type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC || type == BLD_CAMP_NOBA ||
+	    type == BLD_CAMP_BLEMMYE)
+		r |= JB_EMBASSY;
 	if (type == BLD_STABLE) r |= JB_STABLE; // RTS0's elephant stable is a Stable too; 0 A.D.'s is not
 	if (type == BLD_ELEPHANT_STABLE) r |= JB_ELEPHANT_STABLE;
 	return r;
