@@ -1,4 +1,6 @@
 #include "camera_rig.h"
+#include "user_config.h"
+#include <algorithm>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/input.hpp>
 #include <godot_cpp/classes/input_event_mouse_button.hpp>
@@ -94,7 +96,11 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 		Vector2 rel = mm->get_relative();
 		float cos_y = Math::cos(target_yaw);
 		float sin_y = Math::sin(target_yaw);
-		float drag_scale = (zoom_height / 28.0f) * 0.06f;
+		// 0.28 view.drag.speed (default 0.5) and view.drag.inverted.
+		float drag_scale = (zoom_height / 28.0f) * 0.06f *
+				(float)std::clamp(rtso::user_config::get_number("view.drag.speed"), 0.01, 0.6) / 0.5f;
+		if (rtso::user_config::get_bool("view.drag.inverted"))
+			drag_scale = -drag_scale;
 		Vector3 world_dir(
 			(-rel.x * cos_y + rel.y * sin_y) * drag_scale,
 			0.0f,

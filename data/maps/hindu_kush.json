@@ -10360,6 +10360,30 @@
       "type": "boar",
       "x": 16.04,
       "z": -122.07
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -23.7,
+      "z": 50.85,
+      "player": 1
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -27.27,
+      "z": -75.72,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -28.92,
+      "z": -74.31,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -24.5,
+      "z": 49.87,
+      "player": 1
     }
   ],
   "structures": [
