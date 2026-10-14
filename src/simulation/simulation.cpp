@@ -14996,7 +14996,7 @@ void Simulation::update_petra_bases(float dt) {
 
 		int w_count = 0;
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_VILLAGER) continue;
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || unit_gather_class(units_.unit_type[i], units_.tmpl[i]) != GATHER_SUPPORT) continue;
 			float dx = units_.pos_x[i] - base.x;
 			float dz = units_.pos_z[i] - base.z;
 			if (dx * dx + dz * dz <= base.radius * base.radius) {
@@ -15194,7 +15194,7 @@ void Simulation::petra_manage_workers(float dt) {
 
 	// 1. Worker Threat Evaluation & Evacuation
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_VILLAGER) continue;
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || unit_gather_class(units_.unit_type[i], units_.tmpl[i]) != GATHER_SUPPORT) continue;
 
 		float threat = get_threat_at(units_.pos_x[i], units_.pos_z[i]);
 
@@ -15769,27 +15769,21 @@ int Simulation::petra_train_more_workers() {
 			return shortfall;
 	}
 
-	// The civ's support worker (Support+Worker, costing food).
-	if (triggers_.template_disabled(civ_default_template(petra_ps().civ, UNIT_VILLAGER))) return shortfall;
-	const uint32_t bid = shortest_queue(CIV_UNIT_TEMPLATE_NONE, UNIT_VILLAGER, true);
-	if (!bid) return shortfall;
-	Building &cc = buildings_[building_id_to_idx_.at(bid)];
-	const UnitTypeInfo &vinfo = civ_unit_info(civ_of(petra_pid_), UNIT_VILLAGER);
-	const float n = (float)size;
-	if (!petra_try_pay(PETRA_Q_VILLAGER, std::floor(vinfo.food_cost * n), std::floor(vinfo.wood_cost * n),
-	                   std::floor(vinfo.gold_cost * n), std::floor(vinfo.stone_cost * n)))
-		return shortfall;
-	ProductionOrder order;
-	order.unit_type = UNIT_VILLAGER;
-	order.count = (uint8_t)size;
-	order.timer = 0.0f;
-	order.paid[RES_FOOD] = std::floor(vinfo.food_cost * n);
-	order.paid[RES_WOOD] = std::floor(vinfo.wood_cost * n);
-	order.paid[RES_GOLD] = std::floor(vinfo.gold_cost * n);
-	order.paid[RES_STONE] = std::floor(vinfo.stone_cost * n);
-	order.duration = vinfo.train_time * 0.8f * tech_mods(petra_pid_).train_time[UNIT_VILLAGER] * ai_time_mult(petra_pid_) *
-		batch_time_multiplier(petra_pid_, cc.type, size);
-	cc.queue.push_back(order);
+	// findBestTrainableUnit(["Support+Worker"], costsResource food): the civ's 0.28 civilian
+	// (support_civilian at the civic centre), the cheapest that a civic centre of ours trains.
+	uint16_t civilian = CIV_UNIT_TEMPLATE_NONE;
+	float civilian_cost = 0.0f;
+	for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (!(t.flags & ROSTER_CIVILIAN) || t.phase > petra_ps().phase || triggers_.template_disabled(tmpl)) continue;
+		if (!shortest_queue(tmpl, t.unit_type, true)) continue;
+		float cost[RES_COUNT];
+		unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
+		const float sum = cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE];
+		if (civilian == CIV_UNIT_TEMPLATE_NONE || sum < civilian_cost) { civilian = tmpl; civilian_cost = sum; }
+	}
+	if (civilian == CIV_UNIT_TEMPLATE_NONE) return shortfall;
+	petra_train_template(PETRA_Q_VILLAGER, shortest_queue(civilian, civ_unit_template(civilian).unit_type, true), civilian, size);
 	return shortfall;
 }
 
@@ -23272,7 +23266,7 @@ void Simulation::petra_manage_victory(float dt) {
 				auto builders = get_idle_workers(petra_pid_);
 				if (builders.size() < 4) {
 					for (size_t i = 0; i < units_.count && builders.size() < 8; ++i) {
-						if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_VILLAGER)
+						if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_gather_class(units_.unit_type[i], units_.tmpl[i]) == GATHER_SUPPORT)
 							builders.push_back(units_.id[i]);
 					}
 				}
