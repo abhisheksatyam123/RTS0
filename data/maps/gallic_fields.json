@@ -23768,5 +23768,6 @@
   ],
   "trigger_scripts": [
     "gallic_fields_3p"
-  ]
+  ],
+  "circular": true
 }

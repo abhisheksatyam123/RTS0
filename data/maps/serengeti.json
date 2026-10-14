@@ -8862,5 +8862,6 @@
       "z": -63.82,
       "template": "spart/cavalry_javelineer_b"
     }
-  ]
+  ],
+  "circular": false
 }

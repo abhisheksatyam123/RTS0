@@ -4808,5 +4808,6 @@
       "template": "athen/civil_centre"
     }
   ],
-  "units": []
+  "units": [],
+  "circular": true
 }

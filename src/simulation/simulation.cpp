@@ -11474,7 +11474,7 @@ void Simulation::tick_combat(float dt) {
 			// (DelayedDamage.js Hit), after the hit itself here.
 			if (const uint8_t sp = unit_splash(units_.tmpl[i], u_att)) {
 				cause_damage_over_area(sp, units_.id[i], units_.team[i], units_.pos_x[t], units_.pos_z[t],
-						units_.pos_x[t] - units_.pos_x[i], units_.pos_z[t] - units_.pos_z[i]);
+						units_.pos_x[t] - units_.pos_x[i], units_.pos_z[t] - units_.pos_z[i], true);
 			}
 		}
 	}
@@ -11616,7 +11616,7 @@ void Simulation::tick_combat(float dt) {
 				}
 			}
 			if (const uint8_t sp = unit_splash(units_.tmpl[i], units_.unit_type[i]))
-				cause_damage_over_area(sp, units_.id[i], units_.team[i], b.x, b.z, -dx, -dz); // melee Splash
+				cause_damage_over_area(sp, units_.id[i], units_.team[i], b.x, b.z, -dx, -dz, true); // melee Splash
 		}
 	}
 
@@ -12790,7 +12790,8 @@ void Simulation::tick_status_effects(float dt) {
 			timer -= dt;
 			const float dmg = status_dps(kind) * step;
 			if (!invulnerable(units_.id[i])) {
-				award_damage_xp(src, i, dmg);
+				// helpers/Attack.js HandleAttackEffects returns before Promotion.IncreaseXp for a
+				// StatusEffect's damage: the kill and the loot still go to `src`, the xp doesn't.
 				units_.hp[i] -= dmg;
 				note_attacked(src, owner, units_.id[i], units_.team[i], false, dmg);
 				if (units_.hp[i] <= 0.0f) {
@@ -13647,7 +13648,7 @@ Simulation::UnitDetails Simulation::unit_details(size_t i) const {
 // long and Range/5 wide ahead along the missile's direction, falling off
 // quadratically along and across it. Garrisoned units are out of the world.
 void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
-		float ox, float oz, float dir_x, float dir_z) {
+		float ox, float oz, float dir_x, float dir_z, bool melee) {
 	if (splash == 0 || splash >= SPLASH_PROFILE_COUNT) return;
 	const SplashProfile &sp = splash_profiles()[splash];
 	const float r = sp.range * AREA_DAMAGE_SCALE;
@@ -13684,7 +13685,11 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		award_damage_xp(attacker_id, u, dmg);
 		note_attacked(attacker_id, attacker_team, units_.id[u], units_.team[u], false, dmg);
 		if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
-		if (units_.attacked_by[u] == 0 && attacker_id != 0) units_.attacked_by[u] = attacker_id;
+		// "Melee.Splash" (helpers/Attack.js): COMBAT "Attacked" answers only "Melee", so a unit
+		// busy fighting ignores the splash of a melee attack; anyone else answers it.
+		const bool fighting = units_.action_state[u] == ACTION_ATTACK &&
+				(units_.target_unit_id[u] != 0 || units_.target_building_id[u] != 0);
+		if (units_.attacked_by[u] == 0 && attacker_id != 0 && !(melee && fighting)) units_.attacked_by[u] = attacker_id;
 		if (units_.team[u] == 0)
 			raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[u], units_.pos_z[u], units_.id[u], units_.team[u]);
 		if (units_.hp[u] > 0.0f) continue;
@@ -14378,6 +14383,9 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	if (!structure) {
 		const int32_t a = lookup_unit(attacker_id);
 		if (a >= 0 && attack_target_hidden(i, (size_t)a)) return;
+		// AttackEntitiesByPreference keeps only what CanAttack allows: a swordsman can't reach
+		// an archer on a wall, so it carries on.
+		if (a >= 0 && !unit_can_target(i, (size_t)a)) return;
 	}
 	const float range = attack_reach(i);
 	const float vision = unit_base_vision(i);
@@ -14866,6 +14874,20 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		return true;
 	case CHEAT_REVEAL_MAP: // "jame jam": SetLosRevealAll(-1)
 		set_reveal_map(true);
+		return true;
+	case CHEAT_DEV_REVEAL_MAP: // Commands.js "reveal-map": SetLosRevealAll(-1, cmd.enable)
+		set_reveal_map(parameter != 0);
+		return true;
+	case CHEAT_DEV_PROMOTE: // Commands.js "promote": each own unit gains the xp its next rank needs (IncreaseXp)
+		for (size_t k = 0; k < count; ++k) {
+			const int32_t i = lookup_unit(selected[k]);
+			if (i < 0 || !units_.alive[i] || units_.team[i] != player) continue;
+			const float need = promotion_required_xp((size_t)i);
+			if (need < 0.0f) continue;
+			units_.xp[i] = (uint16_t)std::min(65535.0f, std::ceil(need));
+			units_.xp_partial[i] = 0.0f;
+			promote_if_due((size_t)i);
+		}
 		return true;
 	case CHEAT_CONVERT_UNITS: { // "wololo": to the given player, else to yourself
 		const uint8_t to = (parameter >= 0 && parameter < MAX_PLAYERS) || parameter == GAIA_PLAYER ? (uint8_t)parameter : player;

@@ -4,7 +4,7 @@
 #pragma once
 
 // 0 A.D. Vision/Range of each finished structure, RTS0 units (COMBAT_DISTANCE_SCALE); 0 = sees nothing.
-inline constexpr uint8_t STRUCTURE_VISION_ROWS = 78;
+inline constexpr uint8_t STRUCTURE_VISION_ROWS = 85;
 inline float structure_vision_range(uint8_t type) {
 	static const float kTable[STRUCTURE_VISION_ROWS + 1] = {
 		25.2f, // BLD_TOWN_CENTER: template_structure_civic_civil_centre (90 m)
@@ -85,6 +85,13 @@ inline float structure_vision_range(uint8_t type) {
 		5.6f, // BLD_INN: structures/pers/inn (20 m)
 		5.6f, // BLD_TENT: structures/rome/tent (20 m)
 		1.12f, // BLD_TRIUMPHAL_ARCH: structures/rome/arch (4 m)
+		11.2f, // BLD_HALL: structures/pers/hall (40 m)
+		5.6f, // BLD_WAREHOUSE: structures/pers/warehouse (20 m)
+		5.6f, // BLD_TAVERN: structures/gaul/tavern (20 m)
+		22.4f, // BLD_TOWER_DOUBLE: structures/maur/tower_double (80 m)
+		11.2f, // BLD_KUSH_SHRINE: structures/kush/shrine (40 m)
+		25.2f, // BLD_FORTRESS_OLD: structures/han/fortress_old (90 m)
+		1.12f, // BLD_LAOZI_GATE: structures/han/laozigate (4 m)
 		0.0f, // out of range
 	};
 	return kTable[type < STRUCTURE_VISION_ROWS ? type : STRUCTURE_VISION_ROWS];

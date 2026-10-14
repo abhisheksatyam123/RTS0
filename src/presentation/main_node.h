@@ -69,6 +69,7 @@
 #include "tutorial_panel.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
+#include "dev_overlay_view.h"
 #include "control_groups_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
@@ -193,6 +194,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
+	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
 	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker
@@ -347,6 +349,10 @@ public:
 	void _on_selection_group_gui_input(const Ref<InputEvent> &event, int key);
 	void _on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot);
 	void _on_research_progress_pressed(int slot);
+	void toggle_dev_overlay();
+	void _on_dev_command(int command);
+	void refresh_dev_overlay();
+	Dictionary debug_dev_overlay() const;
 	void _on_control_group_gui_input(const Ref<InputEvent> &event, int button);
 	// input.js performGroup: select, add or snap (select and move the camera) group `grp`.
 	enum GroupAction { GROUP_SELECT, GROUP_ADD, GROUP_SNAP };
