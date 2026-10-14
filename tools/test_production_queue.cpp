@@ -473,6 +473,31 @@ int main() {
 		std::printf("population: CC 20, athen house 10, hero 0, ram 3; a batch at the cap waits for a house\n");
 	}
 
+	// 13. ProductionQueue.js OnOwnershipChanged -> ResetQueue also runs when the structure is
+	//     destroyed or deleted: every item is refunded, the started batch's population is freed
+	//     and the phase it was researching can be queued again elsewhere.
+	{
+		Simulation s;
+		s.set_sim_seed(5);
+		s.reset();
+		s.set_player_resources(0, 20000, 20000, 20000, 20000);
+		const uint32_t tc = s.spawn_building_world(-30.0f, -30.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t tc2 = s.spawn_building_world(30.0f, 30.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		for (int h = 0; h < 5; ++h) s.spawn_building_world(-10.0f + 6.0f * h, 20.0f, BLD_HOUSE, 0, 1.0f);
+		const float before = total_res(s);
+		CHECK(s.cmd_train(0, tc, UNIT_FEMALE_CITIZEN, 3));
+		CHECK(s.cmd_research(0, tc, TECH_PHASE_TOWN));
+		run(s, 1.0f);
+		CHECK(bld(s, tc).queue.front().started && s.pop_current(0) == 3);
+		s.cmd_delete(0, &tc, 1);
+		run(s, 0.5f);
+		std::printf("destroyed trainer: resources %.0f of %.0f back, pop %d, town phase queued %d\n",
+				total_res(s), before, s.pop_current(0), (int)s.tech_queued(0, TECH_PHASE_TOWN));
+		CHECK(bld(s, tc).queue.empty() && std::fabs(total_res(s) - before) < 1.0f);
+		CHECK(s.pop_current(0) == 0 && !s.tech_queued(0, TECH_PHASE_TOWN));
+		CHECK(s.research_check(0, TECH_PHASE_TOWN, tc2) == Simulation::TECH_OK);
+	}
+
 	if (failures) {
 		std::printf("FAIL: %d checks\n", failures);
 		return 1;
