@@ -848,6 +848,12 @@ struct PlayerAssignmentMsg {
 // client unheard for longer than this is "not responding".
 inline constexpr uint32_t NET_LAG_WARN_RTT_MS = 500;
 inline constexpr uint32_t NET_TIMEOUT_WARN_MS = 1000;
+// 0 A.D.'s network warnings overlay (overlay.netwarnings): NetSession.h
+// NETWORK_WARNING_TIMEOUT, NetClient.cpp NETWORK_BAD_PING (DEFAULT_TURN_LENGTH
+// 200 ms x COMMAND_DELAY_MP 4 / 2) and network.js g_NetworkWarningTimeout.
+inline constexpr uint32_t NETWORK_WARNING_TIMEOUT_MS = 2000;
+inline constexpr uint32_t NETWORK_BAD_PING_MS = 400;
+inline constexpr uint32_t NETWORK_WARNING_SHOW_MS = 3000;
 
 // NMT_JOIN_SYNC_STATE payload -- late-join turn-0 state resync request.
 // 0 A.D. parity: NetServer.cpp:1366 OnGameStart re-sends the game setup to a

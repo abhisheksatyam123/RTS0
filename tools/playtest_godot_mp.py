@@ -180,6 +180,10 @@ def play(args, lobby, leave):
     ok = ok and stun_found and seen["punched"] and retargeted == lan
     waited = said("host", "waiting")
     ok = ok and waited == "Waiting for players to connect: bob"
+    # overlay.netwarnings (0 A.D. getNetworkWarnings): the frozen client reads
+    # as losing connection while it is silent for over two seconds.
+    net_warning = said("host", "net_warning")
+    ok = ok and net_warning.startswith("bob losing connection (")
     ok = ok and said("host", "start_refused") == "true"
     ok = ok and said("join", "refused") == "Another player has that color"
     picks = {k: (h.get(k), j.get(k)) for k in ("speed", "civ1", "team1", "color1")}
@@ -198,7 +202,8 @@ def play(args, lobby, leave):
     if ok:
         print("[gmp] PASS the host's Start was refused until the client was ready; both played its picks "
               "(Germans, team 2, colour 5) at 1.5x")
-        print(f"[gmp] PASS while the client was frozen at the start, the host showed: {waited}")
+        print(f"[gmp] PASS while the client was frozen at the start, the host showed: {waited}; "
+              f"network warning: {net_warning}")
     if ok and leave == "join":
         print(f"[gmp] PASS the client left and the host's chat said: {said('host', 'chat_left')}")
     elif ok:

@@ -660,6 +660,15 @@ private:
 	bool net_disconnected_ = false; // session.js g_Disconnected
 	void update_net_status_overlay();
 	void _on_disconnected_exit_pressed();
+	// 0 A.D. gameStateNotifications (overlay.netwarnings): network.js's
+	// warnings, one per client, each shown for NETWORK_WARNING_SHOW_MS, the
+	// local one ("server") first; checked once a second as NetClient and
+	// NetServer CheckConnection(s) do.
+	RichTextLabel *net_warnings_label_ = nullptr;
+	std::map<std::string, std::pair<uint64_t, String>> net_warnings_; // guid -> (added ms, text)
+	uint64_t net_warnings_checked_ms_ = 0;
+	void update_net_warnings();
+	void apply_net_options();
 	// 0 A.D. ChatMessageFormatNetwork: join, rejoin, left and kick lines.
 	std::vector<rtso::PlayerAssignmentMsg::Entry> chat_assignments_;
 	uint64_t chat_assignments_seen_ = 0;
