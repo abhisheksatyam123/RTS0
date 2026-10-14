@@ -31,6 +31,7 @@
 
 #include "../network/net_types.h"
 #include "../simulation/simulation.h"
+#include "template_portraits.h"
 
 #ifndef RTSO_UI_LOAD_TEXTURE
 #define RTSO_UI_LOAD_TEXTURE
@@ -193,9 +194,9 @@ public:
 					// A technology shows its researcher's portrait; a batch shows its size.
 					// A unit's research shows the structure that also researches it (BLD_TYPE_COUNT).
 					const uint8_t rb = researcher < rtso::BLD_TYPE_COUNT ? researcher : rtso::tech_info(po.tech).researcher;
-					const char *portrait = po.is_tech() ? rtso::building_type_info(rb).portrait_id
-							: rtso::unit_type_info(po.unit_type < rtso::UNIT_TYPE_COUNT ? po.unit_type : 0).portrait_id;
-					queue_slots_[q].icon->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(portrait) + ".png"));
+					queue_slots_[q].icon->set_texture(po.is_tech()
+							? rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::building_type_info(rb).portrait_id) + ".png")
+							: rtso::portraits::unit(po.tmpl, po.unit_type));
 					queue_slots_[q].icon->set_visible(true);
 					queue_slots_[q].panel->set_tooltip_text(po.is_tech() ? String::utf8(rtso::tech_info(po.tech).name)
 							: String::utf8(rtso::unit_type_info(po.unit_type < rtso::UNIT_TYPE_COUNT ? po.unit_type : 0).name));

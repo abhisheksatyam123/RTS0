@@ -20340,6 +20340,56 @@
     }
    }
   },
+  "rome/cavalry_auxiliary_b": {
+   "generic_name": "Auxiliary Cavalry",
+   "specific_name": "Eques Alaris",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Citizen",
+    "Soldier",
+    "Cavalry",
+    "Ranged",
+    "Javelineer",
+    "Auxiliary"
+   ],
+   "icon": "units/rome/cavalry_auxiliary.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 2.5
+     },
+     {
+      "type": "Ranged",
+      "name": "Javelin",
+      "min_range": 0,
+      "max_range": 30,
+      "y_origin": 0,
+      "repeat_time": 1.25,
+      "damage": {
+       "Pierce": 18
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 16.2,
+     "run": 22.68,
+     "acceleration": 31.5
+    },
+    "gather": {
+     "food.meat": 5
+    },
+    "rank": "Basic"
+   }
+  },
   "rome/infantry_antesignanus": {
    "generic_name": "Legionary Skirmisher",
    "specific_name": "Antesignānus",
@@ -38701,6 +38751,837 @@
    }
   }
  },
+ "gaia": {
+  "template_gaia_tree": {
+   "generic_name": "Tree",
+   "specific_name": "",
+   "tooltip": "Chop trees for wood.",
+   "classes": [],
+   "icon": "gaia/flora_tree_generic.png"
+  },
+  "template_gaia_fruit": {
+   "generic_name": "Fruit",
+   "specific_name": "",
+   "tooltip": "Pick fruit for food.",
+   "classes": [],
+   "icon": "gaia/flora_bush_berry.png"
+  },
+  "template_gaia_ore": {
+   "generic_name": "Metal Mine",
+   "specific_name": "",
+   "tooltip": "Mine ore for metal.",
+   "classes": [],
+   "icon": "gaia/geology_metal.png"
+  },
+  "template_gaia_rock": {
+   "generic_name": "Stone Quarry",
+   "specific_name": "",
+   "tooltip": "Quarry rock for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone.png"
+  },
+  "template_gaia_ruins": {
+   "generic_name": "Ruins",
+   "specific_name": "",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone.png"
+  },
+  "template_gaia_treasure": {
+   "generic_name": "Treasure",
+   "specific_name": "",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/fauna_bear_black": {
+   "generic_name": "Black Bear",
+   "specific_name": "Ursus americanus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_bear_black.png"
+  },
+  "gaia/fauna_bear_brown": {
+   "generic_name": "Brown Bear",
+   "specific_name": "Ursus arctos",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_bear_brown.png"
+  },
+  "gaia/fauna_bear_polar": {
+   "generic_name": "Polar Bear",
+   "specific_name": "Ursus maritimus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_bear_polar.png"
+  },
+  "gaia/fauna_boar": {
+   "generic_name": "Wild Boar",
+   "specific_name": "Sus scrofa",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_boar.png"
+  },
+  "gaia/fauna_camel": {
+   "generic_name": "Dromedary",
+   "specific_name": "Camelus dromedarius",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_camel.png"
+  },
+  "gaia/fauna_camel_trainable": {
+   "generic_name": "Dromedary",
+   "specific_name": "Camelus dromedarius",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_camel.png"
+  },
+  "gaia/fauna_cattle_bull": {
+   "generic_name": "Bull",
+   "specific_name": "Bos taurus taurus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_bull.png"
+  },
+  "gaia/fauna_cattle_cow": {
+   "generic_name": "Cow",
+   "specific_name": "Bos taurus taurus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_cow.png"
+  },
+  "gaia/fauna_cattle_cow_trainable": {
+   "generic_name": "Cow",
+   "specific_name": "Bos taurus taurus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_cow.png"
+  },
+  "gaia/fauna_cattle_sanga": {
+   "generic_name": "Sanga Cattle",
+   "specific_name": "Bos taurus africanus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_sanga.png"
+  },
+  "gaia/fauna_cattle_sanga_trainable": {
+   "generic_name": "Sanga Cattle",
+   "specific_name": "Bos taurus africanus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_sanga.png"
+  },
+  "gaia/fauna_cattle_zebu": {
+   "generic_name": "Zebu",
+   "specific_name": "Bos taurus indicus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_zebu.png"
+  },
+  "gaia/fauna_cattle_zebu_trainable": {
+   "generic_name": "Zebu",
+   "specific_name": "Bos taurus indicus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_zebu.png"
+  },
+  "gaia/fauna_chicken": {
+   "generic_name": "Chicken",
+   "specific_name": "Gallus gallus domesticus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_chicken.png"
+  },
+  "gaia/fauna_crocodile_nile": {
+   "generic_name": "Nile Crocodile",
+   "specific_name": "Crocodylus niloticus",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_crocodile.png"
+  },
+  "gaia/fauna_deer": {
+   "generic_name": "Red Deer",
+   "specific_name": "Cervus elaphus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_deer.png"
+  },
+  "gaia/fauna_dog_mastiff": {
+   "generic_name": "Mastiff",
+   "specific_name": "Canis lupus familiaris",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_dog.png"
+  },
+  "gaia/fauna_dog_wolfhound": {
+   "generic_name": "Wolfhound",
+   "specific_name": "Canis lupus familiaris",
+   "tooltip": "",
+   "classes": [],
+   "icon": "units/brit/wolfhound.png"
+  },
+  "gaia/fauna_donkey": {
+   "generic_name": "Donkey",
+   "specific_name": "Equus africanus asinus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_donkey.png"
+  },
+  "gaia/fauna_elephant_african_bush": {
+   "generic_name": "African Bush Elephant",
+   "specific_name": "Loxodonta africana",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [
+    "Elephant"
+   ],
+   "icon": "gaia/fauna_elephant_african_bush.png"
+  },
+  "gaia/fauna_elephant_african_infant": {
+   "generic_name": "African Bush Elephant Calf",
+   "specific_name": "Loxodonta africana",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [
+    "Elephant"
+   ],
+   "icon": "gaia/fauna_elephant_african_infant.png"
+  },
+  "gaia/fauna_elephant_asian": {
+   "generic_name": "Asian Elephant",
+   "specific_name": "Elephas maximus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [
+    "Elephant"
+   ],
+   "icon": "gaia/fauna_elephant_asian.png"
+  },
+  "gaia/fauna_elephant_asian_infant": {
+   "generic_name": "Asian Elephant Calf",
+   "specific_name": "Elephas maximus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [
+    "Elephant"
+   ],
+   "icon": "gaia/fauna_elephant_african_infant.png"
+  },
+  "gaia/fauna_elephant_north_african": {
+   "generic_name": "African Forest Elephant",
+   "specific_name": "Loxodonta cyclotis",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [
+    "Elephant"
+   ],
+   "icon": "gaia/fauna_elephant_north_african.png"
+  },
+  "gaia/fauna_fox_arctic": {
+   "generic_name": "Arctic Fox",
+   "specific_name": "Vulpes lagopus",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_fox_arctic.png"
+  },
+  "gaia/fauna_fox_red": {
+   "generic_name": "Red Fox",
+   "specific_name": "Vulpes vulpes",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_fox_red.png"
+  },
+  "gaia/fauna_gazelle": {
+   "generic_name": "Thomson's Gazelle",
+   "specific_name": "Eudorcas thomsonii",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_gazelle.png"
+  },
+  "gaia/fauna_giraffe": {
+   "generic_name": "Giraffe",
+   "specific_name": "Giraffa camelopardalis",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_giraffe.png"
+  },
+  "gaia/fauna_giraffe_infant": {
+   "generic_name": "Juvenile Giraffe",
+   "specific_name": "Giraffa camelopardalis",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_giraffe.png"
+  },
+  "gaia/fauna_goat": {
+   "generic_name": "Goat",
+   "specific_name": "Capra aegagrus hircus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_goat.png"
+  },
+  "gaia/fauna_goat_trainable": {
+   "generic_name": "Goat",
+   "specific_name": "Capra aegagrus hircus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_goat.png"
+  },
+  "gaia/fauna_hippopotamus": {
+   "generic_name": "Hippopotamus",
+   "specific_name": "Hippopotamus amphibius",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_hippopotamus.png"
+  },
+  "gaia/fauna_horse": {
+   "generic_name": "Horse",
+   "specific_name": "Equus ferus caballus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_horse.png"
+  },
+  "gaia/fauna_horse_breed": {
+   "generic_name": "Horse",
+   "specific_name": "Equus ferus caballus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_horse.png"
+  },
+  "gaia/fauna_horse_lusitano": {
+   "generic_name": "Horse",
+   "specific_name": "Equus ferus caballus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_horse.png"
+  },
+  "gaia/fauna_horse_marwari": {
+   "generic_name": "Horse",
+   "specific_name": "Equus ferus caballus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_horse.png"
+  },
+  "gaia/fauna_horse_persian": {
+   "generic_name": "Horse",
+   "specific_name": "Equus ferus caballus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_horse.png"
+  },
+  "gaia/fauna_horse_pony": {
+   "generic_name": "Pony",
+   "specific_name": "Equus ferus caballus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_horse.png"
+  },
+  "gaia/fauna_horse_trainable": {
+   "generic_name": "Horse",
+   "specific_name": "Equus ferus caballus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_horse.png"
+  },
+  "gaia/fauna_lion": {
+   "generic_name": "Lion",
+   "specific_name": "Panthera leo",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_lion.png"
+  },
+  "gaia/fauna_lioness": {
+   "generic_name": "Lioness",
+   "specific_name": "Panthera leo",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_lion.png"
+  },
+  "gaia/fauna_muskox": {
+   "generic_name": "Muskox",
+   "specific_name": "Ovibos moschatus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_muskox.png"
+  },
+  "gaia/fauna_peacock": {
+   "generic_name": "Peacock",
+   "specific_name": "Pavo cristatus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_peacock.png"
+  },
+  "gaia/fauna_pig": {
+   "generic_name": "Pig",
+   "specific_name": "Sus scrofa domesticus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_pig.png"
+  },
+  "gaia/fauna_pig_flaming": {
+   "generic_name": "Flaming Pig",
+   "specific_name": "Sus scrofa domesticus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "units/flaming_pig.png"
+  },
+  "gaia/fauna_pig_trainable": {
+   "generic_name": "Pig",
+   "specific_name": "Sus scrofa domesticus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_pig.png"
+  },
+  "gaia/fauna_piglet": {
+   "generic_name": "Piglet",
+   "specific_name": "Sus scrofa domesticus",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_pig.png"
+  },
+  "gaia/fauna_rabbit": {
+   "generic_name": "Rabbit",
+   "specific_name": "Oryctolagus cuniculus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_rabbit.png"
+  },
+  "gaia/fauna_rhinoceros_white": {
+   "generic_name": "White Rhinoceros",
+   "specific_name": "Ceratotherium simum",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_rhino.png"
+  },
+  "gaia/fauna_shark": {
+   "generic_name": "Great White Shark",
+   "specific_name": "Carcharodon carcharias",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_shark.png"
+  },
+  "gaia/fauna_sheep": {
+   "generic_name": "Sheep",
+   "specific_name": "Ovis aries",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_sheep.png"
+  },
+  "gaia/fauna_sheep_trainable": {
+   "generic_name": "Sheep",
+   "specific_name": "Ovis aries",
+   "tooltip": "Kill to gather meat for quick food.",
+   "classes": [],
+   "icon": "gaia/fauna_sheep.png"
+  },
+  "gaia/fauna_tiger": {
+   "generic_name": "Tiger",
+   "specific_name": "Panthera tigris",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_tiger.png"
+  },
+  "gaia/fauna_walrus": {
+   "generic_name": "Walrus",
+   "specific_name": "Odobenus rosmarus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_walrus.png"
+  },
+  "gaia/fauna_whale_fin": {
+   "generic_name": "Fin Whale",
+   "specific_name": "Balaenoptera physalus",
+   "tooltip": "Kill to butcher for food.",
+   "classes": [],
+   "icon": "gaia/fauna_whale.png"
+  },
+  "gaia/fauna_whale_humpback": {
+   "generic_name": "Humpback Whale",
+   "specific_name": "Megaptera novaeangliae",
+   "tooltip": "Kill to butcher for food.",
+   "classes": [],
+   "icon": "gaia/fauna_whale.png"
+  },
+  "gaia/fauna_wildebeest": {
+   "generic_name": "Blue Wildebeest",
+   "specific_name": "Connochaetes taurinus",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_wildebeest.png"
+  },
+  "gaia/fauna_wolf": {
+   "generic_name": "Wolf",
+   "specific_name": "Canis lupus",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_wolf.png"
+  },
+  "gaia/fauna_wolf_arctic": {
+   "generic_name": "Arctic Wolf",
+   "specific_name": "Canis lupus",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_arctic_wolf.png"
+  },
+  "gaia/fauna_wolf_arctic_violent": {
+   "generic_name": "Arctic Wolf",
+   "specific_name": "Canis lupus",
+   "tooltip": "",
+   "classes": [],
+   "icon": "gaia/fauna_arctic_wolf.png"
+  },
+  "gaia/fauna_zebra": {
+   "generic_name": "Common Zebra",
+   "specific_name": "Equus quagga",
+   "tooltip": "Kill to gather meat for food.",
+   "classes": [],
+   "icon": "gaia/fauna_zebra.png"
+  },
+  "gaia/treasure/food_barrel": {
+   "generic_name": "Treasure",
+   "specific_name": "Food Treasure",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure_food.png"
+  },
+  "gaia/treasure/food_barrels_buried": {
+   "generic_name": "Treasure",
+   "specific_name": "Half-buried Barrels",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure_food.png"
+  },
+  "gaia/treasure/food_bin": {
+   "generic_name": "Treasure",
+   "specific_name": "Food Treasure",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure_food.png"
+  },
+  "gaia/treasure/food_crate": {
+   "generic_name": "Treasure",
+   "specific_name": "Food Treasure",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure_food.png"
+  },
+  "gaia/treasure/food_jars": {
+   "generic_name": "Treasure",
+   "specific_name": "Food Treasure",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure_food.png"
+  },
+  "gaia/treasure/food_persian_big": {
+   "generic_name": "Treasure",
+   "specific_name": "Persian Food Stores",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure_food.png"
+  },
+  "gaia/treasure/food_persian_small": {
+   "generic_name": "Treasure",
+   "specific_name": "Persian Food Treasure",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure_food.png"
+  },
+  "gaia/treasure/golden_fleece": {
+   "generic_name": "Treasure",
+   "specific_name": "Golden Fleece",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/metal": {
+   "generic_name": "Treasure",
+   "specific_name": "Secret Box",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/metal_persian_big": {
+   "generic_name": "Treasure",
+   "specific_name": "Persian Wares",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/metal_persian_small": {
+   "generic_name": "Treasure",
+   "specific_name": "Persian Rugs",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/metal_weapons_small": {
+   "generic_name": "Treasure",
+   "specific_name": "Iron Weapons",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/pegasus": {
+   "generic_name": "Treasure",
+   "specific_name": "Pegasus",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/shipwreck": {
+   "generic_name": "Treasure",
+   "specific_name": "Shipwreck",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/shipwreck_debris": {
+   "generic_name": "Treasure",
+   "specific_name": "Shipwreck Cargo",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/shipwreck_ram_bow": {
+   "generic_name": "Treasure",
+   "specific_name": "Shipwreck",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/shipwreck_sail_boat": {
+   "generic_name": "Treasure",
+   "specific_name": "Shipwreck",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/shipwreck_sail_boat_cut": {
+   "generic_name": "Treasure",
+   "specific_name": "Shipwreck",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/special_argo": {
+   "generic_name": "Mythological Treasure",
+   "specific_name": "The Argo",
+   "tooltip": "The mythological ship of the hero Theseus and his Argonauts.",
+   "classes": [],
+   "icon": "technologies/juggernaut.png"
+  },
+  "gaia/treasure/standing_stone": {
+   "generic_name": "Treasure",
+   "specific_name": "Celtic Standing Stone",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/stone": {
+   "generic_name": "Treasure",
+   "specific_name": "Stone Treasure",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/stone_pile_granite": {
+   "generic_name": "Treasure",
+   "specific_name": "Cut Granite",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/stone_pile_granite_large": {
+   "generic_name": "Treasure",
+   "specific_name": "Cut Stone",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/stone_pile_red": {
+   "generic_name": "Treasure",
+   "specific_name": "Cut Sandstone",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/geology_stone_2.png"
+  },
+  "gaia/treasure/stone_pile_sandstone": {
+   "generic_name": "Treasure",
+   "specific_name": "Cut Sandstone",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/treasure/wood": {
+   "generic_name": "Treasure",
+   "specific_name": "Wood Treasure",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/treasure/wood_lumber": {
+   "generic_name": "Treasure",
+   "specific_name": "Milled Lumber",
+   "tooltip": "Collect treasures for resources.",
+   "classes": [],
+   "icon": "gaia/special_treasure.png"
+  },
+  "gaia/ruins/column_doric": {
+   "generic_name": "Ruins",
+   "specific_name": "Doric Column",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone.png"
+  },
+  "gaia/ruins/metal_statue_apollo": {
+   "generic_name": "Ruins",
+   "specific_name": "Apollo",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_metal.png"
+  },
+  "gaia/ruins/metal_statue_discobolus": {
+   "generic_name": "Ruins",
+   "specific_name": "Discobolus",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_metal.png"
+  },
+  "gaia/ruins/metal_statue_isis": {
+   "generic_name": "Ruins",
+   "specific_name": "Isis Cult Image",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_metal.png"
+  },
+  "gaia/ruins/metal_statue_poseidon": {
+   "generic_name": "Ruins",
+   "specific_name": "Poseidon",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_metal.png"
+  },
+  "gaia/ruins/metal_statue_wolf": {
+   "generic_name": "Ruins",
+   "specific_name": "Capitoline Wolf",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_metal.png"
+  },
+  "gaia/ruins/pyramid_great": {
+   "generic_name": "Ruins",
+   "specific_name": "Great Pyramid",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/pyramid_minor": {
+   "generic_name": "Ruins",
+   "specific_name": "Minor Pyramid",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/roman_rostrum": {
+   "generic_name": "Ruins",
+   "specific_name": "Roman Rostrum",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone.png"
+  },
+  "gaia/ruins/standing_stone": {
+   "generic_name": "Ruins",
+   "specific_name": "Celtic Standing Stone",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone.png"
+  },
+  "gaia/ruins/stone_column_roman": {
+   "generic_name": "Ruins",
+   "specific_name": "Roman Column",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone.png"
+  },
+  "gaia/ruins/stone_statues_egyptian": {
+   "generic_name": "Ruins",
+   "specific_name": "Egyptian Statue",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/stone_statues_kushite": {
+   "generic_name": "Ruins",
+   "specific_name": "Kushite Statue",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/stone_statues_kushite_bird": {
+   "generic_name": "Stone Resource",
+   "specific_name": "Kushite Bird Statue",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/stone_statues_kushite_lion": {
+   "generic_name": "Stone Resource",
+   "specific_name": "Apademak Lion Statue",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/stone_statues_kushite_ram": {
+   "generic_name": "Stone Resource",
+   "specific_name": "Ammon-Ra Ram Statue",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/stone_statues_persian_lamassu": {
+   "generic_name": "Ruins",
+   "specific_name": "Lamassu Statue",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone.png"
+  },
+  "gaia/ruins/stone_statues_roman": {
+   "generic_name": "Ruins",
+   "specific_name": "Roman Statue",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone.png"
+  },
+  "gaia/ruins/stone_structure_farmstead": {
+   "generic_name": "Stone Resource",
+   "specific_name": "Ruined Farmstead",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/stone_structure_house": {
+   "generic_name": "Stone Resource",
+   "specific_name": "Ruined House",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/stone_structure_small": {
+   "generic_name": "Stone Resource",
+   "specific_name": "Ruined Structure",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/stone_structure_tower": {
+   "generic_name": "Stone Resource",
+   "specific_name": "Ruined Tower",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone_1.png"
+  },
+  "gaia/ruins/unfinished_greek_temple": {
+   "generic_name": "Ruins",
+   "specific_name": "Unfinished Greek Temple",
+   "tooltip": "Demolish ruins for stone.",
+   "classes": [],
+   "icon": "gaia/geology_stone.png"
+  }
+ },
  "techs": {
   "agoge": {
    "tooltip": "Champion Hoplites +25% health, but +5% training time.",
@@ -39709,6 +40590,12 @@
    "description": "A bronze beak at the prow of the ship, used for ramming enemy ships.",
    "requirements_tooltip": "Unlocked in City Phase.",
    "icon": "ship_ram.png"
+  },
+  "warship_ramming_speed": {
+   "tooltip": "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”",
+   "description": "The flanking maneuver was attempted in order to position the ship for a successful ram. To pull this off in the chaos of a sea battle, a ship's crew needed to be highly trained and well-motivated.",
+   "requirements_tooltip": "Unlocked in Town Phase.",
+   "icon": "trihemiolia.png"
   },
   "warship_ranged_attack": {
    "tooltip": "Ranged Warships +10% attack damage.",
