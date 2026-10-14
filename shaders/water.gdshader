@@ -33,6 +33,14 @@ uniform sampler2D wave_normal_b : hint_normal, filter_linear_mipmap_anisotropic,
 uniform float wave_tile = 6.0;     // world units per normal-map repeat
 uniform float wave_strength = 0.45;
 
+// 0.28's water options (watereffects, waterfancyeffects, waterreflection,
+// waterrefraction, waterrealdepth), 0 or 1, set by scenes/menu/user_settings.gd.
+global uniform float rtso_water_effects;
+global uniform float rtso_water_fancy;
+global uniform float rtso_water_reflection;
+global uniform float rtso_water_refraction;
+global uniform float rtso_water_realdepth;
+
 varying vec3 v_world_pos;
 
 void vertex() {
@@ -41,7 +49,7 @@ void vertex() {
 	// Dual-frequency wave vertex displacement
 	float w1 = sin(v_world_pos.x * wave_scale + t) * cos(v_world_pos.z * wave_scale * 0.8 + t * 0.9);
 	float w2 = sin(v_world_pos.x * wave_scale * 1.7 - t * 1.3) * 0.4;
-	VERTEX.y += (w1 + w2) * wave_height;
+	VERTEX.y += (w1 + w2) * wave_height * rtso_water_effects; // Water effects off: flat water
 }
 
 void fragment() {
@@ -53,19 +61,24 @@ void fragment() {
 	vec2 uv2 = v_world_pos.xz / (wave_tile * 1.7) - vec2(t * 0.035, -t * 0.045);
 	vec2 n1 = texture(wave_normal_a, uv1).rg * 2.0 - 1.0;
 	vec2 n2 = texture(wave_normal_b, uv2).rg * 2.0 - 1.0;
-	vec2 slope = (n1 + n2) * wave_strength;
+	vec2 slope = (n1 + n2) * wave_strength * rtso_water_effects;
 	float wave_n1 = n1.x * 2.0;
 	vec3 perturbed_norm = normalize(vec3(slope.x, 1.0, slope.y));
 	NORMAL = (VIEW_MATRIX * vec4(perturbed_norm, 0.0)).xyz;
 
 	// Fresnel effect for realistic surface reflectance
 	float fresnel = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 4.0);
+	// Water reflections off: no mirrored sky.
+	float reflect_on = rtso_water_effects * rtso_water_reflection;
 
 	// Water colour by depth (water_high.fs: refraction murks to the tint as
 	// the water deepens); without heights, the old 60% blend.
 	float depth = 3.0;
 	float murk = 0.6;
-	if (terrain_half > 0.0) {
+	// Real water depth (and refraction, which it needs) reads the seabed; without them
+	// 0.28 renders water as a plain transparent tint.
+	float depth_on = step(0.001, terrain_half) * rtso_water_effects * rtso_water_refraction * rtso_water_realdepth;
+	if (depth_on > 0.0) {
 		vec2 h_uv = (v_world_pos.xz + vec2(terrain_half)) / (2.0 * terrain_half);
 		depth = max(water_level - texture(height_tex, h_uv).r, 0.0);
 		// Off the map edge there is no seabed: open water, no shore.
@@ -73,14 +86,15 @@ void fragment() {
 		murk = 1.0 - exp(-depth * murkiness);
 	}
 	vec4 water_base = mix(shallow_color, deep_color, murk);
-	vec3 final_color = mix(water_base.rgb, vec3(0.95, 0.98, 1.0), fresnel * 0.6);
-	// Shore foam: bands that roll in over the last half metre of depth.
+	vec3 final_color = mix(water_base.rgb, vec3(0.95, 0.98, 1.0), fresnel * 0.6 * reflect_on);
+	// Shore foam (High-quality water effects): bands that roll in over the last half
+	// metre of depth.
 	float shore = 1.0 - smoothstep(0.0, 0.55, depth);
 	float roll = 0.5 + 0.5 * sin(depth * 14.0 - t * 3.0 + wave_n1 * 2.0);
-	float foam = shore * mix(0.35, 1.0, roll) * step(0.001, terrain_half);
+	float foam = shore * mix(0.35, 1.0, roll) * depth_on * rtso_water_fancy;
 	final_color = mix(final_color, foam_color.rgb, foam * foam_color.a);
 	// The seabed shows through at the shore and fades out with depth.
-	water_base.a = mix(water_base.a, clamp(depth * 1.6, 0.25, water_base.a), step(0.001, terrain_half));
+	water_base.a = mix(water_base.a, clamp(depth * 1.6, 0.25, water_base.a), depth_on);
 	water_base.a = max(water_base.a, foam * foam_color.a);
 
 	float los = 1.0;
@@ -92,8 +106,8 @@ void fragment() {
 	ALBEDO = final_color * los;
 	SPECULAR = 0.85 * los;
 	// No sky reflection off water the viewer has not explored.
-	METALLIC = metallic * los;
+	METALLIC = metallic * los * reflect_on;
 	ROUGHNESS = mix(1.0, roughness, los);
 	// Unexplored water goes opaque black instead of showing the seabed.
-	ALPHA = mix(mix(water_base.a, 0.98, fresnel), 1.0, 1.0 - los);
+	ALPHA = mix(mix(water_base.a, 0.98, fresnel * reflect_on), 1.0, 1.0 - los);
 }

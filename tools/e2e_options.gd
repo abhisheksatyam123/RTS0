@@ -107,6 +107,12 @@ func run() -> void:
 	page._controls["textures.quality"][1].item_selected.emit(2)
 	await frames(2)
 	check(is_equal_approx(root.texture_mipmap_bias, 0.0), "High uses full textures")
+	page._controls["waterreflection"][1].button_pressed = false
+	await frames(2)
+	var wg: Dictionary = root.get_node("UserSettings").water_globals
+	check(wg.get("rtso_water_reflection") == 0.0 and wg.get("rtso_water_effects") == 1.0, "water reflections off reach the water shader")
+	check(wg.get("rtso_water_fancy") == 0.0, "high-quality water effects are off by default, as in 0.28")
+	page._controls["waterreflection"][1].button_pressed = true
 
 	print("2. hotkey saves keep the settings")
 	hk.set_hotkey("session.stop", PackedStringArray(["Ctrl+J"]))

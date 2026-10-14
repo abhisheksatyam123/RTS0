@@ -62,6 +62,8 @@ var cfg := RtsoUserConfig.new()
 var _gen := -1
 var _in_session := false
 var _overlay: CanvasLayer
+## The water shader's global uniforms as last set (the headless renderer keeps none).
+var water_globals := {}
 var _cas: CanvasLayer
 var _cas_material: ShaderMaterial
 var _overlay_label: Label
@@ -103,6 +105,7 @@ func apply_all() -> void:
 	_apply_viewport()
 	_apply_window()
 	_apply_shadow_server()
+	_apply_water()
 	for n in get_tree().root.find_children("*", "", true, false):
 		_apply_node(n)
 
@@ -252,6 +255,15 @@ func _apply_shadow_server() -> void:
 	RenderingServer.directional_shadow_atlas_set_size(SHADOW_ATLAS[q], true)
 	RenderingServer.directional_soft_shadow_filter_set_quality(
 		RenderingServer.SHADOW_QUALITY_SOFT_LOW if cfg.get_bool("shadowpcf") else RenderingServer.SHADOW_QUALITY_HARD)
+
+## watereffects, waterfancyeffects, waterreflection, waterrefraction and
+## waterrealdepth: shaders/water.gdshader's global uniforms.
+func _apply_water() -> void:
+	for k in [["rtso_water_effects", "watereffects"], ["rtso_water_fancy", "waterfancyeffects"],
+			["rtso_water_reflection", "waterreflection"], ["rtso_water_refraction", "waterrefraction"],
+			["rtso_water_realdepth", "waterrealdepth"]]:
+		water_globals[k[0]] = 1.0 if cfg.get_bool(k[1]) else 0.0
+		RenderingServer.global_shader_parameter_set(k[0], water_globals[k[0]])
 
 func _on_node_added(n: Node) -> void:
 	if n is DirectionalLight3D or n is WorldEnvironment or n is GPUParticles3D or n is CPUParticles3D:
