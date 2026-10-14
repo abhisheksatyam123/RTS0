@@ -93,7 +93,16 @@ static constexpr float LAND_MAX_WATER_DEPTH = 2.0f * HEIGHT_PER_METRE;
 // PASS_CAVALRY  : mounted units. 0 A.D. gives them "default" too (and siege and elephants
 //                 "large", which differs only in Clearance), so it crosses the same cells and
 //                 shares PASS_INFANTRY's regions.
-// PASS_SHIP     : naval units only — NAV_WATER cells passable, NAV_PASSABLE blocked.
+// PASS_SHIP     : naval units only — NAV_WATER cells passable, NAV_PASSABLE blocked. This is
+//                 0 A.D.'s "ship-small" (fishing and merchant ships): its 3 m Clearance is under
+//                 half an RTS0 navcell, so it blocks no more navcells.
+// PASS_WARSHIP  : PASS_SHIP plus PASS_SHIP_CLEARANCE, 0 A.D.'s "ship" (warships and
+//                 transports), Clearance 10 m. CCmpPathfinder ExpandImpassableCells blocks every
+//                 navcell whose centre lies within the clearance (Chebyshev, in whole navcells) of
+//                 one the class can't cross. RTS0 navcells are 8 m, so that is each water navcell
+//                 with a land or structure navcell among its eight neighbours (the next ring is 16 m
+//                 off). Only long paths use it (NavGrid::find_path): steps, pushes and regions stay
+//                 on PASS_SHIP, so a warship beside a dock or a beach can always sail off.
 //
 // 0 A.D. slope references:
 // - source/simulation2/helpers/Pathfinding.h (PathfinderPassability::IsPassable: steepness < m_MaxSlope)
@@ -105,6 +114,8 @@ static constexpr float LAND_MAX_WATER_DEPTH = 2.0f * HEIGHT_PER_METRE;
 static constexpr uint8_t PASS_INFANTRY = 1;
 static constexpr uint8_t PASS_CAVALRY  = 2;
 static constexpr uint8_t PASS_SHIP     = 4;
+static constexpr uint8_t PASS_SHIP_CLEARANCE = 8;
+static constexpr uint8_t PASS_WARSHIP  = PASS_SHIP | PASS_SHIP_CLEARANCE;
 
 // 0 A.D. slopes are metres of rise per metre. An RTS0 unit is a 4 m tile and heights are
 // HEIGHT_PER_METRE units a metre, so a slope in RTS0 units is 0 A.D.'s x 4 x HEIGHT_PER_METRE
@@ -249,7 +260,17 @@ struct NavGrid {
     bool is_passable_for(int cx, int cy, uint8_t pass) const {
         if (!cells.inside(cx, cy)) return false;
         uint8_t c = cells.at(cx, cy);
-        if (pass == PASS_SHIP || (pass & PASS_SHIP)) return c == NAV_WATER || c == NAV_SHALLOW;
+        if (pass & PASS_SHIP) {
+            if (c != NAV_WATER && c != NAV_SHALLOW) return false;
+            if (!(pass & PASS_SHIP_CLEARANCE)) return true;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    if (!cells.inside(cx + dx, cy + dy)) return false;
+                    const uint8_t n = cells.at(cx + dx, cy + dy);
+                    if (n != NAV_WATER && n != NAV_SHALLOW) return false;
+                }
+            return true;
+        }
         if (c != NAV_PASSABLE && c != NAV_SHALLOW) return false;
         if (is_steep(cx, cy)) return false;
         return true;
@@ -694,8 +715,11 @@ struct NavGrid {
         }
     }
 
-    // Long-range path on the NavGrid: snap, MakeGoalReachable, then JPS with octile 10/14 costs
+    // Long-range path on the NavGrid: snap, MakeGoalReachable, then JPS with octile 10/14 costs.
+    // A warship (PASS_WARSHIP) whose path can't get through on its class (a channel 0 A.D. warships
+    // use can be two 8 m navcells wide, which the clearance closes) takes the PASS_SHIP path.
     bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
+    bool find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const;
 
     // Cell-level search behind find_path. Fills start..goal cells in walking
     // order and returns whether the goal was reached.
@@ -754,6 +778,11 @@ struct WaypointPath {
 // NavGrid::find_path — snap, MakeGoalReachable, JPS, string pull
 // ---------------------------------------------------------------------------
 inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
+    if (!(pass & PASS_SHIP_CLEARANCE)) return find_path_on(sx, sz, tx, tz, out, pass);
+    return find_path_on(sx, sz, tx, tz, out, pass) || find_path_on(sx, sz, tx, tz, out, PASS_SHIP);
+}
+
+inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
     out.clear();
     if (cells.blank()) {
         out.push_back(tx, tz);
