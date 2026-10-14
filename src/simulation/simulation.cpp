@@ -25121,6 +25121,21 @@ bool Simulation::load_state(const char *filepath) {
 		projectiles_.clear();
 	}
 
+	// The units on turret points, as the saving game's last tick_turrets left them (move_units reads
+	// them before this tick's tick_turrets).
+	turret_height_.clear();
+	for (const Building &b : buildings_) {
+		const TurretPointSet *pts = b.garrisoned_units.empty() ? nullptr : turret_points_of(b);
+		if (!pts) continue;
+		bool taken[TURRET_POINTS_MAX] = {};
+		for (size_t k = 0; k < b.garrisoned_units.size() && (int)k < pts->count; ++k) {
+			const int32_t u = lookup_unit(b.garrisoned_units[k]);
+			if (u < 0 || !units_.alive[u]) continue;
+			const int pi = nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u], taken);
+			taken[pi] = true;
+			turret_height_[b.garrisoned_units[k]] = pts->pt[pi].y;
+		}
+	}
 	rebuild_all_tech_mods();
 	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
