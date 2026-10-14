@@ -69,8 +69,10 @@
 #include "inspector_view.h"
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
+#include "cinema_view.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
+#include "debug_overlays.h"
 #include "dev_overlay_view.h"
 #include "minimap_panel_view.h"
 #include "control_groups_view.h"
@@ -207,9 +209,11 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
+	rtso::RtsoCinemaView cinema_view_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
+	rtso::RtsoDebugOverlays debug_overlays_; // its pathfinder, obstruction, unit motion and range overlays
 	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker
@@ -375,6 +379,8 @@ public:
 	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
+	void _on_barter_sell_selected(int resource);
+	Array debug_barter_panel();
 	uint32_t selected_garrison_holder() const;
 	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
@@ -434,6 +440,9 @@ public:
 	void request_net_player_setting(const String &key, int value);
 	void set_net_ready(int status);
 	void leave_net_game();
+	// 0.28 gamesetup ChatPanel: the chat before Start, shown on the setup page.
+	Dictionary get_setup_chat() const; // {rev, text}: the chat log's bbcode
+	void send_setup_chat(const String &text);
 	// The lockstep state hash this client computed for a turn (0 if not kept).
 	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();
@@ -490,6 +499,10 @@ public:
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
+	// 0.28 gamesetup ChatMessages: joined, left, ready and not ready lines.
+	void post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after);
+	String setup_client_name(const rtso::NetSetupState &n, uint32_t client) const;
+	void post_kick_chat();
 	// gui.session.formationwalkonly: this order takes its units out of their formations.
 	bool order_disbands_formation(uint8_t cmd_type) const;
 	// gui.session.selectformationasone: the unit and the rest of its formation.
@@ -560,7 +573,9 @@ public:
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
+	void debug_select_units(const PackedInt32Array &ids);
 	int64_t debug_civic_centre_id(int player) const;
+	int64_t debug_spawn_building(int type, float dx, float dz);
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);

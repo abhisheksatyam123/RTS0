@@ -244,6 +244,8 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.hp = b.hp;
 		f.max_hp = b.max_hp;
 		f.build_progress = b.build_progress;
+		f.capture_points = b.capture_points;
+		f.max_capture_points = b.max_capture_points;
 		f.type = b.type;
 		f.team = b.team;
 		f.civ = sim.team_civ(b.team);

@@ -34,6 +34,7 @@ func run() -> void:
 	var tip := String(u["stats_tooltip"])
 	check(tip.begins_with("Attack:\n"), "the detailed tooltip opens with the attack")
 	check("Hack" in tip and "Interval: " in tip and "Range: " in tip, "the attack names its damage types, range and interval")
+	check(tip.begins_with("Attack:\n  Capture: ") and "\n  Spear: " in tip, "each attack of the template in its order, under the weapon's name (getAttackTooltip)")
 	check("Resistance:\n  Damage: " in tip and "%)" in tip, "resistance lists levels with reduction percentages")
 	check("Gather Rates: " in tip and "Speed: " in tip and " Walk, " in tip and " Acceleration" in tip, "gather rates and walk, run and acceleration follow")
 	check("Loot: " in tip, "the loot closes the tooltip")
