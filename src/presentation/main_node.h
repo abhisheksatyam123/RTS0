@@ -158,7 +158,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// Options page settings the session uses (refresh_user_options).
 	struct UserOptions {
 		uint32_t generation = 0;
-		int batch_size = 5;
+		int batch_size = 5;      // the batch Shift trains: round(batch_scroll), at least 1
+		int batch_default = 5;   // gui.session.batchtrainingsize
+		float batch_scroll = 5;  // g_BatchSize: Shift+wheel over the roster moves it by 1 / scrollbatchratio
 		float wounded_fraction = 0.33f;
 		float flare_time = 6.0f;
 		float drag_delta = 4.0f;
@@ -309,6 +311,7 @@ public:
 	void _on_speed_selected(int id);
 	void set_game_speed(float speed);
 	float get_game_speed() const { return game_speed; }
+	Dictionary get_overlay_times() const;
 	void toggle_pause();
 	void toggle_summary();
 	void quicksave();
@@ -340,6 +343,7 @@ public:
 	void _on_formation_selected(int formation);
 	void _on_train_pressed(int utype);
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
+	void _on_roster_gui_input(const Ref<InputEvent> &event);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
 	void _on_upgrade_pressed(int choice);

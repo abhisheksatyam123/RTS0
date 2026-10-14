@@ -544,3 +544,30 @@ func _built_by() -> Array:
 			if Common.unit_text(u["id"]).get("builds", []).has(float(id)):
 				out.append(u)
 	return out
+
+## The Training panel's lines with Options' Detailed tooltips (showdetailedtooltips;
+## selection_panels.js: health, attack, healer, resistance, garrison, turrets,
+## projectiles, speed and dropsite tooltips), as plain text for a list tooltip.
+static func detailed_tooltip(tmpl: int) -> String:
+	var d: Dictionary = Common.ref().get_unit(tmpl)
+	if d.is_empty():
+		return ""
+	d = Common.civ_costed(d, "unit", int(d.get("civ", 0)))
+	var vw: Dictionary = Common.unit_text(d.get("id", "")).get("viewer", {})
+	var keep := ["Health:", "Attack:", "Heal:", "Resistance:", "Garrison Limit", "Turret Positions", "Projectile Limit", "Speed:", "Dropsite for:"]
+	var out: PackedStringArray = []
+	var on := false
+	var plain := _plain(stats_text(d, vw))
+	for line in plain.split("\n"):
+		if not line.begins_with(" ") and not line.begins_with("\t"):
+			on = keep.any(func(k): return line.begins_with(k))
+		if on:
+			out.append(line)
+	return "\n".join(out)
+
+## BBCode to plain text: a resource icon becomes its name.
+static func _plain(t: String) -> String:
+	var icon := RegEx.create_from_string("\\[img=[^\\]]*\\]res://assets/textures/ui/icons/(\\w+)\\.png\\[/img\\]")
+	for m in icon.search_all(t):
+		t = t.replace(m.get_string(), m.get_string(1).capitalize())
+	return RegEx.create_from_string("\\[/?[a-z_]+(=[^\\]]*)?\\]").sub(t, "", true)
