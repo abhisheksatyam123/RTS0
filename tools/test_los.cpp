@@ -125,6 +125,27 @@ static void test_many_moves_and_save() {
 	CHECK(b->los_hash() == s->los_hash(), "a tick after loading changes nothing");
 }
 
+// Vision/Range of the structures' 0.28 templates, x0.28 (vision_data.h).
+static void test_structure_vision_ranges() {
+	std::printf("structure vision ranges\n");
+	auto s = make_sim(64.0f);
+	s->spawn_building_world(-30.0f, -30.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s->spawn_building_world(30.0f, -30.0f, BLD_HOUSE, 1, 1.0f);
+	s->spawn_building_world(-30.0f, 30.0f, BLD_WALL_SEGMENT, 2, 1.0f);
+	s->spawn_building_world(30.0f, 30.0f, BLD_FIELD, 3, 1.0f);
+	for (auto &b : s->buildings_) b.hp = b.max_hp = 500.0f; // no civ data loaded here
+	s->tick(0.25f); // one LOS update (4 Hz)
+	CHECK(structure_vision_range(BLD_TOWN_CENTER) == 25.2f && structure_vision_range(BLD_HOUSE) == 5.6f &&
+	      structure_vision_range(BLD_WALL_SEGMENT) == 1.12f && structure_vision_range(BLD_FIELD) == 0.0f,
+	      "Civic Centre 90 m, house 20 m, wall 4 m, field 0 (x0.28)");
+	CHECK(s->los_visible(0, -30.0f + 23.0f, -30.0f) && !s->los_visible(0, -30.0f + 28.0f, -30.0f),
+	      "a Civic Centre sees 25 units, no further");
+	CHECK(s->los_visible(1, 30.0f, -30.0f) && s->los_visible(1, 30.0f - 4.0f, -30.0f) && !s->los_visible(1, 30.0f - 9.0f, -30.0f),
+	      "a house sees about 6 units");
+	CHECK(s->los_visible(2, -30.0f, 30.0f) && !s->los_visible(2, -30.0f + 4.5f, 30.0f), "a wall sees only around its own cell");
+	CHECK(!s->los_visible(3, 30.0f, 30.0f), "a field sees nothing");
+}
+
 static void test_revealed_and_explored_map() {
 	std::printf("game setup options\n");
 	auto s = make_sim(64.0f);
@@ -138,6 +159,7 @@ int main() {
 	test_own_and_shared_vision();
 	test_buildings_and_capture();
 	test_many_moves_and_save();
+	test_structure_vision_ranges();
 	test_revealed_and_explored_map();
 	std::printf("%s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
