@@ -5176,9 +5176,29 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 	for (uint32_t uid : rest) {
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
+			// UnitAI.Patrol: a unit whose template has CanPatrol false walks there instead.
+			if (!unit_can_patrol((size_t)idx)) {
+				set_order(idx, ORDER_WALK, ORDER_FLAG_FORCE, 0, units_.target_x[idx], units_.target_z[idx]);
+				continue;
+			}
 			units_.action_state[idx] = ACTION_PATROL;
 			set_order(idx, ORDER_PATROL, o.flags, 0, units_.target_x[idx], units_.target_z[idx]);
 		}
+	}
+}
+
+// UnitAI CanPatrol: false in template_unit_support_{female_citizen,civilian,trader,wagon,
+// elephant} and template_unit_ship_{fishing,merchant}; Spartan women set it back to true.
+bool Simulation::unit_can_patrol(size_t i) const {
+	switch (units_.unit_type[i]) {
+		case UNIT_FEMALE_CITIZEN: {
+			const uint16_t t = units_.tmpl[i];
+			return t < CIV_UNIT_TEMPLATE_COUNT && std::strcmp(civ_unit_template(t).id, "spart/support_female_citizen") == 0;
+		}
+		case UNIT_VILLAGER: case UNIT_TRADER: case UNIT_WAGON: case UNIT_WORKER_ELEPHANT:
+		case UNIT_FISHING_BOAT: case UNIT_MERCHANT_SHIP:
+			return false;
+		default: return true;
 	}
 }
 
