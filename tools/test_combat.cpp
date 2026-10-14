@@ -21,8 +21,7 @@
 //     10 s (a second hit extends it), Iberian champion cavalry burn for 2 hp per 3 s
 //     over 9 s; rams are immune to poison; spearmen no longer snare.
 // 11. ObstructionManager IsInTargetRange: a swordsman just off a fortress's corner is in
-//     reach (edge to edge) and hits it where it stands instead of walking to a side; reach
-//     counts from its clearance square, so one just out of it steps in first.
+//     reach (edge to edge) and hits it where it stands instead of walking to a side.
 // 12. Civ structure auras (0 A.D. data/auras/structures): the Kushite pyramids and
 //     Iberian monument buff their owner's soldiers and workers nearby, the Mauryan pillar
 //     speeds traders, the Temple of Amun costs heroes 5% health, the prytaneion heals
@@ -201,8 +200,7 @@ static void test_corner_reach() {
 	uint32_t fort = s.spawn_building_world(20.0f, 20.0f, BLD_FORTRESS, 1, 1.0f);
 	const Simulation::Building *b = building(s, fort);
 	const float h = b->half_size;
-	// The unit's obstruction is a square of its class clearance (0.8 m), not its collision radius.
-	const float r = CLEARANCE_DEFAULT;
+	const float r = unit_collision_radius(UNIT_SWORDSMAN);
 	// Diagonally off the corner, the gap between the unit and the footprint is 1.3,
 	// inside reach; the old centre-distance test added about 0.41 * half_size to it.
 	const float off = (r + 1.3f) / std::sqrt(2.0f);
@@ -219,25 +217,6 @@ static void test_corner_reach() {
 	std::printf("      moved %.2f before the first hit\n", moved);
 	check(building(s, fort)->hp < bhp, "the swordsman hits the fortress from its corner");
 	check(moved < 0.5f, "without walking round to a side");
-
-	// Straight off a side, just out of reach from the swordsman's clearance but inside it from
-	// its larger collision radius: it steps closer before it hits.
-	{
-		Simulation t;
-		setup(t);
-		uint32_t f2 = t.spawn_building_world(20.0f, 20.0f, BLD_FORTRESS, 1, 1.0f);
-		const float gap = reach + 0.2f;
-		check(gap - (unit_collision_radius(UNIT_SWORDSMAN) - r) < reach, "the collision radius would call it in reach");
-		uint32_t s2 = t.spawn_unit(20.0f - h - r - gap, 20.0f, 0, UNIT_SWORDSMAN);
-		const int j = idx(t, s2);
-		const float sx = t.units_.pos_x[j];
-		const float hp2 = building(t, f2)->hp;
-		t.order_attack_building(&s2, 1, f2);
-		for (int k = 0; k < 200 && building(t, f2)->hp == hp2; ++k) t.tick(DT);
-		const float step = t.units_.pos_x[j] - sx;
-		std::printf("      side: stepped %.2f before the first hit\n", step);
-		check(building(t, f2)->hp < hp2 && step > 0.15f, "a swordsman just out of reach steps in, then hits");
-	}
 }
 
 // Archer at `dist` shoots a passive enemy until `shots` arrows have landed.
