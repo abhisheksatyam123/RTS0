@@ -805,6 +805,7 @@ void RtsoMain::_process(double delta) {
 		const int auth = net_host_.authResult();
 		if (auth == rtso::ARC_PASSWORD_INVALID) lobby_status->set_text("Wrong password");
 		else if (auth == rtso::ARC_BANNED) lobby_status->set_text("You have been banned from this game");
+		else if (net_host_.disconnectReason() == rtso::NDR_SERVER_FULL) lobby_status->set_text(tr("Server full."));
 		const auto &kicks = net_host_.kicks();
 		for (; kicks_shown_ < kicks.size(); ++kicks_shown_) {
 			const auto &k = kicks[kicks_shown_];

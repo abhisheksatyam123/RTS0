@@ -2774,12 +2774,23 @@ static void test_defense_armies() {
 	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
 	std::printf("  defense: two groups 18 units apart make %zu armies, %zu with defenders\n", armies.size(), with_defenders);
 	CHECK(armies.size() == 2 && with_defenders == 2, "one army per group of foes, each defended (makeIntoArmy, assignDefenders)");
-	// The western group joins the eastern one.
+	// The western group joins the eastern one where its fight has taken it (a mine beside the
+	// eastern group's spawn point blocks movement, so it can't stay put).
+	float ex = 0.0f, ez = 0.0f;
+	int en = 0;
+	for (uint32_t id : east) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		ex += s->units_.pos_x[i];
+		ez += s->units_.pos_z[i];
+		++en;
+	}
+	if (en) { ex /= (float)en; ez /= (float)en; } else { ex = cx + 10.0f; ez = cz - 7.0f; }
 	for (size_t k = 0; k < west.size(); ++k) {
 		const int32_t i = s->lookup_unit(west[k]);
 		if (i < 0) continue;
-		s->units_.pos_x[i] = cx + 10.0f;
-		s->units_.pos_z[i] = cz - 8.0f + (float)k;
+		s->units_.pos_x[i] = ex + 1.0f;
+		s->units_.pos_z[i] = ez - 1.0f + (float)k;
 	}
 	run_ai_turns(*s, 1);
 	std::printf("  defense: after the groups meet, %zu army\n", armies.size());
@@ -3751,7 +3762,9 @@ static void test_personality_draw() {
 	t.set_lock_teams(true);
 	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.3f)) < 1e-5f);
 	t.set_petra_difficulty(2, PETRA_SANDBOX);
-	assert(t.petra_config_for(2).aggressive == 0.85f && t.petra_config_for(2).pop_scaling == 0.5f);
+	// setConfig draws no personality on Sandbox: the default 0.5 whatever the behaviour.
+	assert(t.petra_config_for(2).aggressive == 0.5f && t.petra_config_for(2).defensive == 0.5f &&
+	       t.petra_config_for(2).pop_scaling == 0.5f);
 	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
 }
 

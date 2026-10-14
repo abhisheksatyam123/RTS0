@@ -91,6 +91,8 @@ struct PetraConfig {
 			default:
 				aggressive = 0.50f; defensive = 0.50f; cooperative = 0.50f; break;
 		}
+		// Sandbox keeps the default personality whatever the behaviour (setConfig draws above it).
+		if (difficulty == PETRA_SANDBOX) aggressive = defensive = cooperative = 0.5f;
 		if (seed != 0 && difficulty > PETRA_SANDBOX) {
 			uint64_t st = seed;
 			auto rand01 = [&st]() { // splitmix64
@@ -134,7 +136,7 @@ struct PetraConfig {
 		emergency_struct_factor = kEmerg[d];
 		emergency_root_factor = kRoots[d];
 
-		defense_ratio_own = 1.6f + 0.8f * defensive + 0.15f * (float)d;
+		defense_ratio_own = 2.0f; // config.js Defense.defenseRatio.own (ally 1.4 and neutral 1.8 derive from it)
 		muster_delta = 0;
 		if (aggressive > 0.70f) muster_delta = -2;
 		if (defensive > 0.70f) muster_delta = 2;
