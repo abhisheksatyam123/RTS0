@@ -891,7 +891,9 @@ static void walk_to_structure_range() {
 		std::printf("  build from four sides: %d of 4 builders worked from where they came in range, finished after %d ticks, "
 				"moved %.3f at most from there (even after the house was done)\n", all, done, moved);
 		check(all == 4 && done >= 0, "a builder never came within build range");
-		check(moved < 0.05f, "a builder walked on past build range or after the house was done");
+		// Two builders that meet at a corner push each other apart a little (idle units push idle
+		// units), still within range.
+		check(moved < 0.15f, "a builder walked on past build range or after the house was done");
 	}
 }
 
