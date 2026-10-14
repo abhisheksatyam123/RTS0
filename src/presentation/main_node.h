@@ -317,7 +317,9 @@ public:
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
 	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
-	static Array speed_choices(bool replay);
+	static String speed_title(float speed);
+	static Array speed_choices(bool fast_forward);
+	bool fast_forward_allowed() const;
 	bool is_game_paused() const { return hotkey_paused_; }
 	bool can_pause() const;
 	// Engine.HasXmppClient: a game started from the lobby screen.
@@ -433,6 +435,7 @@ public:
 	bool chat_local_observer() override;
 	std::vector<std::pair<int, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
+	void notify_setup_joins(uint8_t before, uint8_t after);
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
@@ -612,6 +615,10 @@ private:
 	// map, or one player's sight and panels. Presentation only.
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
 	OptionButton *observer_view_picker_ = nullptr;
+	Label *observer_mode_label_ = nullptr;
+	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
+	void sync_observer_view_picker();
+	OptionButton *new_player_view_picker() const;
 	void update_observer_view_picker();
 	void set_observer_view(int player);
 	void _on_observer_view_selected(int index);
