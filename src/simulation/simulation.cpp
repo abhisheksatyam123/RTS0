@@ -371,42 +371,6 @@ struct UnitGrid {
 };
 // 0 A.D. navalManager.js:58 seaWarShips — per-sea fleet accounting registry
 
-// For reveal_fow()'s LOS shortcut: terrain_blocks_los()'s 0.35 clearance less a margin for float
-// rounding, and the widest block window it handles (vision up to ~56 FoW cells).
-constexpr float FOW_LOS_CLEARANCE = 0.35f - 0.01f;
-constexpr int FOW_BOX_MAX_W = 32;
-// kFowByteMask[b]: 0xFF in byte i for each bit i set in b, for reveal_fow()'s FowView copy.
-constexpr std::array<uint64_t, 256> kFowByteMask = [] {
-	std::array<uint64_t, 256> t{};
-	for (int b = 0; b < 256; ++b)
-		for (int i = 0; i < 8; ++i)
-			if (b >> i & 1) t[b] |= 0xFFull << (8 * i);
-	return t;
-}();
-// For each block of the (2rb+1)^2 window centred on block (bcx, bcz), the highest block_hmax in
-// the box of blocks from the centre to that block. Fills the blocks inside the GB x GB grid; the
-// window is row-major in `out`.
-[[gnu::noinline]] void fow_box_max(const float *block_hmax, int GB, int bcx, int bcz, int rb, float *out) {
-	const int WB = 2 * rb + 1;
-	for (int zs = -1; zs <= 1; zs += 2)
-		for (int xs = -1; xs <= 1; xs += 2)
-			for (int j = 0; j <= rb; ++j) {
-				const int bz = bcz + zs * j;
-				if (bz < 0 || bz >= GB) break;
-				const float *hm = &block_hmax[(size_t)bz * GB];
-				float *row = &out[(zs * j + rb) * WB + rb];
-				const float *nearer = j ? row - zs * WB : nullptr; // the row one step towards the centre
-				for (int i = 0; i <= rb; ++i) {
-					const int bx = bcx + xs * i;
-					if (bx < 0 || bx >= GB) break;
-					float m = hm[bx];
-					if (i) m = std::max(m, row[xs * (i - 1)]);
-					if (nearer) m = std::max(m, nearer[xs * i]);
-					row[xs * i] = m;
-				}
-			}
-}
-
 } // namespace
 
 Simulation::Simulation() {
@@ -442,9 +406,6 @@ void Simulation::set_map_half(float h) {
 	fow_grid_.assign(cells, FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
 	reset_los();
-	fow_cell_height_.clear();
-	fow_cell_hmax_.clear();
-	fow_block_hmax_.clear();
 	// The nav grid caches map_half for world<->cell conversion, so it must be
 	// re-initialised whenever the extent changes.
 	nav_grid_.init(map_half_, grid_res_);
@@ -521,9 +482,6 @@ void Simulation::reset() {
 	terrain_res_ = 64;
 	terrain_tiles_ = TerrainTiles();
 	terrain_water_height_ = -1.0f;
-	fow_cell_height_.clear();
-	fow_cell_hmax_.clear();
-	fow_block_hmax_.clear();
 	triggers_.clear();
 	units_.free_all(); units_.init(UNIT_CAP);
 	resources_.free_all(); resources_.init(512);
@@ -8161,8 +8119,8 @@ void Simulation::tick(float dt) {
 	fow_timer_ += dt;
 	if (fow_timer_ >= 0.25f) {
 		fow_timer_ = 0.0f;
-		tick_fow();
 		tick_los(); // 0 A.D. moves LOS once a turn; RTS0 at the fog's 4 Hz
+		tick_fow(); // the fog shows that LOS
 	}
 
 	frame_arena_.flip();
@@ -26066,7 +26024,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (const LosSource &want : units) s.los_.update(s.los_unit_src_.emplace_back(), want);
 		for (const LosSource &want : blds) s.los_.update(s.los_bld_src_.emplace_back(), want);
 		for (size_t c = 0; c < explored.size(); ++c) s.los_.set_explored((int)c, explored[c]);
-		s.update_fauna_los(); // owned livestock's circles are rebuilt, not stored
+		s.update_fauna_los(); // owned livestock's and spies' circles are rebuilt, not stored
+		s.update_spy_los();
 	}
 }
 
@@ -26079,50 +26038,6 @@ bool Simulation::load_tick_state(std::ifstream &in, uint32_t version) {
 	TickLoadAr ar{in, version};
 	tick_state_io(ar, *this);
 	return ar.ok && in.good();
-}
-
-bool Simulation::terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const {
-	// Approximate 0 A.D. RangeManager LOS with a deterministic terrain-height
-	// ray test. The 0 A.D. manager stores visibility on LOS vertices, while
-	// RTS0 uses 2m FoW cells; sampling the height field gives hills/cliffs the
-	// same blocking semantics without expanding the simulation state format.
-	if (terrain_heights_.empty() || terrain_res_ <= 1) return false;
-	const float dx = tx - sx;
-	const float dz = tz - sz;
-	const float dist = std::sqrt(dx * dx + dz * dz);
-	const int steps = std::clamp((int)std::ceil(dist / 3.0f), 1, 32);
-	auto blocked_at = [&](int i) {
-		const float t = (float)i / (float)steps;
-		const float wx = sx + dx * t;
-		const float wz = sz + dz * t;
-		const float ray_y = sy + (ty - sy) * t;
-		return get_terrain_height(wx, wz) > ray_y + 0.35f;
-	};
-	const int G = grid_res_;
-	if (fow_cell_hmax_.size() != (size_t)G * (size_t)G) {
-		for (int i = 1; i < steps; ++i)
-			if (blocked_at(i)) return true;
-		return false;
-	}
-	// Exact shortcut: a sample can only block when the highest height get_terrain_height() can read
-	// in its FoW cell (fow_cell_hmax_) clears the ray by less than FOW_LOS_CLEARANCE, so only those
-	// samples are taken. The cell and ray height come from stepping along the ray, which drifts from
-	// blocked_at()'s values by far less than the heightmap sample of slack fow_cell_hmax_ allows on
-	// each side and the 0.01 margin in FOW_LOS_CLEARANCE.
-	const float *hmax = fow_cell_hmax_.data();
-	const float to_cell = (float)G / (2.0f * map_half_);
-	const float inv_steps = 1.0f / (float)steps;
-	const float step_x = dx * inv_steps * to_cell, step_z = dz * inv_steps * to_cell, step_y = (ty - sy) * inv_steps;
-	float cell_x = (sx + map_half_) * to_cell, cell_z = (sz + map_half_) * to_cell, ray_y = sy + FOW_LOS_CLEARANCE;
-	for (int i = 1; i < steps; ++i) {
-		cell_x += step_x;
-		cell_z += step_z;
-		ray_y += step_y;
-		const int gx = std::clamp((int)cell_x, 0, G - 1);
-		const int gz = std::clamp((int)cell_z, 0, G - 1);
-		if (hmax[(size_t)gz * G + gx] > ray_y && blocked_at(i)) return true;
-	}
-	return false;
 }
 
 uint8_t Simulation::fow_state_at(float x, float z, uint8_t viewer_team) const {
@@ -26140,189 +26055,6 @@ bool Simulation::is_entity_visible_to_viewer(float x, float z, uint8_t entity_te
 	return fow_state_at(x, z, viewer_team) == FOW_VISIBLE;
 }
 
-void Simulation::ensure_fow_cell_heights() {
-	// Terrain height at every FoW cell centre is fixed for the map, so sample
-	// it once instead of once per viewer per cell.
-	const int G = grid_res_;
-	if (fow_cell_height_.size() == (size_t)G * (size_t)G) return;
-	if (++fow_view_gen_ == 0) ++fow_view_gen_; // 0 marks a FowView never filled
-	const float half = map_half_;
-	const float cell = (half * 2.0f) / (float)G;
-	fow_cell_height_.resize((size_t)G * (size_t)G);
-	for (int gz = 0; gz < G; ++gz)
-		for (int gx = 0; gx < G; ++gx)
-			fow_cell_height_[gz * G + gx] = get_terrain_height((gx + 0.5f) * cell - half, (gz + 0.5f) * cell - half);
-
-	// fow_cell_hmax_: the highest heightmap sample that get_terrain_height() can read for a point
-	// in the cell. A point's bilinear lookup reads the samples on both sides of it, so take the
-	// samples under the cell plus one more on each side, and one beyond that for rounding.
-	fow_cell_hmax_.clear();
-	fow_block_hmax_.clear();
-	const int N = terrain_res_;
-	if (terrain_heights_.empty() || N <= 1) return;
-	auto sample_span = [N, G](int g, int &lo, int &hi) {
-		lo = std::max(0, (int)((int64_t)g * (N - 1) / G) - 1);
-		hi = std::min(N - 1, (int)((int64_t)(g + 1) * (N - 1) / G) + 2);
-	};
-	std::vector<float> col_max((size_t)N * (size_t)G); // per sample row, the max over each cell's columns
-	for (int z = 0; z < N; ++z)
-		for (int gx = 0; gx < G; ++gx) {
-			int lo, hi;
-			sample_span(gx, lo, hi);
-			float m = terrain_heights_[(size_t)z * N + lo];
-			for (int x = lo + 1; x <= hi; ++x) m = std::max(m, terrain_heights_[(size_t)z * N + x]);
-			col_max[(size_t)z * G + gx] = m;
-		}
-	fow_cell_hmax_.resize((size_t)G * (size_t)G);
-	for (int gz = 0; gz < G; ++gz) {
-		int lo, hi;
-		sample_span(gz, lo, hi);
-		for (int gx = 0; gx < G; ++gx) {
-			float m = col_max[(size_t)lo * G + gx];
-			for (int z = lo + 1; z <= hi; ++z) m = std::max(m, col_max[(size_t)z * G + gx]);
-			fow_cell_hmax_[(size_t)gz * G + gx] = m;
-		}
-	}
-	// The same per block of FOW_LOS_BLOCK x FOW_LOS_BLOCK cells, for reveal_fow().
-	const int GB = (G + FOW_LOS_BLOCK - 1) / FOW_LOS_BLOCK;
-	fow_block_hmax_.assign((size_t)GB * (size_t)GB, -std::numeric_limits<float>::infinity());
-	for (int gz = 0; gz < G; ++gz)
-		for (int gx = 0; gx < G; ++gx) {
-			float &m = fow_block_hmax_[(size_t)(gz / FOW_LOS_BLOCK) * GB + gx / FOW_LOS_BLOCK];
-			m = std::max(m, fow_cell_hmax_[(size_t)gz * G + gx]);
-		}
-}
-
-void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr, FowView *view) const {
-	// Marks every cell within vr of (sx, sz) that the terrain does not hide.
-	// A cell already VISIBLE this pass is skipped: another viewer lit it, and
-	// the LOS ray can only ever set it VISIBLE again. Needs ensure_fow_cell_heights().
-	const float half = map_half_;
-	const int G = grid_res_;
-	const float cell = (half * 2.0f) / (float)G;
-	const int cx = (int)((sx + half) / (2.0f * half) * G);
-	const int cz = (int)((sz + half) / (2.0f * half) * G);
-	const int r = (int)(vr / cell) + 1;
-	const float eye_y = get_terrain_height(sx, sz) + 1.6f;
-	const float vr2 = vr * vr;
-	const int gz0 = std::max(0, cz - r), gz1 = std::min(G - 1, cz + r);
-	const int gx0 = std::max(0, cx - r), gx1 = std::min(G - 1, cx + r);
-
-	// Exact shortcut for terrain_blocks_los(): every height a ray from the viewer to a cell samples
-	// lies in the box of cells between the viewer's cell and that cell, so it is at most the highest
-	// fow_cell_hmax_ in that box, and at most the highest fow_block_hmax_ in the box of blocks around
-	// it. The ray stays at or above min(eye, target) and is blocked only by terrain more than 0.35
-	// above it, so a box no higher than min(eye, target) + 0.35 (less a margin for float rounding)
-	// cannot block, and the ray test is skipped. Same result, fewer height samples.
-	const int GB = (G + FOW_LOS_BLOCK - 1) / FOW_LOS_BLOCK;
-	const int bcx = cx / FOW_LOS_BLOCK, bcz = cz / FOW_LOS_BLOCK;
-	const int rb = r / FOW_LOS_BLOCK + 1;
-	const int WB = 2 * rb + 1;
-	// box_max[(block row - bcz + rb) * WB + (block column - bcx + rb)]: the highest fow_block_hmax_
-	// between the viewer's block and that block. Filled the first time a cell needs it (in a crowd,
-	// many calls find every cell lit already), not zeroed per call.
-	float box_max[FOW_BOX_MAX_W * FOW_BOX_MAX_W];
-	bool box_ready = false;
-	// Every box holds the viewer's own block, so when that block is already higher than the eye
-	// allows, no cell can pass and the shortcut is off.
-	const bool shortcut = !fow_block_hmax_.empty() && cx >= 0 && cx < G && cz >= 0 && cz < G &&
-			WB <= FOW_BOX_MAX_W && fow_block_hmax_[(size_t)bcz * GB + bcx] <= eye_y + FOW_LOS_CLEARANCE;
-
-	// Calls visit(gx, lit) for each cell of row gz within vr, lit: the viewer sees it. With
-	// skip_lit, cells already VISIBLE in `row` are skipped.
-	constexpr uint64_t VISIBLE_X8 = 0x0101010101010101ull * FOW_VISIBLE;
-	auto scan_row = [&](int gz, auto skip_lit, const uint8_t *row, auto &&visit) {
-		const float wz = (gz + 0.5f) * cell - half;
-		const float ddz = wz - sz;
-		const float rem = vr2 - ddz * ddz;
-		if (rem < 0.0f) return; // no cell of this row is within vr
-		// The viewer is inside cell cx, so a cell k > half-width / cell + 1 columns away is more
-		// than half a cell outside the circle and fails the distance test below anyway.
-		const int span = (int)(std::sqrt(rem) / cell) + 1;
-		const int lo = std::max(gx0, cx - span), hi = std::min(gx1, cx + span);
-		const float *hrow = &fow_cell_height_[(size_t)gz * G];
-		const int box_row = shortcut ? ((int)((unsigned)gz / FOW_LOS_BLOCK) - bcz + rb) * WB - bcx + rb : 0; // + column / FOW_LOS_BLOCK
-		for (int gx = lo; gx <= hi; ++gx) {
-			if constexpr (decltype(skip_lit)::value) {
-				if (row[gx] == FOW_VISIBLE) {
-					// Skip runs of cells other viewers already lit, eight at a time.
-					uint64_t next8;
-					while (gx + 8 <= hi && (std::memcpy(&next8, row + gx + 1, 8), next8 == VISIBLE_X8)) gx += 8;
-					continue;
-				}
-			}
-			const float wx = (gx + 0.5f) * cell - half;
-			const float ddx = wx - sx;
-			if (ddx * ddx + ddz * ddz > vr2) continue;
-			const float ty = hrow[gx] + 0.4f;
-			bool clear = false; // no terrain between the viewer and this cell can block the ray
-			if (shortcut) {
-				if (!box_ready) [[unlikely]] {
-					fow_box_max(fow_block_hmax_.data(), GB, bcx, bcz, rb, box_max);
-					box_ready = true;
-				}
-				clear = box_max[box_row + (int)((unsigned)gx / FOW_LOS_BLOCK)] <= std::min(eye_y, ty) + FOW_LOS_CLEARANCE;
-			}
-			visit(gx, clear || !terrain_blocks_los(sx, sz, eye_y, wx, wz, ty));
-		}
-	};
-
-	// A viewer that has not moved since its last call lights the same cells, so the second call
-	// from the same spot keeps them as bit rows and later ones copy them back.
-	if (view) {
-		const uint32_t kx = std::bit_cast<uint32_t>(sx), kz = std::bit_cast<uint32_t>(sz);
-		const uint32_t kv = std::bit_cast<uint32_t>(vr);
-		if (view->gen != fow_view_gen_ || view->sx != kx || view->sz != kz || view->vr != kv) {
-			view->sx = kx;
-			view->sz = kz;
-			view->vr = kv;
-			view->gen = fow_view_gen_;
-			view->stored = false;
-		} else if (r <= FOW_VIEW_MAX_R) { // same spot: the same r
-			if (!view->stored) {
-				std::fill(view->rows, view->rows + 2 * r + 1, 0ull);
-				for (int gz = gz0; gz <= gz1; ++gz) {
-					uint64_t &bits = view->rows[gz - cz + r];
-					scan_row(gz, std::false_type{}, nullptr, [&](int gx, bool lit) {
-						if (lit) bits |= 1ull << (gx - cx + r);
-					});
-				}
-				view->stored = true;
-			}
-			const int x0 = cx - r, chunks = (2 * r + 1 + 7) / 8;
-			if (x0 >= 0 && x0 + chunks * 8 <= G) {
-				// Eight cells at a time: FOW_VISIBLE in the bytes whose bits are set, the rest kept.
-				for (int gz = gz0; gz <= gz1; ++gz) {
-					uint8_t *row = &grid[(size_t)gz * G + x0];
-					const uint64_t bits = view->rows[gz - cz + r];
-					for (int k = 0; k < chunks && bits >> (8 * k); ++k) {
-						const uint64_t mask = kFowByteMask[(bits >> (8 * k)) & 0xFF];
-						if (!mask) continue;
-						uint64_t cells;
-						std::memcpy(&cells, row + 8 * k, 8);
-						cells = (cells & ~mask) | (VISIBLE_X8 & mask);
-						std::memcpy(row + 8 * k, &cells, 8);
-					}
-				}
-			} else {
-				for (int gz = gz0; gz <= gz1; ++gz) {
-					uint8_t *row = &grid[(size_t)gz * G];
-					for (uint64_t bits = view->rows[gz - cz + r]; bits; bits &= bits - 1)
-						row[x0 + std::countr_zero(bits)] = FOW_VISIBLE;
-				}
-			}
-			return;
-		}
-	}
-
-	for (int gz = gz0; gz <= gz1; ++gz) {
-		uint8_t *row = &grid[(size_t)gz * G];
-		scan_row(gz, std::true_type{}, row, [&](int gx, bool lit) {
-			if (lit) row[gx] = FOW_VISIBLE;
-		});
-	}
-}
-
 void Simulation::tick_fow() {
 	ScopedUs prof(map_scale_stats_.fow_us, map_scale_stats_.fow_calls);
 	// 0 A.D. "Revealed map": everyone sees everything, so there is no per-cell work.
@@ -26334,20 +26066,12 @@ void Simulation::tick_fow() {
 			player_fow_[v].assign(fow_grid_.size(), FOW_VISIBLE);
 		return;
 	}
-	ensure_fow_cell_heights();
 
-	// VisionSharing spies: a bribed unit also lights the map for the briber (and its allies).
-	spy_mask_.clear();
-	if (!spies_.empty()) {
-		spy_mask_.assign(units_.count, 0);
-		for (const Spy &s : spies_)
-			if (const int32_t u = lookup_unit(s.unit_id); u >= 0 && s.player < MAX_PLAYERS) spy_mask_[u] |= (uint8_t)(1u << s.player);
-	}
-
-	// Player.js UpdateSharedLos: a player sees what its mutual allies' units and buildings
-	// see once it has researched Cartography (shares_los).
+	// 0 A.D. shows a player its line of sight (CCmpRangeManager GetLosVisibility): the cells
+	// its own and its LOS-sharing allies' sources see, explored once seen, with no terrain in
+	// the way. The fog is that LOS (los_, updated just before) on the same grid.
 	// fow_grid_ is player 0's view and the one hashed for lockstep.
-	update_player_fow(fow_grid_, [this](uint8_t owner) { return shares_los(0, owner); }, player_fow_views_);
+	fill_fow_from_los(fow_grid_, 0);
 
 	// The local viewer's own view when it is not player 0 (a multiplayer
 	// joiner). It is presentation-only state: never hashed or read by the
@@ -26356,35 +26080,19 @@ void Simulation::tick_fow() {
 	if (p != 0 && p < MAX_PLAYERS) {
 		auto &grid = player_fow_[p];
 		if (grid.size() != fow_grid_.size()) grid.assign(fow_grid_.size(), FOW_UNEXPLORED);
-		update_player_fow(grid, [this, p](uint8_t owner) { return shares_los(p, owner); }, player_fow_views_);
+		fill_fow_from_los(grid, p);
 	}
 }
 
-template <typename SharesVision>
-void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision, FowViews &views) {
-	// Step 1: Reset all VISIBLE tiles back to EXPLORED (preserve explored history).
-	// 0 A.D. "Explored map": nothing is ever unexplored (terrain known, units hidden).
+void Simulation::fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const {
+	// Player.js UpdateSharedLos: the mask holds the player and, with Cartography, its mutual allies.
+	// A cell explored before (a loaded save's fog) stays explored; "Explored map" explores all.
+	const uint8_t mask = los_shared_mask(player);
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
-	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
-
-	// Steps 2 and 3: every unit and finished building whose vision the player shares lights the
-	// tiles within its vision radius (unit_vision_range, 0 A.D. Vision/Range).
-
-	reveal_viewers(grid, views,
-			[&](size_t u) {
-				if (!units_.alive[u]) return 0.0f;
-				bool sees = shares_vision(units_.team[u]);
-				if (!sees && u < spy_mask_.size() && spy_mask_[u])
-					for (uint8_t p = 0; p < MAX_PLAYERS && !sees; ++p)
-						sees = ((spy_mask_[u] >> p) & 1) && shares_vision(p);
-				return sees ? unit_vision_at(u) : 0.0f;
-			},
-			[&](const Building &b) { return shares_vision(b.team) ? building_vision_range(b) : 0.0f; });
-	// A player's own livestock sees too (0 A.D. livestock are units with Vision); penned
-	// (garrisoned) animals don't.
-	for (size_t f = 0; f < fauna_.count; ++f) {
-		const float vr = owned_fauna_vision(f);
-		if (vr > 0.0f && shares_vision(fauna_owner_[f])) reveal_fow(grid, fauna_.pos_x[f], fauna_.pos_z[f], vr, nullptr);
+	const size_t n = std::min(grid.size(), los_.cells());
+	for (size_t c = 0; c < n; ++c) {
+		const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
+		grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
 	}
 }
 
@@ -26432,6 +26140,7 @@ void Simulation::reset_los() {
 	los_unit_src_.clear();
 	los_bld_src_.clear();
 	los_fauna_src_.clear();
+	los_spy_src_.clear();
 }
 
 void Simulation::tick_los() {
@@ -26463,6 +26172,21 @@ void Simulation::tick_los() {
 	}
 	los_bld_src_.resize(nb);
 	update_fauna_los();
+	update_spy_los();
+}
+
+void Simulation::update_spy_los() {
+	// One circle per spy from where its unit stands now, owned by the briber (VisionSharing.js
+	// AddSpy shares the unit's vision with that player), so a load rebuilds the same circles.
+	if (los_spy_src_.size() < spies_.size()) los_spy_src_.resize(spies_.size());
+	for (size_t k = 0; k < los_spy_src_.size(); ++k) {
+		LosSource want;
+		if (k < spies_.size())
+			if (const int32_t u = lookup_unit(spies_[k].unit_id); u >= 0 && units_.alive[u] && spies_[k].player < MAX_PLAYERS)
+				want = los_.source_at(units_.pos_x[u], units_.pos_z[u], unit_vision_at((size_t)u), spies_[k].player);
+		los_.update(los_spy_src_[k], want);
+	}
+	los_spy_src_.resize(spies_.size());
 }
 
 bool Simulation::shares_los(uint8_t viewer, uint8_t owner) const {
@@ -26472,7 +26196,7 @@ bool Simulation::shares_los(uint8_t viewer, uint8_t owner) const {
 }
 
 uint8_t Simulation::los_shared_mask(uint8_t player) const {
-	// As update_player_fow applies it (shares_los).
+	// As the fog applies it (shares_los).
 	if (player >= MAX_PLAYERS) return 0;
 	uint8_t m = 0;
 	for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
@@ -26490,32 +26214,6 @@ bool Simulation::los_explored(uint8_t player, float x, float z) const {
 	if (reveal_map_ || explore_map_) return true;
 	if (los_.cells() == 0) return false;
 	return (los_.explored_bits(los_.cell_of(x, z)) & los_shared_mask(player)) != 0;
-}
-
-template <typename UnitVision, typename BuildingVision>
-void Simulation::reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr) {
-	// Calls reveal_fow() for each building and unit with a vision radius above 0. The result is the
-	// union of their views whatever the order, so buildings and units that have not moved go first
-	// (copies of their stored views), and the units that moved last: their LOS rays then skip
-	// every cell the others lit.
-	if (views.buildings.size() < buildings_.size()) views.buildings.resize(buildings_.size());
-	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
-		const auto &b = buildings_[bi];
-		const float vr = building_vr(b);
-		if (vr > 0.0f) reveal_fow(grid, b.x, b.z, vr, &views.buildings[bi]);
-	}
-	if (views.units.size() < units_.count) views.units.resize(units_.count);
-	fow_moved_units_.clear();
-	for (size_t u = 0; u < units_.count; ++u) {
-		const float vr = unit_vr(u);
-		if (vr <= 0.0f) continue;
-		if (views.units[u].same_spot(units_.pos_x[u], units_.pos_z[u], vr, fow_view_gen_))
-			reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], vr, &views.units[u]);
-		else
-			fow_moved_units_.push_back((uint32_t)u);
-	}
-	for (const uint32_t u : fow_moved_units_)
-		reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], unit_vr(u), &views.units[u]);
 }
 
 Simulation::FaunaView Simulation::fauna() const {
