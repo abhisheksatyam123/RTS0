@@ -2736,6 +2736,8 @@ Simulation::Building wall_piece_footprint(const Simulation::WallPiece &p) {
 Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const WallPiece &p, const uint32_t *ignore,
 		size_t ignore_n) const {
 	const Building b = wall_piece_footprint(p);
+	// CheckFoundation: a circular map's off-world edge blocks every class, wall pieces included.
+	if (footprint_past_map_edge(b)) return PLACE_OBSTRUCTED;
 	const std::vector<std::pair<int, int>> cells = building_cells(b);
 	std::vector<std::pair<int, int>> ignored;
 	for (size_t k = 0; k < ignore_n; ++k) {
@@ -28217,12 +28219,23 @@ void Simulation::set_circular_map(bool on) {
 	const bool was = circular_map();
 	set_setup_flag(SETUP_CIRCULAR_MAP, on);
 	los_.set_circular(on);
+	rebuild_revealed_fow();
 	if (was != circular_map() && !nav_grid_.cells.blank()) rebuild_nav_grid(); // the edge's navcells
+}
+
+void Simulation::rebuild_revealed_fow() {
+	// RevealAll leaves a circular map's off-world vertices unseen (CCmpRangeManager
+	// GetLosVisibilityPosition): the corners stay black for observers and winners too.
+	std::fill(revealed_fow_.begin(), revealed_fow_.end(), (uint8_t)FOW_VISIBLE);
+	const size_t n = std::min(los_.cells(), revealed_fow_.size());
+	for (size_t c = 0; c < n; ++c)
+		if (los_.off_world((int)c)) revealed_fow_[c] = FOW_UNEXPLORED;
 }
 
 void Simulation::reset_los() {
 	los_.init(grid_res_, map_half_);
 	los_.set_circular(circular_map());
+	rebuild_revealed_fow();
 	los_unit_src_.clear();
 	los_bld_src_.clear();
 	los_fauna_src_.clear();
