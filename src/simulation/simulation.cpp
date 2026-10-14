@@ -15422,9 +15422,24 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 			order_gather(&uid, 1, ensure_field_resource(b), false, false);
 			return;
 		}
-		const bool takes_all = is_civic_centre(b.type) || b.type == BLD_DOCK; // food wood stone metal
-		if (harvest && (food || other || takes_all)) {
-			// Prefer what the unit gathered last (lastGathered), if the dropsite takes it.
+		// food wood stone metal: civic centres, docks, military colonies, Germanic encampments
+		const bool takes_all = is_civic_centre(b.type) || b.type == BLD_DOCK || civ_building_is_dropsite(b.type);
+		if (harvest && !petra_runs_for(units_.team[k]) && (food || other || takes_all)) {
+			// FindNearbyResource round the new dropsite: the nearest supply of any type it takes
+			// that the builder can gather, whatever it gathered last.
+			uint32_t r = 0;
+			float best = INFINITY;
+			for (uint8_t t : {(uint8_t)RES_FOOD, (uint8_t)RES_WOOD, (uint8_t)RES_STONE, (uint8_t)RES_GOLD}) {
+				if (!takes_all && (food ? t != RES_FOOD : t == RES_FOOD)) continue;
+				const uint32_t c = find_nearby_resource(b.x, b.z, t, b.team);
+				auto ci = res_id_to_idx_.find(c);
+				if (c == 0 || ci == res_id_to_idx_.end() || !can_gather(k, ci->second)) continue;
+				const float dx = resources_.x[ci->second] - b.x, dz = resources_.z[ci->second] - b.z;
+				if (dx * dx + dz * dz < best) { best = dx * dx + dz * dz; r = c; }
+			}
+			if (r != 0) { order_gather(&uid, 1, r, false, false); return; }
+		} else if (harvest && (food || other || takes_all)) {
+			// Petra's builders: what the unit gathered last (lastGathered), if the dropsite takes it.
 			uint8_t pref = units_.res_type_carried[k];
 			const bool takes_pref = takes_all || (food ? pref == RES_FOOD : pref != RES_FOOD);
 			uint32_t r = takes_pref ? find_nearby_resource(b.x, b.z, pref, b.team) : 0;

@@ -360,6 +360,27 @@ int main() {
 		const float got = s.player(1).res[RES_FOOD] - food0;
 		std::printf("  Ptolemaic team bonus: a units-only ally gets %.0f food in 10 s\n", got);
 		CHECK(got >= 9.0f && got <= 11.0f);
+	// 15. UnitAI ConstructionFinished: the builder of a new storehouse gathers the nearest supply it
+	// takes (FindNearbyResource with the dropsite's types), not the kind she gathered last.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_building_world(-40.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t site = s.spawn_building_world(20.0f, 0.0f, BLD_STOREHOUSE, 0, 0.0f);
+		const uint32_t mine = s.spawn_resource_world(20.0f, 7.0f, RES_STONE, 5000);
+		const uint32_t tree = s.spawn_resource_world(20.0f, -12.0f, RES_WOOD, 200);
+		const uint32_t woman = s.spawn_unit(24.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.units_.res_type_carried[s.lookup_unit(woman)] = RES_WOOD; // she cut wood last
+		s.order_build_or_repair(&woman, 1, site);
+		bool done = false;
+		for (int k = 0; k < 600 && !done; ++k) {
+			run(s, 1.0f);
+			for (const auto &b : s.buildings()) if (b.id == site) done = b.build_progress >= 1.0f;
+		}
+		run(s, 0.5f);
+		const uint32_t next = s.units_.target_resource_id[s.lookup_unit(woman)];
+		std::printf("  storehouse built: the builder goes to the %s\n", next == mine ? "mine (nearer)" : next == tree ? "tree" : "nothing");
+		CHECK(done && next == mine);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
