@@ -7,7 +7,7 @@ extends SceneTree
 #   3. an older save asks before loading, a newer one can't be loaded;
 #   4. Shift+Delete deletes without asking, Delete asks first;
 #   5. in a match, Save writes a new save with its description, and saving over
-#      the selected one asks first and keeps its description;
+#      the selected one asks first and keeps its description, while Enter in the description always writes a new one;
 #   6. Load from the load dialog loads the save into a new match.
 #
 #   godot --headless --path . --fixed-fps 60 -s tools/e2e_savegames.gd
@@ -169,6 +169,17 @@ func run() -> void:
 	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("user://saves/%s.json" % NAMES[4]))
 	check(not is_instance_valid(d) and meta.get("description", "") == "e2e first" and int(meta.save_version) == v, "and overwrites it")
 	var saved_tick: float = meta.get("game_time", 0.0)
+	d = Dialog.open(m, "save", m)
+	await frames(2)
+	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[4]))
+	before = Array(DirAccess.get_files_at("user://saves"))
+	d.description.text_submitted.emit(d.description.text)
+	await frames(2)
+	var fresh := Array(DirAccess.get_files_at("user://saves")).filter(func(f): return f.ends_with(".rts0sav") and not before.has(f))
+	check(fresh.size() == 1 and not is_instance_valid(d), "Enter in the description writes a new save, even with one selected")
+	for f in fresh:
+		for ext in [".rts0sav", ".json", ".png"]:
+			DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/" + f.get_basename() + ext))
 
 	print("6. load")
 	d = Dialog.open(m, "load", m)

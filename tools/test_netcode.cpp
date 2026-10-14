@@ -1029,7 +1029,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         // Pause (0 A.D. NMT_CLIENT_PAUSED): the host pauses for pause_ms of
         // wall clock; both peers must hold their turns until it resumes.
         if (host && opt.pause_turn && !pause_done && tm.current_turn() >= opt.pause_turn) {
-            if (!tm.client_paused(me)) { tm.set_local_paused(true); pause_since = now; }
+            if (!tm.client_paused(me)) {
+                tm.set_local_paused(true);
+                pause_since = now;
+                std::fflush(log); // the playtest reads the log to see the pause start
+            }
             else if (now - pause_since >= opt.pause_ms * 1000ull) { tm.set_local_paused(false); pause_done = true; }
         }
         if (tm.is_paused()) {
@@ -1228,6 +1232,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     if (tm.is_observer())
         std::printf("[net-peer] join: catchup behind_late=%.1f\n",
                     behind_samples ? (double)behind_sum / (double)behind_samples : 0.0);
+    if (!tm.rejoined_clients().empty()) {
+        std::string ids;
+        for (uint32_t c : tm.rejoined_clients()) ids += (ids.empty() ? "" : ",") + std::to_string(c);
+        std::printf("[net-peer] %s: rejoined me=%u clients=%s\n", host ? "host" : "join", tm.local_client_id(), ids.c_str());
+    }
     if (opt.pause_turn)
         std::printf("[net-peer] %s: pause seen=%d by=%u at_turn=%u held_ms=%u\n", host ? "host" : "join",
                     pause_seen ? 1 : 0, paused_by, paused_at_turn, (unsigned)(held_us / 1000));

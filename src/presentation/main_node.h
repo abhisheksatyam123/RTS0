@@ -6,6 +6,7 @@
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/popup_menu.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
@@ -460,9 +461,10 @@ public:
 	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
 	String chat_user(const String &sender_guid) override;
-	// NMT_CHAT, or a host's 0 A.D. chat command (/kick name, /ban name).
+	// NMT_CHAT (the chat commands are chat_network_command).
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
+	bool chat_network_command(const String &text) override;
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
 	std::vector<std::pair<int, String>> chat_private_targets() override;
@@ -661,6 +663,18 @@ private:
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;
+	// 0 A.D. top_panel/FollowPlayer (g_FollowPlayer): an observer or replay viewer
+	// watching a player can have the camera follow that player's commands and attacks.
+	bool follow_player_ = false;
+	CheckBox *observer_follow_box_ = nullptr;
+	CheckBox *replay_follow_box_ = nullptr;
+	CheckBox *new_follow_player_box();
+	int followed_view() const;
+	void set_follow_player(bool on);
+	bool is_follow_player() const { return follow_player_; }
+	void follow_player_tick();
+	void follow_focus(uint32_t id, bool select);
+	void follow_command(const rtso::NetCommand &c);
 	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
 	void sync_observer_view_picker();
 	OptionButton *new_player_view_picker() const;
@@ -702,6 +716,7 @@ private:
 	std::vector<rtso::PlayerAssignmentMsg::Entry> chat_assignments_;
 	uint64_t chat_assignments_seen_ = 0;
 	size_t kicks_chatted_ = 0;
+	size_t rejoined_chatted_ = 0;
 	void post_network_chat();
 	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
 	void build_replay_view_picker();
