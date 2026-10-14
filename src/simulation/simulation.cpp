@@ -2978,9 +2978,16 @@ int Simulation::entity_limit_count(uint8_t player_id, uint8_t category) const {
 		    unit_limit_category(units_.unit_type[i], units_.tmpl[i]) != category)
 			++n;
 	}
-	if (category == LIMIT_ANIMAL) // livestock penned in the player's corrals
+	// EntityLimits counts every entity of the class its owner has (0.28 Identity Animal): the
+	// player's livestock wherever it is, and Gaia livestock penned in the player's corrals.
+	if (category == LIMIT_ANIMAL)
 		for (size_t f = 0; f < fauna_.count; ++f) {
-			if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
+			if (!fauna_.alive[f]) continue;
+			if (fauna_owner_[f] == player_id) {
+				++n;
+				continue;
+			}
+			if (fauna_owner_[f] < MAX_PLAYERS || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
 			auto bit = building_id_to_idx_.find(fauna_.corral_id[f]);
 			if (bit != building_id_to_idx_.end() && buildings_[bit->second].team == player_id) ++n;
 		}
@@ -6644,6 +6651,41 @@ int Simulation::building_arrow_count(const Building &b) const {
 	return std::max(count, 0);
 }
 
+Simulation::StructureDetails Simulation::structure_details(const Building &b) const {
+	StructureDetails d;
+	const BuildingAIInfo ai = civ_building_ai_info(b.civ, b.type);
+	const bool owned = b.team < MAX_PLAYERS;
+	if (ai.shoots()) {
+		d.shoots = true;
+		d.damage[0] = ai.hack;
+		d.damage[1] = ai.pierce * (owned ? tech_mods(b.team).bld_attack[b.type] : 1.0f);
+		d.damage[2] = ai.crush;
+		d.min_range = ai.min_range;
+		d.max_range = building_arrow_range(b);
+		d.repeat_time = ai.repeat_time;
+		d.arrows = building_arrow_count(b);
+		float def = (float)ai.default_arrows;
+		float per_unit = ai.garrison_arrow_multiplier;
+		if (owned) {
+			const TechMods &m = tech_mods(b.team);
+			def = def * m.bld_arrow_mul[b.type] + m.bld_arrow_add[b.type];
+			per_unit *= m.bld_garrison_arrows[b.type];
+		}
+		d.default_arrows = (int)std::lround(def);
+		d.per_unit = per_unit;
+		if (b.garrison_cap > 0) {
+			int limit = d.default_arrows + (int)std::lround(per_unit * b.garrison_cap);
+			if (ai.max_arrows > 0) limit = std::min(limit, (int)ai.max_arrows);
+			d.projectile_limit = std::max(limit, 0);
+		}
+	}
+	if (b.garrison_cap > 0) d.heal = structure_garrison_heal(b);
+	if (owned) d.pop_bonus = structure_pop_bonus(b.type, b.team);
+	if (const TurretPointSet *t = turret_points_of(b)) d.turrets = t->count;
+	d.trickles = structure_trickle_rates(b, d.trickle);
+	return d;
+}
+
 float Simulation::building_arrow_range(const Building &b) const {
 	const BuildingAIInfo &ai = building_ai_info(b.type);
 	if (!ai.shoots()) return 0.0f;
@@ -7632,14 +7674,26 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	}
 }
 
-std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t building_id) const {
+std::vector<uint32_t> Simulation::holder_contents(uint32_t holder_id, uint8_t *holder_owner) const {
+	if (auto bit = building_id_to_idx_.find(holder_id); bit != building_id_to_idx_.end()) {
+		const Building &b = buildings_[bit->second];
+		if (holder_owner) *holder_owner = b.team;
+		return b.garrisoned_units;
+	}
+	const int32_t t = lookup_unit(holder_id);
+	if (t < 0 || !units_.alive[t] || !is_transport(holder_id)) return {};
+	if (holder_owner) *holder_owner = units_.team[t];
+	const auto pit = transport_passengers_.find(holder_id);
+	return pit == transport_passengers_.end() ? std::vector<uint32_t>() : pit->second;
+}
+
+std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t holder_id) const {
+	uint8_t owner = 0xFF;
+	std::vector<uint32_t> inside = holder_contents(holder_id, &owner);
+	if (owner == player || inside.empty()) return inside;
 	std::vector<uint32_t> out;
-	auto bit = building_id_to_idx_.find(building_id);
-	if (bit == building_id_to_idx_.end()) return out;
-	const Building &b = buildings_[bit->second];
-	if (b.team == player) return b.garrisoned_units;
-	if (!is_ally(player, b.team)) return out;
-	for (uint32_t uid : b.garrisoned_units)
+	if (!is_ally(player, owner)) return out;
+	for (uint32_t uid : inside)
 		if (const int32_t i = lookup_unit(uid); i >= 0 && units_.team[i] == player) out.push_back(uid);
 	return out;
 }
@@ -7743,7 +7797,8 @@ bool Simulation::fauna_selectable_by(uint8_t player, uint32_t fauna_id) const {
 void Simulation::order_fauna_walk(uint8_t player, const uint32_t *ids, size_t count, float x, float z, uint32_t corral_id) {
 	// "garrison": the player's own finished corral with room, else a plain walk to it.
 	auto bit = building_id_to_idx_.find(corral_id);
-	if (bit == building_id_to_idx_.end() || buildings_[bit->second].team != player || buildings_[bit->second].type != BLD_CORRAL ||
+	// Garrisonable: a mutual ally's corral takes the player's livestock too.
+	if (bit == building_id_to_idx_.end() || !is_ally(buildings_[bit->second].team, player) || buildings_[bit->second].type != BLD_CORRAL ||
 	    buildings_[bit->second].build_progress < 1.0f || buildings_[bit->second].hp <= 0.0f)
 		corral_id = 0;
 	x = std::clamp(x, -map_half_ + 2.0f, map_half_ - 2.0f);
@@ -11729,6 +11784,25 @@ void Simulation::tick_combat(float dt) {
 					found_wild = f;
 				}
 			}
+			// An enemy's livestock: UnitAI's attack filter takes any entity a player owns.
+			for (uint16_t f : herd) {
+				if (!hunts) break;
+				if (!can_attack(units_.team[i], fauna_owner_[f])) continue;
+				const float dx = fauna_.pos_x[f] - pxi, dz = fauna_.pos_z[f] - pzi;
+				const float d2 = dx * dx + dz * dz;
+				if (d2 > scan_range * scan_range || d2 < minr * minr) continue;
+				if (stance == STANCE_DEFENSIVE) {
+					const float hx = fauna_.pos_x[f] - anc_x, hz = fauna_.pos_z[f] - anc_z;
+					if (hx * hx + hz * hz >= held_lim * held_lim) continue;
+				}
+				if (PREF_NONE < best_pref || (PREF_NONE == best_pref && d2 < best_unit_d2)) {
+					best_pref = PREF_NONE;
+					best_unit_d2 = d2;
+					found = -1;
+					found_bld = -1;
+					found_wild = f;
+				}
+			}
 		}
 
 		if (found_wild >= 0) {
@@ -11936,6 +12010,14 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
+		// A razed structure stays as a wreck (rubble), where 0 A.D. destroys the entity: its
+		// attackers' target is gone, as above. Arrows on the way razing it, or another unit
+		// felling it, would otherwise leave archers shooting at rubble and melee units looting it again.
+		if (b.wrecked || b.hp <= 0.0f) {
+			units_.target_building_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
 		const bool capture = capture_strength > 0.0f && units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 		if (!capture && (!can_attack(units_.team[i], b.team) || units_.attack_damage[i] <= 0.0f ||
 				!unit_can_target_building(i, b.type))) { // dogs never attack structures, rams never fields
@@ -12780,6 +12862,8 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 			}
 		}
 		stat_building_captured(b, from);
+		// GarrisonHolder.OnGlobalOwnershipChanged: livestock its new owner may not keep leaves.
+		if (b.type == BLD_CORRAL) eject_corral_animals(b, true);
 		owner = best;
 		raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) cc_captures_.push_back({b.id, from, b.team});
@@ -13853,6 +13937,49 @@ Simulation::ResourceView Simulation::resources() const {
 	};
 }
 
+// ResourceTrickle.js: the Rates `b` adds to its owner every TRICKLE_STRUCTURE_INTERVAL seconds, after
+// its owner's technologies and global auras; false for a structure with no ResourceTrickle.
+bool Simulation::structure_trickle_rates(const Building &b, float rate[RES_COUNT]) const {
+	static constexpr uint8_t kTrickleRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	auto is_player_trickle = [](const TechEffect &e) {
+		return e.stat >= TSTAT_TRICKLE_FOOD && e.stat <= TSTAT_TRICKLE_METAL && e.affects_count == 0;
+	};
+	for (int r = 0; r < RES_COUNT; ++r) rate[r] = 0.0f;
+	if (b.team >= MAX_PLAYERS) return false;
+	if (b.type == BLD_WONDER) {
+		rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
+	} else if (b.type == BLD_ICE_HOUSE) {
+		rate[RES_FOOD] = 1.0f;
+	} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
+		// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
+		rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
+	} else if (b.type == BLD_TACHARA) {
+		// structures/pers/tachara.xml: every Rate 0, which modifiers can still raise.
+	} else {
+		return false;
+	}
+	const PlayerState &ps = players_[b.team];
+	const TechClasses classes = building_tech_classes(b.type);
+	for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+		if (!ps.has_tech(id)) continue;
+		const TechInfo &ti = tech_info(id);
+		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+		for (uint16_t k = 0; k < ti.effect_count; ++k) {
+			const TechEffect &e = fx[k];
+			if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || is_player_trickle(e)
+			    || !tech_effect_applies(e, classes)) continue;
+			float &v = rate[kTrickleRes[e.stat - TSTAT_TRICKLE_FOOD]];
+			v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
+		}
+	}
+	// Global auras with no classes (Macedonian Financial Reorganization, +1 metal) modify
+	// every owned ResourceTrickle that lists the resource: the wonder's and each tachara's
+	// Rates name all four; the ice house's names food only.
+	if (b.type != BLD_ICE_HOUSE)
+		for (int r = 0; r < RES_COUNT; ++r) rate[r] += tech_mods_[b.team].trickle_add[r];
+	return true;
+}
+
 void Simulation::tick_trickle(float dt) {
 	(void)dt;
 	// 0 A.D. ResourceTrickle.js: each trickling entity adds its Rates to its owner every
@@ -13909,42 +14036,13 @@ void Simulation::tick_trickle(float dt) {
 	// (Subterranean Aqueducts: ice houses +1 food). A corral's own rate is 0; each
 	// garrisoned animal adds 1, 2 or 3 food every 5 s by its size
 	// (corral_garrison_{small,medium,large}.json).
-	const bool two_s = due(2.0f), corral_due = due(CORRAL_TRICKLE_INTERVAL);
+	const bool two_s = due(TRICKLE_STRUCTURE_INTERVAL), corral_due = due(CORRAL_TRICKLE_INTERVAL);
 	if (two_s) {
 		for (const auto &b : buildings_) {
 			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			float rate[RES_COUNT] = {};
-			if (b.type == BLD_WONDER) {
-				rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
-			} else if (b.type == BLD_ICE_HOUSE) {
-				rate[RES_FOOD] = 1.0f;
-			} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
-				// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
-				rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
-			} else if (b.type == BLD_TACHARA) {
-				// structures/pers/tachara.xml: every Rate 0, which modifiers can still raise.
-			} else {
-				continue;
-			}
+			float rate[RES_COUNT];
+			if (!structure_trickle_rates(b, rate)) continue;
 			PlayerState &ps = players_[b.team];
-			const TechClasses classes = building_tech_classes(b.type);
-			for (uint8_t id = 1; id < TECH_COUNT; ++id) {
-				if (!ps.has_tech(id)) continue;
-				const TechInfo &ti = tech_info(id);
-				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
-				for (uint16_t k = 0; k < ti.effect_count; ++k) {
-					const TechEffect &e = fx[k];
-					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || is_player_trickle(e)
-					    || !tech_effect_applies(e, classes)) continue;
-					float &v = rate[kTrickleRes[e.stat - TSTAT_TRICKLE_FOOD]];
-					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
-				}
-			}
-			// Global auras with no classes (Macedonian Financial Reorganization, +1 metal) modify
-			// every owned ResourceTrickle that lists the resource: the wonder's and each tachara's
-			// Rates name all four; the ice house's names food only.
-			if (b.type != BLD_ICE_HOUSE)
-				for (int r = 0; r < RES_COUNT; ++r) rate[r] += tech_mods_[b.team].trickle_add[r];
 			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += rate[r];
 		}
 	}
@@ -13975,10 +14073,12 @@ int Simulation::corral_count(uint32_t corral_id) const {
 }
 
 // GarrisonHolder Eject for the animals penned in `b`: each steps out beside it and grazes.
-void Simulation::eject_corral_animals(const Building &b) {
+void Simulation::eject_corral_animals(const Building &b, bool unallied_only) {
 	int k = 0;
 	for (size_t f = 0; f < fauna_.count; ++f) {
 		if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED || fauna_.corral_id[f] != b.id) continue;
+		// Gaia livestock (RTS0 herding) belongs to whoever holds the pen; it stays.
+		if (unallied_only && (fauna_owner_[f] >= MAX_PLAYERS || is_ally(fauna_owner_[f], b.team))) continue;
 		float ex = b.x + 1.6f, ez = b.z + 1.6f;
 		pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, ex, ez);
 		fauna_.pos_x[f] = ex + 0.3f * (float)(k % 3 - 1); // spread the herd over the spawn point
@@ -27977,8 +28077,8 @@ uint8_t Simulation::fow_state_at(float x, float z, uint8_t viewer_team) const {
 }
 
 bool Simulation::is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team) const {
-	// Teams and reciprocal alliances expose allied entities, never enemies.
-	if (is_ally(viewer_team, entity_team)) return true;
+	// Own entities, and an ally's once sight is shared (Cartography); the rest only in sight.
+	if (shares_los(viewer_team, entity_team)) return true;
 	return fow_state_at(x, z, viewer_team) == FOW_VISIBLE;
 }
 
@@ -28231,16 +28331,23 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, 
 	const bool ship = unit_is_ship(units_.unit_type[i]);
 	uint32_t best = 0;
 	float best_d2 = std::min(max_d2, NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE);
+	const bool fog = los_.cells() != 0;
 	for (size_t f = 0; f < fauna_.count; ++f) {
 		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0) continue;
 		const uint8_t b = fauna_.behavior[f];
 		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED || b == FAUNA_MOVING) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-		if (info.is_dangerous() || info.is_naval() != ship) continue;
+		// FINDINGNEWTARGET takes meat of the same template only, so a dangerous animal just
+		// when the hunter was already after that kind.
+		if ((info.is_dangerous() && fauna == 0) || info.is_naval() != ship) continue;
 		if (fauna != 0 && fauna_.fauna_type[f] + 1 != fauna) continue;
 		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
 		const float d2 = dx * dx + dz * dz;
-		if (d2 < best_d2) { best_d2 = d2; best = fauna_.id[f]; }
+		if (d2 >= best_d2) continue;
+		// CheckTargetVisible: animals don't stay in the fog, so the hunter must see it now.
+		if (fog && !los_visible(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])) continue;
+		best_d2 = d2;
+		best = fauna_.id[f];
 	}
 	return best;
 }
@@ -29659,7 +29766,7 @@ void Simulation::rebuild_auras() {
 	// Kushite pyramids and Temple of Amun, the Mauryan pillar, the civ temples' healing).
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.team >= MAX_PLAYERS) continue;
-		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE) { // the shrines keep the temple's Auras
+		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE || b.type == BLD_TEMPLE_ISIS) { // temple_2 and the shrines keep the temple's Auras
 			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
 				b.x, b.z, -1, CC_HUMAN);
 		}

@@ -374,8 +374,19 @@ public:
 	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
+	uint32_t selected_garrison_holder() const;
+	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
+	// AutoFormation.js setDefault: right-click on a formation button; the hotkey
+	// session.toggledefaultformation switches between none and the last one used.
+	void _on_formation_gui_input(const Ref<InputEvent> &event, int formation);
+	void set_default_formation(uint8_t formation);
+	void toggle_default_formation();
+	// AutoFormation.getDefault on a walk or patrol: units in no formation are put
+	// into the default one first (Commands.js GetFormationUnitAIs).
+	void apply_default_formation(const uint32_t *ids, size_t n);
+	uint8_t last_default_formation_ = rtso::FORMATION_BOX;
 	void _on_train_pressed(int utype);
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
 	void _on_roster_gui_input(const Ref<InputEvent> &event);
@@ -545,7 +556,10 @@ public:
 	Dictionary debug_selection_state();
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
-	PackedInt32Array debug_spawn_units(const String &template_id, int count);
+	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
+	void debug_select_entity(int64_t id);
+	int64_t debug_civic_centre_id(int player) const;
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);

@@ -214,6 +214,8 @@ public:
 		if (player < MAX_PLAYERS && ((defeated_mask_ >> player) & 1)) return revealed_fow_.data();
 		// So does a multiplayer observer, which has no player (0xFF).
 		if (player == 0xFF) return revealed_fow_.data();
+		// Player.js: the winners' map is revealed too (SetLosRevealAll).
+		if (player < MAX_PLAYERS && is_victory_for(player) && !revealed_fow_.empty()) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
 		return unexplored_fow_.data();
@@ -818,8 +820,12 @@ public:
 	// Commands.js unload / unload-all-by-owner: the holder's owner may unload anyone; an
 	// ally only its own units. count 0 unloads every unit `player` may unload.
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
-	// The garrisoned units `player` may unload from `building_id` under those rules.
-	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t building_id) const;
+	// The units in a structure's garrison or aboard a ship, ram or siege tower (GarrisonHolder
+	// GetEntities), and the holder's owner; empty if holder_id is neither.
+	std::vector<uint32_t> holder_contents(uint32_t holder_id, uint8_t *holder_owner = nullptr) const;
+	// What `player` may unload from a holder (Commands.js unload): all of it from its own, its
+	// own units from a mutual ally's.
+	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t holder_id) const;
 	// Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).
 	int corral_count(uint32_t corral_id) const;
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
@@ -895,6 +901,29 @@ public:
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
 	float building_arrow_range(const Building &b) const;
+	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
+	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
+	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
+	struct StructureDetails {
+		bool shoots = false;
+		float damage[3] = {};       // BuildingAI's Attack/Ranged/Damage: hack, pierce, crush
+		float min_range = 0.0f, max_range = 0.0f; // RTS0 units, from the structure's edge
+		float repeat_time = 0.0f;   // seconds
+		int arrows = 0;             // BuildingAI.GetArrowCount now
+		int default_arrows = 0;     // DefaultArrowCount
+		float per_unit = 0.0f;      // GarrisonArrowMultiplier
+		int projectile_limit = 0;   // min(MaxArrowCount, default + round(per unit x capacity)); 0 = none
+		float heal = 0.0f;          // GarrisonHolder BuffHeal, hitpoints per second
+		int pop_bonus = 0;          // Population/Bonus
+		int turrets = 0;            // TurretHolder points
+		bool trickles = false;
+		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per TRICKLE_STRUCTURE_INTERVAL
+	};
+	StructureDetails structure_details(const Building &b) const;
+	static constexpr float TRICKLE_STRUCTURE_INTERVAL = 2.0f; // the wonder's, ice house's and tachara's Interval 2000
+	// ResourceTrickle.js Rates of `b` after its owner's technologies and global auras; false
+	// when it has no ResourceTrickle.
+	bool structure_trickle_rates(const Building &b, float rate[RES_COUNT]) const;
 	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
 	void structure_resistance(const Building &b, float out[3]) const;
 	void unit_resistance(size_t i, float out[3]) const;
@@ -2281,7 +2310,8 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	void eject_corral_animals(const Building &b);
+	// unallied_only: those whose owner is not allied with the corral's (GarrisonHolder.OnGlobalOwnershipChanged).
+	void eject_corral_animals(const Building &b, bool unallied_only = false);
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,

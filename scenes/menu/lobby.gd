@@ -775,6 +775,12 @@ func _on_host_pressed(saved := false) -> void:
 		_say("Type a port for the game.")
 		return
 	var who := _player_name()
+	var game_name := _host_name.text.strip_edges() if _host_name.text.strip_edges() != "" else who + "'s game"
+	# gamesetup_mp.js: a game name another host already lists is refused.
+	for r in _rooms:
+		if str(r.get("name", "")) == game_name and str(r.get("host_name", "")) != who:
+			_say("Game name already in use.")
+			return
 	MatchSettings.net_mode = "host"
 	MatchSettings.net_lobby = LobbySession.address
 	MatchSettings.net_player_name = who
@@ -792,11 +798,12 @@ func _on_host_pressed(saved := false) -> void:
 			MatchSettings.net_mode = "")
 		return
 	if LobbySession.signed_in():
-		# The same id main_node registers, so both update one entry.
+		# The same id main_node registers, so both update one entry (the lobby
+		# matches main_node's untokened post to it by address).
 		LobbySession.host_game({
 			"id": "room-%d" % port,
 			"host_port": port,
-			"name": _host_name.text.strip_edges() if _host_name.text.strip_edges() != "" else who + "'s game",
+			"name": game_name,
 			"host_name": who,
 			"map_id": MatchSettings.map_id,
 			"map_name": MatchSettings.map_id.replace("_", " ").capitalize(),

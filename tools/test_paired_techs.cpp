@@ -56,7 +56,7 @@ int main() {
 			CHECK(tech_info(p[0]).researcher == tech_info(p[1]).researcher);
 		}
 		CHECK(tech_pair_partner(TECH_SUBTERRANEAN_AQUEDUCTS) == TECH_NONE);
-		CHECK(tech_info(TECH_SERAPIS_CULT).researcher == BLD_TEMPLE);
+		CHECK(tech_info(TECH_SERAPIS_CULT).researcher == BLD_TEMPLE_ISIS);
 		CHECK(tech_info(TECH_CIVIL_ENGINEERING_01).researcher == BLD_MINISTRY);
 		CHECK(tech_info(TECH_GATHER_AHIMSA).researcher == BLD_FARMSTEAD);
 		CHECK(tech_available_to_civ(TECH_SERAPIS_CULT, CIV_PTOLEMIES));
@@ -65,12 +65,12 @@ int main() {
 
 	static Simulation s;
 
-	// 2. Ptolemies start Serapis Cult: Pharaonic Cult is refused at any temple, while it
+	// 2. Ptolemies start Serapis Cult: Pharaonic Cult is refused at any Temple of Isis, while it
 	//    runs and after; Serapis then pays +2 metal a second, and nothing to the enemy.
 	{
 		fresh(s, CIV_PTOLEMIES);
-		const uint32_t t1 = s.spawn_building_world(-30.0f, -20.0f, BLD_TEMPLE, 0, 1.0f);
-		const uint32_t t2 = s.spawn_building_world(-20.0f, -30.0f, BLD_TEMPLE, 0, 1.0f);
+		const uint32_t t1 = s.spawn_building_world(-30.0f, -20.0f, BLD_TEMPLE_ISIS, 0, 1.0f);
+		const uint32_t t2 = s.spawn_building_world(-20.0f, -30.0f, BLD_TEMPLE_ISIS, 0, 1.0f);
 		CHECK(s.research_check(0, TECH_PHARAONIC_CULT, t2) == Simulation::TECH_OK);
 		CHECK(s.cmd_research(0, t1, TECH_SERAPIS_CULT));
 		CHECK(s.research_check(0, TECH_PHARAONIC_CULT, t2) == Simulation::TECH_ERR_PAIRED);
@@ -99,7 +99,7 @@ int main() {
 	// 3. The other Ptolemaic pick: Pharaonic Cult gives heroes +2 hp a second.
 	{
 		fresh(s, CIV_PTOLEMIES);
-		const uint32_t t1 = s.spawn_building_world(-30.0f, -20.0f, BLD_TEMPLE, 0, 1.0f);
+		const uint32_t t1 = s.spawn_building_world(-30.0f, -20.0f, BLD_TEMPLE_ISIS, 0, 1.0f);
 		CHECK(s.cmd_research(0, t1, TECH_PHARAONIC_CULT));
 		run(s, 51.0f);
 		CHECK(s.players_[0].has_tech(TECH_PHARAONIC_CULT));

@@ -168,6 +168,79 @@ inline String speed_tooltip(const Simulation::UnitDetails &d) {
 }
 
 // getGarrisonTooltip for a holder: "Garrison Limit: 20".
+// getAttackTooltip for a structure's BuildingAI: "Bow: 12.0 Pierce, Range: 60 meters, Rate: 3
+// arrows / 2 seconds", or "Garrison to fire arrows" while it has none (attackRateDetails).
+inline String structure_attack_tooltip(const float damage[3], float min_m, float max_m, float repeat_s, int projectiles) {
+	String effects;
+	for (int k = 0; k < 3; ++k) {
+		if (damage[k] <= 0.0f) continue;
+		if (!effects.is_empty()) effects += comma();
+		effects += sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(damage[k], 1)}, {"damageType", damage_type_name(k)}});
+	}
+	String rate;
+	if (projectiles == 0) {
+		rate = tr0("Garrison to fire arrows");
+	} else {
+		const String secs = sprintf0(tr0("%(time)s %(second)s"),
+				{{"time", String::num(repeat_s, 2)}, {"second", tr0(repeat_s == 1.0f ? "second" : "seconds")}});
+		if (projectiles > 1)
+			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Rate:")},
+					{"details", sprintf0(tr0("%(projectileString)s / %(attackRateString)s"),
+							{{"projectileString", sprintf0(tr0("%(projectileCount)s %(projectileName)s"),
+									{{"projectileCount", num(projectiles)}, {"projectileName", tr0(projectiles == 1 ? "arrow" : "arrows")}})},
+							 {"attackRateString", secs}})}});
+		else
+			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", secs}});
+	}
+	const String line = sprintf0(tr0("%(attackLabel)s: %(effects)s, %(range)s, %(rate)s%(statusEffects)s%(splash)s"),
+			{{"attackLabel", tr0("Bow")}, {"effects", effects}, {"range", range_details(min_m, max_m)}, {"rate", rate},
+			 {"statusEffects", ""}, {"splash", ""}});
+	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", tr0("Attack:")}, {"details", "  " + line}});
+}
+
+// getGarrisonTooltip's heal line: "Heal: 1 Health / second".
+inline String garrison_heal_tooltip(float heal) {
+	if (heal <= 0.0f) return String();
+	return sprintf0(tr0("%(healRateLabel)s %(value)s %(health)s / %(second)s"),
+			{{"healRateLabel", tr0("Heal:")}, {"value", num((int64_t)std::lround(heal))}, {"health", tr0("Health")}, {"second", tr0("second")}});
+}
+
+// getTurretsTooltip: "Turret Positions: 4".
+inline String turrets_tooltip(int count) {
+	if (count <= 0) return String();
+	return sprintf0(tr0("%(label)s: %(turretsLimit)s"), {{"label", tr0("Turret Positions")}, {"turretsLimit", num(count)}});
+}
+
+// getPopulationBonusTooltip: "Population Bonus: 10".
+inline String population_bonus_tooltip(int bonus) {
+	if (bonus <= 0) return String();
+	return sprintf0(tr0("%(label)s %(bonus)s"), {{"label", tr0("Population Bonus:")}, {"bonus", num(bonus)}});
+}
+
+// getProjectilesTooltip: "Projectile Limit: 23, Default: 3, Per Unit: 1".
+inline String projectiles_tooltip(int limit, int default_arrows, float per_unit) {
+	if (limit <= 0) return String();
+	auto part = [](const char *label, const String &v) { return sprintf0(tr0("%(label)s: %(value)s"), {{"label", tr0(label)}, {"value", v}}); };
+	return part("Projectile Limit", num(limit)) + comma() + part("Default", num(default_arrows)) + comma() +
+			part("Per Unit", String::num(std::round(per_unit * 100.0f) / 100.0f));
+}
+
+// getResourceTrickleTooltip: "Resource Trickle: Food 1  Wood 1 / 2 seconds".
+inline String trickle_tooltip(const float rate[RES_COUNT], float interval_s) {
+	static const uint8_t kOrder[] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	String res;
+	for (uint8_t r : kOrder) {
+		if (rate[r] == 0.0f) continue;
+		if (!res.is_empty()) res += "  ";
+		res += sprintf0(tr0("%(resourceIcon)s %(rate)s"), {{"resourceIcon", resource_name(r)}, {"rate", String::num(rate[r])}});
+	}
+	if (res.is_empty()) return String();
+	const String secs = sprintf0(tr0("%(time)s %(second)s"),
+			{{"time", String::num(interval_s, 2)}, {"second", tr0(interval_s == 1.0f ? "second" : "seconds")}});
+	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Resource Trickle:")},
+			{"details", sprintf0(tr0("%(resources)s / %(time)s"), {{"resources", res}, {"time", secs}})}});
+}
+
 inline String garrison_limit_tooltip(int capacity) {
 	if (capacity <= 0) return String();
 	return sprintf0(tr0("%(label)s: %(garrisonLimit)s"), {{"label", tr0("Garrison Limit")}, {"garrisonLimit", num(capacity)}});

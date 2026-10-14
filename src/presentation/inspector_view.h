@@ -332,6 +332,8 @@ public:
 	}
 
 	// False when the inspected entity is gone or out of sight.
+	godot::GridContainer *garrison_grid_view() const { return garrison_grid_.grid(); }
+
 	bool fill_inspected_details() {
 		rtso::Simulation *sim = host_->ui_sim();
 		if (!sim || kind_ == INSPECT_NONE) return false;
@@ -577,10 +579,10 @@ public:
 				else if (!found_b->queue.empty())
 					status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
 							" in queue" + (found_b->autoqueue ? " (autoqueue on)" : "") + " (click a slot to cancel)";
-				if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(found_b->type); ai.shoots())
-					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sim->building_arrow_count(*found_b)) + " arrows of " +
-							String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
-							String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
+				if (const rtso::Simulation::StructureDetails sd = sim->structure_details(*found_b); sd.shoots)
+					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sd.arrows) + " arrows of " +
+							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
+							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 				stats_->set_text(status);
 				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
 				// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
@@ -591,16 +593,9 @@ public:
 							String::num_int64(rtso::CORRAL_GARRISON_MAX);
 				extra_->set_text(extra);
 
-				// Garrison panel: one icon per unit type inside, click to unload one,
-				// Shift+click (session.unloadtype) to unload that type, U unloads all. On an ally's
-				// structure only our own units inside (Commands.js unload / unload-all-by-owner).
+				// Garrison panel; U unloads all we may (Commands.js unload / unload-all-by-owner).
 				const std::vector<uint32_t> mine = sim->unloadable_by(host_->local_player(), found_b->id);
-				if (!mine.empty()) {
-					auto uview = sim->units();
-					garrison_grid_.update(RtsoSelectionGrid::group_units(uview, mine.data(), mine.size()),
-							"Click to unload one, Shift+click to unload all of this type.");
-					show_garrison_grid = true;
-				}
+				show_garrison_grid = fill_garrison_grid(*sim, found_b->id);
 				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
 				ungarrison_btn_->set_visible(!mine.empty() || (penned > 0 && owner == host_->local_player()));
 				panel_->set_visible(true);
@@ -713,7 +708,8 @@ public:
 				const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
 				extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(sim->get_transport_capacity((uint32_t)selected_ids[0]));
 				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-				ungarrison_btn_->set_visible(p_count > 0);
+				ungarrison_btn_->set_visible(!sim->unloadable_by(host_->local_player(), (uint32_t)selected_ids[0]).empty());
+				show_garrison_grid = fill_garrison_grid(*sim, (uint32_t)selected_ids[0]);
 			} else {
 				ungarrison_btn_->set_visible(false);
 			}
@@ -808,9 +804,25 @@ private:
 	// BuildingAI), resistance and garrison limit (getGarrisonTooltip).
 	static String structure_tooltip(const rtso::Simulation &sim, const rtso::Simulation::Building &b) {
 		using namespace rtso::seldet;
+		// displaySingle's detailedTooltip: attack, resistance, garrison, turrets, population
+		// bonus, projectiles, resource trickle and loot.
 		float res[3];
 		sim.structure_resistance(b, res);
-		return join_lines({resistance_tooltip(res), garrison_limit_tooltip(b.garrison_cap)});
+		const rtso::Simulation::StructureDetails d = sim.structure_details(b);
+		constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+		const String attack = d.shoots ? structure_attack_tooltip(d.damage, d.min_range * kM, d.max_range * kM, d.repeat_time,
+				d.arrows ? d.arrows : d.default_arrows) : String();
+		const rtso::LootInfo l = rtso::structure_loot(b.type, b.civ, b.half_size);
+		Amounts loot;
+		loot.res[rtso::RES_FOOD] = l.food;
+		loot.res[rtso::RES_WOOD] = l.wood;
+		loot.res[rtso::RES_STONE] = l.stone;
+		loot.res[rtso::RES_GOLD] = l.metal;
+		loot.xp = l.xp;
+		return join_lines({attack, resistance_tooltip(res), garrison_limit_tooltip(b.garrison_cap), garrison_heal_tooltip(d.heal),
+				turrets_tooltip(d.turrets), population_bonus_tooltip(d.pop_bonus),
+				projectiles_tooltip(d.projectile_limit, d.default_arrows, d.per_unit),
+				d.trickles ? trickle_tooltip(d.trickle, rtso::Simulation::TRICKLE_STRUCTURE_INTERVAL) : String(), loot_tooltip(loot)});
 	}
 	static String flora_title(uint8_t flora) {
 		static const char *const kNames[] = {"Tree", "Tree", "Pine", "Date Palm", "Oak", "Baobab", "Acacia", "Bamboo", "Bush",
@@ -895,6 +907,37 @@ private:
 	godot::Button *ungarrison_btn_ = nullptr;
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
+
+	// g_SelectionPanels.Garrison for a structure, ship, ram or siege tower: up to 12 icons,
+	// one per template and owner, on the owner's colour. A click unloads one (Shift: all of
+	// that type) when we own the holder or the units; others' units show disabled and grey
+	// (not grey for an observer). False when nothing is inside.
+	bool fill_garrison_grid(const rtso::Simulation &sim, uint32_t holder) {
+		using namespace godot;
+		uint8_t holder_owner = 0xFF;
+		const std::vector<uint32_t> inside = sim.holder_contents(holder, &holder_owner);
+		if (inside.empty()) return false;
+		auto uview = sim.units();
+		std::vector<RtsoSelectionGrid::Group> groups = RtsoSelectionGrid::group_units(uview, inside.data(), inside.size(), true);
+		if (groups.size() > 12) groups.resize(12);
+		const uint8_t me = host_->local_player();
+		const bool observer = me >= rtso::MAX_PLAYERS;
+		for (auto &g : groups) {
+			g.enabled = !observer && (me == holder_owner || me == g.player);
+			g.grey = !observer;
+			const uint32_t rgb = rtso::display_colors::rgb(sim, g.player);
+			g.bg = Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 160.0f / 255.0f);
+			const auto &info = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(g.tmpl, g.unit_type) : rtso::unit_type_info(g.unit_type);
+			const char *specific = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(g.tmpl).specific_name : nullptr;
+			const String names = rtso::entity_names(String::utf8(info.name), String::utf8(specific ? specific : ""));
+			g.tip = (g.enabled ? rtso::sprintf0(rtso::tr0("Unload %(name)s"), {{"name", names}}) + String("\n") +
+							rtso::tr0("Single-click to unload 1. Shift-click to unload all of this type.")
+						: names) + String("\n") +
+					rtso::sprintf0(rtso::tr0("Player: %(playername)s"), {{"playername", host_->player_display_name(g.player)}});
+		}
+		garrison_grid_.update(groups, "");
+		return true;
+	}
 };
 
 #endif // RTSO_INSPECTOR_VIEW_H
