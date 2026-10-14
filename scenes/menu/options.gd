@@ -63,6 +63,8 @@ const SCHEMA := [
 		["boolean", "waterrealdepth", "Real water depth", "Use actual water depth in rendering calculations."],
 		["dropdown", "textures.quality", "Texture quality", "Decrease texture quality making them blurrier but increases game performance.",
 			[["Low", "0"], ["Medium", "1"], ["High", "2"]]],
+		["dropdown", "textures.maxanisotropy", "Texture anisotropic filter", "Makes textures look better, especially terrain. If the anisotropic filter value is unsupported it will be set to the max supported value.",
+			[["1x", "1"], ["2x", "2"], ["4x", "4"], ["8x", "8"], ["16x", "16"]]],
 	]],
 	["Sound", [
 		["slider", "sound.mastergain", "Master volume", "Master audio gain.", [0, 2]],

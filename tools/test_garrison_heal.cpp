@@ -187,6 +187,18 @@ int main() {
 		CHECK(s.units().stance[ei] == STANCE_PASSIVE);
 	}
 
+	// 6c. Builder (mixins/builder via template_unit_infantry): mercenary infantry build though they
+	//     cannot gather; the Neodamodes, champions and mercenary cavalry do not.
+	CHECK(unit_can_build(UNIT_ARCHER, tmpl_of("athen/infantry_archer_b")));
+	CHECK(unit_can_build(UNIT_SWORDSMAN, tmpl_of("ptol/infantry_swordsman_merc_b")));
+	CHECK(!unit_can_build(UNIT_SPEARMAN, tmpl_of("spart/infantry_spearman_neodamodes")));
+	CHECK(!unit_can_build(UNIT_SWORDSMAN, tmpl_of("germ/champion_infantry_maceman")));
+	CHECK(!unit_can_build(UNIT_CAVALRY, tmpl_of("cart/cavalry_spearman_ital_b")));
+	// MinRange (0.28): bolt shooters 15 of 80, the onager 20 of 60, siege towers none.
+	CHECK(std::fabs(unit_min_range_ratio(UNIT_BOLT_SHOOTER, tmpl_of("rome/siege_scorpio_packed")) - 15.0f / 80.0f) < 1e-6f);
+	CHECK(std::fabs(unit_min_range_ratio(UNIT_CATAPULT, tmpl_of("rome/siege_onager_packed")) - 20.0f / 60.0f) < 1e-6f);
+	CHECK(unit_min_range_ratio(UNIT_BOLT_SHOOTER, tmpl_of("mace/siege_tower")) == 0.0f);
+
 	// 7. Han ministry BuffHeal 1.
 	CHECK(building_garrison_heal(BLD_MINISTRY) == 1.0f);
 
@@ -220,7 +232,7 @@ int main() {
 		CHECK(find_bld(s, enemy)->hp <= find_bld(s, enemy)->max_hp * 0.5f);
 	}
 
-	// 10. rome/siege_scorpio_packed: Pack/Time 5 s instead of 10.
+	// 10. 0.28 Pack/Time is 5 s for every stone thrower and bolt shooter, the scorpio included.
 	{
 		fresh(s);
 		const uint16_t sc = tmpl_of("rome/siege_scorpio_packed");
@@ -228,7 +240,7 @@ int main() {
 		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, sc);
 		uint32_t b = s.spawn_unit(3.0f, 0.0f, 0, UNIT_BOLT_SHOOTER);
 		CHECK(std::fabs(s.pack_time_s(idx_of(s, a)) - 5.0f) < 1e-4f);
-		CHECK(std::fabs(s.pack_time_s(idx_of(s, b)) - 10.0f) < 1e-4f);
+		CHECK(std::fabs(s.pack_time_s(idx_of(s, b)) - 5.0f) < 1e-4f);
 	}
 
 	// 11. GarrisonHolder/Max per template (template_structure_*.xml, structures/<civ>/*.xml).
