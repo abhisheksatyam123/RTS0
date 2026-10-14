@@ -277,25 +277,22 @@ int main() {
 	}
 
 	// 7c. Chase leash (ShouldAbandonChase): an animal has no held position, so a hold-ground
-	// (passive-defensive) boar keeps after a target well past vision / 2 + attack range of
-	// where it started and drops it only once it is out of the boar's vision; then it lingers
-	// where it stands.
+	// (passive-defensive) boar approaching its attacker keeps after it well past vision / 2 +
+	// attack range of where it started and drops it only once it is out of the boar's vision;
+	// then it lingers where it stands.
 	{
 		fresh(s);
 		const auto &bi = fauna_type_info(FAUNA_BOAR);
 		CHECK(bi.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE); // respondHoldGround, like defensive
 		uint32_t boar = s.spawn_fauna(0.0f, 0.0f, FAUNA_BOAR);
-		uint32_t u = s.spawn_unit(1.5f, 0.0f, 0, UNIT_SPEARMAN, 1.0e6f);
+		const float far = bi.vision * 0.5f + bi.attack_range + 2.0f;
+		uint32_t u = s.spawn_unit(far, 0.0f, 0, UNIT_SPEARMAN, 1.0e6f);
 		s.order_set_stance(&u, 1, STANCE_PASSIVE);
-		s.fauna_attacked((size_t)fidx(s, boar), u);
-		run(s, 1.0f);
-		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK);
-		s.cmd_stop(&u, 1);
 		s.units_.speed[uidx(s, u)] = 0.0f;
-		// Past the old held-position leash, inside vision: it keeps chasing.
-		s.units_.pos_x[uidx(s, u)] = s.fauna_.pos_x[fidx(s, boar)] + bi.vision * 0.5f + bi.attack_range + 2.0f;
+		s.fauna_attacked((size_t)fidx(s, boar), u);
+		// Past the old held-position leash, inside vision: it keeps approaching.
 		run(s, 0.5f);
-		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK);
+		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK && s.fauna_.pos_x[fidx(s, boar)] > 0.2f);
 		// Out of its vision: it gives up and stays put.
 		s.units_.pos_x[uidx(s, u)] = s.fauna_.pos_x[fidx(s, boar)] + bi.vision + 2.0f;
 		run(s, 0.2f);
@@ -305,6 +302,65 @@ int main() {
 		run(s, 0.5f);
 		CHECK(std::fabs(s.fauna_.pos_x[fidx(s, boar)] - gx) < 0.01f);
 		std::printf("leash: boar vision %.1f, gave up at %.1f and lingered\n", bi.vision, bi.vision + 2.0f);
+	}
+
+	// 7d. respondChase false: once a passive-defensive boar has reached its attacker, a target
+	// that steps out of reach is not chased. At its next swing (ATTACKING OutOfRange) it
+	// finishes the order where it stands; a passive-defensive animal targets no one unprovoked.
+	{
+		fresh(s);
+		const auto &bi = fauna_type_info(FAUNA_BOAR);
+		uint32_t boar = s.spawn_fauna(0.0f, 0.0f, FAUNA_BOAR);
+		uint32_t u = s.spawn_unit(1.5f, 0.0f, 0, UNIT_SPEARMAN, 1.0e6f);
+		s.order_set_stance(&u, 1, STANCE_PASSIVE);
+		s.units_.speed[uidx(s, u)] = 0.0f;
+		s.fauna_attacked((size_t)fidx(s, boar), u);
+		run(s, 1.5f);
+		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK);
+		CHECK(s.units_.hp[uidx(s, u)] < s.units_.max_hp[uidx(s, u)]); // it bit
+		const float bx = s.fauna_.pos_x[fidx(s, boar)];
+		s.units_.pos_x[uidx(s, u)] = bx + bi.attack_range + 4.0f; // out of reach, in vision
+		run(s, bi.attack_cooldown + 0.3f);
+		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_IDLE_GRAZE && s.fauna_.target_unit_id[fidx(s, boar)] == 0);
+		CHECK(std::fabs(s.fauna_.pos_x[fidx(s, boar)] - bx) < 0.01f);
+		run(s, 1.0f);
+		CHECK(s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK);
+		// Hit again, it comes back for the attacker (Attacked -> AttackEntityInZone).
+		s.fauna_attacked((size_t)fidx(s, boar), u);
+		run(s, 0.5f);
+		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK && s.fauna_.pos_x[fidx(s, boar)] > bx + 0.2f);
+	}
+
+	// 7e. A defensive lion in the same spot does not chase either, but FINDINGNEWTARGET looks
+	// again within min(range + vision / 2, vision): a target just out of reach is taken up
+	// again, one further out is left alone.
+	{
+		const auto &li = fauna_type_info(FAUNA_LION);
+		CHECK(li.stance == FAUNA_STANCE_DEFENSIVE);
+		const float q = std::min(li.attack_range + li.vision * 0.5f, li.vision);
+		for (int further = 0; further < 2; ++further) {
+			fresh(s);
+			uint32_t lion = s.spawn_fauna(0.0f, 0.0f, FAUNA_LION);
+			uint32_t u = s.spawn_unit(1.5f, 0.0f, 0, UNIT_SPEARMAN, 1.0e6f);
+			s.order_set_stance(&u, 1, STANCE_PASSIVE);
+			s.units_.speed[uidx(s, u)] = 0.0f;
+			s.fauna_attacked((size_t)fidx(s, lion), u);
+			run(s, 1.5f);
+			CHECK(s.fauna_.behavior[fidx(s, lion)] == FAUNA_ATTACK);
+			const float lx = s.fauna_.pos_x[fidx(s, lion)];
+			const float gap = further ? std::min(q + 2.0f, li.vision - 0.5f) : li.attack_range + 3.0f;
+			s.units_.pos_x[uidx(s, u)] = lx + gap;
+			run(s, li.attack_cooldown + 0.6f);
+			if (further) {
+				CHECK(s.fauna_.behavior[fidx(s, lion)] != FAUNA_ATTACK);
+				CHECK(std::fabs(s.fauna_.pos_x[fidx(s, lion)] - lx) < 0.01f);
+			} else {
+				CHECK(s.fauna_.behavior[fidx(s, lion)] == FAUNA_ATTACK && s.fauna_.target_unit_id[fidx(s, lion)] == u);
+				run(s, 0.5f);
+				CHECK(s.fauna_.pos_x[fidx(s, lion)] > lx + 0.2f);
+			}
+		}
+		std::printf("hold ground: lion re-acquires within %.1f (vision %.1f)\n", q, li.vision);
 	}
 
 	// 7b. Attack.js timing and resistance: a wolf's first bite waits its PrepareTime (1 s), and

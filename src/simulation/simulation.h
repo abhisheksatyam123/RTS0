@@ -162,9 +162,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 71; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 72; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
+	static constexpr uint32_t SAVE_VERSION_TRIGGER_RANGE = 72; // OnRange queries and their collections
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -850,6 +851,7 @@ public:
 	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
 	bool ship_garrison_allowed(size_t ship, size_t unit) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
+	float transport_loading_reach(size_t holder, size_t unit) const;
 	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
 	// this unload are in `taken`), false when there is none; without a passenger, the nearest dry ground.
 	struct SpawnSpot { float x, z, r; };
@@ -1381,6 +1383,9 @@ public:
 		TECH_ERR_DISABLED // the map's trigger script disabled it (cmpPlayer.SetDisabledTechnologies)
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// What researching `tech_id` costs this player at a researcher of `bld_type` (BLD_TYPE_COUNT:
+	// a unit): Researcher/TechCostMultiplier, team bonuses and the Library of Alexandria, as paid.
+	void tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type, float paid[RES_COUNT], float &time) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
 	float healer_range(uint8_t player_id) const;
 	float healer_rate(uint8_t player_id) const; // hit points per second
@@ -1653,7 +1658,7 @@ public:
 	struct Treasure {
 		uint32_t id;
 		float x, z;
-		float collect_progress;   // seconds spent collecting by collector_id
+		float collect_progress;   // the longest collector timer (collector_id), each kept in its pack_elapsed
 		uint32_t collector_id;
 		uint8_t type;             // TreasureType (gaia_data.h)
 		uint8_t pad[3];
@@ -2048,6 +2053,11 @@ private:
 	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	void tick_ship_pickups();
+	void tick_ship_pickup(size_t ship);
+	bool transport_walkers_none() const;
+	bool ship_reachable_by(size_t ship, size_t walker) const;
+	bool petra_steers_ship(uint32_t ship_id) const;
 	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
 	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
@@ -2124,7 +2134,7 @@ private:
 	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
-	bool line_crosses_impassable(float x0, float z0, float x1, float z1) const;
+	bool line_crosses_impassable(float x0, float z0, float x1, float z1, bool ship = false) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -2461,6 +2471,7 @@ private:
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
 	void tick_trigger_watches();
+	void tick_trigger_range_queries();
 	void trigger_survival_init();
 	void trigger_survival_wave();
 	void trigger_gallic_fields(bool attack);
@@ -2710,6 +2721,7 @@ private:
 	bool petra_is_critical_ent(size_t unit_idx) const;
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
+	bool petra_is_critical_relic(size_t unit_idx) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
 	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
@@ -2751,12 +2763,14 @@ private:
 	uint8_t petra_gather_kind(size_t r) const;
 	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
 	struct PetraHuntScan {
-		std::vector<std::pair<float, float>> food_drops;
+		struct FoodDrop { float x, z; uint16_t land[4]; }; // the lands it borders (getLandAccess)
+		std::vector<FoodDrop> food_drops;
 		std::unordered_map<uint32_t, int> on_animal;  // live animal id -> units hunting it
 		std::unordered_map<uint32_t, int> on_carcass; // meat resource id -> units gathering it
 		std::vector<uint32_t> treasures_taken;        // treasures one of ours is already on its way to
 	};
 	PetraHuntScan petra_hunt_scan() const;
+	bool petra_food_drop_near(const PetraHuntScan &scan, uint16_t land, float x, float z, float d2) const;
 	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
 	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water = false); // entityExtend.js gatherTreasure
