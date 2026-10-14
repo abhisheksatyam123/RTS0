@@ -87,6 +87,8 @@ void Assets::apply_terrain_biome(const Ref<ShaderMaterial> &mat, const String &b
 		{"persia", "desert_dirt_persia_1", "desert_dirt_persia_rocky", "desert_cliff_persia_2", "desert_shore_stones", "desert_forestfloor_palms"},
 		{"volcanic", "cliff volcanic light", "ocean_rock_a", "cliff volcanic coarse", "tropic_beach_volcanic", "tropic_forestfloor_a"},
 		{"tropical", "tropic_grass_b", "tropic_dirt_a", "tropic_cliff_a", "tropic_beach_wet", "tropic_forestfloor_a"},
+		{"autumn", "temperate_autumn_grass_02", "temperate_autumn_grass_dirt_01", "temperate_cliff_01", "temperate_autumn_grass_mud_01", "temperate_autumn_forestfloor_003"},
+		{"nubia", "nubia_sand_01", "nubia_dirt_01", "nubia_cliff_01", "nubia_sand_02", "nubia_forestfloor_01"},
 	};
 	const char *const *set = kSets[0];
 	for (const auto &s : kSets)

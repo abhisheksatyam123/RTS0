@@ -58,12 +58,12 @@ func node(page, path: String):
 	return page.get_node("VBox/HBox/LeftScroll/Left/" + path)
 
 func slot_selects(page) -> Array:
-	# Per row: name label, kind, civ, team, difficulty, behaviour, colour.
+	# Per row: name label, kind, civ, team, AI gear, colour.
 	var out := []
 	var grid: GridContainer = page.get_node("VBox/HBox/Right/SlotsBox/SlotsGrid")
 	var kids := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
-	for r in range(kids.size() / 7):
-		out.append({"civ": kids[r * 7 + 2].get_child(0), "team": kids[r * 7 + 3].get_child(0), "color": kids[r * 7 + 6]})
+	for r in range(kids.size() / 6):
+		out.append({"civ": kids[r * 6 + 2].get_child(0), "team": kids[r * 6 + 3].get_child(0), "color": kids[r * 6 + 5]})
 	return out
 
 func run() -> void:

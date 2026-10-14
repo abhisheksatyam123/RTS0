@@ -7760,6 +7760,13 @@
       "player": 2,
       "x": 51.25,
       "z": -12.71
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 43.75,
+      "z": -25.86,
+      "template": "hellenic_stoa"
     }
   ],
   "units": [

@@ -8,7 +8,7 @@ Attack/Ranged attack:
     DefaultArrowCount + round(garrisoned GarrisonArrowClasses units x multiplier),
     capped at MaxArrowCount.
   * Attack/Ranged/Damage, MinRange, MaxRange, Origin/Y, PrepareTime, RepeatTime
-    and PreferredClasses (targets of the first class weigh 1 + 2 / (1 + 0)).
+    and PreferredClasses (Human, or !Organic: targets of that class weigh 1 + 2 / (1 + 0)).
 
 One row per RTS0 BuildingType, mapped to templates as tools/extract_0ad_attack.py
 does; a structure without BuildingAI gets an empty row and never shoots.
@@ -52,7 +52,7 @@ def row_of(t, classes, name):
             sys.exit("%s: GarrisonArrowClasses %s has no TechClass" % (name, c))
         garrison.append(classes[c.upper()])
     pref = t.tokens("Attack/Ranged/PreferredClasses")
-    if pref not in ([], ["Human"]):
+    if pref not in ([], ["Human"], ["!Organic"]):
         sys.exit("%s: PreferredClasses %s is not modelled" % (name, pref))
     scale = ex.RANGED_RANGE_SCALE
     return {
@@ -67,6 +67,7 @@ def row_of(t, classes, name):
         "prepare": t.num("Attack/Ranged/PrepareTime") / 1000.0,
         "repeat": t.num("Attack/Ranged/RepeatTime") / 1000.0,
         "human": pref == ["Human"],
+        "inorganic": pref == ["!Organic"],  # the artillery tower's "-Human !Organic"
     }
 
 
@@ -91,6 +92,7 @@ def emit(rows):
     w("\tfloat origin_y; // Attack/Ranged/Origin/Y: height the parabolic range is measured from")
     w("\tfloat prepare_time, repeat_time;")
     w("\tbool prefers_human; // PreferredClasses Human")
+    w("\tbool prefers_inorganic = false; // PreferredClasses !Organic (structures, siege engines, ships)")
     w("\tbool shoots() const { return default_arrows > 0 || garrison_arrow_multiplier > 0.0f; }")
     w("};")
     w("")
@@ -99,13 +101,14 @@ def emit(rows):
     w("\tstatic const BuildingAIInfo kTable[BUILDING_AI_ROWS + 1] = {")
     for bld, name, r in rows + [("none", "", None)]:
         if r is None:
-            w("\t\t{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // %s%s" % (
+            w("\t\t{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // %s%s" % (
                 bld, (": " + name) if name else ""))
             continue
-        w("\t\t{%d, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s}, // %s: %s" % (
+        w("\t\t{%d, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s}, // %s: %s" % (
             r["default"], r["max"], f(r["mult"]), " | ".join(r["garrison"]) or "0",
             f(r["dmg"][0]), f(r["dmg"][1]), f(r["dmg"][2]), f(round(r["min"], 4)), f(round(r["max_range"], 4)),
-            f(round(r["origin_y"], 4)), f(r["prepare"]), f(r["repeat"]), "true" if r["human"] else "false", bld, name))
+            f(round(r["origin_y"], 4)), f(r["prepare"]), f(r["repeat"]), "true" if r["human"] else "false",
+            "true" if r["inorganic"] else "false", bld, name))
     w("\t};")
     w("\treturn kTable[type < BUILDING_AI_ROWS ? type : BUILDING_AI_ROWS];")
     w("}")

@@ -40,6 +40,7 @@ var _host_pwd: LineEdit
 var _status: Label
 var _timer: Timer
 var _chat_last := 0
+var _chat_backlog := true # the first fetch after signing in is the backlog (lobby.history)
 var _rooms: Array = []
 var _ratings := {} # player name -> rating, from the player list
 var _details: RichTextLabel
@@ -61,7 +62,7 @@ func _ready() -> void:
 	add_child(_timer)
 	_timer.start()
 	_server.text = LobbySession.address
-	_name.text = LobbySession.player_name if LobbySession.signed_in() else MatchSettings.net_player_name
+	_name.text = LobbySession.player_name if LobbySession.signed_in() else multiplayer_name()
 	_update_signed_in()
 	_refresh()
 
@@ -369,6 +370,7 @@ func _on_sign_pressed() -> void:
 		if code == 200:
 			MatchSettings.net_player_name = LobbySession.player_name
 			_chat_last = 0
+			_chat_backlog = true
 			_chat_log.clear()
 			_update_signed_in()
 			_refresh()
@@ -480,14 +482,34 @@ func _on_players(code: int, obj) -> void:
 func _on_chat(code: int, obj) -> void:
 	if code != 200 or not (obj is Dictionary):
 		return
-	for m in obj.get("messages", []):
+	var messages: Array = obj.get("messages", [])
+	var backlog := _chat_backlog
+	_chat_backlog = false
+	if backlog:
+		# 0 A.D.'s lobby.history: how many past messages to load when joining.
+		var keep := maxi(0, int(RtsoUserConfig.new().get_number("lobby.history")))
+		messages = messages.slice(maxi(0, messages.size() - keep))
+	var me := LobbySession.player_name
+	var notify := not backlog and me != "" and RtsoUserConfig.new().get_bool("sound.notify.nick")
+	for m in messages:
 		var who := str(m.get("from", ""))
+		if notify and who != "" and who != me and str(m.get("text", "")).findn(me) >= 0:
+			notify = false
+			_play_nick_alert()
 		var text := str(m.get("text", "")).replace("[", "[lb]")
 		if who == "":
 			_chat_log.append_text("[color=#aaaaaa]%s[/color]\n" % text)
 		else:
 			_chat_log.append_text("[color=#e0c070]%s:[/color] %s\n" % [who.replace("[", "[lb]"), text])
 	_chat_last = int(obj.get("last", _chat_last))
+
+
+func _play_nick_alert() -> void:
+	var p := AudioStreamPlayer.new()
+	p.stream = load("res://assets/audio/interface/ui/chat_alert.ogg")
+	add_child(p)
+	p.finished.connect(p.queue_free)
+	p.play()
 
 
 func _on_send_pressed() -> void:
@@ -523,7 +545,23 @@ func _on_game_selected() -> void:
 
 func _player_name() -> String:
 	var who := LobbySession.player_name if LobbySession.signed_in() else _name.text.strip_edges()
-	return who if who != "" else "Player"
+	if who == "":
+		return "Player"
+	# gamesetup_mp.js: the name you join or host with is kept as playername.multiplayer.
+	if not LobbySession.signed_in() and who != multiplayer_name():
+		var cfg := RtsoUserConfig.new()
+		cfg.set_value("playername.multiplayer", who)
+		cfg.save()
+	return who
+
+
+## functions_utility.js multiplayerName: Options' "Player name (multiplayer)",
+## else the system user name.
+static func multiplayer_name() -> String:
+	var n := RtsoUserConfig.new().get_value("playername.multiplayer").strip_edges()
+	if n.is_empty():
+		n = OS.get_environment("USERNAME" if OS.get_name() == "Windows" else "USER").strip_edges()
+	return n if not n.is_empty() else "Player"
 
 
 func _on_join_pressed() -> void:
