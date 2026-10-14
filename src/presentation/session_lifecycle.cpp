@@ -602,6 +602,7 @@ void RtsoMain::_ready() {
 	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
+	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
 	rtso::strip_engine_popups(ui_layer);
 
 	// =========================================================================
@@ -1039,6 +1040,7 @@ void RtsoMain::_process(double delta) {
 	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
 	panel_entities_.refresh(*sim, view_player(), (float)Time::get_singleton()->get_ticks_msec() / 1000.0f);
+	research_progress_.refresh(*sim, view_player());
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while

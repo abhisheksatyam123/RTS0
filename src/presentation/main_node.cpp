@@ -80,6 +80,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_panel_entity_gui_input", "event", "slot"), &RtsoMain::_on_panel_entity_gui_input);
+	ClassDB::bind_method(D_METHOD("_on_research_progress_pressed", "slot"), &RtsoMain::_on_research_progress_pressed);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
@@ -151,6 +152,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count"), &RtsoMain::debug_spawn_units);
+	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
@@ -790,6 +792,27 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 		out.push_back((int32_t)sim->spawn_unit(cx - 16.0f + 3.0f * i, cz - 16.0f, me,
 				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
 	return out;
+}
+
+// Test hook: starts the first technology one of the local player's structures can
+// research now; {building, tech, name}, empty when none can.
+Dictionary RtsoMain::debug_research_any() {
+	Dictionary d;
+	if (!sim) return d;
+	const uint8_t me = local_player();
+	std::vector<std::pair<uint32_t, uint8_t>> ids;
+	for (const auto &b : sim->buildings())
+		if (b.team == me && b.queue.empty()) ids.push_back({b.id, b.type});
+	for (const auto &[id, type] : ids)
+		for (int t = 1; t < rtso::TECH_COUNT; ++t) {
+			if (rtso::tech_info((uint8_t)t).researcher != type) continue;
+			if (!sim->cmd_research(me, id, (uint8_t)t)) continue;
+			d["building"] = (int64_t)id;
+			d["tech"] = t;
+			d["name"] = String::utf8(rtso::tech_info((uint8_t)t).name);
+			return d;
+		}
+	return d;
 }
 
 // CounterManager.onPress: a click on a resource or population counter cycles
@@ -2688,6 +2711,19 @@ void RtsoMain::_on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot
 	if (!selected_ids.has((int32_t)id)) selected_ids.push_back((int32_t)id);
 	if (mb->is_double_click() && cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[i], 0, uview.pos_z[i]));
 	play_civ_voice("select");
+}
+
+// ResearchProgressButton.onPress: selectAndMoveTo(researcher).
+void RtsoMain::_on_research_progress_pressed(int slot) {
+	const uint32_t id = research_progress_.researcher_at(slot);
+	if (!sim || !id) return;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != id) continue;
+		selected_ids.clear();
+		selected_building_id = id;
+		if (cam_rig) cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+		return;
+	}
 }
 
 void RtsoMain::_on_selection_group_clicked(int key) {

@@ -68,6 +68,7 @@
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
 #include "panel_entities_view.h"
+#include "research_progress_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
 #include "session_audio.h"
@@ -190,6 +191,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
+	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 
 	// 3D Placement Ghost & Rally Marker
 	MeshInstance3D *ghost_mesh = nullptr;
@@ -341,6 +343,7 @@ public:
 	void _on_selection_group_clicked(int key);
 	void _on_selection_group_gui_input(const Ref<InputEvent> &event, int key);
 	void _on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot);
+	void _on_research_progress_pressed(int slot);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
@@ -511,6 +514,7 @@ public:
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count);
+	Dictionary debug_research_any();
 	void debug_delete_units(const PackedInt32Array &ids);
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
