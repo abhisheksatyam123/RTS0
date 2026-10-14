@@ -128,6 +128,9 @@ ZIP_ALIASES = {
     "cart_embassy_iberian": "s_carthaginians_embassy_iberian", "embassy_iberian": "s_carthaginians_embassy_iberian",
     "cart_embassy_italic": "s_carthaginians_embassy_italic", "embassy_italic": "s_carthaginians_embassy_italic",
     "cart_apartment": "s_carthaginians_apartment", "apartment": "s_carthaginians_apartment",
+    "germ_encampment": "s_germans_encampment", "encampment": "s_germans_encampment",
+    "germ_encampment_fortified": "s_germans_encampment_fortified",
+    "encampment_fortified": "s_germans_encampment_fortified",
 }
 
 # Generic models with no GLB yet: model id -> template under structures/.

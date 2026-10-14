@@ -716,21 +716,27 @@ int main() {
 		// Player 2 has no trader yet: a failed bribe costs a quarter.
 		CHECK(sim.cmd_bribe(0, 1) == Simulation::BRIBE_NO_UNITS && sim.player_resource(0, RES_GOLD) == 875);
 		const uint32_t trader = sim.spawn_unit(ex + 6.0f, ez + 6.0f, 1, UNIT_TRADER);
+		sim.tick_los();
 		sim.tick_fow();
-		CHECK(sim.fow_state_at(ex + 6.0f, ez + 6.0f, 0) != Simulation::FOW_VISIBLE);
+		CHECK(sim.fow_state_at(ex + 6.0f, ez + 6.0f, 0) != Simulation::FOW_VISIBLE && !sim.los_visible(0, ex + 6.0f, ez + 6.0f));
 		CHECK(sim.cmd_bribe(0, 1) == Simulation::BRIBE_OK && sim.player_resource(0, RES_GOLD) == 375);
 		CHECK(sim.spies().size() == 1 && sim.spies()[0].unit_id == trader && std::fabs(sim.spies()[0].remaining - 15.0f) < 1e-4f);
+		sim.tick_los();
 		sim.tick_fow();
 		CHECK(sim.fow_state_at(ex + 6.0f, ez + 6.0f, 0) == Simulation::FOW_VISIBLE);
+		CHECK(sim.los_visible(0, ex + 6.0f, ez + 6.0f)); // the briber's own LOS too (targeting, mirages)
 		// The only trader is already spied, and 375 metal can't pay for another.
 		CHECK(sim.cmd_bribe(0, 1) == Simulation::BRIBE_NO_UNITS);
 		const char *path = "test_victory_spies.sav";
 		CHECK(sim.save_state(path));
 		Simulation back_sim;
 		CHECK(back_sim.load_state(path) && back_sim.spies().size() == 1 && back_sim.spies()[0].unit_id == trader);
+		CHECK(back_sim.los_visible(0, ex + 6.0f, ez + 6.0f)); // the spy's circle is rebuilt on load
 		std::remove(path);
 		sim.tick_spies(15.0f);
 		CHECK(sim.spies().empty());
+		sim.tick_los();
+		CHECK(!sim.los_visible(0, ex + 6.0f, ez + 6.0f)); // the spy's vision ends with it
 		// Counterintelligence: x1.5 against the bribed player.
 		sim.complete_research(1, TECH_SPY_COUNTER);
 		CHECK(sim.bribe_cost(0, 1) == 750 && sim.bribe_cost(0, 1, true) == 187);

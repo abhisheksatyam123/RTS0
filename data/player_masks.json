@@ -5247,6 +5247,86 @@
 1.0
 ]
 },
+"buildings/s_germans_encampment_fortified_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_encampment_fortified_tex5": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_encampment_fortified_tex6": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_encampment_fortified_tex8": {
+"mask": "res://assets/textures/player_masks/structural/celt_struct_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_encampment_fortified_tex9": {
+"mask": "res://assets/textures/player_masks/props/sail_stripes_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_encampment_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_encampment_tex5": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_encampment_tex6": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_encampment_tex8": {
+"mask": "res://assets/textures/player_masks/structural/celt_struct_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_encampment_tex9": {
+"mask": "res://assets/textures/player_masks/props/sail_stripes_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_germans_forge_tex0": {
 "mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
 "tint": [
