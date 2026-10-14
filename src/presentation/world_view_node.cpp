@@ -3128,7 +3128,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		for (const auto &t : tv) {
 			const float lit = los_brightness(t.x, t.z);
 			if (lit <= 0.0f) continue;
-			Basis rot(Vector3(0, 1, 0), (float)(t.id % 12) * 0.52f);
+			Basis rot(Vector3(0, 1, 0), rtso::Simulation::treasure_angle(t.id));
 			Transform3D xf(rot, Vector3(t.x, sim->get_terrain_height(t.x, t.z) + e_chest.y_offset, t.z));
 			treasure_mm->set_instance_transform(it, xf);
 			treasure_mm->set_instance_color(it++, Color(lit, lit * 0.85f, lit * 0.4f, 1.0f));

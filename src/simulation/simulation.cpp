@@ -2051,6 +2051,27 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		}
 		return PLACE_OBSTRUCTED;
 	}
+	// Treasures' Obstruction/Static (template_gaia_treasure 1.5 m up to the 21 x 11 m wrecks)
+	// blocks foundations as well.
+	for (const Treasure &t : treasures_) {
+		const auto &ti = treasure_type_info(t.type);
+		const float angle = treasure_angle(t.id);
+		const float hw = ti.width * 0.125f, hd = ti.depth * 0.125f; // metres to half-extents in world units
+		const float c = std::fabs(std::cos(angle)), sn = std::fabs(std::sin(angle));
+		const float ex = c * hw + sn * hd, ez = sn * hw + c * hd;
+		if (!(t.x + ex > x0 && t.x - ex < x1 && t.z + ez > z0 && t.z - ez < z1)) continue;
+		if (exact) {
+			nav::Footprint o;
+			bool swapped;
+			nav::footprint_axis(angle, o.ux, o.uz, swapped);
+			o.x = t.x;
+			o.z = t.z;
+			o.hu = swapped ? hd : hw;
+			o.hv = swapped ? hw : hd;
+			if (!nav::footprints_overlap(piece, o)) continue;
+		}
+		return PLACE_OBSTRUCTED;
+	}
 	if (survival_placement_obstructed(x0, z0, x1, z1)) return PLACE_OBSTRUCTED;
 
 	// 2. Terrain passability class: building-land has no water under the
