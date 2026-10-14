@@ -700,7 +700,8 @@ bool RtsoMain::chat_network_command(const String &text) {
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
-	if (rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare hotkey wins
+	if (flare_armed_ || rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare wins
+		flare_armed_ = false;
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
 	}
@@ -1906,6 +1907,12 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 
 void RtsoMain::update_hud() {
 	top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
+	if (sim) {
+		const uint8_t me = local_player();
+		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
+		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
+				turn_mgr_.is_replaying());
+	}
 	// GameSpeedButton is hidden in networked games; a replay's own row has the speed list.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep() && !turn_mgr_.is_replaying());
 }
@@ -3586,6 +3593,30 @@ String RtsoMain::match_settings_player_state() const {
 
 // session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
 // settings close together; opening one of them closes the others first.
+// MiniMapFlareButton.onPress (and session.flareactivate): INPUT_FLARE, so the
+// next left click on the map or minimap sends a flare; never in a replay.
+void RtsoMain::_on_flare_button_pressed() {
+	if (turn_mgr_.is_replaying()) return;
+	flare_armed_ = true;
+}
+
+// Test hook: the minimap panel's buttons.
+Dictionary RtsoMain::debug_minimap_panel() const {
+	Dictionary d;
+	const char *names[3] = {"idle", "diplomacy", "flare"};
+	for (int i = 0; i < 3; ++i) {
+		TextureButton *b = minimap_panel_.button(i);
+		Dictionary e;
+		e["disabled"] = b ? b->is_disabled() : true;
+		e["tooltip"] = b ? b->get_tooltip_text() : String();
+		e["texture"] = b && b->get_texture_normal().is_valid() ? b->get_texture_normal()->get_path() : String();
+		d[names[i]] = e;
+	}
+	d["idle_count"] = minimap_panel_.idle_count_text();
+	d["flare_armed"] = flare_armed_;
+	return d;
+}
+
 // CivIcon.onPress: a left click on the top panel's civ emblem reopens the
 // reference page last viewed (the Structure Tree at first).
 void RtsoMain::_on_civ_icon_gui_input(const Ref<InputEvent> &event) {
