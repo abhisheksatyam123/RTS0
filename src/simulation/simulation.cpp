@@ -1638,12 +1638,24 @@ bool Simulation::near_deep_water(float x, float z, float c) const {
 	return false;
 }
 
-// A step may not end within the clearance of deep water. A unit already that close (one unloaded on
-// the beach, or walking in from the water) may move on, but not off dry land into deep water.
+// Ground a land unit keeps its clearance c off: deep water, and terrain tiles steeper than the land
+// classes' MaxTerrainSlope (NavGrid::near_steep_tile), which 0.28 makes impassable and grows by
+// the class Clearance alike.
+bool Simulation::near_impassable_terrain(float x, float z, float c) const {
+	return near_deep_water(x, z, c) || nav_grid_.near_steep_tile(x, z, c);
+}
+
+// A step may not end within the clearance of deep water or of a cliff. A unit already that close to
+// one (unloaded on the beach, walking in from the water, standing on a slope) may move on: across
+// the cliff too, as 0.28's CheckLineMovement lets a unit on impassable navcells cross more of them
+// (the clearance band and the steep tile are both impassable there), but not off the beach into
+// the deep water itself.
 bool Simulation::land_step_barred(float x0, float z0, float x1, float z1, float c) const {
-	if (!near_deep_water(x1, z1, c)) return false;
-	if (!near_deep_water(x0, z0, c)) return true;
-	return near_deep_water(x1, z1, 0.0f) && !near_deep_water(x0, z0, 0.0f);
+	if (near_deep_water(x1, z1, c)) {
+		if (!near_deep_water(x0, z0, c)) return true;
+		if (near_deep_water(x1, z1, 0.0f) && !near_deep_water(x0, z0, 0.0f)) return true;
+	}
+	return nav_grid_.near_steep_tile(x1, z1, c) && !nav_grid_.near_steep_tile(x0, z0, c);
 }
 
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
@@ -2481,6 +2493,27 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const float wx0 = -nav_grid_.map_half + nx * nav_cell, wz0 = -nav_grid_.map_half + ny * nav_cell;
 		return nav::footprint_overlaps_box(*rect, wx0, wz0, wx0 + nav_cell, wz0 + nav_cell);
 	};
+	// The same MaxTerrainSlope judged per 4 m terrain tile, as the land units' clearance is
+	// (CCmpPathfinder TerrainUpdateHelper): CheckBuildingPlacement refuses a 1 m navcell under the
+	// footprint (its centre inside) on a steeper tile, so a builder can always reach a foundation's
+	// edge. Tiles the footprint only grazes by less than half a navcell don't count.
+	auto steep_tile_under = [&]() {
+		const float in = 0.125f;
+		if (!nav_grid_.steep_tile_in(x0 + in, z0 + in, x1 - in, z1 - in)) return false;
+		if (!rect) return true;
+		const float half = nav_grid_.map_half;
+		const int tw = nav_grid_.steep_tile_res();
+		const float tile = 2.0f * half / (float)tw;
+		auto at = [&](float v) { return std::clamp((int)std::floor((v + half) / tile), 0, tw - 1); };
+		for (int j = at(z0 + in); j <= at(z1 - in); ++j)
+			for (int i = at(x0 + in); i <= at(x1 - in); ++i) {
+				const float wx0 = -half + i * tile, wz0 = -half + j * tile;
+				if (nav_grid_.tile_steep(i, j) &&
+						nav::footprint_overlaps_box(*rect, wx0 + in, wz0 + in, wx0 + tile - in, wz0 + tile - in))
+					return true;
+			}
+		return false;
+	};
 	if (have_nav) {
 		auto [nx0, ny0] = nav_grid_.world_to_cell(x0 + 0.01f, z0 + 0.01f);
 		auto [nx1, ny1] = nav_grid_.world_to_cell(x1 - 0.01f, z1 - 0.01f);
@@ -2488,6 +2521,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			for (int y = ny0; y <= ny1; ++y)
 				for (int x = nx0; x <= nx1; ++x)
 					if ((is_water(x, y) || nav_grid_.is_steep(x, y)) && under(x, y)) return PLACE_TERRAIN;
+			if (steep_tile_under()) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE && rect) {
 			// A WallSet piece stands wholly where land units can go (CheckFoundation over its
 			// shape with default-terrain-only): no deep water or steep slope under it.
@@ -2496,10 +2530,12 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 					if (!nav_grid_.cells.inside(x, y) || !under(x, y)) continue;
 					if (nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
 				}
+			if (steep_tile_under()) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE) {
 			auto [ncx, ncy] = nav_grid_.world_to_cell(cxw, czw);
 			if (nav_grid_.cells.inside(ncx, ncy) && (nav_grid_.cells.at(ncx, ncy) == NAV_WATER || nav_grid_.is_steep(ncx, ncy)))
 				return PLACE_TERRAIN;
+			if (nav_grid_.near_steep_tile(cxw, czw, 0.0f)) return PLACE_TERRAIN;
 		} else {
 			// CheckShorePlacement: part of the footprint on land, a sea cell at its edge.
 			bool land = false, sea = false;
@@ -4653,7 +4689,7 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 		if (!nav_grid_.cells.blank()) {
 			const auto [gx, gy] = nav_grid_.world_to_cell(px, pz);
 			if (!nav_grid_.is_passable_for(gx, gy, pass)) return false;
-			if (pass == PASS_INFANTRY && near_deep_water(px, pz, clearance)) return false;
+			if (pass == PASS_INFANTRY && near_impassable_terrain(px, pz, clearance)) return false;
 		}
 		for (size_t j = 0; j < units_.count; ++j) {
 			if (!units_.alive[j] || units_.id[j] == skip_uid) continue;
@@ -6520,7 +6556,7 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 			// The passengers' own passability (PickSpawnPoint): not a cliff a footman can't stand on,
 			// where separation would shove them back into the sea.
 			if (!nav_grid_.cells.blank() && nav_grid_.cells.inside(nx, ny) && !nav_grid_.is_passable_for(nx, ny, PASS_INFANTRY)) continue;
-			if (near_deep_water(cx, cz, pc)) continue;
+			if (near_impassable_terrain(cx, cz, pc)) continue;
 			if (std::any_of(hulls.begin(), hulls.end(), [&](const Hull &h) {
 				    return (h.x - cx) * (h.x - cx) + (h.z - cz) * (h.z - cz) < h.r2; }))
 				continue;
@@ -9096,6 +9132,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	// parallel pass, which writes the velocities.
 	float *guard_cap = arena.alloc_array<float>(n);
 	if (!guard_cap) return;
+	if (short_path_search_.size() < n) short_path_search_.resize(n);
 	for (size_t i = 0; i < n; ++i) {
 		guard_cap[i] = 0.0f;
 		if (!alive[i] || units_.action_state[i] != ACTION_GUARD || units_.target_unit_id[i] == 0) continue;
@@ -9381,6 +9418,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// any range past its clearance.
 			at_building = walk_in_reach(i, px[i], pz[i]);
 			if (!at_building) stop_dist = ARRIVE_DIST * 0.25f;
+		} else if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0 &&
+				nav_grid_.near_steep_tile(tx[i], tz[i], unit_clearance_at(i))) {
+			// A tree or a bush within a cliff's margin, where no walker stands: a gatherer that has
+			// come up to the margin within reach of it works from there, as MoveToTargetRange ends in
+			// range, instead of pressing on at the margin, where its walk would fail.
+			const float q = 0.5f * map_half_ / static_cast<float>(nav_grid_.steep_tile_res());
+			const float rdx = tx[i] - px[i], rdz = tz[i] - pz[i], rl = std::sqrt(rdx * rdx + rdz * rdz);
+			const float t = rl > q ? q / rl : 1.0f;
+			at_building = nav_grid_.near_steep_tile(px[i] + rdx * t, pz[i] + rdz * t, unit_clearance_at(i)) &&
+					walk_in_reach(i, px[i], pz[i]);
 		}
 		if (at_building) {
 			d2 = 0.0f; // in reach: stop here
@@ -9472,7 +9519,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					near_gaia,
 					gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, units_.target_building_id[i]),
 					[&](std::vector<SteerObstacle> &out) { gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, out); },
-					GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer)) {
+					GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer,
+					&short_path_search_[i])) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
 				if (sdx * sdx + sdz * sdz > 1e-6f) {
@@ -10386,6 +10434,13 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		// new path from there (RejectFartherPaths), so UnitMotion sets m_FailedMovements to
 		// MAX_FAILED_MOVEMENTS - 2 and the walk fails two obstructed turns later.
 		if (m.failed < FAILED_AT - 3 && walk_falls_short(i)) m.failed = FAILED_AT - 3;
+		// The same hack's end for a unit whose short path search round steep ground found no way from
+		// where it stands (nav::no_terrain_path_key): a resource up a cliff or in a pocket its long
+		// path can't reach, a point beyond a ridge. 0.28's long path, on the same navcells as its
+		// short ones, knows the goal is out of reach, and the walk fails two obstructed turns later,
+		// where RTS0's unit would push at the cliff's margin for 35 turns.
+		if (m.failed < FAILED_AT - 3 && units_.short_path[i].key == nav::no_terrain_path_key(short_path_key_))
+			m.failed = FAILED_AT - 3;
 		bool move_failed = false;
 		if (++m.failed >= FAILED_AT) {
 			move_failed = true;
@@ -11113,6 +11168,37 @@ void Simulation::tick_gather(float dt) {
 	if (update_forest_cells() || mine_gone) rebuild_nav_grid();
 }
 
+// Repairable.js GetRepairRate: MaxHitpoints / (RepairTimeRatio x BuildTime), RepairTimeRatio 2.0,
+// or 4.5 on stone walls, gates and wall towers (template_structure_defensive_wall.xml).
+float Simulation::structure_repair_rate(const Building &b) const {
+	const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER ||
+			b.type == BLD_SIEGE_WALL || b.type == BLD_SIEGE_WALL_GATE; // rome/siege_wall_* too
+	const float ratio = stone_wall ? WALL_REPAIR_TIME_RATIO : REPAIR_TIME_RATIO;
+	return b.max_hp / (ratio * structure_build_time(b));
+}
+
+bool Simulation::structure_build_work(const Building &b, BuildWork &out) const {
+	out = BuildWork();
+	if (b.wrecked || b.hp <= 0.0f || b.max_hp <= 0.0f) return false;
+	out.repair = b.build_progress >= 1.0f;
+	if (out.repair && b.hp >= b.max_hp) return false;
+	// The builders tick_construction and tick_repair count: building it, outside and in range.
+	float total_rate = 0.0f;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_BUILD || units_.target_building_id[i] != b.id) continue;
+		if (!outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i))) continue;
+		++out.builders;
+		total_rate += builder_rate(i);
+	}
+	// Foundation: (1 - progress) x BuildTime; Repairable: the missing hitpoints at GetRepairRate.
+	const float hp_rate = out.repair ? structure_repair_rate(b) : b.max_hp / structure_build_time(b);
+	const float left = (b.max_hp - b.hp) / hp_rate; // seconds of work at rate 1
+	const float rate = total_rate * foundation_build_multiplier(out.builders);
+	out.remaining = rate > 0.0f ? left / rate : 0.0f;
+	out.remaining_new = left / ((total_rate + 1.0f) * foundation_build_multiplier(out.builders + 1));
+	return true;
+}
+
 // Foundation.js / Repairable.js CalculateBuildMultiplier: n builders at work
 // each do n^0.7 / n of their rate (BuildTimeModifier / buildTimePenalty 0.7).
 float Simulation::foundation_build_multiplier(int builders) {
@@ -11390,10 +11476,7 @@ void Simulation::tick_repair(float dt) {
 			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio x BuildTime): 2.0, or 4.5 on
 			// stone walls, gates and wall towers (template_structure_defensive_wall.xml).
-			const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER ||
-					b.type == BLD_SIEGE_WALL || b.type == BLD_SIEGE_WALL_GATE; // rome/siege_wall_* too
-			const float ratio = stone_wall ? WALL_REPAIR_TIME_RATIO : REPAIR_TIME_RATIO;
-			const float repair_rate = b.max_hp / (ratio * structure_build_time(b));
+			const float repair_rate = structure_repair_rate(b);
 			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
 			enter_repairing(i); // REPAIRING enter: no longer forced, autoharvest instead
 			b.hp = std::min(b.max_hp, b.hp + work * repair_rate * dt);
@@ -18631,7 +18714,10 @@ void Simulation::petra_manage_fields() {
 	};
 	struct BaseFood {
 		std::vector<std::pair<float, float>> drops;
-		const Building *farmstead = nullptr, *tc = nullptr;
+		// Where its fields are laid: its first farmstead, else its first civic centre. Kept as a
+		// position, not the structure, as a foundation placed below grows buildings_.
+		float by_x = 0.0f, by_z = 0.0f;
+		bool by = false, by_farmstead = false;
 		float count = 0.0f;
 	};
 	std::vector<BaseFood> bases(anchors.size());
@@ -18656,8 +18742,8 @@ void Simulation::petra_manage_fields() {
 			if (k <= 0 || k > (int)bases.size()) continue; // outside our territory: no base's
 			BaseFood &bf = bases[k - 1];
 			bf.drops.push_back({b.x, b.z});
-			if (b.type == BLD_FARMSTEAD && !bf.farmstead) bf.farmstead = &b;
-			if (is_civic_centre(b.type) && !bf.tc) bf.tc = &b;
+			const bool fs = b.type == BLD_FARMSTEAD;
+			if (fs ? !bf.by_farmstead : !bf.by) { bf.by_x = b.x; bf.by_z = b.z; bf.by = true; bf.by_farmstead = fs; }
 		}
 	}
 	bool any_drops = false;
@@ -18684,7 +18770,10 @@ void Simulation::petra_manage_fields() {
 	auto can_build = [&](uint8_t t) {
 		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
-	const Building *anchor = farmstead ? farmstead : tc; // manageCorral's
+	// manageCorral's anchor, as a position: the fields and corrals placed below grow buildings_.
+	const Building *anchor_b = farmstead ? farmstead : tc;
+	const bool anchor = anchor_b != nullptr;
+	const float anchor_at[2] = {anchor ? anchor_b->x : 0.0f, anchor ? anchor_b->z : 0.0f};
 	// configFirstBase: a starting land under 25000 m² saves space (one field at most, one field
 	// foundation fewer, and a corral), one under 60000 m² takes two fields at most; a second
 	// civic centre (handleNewBase) or a finished market (checkEvents) lifts both.
@@ -18700,9 +18789,8 @@ void Simulation::petra_manage_fields() {
 	}
 	if (can_build(BLD_FIELD)) {
 		for (const BaseFood &bf : bases) {
-			const Building *by = bf.farmstead ? bf.farmstead : bf.tc;
-			if (!by) continue;
-			const float at[2] = {by->x, by->z}; // favoredBase: the base doing the check
+			if (!bf.by) continue;
+			const float at[2] = {bf.by_x, bf.by_z}; // favoredBase: the base doing the check
 			bool want = false;
 			if (fields == 0) {
 				want = bf.count < 600.0f;
@@ -18718,9 +18806,8 @@ void Simulation::petra_manage_fields() {
 	if (corrals == 0) {
 		if (!can_build(BLD_CORRAL)) return;
 		for (const BaseFood &bf : bases) {
-			const Building *by = bf.farmstead ? bf.farmstead : bf.tc;
-			if (!by || !(bf.count < 900.0f || save_space)) continue;
-			const float at[2] = {by->x, by->z};
+			if (!bf.by || !(bf.count < 900.0f || save_space)) continue;
+			const float at[2] = {bf.by_x, bf.by_z};
 			if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) break;
 		}
 		return;
@@ -18728,8 +18815,7 @@ void Simulation::petra_manage_fields() {
 	if (!petra_turn_mod(4, 3)) return; // manageCorral, every fourth played turn (headquarters.js:2292)
 	if (!can_build(BLD_FIELD) && corrals < (int)petra_ps().phase && pop_current(petra_pid_) > 30 * corrals && anchor &&
 	    can_build(BLD_CORRAL)) {
-		const float at[2] = {anchor->x, anchor->z};
-		if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) return;
+		if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, anchor_at)) return;
 	}
 	const CorralTrainable &ct = CORRAL_TRAINABLE[civ < CIV_COUNT ? civ : 0];
 	for (const auto &b : buildings_) {
@@ -19290,40 +19376,48 @@ uint16_t Simulation::petra_land_at(float x, float z) const {
 	return 0;
 }
 
-// terrain-analysis.js landPassMap: nav cells that are land by terrain (not deep water, not
-// steeper than MaxTerrainSlope, inside a circular map), flood-filled into lands. Rebuilt only
-// when the nav grid was, and only refilled when that changed which cells are land.
+// terrain-analysis.js landPassMap: cells that are land by terrain (not deep water, not steeper
+// than MaxTerrainSlope, inside a circular map), flood-filled into lands. The cells are the 4 m
+// terrain tiles once their slopes are known, as 0.28 gives each navcell its tile's slope
+// (CCmpPathfinder TerrainUpdateHelper), so a cliff between two tiles splits land as it stops
+// units; a tile also takes its nav cell's water and coarse slope, which long paths keep off.
+// Rebuilt only when the nav grid was, and only refilled when that changed which cells are land.
 uint16_t Simulation::petra_access_at(float x, float z) const {
 	PetraAccess &a = petra_access_;
-	const int res = nav_grid_.res;
 	if (nav_grid_.cells.blank()) return 0;
+	const int nres = nav_grid_.res, tw = nav_grid_.steep_tile_res();
+	const int res = tw > 0 ? tw : nres;
+	const float half = nav_grid_.map_half, cell = 2.0f * half / (float)res;
 	if (a.stamp != nav_terrain_stamp_ || a.res != res) {
 		a.stamp = nav_terrain_stamp_;
 		const auto &wc = nav_grid_.height_cache_;
-		const bool water_known = wc.water_valid && wc.water.size() == (size_t)res * res;
-		const float cell = 2.0f * nav_grid_.map_half / (float)res, r = map_half_ - MAP_EDGE_DIST;
+		const bool water_known = wc.water_valid && wc.water.size() == (size_t)nres * nres;
+		const float per = (float)nres / (float)res, r = map_half_ - MAP_EDGE_DIST;
 		std::vector<uint8_t> pass((size_t)res * res);
-		for (int y = 0; y < res; ++y)
+		for (int y = 0; y < res; ++y) {
+			const int ny = std::min(nres - 1, (int)(((float)y + 0.5f) * per));
 			for (int x0 = 0; x0 < res; ++x0) {
-				const size_t k = (size_t)y * res + x0;
-				const uint8_t c = nav_grid_.cells.at(x0, y);
-				bool land = c != NAV_WATER && !nav_grid_.is_steep(x0, y);
-				if (land && c == NAV_OBSTRUCTED && water_known) land = wc.water[k] != NAV_WATER; // a dock on deep water
+				const int nx = std::min(nres - 1, (int)(((float)x0 + 0.5f) * per));
+				const uint8_t c = nav_grid_.cells.at(nx, ny);
+				bool land = c != NAV_WATER && !nav_grid_.is_steep(nx, ny) && !(tw > 0 && nav_grid_.tile_steep(x0, y));
+				if (land && c == NAV_OBSTRUCTED && water_known) land = wc.water[(size_t)ny * nres + nx] != NAV_WATER; // a dock on deep water
 				if (land && circular_map()) {
-					const float wx = -nav_grid_.map_half + ((float)x0 + 0.5f) * cell, wz = -nav_grid_.map_half + ((float)y + 0.5f) * cell;
+					const float wx = -half + ((float)x0 + 0.5f) * cell, wz = -half + ((float)y + 0.5f) * cell;
 					land = wx * wx + wz * wz < r * r;
 				}
-				pass[k] = land;
+				pass[(size_t)y * res + x0] = land;
 			}
+		}
 		if (a.res != res || pass != a.pass) {
 			a.res = res;
 			a.pass = std::move(pass);
 			a.land.assign((size_t)res * res, 0);
+			a.near.assign((size_t)res * res, 0xFFFF);
 			uint16_t next = 0;
 			std::vector<uint32_t> stack;
 			for (size_t k0 = 0; k0 < a.pass.size(); ++k0) {
 				if (!a.pass[k0] || a.land[k0]) continue;
-				if (next < 0xFFFF) ++next;
+				if (next < 0xFFFE) ++next; // 0xFFFF marks a near cell not looked up yet
 				a.land[k0] = next;
 				stack.push_back((uint32_t)k0);
 				while (!stack.empty()) {
@@ -19341,16 +19435,24 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 			}
 		}
 	}
-	auto [cx, cz] = nav_grid_.world_to_cell(x, z);
-	for (int rr = 0; rr <= 4; ++rr)
-		for (int dz = -rr; dz <= rr; ++dz)
+	const int cx = std::clamp((int)std::floor((x + half) / cell), 0, res - 1);
+	const int cz = std::clamp((int)std::floor((z + half) / cell), 0, res - 1);
+	const size_t k = (size_t)cz * res + cx;
+	if (const uint16_t l = a.land[k]) return l;
+	// Off land, the nearest land within 4 nav cells, ring by ring, kept for the next lookup there.
+	uint16_t &near = a.near[k];
+	if (near != 0xFFFF) return near;
+	near = 0;
+	const int rings = 4 * res / nres;
+	for (int rr = 1; rr <= rings && !near; ++rr)
+		for (int dz = -rr; dz <= rr && !near; ++dz)
 			for (int dx = -rr; dx <= rr; ++dx) {
 				if (std::abs(dx) != rr && std::abs(dz) != rr) continue;
 				const int nx = cx + dx, nz = cz + dz;
 				if (nx < 0 || nz < 0 || nx >= res || nz >= res) continue;
-				if (const uint16_t l = a.land[(size_t)nz * res + nx]) return l;
+				if (const uint16_t l = a.land[(size_t)nz * res + nx]) { near = l; break; }
 			}
-	return 0;
+	return near;
 }
 
 // A structure's land: the land just outside its footprint (a dock's shore side).
@@ -28493,6 +28595,9 @@ bool Simulation::fauna_can_step(size_t f, float x, float z) const {
 	// separation() keeps the list of standing structures for this tick.
 	const float c = info.is_large() ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
 	const float ox = fauna_.pos_x[f], oz = fauna_.pos_z[f];
+	// The same classes' MaxTerrainSlope: steep tiles are impassable to animals as to soldiers, kept
+	// that Clearance off (land_step_barred), so a herd doesn't graze up a cliff its hunters can't climb.
+	if (nav_grid_.near_steep_tile(x, z, c) && !nav_grid_.near_steep_tile(ox, oz, c)) return false;
 	auto gap = [](const SteerObstacle &b, float px, float pz) {
 		const nav::Vec2 l = nav::footprint_local(b, px, pz);
 		return std::max(std::fabs(l.x) - b.hu, std::fabs(l.y) - b.hv);
