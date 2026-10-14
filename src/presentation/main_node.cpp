@@ -424,6 +424,21 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 	return out;
 }
 
+// Test hook: each player's structures by type name, {player: {name: count}}.
+Dictionary RtsoMain::debug_structure_types() {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings()) {
+		if (b.hp <= 0.0f || b.wrecked) continue;
+		const int p = b.team;
+		Dictionary per = d.get(p, Dictionary());
+		const String n = String::utf8(rtso::building_type_info(b.type).name);
+		per[n] = (int)per.get(n, 0) + 1;
+		d[p] = per;
+	}
+	return d;
+}
+
 // Test hook: starts the first technology one of the local player's structures can
 // research now; {building, tech, name}, empty when none can.
 Dictionary RtsoMain::debug_research_any() {
