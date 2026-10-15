@@ -26,6 +26,10 @@
 //      attack-walking to its civic centre from 4-6 minutes, and losing the civic centre
 //      defeating its player (the seeker goes, the waves stop coming for it).
 //
+//  10. OnAttackDetected (AttackDetection.js AttackAlert): a hit on a player's entity by
+//      another player fires once; hits within 160 m stay suppressed for 60 s, a livestock
+//      alert is overridden by a regular one, the suppression survives a save.
+//
 //   9. OnRange (TriggerPoint.js RegisterRangeTrigger): a query per trigger point reports
 //      the counted player's units that come into range and leave it, keeps its
 //      collection through a save, and stops when its trigger is disabled.
@@ -631,7 +635,7 @@ static void check_triggers_demo() {
 	s.add_trigger_point('A', 0.0f, 0.0f, 0);
 	CHECK(s.register_trigger_script("triggers_demo"), "triggers_demo not registered");
 	run_to(s, 1.0f);
-	CHECK(s.trigger_state().triggers.size() == 11, "init, eight listeners, the interval and the range: %zu",
+	CHECK(s.trigger_state().triggers.size() == 12, "init, nine listeners, the interval and the range: %zu",
 	      s.trigger_state().triggers.size());
 	CHECK(s.trigger_state().range_queries.size() == 1, "one range query for the one A point");
 	CHECK(s.take_trigger_dialogs().empty(), "no dialog before 10 s");
@@ -1221,6 +1225,54 @@ static void teleport(Simulation &s, uint32_t id, float x, float z) {
 	if (u >= 0) { s.units_.pos_x[u] = x; s.units_.pos_z[u] = z; }
 }
 
+static void check_attack_detected() {
+	const int before = failures;
+	static Simulation a, b;
+	a.reset();
+	a.set_victory_condition(VICTORY_ENDLESS);
+	a.triggers_.register_trigger(TRIGGER_ON_ATTACK_DETECTED, TRIGGER_ACTION_TRIGGERS_DEMO_LOG, true);
+	const uint32_t mine = a.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+	const uint32_t far_one = a.spawn_unit(50.0f, 0.0f, 0, UNIT_SPEARMAN);
+	const uint32_t enemy = a.spawn_unit(60.0f, 60.0f, 1, UNIT_SPEARMAN);
+	run_to(a, 0.5f);
+	auto calls = [](const Simulation &s) { return s.trigger_event_calls(TRIGGER_ON_ATTACK_DETECTED); };
+	a.note_attacked(enemy, 1, mine, 0, false, 1.0f);
+	a.note_attacked(enemy, 1, mine, 0, false, 1.0f);
+	a.note_attacked(mine, 0, enemy, 1, false, 1.0f);   // player 2's alert
+	a.note_attacked(mine, 0, far_one, 0, false, 1.0f); // dealt by myself: not registered
+	CHECK(calls(a) == 0, "raised at the end of the tick, not mid-combat");
+	run_to(a, 1.0f);
+	CHECK(calls(a) == 2, "one alert each for players 1 and 2, got %u", calls(a));
+	a.note_attacked(enemy, 1, far_one, 0, false, 1.0f); // 200 m away: its own alert
+	run_to(a, 1.5f);
+	CHECK(calls(a) == 3, "an attack outside SuppressionRange is detected, got %u", calls(a));
+	const char *path = "/tmp/rts0_test_triggers_attack.sav";
+	CHECK(a.save_state(path), "save");
+	b.reset();
+	CHECK(b.load_state(path), "load");
+	CHECK(b.triggers_.attack_suppressed.size() == 3 && b.trigger_hash() == a.trigger_hash(), "the suppressed attacks survive a save");
+	for (Simulation *s : {&a, &b}) {
+		s->note_attacked(enemy, 1, mine, 0, false, 1.0f);
+		run_to(*s, 30.0f);
+	}
+	CHECK(calls(a) == 3 && calls(b) == 0, "still suppressed 30 s on, before and after loading: %u/%u", calls(a), calls(b));
+	for (Simulation *s : {&a, &b}) {
+		run_to(*s, 62.0f);
+		s->note_attacked(enemy, 1, mine, 0, false, 1.0f);
+		run_to(*s, 62.5f);
+	}
+	CHECK(calls(a) == 4 && calls(b) == 1, "detected again once SuppressionTime is up: %u/%u", calls(a), calls(b));
+	CHECK(b.trigger_hash() == a.trigger_hash(), "loaded copy out of sync");
+	// Livestock: a low-priority alert that a regular one nearby overrides.
+	TriggerState t;
+	CHECK(t.attack_alert(0, 0.0f, 0.0f, true), "a sheep attacked: detected");
+	CHECK(!t.attack_alert(0, 5.0f, 0.0f, true), "a second sheep nearby: suppressed");
+	CHECK(t.attack_alert(0, 5.0f, 0.0f, false), "a soldier nearby: priority increased, detected");
+	CHECK(!t.attack_alert(0, 6.0f, 0.0f, true), "then a sheep again: suppressed");
+	CHECK(t.attack_suppressed.size() == 1, "the upgraded alert replaced the sheep's");
+	if (failures == before) std::printf("OnAttackDetected: AttackDetection suppression per player, livestock priority, saved: ok\n");
+}
+
 static void check_on_range() {
 	const int before = failures;
 	static Simulation a, b;
@@ -1333,6 +1385,7 @@ int main() {
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
 	check_on_range();
+	check_attack_detected();
 	check_flood();
 	check_volcano();
 	check_drowning();

@@ -168,9 +168,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 85; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 86; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
+	static constexpr uint32_t SAVE_VERSION_ATTACK_DETECTION = 86; // each player's suppressed attacks (OnAttackDetected)
 	static constexpr uint32_t SAVE_VERSION_STATUS_STACKS = 80; // each Poisoned/Burning hit its own status, on units, structures and animals
 	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_NAMES = 83; // Petra's plan counter, the main plan's siege class, the raid's sizes
 	static constexpr uint32_t SAVE_VERSION_SEEN_MASK = 84; // which players have seen each structure (Fogging seen)
@@ -962,6 +963,9 @@ public:
 	// circle): the parabolic reach of `range` fired from y_origin above the ground at (x, z),
 	// averaged over 16 directions of the terrain around it.
 	float average_elevation_range(float x, float z, float range, float y_origin) const;
+	// The same reach along one direction (ux, uz), as a unit's GetElevationAdaptedRange at
+	// angle 0 takes the range in front of it.
+	float elevation_range_toward(float x, float z, float ux, float uz, float range, float y_origin) const;
 	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
 	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
 	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
@@ -2527,6 +2531,7 @@ private:
 			bool target_is_building, float damage, bool melee = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<TriggerEventData> pending_attack_alerts_; // OnAttackDetected, raised at the end of the tick that detected them
 	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
 	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
