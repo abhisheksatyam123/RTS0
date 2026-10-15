@@ -16677,7 +16677,8 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	// (hero healers, the Seeress) ignores the attacker, as AttackVisibleEntity finds no target.
 	if (stance != STANCE_PASSIVE && units_.attack_damage[i] <= 0.0f) return;
 	if (stance == STANCE_PASSIVE) {
-		if (unit_is_siege_engine(units_.unit_type[i]) || !pack_state_can_move(units_.pack_state[i])) return;
+		// Order.Flee needs only AbleToMove: a passive ram flees, an unpacked catapult can't.
+		if (!pack_state_can_move(units_.pack_state[i]) || unit_walk_speed(i) <= 0.0f) return;
 		// UnitAI Flee (FLEEING enter): get FleeDistance further from the attacker than
 		// it is now, then carry on.
 		const float d = sqrtf(d2);
