@@ -3568,14 +3568,21 @@ private:
 		o.ext = nav::footprint_extent(nav::Footprint{x, z, ux, uz, hu, hv});
 		return o;
 	}
-	// An open gate's Left and Right parts, which keep blocking (gate_door_fraction): f(x, z, hu) for
-	// each, along the gate's u axis either side of its Door.
+	// An open gate's Left and Right parts, which keep blocking (gate_door_fraction): f(x, z, hu, hv)
+	// for each, along the gate's width either side of its Door. The template's obstruction cluster
+	// lines Left, Door and Right up along the gate's width (structures/{civ}/wall_gate.xml). That
+	// width lies along u, or along v when the footprint is turned an odd number of quarter turns
+	// (Building::set_rot swaps hu and hv then): parts laid along u there would be two slabs the
+	// gate's whole length, shutting the open gate.
 	template <class F>
 	static void for_each_gate_side(const Building &b, F &&f) {
-		const float door = b.hu * gate_door_fraction(b.type, b.civ), side = 0.5f * (b.hu - door);
+		const bool along_v = b.hv > b.hu;
+		const float half_w = along_v ? b.hv : b.hu;
+		const float door = half_w * gate_door_fraction(b.type, b.civ), side = 0.5f * (half_w - door);
 		if (side <= 0.0f) return;
+		const nav::Vec2 w = along_v ? nav::footprint_v(b) : nav::Vec2(b.ux, b.uz);
 		for (const float sgn : {-1.0f, 1.0f})
-			f(b.x + b.ux * sgn * (door + side), b.z + b.uz * sgn * (door + side), side);
+			f(b.x + w.x * sgn * (door + side), b.z + w.y * sgn * (door + side), along_v ? b.hu : side, along_v ? side : b.hv);
 	}
 	// A finished gate that is open now: only its door lets units through.
 	static bool gate_open_now(const Building &b) {
