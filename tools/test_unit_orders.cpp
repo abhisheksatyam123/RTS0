@@ -2616,6 +2616,22 @@ static void test_healer_stances() {
 	check(ag_end > 10.0f, "aggressive, it follows the unit");
 }
 
+static void test_forced_flag_not_inherited() {
+	std::printf("76. the target a unit picks itself after a player's target dies is an unforced fight: it turns on a melee attacker (AttackVisibleEntity force false)\n");
+	Simulation s;
+	setup(s);
+	uint32_t d = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+	const uint32_t e1 = post(s, 3.0f, 0.0f, UNIT_SPEARMAN, 2.0f);
+	const uint32_t e2 = post(s, 10.0f, 6.0f, UNIT_SPEARMAN, 5000.0f);
+	run(s, 0.5f);
+	s.order_attack(&d, 1, e1);
+	check(run_until(s, 15.0f, [&] { return !s.units().alive[idx_of(s, e1)]; }), "the spearman kills its target");
+	check(run_until(s, 5.0f, [&] { return target_of(s, d) == e2; }), "and picks the next enemy itself");
+	const uint32_t e3 = s.spawn_unit(x_of(s, d) - 1.5f, z_of(s, d), 1, UNIT_SWORDSMAN, 5000.0f);
+	s.order_attack(&e3, 1, d);
+	check(run_until(s, 10.0f, [&] { return target_of(s, d) == e3; }), "it turns on the swordsman hitting it");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2818,6 +2834,7 @@ int main(int argc, char **argv) {
 	test_guard_towers_and_animals();
 	test_structure_scan_by_centre();
 	test_healer_stances();
+	test_forced_flag_not_inherited();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
