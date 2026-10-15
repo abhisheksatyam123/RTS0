@@ -6,7 +6,10 @@ extends SceneTree
 #   2. the submenus have 0.28's captions, Structure Tree's tooltip names its hotkey;
 #   3. Settings > Hotkeys opens the hotkey editor over the menu;
 #   4. Exit asks "Are you sure you want to quit 0 A.D.?"; No (and Escape) keeps the menu;
-#   5. a timed confirmation counts down and answers its first button when time runs out.
+#   5. a timed confirmation counts down and answers its first button when time runs out;
+#   6. Multiplayer > Connect by IP, Host New Game and Host Saved Game open 0.28's
+#      gamesetup_mp dialogs (pageJoin, pageHost) over the menu: their fields and
+#      defaults, confirmSetup's checks, and Continue starting the join or host.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_main_menu.gd
 # Exit code 0 = pass.
@@ -99,5 +102,95 @@ func run() -> void:
 	while answer[0] == -1 and Time.get_ticks_msec() - start < 5000:
 		await frames(1)
 	check(answer[0] == 0, "answers the first button when time runs out")
+
+	print("6. Multiplayer dialogs")
+	var ls: Node = root.get_node("/root/LobbySession")
+	var ms: Node = root.get_node("/root/MatchSettings")
+	var cfg := RtsoUserConfig.new()
+	var kept := {}
+	for k in ["multiplayerserver", "multiplayerjoining.port", "multiplayerhosting.port", "playername.multiplayer"]:
+		kept[k] = cfg.get_value(k)
+	cfg.set_value("multiplayerserver", "192.0.2.7")
+	cfg.set_value("multiplayerjoining.port", "")
+	cfg.set_value("multiplayerhosting.port", "21000")
+	cfg.save()
+	var mpname: String = load("res://scenes/menu/lobby.gd").multiplayer_name()
+	menu._execute_action("open_mp_join")
+	await frames(3)
+	var mp = menu.find_child("GameSetupMp", false, false)
+	check(mp != null and current_scene == menu, "Connect by IP opens the dialog over the menu")
+	if mp:
+		var labels: Array = mp.find_children("*", "Label", true, false).map(func(l): return l.text)
+		check(labels.has("Multiplayer") and labels.has("Joining an existing game.") and labels.has("Player Name:")
+			and labels.has("Server Hostname or IP:") and labels.has("Server Port:"), "pageJoin: " + str(labels))
+		check(mp.join_player_name.text == mpname and mp.join_server.text == "192.0.2.7" and mp.join_port.text == "20595"
+			and mp.join_port.tooltip_text == "Leave blank to use the default port.",
+			"the last server, the default port for none, the multiplayer name")
+		check(mp.continue_button.text == "Continue" and mp.cancel_button.text == "Cancel", "Continue and Cancel")
+		mp.cancel_button.pressed.emit()
+		await frames(2)
+		check(menu.find_child("GameSetupMp", false, false) == null and current_scene == menu, "Cancel closes it")
+	menu._execute_action("open_mp_host")
+	await frames(3)
+	mp = menu.find_child("GameSetupMp", false, false)
+	if mp:
+		var labels: Array = mp.find_children("*", "Label", true, false).map(func(l): return l.text)
+		check(labels.has("Set up your server to host.") and mp.host_player_name != null and mp.host_server_name == null
+			and mp.host_password == null and mp.host_port.text == "21000",
+			"pageHost without the lobby: player name and port, no game name or password")
+		mp.host_port.text = "80"
+		check(not mp.confirm_setup() and mp.host_feedback.text == "Server port number must be between 1024 and 65535.",
+			"a port below 1024 is refused")
+		mp.host_port.text = ""
+		check(not mp.confirm_setup() and current_scene == menu, "and so is none")
+		await key(KEY_ESCAPE)
+		await frames(2)
+		check(menu.find_child("GameSetupMp", false, false) == null, "Escape cancels")
+	else:
+		check(false, "Host New Game opens the dialog")
+	ls.token = "test-token"
+	ls.player_name = "alice"
+	menu._execute_action("open_mp_host_saved")
+	await frames(3)
+	mp = menu.find_child("GameSetupMp", false, false)
+	if mp:
+		check(mp.host_player_name == null and mp.host_server_name.text == mpname + "'s game" and mp.host_password != null
+			and mp.host_password.secret, "signed in: the game's name (\"%(name)s's game\") and a password")
+		mp.host_server_name.text = " "
+		check(not mp.confirm_setup() and mp.host_feedback.text == "Please enter a valid server name.", "a game needs a name")
+		mp.host_server_name.text = "alice's game"
+		mp.host_port.text = "21001"
+		check(mp.confirm_setup() and ms.net_mode == "host" and ms.net_port == 21001
+			and ms.net_player_name == "alice" and ms.net_saved_game
+			and str(RtsoUserConfig.new().get_value("multiplayerhosting.port")) == "21001",
+			"Host Saved Game: Continue hosts as alice on the port kept in the config, saved game")
+		await frames(3)
+		var loads: Array = menu.find_children("*", "CanvasLayer", false, false).filter(func(l): return l.get_script() != null and l.get_script().resource_path.ends_with("savegame_dialog.gd"))
+		check(loads.size() == 1 and menu.find_child("GameSetupMp", false, false) == null, "and asks for the save (page_loadgame)")
+		for l in loads:
+			l.closed.emit()
+			l.queue_free()
+		await frames(2)
+		check(ms.net_mode == "" and not ms.net_saved_game, "closing the save page hosts nothing")
+	else:
+		check(false, "Host Saved Game opens the dialog")
+	ls.token = ""
+	menu._execute_action("open_mp_join")
+	await frames(3)
+	mp = menu.find_child("GameSetupMp", false, false)
+	var joined := false
+	if mp:
+		mp.join_player_name.text = "bob"
+		mp.join_server.text = "198.51.100.4"
+		mp.join_port.text = "21002"
+		joined = mp.confirm_setup()
+	check(joined and ms.net_mode == "join" and ms.net_ip == "198.51.100.4" and ms.net_port == 21002
+		and ms.net_player_name == "bob" and str(RtsoUserConfig.new().get_value("multiplayerserver")) == "198.51.100.4",
+		"Continue joins the typed server and keeps it")
+	cfg = RtsoUserConfig.new()
+	for k in kept:
+		cfg.set_value(k, kept[k])
+	cfg.save()
+	ms.net_mode = ""
 	print("PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)
