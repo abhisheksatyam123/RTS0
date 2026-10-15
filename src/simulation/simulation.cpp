@@ -27287,7 +27287,41 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	return true;
 }
 
+// navalManager.js requireTransport: a defender joins the defense transport still boarding
+// between the same lands, else one is planned for it (RTS0 keeps one plan per owner, H4).
+void Simulation::petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z) {
+	const int32_t i = lookup_unit(uid);
+	if (i < 0 || !units_.alive[i]) return;
+	for (PetraTransportPlan &tp : petra_transports_) {
+		if (tp.owner != PETRA_TRANSPORT_DEFENSE) continue;
+		if (tp.state != PetraTransportPlan::BOARDING || petra_land_at(tp.pickup_x, tp.pickup_z) != from_land ||
+		    petra_land_at(tp.drop_x, tp.drop_z) != to_land) return;
+		const int32_t si = tp.ship_id ? lookup_unit(tp.ship_id) : -1;
+		if (si < 0 || tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id) || !can_board((size_t)si, (size_t)i)) return;
+		tp.passenger_ids.push_back(uid);
+		order_walk(&uid, 1, tp.pickup_x, tp.pickup_z, false);
+		return;
+	}
+	const uint16_t sea = petra_topo().sea_between(from_land, to_land);
+	if (!sea || petra_transport_ships_on(sea) == 0) return;
+	const std::vector<uint32_t> one{uid};
+	petra_start_transport(one, units_.pos_x[i], units_.pos_z[i], to_x, to_z, sea, PETRA_TRANSPORT_DEFENSE);
+}
+
 void Simulation::petra_manage_transport(float dt) {
+	// defenseArmy.js removeOwn: a unit no longer defending leaves the defense transport while
+	// it still waits at the beach.
+	for (PetraTransportPlan &tp : petra_transports_) {
+		if (tp.owner != PETRA_TRANSPORT_DEFENSE || tp.state != PetraTransportPlan::BOARDING) continue;
+		const auto *aboard = tp.ship_id ? get_transport_passengers(tp.ship_id) : nullptr;
+		std::erase_if(tp.passenger_ids, [&](uint32_t uid) {
+			if (petra_is_defender(uid) || (aboard && std::find(aboard->begin(), aboard->end(), uid) != aboard->end())) return false;
+			const int32_t k = lookup_unit(uid);
+			if (k >= 0 && units_.alive[k] && units_.target_unit_id[k] == tp.ship_id) cmd_stop(&uid, 1);
+			return true;
+		});
+		if (tp.passenger_ids.empty()) { tp.state = PetraTransportPlan::FAILED; tp.failed = true; }
+	}
 	for (auto &tp : petra_transports_) petra_step_transport(tp, dt);
 	// A unit that boarded after its plan gave up (a lingering board order) would ride for good:
 	// transportPlan.js never leaves units aboard. An idle ship of ours in no plan sets them down
@@ -28979,6 +29013,7 @@ void Simulation::petra_manage_defense(float dt) {
 			int32_t idx = lookup_unit(uid);
 			if (idx < 0) continue;
 			if (units_.action_state[idx] == ACTION_ATTACK && is_foe(units_.target_unit_id[idx])) continue;
+			if (petra_passenger(uid)) continue; // on its way over (transport metadata)
 
 			uint32_t best_foe = 0, best_any = 0;
 			float best_d2 = 1e18f, best_any_d2 = 1e18f;
@@ -28999,6 +29034,18 @@ void Simulation::petra_manage_defense(float dt) {
 				if (n <= 2 && d2 < best_d2) { best_d2 = d2; best_foe = fid; }
 			}
 			if (!best_foe) best_foe = best_any;
+			// defenseArmy.js assignUnit: a defender on another land than its foe asks for a
+			// transport there (navalManager.requireTransport) instead of attacking.
+			if (best_foe != 0 && !unit_is_ship(units_.unit_type[idx])) {
+				float fx, fz;
+				petra_army_foe_pos(best_foe, fx, fz);
+				const uint16_t own = petra_land_at(units_.pos_x[idx], units_.pos_z[idx]), there = petra_land_at(fx, fz);
+				if (own && there && own != there) {
+					++against[best_foe];
+					petra_require_defense_transport(uid, own, there, fx, fz);
+					continue;
+				}
+			}
 			if (best_foe != 0) {
 				++against[best_foe];
 				if (lookup_unit(best_foe) >= 0) order_attack(&uid, 1, best_foe);
