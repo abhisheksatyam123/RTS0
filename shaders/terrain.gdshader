@@ -37,7 +37,7 @@ uniform float water_level = -1000.0;
 // Per-tile terrain (0 A.D. CTerrain tiles, Simulation::terrain_tiles): tile_index
 // holds each tile's layer of tile_layers over [-tile_half, tile_half]^2, tile_res
 // tiles a side. tile_blends (src/presentation/terrain_blend.h, 0 A.D.'s
-// CPatchRData::BuildBlends) holds, per tile, up to 4 higher-priority neighbour
+// CPatchRData::BuildBlends) holds, per tile, up to 8 higher-priority neighbour
 // terrains drawn over it, each masked by one of 0 A.D.'s alpha maps (alpha_maps,
 // turned and flipped to fit). tile_res 0 = paint by biome.
 uniform sampler2DArray tile_layers : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -116,8 +116,8 @@ void fragment() {
 		vec2 gx = dFdx(tuv), gy = dFdy(tuv);
 		float own = floor(texelFetch(tile_index, ti, 0).r * 255.0 + 0.5);
 		final_color = textureGrad(tile_layers, vec3(tuv, own), gx, gy).rgb;
-		for (int k = 0; k < 4; k++) {
-			vec4 b = texelFetch(tile_blends, ivec2(ti.x * 4 + k, ti.y), 0);
+		for (int k = 0; k < 8; k++) {
+			vec4 b = texelFetch(tile_blends, ivec2(ti.x * 8 + k, ti.y), 0);
 			if (b.a < 0.5) break;
 			int flags = int(b.b * 255.0 + 0.5);
 			// AddBlend: flip the alpha map's corners, then turn them round the tile;
