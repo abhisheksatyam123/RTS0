@@ -18307,7 +18307,7 @@ void Simulation::petra_manage_scouting(float dt) {
 // What Petra pays for its fortress (wood, gold, stone in ResourceType order).
 static constexpr float PETRA_FORTRESS_COST[RES_COUNT] = {300.0f, 200.0f, 300.0f, 0.0f};
 
-std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t kind) {
+std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t kind, uint16_t dropped) {
 	using UnitStat = PetraUnitStat;
 	const uint8_t ai_civ = petra_ps().civ;
 	const uint8_t phase = petra_ps().phase;
@@ -18386,6 +18386,8 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 		if (has_trainer[k] && target > 0)
 			stats.push_back({siege_classes[k], 1.0f, 0, target, std::min(target, 2), 0.0f, 3.0f, 1.0f, 1.0f});
 	}
+	for (size_t k = 0; k < stats.size(); ++k) stats[k].index = (uint8_t)k;
+	std::erase_if(stats, [dropped](const PetraUnitStat &st) { return st.index < 16 && (dropped >> st.index & 1u); });
 	return stats;
 }
 
@@ -18512,7 +18514,8 @@ void Simulation::petra_manage_military_production(float dt) {
 	const float pop_scaling = petra_plan_pop_scaling();
 	auto train_for = [&](const AttackPlan &plan, uint8_t kind) {
 		const uint8_t order_plan = &plan == &petra_raid_plan_ ? PETRA_ORDER_RAID : PETRA_ORDER_ATTACK;
-		std::vector<UnitStat> stats = petra_plan_unit_stats(kind);
+		const bool main_plan = &plan == &petra_attack_plan_;
+		std::vector<UnitStat> stats = petra_plan_unit_stats(kind, main_plan ? petra_attack_mgr_.dropped_classes : 0);
 
 		// What the plan has, each unit counted once in the first class it matches, plus what is
 		// in training for it (the batches queued with its plan).
@@ -18538,7 +18541,13 @@ void Simulation::petra_manage_military_production(float dt) {
 		for (const UnitStat &st : stats) {
 			if (st.count >= st.target) return;
 			const uint16_t tmpl = best_trainable(st);
-			if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue; // no template: the class drops out of the plan
+			if (tmpl == CIV_UNIT_TEMPLATE_NONE) {
+				// No template: the class drops out of the plan for good (delete this.unitStat), and
+				// mustStart no longer waits for it. (Not when its trainers' queues are only full.)
+				if (main_plan && st.index < 16 && !petra_unit_stat_trainable(st))
+					petra_attack_mgr_.dropped_classes |= (uint16_t)(1u << st.index);
+				continue;
+			}
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
 			// checkPausedQueues: short of workers, the plan trains one at a time.
 			const int batch = petra_queues_.paused[PETRA_Q_PLAN_CHAMP] ? 1 : std::min(st.batch, std::max(1, petra_pop_room()));
@@ -25150,6 +25159,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			else ++mgr.attack_number;
 			mgr.attack_name = mgr.plans_made++; // attackManager.js: new AttackPlan(..., this.totalNumber++)
 			mgr.attack_siege = 0;
+			mgr.dropped_classes = 0;
 
 			plan.kind = kind;
 			plan.target_building_id = target_id;
@@ -25266,7 +25276,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// starts with every class at its minSize or more than lengthMin units. 0.28 fails it
 			// otherwise; RTS0's Petra sits at its cap far more often while its houses go up, so
 			// the plan keeps mustering instead.
-			std::vector<PetraUnitStat> stats = petra_plan_unit_stats(mgr.kind);
+			std::vector<PetraUnitStat> stats = petra_plan_unit_stats(mgr.kind, mgr.dropped_classes);
 			for (uint32_t uid : squad) {
 				const int32_t k = lookup_unit(uid);
 				if (k < 0 || !units_.alive[k]) continue;

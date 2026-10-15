@@ -2493,6 +2493,52 @@ static void test_raid_takes_every_rider() {
 	}
 }
 
+// attackPlan.js trainMoreUnits: a class no template of ours trains is deleted from the plan for
+// good, so a HugeAttack made in the town phase keeps no champions or hero once the city phase
+// comes, and mustStart no longer waits for them.
+static void test_huge_attack_drops_classes() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	s->petra_plan_sizes(PETRA_ATTACK_HUGE);
+	m.dropped_classes = 0;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_HUGE;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	const auto full = s->petra_plan_unit_stats(PETRA_ATTACK_HUGE);
+	uint16_t elite = 0;
+	for (const auto &st : full)
+		if ((st.classes & (TC_CHAMPION | TC_HERO)).any()) elite |= (uint16_t)(1u << st.index);
+	for (int k = 0; k < 4; ++k) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+		run_ai_turns(*s, 1);
+	}
+	const uint16_t dropped = m.dropped_classes;
+	s->players_[1].phase = 3;
+	int elite_left = 0;
+	for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE, m.dropped_classes))
+		elite_left += (st.classes & (TC_CHAMPION | TC_HERO)).any();
+	std::printf("  town-phase HugeAttack: dropped classes 0x%x (champions and hero 0x%x), %d left in the city phase\n",
+	            (unsigned)dropped, (unsigned)elite, elite_left);
+	CHECK(elite && (dropped & elite) == elite, "the champion and hero classes leave the plan when nothing trains them");
+	CHECK(elite_left == 0, "they stay out once the city phase arrives");
+	CHECK((dropped & ~elite) == 0, "the citizen-soldier classes stay");
+}
+
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
 // and leave the plan; those of a started attack are held back.
 static void test_mustering_units_defend() {
@@ -5803,6 +5849,7 @@ int main(int argc, char **argv) {
 	RUN(test_rush_any_phase);
 	RUN(test_attack_plan_keeps_hunters);
 	RUN(test_raid_takes_every_rider);
+	RUN(test_huge_attack_drops_classes);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);

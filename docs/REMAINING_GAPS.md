@@ -11,7 +11,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G2 | Idle traders start trade routes on their own, and a stopped trader restarts and loses its goods (0.28 traders trade only when ordered) | medium | A |
 | G3 | ~~Petra plans rushes only in the village phase and drops a mustering rush at the town phase~~ Fixed: rushes are planned in any phase while any are left, and a rush with no target in sight musters and picks one when it sets out (attackManager.js:366) | medium | Formations |
 | G4 | Petra rates units on base stats, not after its own techs, so it keeps spearmen where 0.28 switches to archers | medium | D |
-| G5 | A town-phase HugeAttack waits for champions and a hero once the city phase comes (0.28 drops those classes from the plan) | medium | D |
+| G5 | ~~A town-phase HugeAttack waits for champions and a hero once the city phase comes~~ Fixed: a class no template of ours trains leaves the plan for good, as trainMoreUnits deletes its unitStat (`PetraAttackManager::dropped_classes`) | medium | Formations |
 | G6 | A guard forgets the unit it guards after any new order (0.28 goes back to guarding once idle) | medium | Unit orders |
 | G7 | The bottom HUD isn't 0.28's centred 1024 px group: panels sit at the corners, the Training grid floats, and the stance buttons have captions | medium | Session UI |
 | G8 | Liu Bang's Confucian Reforms aura (Han walls regenerate 10 HP/s) does nothing; Themistocles' wall aura skips palisades | medium | Compare |
