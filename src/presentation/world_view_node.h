@@ -219,6 +219,10 @@ class RtsoWorldView : public Node3D {
 	std::unordered_map<std::string, std::vector<std::string>> run_fx_;
 	std::unordered_map<std::string, GPUParticles3D *> run_emitters_;
 	void emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta);
+	// Unit models started loading on a worker before their first draw (per civ and crowd key).
+	std::vector<bool> prefetched_;
+	float prefetch_poll_ = 0.0f;
+	void prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
