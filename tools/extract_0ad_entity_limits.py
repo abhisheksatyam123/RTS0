@@ -80,7 +80,9 @@ def collect(sim_root):
         if not loader.exists(name):
             name = ex.GENERIC[u["class"]]  # RTS0-only rows (the male villager)
         t = loader.load(name)
-        units.append((u["id"], civs.index(u["civ"]), category(t, False),
+        # A map-only row without a civ (extract_0ad_rosters.MAP_ROWS: Samnites, pirate
+        # ships) is in no civ's per-class changer rows (-1).
+        units.append((u["id"], civs.index(u["civ"]) if u["civ"] in civs else -1, category(t, False),
                       int(t.value("TrainingRestrictions/MatchLimit") or 0), ex.classes_of(t)))
     generic = [(cls, category(ex.generic_template(loader, cls), False)) for cls in atk.UNIT_TYPES]
     buildings = []  # (enum, category, classes)

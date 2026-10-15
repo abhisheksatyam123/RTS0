@@ -16,6 +16,8 @@ the models:
 
 extract_0ad_assets.py --templates registers the new models and writes
 src/graphics/assets/unit_template_models.h, the table the world view draws by.
+`unit_template_models.py --extend` adds roster rows appended since (extract_0ad_rosters.py
+--append) as -1, the civ class model, without the art tree.
 """
 
 import os
@@ -48,7 +50,7 @@ def roster_rows():
     by_type = {name: models[idx] for name, idx in utypes.items() if idx < len(models)}
     rows = []
     src = open(ROSTER_H).read()
-    for i, m in enumerate(re.finditer(r"^\t\t\{\"([a-z_]+/[\w/]+)\", \"[^\"]*\", \"[^\"]*\", (CIV_[A-Z]+), (UNIT_[A-Z_]+),",
+    for i, m in enumerate(re.finditer(r"^\t\t\{\"([\w/]+)\", \"(?:[^\"\\]|\\.)*\", \"(?:[^\"\\]|\\.)*\", (CIV_[A-Z]+), (UNIT_[A-Z_]+),",
                                       src, re.M)):
         rows.append((i, m.group(1), codes[m.group(2)], by_type.get(m.group(3))))
     return rows
@@ -347,3 +349,32 @@ def write_header(per_row, models, path=HEADER, ranks=None):
     ]
     with open(path, "w") as fh:
         fh.write("\n".join(lines))
+
+
+def extend_header(path=HEADER):
+    """Roster rows added after the header was written (extract_0ad_rosters.py --append, which
+    never moves a row): give each -1, so it draws its owner civ's model for its UnitType, the
+    model it drew before it had a row of its own, until extract_0ad_assets.py --templates plans
+    one. Rows already in the header keep their entries. Returns the rows added."""
+    rows = roster_rows()
+    text = open(path).read()
+    start = text.index("\tstatic const int16_t kIndex[CIV_UNIT_TEMPLATE_COUNT] = {\n")
+    end = text.index("\t};\n", start)
+    have = len(re.findall(r"^\t\t-?\d+, // ", text[start:end], re.M))
+    if have > len(rows):
+        raise SystemExit(f"{path} has {have} rows, the roster {len(rows)}: rerun extract_0ad_assets.py --templates")
+    added = rows[have:]
+    lines = "".join(f"\t\t-1, // {tid} (no model of its own: its owner civ's {kind} model)\n" for _i, tid, _c, kind in added)
+    text = text[:end] + lines + text[end:]
+    text = re.sub(r"static_assert\(CIV_UNIT_TEMPLATE_COUNT == \d+,",
+                  f"static_assert(CIV_UNIT_TEMPLATE_COUNT == {len(rows)},", text)
+    with open(path, "w") as fh:
+        fh.write(text)
+    return added
+
+
+if __name__ == "__main__":
+    import sys
+    if sys.argv[1:] != ["--extend"]:
+        raise SystemExit("usage: unit_template_models.py --extend  (the full table: extract_0ad_assets.py --templates)")
+    print(f"{len(extend_header())} roster rows added to {os.path.relpath(HEADER, REPO)} without a model of their own")

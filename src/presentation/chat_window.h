@@ -198,6 +198,12 @@ public:
 
 	bool is_ready() const { return log_ != nullptr; }
 	bool is_open() const { return panel_ != nullptr && panel_->is_visible(); }
+	// ChatInput.onHotkeyChange: the input and Send button share one tooltip.
+	String input_tooltip() const { return input_ ? input_->get_tooltip_text() : String(); }
+	void set_input_tooltip(const String &tip) {
+		if (input_) input_->set_tooltip_text(tip);
+		if (send_btn_) send_btn_->set_tooltip_text(tip);
+	}
 	// ChatWindow.closePage: Cancel or sending empties the input.
 	void close() {
 		if (panel_) panel_->set_visible(false);

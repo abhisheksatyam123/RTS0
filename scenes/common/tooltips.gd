@@ -24,6 +24,7 @@ var _custom: Control
 var _owner: Control
 var _text := ""
 var _hover_time := 0.0
+var _BBCODE := RegEx.create_from_string("\\[/?(b|i|u|color|img|font_size)[^\\]]*\\](?:[^\\[]*\\[/img\\])?")
 
 func _ready() -> void:
 	layer = 128
@@ -51,6 +52,19 @@ static func _style(bg: Color, border: Color) -> StyleBoxFlat:
 	sb.set_border_width_all(1)
 	sb.set_content_margin_all(5)
 	return sb
+
+## A formatted tooltip as plain text, for tests: resource icons read as their names
+## ("Food 50"), the time icon as "10 seconds", and the other BBCode goes.
+static func plain(text: String) -> String:
+	var t := text
+	var time := RegEx.create_from_string("\\[img[^\\]]*\\][^\\[]*time_small\\.png\\[/img\\] (\\d+)")
+	for m in time.search_all(t):
+		t = t.replace(m.get_string(), m.get_string(1) + (" second" if m.get_string(1) == "1" else " seconds"))
+	var icon := RegEx.create_from_string("\\[img[^\\]]*\\][^\\[]*/(\\w+)_small\\.png\\[/img\\]")
+	for m in icon.search_all(t):
+		t = t.replace(m.get_string(), m.get_string(1).capitalize())
+	t = RegEx.create_from_string("\\[/?(b|i|u|color|font_size)[^\\]]*\\]").sub(t, "", true)
+	return t.replace("[lb]", "[").replace("[rb]", "]")
 
 ## The tooltip text shown now ("" when hidden), for tests.
 func shown_text() -> String:
@@ -97,8 +111,11 @@ func _show(c: Control, text: String) -> void:
 		_label.add_theme_color_override("default_color", Color.WHITE if session else Color.BLACK)
 		var font := _label.get_theme_font("normal_font")
 		var widest := 0.0
+		# Measured without its BBCode (tooltips.js g_TooltipTextFormats); an inline icon is 16 wide.
 		for line in text.split("\n"):
-			widest = maxf(widest, font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)
+			var icons := line.count("[img")
+			var plain := _BBCODE.sub(line, "", true).replace("[lb]", "[").replace("[rb]", "]")
+			widest = maxf(widest, font.get_string_size(plain, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + icons * 16.0)
 		_label.custom_minimum_size = Vector2(minf(widest + 4.0, MAX_WIDTH), 0)
 		_label.text = text
 	_panel.reset_size()
