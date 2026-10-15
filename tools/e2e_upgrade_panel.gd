@@ -11,8 +11,6 @@ extends SceneTree
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_upgrade_panel.gd
 # Exit code 0 = pass.
 
-const DEV_PROMOTE := 5
-
 const TT = preload("res://scenes/common/tooltips.gd")
 
 var main
@@ -32,6 +30,10 @@ func _initialize() -> void:
 func frames(n: int) -> void:
 	for i in n:
 		await process_frame
+
+# The developer overlay row by its label (rows get added, so no fixed index).
+func promote() -> void:
+	main._on_dev_command(Array(main.debug_dev_overlay()["commands"]).find("Promote selected units"))
 
 func upgrades() -> Array:
 	return main.debug_command_row().filter(func(e): return TT.plain(str(e["tip"])).begins_with("Upgrade to a") or e["tip"] == "Cancel Upgrading" or TT.plain(str(e["tip"])).begins_with("Cannot upgrade"))
@@ -76,7 +78,7 @@ func run() -> void:
 	main.debug_select_units(rom)
 	await frames(2)
 	for i in 2:
-		main._on_dev_command(DEV_PROMOTE)
+		promote()
 		await frames(30)
 	u = upgrades()
 	print("    ", u.map(func(e): return "%s | %s" % [e["text"], TT.plain(str(e["tip"])).replace("\n", " | ")]))
@@ -84,7 +86,7 @@ func run() -> void:
 	var more: PackedInt32Array = main.debug_spawn_units("rome/infantry_spearman_b", 8)
 	main.debug_select_units(more)
 	for i in 2:
-		main._on_dev_command(DEV_PROMOTE)
+		promote()
 		await frames(30)
 	more.append_array(rom)
 	main.debug_select_units(more)
