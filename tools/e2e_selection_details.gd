@@ -57,6 +57,11 @@ func run() -> void:
 	await frames(2)
 	var e: Dictionary = main.debug_inspector(str(elite[0]))
 	check(String(e["rank_icon"]).ends_with("/ranks/Elite.png") and String(e["rank_tooltip"]).begins_with("Elite Rank\nElite units +20% training time"), "an Elite champion's rank icon gives the unit_elite bonus")
+	var siege: PackedInt32Array = main.debug_spawn_units("athen/siege_lithobolos_packed", 1)
+	await frames(2)
+	var sg: Dictionary = main.debug_inspector(str(siege[0]))
+	print("siege: ", sg["title"])
+	check(String(sg["title"]).ends_with(String.chr(0x2014) + " Packed)") or String(sg["title"]).ends_with("(Packed)"), "a packed siege engine adds \"Packed\" to its secondary name")
 	var m: Dictionary = main.debug_inspector("multi")
 	print("multi: ", m)
 	check(String(m["title_tooltip"]).begins_with("Garrison Size: "), "a group's tooltip gives its garrison size")
@@ -72,8 +77,15 @@ func run() -> void:
 	check(String(b["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/structures/"), "a Civic Center shows its template's 0.28 icon")
 	check(String(b["portrait_tooltip"]).ends_with("Left-click to focus. Right-click for more information.") and "Territory root." in String(b["portrait_tooltip"]), "its portrait tooltip gives the template tooltip and the focus click")
 	check(String(b["rank_icon"]) == "", "a structure has no rank glyph")
+	check(String(b["title"]) == "Agora (Civic Center)", "an Athenian Civic Center is named as 0.28: \"Agora (Civic Center)\"")
 	var parts: Array = b["capture_parts"]
 	check(parts.size() == 1 and float(parts[0]["width"]) > 300.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")
+
+	main.debug_inspector("field")
+	await frames(40) # a few turns: the field's supply comes with the next tick_gather
+	var fd: Dictionary = main.debug_inspector("field")
+	print("field: ", fd)
+	check(String(fd["stats"]).ends_with("Food: ∞\n0 / 5") or String(fd["stats"]).contains("Food: ∞\n0 / "), "a field shows \"Food: ∞\" and its gatherers, current / max")
 
 	var r: Dictionary = main.debug_inspector("resource")
 	print("resource: ", r)

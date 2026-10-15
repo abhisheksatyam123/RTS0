@@ -1139,7 +1139,18 @@ func open_lobby() -> void:
 	get_tree().paused = false
 	MatchSettings.go("res://scenes/menu/lobby.tscn")
 
-## 0 A.D. campaigns/default_menu/endgame: a level won is completed, then the run's menu.
+## 0 A.D. session CampaignSession.onFinish and campaigns/default_menu/endgame: the
+## level is completed the moment the player wins it, before the summary (the main
+## node calls this once), so loading a save or quitting afterwards keeps it.
+static func mark_campaign_won() -> void:
+	if MatchSettings.campaign_run == "" or MatchSettings.campaign_level == "":
+		return
+	var run := CampaignRun.new(MatchSettings.campaign_run)
+	if run.load_run():
+		run.mark_level_complete(MatchSettings.campaign_level)
+
+## Back to the run's menu after the match (a level won is completed again here,
+## for a match won before mark_campaign_won existed).
 static func leave_campaign(victory: bool) -> void:
 	var run := CampaignRun.new(MatchSettings.campaign_run)
 	if run.load_run():

@@ -65,6 +65,10 @@ func run() -> void:
 	check(FileAccess.file_exists(made.path()), "the run is written to " + made.path())
 	check(CampaignRun.current_filename() == made.filename, "and becomes the current run")
 	check(page.mode == "menu" and page.title.text == "My run - Tutorial", "its menu opens: " + page.title.text)
+	var saved: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(made.path()))
+	check(saved.get("template_identifier", "") == "tutorial" and not saved.has("template"),
+		"the run file names its template like 0 A.D.'s (template_identifier): " + str(saved.keys()))
+	check(page.start_button.text == "Start Scenario" and page.info_name.text == "No scenario selected", "Start Scenario, no scenario selected yet")
 	var texts := level_texts(page)
 	check(texts.size() == 2 and texts[0].begins_with("Introductory Tutorial") and texts[0].ends_with("Available"),
 		"the Introductory Tutorial comes first, available: " + str(texts))
@@ -93,6 +97,10 @@ func run() -> void:
 	ms.campaign_level = "introduction"
 
 	print("4. The level won")
+	# CampaignSession.onFinish: the main node marks the level as soon as it is won.
+	load("res://scenes/session/summary_screen.gd").mark_campaign_won()
+	var won := CampaignRun.new(made.filename)
+	check(won.load_run() and won.is_completed("introduction"), "the level is completed the moment it is won")
 	var summary = load("res://scenes/session/summary_screen.tscn").instantiate()
 	root.add_child(summary)
 	summary._victory = true
@@ -143,7 +151,19 @@ func run() -> void:
 	page.confirm.find_child("Button2", true, false).pressed.emit() # Yes
 	await frames(2)
 	check(not FileAccess.file_exists(made.path()) and CampaignRun.current_filename() == "", "Delete removes it and the current run")
-	check(page.empty_text.visible, "No saved campaigns.")
+	check(page.empty_text.visible and page.empty_text.text == "No ongoing campaigns.", "No ongoing campaigns.")
+
+	print("6. Runs named like their campaign, and runs saved before template_identifier")
+	var plain := CampaignRun.new("zz_e2e_plain")
+	plain.set_template(CampaignRun.template_by_id("tutorial")).set_meta_description("Tutorial").save()
+	check(plain.label() == "Tutorial" and plain.label(true) == "Tutorial - Tutorial", "getLabel: just the name unless full: " + plain.label())
+	plain.destroy()
+	var old_file := "user://saves/campaigns/zz_e2e_old.0adcampaign"
+	FileAccess.open(old_file, FileAccess.WRITE).store_string(JSON.stringify({"template": CampaignRun.template_by_id("tutorial"),
+		"data": {"completedLevels": ["introduction"]}, "meta": {"userDescription": "Old"}}))
+	var old := CampaignRun.new("zz_e2e_old")
+	check(old.load_run() and old.is_completed("introduction") and old.template.get("Name", "") == "Tutorial", "an older RTS0 run still loads")
+	old.destroy()
 
 	print("RESULT: %s (%d failed)" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures else 0)

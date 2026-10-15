@@ -212,7 +212,7 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	update_command_panel();
 	// The units it trains (the civ's roster list), then its other buttons.
 	if (command_panel_.roster_list() && command_panel_.roster_list()->is_visible())
-		for (int i = 0; i < command_panel_.roster_list()->get_item_count(); ++i) out.push_back(command_panel_.roster_list()->get_item_text(i));
+		for (int i = 0; i < command_panel_.roster_list()->get_item_count(); ++i) out.push_back(command_panel_.roster_label(i));
 	// Icon buttons (research, construction) by their label; a research pair's two buttons.
 	auto add = [&out](Node *n) {
 		if (Button *btn = Object::cast_to<Button>(n)) out.push_back(btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text());
@@ -284,8 +284,8 @@ Dictionary RtsoMain::debug_civic_centre_roof() {
 // Test hook: with select_all, selects every unit the local player owns; reports
 // the selection size and the selection panel's group icons (global rects).
 // "unit": the first own unit selected; "multi": all own units; "building": the first own
-// structure; "resource" / "fauna": the first tree or mine / animal, inspected as a click would;
-// a number: that unit.
+// structure; "field": the first own finished field (spawning one if there is none); "resource" /
+// "fauna": the first tree or mine / animal, inspected as a click would; a number: that unit.
 Dictionary RtsoMain::debug_inspector(const String &what) {
 	if (!sim) return Dictionary();
 	clear_selection();
@@ -302,6 +302,16 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 	} else if (what == "building") {
 		for (const auto &b : sim->buildings())
 			if (b.team == local_player() && rtso::is_civic_centre(b.type)) { selected_building_id = b.id; break; }
+	} else if (what == "field") {
+		// The player's first finished field; the test spawns one beside the Civic Center first.
+		for (const auto &b : sim->buildings())
+			if (b.team == local_player() && b.type == rtso::BLD_FIELD && b.build_progress >= 1.0f) { selected_building_id = b.id; break; }
+		if (selected_building_id == 0)
+			for (const auto &b : sim->buildings())
+				if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
+					sim->spawn_building_world(b.x + 12.0f, b.z + 12.0f, rtso::BLD_FIELD, local_player(), 1.0f);
+					break;
+				}
 	} else if (what == "resource") {
 		auto rv = sim->resources();
 		for (size_t r = 0; r < rv.count; ++r)
@@ -2777,6 +2787,11 @@ void RtsoMain::try_train_unit(rtso::UnitType utype) {
 
 int RtsoMain::train_batch() const {
 	return rtso::hotkeys::held("session.batchtrain") ? user_opts_.batch_size : 1;
+}
+
+int RtsoMain::ui_pending_batch(uint16_t tmpl) const {
+	const BatchTraining &bt = batch_training_;
+	return bt.active && bt.tmpl == tmpl ? bt.batches * std::max(1, user_opts_.batch_size) : 0;
 }
 
 // EntityLimits canBeAddedCount for a template: how many more the player may have, -1 if no limit.
