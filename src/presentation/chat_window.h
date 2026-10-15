@@ -371,7 +371,7 @@ public:
 		if (!log_ || !host_) return;
 		const String line = format_line("", host_->chat_user(""), text);
 		add_log(stamp() + line + "\n");
-		post_overlay(stamp() + line);
+		post_overlay(line);
 		if (host_->net_lockstep()) host_->chat_send_wire(text.utf8().get_data());
 	}
 
