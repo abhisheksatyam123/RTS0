@@ -925,7 +925,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						apply_default_formation(sel_ptr, sel_n);
 						sim->order_patrol(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
 					}
-				play_civ_voice("select");
+				// unit_actions.js PlaySound("order_patrol"): 0.28's units have no such sound group.
 				patrol_mode = false;
 				return;
 			}
@@ -939,13 +939,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						post_lockstep(21, sel_ptr, sel_n, 0, 0, target, qbit);
 					else
 						sim->order_guard(sel_ptr, sel_n, target, queue_shift);
-					play_civ_voice("select");
+					// PlaySound("order_guard"): no such sound group in 0.28's units either.
 					guard_mode = false;
 					return;
 				}
 				if (!guard_mode && selection_guarding()) {
 					_on_remove_guard_pressed();
-					play_civ_voice("select");
 					return;
 				}
 				if (guard_mode) {
