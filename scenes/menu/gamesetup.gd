@@ -267,6 +267,8 @@ const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 # Options-page aibehavior values -> RTS0 PetraBehavior (petra_ai.h).
 const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
+## The AI Behavior list order (0.28 settings.js loadAIBehaviors); entries are BEHAVIORS values.
+const BEHAVIOR_ORDER := [0, 2, 1, 3]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
 const RANDOM_BIOME := 99 # the Biome dropdown's Random entry (its item id too); resolved at Start
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India", "Autumn", "Nubia"]

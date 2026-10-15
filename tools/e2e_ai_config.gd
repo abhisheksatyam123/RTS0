@@ -61,7 +61,8 @@ func run() -> void:
 	var d = dialog(page)
 	check(d != null and d.slot == 1, "the gear opens the AI Configuration for player 2")
 	if d:
-		check(d._ai.selected == 1 and d._diff.selected == 3 and d._beh.selected == 2, "AI Player Petra Bot, Medium, Balanced")
+		check(d._ai.selected == 1 and d._diff.selected == 3 and d._beh.get_selected_id() == 2, "AI Player Petra Bot, Medium, Balanced")
+		check(range(d._beh.item_count).map(func(i): return d._beh.get_item_text(i)) == ["Random", "Balanced", "Defensive", "Aggressive"], "0.28's AI Behavior order")
 		check(d._desc.text.begins_with("Petra is the default 0 A.D. AI bot."), "Petra's description")
 		d._diff.select(4)
 		d._diff.item_selected.emit(4)
