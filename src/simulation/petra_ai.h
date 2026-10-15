@@ -437,9 +437,7 @@ struct PetraAttackManager {
 	uint8_t attack_number = 0; // Attack/HugeAttack plans so far
 	uint8_t kind = PETRA_ATTACK_ATTACK; // kind of the main plan
 	uint8_t save_resources = 0; // headquarters.js saveResources: little wood at the start
-	// buildManager.js unbuildables for "room": a bit per kind of structure (petra_room_bit) whose
-	// last search found no spot; cleared when one is placed or a new base widens the territory.
-	uint8_t missing_room = 0;
+	uint8_t missing_room = 0; // unused since v94 (Simulation::petra_room_); kept for the saved layout
 	// victoryManager.js tryCaptureGaiaRelicLapseTime: 2 s steps left before an attack may go
 	// for Gaia's relics again (0: it may, tryCaptureGaiaRelic).
 	uint8_t gaia_relic_lapse = 0;
@@ -464,8 +462,14 @@ struct PetraAttackManager {
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total
 	int32_t launched[PETRA_ATTACK_KINDS] = {}; // plans of each kind that marched
+	// The raid plan's name (totalNumber when it was made) and its addSiegeUnits state: 0 not
+	// tested, 1-3 the siege class added (SIEGE_ADDED), 0xFF no trainer yet (SIEGE_NO_TRAINER).
+	// (Save v95; the raid had no siege before.)
+	uint8_t raid_name = 0;
+	uint8_t raid_siege = 0;
+	uint8_t raid_pad[2] = {};
 };
-static_assert(sizeof(PetraAttackManager) == 52, "PetraAttackManager is saved raw; keep it padding-free");
+static_assert(sizeof(PetraAttackManager) == 56, "PetraAttackManager is saved raw; keep it padding-free");
 
 // navalManager.js:58 seaWarShips — per-sea fleet accounting registry
 struct Petra {

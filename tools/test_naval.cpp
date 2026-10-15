@@ -1111,8 +1111,9 @@ static void test_petra_concurrent_transports() {
 	drop_attack_batches();
 	bool both = false, shared = false;
 	std::vector<uint32_t> landed;
-	// The most villagers on the south land at once: once the civic centre stands, Petra may ship a
-	// builder home again for a resource the new base lacks.
+	// The most workers (not the army's soldiers) on the south land at once: once the civic centre
+	// stands, Petra may ship a builder home again for a resource the new base lacks. The crew is
+	// whoever is idle first, the women it trained meanwhile as well as the starting villagers.
 	int villagers_south = 0;
 	for (int k = 0; k < 120; ++k) {
 		if (s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER) drop_attack_batches();
@@ -1131,11 +1132,11 @@ static void test_petra_concurrent_transports() {
 		}
 		int now_south = 0;
 		for (size_t i = 0; i < s.units().count; ++i)
-			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+			if (s.units().alive[i] && s.units().team[i] == 1 && s.petra_is_worker(i) &&
 			    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) ++now_south;
 		villagers_south = std::max(villagers_south, now_south);
 	}
-	std::printf("Petra concurrent transports: both under way at once %s, %zu of 6 spearmen landed, at most %d villagers on the south land at once\n",
+	std::printf("Petra concurrent transports: both under way at once %s, %zu of 6 spearmen landed, at most %d workers on the south land at once\n",
 	            both ? "yes" : "no", landed.size(), villagers_south);
 	CHECK(both && !shared);
 	CHECK(landed.size() >= 4 && villagers_south >= 1);
@@ -1755,6 +1756,26 @@ static void test_fire_ship() {
 	s.cmd_delete(0, &a, 1);
 	run(s, 1.0f);
 	CHECK(hp(b) == b0);
+
+	// What the blast kills is a kill like any other (Health.js KilledBy with the fire ship as the
+	// attacker): its owner takes the loot, and a structure it razes leaves the territory grid.
+	const uint32_t fire2 = s.spawn_unit(30.0f, 12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+	CHECK(s.cmd_upgrade_units(0, &fire2, 1, tmpl_of("brit/ship_fire_fire")));
+	run(s, 0.1f);
+	const uint32_t prey = s.spawn_unit(33.0f, 12.0f, 1, UNIT_TRIREME);
+	const uint32_t dock = s.spawn_building_world(30.0f, 17.0f, BLD_DOCK, 1, 1.0f);
+	uint32_t pair[2] = {fire2, prey};
+	s.order_set_stance(pair, 2, STANCE_PASSIVE);
+	s.set_unit_hp(prey, 1.0f);
+	s.buildings_[s.building_id_to_idx_.at(dock)].hp = 1.0f;
+	const float wood0 = s.player(0).res[RES_WOOD];
+	s.set_unit_hp(fire2, 1.0f);
+	run(s, 1.0f);
+	CHECK(!s.units().alive[idx(s, prey)]);
+	CHECK(s.buildings_[s.building_id_to_idx_.at(dock)].wrecked);
+	std::printf("fire ship blast loot: wood %.0f -> %.0f\n", wood0, s.player(0).res[RES_WOOD]);
+	CHECK(s.player(0).res[RES_WOOD] > wood0);
+	CHECK(s.territory_owner_at(30.0f, 17.0f) != 1);
 }
 
 // A worker sent to a tree across the north-east lake walks round it (UnitMotion paths
