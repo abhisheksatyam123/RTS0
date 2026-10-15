@@ -617,6 +617,7 @@ public:
 	}
 	// Rally point flags drawn this frame (rally_point_renderer.h).
 	int debug_rally_flags() const { return rally_points_.flag_count(); }
+	int debug_status_sprites() const { return view ? view->status_sprite_count() : 0; }
 	PackedInt32Array debug_selected_structures() const {
 		PackedInt32Array out;
 		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);
