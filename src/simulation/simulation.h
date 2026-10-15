@@ -2675,7 +2675,7 @@ private:
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
 	std::vector<Scenery> scenery_; // saved
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
-	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0, uint8_t team = 0xFF) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	// Every standing building's footprint cells (can_place): FULL where a footprint covers the cell,
