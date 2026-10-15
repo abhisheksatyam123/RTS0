@@ -145,6 +145,15 @@
   "metre": 0.18513,
   "researching": [
    {
+    "glb": "germ_forger",
+    "pos": [
+     -1.0971,
+     1.0,
+     -0.1867
+    ],
+    "yaw": 0.2518
+   },
+   {
     "fx": "sparks",
     "pos": [
      -0.7869,
@@ -204,6 +213,31 @@
      2.6005,
      1.2234
     ]
+   }
+  ]
+ },
+ "germ_temple": {
+  "metre": 0.16561,
+  "researching": [
+   {
+    "glb": "crow_circle",
+    "pos": [
+     -0.0418,
+     5.3851,
+     0.0489
+    ],
+    "yaw": 0.0
+   }
+  ],
+  "training": [
+   {
+    "glb": "crow_circle",
+    "pos": [
+     -0.0418,
+     5.3851,
+     0.0489
+    ],
+    "yaw": 0.0
    }
   ]
  },
@@ -463,6 +497,15 @@
  "s_germans_forge": {
   "metre": 0.18513,
   "researching": [
+   {
+    "glb": "germ_forger",
+    "pos": [
+     -1.0971,
+     1.0,
+     -0.1867
+    ],
+    "yaw": 0.2518
+   },
    {
     "fx": "sparks",
     "pos": [
