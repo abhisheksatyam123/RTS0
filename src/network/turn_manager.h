@@ -316,6 +316,23 @@ public:
 	// Accessor for verification / debugging.
 	const std::vector<TurnFrame>& turn_history() const { return turn_history_; }
 
+	// The developer overlay's rejoin test (0.28 Engine.ActivateRejoinTest): this turn manager
+	// replays `live`'s turns, one push_shadow_frame per turn, onto a simulation loaded from a
+	// snapshot of live's, and its replay check (replay_out_of_sync) compares each turn's hash.
+	void begin_shadow_replay(const TurnManager &live) {
+		client_player_ = live.client_player_;
+		turn_history_.clear();
+		is_replaying_ = true;
+		replay_loaded_ = true;
+		replay_complete_ = false;
+		replay_oos_ = false;
+		replay_oos_turn_ = 0;
+		replay_frame_idx_ = 0;
+		current_turn_ = live.current_turn_;
+		turn_timer_ = 0.0f;
+	}
+	void push_shadow_frame(const TurnFrame &f) { turn_history_.push_back(f); }
+
 	// Consume a fully parsed NMT_GAME_START payload. The game layer owns
 	// simulation setup (map loading and initial spawn), so the network layer
 	// only transfers the validated setup atomically.

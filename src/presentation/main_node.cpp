@@ -1491,6 +1491,9 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_RESTRICT_CAMERA: // RestrictCamera: GameView_SetConstrainCameraEnabled
 			if (cam_rig) cam_rig->set_constrain_camera(on);
 			break;
+		case D::DEV_REJOIN_TEST: // ActivateRejoinTest: its SessionMessageBox, OK starting it
+			if (on && !rejoin_test_) quit_confirmation("rejoin_test");
+			break;
 		case D::DEV_TIME_WARP: // EnableTimeWarp: TimeWarp.setEnabled
 			set_time_warp(on);
 			break;
@@ -1518,6 +1521,51 @@ void RtsoMain::_on_render_debug_mode(int index) {
 	};
 	if (Viewport *vp = get_viewport()) vp->set_debug_draw(kDraw[index]);
 	refresh_dev_overlay();
+}
+
+void RtsoMain::activate_rejoin_test() {
+	if (rejoin_test_ || !sim || turn_mgr_.is_replaying()) return;
+	rejoin_test_ = true;
+	refresh_dev_overlay();
+}
+
+// After each turn: the first takes the snapshot and rejoins the copy from it (a fresh
+// Simulation loading the save, as a rejoining client loads the host's state); each later
+// one replays that turn's commands onto the copy, whose turn manager checks the copy's
+// hash against the turn's.
+void RtsoMain::rejoin_test_turn() {
+	if (!rejoin_test_ || !sim || turn_mgr_.is_replaying() || turn_mgr_.turn_history().empty()) return;
+	if (!rejoin_sim_) {
+		const String path = ProjectSettings::get_singleton()->globalize_path("user://rejoin_test.rts0sav");
+		const std::string p = path.utf8().get_data();
+		auto copy = std::make_unique<rtso::Simulation>();
+		if (!sim->save_state(p.c_str()) || !copy->load_state(p.c_str())) {
+			DirAccess::remove_absolute(path);
+			return;
+		}
+		DirAccess::remove_absolute(path);
+		rejoin_sim_ = std::move(copy);
+		rejoin_tm_ = std::make_unique<rtso::TurnManager>();
+		rejoin_tm_->begin_shadow_replay(turn_mgr_);
+		rejoin_from_turn_ = turn_mgr_.current_turn();
+		return;
+	}
+	rejoin_tm_->push_shadow_frame(turn_mgr_.turn_history().back());
+	if (!rejoin_tm_->tick(rtso::TurnManager::TURN_DURATION, *rejoin_sim_)) return;
+	++rejoin_turns_;
+	if (rejoin_tm_->replay_out_of_sync() && !rejoin_oos_turn_) {
+		rejoin_oos_turn_ = rejoin_tm_->replay_out_of_sync_turn();
+		quit_confirmation("out_of_sync_rejoin_test");
+	}
+}
+
+Dictionary RtsoMain::get_rejoin_test() const {
+	Dictionary d;
+	d["active"] = rejoin_test_;
+	d["rejoined_at"] = rejoin_from_turn_;
+	d["turns"] = rejoin_turns_;
+	d["out_of_sync_turn"] = rejoin_oos_turn_;
+	return d;
 }
 
 // TimeWarp.setEnabled: not in networked games (nor replays); turning it on shows
@@ -1582,6 +1630,8 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
+		dev_overlay_.set_checked(D::DEV_REJOIN_TEST, rejoin_test_); // checked(): this.disabled
+		dev_overlay_.set_enabled(D::DEV_REJOIN_TEST, !rejoin_test_ && !turn_mgr_.is_replaying());
 		using O = rtso::RtsoDebugOverlays;
 		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
 		dev_overlay_.set_checked(D::DEV_HIER_PATHFINDER_OVERLAY, debug_overlays_.on(O::HIER_PATHFINDER));

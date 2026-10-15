@@ -2,9 +2,11 @@
 #define RTSO_TUTORIAL_PANEL_H
 
 // In-game tutorial panel (0 A.D. gui/session/session.xml "tutorialPanel" with
-// gui/session/messages.js displayTutorial / onTutorialReady): the current goal's
-// instructions, the warning line, and a Ready button while the goal waits on it.
-// The last goal's button reads "Leave". Toggled with session.gui.tutorial.toggle.
+// gui/session/messages.js updateTutorial / onTutorialReady): every instruction so far, the
+// newest in 255 226 149 (g_TutorialNewMessageTags), the status line ("Follow the
+// instructions.", "Click when ready.", "Click to quit this tutorial." or the orange
+// warning), and a Ready button while the goal waits on it ("Quit" on the last goal).
+// Toggled with session.gui.tutorial.toggle.
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/node.hpp>
@@ -13,6 +15,7 @@
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/callable.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 #include <string>
@@ -37,20 +40,26 @@ inline std::string tutorial_line_text(const TutorialLine &l) {
 	return s;
 }
 
-// The panel's text for the sim's current goal ("" when no tutorial runs).
-inline std::string tutorial_panel_text(const Simulation &sim) {
-	const TutorialGoal *g = tutorial_goal(sim.tutorial_id(), sim.tutorial_goal_index());
+// A goal's instructions ("" past the last goal).
+inline std::string tutorial_goal_text(uint8_t tutorial, int goal) {
+	const TutorialGoal *g = tutorial_goal(tutorial, goal);
 	if (!g) return "";
 	std::string out;
 	for (const TutorialLine &l : g->lines) {
 		if (!l.text) break;
-		if (!out.empty()) out += "\n";
-		out += tutorial_line_text(l);
+		out += tutorial_line_text(l); // the instructions concatenate (messages.js reduce)
 	}
-	const uint8_t w = sim.tutorial_warning();
-	if (w != TUTORIAL_WARN_NONE && w < TUTORIAL_WARN_COUNT)
-		out += "\n[color=#ff8040]" + tutorial_line_text(tutorial_warning(w)) + "[/color]";
 	return out;
+}
+
+// The panel's text for the sim's current goal: the earlier goals, then the newest in
+// 255 226 149 ("" when no tutorial runs).
+inline std::string tutorial_panel_text(const Simulation &sim) {
+	const int goal = sim.tutorial_goal_index();
+	if (!tutorial_goal(sim.tutorial_id(), goal)) return "";
+	std::string out;
+	for (int i = 0; i < goal; ++i) out += tutorial_goal_text(sim.tutorial_id(), i) + "\n";
+	return out + "[color=#ffe295]" + tutorial_goal_text(sim.tutorial_id(), goal) + "[/color]";
 }
 
 class RtsoTutorialPanel {
@@ -74,14 +83,23 @@ public:
 
 		text_ = memnew(RichTextLabel);
 		text_->set_use_bbcode(true);
+		text_->set_scroll_follow(true); // the newest instruction stays in view
 		text_->set_position(Vector2(12, 8));
-		text_->set_size(Vector2(596, 140));
+		text_->set_size(Vector2(596, 120));
 		text_->add_theme_font_size_override("normal_font_size", 13);
 		panel_->add_child(text_);
 
+		status_ = memnew(RichTextLabel); // tutorialWarning
+		status_->set_use_bbcode(true);
+		status_->set_scroll_active(false);
+		status_->set_position(Vector2(12, 130));
+		status_->set_size(Vector2(400, 22));
+		status_->add_theme_font_size_override("normal_font_size", 13);
+		panel_->add_child(status_);
+
 		ready_ = memnew(Button);
-		ready_->set_text("Click to Proceed");
-		ready_->set_position(Vector2(240, 150));
+		ready_->set_text("Ready");
+		ready_->set_position(Vector2(468, 150));
 		ready_->set_size(Vector2(140, 30));
 		ready_->connect("pressed", Callable(owner, ready_method));
 		panel_->add_child(ready_);
@@ -111,15 +129,37 @@ public:
 			last_ = t;
 			text_->set_text(String::utf8(t.c_str()));
 		}
-		ready_->set_visible(sim->tutorial_ready_button());
-		ready_->set_text(on_last_goal(*sim) ? "Leave" : "Click to Proceed");
+		const bool ready = sim->tutorial_ready_button(), leave = on_last_goal(*sim);
+		ready_->set_visible(ready);
+		ready_->set_text(leave ? "Quit" : "Ready");
+		const uint8_t w = sim->tutorial_warning();
+		const std::string status = w != TUTORIAL_WARN_NONE && w < TUTORIAL_WARN_COUNT
+				? "[color=orange]" + tutorial_line_text(tutorial_warning(w)) + "[/color]"
+				: !ready ? "Follow the instructions."
+				: leave ? "Click to quit this tutorial." : "Click when ready.";
+		if (status != last_status_) {
+			last_status_ = status;
+			status_->set_text(String::utf8(status.c_str()));
+		}
+	}
+
+	// Tests: the panel as shown.
+	Dictionary debug_state() const {
+		Dictionary d;
+		d["visible"] = panel_ && panel_->is_visible();
+		d["text"] = text_ ? text_->get_text() : String();
+		d["status"] = status_ ? status_->get_parsed_text() : String();
+		d["button"] = ready_ ? ready_->get_text() : String();
+		d["button_visible"] = ready_ && ready_->is_visible();
+		return d;
 	}
 
 private:
 	Panel *panel_ = nullptr;
 	RichTextLabel *text_ = nullptr;
+	RichTextLabel *status_ = nullptr;
 	Button *ready_ = nullptr;
-	std::string last_;
+	std::string last_, last_status_;
 	bool hidden_ = false;
 };
 
