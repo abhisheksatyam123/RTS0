@@ -1009,6 +1009,11 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
+	{
+		std::vector<uint32_t> sel_blds;
+		if (!sim->cinema_playing() && selected_building_id != 0) sel_blds.push_back(selected_building_id);
+		view->set_selected_buildings(sel_blds);
+	}
 	if (sim->cinema_playing()) {
 		// ICmpSelectable::SetOverrideVisibility(false): no selection rings while a path plays.
 		view->sync(sim, (float)delta, PackedInt32Array());

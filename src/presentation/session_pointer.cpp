@@ -213,6 +213,8 @@ void RtsoMain::update_highlight() {
 			const size_t u = own_unit_under_mouse(mouse, true);
 			if (u != (size_t)-1) {
 				ids.push_back((int32_t)sim->units().id[u]);
+			} else if (const uint32_t bid = building_under_mouse(mouse); bid != 0) {
+				ids.push_back((int32_t)bid);
 			} else {
 				const Vector3 at = get_ground_click_pos(mouse);
 				auto fv = sim->fauna();
