@@ -52,6 +52,8 @@ public:
 	virtual godot::String player_display_name(uint8_t pid) const = 0;
 	virtual uint32_t ui_selected_building_id() const = 0;
 	virtual const godot::PackedInt32Array &ui_selected_ids() const = 0;
+	// Every selected structure, the first being ui_selected_building_id().
+	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
 };
 
 class RtsoInspectorView {
@@ -493,11 +495,14 @@ public:
 			d.resistance[0] = fi.hack_armor;
 			d.resistance[1] = fi.pierce_armor;
 			d.resistance[2] = fi.crush_armor;
+			// getSpeedTooltip: walk and run, in 0 A.D. metres a second (RTS0 walks at x0.356).
+			d.walk = fi.speed / 0.356f;
+			d.run = d.walk * (fi.run_mult > 0.0f ? fi.run_mult : 1.0f);
 			const String attack = rtso::seldet::attack_tooltip(d,
 					godot::Dictionary(rtso::portraits::fauna_entry(fv.fauna_type[f]).get("viewer", godot::Dictionary())).get("attacks", godot::Array())),
 					resistance = rtso::seldet::resistance_tooltip(d.resistance);
 			stats_->set_text(rtso::seldet::join_lines({body_lines(attack), body_lines(resistance)}));
-			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance}));
+			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance, rtso::seldet::speed_tooltip(d)}));
 			// resourceSection: the meat it yields, "Food: 100 / 100".
 			if (fv.food_amount[f] > 0)
 				extra_->set_text(rtso::seldet::resource_label(rtso::RES_FOOD) + " " +
@@ -597,6 +602,13 @@ public:
 					: flora_title(rv.flora ? rv.flora[r] : rtso::FLORA_BERRY);
 			kind = "Food";
 		}
+		// A tree or fruit: its template's SpecificName under the Tree or Fruit GenericName
+		// (gaia/tree and gaia/fruit templates set only SpecificName): "Aleppo Pine (Tree)".
+		if (rv.type[r] == rtso::RES_WOOD || (rv.type[r] == rtso::RES_FOOD && rv.subtype[r] != rtso::RES_SUB_MEAT &&
+				rv.subtype[r] != rtso::RES_SUB_FISH && rv.subtype[r] != rtso::RES_SUB_GRAIN)) {
+			const String generic = rtso::portraits::resource_entry(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0).get("generic_name", String());
+			if (!generic.is_empty()) title = rtso::entity_names(generic, title);
+		}
 		portrait_->set_texture(rtso::portraits::resource(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0));
 		title_->set_text(title);
 		set_owner(*sim, rtso::GAIA_PLAYER);
@@ -667,6 +679,15 @@ public:
 				gar.set_visible(show_gar);
 			}
 		} grid_visibility{selection_grid_, garrison_grid_, show_selection_grid, show_garrison_grid};
+
+		// selection_details.js displayMultiple: several structures, or structures with units.
+		if (const std::vector<uint32_t> structs = host_->ui_selected_structures();
+				!structs.empty() && structs.size() + (size_t)selected_ids.size() > 1) {
+			fill_multiple(*sim, structs);
+			show_selection_grid = true;
+			panel_->set_visible(true);
+			return;
+		}
 
 		if (selected_building_id != 0) {
 			const rtso::Simulation::Building *found_b = nullptr;
@@ -1216,6 +1237,65 @@ private:
 	godot::Label *extra_ = nullptr;
 	godot::Button *ungarrison_btn_ = nullptr;
 	rtso::FogMirages mirages_; // the viewer's structures: live in sight, mirages in the fog
+	// displayMultiple for a selection holding structures: the groups (units by template, then
+	// structures by civ and type) with their counts and summed health.
+	void fill_multiple(const rtso::Simulation &sim, const std::vector<uint32_t> &structs) {
+		const godot::PackedInt32Array &selected_ids = host_->ui_selected_ids();
+		auto uview = sim.units();
+		std::vector<RtsoSelectionGrid::Group> groups = selection_groups(sim, uview,
+				RtsoSelectionGrid::group_units(uview, (const uint32_t *)selected_ids.ptr(), selected_ids.size()));
+		for (uint32_t id : structs)
+			for (const auto &b : sim.buildings()) {
+				if (b.id != id) continue;
+				const int key = RtsoSelectionGrid::structure_key(b.civ, b.type);
+				RtsoSelectionGrid::Group *g = nullptr;
+				for (auto &e : groups)
+					if (e.key == key) g = &e;
+				if (!g) {
+					RtsoSelectionGrid::Group ng;
+					ng.key = key;
+					ng.player = b.team;
+					ng.icon = rtso::portraits::structure(b.civ, b.type);
+					ng.name = structure_name(b.civ, b.type, rtso::building_type_info(b.type).name);
+					groups.push_back(ng);
+					g = &groups.back();
+				}
+				++g->count;
+				g->hp += b.hp;
+				g->max_hp += b.max_hp;
+				break;
+			}
+		float hp = 0.0f, max_hp = 0.0f;
+		int64_t total = 0;
+		for (auto &g : groups) {
+			hp += g.hp;
+			max_hp += g.max_hp;
+			total += g.count;
+			if (RtsoSelectionGrid::is_structure_key(g.key))
+				g.tip = g.name + "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+		}
+		auto show_bar = [](godot::ProgressBar *bar, godot::Label *lbl, bool v) {
+			bar->set_visible(v);
+			lbl->set_visible(v);
+		};
+		show_bar(hp_bar_, hp_label_, true);
+		hp_bar_->set_max(max_hp > 0.0f ? max_hp : 1.0f);
+		hp_bar_->set_value(hp);
+		hp_label_->set_text(rtso::seldet::health(hp, max_hp));
+		show_bar(capture_bar_, capture_label_, false);
+		portrait_->set_texture(groups.empty() ? godot::Ref<godot::Texture2D>()
+				: groups.front().icon.is_valid() ? groups.front().icon : rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
+		title_->set_text(godot::String::num_int64(total) + " selected");
+		clear_owner();
+		class_->set_text(godot::String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
+		show_bar(xp_bar_, xp_label_, false);
+		show_bar(aura_bar_, aura_label_, false);
+		stats_->set_text("");
+		extra_->set_text("");
+		ungarrison_btn_->set_visible(false);
+		selection_grid_.update(groups, "");
+	}
+
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
 	godot::Control *barter_host_ = nullptr;

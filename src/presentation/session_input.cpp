@@ -62,14 +62,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// clearSelection() (input.js:1709).
 			if (close_open_dialogs()) return;
 			if (build_mode) enter_build_mode(false);
-			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || repair_mode)
-				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
+			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode)
+				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 			else clear_selection();
 			return;
 		}
 
 		// While placing a building, letters pick the building to place
-		// (RTS0 [hotkey.rts0.build]); the camera scrolls with the arrows only.
+		// (RTS0 [hotkey.rts0.build], unbound by default as 0.28 has no such keys).
 		if (build_mode) {
 			static const struct { const char *name; uint8_t type; } kBuildKeys[] = {
 				{"rts0.build.civilcentre", rtso::BLD_TOWN_CENTER}, {"rts0.build.house", rtso::BLD_HOUSE},
@@ -252,6 +252,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 		if (fired("session.unload")) {
 			_on_ungarrison_pressed();
+			return;
+		}
+		if (fired("session.unloadturrets")) { // unit_actions "unload-all-turrets"
+			_on_entity_command("unload-all-turrets");
 			return;
 		}
 		// Delete (0 A.D. session.kill, unit_actions "delete"): DeleteSelectionConfirmation
@@ -577,8 +581,38 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								}
 							}
 							if (hit_bld != 0) {
-								selected_building_id = hit_bld;
-								if (!is_shift) selected_ids.clear();
+								// selection.js: Shift adds the structure, Ctrl removes it, a double-click
+								// takes every finished one of its type on screen (all of them with
+								// selection.offscreen); a plain click selects it alone.
+								std::vector<uint32_t> structs = selected_structures();
+								std::vector<uint32_t> picked{hit_bld};
+								if (dbl_click) {
+									uint8_t type = rtso::BLD_TYPE_COUNT;
+									for (const auto &b : sim->buildings())
+										if (b.id == hit_bld) type = b.type;
+									Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
+									for (const auto &b : sim->buildings()) {
+										if (b.id == hit_bld || b.type != type || b.team != local_player() || b.wrecked ||
+												b.build_progress < 1.0f || !cam)
+											continue;
+										const Vector3 wp(b.x, sim->get_terrain_height(b.x, b.z), b.z);
+										if (!offscreen && cam->is_position_behind(wp)) continue;
+										const Vector2 sp = cam->unproject_position(wp);
+										if (offscreen || (sp.x >= 0.0f && sp.x <= vp_size.x && sp.y >= 0.0f && sp.y <= vp_size.y))
+											picked.push_back(b.id);
+									}
+								}
+								if (is_ctrl) {
+									for (uint32_t id : picked) structs.erase(std::remove(structs.begin(), structs.end(), id), structs.end());
+								} else if (is_shift) {
+									for (uint32_t id : picked)
+										if (std::find(structs.begin(), structs.end(), id) == structs.end()) structs.push_back(id);
+								} else {
+									selected_ids.clear();
+									structs = picked;
+								}
+								set_selected_structures(structs);
 							} else if (!is_ctrl && inspector_.inspect_at(click_pos)) {
 								// Another player's unit or structure, an animal or a resource:
 								// selected for its details only (0 A.D. EntitySelection).
@@ -597,11 +631,31 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Vector2 min_p(std::min(drag_start.x, drag_end.x), std::min(drag_start.y, drag_end.y));
 						Vector2 max_p(std::max(drag_start.x, drag_end.x), std::max(drag_start.y, drag_end.y));
 
+						const std::vector<int32_t> boxed = band_box_ids(drag_start, drag_end);
+						// input.js: with no unit in the box, its defensive structures, else any of the
+						// player's structures.
+						const std::vector<uint32_t> boxed_structs = boxed.empty() ? band_box_structures(drag_start, drag_end)
+								: std::vector<uint32_t>();
+						if (!boxed_structs.empty()) {
+							std::vector<uint32_t> structs = selected_structures();
+							if (is_ctrl) {
+								for (uint32_t id : boxed_structs) structs.erase(std::remove(structs.begin(), structs.end(), id), structs.end());
+							} else if (is_shift) {
+								for (uint32_t id : boxed_structs)
+									if (std::find(structs.begin(), structs.end(), id) == structs.end()) structs.push_back(id);
+							} else {
+								selected_ids.clear();
+								structs = boxed_structs;
+							}
+							set_selected_structures(structs);
+							play_civ_voice("select");
+							return;
+						}
 						if (!is_shift && !is_ctrl) {
 							selected_ids.clear();
 						}
 						selected_building_id = 0;
-						for (int32_t uid : band_box_ids(drag_start, drag_end)) {
+						for (int32_t uid : boxed) {
 							const int64_t at = selected_ids.find(uid);
 							if (is_ctrl) {
 								if (at >= 0) selected_ids.remove_at(at);
@@ -680,13 +734,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
 				const bool rally_queued = rtso::hotkeys::held("session.queue");
-				if (turn_cmds()) {
-					uint32_t extra[2] = {target_res, target_bld};
-					post_lockstep(14, extra, 2, click_pos.x, click_pos.z, selected_building_id,
-							rally_queued ? rtso::NET_PARAM_QUEUED : 0);
-				} else {
-					sim->cmd_set_rally_point(local_player(), selected_building_id, click_pos.x, click_pos.z, target_res, target_bld,
-							rally_queued);
+				// unit_actions.js "set-rallypoint": every selected structure with a RallyPoint.
+				for (uint32_t sb : selected_structures()) {
+					if (sb != selected_building_id && !building_trains_units(sb)) continue;
+					if (turn_cmds()) {
+						uint32_t extra[2] = {target_res, auto_rally ? sb : target_bld};
+						post_lockstep(14, extra, 2, click_pos.x, click_pos.z, sb, rally_queued ? rtso::NET_PARAM_QUEUED : 0);
+					} else {
+						sim->cmd_set_rally_point(local_player(), sb, click_pos.x, click_pos.z, target_res, auto_rally ? sb : target_bld,
+								rally_queued);
+					}
 				}
 				play_civ_voice("select");
 				return;
@@ -787,17 +844,34 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// The Garrison and Repair buttons arm one click, like holding the modifier.
 			const bool force_garrison = garrison_mode || rtso::hotkeys::held("session.garrison");
 			const bool force_repair = repair_mode || rtso::hotkeys::held("session.repair");
-			garrison_mode = repair_mode = false;
+			// "occupy-turret": the Occupy Turret button arms it (preSelectedActionCheck, ahead of
+			// everything); session.occupyturret comes after "garrison" (specificness 21 to 20).
+			const bool armed_turret = turret_mode;
+			const bool force_turret = turret_mode || rtso::hotkeys::held("session.occupyturret");
+			garrison_mode = turret_mode = repair_mode = false;
 			bool garrison_click = false;
-			if (force_garrison) {
+			uint32_t turret_target = 0;
+			if (force_garrison || force_turret) {
 				for (const auto &b : sim->buildings()) {
 					if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) continue; // own or allied
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz <= hit_r * hit_r) {
 						garrison_click = true;
+						turret_target = b.id;
 						break;
 					}
 				}
+			}
+			// The armed Occupy Turret takes this click whatever lies under it: the holder's points,
+			// or nothing (action-occupy-turret-disabled).
+			if (armed_turret) {
+				if (turret_target && selection_can_occupy_turret(turret_target)) {
+					if (turn_cmds())
+						post_lockstep(12, sel_ptr, sel_n, 0, 0, turret_target, (uint8_t)(qbit | rtso::NET_PARAM_OCCUPY_TURRET));
+					else
+						sim->order_garrison(sel_ptr, sel_n, turret_target, queue_shift, true);
+				}
+				return;
 			}
 			// session.calltoarms + right-click: Commands.js call-to-arms (drop loads, then attack-walk).
 			// unit_actions.js: session.attackmoveUnit fights units only (targetClasses Unit); call-to-arms
@@ -1097,6 +1171,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					// and its specificness 1 beats capture, attack and repair).
 					const uint32_t field_grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
 					const bool friendly = b.team == local_player() || sim->is_ally(local_player(), b.team);
+					auto occupy_turret = [&]() {
+						if (turn_cmds())
+							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, (uint8_t)(qbit | rtso::NET_PARAM_OCCUPY_TURRET));
+						else
+							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift, true);
+					};
 					if (force_garrison && friendly && selection_can_garrison(b.id)) {
 						// session.garrison is a hotkeyActionCheck: it wins over returning
 						// resources and repairing (unit_actions.js "garrison").
@@ -1104,6 +1184,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 						else
 							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
+					} else if (force_turret && friendly && selection_can_occupy_turret(b.id)) {
+						occupy_turret();
 					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp)) {
 						// session.repair likewise wins over returning resources (unit_actions.js "repair").
 						if (turn_cmds())
@@ -1352,6 +1434,29 @@ void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
 	const size_t step = std::max<size_t>(1, (size_t)std::ceil(1.25f / std::max(between, 0.001f)));
 	for (size_t k = 0; k < n; k += step) range_overlays_.add_target_marker(dist[k].x, dist[k].y);
 	play_civ_voice(attack ? "attack" : "move");
+}
+
+// getPreferredEntities for a box with no units: the player's finished defensive structures in it
+// (towers, walls, fortresses), else all of its structures there.
+std::vector<uint32_t> RtsoMain::band_box_structures(Vector2 a, Vector2 b) const {
+	std::vector<uint32_t> defensive, all;
+	Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+	if (!sim || !cam) return all;
+	if (rtso::hotkeys::held("selection.militaryonly") || rtso::hotkeys::held("selection.nonmilitaryonly") ||
+			rtso::hotkeys::held("selection.idleonly") || rtso::hotkeys::held("selection.woundedonly"))
+		return all;
+	const Vector2 min_p(std::min(a.x, b.x), std::min(a.y, b.y));
+	const Vector2 max_p(std::max(a.x, b.x), std::max(a.y, b.y));
+	for (const auto &bl : sim->buildings()) {
+		if (bl.team != local_player() || bl.wrecked || bl.hp <= 0.0f) continue;
+		const Vector3 wp(bl.x, sim->get_terrain_height(bl.x, bl.z), bl.z);
+		if (cam->is_position_behind(wp)) continue;
+		const Vector2 sp = cam->unproject_position(wp);
+		if (sp.x < min_p.x || sp.x > max_p.x || sp.y < min_p.y || sp.y > max_p.y) continue;
+		all.push_back(bl.id);
+		if ((rtso::building_tech_classes(bl.type) & rtso::TC_DEFENSIVE) != 0) defensive.push_back(bl.id);
+	}
+	return defensive.empty() ? all : defensive;
 }
 
 // The local player's units (with their formation mates) and livestock whose screen position

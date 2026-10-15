@@ -171,6 +171,40 @@ int main() {
 		CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(l));
 	}
 
+	// Circular maps: territory stops at the passable edge (CCmpTerritoryManager cost 255 off the
+	// world), so the ring and the corners hold none and don't count as map.
+	{
+		static Simulation c;
+		c.set_sim_seed(41);
+		c.reset();
+		c.set_circular_map(true);
+		const float h = c.map_half();
+		const float d = (h - MAP_EDGE_DIST) * 0.72f; // near the edge, on the diagonal
+		c.spawn_building_world(d, d, BLD_TOWN_CENTER, 0, 1.0f);
+		c.rebuild_territory();
+		CHECK(c.territory_owner_at(d, d) == 0);
+		CHECK(c.territory_owner_at(h - 1.0f, h - 1.0f) == -1); // the corner, off the world
+		const float in = (h - MAP_EDGE_DIST - 1.0f) * 0.7071f;
+		const float out = (h - 1.0f) * 0.7071f;
+		CHECK(c.territory_owner_at(in, in) == 0);   // just inside the edge
+		CHECK(c.territory_owner_at(out, out) == -1); // in the edge band
+		static Simulation q;
+		q.set_sim_seed(41);
+		q.reset();
+		q.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		q.rebuild_territory();
+		static Simulation r;
+		r.set_sim_seed(41);
+		r.reset();
+		r.set_circular_map(true);
+		r.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		r.rebuild_territory();
+		// The same central territory is a bigger share of the circle than of the square (pi/4).
+		const int sq = q.territory_percentages()[0], ci = r.territory_percentages()[0];
+		std::printf("territory %% square %d circle %d\n", sq, ci);
+		CHECK(ci >= sq * 4 / 3 - 1);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
