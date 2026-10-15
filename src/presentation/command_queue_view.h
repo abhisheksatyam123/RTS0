@@ -540,6 +540,11 @@ public:
 				if (inside > 0)
 					add_entity_command("unload-all", "Unload All", "session.unload",
 							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
+				// "unload-all-turrets": the rampart tower's turret units (a wall's are its garrison above).
+				if (!found_b->turret_units.empty())
+					add_entity_command("unload-all-turrets", "Unload Turrets", "session.unloadturrets",
+							"Unload Turrets\nOrder all units to leave the selected turret points.", "garrison-out.png", true,
+							(int)found_b->turret_units.size());
 				// isUndeletable: you must hold half the capture points.
 				if (found_b->max_capture_points > 0.0f &&
 						found_b->capture_points_by_team[found_b->team] < found_b->max_capture_points * 0.5f)
@@ -855,6 +860,7 @@ public:
 					bool any_guarding = false, any_busy = false, any_work = false, any_fighter = false;
 					bool any_guard = false, any_can_add_guard = false, any_garrison = false, any_deletable = false;
 					bool any_turret = false; // "leave-turret": a selected unit on a turret point
+					bool any_turretable = false; // "occupy-turret": a Turretable unit not on one
 					int passengers = 0;
 					for (int s = 0; s < selected_ids.size(); ++s) {
 						const uint32_t id = (uint32_t)selected_ids[s];
@@ -875,6 +881,7 @@ public:
 							any_can_add_guard = any_can_add_guard || (can_guard && !guarding);
 							any_garrison = any_garrison || !rtso::unit_is_ship(ut); // Garrisonable
 							any_turret = any_turret || sim->turret_holder_of(id) != 0;
+							any_turretable = any_turretable || (sim->turret_holder_of(id) == 0 && (cls & rtso::TC_INFANTRY) != 0 && (cls & rtso::TC_RANGED) != 0);
 							if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
 							any_deletable = any_deletable || (ut != rtso::UNIT_CATAFALQUE && !sim->undeletable_unit(id)); // isUndeletable
 							break;
@@ -898,6 +905,9 @@ public:
 					if (any_garrison)
 						add_entity_command("garrison", "Garrison", "session.garrison",
 								"Garrison\nOrder the selected units to garrison in a structure or another unit.", "garrison.png");
+					if (any_turretable)
+						add_entity_command("occupy-turret", "Occupy Turret", "session.occupyturret",
+								"Occupy Turret\nOrder the selected units to occupy a turret point.", "occupy-turret.png");
 					if (any_turret)
 						add_entity_command("leave-turret", "Unload", "",
 								"Unload\nOrder the selected units to leave their turret points.", "leave-turret.png");
@@ -1115,11 +1125,14 @@ private:
 			finish_roster(b);
 			return;
 		}
-		// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies) offer the
-		// structure's own civ's units.
-		for (uint16_t i : rtso::civ_roster_ids(rtso::building_trains_native(b->type) ? b->civ : civ)) {
+		// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies, a captured
+		// civic centre's civilian) offer the structure's own civ's units.
+		for (int pass = 0; pass < 2; ++pass) {
+		if (pass == 1 && b->civ == civ) break;
+		for (uint16_t i : rtso::civ_roster_ids(pass == 0 ? b->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 			if (!(u.trainers & rtso::bld_bit(b->type))) continue;
+			if (rtso::building_train_civ(b->type, b->civ, civ, u) != u.civ) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
 			// 0 A.D. has no such unit, so players don't see it.
 			if (std::strstr(u.id, "/rts0_")) continue;
@@ -1134,6 +1147,7 @@ private:
 				if (gate != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
 			}
 			set_roster_tip(idx, tip);
+		}
 		}
 		finish_roster(b);
 	}

@@ -152,8 +152,117 @@ def plan(names, read, assets):
     return per_row, new
 
 
-def write_header(per_row, models, path=HEADER):
-    """`models`: template model id -> (class model id, clip donor or None)."""
+RANK_SUFFIXES = ("a", "e")  # Promotion's advanced (rank 2) and elite (rank 3) templates
+
+
+def rank_plan(names, read, assets, per_row, new):
+    """{roster template id: (advanced model id or None, elite model id or None)}.
+
+    A roster row is the basic-rank `_b` template; 0 A.D. promotes it to its
+    `_a` and `_e` templates (Promotion/Entity), which mostly name their own
+    actor. Each rank whose actor differs from the row's gets a model, planned
+    like a roster template's (reusing a model with the same actor) and added
+    to `new`."""
+    by_actor = {}
+    for aid, spec in assets.items():
+        by_actor.setdefault(spec[0], []).append(aid)
+    for mid, (_code, _kind, path) in new.items():
+        by_actor.setdefault(path, []).append(mid)
+    ranks = {}
+    for (_i, tid, code, kind), row_model in zip(roster_rows(), per_row):
+        # An advanced (_a) row, trained at that rank, still promotes to elite.
+        if not tid.endswith(("_b", "_a")) or kind is None:
+            continue
+        base = template_actor(names, read, tid)
+        got = []
+        for suffix in RANK_SUFFIXES:
+            rtid = tid[:-1] + suffix
+            if rtid == tid:
+                got.append(None)
+                continue
+            actor = template_actor(names, read, rtid)
+            path = f"art/actors/{actor}" if actor else None
+            if not actor or actor == base or path not in names:
+                got.append(None)
+                continue
+            # Reuse the civ's class model or a template model with this actor; the
+            # world view draws either (another civ's class model it cannot).
+            usable = set(new) | {m for m in per_row if m} | {f"{code}_{kind}"}
+            hits = [h for h in by_actor.get(path, []) if h in usable]
+            pick = next((h for h in hits if h.startswith(code + "_")), None) or (hits[0] if hits else None)
+            if not pick:
+                pick = template_model_id(rtid)
+                if pick in assets or pick in new:
+                    pick += "_" + os.path.splitext(os.path.basename(path))[0]
+                new[pick] = (code, mount_kind(path, kind), path)
+                by_actor.setdefault(path, []).append(pick)
+            got.append(pick if pick != row_model else None)
+        if any(got):
+            ranks[tid] = tuple(got)
+    return ranks
+
+
+def rank_header_lines(ranks):
+    """The advanced/elite table write_header appends (models by id, so rows
+    can be spliced in by hand: each id must also be in kDraw)."""
+    lines = [
+        "// The model an advanced (rank 2) or elite (rank 3) unit of a roster template",
+        "// draws with: 0 A.D. promotes a `_b` template to its `_a` and `_e` templates,",
+        "// which mostly have their own actor (tools/unit_template_models.py rank_plan).",
+        "struct UnitTemplateRankModel {",
+        "\tconst char *tmpl; // the roster template",
+        "\tconst char *advanced; // its _a template's unit_template_draw_model or civ class model, or nullptr",
+        "\tconst char *elite; // its _e template's, or nullptr",
+        "};",
+        "",
+        f"inline constexpr int UNIT_TEMPLATE_RANK_MODEL_COUNT = {len(ranks)};",
+        "",
+        "inline const UnitTemplateRankModel *unit_template_rank_models() {",
+        "\tstatic const UnitTemplateRankModel kRank[UNIT_TEMPLATE_RANK_MODEL_COUNT + 1] = {",
+    ]
+    q = lambda m: f'"{m}"' if m else "nullptr"
+    for tid, (adv, eli) in sorted(ranks.items()):
+        lines.append(f'\t\t{{"{tid}", {q(adv)}, {q(eli)}}},')
+    lines += [
+        "\t\t{nullptr, nullptr, nullptr},",
+        "\t};",
+        "\treturn kRank;",
+        "}",
+        "",
+        "// The unit_template_draw_model a roster template's unit draws with at `rank`",
+        "// (Promotion: 2 advanced, 3 elite), UNIT_TEMPLATE_RANK_CLASS_MODEL for the civ's",
+        "// model for its UnitType (a model not in kDraw), or -1 for its basic-rank model.",
+        "inline constexpr int UNIT_TEMPLATE_RANK_CLASS_MODEL = -2;",
+        "",
+        "inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {",
+        "\tif (rank < 2 || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return -1;",
+        "\tstatic const std::array<std::array<int16_t, 2>, CIV_UNIT_TEMPLATE_COUNT> kLookup = [] {",
+        "\t\tstd::array<std::array<int16_t, 2>, CIV_UNIT_TEMPLATE_COUNT> t;",
+        "\t\tfor (auto &r : t) r = {-1, -1};",
+        "\t\tauto draw_index = [](const char *id) -> int16_t {",
+        "\t\t\tif (!id) return -1;",
+        "\t\t\tfor (int k = 0; k < UNIT_TEMPLATE_DRAW_MODEL_COUNT; ++k)",
+        "\t\t\t\tif (std::strcmp(unit_template_draw_model(k), id) == 0) return (int16_t)k;",
+        "\t\t\treturn (int16_t)UNIT_TEMPLATE_RANK_CLASS_MODEL;",
+        "\t\t};",
+        "\t\tfor (const UnitTemplateRankModel *r = unit_template_rank_models(); r->tmpl; ++r)",
+        "\t\t\tfor (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i)",
+        "\t\t\t\tif (std::strcmp(civ_unit_template(i).id, r->tmpl) == 0) {",
+        "\t\t\t\t\tt[i] = {draw_index(r->advanced), draw_index(r->elite)};",
+        "\t\t\t\t\tbreak;",
+        "\t\t\t\t}",
+        "\t\treturn t;",
+        "\t}();",
+        "\treturn kLookup[tmpl][rank >= 3 ? 1 : 0];",
+        "}",
+        "",
+    ]
+    return lines
+
+
+def write_header(per_row, models, path=HEADER, ranks=None):
+    """`models`: template model id -> (class model id, clip donor or None);
+    `ranks`: rank_plan's table, its models also in `models`."""
     lines = [
         "// Generated by tools/extract_0ad_assets.py --templates (tools/unit_template_models.py); do not edit.",
         "// One model per civ roster template: its 0 A.D. actor (CC BY-SA 3.0, Wildfire Games).",
@@ -161,6 +270,7 @@ def write_header(per_row, models, path=HEADER):
         "",
         "#include \"../../simulation/sim_types.h\"",
         "",
+        "#include <array>",
         "#include <cstring>",
         "",
         "namespace rtso {",
@@ -169,7 +279,8 @@ def write_header(per_row, models, path=HEADER):
     rows = roster_rows()
     # A row draws with its civ's class model unless its actor's model differs.
     draw = sorted({mid for (_i, _t, code, kind), mid in zip(rows, per_row)
-                   if mid and mid != f"{code}_{kind}"})
+                   if mid and mid != f"{code}_{kind}"}
+                  | {m for pair in (ranks or {}).values() for m in pair if m and m in models})
     index = {mid: k for k, mid in enumerate(draw)}
     lines += [
         "// The models roster templates draw with besides the civ class models.",
@@ -226,6 +337,9 @@ def write_header(per_row, models, path=HEADER):
         "\treturn nullptr;",
         "}",
         "",
+    ]
+    lines += rank_header_lines(ranks or {})
+    lines += [
         f"static_assert(CIV_UNIT_TEMPLATE_COUNT == {len(rows)}, \"rerun tools/extract_0ad_assets.py --templates\");",
         "",
         "} // namespace rtso",

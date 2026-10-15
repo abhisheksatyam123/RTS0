@@ -230,6 +230,7 @@ inline constexpr uint8_t NET_PARAM_UNITS_ONLY = 0x01; // attack-move: units only
 inline constexpr uint8_t NET_PARAM_NO_CAPTURE = 0x02; // attack-move / attack-building: damage, don't capture (Ctrl)
 inline constexpr uint8_t NET_PARAM_CAPTURE = 0x04;    // call-to-arms: capture (session.capture held)
 inline constexpr uint8_t NET_PARAM_PUSH_FRONT = 0x04; // focus-fire: put the target first (0 A.D. "pushFront")
+inline constexpr uint8_t NET_PARAM_OCCUPY_TURRET = 0x01; // garrison: the holder's turret points (0 A.D. "occupy-turret")
 inline constexpr uint8_t NET_HUNT_SCENERY_NO_CAPTURE = 3; // hunt (17) on scenery: attack it, don't capture it (Ctrl)
 
 struct NetCommand {
@@ -280,6 +281,7 @@ struct NetPeer {
 constexpr size_t NET_MAX_CLIENTS = 41;
 // 0 A.D. NetHost.h ENetDisconnectReason values a host sends with its disconnect.
 constexpr uint8_t NDR_INCORRECT_PROTOCOL_VERSION = 3;
+constexpr uint8_t NDR_SERVER_ALREADY_IN_GAME = 5; // a late observer the host does not take
 constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;
 constexpr uint8_t NDR_INCORRECT_SOFTWARE_VERSION = 17;

@@ -75,6 +75,7 @@ void RtsoMain::update_cursor() {
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
 			else if (garrison_mode) want = "action-garrison";
+			else if (turret_mode) want = "action-occupy-turret";
 			else if (repair_mode) want = "action-repair";
 			if (!*want) {
 				auto uv = sim->units();
@@ -175,6 +176,14 @@ void RtsoMain::update_cursor() {
 								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
 						tip_orange = occupied >= capacity;
 					}
+					// unit_actions "occupy-turret" (session.occupyturret): the rampart tower's points.
+					else if (rtso::hotkeys::held("session.occupyturret") && selection_can_occupy_turret(b.id)) {
+						want = "action-occupy-turret";
+						const int occupied = (int)sim->turret_list(b).size(), capacity = sim->turret_holder_points(b)->count;
+						tip = rtso::sprintf0(rtso::tr0("Current turrets: %(occupied)s/%(capacity)s"),
+								{{"occupied", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					}
 					break;
 				}
 			}
@@ -208,11 +217,16 @@ void RtsoMain::update_highlight() {
 	if (sim && vp && view && !sim->cinema_playing()) {
 		const Vector2 mouse = vp->get_mouse_position();
 		if (dragging && drag_start.distance_to(mouse) >= user_opts_.drag_delta) {
-			for (int32_t id : band_box_ids(drag_start, mouse)) ids.push_back(id);
+			const std::vector<int32_t> boxed = band_box_ids(drag_start, mouse);
+			for (int32_t id : boxed) ids.push_back(id);
+			if (boxed.empty())
+				for (uint32_t id : band_box_structures(drag_start, mouse)) ids.push_back((int32_t)id);
 		} else if (!dragging && !build_mode && !wall_drag_mode && vp->gui_get_hovered_control() == nullptr) {
 			const size_t u = own_unit_under_mouse(mouse, true);
 			if (u != (size_t)-1) {
 				ids.push_back((int32_t)sim->units().id[u]);
+			} else if (const uint32_t bid = building_under_mouse(mouse); bid != 0) {
+				ids.push_back((int32_t)bid);
 			} else {
 				const Vector3 at = get_ground_click_pos(mouse);
 				auto fv = sim->fauna();

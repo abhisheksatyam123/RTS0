@@ -394,6 +394,47 @@ static void test_shared_sight_and_winner() {
 	CHECK(hidden && revealed, "winner's map revealed");
 }
 
+static void test_seen_mask() {
+	using namespace rtso;
+	// "Explored map": every structure standing at the start is seen (SeeExploredEntities), so an
+	// enemy base shows as a mirage from the first turn; the seen bits survive save/load, and a
+	// fresh mirage cache (a load, a rejoin) shows what was seen before as a mirage.
+	static Simulation s;
+	s.set_sim_seed(7);
+	s.reset();
+	s.set_explore_map(true);
+	s.spawn_building_world(-60.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t enemy = s.spawn_building_world(60.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	for (int i = 0; i < 10; ++i) s.tick(Simulation::FIXED_STEP);
+	const Simulation::Building *e = nullptr;
+	for (const auto &b : s.buildings()) if (b.id == enemy) e = &b;
+	FogMirages m;
+	m.update(s, 0);
+	const FoggedBuilding *f = find_b(m, enemy);
+	std::printf("explored map: enemy seen mask %02x, drawn %d as mirage %d\n", e ? e->seen_mask : 0, f != nullptr, f && f->miraged);
+	CHECK(e && (e->seen_mask & 1) && f && f->miraged, "explored map shows an unseen enemy base as a mirage");
+
+	static Simulation t;
+	t.set_sim_seed(7);
+	t.reset();
+	t.spawn_building_world(-60.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t far = t.spawn_building_world(60.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	const uint32_t scout = t.spawn_unit(55.0f, 0.0f, 0, UNIT_CAVALRY);
+	for (int i = 0; i < 10; ++i) t.tick(Simulation::FIXED_STEP);
+	t.cmd_delete(0, &scout, 1);
+	for (int i = 0; i < 10; ++i) t.tick(Simulation::FIXED_STEP);
+	const char *path = "/tmp/rtso_test_seen_mask.sav";
+	CHECK(t.save_state(path), "save");
+	static Simulation l;
+	CHECK(l.load_state(path), "load");
+	std::remove(path);
+	FogMirages fresh;
+	fresh.update(l, 0);
+	const FoggedBuilding *g = find_b(fresh, far);
+	std::printf("after load: scouted enemy base drawn %d as mirage %d\n", g != nullptr, g && g->miraged);
+	CHECK(g && g->miraged, "a structure seen before the save stays a mirage after the load");
+}
+
 int main() {
 	test_building_mirages();
 	test_resource_mirages();
@@ -402,6 +443,7 @@ int main() {
 	test_real_sim();
 	test_giant_cost();
 	test_shared_sight_and_winner();
+	test_seen_mask();
 	if (failures) {
 		std::printf("%d FAILED\n", failures);
 		return 1;

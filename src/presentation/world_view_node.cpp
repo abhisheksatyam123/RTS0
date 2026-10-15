@@ -1699,10 +1699,15 @@ static uint8_t drawn_unit_type(uint8_t utype, uint16_t tmpl, uint32_t id) {
 	return rtso::civilian_is_male(tmpl, id) ? (uint8_t)rtso::UNIT_VILLAGER : utype;
 }
 
-static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl, uint32_t id) {
+// An advanced or elite unit draws its _a or _e template's actor (0 A.D. Promotion
+// changes the template; RTS0 keeps the roster row and raises the rank).
+static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl, uint32_t id, uint8_t rank) {
 	if (rtso::civilian_is_male(tmpl, id)) return rtso::UNIT_VILLAGER;
 	if (shows_packed(pack_state) && rtso::packed_siege_model(rtso::civ_unit_model(civ, utype)))
 		return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
+	const int ranked = rtso::unit_template_rank_draw_index(tmpl, rank);
+	if (ranked >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + ranked);
+	if (ranked == rtso::UNIT_TEMPLATE_RANK_CLASS_MODEL) return utype;
 	const int own = rtso::unit_template_draw_index(tmpl);
 	if (own >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + own);
 	return utype;
@@ -2729,7 +2734,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 		const int slot = crowd_slot_of(anim_of(i).clip);
 		crowd_slot_scratch_[i] = (uint8_t)slot;
-		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i]);
+		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
 		crowd_key_utype_[key] = t;
 		counts[civ][key][slot]++;
 	}
@@ -2827,7 +2832,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
-		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i], uview.id[i]);
+		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
 		String utype_str = crowd_key_model(uciv, ckey);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
@@ -3504,4 +3509,63 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 	for (size_t k = rings_used; k < fauna_rings_.size(); ++k) fauna_rings_[k]->set_visible(false);
+	draw_structure_outlines(sim);
+}
+
+// Selectable.js overlay for structures: an outline round the footprint of each selected
+// structure, and a fainter one round a highlighted (hovered or band-boxed) one.
+void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
+	size_t used = 0;
+	if (!sel_buildings_.empty() || !highlight_set_.empty()) {
+		if (outline_mesh_.is_null()) {
+			outline_mesh_.instantiate();
+			outline_mesh_->set_size(Vector3(1.0f, 0.04f, 1.0f));
+		}
+		for (const auto &b : sim->buildings()) {
+			const bool sel = sel_buildings_.count((int32_t)b.id) > 0;
+			if (!sel && !highlight_set_.count((int32_t)b.id)) continue;
+			if (b.wrecked || b.hp <= 0.0f) continue;
+			float hu = b.hu > 0.0f ? b.hu : b.half_size, hv = b.hv > 0.0f ? b.hv : b.half_size;
+			// RTS0's grid footprints are coarser than 0 A.D.'s template Footprint, which the
+			// outline follows: take the drawn model's ground extent where it is larger.
+			if (auto it = building_slot.find(b.id); it != building_slot.end() && !building_pool[it->second].model_id.is_empty()) {
+				const auto entry = rtso::ModelLibrary::get("buildings", building_pool[it->second].model_id);
+				if (entry.valid) {
+					const float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
+					const float mx = 0.5f * entry.aabb.size.x * sc, mz = 0.5f * entry.aabb.size.z * sc;
+					const bool turned = std::fabs(b.uz) > std::fabs(b.ux);
+					hu = std::max(hu, turned ? mz : mx);
+					hv = std::max(hv, turned ? mx : mz);
+				}
+			}
+			hu += 0.25f;
+			hv += 0.25f;
+			const float y = sim->get_terrain_height(b.x, b.z) + 0.06f;
+			const bool own = b.team == local_player_;
+			const Ref<StandardMaterial3D> &mat = sel ? (own ? ring_sel_mat : ring_enemy_mat) : (own ? ring_hl_mat : ring_enemy_hl_mat);
+			const Vector3 u(b.ux, 0.0f, b.uz), v(-b.uz, 0.0f, b.ux);
+			const float w = 0.15f;
+			// Two bars along u (at +-hv) and two along v (at +-hu).
+			const struct { Vector3 c; Vector3 axis; float len; } bars[4] = {
+				{u * 0.0f + v * hv, u, 2.0f * hu + w}, {v * -hv, u, 2.0f * hu + w},
+				{u * hu, v, 2.0f * hv + w}, {u * -hu, v, 2.0f * hv + w},
+			};
+			for (const auto &bar : bars) {
+				if (used == outline_bars_.size()) {
+					MeshInstance3D *m = memnew(MeshInstance3D);
+					m->set_mesh(outline_mesh_);
+					m->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+					add_child(m);
+					outline_bars_.push_back(m);
+				}
+				MeshInstance3D *m = outline_bars_[used++];
+				const Vector3 across = bar.axis == u ? v : u;
+				const Basis basis(bar.axis * bar.len, Vector3(0, 1, 0), across * w);
+				m->set_transform(Transform3D(basis, Vector3(b.x, y, b.z) + bar.c));
+				if (m->get_material_override() != mat) m->set_material_override(mat);
+				m->set_visible(true);
+			}
+		}
+	}
+	for (size_t k = used; k < outline_bars_.size(); ++k) outline_bars_[k]->set_visible(false);
 }

@@ -332,6 +332,7 @@ void RtsoMain::debug_set_resource(int res, float amount) {
 
 // Test hook: whether a structure is being placed.
 bool RtsoMain::debug_placing() const { return build_mode; }
+bool RtsoMain::debug_structure_outlined(int64_t id) const { return view && view->structure_outlined((uint32_t)id); }
 
 // Test hook: a unit carries `amount` of resource `res` (0 wood, 1 metal, 2 stone, 3 food).
 void RtsoMain::debug_set_carry(int64_t unit_id, int res, int amount) {
@@ -1010,10 +1011,12 @@ bool RtsoMain::over_own_rally_structure(const Vector3 &at, bool need_rally) cons
 	return false;
 }
 
-bool RtsoMain::selected_building_trains_units() const {
-	if (!sim || selected_building_id == 0) return false;
+bool RtsoMain::selected_building_trains_units() const { return building_trains_units(selected_building_id); }
+
+bool RtsoMain::building_trains_units(uint32_t id) const {
+	if (!sim || id == 0) return false;
 	for (const auto &b : sim->buildings()) {
-		if (b.id != selected_building_id) continue;
+		if (b.id != id) continue;
 		const uint8_t civ = rtso::building_trains_native(b.type) ? b.civ : sim->player_civ(b.team);
 		for (uint16_t i : rtso::civ_roster_ids(civ))
 			if (rtso::civ_unit_template(i).trainers & rtso::bld_bit(b.type)) return true;
@@ -1033,6 +1036,8 @@ Dictionary RtsoMain::debug_selected_building() const {
 		d["rally_self"] = b.has_rally_point && b.rally_target_bld_id == b.id;
 		d["autoqueue"] = b.autoqueue;
 		d["queue"] = (int64_t)b.queue.size();
+		d["garrisoned"] = (int64_t)b.garrisoned_units.size();
+		d["turret_units"] = (int64_t)b.turret_units.size();
 		d["food"] = sim->player(b.team < rtso::MAX_PLAYERS ? b.team : 0).res[rtso::RES_FOOD];
 		Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 		if (cam) d["screen"] = cam->unproject_position(Vector3(b.x, sim->get_terrain_height(b.x, b.z), b.z));
@@ -1272,6 +1277,7 @@ void RtsoMain::update_net_status_overlay() {
 			case 6: why = tr("You have been kicked."); break;
 			case 7: why = tr("You have been banned."); break;
 			case rtso::NDR_PLAYERNAME_IN_USE: why = tr("Player name in use. If you were disconnected, retry in few seconds."); break;
+			case rtso::NDR_SERVER_ALREADY_IN_GAME: why = tr("Game has already started, no observers allowed."); break;
 			case rtso::NDR_SERVER_FULL: why = tr("Server full."); break;
 			case 14: why = tr("Password is invalid."); break;
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = tr("Different game engine versions or different mods loaded."); break;
@@ -1449,6 +1455,15 @@ bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
 	return false;
 }
 
+// unit_actions.js "occupy-turret" actionCheck: some selected unit may occupy a turret point of
+// this own or mutually allied holder (Turretable). Room is not checked.
+bool RtsoMain::selection_can_occupy_turret(uint32_t building_id) const {
+	if (!sim) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->can_occupy_turret_in((uint32_t)(int64_t)selected_ids[s], building_id)) return true;
+	return false;
+}
+
 bool RtsoMain::select_first_own(bool building) {
 	if (!sim) return false;
 	selected_ids.clear();
@@ -1512,7 +1527,7 @@ void RtsoMain::_on_remove_guard_pressed() {
 void RtsoMain::_on_call_to_arms_pressed() {
 	if (selected_ids.is_empty()) return;
 	call_to_arms_mode = true;
-	attack_move_mode = patrol_mode = guard_mode = garrison_mode = repair_mode = false;
+	attack_move_mode = patrol_mode = guard_mode = garrison_mode = turret_mode = repair_mode = false;
 }
 
 // g_EntityCommands execute() for the command row, and the hotkeys that run them.
@@ -1522,7 +1537,7 @@ void RtsoMain::_on_entity_command(const String &name) {
 	const size_t n = selected_ids.size();
 	auto arm = [&](bool &mode) {
 		if (n == 0) return;
-		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
+		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 		mode = true;
 	};
 	if (name == "delete") {
@@ -1551,6 +1566,14 @@ void RtsoMain::_on_entity_command(const String &name) {
 		_on_call_to_arms_pressed();
 	} else if (name == "garrison") {
 		arm(garrison_mode);
+	} else if (name == "occupy-turret") {
+		arm(turret_mode);
+	} else if (name == "unload-all-turrets") { // unloadAllTurrets
+		for (const auto &b : sim->buildings()) {
+			if (b.id != selected_building_id || b.turret_units.empty()) continue;
+			if (turn_cmds()) post_lockstep(13, nullptr, 0, 0, 0, b.id, 3);
+			else sim->cmd_unload_turrets(local_player(), b.id);
+		}
 	} else if (name == "repair") {
 		arm(repair_mode);
 	} else if (name == "add-guard") {
@@ -2276,6 +2299,67 @@ void RtsoMain::prune_selection() {
 	selected_ids = kept;
 }
 
+std::vector<uint32_t> RtsoMain::selected_structures() const {
+	std::vector<uint32_t> out;
+	if (selected_building_id == 0) return out;
+	out.push_back(selected_building_id);
+	if (extras_primary_ == selected_building_id)
+		for (uint32_t id : extra_structures_)
+			if (id != selected_building_id) out.push_back(id);
+	return out;
+}
+
+void RtsoMain::set_selected_structures(const std::vector<uint32_t> &ids) {
+	extra_structures_.clear();
+	selected_building_id = ids.empty() ? 0 : ids[0];
+	for (size_t k = 1; k < ids.size(); ++k)
+		if (std::find(extra_structures_.begin(), extra_structures_.end(), ids[k]) == extra_structures_.end() && ids[k] != ids[0])
+			extra_structures_.push_back(ids[k]);
+	extras_primary_ = selected_building_id;
+}
+
+// Structures leave the selection when destroyed or lost; the next one takes the first place.
+// Any other change of selected_building_id (a plain click, a hotkey, a control group) drops the extras.
+void RtsoMain::prune_structure_selection() {
+	if (!sim) return;
+	auto live_own = [&](uint32_t id) {
+		for (const auto &b : sim->buildings())
+			if (b.id == id) return !b.wrecked && b.hp > 0.0f && b.team == local_player();
+		return false;
+	};
+	if (selected_building_id != extras_primary_) {
+		const bool primary_lost = selected_building_id == 0 && extras_primary_ != 0 && !live_own(extras_primary_);
+		if (!primary_lost) extra_structures_.clear();
+		extras_primary_ = selected_building_id;
+		if (primary_lost) {
+			std::vector<uint32_t> rest = extra_structures_;
+			rest.erase(std::remove_if(rest.begin(), rest.end(), [&](uint32_t id) { return !live_own(id); }), rest.end());
+			set_selected_structures(rest);
+		}
+		return;
+	}
+	if (extra_structures_.empty()) return;
+	extra_structures_.erase(std::remove_if(extra_structures_.begin(), extra_structures_.end(),
+			[&](uint32_t id) { return !live_own(id); }), extra_structures_.end());
+}
+
+std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holder) const {
+	std::vector<uint32_t> out;
+	if (!sim || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return out;
+	std::vector<uint32_t> structs = selected_structures();
+	if (std::find(structs.begin(), structs.end(), holder) == structs.end()) structs.assign(1, holder);
+	const rtso::CivUnitTemplate &u = rtso::civ_unit_template(tmpl);
+	for (uint32_t id : structs)
+		for (const auto &b : sim->buildings()) {
+			if (b.id != id) continue;
+			if (b.team == local_player() && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
+					(id == holder || (u.trainers & rtso::bld_bit(b.type))))
+				out.push_back(id);
+			break;
+		}
+	return out;
+}
+
 void RtsoMain::update_inspector() { inspector_.update(); }
 
 // Multi-selection icon click (0 A.D. selection_panels.js Selection.execute):
@@ -2627,6 +2711,21 @@ void RtsoMain::_on_selection_group_clicked(int key) {
 // makePrimarySelectionGroup (keep only the group) or removeFromSelectionGroup (drop it).
 void RtsoMain::select_group(int key, bool drop) {
 	if (!sim) return;
+	// Structure groups (civ and type) keep or drop those structures; keeping one group drops
+	// everything else, units included.
+	std::vector<uint32_t> structs = selected_structures(), kept_structs;
+	for (uint32_t id : structs)
+		for (const auto &b : sim->buildings())
+			if (b.id == id) {
+				const bool in_group = RtsoSelectionGrid::structure_key(b.civ, b.type) == key;
+				if (in_group != drop) kept_structs.push_back(id);
+				break;
+			}
+	if (kept_structs != structs) set_selected_structures(kept_structs);
+	if (RtsoSelectionGrid::is_structure_key(key)) {
+		if (!drop) selected_ids.clear();
+		return;
+	}
 	auto uview = sim->units();
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s) {
@@ -2830,7 +2929,8 @@ void RtsoMain::add_training(bool from_unit, uint32_t holder, uint16_t tmpl) {
 			if (bt.from_unit == from_unit && bt.holder == holder && bt.tmpl == tmpl) {
 				if (decrement) {
 					if (--bt.batches <= 0) bt.active = false;
-				} else if (allowed < 0 || allowed > bt.batches * size) {
+				} else if (allowed < 0 ||
+						allowed > bt.batches * size * (from_unit ? 1 : std::max<int>(1, (int)structure_trainers(tmpl, holder).size()))) {
 					if (!can_afford_template(tmpl, (bt.batches + 1) * size)) return;
 					++bt.batches;
 				}
@@ -2843,8 +2943,14 @@ void RtsoMain::add_training(bool from_unit, uint32_t holder, uint16_t tmpl) {
 		bt = BatchTraining{true, from_unit, holder, tmpl, 1, allowed};
 		return;
 	}
-	if (from_unit) try_train_from_unit(holder, tmpl, 1);
-	else try_train_template(holder, tmpl, 1);
+	if (from_unit) {
+		try_train_from_unit(holder, tmpl, 1);
+		return;
+	}
+	// One unit in each selected structure that trains it, as far as the entity limit allows.
+	std::vector<uint32_t> trainers = structure_trainers(tmpl, holder);
+	if (allowed >= 0 && (int)trainers.size() > allowed) trainers.resize((size_t)allowed);
+	for (uint32_t b : trainers) try_train_template(b, tmpl, 1);
 }
 
 // input.js flushTrainingBatch: the batch, cut to what the entity limit still allows.
@@ -2853,10 +2959,22 @@ void RtsoMain::flush_training_batch() {
 	if (!bt.active) return;
 	bt.active = false;
 	int count = bt.batches * std::max(1, user_opts_.batch_size);
-	if (bt.allowed >= 0) count = std::min(count, bt.allowed);
-	if (count <= 0) return;
-	if (bt.from_unit) try_train_from_unit(bt.holder, bt.tmpl, count);
-	else try_train_template(bt.holder, bt.tmpl, count);
+	if (bt.from_unit) {
+		if (bt.allowed >= 0) count = std::min(count, bt.allowed);
+		if (count > 0) try_train_from_unit(bt.holder, bt.tmpl, count);
+		return;
+	}
+	// The batch in every selected structure that trains it; under an entity limit, full
+	// batches in as many as it allows and the rest in one more.
+	const std::vector<uint32_t> trainers = structure_trainers(bt.tmpl, bt.holder);
+	if (bt.allowed >= 0 && bt.allowed < count * (int)trainers.size()) {
+		const size_t full = (size_t)(bt.allowed / count);
+		for (size_t k = 0; k < full && k < trainers.size(); ++k) try_train_template(trainers[k], bt.tmpl, count);
+		const int rest = bt.allowed % count;
+		if (rest > 0 && full < trainers.size()) try_train_template(trainers[full], bt.tmpl, rest);
+		return;
+	}
+	for (uint32_t b : trainers) try_train_template(b, bt.tmpl, count);
 }
 
 // One queue item of `count` units (0 A.D. batch training: one cost x count, one shorter timer).
@@ -4248,22 +4366,23 @@ uint8_t RtsoMain::chat_player_of_client(uint32_t client) const {
 
 // ChatAddressees.js AddresseeTypes isAddressee, with the local player as the receiver.
 bool RtsoMain::chat_is_addressee(const String &sender_guid, const String &tag) {
-	return chat_reaches(chat_player_of(sender_guid), local_player(), tag.utf8().get_data());
+	return chat_reaches(chat_player_of(sender_guid), local_player(), tag.utf8().get_data(),
+			net_lockstep() ? turn_mgr_.local_client_id() : UINT32_MAX);
 }
 
 // chat_routing.h chat_tag_reaches on this match's diplomacy: the receiver's
 // check above, and the host's relay (NetHost::setChatRouter, _ready).
-bool RtsoMain::chat_reaches(uint8_t from, uint8_t to, const std::string &tag) const {
+bool RtsoMain::chat_reaches(uint8_t from, uint8_t to, const std::string &tag, uint32_t to_client) const {
 	auto stance = [this](uint8_t a, uint8_t b, uint8_t s) { return sim && sim->get_diplomacy(a, b) == s; };
 	return rtso::chat_tag_reaches(from, to, tag, rtso::MAX_PLAYERS,
 			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ALLY); },
-			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY); });
+			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY); }, to_client);
 }
 
 bool RtsoMain::chat_local_observer() { return local_player() >= rtso::MAX_PLAYERS; }
 
-std::vector<std::pair<int, String>> RtsoMain::chat_private_targets() {
-	std::vector<std::pair<int, String>> out;
+std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
+	std::vector<std::pair<String, String>> out;
 	if (!net_lockstep()) return out;
 	const uint32_t mine = turn_mgr_.local_client_id();
 	const bool me_obs = chat_local_observer();
@@ -4271,7 +4390,11 @@ std::vector<std::pair<int, String>> RtsoMain::chat_private_targets() {
 		if (e.client == mine) continue;
 		const bool obs = e.player >= rtso::MAX_PLAYERS;
 		if (me_obs && !obs) continue; // no private message from an observer to a player
-		out.push_back({obs ? 0 : (int)e.player + 1, chat_user("peer-" + String::num_int64(e.client))});
+		// 0.28 /msg names the addressee's GUID: an observer by its client, so a
+		// line to one observer reaches no other.
+		const String tag = obs ? "[Observer-" + String::num_int64(e.client) + "]"
+		                       : "[Player-" + String::num_int64((int)e.player + 1) + "]";
+		out.push_back({tag, chat_user("peer-" + String::num_int64(e.client))});
 	}
 	return out;
 }

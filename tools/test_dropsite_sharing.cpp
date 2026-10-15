@@ -3,7 +3,8 @@
 // her player has researched Diaspora (at a Market, as in 0.28), the owner shares it (the default), and
 // the two are allies; the owner can stop sharing, and the setting survives save/load. Mobile
 // dropsites follow the same rule: an ally's supply wagon (Sharable) takes her load, an ally's
-// worker elephant (not Sharable) never does.
+// worker elephant (not Sharable) never does. A worker shut in a small pocket still heads for the
+// nearest dropsite.
 //   g++ -std=c++20 -O2 -Isrc tools/test_dropsite_sharing.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_dropsite_sharing && /tmp/test_dropsite_sharing
@@ -131,6 +132,32 @@ int main() {
 	std::printf("  mobile dropsites: five loads of wood dropped at wagons give her player +%d, the ally +%d\n",
 			m.player_resource(0, RES_WOOD) - mwood0, m.player_resource(1, RES_WOOD) - mwood1);
 	CHECK(m.player_resource(0, RES_WOOD) == mwood0 + 50 && m.player_resource(1, RES_WOOD) == mwood1);
+
+	// 7. A worker shut in among obstructions (her navcell's land is a pocket of 9 navcells) heads for
+	// the nearest dropsite, as 0.28's FindNearestDropsite (no reachability test) does, rather than
+	// standing in return with her load for good. (test_naval: a worker on an island still waits.)
+	static Simulation p;
+	p.set_sim_seed(5);
+	p.reset();
+	p.set_player_active(0, true, false);
+	p.spawn_building_world(-40.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t store = p.spawn_building_world(16.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+	const int32_t pw = p.lookup_unit(p.spawn_unit(26.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN));
+	auto &g = p.nav_grid_;
+	auto [wcx, wcz] = g.world_to_cell(26.0f, 0.0f);
+	for (int dy = -2; dy <= 2; ++dy)
+		for (int dx = -2; dx <= 2; ++dx)
+			if (std::max(std::abs(dx), std::abs(dy)) == 2) g.cells.at(wcx + dx, wcz + dy) = NAV_OBSTRUCTED;
+	g.rebuild_regions();
+	for (const auto &b : p.buildings())
+		if (b.id == store) CHECK(!p.petra_same_land((size_t)pw, b)); // the pocket is her whole land
+	p.units_.res_type_carried[pw] = RES_WOOD;
+	p.units_.carry[pw] = 10;
+	p.units_.action_state[pw] = ACTION_RETURN_DROPSITE;
+	p.units_.target_x[pw] = p.units_.target_z[pw] = 99.0f;
+	p.tick(Simulation::FIXED_STEP);
+	CHECK(p.units_.action_state[pw] == ACTION_RETURN_DROPSITE);
+	CHECK(std::fabs(p.units_.target_x[pw] - 16.0f) < 0.01f && std::fabs(p.units_.target_z[pw]) < 0.01f);
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

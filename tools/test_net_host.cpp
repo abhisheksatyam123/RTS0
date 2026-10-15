@@ -28,6 +28,8 @@
 // 9. ENet's reliable channel: a message larger than a datagram (a stalled
 //    turn's batch, a rejoin header) arrives whole, split under the 1372-byte
 //    MTU, and reliable messages arrive in the order sent, also with 30% loss.
+// 10. 0.28 NetServer's late-joiner refusals: a refused client is told why
+//     (NDR_SERVER_ALREADY_IN_GAME), not "The host has ended the game." (2).
 #include "network/net_host.h"
 #include "network/chat_routing.h"
 
@@ -182,7 +184,7 @@ int main() {
 	std::map<std::string, std::vector<std::string>> heard; // who -> lines
 	std::vector<std::string> host_heard;
 	room.onChat([&](const ChatMsg &m) { host_heard.push_back(m.message); });
-	for (const char *name : {"A", "B", "O"}) {
+	for (const char *name : {"A", "B", "O", "P"}) {
 		people.push_back(std::make_unique<NetHost>());
 		NetHost &cl = *people.back();
 		cl.setLocalPlayerName(name);
@@ -198,17 +200,21 @@ int main() {
 	seat[room.peerByName("A")] = 1;
 	seat[room.peerByName("B")] = 2;
 	seat[room.peerByName("O")] = 255;
+	seat[room.peerByName("P")] = 255;
 	auto allied = [](uint8_t a, uint8_t b) { return (a <= 1 && b <= 1) || a == b; };
 	room.setChatRouter([&](uint32_t from, uint32_t to, const std::string &msg) {
 		const std::string tag = chat_wire_tag(msg);
 		return chat_tag_reaches(seat[from], seat[to], tag, 8, allied,
-				[&](uint8_t a, uint8_t b) { return !allied(a, b); });
+				[&](uint8_t a, uint8_t b) { return !allied(a, b); }, to);
 	});
 	auto say = [&](NetHost &from, const std::string &line) {
 		from.sendChat(line);
 		pump(room, people, 600, [&] { return false; });
 	};
 	NetHost &a = *people[0], &b = *people[1], &o = *people[2];
+	const std::string to_p = "[Observer-" + std::to_string(room.peerByName("P")) + "]";
+	say(a, to_p + " watch this");
+	say(o, to_p + " from O");
 	say(a, "[Allies] push left");
 	say(a, "[Enemies] gg");
 	say(b, "[Player-2] psst");
@@ -232,6 +238,11 @@ int main() {
 	      "an observer line reaches no player");
 	CHECK(has("A", "[Flare] 10,20") && has("O", "[Flare] 10,20") && !has("B", "[Flare] 10,20"),
 	      "a flare reaches allies and observers, not enemies");
+	CHECK(has("P", to_p + " watch this") && !has("O", to_p + " watch this") && !has("B", to_p + " watch this") &&
+	      !has("host", to_p + " watch this"), "a private line to one observer reaches only that observer");
+	CHECK(has("P", to_p + " from O") && !has("A", to_p + " from O"), "an observer can message another observer privately");
+	CHECK(chat_wire_tag("[Observer-12] x") == "[Observer-12]" && chat_wire_tag("[Observer-] x").empty() &&
+	      chat_wire_tag("[Observer-99999999999] x").empty(), "the observer tag is parsed strictly");
 	CHECK(has("host", "hello all") && has("A", "hello all") && has("O", "hello all"), "an untagged line reaches everyone");
 	for (auto &p : people) p->stop();
 
@@ -364,6 +375,21 @@ int main() {
 		for (size_t i = 0; in_order && i < got.size(); ++i)
 			in_order = got[i].size() == (i % 3 == 0 ? 3000u : 8u) && got[i][0] == (uint8_t)i;
 		CHECK(in_order, "60 messages, some split, arrive once each and in order with 30% loss");
+	}
+
+	// 10. A refusal names its reason.
+	{
+		NetHost h;
+		h.startHost(c);
+		std::vector<std::unique_ptr<NetHost>> cl;
+		cl.push_back(std::make_unique<NetHost>());
+		cl[0]->setLocalPlayerName("late");
+		cl[0]->startClient("127.0.0.1", h.localPort());
+		pump(h, cl, 3000, [&] { return cl[0]->getLocalPeerId() != 0 && cl[0]->authResult() == ARC_OK; });
+		h.refusePeer(cl[0]->getLocalPeerId(), NDR_SERVER_ALREADY_IN_GAME);
+		pump(h, cl, 6000, [&] { return cl[0]->connectionLost(); });
+		CHECK(cl[0]->connectionLost() && cl[0]->disconnectReason() == NDR_SERVER_ALREADY_IN_GAME,
+		      "a refused late observer is told the game has started (reason 5)");
 	}
 
 	if (failures) {
