@@ -169,6 +169,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	void update_net_connect_overlay();
 	Node *net_connect_overlay_ = nullptr; // scenes/menu/net_connecting.gd
 	CanvasLayer *net_connect_layer_ = nullptr;
+	// The network warnings over the setup page and the Connecting box before Start.
+	CanvasLayer *net_warnings_layer_ = nullptr;
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};

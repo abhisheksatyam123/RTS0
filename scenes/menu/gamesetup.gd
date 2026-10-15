@@ -1814,15 +1814,18 @@ const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors", "local_slot"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
+## PersistentMatchSettings(isNetworked): a networked game's controller keeps its own file.
+const PERSIST_FILE_MP := "user://config/matchsettings.mp.json"
 const PERSIST_KEY := "persistmatchsettings"
 const PERSIST_VERSION := 1
 
 ## 0 A.D. PersistentMatchSettings.loadFile: the settings saved on the last Start
 ## or Back while "Persist match settings" is on, else {}.
-static func load_persisted() -> Dictionary:
-	if not RtsoUserConfig.new().get_bool(PERSIST_KEY) or not FileAccess.file_exists(PERSIST_FILE):
+static func load_persisted(networked := false) -> Dictionary:
+	var path := PERSIST_FILE_MP if networked else PERSIST_FILE
+	if not RtsoUserConfig.new().get_bool(PERSIST_KEY) or not FileAccess.file_exists(path):
 		return {}
-	var f := FileAccess.open(PERSIST_FILE, FileAccess.READ)
+	var f := FileAccess.open(path, FileAccess.READ)
 	var data: Variant = JSON.parse_string(f.get_as_text()) if f else null
 	if typeof(data) != TYPE_DICTIONARY or int(data.get("version", 0)) != PERSIST_VERSION:
 		return {}
@@ -1831,10 +1834,15 @@ static func load_persisted() -> Dictionary:
 
 ## PersistentMatchSettings.saveFile: written whether or not the option is on,
 ## empty when it is off, so turning it back on doesn't bring back old settings.
+## GameSettingsController.savePersistentMatchSettings: only the controller,
+## never for a saved game; a networked one to matchsettings.mp.json.
 func save_persisted() -> void:
+	if _mp_role == "client" or (_mp_role == "host" and _saved_game()):
+		return
 	var on := RtsoUserConfig.new().get_bool(PERSIST_KEY)
-	DirAccess.make_dir_recursive_absolute(PERSIST_FILE.get_base_dir())
-	var f := FileAccess.open(PERSIST_FILE, FileAccess.WRITE)
+	var path := PERSIST_FILE_MP if _mp_role == "host" else PERSIST_FILE
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify({"version": PERSIST_VERSION, "attributes": page_state() if on else {}}, "\t"))
 
@@ -1870,8 +1878,17 @@ func _restore_settings() -> void:
 	var src := {}
 	for k in PERSISTED_KEYS:
 		src[k] = m.get(k)
-	# A networked game's setup is the host's MatchSettings, never this player's saved file.
-	var saved := load_persisted() if net_main == null else {}
+	# GameSettingsController.onLoad: the controller's own persisted settings
+	# (a networked host's from matchsettings.mp.json, none for a saved game);
+	# a client's setup is the host's MatchSettings.
+	var saved := {}
+	if net_main == null:
+		saved = load_persisted()
+	elif net_main.has_method("get_net_setup_state"):
+		var st: Dictionary = net_main.get_net_setup_state()
+		if bool(st.get("controller", false)) and not bool(st.get("saved_game", false)):
+			saved = load_persisted(true)
+			saved.erase("local_slot")
 	for k in saved:
 		if src.has(k) and typeof(saved[k]) in [TYPE_FLOAT, TYPE_INT, TYPE_BOOL, TYPE_STRING, TYPE_ARRAY]:
 			src[k] = saved[k]
@@ -1970,6 +1987,7 @@ func _apply_settings(ms: Dictionary) -> void:
 
 func _on_back_pressed() -> void:
 	if _mp_role != "none":
+		save_persisted() # GameSettingsController.onClose (the host's)
 		# 0 A.D. gamesetup's Back in a networked game: leave it for the lobby.
 		net_main.leave_net_game()
 		return
@@ -2110,6 +2128,8 @@ func _on_start_pressed() -> void:
 	if _mp_role == "host":
 		# The host's MatchSettings is the setup; RtsoMain starts every peer
 		# once all players are ready (0.28 ReadyController).
+		if bool(_net_state.get("can_start", false)):
+			save_persisted() # launchGame, before Random is resolved
 		_host_write_setup(true)
 		net_main._on_lobby_start_pressed()
 		return

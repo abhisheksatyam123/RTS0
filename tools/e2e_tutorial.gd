@@ -77,6 +77,19 @@ func run() -> void:
 	check(str(tp["text"]).contains("[color=#ffe295]"), "the newest instruction is coloured")
 	check(tp["status"] in ["Follow the instructions.", "Click when ready."], "the status line: " + str(tp["status"]))
 	check(not tp["button_visible"] or tp["button"] == "Ready", "the button reads Ready")
+	# messages.js translate(): the instructions, status and button follow the language.
+	var de: Translation = load("res://assets/l10n/de.po")
+	de.locale = "de"
+	TranslationServer.add_translation(de)
+	var locale_before := TranslationServer.get_locale()
+	TranslationServer.set_locale("de")
+	await frames(3)
+	tp = current_scene.debug_tutorial_panel()
+	check(str(tp["text"]).contains("Willkommen") and tp["status"] in ["Folge den Anweisungen.", "Klicke, wenn du bereit bist."]
+		and (not tp["button_visible"] or tp["button"] == "Bereit"), "the panel is translated: " + str(tp))
+	TranslationServer.set_locale(locale_before)
+	TranslationServer.remove_translation(de)
+	await frames(3)
 
 	print("4. Game setup")
 	change_scene_to_file("res://scenes/menu/gamesetup.tscn")

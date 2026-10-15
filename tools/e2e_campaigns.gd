@@ -79,6 +79,19 @@ func run() -> void:
 		and rows[0].get_custom_color(1) == page.GREEN and rows[0].get_custom_color(0) != page.GREEN
 		and rows[1].get_custom_color(0) == page.GRAY,
 		"the status is its own column, green when available; the locked name is grey")
+	# translateWithContext: the names and statuses follow the language (German here).
+	var locale_before := TranslationServer.get_locale()
+	var de: Translation = load("res://assets/l10n/de.po")
+	de.locale = "de"
+	TranslationServer.add_translation(de)
+	TranslationServer.set_locale("de")
+	page.render()
+	rows = page.list.get_root().get_children()
+	check(rows[0].get_text(0) == "Interaktive Einführung" and rows[0].get_text(1) == "Verfügbar",
+		"the level name and status are translated: %s / %s" % [rows[0].get_text(0), rows[0].get_text(1)])
+	TranslationServer.set_locale(locale_before)
+	TranslationServer.remove_translation(de)
+	page.render()
 	page.select(1)
 	check(page.start_button.disabled, "the walkthrough cannot start before the tutorial is done")
 	page.select(0)
