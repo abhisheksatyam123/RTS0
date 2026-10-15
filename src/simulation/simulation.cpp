@@ -3360,7 +3360,7 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	const Building &b = buildings_[bit->second];
 	if (b.team != player_id) return false;
 	if (b.type == BLD_CORRAL || u_type == UNIT_TYPE_NONE) {
-		if (b.build_progress < 1.0f || b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
+		if (b.build_progress < 1.0f) return false;
 		return cmd_breed_livestock(player_id, building_id, FAUNA_SHEEP_TRAINABLE, count);
 	}
 	// RTS0's own villager is in no 0.28 Trainer list: the worker class trains the
@@ -3434,9 +3434,14 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || player_id >= MAX_PLAYERS || b.build_progress < 1.0f) return false;
-	if (b.queue.size() >= PRODUCTION_QUEUE_MAX || b.upgrade_to != BLD_TYPE_COUNT) return false;
+	if (b.upgrade_to != BLD_TYPE_COUNT) return note_text(player_id, SessionNotice::TEXT_UPGRADING), false;
+	if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return note_text(player_id, SessionNotice::TEXT_QUEUE_FULL), false;
 	if (count < 1 || count > 200) return false;
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	// RTS0-only rows (<civ>/rts0_villager) are class defaults for old saves and pre-roster
+	// spawns; 0 A.D. has no such unit, so nothing trains one by name (cmd_train sends the
+	// worker class to the civ's support_civilian).
+	if (exclusive && std::strstr(civ_unit_template(tmpl).id, "/rts0_")) return false;
 	if (triggers_.template_disabled(tmpl)) return false; // the map script's SetDisabledTemplates
 
 	PlayerState &ps = players_[player_id];
@@ -3903,6 +3908,10 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
+	if (b.team == player_id && b.build_progress >= 1.0f) { // ProductionQueue.js AddItem's notices
+		if (b.upgrade_to != BLD_TYPE_COUNT) return note_text(player_id, SessionNotice::TEXT_UPGRADING), false;
+		if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return note_text(player_id, SessionNotice::TEXT_QUEUE_FULL), false;
+	}
 	if (research_check(player_id, tech_id, building_id) != TECH_OK) return false;
 
 	// Researcher.js QueueTechnology: paid now, researched when it reaches the queue's front.
@@ -3973,7 +3982,14 @@ uint32_t Simulation::unit_guard_target(uint32_t uid) const {
 }
 
 bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice) {
-	if (upgrade_check(player_id, building_id, choice) != UPGRADE_OK) return false;
+	if (const uint8_t err = upgrade_check(player_id, building_id, choice); err != UPGRADE_OK) {
+		// Upgrade.js Upgrade: "Entity is producing. Cannot start upgrading."
+		if (err == UPGRADE_ERR_BUSY) {
+			const Building &b = buildings_[building_id_to_idx_.at(building_id)];
+			if (b.upgrade_to == BLD_TYPE_COUNT && !b.queue.empty()) note_text(player_id, SessionNotice::TEXT_PRODUCING);
+		}
+		return false;
+	}
 	Building &b = buildings_[building_id_to_idx_[building_id]];
 	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
 	players_[player_id].pay((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost);
@@ -8424,8 +8440,19 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	const Building &b = buildings_[bit->second];
 	const bool owner = b.team == player;
 	if (!owner && !is_ally(player, b.team)) return;
+	const uint32_t bid = b.id;
+	// Commands.js unload: "Unable to unload unit(s)." when one stays in (no free spot outside).
+	auto still_in = [&](uint32_t uid) {
+		auto it = building_id_to_idx_.find(bid);
+		if (it == building_id_to_idx_.end()) return false;
+		const auto &g = buildings_[it->second].garrisoned_units;
+		return std::find(g.begin(), g.end(), uid) != g.end();
+	};
 	if (owner && count == 0) {
+		const std::vector<uint32_t> before = b.garrisoned_units;
 		order_ungarrison(building_id);
+		for (uint32_t uid : before)
+			if (still_in(uid)) { note_text(player, SessionNotice::TEXT_UNLOAD_FAILED); break; }
 		return;
 	}
 	std::vector<uint32_t> out;
@@ -8434,11 +8461,14 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	} else {
 		out.assign(unit_ids, unit_ids + count);
 	}
+	bool failed = false;
 	for (uint32_t uid : out) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0 || (!owner && units_.team[i] != player)) continue;
 		order_ungarrison_single(building_id, uid);
+		failed |= still_in(uid);
 	}
+	if (failed) note_text(player, SessionNotice::TEXT_UNLOAD_FAILED);
 }
 
 std::vector<uint32_t> Simulation::holder_contents(uint32_t holder_id, uint8_t *holder_owner) const {
@@ -8682,7 +8712,7 @@ bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, ui
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
-	if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
+	if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return note_text(player_id, SessionNotice::TEXT_QUEUE_FULL), false;
 	count = std::clamp(count, 1, 255);
 	if (!entity_limit_allows_unit(player_id, UNIT_TYPE_NONE, CIV_UNIT_TEMPLATE_NONE, count)) return false; // Animal 50
 	const uint8_t animal = corral_animal_for(civ_of(b.team), ftype);
@@ -9152,13 +9182,13 @@ void Simulation::mark_building_wreck(Building &b, uint8_t killer) {
 
 void Simulation::record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building) {
 	size_t idx = recent_death_head_ % MAX_RECENT_DEATHS;
-	recent_deaths_[idx] = { x, z, team, killer_team, type, is_building, false, false };
+	recent_deaths_[idx] = { x, z, team, killer_team, type, is_building, false, 0 };
 	recent_death_head_++;
 }
 
 void Simulation::record_unit_death(size_t i, uint8_t killer_team) {
 	record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], killer_team, units_.unit_type[i], false);
-	recent_deaths_[(recent_death_head_ - 1) % MAX_RECENT_DEATHS].death_damage = unit_death_damage(i) != nullptr;
+	recent_deaths_[(recent_death_head_ - 1) % MAX_RECENT_DEATHS].death_damage = unit_death_damage_row(units_.tmpl[i]);
 }
 
 // --- 0 A.D. StatisticsTracker.js ---------------------------------------------
@@ -9544,7 +9574,7 @@ void Simulation::tick(float dt) {
 	tick_capture(dt);        // 0 A.D. Capturable.js: multi-team structure capture & regeneration
 	tick_status_effects(dt);
 	tick_projectiles(dt);
-	tick_death_damage(dt);   // 0 A.D. DeathDamage.js: fire ships explode on death
+	tick_death_damage(dt);   // 0 A.D. DeathDamage.js: fire ships and the fire-raiser explode on death
 
 	// 4. Infrastructure & Production
 	tick_construction(dt);   // 0 A.D. Foundation.js / Builder.js: building construction
@@ -12446,6 +12476,7 @@ void Simulation::tick_production(float dt) {
 				for (int r = 0; r < RES_COUNT; ++r) rest.paid[r] = done.paid[r] * rest.count / done.count;
 				b.queue.insert(b.queue.begin(), rest);
 				stuck = true;
+				if (bteam < MAX_PLAYERS) note_text(bteam, SessionNotice::TEXT_SPAWN_BLOCKED, b.id); // shown once a blockage (main_node)
 				break;
 			}
 			uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
@@ -12484,7 +12515,10 @@ void Simulation::tick_production(float dt) {
 					? cmd_train_template_at(bteam, b.id, done.tmpl, false, done.count)
 					: cmd_train(bteam, b.id, (UnitType)done.unit_type, done.count);
 			}
-			if (!again) b.autoqueue = false;
+			if (!again) {
+				b.autoqueue = false;
+				note_text(bteam, SessionNotice::TEXT_AUTOQUEUE_OFF);
+			}
 		}
 	}
 }
@@ -14655,6 +14689,7 @@ void Simulation::check_victory_conditions(float dt) {
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
 	int critical_count[MAX_TEAMS] = {}; // ConquestCritical+!Foundation (Conquest.js)
+	int critical_units[MAX_TEAMS] = {}; // ConquestCritical Unit
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
 	bool wonder[MAX_TEAMS] = {};
@@ -14672,7 +14707,7 @@ void Simulation::check_victory_conditions(float dt) {
 		uint8_t t = units_.team[u];
 		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
 		unit_count[t]++; // ConquestUnits.js "Unit+!Animal": every unit, catafalques and traders too
-		if (is_conquest_critical_unit(units_.unit_type[u])) critical_count[t]++;
+		if (is_conquest_critical_unit(units_.unit_type[u])) { critical_count[t]++; critical_units[t]++; }
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
@@ -14732,14 +14767,21 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 
 	// Each active condition defeats on its own (every Conquest*.js query and Regicide.js
-	// call SetState("defeated") independently). A partial conquest's second query
-	// ("ConquestCritical Unit+!Animal" and the like: critical OR its own class) can only
-	// empty after its first, so the first decides.
+	// call SetState("defeated") independently). A query only fires when the last entity in
+	// its list leaves the player (ConquestCommon.js), so a list that starts empty (a Nomad
+	// player's structures or civic centres) never does, and the partial conquests' second
+	// query ("ConquestCritical Structure", "ConquestCritical CivilCentre+!Foundation":
+	// critical OR its own class) decides then.
 	const uint8_t vk = victory_conditions();
 	using SN = SessionNotice;
 	auto defeated = [&](int t) -> int { // the reason, or -1 while the player holds on
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
+		// A Nomad player's structures list starts empty: it fills with what they build or
+		// capture.
+		const PlayerStatistics &st = stats_[t];
+		const bool had_structure = !nomad_ || st.buildings_constructed[STAT_BLD_TOTAL] + st.buildings_captured[STAT_BLD_TOTAL]
+				+ st.buildings_lost[STAT_BLD_TOTAL] > 0;
 		// A query whose list starts empty never fires, so a nomad who has not built a civic
 		// centre yet is not out until one is lost.
 		bool no_ccs = built_cc_count[t] == 0 && stats_[t].buildings_lost[STAT_BLD_CIV_CENTRE] > 0;
@@ -14749,8 +14791,11 @@ void Simulation::check_victory_conditions(float dt) {
 		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
 		if ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) return SN::END_CONQUEST;
 		if ((vk & VK_CONQUEST_UNITS) && no_units) return SN::END_UNITS;
-		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures) return SN::END_STRUCTURES;
+		const bool gone = lost_any || (no_units && no_structures);
+		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && had_structure) return SN::END_STRUCTURES;
+		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && critical_units[t] == 0 && gone) return SN::END_STRUCTURES_CRITICAL;
 		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) return SN::END_CIVIC_CENTRES;
+		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && built_cc_count[t] == 0 && critical_count[t] == 0 && gone) return SN::END_CIVIC_CENTRES_CRITICAL;
 		if ((vk & VK_REGICIDE) && regicide_hero_lost(t)) return SN::END_HERO;
 		return -1;
 	};
@@ -15275,14 +15320,6 @@ void Simulation::eject_corral_animals(const Building &b, bool unallied_only) {
 	}
 }
 
-// 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
-// they die. Of the trained ones that is mixins/fireship.xml, on the ignited fire ships
-// (brit, gaul and iber ship_fire_fire, which ship_fire turns into by its Ignition
-// upgrade): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
-// has one too but no civ trains it.
-// 0.28 mixins/fireship.xml DeathDamage: Crush 500 in 22 m, no FriendlyFire, x3 vs Ship and Building.
-static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {22.0f * AREA_DAMAGE_SCALE, 500.0f, false, 3.0f};
-
 static bool template_is(uint16_t tmpl, const char *name) {
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
 	const char *id = civ_unit_template(tmpl).id;
@@ -15307,8 +15344,44 @@ static bool is_fire_ship(uint16_t tmpl) {
 	return template_is(tmpl, "ship_fire") || is_ignited_fire_ship(tmpl);
 }
 
+// 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
+// they die, each with its own Range, Damage, FriendlyFire and Bonuses. Ranges are area
+// ranges (x AREA_DAMAGE_SCALE, as splash). Row 0 must stay the fire ship: RecentDeath's
+// death_damage byte stores 1 + the row, and older saves stored 1 for a fire ship.
+struct TemplateDeathDamage {
+	const char *stem; // the template id after its civ folder
+	DeathDamageInfo dd;
+};
+static const TemplateDeathDamage kTemplateDeathDamage[] = {
+	// 0.28 mixins/fireship.xml, on the ignited fire ships (brit, gaul, iber and germ
+	// ship_fire_fire, which ship_fire turns into by its Ignition upgrade): Crush 500 in
+	// 22 m, no FriendlyFire, x3 vs Ship and Building.
+	{"ship_fire_fire", {22.0f * AREA_DAMAGE_SCALE, 500.0f, false, 3.0f, false}},
+	// 0.28 template_unit_siege_flamethrower.xml (units/theb_siege_fireraiser, which only
+	// Survival of the Fittest's Gaia waves field): Fire 600 in 20 m, FriendlyFire, so it
+	// burns every owner's units and structures, its own side's included. No Bonuses.
+	{"theb_siege_fireraiser", {20.0f * AREA_DAMAGE_SCALE, 600.0f, true, 1.0f, true}},
+};
+static constexpr uint8_t kTemplateDeathDamageRows = sizeof kTemplateDeathDamage / sizeof kTemplateDeathDamage[0];
+
+// 1 + the template's kTemplateDeathDamage row, 0 = no DeathDamage, looked up once.
+uint8_t Simulation::unit_death_damage_row(uint16_t tmpl) {
+	static const auto table = [] {
+		std::array<uint8_t, CIV_UNIT_TEMPLATE_COUNT> t{};
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k)
+			for (uint8_t r = 0; r < kTemplateDeathDamageRows; ++r)
+				if (template_is(k, kTemplateDeathDamage[r].stem)) t[k] = (uint8_t)(r + 1);
+		return t;
+	}();
+	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? table[tmpl] : 0;
+}
+
+const DeathDamageInfo *Simulation::death_damage_info(uint8_t row) {
+	return row >= 1 && row <= kTemplateDeathDamageRows ? &kTemplateDeathDamage[row - 1].dd : nullptr;
+}
+
 const DeathDamageInfo *Simulation::unit_death_damage(size_t i) const {
-	return is_ignited_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
+	return death_damage_info(unit_death_damage_row(units_.tmpl[i]));
 }
 
 // Health RegenRate from the template; tech modifiers (TSTAT_REGEN) add to it.
@@ -15318,7 +15391,8 @@ float Simulation::unit_template_regen(size_t i) const {
 
 // DeathDamage.CauseDeathDamage -> AttackHelper.CauseDamageOverArea: every entity of the
 // players it may hurt within Range takes the damage times 1 - d^2 / Range^2, d measured
-// from its obstruction. Nothing resists Fire (no template has a Fire resistance).
+// from its obstruction. Crush is reduced by the target's crush Resistance; nothing resists
+// Fire (no template has a Fire resistance).
 void Simulation::tick_death_damage(float dt) {
 	(void)dt;
 	const size_t start = (recent_death_head_ > MAX_RECENT_DEATHS) ? (recent_death_head_ - MAX_RECENT_DEATHS) : 0;
@@ -15328,8 +15402,9 @@ void Simulation::tick_death_damage(float dt) {
 		RecentDeath &death = recent_deaths_[k % MAX_RECENT_DEATHS];
 		if (death.death_damage_applied) continue;
 		death.death_damage_applied = true;
-		if (!death.death_damage || death.is_building) continue;
-		const DeathDamageInfo &dd = FIRESHIP_DEATH_DAMAGE;
+		const DeathDamageInfo *info = death_damage_info(death.death_damage);
+		if (!info || death.is_building) continue;
+		const DeathDamageInfo &dd = *info;
 		const float ox = death.x, oz = death.z, r = dd.range, r2 = r * r;
 		const uint8_t owner = death.team;
 		auto hurts = [&](uint8_t team) { return dd.friendly_fire || is_hostile(owner, team); };
@@ -15341,8 +15416,8 @@ void Simulation::tick_death_damage(float dt) {
 			if (d >= r || invulnerable(units_.id[i])) continue;
 			float res[3];
 			unit_resistance(i, res);
-			const float dmg = dd.damage * powf(0.9f, res[2]) * (unit_is_ship(units_.unit_type[i]) ? dd.ship_building_mult : 1.0f) *
-					(1.0f - d * d / r2);
+			const float dmg = dd.damage * (dd.fire ? 1.0f : powf(0.9f, res[2])) *
+					(unit_is_ship(units_.unit_type[i]) ? dd.ship_building_mult : 1.0f) * (1.0f - d * d / r2);
 			note_attacked(0, owner, units_.id[i], units_.team[i], false, dmg);
 			units_.hp[i] -= dmg;
 			if (units_.hp[i] > 0.0f) continue;
@@ -15362,7 +15437,7 @@ void Simulation::tick_death_damage(float dt) {
 			if (d2 >= r2) continue;
 			float res[3];
 			structure_resistance(b, res);
-			const float dmg = dd.damage * powf(0.9f, res[2]) * dd.ship_building_mult * (1.0f - d2 / r2);
+			const float dmg = dd.damage * (dd.fire ? 1.0f : powf(0.9f, res[2])) * dd.ship_building_mult * (1.0f - d2 / r2);
 			note_attacked(0, owner, b.id, b.team, true, dmg);
 			b.hp -= dmg;
 			if (b.hp <= 0.0f) mark_building_wreck(b, owner);
@@ -16937,6 +17012,7 @@ Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
 	PlayerState &ps = players_[player];
 	auto pay = [&](int metal) { return ps.pay(0.0f, 0.0f, (float)metal, 0.0f); }; // TrySubtractResources: counted as used
 	if (candidates.empty()) {
+		note_text(player, SessionNotice::TEXT_NO_BRIBABLE);
 		pay(bribe_cost(player, target, true)); // TrySubtractResources: nothing if it can't pay
 		if (player < MAX_PLAYERS) stats_[player].failed_bribes++; // Commands.js IncreaseFailedBribesCounter
 		return BRIBE_NO_UNITS;
@@ -17060,16 +17136,19 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
-		if (i < 0 || !units_.alive[i] || units_.work_kind[i] == ORDER_NONE) continue;
+		if (i < 0 || !units_.alive[i]) continue;
+		// Commands.js back-to-work: notifyBackToWorkFailure for each unit that can't.
+		auto failed = [&] { if (units_.team[i] < MAX_PLAYERS) note_text(units_.team[i], SessionNotice::TEXT_BACK_TO_WORK_FAILED); };
+		if (units_.work_kind[i] == ORDER_NONE) { failed(); continue; }
 		UnitOrder o;
 		o.kind = units_.work_kind[i];
 		o.target = units_.work_target[i];
 		order_queues_.erase(unit_ids[k]);
 		if (o.kind == ORDER_GATHER && !order_still_valid((size_t)i, o)) {
 			o.target = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i]);
-			if (o.target == 0) continue;
+			if (o.target == 0) { failed(); continue; }
 		}
-		if (!order_still_valid((size_t)i, o)) continue;
+		if (!order_still_valid((size_t)i, o)) { failed(); continue; }
 		apply_order(unit_ids[k], o);
 	}
 }

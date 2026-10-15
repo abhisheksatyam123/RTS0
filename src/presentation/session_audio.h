@@ -326,8 +326,10 @@ public:
 		const auto uv = sim->units();
 		unit_index_.clear();
 		auto unit_at = [&](uint32_t id) -> int64_t {
-			if (unit_index_.empty())
-				for (size_t i = 0; i < uv.count; ++i) unit_index_[uv.id[i]] = i;
+			if (unit_index_.empty()) {
+				unit_index_.reserve(uv.count);
+				for (size_t i = 0; i < uv.count; ++i) unit_index_.emplace(uv.id[i], i);
+			}
 			auto it = unit_index_.find(id);
 			return it == unit_index_.end() ? -1 : (int64_t)it->second;
 		};
@@ -367,7 +369,8 @@ public:
 		}
 
 		// attack_ranged as a projectile leaves, attack_impact_ranged where it lands.
-		std::unordered_map<uint32_t, Flight> flights;
+		std::unordered_map<uint32_t, Flight> &flights = flights_next_; // reused: keeps its buckets
+		flights.clear();
 		for (const auto &p : sim->projectiles()) {
 			if (!p.alive) continue;
 			auto it = flights_.find(p.id);
@@ -602,7 +605,7 @@ private:
 		uint8_t impact = ATTACK_SOUND_NONE;
 		uint8_t team = 0;
 	};
-	std::unordered_map<uint32_t, Flight> flights_;
+	std::unordered_map<uint32_t, Flight> flights_, flights_next_;
 	std::unordered_map<uint32_t, double> round_sound_; // structure id -> its last round's sound
 	std::unordered_map<uint32_t, size_t> unit_index_, bld_index_;
 	double combat_window_start_ = 0.0;
