@@ -24,6 +24,11 @@ uniform sampler2D normal_tex : hint_normal, filter_linear;
 // has a specular map: brightness in red, specPow / 255 in green.
 uniform bool use_specular_map = false;
 uniform sampler2D specular_tex : filter_linear, hint_default_black;
+// 0 A.D.'s *_parallax* materials (model_common.fs USE_PARALLAX): the height in
+// normTex's alpha (tools/extract_normal_maps.py --heights), and effectSettings.z.
+uniform bool use_parallax = false;
+uniform sampler2D height_tex : filter_linear, hint_default_white;
+uniform float parallax_scale = 0.0075;
 // Close-up units and buildings set this per node; crowd MultiMeshes pass the
 // owner's colour in INSTANCE_CUSTOM (alpha 1).
 instance uniform vec4 player_color : source_color = vec4(1.0);
@@ -40,9 +45,35 @@ void vertex() {
 	v_player = INSTANCE_CUSTOM.a > 0.5 ? INSTANCE_CUSTOM.rgb : player_color.rgb;
 }
 
+// model_common.fs USE_PARALLAX: step along the eye ray in tangent space until it
+// falls below the height, then interpolate back to the crossing. Up to 20 steps,
+// fewer with distance and none beyond 250 m (RTS0 units are 4 m).
+vec2 parallax_uv(vec2 coord, vec3 vertex, vec3 tangent, vec3 binormal, vec3 normal) {
+	vec3 eye_dir = normalize(-vertex) * mat3(tangent, -binormal, normal);
+	float dist = length(vertex) * 4.0;
+	int iter = int(min(20.0, 25.0 - dist / 10.0));
+	if (iter <= 0) return coord;
+	float h = texture(height_tex, coord).r;
+	float height = 1.0;
+	float s = 1.0 / float(iter);
+	float t = s;
+	vec2 move = -eye_dir.xy * parallax_scale / (max(eye_dir.z, 0.1) * float(iter));
+	for (int i = 0; i < iter; ++i) {
+		height -= t;
+		bool below = h < height;
+		t = below ? s : 0.0;
+		coord += below ? move : vec2(0.0);
+		h = texture(height_tex, coord).r;
+	}
+	float hp = texture(height_tex, coord - move).r;
+	coord -= move * ((h - height) / (s + h - hp));
+	return coord;
+}
+
 void fragment() {
-	vec4 tex = texture(albedo_tex, UV) * albedo;
-	float m = texture(mask_tex, UV).r;
+	vec2 uv = use_parallax ? parallax_uv(UV, VERTEX, TANGENT, BINORMAL, NORMAL) : UV;
+	vec4 tex = texture(albedo_tex, uv) * albedo;
+	float m = texture(mask_tex, uv).r;
 	vec3 baked = mix(vec3(1.0), bake_tint, m);
 	vec3 owner = mix(vec3(1.0), v_player, m);
 	ALBEDO = tex.rgb * owner / max(baked, vec3(0.05)) * COLOR.rgb;
@@ -52,12 +83,12 @@ void fragment() {
 	v_spec = 0.0;
 	v_spec_pow = 1.0;
 	if (use_specular_map) {
-		vec2 s = texture(specular_tex, UV).rg;
+		vec2 s = texture(specular_tex, uv).rg;
 		v_spec = s.r;
 		v_spec_pow = max(s.g * 255.0, 1.0);
 	}
 	if (use_normal_map) {
-		NORMAL_MAP = texture(normal_tex, UV).rgb;
+		NORMAL_MAP = texture(normal_tex, uv).rgb;
 	}
 }
 

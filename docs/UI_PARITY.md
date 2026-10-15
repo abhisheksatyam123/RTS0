@@ -44,7 +44,7 @@
 | **Formations** – `main_node.cpp:2393-2450` 12 formation buttons; `main_node.cpp:865-869` `order_set_formation`; sim enum `FORMATION_COUNT = 13` (`sim_types.h`) | `gui/session/formations/Formation.js` 14 formations (`art/textures/ui/session/icons/formations/*.png`) | 12 of 13 sim formations have buttons (see DoD) | 0 A.D. lists 14 formations; the extra one is not checked here. |
 | **Production queue** – `production_queue.h` (`RtsoProductionQueue`); 8 queue slots with icon, chip and progress bar (`main_node.cpp:2318-2335`) | `gui/session/queue/ProductionQueue.js` 8 slots with `ProgressRing` (`gui/common/progressRing/*.js`) | 8-slot icon grid (see DoD) | Ring vs bar styling and queue hotkeys not re-checked. |
 | **Build grid** – `main_node.cpp:875-877` `enter_build_mode` + `main_node.cpp:939-954` `ghost_mesh` + `main_node.cpp:1020-1032` ghost preview | `gui/session/buildings/BuildPanel.js` per-civ building roster (`art/textures/ui/session/icons/buildings/**` 13+ icons), `CCmpBuilder` place preview via `gui/session/input.js` `placement` | Build buttons exist (see `update_command_panel()` builder list) but icon set incomplete | Need full building icons + hotkey `B` then `H/B/M/T…` mapping (`gui/session/hotkeys/**`). |
-| **Tech** – `main_node.cpp:879-883` `_on_tech_pressed` → `cmd_research` | `gui/session/techs/TechPanel.js` | Handler present | Needs `art/textures/ui/session/icons/technologies/**` icons. |
+| **Tech** – `session_commands.cpp` `_on_tech_pressed` → `cmd_research` | `gui/session/techs/TechPanel.js` | Handler present | Needs `art/textures/ui/session/icons/technologies/**` icons. |
 | **Hotkeys** | `binaries/data/mods/public/gui/session/hotkeys/**` `hotkeys.json` (attack-move `Ctrl`, patrol, guard, stop, etc.) | `main_node.cpp:137` `_unhandled_input` exists but not audited here | Shift queue, control groups, etc. gap – see §4. |
 
 ---
@@ -84,7 +84,7 @@
 |---|---|---|
 | **Chat** – `chat_window.h` (`RtsoChatWindow`); send via `net_host_.sendChat` (`main_node.cpp:1098`) | `gui/session/chat/Chat.js` + `gui/session/chat/ChatPanel.js` addressees | Landed: All / Allies / Enemies / Player-N addressees (`main_node.cpp:885-920`, see DoD). Whisper not re-checked. |
 | **Diplomacy** – `diplomacy_dialog.h` (`RtsoDiplomacyDialog`); `_on_diplo_stance_changed` (`main_node.cpp:63`) | `gui/session/diplomacy/DiplomacyDialog.js` per-player stance (Ally/Neutral/Enemy) + `DiplomacyColors.js` | Landed: stance changes are lockstep command 22 (see DoD). Two-peer replication test: `tools/test_diplo_net.cpp`. |
-| **Trade / Market / Barter** – `scenes/session/barter_dialog.tscn`; `_on_barter_requested` (`main_node.cpp:1202`) → `cmd_barter` | `gui/session/trade/TradeDialog.js` + `gui/session/barter/BarterDialog.js` barter with `marketGain` | Landed (see DoD). `TradeRoute.js` parity not required for P5. |
+| **Trade / Market / Barter** – `scenes/session/barter_dialog.tscn`; `_on_barter_requested` (`session_commands.cpp`) → `cmd_barter` | `gui/session/trade/TradeDialog.js` + `gui/session/barter/BarterDialog.js` barter with `marketGain` | Landed (see DoD). `TradeRoute.js` parity not required for P5. |
 | **Tribute / Ceasefire** | `gui/session/diplomacy/TributeDialog.js`, `gui/session/ceasefire/**` | Missing – P6. |
 
 ---

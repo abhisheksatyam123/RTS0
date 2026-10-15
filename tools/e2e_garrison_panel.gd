@@ -4,7 +4,9 @@ extends SceneTree
 #      owner's colour, "Unload <names>", the click help and "Player: <name>";
 #   2. a click unloads one of that type, Shift+click the rest of them;
 #   3. an ally's Civic Center shows its units too, but only ours can be unloaded:
-#      the ally's are disabled and grey, with their names and owner.
+#      the ally's are disabled and grey, with their names and owner;
+#   4. a vertical bar beside the icons shows the garrisoned units' total health
+#      (updateGarrisonHealthBar), "Health: <sum> / <max sum>", hidden when empty.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_garrison_panel.gd
 # Exit code 0 = pass.
@@ -47,6 +49,9 @@ func named(g: Array, name: String) -> Dictionary:
 			return e
 	return {}
 
+func garrison_health() -> ProgressBar:
+	return root.find_child("healthGarrison", true, false) as ProgressBar
+
 func click(i: Dictionary) -> void:
 	(instance_from_id(i["id"]) as Button).pressed.emit()
 	await frames(20)
@@ -67,6 +72,9 @@ func run() -> void:
 	if g.size() == 2:
 		check(str(g[0]["tip"]).begins_with("Unload ") and str(g[0]["tip"]).contains("\nSingle-click to unload 1. Shift-click to unload all of this type.\nPlayer: "), "names, click help, owner: " + str(g[0]["tip"]).replace("\n", " | "))
 		check(not g[0]["disabled"] and (g[0]["bg"] as Color).a > 0.5, "enabled, on the owner's colour")
+		var bar := garrison_health()
+		check(bar != null and bar.visible and bar.max_value > 0.0 and is_equal_approx(bar.value, bar.max_value)
+			and bar.tooltip_text == "Health: %d / %d" % [roundi(bar.value), roundi(bar.max_value)], "4. the garrison's total health: " + (bar.tooltip_text if bar else "none"))
 		print("2. Clicks")
 		await click(named(g, "Hoplite"))
 		g = icons()
@@ -76,6 +84,13 @@ func run() -> void:
 		await key(KEY_SHIFT, false)
 		g = icons()
 		check(g.size() == 1 and named(g, "Hoplite").is_empty(), "Shift+click unloads the rest of that type")
+		var archer_only: float = garrison_health().max_value
+		for i in 10: # Unload all, until the tower finds room for everyone
+			if icons().is_empty():
+				break
+			main._on_ungarrison_pressed()
+			await frames(40)
+		check(icons().is_empty() and not garrison_health().visible and archer_only > 0.0, "4. no bar once empty")
 
 	print("3. An ally's Civic Center")
 	var ally_cc: int = main.debug_civic_centre_id(1)

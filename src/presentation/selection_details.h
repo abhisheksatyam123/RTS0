@@ -62,7 +62,7 @@ inline String amount_of(int64_t amount, int64_t max) {
 // alone when RTS0 keeps no Max for the supply.
 inline String resource_label(uint8_t res) { return sprintf0(tr0("%(resource)s:"), {{"resource", resource_name(res)}}); }
 inline String resource_amount(int64_t amount, int64_t max, bool infinite) {
-	if (infinite) return tr0("∞");
+	if (infinite) return tr0(String::utf8("∞"));
 	return max > 0 ? amount_of(amount, max) : num(amount);
 }
 
@@ -139,8 +139,9 @@ inline String speed_tooltip(const Simulation::UnitDetails &d) {
 	auto speed = [](float v, const char *kind) {
 		return sprintf0(tr0("%(speed)s %(movementType)s"), {{"speed", fixed(v, 1)}, {"movementType", tr0(kind)}});
 	};
+	// An animal has no acceleration here: walk and run only.
 	return sprintf0(tr0("%(label)s %(speeds)s"), {{"label", tr0("Speed:")}, {"speeds", speed(d.walk, "Walk") + comma() + speed(d.run, "Run") +
-			comma() + speed(d.acceleration, "Acceleration")}});
+			(d.acceleration > 0.0f ? comma() + speed(d.acceleration, "Acceleration") : String())}});
 }
 
 // getGarrisonTooltip for a holder: "Garrison Limit: 20".
