@@ -26,6 +26,7 @@ func _init() -> void:
 	name = "Civilization"
 
 func _ready() -> void:
+	set_meta("tooltip_style", "civinfo") # 0.28 civInfoTooltip (tooltips.gd)
 	add_theme_constant_override("separation", 8)
 	var data = JSON.parse_string(FileAccess.get_file_as_string(CIVINFO_PATH)) if FileAccess.file_exists(CIVINFO_PATH) else null
 	if typeof(data) == TYPE_ARRAY:
