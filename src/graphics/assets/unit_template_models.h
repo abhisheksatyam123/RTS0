@@ -10,7 +10,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 412;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 414;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -426,6 +426,8 @@ inline const char *unit_template_draw_model(int k) {
 		"brit_hero_cunobelin_infantry",
 		"iber_hero_indibil_infantry",
 		"theb_siege_fireraiser",
+		"maur_citizen_female",
+		"han_citizen_female",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -847,16 +849,16 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		21, // gaul/support_civilian_house
 		-1, // iber/support_civilian
 		-1, // iber/support_civilian_house
-		-1, // maur/support_civilian
-		-1, // maur/support_civilian_house
+		412, // maur/support_civilian
+		412, // maur/support_civilian_house
 		-1, // kush/support_civilian
 		-1, // kush/support_civilian_house
 		-1, // ptol/support_civilian
 		-1, // ptol/support_civilian_house
 		-1, // sele/support_civilian
 		-1, // sele/support_civilian_house
-		-1, // han/support_civilian
-		-1, // han/support_civilian_house
+		413, // han/support_civilian
+		413, // han/support_civilian_house
 		173, // germ/cavalry_javelineer_b
 		-1, // germ/cavalry_spearman_b
 		174, // germ/champion_cavalry
@@ -951,7 +953,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 364;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 366;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -1084,6 +1086,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"han_cavalry_swordsman_a", "han_cavalry", nullptr},
 		{"han_cavalry_swordsman_e", "han_cavalry", nullptr},
 		{"han_champion_chariot_academy", "han_chariot", nullptr},
+		{"han_citizen_female", "han_female_citizen", nullptr},
 		{"han_hero_wei_qing_chariot", "han_chariot", nullptr},
 		{"han_infantry_archer_a", "han_archer", nullptr},
 		{"han_infantry_archer_b", "han_archer", nullptr},
@@ -1166,6 +1169,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"maur_cavalry_swordsman_a", "maur_cavalry", nullptr},
 		{"maur_cavalry_swordsman_e", "maur_cavalry", nullptr},
 		{"maur_champion_elephant", "maur_elephant", nullptr},
+		{"maur_citizen_female", "maur_female_citizen", nullptr},
 		{"maur_elephant_archer_a", "maur_elephant", nullptr},
 		{"maur_hero_ashoka_hero_chariot_archer_ashoka_m", "maur_chariot", nullptr},
 		{"maur_infantry_archer_a", "maur_archer", nullptr},
