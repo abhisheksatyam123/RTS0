@@ -2168,7 +2168,7 @@ static void test_hero_global_auras() {
 		s.unit_train_cost(0, spear, si, c, false);
 		s.unit_train_cost(0, spear, si, r);
 		check(near1(c[RES_FOOD], 42.5f) && near1(r[RES_FOOD], 43.0f), "Indibil: 42.5 food a spearman, 43 in the tooltip");
-		const uint8_t civ0 = s.player(0).civ;
+		const auto civ0 = s.player(0).civ;
 		s.player(0).civ = CIV_IBERIANS;
 		s.set_player_resources(0, 1000, 1000, 1000, 1000);
 		const uint32_t ib = s.spawn_building_world(-40, -40, BLD_BARRACKS, 0, 1.0f);

@@ -1426,7 +1426,11 @@ def collect(sim_root):
             if len(hero_auras) > 3:  # three slots: range auras before garrison ones (the minister has four)
                 hero_auras.sort(key=lambda i: auras[i]["type"] == "garrison")
             rid = name.split("units/", 1)[-1]
-            phase = max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
+            # A trained row's phase is its own Identity/Requirements (Trainer.js checks only the
+            # unit's; the structure's phase gates building it, not training at a captured one).
+            # Rows no structure trains take the phase of the unit they promote or upgrade from.
+            phase = phase_of(t) if trainers[name]["buildings"] else \
+                max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
             blds = sorted(trainers[name]["buildings"], key=BUILDING_BITS.index)
             # --keep-trainers keeps a row's id; its trainers and phase are the release's while the
             # release has its template (0.28 trains Spartan heroes at the Gerousia, the Legionary

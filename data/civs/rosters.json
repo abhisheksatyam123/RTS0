@@ -2275,7 +2275,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Émporos",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -3419,7 +3419,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Émporos Períoikos",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -4825,7 +4825,7 @@
    "class": "UNIT_TRADER",
    "name": "Aramaean Merchant",
    "specific_name": "Tamkarum Arami",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -5084,7 +5084,7 @@
    "class": "UNIT_SPEARMAN",
    "name": "Gladiator Spearman",
    "specific_name": "Hoplomachus",
-   "phase": 3,
+   "phase": 2,
    "trainers": [
     "BLD_AMPHITHEATER"
    ],
@@ -5140,7 +5140,7 @@
    "class": "UNIT_SWORDSMAN",
    "name": "Gladiator Swordsman",
    "specific_name": "Murmillo",
-   "phase": 3,
+   "phase": 2,
    "trainers": [
     "BLD_AMPHITHEATER"
    ],
@@ -5702,7 +5702,7 @@
    "class": "UNIT_SWORDSMAN",
    "name": "Roman Swordsman",
    "specific_name": "Hastātus",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_ARMY_CAMP"
    ],
@@ -6463,7 +6463,7 @@
    "class": "UNIT_TRADER",
    "name": "Plebeian Merchant",
    "specific_name": "Mercātor",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -8053,7 +8053,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Mekir",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -9481,7 +9481,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Émporos",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -10608,7 +10608,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Uogition",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -11872,7 +11872,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Uogition",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -13034,7 +13034,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Merkatari",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -14353,7 +14353,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Vaishya",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -15899,7 +15899,7 @@
    "class": "UNIT_TRADER",
    "name": "Nilotic Merchant",
    "specific_name": "Rmt sbt",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -17505,7 +17505,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Émporos",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -19093,7 +19093,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Émporos",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -20526,7 +20526,7 @@
    "class": "UNIT_TRADER",
    "name": "Trader",
    "specific_name": "Shāngrén",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
@@ -24426,7 +24426,7 @@
    "class": "UNIT_TRADER",
    "name": "Germanic Trader",
    "specific_name": "Kaupô",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MARKET",
     "BLD_TRADING_POST"
