@@ -22,6 +22,7 @@
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/scroll_container.hpp>
+#include <godot_cpp/classes/style_box_empty.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/theme.hpp>
@@ -98,9 +99,11 @@ public:
 		panel_->set_anchor(SIDE_RIGHT, 1.0f);
 		panel_->set_anchor(SIDE_TOP, 1.0f);
 		panel_->set_anchor(SIDE_BOTTOM, 1.0f);
-		panel_->set_offset(SIDE_LEFT, -584.0f);
+		// session.xml unitCommands: the 402 x 166 commands panel (right), with the
+		// supplemental panel (206 x 166, left) overlapping it by 4 px.
+		panel_->set_offset(SIDE_LEFT, -12.0f - kRightW);
 		panel_->set_offset(SIDE_RIGHT, -12.0f);
-		panel_->set_offset(SIDE_TOP, -198.0f);
+		panel_->set_offset(SIDE_TOP, -10.0f - kPanelH);
 		panel_->set_offset(SIDE_BOTTOM, -10.0f);
 
 		Ref<StyleBoxFlat> cmd_style;
@@ -114,49 +117,56 @@ public:
 		// session/selection_panels*.xml: the panel's buttons use sessionToolTipBottom (tooltips.gd);
 		// the stance, formation, alert, command and barter ones override it with the bold variant.
 		panel_->set_meta("tooltip_style", "session_bottom");
+		left_panel_ = memnew(Panel);
+		left_panel_->set_anchor(SIDE_LEFT, 1.0f);
+		left_panel_->set_anchor(SIDE_RIGHT, 1.0f);
+		left_panel_->set_anchor(SIDE_TOP, 1.0f);
+		left_panel_->set_anchor(SIDE_BOTTOM, 1.0f);
+		left_panel_->set_offset(SIDE_LEFT, -8.0f - kRightW - kLeftW);
+		left_panel_->set_offset(SIDE_RIGHT, -8.0f - kRightW);
+		left_panel_->set_offset(SIDE_TOP, -10.0f - kPanelH);
+		left_panel_->set_offset(SIDE_BOTTOM, -10.0f);
+		left_panel_->add_theme_stylebox_override("panel", cmd_style);
+		if (theme.is_valid()) left_panel_->set_theme(theme);
+		left_panel_->set_meta("tooltip_style", "session_bottom_bold");
+		parent->add_child(left_panel_);
 		parent->add_child(panel_);
 
 		roster_list_ = memnew(ItemList);
-		roster_list_->set_anchor(SIDE_LEFT, 1.0f);
-		roster_list_->set_anchor(SIDE_RIGHT, 1.0f);
-		roster_list_->set_anchor(SIDE_TOP, 1.0f);
-		roster_list_->set_anchor(SIDE_BOTTOM, 1.0f);
-		roster_list_->set_offset(SIDE_LEFT, -584.0f);
-		roster_list_->set_offset(SIDE_RIGHT, -12.0f);
-		roster_list_->set_offset(SIDE_TOP, -326.0f);
-		roster_list_->set_offset(SIDE_BOTTOM, -202.0f);
-		// 0.28's Training panel: a grid of portraits (rowLength 10) with the count each
-		// click would train under it.
-		roster_list_->set_max_columns(0);
+		// 0.28's Training panel (training_panel.xml at 6 6): a grid of portraits
+		// (rowLength 10) at the top of the commands panel, with the count each click
+		// would train under it.
+		roster_list_->set_position(Vector2(6, 6));
+		roster_list_->set_size(Vector2(kGridW, kTrainH));
+		roster_list_->set_max_columns(10);
 		roster_list_->set_same_column_width(true);
-		roster_list_->set_fixed_column_width(40);
+		roster_list_->set_fixed_column_width(36);
 		roster_list_->set_icon_mode(ItemList::ICON_MODE_TOP);
-		roster_list_->set_fixed_icon_size(Vector2i(36, 36));
+		roster_list_->set_fixed_icon_size(Vector2i(32, 32));
 		roster_list_->add_theme_font_size_override("font_size", 11);
-		roster_list_->add_theme_stylebox_override("panel", cmd_style);
+		roster_list_->add_theme_constant_override("h_separation", 3);
+		roster_list_->add_theme_constant_override("v_separation", 1);
+		{
+			Ref<StyleBoxEmpty> none;
+			none.instantiate();
+			roster_list_->add_theme_stylebox_override("panel", none);
+			roster_list_->add_theme_stylebox_override("focus", none);
+		}
 		if (theme.is_valid()) roster_list_->set_theme(theme);
 		roster_list_->set_visible(false);
 		roster_list_->set_allow_rmb_select(true); // a right click opens the Template Viewer
 		roster_list_->connect("item_clicked", Callable(owner_, "_on_roster_item_clicked"));
 		roster_list_->connect("gui_input", Callable(owner_, "_on_roster_gui_input"));
 		roster_list_->set_meta("tooltip_style", "session_bottom");
-		parent->add_child(roster_list_);
+		panel_->add_child(roster_list_);
 
-		title_ = memnew(Label);
-		title_->set_position(Vector2(10, 6));
-		title_->set_size(Vector2(552, 16));
-		title_->add_theme_font_size_override("font_size", 12);
-		title_->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.4f));
-		title_->set_text("Commands & Actions");
-		panel_->add_child(title_);
-
-		// Stances Bar (Aggressive, Defensive, Stand Ground, Hold, Passive)
+		// stance_panel.xml: five 38 px icons along the supplemental panel's bottom.
 		stances_bar_ = memnew(HBoxContainer);
-		stances_bar_->set_position(Vector2(10, 24));
-		stances_bar_->set_size(Vector2(552, 26));
-		stances_bar_->add_theme_constant_override("separation", 6);
+		stances_bar_->set_position(Vector2(6, kPanelH - 41.0f));
+		stances_bar_->set_size(Vector2(kLeftW - 12.0f, 38));
+		stances_bar_->add_theme_constant_override("separation", 1);
 		stances_bar_->set_meta("tooltip_style", "session_bottom_bold");
-		panel_->add_child(stances_bar_);
+		left_panel_->add_child(stances_bar_);
 
 		// Indexed by UnitStance; laid out in 0 A.D. g_Stances order (violent, aggressive,
 		// defensive, passive, standground: UnitAI's selectable stances when a template names
@@ -181,8 +191,9 @@ public:
 				rtso::STANCE_PASSIVE, rtso::STANCE_STAND_GROUND};
 		for (int s : stance_order) {
 			Button *sb = memnew(Button);
-			sb->set_custom_minimum_size(Vector2(95, 24));
-			sb->set_text(stance_names[s]);
+			// stance_panel.xml: a 38 px icon button, no caption; the name is in the tooltip.
+			sb->set_name(stance_names[s]);
+			sb->set_custom_minimum_size(Vector2(38, 38));
 			sb->set_tooltip_text(String(stance_names[s]) + "\n" + stance_tips[s]);
 			sb->set_toggle_mode(true); // pressed = some selected unit holds it (IsStanceSelected)
 			Ref<Texture2D> s_ico = rtso::load_ui_texture(stance_icons[s]);
@@ -190,39 +201,40 @@ public:
 				sb->set_button_icon(s_ico);
 				sb->set_expand_icon(true);
 			}
-			sb->add_theme_font_size_override("font_size", 9);
 			sb->connect("pressed", Callable(owner_, "_on_stance_selected").bind(s));
 			stances_bar_->add_child(sb);
 			stance_buttons_[s] = sb;
 		}
 		stances_bar_->set_visible(false);
 
-		// Actions & Formations Bar
-		actions_bar_ = memnew(HBoxContainer);
-		actions_bar_->set_position(Vector2(10, 52));
-		actions_bar_->set_size(Vector2(552, 26));
-		actions_bar_->add_theme_constant_override("separation", 2);
+		// formation_panel.xml: the formations from the supplemental panel's top left.
+		actions_bar_ = memnew(HFlowContainer);
+		actions_bar_->set_position(Vector2(6, 6));
+		actions_bar_->set_size(Vector2(kLeftW - 12.0f, kPanelH - 50.0f));
+		actions_bar_->add_theme_constant_override("h_separation", 2);
+		actions_bar_->add_theme_constant_override("v_separation", 2);
 		actions_bar_->set_meta("tooltip_style", "session_bottom_bold");
-		panel_->add_child(actions_bar_);
+		left_panel_->add_child(actions_bar_);
 
 		// Production Bar (Training & Tech)
 		// The build menu has 25+ structures: the buttons wrap onto rows and
 		// scroll inside the panel instead of running off the screen at 1280x720.
 		production_scroll_ = memnew(ScrollContainer);
-		production_scroll_->set_position(Vector2(10, 80));
-		production_scroll_->set_size(Vector2(552, 40));
+		production_scroll_->set_position(Vector2(6, 6));
+		production_scroll_->set_size(Vector2(kGridW, kPanelH - 12.0f));
 		production_scroll_->set_horizontal_scroll_mode(ScrollContainer::SCROLL_MODE_DISABLED);
 		panel_->add_child(production_scroll_);
 		production_bar_ = memnew(HFlowContainer);
 		production_bar_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-		production_bar_->add_theme_constant_override("h_separation", 4);
-		production_bar_->add_theme_constant_override("v_separation", 2);
+		production_bar_->add_theme_constant_override("h_separation", 1);
+		production_bar_->add_theme_constant_override("v_separation", 1);
 		production_scroll_->add_child(production_bar_);
 
-		// Visual 8-Slot Production Queue Bar (ProductionQueue.js parity)
+		// queue_panel.xml: the production queue is a 56 px strip on top of the
+		// commands panel (4 -56 100% 0).
 		queue_bar_ = memnew(HBoxContainer);
-		queue_bar_->set_position(Vector2(10, 122));
-		queue_bar_->set_size(Vector2(552, 54));
+		queue_bar_->set_position(Vector2(4, -56));
+		queue_bar_->set_size(Vector2(kRightW - 4.0f, 54));
 		queue_bar_->add_theme_constant_override("separation", 6);
 		panel_->add_child(queue_bar_);
 
@@ -1216,9 +1228,8 @@ public:
 			if (roster_list_)
 				for (int i = 0; i < roster_list_->get_item_count(); ++i) roster_list_->set_item_disabled(i, true);
 		}
-		// A structure shows its queue under the buttons while something is queued
-		// (0.28's Queue panel shows only queued items); otherwise the buttons get
-		// that room.
+		// The queue strip shows while something is queued (0.28's Queue panel shows
+		// only queued items).
 		bool queue_shown = false;
 		if (selected_building_id != 0)
 			for (const auto &b : sim->buildings())
@@ -1227,11 +1238,17 @@ public:
 		// A builder's construction grid can outgrow the two rows a unit selection
 		// has: the panel grows upward to show all of it (0.28 shows the whole
 		// Construction panel), up to kMaxGrow, past which it scrolls.
+		// With a Training grid on top, the other buttons take the bottom two rows
+		// (research_panel.xml: 6 100%-82).
 		constexpr float kMaxGrow = 120.0f;
-		const float h = queue_shown ? 40.0f : std::clamp(production_bar_->get_combined_minimum_size().y, 96.0f, 96.0f + kMaxGrow);
-		const Vector2 area(552, h);
+		const bool training = roster_list_ && roster_list_->is_visible();
+		const float base = training ? 78.0f : kPanelH - 12.0f;
+		const float h = std::clamp(production_bar_->get_combined_minimum_size().y, base, base + kMaxGrow);
+		const Vector2 area(kGridW, h);
+		const Vector2 at(6, training ? kPanelH - 82.0f : 6.0f);
 		if (production_scroll_->get_size() != area) production_scroll_->set_size(area);
-		const float top = -198.0f - (queue_shown ? 0.0f : h - 96.0f);
+		if (production_scroll_->get_position() != at) production_scroll_->set_position(at);
+		const float top = -10.0f - kPanelH - (h - base);
 		if (panel_->get_offset(SIDE_TOP) != top) panel_->set_offset(SIDE_TOP, top);
 	}
 
@@ -2095,12 +2112,15 @@ private:
 	godot::Panel *panel_ = nullptr;
 	godot::HBoxContainer *stances_bar_ = nullptr;
 	godot::Button *stance_buttons_[5] = {}; // indexed by UnitStance
-	godot::HBoxContainer *actions_bar_ = nullptr;
+	godot::HFlowContainer *actions_bar_ = nullptr;
 	// Wraps its buttons; the scroll keeps a long build menu inside the panel.
 	godot::ScrollContainer *production_scroll_ = nullptr;
 	godot::HFlowContainer *production_bar_ = nullptr;
 	godot::HBoxContainer *queue_bar_ = nullptr;
-	godot::Label *title_ = nullptr;
+	godot::Panel *left_panel_ = nullptr;
+	// session.xml's panel sizes.
+	static constexpr float kPanelH = 166.0f, kRightW = 402.0f, kLeftW = 206.0f;
+	static constexpr float kGridW = kRightW - 10.0f, kTrainH = 78.0f;
 	// Every civ roster unit and hero the selected building trains (0 A.D. names,
 	// costs after team bonuses), above the command panel. Rebuilt only when
 	// roster_list_key_ changes so hover and tooltips survive between frames.

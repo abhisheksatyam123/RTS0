@@ -308,12 +308,16 @@ def play_setup_leave(args, lobby):
     ok = (host.returncode == 0 and join.returncode == 0 and moved == "Observers: bob"
           and status == "Lost connection to the server. | The host has ended the game. reason=2 saw_page=true page=false"
           and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn"
-          and warning.startswith("bob losing connection (") and warning.endswith(" layer=22"))
+          and warning.startswith("bob losing connection (") and warning.endswith(" layer=22")
+          # MapSelection.js Random: the host picked a map, the client saw only "Random".
+          and said("setup_map") == "random" and said("random_pick", "host").endswith(" hidden=true")
+          and not said("random_pick", "host").startswith("random "))
     for role in ("host", "join"):
         for line in gmp_lines(outs[role]):
             print("   " + line)
     if ok:
         print("[gmp] PASS the host's player assignment made bob an observer; his page listed: Observers: bob")
+        print(f"[gmp] PASS the host chose Random and picked {said('random_pick', 'host').split()[0]}; the client's setup showed Random")
         print(f"[gmp] PASS bob froze in the setup; the host's setup page showed over it: {warning}")
         print(f"[gmp] PASS the host left the setup; the client's page closed for: {status.split(' reason=')[0]}; "
               f"OK went back to the lobby")
