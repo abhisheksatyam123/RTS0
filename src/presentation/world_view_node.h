@@ -343,7 +343,7 @@ class RtsoWorldView : public Node3D {
 	// time a unit of that civ and type shows, so every civ in the match renders
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
 	static constexpr int CROWD_CLIP_COUNT = 61; // see crowd_clips() in world_view_node.cpp
-	static constexpr int FAUNA_CLIP_COUNT = 6;  // idle, move, attack, death, idle2, death2
+	static constexpr int FAUNA_CLIP_COUNT = 7;  // idle, move, attack, death, idle2, death2, feeding
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
 	struct CrowdPuppet {
 		String clip;
