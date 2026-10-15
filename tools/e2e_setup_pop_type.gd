@@ -57,6 +57,16 @@ func run() -> void:
 	check(items(typ) == ["Player Population", "Team Population", "World Population"] and typ.text == "Player Population", "types: " + str(items(typ)))
 	check(items(pop) == ["50", "100", "150", "200", "250", "300", "Unlimited"] and pop.text == "300", "player caps, 300: " + str(items(pop)))
 	check(left(page, "PopCapLabel").text == "Player Population Cap", "titled Player Population Cap")
+	# PopulationCap.onHoverChange: past 1200 units the entry warns of lag.
+	var warn := "Warning: These settings can result in significant lag when all players reach their maximum population capacity."
+	check(pop.get_item_tooltip(0) == "Choose the player population cap." and pop.get_item_tooltip(6) == warn, "Unlimited warns of lag, 50 does not")
+	var spin = page._slot_count_node()
+	var was: int = int(spin.value)
+	spin.value = 8
+	await frames(2)
+	check(pop.get_item_tooltip(3) == warn and pop.get_item_tooltip(2) != warn, "8 players: 200 warns (1600), 150 does not (1200)")
+	spin.value = was
+	await frames(2)
 
 	print("2. Team Population")
 	var lock: CheckBox = left(page, "StartRow/LockTeams")

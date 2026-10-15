@@ -268,6 +268,23 @@ def _wall_length(root):
         return None
 
 
+def _obstruction(root):
+    """The Obstruction Static (width, depth) of a template, or None."""
+    try:
+        st = root.find("Obstruction").find("Static")
+        return float(st.get("width")), float(st.get("depth"))
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _disabled(root, component):
+    """True when the template disables `component` (<TerritoryDecay disable=""/>), False when it
+    declares it, None when it leaves it to its parent."""
+    if root is None or root.find(component) is None:
+        return None
+    return root.find(component).get("disable") is not None
+
+
 def _max_gatherers(root):
     try:
         return int(root.find("ResourceSupply").findtext("MaxGatherers"))
@@ -297,8 +314,13 @@ def template_info(source, name):
     st, mx = _supply(root)
     mg = _max_gatherers(root)
     wl = _wall_length(root)
+    ob = _obstruction(root)
+    dd, cd = _disabled(root, "TerritoryDecay"), _disabled(root, "Capturable")
     info = {"chain": [mixin] + (base["chain"] if base else []),
             "wall_length": wl if wl is not None else (base["wall_length"] if base else None),
+            "obstruction": ob if ob is not None else (base["obstruction"] if base else None),
+            "decay_disabled": dd if dd is not None else (base["decay_disabled"] if base else False),
+            "capture_disabled": cd if cd is not None else (base["capture_disabled"] if base else False),
             "supply_type": st or (base["supply_type"] if base else None),
             "supply_max": mx if mx is not None else (base["supply_max"] if base else None),
             "max_gatherers": mg if mg is not None else (base["max_gatherers"] if base else None)}
@@ -311,8 +333,16 @@ def wall_piece(source, tpl, wx, wz, angle, scale):
     walls) as a structures entry: its piece kind, WallSet, Position angle and WallPiece Length
     in RTS0 units, laid turned by main_node.cpp like Walls.js laid it; None for anything else."""
     info = template_info(source, tpl)
+    length = info["wall_length"]
+    if length is None and info["obstruction"] and any(c.startswith("template_structure_defensive_palisade") for c in info["chain"]):
+        # palisades_straight has no WallPiece: a palisade as long as its obstruction, which
+        # runs along its depth (a WallPiece's Length runs along its width).
+        w, d = info["obstruction"]
+        length = max(w, d)
+        if d > w:
+            angle += math.pi / 2
     # Fences have a WallPiece too, but they are scenery (gaia_owned), not defensive structures.
-    if info["wall_length"] is None or not any(c.startswith("template_structure_defensive") for c in info["chain"]):
+    if length is None or not any(c.startswith("template_structure_defensive") for c in info["chain"]):
         return None
     names = " ".join(info["chain"]).lower()
     wallset = "palisade" if "palisade" in names else "siege" if "siege_wall" in names else "stone"
@@ -320,8 +350,14 @@ def wall_piece(source, tpl, wx, wz, angle, scale):
     btype = {("stone", "tower"): "wall_tower", ("stone", "gate"): "gate", ("stone", "wall"): "wall_segment",
              ("palisade", "gate"): "palisade_gate", ("siege", "gate"): "siege_wall_gate",
              ("siege", "tower"): "siege_wall", ("siege", "wall"): "siege_wall"}.get((wallset, piece), "palisade")
-    return {"type": btype, "x": wx, "z": wz, "wallset": wallset, "piece": piece, "angle": round(angle, 4),
-            "length": round(info["wall_length"] * scale, 3)}
+    entry = {"type": btype, "x": wx, "z": wz, "wallset": wallset, "piece": piece, "angle": round(angle, 4),
+             "length": round(length * scale, 3)}
+    # palisades_spike_*: <TerritoryDecay disable=""/>; palisades_fort: <Capturable disable=""/>.
+    if info["decay_disabled"]:
+        entry["no_decay"] = True
+    if info["capture_disabled"]:
+        entry["no_capture"] = True
+    return entry
 
 
 # 0 A.D. structure template class -> RTS0 building name (main_node.cpp map_building_type).
@@ -1043,10 +1079,29 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             with open(out_path) as f:
                 old = json.load(f)
             k = old.get("world_size", world_size_m) / world_size_m
-            tagged = added = 0
+            tagged = added = walls = 0
             for key, new in (("structures", structures), ("gaia_structures", gaia["gaia_structures"])):
                 have = old.setdefault(key, [])
+                used = set()
                 for e in new:
+                    if "wallset" in e:
+                        # A WallSet piece: the palisades the map had as stone wall segments
+                        # (palisades_straight), and the spikes' and forts' no_decay / no_capture.
+                        x, z = round(e["x"] * k, 2), round(e["z"] * k, 2)
+                        near = [o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5
+                                and o.get("player") == e.get("player") and id(o) not in used]
+                        o = min(near, key=lambda o: math.hypot(o["x"] - x, o["z"] - z), default=None)
+                        if o is not None:
+                            used.add(id(o))
+                        want = dict(e, x=x, z=z, length=round(e["length"] * k, 3))
+                        want.pop("template", None)
+                        if o is not None and o.get("template"):
+                            want["template"] = o["template"]
+                        if o is not None and o != want:
+                            o.clear()
+                            o.update(want)
+                            walls += 1
+                        continue
                     if not MAP_ONLY_STRUCTURE.search(e.get("template", "")):
                         continue
                     x, z = round(e["x"] * k, 2), round(e["z"] * k, 2)
@@ -1058,10 +1113,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     elif o.get("template") != e["template"]:
                         o["template"] = e["template"]
                         tagged += 1
-            if tagged or added:
+            if tagged or added or walls:
                 with open(out_path, "w") as f:
                     json.dump(old, f, indent=2)
-            print(f"  -> {out_path}: {tagged} structures given their template, {added} added")
+            print(f"  -> {out_path}: {tagged} structures given their template, {added} added, {walls} wall pieces refreshed")
             return
         if supplies_only:
             # Keep the existing map; only refresh each resource's amount and gatherer limit,
