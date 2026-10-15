@@ -10957,22 +10957,6 @@ uint32_t Simulation::find_free_fish(uint16_t sea, float x, float z, float max_d,
 	return best;
 }
 
-uint32_t Simulation::find_free_field(uint8_t team, float x, float z) {
-	uint32_t best = 0;
-	float best_d2 = 1e30f;
-	for (const auto &b : buildings_) {
-		if (b.team != team || b.type != BLD_FIELD) continue;
-		auto fit = field_res_by_bld_.find(b.id);
-		if (fit == field_res_by_bld_.end()) continue;
-		auto git = field_gatherers_.find(fit->second);
-		if (git != field_gatherers_.end() && git->second.total >= field_cap(b)) continue;
-		float dx = b.x - x, dz = b.z - z;
-		float d2 = dx * dx + dz * dz;
-		if (d2 < best_d2) { best_d2 = d2; best = fit->second; }
-	}
-	return best;
-}
-
 void Simulation::sync_field_resources() {
 	// Retire supplies whose field was destroyed or demolished. Zeroing the
 	// amount lets the cleanup at the end of tick_gather remove the resource;
@@ -11231,16 +11215,12 @@ void Simulation::tick_gather(float dt) {
 				bool exists = bit != building_id_to_idx_.end();
 				const int cap = exists ? field_cap(buildings_[bit->second]) : FIELD_MAX_GATHERERS;
 				if (!exists || fg.slots_taken >= cap) {
-					// Field full or gone: try our nearest field with a free slot.
-					uint32_t alt = exists ? find_free_field(uteam, units_.pos_x[i], units_.pos_z[i]) : 0;
-					if (alt != 0) {
-						fg.total--;
-						field_gatherers_[alt].total++;
-						order_gather(&units_.id[i], 1, alt, false, false);
-					} else {
-						units_.target_resource_id[i] = 0;
-						units_.action_state[i] = ACTION_IDLE;
-					}
+					// Field full or gone: AddGatherer fails at APPROACHING enter and UnitAI goes to
+					// FINDINGNEWTARGET: queued orders first, then a free field of anyone's within
+					// 64 m of the farmer or of where she was sent, else back to a dropsite.
+					fg.total--;
+					if (units_.carry[i] == 0) units_.res_type_carried[i] = RES_FOOD; // the order's type
+					finish_order(i, true);
 					continue;
 				}
 				fg.slots_taken++;
@@ -15263,10 +15243,12 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 		const uint8_t species = sub == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
 		const uint32_t previous = units_.target_resource_id[i];
 		uint32_t r = 0;
+		// A field takes MaxGatherers farmers (IsAvailableTo): skip the full ones.
+		const auto *busy = sub == RES_SUB_GRAIN ? &field_gatherers_ : nullptr;
 		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
-			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
+			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
 		if (r == 0)
-			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
+			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
@@ -15599,11 +15581,7 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 			auto g = busy->find(resources_.id[r]);
 			if (g != busy->end() && g->second.total >= resources_.max_gatherers[r]) continue;
 		}
-		auto f = field_bld_by_res_.find(resources_.id[r]);
-		if (f != field_bld_by_res_.end()) { // only our own fields, or Gaia's
-			auto b = building_id_to_idx_.find(f->second);
-			if (b == building_id_to_idx_.end() || (buildings_[b->second].team != team && buildings_[b->second].team != GAIA_PLAYER)) continue;
-		}
+		// Any player's field too: FindNearbyResource takes "resources owned by Gaia or any player".
 		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (d2 < best_d2) { best_d2 = d2; best = resources_.id[r]; }
