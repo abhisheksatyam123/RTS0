@@ -3519,7 +3519,7 @@ private:
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;
 	bool petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, float ship_z, float dest_x, float dest_z,
-	                        bool avoid_enemy, float &out_x, float &out_z) const;
+	                        bool avoid_enemy, float &out_x, float &out_z, const float *skip_near = nullptr) const;
 	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea,
 	                           uint8_t owner);
 	void petra_step_transport(PetraTransportPlan &tp, float dt);
@@ -3769,6 +3769,14 @@ private:
 	// crosses the first `reach` of that line, kept `radius` off, or holds the walker. Only then does
 	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
 	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
+	// Ships keep off floating treasures (template_gaia_treasure shipwrecks: Obstruction/Static,
+	// BlockMovement): when the first SHIP_WRECK_STEER_REACH of ship i's line from (x, z) to (ax, az)
+	// crosses one, grown by its hull, `out` is the nearer way round, a corner of that square.
+	static constexpr float SHIP_WRECK_STEER_REACH = 12.0f;
+	bool ship_wreck_steer(size_t i, float x, float z, float ax, float az, nav::Vec2 &out) const;
+	// Whether ship i's step from (x, z) to (nx, nz) enters a floating treasure's square grown by its
+	// hull (not the one it sails to at (ax, az)): move_units refuses it, and the ship slides along.
+	bool ship_step_into_wreck(size_t i, float x, float z, float nx, float nz, float ax, float az) const;
 	// Navcells a wood closes to long paths: FOREST_CLOSED where trees and bushes leave no way
 	// across the cell (forest_cell_closed), FOREST_CLOSED_LARGE where only the large class's
 	// clearance finds none. rebuild_nav_grid marks the first obstructed and the second

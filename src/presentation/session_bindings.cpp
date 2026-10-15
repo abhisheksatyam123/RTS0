@@ -163,6 +163,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_chat_filter_selected", "index"), &RtsoMain::_on_chat_filter_selected);
 	ClassDB::bind_method(D_METHOD("_on_chat_history_toggled", "on"), &RtsoMain::_on_chat_history_toggled);
 	ClassDB::bind_method(D_METHOD("_on_chat_text_submitted", "text"), &RtsoMain::_on_chat_text_submitted);
+	ClassDB::bind_method(D_METHOD("_on_chat_input_gui", "event"), &RtsoMain::_on_chat_input_gui);
 	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy_colors"), &RtsoMain::toggle_diplomacy_colors);

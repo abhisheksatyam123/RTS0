@@ -93,6 +93,13 @@ int main() {
 	// kush/shrine: a temple with Researcher and Trainer disabled.
 	CHECK(!building_researches_tech(BLD_KUSH_SHRINE, TECH_HEAL_RATE, CIV_KUSHITES));
 	CHECK(building_tech_classes(BLD_KUSH_SHRINE) & TC_TEMPLE);
+	// template_structure_civic_temple's children are all Temple; only the Kushite temple is the
+	// Temple of Apedemak (Arakamani's aura).
+	for (uint8_t t : {BLD_TEMPLE_AMUN, BLD_TEMPLE_VESTA, BLD_TEMPLE_MARS, BLD_TEMPLE_ISIS}) {
+		CHECK(building_tech_classes(t) & TC_TEMPLE);
+		CHECK(!(building_tech_classes(t) & TC_TEMPLEOFAPEDEMAK));
+	}
+	CHECK(building_tech_classes(BLD_TEMPLE) & TC_TEMPLEOFAPEDEMAK);
 	// han/laozigate: Capturable disable="".
 	CHECK(building_type_info(BLD_LAOZI_GATE).capture_max_points == 0.0f);
 	// pers/hall (template_structure_special) and han/laozigate (template_structure) carry no

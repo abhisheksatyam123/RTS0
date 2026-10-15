@@ -83,8 +83,8 @@ public:
 	}
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	// Where refresh_roster_state puts a training cell's Cost and batch lines in its base tooltip.
-	static constexpr const char *COST_SLOT = "\x01cost";
-	static constexpr const char *BATCH_SLOT = "\x01batch";
+	static constexpr const char *COST_SLOT = "\x01" "cost";
+	static constexpr const char *BATCH_SLOT = "\x01" "batch";
 	static constexpr int ROSTER_TECH = 0x20000;   // roster_list metadata flag: a training unit's technology
 
 	// owner: signal target (RtsoMain: the stance, formation, tech, build and command presses,
@@ -1771,7 +1771,7 @@ private:
 						s += String("\x1e") + button_signature(n->get_child(i));
 			return s;
 		}
-		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
+		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1f" "D" : "\x1f" "E");
 		if (b->has_meta("progress")) s += String("\x1fg") + String::num_int64((int64_t)b->get_meta("progress"));
 		// Child overlays (the corners frame, a red mask, a greyed icon) change with state.
 		for (int i = 0; i < b->get_child_count(); ++i) {
@@ -1784,8 +1784,8 @@ private:
 		Ref<Texture2D> ico = b->get_button_icon();
 		if (ico.is_valid()) s += String("\x1fi") + (ico->get_path().is_empty() ? String::num_int64(ico->get_instance_id()) : ico->get_path());
 		s += String("\x1fm") + String(Variant(b->get_custom_minimum_size()));
-		if (b->has_theme_color_override("font_color")) s += String("\x1fc") + String(Variant(b->get_theme_color("font_color")));
-		if (b->has_theme_font_size_override("font_size")) s += String("\x1ff") + String::num_int64(b->get_theme_font_size("font_size"));
+		if (b->has_theme_color_override("font_color")) s += String("\x1f" "c") + String(Variant(b->get_theme_color("font_color")));
+		if (b->has_theme_font_size_override("font_size")) s += String("\x1f" "f") + String::num_int64(b->get_theme_font_size("font_size"));
 		TypedArray<Dictionary> conns = b->get_signal_connection_list("pressed");
 		for (int i = 0; i < conns.size(); ++i) {
 			Callable c = Dictionary(conns[i])["callable"];

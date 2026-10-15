@@ -99,7 +99,7 @@ public:
 		for (int i = 0; i < RENDER_DEBUG_COUNT; ++i) render_debug_->add_item(kRenderDebugLabels[i], i);
 		render_debug_->set_position(Vector2(0, DEV_COUNT * kRow));
 		render_debug_->set_size(Vector2(250 - 8, kRow));
-		render_debug_->add_theme_font_size_override("font_size", 13);
+		render_debug_->add_theme_font_size_override("font_size", 12); // devCommandsDropDown: sans-12
 		render_debug_->select(RENDER_DEBUG_NONE);
 		render_debug_->connect("item_selected", Callable(owner, dropdown_method));
 		panel_->add_child(render_debug_);
