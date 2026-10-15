@@ -30,11 +30,10 @@ func frames(n: int) -> void:
 	for i in n:
 		await process_frame
 
+# multiple_details_area.xml numberOfUnits: the count beside the selection icons.
 func header() -> String:
-	for l in main.find_children("*", "Label", true, false):
-		if l.is_visible_in_tree() and l.text.ends_with(" units selected"):
-			return l.text
-	return ""
+	var l: Label = main.find_child("numberOfUnits", true, false)
+	return "%s units selected" % l.text if l and l.is_visible_in_tree() else ""
 
 func calls(b: Button, method: String) -> bool:
 	for c in b.get_signal_connection_list("pressed"):

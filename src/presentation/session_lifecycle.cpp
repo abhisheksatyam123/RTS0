@@ -534,19 +534,20 @@ void RtsoMain::_ready() {
 	// 0 A.D. selection_details.js: the "i" button opens the Template Viewer
 	// (gui/reference/viewer) for the selected unit or structure.
 	template_info_btn_ = memnew(Button);
-	template_info_btn_->set_position(Vector2(72, 72));
-	template_info_btn_->set_size(Vector2(22, 22));
+	template_info_btn_->set_position(Vector2(74, 74));
+	template_info_btn_->set_size(Vector2(20, 20));
 	template_info_btn_->set_text("i");
 	template_info_btn_->add_theme_font_size_override("font_size", 12);
 	template_info_btn_->set_focus_mode(Control::FOCUS_NONE);
 	template_info_btn_->connect("pressed", Callable(this, "_on_template_info_pressed"));
-	inspector_.panel()->add_child(template_info_btn_);
+	inspector_.portrait()->add_child(template_info_btn_); // hides with the portrait
 
 
 	// =========================================================================
 	// 3. COMMAND & ACTION PANEL (Stances, Formations, Training, 8-Slot Queue)
 	// =========================================================================
 	command_panel_.build(this, ui_layer, zeroad_theme, this, this);
+	inspector_.move_to_left_panel(command_panel_.left_panel());
 
 	// =========================================================================
 	// 4. BANNER OVERLAY (Victory / Defeat)
