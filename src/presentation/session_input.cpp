@@ -975,23 +975,19 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 
-			// 1. Right click on Allied War Trireme / Transport (Board Naval Transport)
-			uint32_t clicked_transport_id = 0;
-			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || !sim->is_ally(local_player(), uview.team[i]) || uview.unit_type[i] != rtso::UNIT_TRIREME) continue; // own or a mutual ally's
-				float dx = uview.pos_x[i] - click_pos.x;
-				float dz = uview.pos_z[i] - click_pos.z;
-				if (dx * dx + dz * dz <= 3.2f * 3.2f) {
-					clicked_transport_id = uview.id[i];
-					break;
-				}
-			}
-			if (clicked_transport_id != 0) {
+			// 1. Right click on an own or allied ship, ram or siege tower (board it).
+			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.
+			// Its specificness 20 loses to "repair" (11) unless session.garrison forces it.
+			const uint32_t clicked_transport_id = transport_under(click_pos.x, click_pos.z);
+			auto board = [&]() {
 				if (turn_cmds())
 					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id);
 				else
 					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id);
 				play_civ_voice("move");
+			};
+			if (clicked_transport_id != 0 && force_garrison) {
+				board();
 				return;
 			}
 
@@ -1022,6 +1018,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					play_civ_voice("build");
 					return;
 				}
+			}
+			if (clicked_transport_id != 0) {
+				board();
+				return;
 			}
 
 			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
@@ -1340,11 +1340,12 @@ bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
 		const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
 		if (dx * dx + dz * dz > hit_r * hit_r) continue;
-		if (garrison_mode) return selection_can_garrison(b.id);
+		if (garrison_mode) return selection_can_garrison(b.id) || transport_under(at.x, at.z);
 		if (turret_mode) return selection_can_occupy_turret(b.id);
 		if (repair_mode) return b.build_progress < 1.0f || b.hp < b.max_hp;
 		return true; // Guard.js guards own and allied structures
 	}
+	if (garrison_mode) return transport_under(at.x, at.z) != 0;
 	if (guard_mode || repair_mode) {
 		auto uv = sim->units();
 		for (size_t i = 0; i < uv.count; ++i) {

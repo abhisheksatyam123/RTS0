@@ -6811,6 +6811,12 @@ float Simulation::elevation_range_toward(float x, float z, float ux, float uz, f
 
 // Who may board: same owner, not a transport itself; land siege only takes
 // 0 A.D.'s Support and Infantry classes.
+bool Simulation::can_board_unit(uint32_t transport_id, uint32_t unit_id) const {
+	const int32_t t = lookup_unit(transport_id), u = lookup_unit(unit_id);
+	if (t < 0 || u < 0 || t == u || !units_.alive[t] || !units_.alive[u] || !is_transport(transport_id)) return false;
+	return can_board((size_t)t, (size_t)u);
+}
+
 bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 	// GarrisonHolder.IsAllowedToBeGarrisoned: the holder's owner or a mutual ally of it.
 	if (!is_ally(units_.team[unit_idx], units_.team[transport_idx])) return false;
