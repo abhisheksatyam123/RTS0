@@ -56,19 +56,25 @@ func run() -> void:
 	cfg.set_value("lobby.buddies", ",")
 	cfg.save()
 	server_pid = OS.create_process("python3", [ProjectSettings.globalize_path("res://tools/lobby_server.py"),
-		"--port", str(PORT), "--quiet", "--stun-port", "0"])
+		"--port", str(PORT), "--quiet", "--stun-port", "0", "--exit-with-parent"])
 	var ls: Node = root.get_node("/root/LobbySession")
 	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
 	root.add_child(lobby)
 	await process_frame
 	var signed := [0]
-	for attempt in 50:
-		ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: signed[0] = code)
-		await until(func() -> bool: return signed[0] != 0, 30)
-		if signed[0] == 200:
+	# Wait for the server to answer, then sign in once: retrying a sign-in that
+	# is slow to answer (a loaded machine) leaves the first one signed in on the
+	# server and the retries refused as "that name is in use".
+	ls.address = "127.0.0.1:%d" % PORT
+	var up := [false]
+	for attempt in 100:
+		ls.get_json("/players", func(code: int, _o) -> void: up[0] = up[0] or code == 200)
+		await until(func() -> bool: return up[0], 30)
+		if up[0]:
 			break
-		signed[0] = 0
 		await create_timer(0.1).timeout
+	ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: signed[0] = code)
+	await until(func() -> bool: return signed[0] != 0)
 	var bob := [""]
 	ls.post_json("/login", {"name": "bob"}, func(code: int, o) -> void:
 		bob[0] = str(o.get("token", "")) if code == 200 and o is Dictionary else "-")

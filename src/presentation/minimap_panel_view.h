@@ -37,6 +37,7 @@ public:
 		using namespace godot;
 		panel_ = memnew(Control);
 		panel_->set_name("MiniMapPanel");
+		panel_->set_meta("tooltip_style", "session_bottom"); // minimap_panel.xml sessionToolTipBottom
 		panel_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		panel_->set_anchor(SIDE_LEFT, 0.0f);
 		panel_->set_anchor(SIDE_RIGHT, 0.0f);

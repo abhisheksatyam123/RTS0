@@ -45,6 +45,17 @@ inline String current_of(const char *label_key, const char *label, float current
 inline String health(float hp, float max) { return current_of("healthLabel", "Health:", hp, max); }
 inline String capture(float points, float max) { return current_of("captureLabel", "Capture points:", points, max); }
 
+// The single-selection bar captions (healthStats, captureStats): "%(hitpoints)s / %(maxHitpoints)s"
+// rounded up, no label (selection_details.js displaySingle); tooltips keep health() / capture().
+inline String health_stats(float hp, float max) {
+	return sprintf0(tr0("%(hitpoints)s / %(maxHitpoints)s"),
+			{{"hitpoints", num((int64_t)std::ceil(hp))}, {"maxHitpoints", num((int64_t)std::ceil(max))}});
+}
+inline String capture_stats(float points, float max) {
+	return sprintf0(tr0("%(capturePoints)s / %(maxCapturePoints)s"),
+			{{"capturePoints", num((int64_t)std::ceil(points))}, {"maxCapturePoints", num((int64_t)std::ceil(max))}});
+}
+
 // The experience tooltip: "Experience: 40 / 150", or the points alone at the last rank.
 inline String experience(int64_t current, float required) {
 	if (required > 0.0f && (float)current < required)

@@ -1101,6 +1101,8 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 			{"han_female_citizen", "units/han_villager_female"},
 			{"han_cavalry", "units/han_cavalry_spearman"},
 			{"han_fishing_boat", "buildings/han_fishing_ship"},
+			// The Athenian stone thrower is the Hellenic lithobolos_med 0.28 shares with mace and sele.
+			{"athen_catapult", "units/mace_catapult"},
 		};
 		for (const auto &a : kAliases) {
 			if (id == a[0]) candidates.push_back(String("res://assets/models/") + a[1] + String(".glb"));

@@ -4161,7 +4161,7 @@
   "players": [
     {
       "id": 2,
-      "team": 1,
+      "team": 0,
       "start_x": 58.34,
       "start_z": -62.19,
       "civ": 8
@@ -4175,14 +4175,14 @@
     },
     {
       "id": 4,
-      "team": 3,
+      "team": 1,
       "start_x": 57.03,
       "start_z": 52.45,
       "civ": 2
     },
     {
       "id": 3,
-      "team": 2,
+      "team": 1,
       "start_x": -66.38,
       "start_z": -59.31,
       "civ": 1
