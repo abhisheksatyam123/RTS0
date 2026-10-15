@@ -143,8 +143,9 @@ struct PlayerState {
 		used[RES_FOOD] += f; used[RES_WOOD] += w; used[RES_GOLD] += g; used[RES_STONE] += s;
 		return true;
 	}
-	// Gives back a cancelled payment (ProductionQueue.RemoveItem, Upgrade.CancelUpgrade):
-	// the statistics count it as never used.
+	// Gives back a cancelled payment (Trainer / TechnologyManager RefundResources): the
+	// statistics count it as never used. Upgrade.CancelUpgrade uses add(), so a cancelled
+	// upgrade stays in Resources used.
 	void refund(float f, float w, float g, float s) {
 		add(f, w, g, s);
 		used[RES_FOOD] -= f; used[RES_WOOD] -= w; used[RES_GOLD] -= g; used[RES_STONE] -= s;

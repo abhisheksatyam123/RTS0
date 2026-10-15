@@ -66,6 +66,8 @@ static void test_kill_credit() {
 
 	// Classes follow 0 A.D.'s templates.
 	CHECK(stat_unit_classes(UNIT_SPEARMAN, ROSTER_CITIZEN) == ((1u << STAT_UNIT_INFANTRY) | (1u << STAT_UNIT_WORKER)));
+	// template_unit_cavalry.xml: Citizen Soldier Cavalry, no Worker.
+	CHECK(stat_unit_classes(UNIT_CAVALRY, ROSTER_CITIZEN) == (1u << STAT_UNIT_CAVALRY));
 	CHECK(stat_unit_classes(UNIT_SPEARMAN, ROSTER_CHAMPION) == ((1u << STAT_UNIT_INFANTRY) | (1u << STAT_UNIT_CHAMPION)));
 	CHECK(stat_unit_classes(UNIT_MERCHANT_SHIP, 0) == ((1u << STAT_UNIT_SHIP) | (1u << STAT_UNIT_TRADER)));
 	CHECK(stat_building_classes(BLD_TOWN_CENTER) == (1u << STAT_BLD_CIV_CENTRE));

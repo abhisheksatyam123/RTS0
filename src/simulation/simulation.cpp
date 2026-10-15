@@ -3741,7 +3741,7 @@ bool Simulation::cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id) {
 void Simulation::cancel_upgrade(Building &b, uint8_t refund_to) {
 	if (b.upgrade_to == BLD_TYPE_COUNT) return;
 	if (refund_to < MAX_PLAYERS)
-		players_[refund_to].refund(b.upgrade_paid[RES_FOOD], b.upgrade_paid[RES_WOOD], b.upgrade_paid[RES_GOLD], b.upgrade_paid[RES_STONE]);
+		players_[refund_to].add(b.upgrade_paid[RES_FOOD], b.upgrade_paid[RES_WOOD], b.upgrade_paid[RES_GOLD], b.upgrade_paid[RES_STONE]);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
@@ -29580,7 +29580,13 @@ void Simulation::scenery_check_owner(Scenery &sc) {
 	if (sc.cp[owner] > 0.0f) return;
 	int best = GAIA;
 	for (int t = 0; t < GAIA; ++t) if (sc.cp[t] > sc.cp[best]) best = t;
+	const uint8_t from = sc.owner;
 	sc.owner = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
+	// Capturable.js: CapturedEntity for the new owner, LostEntity for the old (template_structure:
+	// a Structure with none of the tracked classes, so only the Total columns move).
+	if (from == sc.owner) return;
+	if (sc.owner < MAX_PLAYERS) stats_[sc.owner].buildings_captured[STAT_BLD_TOTAL]++;
+	if (from < MAX_PLAYERS) stats_[from].buildings_lost[STAT_BLD_TOTAL]++;
 }
 
 // Capturable.js TimerTick, once a second for each Capturable scenery entity: TerritoryDecay
@@ -29613,12 +29619,18 @@ void Simulation::tick_scenery_capture() {
 void Simulation::destroy_scenery(size_t k, int32_t killer) {
 	const uint32_t id = scenery_[k].id;
 	const SceneryTypeInfo &info = scenery_type_info(scenery_[k].type);
+	// Health.js KilledBy: KilledEntity / LostEntity count a Structure (Total only, costless),
+	// then Looter.Collect adds to lootCollected.
+	if (scenery_[k].owner < MAX_PLAYERS) stats_[scenery_[k].owner].buildings_lost[STAT_BLD_TOTAL]++;
 	if (killer >= 0 && units_.team[killer] < MAX_PLAYERS) {
 		PlayerState &ps = players_[units_.team[killer]];
 		ps.res[RES_FOOD] += (float)info.loot[0];
 		ps.res[RES_WOOD] += (float)info.loot[1];
 		ps.res[RES_STONE] += (float)info.loot[2];
 		ps.res[RES_GOLD] += (float)info.loot[3];
+		PlayerStatistics &st = stats_[units_.team[killer]];
+		st.enemy_buildings_destroyed[STAT_BLD_TOTAL]++;
+		st.loot_collected += (uint32_t)(info.loot[0] + info.loot[1] + info.loot[2] + info.loot[3]);
 	}
 	scenery_.erase(scenery_.begin() + (ptrdiff_t)k);
 	for (size_t i = 0; i < units_.count; ++i) {
