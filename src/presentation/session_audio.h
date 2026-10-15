@@ -31,6 +31,7 @@
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
@@ -299,21 +300,24 @@ public:
 
 		// Units: trained (new own units), deaths (visible), damage dealt by me.
 		auto uv = sim->units();
-		std::unordered_map<uint32_t, Seen> seen;
-		seen.reserve(seen_.size() + 8);
+		// The ids alive last frame, ascending (a sorted vector: a hash map rebuilt per
+		// frame for ~900 units was ~3% of a late-game frame).
+		std::vector<uint32_t> &seen = seen_next_;
+		seen.clear();
+		auto was_seen = [this](uint32_t id) { return std::binary_search(seen_.begin(), seen_.end(), id); };
 		for (size_t i = 0; i < uv.count; ++i) {
 			const uint32_t id = uv.id[i];
-			auto prev = seen_.find(id);
+			const bool prev_seen = was_seen(id);
 			if (!uv.alive[i]) {
 				// Garrisoned units are not alive either, but keep their health.
-				if (prev != seen_.end() && uv.hp[i] <= 0.0f && fire)
+				if (prev_seen && uv.hp[i] <= 0.0f && fire)
 					play_death(sim, me, unit_death_sound(uv.tmpl ? uv.tmpl[i] : CIV_UNIT_TEMPLATE_NONE, uv.unit_type[i]),
 							uv.team[i], uv.pos_x[i], uv.pos_z[i]);
 				if (uv.hp[i] > 0.0f) known_.insert(id);
 				continue;
 			}
-			seen[id] = {uv.hp[i], uv.unit_type[i], uv.team[i]};
-			if (prev == seen_.end()) {
+			seen.push_back(id);
+			if (!prev_seen) {
 				if (!known_.insert(id).second) continue; // back out of a garrison
 				if (fire && uv.team[i] == me && !trained_this_frame_) {
 					trained_this_frame_ = true;
@@ -322,6 +326,7 @@ public:
 				continue;
 			}
 		}
+		if (!std::is_sorted(seen.begin(), seen.end())) std::sort(seen.begin(), seen.end());
 		seen_.swap(seen);
 		trained_this_frame_ = false;
 		// Animals: a living one that turned into a carcass died (Health.js death; a
@@ -671,10 +676,6 @@ private:
 	int combat_culled_ = 0;
 	bool primed_combat_ = false;
 
-	struct Seen {
-		float hp;
-		uint8_t type, team;
-	};
 	static constexpr int kPool = 8;
 
 	godot::Ref<godot::AudioStream> stream(const godot::String &path) {
@@ -729,7 +730,7 @@ private:
 	std::unordered_map<uint32_t, float> bld_progress_;
 	std::unordered_map<uint32_t, bool> gate_open_; // gate id -> open last frame
 	std::unordered_map<uint32_t, bool> chicken_fleeing_; // chicken id -> fleeing last frame
-	std::unordered_map<uint32_t, Seen> seen_;
+	std::vector<uint32_t> seen_, seen_next_; // living unit ids last frame (ascending) and its scratch
 	std::unordered_set<uint32_t> fauna_seen_; // animals alive last frame
 	std::unordered_set<uint32_t> known_;
 	bool techs_[256] = {};
