@@ -920,7 +920,7 @@ public:
 						add_entity_command("occupy-turret", "Occupy Turret", "session.occupyturret",
 								"Occupy Turret\nOrder the selected units to occupy a turret point.", "occupy-turret.png");
 					if (any_turret)
-						add_entity_command("leave-turret", "Unload", "",
+						add_entity_command("leave-turret", "Unload", "session.leaveturret",
 								"Unload\nOrder the selected units to leave their turret points.", "leave-turret.png");
 					if (has_worker)
 						add_entity_command("repair", "Repair", "session.repair",
