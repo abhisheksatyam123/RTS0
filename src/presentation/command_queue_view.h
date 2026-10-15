@@ -95,14 +95,15 @@ public:
 		owner_ = owner;
 		host_ = host;
 		panel_ = memnew(Panel);
-		panel_->set_anchor(SIDE_LEFT, 1.0f);
-		panel_->set_anchor(SIDE_RIGHT, 1.0f);
+		panel_->set_anchor(SIDE_LEFT, 0.5f);
+		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_anchor(SIDE_TOP, 1.0f);
 		panel_->set_anchor(SIDE_BOTTOM, 1.0f);
-		// session.xml unitCommands: the 402 x 166 commands panel (right), with the
-		// supplemental panel (206 x 166, left) overlapping it by 4 px.
-		panel_->set_offset(SIDE_LEFT, -12.0f - kRightW);
-		panel_->set_offset(SIDE_RIGHT, -12.0f);
+		// session.xml, in the 1024 px group centred at the bottom: the 402 x 166 commands
+		// panel (unitCommands, 50%+110 .. 50%+512) and the 206 x 166 supplemental panel
+		// (supplementalSelectionDetails, 50%-316 .. 50%-110) either side of the details.
+		panel_->set_offset(SIDE_LEFT, 110.0f);
+		panel_->set_offset(SIDE_RIGHT, 110.0f + kRightW);
 		panel_->set_offset(SIDE_TOP, -10.0f - kPanelH);
 		panel_->set_offset(SIDE_BOTTOM, -10.0f);
 
@@ -118,12 +119,12 @@ public:
 		// the stance, formation, alert, command and barter ones override it with the bold variant.
 		panel_->set_meta("tooltip_style", "session_bottom");
 		left_panel_ = memnew(Panel);
-		left_panel_->set_anchor(SIDE_LEFT, 1.0f);
-		left_panel_->set_anchor(SIDE_RIGHT, 1.0f);
+		left_panel_->set_anchor(SIDE_LEFT, 0.5f);
+		left_panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		left_panel_->set_anchor(SIDE_TOP, 1.0f);
 		left_panel_->set_anchor(SIDE_BOTTOM, 1.0f);
-		left_panel_->set_offset(SIDE_LEFT, -8.0f - kRightW - kLeftW);
-		left_panel_->set_offset(SIDE_RIGHT, -8.0f - kRightW);
+		left_panel_->set_offset(SIDE_LEFT, -110.0f - kLeftW);
+		left_panel_->set_offset(SIDE_RIGHT, -110.0f);
 		left_panel_->set_offset(SIDE_TOP, -10.0f - kPanelH);
 		left_panel_->set_offset(SIDE_BOTTOM, -10.0f);
 		left_panel_->add_theme_stylebox_override("panel", cmd_style);
@@ -242,6 +243,7 @@ public:
 	}
 
 	godot::Panel *panel() const { return panel_; }
+	godot::Panel *left_panel() const { return left_panel_; }
 	godot::HFlowContainer *production_bar() const { return production_bar_; }
 	void set_barter_sell(int r) { barter_sell_ = r; } // BarterButtonManager.setSelectedResource
 	void set_barter_host(godot::Control *c) {

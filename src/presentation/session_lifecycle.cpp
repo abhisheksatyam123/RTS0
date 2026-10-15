@@ -547,6 +547,7 @@ void RtsoMain::_ready() {
 	// 3. COMMAND & ACTION PANEL (Stances, Formations, Training, 8-Slot Queue)
 	// =========================================================================
 	command_panel_.build(this, ui_layer, zeroad_theme, this, this);
+	inspector_.move_to_left_panel(command_panel_.left_panel());
 
 	// =========================================================================
 	// 4. BANNER OVERLAY (Victory / Defeat)

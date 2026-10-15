@@ -59,10 +59,13 @@ public:
 };
 
 class RtsoInspectorView {
-	// The panel's width at 1280 px (minimap 214 px from the left, commands 612 from
-	// the right); text and bars are laid out for it.
-	static constexpr float kW = 1280.0f - 214.0f - 612.0f;
-	static constexpr float kTextW = kW - 112.0f, kBarW = kW - 158.0f;
+	// session.xml selectionDetails: 228 x 204 at the middle of the bottom group.
+	// single_details_area.xml (4 4 100%-4 100%-44): the 96 px portrait, the bars right of
+	// it, the names and the player band under them, the command row below.
+	static constexpr float kW = 228.0f, kH = 204.0f;
+	static constexpr float kTextW = kW - 8.0f, kBarX = 118.0f, kBarW = kW - 6.0f - kBarX;
+	static constexpr float kRows[5] = {10.0f, 26.0f, 42.0f, 58.0f, 74.0f};
+	static inline const godot::Vector2 kStatsAt{104.0f, 86.0f}, kStatsSize{kW - 108.0f, 14.0f};
 
 public:
 	enum InspectKind : uint8_t { INSPECT_NONE, INSPECT_UNIT, INSPECT_BUILDING, INSPECT_FAUNA, INSPECT_RESOURCE, INSPECT_TREASURE };
@@ -73,15 +76,13 @@ public:
 		using namespace godot;
 		host_ = host;
 		panel_ = memnew(Panel);
-		panel_->set_anchor(SIDE_LEFT, 0.0f);
-		panel_->set_anchor(SIDE_RIGHT, 1.0f);
+		panel_->set_anchor(SIDE_LEFT, 0.5f);
+		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_anchor(SIDE_TOP, 1.0f);
 		panel_->set_anchor(SIDE_BOTTOM, 1.0f);
-		panel_->set_offset(SIDE_LEFT, 214.0f);
-		// Up to the commands' supplemental panel (command_queue_view.h: 206 + 402 px
-		// from the right edge, overlapping by 4 px).
-		panel_->set_offset(SIDE_RIGHT, -612.0f);
-		panel_->set_offset(SIDE_TOP, -198.0f);
+		panel_->set_offset(SIDE_LEFT, -kW / 2.0f);
+		panel_->set_offset(SIDE_RIGHT, kW / 2.0f);
+		panel_->set_offset(SIDE_TOP, -10.0f - kH);
 		panel_->set_offset(SIDE_BOTTOM, -10.0f);
 
 		Ref<StyleBoxFlat> insp_style;
@@ -95,8 +96,8 @@ public:
 		parent->add_child(panel_);
 
 		portrait_ = memnew(TextureRect);
-		portrait_->set_position(Vector2(10, 10));
-		portrait_->set_size(Vector2(84, 84));
+		portrait_->set_position(Vector2(4, 4));
+		portrait_->set_size(Vector2(96, 96));
 		portrait_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		portrait_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_COVERED);
 		panel_->add_child(portrait_);
@@ -113,7 +114,7 @@ public:
 		portrait_->add_child(rank_icon_);
 		for (int i = 0; i < kStatusIcons; ++i) {
 			status_icons_[i] = memnew(TextureRect);
-			status_icons_[i]->set_position(Vector2(84 - 20, 4 + i * 18));
+			status_icons_[i]->set_position(Vector2(96 - 20, 4 + i * 18));
 			status_icons_[i]->set_size(Vector2(16, 16));
 			status_icons_[i]->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 			status_icons_[i]->set_mouse_filter(Control::MOUSE_FILTER_PASS);
@@ -122,8 +123,11 @@ public:
 		}
 
 		title_ = memnew(Label);
-		title_->set_position(Vector2(102, 6));
+		// statsArea (0 96 100% 100%): the names centred, then the player band (0 38 100% 62).
+		title_->set_position(Vector2(4, 102));
 		title_->set_size(Vector2(kTextW, 18));
+		title_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		title_->set_clip_text(true);
 		title_->add_theme_font_size_override("font_size", 13);
 		title_->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
 		panel_->add_child(title_);
@@ -131,14 +135,14 @@ public:
 		// selection_details.js's player row: the name on the player colour (alpha 128), the
 		// civ emblem in grey behind it and the phase emblems, "Civ — Town Phase" as its tooltip.
 		owner_bg_ = memnew(ColorRect);
-		owner_bg_->set_position(Vector2(102, 24));
-		owner_bg_->set_size(Vector2(kTextW, 15));
+		owner_bg_->set_position(Vector2(4, 136));
+		owner_bg_->set_size(Vector2(kTextW, 20));
 		owner_bg_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		owner_bg_->set_visible(false);
 		panel_->add_child(owner_bg_);
 		owner_civ_ = memnew(TextureRect);
-		owner_civ_->set_position(Vector2(102, 24));
-		owner_civ_->set_size(Vector2(15, 15));
+		owner_civ_->set_position(Vector2(4 + kTextW / 2.0f - 64.0f, 136));
+		owner_civ_->set_size(Vector2(128, 20));
 		owner_civ_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		owner_civ_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 		owner_civ_->set_modulate(Color(0.6f, 0.6f, 0.6f, 0.8f));
@@ -146,8 +150,8 @@ public:
 		owner_civ_->set_visible(false);
 		panel_->add_child(owner_civ_);
 		owner_phase_ = memnew(TextureRect);
-		owner_phase_->set_position(Vector2(kW - 54.0f, 24));
-		owner_phase_->set_size(Vector2(44, 15));
+		owner_phase_->set_position(Vector2(kW - 50.0f, 138));
+		owner_phase_->set_size(Vector2(44, 16));
 		owner_phase_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		owner_phase_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 		owner_phase_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -155,9 +159,12 @@ public:
 		panel_->add_child(owner_phase_);
 
 		class_ = memnew(Label);
-		class_->set_position(Vector2(102, 24));
-		class_->set_size(Vector2(kTextW, 15));
-		class_->add_theme_font_size_override("font_size", 10);
+		class_->set_position(Vector2(4, 136));
+		class_->set_size(Vector2(kTextW, 20));
+		class_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		class_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+		class_->set_clip_text(true);
+		class_->add_theme_font_size_override("font_size", 11);
 		class_->add_theme_color_override("font_color", Color(0.7f, 0.75f, 0.85f));
 		class_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
 		class_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
@@ -165,33 +172,35 @@ public:
 
 		// Helper lambda to setup 5 inspector bars with PNG icons or fallback text-based glyph icon labels
 		// (0 A.D. gui/session/selection_details.js icon parity: HP/CP/XP/STA/AURA)
-		auto make_insp_bar = [&](ProgressBar *&pbar, Label *&plbl, int y, Color fill_col, const char *glyph_text, const char *icon_path = nullptr) {
+		auto make_insp_bar = [&](ProgressBar *&pbar, Label *&plbl, float y, Color fill_col, const char *glyph_text, const char *icon_path = nullptr) {
+			pbar = memnew(ProgressBar);
+			pbar->set_position(Vector2(kBarX, y));
+			pbar->set_size(Vector2(kBarW, 11));
+			pbar->set_show_percentage(false);
+
+			// The icon (or glyph) left of the bar, its child so it hides with it.
 			Label *glyph_lbl = memnew(Label);
-			glyph_lbl->set_position(Vector2(102, y - 2));
-			glyph_lbl->set_size(Vector2(42, 14));
+			glyph_lbl->set_position(Vector2(-16, -3));
+			glyph_lbl->set_size(Vector2(14, 14));
+			glyph_lbl->set_clip_text(true);
 			glyph_lbl->set_text(glyph_text);
 			glyph_lbl->add_theme_font_size_override("font_size", 9);
 			glyph_lbl->add_theme_color_override("font_color", fill_col);
-			panel_->add_child(glyph_lbl);
+			pbar->add_child(glyph_lbl);
 
 			if (icon_path && *icon_path) {
 				Ref<Texture2D> icon_tex = rtso::load_ui_texture(icon_path);
 				if (icon_tex.is_valid()) {
 					TextureRect *icon_rect = memnew(TextureRect);
-					icon_rect->set_position(Vector2(102, y - 2));
+					icon_rect->set_position(Vector2(-16, -2));
 					icon_rect->set_size(Vector2(14, 14));
 					icon_rect->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 					icon_rect->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 					icon_rect->set_texture(icon_tex);
-					panel_->add_child(icon_rect);
+					pbar->add_child(icon_rect);
 					glyph_lbl->set_visible(false);
 				}
 			}
-
-			pbar = memnew(ProgressBar);
-			pbar->set_position(Vector2(148, y));
-			pbar->set_size(Vector2(kBarW, 11));
-			pbar->set_show_percentage(false);
 
 			Ref<StyleBoxFlat> bg_sb;
 			bg_sb.instantiate();
@@ -207,7 +216,7 @@ public:
 			panel_->add_child(pbar);
 
 			plbl = memnew(Label);
-			plbl->set_position(Vector2(148, y - 1));
+			plbl->set_position(Vector2(kBarX, y - 1));
 			plbl->set_size(Vector2(kBarW, 13));
 			plbl->add_theme_font_size_override("font_size", 9);
 			plbl->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
@@ -216,9 +225,9 @@ public:
 		};
 
 		// 1. Health Bar (Green)
-		make_insp_bar(hp_bar_, hp_label_, 41, Color(0.25f, 0.75f, 0.35f), "HP", "res://assets/textures/ui/icons/insp_health_fg.png");
+		make_insp_bar(hp_bar_, hp_label_, kRows[0], Color(0.25f, 0.75f, 0.35f), "HP", "res://assets/textures/ui/icons/insp_health_fg.png");
 		// 2. Capture Points Bar (Cyan / Blue)
-		make_insp_bar(capture_bar_, capture_label_, 54, Color(0.35f, 0.55f, 0.95f), "CP", "res://assets/textures/ui/icons/insp_capture_bar.png");
+		make_insp_bar(capture_bar_, capture_label_, kRows[1], Color(0.35f, 0.55f, 0.95f), "CP", "res://assets/textures/ui/icons/insp_capture_bar.png");
 		// selection_details.js captureBar[n]: one part per player in their colour at half alpha,
 		// the owner's first, over the bar (whose own fill stays empty).
 		for (ColorRect *&part : capture_parts_) {
@@ -228,16 +237,17 @@ public:
 			capture_bar_->add_child(part);
 		}
 		// 3. Veterancy / Experience XP Bar (Gold / Amber)
-		make_insp_bar(xp_bar_, xp_label_, 67, Color(0.95f, 0.75f, 0.20f), "XP", "res://assets/textures/ui/icons/insp_experience_fg.png");
+		make_insp_bar(xp_bar_, xp_label_, kRows[2], Color(0.95f, 0.75f, 0.20f), "XP", "res://assets/textures/ui/icons/insp_experience_fg.png");
 		// 4. Stamina / Energy Bar (Teal / Mint)
-		make_insp_bar(stamina_bar_, stamina_label_, 80, Color(0.20f, 0.85f, 0.75f), "STA", "res://assets/textures/ui/icons/insp_stamina_fg.png");
+		make_insp_bar(stamina_bar_, stamina_label_, kRows[3], Color(0.20f, 0.85f, 0.75f), "STA", "res://assets/textures/ui/icons/insp_stamina_fg.png");
 		// 5. Aura Influence Bar (Magenta / Violet) - no public.zip session icon, fallback to text glyph badge
-		make_insp_bar(aura_bar_, aura_label_, 93, Color(0.85f, 0.35f, 0.85f), "AURA", nullptr);
+		make_insp_bar(aura_bar_, aura_label_, kRows[4], Color(0.85f, 0.35f, 0.85f), "AURA", nullptr);
 
 		// resourceSection: "Wood:" beside a bar of the supply left, "amount / max" (or "∞") on it.
 		// It takes the first bar row under the health bar that nothing else uses.
 		resource_name_ = memnew(Label);
-		resource_name_->set_size(Vector2(44, 14));
+		resource_name_->set_size(Vector2(kBarX - 104.0f, 14));
+		resource_name_->set_clip_text(true);
 		resource_name_->add_theme_font_size_override("font_size", 9);
 		resource_name_->add_theme_color_override("font_color", Color(0.95f, 0.8f, 0.35f));
 		resource_name_->set_visible(false);
@@ -268,15 +278,17 @@ public:
 		panel_->add_child(resource_stats_);
 
 		stats_ = memnew(Label);
-		stats_->set_position(Vector2(102, 108));
-		stats_->set_size(Vector2(kTextW, 38));
-		stats_->add_theme_font_size_override("font_size", 10);
+		// The row under the bars (0 63 100% 98): attack and resistance, carried resources.
+		stats_->set_position(kStatsAt);
+		stats_->set_size(kStatsSize);
+		stats_->add_theme_font_size_override("font_size", 9);
 		stats_->add_theme_color_override("font_color", Color(0.85f, 0.88f, 0.95f));
 		panel_->add_child(stats_);
 
 		extra_ = memnew(Label);
-		extra_->set_position(Vector2(10, 100));
-		extra_->set_size(Vector2(88, 48));
+		extra_->set_position(Vector2(kW - 100.0f, 120));
+		extra_->set_size(Vector2(96, 16));
+		extra_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
 		extra_->add_theme_font_size_override("font_size", 9);
 		extra_->add_theme_color_override("font_color", Color(0.4f, 0.95f, 0.6f));
 		panel_->add_child(extra_);
@@ -296,15 +308,18 @@ public:
 			c->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 
 		// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
-		selection_grid_.build(panel_, Vector2(102, 60), Vector2(kTextW, 120), owner, "_on_selection_group_clicked", 8, 36.0f);
+		// multiple_details_area.xml (6 6 100%-6 100%-44): the selection icons, the count and
+		// the vertical bars in the right 35 px.
+		selection_grid_.build(panel_, Vector2(6, 6), Vector2(kW - 47.0f, kH - 50.0f), owner, "_on_selection_group_clicked", 4, 38.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
-		garrison_grid_.build(panel_, Vector2(102, 148), Vector2(kTextW, 34), owner, "_on_garrison_group_clicked", 11, 30.0f);
+		// garrison_panel.xml (20 6 100% 100%): in the supplemental panel (move_to_left_panel).
+		garrison_grid_.build(panel_, Vector2(20, 6), Vector2(180, 116), owner, "_on_garrison_group_clicked", 4, 38.0f);
 		// garrison_panel.xml healthGarrison: the garrisoned units' total health, a vertical
 		// bar left of the garrison icons (updateGarrisonHealthBar).
 		garrison_hp_bar_ = memnew(ProgressBar);
 		garrison_hp_bar_->set_name("healthGarrison");
-		garrison_hp_bar_->set_position(Vector2(99, 149));
-		garrison_hp_bar_->set_size(Vector2(3, 30));
+		garrison_hp_bar_->set_position(Vector2(8, 8));
+		garrison_hp_bar_->set_size(Vector2(6, 112));
 		garrison_hp_bar_->set_fill_mode(ProgressBar::FILL_BOTTOM_TO_TOP);
 		garrison_hp_bar_->set_show_percentage(false);
 		{
@@ -338,22 +353,22 @@ public:
 			parent->add_child(b);
 			return b;
 		};
-		xp_vbar_ = make_vbar(portrait_, "experience", Vector2(2, 2), Vector2(4, 80), Color(0.95f, 0.75f, 0.20f));
+		xp_vbar_ = make_vbar(portrait_, "experience", Vector2(2, 2), Vector2(4, 92), Color(0.95f, 0.75f, 0.20f));
 		count_label_ = memnew(Label);
 		count_label_->set_name("numberOfUnits");
-		count_label_->set_position(Vector2(10, 10));
-		count_label_->set_size(Vector2(84, 40));
+		count_label_->set_position(Vector2(kW - 41.0f, 10));
+		count_label_->set_size(Vector2(32, 32));
 		count_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 		count_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
-		count_label_->add_theme_font_size_override("font_size", 28);
+		count_label_->add_theme_font_size_override("font_size", 20);
 		count_label_->add_theme_color_override("font_color", Color(1, 1, 1));
 		count_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
 		count_label_->add_theme_constant_override("outline_size", 4);
 		count_label_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 		count_label_->set_visible(false);
 		panel_->add_child(count_label_);
-		hp_vbar_ = make_vbar(panel_, "healthMultiple", Vector2(42, 54), Vector2(8, 40), Color(0.25f, 0.75f, 0.35f));
-		cap_vbar_ = make_vbar(panel_, "captureMultiple", Vector2(54, 54), Vector2(8, 40), Color(0, 0, 0, 0));
+		hp_vbar_ = make_vbar(panel_, "healthMultiple", Vector2(kW - 35.0f, 46), Vector2(8, kH - 96.0f), Color(0.25f, 0.75f, 0.35f));
+		cap_vbar_ = make_vbar(panel_, "captureMultiple", Vector2(kW - 23.0f, 46), Vector2(8, kH - 96.0f), Color(0, 0, 0, 0));
 		for (ColorRect *&part : cap_vbar_parts_) {
 			part = memnew(ColorRect);
 			part->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -364,13 +379,21 @@ public:
 		// command panel fills it.
 		barter_host_ = memnew(Control);
 		barter_host_->set_name("unitBarterPanel");
-		barter_host_->set_position(Vector2(148, 100));
-		barter_host_->set_size(Vector2(164, 82));
+		barter_host_->set_position(Vector2(6, 6));
+		barter_host_->set_size(Vector2(194, 116));
 		barter_host_->set_visible(false);
 		panel_->add_child(barter_host_);
 	}
 
 	godot::Panel *panel() const { return panel_; }
+	// The garrison and barter panels sit in the commands' supplemental panel (0.28's
+	// selection_panels_left).
+	void move_to_left_panel(godot::Control *left) {
+		if (!left) return;
+		garrison_grid_.grid()->reparent(left, false);
+		garrison_hp_bar_->reparent(left, false);
+		barter_host_->reparent(left, false);
+	}
 	RtsoSelectionGrid &selection_grid() { return selection_grid_; }
 	// 0 A.D. selects what the player doesn't own too (another player's unit or
 	// structure, an animal, a tree or a mine) to show its details, with no commands
@@ -807,8 +830,8 @@ public:
 		hide_multi();
 		garrison_hp_bar_->set_visible(false); // fill_garrison_grid shows it
 		clear_tooltips();
-		stats_->set_position(Vector2(102, 108));
-		stats_->set_size(Vector2(kTextW, 38));
+		stats_->set_position(kStatsAt);
+		stats_->set_size(kStatsSize);
 		stats_->set_autowrap_mode(TextServer::AUTOWRAP_OFF);
 		// Each grid shows if a branch below asks for it; the guard applies the
 		// result once, whichever way update_inspector returns.
@@ -879,8 +902,8 @@ public:
 				// Beside the Barter panel when it shows.
 				const bool barter = barter_host_ && barter_host_->is_visible();
 				if (barter) {
-					stats_->set_position(Vector2(kW - 198.0f, 108));
-					stats_->set_size(Vector2(188, 38));
+					stats_->set_position(kStatsAt);
+					stats_->set_size(kStatsSize);
 					stats_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 				}
 				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
@@ -1056,6 +1079,8 @@ private:
 	}
 	void hide_multi() {
 		portrait_->set_visible(true);
+		title_->set_visible(true);
+		class_->set_visible(true);
 		xp_vbar_->set_visible(false);
 		count_label_->set_visible(false);
 		count_label_->set_tooltip_text("");
@@ -1065,6 +1090,9 @@ private:
 	// displayMultiple: the count in place of the portrait, health (and capture) as vertical bars.
 	void show_multi(int64_t count, const godot::String &tip, float hp, float max_hp) {
 		portrait_->set_visible(false);
+		// multiple_details_area.xml has no names or player band.
+		title_->set_visible(false);
+		class_->set_visible(false);
 		count_label_->set_text(godot::String::num_int64(count));
 		count_label_->set_tooltip_text(tip);
 		count_label_->set_visible(true);
@@ -1145,15 +1173,15 @@ private:
 	// first bar row below the health bar left free (capture and the build/repair row come first).
 	void show_resource_bar(uint8_t res, int64_t amount, int64_t max, bool infinite) {
 		using namespace godot;
-		float y = 54.0f;
-		if (capture_bar_->is_visible()) y = 67.0f;
-		if (y == 67.0f && xp_bar_->is_visible()) y = 80.0f;
+		float y = kRows[1];
+		if (capture_bar_->is_visible()) y = kRows[2];
+		if (y == kRows[2] && xp_bar_->is_visible()) y = kRows[3];
 		resource_name_->set_position(Vector2(102, y - 2));
 		resource_name_->set_text(rtso::seldet::resource_label(res));
-		resource_bar_->set_position(Vector2(148, y));
+		resource_bar_->set_position(Vector2(kBarX, y));
 		resource_bar_->set_max(1.0);
 		resource_bar_->set_value(infinite ? 1.0 : max > 0 ? std::clamp((double)amount / (double)max, 0.0, 1.0) : 0.0);
-		resource_stats_->set_position(Vector2(148, y - 1));
+		resource_stats_->set_position(Vector2(kBarX, y - 1));
 		resource_stats_->set_text(rtso::seldet::resource_amount(amount, max, infinite));
 		for (Control *c : std::initializer_list<Control *>{resource_name_, resource_bar_, resource_stats_}) c->set_visible(true);
 	}
