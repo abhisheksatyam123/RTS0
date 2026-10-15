@@ -35,6 +35,31 @@ inline godot::String sprintf0(const godot::String &format,
 // tooltips.js getEntityNames under gui.session.howtoshownames (0 specific
 // first, 1 generic first, 2 only specific, 3 only generic): "Primary
 // (Secondary)", or the one name.
+// g_SpecificNamesPrimary / g_ShowSecondaryNames: the primary name and, when shown, the secondary.
+inline void entity_name_parts(const godot::String &generic, const godot::String &specific, godot::String &primary, godot::String &secondary) {
+	const std::string mode = user_config::get("gui.session.howtoshownames");
+	const bool specific_first = mode != "1" && mode != "3";
+	const bool show_secondary = mode != "2" && mode != "3";
+	secondary = godot::String();
+	if (specific.is_empty() || specific == generic) {
+		primary = specific.is_empty() ? tr0(generic) : specific;
+	} else {
+		primary = specific_first ? specific : tr0(generic);
+		if (show_secondary) secondary = specific_first ? tr0(generic) : specific;
+	}
+}
+
+// selection_panels.js Upgrade: "Upgrade to a %(primaryName)s (%(secondaryName)s). %(tooltip)s".
+inline godot::String upgrade_to_text(const godot::String &generic, const godot::String &specific, const godot::String &hint) {
+	godot::String primary, secondary;
+	entity_name_parts(generic, specific, primary, secondary);
+	if (!secondary.is_empty())
+		return sprintf0(tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s (%(secondaryName)s)." : "Upgrade to a %(primaryName)s (%(secondaryName)s). %(tooltip)s"),
+				{{"primaryName", primary}, {"secondaryName", secondary}, {"tooltip", tr0(hint)}});
+	return sprintf0(tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s." : "Upgrade to a %(primaryName)s. %(tooltip)s"),
+			{{"primaryName", primary}, {"tooltip", tr0(hint)}});
+}
+
 inline godot::String entity_names(const godot::String &generic, const godot::String &specific, bool packed = false) {
 	const std::string mode = user_config::get("gui.session.howtoshownames");
 	const bool specific_first = mode != "1" && mode != "3";
@@ -138,7 +163,7 @@ inline godot::String batch_training_string(int buildings, int batch, int remaind
 	if (buildings > 1 || (buildings == 1 && remainder > 0))
 		format = remainder > 0 ? "%(action)s to train %(number)s (%(fullBatch)s + %(remainderBatch)s)."
 				: "%(action)s to train %(number)s (%(fullBatch)s).";
-	return sprintf0(tr0(format), {{"action", tr0("Shift-click")}, {"number", godot::String::num_int64(total)},
+	return sprintf0(tr0(format), {{"action", header_font(tr0("Shift-click"))}, {"number", godot::String::num_int64(total)},
 			{"fullBatch", full}, {"remainderBatch", godot::String::num_int64(remainder)}});
 }
 
