@@ -35,6 +35,7 @@ static bool matches_fresh(const Simulation &s) {
 	fresh.init(s.grid_res_, s.map_half_);
 	for (const LosSource &src : s.los_unit_src_) { LosSource have; fresh.update(have, src); }
 	for (const LosSource &src : s.los_bld_src_) { LosSource have; fresh.update(have, src); }
+	for (const LosSource &src : s.los_garrison_src_) { LosSource have; fresh.update(have, src); }
 	for (int c = 0; c < (int)fresh.cells(); ++c) {
 		if (fresh.visible_bits(c) != s.los().visible_bits(c)) return false;
 		for (uint8_t p = 0; p < LosGrid::PLAYERS; ++p)
@@ -270,6 +271,37 @@ static void test_circular_map() {
 	CHECK(!g->circular_map() && g->los().in_world_cells() == g->los().cells(), "unless the setup asks for a square");
 }
 
+// VisionSharing.js CheckVisionSharings: a player with units garrisoned in an ally's structure
+// sees what the structure sees, Cartography or not, until they leave.
+static void test_garrisoned_ally_vision() {
+	std::printf("garrisoned ally vision\n");
+	auto s = make_sim(64.0f);
+	s->set_mutual_ally(0, 1);
+	const uint32_t tower = s->spawn_building_world(0.0f, 0.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+	const uint32_t guest = s->spawn_unit(3.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s->tick(0.25f);
+	const Simulation::Building *b = nullptr;
+	for (const Simulation::Building &x : s->buildings()) if (x.id == tower) b = &x;
+	const float r = b ? s->building_vision_range(*b) : 0.0f;
+	const float far_x = -(r - 1.5f);
+	CHECK(r > 0.0f && s->los_visible(0, far_x, 0.0f), "the tower's owner sees the far edge of its range");
+	CHECK(!s->los_visible(1, far_x, 0.0f), "its ally doesn't, before garrisoning");
+	s->order_garrison(&guest, 1, tower);
+	for (int t = 0; t < 200 && s->lookup_unit(guest) >= 0 && s->units_.alive[s->lookup_unit(guest)]; ++t) s->tick(0.05f);
+	s->tick(0.25f);
+	const auto *g = s->get_garrisoned_units(tower);
+	bool inside = false;
+	if (g) for (uint32_t id : *g) inside |= id == guest;
+	CHECK(inside, "the ally's spearman is garrisoned in the tower");
+	CHECK(s->los_visible(1, far_x, 0.0f), "the garrisoned ally sees what the tower sees");
+	CHECK(!s->los_visible(2, far_x, 0.0f), "a third player still doesn't");
+	CHECK(matches_fresh(*s), "counts equal a fresh build with the shared circle");
+	s->cmd_unload(0, tower, nullptr, 0);
+	for (int t = 0; t < 10; ++t) s->tick(0.25f);
+	CHECK(s->lookup_unit(guest) >= 0 && s->units_.alive[s->lookup_unit(guest)] && s->los_garrison_src_.empty(), "once it leaves, the shared circle goes");
+	CHECK(matches_fresh(*s), "counts equal a fresh build after unloading");
+}
+
 int main() {
 	test_own_and_shared_vision();
 	test_buildings_and_capture();
@@ -279,6 +311,7 @@ int main() {
 	test_revealed_and_explored_map();
 	test_start_territory_explored();
 	test_circular_map();
+	test_garrisoned_ally_vision();
 	std::printf("%s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
 }

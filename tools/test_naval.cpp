@@ -106,8 +106,10 @@ static void test_dock_trade() {
 	CHECK(athen_ship == cart_land);
 	std::printf("dock route %.0f m: Carthaginian ship %d, caravan %d, Athenian ship %d\n", metres, cart_ship, cart_land, athen_ship);
 
-	// A merchant ship in the sea finds the route itself and is paid on each arrival.
+	// A merchant ship in the sea takes the farthest pair of docks it can trade at (the route an
+	// AI's idle trader picks, order_trade_auto) and is paid on each arrival.
 	const uint32_t ship = s.spawn_unit(-40.0f, 8.0f, 0, UNIT_MERCHANT_SHIP);
+	s.order_trade_auto(&ship, 1);
 	run(s, 240.0f);
 	const int earned = total(s, 0);
 	std::printf("Carthaginian merchant ship earned %d in 240 s\n", earned);
@@ -132,6 +134,7 @@ static void test_dock_trade() {
 	const uint32_t cmarket = c.spawn_building_world(-40.0f, -40.0f, BLD_MARKET, 0);
 	c.spawn_building_world(5.0f, -45.0f, BLD_TOWN_CENTER, 0); // territory, or both decay to Gaia
 	const uint32_t caravan = c.spawn_unit(-30.0f, -40.0f, 0, UNIT_TRADER);
+	c.order_trade_auto(&caravan, 1);
 	run(c, 240.0f);
 	const auto route = c.trader_routes_.find(caravan);
 	CHECK(route != c.trader_routes_.end());
@@ -1173,6 +1176,101 @@ static void test_petra_transport_ship_lost() {
 	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
 }
 
+// navalManager.checkEvents: a transport ship sunk while sailing sets its infantry down on the
+// nearest shore; those not on the destination's land ask for another transport, which takes
+// them across instead of the plan ending.
+static void test_petra_transport_sunk_at_sea() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t first = s.spawn_unit(-30.0f, 8.0f, 1, UNIT_TRIREME);
+	const uint32_t second = s.spawn_unit(30.0f, 8.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	CHECK(s.petra_start_transport(crew, -30.0f, 30.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	for (int k = 0; k < 120 && !(s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].state == PetraTransportPlan::SAILING); ++k)
+		run(s, 0.5f);
+	const bool sailing = s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].state == PetraTransportPlan::SAILING;
+	const size_t aboard = s.get_transport_passenger_count(first);
+	// Sunk off the north shore it left: the spearmen swim back to it.
+	const int32_t fi = idx(s, first);
+	s.units_.pos_x[fi] = -30.0f;
+	s.units_.pos_z[fi] = 13.0f;
+	s.cmd_delete(1, &first, 1);
+	uint32_t took = 0;
+	int landed = 0;
+	for (int k = 0; k < 200; ++k) {
+		run(s, 1.0f);
+		if (!s.petra_transport_plans().empty() && s.petra_transport_plans()[0].ship_id) took = s.petra_transport_plans()[0].ship_id;
+		landed = 0;
+		for (uint32_t uid : crew) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.units().pos_z[i] < -16.0f) ++landed;
+		}
+		if (landed >= (int)aboard && aboard) break;
+	}
+	std::printf("Petra transport sunk at sea: sailing %s with %zu aboard, plan moved to ship %s, %d landed\n", sailing ? "yes" : "no",
+	            aboard, took == second ? "two" : "none", landed);
+	CHECK(sailing && aboard >= 2);
+	CHECK(took == second && landed >= (int)aboard);
+}
+
+// An islet in the sea before the south shore.
+static float islet_height_at(float x, float z) {
+	const float ix = x + 30.0f, iz = z;
+	if (ix * ix + iz * iz < 5.0f * 5.0f) return 3.0f;
+	return height_at(x, z);
+}
+
+// transportPlan.js onSailing: units unloaded on another land than the destination go back
+// aboard and the ship sails for another landing point on the right land.
+static void test_petra_transport_wrong_land() {
+	static Simulation s;
+	fresh(s, islet_height_at);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t ship = s.spawn_unit(-20.0f, 12.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-24.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	const uint16_t south = s.petra_land_at(-20.0f, -40.0f), islet = s.petra_land_at(-30.0f, 0.0f);
+	CHECK(south && islet && south != islet);
+	CHECK(s.petra_start_transport(crew, -20.0f, 30.0f, -20.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	for (int k = 0; k < 120 && !(s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].state == PetraTransportPlan::SAILING); ++k)
+		run(s, 0.5f);
+	const size_t aboard = s.get_transport_passenger_count(ship);
+	// The ship stops beside the islet: it sets its passengers down there.
+	const int32_t si = idx(s, ship);
+	s.units_.pos_x[si] = -30.0f;
+	s.units_.pos_z[si] = -7.5f;
+	s.cmd_stop(&ship, 1);
+	int on_islet = 0, landed = 0;
+	for (int k = 0; k < 150; ++k) {
+		run(s, 1.0f);
+		landed = 0;
+		for (uint32_t uid : crew) {
+			const int32_t i = idx(s, uid);
+			if (i < 0 || !s.units().alive[i]) continue;
+			const uint16_t land = s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]);
+			landed += land == south;
+			if (k > 20) on_islet += land == islet; // the recovery takes a turn or two
+		}
+		if (landed >= (int)aboard && aboard) break;
+	}
+	std::printf("Petra transport set down on the wrong land: %zu aboard, %d landed on the south land, %d unit-seconds left on the islet\n",
+	            aboard, landed, on_islet);
+	CHECK(aboard >= 2);
+	CHECK(landed >= (int)aboard && on_islet == 0);
+}
+
 // transportPlan.js never leaves units aboard: an idle ship of Petra's carrying units outside any
 // transport plan (one boarded after its plan gave up) sets them down on the shore.
 static void test_petra_laden_ship_lands() {
@@ -2030,6 +2128,8 @@ int main() {
 	test_petra_start_at_sea();
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();
+	test_petra_transport_sunk_at_sea();
+	test_petra_transport_wrong_land();
 	test_petra_laden_ship_lands();
 	test_petra_merchantman_transport();
 	test_petra_cothon();
