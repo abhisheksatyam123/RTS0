@@ -208,6 +208,14 @@ public:
 		make_insp_bar(hp_bar_, hp_label_, 41, Color(0.25f, 0.75f, 0.35f), "HP", "res://assets/textures/ui/icons/insp_health_fg.png");
 		// 2. Capture Points Bar (Cyan / Blue)
 		make_insp_bar(capture_bar_, capture_label_, 54, Color(0.35f, 0.55f, 0.95f), "CP", "res://assets/textures/ui/icons/insp_capture_bar.png");
+		// selection_details.js captureBar[n]: one part per player in their colour at half alpha,
+		// the owner's first, over the bar (whose own fill stays empty).
+		for (ColorRect *&part : capture_parts_) {
+			part = memnew(ColorRect);
+			part->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			part->set_visible(false);
+			capture_bar_->add_child(part);
+		}
 		// 3. Veterancy / Experience XP Bar (Gold / Amber)
 		make_insp_bar(xp_bar_, xp_label_, 67, Color(0.95f, 0.75f, 0.20f), "XP", "res://assets/textures/ui/icons/insp_experience_fg.png");
 		// 4. Stamina / Energy Bar (Teal / Mint)
@@ -302,6 +310,15 @@ public:
 		d["health"] = hp_label_->get_text();
 		d["xp"] = xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
 		d["stats"] = stats_->get_text();
+		godot::Array capture_parts;
+		for (godot::ColorRect *r : capture_parts_)
+			if (r->is_visible()) {
+				godot::Dictionary part;
+				part["color"] = r->get_color();
+				part["width"] = r->get_size().x;
+				capture_parts.push_back(part);
+			}
+		d["capture_parts"] = capture_parts;
 		d["xp_tooltip"] = xp_bar_->get_tooltip_text();
 		d["stats_tooltip"] = stats_->get_tooltip_text();
 		d["extra"] = extra_->get_text();
@@ -482,8 +499,13 @@ public:
 				set_owner(*sim, seen->team);
 				health(seen->hp, seen->max_hp);
 				if (seen->max_capture_points > 0.0f)
+				{
 					bar(capture_bar_, capture_label_, true, seen->capture_points, seen->max_capture_points,
 							rtso::seldet::capture(seen->capture_points, seen->max_capture_points));
+					float pts[rtso::MAX_PLAYERS + 1] = {};
+					pts[seen->team < rtso::MAX_PLAYERS ? seen->team : rtso::MAX_PLAYERS] = seen->capture_points;
+					set_capture_parts(*sim, seen->team, pts, seen->max_capture_points);
+				}
 				stats_->set_text(seen->build_progress < 1.0f
 						? "Construction: " + String::num((double)(seen->build_progress * 100.0f), 0) + "%" : String());
 				stats_->set_tooltip_text(String());
@@ -499,9 +521,11 @@ public:
 			set_owner(*sim, found->team);
 			health(found->hp, found->max_hp);
 			set_structure_extras(*sim, *found);
-			if (found->max_capture_points > 0.0f)
+			if (found->max_capture_points > 0.0f) {
 				bar(capture_bar_, capture_label_, true, found->capture_points, found->max_capture_points,
 						rtso::seldet::capture(found->capture_points, found->max_capture_points));
+				set_structure_capture_parts(*sim, *found);
+			}
 			rtso::Simulation::BuildWork work;
 			String build_tip;
 			if (sim->structure_build_work(*found, work)) {
@@ -510,7 +534,7 @@ public:
 						rtso::seldet::build_work_caption(work.builders, work.remaining)));
 				build_tip = build_work_tooltip(work);
 			} else {
-				stats_->set_text(String());
+				stats_->set_text(supply_lines(*sim, sim->field_resource_id(found->id)));
 			}
 			stats_->set_tooltip_text(rtso::seldet::join_lines({build_tip, structure_tooltip(*sim, *found)}));
 			return true;
@@ -563,16 +587,7 @@ public:
 		// resourceSection ("Wood:" and amount / max, ∞ for a field) and the gatherers count
 		// (current / max, "Current/max gatherers").
 		(void)kind;
-		int gatherers = 0;
-		{
-			auto uv = sim->units();
-			for (size_t i = 0; i < uv.count; ++i)
-				if (uv.alive[i] && uv.target_resource_id[i] == rv.id[r] && uv.action_state[i] == rtso::ACTION_GATHER) ++gatherers;
-		}
-		stats_->set_text(rtso::seldet::resource_label(rv.type[r]) + " " +
-				rtso::seldet::resource_amount(rv.amount[r], sim->resource_supply_max(rv.id[r]),
-						rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY) +
-				"\n" + rtso::seldet::amount_of(gatherers, sim->resource_max_gatherers(rv.id[r])));
+		stats_->set_text(supply_lines(*sim, rv.id[r]));
 		stats_->set_tooltip_text(rtso::tr0("Current/max gatherers"));
 		return true;
 	}
@@ -650,10 +665,11 @@ public:
 				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health(found_b->hp, found_b->max_hp));
 				set_structure_extras(*sim, *found_b);
 
-				if (found_b->max_capture_points > 0.0f)
+				if (found_b->max_capture_points > 0.0f) {
 					set_bar(capture_bar_, capture_label_, found_b->capture_points, found_b->max_capture_points,
 							rtso::seldet::capture(found_b->capture_points, found_b->max_capture_points));
-				else
+					set_structure_capture_parts(*sim, *found_b);
+				} else
 					show_bar(capture_bar_, capture_label_, false);
 
 				rtso::Simulation::BuildWork work;
@@ -692,7 +708,8 @@ public:
 					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sd.arrows) + " arrows of " +
 							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
 							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
-				stats_->set_text(status);
+				// A field's resourceSection: "Food: ∞" and its gatherers.
+				stats_->set_text(rtso::seldet::join_lines({status, supply_lines(*sim, sim->field_resource_id(found_b->id))}));
 				// Beside the Barter panel when it shows.
 				const bool barter = barter_host_ && barter_host_->is_visible();
 				if (barter) {
@@ -864,7 +881,7 @@ public:
 			stats_->set_text("");
 			extra_->set_text("");
 			ungarrison_btn_->set_visible(false);
-			selection_grid_.update(groups, "Click to select only these, Ctrl+click or right-click to deselect them.");
+			selection_grid_.update(selection_groups(*sim, uview, groups), "");
 			show_selection_grid = true;
 		}
 		panel_->set_visible(true);
@@ -875,8 +892,61 @@ private:
 		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_, xp_bar_}) c->set_tooltip_text("");
 		rank_icon_->set_visible(false);
 		rank_icon_->set_tooltip_text("");
+		for (godot::ColorRect *r : capture_parts_) r->set_visible(false);
 		for (godot::TextureRect *icon : status_icons_) icon->set_visible(false);
 		set_portrait_target(false, 0, 0.0f, 0.0f, String(), -1, 0);
+	}
+
+	// The capture bar's parts: pts[p] for each player p, pts[MAX_PLAYERS] for Gaia; the owner first.
+	void set_capture_parts(const rtso::Simulation &sim, uint8_t owner, const float *pts, float max) {
+		capture_bar_->set_value(0.0f);
+		const float w = capture_bar_->get_size().x, h = capture_bar_->get_size().y;
+		const int owner_slot = owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS;
+		float x = 0.0f;
+		int used = 0;
+		auto part = [&](int slot) {
+			const float frac = max > 0.0f ? std::clamp(pts[slot] / max, 0.0f, 1.0f) : 0.0f;
+			if (frac <= 0.0f || used >= kCaptureParts) return;
+			const uint32_t rgb = slot < rtso::MAX_PLAYERS ? rtso::display_colors::rgb(sim, (uint8_t)slot) : sim.player_color(rtso::GAIA_PLAYER);
+			godot::ColorRect *r = capture_parts_[used++];
+			r->set_color(godot::Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 128.0f / 255.0f));
+			r->set_position(godot::Vector2(x, 0.0f));
+			r->set_size(godot::Vector2(w * frac, h));
+			r->set_visible(true);
+			x += w * frac;
+		};
+		part(owner_slot);
+		for (int slot = 0; slot <= rtso::MAX_PLAYERS; ++slot)
+			if (slot != owner_slot) part(slot);
+		for (int i = used; i < kCaptureParts; ++i) capture_parts_[i]->set_visible(false);
+	}
+	// Capturable.js GetCapturePoints of a structure. A Gaia structure keeps its points in slot 0.
+	void set_structure_capture_parts(const rtso::Simulation &sim, const rtso::Simulation::Building &b) {
+		float pts[rtso::MAX_PLAYERS + 1] = {};
+		for (int p = 0; p < rtso::MAX_PLAYERS; ++p) pts[p] = b.capture_points_by_team[p];
+		if (b.team >= rtso::MAX_PLAYERS) {
+			pts[rtso::MAX_PLAYERS] = b.capture_points;
+			pts[0] = 0.0f;
+		}
+		set_capture_parts(sim, b.team, pts, b.max_capture_points);
+	}
+
+	// selection_details.js resourceSection of a ResourceSupply (a tree, a mine, a field): "Wood:" and
+	// amount / max (∞ for a field), then its gatherers, current / max. Empty without a supply.
+	static String supply_lines(const rtso::Simulation &sim, uint32_t res_id) {
+		if (!res_id) return String();
+		auto rv = sim.resources();
+		size_t r = 0;
+		for (; r < rv.count; ++r)
+			if (rv.id[r] == res_id) break;
+		if (r == rv.count || !rv.alive[r]) return String();
+		int gatherers = 0;
+		auto uv = sim.units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.alive[i] && uv.target_resource_id[i] == res_id && uv.action_state[i] == rtso::ACTION_GATHER) ++gatherers;
+		return rtso::seldet::resource_label(rv.type[r]) + " " +
+				rtso::seldet::resource_amount(rv.amount[r], sim.resource_supply_max(res_id), rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY) +
+				"\n" + rtso::seldet::amount_of(gatherers, sim.resource_max_gatherers(res_id));
 	}
 
 	static String join_spaced(const String &a, const String &b) { return b.is_empty() ? a : a + String("  ") + b; }
@@ -1096,6 +1166,8 @@ private:
 	godot::ProgressBar *hp_bar_ = nullptr;
 	godot::Label *hp_label_ = nullptr;
 	godot::ProgressBar *capture_bar_ = nullptr;
+	static constexpr int kCaptureParts = rtso::MAX_PLAYERS + 1;
+	godot::ColorRect *capture_parts_[kCaptureParts] = {};
 	godot::Label *capture_label_ = nullptr;
 	godot::ProgressBar *xp_bar_ = nullptr;
 	godot::Label *xp_label_ = nullptr;
@@ -1110,6 +1182,54 @@ private:
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
 	godot::Control *barter_host_ = nullptr;
+
+	// 0.28's Selection panel (g_SelectionPanels.Selection setupButton): each group's tooltip
+	// is its names, what its units carry (a trader counts its goods' total gain) and, for an
+	// observer, the owner, whose colour then shows behind the icon.
+	std::vector<RtsoSelectionGrid::Group> selection_groups(const rtso::Simulation &sim,
+			const rtso::Simulation::UnitView &uview, std::vector<RtsoSelectionGrid::Group> groups) {
+		const PackedInt32Array &selected_ids = host_->ui_selected_ids();
+		const bool observer = host_->local_player() >= rtso::MAX_PLAYERS;
+		for (auto &g : groups) {
+			rtso::seldet::Amounts carried;
+			for (int s = 0; s < selected_ids.size(); ++s) {
+				size_t i = 0;
+				for (; i < uview.count; ++i)
+					if (uview.id[i] == (uint32_t)selected_ids[s]) break;
+				if (i == uview.count || !uview.alive[i]) continue;
+				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+				if (RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) != g.key) continue;
+				const uint8_t res = uview.res_type_carried[i];
+				if (res >= rtso::RES_COUNT) continue;
+				uint32_t route_a = 0, route_b = 0;
+				int route_leg = 0;
+				if (rtso::unit_is_trader(uview.unit_type[i]) && sim.trader_route(uview.id[i], route_a, route_b, route_leg)) {
+					const rtso::Simulation::Building *ma = nullptr, *mb = nullptr;
+					for (const auto &bb : sim.buildings()) {
+						if (bb.id == route_a) ma = &bb;
+						if (bb.id == route_b) mb = &bb;
+					}
+					if (ma && mb) {
+						const auto gain = sim.calculate_trade_gain(*ma, *mb, uview.team[i], uview.unit_type[i]);
+						carried.res[res] += gain.trader + gain.market1 + gain.market2;
+					}
+				} else if (uview.carry[i] > 0) {
+					carried.res[res] += uview.carry[i];
+				}
+			}
+			const auto &info = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(g.tmpl, g.unit_type) : rtso::unit_type_info(g.unit_type);
+			const char *specific = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(g.tmpl).specific_name : nullptr;
+			g.tip = rtso::entity_names(String::utf8(info.name), String::utf8(specific ? specific : ""));
+			if (carried.any()) g.tip += "\n" + rtso::seldet::amounts_list(carried, false);
+			if (observer) {
+				g.tip += "\n" + rtso::sprintf0(rtso::tr0("Player: %(playername)s"), {{"playername", host_->player_display_name(g.player)}});
+				const uint32_t rgb = rtso::display_colors::rgb(sim, g.player);
+				g.bg = Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 160.0f / 255.0f);
+			}
+			g.tip += "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+		}
+		return groups;
+	}
 
 	// g_SelectionPanels.Garrison for a structure, ship, ram or siege tower: up to 12 icons,
 	// one per template and owner, on the owner's colour. A click unloads one (Shift: all of

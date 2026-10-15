@@ -276,6 +276,14 @@ void RtsoWorldView::_ready() {
 	ring_enemy_mat.instantiate();
 	ring_enemy_mat->set_albedo(Color(0.92f, 0.25f, 0.2f));
 	ring_enemy_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+	// selection.js g_HighlightedAlpha = 0.75: the same ring, partly transparent.
+	for (Ref<StandardMaterial3D> *m : {&ring_hl_mat, &ring_enemy_hl_mat}) {
+		m->instantiate();
+		(*m)->set_albedo(m == &ring_hl_mat ? Color(0.2f, 1.0f, 0.4f, 0.75f) : Color(0.92f, 0.25f, 0.2f, 0.75f));
+		(*m)->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		(*m)->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		(*m)->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
+	}
 
 	// Floating Health Bar Meshes and Materials
 	hp_bg_mesh.instantiate();
@@ -2924,14 +2932,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
-		if (is_selected) {
-			v.ring->set_material_override(is_player ? ring_sel_mat : ring_enemy_mat);
+		const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
+		if (ringed) {
+			v.ring->set_material_override(is_selected ? (is_player ? ring_sel_mat : ring_enemy_mat)
+					: (is_player ? ring_hl_mat : ring_enemy_hl_mat));
 			v.ring->set_visible(true);
 			v.ring->set_transform(Transform3D(Basis(), Vector3(x, 0.04f, z)));
 		} else if (v.ring_on) {
 			v.ring->set_visible(false);
 		}
-		v.ring_on = is_selected;
+		v.ring_on = ringed;
 
 		// Selected units, or every visible one while Tab is toggled (0 A.D. g_ShowAllStatusBars).
 		bool show_hp = (is_selected || show_all_status_bars_) && uview.alive[i];
@@ -2952,7 +2962,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// StatusBars.js: the experience bar under the health bar and the rank icon on top,
 		// per gui.session.experiencestatusbar and gui.session.rankabovestatusbar.
 		const float need_xp = show_hp && status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
-		const bool show_xp = need_xp > 0.0f;
+		const bool show_xp = need_xp > 0.0f && uview.xp[i] > 0; // AddExperienceBar: none at 0 XP
 		v.xp_bg->set_visible(show_xp);
 		v.xp_fg->set_visible(show_xp);
 		if (show_xp) {
@@ -2963,20 +2973,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			xb.scale(Vector3(std::max(xp_ratio, 0.001f), 1.0f, 1.0f));
 			v.xp_fg->set_transform(Transform3D(xb, xp_pos + Vector3((xp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f)));
 		}
-		const uint8_t rank = show_hp && status_rank_icon ? uview.rank[i] : 0;
-		if (rank >= 2) {
+		// AddRankIcon: Basic too, for units whose template has a rank (Identity GetRank).
+		const uint8_t rank = show_hp && status_rank_icon && sim->unit_has_rank(i) ? std::max<uint8_t>(uview.rank[i], 1) : 0;
+		if (rank >= 1) {
 			if (v.rank_shown != rank) {
 				v.rank_shown = rank;
 				v.rank_icon->set_texture(ResourceLoader::get_singleton()->load(rank >= 3 ?
-						"res://assets/textures/ui/archive/icons/ranks/Elite.png" :
-						"res://assets/textures/ui/archive/icons/ranks/Advanced.png"));
+						"res://assets/textures/ui/archive/icons/ranks/Elite.png" : rank == 2 ?
+						"res://assets/textures/ui/archive/icons/ranks/Advanced.png" :
+						"res://assets/textures/ui/archive/icons/ranks/Basic.png"));
 				const Ref<Texture2D> tex = v.rank_icon->get_texture();
 				// Half a bar wide (StatusBars AddRankIcon: BarWidth / 2).
 				if (tex.is_valid() && tex->get_width() > 0) v.rank_icon->set_pixel_size(0.45f / tex->get_width());
 			}
 			v.rank_icon->set_position(Vector3(x, v.hp_bg->get_transform().origin.y + 0.3f, z));
 		}
-		v.rank_icon->set_visible(rank >= 2);
+		v.rank_icon->set_visible(rank >= 1);
 	}
 
 	for (size_t s = 0; s < unit_pool.size(); ++s) {
@@ -3474,16 +3486,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
 		}
-		if (!sel_set.empty() && sel_set.count((int32_t)fview.id[f])) {
-			// The player's own selected livestock (0 A.D. livestock are units).
+		const bool f_sel = !sel_set.empty() && sel_set.count((int32_t)fview.id[f]);
+		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {
+			// The player's own selected livestock (0 A.D. livestock are units), or a hovered animal.
 			if (rings_used == fauna_rings_.size()) {
 				MeshInstance3D *r = memnew(MeshInstance3D);
 				r->set_mesh(ring_mesh);
-				r->set_material_override(ring_sel_mat);
 				add_child(r);
 				fauna_rings_.push_back(r);
 			}
 			MeshInstance3D *r = fauna_rings_[rings_used++];
+			const Ref<StandardMaterial3D> &fmat = f_sel ? ring_sel_mat : ring_hl_mat;
+			if (r->get_material_override() != fmat) r->set_material_override(fmat);
 			const float rs = std::max(1.0f, fsc * 1.4f);
 			r->set_transform(Transform3D(Basis().scaled(Vector3(rs, 0.12f, rs)), Vector3(fx, fy + 0.04f, fz)));
 			r->set_visible(true);

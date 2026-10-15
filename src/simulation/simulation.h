@@ -168,9 +168,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 82; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 83; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_STATUS_STACKS = 80; // each Poisoned/Burning hit its own status, on units, structures and animals
+	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_NAMES = 83; // Petra's plan counter, the main plan's siege class, the raid's sizes
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_INACCESSIBLE = 81; // Petra workers' approach watch and supplies flagged inaccessible
 	static constexpr uint32_t SAVE_VERSION_PETRA_HUNT_SEARCH = 79; // each Petra hunter's last fruitless hunt search; storehouse checks per base
@@ -428,6 +429,10 @@ public:
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
 	// or -1 when the unit has no next rank.
 	float promotion_required_xp(size_t i) const;
+	// 0 A.D. Identity Rank: only units whose template has a rank (citizen infantry,
+	// cavalry, elephants, healers; the ones with Promotion) show the Basic rank icon.
+	bool unit_has_rank(size_t i) const;
+	void debug_add_xp(uint32_t unit_id, float xp) { if (const int32_t i = lookup_unit(unit_id); i >= 0) gain_xp((size_t)i, xp); } // tests
 	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
@@ -478,7 +483,8 @@ public:
 			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
-			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER };
+			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
+			END_TREASURE };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -560,6 +566,13 @@ public:
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
+	// Test hook: a unit carries `amount` of resource `res`.
+	void debug_set_carry(uint32_t unit_id, uint8_t res, int32_t amount) {
+		const int32_t idx = lookup_unit(unit_id);
+		if (idx < 0 || res >= RES_COUNT) return;
+		units_.res_type_carried[idx] = res;
+		units_.carry[idx] = amount;
+	}
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
 	// The civ of a structure's own template (Identity/Civ): a map's Gaia shrine or trading post.
@@ -917,6 +930,12 @@ public:
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
 	float building_arrow_range(const Building &b) const;
+	// building_arrow_range before the structure exists: the type's MaxRange and the player's range technologies.
+	float structure_arrow_range(uint8_t player, uint8_t type) const;
+	// GuiInterface GetAverageRangeForBuildings (RangeManager GetElevationAdaptedRange over a full
+	// circle): the parabolic reach of `range` fired from y_origin above the ground at (x, z),
+	// averaged over 16 directions of the terrain around it.
+	float average_elevation_range(float x, float z, float range, float y_origin) const;
 	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
 	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
 	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
@@ -1002,6 +1021,11 @@ public:
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
 	int get_garrison_count(uint32_t building_id) const;
 	int get_garrison_capacity(uint32_t building_id) const;
+	// GarrisonHolder.OccupiedSlots of a structure: its units' Garrisonable sizes.
+	int get_garrison_occupied(uint32_t building_id) const {
+		auto bit = building_id_to_idx_.find(building_id);
+		return bit == building_id_to_idx_.end() ? 0 : occupied_slots(buildings_[bit->second].garrisoned_units);
+	}
 	const std::vector<uint32_t> *get_garrisoned_units(uint32_t building_id) const;
 
 	// Victory Conditions (VictoryManager.js, EndGameManager.js)
@@ -1203,7 +1227,7 @@ public:
 	// TriggerPoint.js: a trigger point the map places (trigger/trigger_point_<ref>).
 	void add_trigger_point(uint8_t ref, float x, float z, uint8_t owner = GAIA_PLAYER) { triggers_.add_point(ref, x, z, owner); }
 	// TriggerHelper.SetPlayerWon: pid and its allies win, everyone else is defeated.
-	void set_player_won(uint8_t pid);
+	void set_player_won(uint8_t pid, uint8_t reason = SessionNotice::END_GAME_MODE);
 	// TriggerHelper.DefeatPlayer (cmpPlayer.SetState("defeated")): pid's units and
 	// structures turn Gaia and it watches the rest of the match.
 	// `reason` is the chat line's (DefeatPlayer's message): objective unless the script names one.
@@ -2571,7 +2595,7 @@ private:
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
 	bool waves_enabled_ = false;
 	bool last_man_standing_ = false;
-	int pop_cap_ = 200;
+	int pop_cap_ = 300; // 0.28 population_capacities.json default
 	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
@@ -2922,6 +2946,7 @@ private:
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
+	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
@@ -2971,7 +2996,6 @@ private:
 	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);
 	void petra_manage_scouting(float dt);
-	void petra_manage_workers(float dt);
 	void petra_manage_economy(float dt);
 	void petra_manage_trading(float dt);
 	void petra_manage_naval(float dt);
