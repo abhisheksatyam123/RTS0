@@ -3474,6 +3474,12 @@ std::vector<uint16_t> Simulation::unit_trainables(uint8_t player, uint16_t tmpl,
 	return out;
 }
 
+uint8_t Simulation::unit_trainee_tech(uint16_t trainer_tmpl, uint16_t trainee) {
+	for (const UnitTrainee &t : unit_trainees(trainer_tmpl))
+		if (t.tmpl == trainee) return t.tech;
+	return TECH_NONE;
+}
+
 // Trainer/BatchTimeModifier of the training unit: count ^ modifier.
 float Simulation::unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const {
 	if (count <= 1) return 1.0f;
@@ -31701,14 +31707,22 @@ float Simulation::structure_capture_garrison_regen(const Building &b) const {
 
 void Simulation::rebuild_auras() {
 	aura_mgr_.clear();
+	// structures/temple_heal's roster index: every temple's copy is the one aura, applied once.
+	static const int16_t temple_heal = [] {
+		for (uint16_t a = 0; a < CIV_HERO_AURA_COUNT; ++a)
+			if (std::strcmp(civ_hero_aura(a).id, "temple_heal") == 0) return (int16_t)a;
+		return (int16_t)-1;
+	}();
 	// Buildings: 0 A.D. structures/temple_heal (own Humans +1 hp/s within 40 m), and the
 	// civ structures' own range and global auras (civ_building_auras: the Iberian monument,
 	// Kushite pyramids and Temple of Amun, the Mauryan pillar, the civ temples' healing).
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.team >= MAX_PLAYERS) continue;
-		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE || b.type == BLD_TEMPLE_ISIS) { // temple_2 and the shrines keep the temple's Auras
+		// temple_2 and the shrines keep the temple's Auras; the Temple of Isis lists it in
+		// civ_building_auras.
+		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE) {
 			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
-				b.x, b.z, -1, CC_HUMAN);
+				b.x, b.z, temple_heal, CC_HUMAN);
 		}
 		for (uint16_t k = 0; k < CAPTURE_STRUCTURE_AURA_COUNT; ++k)
 			if (capture_structure_auras()[k].building == b.type) register_capture_aura(b.id, b.team, capture_structure_auras()[k].aura, b.x, b.z);
@@ -31721,7 +31735,10 @@ void Simulation::rebuild_auras() {
 	}
 	// Units: carnyx attack, hero auras from the civ roster
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i]) continue;
+		// Auras.js: a global aura holds wherever its source is, garrisoned or aboard a ship
+		// included; a range aura needs the source in the world.
+		const bool inside = !units_.alive[i] && units_.action_state[i] == ACTION_GARRISONED && units_.hp[i] > 0.0f;
+		if (!units_.alive[i] && !inside) continue;
 		uint8_t ut = units_.unit_type[i];
 		uint8_t team = units_.team[i];
 		float x = units_.pos_x[i];
@@ -31729,7 +31746,7 @@ void Simulation::rebuild_auras() {
 		uint32_t id = units_.id[i];
 		// Heroes (and other roster units with auras) project their own 0 A.D. auras.
 		uint16_t tmpl = units_.tmpl[i];
-		if (ut == UNIT_CARNYX) {
+		if (ut == UNIT_CARNYX && !inside) {
 			// 0 A.D. units/carnyx: enemy Soldiers within 20 m -10% attack damage, unless the
 			// unit's roster row carries the carnyx itself (the Gallic trumpeter): one aura.
 			bool own_carnyx = false;
@@ -31744,6 +31761,7 @@ void Simulation::rebuild_auras() {
 			for (int16_t a : civ_unit_template(tmpl).auras) {
 				if (a < 0) continue;
 				const CivHeroAura &aura = civ_hero_aura(a);
+				if (inside && aura.radius > 0.0f) continue;
 				// Range auras on Promotion/RequiredXp (Han Xin's Northern Army).
 				for (uint16_t k = 0; k < REQUIRED_XP_RANGE_AURA_COUNT; ++k)
 					if (std::strcmp(aura.id, required_xp_range_auras()[k].id) == 0)

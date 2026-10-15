@@ -169,7 +169,8 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  {{FLORA_FAN_PALM, FLORA_FAN_PALM}, {FLORA_ALEPPO_PINE, FLORA_ALEPPO_PINE}, {FLORA_POPLAR, FLORA_POPLAR}}, FLORA_BERRY,
 		  {{200, 200}}, {100, 200}, {{200, 200}, {200, 200}, {200, 200}}},
 		 {},
-		 {{AREA_ISLAND, {{"medit_sea_coral_plants"}, {"medit_sand_wet"}, {"medit_sand"}, {"medit_rocks_grass", "medit_sand", "medit_rocks_grass_shrubs"}, {"medit_rocks_grass", "medit_rocks_grass_shrubs"}, {"medit_rocks_grass", "medit_rocks_grass", "medit_dirt", "medit_rocks_grass_shrubs"}}, {1, 3, 1, 1, 2}},
+		 {{AREA_CORAL, {{"medit_sea_coral_deep"}, {"medit_sea_coral_plants"}}, {5}},
+		  {AREA_ISLAND, {{"medit_sea_coral_plants"}, {"medit_sand_wet"}, {"medit_sand"}, {"medit_rocks_grass", "medit_sand", "medit_rocks_grass_shrubs"}, {"medit_rocks_grass", "medit_rocks_grass_shrubs"}, {"medit_rocks_grass", "medit_rocks_grass", "medit_dirt", "medit_rocks_grass_shrubs"}}, {1, 3, 1, 1, 2}},
 		  {AREA_HILL, {{"medit_cliff_italia", "medit_cliff_italia", "medit_cliff_italia_grass"}, {"medit_cliff_aegean_shrubs", "medit_cliff_italia_grass", "medit_cliff_italia"}}, {2}}}},
 		// danubius.js: oak forests and poplar, beech and acacia forests; no hills, dirt or shore blend, so hill reuses
 		// tCliff, dirt tShore and shore_blend tIsland.
