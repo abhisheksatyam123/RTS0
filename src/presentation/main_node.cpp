@@ -212,7 +212,7 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	update_command_panel();
 	// The units it trains (the civ's roster list), then its other buttons.
 	if (command_panel_.roster_list() && command_panel_.roster_list()->is_visible())
-		for (int i = 0; i < command_panel_.roster_list()->get_item_count(); ++i) out.push_back(command_panel_.roster_list()->get_item_text(i));
+		for (int i = 0; i < command_panel_.roster_list()->get_item_count(); ++i) out.push_back(command_panel_.roster_label(i));
 	// Icon buttons (research, construction) by their label; a research pair's two buttons.
 	auto add = [&out](Node *n) {
 		if (Button *btn = Object::cast_to<Button>(n)) out.push_back(btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text());
@@ -2787,6 +2787,11 @@ void RtsoMain::try_train_unit(rtso::UnitType utype) {
 
 int RtsoMain::train_batch() const {
 	return rtso::hotkeys::held("session.batchtrain") ? user_opts_.batch_size : 1;
+}
+
+int RtsoMain::ui_pending_batch(uint16_t tmpl) const {
+	const BatchTraining &bt = batch_training_;
+	return bt.active && bt.tmpl == tmpl ? bt.batches * std::max(1, user_opts_.batch_size) : 0;
 }
 
 // EntityLimits canBeAddedCount for a template: how many more the player may have, -1 if no limit.
