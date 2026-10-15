@@ -59,6 +59,11 @@ public:
 };
 
 class RtsoInspectorView {
+	// The panel's width at 1280 px (minimap 214 px from the left, commands 612 from
+	// the right); text and bars are laid out for it.
+	static constexpr float kW = 1280.0f - 214.0f - 612.0f;
+	static constexpr float kTextW = kW - 112.0f, kBarW = kW - 158.0f;
+
 public:
 	enum InspectKind : uint8_t { INSPECT_NONE, INSPECT_UNIT, INSPECT_BUILDING, INSPECT_FAUNA, INSPECT_RESOURCE, INSPECT_TREASURE };
 
@@ -69,11 +74,13 @@ public:
 		host_ = host;
 		panel_ = memnew(Panel);
 		panel_->set_anchor(SIDE_LEFT, 0.0f);
-		panel_->set_anchor(SIDE_RIGHT, 0.0f);
+		panel_->set_anchor(SIDE_RIGHT, 1.0f);
 		panel_->set_anchor(SIDE_TOP, 1.0f);
 		panel_->set_anchor(SIDE_BOTTOM, 1.0f);
 		panel_->set_offset(SIDE_LEFT, 214.0f);
-		panel_->set_offset(SIDE_RIGHT, 730.0f);
+		// Up to the commands' supplemental panel (command_queue_view.h: 206 + 402 px
+		// from the right edge, overlapping by 4 px).
+		panel_->set_offset(SIDE_RIGHT, -612.0f);
 		panel_->set_offset(SIDE_TOP, -198.0f);
 		panel_->set_offset(SIDE_BOTTOM, -10.0f);
 
@@ -116,7 +123,7 @@ public:
 
 		title_ = memnew(Label);
 		title_->set_position(Vector2(102, 6));
-		title_->set_size(Vector2(404, 18));
+		title_->set_size(Vector2(kTextW, 18));
 		title_->add_theme_font_size_override("font_size", 13);
 		title_->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
 		panel_->add_child(title_);
@@ -125,7 +132,7 @@ public:
 		// civ emblem in grey behind it and the phase emblems, "Civ — Town Phase" as its tooltip.
 		owner_bg_ = memnew(ColorRect);
 		owner_bg_->set_position(Vector2(102, 24));
-		owner_bg_->set_size(Vector2(404, 15));
+		owner_bg_->set_size(Vector2(kTextW, 15));
 		owner_bg_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		owner_bg_->set_visible(false);
 		panel_->add_child(owner_bg_);
@@ -139,7 +146,7 @@ public:
 		owner_civ_->set_visible(false);
 		panel_->add_child(owner_civ_);
 		owner_phase_ = memnew(TextureRect);
-		owner_phase_->set_position(Vector2(462, 24));
+		owner_phase_->set_position(Vector2(kW - 54.0f, 24));
 		owner_phase_->set_size(Vector2(44, 15));
 		owner_phase_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		owner_phase_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
@@ -149,7 +156,7 @@ public:
 
 		class_ = memnew(Label);
 		class_->set_position(Vector2(102, 24));
-		class_->set_size(Vector2(404, 15));
+		class_->set_size(Vector2(kTextW, 15));
 		class_->add_theme_font_size_override("font_size", 10);
 		class_->add_theme_color_override("font_color", Color(0.7f, 0.75f, 0.85f));
 		class_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
@@ -183,7 +190,7 @@ public:
 
 			pbar = memnew(ProgressBar);
 			pbar->set_position(Vector2(148, y));
-			pbar->set_size(Vector2(358, 11));
+			pbar->set_size(Vector2(kBarW, 11));
 			pbar->set_show_percentage(false);
 
 			Ref<StyleBoxFlat> bg_sb;
@@ -201,7 +208,7 @@ public:
 
 			plbl = memnew(Label);
 			plbl->set_position(Vector2(148, y - 1));
-			plbl->set_size(Vector2(358, 13));
+			plbl->set_size(Vector2(kBarW, 13));
 			plbl->add_theme_font_size_override("font_size", 9);
 			plbl->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 			plbl->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
@@ -237,7 +244,7 @@ public:
 		panel_->add_child(resource_name_);
 		resource_bar_ = memnew(ProgressBar);
 		resource_bar_->set_name("resourceBar");
-		resource_bar_->set_size(Vector2(358, 11));
+		resource_bar_->set_size(Vector2(kBarW, 11));
 		resource_bar_->set_show_percentage(false);
 		{
 			Ref<StyleBoxFlat> bg_sb, fg_sb;
@@ -253,7 +260,7 @@ public:
 		resource_bar_->set_visible(false);
 		panel_->add_child(resource_bar_);
 		resource_stats_ = memnew(Label);
-		resource_stats_->set_size(Vector2(358, 13));
+		resource_stats_->set_size(Vector2(kBarW, 13));
 		resource_stats_->add_theme_font_size_override("font_size", 9);
 		resource_stats_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 		resource_stats_->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
@@ -262,7 +269,7 @@ public:
 
 		stats_ = memnew(Label);
 		stats_->set_position(Vector2(102, 108));
-		stats_->set_size(Vector2(404, 38));
+		stats_->set_size(Vector2(kTextW, 38));
 		stats_->add_theme_font_size_override("font_size", 10);
 		stats_->add_theme_color_override("font_color", Color(0.85f, 0.88f, 0.95f));
 		panel_->add_child(stats_);
@@ -289,9 +296,9 @@ public:
 			c->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 
 		// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
-		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 8, 36.0f);
+		selection_grid_.build(panel_, Vector2(102, 60), Vector2(kTextW, 120), owner, "_on_selection_group_clicked", 8, 36.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
-		garrison_grid_.build(panel_, Vector2(102, 148), Vector2(404, 34), owner, "_on_garrison_group_clicked", 12, 30.0f);
+		garrison_grid_.build(panel_, Vector2(102, 148), Vector2(kTextW, 34), owner, "_on_garrison_group_clicked", 11, 30.0f);
 		// garrison_panel.xml healthGarrison: the garrisoned units' total health, a vertical
 		// bar left of the garrison icons (updateGarrisonHealthBar).
 		garrison_hp_bar_ = memnew(ProgressBar);
@@ -801,7 +808,7 @@ public:
 		garrison_hp_bar_->set_visible(false); // fill_garrison_grid shows it
 		clear_tooltips();
 		stats_->set_position(Vector2(102, 108));
-		stats_->set_size(Vector2(404, 38));
+		stats_->set_size(Vector2(kTextW, 38));
 		stats_->set_autowrap_mode(TextServer::AUTOWRAP_OFF);
 		// Each grid shows if a branch below asks for it; the guard applies the
 		// result once, whichever way update_inspector returns.
@@ -872,7 +879,7 @@ public:
 				// Beside the Barter panel when it shows.
 				const bool barter = barter_host_ && barter_host_->is_visible();
 				if (barter) {
-					stats_->set_position(Vector2(318, 108));
+					stats_->set_position(Vector2(kW - 198.0f, 108));
 					stats_->set_size(Vector2(188, 38));
 					stats_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 				}

@@ -31,12 +31,12 @@ func frames(n: int) -> void:
 func stance_buttons() -> Array:
 	var out := []
 	for b in main.find_children("*", "Button", true, false):
-		if ORDER.has(b.text):
+		if ORDER.has(String(b.name)) and b.has_signal("pressed"):
 			out.append(b)
 	return out
 
 func lit() -> Array:
-	return stance_buttons().filter(func(b): return b.button_pressed).map(func(b): return b.text)
+	return stance_buttons().filter(func(b): return b.button_pressed).map(func(b): return String(b.name))
 
 func shown() -> bool:
 	var bs := stance_buttons()
@@ -50,7 +50,8 @@ func run() -> void:
 
 	print("1. The bar")
 	var bs := stance_buttons()
-	check(bs.map(func(b): return b.text) == ORDER, "0.28's order: " + str(bs.map(func(b): return b.text)))
+	check(bs.map(func(b): return String(b.name)) == ORDER, "0.28's order: " + str(bs.map(func(b): return String(b.name))))
+	check(bs.all(func(b): return b.text == "" and b.icon != null and b.custom_minimum_size == Vector2(38, 38)), "38 px icons without captions (stance_panel.xml)")
 	check(bs.size() == 5 and bs[2].tooltip_text == "Defensive\nAttack nearby opponents, chase a short distance and return to the original location", "with 0.28's tooltips")
 	main.clear_selection()
 	await frames(3)
@@ -66,7 +67,7 @@ func run() -> void:
 
 	print("2. Setting a stance")
 	for b in stance_buttons():
-		if b.text == "Defensive":
+		if b.name == "Defensive":
 			b.emit_signal("pressed")
 	await frames(20)
 	check(lit() == ["Defensive"], "only Defensive is lit: " + str(lit()))
