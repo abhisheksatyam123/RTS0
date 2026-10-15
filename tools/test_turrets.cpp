@@ -320,6 +320,30 @@ int main() {
 		std::printf("rampart tower: turret units step down, unload and survive its fall\n");
 	}
 
+	// 9. Order.Attack with !AbleToMove: a turret archer told to attack a unit out of its reach
+	//    drops the order and shoots the swordsman in range instead (ShouldChaseTargetedEntity).
+	{
+		fresh(s);
+		s.set_reveal_map(true);
+		const uint32_t w = s.spawn_building_world(0.0f, 0.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+		uint32_t up = s.spawn_unit(0.0f, 3.0f, 0, UNIT_ARCHER, 0.0f, archer);
+		s.order_garrison(&up, 1, w);
+		run(s, 4.0f);
+		CHECK(s.turret_holder_of(up) == w);
+		uint32_t far = s.spawn_unit(0.0f, 45.0f, 1, UNIT_SPEARMAN);
+		s.units_.stance[s.lookup_unit(far)] = STANCE_PASSIVE;
+		s.order_attack(&up, 1, far);
+		uint32_t near = s.spawn_unit(0.0f, 9.0f, 1, UNIT_SWORDSMAN);
+		s.units_.stance[s.lookup_unit(near)] = STANCE_STAND_GROUND; // stays put (a passive one runs off)
+		const float hp0 = s.units_.max_hp[s.lookup_unit(near)];
+		run(s, 8.0f);
+		const int32_t ui = s.lookup_unit(up), ni = s.lookup_unit(near);
+		CHECK(s.units_.order_kind[ui] != ORDER_ATTACK || s.units_.target_unit_id[ui] != far);
+		CHECK(ni < 0 || !s.units_.alive[ni] || s.units_.hp[ni] < hp0);
+		std::printf("out-of-reach order: turret archer order %d, swordsman hp %.0f of %.0f\n", s.units_.order_kind[ui],
+				ni >= 0 ? s.units_.hp[ni] : 0.0f, hp0);
+	}
+
 	if (failures) {
 		std::printf("test_turrets: %d failure(s)\n", failures);
 		return 1;

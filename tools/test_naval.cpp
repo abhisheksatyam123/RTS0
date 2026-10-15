@@ -1170,6 +1170,30 @@ static void test_petra_transport_ship_lost() {
 	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
 }
 
+// transportPlan.js never leaves units aboard: an idle ship of Petra's carrying units outside any
+// transport plan (one boarded after its plan gave up) sets them down on the shore.
+static void test_petra_laden_ship_lands() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t ship = s.spawn_unit(-30.0f, 0.0f, 1, UNIT_TRIREME);
+	uint32_t pair[2];
+	for (int k = 0; k < 2; ++k) pair[k] = s.spawn_unit(-30.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s.order_board_transport(pair, 2, ship);
+	const size_t aboard = s.get_transport_passenger_count(ship);
+	float ashore = -1.0f;
+	for (int k = 0; k < 120 && ashore < 0.0f; ++k) {
+		run(s, 1.0f);
+		if (s.get_transport_passenger_count(ship) == 0) ashore = (float)k;
+	}
+	std::printf("Petra laden ship outside a plan: %zu aboard, ashore at %.0fs\n", aboard, ashore);
+	CHECK(aboard == 2);
+	CHECK(ashore >= 0.0f);
+}
+
 // DeathDamage.js: a fire ship ignited (Upgrade/Ignition to ship_fire_fire, mixins/fireship.xml)
 // burns down at RegenRate -200 and, dying, deals Crush 500 over 22 m (x3 vs Ship and Building)
 // to enemies only, with quadratic falloff. Before ignition it neither burns nor blasts. Other ships and
@@ -1969,6 +1993,7 @@ int main() {
 	test_petra_start_at_sea();
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();
+	test_petra_laden_ship_lands();
 	test_petra_merchantman_transport();
 	test_petra_cothon();
 	test_ship_treasure();
