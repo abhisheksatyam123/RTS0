@@ -3709,7 +3709,8 @@ bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_
 	// ProductionQueue.js RemoveItem: Trainer/Researcher refund what the item cost.
 	const ProductionOrder &item = b.queue[queue_idx];
 	if (item.is_tech() || item.paid[RES_FOOD] + item.paid[RES_WOOD] + item.paid[RES_GOLD] + item.paid[RES_STONE] > 0.0f) {
-		if (item.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
+		// StoppedResearch: "aborted" only for research that had started.
+		if (item.is_tech() && item.timer > 0.0f) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
 		ps.refund(item.paid[RES_FOOD], item.paid[RES_WOOD], item.paid[RES_GOLD], item.paid[RES_STONE]);
 		b.queue.erase(b.queue.begin() + queue_idx);
 		return true;
@@ -3922,7 +3923,6 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	tech_price(player_id, tech_id, b.type, order.paid.data(), order.duration);
 	players_[player_id].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]);
 	b.queue.push_back(order);
-	note_phase(SessionNotice::PHASE_STARTED, player_id, tech_id);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnResearchQueued
 		TriggerEventData ev;
 		ev.entity = building_id;
@@ -12420,6 +12420,8 @@ void Simulation::tick_production(float dt) {
 			if (bteam < MAX_PLAYERS && pop_current(bteam) + order_pop(order, bteam) > pop_max(bteam)) continue;
 			order.started = true;
 		}
+		// TechnologyManager.js StartedResearch: "X is advancing to the Y." on the first work done.
+		if (order.is_tech() && order.timer == 0.0f) note_phase(SessionNotice::PHASE_STARTED, bteam, order.tech);
 		order.timer += dt;
 		if (order.timer < order.duration) continue;
 		const ProductionOrder done = order;
@@ -16876,9 +16878,11 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		set_reveal_map(true);
 		return true;
 	case CHEAT_DEV_REVEAL_MAP: // Commands.js "reveal-map": SetLosRevealAll(-1, cmd.enable)
+		note_session({SessionNotice::CHEAT, player, 0, 0, {}}); // "(Cheat - reveal map)", for everyone to see
 		set_reveal_map(parameter != 0);
 		return true;
 	case CHEAT_DEV_PROMOTE: // Commands.js "promote": each own unit gains the xp its next rank needs (IncreaseXp)
+		note_session({SessionNotice::CHEAT, player, 0, 1, {}}); // "(Cheat - promoted units)"
 		for (size_t k = 0; k < count; ++k) {
 			const int32_t i = lookup_unit(selected[k]);
 			if (i < 0 || !units_.alive[i] || units_.team[i] != player) continue;
@@ -16918,19 +16922,26 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		mark_players_defeated(bit);
 		return true;
 	}
-	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer
+	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer;
+		// extra 1, "iwanttopwnthem" (createHeros.json): its nine heroes in turn.
 		static const char *const kSaladBowl[] = {"athen/infantry_spearman_b", "brit/infantry_spearman_b",
 			"cart/infantry_spearman_b", "gaul/infantry_spearman_b", "iber/infantry_spearman_b",
 			"kush/infantry_spearman_b", "mace/infantry_pikeman_b", "maur/infantry_spearman_b",
 			"pers/infantry_spearman_b", "ptol/infantry_pikeman_b", "rome/infantry_spearman_b",
 			"sele/infantry_spearman_b", "spart/infantry_spearman_b"};
-		static const std::vector<uint16_t> templates = [] {
+		static const char *const kHeroes[] = {"cart/hero_hamilcar", "cart/hero_hannibal", "cart/hero_maharbal",
+			"pers/hero_cyrus_ii", "pers/hero_darius_i", "pers/hero_xerxes_i", "rome/hero_marcellus",
+			"rome/hero_maximus", "rome/hero_scipio"};
+		auto lookup = [](const char *const *names, size_t n) {
 			std::vector<uint16_t> out;
-			for (const char *name : kSaladBowl)
+			for (size_t k = 0; k < n; ++k)
 				for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
-					if (std::strcmp(civ_unit_template(t).id, name) == 0) { out.push_back(t); break; }
+					if (std::strcmp(civ_unit_template(t).id, names[k]) == 0) { out.push_back(t); break; }
 			return out;
-		}();
+		};
+		static const std::vector<uint16_t> salad = lookup(kSaladBowl, std::size(kSaladBowl));
+		static const std::vector<uint16_t> heroes = lookup(kHeroes, std::size(kHeroes));
+		const std::vector<uint16_t> &templates = extra == 1 ? heroes : salad;
 		if (!count || templates.empty()) return false;
 		auto it = building_id_to_idx_.find(selected[0]);
 		if (it == building_id_to_idx_.end()) return false;
