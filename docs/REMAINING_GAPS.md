@@ -43,6 +43,29 @@ Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of wo
 | G26 | ~~In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch)~~ Fixed by #1084: clients and the game list see "Random" until Start | low | Multiplayer |
 | G31 | ~~0.28's new_rms_test demo map isn't ported~~ Done: New RMS Test (RMS) under Demo Maps | low | Triggers |
 
+### Unit orders, fifth 0.28 pass (2026-10-15)
+
+Combat, loot, territory, garrison, capture, rally points, trade and camps against 0.28's components. Owner: Unit orders, unless noted.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| P1 | What a fire ship's death blast kills gives no loot, and a structure it razes keeps its territory and pathfinding block (DeathDamage.js attacks as the dying ship) | medium | Fixed (this pass's first PR) |
+| P2 | Rally points only gather, repair, garrison in one's own structure, attack a structure or walk; 0.28 also attack-walks, patrols, attacks or follows a unit, trades, collects treasure and occupies turrets (RallyPointCommands.js) | medium | Open |
+| P3 | Back to Work restores one Gather or Build order; 0.28 keeps the queue from the first Gather/Trade/Repair/ReturnResource order (UpdateWorkOrders), so sheltered traders resume trading | medium | Open |
+| P4 | A trader whose market is destroyed or captured idles where it stands; 0.28 walks it back to the other market (Trader.RemoveMarket, TradingCanceled) | medium-low | Open (A for trade) |
+| P5 | Unloading with a "garrison back in here" rally still runs the Shift-added rally steps; 0.28 skips all of them | low | Open |
+| P6 | No trade-route waypoints (0.28 SetupTradeRoute route, reversed on the way back) | low | Open (A for trade) |
+| P7 | A gatherer far from its exhausted patch with nothing near goes to a dropsite; 0.28 walks back to where it started and searches again first (UnitAI.js:2640) | low | Open |
+| P8 | Allied builders go idle when your building finishes; 0.28 sends them ConstructionFinished too, so they move on to their own nearby foundations | low | Open |
+| P9 | A passive siege engine never flees when hit; 0.28 needs only that it can move | low | Open |
+| P10 | Splash, death damage and melee splash never hit animals; 0.28 queries enemies, Gaia included | low | Open |
+| P11 | Damage to animals ignores attack auras (0.28 builds one damage for every target) | low | Open |
+| P12 | IdleRegenRate also heals garrisoned units (0.28 only in INDIVIDUAL.IDLE) | low | Open |
+| P13 | Negative RegenRate from templates or modifiers is ignored except for the burning fire ship (no 0.28 tech uses one today) | low | Keep unless a template needs it |
+| P14 | Arrows recompute damage at impact from the shooter's current techs; a stray arrow of a dead shooter uses the aimed target's armour; an arrow aimed at an invulnerable unit doesn't fall to the next one; aim prediction uses current velocity | low | Open |
+
+Checked and matching in this pass: attack bonuses, resistance, attack timers and MinRange, projectile spread and hit order, splash falloff, status effects, loot and XP, capture point scaling, delete rules, death damage numbers, retargeting, slaughter; territory decay and its split, Gaia decay, root structures, capture's effects on rally, queue, upgrades and focus, blocked training spawns, self-garrison rallies, EjectHealth, ungarrison placement, flee, cheer, formation-less patrol, Call to Arms, returning with no dropsite, after-build follow-ups, mercenary camps and military colonies.
+
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)

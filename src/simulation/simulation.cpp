@@ -15709,7 +15709,11 @@ void Simulation::tick_death_damage(float dt) {
 			if (units_.team[i] == 0) record_.units_lost++;
 			else record_.enemies_killed++;
 			record_unit_death(i, owner);
+			// Health.js KilledBy: the dying entity is the attacker (DeathDamage.js CauseDamageOverArea),
+			// a Looter like every unit, so its owner takes the loot.
+			collect_unit_loot(0, owner, i);
 		}
+		bool nav_changed = false, territory_changed = false;
 		for (Building &b : buildings_) {
 			if (b.wrecked || b.hp <= 0.0f || !structure_has_health(b.type) || (b.team < MAX_PLAYERS && !hurts(b.team))) continue;
 			if (b.team >= MAX_PLAYERS && !dd.friendly_fire && !is_hostile(owner, b.team)) continue;
@@ -15721,8 +15725,19 @@ void Simulation::tick_death_damage(float dt) {
 			const float dmg = dd.damage * (dd.fire ? 1.0f : powf(0.9f, res[2])) * dd.ship_building_mult * (1.0f - d2 / r2);
 			note_attacked(0, owner, b.id, b.team, true, dmg);
 			b.hp -= dmg;
-			if (b.hp <= 0.0f) mark_building_wreck(b, owner);
+			if (b.hp > 0.0f) continue;
+			// As any other kill (cause_damage_over_area): counters, alert, loot, then the wreck,
+			// and the pathfinding and territory grids without it.
+			if (owner == 0) record_.enemies_killed++;
+			else if (b.team == 0) record_.buildings_destroyed++;
+			if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
+			collect_building_loot(0, owner, b);
+			mark_building_wreck(b, owner);
+			nav_changed = true;
+			if (has_territory_influence(b.type)) territory_changed = true;
 		}
+		if (nav_changed) rebuild_nav_grid();
+		if (territory_changed) rebuild_territory();
 	}
 }
 
