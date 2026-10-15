@@ -145,7 +145,7 @@ static void test_roster_army() {
 		s->set_sim_seed(42);
 		s->reset();
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
-		s->players_[1].civ = (Civilization)civ;
+		s->set_team_civ(1, (uint8_t)civ);
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
@@ -946,7 +946,7 @@ static void test_diplomacy_requests() {
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
 	s->set_player_active(0, true, false);
 	for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
-	s->players_[3].civ = s->players_[1].civ; // the same civ never declines for good at once
+	s->set_team_civ(3, (uint8_t)s->players_[1].civ); // the same civ never declines for good at once
 	run_for(*s, 20.0f);
 	s->petra_send_diplomacy_request(); // as AI 1, which runs between ticks
 	int target = -1;
@@ -981,7 +981,7 @@ static void test_tribute_request_paid_later() {
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
 	s->set_player_active(0, true, false);
 	for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
-	s->players_[3].civ = s->players_[1].civ;
+	s->set_team_civ(3, (uint8_t)s->players_[1].civ);
 	run_for(*s, 20.0f);
 	s->petra_send_diplomacy_request();
 	if (!s->petra_sent_diplo_.sent_type[3]) { CHECK(false, "AI 1 asks AI 3"); return; }
@@ -1344,7 +1344,7 @@ static void test_civ_structures() {
 		s->set_sim_seed(42);
 		s->reset();
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
-		s->players_[1].civ = (Civilization)civ;
+		s->set_team_civ(1, (uint8_t)civ);
 		s->set_victory_condition(VICTORY_ENDLESS);
 		bool camp = false, temple = false, champion = false;
 		// 40 minutes: at 0 A.D.'s gather rates the city phase comes around minute 15-16, and Petra adds
@@ -1602,7 +1602,7 @@ static void test_entity_limit_placement() {
 	s->set_sim_seed(42);
 	s->reset();
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
-	s->players_[1].civ = CIV_MAURYANS;
+	s->set_team_civ(1, (uint8_t)CIV_MAURYANS);
 	run_for(*s, 1.0f);
 	float tx = 0.0f, tz = 0.0f;
 	for (const auto &b : s->buildings())
@@ -1753,6 +1753,92 @@ static void test_siege_prefers_any_gate() {
 	const uint32_t on = r >= 0 ? s->units_.target_building_id[r] : 0;
 	std::printf("  a ram by a palisade gate and a house goes for the %s\n", on == gate ? "gate" : on == house ? "house" : "neither");
 	CHECK(on == gate, "a palisade gate draws a wall-breaker first (Gate class +10000)");
+}
+
+// attackPlan.js checkTargetObstruction / isBlocked: a target walled in on the army's land
+// becomes the wall piece in the way, and soldiers without siege hack at it.
+static void test_attack_blocked_by_walls() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f;
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f);
+	// A closed palisade round the house (one-cell pieces, as maps place them).
+	const float r = 7.0f;
+	size_t laid = 0;
+	for (float d = -r; d < r + 0.01f; d += 1.5f)
+		for (const auto &p : {std::pair{hx + d, hz - r}, std::pair{hx + d, hz + r}, std::pair{hx - r, hz + d}, std::pair{hx + r, hz + d}})
+			laid += s->spawn_building_world(p.first, p.second, BLD_PALISADE, 0, 1.0f) != 0;
+	s->rebuild_nav_grid();
+	const float ox = hx + (tx - hx) * 0.5f, oz = hz + (tz - hz) * 0.5f; // the army, outside
+	float bx = 0.0f, bz = 0.0f;
+	const uint32_t to = s->petra_target_obstruction(house, ox, oz, bx, bz);
+	const auto it = s->building_id_to_idx_.find(to);
+	const bool wall = to != house && it != s->building_id_to_idx_.end() && (building_tech_classes(s->buildings_[it->second].type) & TC_WALL).any();
+	std::printf("  %zu wall pieces round a house: the target becomes %s\n", laid, wall ? "a wall piece" : to == house ? "still the house" : "something else");
+	CHECK(laid >= 8, "the wall closes round the house");
+	CHECK(wall, "the wall piece in the way becomes the target (checkTargetObstruction)");
+	// The house in the open is reached as it is.
+	const uint32_t open = s->spawn_building_world(ox + 6.0f, oz, BLD_HOUSE, 0, 1.0f);
+	CHECK(s->petra_target_obstruction(open, ox, oz, bx, bz) == open, "an open target stays the target");
+	// Spearmen with the wall as target attack it.
+	std::vector<uint32_t> squad;
+	for (int k = 0; k < 4; ++k) {
+		const uint32_t u = s->spawn_unit(bx + (ox - bx) * 0.2f + (float)k, bz + (oz - bz) * 0.2f, 1, UNIT_SPEARMAN, 1.0e5f);
+		s->units_.stance[s->lookup_unit(u)] = STANCE_PASSIVE; // only Petra's orders: no wall piece of their own pick
+		squad.push_back(u);
+	}
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = squad;
+	plan.initial_squad_size = squad.size();
+	plan.target_player = 0;
+	plan.target_building_id = to;
+	plan.target_x = bx; plan.target_z = bz;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 0.0f;
+	run_ai_turns(*s, 2);
+	int on_wall = 0;
+	for (uint32_t u : squad) {
+		const int32_t i = s->lookup_unit(u);
+		on_wall += i >= 0 && s->units_.target_building_id[i] == to;
+	}
+	std::printf("  %d of 4 spearmen attack the blocking wall\n", on_wall);
+	CHECK(on_wall >= 3, "blocked soldiers hack at the wall (isBlocked: ent.attack(target))");
+}
+
+// attackPlan.js "Raid": FastMoving minSize 3 and targetSize 4 vary like any plan's (x0.8-1.2,
+// x0.2 below Easy), and each plan made counts toward the next one's name (totalNumber).
+static void test_raid_sizes_vary() {
+	for (uint8_t d : {(uint8_t)PETRA_VERY_EASY, (uint8_t)PETRA_MEDIUM}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		s->set_petra_difficulty(d);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f); // an enemy structure in Petra's land
+		const uint8_t made = s->petra_attack_mgr_.plans_made;
+		for (int k = 0; k < 20 && s->petra_raid_plan_.state != Simulation::AttackPlan::MUSTER; ++k) run_for(*s, 1.0f);
+		const auto &m = s->petra_attack_mgr_;
+		std::printf("  raid at difficulty %d: target %d, min %d, plans made %d\n", (int)d, (int)m.raid_target, (int)m.raid_min, (int)m.plans_made);
+		CHECK(s->petra_raid_plan_.state == Simulation::AttackPlan::MUSTER, "an enemy structure in Petra's land starts a raid");
+		if (d == PETRA_MEDIUM) CHECK(m.raid_target >= 4 && m.raid_target <= 5 && m.raid_min == 3, "a Medium raid wants 4-5 riders, 3 at least");
+		else CHECK(m.raid_target == 1 && m.raid_min == 1, "a Very Easy raid wants one rider");
+		CHECK(m.plans_made > made, "the raid counts as a plan made (totalNumber)");
+	}
 }
 
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
@@ -1983,9 +2069,11 @@ static void test_relic_gaia_target() {
 		const int32_t i = s->lookup_unit(uid);
 		capturing += i >= 0 && s->units_.order_kind[i] == ORDER_CAPTURE_RELIC && s->units_.order_target[i] == relic;
 	}
-	run_for(*s, 50.0f);
+	// 60 s: a one-tile ridge beside the relic's spot keeps one captor at its margin, and pushing
+	// edges its neighbour in and out of reach, so a pulse is now and then missed (about 52 s).
+	run_for(*s, 60.0f);
 	const int32_t r = s->lookup_unit(relic);
-	std::printf("  Gaia relic: %d of 4 soldiers sent to capture it, held by player %d after 50 s\n", capturing, r >= 0 ? (int)s->units_.team[r] : -1);
+	std::printf("  Gaia relic: %d of 4 soldiers sent to capture it, held by player %d after 60 s\n", capturing, r >= 0 ? (int)s->units_.team[r] : -1);
 	CHECK(capturing == 4, "the army at the relic goes to capture it");
 	CHECK(r >= 0 && s->units_.team[r] == 1, "and takes it");
 }
@@ -2083,7 +2171,7 @@ static void test_structure_cost_by_civ() {
 	auto s = std::make_unique<Simulation>();
 	s->reset();
 	s->petra_pid_ = 1;
-	s->players_[1].civ = CIV_BRITONS;
+	s->set_team_civ(1, (uint8_t)CIV_BRITONS);
 	s->set_player_resources(1, 1000, 1000, 1000, 1000);
 	fund_queues(*s);
 	float c[RES_COUNT];
@@ -2261,8 +2349,9 @@ static void test_research_parity_028() {
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
 	const uint32_t cc_id = cc->id;
-	const int cx = (int)(cc->x / Simulation::GRID), cz = (int)(cc->z / Simulation::GRID);
-	s->players_[1].civ = CIV_HAN;
+	const float ccx = cc->x, ccz = cc->z; // cc points into buildings_, which the spawns below may move
+	const int cx = (int)(ccx / Simulation::GRID), cz = (int)(ccz / Simulation::GRID);
+	s->set_team_civ(1, (uint8_t)CIV_HAN);
 	s->players_[1].phase = 3;
 	std::vector<uint8_t> techs;
 	s->petra_available_techs(techs);
@@ -2278,8 +2367,8 @@ static void test_research_parity_028() {
 		"an AI researches in the player's time");
 
 	s->players_[1].phase = 1;
-	s->players_[1].civ = CIV_ATHENIANS;
-	for (int k = 0; k < 160; ++k) s->spawn_unit(cc->x - 12.0f + (float)(k % 16), cc->z - 12.0f - (float)(k / 16), 1, UNIT_FEMALE_CITIZEN);
+	s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+	for (int k = 0; k < 160; ++k) s->spawn_unit(ccx - 12.0f + (float)(k % 16), ccz - 12.0f - (float)(k / 16), 1, UNIT_FEMALE_CITIZEN);
 	const bool phasing = s->petra_phasing();
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
 	for (int k = 0; k < 5; ++k) s->spawn_building(cx - 12 + 4 * k, cz + 10, BLD_HOUSE, 1);
@@ -4391,6 +4480,8 @@ int main(int argc, char **argv) {
 	RUN(test_army_answers_attackers);
 	RUN(test_attack_targets_target_player);
 	RUN(test_siege_prefers_any_gate);
+	RUN(test_raid_sizes_vary);
+	RUN(test_attack_blocked_by_walls);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_relic_capture);

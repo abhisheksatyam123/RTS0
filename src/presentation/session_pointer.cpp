@@ -2,6 +2,7 @@
 // minimap orders and trade route clicks (P4.6, split out of main_node.cpp).
 
 #include "main_node.h"
+#include "fog_mirage.h"
 #include "l10n.h"
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
@@ -49,6 +50,7 @@ void RtsoMain::update_cursor() {
 	if (!sim || !vp) return;
 	const char *want = "";
 	String tip; // the action's tooltip, shown beside the cursor (0 A.D. cursor tooltips)
+	bool tip_orange = false; // coloredText(tooltip, "orange")
 	Vector2 hot(1, 1);
 	const Vector2 mouse = vp->get_mouse_position();
 	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
@@ -73,6 +75,7 @@ void RtsoMain::update_cursor() {
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
 			else if (garrison_mode) want = "action-garrison";
+			else if (turret_mode) want = "action-occupy-turret";
 			else if (repair_mode) want = "action-repair";
 			if (!*want) {
 				auto uv = sim->units();
@@ -165,13 +168,30 @@ void RtsoMain::update_cursor() {
 					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
 					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
 					// unit_actions "garrison": an own or allied holder whose List takes a selected unit.
-					else if (selection_can_garrison(b.id)) want = "action-garrison";
+					else if (selection_can_garrison(b.id)) {
+						want = "action-garrison";
+						// unit_actions "garrison" getActionInfo: the holder's slots, orange once full.
+						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
+						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
+								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					}
+					// unit_actions "occupy-turret" (session.occupyturret): the rampart tower's points.
+					else if (rtso::hotkeys::held("session.occupyturret") && selection_can_occupy_turret(b.id)) {
+						want = "action-occupy-turret";
+						const int occupied = (int)sim->turret_list(b).size(), capacity = sim->turret_holder_points(b)->count;
+						tip = rtso::sprintf0(rtso::tr0("Current turrets: %(occupied)s/%(capacity)s"),
+								{{"occupied", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					}
 					break;
 				}
 			}
 		}
 	}
 	if (cursor_tip_) {
+		const Color tip_color = tip_orange ? Color(1.0f, 0.65f, 0.0f) : Color(1.0f, 1.0f, 1.0f);
+		if (cursor_tip_->get_theme_color("font_color") != tip_color) cursor_tip_->add_theme_color_override("font_color", tip_color);
 		cursor_tip_->set_visible(!tip.is_empty());
 		if (!tip.is_empty()) {
 			if (cursor_tip_->get_text() != tip) cursor_tip_->set_text(tip);
@@ -187,6 +207,65 @@ void RtsoMain::update_cursor() {
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
 	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
+}
+
+// input.js INPUT_NORMAL mousemotion and INPUT_BANDBOXING: setHighlightList([PickEntityAtPoint])
+// while the mouse is over the world, and the band box's preferred entities while dragging.
+void RtsoMain::update_highlight() {
+	PackedInt32Array ids;
+	Viewport *vp = get_viewport();
+	if (sim && vp && view && !sim->cinema_playing()) {
+		const Vector2 mouse = vp->get_mouse_position();
+		if (dragging && drag_start.distance_to(mouse) >= user_opts_.drag_delta) {
+			const std::vector<int32_t> boxed = band_box_ids(drag_start, mouse);
+			for (int32_t id : boxed) ids.push_back(id);
+			if (boxed.empty())
+				for (uint32_t id : band_box_structures(drag_start, mouse)) ids.push_back((int32_t)id);
+		} else if (!dragging && !build_mode && !wall_drag_mode && vp->gui_get_hovered_control() == nullptr) {
+			const size_t u = own_unit_under_mouse(mouse, true);
+			if (u != (size_t)-1) {
+				ids.push_back((int32_t)sim->units().id[u]);
+			} else if (const uint32_t bid = building_under_mouse(mouse); bid != 0) {
+				ids.push_back((int32_t)bid);
+			} else {
+				const Vector3 at = get_ground_click_pos(mouse);
+				auto fv = sim->fauna();
+				float best = 2.5f * 2.5f;
+				int32_t pick = 0;
+				for (size_t f = 0; f < fv.count; ++f) {
+					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
+					const float dx = fv.pos_x[f] - at.x, dz = fv.pos_z[f] - at.z;
+					if (dx * dx + dz * dz >= best) continue;
+					if (!rtso::los_sees_unit(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], rtso::GAIA_PLAYER)) continue;
+					best = dx * dx + dz * dz;
+					pick = (int32_t)fv.id[f];
+				}
+				if (pick) ids.push_back(pick);
+			}
+		}
+	}
+	// session.js updateAdditionalHighlight: PageDown rings the units guarding the selection,
+	// PageUp the entities the selection guards.
+	if (sim && view && (!selected_ids.is_empty() || selected_building_id != 0)) {
+		const bool guarding = rtso::hotkeys::held("session.highlightguarding");
+		const bool guarded = rtso::hotkeys::held("session.highlightguarded");
+		if (guarding || guarded) {
+			auto add = [&](int32_t id) {
+				if (id != 0 && !ids.has(id) && !selected_ids.has(id)) ids.push_back(id);
+			};
+			auto uv = sim->units();
+			for (size_t i = 0; i < uv.count && guarding; ++i)
+				if (uv.alive[i]) {
+					const uint32_t t = sim->unit_guard_target(uv.id[i]);
+					if (t != 0 && (selected_ids.has((int32_t)t) || t == selected_building_id)) add((int32_t)uv.id[i]);
+				}
+			for (int s = 0; s < selected_ids.size() && guarded; ++s) add((int32_t)sim->unit_guard_target((uint32_t)selected_ids[s]));
+		}
+	}
+	if (ids != highlight_ids_) {
+		highlight_ids_ = ids;
+		if (view) view->set_highlight_ids(ids);
+	}
 }
 
 // The local player's structure whose box the mouse ray enters first: its

@@ -58,6 +58,9 @@ public:
 	virtual uint32_t ui_selected_building_id() const = 0;
 	virtual const godot::PackedInt32Array &ui_selected_ids() const = 0;
 	virtual int ui_batch_size() const = 0; // gui.session.batchtrainingsize
+	// The units a held Shift batch of this template holds so far (input.js g_NumberOfBatches
+	// x the batch size), 0 when none is being built.
+	virtual int ui_pending_batch(uint16_t tmpl) const = 0;
 };
 
 class RtsoCommandPanelView {
@@ -109,9 +112,13 @@ public:
 		roster_list_->set_offset(SIDE_RIGHT, -12.0f);
 		roster_list_->set_offset(SIDE_TOP, -326.0f);
 		roster_list_->set_offset(SIDE_BOTTOM, -202.0f);
-		roster_list_->set_max_columns(3);
+		// 0.28's Training panel: a grid of portraits (rowLength 10) with the count each
+		// click would train under it.
+		roster_list_->set_max_columns(0);
 		roster_list_->set_same_column_width(true);
-		roster_list_->set_fixed_column_width(180);
+		roster_list_->set_fixed_column_width(40);
+		roster_list_->set_icon_mode(ItemList::ICON_MODE_TOP);
+		roster_list_->set_fixed_icon_size(Vector2i(36, 36));
 		roster_list_->add_theme_font_size_override("font_size", 11);
 		roster_list_->add_theme_stylebox_override("panel", cmd_style);
 		if (theme.is_valid()) roster_list_->set_theme(theme);
@@ -212,6 +219,7 @@ public:
 	void set_barter_host(godot::Control *c) { barter_host_ = c; }
 	godot::Control *barter_host() const { return barter_host_; }
 	godot::ItemList *roster_list() const { return roster_list_; }
+	godot::String roster_label(int idx) const { return idx >= 0 && idx < (int)roster_labels_.size() ? roster_labels_[idx] : godot::String(); }
 	RtsoProductionQueue &production_queue() { return production_queue_; }
 	// The selected training unit whose roster is shown, else 0.
 	uint32_t trainer_unit_id() const { return trainer_unit_id_; }
@@ -414,25 +422,17 @@ public:
 					production_bar_->add_child(pair);
 				}
 
-				// Gate lock (0 A.D. Gate.js): a locked gate stays shut for everyone.
+				// 0.28's Gate panel (g_SelectionPanels.Gate): Lock Gate (lock_locked) and Unlock Gate
+				// (lock_unlocked), the current state's button framed by the corners.
 				if (found_b->team == local_player() && rtso::is_gate_type(found_b->type)) {
-					Button *btn = memnew(Button);
-					btn->set_text(found_b->gate_locked ? "Unlock gate" : "Lock gate");
-					btn->set_tooltip_text(found_b->gate_locked ? "Let your and your allies' units through again"
-							: "Keep the gate shut, even for your own units");
-					btn->connect("pressed", Callable(owner_, "_on_gate_lock_pressed").bind(found_b->gate_locked ? 0 : 1));
-					production_bar_->add_child(btn);
-				}
-
-				// Dropsite sharing (0 A.D. ResourceDropsite.js): shown once the owner has Diaspora.
-				if (found_b->team == local_player() && rtso::Simulation::is_dropsite_type(found_b->type) &&
-						sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES)) {
-					Button *btn = memnew(Button);
-					btn->set_text(found_b->dropsite_shared ? "Stop sharing dropsite" : "Share dropsite");
-					btn->set_tooltip_text(found_b->dropsite_shared ? "Allies can no longer drop resources here"
-							: "Let allies with Diaspora drop resources here");
-					btn->connect("pressed", Callable(owner_, "_on_dropsite_sharing_pressed").bind(found_b->dropsite_shared ? 0 : 1));
-					production_bar_->add_child(btn);
+					for (int lock = 1; lock >= 0; --lock) {
+						Button *btn = icon_button(lock ? "Lock Gate" : "Unlock Gate",
+								rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + (lock ? "lock_locked.png" : "lock_unlocked.png")));
+						btn->set_tooltip_text(rtso::tr0(lock ? "Lock Gate" : "Unlock Gate"));
+						if (found_b->gate_locked == (lock != 0)) add_corners(btn);
+						btn->connect("pressed", Callable(owner_, "_on_gate_lock_pressed").bind(lock));
+						production_bar_->add_child(btn);
+					}
 				}
 
 				// 0.28's Alert panel (g_SelectionPanels.Alert, AlertRaiser.js): Raise (bell_level1)
@@ -451,17 +451,6 @@ public:
 						btn->connect("pressed", Callable(owner_, "_on_alert_pressed").bind(end));
 						production_bar_->add_child(btn);
 					}
-				}
-
-				// Autoqueue (0 A.D. ProductionQueue.js): each finished batch is queued again.
-				if (found_b->team == local_player() && found_b->build_progress >= 1.0f && roster_list_ &&
-						roster_list_->get_item_count() > 0) {
-					Button *btn = memnew(Button);
-					btn->set_text(found_b->autoqueue ? "Autoqueue: on" : "Autoqueue: off");
-					btn->set_tooltip_text(found_b->autoqueue ? "Stop repeating the batches this structure trains"
-							: "Queue each batch again when it finishes, paying for it again");
-					btn->connect("pressed", Callable(owner_, "_on_autoqueue_pressed").bind(found_b->autoqueue ? 0 : 1));
-					production_bar_->add_child(btn);
 				}
 
 				// 0.28's Upgrade panel for a structure (g_SelectionPanels.Upgrade): an icon button per
@@ -537,12 +526,25 @@ public:
 					}
 				}
 			}
+			// is-dropsite-shared: an ally's sharable dropsite, once we have Diaspora (always disabled).
+			if (found_b && found_b->team != local_player() && local_player() < rtso::MAX_PLAYERS &&
+					sim->is_ally(local_player(), found_b->team) && rtso::Simulation::is_dropsite_type(found_b->type) &&
+					sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))
+				add_entity_command("is-dropsite-shared", found_b->dropsite_shared ? "Shared Dropsite" : "Locked Dropsite", "",
+						found_b->dropsite_shared ? "Shared Dropsite\nYou are allowed to use this dropsite."
+												 : "Locked Dropsite\nThe use of this dropsite is prohibited.",
+						found_b->dropsite_shared ? "unlocked_small.png" : "locked_small.png", false);
 			// The structure's command row (unit_actions.js g_EntityCommands).
 			if (found_b && found_b->team == local_player()) {
 				const int inside = (int)found_b->garrisoned_units.size();
 				if (inside > 0)
 					add_entity_command("unload-all", "Unload All", "session.unload",
 							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
+				// "unload-all-turrets": the rampart tower's turret units (a wall's are its garrison above).
+				if (!found_b->turret_units.empty())
+					add_entity_command("unload-all-turrets", "Unload Turrets", "session.unloadturrets",
+							"Unload Turrets\nOrder all units to leave the selected turret points.", "garrison-out.png", true,
+							(int)found_b->turret_units.size());
 				// isUndeletable: you must hold half the capture points.
 				if (found_b->max_capture_points > 0.0f &&
 						found_b->capture_points_by_team[found_b->team] < found_b->max_capture_points * 0.5f)
@@ -559,6 +561,22 @@ public:
 				if (found_b->type == rtso::BLD_MARKET && found_b->build_progress >= 1.0f)
 					add_entity_command("select-trading-goods", "Barter & Trade", "session.gui.barter.toggle",
 							"Barter & Trade\nOpen the dialog for managing resource trading and bartering.", "economics.png");
+				// share-dropsite: shown once the owner has Diaspora (ResourceDropsite sharable).
+				if (rtso::Simulation::is_dropsite_type(found_b->type) && found_b->build_progress >= 1.0f &&
+						sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))
+					add_entity_command("share-dropsite", found_b->dropsite_shared ? "Lock Dropsite" : "Share Dropsite", "",
+							found_b->dropsite_shared ? "Lock Dropsite\nPrevent allies from using this dropsite, now shared."
+													 : "Share Dropsite\nAllow allies to use this dropsite, now locked.",
+							found_b->dropsite_shared ? "unlocked_small.png" : "locked_small.png");
+				// autoqueue-on / autoqueue-off: a structure that trains units.
+				if (found_b->build_progress >= 1.0f && roster_list_ && roster_list_->get_item_count() > 0) {
+					if (!found_b->autoqueue)
+						add_entity_command("autoqueue-on", "Activate Auto-Queue", "session.queueunit.autoqueueon",
+								"Activate Auto-Queue\nActivate the production auto-queue for the selected structures.", "autoqueue-on.png");
+					else
+						add_entity_command("autoqueue-off", "Deactivate Auto-Queue", "session.queueunit.autoqueueoff",
+								"Deactivate Auto-Queue\nDeactivate the production auto-queue for the selected structures.", "autoqueue-off.png");
+				}
 			}
 		} else {
 			// Non-building selected: clear visual queue slots, or show a training unit's (one selected).
@@ -662,34 +680,33 @@ public:
 					}
 				}
 
-				// 0 A.D. Pack / Unpack buttons (gui/session unit_actions.js "pack"): shown when the
-				// selection has siege engines with a Pack component, enabled for the state they can go to.
-				bool can_pack = false, can_unpack = false;
-				for (int i = 0; i < selected_ids.size(); ++i) {
-					for (size_t u = 0; u < uview.count; ++u) {
-						if (uview.id[u] != (uint32_t)selected_ids[i] || !uview.alive[u]) continue;
-						const uint8_t ps = uview.pack_state[u];
-						if (ps == rtso::PACK_UNPACKED || ps == rtso::PACK_UNPACKING) can_pack = true;
-						if (ps == rtso::PACK_PACKED || ps == rtso::PACK_PACKING) can_unpack = true;
-						break;
-					}
-				}
-				if (can_pack || can_unpack) {
-					static const struct { const char *label; const char *tip; const char *icon; int pack; } kPackButtons[2] = {
-						{"Pack", "Pack the siege engine so it can move (10 s)", "res://assets/textures/ui/archive/icons/pack_fg.png", 1},
-						{"Unpack", "Unpack the siege engine so it can attack (10 s)", "res://assets/textures/ui/archive/icons/unpack.png", 0},
-					};
-					for (const auto &pb : kPackButtons) {
-						Button *btn = memnew(Button);
-						btn->set_text(pb.label);
-						btn->set_tooltip_text(pb.tip);
-						Ref<Texture2D> p_ico = rtso::load_ui_texture(pb.icon);
-						if (p_ico.is_valid()) {
-							btn->set_button_icon(p_ico);
-							btn->add_theme_constant_override("icon_max_width", 20);
+				// 0.28's Pack panel (g_SelectionPanels.Pack): Pack (pack.png) for unpacked engines,
+				// Unpack (unpack.png) for packed ones, Cancel Packing / Cancel Unpacking (cancel.png)
+				// for those in progress.
+				{
+					bool pack_btn = false, unpack_btn = false, pack_cancel = false, unpack_cancel = false;
+					for (int i = 0; i < selected_ids.size(); ++i) {
+						for (size_t u = 0; u < uview.count; ++u) {
+							if (uview.id[u] != (uint32_t)selected_ids[i] || !uview.alive[u]) continue;
+							const uint8_t ps = uview.pack_state[u];
+							pack_btn = pack_btn || ps == rtso::PACK_UNPACKED;
+							unpack_btn = unpack_btn || ps == rtso::PACK_PACKED;
+							pack_cancel = pack_cancel || ps == rtso::PACK_PACKING;
+							unpack_cancel = unpack_cancel || ps == rtso::PACK_UNPACKING;
+							break;
 						}
-						btn->set_disabled(pb.pack ? !can_pack : !can_unpack);
-						btn->connect("pressed", Callable(owner_, "_on_pack_pressed").bind(pb.pack));
+					}
+					const struct { bool show; const char *tip; const char *icon; const char *method; int pack; } kPack[4] = {
+						{pack_btn, "Pack", "pack.png", "_on_pack_pressed", 1},
+						{unpack_btn, "Unpack", "unpack.png", "_on_pack_pressed", 0},
+						{pack_cancel, "Cancel Packing", "cancel.png", "_on_pack_cancel_pressed", 1},
+						{unpack_cancel, "Cancel Unpacking", "cancel.png", "_on_pack_cancel_pressed", 0},
+					};
+					for (const auto &pb : kPack) {
+						if (!pb.show) continue;
+						Button *btn = icon_button(pb.tip, rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + pb.icon));
+						btn->set_tooltip_text(rtso::tr0(pb.tip));
+						btn->connect("pressed", Callable(owner_, pb.method).bind(pb.pack));
 						production_bar_->add_child(btn);
 					}
 				}
@@ -843,6 +860,7 @@ public:
 					bool any_guarding = false, any_busy = false, any_work = false, any_fighter = false;
 					bool any_guard = false, any_can_add_guard = false, any_garrison = false, any_deletable = false;
 					bool any_turret = false; // "leave-turret": a selected unit on a turret point
+					bool any_turretable = false; // "occupy-turret": a Turretable unit not on one
 					int passengers = 0;
 					for (int s = 0; s < selected_ids.size(); ++s) {
 						const uint32_t id = (uint32_t)selected_ids[s];
@@ -863,6 +881,7 @@ public:
 							any_can_add_guard = any_can_add_guard || (can_guard && !guarding);
 							any_garrison = any_garrison || !rtso::unit_is_ship(ut); // Garrisonable
 							any_turret = any_turret || sim->turret_holder_of(id) != 0;
+							any_turretable = any_turretable || (sim->turret_holder_of(id) == 0 && (cls & rtso::TC_INFANTRY) != 0 && (cls & rtso::TC_RANGED) != 0);
 							if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
 							any_deletable = any_deletable || (ut != rtso::UNIT_CATAFALQUE && !sim->undeletable_unit(id)); // isUndeletable
 							break;
@@ -886,6 +905,9 @@ public:
 					if (any_garrison)
 						add_entity_command("garrison", "Garrison", "session.garrison",
 								"Garrison\nOrder the selected units to garrison in a structure or another unit.", "garrison.png");
+					if (any_turretable)
+						add_entity_command("occupy-turret", "Occupy Turret", "session.occupyturret",
+								"Occupy Turret\nOrder the selected units to occupy a turret point.", "occupy-turret.png");
 					if (any_turret)
 						add_entity_command("leave-turret", "Unload", "",
 								"Unload\nOrder the selected units to leave their turret points.", "leave-turret.png");
@@ -986,10 +1008,32 @@ public:
 							bb->set_text(label);
 						}
 						bb->add_theme_font_size_override("font_size", 9);
-						if (need > sim->player_phase(local_player())) {
-							bb->set_disabled(true);
-							tip += "\n" + requires_text(String(kPhaseNames[need]) + " Phase");
+						const bool reqs_failed = need > sim->player_phase(local_player());
+						if (reqs_failed) tip += "\n" + requires_text(String(kPhaseNames[need]) + " Phase");
+						// selection_panels.js Construction: requirements unmet or the entity limit
+						// reached grey the icon; missing resources mask it red and list what is
+						// needed; both disable the button.
+						const uint8_t limit_cat = rtso::BUILDING_LIMIT_CATEGORY[bt];
+						const int limit = limit_cat == rtso::LIMIT_NONE || limit_cat >= rtso::LIMIT_CATEGORY_COUNT ? -1
+								: sim->entity_limit(local_player(), limit_cat);
+						const bool at_limit = limit >= 0 && sim->entity_limit_count(local_player(), limit_cat) >= limit;
+						const auto &ps = sim->player(local_player());
+						bool short_of = false;
+						for (int r = 0; r < rtso::RES_COUNT; ++r) short_of |= ps.res[r] < price[r];
+						if (short_of) tip += "\n" + needed_text(b_cost);
+						if (reqs_failed || at_limit) {
+							bb->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
+							bb->set_meta("grey", true);
+						} else if (short_of) {
+							ColorRect *mask = memnew(ColorRect);
+							mask->set_name("resourcesMask");
+							mask->set_position(Vector2(3, 3));
+							mask->set_size(Vector2(32, 32));
+							mask->set_color(Color(0.8f, 0.0f, 0.0f, 0.45f));
+							mask->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+							bb->add_child(mask);
 						}
+						bb->set_disabled(reqs_failed || at_limit || short_of);
 						bb->set_tooltip_text(tip);
 						bb->connect("pressed", Callable(owner_, "_on_build_btn_pressed").bind(bt));
 						production_bar_->add_child(bb);
@@ -1044,16 +1088,21 @@ private:
 		const uint64_t unlocks = (ps.has_tech(rtso::TECH_UNLOCK_CHAMPION_INFANTRY) ? 1u : 0u) |
 			(ps.has_tech(rtso::TECH_UNLOCK_CHAMPION_CAVALRY) ? 2u : 0u) |
 			(ps.has_tech(rtso::TECH_UNLOCK_CHAMPION_CHARIOTS) ? 4u : 0u);
-		const uint64_t key = ((uint64_t)b->id << 32) | ((uint64_t)sim->ally_civ_mask(pid) << 12) |
+		uint64_t key = ((uint64_t)b->id << 32) | ((uint64_t)sim->ally_civ_mask(pid) << 12) |
 			(unlocks << 8) | ((uint64_t)(civ & 0x3F) << 2) | (uint64_t)(phase & 0x3);
+		// The tooltips' "Current Count: x, Limit: y." lines follow the counts.
+		for (uint8_t c = 0; c < rtso::LIMIT_CATEGORY_COUNT; ++c)
+			key = key * 1000003ull + (uint64_t)(sim->entity_limit_count(pid, c) + 1);
 		// A changed option (gui.session.howtoshownames) rebuilds it too.
 		if (key == roster_list_key_ && roster_list_gen_ == rtso::user_config::generation() &&
-				roster_list_batch_ == host_->ui_batch_size())
+				roster_list_batch_ == host_->ui_batch_size()) {
+			refresh_roster_state(b);
 			return;
+		}
 		roster_list_key_ = key;
 		roster_list_gen_ = rtso::user_config::generation();
 		roster_list_batch_ = host_->ui_batch_size(); // Shift+wheel changes the batch line
-		roster_list_->clear();
+		clear_roster();
 		// A corral trains its civ's animals (structures/<civ>/corral.xml Trainer/Entities);
 		// metadata ROSTER_ANIMAL | FaunaType tells the click handler to breed one.
 		if (b->type == rtso::BLD_CORRAL) {
@@ -1062,9 +1111,8 @@ private:
 				const uint8_t f = ct.fauna[k];
 				const rtso::FaunaTrainCost &c = rtso::fauna_train_cost(f);
 				String label = String::utf8(rtso::fauna_type_info(f).name) + " (" + String::num_int64(c.res[0]) + "f)";
-				int idx = roster_list_->add_item(label);
-				roster_list_->set_item_metadata(idx, ROSTER_ANIMAL | (int)f);
-				roster_list_->set_item_tooltip(idx, String::utf8(rtso::fauna_type_info(f).name) + "\nTrain " +
+				const int idx = add_roster_icon(label, rtso::portraits::fauna(f), ROSTER_ANIMAL | (int)f);
+				set_roster_tip(idx, String::utf8(rtso::fauna_type_info(f).name) + "\nTrain " +
 						String::num(sim->livestock_train_time(pid, f), 0) + " s, " +
 						String::num_int64(rtso::fauna_type_info(f).food_amount) + " food when slaughtered, " +
 						String::num(rtso::fauna_corral_food(f), 0) + " food every " +
@@ -1074,14 +1122,17 @@ private:
 										: String()));
 				if (rtso::Simulation::livestock_required_phase(f) > phase) roster_list_->set_item_disabled(idx, true);
 			}
-			roster_list_->set_visible(roster_list_->get_item_count() > 0);
+			finish_roster(b);
 			return;
 		}
-		// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies) offer the
-		// structure's own civ's units.
-		for (uint16_t i : rtso::civ_roster_ids(rtso::building_trains_native(b->type) ? b->civ : civ)) {
+		// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies, a captured
+		// civic centre's civilian) offer the structure's own civ's units.
+		for (int pass = 0; pass < 2; ++pass) {
+		if (pass == 1 && b->civ == civ) break;
+		for (uint16_t i : rtso::civ_roster_ids(pass == 0 ? b->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 			if (!(u.trainers & rtso::bld_bit(b->type))) continue;
+			if (rtso::building_train_civ(b->type, b->civ, civ, u) != u.civ) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
 			// 0 A.D. has no such unit, so players don't see it.
 			if (std::strstr(u.id, "/rts0_")) continue;
@@ -1095,9 +1146,10 @@ private:
 				uint8_t gate = sim->train_unlock_tech(pid, u.unit_type, b->type, i);
 				if (gate != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
 			}
-			roster_list_->set_item_tooltip(idx, tip);
+			set_roster_tip(idx, tip);
 		}
-		roster_list_->set_visible(roster_list_->get_item_count() > 0);
+		}
+		finish_roster(b);
 	}
 
 	// A selected unit that trains (0 A.D. Trainer on triremes and Cyrus II): its Trainer list,
@@ -1126,9 +1178,12 @@ private:
 		uint64_t tech_key = 0;
 		for (uint8_t t : techs) tech_key = tech_key * 31 + (uint64_t)sim->research_check(pid, t) + 1;
 		const uint64_t key = ((uint64_t)unit_id << 32) ^ (can_mask << 8) ^ (tech_key << 20) ^ 0x80ull ^ sim->ally_civ_mask(pid);
-		if (key == roster_list_key_) return true;
+		if (key == roster_list_key_) {
+			refresh_roster_state(nullptr);
+			return true;
+		}
 		roster_list_key_ = key;
-		roster_list_->clear();
+		clear_roster();
 		for (size_t k = 0; k < all.size(); ++k) {
 			String tip;
 			const int idx = add_roster_item(pid, all[k], tip);
@@ -1136,7 +1191,7 @@ private:
 				roster_list_->set_item_disabled(idx, true);
 				tip += "\n" + owner_->tr("Requirements not met");
 			}
-			roster_list_->set_item_tooltip(idx, tip);
+			set_roster_tip(idx, tip);
 		}
 		for (uint8_t t : techs) {
 			const auto check = sim->research_check(pid, t);
@@ -1154,8 +1209,7 @@ private:
 			add_cost((int)paid[rtso::RES_WOOD], "w");
 			add_cost((int)paid[rtso::RES_STONE], "s");
 			add_cost((int)paid[rtso::RES_GOLD], "m");
-			const int idx = roster_list_->add_item(String::utf8(ti.name) + " (" + costs + ")");
-			roster_list_->set_item_metadata(idx, ROSTER_TECH | (int)t);
+			const int idx = add_roster_icon(String::utf8(ti.name) + " (" + costs + ")", rtso::RtsoResearchProgress::icon(t), ROSTER_TECH | (int)t);
 			const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 					(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 			String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\n" + rtso::cost_tooltip(tech_cost);
@@ -1163,10 +1217,88 @@ private:
 				roster_list_->set_item_disabled(idx, true);
 				tip += "\n" + owner_->tr("Requirements not met");
 			}
+			set_roster_tip(idx, tip);
+		}
+		finish_roster(nullptr);
+		return true;
+	}
+
+	void clear_roster() {
+		roster_list_->clear();
+		roster_labels_.clear();
+		roster_base_tips_.clear();
+		roster_state_.clear();
+		roster_req_disabled_.clear();
+	}
+
+	// A portrait cell; `label` (name and cost) is kept for tests and the debug hooks.
+	int add_roster_icon(const godot::String &label, const godot::Ref<godot::Texture2D> &icon, int meta) {
+		const int idx = roster_list_->add_item(godot::String(), icon);
+		roster_list_->set_item_metadata(idx, meta);
+		roster_labels_.push_back(label);
+		roster_base_tips_.push_back(godot::String());
+		roster_state_.push_back(godot::String());
+		return idx;
+	}
+
+	void set_roster_tip(int idx, const godot::String &tip) {
+		roster_list_->set_item_tooltip(idx, tip);
+		if (idx >= 0 && idx < (int)roster_base_tips_.size()) roster_base_tips_[idx] = tip;
+	}
+
+	// After a rebuild: which cells their requirements disabled, then the live state.
+	void finish_roster(const rtso::Simulation::Building *b) {
+		roster_req_disabled_.assign(roster_list_->get_item_count(), false);
+		for (int k = 0; k < roster_list_->get_item_count(); ++k) roster_req_disabled_[k] = roster_list_->is_item_disabled(k);
+		refresh_roster_state(b);
+		roster_list_->set_visible(roster_list_->get_item_count() > 0);
+	}
+
+	// selection_panels.js Training setupButton, every frame: the count a click would train
+	// (getTrainingStatus: the held Shift batch so far plus one more batch size while Shift
+	// is down) under the portrait; requirements unmet, the entity limit reached or the
+	// trainer upgrading grey and disable it ("Cannot train while upgrading."); resources
+	// short for that count mask it red and add what is needed.
+	void refresh_roster_state(const rtso::Simulation::Building *b) {
+		using namespace godot;
+		rtso::Simulation *sim = host_->ui_sim();
+		const uint8_t pid = local_player();
+		const auto &ps = sim->player(pid);
+		const int size = std::max(1, host_->ui_batch_size());
+		const bool shift = rtso::hotkeys::held("session.batchtrain");
+		const bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		for (int idx = 0; idx < roster_list_->get_item_count() && idx < (int)roster_state_.size(); ++idx) {
+			const int meta = (int)roster_list_->get_item_metadata(idx);
+			if (meta & (ROSTER_ANIMAL | ROSTER_TECH) || meta >= rtso::CIV_UNIT_TEMPLATE_COUNT) continue;
+			const uint16_t tmpl = (uint16_t)meta;
+			const uint8_t cat = rtso::UNIT_LIMITS[tmpl].category;
+			const int limit = cat == rtso::LIMIT_NONE || cat >= rtso::LIMIT_CATEGORY_COUNT ? -1 : sim->entity_limit(pid, cat);
+			const int allowed = limit < 0 ? -1 : std::max(0, limit - sim->entity_limit_count(pid, cat));
+			const int pending = host_->ui_pending_batch(tmpl);
+			int next = pending + (shift && (allowed < 0 || allowed > pending) ? size : 0);
+			next = std::max(next, 1);
+			if (allowed >= 0) next = std::min(next, std::max(allowed, 1));
+			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(tmpl);
+			float cost[rtso::RES_COUNT];
+			sim->unit_train_cost(pid, tmpl, rtso::civ_template_unit_info(tmpl, u.unit_type), cost);
+			bool short_of = false;
+			for (int r = 0; r < rtso::RES_COUNT; ++r) short_of |= ps.res[r] < cost[r] * (float)next;
+			const bool grey = roster_req_disabled_[idx] || allowed == 0 || upgrading;
+			const bool red = !grey && short_of;
+			const rtso::CostTip need{(int64_t)(cost[rtso::RES_FOOD] * next), (int64_t)(cost[rtso::RES_WOOD] * next),
+					(int64_t)(cost[rtso::RES_STONE] * next), (int64_t)(cost[rtso::RES_GOLD] * next), 0, 0};
+			const String needed = red ? needed_text(need) : String();
+			const String sig = String::num_int64(next) + (grey ? "G" : "") + (upgrading ? "U" : "") + needed;
+			if (sig == roster_state_[idx]) continue;
+			roster_state_[idx] = sig;
+			roster_list_->set_item_text(idx, next > 1 ? String::num_int64(next) : String());
+			roster_list_->set_item_icon_modulate(idx, grey ? Color(0.45f, 0.45f, 0.45f) : red ? Color(1.0f, 0.35f, 0.35f) : Color(1, 1, 1));
+			roster_list_->set_item_disabled(idx, grey);
+			String tip = roster_base_tips_[idx];
+			if (upgrading) tip += "\n" + rtso::tr0("Cannot train while upgrading.");
+			if (red) tip += "\n" + needed;
 			roster_list_->set_item_tooltip(idx, tip);
 		}
-		roster_list_->set_visible(roster_list_->get_item_count() > 0);
-		return true;
 	}
 
 	// One roster row: the 0 A.D. name and cost after team bonuses; `tip` gets its tooltip.
@@ -1189,11 +1321,12 @@ private:
 		String label = String::utf8(u.name);
 		if (u.flags & rtso::ROSTER_HERO) label = String::utf8("\u2605 ") + label;
 		label += costs.is_empty() ? String(" (free)") : " (" + costs + ")";
-		int idx = roster_list_->add_item(label);
-		roster_list_->set_item_metadata(idx, (int)i);
-		// 0.28 Training panel: names, cost (population and time too), health and
-		// attack, then the batch line; callers add requirements.
-		tip = rtso::entity_names(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
+		const int idx = add_roster_icon(label, rtso::portraits::unit(i, u.unit_type), (int)i);
+		// 0.28 Training panel: its hotkey and names, cost (population and time too), health
+		// and attack, then the batch line; callers add requirements.
+		const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
+		tip = (hotkey.empty() ? String() : "[" + String(hotkey.c_str()) + "] ") +
+				rtso::entity_names(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
 		auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 		const Dictionary text = unit_template_text(u.id);
 		add_line(classes_tooltip(text));
@@ -1307,6 +1440,14 @@ private:
 		}
 		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
 		if (b->has_meta("progress")) s += String("\x1fg") + String::num_int64((int64_t)b->get_meta("progress"));
+		// Child overlays (the corners frame, a red mask, a greyed icon) change with state.
+		for (int i = 0; i < b->get_child_count(); ++i) {
+			Node *c = b->get_child(i);
+			if (Object::cast_to<Container>(c) || Object::cast_to<Button>(c)) continue;
+			const String name = c->get_name();
+			s += String("\x1fo") + (name.contains("@") ? c->get_class() : name); // auto names differ per frame
+			if (CanvasItem *ci = Object::cast_to<CanvasItem>(c)) s += ci->get_material().is_valid() ? "G" : "";
+		}
 		Ref<Texture2D> ico = b->get_button_icon();
 		if (ico.is_valid()) s += String("\x1fi") + (ico->get_path().is_empty() ? String::num_int64(ico->get_instance_id()) : ico->get_path());
 		s += String("\x1fm") + String(Variant(b->get_custom_minimum_size()));
@@ -1591,6 +1732,20 @@ private:
 		barter_host_->add_child(row);
 	}
 
+	// guiSelection's "stretched:session/icons/corners.png" over a panel button.
+	static void add_corners(godot::Button *btn) {
+		using namespace godot;
+		TextureRect *corners = memnew(TextureRect);
+		corners->set_name("corners");
+		corners->set_texture(rtso::load_ui_texture("res://assets/textures/ui/archive/icons/corners.png"));
+		corners->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		corners->set_stretch_mode(TextureRect::STRETCH_SCALE);
+		corners->set_position(Vector2(3, 3));
+		corners->set_size(Vector2(32, 32));
+		corners->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		btn->add_child(corners);
+	}
+
 	// A 0.28 panel button: 38x38, its icon a child TextureRect (so "grayscale:" greys only
 	// the icon), its name in the "label" meta.
 	godot::Button *icon_button(const godot::String &label, const godot::Ref<godot::Texture2D> &tex) {
@@ -1631,6 +1786,10 @@ private:
 	// roster_list_key_ changes so hover and tooltips survive between frames.
 	godot::ItemList *roster_list_ = nullptr;
 	uint64_t roster_list_key_ = ~0ull;
+	std::vector<godot::String> roster_labels_;    // each cell's "Name (cost)"
+	std::vector<godot::String> roster_base_tips_; // each cell's tooltip before the live lines
+	std::vector<godot::String> roster_state_;     // the live state last applied (refresh_roster_state)
+	std::vector<bool> roster_req_disabled_;       // disabled by its requirements at the rebuild
 	int roster_list_batch_ = 0; // the batch size the tooltips' batch line was built for
 	std::unordered_map<uint16_t, godot::String> detailed_tips_; // template -> detailed_tooltip()
 	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at

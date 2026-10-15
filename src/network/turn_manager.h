@@ -44,6 +44,8 @@ public:
 	// Lockstep client -> player slot. Defaults to client_id (host 0 = player 0, joiner 1 =
 	// player 1); game setup may remap. Ids that map past MAX_PLAYERS issue nothing.
 	void set_client_player(uint32_t client_id, uint8_t player) { client_player_[client_id] = player; }
+	// Host: a client that dropped out of the running match (0.28 g_Players offline).
+	bool client_left(uint32_t client_id) const { return left_clients_.count(client_id) != 0; }
 	uint8_t player_for_client(uint32_t client_id) const {
 		auto it = client_player_.find(client_id);
 		if (it != client_player_.end()) return it->second;
@@ -255,7 +257,7 @@ public:
 	const std::vector<uint32_t>& oos_peers() const { return oos_peers_; }
 	void clear_out_of_sync() {
 		oos_detected_ = false; oos_turn_ = 0; oos_peers_.clear();
-		oos_reported_ = false; oos_dump_pending_ = false; oos_players_.clear();
+		oos_reported_ = false; oos_rearmed_ = false; oos_dump_pending_ = false; oos_players_.clear();
 	}
 	// 0 A.D. NetServerTurnManager / NetClientTurnManager::OnSyncError: the FIRST
 	// turn whose hashes differ is the one reported (later turns inherit it). The
@@ -401,6 +403,7 @@ private:
 	std::vector<uint32_t> oos_peers_;
 	std::vector<std::string> oos_players_;
 	bool oos_reported_ = false;    // host: NMT_SYNC_ERROR sent
+	bool oos_rearmed_ = false;     // host: every out-of-sync client left; the next divergence is a new report
 	bool oos_from_host_ = false;   // client: turn/hash came from the host's NMT_SYNC_ERROR
 	bool oos_dump_pending_ = false;
 	std::string oos_dump_dir_;

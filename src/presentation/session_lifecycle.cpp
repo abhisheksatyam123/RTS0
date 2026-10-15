@@ -54,7 +54,7 @@ void RtsoMain::_ready() {
 	// clients it is for (the receivers keep their own check too).
 	net_host_.setChatRouter([this](uint32_t from, uint32_t to, const std::string &message) {
 		const std::string tag = rtso::chat_wire_tag(message);
-		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag);
+		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag, to);
 	});
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
 		String msg = String::utf8(cm.message.c_str());
@@ -64,6 +64,18 @@ void RtsoMain::_ready() {
 			// 0 A.D. sends a flare to the sender's mutual allies and the observers.
 			const String guid = String::utf8(cm.sender_guid.c_str());
 			if (!chat_local_observer() && !chat_is_addressee(guid, "[Allies]")) return;
+			// messages.js g_FlareRateLimitScope / g_FlareRateLimitMaximumFlares: at
+			// most 16 flares from others in any 6 s; more are dropped.
+			const uint64_t now = Time::get_singleton()->get_ticks_msec();
+			flare_received_ms_.erase(std::remove_if(flare_received_ms_.begin(), flare_received_ms_.end(),
+					[now](uint64_t t) { return now - t >= 6000; }), flare_received_ms_.end());
+			if (flare_received_ms_.size() >= 16) {
+				const std::string line = "Received too many flares. Dropping a flare request by '" +
+						std::string(guid.utf8().get_data()) + "'.";
+				rtso::Logger::warn("Chat", line.c_str());
+				return;
+			}
+			flare_received_ms_.push_back(now);
 			String coords = msg.substr(7).strip_edges();
 			int32_t comma = coords.find(",");
 			if (comma > 0) {
@@ -667,7 +679,7 @@ void RtsoMain::_ready() {
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
 	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
-	dev_overlay_.build(ui_layer, this, "_on_dev_command");
+	dev_overlay_.build(ui_layer, this, "_on_dev_command", "_on_render_debug_mode");
 	control_groups_.build(ui_layer, this, "_on_control_group_gui_input");
 	rtso::strip_engine_popups(ui_layer);
 
@@ -1009,6 +1021,9 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
+	{
+		view->set_selected_buildings(sim->cinema_playing() ? std::vector<uint32_t>() : selected_structures());
+	}
 	if (sim->cinema_playing()) {
 		// ICmpSelectable::SetOverrideVisibility(false): no selection rings while a path plays.
 		view->sync(sim, (float)delta, PackedInt32Array());
@@ -1048,13 +1063,19 @@ void RtsoMain::_process(double delta) {
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
 			if (!txt.is_empty()) txt += "\n";
-			// GuiInterface time notifications: %(time)s is the time left (timeToString).
-			String line = String::utf8(n->text).replace("[", "[lb]"); // a map's text, not markup
+			// TimeNotificationOverlay: the message translated, then its parameters
+			// ("\x1fname=value" after the format) and %(time)s, the time left (timeToString).
+			const PackedStringArray parts = String::utf8(n->text).split(String::chr(0x1f));
+			String line = rtso::tr0(parts[0]);
+			for (int k = 1; k < parts.size(); ++k) {
+				const int eq = parts[k].find("=");
+				if (eq > 0) line = line.replace("%(" + parts[k].substr(0, eq) + ")s", parts[k].substr(eq + 1));
+			}
 			if (line.contains("%(time)s")) {
 				const uint32_t now = sim->trigger_state().time_ms;
 				line = line.replace("%(time)s", time_to_string(n->end_ms > now ? (int64_t)(n->end_ms - now) : 0));
 			}
-			txt += line;
+			txt += line.replace("[", "[lb]"); // a map's text, not markup
 		}
 		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
 		// player (the wonder's owner, its allies or everyone else).
@@ -1076,11 +1097,13 @@ void RtsoMain::_process(double delta) {
 					if (sim->wonder_hold(p) <= 0.0f || sim->is_defeated(p)) continue;
 					const String left = clock(sim->wonder_duration() - sim->wonder_hold(p));
 					const uint8_t allies = allies_of(p);
-					if (p == me) add(allies ? "You own a Wonder and you and your allies will win in " + left + "."
-							: "You own a Wonder and will win in " + left + ".");
-					else if (me < rtso::MAX_PLAYERS && ((allies >> me) & 1)) add(colored_player_name(p) + " owns a Wonder and you will win in " + left + ".");
-					else add(colored_player_name(p) + " owns a Wonder and " + (allies ? colored_player_name(p) + " and their allies" : String()) +
-							(allies ? " will win in " : "will win in ") + left + ".");
+					const String who = colored_player_name(p);
+					if (p == me) add(rtso::sprintf0(rtso::tr0(allies ? "You own a Wonder and you and your allies will win in %(time)s."
+							: "You own a Wonder and will win in %(time)s."), {{"time", left}}));
+					else if (me < rtso::MAX_PLAYERS && ((allies >> me) & 1))
+						add(rtso::sprintf0(rtso::tr0("%(_player_)s owns a Wonder and you will win in %(time)s."), {{"_player_", who}, {"time", left}}));
+					else add(rtso::sprintf0(rtso::tr0(allies ? "%(_player_)s owns a Wonder and %(_player_)s and their allies will win in %(time)s."
+							: "%(_player_)s owns a Wonder and will win in %(time)s."), {{"_player_", who}, {"time", left}}));
 				}
 			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
 				// StartCaptureTheRelicCountdown: named after the first relic's owner, "and their
@@ -1091,11 +1114,11 @@ void RtsoMain::_process(double delta) {
 					const bool team = (side & (side - 1)) != 0;
 					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
 					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
-						add(team ? "You and your allies have captured all relics and will win in " + left + "."
-								: "You have captured all relics and will win in " + left + ".");
+						add(rtso::sprintf0(rtso::tr0(team ? "You and your allies have captured all relics and will win in %(time)s."
+								: "You have captured all relics and will win in %(time)s."), {{"time", left}}));
 					else
-						add(colored_player_name(owner) + (team ? " and their allies have captured all relics and will win in "
-								: " has captured all relics and will win in ") + left + ".");
+						add(rtso::sprintf0(rtso::tr0(team ? "%(_player_)s and their allies have captured all relics and will win in %(time)s."
+								: "%(_player_)s has captured all relics and will win in %(time)s."), {{"_player_", colored_player_name(owner)}, {"time", left}}));
 				}
 			}
 		}
@@ -1104,8 +1127,8 @@ void RtsoMain::_process(double delta) {
 		if (sim->ceasefire_seconds() > 0.0f) {
 			const float left = sim->ceasefire_seconds() - sim->game_time();
 			String line;
-			if (left > 0.0f && left <= 10.0f) line = "You can attack in " + time_to_string((int64_t)(left * 1000.0f));
-			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
+			if (left > 0.0f && left <= 10.0f) line = rtso::sprintf0(rtso::tr0("You can attack in %(time)s"), {{"time", time_to_string((int64_t)(left * 1000.0f))}});
+			else if (left <= 0.0f && left > -5.0f) line = rtso::tr0("You can attack now!");
 			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
 		if (!txt.is_empty()) txt = "[center]" + txt + "[/center]";
@@ -1126,6 +1149,7 @@ void RtsoMain::_process(double delta) {
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
 	prune_selection();
+	prune_structure_selection();
 	if (!selected_ids.is_empty() || selected_building_id != 0) inspector_.clear();
 	update_inspector();
 	update_command_panel();
@@ -1136,6 +1160,9 @@ void RtsoMain::_process(double delta) {
 	show_session_notices(sim->take_session_notices());
 	show_trigger_dialogs(sim->take_trigger_dialogs());
 	update_cursor();
+	update_highlight();
+	// input.js INPUT_BATCHTRAINING: releasing session.batchtrain posts the batch.
+	if (batch_training_.active && !rtso::hotkeys::held("session.batchtrain")) flush_training_batch();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
@@ -1326,7 +1353,23 @@ void RtsoMain::_process(double delta) {
 				const auto placed = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle);
 				const bool can_build = placed == rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
-				set_placement_tip(can_build ? String() : placement_failure_text(placed, (uint8_t)current_build_type, gx, gz), true);
+				String range_tip;
+				if (can_build) {
+					// input.js updateBuildingPlacementPreview: a structure with a Ranged attack shows
+					// its basic range and the average bonus the terrain gives it there.
+					const float range = sim->structure_arrow_range(local_player(), (uint8_t)current_build_type);
+					if (range > 0.0f) {
+						constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+						const float origin = rtso::civ_building_ai_info(sim->team_civ(local_player()), (uint8_t)current_build_type).origin_y;
+						const int64_t basic = (int64_t)std::lround(range * kM);
+						const int64_t bonus = (int64_t)std::lround((sim->average_elevation_range(gx, gz, range, origin) - range) * kM);
+						range_tip = rtso::sprintf0(rtso::tr0(basic == 1 ? "Basic range: %(range)s meter" : "Basic range: %(range)s meters"),
+											{{"range", String::num_int64(basic)}}) + "\n" +
+								rtso::sprintf0(rtso::tr0(bonus == 1 || bonus == -1 ? "Average bonus range: %(range)s meter" : "Average bonus range: %(range)s meters"),
+										{{"range", String::num_int64(bonus)}});
+					}
+				}
+				set_placement_tip(can_build ? range_tip : placement_failure_text(placed, (uint8_t)current_build_type, gx, gz), !can_build);
 			}
 		}
 	} else {
@@ -1342,7 +1385,7 @@ void RtsoMain::_process(double delta) {
 	rtso::update_rally_marker(rally_flag, sim, selected_building_id, local_player());
 	range_overlays_.tick((float)delta);
 	range_overlays_.update(sim, local_player(), selected_building_id, selected_ids.ptr(), selected_ids.size());
-	debug_overlays_.update(sim);
+	debug_overlays_.update(sim, view);
 
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {
 		summary_shown_ = true;
@@ -1353,6 +1396,12 @@ void RtsoMain::_process(double delta) {
 	update_observer_view_picker();
 	// Check Victory / Defeat Condition, from the local player's seat
 	if (sim->is_victory_for(seat_player())) {
+		if (!campaign_win_noted_ && !turn_mgr_.is_replaying()) {
+			// CampaignSession.onFinish: a campaign level is completed as soon as it is won.
+			campaign_win_noted_ = true;
+			Ref<Script> summary = ResourceLoader::get_singleton()->load("res://scenes/session/summary_screen.gd");
+			if (summary.is_valid()) summary->call("mark_campaign_won");
+		}
 		banner_panel->set_visible(true);
 		banner_label->set_text("VICTORY!\nYour side has prevailed.");
 		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));

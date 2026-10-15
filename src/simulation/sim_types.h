@@ -269,7 +269,7 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_ARDENNES_FOREST, "ardennes_forest", "Ardennes Forest (RMS)", "temperate", true, "Dense hilly forest with clearings for each base; wood everywhere, little open ground."},
 		{MAP_NEARESTERN_BADLANDS, "nearestern_badlands", "Near-Eastern Badlands (RMS)", "oasis", true, "Dry eroded badlands split by canyons, with a few oases and rich mines."},
 		{MAP_RIVERS, "rivers", "Rivers (RMS)", "temperate", true, "Rivers run from a central lake out between the players, crossed by shallow fords."},
-		{MAP_CANYON, "canyon", "Canyon (RMS)", "oasis", true, "High rocky ground cut by canyons: each base sits in a gorge that leads to a central basin."},
+		{MAP_CANYON, "canyon", "Canyon (RMS)", "oasis", true, "Players start around the map in deep canyons."},
 		{MAP_CORINTHIAN_ISTHMUS, "corinthian_isthmus", "Corinthian Isthmus (RMS)", "mediterranean", true, "Two lands joined by a narrow isthmus, with the sea on both sides of it."},
 		{MAP_BELGIAN_UPLANDS, "belgian_uplands", "Belgian Uplands (RMS)", "temperate", true, "Steep wooded hills and valleys with no water, high ground everywhere."},
 		{MAP_LORRAINE_PLAIN, "lorraine_plain", "Lorraine Plain (RMS)", "temperate", true, "A flat plain split by a river with a few fords, players on either bank."},
@@ -788,7 +788,9 @@ enum UnitOrderFlag : uint8_t {
 	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
 	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
 	// or gathers near the new dropsite.
-	ORDER_FLAG_AUTOHARVEST = 32
+	ORDER_FLAG_AUTOHARVEST = 32,
+	// ORDER_GARRISON only: occupy a turret point of the holder (Commands.js "occupy-turret").
+	ORDER_FLAG_TURRET = 32
 };
 // A gather order keeps its resource's subtype (ResourceSubtype) in flag bits 5-7, so the
 // unit can look for the same kind once the resource is gone (UnitAI GATHER FINDINGNEWTARGET).
@@ -1675,6 +1677,8 @@ inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 // 0 A.D. template_structure_resource_field ResourceSupply.
 constexpr int32_t FIELD_FOOD_SUPPLY = 1000000000; // <Max>Infinity</Max>
 constexpr int FIELD_MAX_GATHERERS = 5;            // <MaxGatherers>
+// han/field.xml (the rice paddy) overrides it with 3.
+inline int field_max_gatherers(uint8_t civ) { return civ == CIV_HAN ? 3 : FIELD_MAX_GATHERERS; }
 constexpr float FIELD_DIMINISHING_RETURNS = 0.90f; // <DiminishingReturns>
 
 // ResourceSupply.js GetDiminishingReturns: each extra gatherer on a field works
@@ -2105,6 +2109,20 @@ struct ShortPathMemo {
 	uint32_t key = 0;
 };
 static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
+
+// A unit's last short path search and what it found, kept beside the saved state, not in it: a
+// search is a function of these inputs alone, so while they are the same bit for bit (a unit held
+// where it stands, which searches again each tick for the same aim) its answer is reused, and a
+// game loaded or joined, which starts without it, searches and finds the same.
+struct ShortPathSearchMemo {
+	uint32_t pos_x = 0, pos_z = 0, aim_x = 0, aim_z = 0, radius = 0, range = 0; // float bits
+	uint32_t key = 0;     // the buildings (ShortPathMemo::key)
+	uint32_t ignore = 0;  // the building not steered round
+	uint32_t terrain = 0; // NavGrid::terrain_version
+	uint64_t small = 0;   // the small obstacles' contents (small_obstacles_hash), 0 for none
+	float out_x = 0.0f, out_z = 0.0f;
+	bool found = false, valid = false;
+};
 
 // CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
 // ticks), which motion_feedback() judges when the turn ends, as UnitMotion judges each turn's Move,
@@ -2990,6 +3008,18 @@ inline bool civ_can_build(uint8_t civ, uint8_t type) {
 inline bool building_trains_native(uint8_t type) {
 	return type == BLD_SHRINE || type == BLD_CAMP_NOBA || type == BLD_CAMP_BLEMMYE ||
 	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
+}
+
+// The civ whose roster `t` must come from to train at a `type` structure built by `bld_civ`
+// and held by a `owner_civ` player. Civic centres (the CC, crannog, Han court, Seleucid
+// military colony and German encampments) list units/{native}/support_civilian, so a
+// captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
+inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
+	if (building_trains_native(type)) return bld_civ;
+	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
+	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
+	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
+	return civic && (t.flags & ROSTER_CIVILIAN) && (t.trainers & bld_bit(type)) ? bld_civ : owner_civ;
 }
 
 // BuildingAI and Attack/Ranged of a civ's structure: the generic row plus 0.28's one civ

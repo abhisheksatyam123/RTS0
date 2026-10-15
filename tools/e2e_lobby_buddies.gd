@@ -10,6 +10,8 @@ extends SceneTree
 #   4. ChatCommandHandler: /away and /back set the presence (Away, Online),
 #      unknown and moderator-only commands print a line and send nothing,
 #      /me and /say need an argument, /clear empties the log.
+#   5. LobbyGamelistReporter: a running game reports who won or was defeated
+#      and who is offline, and the details show it (formatPlayerInfo).
 #
 #   godot --headless --path . -s tools/e2e_lobby_buddies.gd
 # Exit code 0 = pass. Needs python3 for the lobby server.
@@ -160,6 +162,19 @@ func run() -> void:
 	send.call("/me waves")
 	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("* alice waves"))
 	check(lobby._chat_log.get_parsed_text().contains("* alice waves"), "/me shows as * alice waves")
+
+	print("5. player states")
+	var ms: Node = root.get_node("/root/MatchSettings")
+	ms.slot_types = [0, 0, 1]
+	ms.slot_civs = [0, 0, 0]
+	var det: Dictionary = ls.room_details(ms, {"slots": [{"name": "alice", "state": "won"},
+		{"name": "bob", "state": "defeated", "offline": true}, {"state": "defeated"}]}, 0)
+	var ps: Array = det["player_names"]
+	check(ps.size() == 3 and ps[0].get("state") == "won" and ps[1].get("offline") == true and ps[1].get("state") == "defeated"
+		and ps[2].get("state") == "defeated" and not ps[2].has("offline"), "the report carries state and offline: %s" % [ps])
+	var text: String = ls.game_details({"name": "g", "player_names": ps}, {})
+	check(text.contains("alice (") and text.contains(", won)"), "a winner reads (civ, won)")
+	check(text.contains("bob (OFFLINE, defeated)"), "an offline loser reads (OFFLINE, defeated): " + text.replace("\n", " | "))
 
 	ls.sign_out()
 	cfg.set_value("lobby.buddies", saved_buddies)
