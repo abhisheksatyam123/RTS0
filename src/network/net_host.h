@@ -19,6 +19,9 @@ constexpr uint8_t NET_FLAG_CONNECT_ACK = 0x04;
 constexpr uint8_t NET_FLAG_DISCONNECT  = 0x08;
 constexpr uint8_t NET_FLAG_RELIABLE    = 0x10;
 constexpr uint8_t NET_FLAG_HEARTBEAT   = 0x20;
+// A reliable message too long for one datagram goes as several; every part but
+// the last carries this flag (ENet's fragments, NetEnet.cpp: network.enetmtu).
+constexpr uint8_t NET_FLAG_FRAGMENT    = 0x40;
 
 #pragma pack(push, 1)
 struct NetWireHeader {
@@ -254,6 +257,27 @@ private:
 	void send_raw_packet(const std::string &ip, uint16_t port, const uint8_t *data, size_t size);
 	void send_wire_packet(const std::string &ip, uint16_t port, uint32_t peer_id, uint8_t flags, uint8_t channel, const uint8_t *payload, size_t payload_len, bool reliable);
 	void handle_incoming_packet(const uint8_t *data, size_t size, const std::string &from_ip, uint16_t from_port);
+	// The part of a packet that follows the reliable-order check: disconnect,
+	// fragment reassembly and the message itself.
+	void deliver_packet(uint8_t flags, const uint8_t *payload, size_t payload_size, uint32_t sender_peer_id);
+	// Delivers the held reliable packets that are next in order; with skip, the
+	// first one even across a gap that outlived kHoldGapMs.
+	void release_held(NetPeer &p, bool skip);
+	void check_held(uint64_t now_ms);
+public:
+	// The largest message payload one datagram carries: 0.28's ENet MTU (1372)
+	// less its headers, so no datagram relies on IP fragmentation.
+	static constexpr size_t kFragmentPayload = 1200;
+	// A gap in a reliable stream is filled by a resend, within seconds even on a
+	// lossy link; one that lasts this long (the sender gave up) is skipped.
+	static constexpr uint64_t kHoldGapMs = 30000;
+	// Reliable packets from peer_id that arrived early and wait for a resend of
+	// an earlier one: the stream is still coming, only held back.
+	size_t held_count(uint32_t peer_id) const {
+		const NetPeer *p = getPeer(peer_id);
+		return p ? p->held_packets.size() : 0;
+	}
+private:
 	void send_ack(const std::string &ip, uint16_t port, uint32_t peer_id, uint32_t seq);
 	void send_heartbeats(uint64_t now_ms);
 	void check_retransmissions(uint64_t now_ms);
