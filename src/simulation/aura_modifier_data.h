@@ -108,9 +108,9 @@ inline const RelicAuraModifier *relic_aura_modifiers() {
 		{TSTAT_RESEARCH_TIME, TOP_MUL, 0.5f, 1, {{TC_STRUCTURE, 0}}}, // athen_hero_pericles_2
 		{TSTAT_BUILD_TIME, TOP_MUL, 0.5f, 1, {{TC_SHIP, 0}}}, // athen_hero_themistocles_1
 		{TSTAT_COST_METAL, TOP_MUL, 0.5f, 1, {{TC_SHIP, 0}}}, // athen_hero_themistocles_1
-		{TSTAT_BUILD_TIME, TOP_MUL, 0.8f, 1, {{TC_WALL, 0}}}, // athen_hero_themistocles_2
-		{TSTAT_COST_STONE, TOP_MUL, 0.5f, 1, {{TC_WALL, 0}}}, // athen_hero_themistocles_2
-		{TSTAT_COST_WOOD, TOP_MUL, 0.5f, 1, {{TC_WALL, 0}}}, // athen_hero_themistocles_2
+		{TSTAT_BUILD_TIME, TOP_MUL, 0.8f, 2, {{TC_WALL, 0}, {TC_PALISADE, 0}}}, // athen_hero_themistocles_2
+		{TSTAT_COST_STONE, TOP_MUL, 0.5f, 2, {{TC_WALL, 0}, {TC_PALISADE, 0}}}, // athen_hero_themistocles_2
+		{TSTAT_COST_WOOD, TOP_MUL, 0.5f, 2, {{TC_WALL, 0}, {TC_PALISADE, 0}}}, // athen_hero_themistocles_2
 		{TSTAT_BUILD_TIME, TOP_MUL, 0.8f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
 		{TSTAT_COST_FOOD, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
 		{TSTAT_COST_WOOD, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil

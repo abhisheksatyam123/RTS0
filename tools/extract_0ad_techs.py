@@ -98,6 +98,7 @@ CLASSES = [
     "Wagon",  # bit 64 (Wagon Trains)
     "Colony",  # bit 65 (Wagon Trains)
     "Auxiliary",  # bit 66 (Marian Reforms: "Soldier !Auxiliary")
+    "Palisade",  # bit 67 (Themistoclean Walls: "Wall" or "Palisade")
 ]
 assert len(CLASSES) <= 128, "TechClasses is a 128-bit mask"
 

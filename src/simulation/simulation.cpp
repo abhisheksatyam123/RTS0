@@ -8711,7 +8711,8 @@ float Simulation::livestock_train_time(uint8_t player_id, uint8_t ftype) const {
 			t = (e.op == TOP_MUL) ? t * e.value : (e.op == TOP_SET) ? e.value : t + e.value;
 		}
 	}
-	return t;
+	// Petra's config.js Cheat slows every unit it trains, animals too.
+	return t * ai_time_mult(player_id);
 }
 
 // Trainer.js at a corral: a batch of `count` animals costs count times one and takes
@@ -9839,8 +9840,9 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		const uint8_t ttype = units_.unit_type[ti];
 		auto rit = trader_routes_.find(uid);
 		if (units_.action_state[ti] != ACTION_TRADE || rit == trader_routes_.end()) {
-			// An idle trader looks for a route, at most every 20 ticks (2 s).
-			if (units_.action_state[ti] == ACTION_IDLE && !units_.has_order[ti] && (ticks_ + uid) % 20 == 0)
+			// An AI's (or unseated player's) idle trader looks for a route, at most every 20 ticks. A
+			// seated human's trades only when ordered (UnitAI.js Order.Trade).
+			if (owner < MAX_PLAYERS && !(players_[owner].active && !players_[owner].is_ai) && units_.action_state[ti] == ACTION_IDLE && !units_.has_order[ti] && (ticks_ + uid) % 20 == 0)
 				order_trade_auto(&uid, 1);
 			continue;
 		}
@@ -9892,6 +9894,18 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// (CalculateGain, with the techs and owners of now), and head back. A killer loots all
 		// three gains (Looter.js calculateCarriedResources).
 		const TradeGain g = garrisoned_trade_gain(ti, calculate_trade_gain(dest, origin, owner, ttype));
+		if (g.trader <= 0) {
+			// UnitAI.js TRADE: a leg whose gain rounds to nothing finishes the order.
+			trader_routes_.erase(uid);
+			trader_leg_.erase(uid);
+			trader_goods_.erase(uid);
+			units_.carry[ti] = 0;
+			units_.action_state[ti] = ACTION_IDLE;
+			units_.has_order[ti] = 0;
+			has[ti] = 0;
+			finish_order(ti);
+			continue;
+		}
 		trader_goods_[uid] = g;
 		units_.res_type_carried[ti] = next_trading_goods(owner);
 		units_.carry[ti] = g.trader + g.market1 + g.market2;
@@ -17142,7 +17156,10 @@ Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
 	if (!pay(bribe_cost(player, target))) return BRIBE_TOO_EXPENSIVE;
 	// AddSpy: Duration 15 s x 60 / max(30, the unit's 0 A.D. Vision/Range): traders 60, merchant ships 50.
 	const int32_t u = lookup_unit(id);
-	const float range = units_.unit_type[u] == UNIT_MERCHANT_SHIP ? 50.0f : 60.0f;
+	// Vision technologies (Exploration, Lookouts) lengthen that range and so shorten the spy.
+	const float base = unit_base_vision((size_t)u);
+	const float range = (units_.unit_type[u] == UNIT_MERCHANT_SHIP ? 50.0f : 60.0f) *
+	                    (base > 0.0f ? unit_vision_at((size_t)u) / base : 1.0f);
 	spies_.push_back({id, player, {0, 0, 0}, 15.0f * 60.0f / std::max(30.0f, range)});
 	if (player < MAX_PLAYERS) stats_[player].successful_bribes++; // VisionSharing.AddSpy
 	return BRIBE_OK;
@@ -31029,6 +31046,7 @@ void Simulation::reset_los() {
 	los_bld_src_.clear();
 	los_fauna_src_.clear();
 	los_spy_src_.clear();
+	los_garrison_src_.clear();
 }
 
 void Simulation::tick_los() {
@@ -31061,7 +31079,41 @@ void Simulation::tick_los() {
 	los_bld_src_.resize(nb);
 	update_fauna_los();
 	update_spy_los();
+	update_garrison_los();
 	mark_buildings_seen();
+}
+
+void Simulation::update_garrison_los() {
+	// VisionSharing.js CheckVisionSharings: the owner of every unit garrisoned in a structure,
+	// ship or other holder shares the holder's vision, one circle per such player (turreted
+	// units see for themselves).
+	std::vector<LosSource> want;
+	auto add = [&](float x, float z, float range, uint8_t holder_team, const std::vector<uint32_t> &ids) {
+		uint8_t done = 0;
+		for (uint32_t id : ids) {
+			if (!id) continue;
+			const int32_t u = lookup_unit(id);
+			if (u < 0) continue;
+			const uint8_t p = units_.team[u];
+			if (p >= MAX_PLAYERS || p == holder_team || ((done >> p) & 1)) continue;
+			done |= (uint8_t)(1u << p);
+			want.push_back(los_.source_at(x, z, range, p));
+		}
+	};
+	for (const Building &b : buildings_)
+		if (b.hp > 0.0f && !b.wrecked && !b.garrisoned_units.empty() && !turret_points_of(b))
+			add(b.x, b.z, building_vision_range(b), b.team, b.garrisoned_units);
+	if (!transport_passengers_.empty())
+		for (size_t u = 0; u < units_.count; ++u) {
+			if (!units_.alive[u]) continue;
+			auto it = transport_passengers_.find(units_.id[u]);
+			if (it != transport_passengers_.end() && !it->second.empty())
+				add(units_.pos_x[u], units_.pos_z[u], unit_vision_at(u), units_.team[u], it->second);
+		}
+	const size_t n = std::max(want.size(), los_garrison_src_.size());
+	los_garrison_src_.resize(n);
+	for (size_t k = 0; k < n; ++k) los_.update(los_garrison_src_[k], k < want.size() ? want[k] : LosSource{});
+	los_garrison_src_.resize(want.size());
 }
 
 void Simulation::mark_buildings_seen() {
