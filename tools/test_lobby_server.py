@@ -73,6 +73,14 @@ def test_object():
     check(lb.register({"id": "g1", "players": 3})[1]["player_names"][0]["name"] == "alice",
           "player names left out keep their value")
     check(lb.register({"id": "g1", "player_names": "bad"})[1]["player_names"] == [], "a bad player list is empty")
+    check("mods" not in room, "a host that sends no mods lists none")
+    mods = [{"name": "0ad", "version": "0.28.0"}, {"name": "fx", "version": "1", "ignoreInCompatibilityChecks": 1},
+            {"version": "2"}, "junk"]
+    room = lb.register({"id": "g1", "mods": mods})[1]
+    check(room["mods"] == [{"name": "0ad", "version": "0.28.0", "ignoreInCompatibilityChecks": False},
+                           {"name": "fx", "version": "1", "ignoreInCompatibilityChecks": True}],
+          "a host's mods are kept, sanitized, in order")
+    check(lb.register({"id": "g1", "players": 2})[1]["mods"] == room["mods"], "mods left out keep their value")
     check(lb.register({"id": "g3"}, "10.0.0.7")[1]["host_ip"] == "10.0.0.7", "without host_ip, the sender's address")
     check(lb.register({"id": "g2", "state": "bogus"})[1]["state"] == "init", "an unknown state reads as init")
     check(len(lb.room_list()[1]["rooms"]) == 3 and "seen" not in lb.room_list()[1]["rooms"][0],
