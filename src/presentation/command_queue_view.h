@@ -629,7 +629,9 @@ public:
 			}
 			// The structure's command row (unit_actions.js g_EntityCommands).
 			if (found_b && found_b->team == local_player()) {
-				const int inside = (int)found_b->garrisoned_units.size();
+				// A corral's penned animals are its garrison too (GarrisonHolder List Animal).
+				const int inside = (int)found_b->garrisoned_units.size() +
+						(found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0);
 				if (inside > 0)
 					add_entity_command("unload-all", "Unload All", "session.unload",
 							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
