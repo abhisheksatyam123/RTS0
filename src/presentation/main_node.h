@@ -493,6 +493,10 @@ public:
 		return pid < rtso::MAX_PLAYERS && !turn_mgr_.is_replaying() && !spectating() && pid == seat_player();
 	}
 	String ai_settings_text(uint8_t pid) const override;
+	// soundNotification("nick"): the chime, at most once per 3 s of mentions.
+	void sound_notification_nick();
+	void chat_open_page(); // Chat.openPage(""): the chat hotkey
+	uint64_t nick_notify_ms_ = 0;
 	bool mass_tribute_held() const override { return rtso::hotkeys::held("session.masstribute"); }
 	String player_names_[rtso::MAX_PLAYERS];
 	void apply_player_names(const Array &names);
@@ -583,8 +587,9 @@ public:
 	// 0 A.D. unit_actions "setup-trade-route": traders take a route in two right-clicks,
 	// the origin market, then the destination (lockstep command 35 sends both).
 	// Returns false when no selected trader trades at b; *tooltip gets the cursor text.
-	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
+	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip, const char **cursor = nullptr);
 	Dictionary debug_trade_route_clicks();
+	Dictionary debug_trade_tip(int64_t market);
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
@@ -742,6 +747,9 @@ private:
 	bool selection_can_garrison(uint32_t building_id) const;
 	bool selection_can_occupy_turret(uint32_t building_id) const;
 	uint32_t transport_under(float x, float z) const;
+	// unit_actions.js "set-rallypoint" target under the cursor: a resource, else a structure
+	// (not one of the selected).
+	void rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) const;
 	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();

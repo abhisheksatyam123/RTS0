@@ -1342,6 +1342,11 @@ public:
 		UPGRADE_ERR_LIMIT // the target's EntityLimits category is full
 	};
 	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
+	// The civ whose Upgrade choices a structure offers: its own template's (Upgrade.js reads
+	// the entity's template, so a captured Tachara keeps its four forms), else its owner's.
+	uint8_t structure_upgrade_civ(const Building &b) const {
+		return b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ : (uint8_t)civ_of(b.team);
+	}
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
@@ -3624,6 +3629,7 @@ private:
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
 	float unit_height(size_t i) const; // terrain, or the water surface under a ship
+	float unit_attack_origin_y(size_t i) const;
 	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);

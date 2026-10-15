@@ -92,13 +92,34 @@ Dictionary RtsoMain::debug_trade_route_clicks() {
 	}
 	if (!b1 || !b2) return d;
 	String tip;
+	const char *cur = nullptr;
 	trade_route_click(*b1, false, false, &tip);
 	d["hover_first"] = tip;
 	d["first"] = trade_route_click(*b1, true, false, nullptr);
+	trade_route_click(*b1, false, false, &tip, &cur);
+	d["hover_origin"] = tip;
+	d["origin_cursor"] = String(cur);
 	trade_route_click(*b2, false, false, &tip);
 	d["hover_second"] = tip;
 	d["second"] = trade_route_click(*b2, true, false, nullptr);
 	d["origin_after"] = (int)trade_origin_market_;
+	d["m1"] = (int64_t)m1;
+	d["m2"] = (int64_t)m2;
+	return d;
+}
+
+// Test hook: the setup-trade-route tooltip and cursor over a market for the selection.
+Dictionary RtsoMain::debug_trade_tip(int64_t market) {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)market) {
+			String tip;
+			const char *cur = nullptr;
+			d["ok"] = trade_route_click(b, false, false, &tip, &cur);
+			d["tip"] = tip;
+			d["cursor"] = String(cur ? cur : "");
+		}
 	return d;
 }
 
@@ -534,6 +555,8 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
 	d["overlay_by"] = pause_by_label_ ? pause_by_label_->get_text() : String();
 	d["chat_log"] = chat_window_.log_text();
+	d["chat_overlay"] = (int64_t)chat_window_.overlay_count();
+	d["chat_addressee"] = chat_window_.addressee_label();
 	return d;
 }
 
