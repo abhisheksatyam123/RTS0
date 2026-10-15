@@ -485,6 +485,10 @@ public:
 	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
 	// (AI slots get one from their civ's AINames), else "Player N".
 	String player_display_name(uint8_t pid) const override;
+	bool controls_player(uint8_t pid) const override {
+		return pid < rtso::MAX_PLAYERS && !turn_mgr_.is_replaying() && !spectating() && pid == seat_player();
+	}
+	String ai_settings_text(uint8_t pid) const override;
 	bool mass_tribute_held() const override { return rtso::hotkeys::held("session.masstribute"); }
 	String player_names_[rtso::MAX_PLAYERS];
 	void apply_player_names(const Array &names);
@@ -615,6 +619,8 @@ public:
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
+	Dictionary debug_diplomacy() const { return diplo_dialog_.debug_state(); } // tests: the diplomacy dialog's rows
+	void debug_set_observer_view(int player) { set_observer_view(player); } // tests: an observer follows a player (-1: none)
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
 	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
