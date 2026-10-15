@@ -658,7 +658,7 @@ def units_demo_entities(z):
     return out
 
 
-def apply_player_data(players, settings):
+def apply_player_data(players, settings, scenario=False):
     """ScriptSettings PlayerData: a scenario's fixed civs, starting resources, locked teams and
     population limits, onto the map's player entries (by id). Its first entry is player 1, or
     an empty Gaia placeholder in older maps. Returns the PopulationLimit every player shares, if any."""
@@ -672,8 +672,10 @@ def apply_player_data(players, settings):
             p["civ"] = CIV_CODES.index(pd["Civ"])
         if isinstance(pd.get("Resources"), dict):
             p["resources"] = {k: int(v) for k, v in pd["Resources"].items()}
-        # Locked teams (LockTeams) are the map's own; otherwise Game Setup picks them.
-        if settings.get("LockTeams") and isinstance(pd.get("Team"), int):
+        # 0.28 PlayerTeam.js onMapChange: a scenario's PlayerData teams are the map's own (locked in
+        # Game Setup); a skirmish map's are ignored, its players starting without a team, LockTeams
+        # or not. (-1, no team, is the porter's default: a team of one.)
+        if scenario and isinstance(pd.get("Team"), int) and pd["Team"] >= 0:
             p["team"] = pd["Team"]
         if isinstance(pd.get("PopulationLimit"), int):
             p["pop_limit"] = pd["PopulationLimit"]
@@ -717,7 +719,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 return
             with open(out_path) as f:
                 old = json.load(f)
-            limit = apply_player_data(old["players"], settings)
+            # Teams back to the porter's default (a team of one) before PlayerData sets a scenario's.
+            for p in old["players"]:
+                p["team"] = p["id"] - 1
+            limit = apply_player_data(old["players"], settings, xml_rel.startswith("maps/scenarios/"))
             old.pop("pop_limit", None)
             if limit is not None:
                 old["pop_limit"] = limit
@@ -1033,7 +1038,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             if not has_tc and not army_only:
                 structures.append({"type": "town_center", "player": p["id"], "x": p["start_x"], "z": p["start_z"]})
 
-        pop_limit = apply_player_data(list(players.values()), settings)
+        pop_limit = apply_player_data(list(players.values()), settings, xml_rel.startswith("maps/scenarios/"))
 
         map_data = {
             "id": map_id,
