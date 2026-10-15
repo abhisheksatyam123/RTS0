@@ -529,6 +529,8 @@ def main():
                 continue
             if e.get("skeleton") not in MOUNT_SKELETONS or not e["file"].startswith("models/units/"):
                 continue
+            if e.get("clips_from"):  # plays the clips of another model's GLB
+                continue
             actors = [x[len("actor:art/actors/"):] for x in e["sources"] if x.startswith("actor:art/actors/units/")]
             actors = [a for a in actors if os.path.exists(art.path("actors", a))]
             m = Mount(os.path.join(REPO, "assets", e["file"]), art, e["skeleton"], actors)

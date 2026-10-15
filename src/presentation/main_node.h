@@ -243,6 +243,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// The Garrison and Repair buttons (unit_actions.js ACTION_GARRISON / ACTION_REPAIR): the
 	// next right-click garrisons or repairs, as holding session.garrison / session.repair does.
 	bool garrison_mode = false;
+	bool turret_mode = false; // "occupy-turret" armed (ACTION_OCCUPY_TURRET)
 	bool repair_mode = false;
 	uint8_t current_build_type = rtso::BLD_HOUSE;
 	uint32_t selected_building_id = 0;
@@ -497,10 +498,10 @@ public:
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
 	bool chat_network_command(const String &text) override;
-	bool chat_reaches(uint8_t from, uint8_t to, const std::string &tag) const;
+	bool chat_reaches(uint8_t from, uint8_t to, const std::string &tag, uint32_t to_client = UINT32_MAX) const;
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
-	std::vector<std::pair<int, String>> chat_private_targets() override;
+	std::vector<std::pair<String, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
@@ -558,6 +559,8 @@ public:
 	void resign();
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
+	// messages.js g_FlareRateLimitLastTimes: when the last incoming flares were drawn (ms).
+	std::vector<uint64_t> flare_received_ms_;
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
 	int get_target_marker_actor_count() const { return range_overlays_.marker_actor_count(); } // tests
 	bool select_first_own(bool building); // tests
@@ -705,6 +708,7 @@ private:
 	std::pair<int, int> mouse_cell(Vector2 mouse_pos) const;
 	void clear_selection();
 	bool selection_can_garrison(uint32_t building_id) const;
+	bool selection_can_occupy_turret(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
 	void prune_selection();

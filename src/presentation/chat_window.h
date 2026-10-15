@@ -56,13 +56,14 @@ public:
 	// /kick, /ban, /kickspecs, /banspecs, /list or /clear (it is not sent as chat).
 	virtual bool chat_network_command(const String &text) = 0;
 	// ChatAddressees.js isAddressee for the local player: tag is the wire tag ("[Allies]",
-	// "[Enemies]", "[Observers]", "[Player-N]") of a message from sender_guid.
+	// "[Enemies]", "[Observers]", "[Player-N]", "[Observer-C]") of a message from sender_guid.
 	virtual bool chat_is_addressee(const String &sender_guid, const String &tag) = 0;
 	// The local client is an observer (no seat): no Allies or Enemies, private messages only to observers.
 	virtual bool chat_local_observer() = 0;
 	// ChatAddressees.onUpdatePlayers: the other connected humans a private message can go to,
-	// as (player id + 1, coloured name); 0 for an observer.
-	virtual std::vector<std::pair<int, String>> chat_private_targets() = 0;
+	// as (wire tag, coloured name): "[Player-N]" for player id N - 1, "[Observer-C]" for
+	// the observer on client C.
+	virtual std::vector<std::pair<String, String>> chat_private_targets() = 0;
 };
 
 class RtsoChatWindow {
@@ -241,7 +242,7 @@ public:
 		add("Observers", "[Observers]");
 		if (host_)
 			for (const auto &t : host_->chat_private_targets())
-				add(t.second, "[Player-" + String::num_int64(t.first) + "]");
+				add(t.second, t.first);
 		select_tag(keep);
 	}
 
@@ -267,7 +268,7 @@ public:
 				for (const auto &t : host_->chat_private_targets()) {
 					const String name = plain(t.second);
 					if (rest.begins_with(name + String(" "))) {
-						tag = "[Player-" + String::num_int64(t.first) + "]";
+						tag = t.first;
 						text = rest.substr(name.length() + 1).strip_edges();
 						break;
 					}
@@ -319,7 +320,7 @@ public:
 			context = "Observer";
 			tag = "[Observers]";
 			msg = msg.substr(11).strip_edges();
-		} else if (msg.begins_with("[Player-")) {
+		} else if (msg.begins_with("[Player-") || msg.begins_with("[Observer-")) {
 			int close_b = msg.find("]");
 			if (close_b > 0) {
 				context = "Private";
