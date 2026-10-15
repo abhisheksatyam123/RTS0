@@ -11,7 +11,6 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G1 | Rams, siege engines and elephants path into woods only infantry can pass, and grind along the tree line (0.28 gives large units their own long-path grid; fix on a branch) | high | Fauna |
 | G2 | Idle traders start trade routes on their own, and a stopped trader restarts and loses its goods (0.28 traders trade only when ordered) | medium | A |
 | G3 | Petra plans rushes only in the village phase and drops a mustering rush at the town phase (aggressive 0.28 Petra rushes in the town phase too) | medium | D |
-| G4 | Petra rates units on base stats, not after its own techs, so it keeps spearmen where 0.28 switches to archers | medium | D |
 | G5 | A town-phase HugeAttack waits for champions and a hero once the city phase comes (0.28 drops those classes from the plan) | medium | D |
 | G6 | A guard forgets the unit it guards after any new order (0.28 goes back to guarding once idle) | medium | Unit orders |
 | G7 | The bottom HUD isn't 0.28's centred 1024 px group: panels sit at the corners, the Training grid floats, and the stance buttons have captions | medium | Session UI |
@@ -39,9 +38,8 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
 | G30 | Pathfinding grid: 8 m navcells against 0.28's 1 m, no JumpPointCache, float maths | low | Migrate |
 | G31 | 0.28's new_rms_test demo map isn't ported | low | Triggers |
-| G32 | cmd_train still maps the RTS0 villager to the civ's civilian (cleanup) | none | D |
 
-Kept on purpose: Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
+Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 
