@@ -2,6 +2,7 @@
 // minimap orders and trade route clicks (P4.6, split out of main_node.cpp).
 
 #include "main_node.h"
+#include "fog_mirage.h"
 #include "l10n.h"
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
@@ -197,6 +198,42 @@ void RtsoMain::update_cursor() {
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
 	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
+}
+
+// input.js INPUT_NORMAL mousemotion and INPUT_BANDBOXING: setHighlightList([PickEntityAtPoint])
+// while the mouse is over the world, and the band box's preferred entities while dragging.
+void RtsoMain::update_highlight() {
+	PackedInt32Array ids;
+	Viewport *vp = get_viewport();
+	if (sim && vp && view && !sim->cinema_playing()) {
+		const Vector2 mouse = vp->get_mouse_position();
+		if (dragging && drag_start.distance_to(mouse) >= user_opts_.drag_delta) {
+			for (int32_t id : band_box_ids(drag_start, mouse)) ids.push_back(id);
+		} else if (!dragging && !build_mode && !wall_drag_mode && vp->gui_get_hovered_control() == nullptr) {
+			const size_t u = own_unit_under_mouse(mouse, true);
+			if (u != (size_t)-1) {
+				ids.push_back((int32_t)sim->units().id[u]);
+			} else {
+				const Vector3 at = get_ground_click_pos(mouse);
+				auto fv = sim->fauna();
+				float best = 2.5f * 2.5f;
+				int32_t pick = 0;
+				for (size_t f = 0; f < fv.count; ++f) {
+					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
+					const float dx = fv.pos_x[f] - at.x, dz = fv.pos_z[f] - at.z;
+					if (dx * dx + dz * dz >= best) continue;
+					if (!rtso::los_sees_unit(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], rtso::GAIA_PLAYER)) continue;
+					best = dx * dx + dz * dz;
+					pick = (int32_t)fv.id[f];
+				}
+				if (pick) ids.push_back(pick);
+			}
+		}
+	}
+	if (ids != highlight_ids_) {
+		highlight_ids_ = ids;
+		if (view) view->set_highlight_ids(ids);
+	}
 }
 
 // The local player's structure whose box the mouse ray enters first: its
