@@ -1574,6 +1574,13 @@ inline bool is_wallset_piece(uint8_t type, float half_w) {
 	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
 }
 
+// 0.28 Builder lists name only the WallSet proxies (mixins/builder.xml), and gates "cannot be built
+// directly": a wall's segments and towers are laid by the wall tool and its gates by an Upgrade.
+inline bool built_only_by_wall_tool(uint8_t type) {
+	return type == BLD_WALL_SEGMENT || type == BLD_WALL_TOWER || type == BLD_GATE || type == BLD_PALISADE ||
+	       type == BLD_SIEGE_WALL;
+}
+
 // A WallSet piece's 0 A.D. values (wallset_info) by its type and length; negative when it keeps
 // its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
 // `civ` is the piece's template civ (Building::civ); the generic set's lengths are tried too, as
