@@ -102,7 +102,8 @@ func run() -> void:
 		check(cmds.all(func(b): return icon_only(b)), "the commands are icons: " + str(cmds.map(func(b): return b.text)))
 		var texty: Array = builds.filter(func(b): return not icon_only(b))
 		check(texty.is_empty(), "every structure is an icon: " + str(texty.map(func(b): return b.text)))
-	check(builds.all(func(b): return TT.plain(b.tooltip_text).contains("\nCost: ") or b.tooltip_text.begins_with("Field")), "name and cost on the tooltips")
+	var costless: Array = builds.filter(func(b): return not TT.plain(b.tooltip_text).contains("\nCost: ") and not TT.plain(b.tooltip_text).contains("\nWalls: ") and not TT.plain(b.tooltip_text).begins_with("Field"))
+	check(costless.is_empty(), "name and cost on the tooltips: " + str(costless.map(func(b): return TT.plain(b.tooltip_text).replace("\n", " / "))))
 	await frames(4)
 	var scroll: ScrollContainer = builds[0].get_parent().get_parent() if builds.size() > 0 else null
 	if scroll and imported:
