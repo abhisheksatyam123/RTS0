@@ -3,6 +3,7 @@
 //        src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o test_victory
 // The checks poke simulation state directly to stage end-of-match situations.
 #define private public
+#include <algorithm>
 #include <set>
 #include "simulation/simulation.h"
 #include "simulation/start_entities_data.h"
@@ -925,9 +926,18 @@ int main() {
 		(void)sim.take_session_notices();
 		const auto why = sim.research_check(1, TECH_PHASE_TOWN, tc1);
 		CHECK(why == Simulation::TECH_OK);
+		// 0.28 TechnologyManager StartedResearch/StoppedResearch: a phase announces "started" when the
+		// queue starts it and "aborted" only if it had started, so a cancel before any tick says nothing.
 		CHECK(sim.cmd_research(1, tc1, TECH_PHASE_TOWN));
 		CHECK(sim.cmd_cancel_train(1, tc1, 0));
 		ns = sim.take_session_notices();
+		CHECK(std::none_of(ns.begin(), ns.end(), [](const auto &n) { return n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED; }));
+		for (int r = 0; r < RES_COUNT; ++r) sim.players_[1].res[r] = 5000.0f;
+		CHECK(sim.cmd_research(1, tc1, TECH_PHASE_TOWN));
+		for (int i = 0; i < 10; ++i) sim.tick(0.05f);
+		CHECK(sim.cmd_cancel_train(1, tc1, 0));
+		ns = sim.take_session_notices();
+		std::erase_if(ns, [](const auto &n) { return n.kind != N::PHASE_STARTED && n.kind != N::PHASE_ABORTED; });
 		CHECK(ns.size() == 2 && ns[0].kind == N::PHASE_STARTED && ns[0].player == 1 && ns[1].kind == N::PHASE_ABORTED &&
 				ns[1].tech == TECH_PHASE_TOWN);
 		CHECK(sim.cmd_research(0, tc, TECH_WEAPONS_1) || true);
