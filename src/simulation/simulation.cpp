@@ -22063,8 +22063,6 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
 			const int owner = territory_owner_at(x, z);
 			if (owner >= 0 && owner < MAX_PLAYERS) continue; // neutral or Gaia's only
-			const uint16_t l = petra_land_at(x, z);
-			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			float min_d = 1e30f, d0 = -1.0f, d1 = -1.0f, d2 = -1.0f;
 			for (const Cc &c : ccs) {
 				const float d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z);
@@ -22082,6 +22080,9 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			if (d2 >= 0.0f) { delta = std::sqrt(d2) - favoured; val += delta * delta; }
 			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) val += 10000.0f / 16.0f;
 			if (found && val > best) continue;
+			// The land last of the tests a tile can fail: its search costs the most.
+			const uint16_t l = petra_land_at(x, z);
+			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			if (!petra_cc_tile_ok(btype, x, z)) continue;
 			found = true;
 			best = val;
@@ -22163,6 +22164,26 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
 			const int owner = territory_owner_at(x, z);
 			if (owner >= 0 && owner < MAX_PLAYERS) continue; // neutral or Gaia's only
+			// The tests below that don't need the tile's land go first, as its search costs the
+			// most: a civic centre too near, and a value that can't reach the cut or the best so
+			// far whatever the land (norm only shrinks from these halvings; across the sea by a
+			// dock it is at most just over the cut).
+			const size_t j = (size_t)iz * w + ix;
+			{
+				float norm_max = 0.5f;
+				bool near = false;
+				for (const Cc &c : ccs) {
+					const float d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z);
+					if (d < near_rej || (c.ally && d < ally_rej)) { near = true; break; }
+					if (c.ally && d < ally_dis) norm_max *= 0.5f;
+				}
+				if (near) continue;
+				if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm_max *= 0.5f;
+				float val_max = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
+				val_max *= norm_max;
+				if (!dps.empty()) val_max = std::max(val_max, cut + 0.1f);
+				if (val_max < cut || (found && val_max < best)) continue;
+			}
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			float norm = 0.5f, min_d = 1e30f;
@@ -22190,7 +22211,6 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 				if (norm == 0.0f) continue;
 			}
 			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm *= 0.5f;
-			const size_t j = (size_t)iz * w + ix;
 			float val = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
 			val *= norm;
 			if (oversea) val = std::max(val, cut + 0.1f);

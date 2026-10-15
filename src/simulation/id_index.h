@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <stdexcept>
+#include <cstdlib>
 #include <vector>
 
 namespace rtso {
@@ -53,12 +53,12 @@ public:
 	size_t &at(uint32_t id) { return const_cast<size_t &>(static_cast<const IdIndex *>(this)->at(id)); }
 	const size_t &at(uint32_t id) const {
 		const Entry *e = find(id);
-		if (!e) throw std::out_of_range("IdIndex::at");
+		if (!e) std::abort(); // a missing id: unordered_map::at would throw, and the extension has no exceptions
 		return e->second;
 	}
 	// Inserts the id with index 0 when it is missing, as unordered_map's operator[] does.
 	size_t &operator[](uint32_t id) {
-		if (id == kEmpty) throw std::out_of_range("IdIndex: id");
+		if (id == kEmpty) std::abort();
 		const size_t p = id >> kPageBits;
 		if (p >= pages_.size()) pages_.resize(p + 1);
 		if (!pages_[p]) pages_[p] = std::make_unique<Page>();
