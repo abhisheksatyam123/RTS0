@@ -367,14 +367,14 @@ public:
 						// selection_panels.js: the tech's own requirementsTooltip ("Unlocked in Town
 						// Phase.", "Unlocked in City Phase. Requires “Shipwrights.”").
 						case rtso::Simulation::TECH_ERR_PHASE:
-							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = String::utf8(req);
+							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = rtso::objection_font(owner_->tr(String::utf8(req)));
 							else why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase");
 							reqs_failed = true;
 							break;
 						case rtso::Simulation::TECH_ERR_PREREQUISITE: {
 							const uint8_t sup = rtso::tech_supersedes((uint8_t)t);
 							const bool need_prev = sup != rtso::TECH_NONE && !sim->player(local_player()).has_tech(sup);
-							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = String::utf8(req);
+							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = rtso::objection_font(owner_->tr(String::utf8(req)));
 							else why = requires_text(String::utf8(rtso::tech_info(need_prev ? sup : ti.prerequisite).name));
 							reqs_failed = true;
 							break;
@@ -391,13 +391,14 @@ public:
 										{{"entityCounts", rtso::sprintf0(owner_->tr(remaining == 1 ? "%(number)s entity of class %(class)s"
 																						: "%(number)s entities of class %(class)s"),
 												 {{"number", String::num_int64(remaining)}, {"class", owner_->tr(city ? "Town" : "Village")}})}});
+							why = rtso::objection_font(why);
 						}
 							reqs_failed = true;
 							break;
 						case rtso::Simulation::TECH_ERR_COST: why = needed_text(tech_cost); break;
 						default: break;
 					}
-					if (!why.is_empty()) tip += "\n" + owner_->tr(why);
+					if (!why.is_empty()) tip += "\n" + why;
 					// getNeededResourcesTooltip follows whatever requirement failed.
 					if (rc != rtso::Simulation::TECH_ERR_COST) {
 						const auto &ps = sim->player(local_player());
@@ -1292,8 +1293,15 @@ private:
 			String tip;
 			const int idx = add_roster_item(pid, all[k], tip);
 			if (!(can_mask & (1ull << k))) {
+				// getRequirementsTooltip: the phase or technology the unit waits on.
 				roster_list_->set_item_disabled(idx, true);
-				tip += "\n" + owner_->tr("Requirements not met");
+				const rtso::CivUnitTemplate &tu = rtso::civ_unit_template(all[k]);
+				const uint8_t gate = rtso::Simulation::unit_trainee_tech(tmpl, all[k]);
+				const uint8_t unlock = sim->train_unlock_tech(pid, tu.unit_type, rtso::BLD_TYPE_COUNT, all[k]);
+				// The ships' marines and archers: Techs "iphicratean_reforms" (their phase follows from it).
+				if (gate != rtso::TECH_NONE && !sim->player(pid).has_tech(gate)) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
+				else if (unlock != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(unlock).name));
+				else if (tu.phase > sim->player_phase(pid)) tip += "\n" + requires_text(tu.phase >= 3 ? "City Phase" : "Town Phase");
 			}
 			set_roster_tip(idx, tip);
 		}
@@ -1316,11 +1324,22 @@ private:
 			const int idx = add_roster_icon(String::utf8(ti.name) + " (" + costs + ")", rtso::RtsoResearchProgress::icon(t), ROSTER_TECH | (int)t);
 			const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 					(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
-			String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\n" + rtso::cost_tooltip(tech_cost, true);
+			// The Research tooltip: names, tooltip, cost, right-click, requirements, needed resources.
+			String tip = String::utf8(ti.name);
+			if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
+			const String cost_line = rtso::cost_tooltip(tech_cost, true);
+			if (!cost_line.is_empty()) tip += "\n" + cost_line;
+			tip += "\n" + right_click_tooltip();
 			if (check != rtso::Simulation::TECH_OK && check != rtso::Simulation::TECH_ERR_COST) {
 				roster_list_->set_item_disabled(idx, true);
-				tip += "\n" + owner_->tr("Requirements not met");
+				if (const char *req = rtso::tech_requirements_tooltip(t)) tip += "\n" + rtso::objection_font(owner_->tr(String::utf8(req)));
+				else if (check == rtso::Simulation::TECH_ERR_PHASE) tip += "\n" + requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase");
+				else if (ti.prerequisite != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(ti.prerequisite).name));
 			}
+			const auto &ps = sim->player(pid);
+			const String need = rtso::needed_resources_tooltip(tech_cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+					ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD], true);
+			if (!need.is_empty()) tip += "\n" + need;
 			set_roster_tip(idx, tip);
 		}
 		finish_roster(nullptr);
