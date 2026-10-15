@@ -264,7 +264,12 @@ const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperat
 const RMBIOME_INDEX := {"generic/aegean": 1, "generic/alpine": 3, "generic/sahara": 4, "generic/temperate": 5,
 	"generic/steppe": 6, "generic/savanna": 7, "generic/arctic": 8, "generic/india": 9,
 	"generic/autumn": 10, "generic/nubia": 11}
-const SPEEDS := [[0.5, "0.5x"], [0.75, "0.75x"], [1.0, "1x"], [1.25, "1.25x"], [1.5, "1.5x"], [2.0, "2x"]]
+# 0.28 simulation/data/settings/game_speeds.json: [speed, title, fast forward].
+const SPEEDS := [[0.1, "Turtle (0.1×)", false], [0.25, "Slow (0.25×)", false], [0.5, "Leisurely (0.5×)", false],
+	[0.75, "Relaxed (0.75×)", false], [1.0, "Normal (1×)", false], [1.25, "Fast (1.25×)", false],
+	[1.5, "Very Fast (1.5×)", false], [2.0, "Insane (2×)", false], [5.0, "Fast Forward (5×)", true],
+	[10.0, "Fast Forward (10×)", true], [20.0, "Fast Forward (20×)", true]]
+const DEFAULT_SPEED := 4 # Normal (1×)
 const SLOT_KINDS := ["Human", "AI", "Closed"]
 # rtso::PLAYER_COLORS: 0 A.D. player_defaults.json (each player's default), then PlayerColor.js DefaultColors.
 const PLAYER_COLORS := [Color8(21, 55, 149), Color8(150, 20, 20), Color8(86, 180, 31), Color8(231, 200, 5),
@@ -1180,6 +1185,31 @@ func refresh_slots() -> void:
 		_add_slot_row(grid, i)
 	_rebuilding_slots = false
 	_apply_mp_locks()
+	_render_speeds()
+
+## GameSpeed.render: the Fast Forward speeds only while nobody holds a player
+## slot (every slot AI or unassigned); a speed no longer listed goes back to Normal.
+func _render_speeds() -> void:
+	var spd: RtsoSafeSelect = %SpeedSlot.get_child(0) if %SpeedSlot.get_child_count() else null
+	if spd == null:
+		return
+	var n := int(_slot_count_node().value)
+	var ff := true
+	for i in mini(n, _slot_rows.size()):
+		if int(_slot_rows[i]["kind"]) == 0:
+			ff = false
+	var listed := 0
+	for sp in SPEEDS:
+		if ff or not sp[2]:
+			listed += 1
+	if spd.get_item_count() == listed:
+		return
+	var current: int = spd.get_item_id(spd.get_selected()) if spd.get_selected() >= 0 else DEFAULT_SPEED
+	spd.clear()
+	for i in SPEEDS.size():
+		if ff or not SPEEDS[i][2]:
+			spd.add_item(SPEEDS[i][1], i)
+	spd.select(spd.get_item_index(current) if spd.get_item_index(current) >= 0 else spd.get_item_index(DEFAULT_SPEED))
 
 func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var row: Dictionary = _slot_rows[i]
@@ -1257,6 +1287,7 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["kind"] = idx
+	_render_speeds()
 	if slot == 0:
 		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
 	_render_ai_button(slot)
@@ -1442,10 +1473,8 @@ func _build_options() -> void:
 	bio.add_item(BIOMES[0], 0)
 	bio.select(0)
 	bio.item_selected.connect(_on_biome_selected)
-	var spd := _make_option(%SpeedSlot)
-	for sp in SPEEDS:
-		spd.add_item(sp[1])
-	spd.select(2)
+	_make_option(%SpeedSlot)
+	_render_speeds()
 	_mute_spin(%SpinSeed)
 	_mute_spin($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots)
 	$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value_changed.connect(
@@ -1629,8 +1658,8 @@ func _apply_settings(ms: Dictionary) -> void:
 	_biome = clampi(int(ms.get("biome")), 0, BIOMES.size() - 1)
 	_rebuild_biomes(_selected_map().get("biomes", []))
 	for i in range(SPEEDS.size()):
-		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
-			spd.select(i)
+		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))) and spd.get_item_index(i) >= 0:
+			spd.select(spd.get_item_index(i))
 	%SpinSeed.value = int(ms.get("seed"))
 	# Restore map selection by id, with its map type.
 	_select_map_id(str(ms.get("map_id")))
@@ -1747,7 +1776,7 @@ func _collect_setup() -> Dictionary:
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": _selected_biome(),
-		"speed": float(SPEEDS[maxi(spd.get_selected(), 0)][0]),
+		"speed": float(SPEEDS[spd.get_item_id(spd.get_selected()) if spd.get_selected() >= 0 else DEFAULT_SPEED][0]),
 		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors, "names": names,
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
 		"nomad": %Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
