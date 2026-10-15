@@ -52,6 +52,7 @@ func run() -> void:
 	check(" — " in String(u["owner_tooltip"]) and String(u["owner_tooltip"]).ends_with("Phase"), "its tooltip names the civ and, for the viewer, the phase")
 	check(String(u["owner_phase"]).begins_with("res://assets/textures/ui/archive/panel_phase_emblems_") and not String(u["owner_phase"]).ends_with("hidden.png"), "the viewer's own phase emblems show")
 	check(not " (" in String(u["owner"]), "the row names the player, the civ moves to the tooltip")
+	check(String(u["xp"]).begins_with("Experience: ") and " / " in String(u["xp"]), "a Basic soldier's experience shows on the portrait's vertical bar")
 
 	var elite: PackedInt32Array = main.debug_spawn_units("spart/champion_infantry_swordsman", 1)
 	await frames(2)
@@ -66,6 +67,8 @@ func run() -> void:
 	print("multi: ", m)
 	check(String(m["title_tooltip"]).begins_with("Garrison Size: "), "a group's tooltip gives its garrison size")
 	check("Loot: " in String(m["title_tooltip"]), "and its loot")
+	check(String(m["count"]).is_valid_int() and String(m["count_tooltip"]) == String(m["title_tooltip"]), "numberOfUnits shows the bare count, with that tooltip")
+	check(String(m["health_multiple"]).begins_with("Health: ") and String(m["portrait"]) != "", "and a vertical health bar beside it")
 
 	var b: Dictionary = main.debug_inspector("building")
 	print("building: ", b)
@@ -134,6 +137,7 @@ func run() -> void:
 	var ls: Dictionary = main.debug_inspector("livestock")
 	print("livestock: ", ls["title"], " ", ls["owner"], " ", ls["health"])
 	check(String(ls["title"]) == "3 units selected" and String(ls["owner"]) == "2 types", "several of the player's livestock show displayMultiple: count and kinds")
+	check(String(ls["count"]) == "3" and String(ls["health_multiple"]) != "", "displayMultiple: numberOfUnits in large text beside a vertical health bar")
 	check(String(ls["health"]).begins_with("Health: "), "with their summed health")
 	var lg: Dictionary = main.debug_selection_grid(false)
 	var licons: Array = lg["icons"]
