@@ -580,6 +580,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	}
 	sim->apply_team_diplomacy();
 	sync_victory_selector();
+	sim->set_ai_seed(setup.ai_seed);
 	sim->set_petra_difficulty(setup.difficulty > 5 ? 3 : setup.difficulty);
 	sim->set_petra_behavior(setup.behavior > 3 ? 2 : setup.behavior);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
@@ -765,6 +766,7 @@ void RtsoMain::apply_match_settings() {
 	}
 	sim->apply_team_diplomacy(); // stances follow the lobby's teams
 	sync_victory_selector();
+	sim->set_ai_seed((uint32_t)(int64_t)ms->get("ai_seed"));
 	if (diff >= 0 && diff <= 5) sim->set_petra_difficulty((uint8_t)diff);
 	if (behavior >= 0 && behavior <= 3) sim->set_petra_behavior((uint8_t)behavior);
 	// Each AI slot's own difficulty and behaviour (slot index == player id; after the shared setters).
@@ -819,6 +821,7 @@ void RtsoMain::match_settings_setup(rtso::GameSetupParams &setup) {
 		String mid = (String)ms->get("map_id");
 		setup.map_id = mid.is_empty() ? sim->current_map_id() : mid.utf8().get_data();
 		setup.seed = (uint32_t)(int64_t)(int)ms->get("seed");
+		setup.ai_seed = (uint32_t)(int64_t)ms->get("ai_seed");
 		setup.victory = (uint8_t)((int)ms->get("victory"));
 		setup.waves = (bool)ms->get("waves_enabled") ? 1 : 0;
 		setup.lms = (bool)ms->get("last_man_standing") ? 1 : 0;

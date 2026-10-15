@@ -371,6 +371,10 @@ public:
 	void reset();
 	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); reroll_petra_personalities(); }
 	uint32_t sim_seed() const { return sim_seed_; }
+	// 0 A.D. -autostart-aiseed: the AIs' personality seed, 0 = the match seed. Not saved: the
+	// drawn personalities are (PetraConfig).
+	void set_ai_seed(uint32_t seed) { ai_seed_ = seed; reroll_petra_personalities(); }
+	uint32_t ai_seed() const { return ai_seed_; }
 	uint32_t sim_rng_state() const { return sim_rng_.state(); }
 	uint32_t next_id() const { return next_id_; }
 	void spawn_initial();
@@ -2723,6 +2727,7 @@ private:
 
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
+	uint32_t ai_seed_ = 0; // set_ai_seed
 	SimRng sim_rng_;
 	std::array<PlayerState, MAX_PLAYERS> players_{};
 	PlayerState &petra_ps() { return players_[petra_pid_]; }
@@ -3183,7 +3188,7 @@ private:
 	void petra_manage_transport(float dt);
 	void apply_petra_config();
 	// config.js setConfig personality draw: per-player seed from the match seed, + teamsLocked.
-	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
+	uint32_t petra_personality_seed(uint8_t pid) const { return ((ai_seed_ ? ai_seed_ : sim_seed_) ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
 	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
 	int petra_queue_base_priority(uint8_t q) const; // config.js priorities after setConfig (attackPlan.js for plan queues)
