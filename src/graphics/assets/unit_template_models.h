@@ -866,6 +866,45 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // gaul/support_healer_e
 		-1, // ptol/support_healer_e
 		-1, // han/support_healer_e
+		-1, // athen/infantry_marine_archer_b (no model of its own: its owner civ's archer model)
+		-1, // spart/champion_infantry_pike (no model of its own: its owner civ's spearman model)
+		-1, // pers/hero_xerxes_i_chariot (no model of its own: its owner civ's hero model)
+		-1, // pers/kardakes_hoplite (no model of its own: its owner civ's spearman model)
+		-1, // pers/kardakes_skirmisher (no model of its own: its owner civ's archer model)
+		-1, // rome/hero_marcellus_infantry (no model of its own: its owner civ's hero model)
+		-1, // rome/hero_maximus_infantry (no model of its own: its owner civ's hero model)
+		-1, // rome/hero_scipio_infantry (no model of its own: its owner civ's hero model)
+		-1, // rome/infantry_swordsman_slave (no model of its own: its owner civ's swordsman model)
+		-1, // cart/champion_pikeman (no model of its own: its owner civ's spearman model)
+		-1, // mace/hero_craterus (no model of its own: its owner civ's hero model)
+		-1, // mace/hero_philip_ii_pike (no model of its own: its owner civ's hero model)
+		-1, // mace/hero_pyrrhus_i (no model of its own: its owner civ's hero model)
+		-1, // brit/hero_boudicca_cavalry_javelineer (no model of its own: its owner civ's hero model)
+		-1, // brit/hero_boudicca_sword (no model of its own: its owner civ's hero model)
+		-1, // brit/hero_cunobelin_infantry (no model of its own: its owner civ's hero model)
+		-1, // gaul/hero_vercingetorix_infantry (no model of its own: its owner civ's hero model)
+		-1, // iber/hero_indibil_infantry (no model of its own: its owner civ's hero model)
+		-1, // maur/hero_ashoka_infantry (no model of its own: its owner civ's hero model)
+		-1, // maur/hero_bindusara_infantry (no model of its own: its owner civ's hero model)
+		-1, // maur/hero_chandragupta_infantry (no model of its own: its owner civ's hero model)
+		-1, // kush/hero_amanirenas_infantry (no model of its own: its owner civ's hero model)
+		-1, // kush/hero_harsiotef (no model of its own: its owner civ's hero model)
+		-1, // ptol/champion_juggernaut (no model of its own: its owner civ's trireme model)
+		-1, // han/cavalry_crossbowman_b (no model of its own: its owner civ's cavalry model)
+		-1, // han/champion_infantry_archer_academy (no model of its own: its owner civ's archer model)
+		-1, // han/hero_han_xin (no model of its own: its owner civ's hero model)
+		-1, // han/hero_liu_bang (no model of its own: its owner civ's hero model)
+		-1, // han/hero_wei_qing (no model of its own: its owner civ's hero model)
+		-1, // han/hero_wei_qing_horse (no model of its own: its owner civ's hero model)
+		-1, // merc_black_cloak (no model of its own: its owner civ's swordsman model)
+		-1, // noldor_warship (no model of its own: its owner civ's trireme model)
+		-1, // pirates/ship_arrow (no model of its own: its owner civ's trireme model)
+		-1, // pirates/ship_merchant (no model of its own: its owner civ's merchant_ship model)
+		-1, // pirates/ship_scout (no model of its own: its owner civ's trireme model)
+		-1, // samnite_skirmisher (no model of its own: its owner civ's archer model)
+		-1, // samnite_spearman (no model of its own: its owner civ's spearman model)
+		-1, // samnite_swordsman (no model of its own: its owner civ's swordsman model)
+		-1, // viking_longship (no model of its own: its owner civ's trireme model)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1383,6 +1422,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 463, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 502, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso
