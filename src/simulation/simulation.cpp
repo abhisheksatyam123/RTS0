@@ -9586,7 +9586,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		float move_dx = ux * step;
 		float move_dz = uz * step;
 		// A short-path waypoint reached this tick is done: next tick searches from the corner.
-		if (steered && step > 0.0f && d2 <= step * step) units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+		const bool corner_reached = steered && step > 0.0f && d2 <= step * step;
+		if (corner_reached) units_.short_path[i].key = round_units ? idle_corner_key() : 0;
 		want_x[i] = move_dx;
 		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
@@ -9611,7 +9612,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				return off(x, z) && !off(px[i], pz[i]);
 			};
 			if (barred(npx[i], npz[i])) {
-				if (!barred(npx[i], pz[i])) npz[i] = pz[i];
+				// A refused step that reaches a short-path waypoint ends on it, as PerformMove moves a unit
+				// within its step of a waypoint onto it: the waypoint is kept off steep ground, the step
+				// past it may not be, and next tick searches from the waypoint.
+				const float wx = std::clamp(px[i] + dx, -map_half_, map_half_), wz = std::clamp(pz[i] + dz, -map_half_, map_half_);
+				if (corner_reached && !barred(wx, wz)) {
+					npx[i] = wx;
+					npz[i] = wz;
+					want_x[i] = dx;
+					want_z[i] = dz;
+				} else if (!barred(npx[i], pz[i])) npz[i] = pz[i];
 				else if (!barred(px[i], npz[i])) npx[i] = px[i];
 				else { npx[i] = px[i]; npz[i] = pz[i]; }
 			}
