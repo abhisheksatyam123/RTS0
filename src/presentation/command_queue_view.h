@@ -111,6 +111,9 @@ public:
 		cmd_style->set_border_color(Color(0.90f, 0.75f, 0.31f, 1.0f));
 		panel_->add_theme_stylebox_override("panel", cmd_style);
 		if (theme.is_valid()) panel_->set_theme(theme);
+		// session/selection_panels*.xml: the panel's buttons use sessionToolTipBottom (tooltips.gd);
+		// the stance, formation, alert, command and barter ones override it with the bold variant.
+		panel_->set_meta("tooltip_style", "session_bottom");
 		parent->add_child(panel_);
 
 		roster_list_ = memnew(ItemList);
@@ -136,6 +139,7 @@ public:
 		roster_list_->set_allow_rmb_select(true); // a right click opens the Template Viewer
 		roster_list_->connect("item_clicked", Callable(owner_, "_on_roster_item_clicked"));
 		roster_list_->connect("gui_input", Callable(owner_, "_on_roster_gui_input"));
+		roster_list_->set_meta("tooltip_style", "session_bottom");
 		parent->add_child(roster_list_);
 
 		title_ = memnew(Label);
@@ -151,6 +155,7 @@ public:
 		stances_bar_->set_position(Vector2(10, 24));
 		stances_bar_->set_size(Vector2(552, 26));
 		stances_bar_->add_theme_constant_override("separation", 6);
+		stances_bar_->set_meta("tooltip_style", "session_bottom_bold");
 		panel_->add_child(stances_bar_);
 
 		// Indexed by UnitStance; laid out in 0 A.D. g_Stances order (violent, aggressive,
@@ -197,6 +202,7 @@ public:
 		actions_bar_->set_position(Vector2(10, 52));
 		actions_bar_->set_size(Vector2(552, 26));
 		actions_bar_->add_theme_constant_override("separation", 2);
+		actions_bar_->set_meta("tooltip_style", "session_bottom_bold");
 		panel_->add_child(actions_bar_);
 
 		// Production Bar (Training & Tech)
@@ -226,7 +232,10 @@ public:
 	godot::Panel *panel() const { return panel_; }
 	godot::HFlowContainer *production_bar() const { return production_bar_; }
 	void set_barter_sell(int r) { barter_sell_ = r; } // BarterButtonManager.setSelectedResource
-	void set_barter_host(godot::Control *c) { barter_host_ = c; }
+	void set_barter_host(godot::Control *c) {
+		barter_host_ = c;
+		if (c) c->set_meta("tooltip_style", "session_bottom_bold");
+	}
 	godot::Control *barter_host() const { return barter_host_; }
 	godot::ItemList *roster_list() const { return roster_list_; }
 	godot::String roster_label(int idx) const { return idx >= 0 && idx < (int)roster_labels_.size() ? roster_labels_[idx] : godot::String(); }
@@ -513,6 +522,7 @@ public:
 						tip += "\n" + rtso::tr0(end ? (alert.traders ? "Unload nearby Traders." : "Unload nearby Civilians.")
 								: (alert.traders ? "Alert nearby Traders to seek refuge." : "Alert nearby Civilians to seek refuge."));
 						btn->set_tooltip_text(tip);
+						btn->set_meta("tooltip_style", "session_bottom_bold");
 						btn->connect("pressed", Callable(owner_, "_on_alert_pressed").bind(end));
 						production_bar_->add_child(btn);
 					}
@@ -1616,6 +1626,7 @@ private:
 			btn->set_text(text);
 		}
 		btn->set_disabled(!enabled);
+		btn->set_meta("tooltip_style", "session_bottom_bold"); // g_EntityCommands
 		btn->connect("pressed", Callable(owner_, "_on_entity_command").bind(String(name)));
 		production_bar_->add_child(btn);
 	}

@@ -64,7 +64,7 @@ func run() -> void:
 	var accounts := OS.get_user_data_dir().path_join("e2e_accounts.json")
 	DirAccess.remove_absolute(accounts)
 	server_pid = OS.create_process("python3", [ProjectSettings.globalize_path("res://tools/lobby_server.py"),
-		"--port", str(PORT), "--quiet", "--stun-port", "0", "--accounts", accounts, "--accounts-only"])
+		"--port", str(PORT), "--quiet", "--stun-port", "0", "--exit-with-parent", "--accounts", accounts, "--accounts-only"])
 	check(server_pid > 0, "the lobby server starts")
 	var cfg := RtsoUserConfig.new()
 	var saved := {}

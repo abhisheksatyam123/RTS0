@@ -45,6 +45,7 @@ public:
 		using namespace godot;
 		column_ = memnew(Control);
 		column_->set_name("ResearchProgress");
+		column_->set_meta("tooltip_style", "session_bottom"); // research_progress.xml sessionToolTipBottom
 		column_->set_anchor(SIDE_LEFT, 1.0f);
 		column_->set_anchor(SIDE_RIGHT, 1.0f);
 		column_->set_offset(SIDE_LEFT, -48.0f); // "100%-48 40 100%-10 420"
