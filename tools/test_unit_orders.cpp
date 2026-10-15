@@ -615,7 +615,9 @@ static void test_lockstep() {
 	bw.client_id = 0; bw.cmd_type = 31; bw.entity_ids = {w};
 	tm.post_local_command(bw);
 	turns(0.4f);
-	check(s.unit_order(w).kind == ORDER_NONE, "no work order yet: back to work does nothing");
+	// Stop keeps the queue from its first work order (UpdateWorkOrders): the queued gather.
+	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree,
+			"Stop kept the queued gather: back to work goes to it");
 	c.cmd_type = 4; c.target_id = tree; c.param = 0; c.entity_ids = {w};
 	tm.post_local_command(c);
 	turns(1.0f);
@@ -3049,6 +3051,47 @@ static void test_allied_builders_continue() {
 			"the allied builder goes on to its own player's foundation nearby");
 }
 
+static void test_work_order_queue() {
+	std::printf("87. Back to Work restores the work queue from its first work order (UpdateWorkOrders)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t tree = s.spawn_resource_world(5, 0, RES_WOOD, 500);
+	const uint32_t house = s.spawn_building_world(12.0f, 8.0f, BLD_HOUSE, 0, 0.0f);
+	uint32_t w = s.spawn_unit(3.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, tree);
+	s.order_build_or_repair(&w, 1, house, true); // Shift: build the house after
+	run(s, 2.0f);
+	s.order_walk(&w, 1, -20, 0);
+	s.cmd_stop(&w, 1); // a Stop after that keeps the work orders the walk kept
+	run(s, 1.0f);
+	check(s.unit_has_work_order(w), "the work orders are kept");
+	{
+		const char *path = "/tmp/rts0_test_work_orders.sav";
+		check(s.save_state(path), "saved");
+		Simulation t;
+		check(t.load_state(path), "loaded");
+		check(t.work_orders_.count(w) && t.work_orders_.at(w).size() == 2, "the work queue survives a save");
+	}
+	s.order_back_to_work(&w, 1);
+	const std::vector<UnitOrder> *q = s.unit_order_queue(w);
+	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "back to the tree");
+	check(q && q->size() == 1 && (*q)[0].kind == ORDER_BUILD && (*q)[0].target == house, "with the house queued behind it");
+
+	// A trader sheltered in a house goes back to trading.
+	const uint32_t ma = s.spawn_building_world(-40, 20, BLD_MARKET, 0, 1.0f);
+	const uint32_t mb = s.spawn_building_world(40, 20, BLD_MARKET, 0, 1.0f);
+	const uint32_t shelter = s.spawn_building_world(-30, 30, BLD_HOUSE, 0, 1.0f);
+	uint32_t tr = s.spawn_unit(-38, 28, 0, UNIT_TRADER);
+	s.order_trade(&tr, 1, ma, mb, false);
+	run(s, 2.0f);
+	s.order_garrison(&tr, 1, shelter);
+	run_until(s, 10.0f, [&] { return act_of(s, tr) == ACTION_GARRISONED; });
+	s.order_ungarrison(shelter);
+	run(s, 1.0f);
+	s.order_back_to_work(&tr, 1);
+	check(s.unit_order(tr).kind == ORDER_TRADE && s.unit_order(tr).target == ma, "the trader resumes its route");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3139,6 +3182,7 @@ int main(int argc, char **argv) {
 	test_passive_siege_flees();
 	test_unload_self_garrison_rally();
 	test_allied_builders_continue();
+	test_work_order_queue();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
