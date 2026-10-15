@@ -168,9 +168,12 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 82; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 85; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
+	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
 	static constexpr uint32_t SAVE_VERSION_STATUS_STACKS = 80; // each Poisoned/Burning hit its own status, on units, structures and animals
+	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_NAMES = 83; // Petra's plan counter, the main plan's siege class, the raid's sizes
+	static constexpr uint32_t SAVE_VERSION_SEEN_MASK = 84; // which players have seen each structure (Fogging seen)
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_INACCESSIBLE = 81; // Petra workers' approach watch and supplies flagged inaccessible
 	static constexpr uint32_t SAVE_VERSION_PETRA_HUNT_SEARCH = 79; // each Petra hunter's last fruitless hunt search; storehouse checks per base
@@ -290,6 +293,9 @@ public:
 		float wonder_hold = 0.0f;
 		uint8_t wonder_owner = 255;
 		uint8_t wonder_allies = 0;
+		// Fogging.js seen[player]: the players who have seen this structure (in their own or shared
+		// sight, or in land explored at the start), so their mirage of it outlives a load or rejoin.
+		uint8_t seen_mask = 0;
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -313,6 +319,9 @@ public:
 
 		// Garrison
 		std::vector<uint32_t> garrisoned_units;
+		// The units on the turret points of a holder that also has a garrison (the Mauryan
+		// rampart tower); a wall, gate or outpost keeps its turret units in garrisoned_units.
+		std::vector<uint32_t> turret_units;
 		int garrison_cap;
 
 		// ProductionQueue.js autoqueuing: a finished batch is queued again.
@@ -428,12 +437,27 @@ public:
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
 	// or -1 when the unit has no next rank.
 	float promotion_required_xp(size_t i) const;
+	// 0 A.D. Identity Rank: only units whose template has a rank (citizen infantry,
+	// cavalry, elephants, healers; the ones with Promotion) show the Basic rank icon.
+	bool unit_has_rank(size_t i) const;
+	void debug_add_xp(uint32_t unit_id, float xp) { if (const int32_t i = lookup_unit(unit_id); i >= 0) gain_xp((size_t)i, xp); } // tests
 	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
 	uint32_t turret_holder_of(uint32_t unit_id) const;
+	// The turret points of `b`, whether it holds only turrets or a garrison too (null: none).
+	const TurretPointSet *turret_holder_points(const Building &b) const;
+	// Its turret units: garrisoned_units for a turret-only holder, else turret_units.
+	const std::vector<uint32_t> &turret_list(const Building &b) const {
+		return turret_points_of(b) ? b.garrisoned_units : b.turret_units;
+	}
+	// unit_actions.js "occupy-turret": the unit may stand on a turret point of this own or
+	// mutually allied holder (Turretable, TurretHolder.CanOccupy). Room is not checked.
+	bool can_occupy_turret_in(uint32_t unit_id, uint32_t building_id) const;
 	// Commands.js "leave-turret": `player`'s units among `unit_ids` step down from their turret points.
 	void cmd_leave_turret(uint8_t player, const uint32_t *unit_ids, size_t count);
+	// Commands.js "unload-turrets": everyone `player` may unload steps down from the holder's turret points.
+	void cmd_unload_turrets(uint8_t player, uint32_t building_id);
 	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
 	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
 	// One hit that cost an entity health: 0 A.D.'s MT_Attacked message, read by the
@@ -478,7 +502,8 @@ public:
 			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
-			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER };
+			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
+			END_TREASURE };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -560,6 +585,13 @@ public:
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
+	// Test hook: a unit carries `amount` of resource `res`.
+	void debug_set_carry(uint32_t unit_id, uint8_t res, int32_t amount) {
+		const int32_t idx = lookup_unit(unit_id);
+		if (idx < 0 || res >= RES_COUNT) return;
+		units_.res_type_carried[idx] = res;
+		units_.carry[idx] = amount;
+	}
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
 	// The civ of a structure's own template (Identity/Civ): a map's Gaia shrine or trading post.
@@ -817,7 +849,10 @@ public:
 	const std::vector<FormationController> &formations() const { return formations_; }
 	// Controller id of the formation unit_id belongs to, 0 when none.
 	uint32_t formation_of_unit(uint32_t unit_id) const;
-	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
+	// turret: Commands.js "occupy-turret" (session.occupyturret), the holder's turret points
+	// instead of its garrison.
+	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false,
+			bool turret = false);
 	void order_ungarrison(uint32_t building_id);
 	// GarrisonHolder.EjectOrKill. With `keep_allies_of` a player, only units not owned by that
 	// player or a mutual ally of theirs leave (OnGlobalOwnershipChanged, OnDiplomacyChanged).
@@ -917,6 +952,12 @@ public:
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
 	float building_arrow_range(const Building &b) const;
+	// building_arrow_range before the structure exists: the type's MaxRange and the player's range technologies.
+	float structure_arrow_range(uint8_t player, uint8_t type) const;
+	// GuiInterface GetAverageRangeForBuildings (RangeManager GetElevationAdaptedRange over a full
+	// circle): the parabolic reach of `range` fired from y_origin above the ground at (x, z),
+	// averaged over 16 directions of the terrain around it.
+	float average_elevation_range(float x, float z, float range, float y_origin) const;
 	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
 	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
 	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
@@ -1002,6 +1043,11 @@ public:
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
 	int get_garrison_count(uint32_t building_id) const;
 	int get_garrison_capacity(uint32_t building_id) const;
+	// GarrisonHolder.OccupiedSlots of a structure: its units' Garrisonable sizes.
+	int get_garrison_occupied(uint32_t building_id) const {
+		auto bit = building_id_to_idx_.find(building_id);
+		return bit == building_id_to_idx_.end() ? 0 : occupied_slots(buildings_[bit->second].garrisoned_units);
+	}
 	const std::vector<uint32_t> *get_garrisoned_units(uint32_t building_id) const;
 
 	// Victory Conditions (VictoryManager.js, EndGameManager.js)
@@ -1203,7 +1249,7 @@ public:
 	// TriggerPoint.js: a trigger point the map places (trigger/trigger_point_<ref>).
 	void add_trigger_point(uint8_t ref, float x, float z, uint8_t owner = GAIA_PLAYER) { triggers_.add_point(ref, x, z, owner); }
 	// TriggerHelper.SetPlayerWon: pid and its allies win, everyone else is defeated.
-	void set_player_won(uint8_t pid);
+	void set_player_won(uint8_t pid, uint8_t reason = SessionNotice::END_GAME_MODE);
 	// TriggerHelper.DefeatPlayer (cmpPlayer.SetState("defeated")): pid's units and
 	// structures turn Gaia and it watches the rest of the match.
 	// `reason` is the chat line's (DefeatPlayer's message): objective unless the script names one.
@@ -1596,6 +1642,8 @@ public:
 	}
 	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
+	// A field's MaxGatherers, from the civ it was placed as (its owner's when that is unset).
+	int field_cap(const Building &b) const { return field_max_gatherers(b.civ != CIV_COUNT ? b.civ : player(b.team).civ); }
 	// A civ chosen after the player's starting structures were placed re-templates them too.
 	void set_team_civ(uint8_t team, uint8_t civ);
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
@@ -1660,6 +1708,8 @@ public:
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	// UnitAI.IsGuardOf: the unit's current order is to guard someone (remove-guard button).
 	bool unit_is_guarding(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx >= 0 && (size_t)idx < units_.count && units_.order_kind[idx] == ORDER_GUARD; }
+	// UnitAI.isGuarding: the entity the unit guards (a unit or structure id), or 0.
+	uint32_t unit_guard_target(uint32_t uid) const;
 	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
@@ -2391,7 +2441,9 @@ private:
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
 	void explore_territories(); // InitGame.js ExploreTerritories, before the first turn
+	void mark_buildings_seen(); // Fogging seen from los_ (tick_los) and from cells explored at the start
 	void reset_los();
+	void rebuild_revealed_fow(); // revealed_fow_: all visible but a circular map's off-world cells
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
@@ -2526,6 +2578,9 @@ private:
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
 	void occupy_turret(size_t i, Building &b);
+	bool structure_accepts_turret(const Building &b, size_t i) const;
+	bool turret_room(const Building &b) const;
+	void step_down_turret(Building &b, uint32_t unit_id);
 	void leave_turret(size_t i, const Building &b);
 	void tick_turrets();
 	void builder_stand_point(size_t i, const Building &b, float x, float z, float &tx, float &tz) const;
@@ -2571,7 +2626,7 @@ private:
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
 	bool waves_enabled_ = false;
 	bool last_man_standing_ = false;
-	int pop_cap_ = 200;
+	int pop_cap_ = 300; // 0.28 population_capacities.json default
 	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
@@ -2922,11 +2977,17 @@ private:
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
+	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
 	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
 	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
+	// attackPlan.js checkTargetObstruction: the enemy structure (a wall, palisade or gate) that
+	// blocks the path from (px, pz) to target `id` on the same land, else `id` itself.
+	uint32_t petra_target_obstruction(uint32_t id, float px, float pz, float &tx, float &tz) const;
+	// attackPlan.js isBlocked: the plan's target is a wall piece that blocked its path.
+	bool petra_plan_blocked(const AttackPlan &plan) const;
 	bool petra_unit_reserved(uint32_t uid) const;
 	bool petra_mustering(uint32_t uid) const;
 	void petra_leave_mustering(uint32_t uid);
@@ -2971,7 +3032,6 @@ private:
 	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);
 	void petra_manage_scouting(float dt);
-	void petra_manage_workers(float dt);
 	void petra_manage_economy(float dt);
 	void petra_manage_trading(float dt);
 	void petra_manage_naval(float dt);
@@ -3082,6 +3142,8 @@ private:
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
+	// The unit's land is a pocket of at most 16 navcells (shut in among trees or structures).
+	bool stands_in_pocket(size_t unit_idx) const;
 	bool petra_mobile_dropsite_on_land(size_t unit_idx) const; // a supply wagon or worker elephant it may drop at, on its land
 	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with
 	// emergency the nearest holder at all (unloading one unit when it is full).
@@ -3361,6 +3423,7 @@ private:
 	// rebuild_territory_grids() scratch: CalculateCostGrid's tile costs and CalculateTerritories'
 	// per-structure, per-player and best weights, flood queue and the tiles one structure reached.
 	static constexpr uint8_t TERRITORY_IMPASSABLE_COST = 4; // territorymanager.xml ImpassableCost
+	static constexpr uint8_t TERRITORY_OFF_WORLD_COST = 255; // CCmpTerritoryManager: past the map edge
 	Grid<uint8_t> territory_cost_;
 	std::vector<uint32_t> territory_entity_w_, territory_player_w_, territory_best_w_, territory_open_, territory_touched_;
 	int territory_roots_res_ = 0;
@@ -3467,6 +3530,10 @@ private:
 	void deposit_carry(size_t i);
 	void finish_order(size_t i, bool find_new_target = false);
 	void resume_order(size_t i);
+	bool guard_keeps_target(size_t i, size_t t) const;
+	void guard_answer(size_t i, size_t g, uint32_t attacker);
+	void walk_to_held_position(size_t i);
+	void find_targets_then_walk_back(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;
 	bool flee_done(size_t i);

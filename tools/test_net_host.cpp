@@ -21,6 +21,15 @@
 //    unique, since the turn manager still knows a dropped client's id.
 // 7. 0.28 reportConnectionRequestTimeOut: a connect nobody answers gives up
 //    (reason 0) instead of waiting forever.
+// 8. 0.28 polls the network on its own thread, so a peer whose main thread is
+//    busy (loading the map at Start) is not timed out. NetHost::KeepAlive
+//    sends its heartbeats meanwhile: a host stuck for 12 s keeps its client,
+//    and a client stuck for 12 s keeps its seat; without it the client is lost.
+// 9. ENet's reliable channel: a message larger than a datagram (a stalled
+//    turn's batch, a rejoin header) arrives whole, split under the 1372-byte
+//    MTU, and reliable messages arrive in the order sent, also with 30% loss.
+// 10. 0.28 NetServer's late-joiner refusals: a refused client is told why
+//     (NDR_SERVER_ALREADY_IN_GAME), not "The host has ended the game." (2).
 #include "network/net_host.h"
 #include "network/chat_routing.h"
 
@@ -175,7 +184,7 @@ int main() {
 	std::map<std::string, std::vector<std::string>> heard; // who -> lines
 	std::vector<std::string> host_heard;
 	room.onChat([&](const ChatMsg &m) { host_heard.push_back(m.message); });
-	for (const char *name : {"A", "B", "O"}) {
+	for (const char *name : {"A", "B", "O", "P"}) {
 		people.push_back(std::make_unique<NetHost>());
 		NetHost &cl = *people.back();
 		cl.setLocalPlayerName(name);
@@ -191,17 +200,21 @@ int main() {
 	seat[room.peerByName("A")] = 1;
 	seat[room.peerByName("B")] = 2;
 	seat[room.peerByName("O")] = 255;
+	seat[room.peerByName("P")] = 255;
 	auto allied = [](uint8_t a, uint8_t b) { return (a <= 1 && b <= 1) || a == b; };
 	room.setChatRouter([&](uint32_t from, uint32_t to, const std::string &msg) {
 		const std::string tag = chat_wire_tag(msg);
 		return chat_tag_reaches(seat[from], seat[to], tag, 8, allied,
-				[&](uint8_t a, uint8_t b) { return !allied(a, b); });
+				[&](uint8_t a, uint8_t b) { return !allied(a, b); }, to);
 	});
 	auto say = [&](NetHost &from, const std::string &line) {
 		from.sendChat(line);
 		pump(room, people, 600, [&] { return false; });
 	};
 	NetHost &a = *people[0], &b = *people[1], &o = *people[2];
+	const std::string to_p = "[Observer-" + std::to_string(room.peerByName("P")) + "]";
+	say(a, to_p + " watch this");
+	say(o, to_p + " from O");
 	say(a, "[Allies] push left");
 	say(a, "[Enemies] gg");
 	say(b, "[Player-2] psst");
@@ -225,6 +238,11 @@ int main() {
 	      "an observer line reaches no player");
 	CHECK(has("A", "[Flare] 10,20") && has("O", "[Flare] 10,20") && !has("B", "[Flare] 10,20"),
 	      "a flare reaches allies and observers, not enemies");
+	CHECK(has("P", to_p + " watch this") && !has("O", to_p + " watch this") && !has("B", to_p + " watch this") &&
+	      !has("host", to_p + " watch this"), "a private line to one observer reaches only that observer");
+	CHECK(has("P", to_p + " from O") && !has("A", to_p + " from O"), "an observer can message another observer privately");
+	CHECK(chat_wire_tag("[Observer-12] x") == "[Observer-12]" && chat_wire_tag("[Observer-] x").empty() &&
+	      chat_wire_tag("[Observer-99999999999] x").empty(), "the observer tag is parsed strictly");
 	CHECK(has("host", "hello all") && has("A", "hello all") && has("O", "hello all"), "an untagged line reaches everyone");
 	for (auto &p : people) p->stop();
 
@@ -268,6 +286,110 @@ int main() {
 		const uint64_t took = now_ms() - t0;
 		CHECK(lonely[0]->connectionLost() && lonely[0]->disconnectReason() == 0 && took >= 10000 && took < 15000,
 		      "a connect nobody answers times out after about 11 s (reason 0)");
+	}
+
+	// 8. A peer that does not poll for 12 s.
+	{
+		auto session = [&](NetHost &h, std::vector<std::unique_ptr<NetHost>> &cl) {
+			h.startHost(c);
+			cl.push_back(std::make_unique<NetHost>());
+			cl[0]->setLocalPlayerName("loader");
+			cl[0]->startClient("127.0.0.1", h.localPort());
+			return pump(h, cl, 3000, [&] { return cl[0]->getLocalPeerId() != 0; });
+		};
+		auto client_kept = [](NetHost &h) {
+			for (const auto &p : h.getPeers())
+				if (p.id != 0 && p.connected) return true;
+			return false;
+		};
+		Arena arena(1 << 16);
+		auto poll_only = [&](NetHost &who, uint64_t ms) {
+			const uint64_t until = now_ms() + ms;
+			while (now_ms() < until) {
+				who.poll(arena);
+				arena.reset();
+				std::this_thread::sleep_for(std::chrono::milliseconds(5));
+			}
+		};
+		{
+			NetHost h;
+			std::vector<std::unique_ptr<NetHost>> cl;
+			CHECK(session(h, cl), "8: the loader joins");
+			{
+				NetHost::KeepAlive keep(h);
+				poll_only(*cl[0], 12000); // the host loads
+			}
+			pump(h, cl, 1500, [&] { return false; });
+			CHECK(!cl[0]->connectionLost() && client_kept(h), "a host that loads for 12 s keeps its client");
+		}
+		{
+			NetHost h;
+			std::vector<std::unique_ptr<NetHost>> cl;
+			session(h, cl);
+			{
+				NetHost::KeepAlive keep(*cl[0]);
+				poll_only(h, 12000); // the client loads
+			}
+			pump(h, cl, 1500, [&] { return false; });
+			CHECK(!cl[0]->connectionLost() && client_kept(h), "a client that loads for 12 s keeps its seat");
+		}
+		{
+			NetHost h;
+			std::vector<std::unique_ptr<NetHost>> cl;
+			session(h, cl);
+			poll_only(*cl[0], 12000);
+			CHECK(cl[0]->connectionLost(), "without it the client loses a host silent for 12 s");
+		}
+	}
+
+	// 9. Big and ordered messages.
+	{
+		NetHost h;
+		h.startHost(c);
+		std::vector<std::unique_ptr<NetHost>> cl;
+		cl.push_back(std::make_unique<NetHost>());
+		cl[0]->setLocalPlayerName("big");
+		cl[0]->startClient("127.0.0.1", h.localPort());
+		CHECK(pump(h, cl, 3000, [&] { return cl[0]->getLocalPeerId() != 0; }), "9: the client joins");
+		std::vector<std::vector<uint8_t>> got;
+		cl[0]->onMessage([&](uint32_t, const NetMessage &m) {
+			if (m.type == static_cast<uint8_t>(NetMessageType::NMT_SIMULATION_COMMAND)) got.push_back(m.payload);
+		});
+		cl[0]->onCommand([&](uint32_t, const uint8_t *, size_t) {});
+		h.set_simulated_loss(0.0f);
+		std::vector<uint8_t> big(20000);
+		for (size_t i = 0; i < big.size(); ++i) big[i] = (uint8_t)(i * 7 + 3);
+		h.sendSimulationCommand(cl[0]->getLocalPeerId(), 5, big);
+		pump(h, cl, 3000, [&] { return !got.empty(); });
+		CHECK(got.size() == 1 && got[0] == big, "a 20 KB message arrives whole");
+		got.clear();
+		h.set_simulated_loss(0.3f, 7);
+		cl[0]->set_simulated_loss(0.3f, 11);
+		for (uint32_t i = 0; i < 60; ++i) {
+			std::vector<uint8_t> m(i % 3 == 0 ? 3000 : 8, (uint8_t)i);
+			h.sendSimulationCommand(cl[0]->getLocalPeerId(), i, m);
+			pump(h, cl, 10, [&] { return false; });
+		}
+		pump(h, cl, 15000, [&] { return got.size() >= 60; });
+		bool in_order = got.size() == 60;
+		for (size_t i = 0; in_order && i < got.size(); ++i)
+			in_order = got[i].size() == (i % 3 == 0 ? 3000u : 8u) && got[i][0] == (uint8_t)i;
+		CHECK(in_order, "60 messages, some split, arrive once each and in order with 30% loss");
+	}
+
+	// 10. A refusal names its reason.
+	{
+		NetHost h;
+		h.startHost(c);
+		std::vector<std::unique_ptr<NetHost>> cl;
+		cl.push_back(std::make_unique<NetHost>());
+		cl[0]->setLocalPlayerName("late");
+		cl[0]->startClient("127.0.0.1", h.localPort());
+		pump(h, cl, 3000, [&] { return cl[0]->getLocalPeerId() != 0 && cl[0]->authResult() == ARC_OK; });
+		h.refusePeer(cl[0]->getLocalPeerId(), NDR_SERVER_ALREADY_IN_GAME);
+		pump(h, cl, 6000, [&] { return cl[0]->connectionLost(); });
+		CHECK(cl[0]->connectionLost() && cl[0]->disconnectReason() == NDR_SERVER_ALREADY_IN_GAME,
+		      "a refused late observer is told the game has started (reason 5)");
 	}
 
 	if (failures) {

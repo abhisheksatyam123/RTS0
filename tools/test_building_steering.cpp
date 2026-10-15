@@ -79,7 +79,7 @@
 //     tiles by the class clearance as it grows deep water. On a heightmap with a tile a unit, a
 //     rock (one raised height sample, steep tiles inside a navcell that is not steep) is walked
 //     round, never within the walker's clearance; an elephant and a swordsman sent to the foot of a
-//     one-tile cliff stop 3 m and 0.8 m off it.
+//     one-tile cliff stop 3 m and 0.8 m off it; a walk round an oak beside the rock always ends.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -1403,6 +1403,30 @@ static void cliff_clearance() {
 				inside ? "yes" : "no", arrived);
 		check(inside, "the swordsman didn't start within its clearance of the rock");
 		check(arrived >= 0, "a unit within its clearance of a rock couldn't walk across it");
+	}
+	{
+		// An oak beside the rock's corner (soak: a javelineer on an Islands cliff top jittered for
+		// minutes): the short path's corner round the oak lies just off the rock's margin, the step
+		// past it inside. The step that reaches the corner ends on it, as PerformMove moves a unit
+		// within its step of a waypoint onto it; it was refused whole, the corner was taken as reached
+		// and the unit walked to the oak's far corner and back for good. Every walk ends.
+		int endless = 0;
+		for (int a = 0; a <= 12; ++a)
+			for (int b = 0; b <= 12; ++b) {
+				Simulation s;
+				cliff_clearance_setup(s);
+				s.spawn_resource_world(-20.9f + 0.05f * (float)a, -11.0f + 0.05f * (float)b, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+				const uint32_t id = s.spawn_unit(-18.12f, -15.67f, 0, UNIT_SWORDSMAN);
+				s.cmd_move(&id, 1, -21.0f, -10.1f);
+				int t = 0;
+				while (t < 600 && s.units_.action_state[index_of(s, id)] != ACTION_IDLE) {
+					s.tick(DT);
+					++t;
+				}
+				endless += t == 600;
+			}
+		std::printf("  cliff clearance: %d of 169 walks round an oak beside the rock never ended in 600 ticks\n", endless);
+		check(endless == 0, "a walk round a tree beside a steep tile never ended");
 	}
 	// building-land judges slopes per tile too: no house on the rock, one beside it. The cliff cuts
 	// the land in two as Petra sees it (petra_access_at); the rock doesn't.

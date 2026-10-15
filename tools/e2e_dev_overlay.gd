@@ -6,7 +6,8 @@ extends SceneTree
 # units raises the selection a rank ("promote"); Change perspective shows the
 # player view dropdown, and picking a player or Observer re-seats this client;
 # Enable time warp snapshots the game every 10 turns and rewinds to the last one;
-# the pathfinder, obstruction, unit motion and range overlays draw while ticked.
+# the pathfinder, hierarchical pathfinder, obstruction, unit motion, range and
+# bounding box overlays draw while ticked.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_dev_overlay.gd
 # Exit code 0 = pass.
@@ -135,31 +136,50 @@ func run() -> void:
 	check(main.time_warp_snapshot_count() == 0, "turning it off drops the snapshots")
 
 	var rows: Array = Array(main.debug_dev_overlay()["commands"])
-	check(rows.slice(0, 6) == ["Change perspective", "Display selection state", "Pathfinder overlay", "Obstruction overlay",
-		"Unit motion overlay", "Range overlay"], "the rows run in 0.28's order: %s" % [rows])
-	for o in ["pathfinder", "obstruction", "unit_motion", "range"]:
+	check(rows.slice(0, 7) == ["Change perspective", "Display selection state", "Pathfinder overlay",
+		"Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay"], "the rows run in 0.28's order: %s" % [rows])
+	for o in ["pathfinder", "hier_pathfinder", "obstruction", "unit_motion", "range", "bounding_box"]:
 		check(int(main.debug_dev_overlay()[o + "_drawn"]) == 0, "nothing drawn by the %s overlay while it is off" % o)
 	main.debug_selection_grid(true)
 	main._on_minimap_order(Vector2(0, 0))
 	await frames(4)
-	for label in ["Pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay"]:
+	for label in ["Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay", "Bounding box overlay"]:
 		press(label)
 	await frames(2)
 	d = main.debug_dev_overlay()
 	check(int(d["pathfinder_drawn"]) > 0, "the pathfinder overlay fills the navcells land units can't cross (%d)" % int(d["pathfinder_drawn"]))
+	check(int(d["hier_pathfinder_drawn"]) > 0, "the hierarchical pathfinder overlay tints the chunk regions (%d)" % int(d["hier_pathfinder_drawn"]))
 	check(int(d["obstruction_drawn"]) > 0, "the obstruction overlay outlines the obstructions (%d)" % int(d["obstruction_drawn"]))
 	check(int(d["unit_motion_drawn"]) > 0, "the unit motion overlay draws the walkers' paths (%d)" % int(d["unit_motion_drawn"]))
 	check(int(d["range_drawn"]) > 0, "the range overlay rings the attackers (%d)" % int(d["range_drawn"]))
+	check(int(d["bounding_box_drawn"]) > 0, "the bounding box overlay boxes the models (%d)" % int(d["bounding_box_drawn"]))
 	check(main.find_child("DebugOverlays", true, false).visible, "and they are shown")
-	for label in ["Pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay"]:
+	for label in ["Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay", "Bounding box overlay"]:
 		check(box(label).button_pressed, "%s stays ticked" % label)
 		press(label)
 	await frames(2)
 	check(not main.find_child("DebugOverlays", true, false).visible and int(main.debug_dev_overlay()["obstruction_drawn"]) == 0,
 		"cleared, they are gone")
 
+	var rdm = main.find_child("RenderDebugMode", true, false)
+	check(rdm != null and rdm.get_item_count() == 4 and rdm.get_item_text(0) == "Render Debug Mode Disabled"
+		and rdm.get_item_text(3) == "Render Debug Mode Custom", "the Render Debug Mode dropdown has 0.28's four modes")
+	check(int(main.debug_dev_overlay()["viewport_debug_draw"]) == Viewport.DEBUG_DRAW_DISABLED, "it starts disabled")
+	for m in [[1, Viewport.DEBUG_DRAW_SSAO], [2, Viewport.DEBUG_DRAW_OVERDRAW], [3, Viewport.DEBUG_DRAW_UNSHADED], [0, Viewport.DEBUG_DRAW_DISABLED]]:
+		rdm.select(m[0])
+		rdm.item_selected.emit(m[0])
+		await frames(1)
+		d = main.debug_dev_overlay()
+		check(int(d["render_debug"]) == m[0] and int(d["viewport_debug_draw"]) == m[1], "%s draws as %d" % [rdm.get_item_text(m[0]), m[1]])
+	rdm.select(2)
+	rdm.item_selected.emit(2)
+
 	main.toggle_dev_overlay()
 	await frames(1)
 	check(not main.debug_dev_overlay()["open"] and main.debug_dev_overlay()["chat_log"].contains("The Developer Overlay was closed."), "Alt+D closes it")
+	check(root.debug_draw == Viewport.DEBUG_DRAW_OVERDRAW, "a mode stays while the match goes on")
+	root.remove_child(main)
+	main.free()
+	check(root.debug_draw == Viewport.DEBUG_DRAW_DISABLED, "leaving the match draws normally again")
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

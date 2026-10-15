@@ -609,6 +609,27 @@ int main() {
 		CHECK(opened);
 	}
 
+	// 17. On a circular map a wall piece past the passable edge fails CheckFoundation (the
+	// off-world edge mask blocks every class): a palisade dragged out to a corner stops there.
+	{
+		setup(s, 1000.0f);
+		s.player(0).res[RES_WOOD] = 5000.0f;
+		s.set_circular_map(true);
+		const float a = s.map_half() * 0.55f, b = s.map_half() * 0.95f;
+		const auto p = s.wall_placement(0, a, a, b, b, nullptr, nullptr, WALLSET_PALISADE);
+		int past = 0, past_ok = 0, inside_ok = 0;
+		for (const auto &q : p) {
+			const bool edge = s.past_map_edge(q.x, q.z), well_inside = !s.past_map_edge(q.x, q.z, 2.0f * q.half_w);
+			const bool ok = s.check_wall_piece(0, q) == Simulation::PLACE_OK;
+			past += edge;
+			past_ok += edge && ok;
+			inside_ok += well_inside && ok;
+		}
+		std::printf("  circular edge: %zu palisade pieces, %d centred past the edge (%d placeable), %d well inside placeable\n",
+				p.size(), past, past_ok, inside_ok);
+		CHECK(past > 0 && past_ok == 0 && inside_ok > 0);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

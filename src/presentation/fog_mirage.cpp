@@ -41,19 +41,20 @@ void los_view_grid(const Simulation &sim, uint8_t viewer, std::vector<uint8_t> &
 	const int res = sim.fow_res();
 	const size_t n = (size_t)res * (size_t)res;
 	out.resize(n);
-	if (los_sees_all(sim, viewer)) {
-		std::fill(out.begin(), out.end(), (uint8_t)Simulation::FOW_VISIBLE);
-		return;
-	}
 	const LosGrid &los = sim.los();
+	const bool sees_all = los_sees_all(sim, viewer);
 	if (los.cells() != n) {
-		std::fill(out.begin(), out.end(), (uint8_t)Simulation::FOW_UNEXPLORED);
+		std::fill(out.begin(), out.end(), sees_all ? (uint8_t)Simulation::FOW_VISIBLE : (uint8_t)Simulation::FOW_UNEXPLORED);
 		return;
 	}
 	const uint8_t mask = sim.los_shared_mask(viewer);
 	const uint8_t unseen = sim.explore_map() ? (uint8_t)Simulation::FOW_EXPLORED : (uint8_t)Simulation::FOW_UNEXPLORED;
 	const auto &state = los.state();
 	for (size_t i = 0; i < n; ++i) {
+		// A circular map's off-world cells stay black for everyone, even with the map revealed or
+		// explored (CCmpRangeManager GetLosVisibilityPosition, ExploreMap).
+		if (los.off_world((int)i)) { out[i] = (uint8_t)Simulation::FOW_UNEXPLORED; continue; }
+		if (sees_all) { out[i] = (uint8_t)Simulation::FOW_VISIBLE; continue; }
 		const uint16_t st = state[i];
 		out[i] = (st & mask) ? (uint8_t)Simulation::FOW_VISIBLE
 				: ((st >> 8) & mask) ? (uint8_t)Simulation::FOW_EXPLORED : unseen;
@@ -80,7 +81,7 @@ void FogMirages::begin(const uint8_t *los, int res, float map_half) {
 	out_treasures_.clear();
 }
 
-void FogMirages::add_building(const FoggedBuilding &live, bool allied) {
+void FogMirages::add_building(const FoggedBuilding &live, bool allied, bool seen_before) {
 	FoggedBuilding b = live;
 	b.miraged = false;
 	if (allied) {
@@ -101,7 +102,11 @@ void FogMirages::add_building(const FoggedBuilding &live, bool allied) {
 		return;
 	}
 	auto it = building_memory_.find(b.id);
-	if (it == building_memory_.end()) return; // never seen: hidden (ComputeLosVisibility !WasSeen)
+	if (it == building_memory_.end()) {
+		if (!seen_before) return; // never seen: hidden (ComputeLosVisibility !WasSeen)
+		it = building_memory_.emplace(b.id, BuildingMemory{}).first;
+		it->second.seen = b;
+	}
 	it->second.stamp = stamp_;
 	if (st == Simulation::FOW_EXPLORED) {
 		FoggedBuilding m = it->second.seen;
@@ -251,7 +256,8 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.committed = b.committed;
 		f.wrecked = b.wrecked;
 		f.is_burning = b.is_burning;
-		add_building(f, sim.shares_los(viewer, b.team)); // an unshared ally's structures mirage like anyone's
+		add_building(f, sim.shares_los(viewer, b.team), // an unshared ally's structures mirage like anyone's
+				viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
 	}
 	const auto rv = sim.resources();
 	for (size_t i = 0; i < rv.count; ++i) {

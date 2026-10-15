@@ -260,23 +260,24 @@ move.right = "Ctrl+RightArrow"    ; Move cursor to start of word to the right of
 ; ---------------------------------------------------------------------------
 ; RTS0 additions (not in 0 A.D.'s default.cfg).
 ; ---------------------------------------------------------------------------
-[hotkey.rts0.build]          ; Building placement. B opens it with the house; the others only work while placing
-menu = B
+[hotkey.rts0.build]          ; Building placement: B opens it with the house, the others switch the structure while placing.
+                             ; Unbound by default, as 0.28 has none of these keys (B, H, K, G and P are its own).
+menu = ""
 )cfg"
-R"cfg(civilcentre = C
-house = H
-barracks = R
-storehouse = S
-defensetower = T
-farmstead = F
-market = M
-fortress = K
-gate = G
-temple = E, P
-wonder = W
-dock = D
-wall = L
-corral = O
+R"cfg(civilcentre = ""
+house = ""
+barracks = ""
+storehouse = ""
+defensetower = ""
+farmstead = ""
+market = ""
+fortress = ""
+gate = ""
+temple = ""
+wonder = ""
+dock = ""
+wall = ""
+corral = ""
 
 [hotkey.rts0.stance]         ; Unit stances (0 A.D. only has the stance buttons)
 aggressive = ""

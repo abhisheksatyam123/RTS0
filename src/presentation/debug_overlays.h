@@ -4,15 +4,20 @@
 // The developer overlay's simulation overlays (0 A.D. 0.28
 // gui/session/developer_overlay/DeveloperOverlayControlCheckboxes.js, GPL-2.0-or-later):
 // Pathfinder overlay (CCmpPathfinder's passability grid: the navcells land units can't
-// cross), Obstruction overlay (CCmpObstructionManager::RenderSubmit: static shapes and
+// cross), Hierarchical pathfinder overlay (HierarchicalPathfinder's debug overlay: each
+// chunk region of navcells in a colour of its own), Obstruction overlay (CCmpObstructionManager::RenderSubmit: static shapes and
 // still units blue, moving units magenta, the world bounds yellow), Unit motion overlay
 // (CCmpUnitMotion::RenderSubmit: each unit's long path in white) and Range overlay
 // (CCmpRangeManager::RenderSubmit: each attacker's range ring green, its MinRange ring
-// red). Drawn for every entity whatever the line of sight, as 0 A.D. does, on one
+// red) and Bounding box overlay (Engine.SetBoundingBoxDebugOverlay: the box round each
+// model drawn). Drawn for every entity whatever the line of sight, as 0 A.D. does, on one
 // ImmediateMesh that follows the terrain.
 
 #include <godot_cpp/classes/immediate_mesh.hpp>
+#include <godot_cpp/classes/mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/multi_mesh.hpp>
+#include <godot_cpp/classes/multi_mesh_instance3d.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/core/math.hpp>
@@ -27,7 +32,7 @@ namespace rtso {
 
 class RtsoDebugOverlays {
 public:
-	enum Kind { PATHFINDER, OBSTRUCTION, UNIT_MOTION, RANGE, KIND_COUNT };
+	enum Kind { PATHFINDER, HIER_PATHFINDER, OBSTRUCTION, UNIT_MOTION, RANGE, BOUNDING_BOX, KIND_COUNT };
 
 	void build(godot::Node *parent) {
 		using namespace godot;
@@ -49,11 +54,16 @@ public:
 
 	void set(Kind k, bool on) { on_[k] = on; }
 	bool on(Kind k) const { return on_[k]; }
-	bool any() const { return on_[PATHFINDER] || on_[OBSTRUCTION] || on_[UNIT_MOTION] || on_[RANGE]; }
+	bool any() const {
+		for (bool b : on_)
+			if (b) return true;
+		return false;
+	}
 	// Shapes drawn by each overlay last update (tests).
 	int drawn(Kind k) const { return drawn_[k]; }
 
-	void update(const Simulation *sim) {
+	// world: the node the models are drawn under (RtsoWorldView), for the bounding boxes.
+	void update(const Simulation *sim, godot::Node *world) {
 		if (!inst_ || (!any() && !inst_->is_visible())) return;
 		mesh_->clear_surfaces();
 		for (int &n : drawn_) n = 0;
@@ -61,10 +71,12 @@ public:
 		if (!sim || !any()) return;
 		sim_ = sim;
 		if (on_[PATHFINDER]) pathfinder();
+		if (on_[HIER_PATHFINDER]) hier_pathfinder();
 		begun_ = false;
 		if (on_[OBSTRUCTION]) obstruction();
 		if (on_[UNIT_MOTION]) unit_motion();
 		if (on_[RANGE]) range();
+		if (on_[BOUNDING_BOX] && world) bounding_boxes(world);
 		if (begun_) mesh_->surface_end();
 		sim_ = nullptr;
 	}
@@ -92,6 +104,34 @@ private:
 				tri(a, b, e, c);
 				tri(a, e, d, c);
 				++drawn_[PATHFINDER];
+			}
+		}
+		if (open) mesh_->surface_end();
+	}
+
+	// Each passable navcell tinted by its chunk region (NavGrid chunk_regions_, 0 A.D.'s
+	// Chunk::m_Regions), a colour hashed from the chunk and the region.
+	void hier_pathfinder() {
+		const NavGrid &g = sim_->nav_grid();
+		if (!g.regions_ready_) return;
+		const float cell = g.map_half * 2.0f / (float)g.res;
+		bool open = false;
+		for (int cy = 0; cy < g.res; ++cy) {
+			for (int cx = 0; cx < g.res; ++cx) {
+				const uint8_t r = g.chunk_regions_.at(cx, cy);
+				if (r == 0) continue;
+				if (!open) {
+					mesh_->surface_begin(godot::Mesh::PRIMITIVE_TRIANGLES);
+					open = true;
+				}
+				uint32_t h = ((uint32_t)(cy / CHUNK_SIZE) * 131u + (uint32_t)(cx / CHUNK_SIZE)) * 2654435761u ^ (uint32_t)r * 40503u;
+				h ^= h >> 15;
+				const Color c((float)(h & 0xFF) / 255.0f, (float)((h >> 8) & 0xFF) / 255.0f, (float)((h >> 16) & 0xFF) / 255.0f, 0.3f);
+				const float x0 = -g.map_half + cx * cell, z0 = -g.map_half + cy * cell;
+				const Vector3 a = ground(x0, z0), b = ground(x0 + cell, z0), d = ground(x0, z0 + cell), e = ground(x0 + cell, z0 + cell);
+				tri(a, b, e, c);
+				tri(a, e, d, c);
+				++drawn_[HIER_PATHFINDER];
 			}
 		}
 		if (open) mesh_->surface_end();
@@ -166,6 +206,45 @@ private:
 			ring(b.x, b.z, r + b.half_size, enabled);
 			++drawn_[RANGE];
 		}
+	}
+
+	// The world-space box of every model shown: each MeshInstance3D and each visible instance of
+	// each MultiMeshInstance3D, turned with it. The terrain, water and anything else wider than
+	// kMaxModel is left out, as are instances scaled to nothing (hidden).
+	static constexpr float kMaxModel = 40.0f;
+	void bounding_boxes(godot::Node *world) {
+		using namespace godot;
+		const Color c(1.0f, 1.0f, 1.0f, 0.6f);
+		TypedArray<Node> gs = world->find_children("*", "GeometryInstance3D", true, false);
+		for (int k = 0; k < gs.size(); ++k) {
+			GeometryInstance3D *g = Object::cast_to<GeometryInstance3D>(gs[k]);
+			if (!g || g == inst_ || !g->is_visible_in_tree()) continue;
+			const Transform3D gx = g->get_global_transform();
+			if (MultiMeshInstance3D *mmi = Object::cast_to<MultiMeshInstance3D>(g)) {
+				Ref<MultiMesh> mm = mmi->get_multimesh();
+				if (mm.is_null() || mm->get_mesh().is_null() || mm->get_transform_format() != MultiMesh::TRANSFORM_3D) continue;
+				const AABB a = mm->get_mesh()->get_aabb();
+				if (a.get_longest_axis_size() > kMaxModel) continue;
+				const int n = mm->get_visible_instance_count() >= 0 ? mm->get_visible_instance_count() : mm->get_instance_count();
+				for (int i = 0; i < n; ++i) {
+					const Transform3D xf = gx * mm->get_instance_transform(i);
+					if (xf.basis.determinant() == 0.0f) continue;
+					obox(xf, a, c);
+				}
+			} else if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(g)) {
+				const AABB a = mi->get_aabb();
+				if (a.size == Vector3() || a.get_longest_axis_size() > kMaxModel) continue;
+				obox(gx, a, c);
+			}
+		}
+	}
+	// The 12 edges of box a turned by xf.
+	void obox(const godot::Transform3D &xf, const godot::AABB &a, const Color &c) {
+		Vector3 p[8];
+		for (int i = 0; i < 8; ++i) p[i] = xf.xform(a.get_endpoint(i));
+		static const int kEdges[12][2] = { { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }, { 0, 2 }, { 1, 3 }, { 4, 6 }, { 5, 7 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } };
+		for (const auto &e : kEdges) seg(p[e[0]], p[e[1]], c);
+		++drawn_[BOUNDING_BOX];
 	}
 
 	Vector3 ground(float x, float z) const { return Vector3(x, sim_->get_terrain_height(x, z) + 0.2f, z); }
