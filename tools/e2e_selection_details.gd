@@ -70,6 +70,11 @@ func run() -> void:
 	var b: Dictionary = main.debug_inspector("building")
 	print("building: ", b)
 	check(String(b["stats_tooltip"]).begins_with("Attack:\n  Bow: ") and " arrows / " in String(b["stats_tooltip"]), "a Civic Center's tooltip opens with its arrows, \"Rate: n arrows / 4 seconds\"")
+	# elevationAdaptedRange: the range its arrows' height and the ground round it give, when that
+	# differs ("Range: 67 (+3) meters"); the map is random, so the number varies.
+	var rng_m := RegEx.create_from_string("Bow: [^\\n]*Range: (\\d+)( \\(([+-]\\d+)\\))? meters").search(String(b["stats_tooltip"]))
+	print("    range ", rng_m.get_string(0) if rng_m else "none")
+	check(rng_m != null and (rng_m.get_string(3) == "" or int(rng_m.get_string(3)) != 0), "its range, with what the ground there adds")
 	check("\nResistance:\n" in String(b["stats_tooltip"]), "then its resistance")
 	check("Projectile Limit: " in String(b["stats_tooltip"]) and ", Per Unit: " in String(b["stats_tooltip"]), "its projectile limit, default and per unit")
 	check("Population Bonus: " in String(b["stats_tooltip"]) and "\nLoot: " in String(b["stats_tooltip"]), "its population bonus and loot")
@@ -103,6 +108,33 @@ func run() -> void:
 	check(String(f["stats_tooltip"]).contains("\nSpeed: ") and " Walk, " in String(f["stats_tooltip"]), "and its speed (getSpeedTooltip)")
 	check(String(f["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/gaia/fauna_"), "an animal shows its template's icon")
 	check(String(f["owner"]) == "Gaia" and String(f["owner_tooltip"]) == "" and Color(f["owner_color"]).a == 0.0, "Gaia has no colour, emblem or tooltip")
+
+	var ram: PackedInt32Array = main.debug_spawn_units("athen/siege_ram", 1)
+	var crew: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 2)
+	main.debug_put_inside(crew, ram[0])
+	var rt: Dictionary = {}
+	for i in 30: # they walk aboard
+		await frames(10)
+		rt = main.debug_inspector(str(ram[0]))
+		if "Garrison Size: 1 + 2" in String(rt["stats_tooltip"]):
+			break
+	print("ram: ", String(rt["stats_tooltip"]).replace("\n", " | "))
+	check("\nGarrison Limit: " in String(rt["stats_tooltip"]), "a ram's tooltip gives its Garrison Limit (getGarrisonTooltip)")
+	check("\nGarrison Size: 1 + 2" in String(rt["stats_tooltip"]), "and its Garrison Size with what it carries")
+
+	main.debug_spawn_fauna(2, 2, true) # FAUNA_SHEEP
+	main.debug_spawn_fauna(31, 1, true) # FAUNA_GOAT
+	await frames(2)
+	var ls: Dictionary = main.debug_inspector("livestock")
+	print("livestock: ", ls["title"], " ", ls["owner"], " ", ls["health"])
+	check(String(ls["title"]) == "3 units selected" and String(ls["owner"]) == "2 types", "several of the player's livestock show displayMultiple: count and kinds")
+	check(String(ls["health"]).begins_with("Health: "), "with their summed health")
+	var lg: Dictionary = main.debug_selection_grid(false)
+	var licons: Array = lg["icons"]
+	check(licons.size() == 2 and String(licons[0]["tip"]).begins_with("Sheep"), "one icon per kind of animal")
+	(instance_from_id(licons[0]["id"]) as Button).pressed.emit()
+	await frames(2)
+	check(int(main.debug_selection_grid(false)["selected"]) == 2, "a click on the sheep keeps only the sheep")
 
 	print("e2e_selection_details: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)

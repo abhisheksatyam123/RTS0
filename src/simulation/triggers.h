@@ -42,6 +42,7 @@ enum TriggerEvent : uint8_t {
 	TRIGGER_ON_DESERIALIZED,        // a saved game was loaded
 	TRIGGER_ON_CINEMA_PATH_ENDED,   // CinemaManager: the path at the front of the queue ended (value = its index)
 	TRIGGER_ON_CINEMA_QUEUE_ENDED,  // CinemaManager: the last queued path ended
+	TRIGGER_ON_ATTACK_DETECTED,     // AttackDetection.js AttackAlert: a player's entity was attacked, past suppression
 	TRIGGER_EVENT_COUNT
 };
 
@@ -121,6 +122,9 @@ struct TriggerEventData {
 	const std::vector<uint32_t> *added = nullptr;
 	const std::vector<uint32_t> *removed = nullptr;
 	const std::vector<uint32_t> *collection = nullptr;
+	// OnAttackDetected: entity = target, other = attacker, player = targetOwner,
+	// from = attackerOwner, value = targetIsDomesticAnimal, and the target's position.
+	float x = 0.0f, z = 0.0f;
 };
 
 // OnPlayerCommand: the Commands.js command types the ported scripts look at (value).
@@ -217,6 +221,18 @@ struct TriggerWatch {
 };
 static_assert(sizeof(TriggerWatch) == 8, "TriggerWatch is saved raw: keep it free of padding");
 
+// AttackDetection.js suppressedList: an attack a player was alerted to. Others within
+// SuppressionRange during SuppressionTime are not; one within SuppressionTransferRange
+// moves the suppression to itself.
+struct TriggerAttackSuppression {
+	float x = 0.0f, z = 0.0f;
+	uint32_t time_ms = 0;
+	uint8_t player = 0;
+	uint8_t domestic = 0; // targetIsDomesticAnimal: a lower-priority alert a regular one overrides
+	uint8_t reserved[2] = {};
+};
+static_assert(sizeof(TriggerAttackSuppression) == 16, "TriggerAttackSuppression is saved raw: keep it free of padding");
+
 struct TriggerState {
 	uint32_t time_ms = 0;       // Timer.js GetTime(): simulation time since the match started
 	uint32_t next_timer_id = 1; // Timer.js id counter
@@ -242,6 +258,12 @@ struct TriggerState {
 	std::vector<uint32_t> invulnerable;       // Resistance.SetInvulnerability(true): unit ids
 	std::vector<TriggerWatch> watched;
 	std::vector<TriggerRangeQuery> range_queries; // OnRange, save v68
+	std::vector<TriggerAttackSuppression> attack_suppressed; // OnAttackDetected, save v86
+
+	// template_player.xml AttackDetection (160 m, 80 m, 60 s) at 4 m per world unit.
+	static constexpr float kAttackSuppressionRange = 160.0f / 4.0f;
+	static constexpr float kAttackSuppressionTransferRange = 80.0f / 4.0f;
+	static constexpr uint32_t kAttackSuppressionTime = 60000;
 
 	void clear() { *this = TriggerState(); }
 	bool active() const { return !triggers.empty() || !timers.empty(); }
@@ -345,6 +367,31 @@ struct TriggerState {
 		return false;
 	}
 
+	// AttackDetection.js AttackAlert's suppression for `player`, attacked at (x, z):
+	// true when the attack is detected (OnAttackDetected fires). HandleTimeout drops
+	// alerts SuppressionTime old.
+	bool attack_alert(uint8_t player, float x, float z, bool domestic) {
+		attack_suppressed.erase(std::remove_if(attack_suppressed.begin(), attack_suppressed.end(),
+				[this](const TriggerAttackSuppression &e) { return time_ms - e.time_ms >= kAttackSuppressionTime; }),
+				attack_suppressed.end());
+		TriggerAttackSuppression ev;
+		ev.x = x; ev.z = z; ev.time_ms = time_ms; ev.player = player; ev.domestic = domestic ? 1 : 0;
+		bool priority_increased = false;
+		for (TriggerAttackSuppression &e : attack_suppressed) {
+			if (e.player != player) continue;
+			const float dx = x - e.x, dz = z - e.z, d2 = dx * dx + dz * dz;
+			if (d2 >= kAttackSuppressionRange * kAttackSuppressionRange) continue;
+			priority_increased = e.domestic && !domestic;
+			const bool priority_decreased = !e.domestic && domestic;
+			if (priority_increased || (!priority_decreased && d2 < kAttackSuppressionTransferRange * kAttackSuppressionTransferRange))
+				e = ev;
+			if (priority_increased) break;
+			return false;
+		}
+		if (!priority_increased) attack_suppressed.push_back(ev);
+		return true;
+	}
+
 	// Index of the timer with this id, or -1 (it ran out or was cancelled).
 	int find_timer(uint32_t id) const {
 		for (size_t i = 0; i < timers.size(); ++i)
@@ -387,6 +434,8 @@ struct TriggerState {
 			mix(q.trigger); mix(q.point); mix(q.players); mix((uint32_t)q.collection.size());
 			for (uint32_t e : q.collection) mix(e);
 		}
+		mix((uint32_t)attack_suppressed.size());
+		for (const auto &e : attack_suppressed) { mix(e.time_ms); mix(e.player); mix(e.domestic); }
 		mix((uint32_t)attack_orders.size());
 		for (const auto &o : attack_orders) {
 			mix(o.fauna_id); mix(o.count);
