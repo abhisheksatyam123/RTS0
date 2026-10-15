@@ -583,6 +583,9 @@ public:
 
 	void toggle_chat();
 	void _on_chat_send_pressed();
+	void _on_chat_filter_selected(int index); // ChatHistory.onSelectionChange
+	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
+	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
 	void _on_chat_text_submitted(const String &text);
 	void _on_chat_channel_btn_pressed(int channel_idx);
 
@@ -736,6 +739,7 @@ public:
 	void _on_ui_click();
 	void _on_ui_click_item(int) { _on_ui_click(); }
 	int debug_ui_clicks() const { return ui_clicks_; }
+	bool debug_overlay_visible() const { return debug_overlay && debug_overlay->is_visible(); }
 	int voices_played_ = 0; // tests: unit voice lines started
 	int debug_voices() const { return voices_played_; }
 	// Tests: the control groups and camera as a save stores them, and setting the camera.
