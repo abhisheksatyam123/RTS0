@@ -95,14 +95,24 @@ func run() -> void:
 	check(main.debug_selection_grid(false)["selected"] >= 1, "selected on release")
 	# session.highlightguarding / highlightguarded (PageDown / PageUp): ring the units
 	# guarding the selection, or what the selection guards.
-	var guard: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 1)
+	# A starting soldier guards the spawned unit (a second spawn could stand on top of it).
+	var guard := PackedInt32Array()
+	for u in main.debug_selection_state()["units"]:
+		if not u["civilian"] and int(u["id"]) != men[0] and guard.is_empty():
+			guard.append(int(u["id"]))
+	for u in main.debug_selection_state()["units"]:
+		if int(u["id"]) == men[0]:
+			at = u["screen"]
 	main.debug_select_units(guard)
 	await frames(4)
 	await key(KEY_G, true)
 	await right(at, true)
 	await right(at, false)
 	await key(KEY_G, false)
-	await frames(10)
+	for i in 100: # the order lands on a later turn
+		if main.debug_guard_target(guard[0]) == men[0]:
+			break
+		await frames(1)
 	check(main.debug_guard_target(guard[0]) == men[0], "G+right-click: the new unit guards the first")
 	await move(Vector2(40, 300))
 	main.debug_select_units(men)
