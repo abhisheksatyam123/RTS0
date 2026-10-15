@@ -35,16 +35,23 @@ inline godot::String sprintf0(const godot::String &format,
 // tooltips.js getEntityNames under gui.session.howtoshownames (0 specific
 // first, 1 generic first, 2 only specific, 3 only generic): "Primary
 // (Secondary)", or the one name.
-inline godot::String entity_names(const godot::String &generic, const godot::String &specific) {
-	if (specific.is_empty()) return tr0(generic);
-	if (specific == generic) return specific;
+inline godot::String entity_names(const godot::String &generic, const godot::String &specific, bool packed = false) {
 	const std::string mode = user_config::get("gui.session.howtoshownames");
 	const bool specific_first = mode != "1" && mode != "3";
-	const bool secondary = mode != "2" && mode != "3";
-	const godot::String primary = specific_first ? specific : tr0(generic);
-	if (!secondary) return sprintf0(tr0("%(primaryName)s"), {{"primaryName", primary}});
-	return sprintf0(tr0("%(primaryName)s (%(secondaryName)s)"),
-			{{"primaryName", primary}, {"secondaryName", specific_first ? tr0(generic) : specific}});
+	const bool show_secondary = mode != "2" && mode != "3";
+	godot::String primary, secondary;
+	if (specific.is_empty() || specific == generic) {
+		primary = specific.is_empty() ? tr0(generic) : specific;
+	} else {
+		primary = specific_first ? specific : tr0(generic);
+		if (show_secondary) secondary = specific_first ? tr0(generic) : specific;
+	}
+	// selection_details.js: a packed siege engine adds that to the secondary name.
+	if (packed)
+		secondary = secondary.is_empty() ? tr0("Packed")
+				: sprintf0(tr0(godot::String::utf8("%(secondaryName)s — Packed")), {{"secondaryName", secondary}});
+	if (secondary.is_empty()) return specific.is_empty() || specific == generic ? primary : sprintf0(tr0("%(primaryName)s"), {{"primaryName", primary}});
+	return sprintf0(tr0("%(primaryName)s (%(secondaryName)s)"), {{"primaryName", primary}, {"secondaryName", secondary}});
 }
 
 // tooltips.js getSecondsString: "%(time)s %(second)s".

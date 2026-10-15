@@ -5,6 +5,7 @@
 #include <cstring>
 #include <utility>
 #include <set>
+#include <map>
 
 namespace rtso {
 
@@ -267,7 +268,12 @@ struct NetPeer {
 	uint32_t last_sent_seq = 0;
 	uint32_t last_recv_seq = 0;   // every reliable seq <= this has been delivered
 	uint32_t last_ack_seq = 0;
-	std::set<uint32_t> recv_ahead; // delivered reliable seqs > last_recv_seq (arrived out of order)
+	std::set<uint32_t> recv_ahead; // reliable seqs > last_recv_seq that arrived early, held in held_packets
+	// ENet delivers a channel in order: an early reliable packet waits here, by
+	// seq, until the ones before it arrive. {flags, payload}.
+	std::map<uint32_t, std::pair<uint8_t, std::vector<uint8_t>>> held_packets;
+	uint64_t held_since_ms = 0;      // when the oldest gap opened
+	std::vector<uint8_t> fragments;  // a fragmented message's parts so far
 };
 
 // 0 A.D. NetServer.cpp MAX_CLIENTS: connected sessions a host takes (players

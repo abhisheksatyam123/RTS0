@@ -705,6 +705,8 @@ bool TurnManager::saved_game_hold() {
 bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	if (!rejoin_wanted_ || rejoined_) return false;
 	if (!rejoin_have_header_ || rejoin_received_ != rejoin_world_.size()) {
+		// Chunks held behind a lost one are progress: the resend is on its way.
+		if (net_host_ && net_host_->held_count(0)) rejoin_progress_ms_ = rejoin_now_ms();
 		if (rejoin_now_ms() - rejoin_progress_ms_ > REJOIN_RETRY_MS) {
 			std::cerr << "[TurnManager] rejoin transfer stalled; asking the host again\n";
 			request_rejoin(rejoin_observe_);
