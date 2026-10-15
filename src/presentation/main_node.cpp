@@ -2342,6 +2342,9 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_RANGE_OVERLAY: // RangeOverlay: SetRangeDebugOverlay
 			debug_overlays_.set(rtso::RtsoDebugOverlays::RANGE, on);
 			break;
+		case D::DEV_BOUNDING_BOX_OVERLAY: // BoundingBoxOverlay: Engine.SetBoundingBoxDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::BOUNDING_BOX, on);
+			break;
 		case D::DEV_REVEAL_MAP: // RevealMap: "reveal-map" with enable
 			cheat(rtso::Simulation::CHEAT_DEV_REVEAL_MAP, on ? 1 : 0, {});
 			break;
@@ -2445,6 +2448,7 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_OBSTRUCTION_OVERLAY, debug_overlays_.on(O::OBSTRUCTION));
 		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
 		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
+		dev_overlay_.set_checked(D::DEV_BOUNDING_BOX_OVERLAY, debug_overlays_.on(O::BOUNDING_BOX));
 		dev_overlay_.set_render_debug(render_debug_mode_);
 	}
 	if (!dev_overlay_.state_shown()) return;
@@ -2513,6 +2517,7 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
 	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
 	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
+	d["bounding_box_drawn"] = debug_overlays_.drawn(O::BOUNDING_BOX);
 	d["render_debug"] = render_debug_mode_;
 	d["viewport_debug_draw"] = get_viewport() ? (int)get_viewport()->get_debug_draw() : -1;
 	return d;
