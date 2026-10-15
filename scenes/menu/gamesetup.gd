@@ -360,6 +360,7 @@ func _ready() -> void:
 	for b in TAB_BUTTONS:
 		get_node("%" + b).theme_type_variation = "ModernTabButtonHorizontal"
 	_build_description()
+	_build_slot_headings()
 	_load_maps()
 	_build_map_type()
 	_build_map_filter()
@@ -1181,6 +1182,42 @@ func _render_reset_buttons() -> void:
 func _slot_count_node() -> SpinBox:
 	return $VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots as SpinBox
 
+## 0.28 PlayersPanel.xml headings over the player rows, one per grid column (the AI
+## gear's has none); Color hides with the colour pickers on a scenario.
+const SLOT_HEADINGS := ["Player Name", "Player Placement", "Civilization", "Team", "", "Color"]
+func _build_slot_headings() -> void:
+	var header: Control = $VBox/HBox/Right/SlotsBox/SlotsHeader
+	for h in SLOT_HEADINGS:
+		var l := Label.new()
+		l.text = tr(h)
+		l.clip_text = true
+		header.add_child(l)
+	var grid := _slots_grid()
+	grid.sort_children.connect(_place_slot_headings)
+	# PlayerColor.render: each row on its player's colour (alpha 100 of 255).
+	grid.draw.connect(func():
+		var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
+		for r in range(cells.size() / grid.columns):
+			if r >= _slot_rows.size():
+				break
+			var first: Control = cells[r * grid.columns]
+			var last: Control = cells[r * grid.columns + grid.columns - 1]
+			var col: Color = PLAYER_COLORS[clampi(int(_slot_rows[r]["color"]), 0, PLAYER_COLORS.size() - 1)]
+			col.a = 100.0 / 255.0
+			grid.draw_rect(Rect2(Vector2(0.0, first.position.y - 1.0), Vector2(last.position.x + last.size.x, first.size.y + 2.0)), col))
+
+func _place_slot_headings() -> void:
+	var header: Control = $VBox/HBox/Right/SlotsBox/SlotsHeader
+	var grid := _slots_grid()
+	var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
+	for c in range(mini(header.get_child_count(), grid.columns)):
+		var l: Label = header.get_child(c)
+		l.visible = c < cells.size() and (c != 5 or not _is_scenario())
+		if c < cells.size():
+			l.position = Vector2((cells[c] as Control).position.x, 0.0)
+			l.size = Vector2((cells[c] as Control).size.x if c < grid.columns - 1 else maxf((cells[c] as Control).size.x, 48.0), header.size.y)
+	grid.queue_redraw()
+
 func _slots_grid() -> GridContainer:
 	return $VBox/HBox/Right/SlotsBox/SlotsGrid as GridContainer
 
@@ -1292,15 +1329,17 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var civ_pos := _civ_pos(int(row["civ"]))
 	civ.select(_civ_order().find(civ_pos) + 1 if civ_pos >= 0 else 0)
 	civ.disabled = _map_civ(_map_player(i)) >= 0
+	civ.tooltip_text = tr("Choose the civilization for this player.")
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
 	var team_slot := Control.new()
 	team_slot.custom_minimum_size = Vector2(64, 28)
 	grid.add_child(team_slot)
 	var team := _make_option(team_slot)
-	team.add_item("None")
+	team.add_item(tr("None"))
 	for t in range(1, 5):
-		team.add_item("T%d" % t)
+		team.add_item(str(t))
+	team.tooltip_text = tr("Select player's team.")
 	team.select(clampi(int(row["team"]), 0, 4))
 	team.disabled = _is_scenario()
 	team.item_selected.connect(_on_slot_team.bind(i))
@@ -1326,6 +1365,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	for c in range(PLAYER_COLORS.size()):
 		col.add_icon_item(_color_icon(c), "")
 	col.select(clampi(int(row["color"]), 0, PLAYER_COLORS.size() - 1))
+	col.tooltip_text = tr("Pick a color.")
 	col.item_selected.connect(_on_slot_color.bind(i))
 	# PlayerColor.js hides the colours on a scenario (kept in place for the grid's columns).
 	col.disabled = _is_scenario()
