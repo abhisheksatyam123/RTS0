@@ -1509,7 +1509,7 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const 
 	const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 	auto uview = sim->units();
 	float bld_t = 1e30f;
-	building_under_mouse(mouse_pos, &bld_t);
+	building_under_mouse(mouse_pos, &bld_t, any_player);
 	Camera3D *pick_cam = cam_rig ? cam_rig->get_camera() : nullptr;
 	const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
 	const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();

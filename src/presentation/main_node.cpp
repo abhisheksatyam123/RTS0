@@ -1123,6 +1123,17 @@ void RtsoMain::refresh_user_options() {
 	range_overlays_.show_heal = uc::get_bool("gui.session.healrange");
 }
 
+// translateAISettings (gui/common/gamedescription.js): "%(AIdifficulty)s %(AIbehavior)s %(AIname)s".
+String RtsoMain::ai_settings_text(uint8_t pid) const {
+	if (!sim || pid >= rtso::MAX_PLAYERS || !sim->petra_runs_for(pid)) return String();
+	static const char *kDifficulty[] = {"Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"};
+	static const char *kBehavior[] = {"Random", "Defensive", "Balanced", "Aggressive"};
+	const rtso::PetraConfig &c = sim->petra_config_for(pid);
+	return rtso::sprintf0(rtso::tr0("%(AIdifficulty)s %(AIbehavior)s %(AIname)s"),
+			{{"AIdifficulty", rtso::tr0(kDifficulty[std::min<int>(c.difficulty, 5)])},
+			 {"AIbehavior", rtso::tr0(kBehavior[std::min<int>(c.behavior, 3)])}, {"AIname", rtso::tr0("Petra Bot")}});
+}
+
 bool RtsoMain::spectating() const {
 	if (turn_mgr_.is_replaying() || !sim) return false;
 	const uint8_t seat = seat_player();
@@ -1331,7 +1342,7 @@ std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holde
 		for (const auto &b : sim->buildings()) {
 			if (b.id != id) continue;
 			if (b.team == local_player() && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
-					(id == holder || (u.trainers & rtso::bld_bit(b.type))))
+					(u.trainers & rtso::bld_bit(b.type)))
 				out.push_back(id);
 			break;
 		}
