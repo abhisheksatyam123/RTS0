@@ -867,6 +867,8 @@ void RtsoMain::_process(double delta) {
 			const char *text = why == 6 ? "This game does not let observers join after it started."
 					: why == 7 ? "This game is full: it has as many observers as it allows."
 					: why == 3 || why == 4 || why == 5 ? "Could not load the host's game."
+					// gamesetup_mp.js handleAuthenticated: the host is sending its running game.
+					: turn_mgr_.rejoin_syncing() ? "Game has already started, rejoining..."
 					: nullptr;
 			if (text && lobby_status->get_text() != text) lobby_status->set_text(text);
 		}
@@ -931,7 +933,7 @@ void RtsoMain::_process(double delta) {
 		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_PROTOCOL_VERSION)
 			lobby_status->set_text(tr("Incorrect network protocol version."));
 		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_SOFTWARE_VERSION)
-			lobby_status->set_text(tr("Different game engine versions or different mods loaded."));
+			lobby_status->set_text(mismatch_detail());
 		const auto &kicks = net_host_.kicks();
 		for (; kicks_shown_ < kicks.size(); ++kicks_shown_) {
 			const auto &k = kicks[kicks_shown_];

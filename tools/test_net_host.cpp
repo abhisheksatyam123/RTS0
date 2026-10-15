@@ -135,6 +135,8 @@ int main() {
 	CHECK(join("bob", "") == -1 && admitted == std::vector<std::string>{"bob"}, "bob joins");
 	CHECK(join("carol", "RTS0-other") == NDR_INCORRECT_SOFTWARE_VERSION && admitted.size() == 1,
 	      "another engine version is refused (NDR_INCORRECT_SOFTWARE_VERSION)");
+	CHECK(live.back()->hostSoftwareVersion() == game.softwareVersion() && live.back()->softwareVersion() == "RTS0-other",
+	      "the refused client knows the host's version, for the mismatch detail");
 	CHECK(join("bob", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1,
 	      "a second bob is refused (NDR_PLAYERNAME_IN_USE)");
 	CHECK(join("alice", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1, "so is the host's own name");

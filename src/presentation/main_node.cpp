@@ -755,7 +755,7 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_SERVER_ALREADY_IN_GAME: why = tr("Game has already started, no observers allowed."); break;
 			case rtso::NDR_SERVER_FULL: why = tr("Server full."); break;
 			case 14: why = tr("Password is invalid."); break;
-			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = tr("Different game engine versions or different mods loaded."); break;
+			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = mismatch_detail(); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
 		String text = (net_game_started_ ? tr("Connection to the server has been lost.")
@@ -1679,13 +1679,22 @@ void RtsoMain::select_group(int key, bool drop) {
 		return;
 	}
 	auto uview = sim->units();
+	auto fv = sim->fauna();
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s) {
+		bool found = false;
 		for (size_t i = 0; i < uview.count; ++i) {
 			if (uview.id[i] != (uint32_t)selected_ids[s]) continue;
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key;
 			if (in_group != drop) kept.push_back(selected_ids[s]);
+			found = true;
+			break;
+		}
+		// The player's own livestock, grouped by kind.
+		for (size_t f = 0; !found && f < fv.count; ++f) {
+			if (fv.id[f] != (uint32_t)selected_ids[s]) continue;
+			if ((RtsoSelectionGrid::fauna_key(fv.fauna_type[f]) == key) != drop) kept.push_back(selected_ids[s]);
 			break;
 		}
 	}
@@ -2032,6 +2041,7 @@ Dictionary RtsoMain::get_match_summary() const {
 	d["map_id"] = String(sim->current_map_id().c_str());
 	d["map_name"] = String(sim->current_map_name().c_str());
 	d["seed"] = (int64_t)sim->sim_seed();
+	d["ended"] = sim->is_victory() || sim->is_game_over();
 	d["victory"] = (int)sim->victory_condition();
 	d["petra_diff"] = (int)sim->petra_difficulty();
 	d["petra_behavior"] = (int)sim->petra_behavior();
@@ -2144,6 +2154,17 @@ String RtsoMain::player_display_name(uint8_t pid) const {
 	return "Player " + String::num_int64(pid + 1);
 }
 
+// messages.js onClientLeave / onClientJoin: the seat's client left the match
+// and nobody (a rejoin under a new id) has taken the seat again.
+bool RtsoMain::player_offline(uint8_t pid) const {
+	if (!net_lockstep() || !net_game_started_ || pid >= rtso::MAX_PLAYERS || pid >= net_setup_.setup.slot_count) return false;
+	const int c = net_setup_.slot_client[pid];
+	if (c <= 0 || !turn_mgr_.client_left((uint32_t)c)) return false;
+	for (const auto &e : net_host_.playerAssignment())
+		if (e.player == pid && !turn_mgr_.client_left(e.client)) return false;
+	return true;
+}
+
 void RtsoMain::apply_player_names(const Array &names) {
 	for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
 		player_names_[p] = p < names.size() ? String(names[p]).strip_edges().left(48) : String();
@@ -2186,8 +2207,9 @@ void RtsoMain::refresh_lobby_rooms() {
 	}
 	lobby_room_cache_ = rtso::parse_lobby_rooms(body);
 	for (const auto &r : lobby_room_cache_) {
-		String line = String(r.id.c_str()) + "  " + String(r.host_ip.c_str()) + ":" +
-		              String::num_int64(r.host_port) + "  " + String::num_int64(r.players) +
+		// The lobby's list carries no address since /rooms/connect; older ones did.
+		const String addr = r.host_ip.empty() ? String() : String(r.host_ip.c_str()) + ":" + String::num_int64(r.host_port) + "  ";
+		String line = String(r.id.c_str()) + "  " + addr + String::num_int64(r.players) +
 		              "/" + String::num_int64(r.max_players) + "  " + String(r.map_id.c_str());
 		lobby_rooms->add_item(line);
 	}
@@ -3047,7 +3069,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	PackedInt32Array sel = lobby_rooms->get_selected_items();
 	if (sel.size() > 0) {
 		int idx = sel[0];
-		if (idx >= 0 && (size_t)idx < lobby_room_cache_.size()) {
+		if (idx >= 0 && (size_t)idx < lobby_room_cache_.size() && !lobby_room_cache_[(size_t)idx].host_ip.empty()) {
 			ip = lobby_room_cache_[(size_t)idx].host_ip;
 			port = lobby_room_cache_[(size_t)idx].host_port;
 		}
@@ -3251,6 +3273,16 @@ String RtsoMain::chat_user(const String &sender_guid) {
 	char hex[8] = "b3b3b3";
 	if (sim && pl < rtso::MAX_PLAYERS) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(sim->player_color(pl) & 0xFFFFFF));
 	return "[color=#" + String(hex) + "]" + name.replace("[", "[lb]") + "[/color]";
+}
+
+// network.js reportMismatchingSoftwareVersions: both versions when the host's
+// NMT_SERVER_HANDSHAKE named its own, else getDisconnectReason(17).
+String RtsoMain::mismatch_detail() const {
+	const std::string &host = net_host_.hostSoftwareVersion();
+	if (host.empty() || host == net_host_.softwareVersion())
+		return tr("Different game engine versions or different mods loaded.");
+	return sprintf0(tr("Different engine versions detected client version: %(clientMismatch)s server version: %(serverMismatch)s"),
+			{{"clientMismatch", String::utf8(net_host_.softwareVersion().c_str())}, {"serverMismatch", String::utf8(host.c_str())}});
 }
 
 uint8_t RtsoMain::chat_player_of(const String &sender_guid) {

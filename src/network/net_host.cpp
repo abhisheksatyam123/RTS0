@@ -203,6 +203,7 @@ bool NetHost::startClient(const std::string &h, uint16_t p) {
 	kicked_self_ = false;
 	banned_self_ = false;
 	disconnect_reason_ = -1;
+	host_software_version_.clear();
 	next_seq_ = 1;
 	peers_.clear();
 	pending_acks_.clear();
@@ -1099,6 +1100,12 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 				}
 			}
 		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SERVER_HANDSHAKE)) {
+		// The host's engine version, for 0.28's mismatch detail (network.js
+		// getMismatchMessage) should the host refuse this one.
+		ServerHandshakeMsg shm;
+		if (isClient() && NetPacketSerializer::parse_server_handshake(msg.payload.data(), msg.payload.size(), shm))
+			host_software_version_ = shm.engine_version;
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SERVER_HANDSHAKE_RESPONSE)) {
 		if (isClient()) {
 			if (!peers_.empty()) peers_[0].connected = true;

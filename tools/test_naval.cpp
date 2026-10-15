@@ -1115,6 +1115,35 @@ static void test_petra_fishing() {
 	CHECK(bi < 0 || !s.units().alive[bi]);
 }
 
+// defenseManager.js checkEvents: an idle or gathering fishing boat that is attacked moves out
+// of its attacker's range (ranged range + 15 m).
+static void test_petra_fishing_boat_backs_off() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	s.spawn_resource_world(18.0f, 4.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH); // else Petra deletes the idle boat
+	const uint32_t boat = s.spawn_unit(20.0f, 8.0f, 1, UNIT_FISHING_BOAT, 1.0e5f);
+	const uint32_t ship = s.spawn_unit(24.0f, 8.0f, 0, UNIT_TRIREME);
+	const int32_t si = s.lookup_unit(ship);
+	const float reach = s.units_.attack_range[si] + 15.0f * 0.28f;
+	s.order_attack(&ship, 1, boat);
+	// Petra's next turn after the first hit: the boat leaves its fish for a spot out of reach.
+	const int32_t bi = s.lookup_unit(boat);
+	bool away = false;
+	float d = 0.0f;
+	for (int k = 0; k < 40 && !away; ++k) {
+		run(s, 0.1f);
+		away = s.units_.order_kind[bi] == ORDER_WALK;
+		const float dx = s.units_.order_x[bi] - s.units().pos_x[si], dz = s.units_.order_z[bi] - s.units().pos_z[si];
+		d = std::sqrt(dx * dx + dz * dz);
+	}
+	std::printf("Petra fishing boat attacked: walks off %s, to %.1f from the warship (its reach + 15 m: %.1f)\n", away ? "yes" : "no", d, reach);
+	CHECK(away && d >= reach);
+}
+
 // startingStrategy.js configFirstBase: on a starting land under 25000 m² Petra keeps to one
 // field and lays a corral as well (saveSpace, maxFields 1, needCorral); a finished market
 // lifts the field cap.
@@ -1681,6 +1710,7 @@ int main() {
 	test_next_fish_range();
 	test_petra_land_skips_wreck();
 	test_petra_fishing();
+	test_petra_fishing_boat_backs_off();
 	test_petra_small_land_fields();
 	test_petra_dock_position();
 	test_petra_workers_across_water();

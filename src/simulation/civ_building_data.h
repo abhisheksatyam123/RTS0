@@ -152,16 +152,16 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_SYSSITON: return 0x0002; // spart
 		case BLD_TACHARA: return 0x0004; // pers
 		case BLD_ARMY_CAMP: return 0x0008; // rome
-		case BLD_AMPHITHEATER: return 0x0008; // rome
-		case BLD_LIBRARY: return 0x1820; // mace ptol sele
+		case BLD_AMPHITHEATER: return 0x0000; // 
+		case BLD_LIBRARY: return 0x0800; // ptol
 		case BLD_KENNEL: return 0x0040; // brit
 		case BLD_ASSEMBLY: return 0x0080; // gaul
-		case BLD_MONUMENT: return 0x8100; // iber germ
+		case BLD_MONUMENT: return 0x0100; // iber
 		case BLD_PALACE: return 0x0200; // maur
 		case BLD_PILLAR: return 0x0200; // maur
 		case BLD_PYRAMID_LARGE: return 0x0400; // kush
 		case BLD_PYRAMID_SMALL: return 0x0400; // kush
-		case BLD_MERCENARY_CAMP: return 0x0800; // ptol
+		case BLD_MERCENARY_CAMP: return 0x0000; // 
 		case BLD_LIGHTHOUSE: return 0x0800; // ptol
 		case BLD_MILITARY_COLONY: return 0x1800; // ptol sele
 		case BLD_ACADEMY: return 0x2000; // han
@@ -170,7 +170,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_CAMP_NOBA: return 0x0400; // kush
 		case BLD_TEMPLE_AMUN: return 0x0400; // kush
 		case BLD_TEMPLE_VESTA: return 0x0008; // rome
-		case BLD_TEMPLE_MARS: return 0x0008; // rome
+		case BLD_TEMPLE_MARS: return 0x0000; // 
 		case BLD_ICE_HOUSE: return 0x0004; // pers
 		case BLD_SUPER_DOCK: return 0x0010; // cart
 		case BLD_TACHARA_FOOD: return 0x0004; // pers
@@ -319,7 +319,7 @@ inline float civ_building_vision(uint8_t type) {
 // True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):
 // no civ lays its foundation.
 inline bool civ_building_upgrade_only(uint8_t type) {
-	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT || type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL_GATE || type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
+	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT || type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL_GATE || type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
 }
 
 // 0 A.D. Upgrade choices of the civs' own structures (structures/<civ>/*.xml):

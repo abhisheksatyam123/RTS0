@@ -485,6 +485,7 @@ public:
 	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
 	// (AI slots get one from their civ's AINames), else "Player N".
 	String player_display_name(uint8_t pid) const override;
+	bool player_offline(uint8_t pid) const override;
 	bool controls_player(uint8_t pid) const override {
 		return pid < rtso::MAX_PLAYERS && !turn_mgr_.is_replaying() && !spectating() && pid == seat_player();
 	}
@@ -498,6 +499,8 @@ public:
 	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
 	String chat_user(const String &sender_guid) override;
+	// network.js getMismatchMessage("engine", ...) when the host's version is known.
+	String mismatch_detail() const;
 	// NMT_CHAT (the chat commands are chat_network_command).
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
@@ -600,6 +603,15 @@ public:
 		return out;
 	}
 	int64_t debug_guard_target(int64_t uid) const { return sim ? (int64_t)sim->unit_guard_target((uint32_t)uid) : 0; }
+	// Tests: where a unit stands on screen (viewport pixels), or (-1, -1).
+	Vector2 debug_unit_screen(int64_t uid) const {
+		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid && uv.alive[i])
+				return cam_rig->get_camera()->unproject_position(Vector3(uv.pos_x[i], sim->get_terrain_height(uv.pos_x[i], uv.pos_z[i]), uv.pos_z[i]));
+		return Vector2(-1, -1);
+	}
 	Vector2 debug_ground_at(Vector2 screen) const {
 		const Vector3 g = get_ground_click_pos(screen);
 		return Vector2(g.x, g.z);
@@ -610,6 +622,7 @@ public:
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
@@ -636,6 +649,12 @@ public:
 	PackedVector2Array last_line_targets_; // tests: the last walk-custom positions
 	PackedInt32Array last_line_entities_;
 	void finish_right_line(const Ref<InputEventMouseButton> &release);
+	// input.js INPUT_PRESELECTEDACTION: a command button armed an action for the next left click.
+	bool any_armed_mode() const {
+		return attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode;
+	}
+	bool armed_target_ok(const Vector3 &at) const;
+	bool run_armed_click(const Ref<InputEventMouseButton> &press);
 	Dictionary debug_right_line() const {
 		Dictionary d;
 		d["active"] = right_line_.active;
@@ -722,6 +741,7 @@ private:
 	std::vector<uint32_t> extra_structures_;
 	uint32_t extras_primary_ = 0; // the selected_building_id the extras belong to
 	std::vector<uint32_t> selected_structures() const;
+	std::vector<uint32_t> selected_structures_like_primary() const;
 	void set_selected_structures(const std::vector<uint32_t> &ids);
 	void prune_structure_selection();
 	// getBuildingsWhichCanTrainEntity: the selected structures that train `tmpl` now.

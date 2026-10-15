@@ -1011,6 +1011,7 @@ ZIP_STRUCTURES = {
     "s_persians_alt_building_04":     ("art/actors/props/structures/persians/alt_building_04.xml", "scale", 0.21, None),
     "s_romans_rome_tent":             ("art/actors/props/structures/romans/rome_tent.xml",       "scale", 0.21, None),
     "s_germans_cult_statue":          ("art/actors/structures/germans/cult_statue.xml",          "scale", 0.21, None),
+    "s_persians_alt_building_01":     ("art/actors/props/structures/persians/alt_building_01.xml", "scale", 0.21, None),
 }
 
 # Units only 0.28 has, drawn by RTS0's generic unit models of the same id
