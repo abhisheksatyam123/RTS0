@@ -1067,7 +1067,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						post_lockstep(17, sel_ptr, sel_n, 0, 0, treasure_id, (uint8_t)(2 | qbit));
 					else
 						sim->order_collect_treasure(sel_ptr, sel_n, treasure_id, queue_shift);
-					play_civ_voice("gather");
+					play_civ_voice("collect_treasure");
 					return;
 				}
 			}

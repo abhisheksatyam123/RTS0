@@ -301,7 +301,7 @@ const VICTORY_KINDS := [
 	[8, "Conquest Civic Centers", "Defeat opponents by destroying all their fully built civic centers."],
 	[32, "Capture the Relic", "Capture all relics spread across the map and keep them for a certain time to win the game."],
 	[64, "Regicide", "Defeat opponents by killing their hero."],
-	[16, "Wonder", "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured."]]
+	[16, "Wonder", "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured. If the allied victory mode is enabled, the timer will also be reset when the alliances of the owner change."]]
 const VK_REGICIDE := 64
 # 0.28 victory condition file names (a scenario's settings VictoryConditions) -> VictoryKind bit.
 const VICTORY_NAMES := {"conquest": 1, "conquest_units": 2, "conquest_structures": 4, "conquest_civic_centers": 8,

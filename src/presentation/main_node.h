@@ -922,6 +922,7 @@ private:
 	void play_civ_voice(const char *action);
 	void update_music_state();
 	Dictionary get_audio_state() const;
+	bool debug_combat_sound(float x, float z) { return sim && session_audio_.debug_combat_sound(sim, local_player(), x, z); }
 	rtso::RtsoMusic music_;
 	rtso::RtsoSessionAudio session_audio_;
 	uint8_t music_civ_ = 0xFF;

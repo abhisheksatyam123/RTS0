@@ -22,7 +22,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
 | G15 | Petra buys trade-gain and population techs only if it can pay at the check | low | E |
 | G16 | A defensive-stance unit keeps chasing a target that leaves its reach; boarding a transport skips 0.28's garrison rules | low | Unit orders |
-| G17 | No collect_treasure voice | low | Unit orders |
+| G17 | ~~No collect_treasure voice~~ Closed 2026-10-15: a treasure order plays 0.28's collect_treasure lines (greek male As you wish, greek female and latin gather together, persian and kushite gather) | low | Unit orders |
 | G18 | Animals never play their feeding animation; each species wears one coat, and template trees draw one mesh | low | Animal models (feeding), Fauna (variants) |
 | G19 | Siege walls draw the stone wall model (siege_wall.glb is unused) | low | Animal models |
 | G20 | Session UI: no flare, target or "no" cursors; no paused queue items; no unexplored-area placement message; the garrison panel shows one holder where 0.28 merges several; the Barter dialog lacks 0.28's titles, labels and (i) buttons; some selection-detail strings are built from parts | low | Session UI |
@@ -30,7 +30,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G22 | CJK languages need Source Han Sans shipped | low | Session UI |
 | G23 | The chat window is a corner box with extra buttons, and Tab doesn't complete player names | low | B |
 | G24 | Circular maps show an extra 8 m ring past 0.28's edge; square maps have no 12 m edge frame | low | A |
-| G26 | In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch) | low | Multiplayer |
+| G26 | ~~In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch)~~ Fixed by #1084: clients and the game list see "Random" until Start | low | Multiplayer |
 | G27 | -autostart-aiseed seeds only the AI personalities; Petra's other draws use the match's random stream | low | C |
 | G28 | The developer overlay lacks Control all units and the culling boxes | low | Stats |
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
