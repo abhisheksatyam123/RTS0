@@ -1708,10 +1708,10 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 				sim->cmd_research_from_unit(local_player(), command_panel_.trainer_unit_id(), tech);
 			return;
 		}
-		try_train_from_unit(command_panel_.trainer_unit_id(), (uint16_t)meta, train_batch());
+		add_training(true, command_panel_.trainer_unit_id(), (uint16_t)meta);
 		return;
 	}
-	try_train_template(selected_building_id, (uint16_t)meta, train_batch());
+	add_training(false, selected_building_id, (uint16_t)meta);
 }
 
 // The Gaia scenery whose rotated rectangle (with a little slack) holds (x, z), 0 if none.
@@ -2772,6 +2772,71 @@ void RtsoMain::try_train_unit(rtso::UnitType utype) {
 
 int RtsoMain::train_batch() const {
 	return rtso::hotkeys::held("session.batchtrain") ? user_opts_.batch_size : 1;
+}
+
+// EntityLimits canBeAddedCount for a template: how many more the player may have, -1 if no limit.
+int RtsoMain::template_can_be_added(uint16_t tmpl) const {
+	if (!sim || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return -1;
+	const uint8_t cat = rtso::UNIT_LIMITS[tmpl].category;
+	if (cat == rtso::LIMIT_NONE || cat >= rtso::LIMIT_CATEGORY_COUNT) return -1;
+	const int limit = sim->entity_limit(local_player(), cat);
+	return limit < 0 ? -1 : std::max(0, limit - sim->entity_limit_count(local_player(), cat));
+}
+
+// GetNeededResources for `count` of a template: whether the player can pay for them all.
+bool RtsoMain::can_afford_template(uint16_t tmpl, int count) const {
+	if (!sim || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return false;
+	const auto &t = rtso::civ_unit_template(tmpl);
+	float cost[rtso::RES_COUNT];
+	sim->unit_train_cost(local_player(), tmpl, rtso::civ_template_unit_info(tmpl, t.unit_type), cost);
+	const auto &ps = sim->player(local_player());
+	for (int r = 0; r < rtso::RES_COUNT; ++r)
+		if (ps.res[r] < cost[r] * (float)count) return false;
+	return true;
+}
+
+// input.js addTrainingToQueue: with session.batchtrain (Shift) held, clicks on the same
+// trainee of the same trainer build one batch of N x the batch size, posted when Shift is
+// released (or another trainee is clicked); Ctrl takes a batch back off. Without Shift
+// one unit is queued at once.
+void RtsoMain::add_training(bool from_unit, uint32_t holder, uint16_t tmpl) {
+	if (holder == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
+	const bool decrement = rtso::hotkeys::held("selection.remove");
+	const int allowed = template_can_be_added(tmpl);
+	const int size = std::max(1, user_opts_.batch_size);
+	if (rtso::hotkeys::held("session.batchtrain") && (allowed < 0 || allowed > 1)) {
+		BatchTraining &bt = batch_training_;
+		if (bt.active) {
+			if (bt.from_unit == from_unit && bt.holder == holder && bt.tmpl == tmpl) {
+				if (decrement) {
+					if (--bt.batches <= 0) bt.active = false;
+				} else if (allowed < 0 || allowed > bt.batches * size) {
+					if (!can_afford_template(tmpl, (bt.batches + 1) * size)) return;
+					++bt.batches;
+				}
+				bt.allowed = allowed;
+				return;
+			}
+			if (!decrement) flush_training_batch();
+		}
+		if (decrement || !can_afford_template(tmpl, size)) return;
+		bt = BatchTraining{true, from_unit, holder, tmpl, 1, allowed};
+		return;
+	}
+	if (from_unit) try_train_from_unit(holder, tmpl, 1);
+	else try_train_template(holder, tmpl, 1);
+}
+
+// input.js flushTrainingBatch: the batch, cut to what the entity limit still allows.
+void RtsoMain::flush_training_batch() {
+	BatchTraining &bt = batch_training_;
+	if (!bt.active) return;
+	bt.active = false;
+	int count = bt.batches * std::max(1, user_opts_.batch_size);
+	if (bt.allowed >= 0) count = std::min(count, bt.allowed);
+	if (count <= 0) return;
+	if (bt.from_unit) try_train_from_unit(bt.holder, bt.tmpl, count);
+	else try_train_template(bt.holder, bt.tmpl, count);
 }
 
 // One queue item of `count` units (0 A.D. batch training: one cost x count, one shorter timer).
