@@ -104,7 +104,7 @@ int main() {
 	// bordering an ally's: safe.
 	{
 		fresh(s);
-		uint32_t tw = s.spawn_building_world(40.0f, -4.0f, BLD_TOWER, 0, 1.0f);
+		uint32_t tw = s.spawn_building_world(40.0f, 1.0f, BLD_TOWER, 0, 1.0f);
 		run(s, 1.0f);
 		std::array<float, MAX_PLAYERS> to;
 		float to_gaia = 0.0f;
@@ -115,7 +115,7 @@ int main() {
 		std::printf("  then owner %d\n", owner_of(s, tw));
 		CHECK(owner_of(s, tw) == (to[1] > to_gaia ? 1 : GAIA_PLAYER));
 		fresh(s, true);
-		tw = s.spawn_building_world(40.0f, -4.0f, BLD_TOWER, 0, 1.0f);
+		tw = s.spawn_building_world(40.0f, 1.0f, BLD_TOWER, 0, 1.0f);
 		run(s, 40.0f);
 		CHECK(owner_of(s, tw) == 0 && points_of(s, tw, 0) == find_bld(s, tw)->max_capture_points);
 	}

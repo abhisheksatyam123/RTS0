@@ -36,6 +36,21 @@ const POP_WORLD := ["World Population", "World Population Cap"]
 const TEAM_POP_FLAG := 100000 # Simulation::TEAM_POP_FLAG: pop_cap <= -flag is a Team Population
 const UNLIMITED_POP := 10000
 
+# maps/random/rmbiome/generic/*.json Description Title and Description, by Game Setup BIOMES index.
+const BIOME_TEXT := {
+	1: ["Aegean-Anatolian", "Start in a region blessed with the Mediterranean climate, a warm and inviting land. The cypresses are in a perpetual struggle with the dominant fan palms while deer graze in their shadows, blissfully unaware."],
+	3: ["Subalpine", "Between the high summits of the Alps, the valleys are filled with fog in the early morning. The ground is full of gravel and rocks, but silver fir and spruce trees grow between them and provide shelter for deer and mountain goats."],
+	4: ["Sahara", "A semi-desert area that boasts numerous clumps of date palms and acacia trees. Herds of camels roam the wild and the occasional gazelle jumps up in fright at being disturbed."],
+	5: ["Temperate", "Lush grasslands carpet the land, in places giving way to magnificent and diverse broadleaf forests. Poplars, pines, beeches and oaks all vie for supremacy but this root-war is a never-ending struggle. Numerous apple trees dot the land, deer and sheep gorge themselves on this years fallen fruit."],
+	6: ["Eurasian Steppe", "Wide grasslands stretching to the horizon, without any trees blocking the view. The Steppe is home to large herds of wild horses, which graze peacefully on the empty land, but flee quickly if you try to catch them."],
+	7: ["Sudanian Savanna", "The transition between the dry Sahara to the north and the tropical forests to the south. The sunlight floods through the open canopy and lights the grassland between the trees, where herds of zebras, wildebeest, giraffes and elephants roam."],
+	8: ["Arctic", "A region in the high snowy mountains. Biting winds sweep through the abundant conifer forests, making even the more resilient deer and mountain goats shiver."],
+	9: ["India", "Explore the mysterious tropics. An extremely green, but also extremely humid environment awaits. The tall Toona trees look on disapprovingly at this invasion of their privacy and ferocious tigers are determined to defend their territory at all costs."],
+	10: ["Rhine Valley (Fall)", "The first leaves have fallen. The landscape is a dazzling dash of colors irrevocably intertwined. The native beech and oak trees of this temperate zone display a multi-colored foliage while animals try to prepare for the approaching winter."],
+	11: ["Nubia", "Nubia, a dry climate in which only the hardy Baobab trees thrive. Solitary gazelles graze the sparse grass, while herds of zebras, wildebeest, giraffes or elephants roam the wild in search of food."],
+}
+const RATING_DESC := "When the winner of this match is determined, the lobby score will be adapted."
+
 ## 0.28 messages.js g_PlayerStateMessages, for the dialog's player-state line.
 const PLAYER_STATE_MESSAGES := {"won": "You have won!", "defeated": "You have been defeated!"}
 
@@ -121,6 +136,12 @@ static func titles(info: Dictionary) -> Array:
 			var tp: Array = SetupPage.TEAM_PLACEMENTS[clampi(int(info.get("team_placement", 0)), 0, SetupPage.TEAM_PLACEMENTS.size() - 1)]
 			out.append([tp[1], tp[2]] if int(info.get("team_placement", 0)) > 0
 				else ["Random Player Placement", "Randomly select a player placement from the list."])
+		# Biome: the Game Setup pick when the map's SupportedBiomes offer it ("Map default"
+		# keeps the map's own and, unlike 0.28's resolved random pick, has no line).
+		var biome := int(info.get("biome", 0))
+		var offered: Array = SetupPage.biome_values(SetupPage._map_types_data().get("random_biomes", {}).get(SetupPage.rms_script(map_id), []))
+		if biome > 0 and BIOME_TEXT.has(biome) and offered.has(biome) and not map_id in SetupPage.OWN_RMS_MAPS:
+			out.append(BIOME_TEXT[biome])
 		if SetupPage.TRIGGER_DIFFICULTY_MAPS.has(map_id):
 			out.append(SetupPage.TRIGGER_DIFFICULTIES[clampi(int(info.get("trigger_difficulty", 3)) - 1, 0, 4)])
 		var nomad := bool(info.get("nomad", false))
@@ -147,6 +168,12 @@ static func titles(info: Dictionary) -> Array:
 	out.append(["Revealed Map", bool(info.get("reveal_map", false))])
 	out.append(["Allied View", bool(info.get("ally_view", false))])
 	out.append(["Cheats", bool(info.get("cheats", false))])
+	# Rating.js RatingEnabled: a rated 1v1 says so; any other lobby game reads disabled.
+	var rated := bool(info.get("rated", false))
+	if rated and int(info.get("player_count", 0)) == 2:
+		out.append(["Rated game", RATING_DESC])
+	elif bool(info.get("lobby_game", false)):
+		out.append(["Rated game", RATING_DESC if rated else false])
 	return out
 
 ## The dialog text: translated "%(label)s %(details)s" lines, a true value

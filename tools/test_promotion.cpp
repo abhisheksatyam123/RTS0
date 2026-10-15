@@ -170,8 +170,22 @@ int main() {
 		const size_t veteran = idx(s, s.spawn_unit(6.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("rome/infantry_spearman_a")));
 		CHECK(s.units_.rank[veteran] == 2);
 		CHECK(near(Simulation::promotion_train_time_mult(tmpl_of("rome/infantry_spearman_a")), 1.2f));
+		const float sw_secs = s.unit_train_seconds(0, sw); // Basic, before the Reforms
 		s.complete_research(0, TECH_ROMAN_REFORMS);
 		CHECK(near(s.promotion_required_xp(j), 0.0f));
+		// Trainer.js GetUpgradedTemplate: a swordsman is now trained as the Elite Legionary,
+		// at its cost and its Cost/BuildTime x1.2 x1.2.
+		{
+			uint8_t rank = 0;
+			CHECK(s.trained_as(0, sw, rank) == leg && rank == 3);
+			float c_sw[RES_COUNT], c_leg[RES_COUNT];
+			s.unit_train_cost(0, sw, civ_template_unit_info(sw, UNIT_SWORDSMAN), c_sw);
+			s.unit_train_cost(0, leg, civ_template_unit_info(leg, UNIT_SWORDSMAN), c_leg);
+			for (int r = 0; r < RES_COUNT; ++r) CHECK(near(c_sw[r], c_leg[r]));
+			CHECK(c_sw[RES_GOLD] > 0.0f);
+			CHECK(near(s.unit_train_seconds(0, sw), s.unit_train_seconds(0, leg)));
+			CHECK(near(s.unit_train_seconds(0, sw), sw_secs * 1.44f)); // both 10 s templates
+		}
 		s.tick(Simulation::FIXED_STEP);
 		// 0.28: spearmen become Levy Auxiliary Spearmen (Basic, cannot promote), not Legionaries.
 		const uint16_t levy = tmpl_of("rome/infantry_spearman_conscript");
@@ -334,6 +348,19 @@ int main() {
 		CHECK(near(s.promotion_required_xp(a), base * 0.8f));
 		CHECK(near(s.promotion_required_xp(idx(s, far_id)), base));
 		CHECK(near(s.promotion_required_xp(idx(s, foe_id)), base));
+	}
+
+	// Mercenaries train Advanced (upgrade_rank_advanced_mercenary: RequiredXp 0), so their
+	// time is the _a template's, x1.2.
+	{
+		fresh(s, CIV_KUSHITES);
+		const uint16_t merc = tmpl_of("kush/infantry_maceman_merc_b");
+		CHECK(merc != CIV_UNIT_TEMPLATE_NONE);
+		uint8_t rank = 0;
+		CHECK(s.trained_as(0, merc, rank) == merc && rank == 2);
+		const uint8_t ty = civ_unit_template(merc).unit_type;
+		CHECK(near(s.unit_train_seconds(0, merc) / civ_template_unit_info(merc, ty).train_time /
+		           s.unit_tech_mods(0, ty, merc).train_time, 1.2f));
 	}
 
 	if (failures) {

@@ -24745,7 +24745,9 @@
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
-   "auras": [],
+   "auras": [
+    46
+   ],
    "civ_bonuses": [],
    "classes": [
     "Healer",
