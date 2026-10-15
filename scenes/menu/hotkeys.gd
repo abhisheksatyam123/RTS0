@@ -476,6 +476,7 @@ func _on_save() -> void:
 	dirty = false
 	pending.clear()
 	save_btn.disabled = true
+	UserSettings.sync_text_hotkeys()
 
 ## HotkeysPage.js resetUserHotkeys: only after the question.
 func _on_reset_all() -> void:

@@ -65,7 +65,7 @@ void RtsoMain::_notification(int p_what) {
 		toggle_pause();
 	}
 	if (p_what == NOTIFICATION_EXIT_TREE) {
-		write_replay(); // leaving the match keeps its replay
+		write_replay(true); // leaving the match keeps its replay, with its summary (endGame)
 		// Menus get the normal arrow back (update_cursor sets action cursors).
 		if (!cursor_name_.empty()) reset_default_cursor();
 		// The Render Debug Mode is the session's; the menus draw normally.
@@ -531,10 +531,13 @@ bool RtsoMain::try_focus_fire(const Vector3 &at) {
 	}
 	if (!target) return false;
 	const bool queued = rtso::hotkeys::held("session.queue");
+	// input.js: pushFront = session.pushorderfront held (unbound by default).
+	const bool push_front = rtso::hotkeys::held("session.pushorderfront");
 	const uint32_t ids[1] = {selected_building_id};
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target, queued ? rtso::NET_PARAM_QUEUED : 0);
-	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued))
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target,
+				(queued ? rtso::NET_PARAM_QUEUED : 0) | (push_front ? rtso::NET_PARAM_PUSH_FRONT : 0));
+	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued, push_front))
 		return false;
 	return true;
 }
@@ -1077,8 +1080,9 @@ bool RtsoMain::load_game(String path) {
 	if (!sim) return false;
 	String global_path = ProjectSettings::get_singleton()->globalize_path(path);
 	load_progress(50, "Loading saved game");
-	// The replay so far stays valid up to here; what follows starts from the save.
-	stop_replay_recording();
+	// The replay so far stays valid up to here; what follows starts from the save. Loading
+	// leaves this match (0.28 endGame), so its replay keeps its summary.
+	stop_replay_recording(true);
 	bool success = sim->load_state(global_path.utf8().get_data());
 	if (success) {
 		selected_ids.clear();
@@ -1582,7 +1586,7 @@ void RtsoMain::set_time_warp(bool on) {
 	if (on == time_warp_) return;
 	time_warp_ = on;
 	if (!on) {
-		if (time_warp_ff_) game_speed = time_warp_speed_;
+		if (time_warp_ff_) game_speed = 1.0f;
 		time_warp_ff_ = false;
 		for (const String &p : time_warp_snapshots_) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(p));
 		time_warp_snapshots_.clear();
@@ -1593,13 +1597,12 @@ void RtsoMain::set_time_warp(bool on) {
 }
 
 // CTurnManager time warp: a snapshot of the game every 10 turns, and SetSimRate(20)
-// while the fast forward hotkey is held.
+// while the fast forward hotkey is held, back to 1 when it is let go.
 void RtsoMain::time_warp_tick() {
 	if (!time_warp_ || !sim) return;
 	const bool ff = rtso::hotkeys::held("session.timewarp.fastforward");
 	if (ff != time_warp_ff_) {
-		if (ff) time_warp_speed_ = game_speed;
-		game_speed = ff ? 20.0f : time_warp_speed_;
+		game_speed = ff ? 20.0f : 1.0f; // TimeWarp.resetSpeed: SetSimRate(1), whatever the speed was
 		time_warp_ff_ = ff;
 	}
 	const uint32_t turn = turn_mgr_.current_turn();
@@ -1638,7 +1641,8 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 		dev_overlay_.set_checked(D::DEV_REJOIN_TEST, rejoin_test_); // checked(): this.disabled
-		dev_overlay_.set_enabled(D::DEV_REJOIN_TEST, !rejoin_test_ && !turn_mgr_.is_replaying());
+		// 0.28 enabled(): !this.disabled && g_InitAttributes.mapType != "random".
+		dev_overlay_.set_enabled(D::DEV_REJOIN_TEST, !rejoin_test_ && !random_map_ && !turn_mgr_.is_replaying());
 		using O = rtso::RtsoDebugOverlays;
 		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
 		dev_overlay_.set_checked(D::DEV_HIER_PATHFINDER_OVERLAY, debug_overlays_.on(O::HIER_PATHFINDER));

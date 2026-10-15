@@ -316,7 +316,9 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 				: Ref<Texture2D>();
 		Ref<Shader> &sh = player_color_shader();
 		if (sh.is_null()) sh = ResourceLoader::get_singleton()->load("res://shaders/player_color.gdshader");
-		if ((mask.is_valid() || ((spec.is_valid() || height.is_valid()) && opaque)) && sh.is_valid()) {
+		// A skin that varies by unit (data/unit_variants.json) needs the shader to pick it.
+		const UnitVariants *uv = unit_variants().getptr(image_key(tex));
+		if ((mask.is_valid() || ((spec.is_valid() || height.is_valid() || uv) && opaque)) && sh.is_valid()) {
 			out.instantiate();
 			out->set_shader(sh);
 			out->set_shader_parameter("albedo_tex", tex);
@@ -341,8 +343,9 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 				out->set_shader_parameter("height_tex", height);
 				out->set_shader_parameter("parallax_scale", px->scale);
 			}
-			// A unit body whose actor swaps skins by variant: each entity draws one.
-			if (const UnitVariants *uv = mask.is_valid() ? unit_variants().getptr(image_key(tex)) : nullptr) {
+			// A unit body, head, helmet or shield whose actor swaps skins by variant:
+			// each entity draws one, independently per image (variant_salt).
+			if (uv) {
 				Ref<Texture2DArray> arr = unit_variant_array(*uv);
 				if (arr.is_valid()) {
 					float total = 0.0f;
@@ -359,6 +362,7 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 					cuts.push_back(Vector4(cut[0], cut[1], cut[2], cut[3]));
 					cuts.push_back(Vector4(cut[4], cut[5], cut[6], cut[7]));
 					out->set_shader_parameter("variant_cut", cuts);
+					out->set_shader_parameter("variant_salt", (float)(image_key(tex).hash() & 0xFFFFu) / 65536.0f);
 				}
 			}
 		}
