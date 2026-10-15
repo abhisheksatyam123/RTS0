@@ -449,6 +449,10 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"corinthian_isthmus_2p": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"corsica_and_sardinia": {
 			"keywords": [
 				"naval"
@@ -460,6 +464,12 @@
 			"type": "skirmish"
 		},
 		"cycladic_archipelago": {
+			"keywords": [
+				"naval"
+			],
+			"type": "skirmish"
+		},
+		"cycladic_archipelago_3p": {
 			"keywords": [
 				"naval"
 			],
@@ -764,6 +774,10 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"greek_acropolis_2p": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"greek_acropolis_night": {
 			"keywords": [],
 			"type": "skirmish"
@@ -830,6 +844,10 @@
 			"type": "skirmish"
 		},
 		"median_oasis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"median_oasis_4p": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -978,6 +996,10 @@
 			"type": "scenario"
 		},
 		"neareastern_badlands": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"neareastern_badlands_2p": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -1290,6 +1312,10 @@
 			"type": "scenario"
 		},
 		"saharan_oases": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"saharan_oases_2p": {
 			"keywords": [],
 			"type": "skirmish"
 		},
