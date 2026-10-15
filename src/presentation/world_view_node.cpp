@@ -1822,6 +1822,13 @@ String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_s
 		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
 	// Palisade WallSet pieces (WALLSET_PALISADE) draw 0 A.D.'s palisades_short, _medium,
 	// _long, _tower and _gate; a one-cell palisade from a map keeps its model.
+	// Rome's siege WallSet (rome/wallset_siege) draws its own siege_wall_long, _medium,
+	// _short, _tower and _gate actors; segments are 36, 24 and 12 m like the stone walls'.
+	if (type == rtso::BLD_SIEGE_WALL_GATE) return "siege_wall_gate";
+	if (type == rtso::BLD_SIEGE_WALL) {
+		if (rtso::is_siege_wall_tower(type, half_size)) return "siege_wall_tower";
+		return half_size >= 3.75f ? "siege_wall_long" : half_size >= 2.25f ? "siege_wall_medium" : "siege_wall_short";
+	}
 	if (type == rtso::BLD_PALISADE_GATE) return "palisade_gate";
 	if (type == rtso::BLD_PALISADE && rtso::is_wallset_piece(type, half_size)) {
 		if (rtso::is_palisade_tower(type, half_size)) return "palisade_tower";
