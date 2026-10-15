@@ -424,7 +424,7 @@ void RtsoMiniMapView::_draw() {
 		for (const auto &b : mirages_.buildings()) {
 			if (rtso::is_civic_centre(b.type)) draw_icon(ICON_CIVIL_CENTRE, b.x, b.z);
 			else if (b.type == rtso::BLD_WONDER) draw_icon(ICON_WONDER, b.x, b.z);
-			else if (b.type == rtso::BLD_SHRINE || b.type == rtso::BLD_TRADING_POST) draw_icon(ICON_OTHER, b.x, b.z);
+			else if (b.type == rtso::BLD_SHRINE || b.type == rtso::BLD_TRADING_POST || b.type == rtso::BLD_MILL) draw_icon(ICON_OTHER, b.x, b.z);
 		}
 		for (size_t i = 0; i < units.count; ++i)
 			if (units.alive[i] && units.unit_type[i] == rtso::UNIT_CATAFALQUE &&

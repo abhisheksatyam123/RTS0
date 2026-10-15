@@ -46,7 +46,8 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "stable") return rtso::BLD_STABLE;
 	if (n == "range") return rtso::BLD_RANGE;
 	if (n == "storehouse" || n == "forge") return rtso::BLD_STOREHOUSE;
-	if (n == "farmstead" || n == "field" || n == "mill" || n == "rotarymill") return rtso::BLD_FARMSTEAD;
+	if (n == "farmstead" || n == "field") return rtso::BLD_FARMSTEAD;
+	if (n == "mill" || n == "rotarymill") return rtso::BLD_MILL;
 	if (n == "market") return rtso::BLD_MARKET;
 	if (n == "tower" || n == "defense_tower") return rtso::BLD_TOWER;
 	if (n == "sentry_tower") return rtso::BLD_SENTRY_TOWER;

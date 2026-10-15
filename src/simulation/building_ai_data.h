@@ -19,7 +19,7 @@ struct BuildingAIInfo {
 	bool shoots() const { return default_arrows > 0 || garrison_arrow_multiplier > 0.0f; }
 };
 
-inline constexpr uint8_t BUILDING_AI_ROWS = 86;
+inline constexpr uint8_t BUILDING_AI_ROWS = 87;
 inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 	static const BuildingAIInfo kTable[BUILDING_AI_ROWS + 1] = {
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true, false}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -108,6 +108,7 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{10, 0, 1.0f, TC_SOLDIER, 0.0f, 10.0f, 0.0f, 2.8f, 16.8f, 0.0f, 0.4f, 3.5f, true, false}, // BLD_FORTRESS_OLD: structures/han/fortress_old
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_LAOZI_GATE: structures/han/laozigate
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_MILL: structures/mill_greek
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // none
 	};
 	return kTable[type < BUILDING_AI_ROWS ? type : BUILDING_AI_ROWS];

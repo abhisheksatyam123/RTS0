@@ -108,13 +108,39 @@ func run() -> void:
 	check(page.get_node("%TabGameType").tooltip_text.begins_with("Click to toggle the Game Type settings tab.\nScroll down or use "), "with 0.28's tooltip")
 	page.get_node("%TabGameType").pressed.emit()
 	await frames(1)
-	check(shown.call().is_empty() and not page.get_node("%TabGameType").button_pressed, "pressing the open tab closes it")
+	var gt: Control = page.get_node("%GameTypeTab")
+	check(gt.visible and gt.position.x < 0.0 and not page.get_node("%TabGameType").button_pressed, "pressing the open tab slides it out")
+	await frames(12)
+	check(shown.call().is_empty() and gt.position.x == 0.0, "then closes it")
+	page.select_tab(0)
+	await frames(2)
+	var mt: Control = page.get_node("%MapTab")
+	var x0 := mt.position.x
+	await frames(2)
+	check(x0 < 0.0 and mt.position.x > x0, "opening a tab slides the panel in (%d, %d)" % [x0, mt.position.x])
+	await frames(12)
+	check(mt.position.x == 0.0, "to its place")
+	var found := false
+	for sec in load("res://scenes/menu/options.gd").SCHEMA:
+		for o in sec[1]:
+			if o[1] == "gui.gamesetup.settingsslide" and o[2] == "Enable settings panel slide":
+				found = true
+	check(found, "Options lists Enable settings panel slide")
+	var ucfg := RtsoUserConfig.new()
+	ucfg.set_value("gui.gamesetup.settingsslide", "false")
+	page.select_tab(-1)
+	check(shown.call().is_empty(), "with the slide off a tab closes at once")
+	page.select_tab(2)
+	await frames(1)
+	check(gt.visible and gt.position.x == 0.0, "and opens in place")
+	ucfg.set_value("gui.gamesetup.settingsslide", "true")
 	page.select_tab(1)
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
 	esc.physical_keycode = KEY_ESCAPE
 	esc.pressed = true
 	page._unhandled_input(esc)
+	await frames(12)
 	check(shown.call().is_empty(), "Escape closes it too")
 
 	print("5. Game Speed (GameSpeed.js, game_speeds.json)")

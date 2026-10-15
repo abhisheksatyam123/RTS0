@@ -400,13 +400,58 @@ func _build_tabs() -> void:
 			if d != 0:
 				select_tab(TAB_BUTTONS_JS.next_index(_tab, d, TAB_BUTTONS.size()))
 				b.accept_event())
+	# A container re-sort puts the sliding panel back at 0; keep it where it is.
+	(get_node("%TabButtons").get_parent() as Container).sort_children.connect(func():
+		if _slide_panel != null:
+			_slide_panel.position.x = _slide_x)
 	select_tab(-1 if _mp_role == "client" else 0)
 
 func select_tab(i: int) -> void:
+	var was := _tab
 	_tab = i
+	var slide := RtsoUserConfig.new().get_bool("gui.gamesetup.settingsslide")
 	for k in SETTING_TABS.size():
-		(get_node("%" + SETTING_TABS[k]) as Control).visible = k == i
+		var panel: Control = get_node("%" + SETTING_TABS[k])
+		# The panel that closes with nothing taking its place stays up while it
+		# slides out; the others switch at once, as 0.28's do.
+		panel.visible = k == i or (slide and i == -1 and k == was)
 		(get_node("%" + TAB_BUTTONS[k]) as Button).set_pressed_no_signal(k == i)
+	if not slide:
+		_slide_x = 0.0
+		_slide_panel = null
+		return
+	if was == -1 and i != -1:
+		_slide_panel = get_node("%" + SETTING_TABS[i])
+		if _slide_x == 0.0:
+			_slide_x = -_slide_width()
+	elif i == -1 and was != -1:
+		_slide_panel = get_node("%" + SETTING_TABS[was])
+	elif i != -1:
+		_slide_panel = get_node("%" + SETTING_TABS[i])
+
+## 0.28 GameSettingsPanel.js onTick (gui.gamesetup.settingsslide): the settings
+## panel slides in from the left at 1.2 px/ms when a tab opens and back out when
+## the last one closes.
+const SLIDE_SPEED := 1200.0 # px per second
+var _slide_x := 0.0
+var _slide_panel: Control = null
+
+func _slide_width() -> float:
+	return maxf((get_node("%TabButtons") as Control).size.x, 330.0)
+
+func _tick_slide(delta: float) -> void:
+	if _slide_panel == null:
+		return
+	var target := 0.0 if _tab != -1 else -_slide_width()
+	_slide_x = move_toward(_slide_x, target, SLIDE_SPEED * delta)
+	_slide_panel.position.x = _slide_x
+	if _slide_x != target:
+		return
+	if _tab == -1:
+		_slide_panel.visible = false
+		_slide_panel.position.x = 0.0
+		_slide_x = 0.0
+	_slide_panel = null
 
 # ---------------------------------------------------------------- maps ---
 
@@ -2407,6 +2452,7 @@ func _on_ready_pressed() -> void:
 	_update_net_controls()
 
 func _process(delta: float) -> void:
+	_tick_slide(delta)
 	# GameDescription.updateGameDescription: the summary follows every setting.
 	_desc_tick += delta
 	if _desc_tick >= 0.3:
