@@ -681,7 +681,18 @@ static void test_attack_plans() {
 		const uint32_t store = s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false, told_allies = true, named_target = false;
 		int attack_size = 0, huge_size = 0;
-		for (float t = 0.0f; t < 25.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		// A first Attack that razes the idle player leaves nothing for a second one.
+		auto enemy_left = [&] {
+			for (const auto &b : s->buildings()) if (b.team == 0 && b.hp > 0.0f) return true;
+			return false;
+		};
+		auto attacks_done = [&] {
+			const int n = s->petra_attack_manager().launched[PETRA_ATTACK_ATTACK];
+			return n >= 2 || (n == 1 && !enemy_left());
+		};
+		// 25 minutes, or up to 30 while the second Attack is still to come (a second
+		// rush delays the first Attack, since rushes go first).
+		for (float t = 0.0f; t < 30.0f * 60.0f && (t < 25.0f * 60.0f || !attacks_done()); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			// chatLaunchAttack: "/allies", naming the player attacked.
 			for (const auto &l : s->pending_petra_chat()) {
@@ -708,11 +719,7 @@ static void test_attack_plans() {
 		CHECK(m.max_rushes == 3, "an aggressive AI on a wood-rich base plans three rushes");
 		CHECK(rushed && rush_at_store, "rushes the undefended storehouse in the village phase");
 		CHECK(told_allies && named_target, "each attack is announced to allies only, naming the player attacked");
-		// A first Attack that razes the idle player leaves nothing for a second one.
-		bool enemy_left = false;
-		for (const auto &b : s->buildings()) enemy_left |= b.team == 0 && b.hp > 0.0f;
-		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 2 || (m.launched[PETRA_ATTACK_ATTACK] == 1 && !enemy_left),
-		      "launches two Attack plans, or one that razes the enemy");
+		CHECK(attacks_done(), "launches two Attack plans, or one that razes the enemy");
 	}
 	{
 		// The kind of each plan as it starts mustering (whether a HugeAttack
