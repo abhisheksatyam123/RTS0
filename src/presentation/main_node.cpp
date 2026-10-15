@@ -403,7 +403,7 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 		// Attacks against other players, or dealt by myself, are not registered.
 		if (a.target_owner != me || a.attacker_owner == me) continue;
 		if (attack_detection_.report(a.x, a.z, match_elapsed_time)) {
-			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0);
+			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0, a.target_id);
 			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
 			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
 		}
@@ -413,17 +413,51 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 // 0 A.D. messages.js "attack" notification: remember the spot for
 // camera.lastattackfocus, ping the minimap, play the "attacked" sound group
 // (alarm_attackplayer, or alarm_attacked_gaia for Gaia) and add a chat line.
-void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
+void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target) {
 	has_last_attack_ = true;
 	last_attack_pos_ = pos;
 	if (minimap_view) minimap_view->add_ping(Vector2(pos.x, pos.z), Color(1.0f, 0.15f, 0.1f));
 	const bool gaia = attacker == rtso::GAIA_PLAYER;
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
 	if (!chat_window_.is_ready() || !user_opts_.attack_notice) return;
-	// ChatMessageFormatSimulation.attack: the attacker's name in its colour.
-	(void)structure; // 0 A.D. words unit and structure attacks the same way
-	chat_window_.append_line(sprintf0(tr("%(icon)sYou have been attacked by %(attacker)s!"),
-			{{"icon", ""}, {"attacker", colored_player_name(attacker)}}) + "\n");
+	// ChatMessageFormatSimulation.attack: the attacker's name in its colour, livestock worded
+	// apart (targetIsDomesticAnimal); a click runs focusAttack, following an attacked unit.
+	bool livestock = false;
+	if (!structure && sim) {
+		auto fv = sim->fauna();
+		for (size_t f = 0; f < fv.count; ++f)
+			if (fv.id[f] == target) { livestock = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic(); break; }
+	}
+	const String msg = livestock ? tr("%(icon)sYour livestock has been attacked by %(attacker)s!")
+								 : tr("%(icon)sYou have been attacked by %(attacker)s!");
+	chat_window_.append_line(sprintf0(msg, {{"icon", "[img=16x16]res://assets/textures/ui/archive/icons/focus-attacked.png[/img]"},
+											 {"attacker", colored_player_name(attacker)}}) + "\n",
+			"attack:" + String::num_int64(structure ? 0 : target) + ":" + String::num(pos.x) + "," + String::num(pos.z),
+			tr("Click to focus on the attacked unit."));
+}
+
+// ChatOverlay.js onPress: an attack line runs focusAttack (follow the attacked unit, else look
+// at the spot); a flare line moves the camera to the flare.
+void RtsoMain::_on_chat_line_input(const Ref<InputEvent> &event, const String &action) {
+	Ref<InputEventMouseButton> mb = event;
+	if (!mb.is_valid() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT || !cam_rig) return;
+	const PackedStringArray parts = action.split(":");
+	if (parts.size() < 2) return;
+	const PackedStringArray xz = parts[parts.size() - 1].split(",");
+	if (xz.size() != 2) return;
+	if (parts[0] == "attack" && parts.size() == 3 && sim) {
+		const uint32_t id = (uint32_t)parts[1].to_int();
+		auto uv = sim->units();
+		for (size_t i = 0; id && i < uv.count; ++i)
+			if (uv.id[i] == id && uv.alive[i]) {
+				cam_rig->set_follow_id(id); // setCameraFollow
+				get_viewport()->set_input_as_handled();
+				return;
+			}
+	}
+	cam_rig->set_follow_id(0);
+	cam_rig->set_target_pos(Vector3(xz[0].to_float(), 0.0f, xz[1].to_float()));
+	get_viewport()->set_input_as_handled();
 }
 
 // colorizePlayernameByID: the name in the player's displayed colour.
