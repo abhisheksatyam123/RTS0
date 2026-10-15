@@ -370,6 +370,29 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 	player_color_mats().insert(id, out);
 	return out;
 }
+// The texture files the material fixups load for a GLB's images (player mask,
+// normal, specular and height maps, skin variants), by GLB ("units/spearman").
+HashMap<String, PackedStringArray> &companion_textures() {
+	static auto &m = *new HashMap<String, PackedStringArray>();
+	static bool built = false;
+	if (built) return m;
+	built = true;
+	auto add = [](const String &image, const String &path) {
+		const int t = image.rfind("_tex");
+		if (t <= 0 || path.is_empty()) return;
+		const String glb = image.substr(0, t);
+		if (!m.has(glb)) m.insert(glb, PackedStringArray());
+		m[glb].push_back(path);
+	};
+	for (const KeyValue<String, PlayerMask> &kv : player_masks()) add(kv.key, kv.value.mask);
+	for (const KeyValue<String, String> &kv : normal_maps()) add(kv.key, kv.value);
+	for (const KeyValue<String, String> &kv : specular_maps()) add(kv.key, kv.value);
+	for (const KeyValue<String, ParallaxMap> &kv : parallax_maps()) add(kv.key, kv.value.height);
+	for (const KeyValue<String, UnitVariants> &kv : unit_variants())
+		for (const String &layer : kv.value.layers) add(kv.key, layer);
+	return m;
+}
+
 } // namespace
 
 // tools/extract_0ad_structures.py: civs whose 0 A.D. structure actor is the
@@ -1155,6 +1178,24 @@ HashMap<String, bool> &ModelLibrary::threaded_paths() {
 	return m;
 }
 
+void ModelLibrary::request_threaded(const String &path) {
+	if (threaded_paths().has(path) || ResourceLoader::get_singleton()->has_cached(path) ||
+			!ResourceLoader::get_singleton()->exists(path))
+		return;
+	if (ResourceLoader::get_singleton()->load_threaded_request(path) == OK) threaded_paths().insert(path, true);
+}
+
+// Takes the prefetched companion textures of a GLB (they stay cached while `keep` holds them).
+static void take_companions(const String &path, std::vector<Ref<Resource>> &keep, HashMap<String, bool> &pending) {
+	const PackedStringArray *tex = companion_textures().getptr(path.trim_prefix("res://assets/models/").get_basename());
+	if (!tex) return;
+	for (const String &t : *tex) {
+		if (!pending.has(t)) continue;
+		pending.erase(t);
+		keep.push_back(ResourceLoader::get_singleton()->load_threaded_get(t));
+	}
+}
+
 // ResourceLoader's threaded load reads the GLB and the textures it names on a
 // worker; load() then takes it with load_threaded_get instead of reading it on
 // the frame that first draws the model.
@@ -1164,9 +1205,11 @@ void ModelLibrary::prefetch(const String &category, const String &id) {
 	for (int i = 0; i < candidates.size(); ++i) {
 		const String &path = candidates[i];
 		if (!ResourceLoader::get_singleton()->exists(path)) continue;
-		if (!threaded_paths().has(path) && !ResourceLoader::get_singleton()->has_cached(path) &&
-				ResourceLoader::get_singleton()->load_threaded_request(path) == OK)
-			threaded_paths().insert(path, true);
+		request_threaded(path);
+		// And the skins' companion textures the material fixups would read on the frame.
+		const String glb = path.trim_prefix("res://assets/models/").get_basename();
+		if (const PackedStringArray *tex = companion_textures().getptr(glb))
+			for (const String &t : *tex) request_threaded(t);
 		break;
 	}
 	// A template model borrows its class model's scale and, without clips, a donor's.
@@ -1187,6 +1230,8 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 		const String &path = candidates[i];
 		if (ResourceLoader::get_singleton()->exists(path)) {
 			Ref<PackedScene> ps;
+			std::vector<Ref<Resource>> companions; // held through the fixups below
+			take_companions(path, companions, threaded_paths());
 			if (threaded_paths().has(path)) {
 				threaded_paths().erase(path);
 				ps = ResourceLoader::get_singleton()->load_threaded_get(path);
