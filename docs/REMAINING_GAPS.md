@@ -23,7 +23,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G13 | Petra's numberMissingRoom has no 90 s lapse | low | C |
 | G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
 | G15 | Petra buys trade-gain and population techs only if it can pay at the check | low | E |
-| G16 | A defensive-stance unit keeps chasing a target that leaves its reach; boarding a transport skips 0.28's garrison rules | low | Unit orders |
+| G16 | ~~A defensive-stance unit keeps chasing a target that leaves its reach; boarding a transport skips 0.28's garrison rules~~ Closed 2026-10-15: boarding follows Order.Garrison (an unpacked siege engine packs first, a unit with no room walks over and stops beside the full ship, an ally's unit walking to board ignores enemies on the way). The chase half re-checked: a defensive unit drops a target after a swing finds it out of reach and goes back; it walks up to the same target again only when FINDINGNEWTARGET would pick it again in 0.28 | low | Unit orders |
 | G17 | ~~No collect_treasure voice~~ Closed 2026-10-15: a treasure order plays 0.28's collect_treasure lines (greek male As you wish, greek female and latin gather together, persian and kushite gather) | low | Unit orders |
 | G18 | Animals never play their feeding animation; each species wears one coat, and template trees draw one mesh | low | Animal models (feeding), Fauna (variants) |
 | G19 | Siege walls draw the stone wall model (siege_wall.glb is unused) | low | Animal models |

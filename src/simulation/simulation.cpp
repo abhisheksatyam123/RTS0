@@ -8832,11 +8832,9 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 	int walking = 0;
 
 	for (size_t i = 0; i < count; ++i) {
-		if (occupied_slots(passengers) >= max_cap) break;
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		if (turret_height_.count(unit_ids[i])) continue; // UnitAI.Garrison: a turret stays put
-		if (occupied_slots(passengers) + garrison_size((size_t)uidx) > max_cap) continue;
 		if (!can_board((size_t)tidx, (size_t)uidx)) continue;
 
 		float dx = units_.pos_x[uidx] - tx;
@@ -8844,7 +8842,11 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 		float d2 = dx * dx + dz * dz;
 		const float reach = transport_loading_reach((size_t)tidx, (size_t)uidx);
 
-		if (d2 <= reach * reach) {
+		// UnitAI Order.Garrison: an unpacked siege engine packs first (the walk below makes
+		// tick_pack pack it); a unit with no room left still walks over (CanGarrison doesn't
+		// count room) and stops beside the ship when GARRISONING finds it full.
+		if (d2 <= reach * reach && pack_state_can_move(units_.pack_state[uidx]) &&
+				occupied_slots(passengers) + garrison_size((size_t)uidx) <= max_cap) {
 			units_.action_state[uidx] = ACTION_GARRISONED;
 			units_.alive[uidx] = 0;
 			units_.has_order[uidx] = 0;
@@ -10524,7 +10526,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				float dx = px[i] - px[tidx];
 				float dz = pz[i] - pz[tidx];
 				const float reach = transport_loading_reach((size_t)tidx, i);
-				if (dx * dx + dz * dz <= reach * reach) {
+				if (dx * dx + dz * dz <= reach * reach && pack_state_can_move(units_.pack_state[i])) {
 					auto &passengers = transport_passengers_[units_.id[tidx]];
 					int max_pcap = get_transport_capacity(units_.id[tidx]);
 					if (occupied_slots(passengers) + garrison_size(i) <= max_pcap) {
@@ -10534,6 +10536,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						units_.vel_x[i] = 0.0f;
 						units_.vel_z[i] = 0.0f;
 						passengers.push_back(units_.id[i]);
+					} else {
+						// GARRISONING enter: Garrison fails on a full ship, FinishOrder.
+						units_.action_state[i] = ACTION_IDLE;
+						units_.has_order[i] = 0;
+						units_.target_unit_id[i] = 0;
+						units_.vel_x[i] = 0.0f;
+						units_.vel_z[i] = 0.0f;
 					}
 				}
 			}
@@ -12876,7 +12885,7 @@ void Simulation::tick_combat(float dt) {
 		// keep the order instead of dropping target_unit_id for want of an enemy.
 		if (st == ACTION_MOVE && units_.target_unit_id[i] != 0) {
 			const int32_t c = lookup_unit(units_.target_unit_id[i]);
-			if (c >= 0 && units_.alive[c] && units_.team[c] == units_.team[i]) return;
+			if (c >= 0 && units_.alive[c] && (units_.team[c] == units_.team[i] || is_ally(units_.team[i], units_.team[c]))) return;
 		}
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
 				st == ACTION_FLEE || st == ACTION_GARRISONED || st == ACTION_REPAIR)
