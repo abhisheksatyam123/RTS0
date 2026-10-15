@@ -15524,6 +15524,12 @@ void Simulation::tick_death_damage(float dt) {
 // A structure's Resistance levels: its template's, plus armour auras that name Structure
 // (Maximus' Shield of Rome: his player's structures +1 everywhere).
 void Simulation::structure_resistance(const Building &b, float out[3]) const {
+	// Resistance.js GetEffectiveResistanceAgainst: a foundation takes damage with the Foundation
+	// form (template_structure.xml: Hack 1, Pierce 10, Crush 1), which no tech or aura modifies.
+	if (b.build_progress < 1.0f) {
+		out[0] = 1.0f; out[1] = 10.0f; out[2] = 1.0f;
+		return;
+	}
 	structure_armour(b.type, b.civ, out);
 	const float aura = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_ARMOR, CIV_UNIT_TEMPLATE_NONE, nullptr, true);
 	for (int k = 0; k < 3; ++k) out[k] += aura;
