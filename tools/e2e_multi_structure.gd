@@ -120,7 +120,10 @@ func run() -> void:
 	main._on_roster_item_clicked(pick, Vector2(), MOUSE_BUTTON_LEFT)
 	await frames(2)
 	await key(KEY_SHIFT, false)
-	await frames(6)
+	for i in 60: # the batch is posted as a command, so it lands a turn later
+		await frames(1)
+		if main.debug_building_queue(b1) == 6 and main.debug_building_queue(b2) == 6:
+			break
 	print("    queues ", main.debug_building_queue(b1), " ", main.debug_building_queue(b2))
 	check(main.debug_building_queue(b1) == 6 and main.debug_building_queue(b2) == 6, "a batch of 5 goes to each")
 	var producers := []
