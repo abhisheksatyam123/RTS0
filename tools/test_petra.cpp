@@ -309,12 +309,13 @@ static void test_ai_slots() {
 		CHECK(count_units(*s, 2, true) > w2 + 4, "AI player 2 trains workers");
 		CHECK(count_buildings(*s, 2) > b2 + 2, "AI player 2 builds");
 	}
-	// No human (0 A.D. observer game): player 0 runs its own Petra like any AI slot.
+	// No human (0 A.D. observer game): player 0 runs its own Petra like any AI slot. The map is
+	// big enough that the two economies don't start inside each other's border skirmishes.
 	{
 		auto s = std::make_unique<Simulation>();
 		s->set_sim_seed(11);
 		s->reset();
-		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 2, 64.0f);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 2, 96.0f);
 		s->set_player_active(0, true, true);
 		s->set_player_active(1, true, true);
 		const int w0 = count_units(*s, 0, true), b0 = count_buildings(*s, 0);
