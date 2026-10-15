@@ -10,7 +10,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 414;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 423;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -428,6 +428,15 @@ inline const char *unit_template_draw_model(int k) {
 		"theb_siege_fireraiser",
 		"maur_citizen_female",
 		"han_citizen_female",
+		"siege_scorpio",
+		"romans_siege_scorpio_packed",
+		"siege_ballista_med",
+		"romans_siege_rock_packed",
+		"siege_onager",
+		"romans_siege_onager_packed",
+		"siege_mangonel",
+		"han_siege_mangonel_pivot_packed",
+		"athen_female_citizen",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -534,10 +543,10 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		149, // rome/ship_ram
 		150, // rome/ship_scout
 		151, // rome/ship_siege
-		-1, // rome/siege_ballista_packed
-		-1, // rome/siege_onager_packed
+		416, // rome/siege_ballista_packed
+		418, // rome/siege_onager_packed
 		-1, // rome/siege_ram
-		-1, // rome/siege_scorpio_packed
+		414, // rome/siege_scorpio_packed
 		-1, // rome/support_female_citizen
 		-1, // rome/support_female_citizen_house
 		-1, // rome/support_healer_b
@@ -800,7 +809,7 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // han/ship_merchant
 		44, // han/ship_scout
 		60, // han/ship_siege
-		58, // han/siege_mangonel_packed
+		420, // han/siege_mangonel_packed
 		12, // han/siege_ram
 		59, // han/siege_tower
 		-1, // han/support_female_citizen
@@ -841,8 +850,8 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // rome/support_civilian_house
 		-1, // cart/support_civilian
 		-1, // cart/support_civilian_house
-		-1, // mace/support_civilian
-		-1, // mace/support_civilian_house
+		422, // mace/support_civilian
+		422, // mace/support_civilian_house
 		21, // brit/support_civilian
 		21, // brit/support_civilian_house
 		21, // gaul/support_civilian

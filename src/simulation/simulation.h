@@ -681,6 +681,7 @@ public:
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
+		terrain_lowest_known_ = false;
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -3771,6 +3772,9 @@ private:
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
 	std::vector<CaptureReach> capture_cell_buildings_;
+	// What capture_cell_* were built from (map half-size, then each building's x, z): the grid
+	// is rebuilt only when these change.
+	std::vector<float> capture_cell_key_;
 	// Capture points each player's capture attacks took from each building this tick
 	// (tick_combat fills it, tick_capture spends it). Indexed like buildings_.
 	std::vector<std::array<float, MAX_PLAYERS>> capture_attack_;
@@ -3854,6 +3858,10 @@ private:
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;
 	std::vector<float> terrain_heights_;
+	// The lowest terrain height (0 on a flat map), found once per heightmap (structure arrows' reach).
+	mutable float terrain_lowest_ = 0.0f;
+	mutable bool terrain_lowest_known_ = false;
+	float lowest_terrain_height() const;
 	TerrainTiles terrain_tiles_; // saved v49, after the heightmap
 	float terrain_water_height_ = -1.0f;
 	std::string current_map_id_ = "default";

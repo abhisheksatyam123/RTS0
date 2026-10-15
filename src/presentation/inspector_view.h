@@ -528,7 +528,7 @@ public:
 			lbl->set_text(text);
 		};
 		auto health = [&](float hp, float max) {
-			bar(hp_bar_, hp_label_, max > 0.0f, hp, max, rtso::seldet::health(hp, max));
+			bar(hp_bar_, hp_label_, max > 0.0f, hp, max, rtso::seldet::health_stats(hp, max));
 		};
 		bar(capture_bar_, capture_label_, false);
 		bar(xp_bar_, xp_label_, false);
@@ -612,7 +612,7 @@ public:
 				if (seen->max_capture_points > 0.0f)
 				{
 					bar(capture_bar_, capture_label_, true, seen->capture_points, seen->max_capture_points,
-							rtso::seldet::capture(seen->capture_points, seen->max_capture_points));
+							rtso::seldet::capture_stats(seen->capture_points, seen->max_capture_points));
 					float pts[rtso::MAX_PLAYERS + 1] = {};
 					pts[seen->team < rtso::MAX_PLAYERS ? seen->team : rtso::MAX_PLAYERS] = seen->capture_points;
 					set_capture_parts(*sim, seen->team, pts, seen->max_capture_points);
@@ -634,7 +634,7 @@ public:
 			set_structure_extras(*sim, *found);
 			if (found->max_capture_points > 0.0f) {
 				bar(capture_bar_, capture_label_, true, found->capture_points, found->max_capture_points,
-						rtso::seldet::capture(found->capture_points, found->max_capture_points));
+						rtso::seldet::capture_stats(found->capture_points, found->max_capture_points));
 				set_structure_capture_parts(*sim, *found);
 			}
 			rtso::Simulation::BuildWork work;
@@ -835,16 +835,15 @@ public:
 				portrait_->set_texture(rtso::portraits::structure(found_b->civ, found_b->type));
 				title_->set_text(structure_name(found_b->civ, found_b->type, binfo.name));
 				const uint8_t owner = found_b->team;
-				set_owner(*sim, owner, found_b->garrison_cap > 0
-						? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
-						: String());
+				// The garrison count is on the garrison panel and the Unload All icon, not here.
+				set_owner(*sim, owner, String());
 
-				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health(found_b->hp, found_b->max_hp));
+				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health_stats(found_b->hp, found_b->max_hp));
 				set_structure_extras(*sim, *found_b);
 
 				if (found_b->max_capture_points > 0.0f) {
 					set_bar(capture_bar_, capture_label_, found_b->capture_points, found_b->max_capture_points,
-							rtso::seldet::capture(found_b->capture_points, found_b->max_capture_points));
+							rtso::seldet::capture_stats(found_b->capture_points, found_b->max_capture_points));
 					set_structure_capture_parts(*sim, *found_b);
 				} else
 					show_bar(capture_bar_, capture_label_, false);
@@ -856,15 +855,6 @@ public:
 							join_spaced("Construction: " + String::num((double)(found_b->build_progress * 100.0f), 0) + "%",
 									rtso::seldet::build_work_caption(work.builders, work.remaining)));
 					if (building_work) xp_bar_->set_tooltip_text(build_work_tooltip(work));
-				} else if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT && found_b->upgrade_duration > 0.0f) {
-					set_bar(xp_bar_, xp_label_, found_b->upgrade_timer, found_b->upgrade_duration,
-							"Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" +
-							String::num(found_b->upgrade_duration - found_b->upgrade_timer, 0) + " s left)");
-				} else if (const uint8_t rt = rtso::Simulation::researching(*found_b); rt != rtso::TECH_NONE && found_b->queue.front().duration > 0.0f) {
-					const rtso::ProductionOrder &po = found_b->queue.front();
-					set_bar(xp_bar_, xp_label_, po.timer, po.duration,
-							"Researching " + String::utf8(rtso::tech_info(rt).name) + " (" +
-							String::num(po.duration - po.timer, 0) + " s left)");
 				} else if (building_work && work.repair) {
 					// selection_details.js: a damaged structure shows its repairers and the time left.
 					set_bar(xp_bar_, xp_label_, found_b->hp, found_b->max_hp,
@@ -875,18 +865,10 @@ public:
 				}
 				show_bar(aura_bar_, aura_label_, false);
 
-				String status;
-				if (rtso::is_gate_type(found_b->type))
-					status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
-				else if (!found_b->queue.empty())
-					status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
-							" in queue" + (found_b->autoqueue ? " (autoqueue on)" : "") + " (click a slot to cancel)";
-				if (const rtso::Simulation::StructureDetails sd = sim->structure_details(*found_b); sd.shoots)
-					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sd.arrows) + " arrows of " +
-							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
-							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
-				// A field's resourceSection: "Food: ∞" and its gatherers.
-				stats_->set_text(rtso::seldet::join_lines({status, supply_lines(*sim, sim->field_resource_id(found_b->id))}));
+				// A field's resourceSection: "Food: ∞" and its gatherers. 0.28 has no free text here: the
+				// upgrade and research progress are on the Queue panel, the gate state on its Lock
+				// buttons, the arrows on the attack tooltip (selection_details.js displaySingle).
+				stats_->set_text(supply_lines(*sim, sim->field_resource_id(found_b->id)));
 				// Beside the Barter panel when it shows.
 				const bool barter = barter_host_ && barter_host_->is_visible();
 				if (barter) {
@@ -895,19 +877,11 @@ public:
 					stats_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 				}
 				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
-				// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
-				const int penned = found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0;
-				String extra = found_b->has_rally_point ? "Rally point set" : "";
-				if (penned > 0)
-					extra += String(extra.is_empty() ? "" : "\n") + "Penned animals: " + String::num_int64(penned) + " / " +
-							String::num_int64(rtso::CORRAL_GARRISON_MAX);
-				extra_->set_text(extra);
+				extra_->set_text("");
 
-				// Garrison panel; U unloads all we may (Commands.js unload / unload-all-by-owner).
-				const std::vector<uint32_t> mine = sim->unloadable_by(host_->local_player(), found_b->id);
+				// Garrison panel; Unload All is the command row's icon (g_EntityCommands).
 				show_garrison_grid = fill_garrison_grid(*sim, found_b->id);
-				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-				ungarrison_btn_->set_visible(!mine.empty() || (penned > 0 && owner == host_->local_player()));
+				ungarrison_btn_->set_visible(false);
 				panel_->set_visible(true);
 				return;
 			}
@@ -932,7 +906,8 @@ public:
 			hp_sum += g.hp;
 			hp_max_sum += g.max_hp;
 		}
-		set_bar(hp_bar_, hp_label_, hp_sum, hp_max_sum, rtso::seldet::health(hp_sum, hp_max_sum));
+		set_bar(hp_bar_, hp_label_, hp_sum, hp_max_sum,
+				selected_ids.size() == 1 ? rtso::seldet::health_stats(hp_sum, hp_max_sum) : rtso::seldet::health(hp_sum, hp_max_sum));
 		show_bar(capture_bar_, capture_label_, false);
 
 		if (selected_ids.size() == 1 && !groups.empty()) {
@@ -952,7 +927,7 @@ public:
 			const String name = unit_name(uview, u, uinfo.name);
 			title_->set_text(name);
 			const uint8_t owner = uview.team[u];
-			set_owner(*sim, owner, " - Kills: " + String::num_int64(uview.kills[u]));
+			set_owner(*sim, owner, String()); // kills are on the summary screen, not here
 
 			// Experience toward the next rank (Promotion.js GetRequiredXp after technologies).
 			if (const float need = sim->promotion_required_xp(u); need > 0.0f) {
@@ -962,16 +937,7 @@ public:
 			}
 			show_bar(xp_bar_, xp_label_, false);
 
-			String auras;
-			if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
-				for (int16_t a : rtso::civ_unit_template(tmpl).auras) {
-					if (a < 0) continue;
-					if (!auras.is_empty()) auras += ", ";
-					auras += String::utf8(rtso::civ_hero_aura(a).name);
-				}
-			}
-			if (!auras.is_empty()) set_bar(aura_bar_, aura_label_, 1.0f, 1.0f, "Auras: " + auras);
-			else show_bar(aura_bar_, aura_label_, false);
+			show_bar(aura_bar_, aura_label_, false); // auras are on the portrait tooltip (getAurasTooltip)
 
 			fill_unit_details(*sim, u, name);
 			set_unit_extras(*sim, u);
@@ -1014,10 +980,8 @@ public:
 						rtso::seldet::amount_of(uview.carry[u], sim->unit_details(u).carry_max);
 			}
 			if (sim->is_transport((uint32_t)selected_ids[0])) {
-				const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
-				extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(sim->get_transport_capacity((uint32_t)selected_ids[0]));
-				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-				ungarrison_btn_->set_visible(!sim->unloadable_by(host_->local_player(), (uint32_t)selected_ids[0]).empty());
+				// Passengers are on the garrison panel and the Unload All icon's count.
+				ungarrison_btn_->set_visible(false);
 				show_garrison_grid = fill_garrison_grid(*sim, (uint32_t)selected_ids[0]);
 			} else {
 				ungarrison_btn_->set_visible(false);
@@ -1292,7 +1256,7 @@ private:
 				capture_bar_->set_visible(true);
 				capture_label_->set_visible(true);
 				capture_bar_->set_max(max);
-				capture_label_->set_text(rtso::seldet::capture(r.cp[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS], max));
+				capture_label_->set_text(rtso::seldet::capture_stats(r.cp[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS], max));
 				set_capture_parts(sim, owner, r.cp.data(), max);
 				break;
 			}
