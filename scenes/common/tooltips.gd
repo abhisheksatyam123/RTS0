@@ -5,7 +5,10 @@ extends CanvasLayer
 ## The reference pages pick their own style through a "tooltip_style" meta on
 ## an ancestor: reference/common/setup.xml referenceTooltip (50 ms, maxwidth
 ## 480, offset 16 24) and civinfo/setup.xml civInfoTooltip (50 ms, sans-12,
-## maxwidth 440, offset 16 32, buffer_zone 10), both white on bkTooltip.
+## maxwidth 440, offset 16 32, buffer_zone 10), both white on bkTooltip; the
+## main menu's buttons use pregame/menupanel.xml pgToolTip: no delay, in a
+## fixed TranslucentPanel at the top right (size "100%-313 25 100% 200",
+## white sans-bold-stroke-14, buffer_zone 10).
 ##
 ## 0 A.D. 0.28 gui/common/setup.xml: snToolTip on the menus (delay 500 ms,
 ## maxwidth 400, offset 16 32, black text on white with a black border) and
@@ -22,12 +25,14 @@ const BUFFER := 4.0
 const REFERENCE_STYLES := {
 	"reference": {"delay": 0.05, "width": 480.0, "offset": Vector2(16, 24), "font": 14, "buffer": 4.0},
 	"civinfo": {"delay": 0.05, "width": 440.0, "offset": Vector2(16, 32), "font": 12, "buffer": 10.0},
+	"pg": {"delay": 0.0, "width": 293.0, "font": 14, "fixed": Rect2(-313, 25, 313, 175)},
 }
 
 var _panel: PanelContainer
 var _label: RichTextLabel
 var _menu_style: StyleBoxFlat
 var _session_style: StyleBoxFlat
+var _pg_style: StyleBoxFlat
 var _custom: Control
 var _owner: Control
 var _text := ""
@@ -40,6 +45,9 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_menu_style = _style(Color(1, 1, 1, 0.95), Color(0, 0, 0))
 	_session_style = _style(Color(0.06, 0.07, 0.09, 0.92), Color(0.45, 0.42, 0.32))
+	_pg_style = _style(Color(0, 0, 0, 85.0 / 255.0), Color(0, 0, 0, 0)) # BackgroundTranslucent
+	_pg_style.set_border_width_all(0)
+	_pg_style.set_content_margin_all(10)
 	_panel = PanelContainer.new()
 	_panel.name = "Tooltip"
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -120,7 +128,8 @@ func _show(c: Control, text: String) -> void:
 	var text_color := Color.WHITE if dark else Color.BLACK
 	var size: int = _ref.get("font", 14)
 	var max_width: float = _ref.get("width", MAX_WIDTH)
-	_panel.add_theme_stylebox_override("panel", _session_style if dark else _menu_style)
+	var pg: bool = _ref.has("fixed")
+	_panel.add_theme_stylebox_override("panel", _pg_style if pg else _session_style if dark else _menu_style)
 	if c.has_method("_make_custom_tooltip"):
 		var custom = c._make_custom_tooltip(text)
 		if custom is Control:
@@ -136,6 +145,13 @@ func _show(c: Control, text: String) -> void:
 		_label.visible = true
 		_label.add_theme_color_override("default_color", text_color)
 		_label.add_theme_font_size_override("normal_font_size", size)
+		# sans-bold-stroke-14 on the menu panel.
+		_label.add_theme_constant_override("outline_size", 3 if pg else 0)
+		_label.add_theme_color_override("font_outline_color", Color.BLACK)
+		if pg:
+			_label.add_theme_font_override("normal_font", _label.get_theme_font("bold_font"))
+		else:
+			_label.remove_theme_font_override("normal_font")
 		var font := _label.get_theme_font("normal_font")
 		var widest := 0.0
 		# Measured without its BBCode (tooltips.js g_TooltipTextFormats); an inline icon is 16 wide.
@@ -143,13 +159,18 @@ func _show(c: Control, text: String) -> void:
 			var icons := line.count("[img")
 			var plain := _BBCODE.sub(line, "", true).replace("[lb]", "[").replace("[rb]", "]")
 			widest = maxf(widest, font.get_string_size(plain, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + icons * 16.0)
-		_label.custom_minimum_size = Vector2(minf(widest + 4.0, max_width), 0)
+		_label.custom_minimum_size = Vector2(max_width if pg else minf(widest + 4.0, max_width), 0)
 		_label.text = text
 	_panel.reset_size()
 	_panel.visible = true
 
 ## setup.xml offset 16 32 below the cursor, kept on screen (buffer_zone 4).
 func _place(mouse: Vector2, screen: Vector2) -> void:
+	if _ref.has("fixed"):
+		var r: Rect2 = _ref["fixed"]
+		_panel.position = Vector2(screen.x + r.position.x, r.position.y)
+		_panel.size = Vector2(r.size.x, maxf(r.size.y, _panel.get_combined_minimum_size().y))
+		return
 	var size := _panel.get_combined_minimum_size()
 	var buffer: float = _ref.get("buffer", BUFFER)
 	var pos: Vector2 = mouse + _ref.get("offset", OFFSET)

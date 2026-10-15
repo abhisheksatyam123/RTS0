@@ -1794,6 +1794,7 @@ struct TechInfo {
 };
 
 #include "tech_data.h"
+#include "tech_tooltip_data.h"
 #include "building_ai_data.h"
 #include "trainer_data.h"
 static_assert(TRAINER_BUILDING_ROWS == BLD_TYPE_COUNT && TRAINER_CIV_ROWS == CIV_COUNT,

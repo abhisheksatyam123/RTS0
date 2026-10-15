@@ -99,7 +99,7 @@ struct EntityAttackSounds {
 	uint8_t a, b, c, d;
 };
 
-inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 463;
+inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 502;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
 inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 86;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
@@ -570,6 +570,45 @@ inline const EntityAttackSounds *roster_attack_sounds() {
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/support_healer_e
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/support_healer_e
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/support_healer_e
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // athen/infantry_marine_archer_b
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/champion_infantry_pike
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // pers/hero_xerxes_i_chariot
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/kardakes_hoplite
+		{ATTACK_SOUND_NONE, 29, 23, ATTACK_SOUND_NONE}, // pers/kardakes_skirmisher
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/hero_marcellus_infantry
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/hero_maximus_infantry
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/hero_scipio_infantry
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/infantry_swordsman_slave
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/champion_pikeman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/hero_craterus
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/hero_philip_ii_pike
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/hero_pyrrhus_i
+		{ATTACK_SOUND_NONE, 29, 23, ATTACK_SOUND_NONE}, // brit/hero_boudicca_cavalry_javelineer
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/hero_boudicca_sword
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/hero_cunobelin_infantry
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/hero_vercingetorix_infantry
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/hero_indibil_infantry
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // maur/hero_ashoka_infantry
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/hero_bindusara_infantry
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/hero_chandragupta_infantry
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // kush/hero_amanirenas_infantry
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/hero_harsiotef
+		{26, 25, 24, ATTACK_SOUND_NONE}, // ptol/champion_juggernaut
+		{ATTACK_SOUND_NONE, 28, 21, 35}, // han/cavalry_crossbowman_b
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // han/champion_infantry_archer_academy
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/hero_han_xin
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/hero_liu_bang
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // han/hero_wei_qing
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // han/hero_wei_qing_horse
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // merc_black_cloak
+		{26, 27, 20, ATTACK_SOUND_NONE}, // noldor_warship
+		{26, 27, 20, ATTACK_SOUND_NONE}, // pirates/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // pirates/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // pirates/ship_scout
+		{ATTACK_SOUND_NONE, 29, 23, ATTACK_SOUND_NONE}, // samnite_skirmisher
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // samnite_spearman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // samnite_swordsman
+		{26, 27, 20, ATTACK_SOUND_NONE}, // viking_longship
 	};
 	return kRows;
 }
@@ -1238,6 +1277,45 @@ inline uint8_t roster_death_sound(uint16_t row) {
 		ATTACK_SOUND_PHENOTYPE, // gaul/support_healer_e
 		ATTACK_SOUND_PHENOTYPE, // ptol/support_healer_e
 		ATTACK_SOUND_PHENOTYPE, // han/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // athen/infantry_marine_archer_b
+		ATTACK_SOUND_PHENOTYPE, // spart/champion_infantry_pike
+		14, // pers/hero_xerxes_i_chariot
+		ATTACK_SOUND_PHENOTYPE, // pers/kardakes_hoplite
+		ATTACK_SOUND_PHENOTYPE, // pers/kardakes_skirmisher
+		ATTACK_SOUND_PHENOTYPE, // rome/hero_marcellus_infantry
+		ATTACK_SOUND_PHENOTYPE, // rome/hero_maximus_infantry
+		ATTACK_SOUND_PHENOTYPE, // rome/hero_scipio_infantry
+		ATTACK_SOUND_PHENOTYPE, // rome/infantry_swordsman_slave
+		ATTACK_SOUND_PHENOTYPE, // cart/champion_pikeman
+		ATTACK_SOUND_PHENOTYPE, // mace/hero_craterus
+		ATTACK_SOUND_PHENOTYPE, // mace/hero_philip_ii_pike
+		14, // mace/hero_pyrrhus_i
+		14, // brit/hero_boudicca_cavalry_javelineer
+		ATTACK_SOUND_PHENOTYPE, // brit/hero_boudicca_sword
+		ATTACK_SOUND_PHENOTYPE, // brit/hero_cunobelin_infantry
+		ATTACK_SOUND_PHENOTYPE, // gaul/hero_vercingetorix_infantry
+		ATTACK_SOUND_PHENOTYPE, // iber/hero_indibil_infantry
+		ATTACK_SOUND_PHENOTYPE, // maur/hero_ashoka_infantry
+		ATTACK_SOUND_PHENOTYPE, // maur/hero_bindusara_infantry
+		ATTACK_SOUND_PHENOTYPE, // maur/hero_chandragupta_infantry
+		ATTACK_SOUND_PHENOTYPE, // kush/hero_amanirenas_infantry
+		14, // kush/hero_harsiotef
+		18, // ptol/champion_juggernaut
+		14, // han/cavalry_crossbowman_b
+		ATTACK_SOUND_PHENOTYPE, // han/champion_infantry_archer_academy
+		ATTACK_SOUND_PHENOTYPE, // han/hero_han_xin
+		ATTACK_SOUND_PHENOTYPE, // han/hero_liu_bang
+		ATTACK_SOUND_PHENOTYPE, // han/hero_wei_qing
+		14, // han/hero_wei_qing_horse
+		ATTACK_SOUND_PHENOTYPE, // merc_black_cloak
+		18, // noldor_warship
+		18, // pirates/ship_arrow
+		18, // pirates/ship_merchant
+		18, // pirates/ship_scout
+		ATTACK_SOUND_PHENOTYPE, // samnite_skirmisher
+		ATTACK_SOUND_PHENOTYPE, // samnite_spearman
+		ATTACK_SOUND_PHENOTYPE, // samnite_swordsman
+		18, // viking_longship
 	};
 	return row < ATTACK_SOUND_ROSTER_ROWS ? kRows[row] : ATTACK_SOUND_NONE;
 }

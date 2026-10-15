@@ -1170,6 +1170,9 @@ void RtsoMain::refresh_user_options() {
 	range_overlays_.show_attack = uc::get_bool("gui.session.attackrange");
 	range_overlays_.show_auras = uc::get_bool("gui.session.aurasrange");
 	range_overlays_.show_heal = uc::get_bool("gui.session.healrange");
+	// overlay.fps (fps.toggle, Alt+F, handled on every page by user_settings.gd): the
+	// session adds RTS0's frame and tick timings to 0.28's FPS counter.
+	if (debug_overlay) debug_overlay->set_visible(uc::get_bool("overlay.fps"));
 }
 
 // translateAISettings (gui/common/gamedescription.js): "%(AIdifficulty)s %(AIbehavior)s %(AIname)s".

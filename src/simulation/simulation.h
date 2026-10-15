@@ -1190,6 +1190,12 @@ public:
 		const float r = map_half_ - MAP_EDGE_DIST - c;
 		return r <= 0.0f || x * x + z * z > r * r;
 	}
+	// Within `b` of the map's edge, its circle on a circular map (Petra's mapModule.js
+	// createBorderMap fullBorder).
+	bool near_map_border(float x, float z, float b) const {
+		if (circular_map()) return x * x + z * z >= (map_half_ - b) * (map_half_ - b);
+		return std::abs(x) >= map_half_ - b || std::abs(z) >= map_half_ - b;
+	}
 	// A footprint reaching past a circular map's passable edge (CheckBuildingPlacement).
 	template <class F>
 	bool footprint_past_map_edge(const F &f) const {
@@ -3060,6 +3066,8 @@ private:
 	// headquarters.js isDangerousLocation: near an army invading us or within `radius` of an
 	// enemy shooting structure's range.
 	bool petra_dangerous_location(float x, float z, float radius) const;
+	void petra_invading_army_centres(std::vector<std::array<float, 2>> &out) const;
+	static bool petra_near_invading_army(float x, float z, const std::vector<std::array<float, 2>> &centres);
 	// attackPlan.js getPathToTarget and setRallyPoint: the plan's march path from (rx, rz) to
 	// its target, and its rally point where that path leaves our territory.
 	void petra_plan_path(AttackPlan &plan, float rx, float rz);
@@ -3359,7 +3367,7 @@ private:
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
-	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
+	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
