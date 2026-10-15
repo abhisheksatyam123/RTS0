@@ -823,6 +823,17 @@ def serve(bind, port, verbose=True):
     return server
 
 
+def watch_parent():
+    """Exits once the parent process is gone (this process is then re-parented)."""
+    parent = os.getppid()
+
+    def watch():
+        while os.getppid() == parent:
+            time.sleep(0.5)
+        os._exit(0)
+    threading.Thread(target=watch, daemon=True).start()
+
+
 def main():
     parser = argparse.ArgumentParser(description="RTS0 multiplayer lobby (players, chat, game list)")
     parser.add_argument("--port", type=int, default=8088)
@@ -839,7 +850,12 @@ def main():
     parser.add_argument("--moderators", default="",
                         help="comma-separated names that may /kick and /ban (0 A.D. lobby moderators)")
     parser.add_argument("--subject", default="", help="the lobby room's subject")
+    parser.add_argument("--exit-with-parent", action="store_true",
+                        help="stop when the process that started this one ends (for test scripts, so a "
+                             "crashed or killed test leaves no server holding its port and its players)")
     args = parser.parse_args()
+    if args.exit_with_parent:
+        watch_parent()
     global LOBBY
     LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings, accounts_path=args.accounts,
                   accounts_only=args.accounts_only, moderators=args.moderators.split(","),

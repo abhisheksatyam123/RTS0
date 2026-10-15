@@ -1040,8 +1040,11 @@ static void test_alert() {
 	s.order_gather(w, 3, tree);
 	uint32_t far_w = s.spawn_unit(40, 0, 0, UNIT_FEMALE_CITIZEN);
 	uint32_t sp = s.spawn_unit(2, 4, 0, UNIT_SPEARMAN);
+	// AlertRaiser/List "Civilian": a legacy Female Citizen (no Civilian class) stays put.
+	uint32_t legacy = s.spawn_unit(2, 5, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_unit_template_by_id("athen/support_female_citizen"));
 	run(s, 3.0f);
 	check(s.cmd_raise_alert(0, store), "a storehouse raises the alert");
+	check(s.unit_order(legacy).kind != ORDER_GARRISON, "a legacy Female Citizen ignores it");
 	check(!s.cmd_raise_alert(0, house) && !s.cmd_raise_alert(1, store), "a house can't, nor can an enemy");
 	check(s.unit_order(w[0]).kind == ORDER_GARRISON && s.unit_order(far_w).kind == ORDER_NONE &&
 			s.unit_order(sp).kind == ORDER_NONE, "nearby women head for shelter, the far one and soldiers don't");
