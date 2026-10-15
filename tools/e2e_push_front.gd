@@ -76,11 +76,20 @@ func run() -> void:
 	main.select_first_own(false)
 	await frames(2)
 	await right_click(Vector2(vp.x * 0.2, vp.y * 0.3))
+	for i in 40:
+		if int(unit()["order_kind"]) != 0:
+			break
+		await frames(1)
 	check(int(unit()["order_kind"]) != 0 and int(unit()["queued_orders"]) == 0, "a walk, nothing queued: %s" % unit()["order_kind"])
 	await key(KEY_J, true)
 	await right_click(Vector2(vp.x * 0.7, vp.y * 0.3))
 	await key(KEY_J, false)
 	var u := unit()
+	for i in 40: # the order applies on the next turn
+		if int(u["queued_orders"]) == 1:
+			break
+		await frames(1)
+		u = unit()
 	check(int(u["queued_orders"]) == 1 and u.has("queue_front_kind"), "J: the new walk runs, the old one waits first in the queue: %d" % u["queued_orders"])
 	var resumed := false
 	for i in 600:
