@@ -917,6 +917,86 @@ static void test_petra_overseas_base() {
 	CHECK(north_gathering_south == 0 && waded == 0);
 }
 
+// queueplanBuilding.js buildOverseaDock: with no room for a civic centre, Petra lays a dock on an
+// ally's island across the sea (not on an enemy's, and not where it has a dock already).
+static void test_petra_oversea_dock() {
+	static Simulation s;
+	auto dock_south = [&]() {
+		int n = 0;
+		for (const auto &b : s.buildings())
+			if (b.team == 1 && b.type == BLD_DOCK && b.hp > 0.0f && b.z < 0.0f) ++n;
+		return n;
+	};
+	int placed[3] = {};
+	for (int c = 0; c < 3; ++c) {
+		fresh(s);
+		s.set_victory_condition(VICTORY_ENDLESS);
+		s.set_player_active(1, true, true);
+		s.set_player_resources(1, 5000, 5000, 5000, 5000);
+		s.players_[1].phase = 2;
+		const uint8_t stance = c == 1 ? Simulation::DIPLO_ENEMY : Simulation::DIPLO_ALLY;
+		s.set_diplomacy(1, 2, stance);
+		s.set_diplomacy(2, 1, stance);
+		s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+		s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+		s.spawn_building_world(30.0f, -40.0f, BLD_TOWN_CENTER, 2);
+		if (c == 2) s.spawn_building_world(40.0f, -20.0f, BLD_DOCK, 1);
+		s.petra_pid_ = 1;
+		const int before = dock_south();
+		const int wood = s.player_resource(1, RES_WOOD);
+		s.petra_build_oversea_dock();
+		placed[c] = dock_south() - before;
+		if (c == 0) {
+			const Simulation::Building *d = nullptr;
+			for (const auto &b : s.buildings())
+				if (b.team == 1 && b.type == BLD_DOCK && b.z < 0.0f) d = &b;
+			std::printf("Petra oversea dock: on the ally's island at (%.1f, %.1f), wood %d -> %d\n",
+			            d ? d->x : 0.0f, d ? d->z : 0.0f, wood, s.player_resource(1, RES_WOOD));
+			CHECK(d && d->build_progress < 1.0f && s.player_resource(1, RES_WOOD) < wood);
+		}
+	}
+	std::printf("Petra oversea dock: ally %d, enemy %d, dock already there %d\n", placed[0], placed[1], placed[2]);
+	CHECK(placed[0] == 1 && placed[1] == 0 && placed[2] == 0);
+}
+
+// sicilia_nomad: Petra starts aboard a ship with too little stone for a civic centre.
+// buildFirstBase counts the passengers where their ship is, lays a dock out on the nearest
+// shore (findDockPosition with proximity), createTransportIfNeeded lands them there, and once
+// the dock stands they gather from it (basesManager.js noBase) for the civic centre.
+static void test_petra_start_at_sea() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 300, 450, 300, 200);
+	const uint32_t ship = s.spawn_unit(10.0f, 0.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 8; ++k) crew.push_back(s.spawn_unit(10.0f, 0.0f, 1, UNIT_VILLAGER));
+	s.order_board_transport(crew.data(), crew.size(), ship);
+	for (int k = 0; k < 6; ++k) s.spawn_resource_world(-6.0f + 3.0f * k, -34.0f, RES_STONE, 2000);
+	for (int k = 0; k < 6; ++k) s.spawn_resource_world(-6.0f + 3.0f * k, -44.0f, RES_WOOD, 600);
+	const size_t aboard = s.get_transport_passenger_count(ship);
+	const Simulation::Building *dock = nullptr, *cc = nullptr;
+	float landed = -1.0f;
+	for (int k = 0; k < 300 && !cc; ++k) {
+		run(s, 1.0f);
+		if (landed < 0.0f && s.get_transport_passenger_count(ship) == 0) landed = (float)k;
+		dock = cc = nullptr;
+		for (const auto &b : s.buildings()) {
+			if (b.team != 1) continue;
+			if (b.type == BLD_DOCK) dock = &b;
+			if (b.type == BLD_TOWN_CENTER) cc = &b;
+		}
+	}
+	std::printf("Petra start at sea: %zu aboard, ashore at %.0fs, dock at (%.1f, %.1f) built %.0f%%, civic centre %s, stone %d\n",
+	            aboard, landed, dock ? dock->x : 0.0f, dock ? dock->z : 0.0f, dock ? 100.0f * dock->build_progress : 0.0f,
+	            cc ? "laid out" : "none", s.player_resource(1, RES_STONE));
+	CHECK(aboard == 8);
+	CHECK(landed >= 0.0f);
+	CHECK(dock && dock->build_progress >= 1.0f);
+	CHECK(cc != nullptr);
+}
+
 // navalManager.js keeps a transportPlan per ship: an army sailing to attack does
 // not wait for the builders bound for a new base, each crossing on its own ship.
 static void test_petra_concurrent_transports() {
@@ -1826,6 +1906,8 @@ int main() {
 	test_petra_landing_spot();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
+	test_petra_oversea_dock();
+	test_petra_start_at_sea();
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();
 	test_petra_merchantman_transport();

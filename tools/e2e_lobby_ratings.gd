@@ -122,6 +122,25 @@ func run() -> void:
 		for it in lobby._board.get_root().get_children():
 			board.append([it.get_text(0), it.get_text(1), it.get_text(2)])
 	check(board == [["1", "alice", "1265"], ["2", "bob", "1135"]], "the Leaderboard, best first")
+	lobby._board.clear()
+	lobby._leaderboard.custom_action.emit(&"update")
+	await until(func() -> bool: return lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2)
+	check(lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2, "Update asks the lobby again")
+	lobby._leaderboard.hide()
+	check(lobby._profile_role.text == "Player", "the profile names bob's role: Player")
+	# ProfilePage: any player, by name.
+	lobby._on_lookup_pressed()
+	lobby._lookup_input.text = "ALICE"
+	lobby._on_lookup_view()
+	await until(func() -> bool: return lobby._lookup_grid.visible)
+	check(lobby._lookup_grid.visible and lobby._lookup_values["name"].text == "alice (1265)"
+		and lobby._lookup_values["rank"].text == "1", "Player Profile Lookup finds alice by name")
+	lobby._lookup_input.text = "nobody"
+	lobby._on_lookup_view()
+	await until(func() -> bool: return lobby._lookup_error.visible)
+	check(lobby._lookup_error.visible and lobby._lookup_error.text == 'Player "nobody" not found.' and not lobby._lookup_grid.visible,
+		"and says when a player is not found")
+	lobby._lookup.hide()
 
 	print("3. game details")
 	var ms: Node = root.get_node("/root/MatchSettings")
@@ -157,7 +176,7 @@ func run() -> void:
 	check(LobbySessionScript.game_rating(names, {"alice": 1265, "bob": 1135}) == 1200
 		and LobbySessionScript.game_rating(names, {"alice": 1500, "bob": 1500}) == 1400
 		and LobbySessionScript.game_rating([], {}) == 1200, "a game's rating averages its players, 1200 for none")
-	check(lobby.game_columns(true) == ["Name", "Host", "Map", "Rating", "Players", "Status"]
+	check(lobby.game_columns(true) == ["Name", "Map Name", "Size", "Type", "Players", "Rating"]
 		and lobby.game_columns(false).size() == 5, "the Rating column only with lobby.columns.gamerating")
 	check(lobby.rating_passes(">1300", 1300) and not lobby.rating_passes(">1300", 1299)
 		and lobby.rating_passes("<1200", 1199) and not lobby.rating_passes("<1200", 1200)
@@ -174,6 +193,11 @@ func run() -> void:
 	await until(func() -> bool: return lobby._games.get_root() != null and lobby._games.get_root().get_child_count() == 1)
 	var game_item: TreeItem = lobby._games.get_root().get_child(0) if lobby._games.get_root() and lobby._games.get_root().get_child_count() else null
 	check(game_item != null, "the game is listed")
+	if game_item:
+		check(game_item.get_text(1) == "Continental" and game_item.get_text(2) == "Medium" and game_item.get_text(3) == "Random"
+			and game_item.get_text(4) == "2/8 +1" and game_item.get_custom_color(0) == Color8(219, 0, 0),
+			"its row: map, size, type, \"2/8 +1\" with carol watching, red while running: %s | %s | %s | %s" % [
+			game_item.get_text(1), game_item.get_text(2), game_item.get_text(3), game_item.get_text(4)])
 	if game_item:
 		game_item.select(0)
 	await frames(2)

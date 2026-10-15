@@ -1603,6 +1603,10 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const 
 	float best_ud2 = 2.0f * 2.0f;
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!uview.alive[i]) continue;
+		// Distance first: it rules out nearly every unit before the costlier checks.
+		const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 >= best_ud2) continue;
 		if (any_player ? !rtso::los_sees_unit(*sim, view_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])
 		               : uview.team[i] != local_player())
 			continue;
@@ -1610,9 +1614,7 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const 
 			const Vector3 up(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			if ((up - ray_o).dot(ray_d) > bld_t + 0.5f) continue;
 		}
-		const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
-		const float d2 = dx * dx + dz * dz;
-		if (d2 < best_ud2) {
+		{
 			best_ud2 = d2;
 			best_uidx = i;
 		}

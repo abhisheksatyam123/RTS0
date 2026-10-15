@@ -179,6 +179,21 @@ def viewer(t):
     return v
 
 
+def auras_of(sim_root, t):
+    """A structure's Auras as getAurasTooltip lists them: auraName, auraDescription and,
+    for a range aura, its radius (0.28 metres)."""
+    out = []
+    for a in t.tokens("Auras"):
+        path = os.path.join(sim_root, "data", "auras", a + ".json")
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            j = json.load(f)
+        out.append({"name": j.get("auraName", a), "description": j.get("auraDescription", ""),
+                    "radius": _n(float(j.get("radius", 0))) if j.get("type") == "range" else 0})
+    return out
+
+
 def identity(t):
     return {
         "generic_name": text_of(t, "Identity/GenericName"),
@@ -470,6 +485,9 @@ def collect(zad, prev=None):
             d = identity(t)
             d["template"] = name
             d["viewer"] = viewer(t)
+            auras = auras_of(sim_root, t)
+            if auras:
+                d["auras"] = auras
             rows[str(i)] = d
         structures[civ] = rows
     # Gaia entities the selection panel shows: animals, treasures, ruins, and the generic

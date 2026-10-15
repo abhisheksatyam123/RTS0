@@ -60,7 +60,7 @@ func run() -> void:
 		print("    ", x.replace("\n", " | "))
 	check(t.size() == 4, "four animals")
 	var sheep: Array = t.filter(func(x): return x.contains("(Sheep)"))
-	check(sheep.size() == 1 and sheep[0].begins_with("[") and sheep[0].contains("Ovis aries (Sheep)\nKill to gather meat for quick food.\nCost: Food 50  "), "hotkey, names, tooltip and cost")
+	check(sheep.size() == 1 and sheep[0].begins_with("[") and sheep[0].contains("OVIS ARIES (Sheep)\nKill to gather meat for quick food.\nCost: Food 50  "), "hotkey, names, tooltip and cost")
 	check(sheep.size() == 1 and sheep[0].contains("Current Count: ") and not sheep[0].contains("Shift-click") and not sheep[0].contains("while penned"), "the Animal limit, no batch line, no RTS0-only lines")
 	var cow: Array = t.filter(func(x): return x.contains("(Cow)"))
 	check(cow.size() == 1 and cow[0].ends_with("\nRequires City Phase"), "cattle: Requires City Phase")
