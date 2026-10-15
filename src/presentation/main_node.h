@@ -272,6 +272,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// The map's fixed teams (0 A.D. PlayerData Team; 0 none, else team + 1), when it has any.
 	uint8_t map_team_[8] = {};
 	bool map_has_teams_ = false;
+	bool map_lock_teams_ = false; // 0.28 ScriptSettings LockTeams ("lock_teams")
 	// The scenario's PopulationLimit (0 A.D. ScriptSettings, locked in its game setup); -1: none.
 	int map_pop_limit_ = -1;
 	int map_player_pop_limit_[8] = {}; // a scenario player's own PopulationLimit; 0 = none

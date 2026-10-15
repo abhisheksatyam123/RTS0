@@ -672,8 +672,10 @@ def apply_player_data(players, settings):
             p["civ"] = CIV_CODES.index(pd["Civ"])
         if isinstance(pd.get("Resources"), dict):
             p["resources"] = {k: int(v) for k, v in pd["Resources"].items()}
-        # Locked teams (LockTeams) are the map's own; otherwise Game Setup picks them.
-        if settings.get("LockTeams") and isinstance(pd.get("Team"), int):
+        # PlayerData teams: Game Setup's defaults, kept for good when the map has LockTeams
+        # ("lock_teams"), as 0.28's gamesetup does.
+        # (-1, no team, is the porter's default: a team of one.)
+        if isinstance(pd.get("Team"), int) and pd["Team"] >= 0:
             p["team"] = pd["Team"]
         if isinstance(pd.get("PopulationLimit"), int):
             p["pop_limit"] = pd["PopulationLimit"]
@@ -721,6 +723,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             old.pop("pop_limit", None)
             if limit is not None:
                 old["pop_limit"] = limit
+            old.pop("lock_teams", None)
+            if settings.get("LockTeams"):
+                old["lock_teams"] = True
             with open(out_path, "w") as f:
                 json.dump(old, f, indent=2)
             print(f"  -> {out_path}: player data")
@@ -1062,6 +1067,8 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         # TriggerScripts, by base name; RTS0 runs its C++ port of each (Simulation::register_trigger_script).
         if pop_limit is not None:
             map_data["pop_limit"] = pop_limit
+        if settings.get("LockTeams"):
+            map_data["lock_teams"] = True
         if scripts:
             map_data["trigger_scripts"] = scripts
         if trigger_points:

@@ -40173,5 +40173,6 @@
       ]
     }
   ],
-  "circular": true
+  "circular": true,
+  "lock_teams": true
 }
