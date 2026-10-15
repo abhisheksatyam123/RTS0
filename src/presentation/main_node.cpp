@@ -2164,7 +2164,9 @@ void RtsoMain::flush_training_batch() {
 void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count) {
 	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
 	if (turn_cmds()) {
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id, 0);
+		// input.js addTrainingToQueue / flushTrainingBatch: "pushFront" with session.pushorderfront.
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id,
+				rtso::hotkeys::held("session.pushorderfront") ? rtso::NET_PARAM_PUSH_FRONT_ORDER : 0);
 		play_civ_voice("select");
 		return;
 	}
@@ -3157,6 +3159,10 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_z = z;
 	c.target_id = tid;
 	c.param = param;
+	// input.js: an order not queued with Shift goes first while session.pushorderfront is held.
+	if (rtso::net_cmd_takes_push_front(cmd_type) && !(param & rtso::NET_PARAM_QUEUED) &&
+			rtso::hotkeys::held("session.pushorderfront"))
+		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
 	if (spectating()) return; // observers and defeated players order nothing
 	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
 		apply_default_formation(ids, n);

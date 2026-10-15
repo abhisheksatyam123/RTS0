@@ -192,7 +192,10 @@ struct PetraQueueManager {
 	uint8_t paused[QUEUE_COUNT] = {};    // checkPausedQueues
 	uint8_t switched[QUEUE_COUNT] = {};  // switchResource: drawn on once until it starts an item
 	uint8_t reset_on_start[QUEUE_COUNT] = {}; // queueToReset: 1 + the queue whose priority resets when this one starts its item
-	uint8_t pad[3] = {};
+	// researchTradeBonus / researchPopulationBonus: the technology they queued in minorTech,
+	// waiting to be paid for (0: none); every other minor technology waits behind it.
+	uint8_t special_tech = 0;
+	uint8_t pad[2] = {};
 	void reset() {
 		for (int i = 0; i < QUEUE_COUNT; ++i) {
 			accounts[i] = PetraQueueAccount{};
@@ -201,6 +204,7 @@ struct PetraQueueManager {
 			priority[i] = 0;
 			paused[i] = switched[i] = reset_on_start[i] = 0;
 		}
+		special_tech = 0;
 	}
 };
 static_assert(sizeof(PetraQueueManager) == 864, "no hidden padding: saved raw");
@@ -450,7 +454,10 @@ struct PetraAttackManager {
 	// handleNewBase clears saveResources, so the cut outlives it (0 in older saves, which kept
 	// the cut only while saving).
 	uint8_t phase2_cut_kept = 0;
-	uint8_t spare[2] = {};
+	// attackPlan.js trainMoreUnits deletes a unitStat that no template of ours trains (HugeAttack's
+	// champions and hero before the city phase): a bit per class of the main plan, by its index in
+	// petra_plan_unit_stats; cleared when a new plan is made. (Was padding; 0 in older saves.)
+	uint16_t dropped_classes = 0;
 	int32_t rush_size[3] = {};
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total
