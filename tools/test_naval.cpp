@@ -1733,7 +1733,7 @@ static void test_whale_hunt() {
 		if (it != s.res_id_to_idx_.end() && w != s.fauna_id_to_idx_.end()) {
 			s.resources_.amount[it->second] = 1;
 			const float cx = s.resources_.x[it->second], cz = s.resources_.z[it->second];
-			s.fauna_.pos_x[w->second] = cx + (cx > 0.0f ? -8.0f : 8.0f);
+			s.fauna_.pos_x[w->second] = cx + (cx > 0.0f ? -6.0f : 6.0f); // in the boat's sight (UnitAI CheckTargetVisible)
 			s.fauna_.pos_z[w->second] = cz;
 		}
 	}
