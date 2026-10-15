@@ -21,6 +21,7 @@ class RtsoSafeSelect : public Button {
 		String text;
 		int id = 0;
 		Ref<Texture2D> icon;
+		String tooltip;
 	};
 	std::vector<Item> items;
 	int selected = -1;
@@ -38,6 +39,8 @@ public:
 	void add_item(const String &text, int id = -1);
 	void add_icon_item(const Ref<Texture2D> &icon, const String &text, int id = -1);
 	void select(int index);
+	void set_item_tooltip(int index, const String &tooltip); // shown on hover in the open list
+	godot::String get_item_tooltip(int index) const;
 	int get_selected() const { return selected; }
 	int get_item_id(int index) const;
 	godot::String get_item_text(int index) const;
