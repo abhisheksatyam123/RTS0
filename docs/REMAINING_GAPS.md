@@ -8,7 +8,6 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 
 | # | Gap | Impact | Owner |
 |---|---|---|---|
-| G1 | Rams, siege engines and elephants path into woods only infantry can pass, and grind along the tree line (0.28 gives large units their own long-path grid; fix on a branch) | high | Fauna |
 | G2 | Idle traders start trade routes on their own, and a stopped trader restarts and loses its goods (0.28 traders trade only when ordered) | medium | A |
 | G3 | ~~Petra plans rushes only in the village phase and drops a mustering rush at the town phase~~ Fixed: rushes are planned in any phase while any are left, and a rush with no target in sight musters and picks one when it sets out (attackManager.js:366) | medium | Formations |
 | G4 | Petra rates units on base stats, not after its own techs, so it keeps spearmen where 0.28 switches to archers | medium | D |
@@ -40,6 +39,8 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G30 | Pathfinding grid: 8 m navcells against 0.28's 1 m, no JumpPointCache, float maths | low | Migrate |
 | G31 | 0.28's new_rms_test demo map isn't ported | low | Triggers |
 | G32 | cmd_train still maps the RTS0 villager to the civ's civilian (cleanup) | none | D |
+
+Closed since re-check 3: G1 (large units' long paths keep out of woods too tight for them, #1086).
 
 Kept on purpose: Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 

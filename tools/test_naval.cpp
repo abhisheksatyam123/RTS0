@@ -1238,6 +1238,40 @@ static void test_ship_treasure() {
 	CHECK(r_jugg == r_siege);
 }
 
+// template_gaia_treasure: a shipwreck floating at sea blocks movement (Obstruction/Static,
+// BlockMovement), so a ship sailing past steers round it instead of through it.
+static void test_ship_round_wreck() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
+	const uint32_t ship = s.spawn_unit(-30.0f, 0.0f, 0, UNIT_TRIREME);
+	s.cmd_move(&ship, 1, 10.0f, 0.0f);
+	s.ensure_gaia_obstacles();
+	Simulation::SteerObstacle w{};
+	for (const auto &o : s.gaia_obstacles_)
+		if (o.id == wreck) w = o;
+	const nav::Vec2 u = nav::footprint_u(w), v = nav::footprint_v(w);
+	float worst = 1e9f; // the ship centre's least clearance outside the wreck's square (negative: inside)
+	int arrived = -1;
+	for (int t = 0; t < 900 && arrived < 0; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		const int i = s.lookup_unit(ship);
+		const auto un = s.units();
+		const nav::Vec2 p = nav::Vec2(un.pos_x[i], un.pos_z[i]) - nav::Vec2(w.x, w.z);
+		worst = std::min(worst, std::max(std::fabs(p.dot(u)) - w.hu, std::fabs(p.dot(v)) - w.hv));
+		if (std::hypot(un.pos_x[i] - 10.0f, un.pos_z[i]) < 1.0f) arrived = t;
+	}
+	std::printf("ship past a floating wreck: arrived after %d ticks, closest %.2f outside its square (%.1f x %.1f)\n",
+	            arrived, worst, 2.0f * w.hu, 2.0f * w.hv);
+	CHECK(arrived >= 0);
+	CHECK(worst > 0.0f);
+	// Sent to collect it, the ship still sails up to it.
+	const float wood0 = s.player(0).wood();
+	s.order_collect_treasure(&ship, 1, wreck);
+	run(s, 30.0f);
+	CHECK(s.player(0).wood() > wood0);
+}
+
 // navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
 // for the nearest treasure on its own sea, not a nearer one on land.
 static void test_petra_ship_treasure() {
@@ -2000,6 +2034,7 @@ int main() {
 	test_petra_merchantman_transport();
 	test_petra_cothon();
 	test_ship_treasure();
+	test_ship_round_wreck();
 	test_petra_ship_treasure();
 	test_crannog_takes_fish();
 	test_next_fish_range();
