@@ -2176,7 +2176,8 @@ var _wait_label: Label
 var _rated: CheckBox
 var _setting_warning: Label
 var _saved_label: Label
-var _rated_was_available := false
+## The player count and cheats setting Rated Game was last set from (Rating.js maybeUpdate).
+var _rated_key := ""
 ## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
 ## StayReady); pressing moves to the next state.
 const READY_CAPTIONS := ["I'm ready", "Stay ready", "I'm not ready!"]
@@ -2271,7 +2272,7 @@ func _build_net_controls() -> void:
 	_rated = CheckBox.new()
 	_rated.name = "RatedGame"
 	_rated.text = "Rated Game"
-	_rated.tooltip_text = "Toggle 1v1 rated game."
+	_rated.tooltip_text = "Toggle if this game will be rated for the leaderboard."
 	_rated.toggled.connect(func(_on): _update_rated(); _update_net_controls())
 	# GameSettingsLayout.js: Rating closes the Game Type tab.
 	%TeamsRow.add_child(_rated)
@@ -2353,8 +2354,9 @@ func _update_net_chat() -> void:
 	var log: RichTextLabel = %NetChatLog
 	log.text = str(chat.get("text", ""))
 
-## Rating.js: a lobby game of exactly two players may be rated, and is by
-## default when it becomes one; Cheats.js: a rated game has no cheats.
+## Rating.js: a lobby game of exactly two players without cheats may be rated, and is by
+## default whenever the player count or cheats change (maybeUpdate: enabled = available);
+## Cheats.js: a rated game has no cheats.
 func _rated_available() -> bool:
 	# Rating.js: a saved game is never rated.
 	return not _saved_game() and has_node("/root/MatchSettings") and str(get_node("/root/MatchSettings").net_lobby) != "" \
@@ -2363,15 +2365,16 @@ func _rated_available() -> bool:
 func _update_rated() -> void:
 	if _rated == null or _mp_role != "host":
 		return
-	var avail := _rated_available()
-	if avail and not _rated_was_available:
-		_rated.set_pressed_no_signal(true)
-	_rated_was_available = avail
-	_rated.visible = avail
 	var cheats: CheckBox = %Cheats
+	var avail := _rated_available() and not cheats.button_pressed
+	var key := "%d/%s" % [_net_rows().size(), cheats.button_pressed]
+	if key != _rated_key:
+		_rated_key = key
+		_rated.set_pressed_no_signal(avail)
+	if not avail:
+		_rated.set_pressed_no_signal(false)
+	_rated.visible = avail
 	cheats.disabled = avail and _rated.button_pressed
-	if cheats.disabled:
-		cheats.set_pressed_no_signal(false)
 
 func _update_net_controls() -> void:
 	if _mp_role == "none":
