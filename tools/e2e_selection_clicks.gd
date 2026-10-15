@@ -7,7 +7,8 @@ extends SceneTree
 #   3. a right-click while band-boxing cancels the box;
 #   4. Shift+N adds control group N to the selection;
 #   5. a right-click on the minimap walks the selected units there and sets a
-#      selected structure's rally point.
+#      selected structure's rally point;
+#   6. a unit pressed on and walking away before the release is still selected.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_selection_clicks.gd
 # Exit code 0 = pass.
@@ -218,6 +219,34 @@ func run() -> void:
 	await frames(4)
 	st = state()
 	check(int(st["building"]) != 0 and st.has("rally") and (st["rally"] as Vector2).distance_to(spot) < 0.5, "a selected structure gets its rally point there: %s" % str(st.get("rally")))
+
+	print("6. Picked on the press")
+	main.clear_selection()
+	await frames(2)
+	var walker: Dictionary = {}
+	for u in state()["units"]:
+		if int(u["id"]) == int(a["id"]):
+			walker = u
+	main.debug_select_units(PackedInt32Array([int(a["id"])]))
+	main._on_minimap_order((walker["pos"] as Vector2) + Vector2(-30, 0))
+	await frames(10)
+	main.clear_selection()
+	await frames(1)
+	for u in state()["units"]:
+		if int(u["id"]) == int(a["id"]):
+			walker = u
+	var press_at: Vector2 = window_pos(walker)
+	move(press_at)
+	await frames(2)
+	button(press_at, MOUSE_BUTTON_LEFT, true)
+	await frames(30)
+	var moved := 0.0
+	for u in state()["units"]:
+		if int(u["id"]) == int(a["id"]):
+			moved = (u["pos"] as Vector2).distance_to(walker["pos"])
+	button(press_at, MOUSE_BUTTON_LEFT, false)
+	await frames(2)
+	check(moved > 2.0 and selected() == [int(a["id"])], "walked %.1f away and still selected: %s" % [moved, str(selected())])
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

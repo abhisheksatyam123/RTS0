@@ -925,6 +925,12 @@ public:
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
 	float building_arrow_range(const Building &b) const;
+	// building_arrow_range before the structure exists: the type's MaxRange and the player's range technologies.
+	float structure_arrow_range(uint8_t player, uint8_t type) const;
+	// GuiInterface GetAverageRangeForBuildings (RangeManager GetElevationAdaptedRange over a full
+	// circle): the parabolic reach of `range` fired from y_origin above the ground at (x, z),
+	// averaged over 16 directions of the terrain around it.
+	float average_elevation_range(float x, float z, float range, float y_origin) const;
 	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
 	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
 	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
