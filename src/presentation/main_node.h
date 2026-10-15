@@ -524,6 +524,10 @@ public:
 	// gui.session.selectformationasone: the unit and the rest of its formation.
 	std::vector<int32_t> formation_mates(int32_t uid) const;
 	rtso::Simulation *ui_sim() override { return sim; }
+	void follow_unit(uint32_t id) override {
+		if (cam_rig) cam_rig->set_follow_id(0);
+		follow_focus(id, false);
+	}
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }

@@ -977,25 +977,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			auto uview = sim->units();
 
-			// 0. Right click with Loaded Transport on Shore/Land (Disembark)
-			bool has_loaded_transport = false;
-			uint32_t transport_sel_id = 0;
-			for (int s = 0; s < selected_ids.size(); ++s) {
-				if (sim->is_transport((uint32_t)selected_ids[s]) && sim->get_transport_passenger_count((uint32_t)selected_ids[s]) > 0) {
-					has_loaded_transport = true;
-					transport_sel_id = (uint32_t)selected_ids[s];
-					break;
-				}
-			}
-			if (has_loaded_transport && sim->get_terrain_height(click_pos.x, click_pos.z) >= sim->water_height() + 0.1f) {
-				if (one_id != 0) one_id = transport_sel_id;
-				if (turn_cmds())
-					post_lockstep(19, &transport_sel_id, 1, click_pos.x, click_pos.z);
-				else
-					sim->order_disembark(transport_sel_id, click_pos.x, click_pos.z);
-				play_civ_voice("move");
-				return;
-			}
+			// A loaded ship right-clicked on land just moves (unit_actions.js has no unload-on-click
+			// action): passengers leave through Unload All, the garrison icons or session.unload.
 
 			// 1. Right click on an own or allied ship, ram or siege tower (board it).
 			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.
