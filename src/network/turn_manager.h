@@ -46,6 +46,11 @@ public:
 	void set_client_player(uint32_t client_id, uint8_t player) { client_player_[client_id] = player; }
 	// Host: a client that dropped out of the running match (0.28 g_Players offline).
 	bool client_left(uint32_t client_id) const { return left_clients_.count(client_id) != 0; }
+	// Whether client_id's NMT_SYNC_CHECK for turn has come (the host's: it ran that turn).
+	bool has_peer_hash(uint32_t turn, uint32_t client_id) const {
+		auto it = peer_hashes_.find(turn);
+		return it != peer_hashes_.end() && it->second.count(client_id) != 0;
+	}
 	uint8_t player_for_client(uint32_t client_id) const {
 		auto it = client_player_.find(client_id);
 		if (it != client_player_.end()) return it->second;
