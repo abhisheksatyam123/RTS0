@@ -326,7 +326,9 @@ Dictionary RtsoReference::get_unit(int tmpl) const {
 	d["armour"] = armour_dict(u.hack_armor, u.pierce_armor, u.crush_armor);
 	d["walk_speed"] = u.speed / kSpeedScale;
 	d["vision"] = rtso::unit_vision_range(u.unit_type) * 4.0f; // RTS0 units are 4 m tiles
-	d["carry"] = info.carry_capacity;
+	// The simulation's ResourceGatherer Capacities: the 0.28 gatherer class (a fishing boat carries 40).
+	const int32_t class_cap = rtso::gather_class_capacity(rtso::unit_gather_class(u.unit_type, t));
+	d["carry"] = class_cap ? class_cap : info.carry_capacity;
 	const rtso::CombatProfile &cp = rtso::unit_combat(t, u.unit_type);
 	if (u.attack_damage > 0.0f) {
 		const bool ranged = (u.flags & rtso::ROSTER_RANGED) != 0;

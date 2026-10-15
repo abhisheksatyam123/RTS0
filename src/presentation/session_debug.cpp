@@ -538,6 +538,8 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
 	d["overlay_by"] = pause_by_label_ ? pause_by_label_->get_text() : String();
 	d["chat_log"] = chat_window_.log_text();
+	d["chat_overlay"] = (int64_t)chat_window_.overlay_count();
+	d["chat_addressee"] = chat_window_.addressee_label();
 	return d;
 }
 

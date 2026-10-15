@@ -58,12 +58,53 @@ void RtsoMain::update_cursor() {
 		if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
 			want = "action-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
-			if (over_own_rally_structure(get_ground_click_pos(mouse)) &&
+			const Vector3 at = get_ground_click_pos(mouse);
+			if (over_own_rally_structure(at) &&
 					!(rtso::hotkeys::held("session.autorallypoint") && selected_building_trains_units())) {
 				want = "action-unset-rally";
 			} else {
+				// unit_actions.js "set-rallypoint" getActionInfo: the cursor of what the trained
+				// units will do there (RallyPoint orders: gather, repair, garrison, attack).
 				want = "cursor-rally";
 				hot = Vector2(5, 31);
+				uint32_t res = 0, bld = 0;
+				rally_target_at(at, res, bld);
+				const uint8_t me = local_player();
+				if (res) {
+					auto rv = sim->resources();
+					for (size_t r = 0; r < rv.count; ++r) {
+						if (rv.id[r] != res) continue;
+						switch (rv.type[r]) {
+							case rtso::RES_WOOD: want = "action-gather-tree"; break;
+							case rtso::RES_GOLD: want = "action-gather-ore"; break;
+							case rtso::RES_STONE: want = "action-gather-rock"; break;
+							default:
+								want = rv.subtype[r] == rtso::RES_SUB_MEAT ? "action-gather-meat"
+										: rv.subtype[r] == rtso::RES_SUB_GRAIN ? "action-gather-grain"
+										: rv.subtype[r] == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
+						}
+						break;
+					}
+				} else if (bld) {
+					for (const auto &b : sim->buildings()) {
+						if (b.id != bld) continue;
+						if (b.team == me) {
+							if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) {
+								want = "action-repair";
+							} else if (const int capacity = sim->get_garrison_capacity(b.id); capacity > 0) {
+								want = "action-garrison";
+								const int occupied = sim->get_garrison_occupied(b.id);
+								tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
+										{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+								tip_orange = occupied >= capacity;
+							}
+						} else if (sim->is_hostile(me, b.team)) {
+							want = b.max_capture_points > 0.0f ? "action-capture" : "action-attack";
+						}
+						break;
+					}
+				}
+				if (std::string(want) != "cursor-rally") hot = Vector2(1, 1);
 			}
 		} else if (!selected_ids.is_empty()) {
 			const Vector3 at = get_ground_click_pos(mouse);

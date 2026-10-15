@@ -347,8 +347,18 @@ public:
 							break;
 						}
 						case rtso::Simulation::TECH_ERR_STRUCTURES:
-							why = t == rtso::TECH_PHASE_CITY ? "Requires 3 Town Phase structures"
-									: "Requires 5 Village Phase structures";
+						{
+							// selection_panels.js: the tech's requirementsTooltip, then what is left
+							// ("Remaining: 3 entities of class Village").
+							const bool city = t == rtso::TECH_PHASE_CITY;
+							const int remaining = (city ? 3 : 5) - sim->phase_structures(local_player(), city ? 2 : 1);
+							why = owner_->tr(city ? "Requires three Town Structures." : "Requires five Village Structures.");
+							if (remaining > 0)
+								why += " " + rtso::sprintf0(owner_->tr("Remaining: %(entityCounts)s"),
+										{{"entityCounts", rtso::sprintf0(owner_->tr(remaining == 1 ? "%(number)s entity of class %(class)s"
+																						: "%(number)s entities of class %(class)s"),
+												 {{"number", String::num_int64(remaining)}, {"class", owner_->tr(city ? "Town" : "Village")}})}});
+						}
 							reqs_failed = true;
 							break;
 						case rtso::Simulation::TECH_ERR_COST: why = needed_text(tech_cost); break;
@@ -920,7 +930,7 @@ public:
 						add_entity_command("occupy-turret", "Occupy Turret", "session.occupyturret",
 								"Occupy Turret\nOrder the selected units to occupy a turret point.", "occupy-turret.png");
 					if (any_turret)
-						add_entity_command("leave-turret", "Unload", "",
+						add_entity_command("leave-turret", "Unload", "session.leaveturret",
 								"Unload\nOrder the selected units to leave their turret points.", "leave-turret.png");
 					if (has_worker)
 						add_entity_command("repair", "Repair", "session.repair",
