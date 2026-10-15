@@ -140,9 +140,11 @@ func run() -> void:
 	cheats.button_pressed = true
 	await create_timer(0.4).timeout
 	check(not cheats.disabled and not ms.rated and ms.cheats, "unrated, the host may allow cheats")
-	rated.button_pressed = true
+	check(not rated.visible, "with cheats on there is no Rated Game (Rating.js available)")
+	cheats.button_pressed = false
 	await create_timer(0.4).timeout
-	check(ms.rated and not ms.cheats and not cheats.button_pressed, "rated again: no cheats")
+	check(rated.visible and rated.button_pressed and ms.rated and not ms.cheats and cheats.disabled,
+		"cheats off: rated again by default (maybeUpdate enabled = available)")
 	page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value = 3
 	page._on_slot_kind(1, 2)
 	await create_timer(0.4).timeout

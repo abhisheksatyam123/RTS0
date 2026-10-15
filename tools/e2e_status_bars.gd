@@ -29,17 +29,12 @@ func frames(n: int) -> void:
 	for i in n:
 		await process_frame
 
-func rank_icons() -> Array:
-	return view.get_children().filter(func(c): return c is Sprite3D and c.visible and c.texture != null \
-			and c.texture.resource_path.contains("/ranks/"))
+# The rank icons and experience bars the world view's status sprites drew last frame.
+func rank_icons() -> PackedStringArray:
+	return main.debug_status_rank_icons()
 
 func xp_bars() -> int:
-	var n := 0
-	for c in view.get_children():
-		if c is MeshInstance3D and c.visible and c.material_override is StandardMaterial3D \
-				and c.material_override.albedo_color.is_equal_approx(Color(0.95, 0.75, 0.2, 0.95)):
-			n += 1
-	return n
+	return main.debug_status_xp_bars()
 
 func run() -> void:
 	await frames(60)
@@ -70,8 +65,8 @@ func run() -> void:
 	var icons := rank_icons()
 	check(icons.size() == ranked and ranked >= 2, "%d rank icons for %d ranked units" % [icons.size(), ranked])
 	check(unranked > 0, "the women have no rank, so no icon")
-	check(icons.any(func(c): return c.texture.resource_path.ends_with("Elite.png")), "the champion shows Elite")
-	check(icons.any(func(c): return c.texture.resource_path.ends_with("Basic.png")), "a Basic soldier shows Basic")
+	check(Array(icons).any(func(p): return p.ends_with("Elite.png")), "the champion shows Elite")
+	check(Array(icons).any(func(p): return p.ends_with("Basic.png")), "a Basic soldier shows Basic")
 	cfg.set_value("gui.session.rankabovestatusbar", "false")
 	await frames(3)
 	check(rank_icons().is_empty(), "off: no rank icons")
