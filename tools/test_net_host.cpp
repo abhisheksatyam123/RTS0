@@ -25,6 +25,9 @@
 //    busy (loading the map at Start) is not timed out. NetHost::KeepAlive
 //    sends its heartbeats meanwhile: a host stuck for 12 s keeps its client,
 //    and a client stuck for 12 s keeps its seat; without it the client is lost.
+// 9. ENet's reliable channel: a message larger than a datagram (a stalled
+//    turn's batch, a rejoin header) arrives whole, split under the 1372-byte
+//    MTU, and reliable messages arrive in the order sent, also with 30% loss.
 #include "network/net_host.h"
 #include "network/chat_routing.h"
 
@@ -326,6 +329,41 @@ int main() {
 			poll_only(*cl[0], 12000);
 			CHECK(cl[0]->connectionLost(), "without it the client loses a host silent for 12 s");
 		}
+	}
+
+	// 9. Big and ordered messages.
+	{
+		NetHost h;
+		h.startHost(c);
+		std::vector<std::unique_ptr<NetHost>> cl;
+		cl.push_back(std::make_unique<NetHost>());
+		cl[0]->setLocalPlayerName("big");
+		cl[0]->startClient("127.0.0.1", h.localPort());
+		CHECK(pump(h, cl, 3000, [&] { return cl[0]->getLocalPeerId() != 0; }), "9: the client joins");
+		std::vector<std::vector<uint8_t>> got;
+		cl[0]->onMessage([&](uint32_t, const NetMessage &m) {
+			if (m.type == static_cast<uint8_t>(NetMessageType::NMT_SIMULATION_COMMAND)) got.push_back(m.payload);
+		});
+		cl[0]->onCommand([&](uint32_t, const uint8_t *, size_t) {});
+		h.set_simulated_loss(0.0f);
+		std::vector<uint8_t> big(20000);
+		for (size_t i = 0; i < big.size(); ++i) big[i] = (uint8_t)(i * 7 + 3);
+		h.sendSimulationCommand(cl[0]->getLocalPeerId(), 5, big);
+		pump(h, cl, 3000, [&] { return !got.empty(); });
+		CHECK(got.size() == 1 && got[0] == big, "a 20 KB message arrives whole");
+		got.clear();
+		h.set_simulated_loss(0.3f, 7);
+		cl[0]->set_simulated_loss(0.3f, 11);
+		for (uint32_t i = 0; i < 60; ++i) {
+			std::vector<uint8_t> m(i % 3 == 0 ? 3000 : 8, (uint8_t)i);
+			h.sendSimulationCommand(cl[0]->getLocalPeerId(), i, m);
+			pump(h, cl, 10, [&] { return false; });
+		}
+		pump(h, cl, 15000, [&] { return got.size() >= 60; });
+		bool in_order = got.size() == 60;
+		for (size_t i = 0; in_order && i < got.size(); ++i)
+			in_order = got[i].size() == (i % 3 == 0 ? 3000u : 8u) && got[i][0] == (uint8_t)i;
+		CHECK(in_order, "60 messages, some split, arrive once each and in order with 30% loss");
 	}
 
 	if (failures) {

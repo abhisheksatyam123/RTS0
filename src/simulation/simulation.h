@@ -433,6 +433,10 @@ public:
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
 	// or -1 when the unit has no next rank.
 	float promotion_required_xp(size_t i) const;
+	// 0 A.D. Identity Rank: only units whose template has a rank (citizen infantry,
+	// cavalry, elephants, healers; the ones with Promotion) show the Basic rank icon.
+	bool unit_has_rank(size_t i) const;
+	void debug_add_xp(uint32_t unit_id, float xp) { if (const int32_t i = lookup_unit(unit_id); i >= 0) gain_xp((size_t)i, xp); } // tests
 	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
@@ -483,7 +487,8 @@ public:
 			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
-			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER };
+			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
+			END_TREASURE };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -929,6 +934,12 @@ public:
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
 	float building_arrow_range(const Building &b) const;
+	// building_arrow_range before the structure exists: the type's MaxRange and the player's range technologies.
+	float structure_arrow_range(uint8_t player, uint8_t type) const;
+	// GuiInterface GetAverageRangeForBuildings (RangeManager GetElevationAdaptedRange over a full
+	// circle): the parabolic reach of `range` fired from y_origin above the ground at (x, z),
+	// averaged over 16 directions of the terrain around it.
+	float average_elevation_range(float x, float z, float range, float y_origin) const;
 	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
 	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
 	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
@@ -1220,7 +1231,7 @@ public:
 	// TriggerPoint.js: a trigger point the map places (trigger/trigger_point_<ref>).
 	void add_trigger_point(uint8_t ref, float x, float z, uint8_t owner = GAIA_PLAYER) { triggers_.add_point(ref, x, z, owner); }
 	// TriggerHelper.SetPlayerWon: pid and its allies win, everyone else is defeated.
-	void set_player_won(uint8_t pid);
+	void set_player_won(uint8_t pid, uint8_t reason = SessionNotice::END_GAME_MODE);
 	// TriggerHelper.DefeatPlayer (cmpPlayer.SetState("defeated")): pid's units and
 	// structures turn Gaia and it watches the rest of the match.
 	// `reason` is the chat line's (DefeatPlayer's message): objective unless the script names one.
@@ -2592,7 +2603,7 @@ private:
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
 	bool waves_enabled_ = false;
 	bool last_man_standing_ = false;
-	int pop_cap_ = 200;
+	int pop_cap_ = 300; // 0.28 population_capacities.json default
 	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;

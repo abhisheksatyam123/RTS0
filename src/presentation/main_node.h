@@ -210,6 +210,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoCinemaView cinema_view_;
+	bool campaign_win_noted_ = false; // summary_screen.gd mark_campaign_won ran for this match
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
@@ -515,6 +516,7 @@ public:
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	int ui_batch_size() const override { return user_opts_.batch_size; }
+	int ui_pending_batch(uint16_t tmpl) const override;
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
 	Dictionary get_trade_dialog_state() const;
 	void _on_trading_goods_requested(const PackedInt32Array &shares);
@@ -572,6 +574,11 @@ public:
 	void debug_set_carry(int64_t unit_id, int res, int amount);
 	void debug_set_resource(int res, float amount);
 	bool debug_placing() const;
+	PackedInt32Array debug_highlight() const { return highlight_ids_; }
+	Vector2 debug_ground_at(Vector2 screen) const {
+		const Vector3 g = get_ground_click_pos(screen);
+		return Vector2(g.x, g.z);
+	}
 	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
@@ -586,8 +593,48 @@ public:
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
+	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
+	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
+	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
+	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line
+	// drawn while the button is held.
+	struct RightLine {
+		bool active = false, drawing = false;
+		Vector2 start;
+		std::vector<Vector2> pts;
+	} right_line_;
+	bool replaying_right_ = false;
+	PackedVector2Array last_line_targets_; // tests: the last walk-custom positions
+	PackedInt32Array last_line_entities_;
+	void finish_right_line(const Ref<InputEventMouseButton> &release);
+	Dictionary debug_right_line() const {
+		Dictionary d;
+		d["active"] = right_line_.active;
+		d["drawing"] = right_line_.drawing;
+		d["points"] = (int64_t)right_line_.pts.size();
+		d["targets"] = last_line_targets_;
+		d["entities"] = last_line_entities_;
+		return d;
+	}
+	// input.js setHighlightList: the entity under the cursor, or what the band box would pick.
+	void update_highlight();
+	PackedInt32Array highlight_ids_;
+	struct BatchTraining {
+		bool active = false;
+		bool from_unit = false; // trained by a unit (Trainer on a unit), else a structure
+		uint32_t holder = 0;
+		uint16_t tmpl = 0;
+		int batches = 0;
+		int allowed = -1; // canBeAddedCount at the last click, -1 = no limit
+	};
+	BatchTraining batch_training_;
+	void add_training(bool from_unit, uint32_t holder, uint16_t tmpl);
+	void flush_training_batch();
+	int template_can_be_added(uint16_t tmpl) const;
+	bool can_afford_template(uint16_t tmpl, int count) const;
+	uint32_t press_pick_unit_ = 0; // the own unit under the left press (input.js clickedEntity)
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
