@@ -661,16 +661,43 @@ void RtsoMain::show_notice(const String &text) {
 
 void RtsoMain::quicksave() {
 	if (net_lockstep() || turn_mgr_.is_replaying()) return;
-	show_notice(save_game(kQuicksavePath, "Quicksave") ? "Quicksaved game" : "Quicksave failed");
+	const bool ok = save_game(kQuicksavePath, "Quicksave");
+	log_render(ok ? "Quicksaved game" : "Quicksave failed", !ok);
 }
 
 void RtsoMain::quickload() {
 	if (net_lockstep() || turn_mgr_.is_replaying()) return;
 	if (!FileAccess::file_exists(kQuicksavePath)) {
-		show_notice("No quicksave to load");
+		log_render("No quicksave to load", true);
 		return;
 	}
-	show_notice(load_game(kQuicksavePath) ? "Quickloaded game" : "Quickload failed");
+	const bool ok = load_game(kQuicksavePath);
+	log_render(ok ? "Quickloaded game" : "Quickload failed", !ok);
+}
+
+// CLogger::WriteMessage with "render": a line in the top-left overlay; the oldest goes
+// when a 21st comes.
+void RtsoMain::log_render(const String &text, bool error) {
+	log_lines_.push_back({text, error, Time::get_singleton()->get_ticks_msec() + 10000});
+	if (log_lines_.size() > 20) log_lines_.erase(log_lines_.begin());
+	update_log_messages(true);
+}
+
+void RtsoMain::update_log_messages(bool changed) {
+	if (!log_label_ || (log_lines_.empty() && !changed)) return;
+	const uint64_t now = Time::get_singleton()->get_ticks_msec();
+	const size_t before = log_lines_.size();
+	log_lines_.erase(std::remove_if(log_lines_.begin(), log_lines_.end(), [now](const LogLine &l) { return l.until_ms <= now; }),
+			log_lines_.end());
+	if (!changed && log_lines_.size() == before) return;
+	String txt;
+	for (const LogLine &l : log_lines_) {
+		if (!txt.is_empty()) txt += "\n";
+		const String line = l.text.replace("[", "[lb]");
+		txt += l.error ? "[color=#ff0000]" + line + "[/color]" : line;
+	}
+	log_label_->set_text(txt);
+	log_label_->set_visible(!log_lines_.empty());
 }
 
 // PauseControl.js canPause(explicit): an observer who is not the host cannot
