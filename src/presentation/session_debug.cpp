@@ -782,5 +782,22 @@ Dictionary RtsoMain::debug_minimap_panel() const {
 	}
 	d["idle_count"] = minimap_panel_.idle_count_text();
 	d["flare_armed"] = flare_armed_;
+	d["pings"] = minimap_view ? (int64_t)minimap_view->entity_ping_count() : (int64_t)0;
 	return d;
+}
+
+void RtsoMain::debug_attacked(int64_t target, int64_t attacker_owner) {
+	if (!sim) return;
+	auto uv = sim->units();
+	int64_t u = -1;
+	for (size_t i = 0; i < uv.count && u < 0; ++i)
+		if (uv.alive[i] && uv.id[i] == (uint32_t)target) u = (int64_t)i;
+	if (u < 0) return;
+	rtso::Simulation::AttackedEvent e{};
+	e.target_id = (uint32_t)target;
+	e.target_owner = uv.team[u];
+	e.attacker_owner = (uint8_t)attacker_owner;
+	e.x = uv.pos_x[u];
+	e.z = uv.pos_z[u];
+	detect_attacks({e});
 }
