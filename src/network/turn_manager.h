@@ -54,8 +54,14 @@ public:
 	uint8_t player_for_client(uint32_t client_id) const {
 		auto it = client_player_.find(client_id);
 		if (it != client_player_.end()) return it->second;
+		if (client_id == 0) return offline_seat_;
 		return client_id < MAX_PLAYERS ? (uint8_t)client_id : (uint8_t)0xFF;
 	}
+	// Single player: the slot Game Setup's player assignment seated this machine in
+	// (0.28 PlayerAssignment), played by client 0. reset() keeps it; a networked game
+	// seats every client explicitly.
+	void set_offline_seat(uint8_t player) { offline_seat_ = player < MAX_PLAYERS ? player : (uint8_t)0; }
+	uint8_t offline_seat() const { return offline_seat_; }
 	uint8_t local_player() const { return player_for_client(local_client_id_); }
 	// The developer overlay's Change perspective has re-seated this client (offline too).
 	bool perspective_changed() const { return perspective_changed_; }
@@ -377,6 +383,7 @@ public:
 private:
 	bool record_applied_ = false;
 	bool perspective_changed_ = false;
+	uint8_t offline_seat_ = 0;
 	std::vector<AppliedCommand> applied_cmds_;
 	uint32_t current_turn_ = 0;
 	float turn_timer_ = 0.0f;

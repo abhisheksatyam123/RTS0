@@ -171,9 +171,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 89; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 90; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
+	static constexpr uint32_t SAVE_VERSION_PETRA_NO_UNITS = 90; // Petra's canBuildUnits and the units it sent to allies (dispatchUnits)
 	static constexpr uint32_t SAVE_VERSION_PETRA_RALLY = 87; // each Petra plan's completing step, march waypoints and last position
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
@@ -1666,6 +1667,9 @@ public:
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
+	// A WallSet piece of half length `half_w` (its civ's set): the price and build time `player`
+	// pays, as cmd_build_wall charges it and the foundation takes.
+	float wall_piece_price(uint8_t player, uint8_t type, float half_w, float out[RES_COUNT]) const;
 	// What cmd_build_wall pays for a planned WallSet piece (its length's own cost).
 	void wall_piece_cost(uint8_t player, const WallPiece &p, float out[RES_COUNT]) const {
 		structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), out);
@@ -3135,7 +3139,12 @@ private:
 	float petra_timer_  = 0.0f;
 	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
 	PetraKept petra_kept_; // decided once or only raised (configFirstBase, navalManager.js, targetNumTraders)
-	void petra_config_first_base(); // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
+	void petra_config_first_base();
+	void petra_check_can_build_units(); // startingStrategy.js gameStart canBuildUnits
+	void petra_dispatch_units();        // startingStrategy.js dispatchUnits
+	bool petra_dispatched_to_ally(uint32_t uid) const; // metadata "allied"
+	bool petra_can_build_units() const { return !petra_kept_.no_units; }
+	void petra_attack_home(float &x, float &z) const; // the base an attack starts from, else one of our units // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
 	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
