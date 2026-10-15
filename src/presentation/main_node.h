@@ -96,6 +96,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	AudioStreamPlayer *voice_player = nullptr;
 	AudioStreamPlayer *alarm_player = nullptr;
 	AudioStreamPlayer *sfx_player = nullptr;
+	AudioStreamPlayer *click_player_ = nullptr; // ui_button_click.ogg
+	int ui_clicks_ = 0; // tests: clicks played
+	void hook_ui_click_sounds(Node *n);
 	AudioStreamPlayer *ambient_player = nullptr;
 	AudioStreamPlayer *ambient_wind_player = nullptr;
 	AudioStreamPlayer *ambient_water_player = nullptr;
@@ -710,6 +713,10 @@ public:
 	String placement_failure_text(int result, uint8_t btype, float x, float z) const;
 	Dictionary debug_placement_tip() const;
 	Dictionary debug_cursor_tip();
+	void _on_tree_node_added(Node *n);
+	void _on_ui_click();
+	void _on_ui_click_item(int) { _on_ui_click(); }
+	int debug_ui_clicks() const { return ui_clicks_; }
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
