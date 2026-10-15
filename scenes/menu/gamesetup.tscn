@@ -169,7 +169,7 @@ text = "Reroll"
 [node name="MapSizeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Map size (random maps)"
+text = "Map Size"
 
 [node name="MapSizeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
@@ -184,7 +184,7 @@ layout_mode = 2
 [node name="WaterLevelLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Flood: rising water floods the home islands over the match; shallow or deep keep it at one level."
+tooltip_text = "Select the water level of this map."
 mouse_filter = 1
 text = "Water level"
 
@@ -197,9 +197,9 @@ size_flags_horizontal = 3
 [node name="SeaRiseLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Extinct Volcano: the minute the water starts to rise."
+tooltip_text = "Set the time when the water will start to rise."
 mouse_filter = 1
-text = "Sea level rise"
+text = "Sea Level Rise Time"
 
 [node name="SeaRiseSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
 unique_name_in_owner = true
@@ -283,14 +283,14 @@ layout_mode = 2
 [node name="Nomad" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/StartRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Random maps: players start with units only and must build their first Civic Centre."
+tooltip_text = "In Nomad mode, players start with only few units and have to find a suitable place to build their city. Ceasefire is recommended."
 text = "Nomad"
 
 [node name="DisableTreasures" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/StartRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Remove every treasure from the map when the match starts."
-text = "No treasures"
+tooltip_text = "Do not add treasures to the map."
+text = "Disable Treasures"
 
 [node name="MapVisRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
@@ -299,14 +299,14 @@ layout_mode = 2
 [node name="RevealMap" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Everyone sees the whole map all match."
-text = "Revealed map"
+tooltip_text = "Toggle revealed map (see everything)."
+text = "Revealed Map"
 
 [node name="ExploreMap" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "The terrain is known from the start; enemy units stay hidden outside your vision."
-text = "Explored map"
+tooltip_text = "Toggle explored map (see initial map)."
+text = "Explored Map"
 
 [node name="AlliedView" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
 unique_name_in_owner = true
@@ -342,7 +342,7 @@ layout_mode = 2
 [node name="ResLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Starting resources"
+text = "Starting Resources"
 
 [node name="ResSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
 unique_name_in_owner = true
@@ -432,8 +432,8 @@ layout_mode = 2
 [node name="RegicideGarrison" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/GameRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Regicide: the hero may garrison in structures, siege engines and ships."
-text = "Hero garrison"
+tooltip_text = "Toggle whether heroes can be garrisoned."
+text = "Hero Garrison"
 
 [node name="SpeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/GameTypeTab"]
 unique_name_in_owner = true
@@ -469,14 +469,14 @@ layout_mode = 2
 [node name="LockTeams" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/TeamsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Toggle the locked teams. Players can't change diplomacy during the match."
-text = "Lock teams"
+tooltip_text = "Toggle locked teams."
+text = "Teams Locked"
 
 [node name="LastManStanding" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/TeamsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Allies don't share a win: the match goes on until only one player is left."
-text = "Last man standing"
+tooltip_text = "Toggle whether the last remaining player or the last remaining set of allies wins."
+text = "Last Man Standing"
 
 [node name="Right" type="VBoxContainer" parent="VBox/HBox"]
 custom_minimum_size = Vector2(380, 0)

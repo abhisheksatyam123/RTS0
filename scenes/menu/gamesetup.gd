@@ -247,8 +247,8 @@ const START_RES_AMOUNTS := [100, 300, 500, 1000, 3000, 50000]
 
 # 0.28 settings/map_sizes.json (width in meters) for random maps; Normal is the default.
 const DEFAULT_MAP_SIZE := 2
-const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Normal (256 m)"],
-	[320, "Medium (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
+const MAP_SIZES := [[128, "Tiny"], [192, "Small"], [256, "Normal"],
+	[320, "Medium"], [384, "Large"], [448, "Very Large"], [512, "Giant"]]
 # map_sizes.json Tooltip, index == MAP_SIZES.
 const MAP_SIZE_TIPS := ["This map size has barely any room for even the most basic resources.",
 	"Small maps are suitable for 1v1 matches, as players can reach the enemy quickly while still having some room to expand.",
@@ -1434,9 +1434,10 @@ func _build_options() -> void:
 	%LockTeams.toggled.connect(func(_on): _render_mode_checks())
 	var msz := _make_option(%MapSizeSlot)
 	for s in MAP_SIZES:
-		msz.add_item(s[1], s[0])
+		msz.add_item(tr(s[1]), s[0])
 		msz.set_item_tooltip(msz.get_item_count() - 1, tr(MAP_SIZE_TIPS[msz.get_item_count() - 1]))
 	msz.select(DEFAULT_MAP_SIZE)
+	msz.tooltip_text = tr("Select map size. (Larger sizes may reduce performance.)")
 	var popt := _make_option(%PopCapTypeSlot)
 	for t in POP_CAP_TYPES:
 		popt.add_item(tr(t[1]))
@@ -1469,10 +1470,12 @@ func _build_options() -> void:
 	for w in WATER_LEVELS:
 		wl.add_item(w)
 	wl.select(0)
+	wl.tooltip_text = tr("Select the water level of this map.")
 	var sr := _make_option(%SeaRiseSlot)
 	for t in SEA_RISE_TIMES:
-		sr.add_item("rise at %d min" % t)
+		sr.add_item(_minutes(t))
 	sr.select(SEA_RISE_TIMES.find(25))
+	sr.tooltip_text = tr("Set the time when the water will start to rise.")
 	var tpl := _make_option(%TeamPlacementSlot)
 	tpl.item_selected.connect(_on_team_placement_selected)
 	_rebuild_team_placement([])
@@ -1495,10 +1498,11 @@ func _build_options() -> void:
 	dsel.select(0)
 	var res := _make_option(%ResSlot)
 	for r in START_RES:
-		res.add_item(r)
+		res.add_item(tr(r.get_slice(" (", 0))) # starting_resources.json Title
 		# StartingResources.HoverTooltip
 		res.set_item_tooltip(res.get_item_count() - 1, tr("Initial amount of each resource: %(resources)s.").replace("%(resources)s", str(START_RES_AMOUNTS[res.get_item_count() - 1])))
 	res.select(1)
+	res.tooltip_text = tr("Select the game's starting resources.")
 	var bio := _make_option(%BiomeSlot)
 	bio.add_item(BIOMES[0], 0)
 	bio.select(0)
