@@ -142,5 +142,10 @@ func run() -> void:
 	await frames(2)
 	check(int(main.debug_selection_grid(false)["selected"]) == 2, "a click on the sheep keeps only the sheep")
 
+	var rl: Dictionary = main.debug_inspector("relic")
+	print("relic: ", rl["title"], " ", rl["capture_parts"].size())
+	var rparts: Array = rl["capture_parts"]
+	check(rparts.size() == 1 and float(rparts[0]["width"]) > 300.0, "a Gaia relic shows its capture bar, all Gaia's (captureSection)")
+
 	print("e2e_selection_details: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
