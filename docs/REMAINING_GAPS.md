@@ -15,7 +15,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G5 | A town-phase HugeAttack waits for champions and a hero once the city phase comes (0.28 drops those classes from the plan) | medium | D |
 | G6 | A guard forgets the unit it guards after any new order (0.28 goes back to guarding once idle) | medium | Unit orders |
 | G7 | The bottom HUD isn't 0.28's centred 1024 px group: panels sit at the corners, the Training grid floats, and the stance buttons have captions | medium | Session UI |
-| G8 | Liu Bang's Confucian Reforms aura (Han walls regenerate 10 HP/s) does nothing; Themistocles' wall aura skips palisades | medium | Compare |
+| G8 | Themistocles' wall aura skips palisades (Liu Bang's Confucian Reforms wall regen fixed by Compare: 10 hp/s on finished Han walls, gates and wall towers while he lives, `tools/test_unit_orders.cpp` 79) | low | A |
 | G9 | Units garrisoned in an ally's structure or ship don't share its vision | low | A |
 | G10 | Trade: a zero-gain route keeps its trader busy forever, and traders boarding or leaving a ship mid-voyage don't change that leg's gain | low | A |
 | G11 | Ptolemaic and Seleucid walls give 3 stone of loot (0.28: 7 or 5); a bribe's spy ignores vision techs; garrisoned traders can't be bribed | low | A |
