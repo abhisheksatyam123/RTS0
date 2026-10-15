@@ -531,10 +531,13 @@ bool RtsoMain::try_focus_fire(const Vector3 &at) {
 	}
 	if (!target) return false;
 	const bool queued = rtso::hotkeys::held("session.queue");
+	// input.js: pushFront = session.pushorderfront held (unbound by default).
+	const bool push_front = rtso::hotkeys::held("session.pushorderfront");
 	const uint32_t ids[1] = {selected_building_id};
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target, queued ? rtso::NET_PARAM_QUEUED : 0);
-	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued))
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target,
+				(queued ? rtso::NET_PARAM_QUEUED : 0) | (push_front ? rtso::NET_PARAM_PUSH_FRONT : 0));
+	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued, push_front))
 		return false;
 	return true;
 }
