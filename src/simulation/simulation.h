@@ -2615,6 +2615,8 @@ private:
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
 	void record_unit_death(size_t i, uint8_t killer_team); // record_death for unit i, noting its DeathDamage
 	const DeathDamageInfo *unit_death_damage(size_t i) const;
+	static uint8_t unit_death_damage_row(uint16_t tmpl); // 1 + its death damage table row, 0 none
+	static const DeathDamageInfo *death_damage_info(uint8_t row); // that row's DeathDamage, or nullptr
 	float unit_template_regen(size_t i) const;
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
 	// (out of range or the victim's own owner credits nobody).
