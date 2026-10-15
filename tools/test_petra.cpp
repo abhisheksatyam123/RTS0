@@ -4284,8 +4284,11 @@ static void test_new_cc_defenders() {
 		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
+	// Copy the position: spawning resizes buildings_ and would leave cc dangling.
+	const float ccx = cc->x, ccz = cc->z;
+	cc = nullptr;
 	for (const auto &b : s->petra_bases()) CHECK(b.needed_defenders == 0, "the first civic centre trains no defenders");
-	const uint32_t tc = s->spawn_building_world(cc->x * 0.1f, cc->z * 0.1f, BLD_TOWN_CENTER, 1, 1.0f);
+	const uint32_t tc = s->spawn_building_world(ccx * 0.1f, ccz * 0.1f, BLD_TOWN_CENTER, 1, 1.0f);
 	CHECK(tc != 0, "a second civic centre is placed");
 	if (!tc) return;
 	auto needed = [&]() -> int {
@@ -4305,7 +4308,7 @@ static void test_new_cc_defenders() {
 		auto it = s->building_id_to_idx_.find(tc);
 		if (it != s->building_id_to_idx_.end()) most = std::max(most, s->buildings_[it->second].garrisoned_units.size());
 	}
-	std::printf("  new civic centre at Hard (%.0f units from the first): %d defenders wanted, %d left, garrison up to %zu\n", 0.9f * std::hypot(cc->x, cc->z), start, needed(), most);
+	std::printf("  new civic centre at Hard (%.0f units from the first): %d defenders wanted, %d left, garrison up to %zu\n", 0.9f * std::hypot(ccx, ccz), start, needed(), most);
 	CHECK(start == 5, "a new civic centre at Hard wants 5 defenders (3 + 2 (4 - 3))");
 	CHECK(needed() == 0, "it trains them all");
 	CHECK(most >= 1, "they garrison it");
