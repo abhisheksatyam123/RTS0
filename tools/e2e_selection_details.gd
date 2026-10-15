@@ -90,12 +90,13 @@ func run() -> void:
 	await frames(40) # a few turns: the field's supply comes with the next tick_gather
 	var fd: Dictionary = main.debug_inspector("field")
 	print("field: ", fd)
-	check(String(fd["stats"]).ends_with("Food: ∞\n0 / 5") or String(fd["stats"]).contains("Food: ∞\n0 / "), "a field shows \"Food: ∞\" and its gatherers, current / max")
+	check(String(fd["resource"]) == "Food: ∞", "a field's resource bar reads \"Food:\" and \"∞\"")
+	check(String(fd["stats"]).ends_with("0 / 5") or String(fd["stats"]).contains("0 / "), "and its gatherers show, current / max")
 
 	var r: Dictionary = main.debug_inspector("resource")
 	print("resource: ", r)
-	check(String(r["stats"]).begins_with("Wood: "), "a tree shows \"Wood:\" and its supply")
-	check(String(r["stats"]).split("\n").size() == 2 and " / " in String(r["stats"]).split("\n")[1], "and its gatherers, current / max")
+	check(String(r["resource"]).begins_with("Wood: "), "a tree's resource bar reads \"Wood:\" and its supply (a tree keeps no max)")
+	check(String(r["stats"]).split("\n").size() == 1 and " / " in String(r["stats"]), "and its gatherers, current / max")
 	check(String(r["stats_tooltip"]) == "Current/max gatherers", "with 0.28's gatherers tooltip")
 	check(String(r["portrait"]) == "res://assets/textures/ui/archive/portraits/gaia/flora_tree_generic.png", "a tree shows template_gaia_tree's icon")
 	check(String(r["title"]).ends_with(" (Tree)") or String(r["title"]) == "Tree", "a tree is named \"Specific (Tree)\" as getEntityNames")
@@ -103,7 +104,7 @@ func run() -> void:
 
 	var f: Dictionary = main.debug_inspector("fauna")
 	print("fauna: ", f)
-	check(String(f["extra"]).begins_with("Food: ") and " / " in String(f["extra"]), "an animal shows its food, amount / max")
+	check(String(f["resource"]).begins_with("Food: ") and " / " in String(f["resource"]), "an animal's resource bar shows its food, amount / max")
 	check(String(f["stats_tooltip"]).contains("Resistance:"), "and its resistance")
 	check(String(f["stats_tooltip"]).contains("\nSpeed: ") and " Walk, " in String(f["stats_tooltip"]), "and its speed (getSpeedTooltip)")
 	check(String(f["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/gaia/fauna_"), "an animal shows its template's icon")
