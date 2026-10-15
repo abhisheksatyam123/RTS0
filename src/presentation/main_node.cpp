@@ -141,6 +141,10 @@ Dictionary RtsoMain::get_audio_state() const {
 	d["workers_at_work"] = session_audio_.workers_at_work();
 	d["workers_in_earshot"] = session_audio_.workers_in_earshot();
 	d["listener"] = session_audio_.listener();
+	d["combat_sounds"] = session_audio_.combat_sounds_played();
+	d["combat_culled"] = session_audio_.combat_sounds_culled();
+	d["voices"] = view ? view->spatial_voices_playing() : 0;
+	d["voices_dropped"] = view ? view->spatial_sounds_dropped() : 0;
 	return d;
 }
 
