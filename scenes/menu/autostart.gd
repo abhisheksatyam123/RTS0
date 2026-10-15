@@ -11,9 +11,9 @@ extends RefCounted
 ## -autostart-client=IP joins a host and readies up; -autostart-port and
 ## -autostart-playername go with either. -autostart-nonvisual draws and plays
 ## nothing and quits when the match ends; -autostart-disable-replay writes no
-## replay. The local player is slot 1, or an observer with -autostart-player=-1
-## (then every seat needs an AI; one without becomes a Sandbox AI).
-## -autostart-aiseed is accepted but Petra's personalities follow the match seed.
+## replay, and -autostart-aiseed seeds the AIs' personalities. The local player is
+## slot 1, or an observer with -autostart-player=-1 (then every seat needs an AI;
+## one without becomes a Sandbox AI).
 
 const GameSetup := preload("res://scenes/menu/gamesetup.gd")
 const Driver := preload("res://scenes/menu/autostart_driver.gd")
@@ -164,8 +164,9 @@ static func configure(ms: Node, opts: Dictionary, maps: Array) -> String:
 ## the driver that acts on them in the match, or null with nothing to do there.
 static func configure_run(ms: Node, opts: Dictionary) -> Node:
 	ms.record_replay = not opts.has("autostart-disable-replay")
-	if opts.has("autostart-aiseed"):
-		push_warning("[Autostart] -autostart-aiseed: RTS0's AI draws its personality from the match seed.")
+	# -autostart-aiseed: the AIs' seed, -1 for a random one; 0 (the default) follows the match seed.
+	var ai_seed_arg := _last(opts, "autostart-aiseed", "0")
+	ms.ai_seed = (randi() & 0x7FFFFFFF) | 1 if ai_seed_arg == "-1" else maxi(0, int(ai_seed_arg))
 	var driver: Node = Driver.new()
 	driver.name = "AutostartDriver"
 	driver.nonvisual = opts.has("autostart-nonvisual")

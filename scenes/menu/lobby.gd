@@ -838,8 +838,9 @@ func _on_game_selected() -> void:
 	_show_details(r)
 	if r.is_empty():
 		return
-	_join_ip.text = str(r.get("host_ip", "127.0.0.1"))
-	_join_port.text = str(int(r.get("host_port", 20595)))
+	# The game list carries no address (0 A.D.'s neither): Join asks the lobby.
+	_join_ip.text = ""
+	_join_ip.placeholder_text = "From the lobby"
 	# 0 A.D. lets a running game be joined only to watch it.
 	_observe.button_pressed = r.get("state", "init") == "running"
 	_say("Selected %s%s." % [str(r.get("name", r.get("id", ""))),
@@ -878,30 +879,47 @@ func _on_host_saved_pressed() -> void:
 
 
 func _on_join_pressed() -> void:
-	var port := _join_port.text.to_int()
-	if _join_ip.text.strip_edges() == "" or port <= 0 or port > 65535:
+	var r := _selected_room()
+	if _join_ip.text.strip_edges() == "" and not r.is_empty():
+		# A listed game: its address comes from the lobby, and only to a
+		# signed-in player (0 A.D. XmppClient SendIqGetConnectionData).
+		if not LobbySession.signed_in():
+			_say("Sign in to join a listed game, or type the host's address.")
+			return
+		_say("Asking the lobby for the game's address...")
+		LobbySession.post_json("/rooms/connect", {"token": LobbySession.token, "id": str(r.get("id", ""))},
+			func(code: int, obj) -> void:
+				if not is_inside_tree():
+					return
+				if code != 200 or not obj is Dictionary:
+					_say("Could not get the game's address from the lobby.")
+					return
+				_start_join(str(obj.get("host_ip", "")), int(obj.get("host_port", 0)), str(r.get("id", ""))))
+		return
+	_start_join(_join_ip.text.strip_edges(), _join_port.text.to_int(), "")
+
+
+# A typed address is joined directly; a listed game (room_id) through the
+# lobby, with STUN and hole punching (0 A.D. TryToConnectWithSTUN).
+func _start_join(ip: String, port: int, room_id: String) -> void:
+	if ip == "" or port <= 0 or port > 65535:
 		_say("Type the host's address and port, or pick a game.")
 		return
 	MatchSettings.net_mode = "join"
 	MatchSettings.net_lobby = LobbySession.address
 	MatchSettings.net_player_name = _player_name()
-	MatchSettings.net_ip = _join_ip.text.strip_edges()
+	MatchSettings.net_ip = ip
 	MatchSettings.net_port = port
 	MatchSettings.net_password = _join_pwd.text
 	MatchSettings.net_observe = _observe.button_pressed
-	# A game picked from the list is joined through the lobby, with STUN and
-	# hole punching (0 A.D. TryToConnectWithSTUN); a typed address directly.
-	var r := _selected_room()
-	var listed := not r.is_empty() and str(r.get("host_ip", "")) == MatchSettings.net_ip \
-			and int(r.get("host_port", 0)) == port
-	var via_lobby := listed and LobbySession.signed_in()
+	var via_lobby := room_id != ""
 	if not via_lobby:
 		# gamesetup_mp.js startJoin: a direct join keeps its address and port.
 		var cfg := RtsoUserConfig.new()
 		cfg.set_value("multiplayerserver", MatchSettings.net_ip)
 		cfg.set_value("multiplayerjoining.port", str(port))
 		cfg.save()
-	LobbySession.join_game(str(r.get("id", "")) if via_lobby else "")
+	LobbySession.join_game(room_id)
 	MatchSettings.go("res://scenes/main.tscn")
 
 
