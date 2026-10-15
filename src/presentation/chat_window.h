@@ -115,13 +115,13 @@ public:
 		// =========================================================================
 		// 5. IN-GAME CHAT OVERLAY (LineEdit + All/Allies/Team channels)
 		// =========================================================================
+		// chat_window.xml chatDialogPanel: a 432 px dialog in the middle of the screen,
+		// sized by set_extended (chatDialogPanelLarge / chatDialogPanelSmall).
 		panel_ = memnew(Panel);
-		panel_->set_anchor(SIDE_LEFT, 0.0f);
-		panel_->set_anchor(SIDE_TOP, 0.0f);
-		panel_->set_offset(SIDE_LEFT, 16.0f);
-		panel_->set_offset(SIDE_RIGHT, 400.0f);
-		panel_->set_offset(SIDE_TOP, 60.0f);
-		panel_->set_offset(SIDE_BOTTOM, 260.0f);
+		panel_->set_anchor(SIDE_LEFT, 0.5f);
+		panel_->set_anchor(SIDE_RIGHT, 0.5f);
+		panel_->set_offset(SIDE_LEFT, -216.0f);
+		panel_->set_offset(SIDE_RIGHT, 216.0f);
 
 		Ref<StyleBoxFlat> chat_style;
 		chat_style.instantiate();
@@ -160,13 +160,6 @@ public:
 		filter_select_->connect("item_selected", Callable(owner, "_on_chat_filter_selected"));
 		filter_bar_->add_child(filter_select_);
 		chat_top_bar->add_child(filter_bar_);
-
-		Button *chat_close = memnew(Button);
-		chat_close->set_custom_minimum_size(Vector2(22, 22));
-		chat_close->set_text("✕");
-		chat_close->add_theme_font_size_override("font_size", 10);
-		chat_close->connect("pressed", Callable(owner, "toggle_chat"));
-		chat_top_bar->add_child(chat_close);
 		chat_vbox->add_child(chat_top_bar);
 
 		log_ = memnew(RichTextLabel);
@@ -186,28 +179,25 @@ public:
 		to_lbl->add_theme_color_override("font_color", Color(0.75f, 0.78f, 0.88f));
 		chat_addressee_bar->add_child(to_lbl);
 
+		to_lbl->set_custom_minimum_size(Vector2(50, 0));
 		channel_ = memnew(RtsoSafeSelect);
 		channel_->set_custom_minimum_size(Vector2(110, 22));
+		channel_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 		refill_addressees();
 		channel_->add_theme_font_size_override("font_size", 10);
 		chat_addressee_bar->add_child(channel_);
 
-		auto add_quick_btn = [&](const String &label, int ch_idx) {
-			Button *b = memnew(Button);
-			b->set_custom_minimum_size(Vector2(42, 20));
-			b->set_text(label);
-			b->add_theme_font_size_override("font_size", 9);
-			b->connect("pressed", Callable(owner, "_on_chat_channel_btn_pressed").bind(ch_idx));
-			chat_addressee_bar->add_child(b);
-		};
-		add_quick_btn("All", 0);
-		add_quick_btn("Ally", 1);
-		add_quick_btn("Enemy", 2);
-
 		chat_vbox->add_child(chat_addressee_bar);
 
+		// "Text:" and the input, then Cancel, the History tickbox and Send.
 		HBoxContainer *chat_input_bar = memnew(HBoxContainer);
 		chat_input_bar->set_custom_minimum_size(Vector2(0, 26));
+		Label *text_lbl = memnew(Label);
+		text_lbl->set_text("Text:");
+		text_lbl->set_custom_minimum_size(Vector2(50, 0));
+		text_lbl->add_theme_font_size_override("font_size", 10);
+		text_lbl->add_theme_color_override("font_color", Color(0.75f, 0.78f, 0.88f));
+		chat_input_bar->add_child(text_lbl);
 		input_ = memnew(LineEdit);
 		input_->set_placeholder("Type message...");
 		input_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
@@ -217,8 +207,18 @@ public:
 		input_->set_max_length(1024); // chat_window.xml chatInput max_length
 		rtso::parent_line_edit(chat_input_bar, input_);
 
+		chat_vbox->add_child(chat_input_bar);
+
+		HBoxContainer *chat_button_bar = memnew(HBoxContainer);
+		chat_button_bar->set_custom_minimum_size(Vector2(0, 30));
+		Button *cancel = memnew(Button);
+		cancel->set_text("Cancel");
+		cancel->set_custom_minimum_size(Vector2(130, 28));
+		cancel->add_theme_font_size_override("font_size", 11);
+		cancel->connect("pressed", Callable(owner, "toggle_chat"));
+		chat_button_bar->add_child(cancel);
 		send_btn_ = memnew(Button);
-		send_btn_->set_custom_minimum_size(Vector2(55, 24));
+		send_btn_->set_custom_minimum_size(Vector2(130, 28));
 		send_btn_->set_text("Send");
 		send_btn_->add_theme_font_size_override("font_size", 11);
 		send_btn_->connect("pressed", Callable(owner, "_on_chat_send_pressed"));
@@ -227,9 +227,15 @@ public:
 		history_box_->add_theme_font_size_override("font_size", 10);
 		history_box_->set_tooltip_text("Show the chat history.");
 		history_box_->connect("toggled", Callable(owner, "_on_chat_history_toggled"));
-		chat_input_bar->add_child(history_box_);
-		chat_input_bar->add_child(send_btn_);
-		chat_vbox->add_child(chat_input_bar);
+		Control *gap_l = memnew(Control);
+		gap_l->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+		Control *gap_r = memnew(Control);
+		gap_r->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+		chat_button_bar->add_child(gap_l);
+		chat_button_bar->add_child(history_box_);
+		chat_button_bar->add_child(gap_r);
+		chat_button_bar->add_child(send_btn_);
+		chat_vbox->add_child(chat_button_bar);
 
 		panel_->set_visible(false);
 		parent->add_child(panel_);
@@ -524,7 +530,14 @@ public:
 		if (log_) log_->set_visible(on);
 		if (filter_bar_) filter_bar_->set_visible(on);
 		if (history_box_) history_box_->set_pressed_no_signal(on);
-		if (panel_) panel_->set_offset(SIDE_BOTTOM, on ? 300.0f : 132.0f);
+		// ChatWindow.resizeChatWindow: chatDialogPanelLarge "50%-216 22%-75 50%+216 78%-85",
+		// chatDialogPanelSmall "50%-216 50%-140 50%+216 50%-20".
+		if (panel_) {
+			panel_->set_anchor(SIDE_TOP, on ? 0.22f : 0.5f);
+			panel_->set_anchor(SIDE_BOTTOM, on ? 0.78f : 0.5f);
+			panel_->set_offset(SIDE_TOP, on ? -75.0f : -140.0f);
+			panel_->set_offset(SIDE_BOTTOM, on ? -85.0f : -20.0f);
+		}
 	}
 	bool extended() const { return extended_; }
 	// "Network notifications" is hidden unless in multiplayer (Engine.HasNetClient).

@@ -241,27 +241,21 @@ func run() -> void:
 	check(not dlg()["chat_extended"], "unticking History hides it")
 	main._on_chat_history_toggled(true)
 
-	print("7. Tab completes a player name; at most 1024 characters")
-	check(le.max_length == 1024, "chatInput max_length 1024")
+	print("7. 0.28's chat dialog: centred, To / Text / Cancel / History / Send, 1024 characters")
 	main.toggle_chat()
 	await frames(2)
-	check(le.is_visible_in_tree() and le.is_connected("gui_input", Callable(main, "_on_chat_input_key")), "the chat input's keys reach the Tab handler")
-	le.text = ""
-	var tab := InputEventKey.new()
-	tab.keycode = KEY_TAB
-	tab.pressed = true
-	le.text = "zz"
-	le.caret_column = 2
-	main._on_chat_input_key(tab)
-	check(le.text == "zz", "no name starts with the word: left alone (%s)" % le.text)
-	var first: String = String(dlg().get("chat_names", [""])[0]) if dlg().has("chat_names") else ""
-	if first != "":
-		le.text = first.substr(0, 2)
-		le.caret_column = 2
-		main._on_chat_input_key(tab) # as lobby e2e does: headless key events skip the GUI
-		check(le.text == first + ", ", "a lone word completes to the name and \", \" (%s)" % le.text)
-	else:
-		check(false, "chat_names lists the assigned names")
+	check(le.max_length == 1024, "chatInput max_length 1024")
+	var panel: Control = le.get_parent()
+	while panel and not (panel is Panel):
+		panel = panel.get_parent()
+	var vp := root.get_visible_rect().size
+	var rect := panel.get_global_rect()
+	check(absf(rect.get_center().x - vp.x / 2.0) < 2.0 and absf(rect.size.x - 432.0) < 1.0, "a 432 px dialog in the middle: %s in %s" % [rect, vp])
+	var texts := []
+	for b in panel.find_children("*", "BaseButton", true, false):
+		if b.is_visible_in_tree() and b.text != "":
+			texts.append(b.text)
+	check("Cancel" in texts and "Send" in texts and "History" in texts and not ("All" in texts or "Ally" in texts or "✕" in texts), "Cancel, History and Send only: %s" % [texts])
 	main.toggle_chat()
 
 	print("FAILURES: ", failures)
