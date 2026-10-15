@@ -630,7 +630,56 @@ int main() {
 		CHECK(past > 0 && past_ok == 0 && inside_ok > 0);
 	}
 
-	// 18. RETURNRESOURCE.APPROACHING (UnitAI.js): a returner walks to the dropsite within range
+	// 18. BuildRestrictions.CheckPlacement: a seated human player can't build in unexplored land,
+	// so a wall dragged into the shroud is laid only where the player has explored.
+	{
+		setup(s, 5000.0f);
+		s.set_player_active(0, true, false);
+		for (int i = 0; i < 10; ++i) s.tick(Simulation::FIXED_STEP);
+		const float far = s.map_half() * 0.8f;
+		const int fc = (int)(far / Simulation::GRID);
+		const auto near_r = s.check_placement(0, -3, 7, BLD_HOUSE), far_r = s.check_placement(0, fc, fc, BLD_HOUSE);
+		const size_t shroud = s.cmd_build_wall(0, far, far, far, far - 12.0f);
+		const auto plan = s.wall_placement(0, -10.0f, 10.0f, far, 10.0f);
+		const size_t into = s.cmd_build_wall(0, -10.0f, 10.0f, far, 10.0f);
+		std::printf("  unexplored: house near %d far %d; wall in the shroud %zu pieces, into it %zu of %zu\n", (int)near_r,
+				(int)far_r, shroud, into, plan.size());
+		CHECK(near_r != Simulation::PLACE_UNEXPLORED && far_r == Simulation::PLACE_UNEXPLORED);
+		CHECK(shroud == 0 && into >= 3 && into < plan.size());
+		bool all_seen = true;
+		for (const auto &bld : s.buildings())
+			if (bld.type == BLD_WALL_TOWER || bld.type == BLD_WALL_SEGMENT) all_seen &= s.los_explored(0, bld.x, bld.z);
+		CHECK(all_seen);
+		// AI players have no visibility info in 0.28: no such check.
+		s.set_player_active(0, true, true);
+		CHECK(s.check_placement(0, fc, fc, BLD_HOUSE) != Simulation::PLACE_UNEXPLORED);
+	}
+
+	// 19. tryPlaceWall sends nothing when its first segment is blocked: no lone start tower is
+	// laid or paid for.
+	{
+		setup(s, 1000.0f);
+		const auto plan = s.wall_placement(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		CHECK(plan.size() >= 3 && plan[1].type == BLD_WALL_SEGMENT);
+		s.spawn_building_world(plan[1].x, plan[1].z, BLD_HOUSE, 0, 1.0f);
+		const size_t laid = s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		std::printf("  blocked first segment: %zu pieces, %d towers\n", laid, count_type(s, BLD_WALL_TOWER));
+		CHECK(laid == 0 && count_type(s, BLD_WALL_TOWER) == 0 && s.player(0).res[RES_STONE] == 1000.0f);
+		// Only enough stone for the start tower: nothing either.
+		setup(s, 60.0f);
+		CHECK(s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f) == 0 && s.player(0).res[RES_STONE] == 60.0f);
+	}
+
+	// 20. 0.28 Builder lists hold only the WallSets: a wall tower or gate is never a lone foundation.
+	{
+		setup(s, 1000.0f);
+		s.player(0).res[RES_WOOD] = 1000.0f;
+		CHECK(s.cmd_build(0, -3, 7, BLD_WALL_TOWER) == 0 && s.cmd_build(0, -3, 7, BLD_GATE) == 0 &&
+				s.cmd_build(0, -3, 7, BLD_WALL_SEGMENT) == 0 && s.cmd_build(0, -3, 7, BLD_PALISADE) == 0);
+		CHECK(s.cmd_build(0, -3, 7, BLD_HOUSE) != 0);
+	}
+
+	// 21. RETURNRESOURCE.APPROACHING (UnitAI.js): a returner walks to the dropsite within range
 	// (MoveToTargetRange), from the side it comes from. An Iberian woman inside her starting walls
 	// on Continental (seed 19) takes wood to a dock on the shore past a gate: the walk to the
 	// dock's centre would end on its water side, beyond the gate's Right part, and she pushed on

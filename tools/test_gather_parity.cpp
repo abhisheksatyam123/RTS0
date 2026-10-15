@@ -413,6 +413,50 @@ int main() {
 		CHECK(on_full == 5 && on_near == 1 && on_far == 0);
 	}
 
+	// 17. UnitAI Order.Gather returns first only when full of the type she is sent to gather: a
+	// woman full of wood sent to berries walks straight there, and StartGathering drops the wood.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_building_world(-20.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t bush = s.spawn_resource_world(10.0f, 0.0f, RES_FOOD, 200);
+		const uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const int32_t i = s.lookup_unit(w);
+		s.units_.res_type_carried[i] = RES_WOOD;
+		s.units_.carry[i] = s.carry_cap((size_t)i, RES_WOOD);
+		const float wood0 = s.player(0).res[RES_WOOD];
+		s.order_gather(&w, 1, bush);
+		bool returned = false;
+		for (int k = 0; k < 200; ++k) { run(s, 0.05f); returned |= s.units_.action_state[i] == ACTION_RETURN_DROPSITE; }
+		std::printf("  full of wood sent to berries: %s, carrying %d %s\n", returned ? "went home first" : "went straight there",
+				s.units_.carry[i], s.units_.res_type_carried[i] == RES_FOOD ? "food" : "other");
+		CHECK(!returned && s.units_.res_type_carried[i] == RES_FOOD && s.units_.carry[i] > 0 && s.player(0).res[RES_WOOD] == wood0);
+	}
+
+	// 18. Order.Gather on a supply that is gone -> FINDINGNEWTARGET, whose FinishOrder takes the
+	// next queued order: a shift-queued tree felled by someone else is skipped, not replaced by
+	// the tree beside it.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_building_world(0.0f, -6.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t t1 = s.spawn_resource_world(3.0f, 0.0f, RES_WOOD, 4);
+		const uint32_t t2 = s.spawn_resource_world(0.0f, 12.0f, RES_WOOD, 200);
+		const uint32_t t3 = s.spawn_resource_world(12.0f, 0.0f, RES_WOOD, 200);
+		const uint32_t t4 = s.spawn_resource_world(0.0f, 13.5f, RES_WOOD, 200);
+		const uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(&w, 1, t1);
+		s.order_gather(&w, 1, t2, true);
+		s.order_gather(&w, 1, t3, true);
+		s.resources_.amount[s.res_id_to_idx_.at(t2)] = 0; // felled by another player meanwhile
+		bool to_t4 = false;
+		const int32_t i = s.lookup_unit(w);
+		for (int k = 0; k < 400; ++k) { run(s, 0.05f); to_t4 |= s.units_.target_resource_id[i] == t4; }
+		std::printf("  queued tree gone: now on %s\n", s.units_.target_resource_id[i] == t3 ? "the next queued tree" :
+				s.units_.target_resource_id[i] == t4 ? "the tree beside the gone one" : "something else");
+		CHECK(!to_t4 && s.units_.target_resource_id[i] == t3);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
