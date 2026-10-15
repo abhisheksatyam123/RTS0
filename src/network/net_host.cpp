@@ -1013,6 +1013,9 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 		if (NetPacketSerializer::parse_authenticate(msg.payload.data(), msg.payload.size(), auth)) {
 			NetPeer *p = getPeer(peerId);
 			if (isHost() && p && !p->is_authenticated && !p->kick_disconnect_ms) {
+				const std::string sent = auth.name;
+				auth.name = sanitise_player_name(auth.name);
+				auth.sent_name = sent; // the password's salt
 				// 0 A.D. NSS_LOBBY_AUTHENTICATE: a lobby host first asks the
 				// lobby whose ticket this is (one check per joiner at a time).
 				if (!lobby_auth_) {
@@ -1355,7 +1358,7 @@ void NetHost::retargetHost(const std::string &ip, uint16_t port) {
 void NetHost::authenticate_peer(NetPeer &peer, AuthenticateMsg auth) {
 	NetPeer *p = &peer;
 	const uint32_t peerId = p->id;
-	const std::string sent_name = auth.name; // the password's salt, before any dedupe
+	const std::string sent_name = auth.sent_name.empty() ? auth.name : auth.sent_name; // the password's salt, as sent
 	// 0 A.D. NetServer::OnAuthenticate: a name already in the game is
 	// refused, or with network.duplicateplayernames made unique
 	// (DeduplicatePlayerName); unnamed (test) clients are left alone.
@@ -1400,6 +1403,31 @@ void NetHost::authenticate_peer(NetPeer &peer, AuthenticateMsg auth) {
 		std::cout << "[NetHost] Refused peer " << p->id << " (" << auth.name << "): " << res.message << "\n";
 		p->kick_disconnect_ms = get_now_ms() + 2000; // the answer gets there first
 	}
+}
+
+// 0 A.D. CNetServerWorker::SanitisePlayerName: no GUI tags ("[" and "]" become
+// "{" and "}"), at most 32 characters, no surrounding white space, and
+// "Anonymous" for a name of only white space. RTS0's unnamed test clients
+// (an empty name) stay unnamed.
+std::string NetHost::sanitise_player_name(const std::string &original) {
+	if (original.empty()) return original;
+	std::string name = original;
+	for (char &c : name) {
+		if (c == '[') c = '{';
+		else if (c == ']') c = '}';
+	}
+	size_t chars = 0, cut = name.size();
+	for (size_t i = 0; i < name.size(); ++i) {
+		if ((static_cast<unsigned char>(name[i]) & 0xC0) == 0x80) continue; // inside a character
+		if (chars++ == 32) { cut = i; break; }
+	}
+	name.resize(cut);
+	const auto space = [](char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; };
+	while (!name.empty() && space(name.back())) name.pop_back();
+	size_t lead = 0;
+	while (lead < name.size() && space(name[lead])) ++lead;
+	name.erase(0, lead);
+	return name.empty() ? "Anonymous" : name;
 }
 
 bool NetHost::finishLobbyAuth(uint32_t peer_id, const std::string &ticket, const std::string &lobby_name) {

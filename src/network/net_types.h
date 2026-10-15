@@ -340,6 +340,7 @@ struct AuthenticateMsg {
 	// lobby name, as 0.28's host learns it from the lobby's LobbyAuth iq.
 	// Optional on the wire.
 	std::string lobby_ticket;
+	std::string sent_name; // host: the name as sent, before SanitisePlayerName (not on the wire)
 };
 
 struct AuthenticateResultMsg {

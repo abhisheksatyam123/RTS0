@@ -194,18 +194,30 @@ static func encrypt_password(password: String, username: String) -> String:
 	return out.hex_encode().to_upper()
 
 
-## 0 A.D. prelobby checkUsername / checkPassword for a new account.
+## 0 A.D. prelobby checkUsername / checkPassword / checkPasswordConfirmation
+## for a new account (credentials.js; lobby/password.js minimumPasswordLength).
+const MIN_PASSWORD_LENGTH := 8
+
 static func register_problem(who: String, password: String, confirm: String) -> String:
 	if who == "":
 		return "Please enter your username"
-	var re := RegEx.create_from_string("^[A-Za-z0-9._-]{1,20}$")
-	if re.search(who) == null:
+	if not valid_name(who):
 		return "Invalid username"
 	if password == "":
 		return "Please enter your password"
+	if password.length() < MIN_PASSWORD_LENGTH:
+		return "Please choose a longer password"
+	if confirm == "":
+		return "Please enter your password again"
 	if password != confirm:
 		return "Passwords do not match"
 	return ""
+
+
+## credentials.js: 3 to 20 of a-z, 0-9, ".", "_" and "-", with at least one
+## letter, in any case (tools/lobby_server.py ACCOUNT_NAME).
+static func valid_name(who: String) -> bool:
+	return RegEx.create_from_string("^(?=.*[a-zA-Z])[a-zA-Z0-9._-]{3,20}$").search(who) != null
 
 
 # 0 A.D. prelobby Register: an account the lobby keeps (tools/lobby_server.py --accounts).

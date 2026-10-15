@@ -30,6 +30,8 @@ def test_object():
     check(code == 200 and alice["name"] == "alice" and alice["token"], "sign in trims the name and returns a token")
     check(lb.login("Alice")[0] == 409, "a name in use (any case) is refused")
     check(lb.login("")[0] == 400, "an empty name is refused")
+    for bad in ("bob, carol", "@mod", "eve (1800)", "x"):
+        check(lb.login(bad)[0] == 400, f"a guest named {bad!r} is refused: it would pass for something else")
     _, bob = lb.login("bob")
     check([p["name"] for p in lb.player_list()[1]["players"]] == ["alice", "bob"], "players are listed by name")
     check(lb.presence(bob["token"], "playing")[0] == 200, "presence can change")
@@ -356,6 +358,8 @@ def test_accounts():
     check(lb.register_account("alice", pw)[0] == 409, "the name, in any case, can be registered once")
     check(lb.register_account("bad name!", pw)[0] == 400, "a name outside a-z 0-9 . _ - is refused")
     check(lb.register_account("x" * 21, pw)[0] == 400, "a name over 20 characters is refused")
+    check(lb.register_account("ab", pw)[0] == 400 and lb.register_account("123", pw)[0] == 400,
+          "as credentials.js: at least 3 characters, one of them a letter")
     check("hunter22" not in open(path).read() and pw not in open(path).read(),
           "the accounts file keeps neither the password nor what the client sent")
     check(lb.login("alice", "wrong")[0] == 401, "the wrong password is refused")
