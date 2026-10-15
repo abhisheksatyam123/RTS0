@@ -12,8 +12,8 @@ extends RefCounted
 ## -autostart-playername go with either. -autostart-nonvisual draws and plays
 ## nothing and quits when the match ends; -autostart-disable-replay writes no
 ## replay, and -autostart-aiseed seeds the AIs' personalities. The local player is
-## slot 1, or an observer with -autostart-player=-1 (then every seat needs an AI;
-## one without becomes a Sandbox AI).
+## -autostart-player's slot (1 by default), or an observer with -autostart-player=-1
+## (then every seat needs an AI; one without becomes a Sandbox AI).
 
 const GameSetup := preload("res://scenes/menu/gamesetup.gd")
 const Driver := preload("res://scenes/menu/autostart_driver.gd")
@@ -127,9 +127,12 @@ static func configure(ms: Node, opts: Dictionary, maps: Array) -> String:
 			if types[i] == 0:
 				types[i] = 1
 				diffs[i] = 0
-	elif local != 1:
-		push_warning("[Autostart] -autostart-player=%d: RTS0 seats the local player in slot 1." % local)
-	types[0] = 1 if local == -1 else 0
+	elif local < 1 or local > n:
+		push_warning("[Autostart] -autostart-player=%d: no such player; playing player 1." % local)
+		local = 1
+	if local >= 1:
+		types[local - 1] = 0 # you play it, whatever -autostart-ai said
+	ms.local_slot = local - 1 if local >= 1 else -1
 
 	var seed_arg := _last(opts, "autostart-seed", "0")
 	ms.map_id = str(m["id"])

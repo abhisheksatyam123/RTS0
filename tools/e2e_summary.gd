@@ -101,6 +101,9 @@ func run() -> void:
 	check(s._tab_buttons.map(func(b): return b.text) == ["Score", "Structures", "Units", "Resources", "Market", "Miscellaneous", "Charts"],
 		"0 A.D.'s tabs")
 	check(not s.find_child("ReplayButton", true, false).visible, "no Watch Replay in game")
+	var lobby_btn = s.find_child("LobbyButton", true, false)
+	check(lobby_btn is TextureButton and lobby_btn.texture_normal != null and lobby_btn.size == Vector2(16, 16),
+		"the lobby button is 0.28's 16 px speech bubble")
 
 	print("2. counters")
 	var econ: int = s.player_value(1, 0, 1)
@@ -174,6 +177,13 @@ func run() -> void:
 	var runs: Array = s.chart_lines(PackedVector2Array([Vector2(0, 1), Vector2(30, INF), Vector2(60, 3), Vector2(90, 4)]))
 	check(runs.size() == 2 and runs[0].size() == 1 and runs[1].size() == 2 and runs[1][0] == Vector2(60, 3),
 		"an infinite kill/death ratio breaks the chart's line, as CChart leaves it out")
+	var bnd: Array = s.chart_bounds([{"points": PackedVector2Array([Vector2(30, 120), Vector2(60, INF), Vector2(90, 150)])}])
+	check(bnd[0] == Vector2(30, 120) and bnd[1] == Vector2(90, 150) and not bnd[2] and not bnd[3],
+		"CChart bounds run from the smallest to the largest finite value, with no zero baseline: " + str(bnd))
+	bnd = s.chart_bounds([{"points": PackedVector2Array([Vector2(30, 5), Vector2(60, 5)])}])
+	check(bnd[3] and bnd[1].y == 6.0, "a flat series gets 1 added to its top")
+	check(s.format_axis(125.0, "DURATION_SHORT") == "2:05" and s.format_axis(42.4, "PERCENTAGE") == "42%",
+		"axis values read as CChart formats them")
 	await shot("charts")
 
 	print("4. back to the game")

@@ -140,10 +140,11 @@ inline bool is_down_now(const std::string &name) {
 	return k != KEY_NONE && in->is_physical_key_pressed(k);
 }
 
-// Hotkeys fired by a key press (empty for releases and repeats).
-inline std::vector<std::string> fired(const godot::Ref<godot::InputEventKey> &key) {
+// Hotkeys fired by a key press (empty for releases, and for repeats unless
+// `with_repeats`: 0 A.D.'s held keys repeat "KeyDown" actions, Hotkey.cpp).
+inline std::vector<std::string> fired(const godot::Ref<godot::InputEventKey> &key, bool with_repeats = false) {
 	using namespace godot;
-	if (key.is_null() || !key->is_pressed() || key->is_echo()) return {};
+	if (key.is_null() || !key->is_pressed() || (key->is_echo() && !with_repeats)) return {};
 	Key code = key->get_physical_keycode();
 	if (code == KEY_NONE) code = key->get_keycode();
 	const char *n = key_name(code);

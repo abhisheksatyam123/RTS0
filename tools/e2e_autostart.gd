@@ -67,7 +67,10 @@ func run() -> void:
 	print("4. Observer")
 	Autostart.configure(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-players=3",
 		"-autostart-ai=1:petra", "-autostart-ai=2:petra", "-autostart-player=-1"])), maps)
-	check(ms.slot_types == [1, 1, 1] and ms.slot_diffs == [3, 3, 0], "every seat AI, the unnamed one Sandbox")
+	check(ms.slot_types == [1, 1, 1] and ms.slot_diffs == [3, 3, 0] and ms.local_slot == -1, "every seat AI, the unnamed one Sandbox")
+	Autostart.configure(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-players=3",
+		"-autostart-ai=1:petra", "-autostart-ai=3:petra", "-autostart-player=2"])), maps)
+	check(ms.slot_types == [1, 0, 1] and ms.local_slot == 1, "-autostart-player=2 seats you in slot 2: %s %d" % [str(ms.slot_types), ms.local_slot])
 
 	print("5. Refused")
 	check(Autostart.configure(ms, Autostart.parse(PackedStringArray(["-autostart=maps/x"])), maps).begins_with("Unrecognized map type"), "unknown type")
