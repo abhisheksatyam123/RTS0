@@ -67,34 +67,14 @@ inline bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, u
 }
 
 // Whether the segment from `a` to `b` comes within `radius` of a terrain tile too steep to stand on
-// (NavGrid::near_steep_tile), tested every quarter tile along it. RTS0's long paths keep off steep
-// navcells only, where 0.28's keep off each steep tile, so a walk that runs into a cliff edge or a
-// rock inside a navcell takes a short path round it. The start doesn't count.
+// (NavGrid::near_steep_tile), tested every quarter tile along it (NavGrid::segment_near_steep_tile,
+// which long paths test their legs with too). RTS0's long paths keep off steep tiles where they
+// pass near one (NavGrid::find_path_on plans those on the tiles), but a walk with no long path, or a
+// push or a crowd off its path, can still run into a cliff edge or a rock inside a navcell, and takes
+// a short path round it. The start doesn't count.
 inline bool segment_near_steep(const NavGrid& nav, Vec2 a, Vec2 b, float radius)
 {
-	if (!nav.any_steep_tile() ||
-	    !nav.steep_tile_in(std::min(a.x, b.x) - radius, std::min(a.y, b.y) - radius,
-	                       std::max(a.x, b.x) + radius, std::max(a.y, b.y) + radius))
-		return false;
-	const Vec2 d = b - a;
-	const float step = 0.5f * nav.map_half / static_cast<float>(nav.steep_tile_res());
-	const int n = std::max(1, static_cast<int>(std::ceil(d.length() / step)));
-	// The samples in runs of eight: a run whose box (grown by `radius`) holds no steep tile is passed
-	// over whole, with the same answer, as the box holds every sample of the run.
-	constexpr int RUN = 8;
-	for (int k0 = 1; k0 <= n; k0 += RUN) {
-		const int k1 = std::min(n, k0 + RUN - 1);
-		const Vec2 p0 = a + d * (static_cast<float>(k0) / static_cast<float>(n));
-		const Vec2 p1 = a + d * (static_cast<float>(k1) / static_cast<float>(n));
-		if (!nav.steep_tile_in(std::min(p0.x, p1.x) - radius, std::min(p0.y, p1.y) - radius,
-		                       std::max(p0.x, p1.x) + radius, std::max(p0.y, p1.y) + radius))
-			continue;
-		for (int k = k0; k <= k1; ++k) {
-			const Vec2 p = a + d * (static_cast<float>(k) / static_cast<float>(n));
-			if (nav.near_steep_tile(p.x, p.y, radius)) return true;
-		}
-	}
-	return false;
+	return nav.segment_near_steep_tile(a.x, a.y, b.x, b.y, radius);
 }
 
 // How steep ground meets the line from `pos` towards `aim` within BUILDING_STEER_RANGE, a hair
