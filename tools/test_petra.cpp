@@ -741,6 +741,14 @@ static void test_attack_plans() {
 				bool any = false;
 				for (const auto &b : s->buildings()) any |= b.team == 0 && b.hp > 0.0f;
 				if (!any) s->spawn_building_world(home_x, home_z, BLD_TOWN_CENTER, 0, 1.0f);
+				// A few soldiers left of an attack hack an unmanned fortress from under its arrows
+				// for the rest of the match, holding one of the two attack slots: they fall, as a
+				// manned fortress would see to.
+				for (const auto &p : s->petra_started_attacks_) {
+					if (p.squad.size() > 3) continue;
+					for (uint32_t u : p.squad)
+						if (const int32_t i = s->lookup_unit(u); i >= 0 && s->units_.alive[i]) s->units_.hp[i] = 0.0f;
+				}
 			}
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;
