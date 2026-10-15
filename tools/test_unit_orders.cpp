@@ -2901,6 +2901,64 @@ static void test_guards_repair_charge() {
 	}
 }
 
+static void test_guard_memory(const char *path) {
+	std::printf("83. a guard keeps its charge through other orders and goes back to guarding once idle (isGuardOf, IDLE Timer)\n");
+	auto guarded = [](Simulation &s, uint32_t g, uint32_t c) { return s.unit_order(g).kind == ORDER_GUARD && s.unit_guard_target(g) == c; };
+	{
+		Simulation s;
+		setup(s);
+		uint32_t c = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		uint32_t g = s.spawn_unit(3, 0, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, c, false);
+		run(s, 1.0f);
+		s.cmd_move(&g, 1, 20.0f, 0.0f);
+		check(s.unit_order(g).kind != ORDER_GUARD && s.unit_is_guarding(g), "a walk order keeps the charge (remove-guard still shows)");
+		check(run_until(s, 60.0f, [&] { return guarded(s, g, c); }), "after the walk the spearman guards the swordsman again");
+		check(run_until(s, 30.0f, [&] { const int gi = idx_of(s, g), ci = idx_of(s, c);
+			const float dx = s.units_.pos_x[gi] - s.units_.pos_x[ci], dz = s.units_.pos_z[gi] - s.units_.pos_z[ci];
+			return dx * dx + dz * dz < 8.0f * 8.0f; }), "and walks back to it");
+		s.cmd_stop(&g, 1);
+		check(run_until(s, 5.0f, [&] { return guarded(s, g, c); }), "Stop keeps the charge too");
+		s.cmd_move(&g, 1, 20.0f, 0.0f);
+		s.order_remove_guard(&g, 1);
+		check(!s.unit_is_guarding(g), "remove-guard during the walk ends it");
+		run(s, 40.0f);
+		check(s.unit_order(g).kind == ORDER_NONE && !s.unit_is_guarding(g), "and the spearman stays idle where it walked");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t c = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		uint32_t c2 = s.spawn_unit(0, 6, 0, UNIT_SWORDSMAN);
+		uint32_t g = s.spawn_unit(3, 0, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, c, false);
+		run(s, 1.0f);
+		s.cmd_move(&g, 1, 20.0f, 0.0f);
+		s.order_guard(&g, 1, c2, true); // a queued guard of someone else drops the first charge at once
+		check(s.unit_guard_target(g) == 0, "a queued guard order for another unit drops the old charge");
+		check(run_until(s, 60.0f, [&] { return guarded(s, g, c2); }), "and the queued guard runs after the walk");
+		s.cmd_move(&g, 1, 20.0f, 0.0f);
+		s.cmd_delete(0, &c2, 1);
+		run(s, 40.0f);
+		check(s.unit_order(g).kind == ORDER_NONE && !s.unit_is_guarding(g), "a charge that dies meanwhile is not guarded again");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t c = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		uint32_t g = s.spawn_unit(3, 0, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, c, false);
+		run(s, 1.0f);
+		s.cmd_move(&g, 1, 20.0f, 0.0f);
+		run(s, 1.0f);
+		check(s.save_state(path), "saved during the walk");
+		Simulation t;
+		check(t.load_state(path), "loaded");
+		check(t.unit_is_guarding(g), "the charge survives a save and load");
+		check(run_until(t, 60.0f, [&] { return guarded(t, g, c); }), "and the loaded guard goes back to guarding");
+	}
+}
+
 static void test_liu_bang_wall_regen() {
 	std::printf("82. while Liu Bang lives, his owner's walls regenerate 10 hp/s (han_hero_liu_bang_1); palisades and others' walls don't\n");
 	Simulation s;
@@ -3013,6 +3071,7 @@ int main(int argc, char **argv) {
 	test_alert_allied_shelter();
 	test_guards_repair_charge();
 	test_liu_bang_wall_regen();
+	test_guard_memory(save.c_str());
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
