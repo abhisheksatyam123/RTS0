@@ -7,11 +7,13 @@
 #include "formation_variants.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
+#include <chrono>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
 #include <godot_cpp/variant/basis.hpp>
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/core/math.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_mixer.hpp>
 #include <godot_cpp/classes/animation_library.hpp>
@@ -1617,13 +1619,21 @@ Node *RtsoWorldView::instantiate_building_id(const String &id) {
 
 // The building GLB ModelLibrary::load draws for `id` (its alias, its own GLB, or
 // its base model after the civ code), as the key of the tables written per GLB.
-static std::string building_table_key(const String &id) {
+static std::string building_table_key_uncached(const String &id) {
 	const String glb = rtso::ModelLibrary::building_glb_id(id);
 	if (glb != id || rtso::Assets::res_exists("res://assets/models/buildings/" + id + ".glb"))
 		return glb.utf8().get_data();
 	const int us = id.find("_");
 	if (us <= 0 || us >= id.length() - 1) return glb.utf8().get_data();
 	return rtso::ModelLibrary::building_glb_id(id.substr(us + 1)).utf8().get_data();
+}
+
+// The key of a building model in the per-model tables, asked for every building every frame: kept
+// per id, as the answer depends only on the id and the packed files.
+static const std::string &building_table_key(const String &id) {
+	static HashMap<String, std::string> keys;
+	if (const std::string *k = keys.getptr(id)) return *k;
+	return keys.insert(id, building_table_key_uncached(id))->value;
 }
 
 void RtsoWorldView::load_foundations() {
@@ -2547,8 +2557,17 @@ uint32_t RtsoWorldView::crowd_form_mask(uint8_t civ, uint16_t key) {
 	return m;
 }
 
+static uint64_t bake_now_us() {
+	return (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+bool RtsoWorldView::crowd_bake_over_budget() {
+	return crowd_baked_this_frame_ && bake_now_us() >= crowd_bake_deadline_us_;
+}
+
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, uint64_t death_slots, bool female) {
+		const bool *needed, int count, uint64_t death_slots, bool female, bool budgeted) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -2556,6 +2575,10 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	}
 	for (int c = 0; c < count; ++c) {
 		if (!needed[c] || done[c]) continue;
+		if (budgeted) {
+			if (crowd_bake_over_budget()) break;
+			crowd_baked_this_frame_ = true;
+		}
 		done[c] = true;
 		ensure_form_clip(ap, (ClipId)want[c]);
 		ClipId play = resolve_clip_fallback(ap, (ClipId)want[c]);
@@ -2646,7 +2669,7 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *co
 		needed[c] = counts[c] > 0 && !b.clip_baked[c];
 		any = any || needed[c];
 	}
-	if (!any) return;
+	if (!any || crowd_bake_over_budget()) return;
 
 	auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
 	if (!entry.scene.is_valid()) {
@@ -2662,9 +2685,9 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *co
 	if (!inst) return;
 	const bool female = unit_is_female(utype);
 	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female, true);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
+		if (needed[c] && b.clip_baked[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
 			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
 	}
 	crowd_bake_root->remove_child(inst);
@@ -3528,6 +3551,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const auto &fc : sim->formations())
 		rtso::formvar::for_each_member_variant(fc, [this](uint32_t ent, uint8_t v) { form_variant_[ent] = v; });
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
+	crowd_bake_deadline_us_ = bake_now_us() + CROWD_BAKE_BUDGET_US;
+	crowd_baked_this_frame_ = false;
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
 	std::memset(counts, 0, sizeof(counts));
 	for (size_t i = 0; i < uview.count; ++i) {
