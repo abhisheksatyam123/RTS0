@@ -11844,6 +11844,10 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	const int g3 = tree_slot_gatherers(slot_name, own, 1, (int)o3, 0);
 
 	const auto rv = sim.resources();
+	// Stragglers whose slot is a fruit tree (temperate's gaia/fruit/apple): food supplies, spawned after the pass.
+	std::vector<std::pair<float, float>> fruit_trees;
+	uint8_t fruit_kind = FLORA_DEFAULT;
+	uint16_t fruit_food = 0;
 	// Trees per 2-tile cell, to tell forests from stragglers.
 	std::unordered_map<uint64_t, int> cells;
 	auto cell_key = [](int cx, int cz) { return (uint64_t)(uint32_t)cx << 32 | (uint32_t)cz; };
@@ -11887,12 +11891,23 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 			const int pick_gatherers[4] = {g12[0], g12[1], g45[0], g3};
 			wood = pick_wood[h % 4u];
 			gatherers = pick_gatherers[h % 4u];
+			if (flora_is_fruit(kind)) {
+				fruit_trees.emplace_back(rv.x[r], rv.z[r]);
+				fruit_kind = kind;
+				fruit_food = wood;
+				continue;
+			}
 		}
 		sim.set_resource_flora(rv.id[r], kind);
 		// The template's ResourceSupply/Max, for a tree the generator spawned with TREE_WOOD_SUPPLY
 		// (the Survival of the Fittest forests keep their own 800).
 		if (wood != 0 && rv.amount[r] == TREE_WOOD_SUPPLY) sim.set_resource_amount(rv.id[r], wood);
 		if (gatherers != 8) sim.set_resource_max_gatherers(rv.id[r], gatherers);
+	}
+	for (const auto &[x, z] : fruit_trees) {
+		sim.clear_resources_near(x, z, 0.001f);
+		const uint32_t id = sim.spawn_resource_world(x, z, RES_FOOD, fruit_food);
+		if (id) sim.set_resource_flora(id, fruit_kind);
 	}
 }
 

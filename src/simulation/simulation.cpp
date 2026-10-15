@@ -32067,7 +32067,7 @@ float Simulation::treasure_reach(size_t i) const {
 			const char *slash = std::strrchr(id, '/');
 			const char *name = slash ? slash + 1 : id;
 			if (std::strcmp(name, "ship_scout") == 0) m = 7.0f;
-			else if (std::strcmp(name, "ship_siege") == 0) m = 24.0f;
+			else if (std::strcmp(name, "ship_siege") == 0 || std::strcmp(name, "champion_juggernaut") == 0) m = 24.0f; // juggernaut: template_unit_ship_warship_siege
 		}
 	}
 	return m * 0.6f + 1.0f;
