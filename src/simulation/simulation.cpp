@@ -23614,6 +23614,7 @@ void Simulation::petra_manage_raid(float dt) {
 		uint32_t tid = find_petra_raid_target(tx, tz);
 		if (!tid) return;
 		plan.squad.clear();
+		plan.forced = plan.requested = false;
 		plan.target_building_id = tid;
 		plan.target_x = tx;
 		plan.target_z = tz;
@@ -23678,7 +23679,7 @@ void Simulation::petra_manage_raid(float dt) {
 				return std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end();
 			}), main.end());
 		}
-		const bool ready = plan.squad.size() >= raid_target || (plan.squad.size() >= raid_min && plan.state_timer >= 30.0f);
+		const bool ready = plan.forced || plan.squad.size() >= raid_target || (plan.squad.size() >= raid_min && plan.state_timer >= 30.0f);
 		if (!ready) return;
 		const float tx = plan.target_x, tz = plan.target_z;
 		// A raid overseas waits for a transport ship there, and for its last crossing to end.
@@ -24188,12 +24189,22 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 			if (plan.squad.size() > 2) available = plan.squad.size();
 		}
 	}
+	// Every upcoming plan counts, the raid mustering too (its own target stays).
+	AttackPlan &raid = petra_raid_plan_;
+	const bool raid_musters = raid.state == AttackPlan::MUSTER;
+	if (raid_musters) {
+		raid.target_player = target;
+		if (raid.squad.size() > 2) available += raid.squad.size();
+	}
 	const bool join = available > 12 && plan.target_building_id != 0;
-	if (join) { // forceStart
-		plan.forced = true;
-		plan.requested = true;
-		petra_attack_mgr_.target_size = (int)plan.squad.size();
-		petra_attack_mgr_.min_size = (int)plan.squad.size();
+	if (join) { // forceStart each upcoming plan of 3 units or more
+		if (plan.state == AttackPlan::MUSTER && plan.squad.size() >= 3) {
+			plan.forced = true;
+			plan.requested = true;
+			petra_attack_mgr_.target_size = (int)plan.squad.size();
+			petra_attack_mgr_.min_size = (int)plan.squad.size();
+		}
+		if (raid_musters && raid.squad.size() >= 3) raid.forced = raid.requested = true;
 	}
 	petra_say(join ? PETRA_CHAT_ATTACK_JOIN : PETRA_CHAT_ATTACK_DECLINE, PETRA_CHAT_ALLIES, target);
 }
@@ -25686,8 +25697,12 @@ void Simulation::petra_manage_defense(float dt) {
 			const Building &b = buildings_[building_id_to_idx_.at(bid)];
 			for (uint32_t uid : army.defender_ids) {
 				const int32_t idx = lookup_unit(uid);
-				if (idx < 0 || (units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid)) continue;
+				if (idx < 0) continue;
+				const bool on_it = units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid;
+				// defenseArmy.js update: one capturing what allowCapture no longer allows damages it.
+				if (on_it && !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
 				const bool capture = petra_allow_capture(army.defender_ids, uid, b);
+				if (on_it && capture) continue;
 				if (!capture && b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) continue;
 				order_attack_building(&uid, 1, bid, false, capture);
 			}
