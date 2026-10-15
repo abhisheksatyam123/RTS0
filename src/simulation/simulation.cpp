@@ -3436,6 +3436,10 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	if (b.queue.size() >= PRODUCTION_QUEUE_MAX || b.upgrade_to != BLD_TYPE_COUNT) return false;
 	if (count < 1 || count > 200) return false;
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	// RTS0-only rows (<civ>/rts0_villager) are class defaults for old saves and pre-roster
+	// spawns; 0 A.D. has no such unit, so nothing trains one by name (cmd_train sends the
+	// worker class to the civ's support_civilian).
+	if (exclusive && std::strstr(civ_unit_template(tmpl).id, "/rts0_")) return false;
 	if (triggers_.template_disabled(tmpl)) return false; // the map script's SetDisabledTemplates
 
 	PlayerState &ps = players_[player_id];
