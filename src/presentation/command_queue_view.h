@@ -6,6 +6,7 @@
 // g_EntityCommands) with the roster list above it and the production queue under it.
 // Rebuilds its buttons from the selection each frame; the presses go to the owner.
 
+#include <godot_cpp/classes/base_button.hpp>
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/shader.hpp>
@@ -62,6 +63,8 @@ public:
 	// x the batch size), 0 when none is being built.
 	virtual int ui_pending_batch(uint16_t tmpl) const = 0;
 	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
+	// g_IsObserver: an observer, a defeated player or a replay viewer.
+	virtual bool ui_observing() const { return false; }
 };
 
 class RtsoCommandPanelView {
@@ -231,6 +234,25 @@ public:
 		rtso::Simulation *sim = host_->ui_sim();
 		const godot::PackedInt32Array &selected_ids = host_->ui_selected_ids();
 		const uint32_t selected_building_id = host_->ui_selected_building_id();
+		// unit_commands.js g_IsObserver: an observer gets every panel of the selection's owner
+		// (playerStates[entStates[0].player]), its buttons disabled (controlsPlayer).
+		panel_player_ = 0xFF;
+		read_only_ = false;
+		if (sim && host_->ui_observing()) {
+			uint8_t owner = 0xFF;
+			if (selected_building_id != 0) {
+				for (const auto &b : sim->buildings())
+					if (b.id == selected_building_id) { owner = b.team; break; }
+			} else if (!selected_ids.is_empty()) {
+				auto uv = sim->units();
+				for (size_t i = 0; i < uv.count; ++i)
+					if (uv.id[i] == (uint32_t)selected_ids[0]) { owner = uv.team[i]; break; }
+			}
+			if (owner < rtso::MAX_PLAYERS) {
+				panel_player_ = owner;
+				read_only_ = true;
+			}
+		}
 		update_barter_panel();
 
 		// g_SelectionPanels.Stance: shown when only units are selected, the stances
@@ -1087,6 +1109,14 @@ public:
 				if (!btn->has_theme_font_size_override("font_size")) btn->add_theme_font_size_override("font_size", 11);
 		keep_buttons(actions_bar_, old_actions);
 		keep_buttons(production_bar_, old_production);
+		for (int st = 0; st < 5; ++st)
+			if (stance_buttons_[st] && stance_buttons_[st]->is_disabled() != read_only_) stance_buttons_[st]->set_disabled(read_only_);
+		if (read_only_) {
+			disable_buttons(actions_bar_);
+			disable_buttons(production_bar_);
+			if (roster_list_)
+				for (int i = 0; i < roster_list_->get_item_count(); ++i) roster_list_->set_item_disabled(i, true);
+		}
 		// A structure shows its queue under the buttons while something is queued
 		// (0.28's Queue panel shows only queued items); otherwise the buttons get
 		// that room.
@@ -1519,6 +1549,11 @@ private:
 	// bar holds the previous frame's buttons (the first `old_count`) followed by
 	// this frame's. Keep the old ones when the two sets match, so a press and its
 	// release reach the same Button; otherwise swap in the new ones.
+	static void disable_buttons(godot::Node *n) {
+		if (!n) return;
+		if (godot::BaseButton *b = godot::Object::cast_to<godot::BaseButton>(n)) b->set_disabled(true);
+		for (int i = 0; i < n->get_child_count(); ++i) disable_buttons(n->get_child(i));
+	}
 	static void keep_buttons(godot::Control *bar, int old_count) {
 		using namespace godot;
 		const int total = bar->get_child_count();
@@ -1855,7 +1890,9 @@ private:
 	RtsoProductionQueue production_queue_;
 	godot::Ref<godot::ShaderMaterial> grayscale_;
 
-	uint8_t local_player() const { return host_->local_player(); }
+	uint8_t panel_player_ = 0xFF; // an observer's panels: the selection's owner
+	bool read_only_ = false;        // and nothing on them can be pressed
+	uint8_t local_player() const { return panel_player_ != 0xFF ? panel_player_ : host_->local_player(); }
 };
 
 #endif // RTSO_COMMAND_QUEUE_VIEW_H
