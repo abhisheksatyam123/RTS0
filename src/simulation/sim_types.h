@@ -1999,9 +1999,16 @@ inline TechClasses building_tech_classes(uint8_t type) {
 	}
 }
 
+// Stone walls and palisades alike: the pieces an attack-move steers clear of and Petra
+// finds in its way (0.28's palisades have no Wall class, so technologies skip them).
+inline bool is_wall_piece(uint8_t type) {
+	return (building_tech_classes(type) & TC_WALL) || type == BLD_PALISADE || type == BLD_PALISADE_GATE;
+}
+
 // Whether an attack-move with these avoid bits skips a structure of `type`.
 inline bool attack_move_avoids(uint8_t flags, uint8_t type) {
-	const TechClasses c = building_tech_classes(type);
+	TechClasses c = building_tech_classes(type);
+	if (is_wall_piece(type)) c |= TC_WALL;
 	if ((flags & ORDER_AVOID_ECONOMY) && (c & (TC_HOUSE | TC_STOREHOUSE | TC_FARMSTEAD | TC_FIELD | TC_FORGE))) return true;
 	switch ((flags & ORDER_AVOID_MASK) >> ORDER_AVOID_SHIFT) {
 		case ORDER_AVOID_WALLS_FORTRESS: return (c & (TC_WALL | TC_FORTRESS)) != 0;

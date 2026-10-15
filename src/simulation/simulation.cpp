@@ -22412,7 +22412,7 @@ uint32_t Simulation::petra_target_obstruction(uint32_t id, float px, float pz, f
 
 bool Simulation::petra_plan_blocked(const AttackPlan &plan) const {
 	auto it = building_id_to_idx_.find(plan.target_building_id);
-	return it != building_id_to_idx_.end() && (building_tech_classes(buildings_[it->second].type) & TC_WALL).any();
+	return it != building_id_to_idx_.end() && is_wall_piece(buildings_[it->second].type);
 }
 
 // headquarters.js gameStart + attackManager.js setRushes: Petra plans village
@@ -22606,7 +22606,7 @@ uint8_t Simulation::petra_attack_avoid(const AttackPlan &plan, bool siege) const
 	uint8_t set = ORDER_AVOID_WALLS_FORTRESS;
 	if (plan.kind == PETRA_ATTACK_RUSH) set = ORDER_AVOID_WALLS_TOWERS;
 	else if (c & TC_FORTRESS) set = ORDER_AVOID_WALLS;
-	else if (c & TC_WALL) set = 0;
+	else if (t && is_wall_piece(t->type)) set = 0;
 	return avoid | (uint8_t)(set << ORDER_AVOID_SHIFT);
 }
 
