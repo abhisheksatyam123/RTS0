@@ -53,14 +53,14 @@ Combat, loot, territory, garrison, capture, rally points, trade and camps agains
 | P2 | Rally points only gather, repair, garrison in one's own structure, attack a structure or walk; 0.28 also attack-walks, patrols, attacks or follows a unit, trades, collects treasure and occupies turrets (RallyPointCommands.js) | medium | Open |
 | P3 | Back to Work restores one Gather or Build order; 0.28 keeps the queue from the first Gather/Trade/Repair/ReturnResource order (UpdateWorkOrders), so sheltered traders resume trading | medium | Open |
 | P4 | A trader whose market is destroyed or captured idles where it stands; 0.28 walks it back to the other market (Trader.RemoveMarket, TradingCanceled) | medium-low | Open (A for trade) |
-| P5 | Unloading with a "garrison back in here" rally still runs the Shift-added rally steps; 0.28 skips all of them | low | Open |
+| P5 | Unloading with a "garrison back in here" rally still runs the Shift-added rally steps; 0.28 skips all of them | low | Fixed |
 | P6 | No trade-route waypoints (0.28 SetupTradeRoute route, reversed on the way back) | low | Open (A for trade) |
 | P7 | A gatherer far from its exhausted patch with nothing near goes to a dropsite; 0.28 walks back to where it started and searches again first (UnitAI.js:2640) | low | Open |
 | P8 | Allied builders go idle when your building finishes; 0.28 sends them ConstructionFinished too, so they move on to their own nearby foundations | low | Open |
 | P9 | A passive siege engine never flees when hit; 0.28 needs only that it can move | low | Fixed |
 | P10 | Splash, death damage and melee splash never hit animals; 0.28 queries enemies, Gaia included | low | Open |
 | P11 | Damage to animals ignores attack auras (0.28 builds one damage for every target) | low | Open |
-| P12 | IdleRegenRate also heals garrisoned units (0.28 only in INDIVIDUAL.IDLE) | low | Open |
+| P12 | IdleRegenRate also heals garrisoned units | low | Re-checked, matches: GARRISONING's FinishOrder leaves a garrisoned unit in IDLE, so 0.28 regenerates it too |
 | P13 | Negative RegenRate from templates or modifiers is ignored except for the burning fire ship (no 0.28 tech uses one today) | low | Keep unless a template needs it |
 | P14 | Arrows recompute damage at impact from the shooter's current techs; a stray arrow of a dead shooter uses the aimed target's armour; an arrow aimed at an invulnerable unit doesn't fall to the next one; aim prediction uses current velocity | low | Open |
 
