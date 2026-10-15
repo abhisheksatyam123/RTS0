@@ -15,9 +15,12 @@ does), and writes:
       the skin's alpha is below 250, as player_masks)
   data/unit_variants.json  {"units/<glb>_<image>": {"layers": [res paths], "freq": [n, ...]}}
 
-Only bodies the player-colour shader draws (a key in data/player_masks.json) are
-listed; shaders/player_color.gdshader picks a layer per entity from the
-frequencies. At most MAX_LAYERS skins per group, the most frequent.
+The props' actors (heads, helmets, shields, capes) have such groups too; each
+GLB image is matched against all of them and takes the group of its skin. A
+skin without player colour (no key in data/player_masks.json) is written with
+alpha 0 as <skin>_<w>x<h>_plain.png. shaders/player_color.gdshader picks a layer
+per entity from the frequencies. At most MAX_LAYERS skins per group, the most
+frequent.
 
 Usage:
   python3 -I tools/extract_unit_variants.py --zip <0.28 public.zip> [--check]
@@ -99,33 +102,39 @@ def main():
             m = models[gid]
             if not m.get("file", "").startswith("models/units/"):
                 continue
-            actors = [s[len("actor:"):] for s in m.get("sources", []) if s.startswith("actor:art/actors/units/")]
-            group = actors and body_group(vfs, actors[0], cache)
-            if not group:
-                continue
-            group = dict(sorted(group.items(), key=lambda kv: (-kv[1], kv[0]))[:MAX_LAYERS])
-            imgs = {s: load_skin(zf, names, s, skins) for s in group}
-            imgs = {s: i for s, i in imgs.items() if i is not None}
-            if len(imgs) < 2:
+            # The unit actor's body group, then its props' (heads, helmets, shields...).
+            actors = [s[len("actor:"):] for s in m.get("sources", [])
+                      if s.startswith(("actor:art/actors/units/", "actor:art/actors/props/units/"))]
+            actors.sort(key=lambda a: not a.startswith("art/actors/units/"))
+            groups = []
+            for a in actors:
+                group = body_group(vfs, a, cache)
+                if not group:
+                    continue
+                group = dict(sorted(group.items(), key=lambda kv: (-kv[1], kv[0]))[:MAX_LAYERS])
+                imgs = {s: load_skin(zf, names, s, skins) for s in group}
+                imgs = {s: i for s, i in imgs.items() if i is not None}
+                if len(imgs) >= 2 and all(set(imgs) != set(g[1]) for g in groups):
+                    groups.append((group, imgs))
+            if not groups:
                 continue
             base = os.path.basename(m["file"])[:-4]
             for name, baked in glb_images(os.path.join(REPO, "assets", m["file"])):
                 key = f"units/{base}_{name}"
-                if key not in masked:
-                    continue
-                best = min((match_score(baked, i if i.size == baked.size else i.resize(baked.size, Image.LANCZOS)), s)
-                           for s, i in imgs.items())
+                best = min((match_score(baked, i if i.size == baked.size else i.resize(baked.size, Image.LANCZOS)), gi, s)
+                           for gi, (_g, imgs) in enumerate(groups) for s, i in imgs.items())
                 if best[0] > MATCH_LIMIT:
                     continue
+                group, imgs = groups[best[1]]
                 w, h = baked.size
+                plain = key not in masked  # no player colour: alpha 0
                 layers = []
                 for s in imgs:
-                    rel = f"{os.path.splitext(s)[0]}_{w}x{h}.png"
-                    files[rel] = (s, (w, h))
+                    rel = f"{os.path.splitext(s)[0]}_{w}x{h}{'_plain' if plain else ''}.png"
+                    files[rel] = (s, (w, h), plain)
                     layers.append("res://assets/textures/unit_variants/" + rel)
                 table[key] = {"layers": layers, "freq": [group[s] for s in imgs]}
-                break
-        for rel, (s, size) in sorted(files.items()):
+        for rel, (s, size, plain) in sorted(files.items()):
             path = os.path.join(TEX_DIR, rel)
             if args.check:
                 if not os.path.isfile(path):
@@ -135,7 +144,8 @@ def main():
                 continue
             img = skins[s] if skins[s].size == size else skins[s].resize(size, Image.LANCZOS)
             r, g, b, a = img.split()
-            out = Image.merge("RGBA", (r, g, b, a.point(lambda v: 255 - v if v < 250 else 0)))
+            a = a.point(lambda v: 0) if plain else a.point(lambda v: 255 - v if v < 250 else 0)
+            out = Image.merge("RGBA", (r, g, b, a))
             os.makedirs(os.path.dirname(path), exist_ok=True)
             out.save(path, optimize=True)
     text = json.dumps(table, indent=1, sort_keys=True) + "\n"
@@ -143,11 +153,11 @@ def main():
         with open(OUT_JSON) as f:
             if f.read() != text or stale:
                 raise SystemExit("data/unit_variants.json or its textures are stale: rerun tools/extract_unit_variants.py")
-        print(f"{len(table)} unit bodies, {len(files)} skins: up to date")
+        print(f"{len(table)} unit images, {len(files)} skins: up to date")
         return
     with open(OUT_JSON, "w") as f:
         f.write(text)
-    print(f"{len(table)} unit bodies, {len(files)} skins -> {os.path.relpath(OUT_JSON, REPO)}")
+    print(f"{len(table)} unit images, {len(files)} skins -> {os.path.relpath(OUT_JSON, REPO)}")
 
 
 if __name__ == "__main__":
