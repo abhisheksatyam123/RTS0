@@ -68,6 +68,22 @@ func run() -> void:
 	await frames(5)
 	check(current_scene != opts and current_scene.scene_file_path.ends_with("main_menu.tscn"), "without changes Escape goes back to the main menu")
 
+	print("2b. Options over the main menu")
+	menu = current_scene
+	menu._execute_action("open_options")
+	await frames(5)
+	var over: Control = null
+	for c in menu.find_children("*", "Control", true, false):
+		if c.has_method("has_unsaved_changes"):
+			over = c
+	check(over != null and current_scene == menu, "Settings > Options opens over the main menu, as 0.28's child page")
+	if over:
+		var dlg: Control = over.find_child("Dialog", true, false)
+		check(is_equal_approx(dlg.size.x, 800.0), "an 800 px dialog (%s)" % dlg.size)
+	await escape()
+	await frames(3)
+	check(current_scene == menu and (over == null or not is_instance_valid(over) or over.is_queued_for_deletion()), "Escape closes it back to the menu")
+
 	print("3. Hotkeys page")
 	change_scene_to_file("res://scenes/menu/hotkeys.tscn")
 	await frames(5)
