@@ -41,7 +41,7 @@ inline godot::Ref<godot::AudioStream> load_audio(const godot::String &path) {
 
 // simulation/data/civs/<civ>.json "Music" (all "peace"), indexed by RTS0 civ id.
 inline const std::vector<const char *> &civ_peace_tracks(uint8_t civ) {
-	static const std::vector<const char *> table[14] = {
+	static const std::vector<const char *> table[16] = {
 		{"Harvest_Festival.ogg", "Forging_a_City-State.ogg", "Highland_Mist.ogg", "The_Hellespont.ogg"}, // athen
 		{"Helen_Leaves_Sparta.ogg", "Peaks_of_Atlas.ogg", "Forging_a_City-State.ogg", "The_Hellespont.ogg",
 				"Only_300_Stood.ogg"}, // spart
@@ -66,9 +66,11 @@ inline const std::vector<const char *> &civ_peace_tracks(uint8_t civ) {
 		{"Rise_of_Macedon.ogg", "In_the_Shadow_of_Olympus.ogg", "The_Hellespont.ogg", "Cradle_of_Civilization.ogg",
 				"Expedition.ogg", "Land_Between_Rivers.ogg"}, // sele
 		{"Red_Dawn.ogg", "Hill_of_Sorrows.ogg"}, // han
+		{}, // gaia
+		{"Northern_Frontier.ogg", "As_Seasons_Change.ogg", "Epitaph.ogg", "From_Every_Corner.ogg", "Whistler.ogg"}, // germ
 	};
 	static const std::vector<const char *> none;
-	return civ < 14 ? table[civ] : none;
+	return civ < 16 ? table[civ] : none;
 }
 
 class RtsoMusic {
