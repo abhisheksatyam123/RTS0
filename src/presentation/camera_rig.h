@@ -5,6 +5,7 @@
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/input_event.hpp>
 #include <godot_cpp/variant/vector3.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 
 using namespace godot;
 
@@ -71,6 +72,21 @@ public:
 	void set_edge_scroll_enabled(bool enabled) { edge_scroll_enabled = enabled; }
 	void set_cinema_view(bool on) { cinema_view_ = on; mmb_dragging = false; }
 	bool cinema_view() const { return cinema_view_; }
+	// session.js getSavedGameData / restoreSavedGameData's camera (Engine.SetCameraData):
+	// position, rotation, pitch and zoom, set at once without easing.
+	Dictionary camera_data() const {
+		Dictionary d;
+		d["x"] = target_pos.x; d["z"] = target_pos.z;
+		d["yaw"] = target_yaw; d["pitch"] = target_pitch_deg; d["zoom"] = target_zoom;
+		return d;
+	}
+	void set_camera_data(const Dictionary &d) {
+		target_yaw = yaw_angle = (float)(double)d.get("yaw", target_yaw);
+		target_pitch_deg = pitch_deg = (float)(double)d.get("pitch", target_pitch_deg);
+		target_zoom = zoom_height = (float)(double)d.get("zoom", target_zoom);
+		follow_id_ = 0;
+		set_target_pos(Vector3((float)(double)d.get("x", target_pos.x), target_pos.y, (float)(double)d.get("z", target_pos.z)));
+	}
 };
 
 #endif

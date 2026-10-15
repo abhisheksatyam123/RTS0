@@ -114,7 +114,9 @@ void RtsoMain::update_cursor() {
 					rtso::hotkeys::held("session.attackmoveUnit") || rtso::hotkeys::held("session.calltoarms"))
 				want = "action-attack-move";
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
-			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
+			else if (guard_mode) want = "action-guard";
+			else if (rtso::hotkeys::held("session.guard"))
+				want = guard_target_at(at) ? "action-guard" : selection_guarding() ? "action-remove-guard" : "";
 			else if (garrison_mode) want = "action-garrison";
 			else if (turret_mode) want = "action-occupy-turret";
 			else if (repair_mode) want = "action-repair";
@@ -513,7 +515,7 @@ bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
 			apply_default_formation(sel_ptr, sel_n);
 			sim->order_patrol(sel_ptr, sel_n, world_pos.x, world_pos.y, queued);
 		}
-		play_civ_voice("select");
+		// "order_patrol" has no sound group in 0.28, so the order is silent.
 	} else {
 		if (turn_cmds())
 			post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
