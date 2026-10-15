@@ -392,11 +392,6 @@ static void test_transport() {
 	CHECK(s.get_transport_capacity(arrow) == 30);
 	CHECK(s.get_transport_capacity(siege) == 50);
 	CHECK(s.get_transport_capacity(scout) == 10);
-	// TreasureCollector/MaxDistance: 24 m for template_unit_ship_warship_siege and its
-	// child the Juggernaut, 12 m for other warships.
-	const uint32_t jugg = s.spawn_unit(-30.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("ptol/champion_juggernaut"));
-	CHECK(s.treasure_reach((size_t)s.lookup_unit(jugg)) == s.treasure_reach((size_t)s.lookup_unit(siege)));
-	CHECK(s.treasure_reach((size_t)s.lookup_unit(siege)) > s.treasure_reach((size_t)s.lookup_unit(arrow)));
 	CHECK(s.get_transport_capacity(merchant) == 15);
 	CHECK(s.get_transport_capacity(fisher) == 1);
 	CHECK(!s.is_transport(fire));
@@ -805,6 +800,61 @@ static void test_petra_landing_spot() {
 	CHECK(s.petra_land_at(ax, az) == land);
 }
 
+// attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
+// plan rallies there and needs no ship for the attack itself; its army on the home land is
+// ferried to the rally point, and marches from there.
+static void test_petra_attack_from_far_base() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	s.spawn_building_world(-36.0f, -44.0f, BLD_MILITARY_COLONY, 1); // a base on the south land
+	const uint32_t target = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0);
+	std::vector<uint32_t> army;
+	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	s.petra_army_ids_[1] = army;
+	run(s, 1.0f);
+	const uint16_t overseas = s.petra_plan_overseas(-30.0f, 40.0f, target, true);
+	std::printf("Petra attack from a far base: overseas %u from any base, %u from the first\n",
+	            (unsigned)overseas, (unsigned)s.petra_plan_overseas(-30.0f, 40.0f, target));
+	CHECK(overseas == 0);
+	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	s.petra_attack_mgr_.target_size = 6;
+	s.petra_attack_mgr_.min_size = 6;
+	s.petra_attack_mgr_.rushes_set = 1;
+	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s.petra_attack_plan_.target_building_id = target;
+	s.petra_attack_plan_.state_timer = 0.0f;
+	s.petra_attack_plan_.forced = true;
+	bool completing = false;
+	for (int k = 0; k < 240 && !completing; ++k) {
+		run(s, 1.0f);
+		completing = s.petra_attack_plan_.completing;
+	}
+	const auto &plan = s.petra_attack_plan_;
+	std::printf("Petra attack from a far base: completing %s, rally (%.0f, %.0f), %zu in the squad, ferry %s\n",
+	            completing ? "yes" : "no", plan.staging_x, plan.staging_z, plan.squad.size(),
+	            s.petra_transport_for(PETRA_TRANSPORT_ATTACK) ? "yes" : "no");
+	CHECK(completing && plan.staging_z < -16.0f);
+	int south = 0;
+	bool marched = false;
+	for (int k = 0; k < 300 && !(marched && south >= 4); ++k) {
+		run(s, 1.0f);
+		marched |= s.petra_started_attacks_.size() > 0 || s.petra_attack_plan_.state == Simulation::AttackPlan::WALKING;
+		south = 0;
+		for (uint32_t uid : army) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.units().pos_z[i] < -16.0f) ++south;
+		}
+	}
+	std::printf("Petra attack from a far base: %d of 6 ferried to the south land, marched %s\n", south, marched ? "yes" : "no");
+	CHECK(south >= 4 && marched);
+}
+
 static void test_petra_overseas_attack() {
 	static Simulation s;
 	fresh(s);
@@ -1150,6 +1200,15 @@ static void test_ship_treasure() {
 	std::printf("merchant ship shore treasure: food %+.0f\n", s.player(0).food() - food0);
 	CHECK(s.player(0).food() - food0 == 200.0f);
 	CHECK(s.treasures().empty());
+	// The Ptolemaic Juggernaut's parent is template_unit_ship_warship_siege: MaxDistance 24, not 12.
+	const uint32_t siege = s.spawn_unit(-30.0f, -12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("cart/ship_siege"));
+	const uint32_t jugg = s.spawn_unit(-30.0f, -18.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("ptol/champion_juggernaut"));
+	const float r_war = s.treasure_reach((size_t)s.lookup_unit(war));
+	const float r_siege = s.treasure_reach((size_t)s.lookup_unit(siege));
+	const float r_jugg = s.treasure_reach((size_t)s.lookup_unit(jugg));
+	std::printf("ship treasure reach: warship %.2f, siege ship %.2f, juggernaut %.2f\n", r_war, r_siege, r_jugg);
+	CHECK(r_siege > r_war);
+	CHECK(r_jugg == r_siege);
 }
 
 // navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
@@ -1818,7 +1877,7 @@ static void test_whale_hunt() {
 		if (it != s.res_id_to_idx_.end() && w != s.fauna_id_to_idx_.end()) {
 			s.resources_.amount[it->second] = 1;
 			const float cx = s.resources_.x[it->second], cz = s.resources_.z[it->second];
-			s.fauna_.pos_x[w->second] = cx + (cx > 0.0f ? -8.0f : 8.0f);
+			s.fauna_.pos_x[w->second] = cx + (cx > 0.0f ? -6.0f : 6.0f); // in the boat's sight (UnitAI CheckTargetVisible)
 			s.fauna_.pos_z[w->second] = cz;
 		}
 	}
@@ -1899,6 +1958,7 @@ int main() {
 	test_warships_keep_off_shore();
 	test_petra_navy();
 	test_petra_overseas_attack();
+	test_petra_attack_from_far_base();
 	test_petra_landing_spot();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();

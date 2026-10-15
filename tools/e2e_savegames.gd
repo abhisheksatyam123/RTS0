@@ -154,6 +154,8 @@ func run() -> void:
 		if f.ends_with(".rts0sav") and not before.has(f):
 			made = f.get_basename()
 	check(made != "" and not is_instance_valid(d), "the save is written and the dialog closes")
+	var log_label: RichTextLabel = m.find_child("LogMessages", true, false)
+	check(log_label != null and log_label.visible and log_label.get_parsed_text() == "Saved game to 'saves/%s.rts0sav'" % made, "\"Saved game to 'saves/%s.rts0sav'\" in the top-left log" % made)
 	if made != "":
 		DirAccess.rename_absolute(ProjectSettings.globalize_path("user://saves/%s.rts0sav" % made), ProjectSettings.globalize_path("user://saves/%s.rts0sav" % NAMES[4]))
 		DirAccess.rename_absolute(ProjectSettings.globalize_path("user://saves/%s.json" % made), ProjectSettings.globalize_path("user://saves/%s.json" % NAMES[4]))

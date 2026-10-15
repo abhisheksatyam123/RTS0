@@ -285,10 +285,7 @@ public:
 		if (!panel_ || !host_) return;
 		if (!panel_->is_visible() && (host_->local_player() >= rtso::MAX_PLAYERS || host_->view_player() >= rtso::MAX_PLAYERS)) return;
 		panel_->set_visible(!panel_->is_visible());
-		if (panel_->is_visible()) {
-			host_->play_sfx("res://assets/sounds/ui/diplomacy.ogg");
-			refresh();
-		}
+		if (panel_->is_visible()) refresh();
 	}
 
 	// DiplomacyDialog.updatePanels, run each frame while open (registerSimulationUpdateHandler).
@@ -422,30 +419,18 @@ public:
 		const uint8_t me = host_ ? host_->local_player() : 0xFF;
 		if (!sim || player_idx < 0 || player_idx >= rtso::MAX_PLAYERS || !sim->can_bribe(me, (uint8_t)player_idx)) return;
 		if (!host_->controls_player(me)) return;
-		String msg;
-		bool ok;
+		// No line or sound of its own: the sim's "There are no bribable units" notice is
+		// the only feedback, and the button stays disabled until the response.
 		if (host_->turn_cmds()) {
-			ok = sim->player_resource(me, rtso::RES_GOLD) >= sim->bribe_cost(me, (uint8_t)player_idx);
-			if (ok) {
-				host_->post_lockstep(42, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
-				const auto st = sim->statistics(me);
-				spy_pending_[player_idx] = true;
-				spy_pending_bribes_[player_idx] = st.successful_bribes + st.failed_bribes;
-				spy_pending_success_[player_idx] = st.successful_bribes;
-				spy_pending_time_[player_idx] = sim->game_time();
-			}
-			msg = ok ? "Bribing a unit of " : "Not enough metal to bribe ";
-		} else {
-			const auto res = sim->cmd_bribe(me, (uint8_t)player_idx);
-			ok = res == rtso::Simulation::BRIBE_OK;
-			msg = ok ? "Bribed a unit of "
-					: res == rtso::Simulation::BRIBE_NO_UNITS ? "There are no bribable units for "
-															  : "Not enough metal to bribe ";
+			host_->post_lockstep(42, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
+			const auto st = sim->statistics(me);
+			spy_pending_[player_idx] = true;
+			spy_pending_bribes_[player_idx] = st.successful_bribes + st.failed_bribes;
+			spy_pending_success_[player_idx] = st.successful_bribes;
+			spy_pending_time_[player_idx] = sim->game_time();
+		} else if (sim->cmd_bribe(me, (uint8_t)player_idx) == rtso::Simulation::BRIBE_OK) {
+			show_bribed(*sim, me);
 		}
-		if (chat_) chat_->append_line("[color=#eebb22]" + msg + host_->player_display_name((uint8_t)player_idx) + "[/color]\n");
-		if (ok && !host_->turn_cmds()) show_bribed(*sim, me);
-		if (ok) host_->play_sfx("res://assets/sounds/ui/bonus.ogg");
-		else host_->play_alarm("res://assets/sounds/ui/alarm.ogg");
 		host_->update_hud();
 		refresh();
 	}
@@ -513,20 +498,12 @@ private:
 		r.amount[t] = TRIBUTE_DEFAULT;
 		if (!sim || me >= rtso::MAX_PLAYERS || to == me || !host_->controls_player(me)) return;
 		const uint8_t res = TRIBUTE_RES[t];
-		bool ok;
+		// The button's click is its only sound; "You have sent ..." comes from the tribute
+		// notice once the turn runs.
 		if (host_->turn_cmds()) {
-			// Checked here only for feedback; the sim validates again when the turn runs.
-			ok = sim->player_resource(me, res) >= amount;
-			if (ok) host_->post_lockstep(27, nullptr, 0, (float)amount, 0, (uint32_t)to, res);
-		} else {
-			ok = sim->cmd_tribute(me, to, res, amount);
-		}
-		if (ok) {
-			// "You have sent ..." comes from the tribute notice once the turn runs.
-			host_->play_sfx("res://assets/sounds/ui/bonus.ogg");
+			if (sim->player_resource(me, res) >= amount) host_->post_lockstep(27, nullptr, 0, (float)amount, 0, (uint32_t)to, res);
+		} else if (sim->cmd_tribute(me, to, res, amount)) {
 			host_->update_hud();
-		} else {
-			host_->play_alarm("res://assets/sounds/ui/alarm.ogg");
 		}
 	}
 
