@@ -21997,6 +21997,34 @@
    ],
    "upstream_material": "basic_trans_parallax_spec.xml"
   },
+  "crow_circle": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Attack",
+    "Death",
+    "Run"
+   ],
+   "bones": 22,
+   "file": "models/units/crow_circle.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    3.355,
+    0.904,
+    1.81
+   ],
+   "skeleton": "crocodile",
+   "sources": [
+    "actor:art/actors/fauna/crow.xml",
+    "actor:art/actors/fauna/crow_circle.xml",
+    "mesh:skeletal/bird_circle.dae",
+    "mesh:skeletal/crow.dae",
+    "skin:null_white.dds",
+    "skin:skeletal/animal_crow.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "cypress": {
    "file": "models/vegetation/cypress.glb",
    "origin": "ground-center",
@@ -31004,6 +31032,40 @@
     "skin:structural/ptol_fishing_boat.png"
    ],
    "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "germ_forger": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Death",
+    "Attack",
+    "Run"
+   ],
+   "bones": 46,
+   "file": "models/units/germ_forger.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    2.121,
+    4.271,
+    1.437
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/heads/germ_04_beards_knot.xml",
+    "actor:art/actors/props/units/weapons/forge_hammer.xml",
+    "actor:art/actors/props/units/weapons/forge_sword.xml",
+    "actor:art/actors/units/germans/forger.xml",
+    "mesh:props/forge_hammer.dae",
+    "mesh:props/forge_sword.dae",
+    "mesh:props/heads/m_beard_suebian_01.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/hele_e.dds",
+    "skin:props/weapon/germ_sword_silver.png",
+    "skin:skeletal/germ/tunic_legwraps_01_03.png",
+    "skin:structural/germ_struct_03.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "germ_fortress": {
    "file": "models/buildings/germ_fortress.glb",
