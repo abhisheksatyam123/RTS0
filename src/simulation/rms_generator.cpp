@@ -3820,6 +3820,8 @@ void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGr
 	auto spawn = [&](float x, float z, uint8_t type, std::vector<Placed> &into) {
 		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
 		if (!id) return 0u;
+		// structures/kush/* and structures/ptol/wonder: their template's civ.
+		sim.set_building_civ(id, type == BLD_WONDER ? CIV_PTOLEMIES : CIV_KUSHITES);
 		for (const auto &b : sim.buildings())
 			if (b.id == id) { into.push_back({b.x, b.z, b.half_size}); break; }
 		return id;
@@ -4010,6 +4012,7 @@ void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &
 				!clear(x, z, 6.0f, kRock | kMetal)) continue;
 		const uint32_t id = sim.spawn_building_world(x, z, BLD_PYRAMID_LARGE, GAIA_PLAYER, 1.0f);
 		if (!id) continue;
+		sim.set_building_civ(id, CIV_KUSHITES); // structures/kush/pyramid_large
 		for (const auto &b : sim.buildings())
 			if (b.id == id) { mark(b.x, b.z, b.half_size, kPyramid); break; }
 		break;
@@ -5338,6 +5341,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 	auto building = [&](float x, float z, uint8_t type, bool capturable) {
 		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
 		if (!id) return id;
+		sim.set_building_civ(id, CIV_GAULS); // structures/gaul/*: a captured CC trains Gallic women
 		if (!capturable) sim.set_structure_uncapturable(id);
 		for (const auto &b : sim.buildings())
 			if (b.id == id) sim.clear_resources_near(x, z, b.half_size + 1.0f);
@@ -9424,6 +9428,8 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 	};
 	auto building = [&](float x, float z, uint8_t type, bool capturable) {
 		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
+		// structures/kush/* and structures/ptol/wonder: a captured camp trains its {native} mercenaries.
+		if (id) sim.set_building_civ(id, type == BLD_WONDER ? CIV_PTOLEMIES : CIV_KUSHITES);
 		if (id && !capturable) sim.set_structure_uncapturable(id);
 		return id;
 	};
