@@ -2197,12 +2197,30 @@ void RtsoWorldView::load_ambient_fx() {
 			(t == 0 ? ambient_fx_ : death_fx_)[String(keys[i]).utf8().get_data()] = set;
 		}
 	}
+	Dictionary units = root.get("units", Dictionary());
+	Array unit_keys = units.keys();
+	for (int i = 0; i < unit_keys.size(); ++i) {
+		Dictionary e = units[unit_keys[i]];
+		AmbientFxSet set;
+		set.metre = (float)e.get("metre", 1.0);
+		Array list = e.get("fx", Array());
+		for (int j = 0; j < list.size(); ++j) {
+			Dictionary fx = list[j];
+			Array pos = fx.get("pos", Array());
+			if (pos.size() == 3)
+				set.fx.push_back({ String(fx.get("p", "")).utf8().get_data(), Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
+		}
+		unit_fx_.insert(String(unit_keys[i]), set);
+	}
+	Array stone = Dictionary(root.get("projectiles", Dictionary())).get("stone", Array());
+	for (int j = 0; j < stone.size(); ++j) stone_fx_.push_back(String(stone[j]).utf8().get_data());
 	Dictionary run = root.get("run", Dictionary());
 	Array run_keys = run.keys();
 	for (int i = 0; i < run_keys.size(); ++i) {
 		Array names = run[run_keys[i]];
-		std::vector<std::string> &list = run_fx_[String(run_keys[i]).utf8().get_data()];
+		std::vector<std::string> list;
 		for (int j = 0; j < names.size(); ++j) list.push_back(String(names[j]).utf8().get_data());
+		run_fx_.insert(String(run_keys[i]), list);
 	}
 }
 
@@ -2299,15 +2317,32 @@ GPUParticles3D *RtsoWorldView::make_ambient_emitter(const AmbientParticle &d, fl
 // particle file's rate.
 void RtsoWorldView::emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta) {
 	load_ambient_fx();
-	const auto it = run_fx_.find(glb_id.utf8().get_data());
-	if (it == run_fx_.end()) return;
-	for (const std::string &name : it->second) {
+	if (const std::vector<std::string> *names = run_fx_.getptr(glb_id)) emit_world_fx(*names, at, sc, delta);
+}
+
+// The fire a unit actor always carries (the Theban fire-raiser's cart, the flaming
+// pig), at its GLB points under the model's transform `xf`.
+void RtsoWorldView::emit_unit_fx(const String &glb_id, const Transform3D &xf, float sc, float delta) {
+	load_ambient_fx();
+	const AmbientFxSet *set = unit_fx_.getptr(glb_id);
+	if (!set) return;
+	for (const AmbientFx &fx : set->fx)
+		emit_world_fx(fx.particle, xf.xform(fx.pos), set->metre * sc, delta);
+}
+
+// Puffs of each named particle at `at` (world space) at the files' rates over `delta`
+// seconds, `sc` world units per metre: one emitter per particle and scale that
+// emit_particle feeds, so a moving source leaves a trail and needs no node of its own.
+void RtsoWorldView::emit_world_fx(const std::vector<std::string> &names, const Vector3 &at, float sc, float delta) {
+	for (const std::string &name : names) emit_world_fx(name, at, sc, delta);
+}
+
+void RtsoWorldView::emit_world_fx(const std::string &name, const Vector3 &at, float sc, float delta) {
+	{
 		const auto pd = ambient_particles_.find(name);
-		if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) continue;
+		if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) return;
 		const AmbientParticle &d = pd->second;
-		// Unit GLBs are in 0 A.D. metres: the model's scale is world units per metre.
-		const std::string key = name + "|" + std::to_string((int)std::lround(sc * 1000.0f));
-		GPUParticles3D *&p = run_emitters_[key];
+		GPUParticles3D *&p = world_emitters_[{ &d, (int)std::lround(sc * 1000.0f) }];
 		if (!p) {
 			p = make_ambient_emitter(d, sc);
 			p->set_amount(4096);
@@ -2323,7 +2358,8 @@ void RtsoWorldView::emit_run_dust(const String &glb_id, const Vector3 &at, float
 		const auto half = [](const Vector2 &r) { return 0.5f * std::abs(r.y - r.x); };
 		for (int k = 0; k < count; ++k) {
 			const Vector3 off(mid(d.pos[0]) + half(d.pos[0]) * (float)UtilityFunctions::randf_range(-1.0, 1.0),
-					mid(d.pos[1]), mid(d.pos[2]) + half(d.pos[2]) * (float)UtilityFunctions::randf_range(-1.0, 1.0));
+					mid(d.pos[1]) + half(d.pos[1]) * (float)UtilityFunctions::randf_range(-1.0, 1.0),
+					mid(d.pos[2]) + half(d.pos[2]) * (float)UtilityFunctions::randf_range(-1.0, 1.0));
 			p->emit_particle(Transform3D(Basis(), at + off * sc), Vector3(), Color(1, 1, 1, 1), Color(),
 					GPUParticles3D::EMIT_FLAG_POSITION);
 		}
@@ -3581,6 +3617,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		status_sprites_built_ = true;
 	}
 	status_sprites_.begin_frame(get_viewport() ? get_viewport()->get_camera_3d() : nullptr);
+	status_rank_icons_.clear();
+	status_xp_bars_ = 0;
 	aura_icon_sources_.clear();
 	for (const rtso::AuraSource &as : sim->aura_manager().sources) {
 		if (!as.alive || as.aura < 0) continue;
@@ -3805,6 +3843,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			apply_unit_death_xform(xf, utype, death_t, x, z, model_b.height * sc, false);
 		}
 		if (want.clip == CLIP_RUN && !dying) emit_run_dust(utype_str, Vector3(x, ground, z), sc, delta);
+		if (!dying) emit_unit_fx(utype_str, xf, sc, delta);
 		const int clip = crowd_slot_scratch_[i];
 		MultiMesh *cmm = crowd_[uciv][ckey] ? crowd_[uciv][ckey]->mm[clip].ptr() : nullptr;
 		if (cmm) {
@@ -4317,6 +4356,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		Transform3D xf(rot, pos);
 		if (proj.visual == 2 && stone_proj_mm.is_valid()) {
+			// 0.28's stone throwers fling flaming rocks (props/units/weapons/rock_flaming.xml,
+			// stone_projectile_*_flaming.xml); the Han mangonel's rock.xml has no fire.
+			if (sim->team_civ(proj.team) != rtso::CIV_HAN) {
+				load_ambient_fx();
+				emit_world_fx(stone_fx_, pos, stone_proj_scale, delta);
+			}
 			xf.basis = xf.basis.scaled(Vector3(stone_proj_scale, stone_proj_scale, stone_proj_scale));
 			stone_proj_mm->set_instance_transform(stone_i++, xf);
 		} else if (proj.visual == 1 && bolt_mm.is_valid()) {
@@ -4571,6 +4616,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// Fleeing (or moving at a run) on the Run clip: the actor's dust.
 		if (clip == 1 && (fview.behavior[f] == rtso::FAUNA_FLEE || vx * vx + vz * vz > 18.0f))
 			emit_run_dust(String(fid), Vector3(fx, fy, fz), fsc, delta);
+		if (fview.alive[f]) emit_unit_fx(String(fid), xf, fsc, delta);
 		int fslot = f_written[ft][clip]++;
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
@@ -4674,6 +4720,7 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 		status_sprites_.bar(type, at(h), width, h, amount);
 		y += h * 1.2f;
 	};
+	if (st.xp >= 0.0f) ++status_xp_bars_;
 	bar(RtsoStatusSprites::BAR_PACK, st.xp, height * 2.0f / 3.0f);
 	bar(RtsoStatusSprites::BAR_PACK, st.pack, height);
 	bar(RtsoStatusSprites::BAR_UPGRADE, st.upgrade, height);
@@ -4706,7 +4753,10 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 		for (int k = 0; k < st.n_icons; ++k, dx += icon * 1.2f) status_sprites_.icon(st.icons[k], c, dx, icon);
 		y += icon + height * 0.5f;
 	}
-	if (st.rank_icon >= 0) status_sprites_.icon(st.rank_icon, at(icon), 0.0f, icon);
+	if (st.rank_icon >= 0) {
+		status_sprites_.icon(st.rank_icon, at(icon), 0.0f, icon);
+		status_rank_icons_.push_back(status_sprites_.icon_path(st.rank_icon));
+	}
 }
 
 // Selectable.js overlay for structures: an outline round the footprint of each selected

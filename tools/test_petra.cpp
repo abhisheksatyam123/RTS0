@@ -3669,6 +3669,125 @@ static void test_builders_per_foundation() {
 	CHECK(on(house) == 3, "a house foundation takes 3 builders");
 }
 
+// baseManager.js assignToFoundations: while a new base's civic centre is a foundation, only it
+// is built (its storehouse waits); isNotWorthBuilding: a house on land we don't hold gets no
+// builders; update: a civic centre foundation within 8000 m² of a foe's is destroyed.
+static void test_petra_constructing_base() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	const Simulation::Building *cc = nullptr, *foe = nullptr;
+	for (const auto &b : s->buildings_) {
+		if (b.type != BLD_TOWN_CENTER || b.build_progress < 1.0f) continue;
+		if (b.team == 1) cc = &b;
+		if (b.team == 0) foe = &b;
+	}
+	CHECK(cc && foe, "both players have a civic centre");
+	if (!cc || !foe) return;
+	const float cx = cc->x, cz = cc->z, ex = foe->x, ez = foe->z;
+	// Neutral land on our land, 30-45 units out, and another the other way.
+	auto neutral = [&](float dir, float &ox, float &oz) {
+		for (int a = 0; a < 16; ++a)
+			for (float d = 30.0f; d < 45.0f; d += 1.0f) {
+				const float ang = dir + (float)a * 0.3927f * ((a & 1) ? 1.0f : -1.0f) * 0.5f;
+				const float x = cx + std::cos(ang) * d, z = cz + std::sin(ang) * d;
+				if (std::fabs(x) > s->map_half_ - 12.0f || std::fabs(z) > s->map_half_ - 12.0f) continue;
+				if (s->territory_owner_at(x, z) < 0 && s->petra_land_at(x, z) == s->petra_land_at(cx, cz)) { ox = x; oz = z; return true; }
+			}
+		return false;
+	};
+	const float away = std::atan2(cz - ez, cx - ex);
+	float nx = 0.0f, nz = 0.0f, hx = 0.0f, hz = 0.0f;
+	const bool found = neutral(away + 1.2f, nx, nz) && neutral(away - 1.2f, hx, hz);
+	CHECK(found, "neutral land on both sides of Petra's civic centre");
+	if (!found) return;
+	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 8.0f + (float)(k % 6), cz + 8.0f + (float)(k / 6), 1, UNIT_FEMALE_CITIZEN);
+	const uint32_t anchor = s->spawn_building_world(nx, nz, BLD_TOWN_CENTER, 1, 0.0f);
+	const float sx = nx + (nx > cx ? 5.0f : -5.0f);
+	const uint32_t store = s->spawn_building_world(sx, nz, BLD_STOREHOUSE, 1, 0.0f);
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 1, 0.0f);
+	// One builder already on the storehouse moves to the civic centre.
+	size_t first = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.unit_type[i] == UNIT_FEMALE_CITIZEN) first = i;
+	const uint32_t fid = s->units_.id[first];
+	s->order_build_or_repair(&fid, 1, store);
+	run_for(*s, 3.0f);
+	auto on = [&](uint32_t id) {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.action_state[i] == ACTION_BUILD && s->units_.target_building_id[i] == id) ++n;
+		return n;
+	};
+	std::printf("  constructing base: civic centre %d builders, storehouse %d, house off our land %d\n", on(anchor), on(store), on(house));
+	CHECK(on(anchor) > 0, "the new civic centre is built");
+	CHECK(on(store) == 0, "the storehouse waits for its base's civic centre");
+	CHECK(s->units_.target_building_id[first] == anchor, "a storehouse builder moves to the civic centre");
+	CHECK(on(house) == 0, "a house on land we don't hold gets no builders");
+
+	// A civic centre foundation by the foe's, in its territory.
+	float fx = 0.0f, fz = 0.0f;
+	bool spot = false;
+	for (int a = 0; a < 16 && !spot; ++a) {
+		const float x = ex + std::cos((float)a * 0.3927f) * 18.0f, z = ez + std::sin((float)a * 0.3927f) * 18.0f;
+		if (s->territory_owner_at(x, z) == 0 && s->petra_land_at(x, z) == s->petra_land_at(ex, ez)) { fx = x; fz = z; spot = true; }
+	}
+	CHECK(spot, "the foe's territory 18 units from its civic centre");
+	if (!spot) return;
+	const uint32_t bold = s->spawn_building_world(fx, fz, BLD_TOWN_CENTER, 1, 0.0f);
+	run_for(*s, 3.0f);
+	auto it = s->building_id_to_idx_.find(bold);
+	const bool gone = it == s->building_id_to_idx_.end() || s->buildings_[it->second].wrecked || s->buildings_[it->second].hp <= 0.0f;
+	CHECK(gone, "a civic centre foundation within 22 units of a foe's is destroyed");
+}
+
+// startingStrategy.js:493: under 2000 starting wood, a large land short of food takes a corral
+// (needCorral) instead of the first field (needFarm).
+static void test_petra_wood_poor_corral() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	s->players_[0].res[RES_FOOD] = 0.0f;
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.type[r] == RES_FOOD) s->resources_.amount[r] = 0;
+	s->petra_kept_ = PetraKept{};
+	s->petra_config_first_base();
+	const bool farm = s->petra_kept_.need_farm, corral = s->petra_kept_.need_corral;
+	CHECK(farm && !corral, "a large land short of food with wood wants a field");
+	s->players_[0].res[RES_WOOD] = 0.0f;
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.type[r] == RES_WOOD) s->resources_.amount[r] = 0;
+	s->petra_kept_ = PetraKept{};
+	s->petra_config_first_base();
+	std::printf("  wood-poor start: needFarm %d, needCorral %d\n", (int)s->petra_kept_.need_farm, (int)s->petra_kept_.need_corral);
+	CHECK(!s->petra_kept_.need_farm && s->petra_kept_.need_corral, "without wood it wants a corral instead");
+}
+
+// startingStrategy.js configFirstBase runs at every difficulty: Sandbox lays its first
+// storehouse at once too.
+static void test_petra_sandbox_first_storehouse() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_SANDBOX);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 5.0f);
+	int stores = 0;
+	for (const auto &b : s->buildings_)
+		stores += b.team == 1 && b.type == BLD_STOREHOUSE && b.hp > 0.0f;
+	std::printf("  Sandbox: %d storehouse(s) after 5 s\n", stores);
+	CHECK(stores > 0, "Sandbox lays its first storehouse");
+}
+
 // defenseManager.js makeIntoArmy / checkEnemyArmies: two groups of foes on opposite sides of
 // the civic centre make two armies, each with its own defenders; armies whose foes come
 // within armyMergeSize of each other merge.
@@ -4288,6 +4407,64 @@ static void test_mobile_dropsite_follows() {
 	const bool walks = w >= 0 && s->units_.order_kind[w] == ORDER_WALK && best < 0.5f;
 	std::printf("  mobile dropsite: %d gatherers at work, the wagon walks to one %s\n", gathering, walks ? "yes" : "no");
 	CHECK(gathering > 0 && walks, "a mobile dropsite walks to the nearest gatherer (moveToGatherer)");
+}
+
+// worker.js moveToGatherer cadence and base: a mobile dropsite that found a gatherer looks
+// again 12 s later and 5 s later when it found none (nextMoveToGatherer), and it looks only
+// at its own base's gatherers.
+static void test_mobile_dropsite_cadence() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 30.0f);
+	float tx = 0.0f, tz = 0.0f, ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings()) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 1) { tx = b.x; tz = b.z; }
+		if (b.team == 0) { ex = b.x; ez = b.z; }
+	}
+	// A second base halfway to the enemy, with no gatherers yet.
+	const float fx = 0.5f * (tx + ex), fz = 0.5f * (tz + ez);
+	s->spawn_building_world(fx, fz, BLD_TOWN_CENTER, 1, 1.0f);
+	run_for(*s, 3.0f);
+	// The home wagon 10 to the side of the first civic centre, across from the enemy line.
+	const float len = std::max(1.0f, std::hypot(ex - tx, ez - tz)), sx = -(ez - tz) / len, sz = (ex - tx) / len;
+	const uint32_t home = s->spawn_unit(tx + 10.0f * sx, tz + 10.0f * sz, 1, UNIT_WAGON);
+	const uint32_t front = s->spawn_unit(fx - 8.0f * sx, fz - 8.0f * sz, 1, UNIT_WAGON);
+	auto walking = [&](uint32_t id) {
+		const int32_t w = s->lookup_unit(id);
+		return w >= 0 && s->units_.order_kind[w] == ORDER_WALK;
+	};
+	auto stop = [&]() { s->cmd_stop(&home, 1); s->cmd_stop(&front, 1); };
+	stop();
+	s->petra_move_dropsites_to_gatherers();
+	const bool home_first = walking(home), front_first = walking(front);
+	stop();
+	// A gatherer of the second base, after the front wagon's 5 s wait has begun.
+	const uint32_t tree = s->spawn_resource_world(fx + 9.0f * sx, fz + 9.0f * sz, RES_WOOD, 200);
+	const uint32_t woman = s->spawn_unit(fx + 8.0f * sx, fz + 8.0f * sz, 1, UNIT_FEMALE_CITIZEN);
+	s->order_gather(&woman, 1, tree);
+	s->petra_timer_ += 4.5f;
+	s->petra_move_dropsites_to_gatherers();
+	const bool front_early = walking(front);
+	s->petra_timer_ += 1.0f;
+	s->petra_move_dropsites_to_gatherers();
+	const bool front_then = walking(front), home_early = walking(home);
+	const int32_t f = s->lookup_unit(front), g = s->lookup_unit(woman);
+	const float off = f < 0 || g < 0 ? 1e9f : std::hypot(s->units_.order_x[f] - s->units_.pos_x[g], s->units_.order_z[f] - s->units_.pos_z[g]);
+	stop();
+	s->petra_timer_ += 7.0f; // 12.5 s after the home wagon's first look
+	s->petra_move_dropsites_to_gatherers();
+	const bool home_again = walking(home);
+	std::printf("  mobile dropsite cadence: home wagon walks %s, again before 12 s %s, at 12.5 s %s; front wagon with no "
+	            "gatherer of its base walks %s, before 5 s %s, at 5.5 s %s (%.2f from its gatherer)\n",
+	            home_first ? "yes" : "no", home_early ? "yes" : "no", home_again ? "yes" : "no", front_first ? "yes" : "no",
+	            front_early ? "yes" : "no", front_then ? "yes" : "no", off);
+	CHECK(home_first && !home_early && home_again, "a mobile dropsite that found a gatherer looks again 12 s later");
+	CHECK(!front_first, "a mobile dropsite looks only at its own base's gatherers");
+	CHECK(!front_early && front_then && off < 0.5f, "a mobile dropsite that found none looks again 5 s later");
 }
 
 // attackPlan.js Abort: an aborted attack withdraws to the nearest of our bases on its
@@ -5546,6 +5723,9 @@ int main(int argc, char **argv) {
 	RUN(test_assign_bombers);
 	RUN(test_cancel_attacks_on_peace);
 	RUN(test_builders_per_foundation);
+	RUN(test_petra_constructing_base);
+	RUN(test_petra_wood_poor_corral);
+	RUN(test_petra_sandbox_first_storehouse);
 	RUN(test_wonder_guards);
 	RUN(test_victory_critical_ents);
 	RUN(test_placement_miss_memory_exact);
@@ -5557,6 +5737,7 @@ int main(int argc, char **argv) {
 	RUN(test_fasten_end_game);
 	RUN(test_abort_nearest_base);
 	RUN(test_mobile_dropsite_follows);
+	RUN(test_mobile_dropsite_cadence);
 	RUN(test_worker_mix);
 	RUN(test_unit_choice);
 	RUN(test_build_defenses);
