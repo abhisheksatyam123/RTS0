@@ -878,13 +878,13 @@ func _build_charts() -> void:
 		var pickers := []
 		for j in 3:
 			var cap := _label(["Category:", "Value:", "Type:"][j], 13)
-			_place(cap, part, Vector2(1 + j * 150, 4), Vector2(144, 20))
+			_place(cap, part, Vector2(1 + j * 150, 6), Vector2(144, 20)) # "1 6 145 26"
 			var dd := OptionButton.new()
 			dd.name = ["Category", "Value", "Type"][j]
 			dd.tooltip_text = ["Category", "Value", "Type"][j]
 			dd.fit_to_longest_item = false
 			dd.clip_text = true
-			_place(dd, part, Vector2(5 + j * 150, 26), Vector2(140, 26))
+			_place(dd, part, Vector2(5 + j * 150, 28), Vector2(140, 28)) # "5 28 145 56"
 			pickers.append(dd)
 			if j == 2:
 				pickers.append(cap)
@@ -895,22 +895,23 @@ func _build_charts() -> void:
 		var bg := ColorRect.new()
 		bg.color = Color(1, 1, 1, 20.0 / 255.0)
 		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		bg.offset_top = 60
+		bg.offset_top = 80 # "0 80 100% 100%"
 		part.add_child(bg)
 		var chart := Control.new()
 		chart.name = "Chart%d" % k
 		chart.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		chart.offset_left = 5
 		chart.offset_right = -5
-		chart.offset_top = 64
-		chart.offset_bottom = -22
+		chart.offset_top = 85 # "5 85 100%-5 100%-25"
+		chart.offset_bottom = -25
 		chart.draw.connect(_draw_chart.bind(k))
 		part.add_child(chart)
 		_chart_nodes.append(chart)
 		var axis := _label("Time elapsed", 12)
 		axis.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		axis.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-		axis.offset_top = -20
+		axis.offset_top = -25 # XAxisLabel "5 100%-25 100%-5 100%-5"
+		axis.offset_bottom = -5
 		part.add_child(axis)
 	_legend = _rich("", 13)
 	_legend.name = "ChartLegend"

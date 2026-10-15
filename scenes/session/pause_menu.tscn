@@ -31,74 +31,72 @@ grow_vertical = 2
 color = Color(0, 0, 0, 0.65)
 visible = false
 
-[node name="CenterContainer" type="CenterContainer" parent="."]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="CenterContainer" type="Control" parent="."]
+clip_contents = true
+offset_right = 164.0
+offset_bottom = 400.0
 mouse_filter = 2
 theme = ExtResource("2_theme")
 visible = false
 
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(240, 0)
-layout_mode = 2
+custom_minimum_size = Vector2(164, 0)
+offset_right = 164.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
 [node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 4
 
 [node name="BtnManual" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Manual"
 
 [node name="BtnChat" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Chat"
 
 [node name="BtnSave" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Save"
 
 [node name="BtnSummary" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 tooltip_text = "Press Ctrl+Tab to open the summary screen."
 text = "Summary"
 
 [node name="BtnLobby" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Lobby"
 
 [node name="BtnOptions" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Options"
 
 [node name="BtnHotkeys" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Hotkeys"
 
 [node name="BtnPause" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 tooltip_text = "Press Pause to pause or resume the game."
 text = "Pause"
 
 [node name="BtnResign" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Resign"
 
 [node name="BtnExit" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Exit"
 

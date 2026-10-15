@@ -4,6 +4,7 @@
 #include "terrain_blend.h"
 #include "session_audio.h"
 #include "user_config.h"
+#include "formation_variants.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -325,6 +326,7 @@ void RtsoWorldView::_ready() {
 	terrain = memnew(MeshInstance3D);
 	terrain->set_mesh(plane_mesh);
 	terrain->set_position(Vector3(0, -0.01f, 0));
+	terrain->set_layer_mask(1u | DECAL_LAYER);
 	add_child(terrain);
 
 	Ref<ShaderMaterial> terrain_mat = rtso::Assets::load_terrain_material();
@@ -1162,13 +1164,73 @@ enum ClipId : uint8_t {
 	CLIP_CAPTURE,
 	CLIP_IDLE2,
 	CLIP_DEATH2,
-	CLIP_COUNT
+	// Formation variant clips (kFormClips), loaded from their PSA on first use.
+	CLIP_FORM_FIRST,
+	CLIP_COUNT = CLIP_FORM_FIRST + 36
 };
+
+// The clips the formation variants name (formation_variants.h variant_clips), each
+// once. "bare" clips belong to testudo_top, whose variant empties weapon_R.
+struct FormClip {
+	const char *psa;
+	bool bare;
+};
+static constexpr FormClip kFormClips[CLIP_COUNT - CLIP_FORM_FIRST] = {
+	{"biped_formations_anti_cavalry_back_idle", false},
+	{"biped_formations_anti_cavalry_front_idle", false},
+	{"biped_infantry_spearman_walk_relax", false},
+	{"biped_infantry_hoplite_idle_ready_back", false},
+	{"biped_infantry_hoplite_idle_ready_front", false},
+	{"biped_infantry_hoplite_idle_ready_01", false},
+	{"biped_infantry_hoplite_walk_ready", false},
+	{"biped_infantry_hoplite_walk_ready_front", false},
+	{"biped_infantry_hoplite_jog_ready", false},
+	{"biped_infantry_hoplite_run_ready", false},
+	{"biped_formations_syntagma_idle_ready_01", false},
+	{"biped_formations_syntagma_idle_ready_02", false},
+	{"biped_formations_syntagma_idle_ready_03", false},
+	{"biped_formations_syntagma_idle_ready_04", false},
+	{"biped_formations_syntagma_idle_ready_back", false},
+	{"biped_formations_syntagma_idle_ready_front", false},
+	{"biped_formations_syntagma_walk_ready_01", false},
+	{"biped_formations_syntagma_walk_ready_02", false},
+	{"biped_formations_syntagma_walk_ready_03", false},
+	{"biped_formations_syntagma_walk_ready_04", false},
+	{"biped_formations_syntagma_walk_relax_back", false},
+	{"biped_infantry_pikeman_walk_ready", false},
+	{"biped_infantry_pikeman_run_ready", false},
+	{"biped_infantry_pikeman_jog_ready", false},
+	{"biped_formations_testudo_front_idle", false},
+	{"biped_formations_testudo_front_walk", false},
+	{"biped_formations_testudo_front_left_idle", false},
+	{"biped_formations_testudo_front_left_walk", false},
+	{"biped_formations_testudo_front_right_idle", false},
+	{"biped_formations_testudo_front_right_walk", false},
+	{"biped_formations_testudo_left_idle", false},
+	{"biped_formations_testudo_left_walk", false},
+	{"biped_formations_testudo_right_idle", false},
+	{"biped_formations_testudo_right_walk", false},
+	{"biped_formations_testudo_top_idle", true},
+	{"biped_formations_testudo_top_walk", true},
+};
+
+static bool is_form_clip(int c) {
+	return c >= CLIP_FORM_FIRST && c < CLIP_COUNT;
+}
+
+// The formation clip playing `psa` (with testudo_top's empty weapon_R when bare).
+static ClipId form_clip_of(const char *psa, bool bare) {
+	if (!psa) return CLIP_NONE;
+	for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i)
+		if (kFormClips[i].bare == bare && std::strcmp(kFormClips[i].psa, psa) == 0) return (ClipId)(CLIP_FORM_FIRST + i);
+	return CLIP_NONE;
+}
 
 static const StringName &clip_name(ClipId id) {
 	// Leaked on purpose: Godot objects in statics would be destroyed after the
 	// engine has gone, crashing the exit (here and in the caches below).
-	static const StringName *names = new StringName[CLIP_COUNT]{
+	static const StringName *names = [] {
+		StringName *n = new StringName[CLIP_COUNT]{
 		StringName(), StringName("Idle"), StringName("Walk"), StringName("Run"),
 		StringName("Attack"), StringName("Death"), StringName("Gather"),
 		StringName("GatherTree"), StringName("GatherOre"), StringName("GatherRock"),
@@ -1179,7 +1241,12 @@ static const StringName &clip_name(ClipId id) {
 		StringName("CarryFood"), StringName("CarryMeat"), StringName("CarryWood"),
 		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture"),
 		StringName("Idle2"), StringName("Death2")
-	};
+		};
+		// ModelLibrary::apply_clip_tools: "Form" clips show the weapon, "FormBare" none.
+		for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i)
+			n[CLIP_FORM_FIRST + i] = StringName(String(kFormClips[i].bare ? "FormBare_" : "Form_") + kFormClips[i].psa);
+		return n;
+	}();
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
 
@@ -1334,6 +1401,24 @@ static WantAnim with_variant(WantAnim w, uint32_t id) {
 	return w;
 }
 
+// UnitAI FORMATIONMEMBER: a member standing or walking in its slot plays its slot's
+// variant (Formation.js GetFormationAnimationVariant); a variant without a Run clip
+// keeps its Walk. Any other order takes the member out of that state, and its own
+// clips back.
+static WantAnim with_formation_variant(WantAnim w, uint8_t uaction, uint8_t variant) {
+	if (uaction != rtso::ACTION_IDLE && uaction != rtso::ACTION_MOVE && uaction != rtso::ACTION_ATTACK_MOVE &&
+			uaction != rtso::ACTION_PATROL)
+		return w;
+	const rtso::formvar::VariantClips &vc = rtso::formvar::variant_clips(variant);
+	const char *psa = nullptr;
+	if (w.clip == CLIP_IDLE || w.clip == CLIP_IDLE2) psa = vc.idle;
+	else if (w.clip == CLIP_WALK) psa = vc.walk;
+	else if (w.clip == CLIP_RUN) psa = vc.run ? vc.run : vc.walk;
+	const ClipId c = form_clip_of(psa, vc.drops_weapon);
+	if (c != CLIP_NONE) w.clip = c;
+	return w;
+}
+
 // Nearest clip a model actually ships, mirroring the extractor's own borrowing
 // (Run from Walk, Carry from Walk, Death from Idle for hulls that only float).
 static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
@@ -1370,7 +1455,12 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_CAPTURE:   alt = CLIP_ATTACK; break;
 		case CLIP_IDLE2:     alt = CLIP_IDLE; break;
 		case CLIP_DEATH2:    alt = CLIP_DEATH; break;
-		default:             break;
+		default:
+			if (is_form_clip(want)) {
+				const char *psa = kFormClips[want - CLIP_FORM_FIRST].psa;
+				alt = std::strstr(psa, "idle") ? CLIP_IDLE : CLIP_WALK;
+			}
+			break;
 	}
 	if (alt != CLIP_NONE && anim->has_animation(clip_name(alt))) return alt;
 	// Death must not loop an idle forever; the caller clears loop for it.
@@ -1630,6 +1720,7 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 			frame = &fr->second;
 		}
 	}
+	v.foundation_glb = art ? art->id : String(rtso::civ_building_foundation(btype));
 	if (!art) {
 		place(v.foundation, rtso::civ_building_foundation(btype), foundation_on);
 		place(v.scaffold, rtso::civ_building_scaffold(btype), scaffold_on);
@@ -1841,6 +1932,150 @@ void RtsoWorldView::update_production_fx(BuildingVis &v, const String &model_id,
 	}
 }
 
+// 0 A.D. Foundation.js sets the foundation actor's "numbuilders" and its
+// "scaffold" variant props art/particles/construction_dust.xml, which emits 2
+// puffs a second per builder (at most 16); the structures' "upgrading" variant
+// props destruction_dust_small.xml (50 a second). Rates, lifetimes, the emission
+// box, speeds, sizes and the downward force are the files' values in metres, from
+// the actor origin (data/foundations.json frames) at the model's scale.
+void RtsoWorldView::update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale) {
+	if (!v.root) return;
+	struct Def { float rate, life_min, life_max, box, y, side, up_min, up_max, size_min, size_max, force, spin_min, spin_max; Color color; };
+	static const Def kDefs[2] = {
+		{ 16.0f, 3.0f, 5.0f, 8.0f, 1.0f, 1.25f, 2.0f, 3.5f, 5.0f, 7.5f, -2.5f, -2.0f, 3.0f, Color(0.75f, 0.7f, 0.55f) }, // construction_dust
+		{ 50.0f, 3.0f, 8.0f, 7.0f, 4.0f, 1.0f, 1.5f, 2.0f, 5.0f, 10.0f, -0.15f, -1.5f, 1.5f, Color(1.0f, 1.0f, 1.0f) }, // destruction_dust_small
+	};
+	if (kind != v.site_dust_kind) {
+		if (v.site_dust) {
+			if (v.site_dust->get_parent()) v.site_dust->get_parent()->remove_child(v.site_dust);
+			v.site_dust->queue_free();
+			v.site_dust = nullptr;
+		}
+		v.site_dust_kind = kind;
+		if (kind == 0) return;
+		if (fx_dust_quad_.is_null()) {
+			Ref<StandardMaterial3D> mat;
+			mat.instantiate();
+			mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+			mat->set_billboard_mode(BaseMaterial3D::BILLBOARD_PARTICLES);
+			mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+			mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+			mat->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+			const char *tex_path = "res://assets/textures/particles/dust_256a.png";
+			if (rtso::Assets::res_exists(tex_path)) {
+				Ref<Texture2D> t = ResourceLoader::get_singleton()->load(tex_path);
+				if (t.is_valid()) mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, t);
+			}
+			fx_dust_quad_.instantiate();
+			fx_dust_quad_->set_size(Vector2(1.0f, 1.0f));
+			fx_dust_quad_->set_material(mat);
+		}
+		if (!foundations_loaded_) load_foundations();
+		Vector3 origin;
+		float m = 0.25f; // world units per metre (1 unit = 4 m) when the GLB has no actor frame
+		const auto fr = building_frames_.find(building_table_key(model_id));
+		if (fr != building_frames_.end() && fr->second.scale > 0.0f) {
+			origin = Vector3(fr->second.origin.x * b_scale, 0.0f, fr->second.origin.z * b_scale);
+			m = fr->second.scale * b_scale;
+		}
+		const Def &d = kDefs[kind - 1];
+		Ref<ParticleProcessMaterial> pm;
+		pm.instantiate();
+		pm->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
+		pm->set_emission_box_extents(Vector3(d.box * m, 0.0f, d.box * m));
+		pm->set_direction(Vector3(0, 1, 0));
+		pm->set_spread(Math::rad_to_deg(Math::atan2(d.side, d.up_min)));
+		pm->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, d.up_min * m);
+		pm->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, d.up_max * m);
+		pm->set_gravity(Vector3(0, d.force * m, 0));
+		pm->set_param_min(ParticleProcessMaterial::PARAM_SCALE, d.size_min * m);
+		pm->set_param_max(ParticleProcessMaterial::PARAM_SCALE, d.size_max * m);
+		pm->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, -180.0f);
+		pm->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, 180.0f);
+		pm->set_param_min(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin_min));
+		pm->set_param_max(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin_max));
+		if (fx_smoke_ppm_.is_valid()) pm->set_color_ramp(fx_smoke_ppm_->get_color_ramp());
+		pm->set_color(d.color);
+		GPUParticles3D *p = memnew(GPUParticles3D);
+		p->set_process_material(pm);
+		p->set_draw_pass_mesh(0, fx_dust_quad_);
+		p->set_amount(std::max(1, (int)std::ceil(d.rate * d.life_max)));
+		p->set_lifetime(d.life_max);
+		p->set_randomness_ratio(1.0f - d.life_min / d.life_max);
+		p->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		p->set_visibility_aabb(AABB(Vector3(-12, -1, -12), Vector3(24, 30, 24)));
+		p->set_position(origin + Vector3(0, d.y * m, 0));
+		v.root->add_child(p);
+		v.site_dust = p;
+	}
+	if (kind == 1 && v.site_dust && builders >= 0) {
+		const float ratio = std::min(16, 2 * builders) / 16.0f; // emissionrate numbuilders x 2, max 16
+		v.site_dust->set_amount_ratio(ratio);
+		v.site_dust->set_emitting(ratio > 0.0f);
+	}
+}
+
+// 0 A.D. CModelDecal: a structure's or foundation's decal prop lays a textured
+// rectangle (width x depth metres, turned by angle degrees) on the terrain under
+// it. Godot Decal nodes on the root project them onto the terrain's DECAL_LAYER
+// only; `k` and `base` place the GLB's units under the root (the model's scale,
+// or the foundation's seat). The terrain shader darkens out-of-sight ground
+// before decals blend in, so they take the LOS brightness as their modulate.
+void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness) {
+	if (!v.root) return;
+	const String key = glb_id.is_empty() ? String() : glb_id + String("|") + String::num(k, 4) + String("|") + String::num(base.x, 3) + String("|") + String::num(base.z, 3);
+	if (key != v.decal_key) {
+		for (Decal *d : v.decals) {
+			if (d->get_parent()) d->get_parent()->remove_child(d);
+			d->queue_free();
+		}
+		v.decals.clear();
+		v.decal_key = key;
+		if (key.is_empty()) return;
+		if (!building_decals_loaded_) {
+			building_decals_loaded_ = true;
+			Ref<FileAccess> f = FileAccess::open("res://data/building_decals.json", FileAccess::READ);
+			Dictionary root = f.is_valid() ? Dictionary(Dictionary(JSON::parse_string(f->get_as_text())).get("decals", Dictionary())) : Dictionary();
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Array list = root[keys[i]];
+				std::vector<BuildingDecal> &out = building_decals_[String(keys[i]).utf8().get_data()];
+				for (int j = 0; j < list.size(); ++j) {
+					Dictionary e = list[j];
+					Array pos = e.get("pos", Array()), size = e.get("size", Array());
+					if (pos.size() != 2 || size.size() != 2) continue;
+					out.push_back({ e.get("tex", ""), Vector2((float)pos[0], (float)pos[1]), Vector2((float)size[0], (float)size[1]),
+							(float)e.get("angle", 0.0) });
+				}
+			}
+		}
+		const auto it = building_decals_.find(building_table_key(glb_id));
+		if (it == building_decals_.end()) return;
+		for (const BuildingDecal &bd : it->second) {
+			Ref<Texture2D> &tex = decal_tex_[bd.tex.utf8().get_data()];
+			if (tex.is_null()) {
+				const String path = "res://assets/textures/decals/" + bd.tex + ".png";
+				if (rtso::Assets::res_exists(path)) tex = ResourceLoader::get_singleton()->load(path);
+				if (tex.is_null()) continue;
+			}
+			const Vector2 sz = bd.size * k;
+			Decal *d = memnew(Decal);
+			d->set_texture(Decal::TEXTURE_ALBEDO, tex);
+			// Tall enough to reach ground the structure does not flatten.
+			d->set_size(Vector3(sz.x, std::max(2.0f, 0.5f * std::max(sz.x, sz.y)), sz.y));
+			d->set_cull_mask(DECAL_LAYER);
+			d->set_normal_fade(0.3f);
+			d->set_transform(Transform3D(Basis(Vector3(0, 1, 0), Math::deg_to_rad(bd.angle)),
+					Vector3(base.x + bd.pos.x * k, 0.0f, base.z + bd.pos.y * k)));
+			v.root->add_child(d);
+			v.decals.push_back(d);
+		}
+	}
+	const Color mod(brightness, brightness, brightness, 1.0f);
+	for (Decal *d : v.decals)
+		if (d->get_modulate() != mod) d->set_modulate(mod);
+}
+
 void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.root) v.root->set_visible(false);
 	if (v.ring) v.ring->set_visible(false);
@@ -1855,16 +2090,24 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 
 // Crowd clip slots. 0 A.D. plays the real clip for every unit (gather_*,
 // build, carry, heal...); the crowd keeps one baked MultiMesh per slot.
-static const uint8_t kCrowdClips[] = {
-	CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_RUN, CLIP_CARRY, CLIP_BUILD,
-	CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
-	CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
-	CLIP_CARRY_FOOD, CLIP_CARRY_MEAT, CLIP_CARRY_WOOD, CLIP_CARRY_STONE, CLIP_CARRY_METAL,
-	CLIP_PROMOTION, CLIP_CAPTURE, CLIP_IDLE2, CLIP_DEATH2,
-};
-static_assert(sizeof(kCrowdClips) == 25, "kCrowdClips must match CROWD_CLIP_COUNT");
+// The formation variant clips take the slots after CROWD_FORM_SLOT, in kFormClips order.
+static constexpr int CROWD_FORM_SLOT = 25;
+static const uint8_t *crowd_clips() {
+	static const uint8_t *clips = [] {
+		static uint8_t c[CROWD_FORM_SLOT + (CLIP_COUNT - CLIP_FORM_FIRST)] = {
+			CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_RUN, CLIP_CARRY, CLIP_BUILD,
+			CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
+			CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
+			CLIP_CARRY_FOOD, CLIP_CARRY_MEAT, CLIP_CARRY_WOOD, CLIP_CARRY_STONE, CLIP_CARRY_METAL,
+			CLIP_PROMOTION, CLIP_CAPTURE, CLIP_IDLE2, CLIP_DEATH2,
+		};
+		for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i) c[CROWD_FORM_SLOT + i] = (uint8_t)(CLIP_FORM_FIRST + i);
+		return c;
+	}();
+	return clips;
+}
 // Death clips play once and hold their last frame (slots 3 and 24).
-static constexpr uint32_t CROWD_DEATH_SLOTS = (1u << 3) | (1u << 24);
+static constexpr uint64_t CROWD_DEATH_SLOTS = (1ull << 3) | (1ull << 24);
 // Fauna clip slots that hold their last frame: death (3) and the second death (5).
 static constexpr uint32_t FAUNA_DEATH_SLOTS = (1u << 3) | (1u << 5);
 
@@ -1895,7 +2138,7 @@ static int crowd_slot_of(ClipId clip) {
 		case CLIP_CAPTURE: return 22;
 		case CLIP_IDLE2: return 23;
 		case CLIP_DEATH2: return 24;
-		default: return 0;
+		default: return is_form_clip(clip) ? CROWD_FORM_SLOT + (clip - CLIP_FORM_FIRST) : 0;
 	}
 }
 
@@ -1979,8 +2222,97 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
 	return b.mm[clip].ptr();
 }
 
+// The skeleton a clip library's bone tracks drive, with their path from the player's root.
+static Skeleton3D *clip_skeleton(AnimationPlayer *ap, const Ref<AnimationLibrary> &lib, String &skel_path) {
+	Ref<Animation> ref = lib->has_animation(clip_name(CLIP_IDLE)) ? lib->get_animation(clip_name(CLIP_IDLE)) : Ref<Animation>();
+	for (int t = 0; ref.is_valid() && t < ref->get_track_count(); ++t) {
+		NodePath tp = ref->track_get_path(t);
+		if (tp.get_subname_count() > 0) {
+			skel_path = tp.get_concatenated_names();
+			break;
+		}
+	}
+	Node *anim_root = ap->get_node_or_null(ap->get_root_node());
+	return (anim_root && !skel_path.is_empty())
+			? Object::cast_to<Skeleton3D>(anim_root->get_node_or_null(NodePath(skel_path))) : nullptr;
+}
+
+// One 0 A.D. PSA clip into `lib` as `name`, when its bones match the skeleton's.
+static bool add_psa_clip(const Ref<AnimationLibrary> &lib, Skeleton3D *sk, const String &skel_path,
+		const StringName &name, const char *psa_name) {
+	rtso::PsaAnim psa;
+	const int bones = sk->get_bone_count();
+	if (!psa.load_psa(psa_name) || !psa.is_valid() || (int)psa.numBones != bones) return false;
+	Ref<Animation> a;
+	a.instantiate();
+	const double dt = psa.frameTime / 1000.0;
+	a->set_length(dt * psa.numFrames);
+	// PSA keys are root-relative bone transforms, the same space as the
+	// extractor's flat bone nodes, so they are the bone poses as they stand.
+	for (int b = 0; b < bones; ++b) {
+		NodePath path(skel_path + String(":") + sk->get_bone_name(b));
+		const int tp = a->add_track(Animation::TYPE_POSITION_3D);
+		a->track_set_path(tp, path);
+		const int tr = a->add_track(Animation::TYPE_ROTATION_3D);
+		a->track_set_path(tr, path);
+		for (uint32_t f = 0; f < psa.numFrames; ++f) {
+			const rtso::PsaKey &k = psa.keys[(size_t)f * psa.numBones + b];
+			a->position_track_insert_key(tp, dt * f, k.t);
+			a->rotation_track_insert_key(tr, dt * f, k.q);
+		}
+	}
+	lib->add_animation(name, a);
+	return true;
+}
+
+// A formation variant clip loads from its PSA the first time a model plays it; a
+// model whose skeleton it does not fit is not asked again.
+static void ensure_form_clip(AnimationPlayer *ap, ClipId clip) {
+	if (!ap || !is_form_clip(clip) || ap->has_animation(clip_name(clip))) return;
+	Ref<AnimationLibrary> lib = ap->get_animation_library(StringName());
+	if (!lib.is_valid()) return;
+	static std::unordered_set<uint64_t> &failed = *new std::unordered_set<uint64_t>();
+	const uint64_t key = ((uint64_t)lib->get_instance_id() << 8) ^ (uint64_t)clip;
+	if (failed.count(key)) return;
+	String skel_path;
+	Skeleton3D *sk = clip_skeleton(ap, lib, skel_path);
+	if (!sk || !add_psa_clip(lib, sk, skel_path, clip_name(clip), kFormClips[clip - CLIP_FORM_FIRST].psa))
+		failed.insert(key);
+}
+
+// Which formation variants a unit model's 0 A.D. actor lists (data/formation_variants.json,
+// tools/extract_formation_variants.py), as bits by rtso::formvar::Variant.
+static uint32_t formation_variant_mask(const char *model) {
+	static std::unordered_map<std::string, uint32_t> &table = *new std::unordered_map<std::string, uint32_t>();
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/formation_variants.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Array names = root[keys[i]];
+				uint32_t m = 0;
+				for (int n = 0; n < names.size(); ++n)
+					m |= 1u << rtso::formvar::variant_by_name(String(names[n]).utf8().get_data());
+				table[String(keys[i]).utf8().get_data()] = m & ~1u;
+			}
+		}
+	}
+	auto it = model ? table.find(model) : table.end();
+	return it != table.end() ? it->second : 0u;
+}
+
+uint32_t RtsoWorldView::crowd_form_mask(uint8_t civ, uint16_t key) {
+	if (civ >= rtso::CIV_COUNT || key >= CROWD_KEY_COUNT) return 0;
+	uint32_t &m = crowd_form_mask_[civ][key];
+	if (!(m & 0x80000000u)) m = 0x80000000u | formation_variant_mask(crowd_key_model(civ, key));
+	return m;
+}
+
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, uint32_t death_slots, bool female) {
+		const bool *needed, int count, uint64_t death_slots, bool female) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -1989,6 +2321,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	for (int c = 0; c < count; ++c) {
 		if (!needed[c] || done[c]) continue;
 		done[c] = true;
+		ensure_form_clip(ap, (ClipId)want[c]);
 		ClipId play = resolve_clip_fallback(ap, (ClipId)want[c]);
 		int valid = 0;
 		if (ap && play != CLIP_NONE) {
@@ -2014,7 +2347,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 			for (int f = 0; f < n; ++f) {
 				double t = 0.0;
 				if (len > 0.0) {
-					if (death_slots & (1u << c)) {
+					if (death_slots & (1ull << c)) {
 						t = (n > 1) ? len * (double)f / (double)(n - 1) : 0.0;
 					} else {
 						t = len * (double)f / (double)n;
@@ -2036,11 +2369,11 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	if (ap) ap->stop();
 }
 
-void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint32_t death_slots) {
+void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint64_t death_slots) {
 	for (int c = 0; c < count; ++c) {
 		if (!meshes[c].is_valid() || row[c].baked_count <= 0 || counts[c] <= 0) continue;
 		int frame;
-		if (death_slots & (1u << c)) {
+		if (death_slots & (1ull << c)) {
 			frame = (int)(anim_time * 5.0f);
 			if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
 		} else {
@@ -2066,6 +2399,8 @@ static Node *instantiate_for_bake(Node3D *bake_root, const Ref<PackedScene> &sce
 }
 
 void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts) {
+	static_assert(CROWD_CLIP_COUNT == CROWD_FORM_SLOT + (CLIP_COUNT - CLIP_FORM_FIRST),
+			"CROWD_CLIP_COUNT must cover the formation clips (crowd_clips)");
 	CrowdBatch &b = crowd_batch(civ, key);
 	const uint8_t utype = crowd_key_utype_[key < CROWD_KEY_COUNT ? key : 0];
 	if (b.no_scene) return;
@@ -2091,7 +2426,7 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *co
 	if (!inst) return;
 	const bool female = unit_is_female(utype);
 	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
 			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
@@ -2157,17 +2492,7 @@ void RtsoWorldView::ensure_runtime_clips(AnimationPlayer *ap, bool female) {
 	if (!lib.is_valid() || !clip_libs_done_.insert((int64_t)lib->get_instance_id()).second) return;
 	// The bone tracks of a shipped clip give the skeleton's path from the player's root.
 	String skel_path;
-	Ref<Animation> ref = lib->has_animation(clip_name(CLIP_IDLE)) ? lib->get_animation(clip_name(CLIP_IDLE)) : Ref<Animation>();
-	for (int t = 0; ref.is_valid() && t < ref->get_track_count(); ++t) {
-		NodePath tp = ref->track_get_path(t);
-		if (tp.get_subname_count() > 0) {
-			skel_path = tp.get_concatenated_names();
-			break;
-		}
-	}
-	Node *anim_root = ap->get_node_or_null(ap->get_root_node());
-	Skeleton3D *sk = (anim_root && !skel_path.is_empty())
-			? Object::cast_to<Skeleton3D>(anim_root->get_node_or_null(NodePath(skel_path))) : nullptr;
+	Skeleton3D *sk = clip_skeleton(ap, lib, skel_path);
 	if (!sk) return;
 	struct Clip { ClipId id; const char *male; const char *female; };
 	static const Clip kClips[] = {
@@ -2178,30 +2503,9 @@ void RtsoWorldView::ensure_runtime_clips(AnimationPlayer *ap, bool female) {
 		{ CLIP_CARRY_METAL, "carry_ore", "biped_gatherer_carry_ore_f" },
 		{ CLIP_PROMOTION, "biped_infantry_promotion", "biped_infantry_promotion" },
 	};
-	const int bones = sk->get_bone_count();
 	for (const Clip &c : kClips) {
 		if (lib->has_animation(clip_name(c.id))) continue;
-		rtso::PsaAnim psa;
-		if (!psa.load_psa(female ? c.female : c.male) || !psa.is_valid() || (int)psa.numBones != bones) continue;
-		Ref<Animation> a;
-		a.instantiate();
-		const double dt = psa.frameTime / 1000.0;
-		a->set_length(dt * psa.numFrames);
-		// PSA keys are root-relative bone transforms, the same space as the
-		// extractor's flat bone nodes, so they are the bone poses as they stand.
-		for (int b = 0; b < bones; ++b) {
-			NodePath path(skel_path + ":" + sk->get_bone_name(b));
-			const int tp = a->add_track(Animation::TYPE_POSITION_3D);
-			a->track_set_path(tp, path);
-			const int tr = a->add_track(Animation::TYPE_ROTATION_3D);
-			a->track_set_path(tr, path);
-			for (uint32_t f = 0; f < psa.numFrames; ++f) {
-				const rtso::PsaKey &k = psa.keys[(size_t)f * psa.numBones + b];
-				a->position_track_insert_key(tp, dt * f, k.t);
-				a->rotation_track_insert_key(tr, dt * f, k.q);
-			}
-		}
-		lib->add_animation(clip_name(c.id), a);
+		add_psa_clip(lib, sk, skel_path, clip_name(c.id), female ? c.female : c.male);
 	}
 }
 
@@ -2956,8 +3260,21 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		WantAnim w = resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
 				uview.carry[i], ut, uview.res_type_carried[i], sub, sim->unit_capturing(i));
-		return with_variant(w, uview.id[i]);
+		w = with_variant(w, uview.id[i]);
+		auto fv = form_variant_.find(uview.id[i]);
+		if (fv != form_variant_.end()) {
+			uint8_t civ = sim->team_civ(uview.team[i]);
+			if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
+			const uint8_t dt = drawn_unit_type(ut, uview.tmpl[i], uview.id[i]);
+			const uint16_t key = crowd_key_of(civ, dt, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
+			if (crowd_form_mask(civ, key) & (1u << fv->second))
+				w = with_formation_variant(w, uview.action_state[i], fv->second);
+		}
+		return w;
 	};
+	form_variant_.clear();
+	for (const auto &fc : sim->formations())
+		rtso::formvar::for_each_member_variant(fc, [this](uint32_t ent, uint8_t v) { form_variant_[ent] = v; });
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
 	std::memset(counts, 0, sizeof(counts));
@@ -3142,6 +3459,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		bool has_death_clip = v.anim && v.anim->has_animation(clip_name(CLIP_DEATH));
 		if (v.anim) {
+			ensure_form_clip(v.anim, want.clip);
 			ClipId play = resolve_clip_fallback(v.anim, want.clip);
 			// A borrowed Death is an idle standing in for a corpse; never loop it.
 			bool loop_clip = want.loop && play == want.clip;
@@ -3360,6 +3678,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 		push_player_color(v.root, v.player_rgba, player_display_color(sim, b.team));
+		{
+			// The ground decal of the model drawn: the foundation's while it is a site.
+			String decal_glb;
+			float dk = b_scale;
+			Vector3 dbase;
+			if (v.phase == 0) {
+				decal_glb = visual_id;
+			} else if (v.phase == 1 || v.phase == 2) {
+				if (Node3D *fn = Object::cast_to<Node3D>(v.foundation); fn && fn->is_visible()) {
+					decal_glb = v.foundation_glb;
+					dk = fn->get_scale().x;
+					dbase = fn->get_position();
+				}
+			}
+			update_building_decals(v, decal_glb, dk, dbase, Math::round(los_brightness(b.x, b.z) * (FOG_OVERLAY_LEVELS - 1)) / (FOG_OVERLAY_LEVELS - 1));
+		}
 
 		{
 			const float frac = b.max_hp > 0.0f ? b.hp / b.max_hp : 1.0f;
@@ -3372,6 +3706,25 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		update_upgrade_scaffold(v, visual_id, v.phase == 0 && b.upgrading);
 		update_production_fx(v, visual_id, v.phase == 0 && !b.miraged ? b.production : 0, b_scale, entry.y_offset);
+		{
+			// Dust while builders work on the foundation, or while the upgrade's scaffold stands.
+			const uint8_t dust = b.miraged ? 0 : v.phase == 2 ? 1 : (v.upgrade_scaffold && v.upgrade_scaffold->is_visible()) ? 2 : 0;
+			int builders = -1;
+			if (dust == 1) {
+				v.site_dust_poll -= delta;
+				if (v.site_dust_poll <= 0.0f || v.site_dust_kind != 1) {
+					v.site_dust_poll = 0.5f;
+					builders = 0;
+					for (const auto &rb : sim->buildings()) {
+						if (rb.id != b.id) continue;
+						rtso::Simulation::BuildWork work;
+						if (sim->structure_build_work(rb, work) && !work.repair) builders = work.builders;
+						break;
+					}
+				}
+			}
+			update_site_dust(v, dust, builders, visual_id, b_scale);
+		}
 		update_garrison_flag(v, visual_id, v.phase == 0 && !b.miraged && (sim->get_garrison_count(b.id) > 0 || (b.type == rtso::BLD_CORRAL && sim->corral_count(b.id) > 0)),
 				player_display_color(sim, b.team), b_scale, entry.y_offset);
 
@@ -3447,6 +3800,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].upgrade_scaffold = nullptr;
 			building_pool[s].production = 0;
 			building_pool[s].production_fx.clear();
+			building_pool[s].site_dust = nullptr;
+			building_pool[s].site_dust_kind = 0;
+			building_pool[s].site_dust_poll = 0.0f;
+			building_pool[s].decals.clear();
+			building_pool[s].decal_key = String();
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}

@@ -80,6 +80,7 @@ void RtsoMain::_notification(int p_what) {
 
 void RtsoMain::play_voice(const char *path) {
 	if (!voice_player || !path) return;
+	++voices_played_;
 	String p = path;
 	String final_path = p;
 	if (!final_path.begins_with("res://")) {
@@ -338,7 +339,7 @@ bool RtsoMain::chat_network_command(const String &text) {
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
-	if (flare_armed_ || rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare wins
+	if (flare_armed_ || flare_held()) { // MiniMap.js onWorldClick: the flare wins
 		flare_armed_ = false;
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
@@ -876,12 +877,12 @@ void RtsoMain::post_network_chat() {
 		if (!first) {
 			for (const auto &e : chat_assignments_)
 				if (e.status != rtso::PlayerAssignmentMsg::LEFT && !in(now, e.client))
-					chat_window_.append_line(sprintf0(tr("%(player)s has left the game."), {{"player", who(e)}}) + "\n");
+					chat_window_.append_kind(sprintf0(tr("%(player)s has left the game."), {{"player", who(e)}}) + "\n", CHAT_FILTER_NETWORK);
 			for (const auto &e : now)
 				if (e.status != rtso::PlayerAssignmentMsg::LEFT && !in(chat_assignments_, e.client))
-					chat_window_.append_line(sprintf0(e.player < rtso::MAX_PLAYERS
+					chat_window_.append_kind(sprintf0(e.player < rtso::MAX_PLAYERS
 							? tr("%(player)s is starting to rejoin the game.") : tr("%(player)s is starting to join the game."),
-							{{"player", who(e)}}) + "\n");
+							{{"player", who(e)}}) + "\n", CHAT_FILTER_NETWORK);
 		}
 		chat_assignments_ = now;
 	}
@@ -891,7 +892,7 @@ void RtsoMain::post_network_chat() {
 	for (; rejoined_chatted_ < rejoined.size(); ++rejoined_chatted_)
 		for (const auto &e : now)
 			if (e.client == rejoined[rejoined_chatted_] && e.status != rtso::PlayerAssignmentMsg::LEFT) {
-				chat_window_.append_line(sprintf0(tr("%(player)s has rejoined the game."), {{"player", who(e)}}) + "\n");
+				chat_window_.append_kind(sprintf0(tr("%(player)s has rejoined the game."), {{"player", who(e)}}) + "\n", CHAT_FILTER_NETWORK);
 				break;
 			}
 }
@@ -1165,6 +1166,7 @@ void RtsoMain::refresh_user_options() {
 		user_opts_.phase_notice = phase == "none" ? 0 : phase == "all" ? 2 : 1;
 	}
 	chat_window_.set_timestamps(uc::get_bool("chat.timestamp"));
+	if (chat_window_.extended() != uc::get_bool("chat.session.extended")) chat_window_.set_extended(uc::get_bool("chat.session.extended"));
 	range_overlays_.show_attack = uc::get_bool("gui.session.attackrange");
 	range_overlays_.show_auras = uc::get_bool("gui.session.aurasrange");
 	range_overlays_.show_heal = uc::get_bool("gui.session.healrange");
@@ -2670,7 +2672,7 @@ void RtsoMain::post_kick_chat() {
 	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
 		const auto &k = kicks[kicks_chatted_];
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		chat_window_.append_line(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n");
+		chat_window_.append_kind(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n", CHAT_FILTER_NETWORK);
 	}
 }
 
@@ -3340,6 +3342,7 @@ void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 
 void RtsoMain::toggle_chat() {
 	if (!chat_window_.is_open()) close_open_dialogs();
+	refresh_chat_tooltips();
 	chat_window_.toggle();
 }
 

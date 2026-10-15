@@ -539,6 +539,20 @@ public:
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
+	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
+	// Tests: the training roster's rows (name, disabled).
+	Array debug_roster() {
+		update_command_panel();
+		Array out;
+		if (ItemList *l = command_panel_.roster_list())
+			for (int i = 0; i < l->get_item_count(); ++i) {
+				Dictionary d;
+				d["text"] = l->get_item_text(i);
+				d["disabled"] = l->is_item_disabled(i);
+				out.push_back(d);
+			}
+		return out;
+	}
 	int ui_batch_size() const override { return user_opts_.batch_size; }
 	int ui_pending_batch(uint16_t tmpl) const override;
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
@@ -569,6 +583,9 @@ public:
 
 	void toggle_chat();
 	void _on_chat_send_pressed();
+	void _on_chat_filter_selected(int index); // ChatHistory.onSelectionChange
+	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
+	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
 	void _on_chat_text_submitted(const String &text);
 	void _on_chat_channel_btn_pressed(int channel_idx);
 
@@ -671,6 +688,11 @@ public:
 		return attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode;
 	}
 	bool armed_target_ok(const Vector3 &at) const;
+	// unit_actions.js "guard" target under the cursor: an own or allied unit (not a selected
+	// one) or structure; 0 when none.
+	uint32_t guard_target_at(const Vector3 &at) const;
+	// unit_actions.js "remove-guard": some selected unit is guarding.
+	bool selection_guarding() const;
 	bool run_armed_click(const Ref<InputEventMouseButton> &press);
 	bool minimap_unit_order(Vector2 world_pos);
 	Dictionary debug_right_line() const {
@@ -717,6 +739,8 @@ public:
 	void _on_ui_click();
 	void _on_ui_click_item(int) { _on_ui_click(); }
 	int debug_ui_clicks() const { return ui_clicks_; }
+	int voices_played_ = 0; // tests: unit voice lines started
+	int debug_voices() const { return voices_played_; }
 	// Tests: the control groups and camera as a save stores them, and setting the camera.
 	Dictionary debug_saved_gui() const {
 		Dictionary d;
@@ -727,6 +751,14 @@ public:
 		return d;
 	}
 	void debug_set_camera_data(const Dictionary &c) { if (cam_rig) cam_rig->set_camera_data(c); }
+	// Menu.xml: the menu panel hangs under the Menu button.
+	Rect2 menu_button_rect() const { return menu_btn ? menu_btn->get_global_rect() : Rect2(); }
+	// ChatInput.getOpenHotkeyTooltip (also the menu's Chat entry, MenuButtons.js).
+	String chat_open_hotkey_tooltip() const;
+	// input.js: session.flare held arms a flare, never in a replay (!g_IsReplay).
+	bool flare_held() const;
+	void refresh_chat_tooltips();
+	Dictionary debug_chat_tooltips() const { Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip(); return d; }
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);

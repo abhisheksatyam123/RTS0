@@ -273,6 +273,13 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 		auto rv = sim->resources();
 		for (size_t r = 0; r < rv.count; ++r)
 			if (rv.alive[r] && rv.amount[r] > 0 && rv.type[r] == rtso::RES_WOOD) { inspector_.inspect(RtsoInspectorView::INSPECT_RESOURCE, rv.id[r]); break; }
+	} else if (what == "relic") {
+		// A Gaia catafalque beside the player's Civic Center, inspected.
+		uint32_t relic = sim->relics().empty() ? 0 : sim->relics().front().id;
+		if (!relic)
+			for (const auto &b : sim->buildings())
+				if (b.team == local_player() && rtso::is_civic_centre(b.type)) { relic = sim->spawn_relic(b.x - 14.0f, b.z + 14.0f); break; }
+		if (relic) inspector_.inspect(RtsoInspectorView::INSPECT_UNIT, relic);
 	} else if (what == "livestock") {
 		auto fv = sim->fauna();
 		for (size_t f = 0; f < fv.count; ++f)
@@ -561,6 +568,8 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["chat_log"] = chat_window_.log_text();
 	d["chat_overlay"] = (int64_t)chat_window_.overlay_count();
 	d["chat_addressee"] = chat_window_.addressee_label();
+	d["chat_extended"] = chat_window_.extended();
+	d["chat_filters"] = (int64_t)chat_window_.filter_count();
 	return d;
 }
 
