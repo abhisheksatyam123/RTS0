@@ -506,6 +506,7 @@ void RtsoWorldView::_ready() {
 		for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
 			for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 				fauna_mm[f][c] = create_multimesh(fauna_rest[f], false);
+				fauna_mm[f][c]->set_use_custom_data(true); // the coat draw (player_color.gdshader variant_u)
 				fauna_mmi[f][c] = memnew(MultiMeshInstance3D);
 				fauna_mmi[f][c]->set_multimesh(fauna_mm[f][c]);
 				if (silhouettes_ && silhouette_mat_.is_valid()) fauna_mmi[f][c]->set_material_overlay(silhouette_mat_);
@@ -4788,6 +4789,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int fslot = f_written[ft][clip]++;
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
+			// 0.28 picks each animal's coat by its variant frequencies (data/unit_variants.json).
+			fauna_mm[ft][clip]->set_instance_custom_data(fslot, Color(1.0f, 1.0f, 1.0f, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(fview.id[f])));
 		}
 		const bool f_sel = !sel_set.empty() && sel_set.count((int32_t)fview.id[f]);
 		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {
