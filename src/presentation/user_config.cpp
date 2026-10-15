@@ -54,6 +54,7 @@ const Default kDefaults[] = {
 	{"sharpening", "disabled"},
 	{"sharpness", "0.3"},
 	{"variant_diversity", "full"},
+	{"materialmgr.quality", "10.0"},
 	{"view.drag.speed", "0.5"},
 	{"view.scroll.speed.modifier", "1.05"},
 	{"view.rotate.speed.modifier", "1.05"},
