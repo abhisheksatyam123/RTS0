@@ -135,13 +135,31 @@ func run() -> void:
 		var bio_ids := func(): return range(bio.get_item_count()).map(func(i): return bio.get_item_id(i))
 		select_map(page, "random_african_plains")
 		await frames(2)
-		check(bio_slot.is_visible_in_tree() and bio_ids.call() == [0, 4, 7, 11], "African Plains: Map default, Oasis, Savanna, Nubia: " + str(bio_ids.call()))
+		check(bio_slot.is_visible_in_tree() and bio_ids.call() == [page.RANDOM_BIOME, 4, 7, 11], "African Plains: Random, Oasis, Savanna, Nubia: " + str(bio_ids.call()))
+		check(bio.text == "Random" and page._collect_setup()["biome"] == page.RANDOM_BIOME, "Random is the default: " + bio.text)
+		check(bio.get_item_tooltip(0) == "Pick a biome at random." and bio.get_item_tooltip(2).begins_with("The transition between the dry Sahara"), "each entry has its 0.28 description")
 		bio.select(2)
 		page._on_biome_selected(2)
 		check(page._collect_setup()["biome"] == 7, "Savanna goes to the match")
 		select_map(page, "random_mainland")
 		await frames(2)
 		check(bio_ids.call().has(7) and bio.text == "Savanna", "Mainland offers Savanna too and keeps it: " + bio.text)
+		print("3d. 0.28's Last Man Standing, Nomad and Hero Garrison rules")
+		var lock: CheckBox = page.get_node("%LockTeams")
+		var lms: CheckBox = page.get_node("%LastManStanding")
+		var hg: CheckBox = page.get_node("%RegicideGarrison")
+		check(page.get_node("%Nomad").visible, "Nomad shows on a random map")
+		lms.button_pressed = true
+		lock.button_pressed = true
+		check(lms.disabled and not page._collect_setup()["lms"], "Locked Teams disables Last Man Standing")
+		lock.button_pressed = false
+		check(not lms.disabled and page._collect_setup()["lms"], "unlocked teams bring it back")
+		lms.button_pressed = false
+		var vm: int = page._victory_mask()
+		page._set_victory_mask(vm | page.VK_REGICIDE)
+		check(hg.visible, "Hero Garrison shows with Regicide")
+		page._set_victory_mask(vm & ~page.VK_REGICIDE)
+		check(not hg.visible, "and hides without it")
 		select_map(page, "random_archipelago")
 		await frames(2)
 		check(not bio_slot.is_visible_in_tree() and page._collect_setup()["biome"] == 0, "RTS0's own Archipelago has no Biome")
@@ -163,7 +181,7 @@ func run() -> void:
 	# 0.28 MapSize: random maps only, Normal (256) by default; WonderDuration and the relic
 	# sliders only while their condition is checked.
 	var msz: RtsoSafeSelect = node(page, "MapSizeSlot").get_child(0)
-	check(node(page, "MapSizeSlot").visible and msz.text == "Normal (256 m)", "map size Normal (256 m): " + msz.text)
+	check(node(page, "MapSizeSlot").visible and msz.text == "Normal", "map size Normal: " + msz.text)
 	var vt: Control = node(page, "VictoryTimesRow")
 	page._set_victory_mask(1)
 	check(not vt.visible, "no wonder or relic settings under Conquest")
@@ -203,6 +221,7 @@ func run() -> void:
 	check(pop.disabled and cf.disabled and cf.text == "No ceasefire", "population and ceasefire locked")
 	for path in ["LastManStanding", "StartRow/LockTeams", "StartRow/DisableTreasures", "MapVisRow/RevealMap", "MapVisRow/ExploreMap", "MapVisRow/AlliedView", "MapVisRow/DisableSpies"]:
 		check(node(page, path).disabled, path + " locked")
+	check(not page.get_node("%Nomad").visible and not page.get_node("%RegicideGarrison").visible, "no Nomad or Hero Garrison on a scenario")
 	check(select_map(page, "sahel_scenario"), "the Sahel scenario")
 	await frames(2)
 	rows = slot_selects(page)

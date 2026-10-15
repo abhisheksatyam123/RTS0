@@ -935,6 +935,10 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		395, // samnite_spearman
 		381, // samnite_swordsman
 		396, // viking_longship
+		-1, // merc_thorakites (no model of its own: its owner civ's swordsman model)
+		-1, // merc_thureophoros (no model of its own: its owner civ's archer model)
+		-1, // theb_sacred_band (no model of its own: its owner civ's spearman model)
+		-1, // thesp_melanochitones (no model of its own: its owner civ's swordsman model)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1474,6 +1478,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 502, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 506, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso

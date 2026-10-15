@@ -20356,56 +20356,6 @@
     }
    }
   },
-  "rome/cavalry_auxiliary_b": {
-   "generic_name": "Auxiliary Cavalry",
-   "specific_name": "Eques Alaris",
-   "tooltip": "",
-   "history": "",
-   "classes": [
-    "Citizen",
-    "Soldier",
-    "Cavalry",
-    "Ranged",
-    "Javelineer",
-    "Auxiliary"
-   ],
-   "icon": "units/rome/cavalry_auxiliary.png",
-   "builds": [],
-   "viewer": {
-    "attacks": [
-     {
-      "type": "Capture",
-      "name": "Capture",
-      "min_range": 0,
-      "max_range": 4,
-      "y_origin": 0,
-      "repeat_time": 1,
-      "capture": 2.5
-     },
-     {
-      "type": "Ranged",
-      "name": "Javelin",
-      "min_range": 0,
-      "max_range": 30,
-      "y_origin": 0,
-      "repeat_time": 1.25,
-      "damage": {
-       "Pierce": 18
-      }
-     }
-    ],
-    "garrison_size": 1,
-    "speed": {
-     "walk": 16.2,
-     "run": 22.68,
-     "acceleration": 31.5
-    },
-    "gather": {
-     "food.meat": 5
-    },
-    "rank": "Basic"
-   }
-  },
   "rome/infantry_antesignanus": {
    "generic_name": "Legionary Skirmisher",
    "specific_name": "Antesignānus",
@@ -26918,6 +26868,193 @@
       "block": 1,
       "duration": 0
      }
+    }
+   }
+  },
+  "merc_thorakites": {
+   "generic_name": "Armored Swordsman",
+   "specific_name": "Thōrakitēs",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Swordsman",
+    "Mercenary"
+   ],
+   "icon": "units/mace/thorakites.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 15.6,
+       "Pierce": 0,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "merc_thureophoros": {
+   "generic_name": "Heavy Skirmisher",
+   "specific_name": "Thyreophoros",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Ranged",
+    "Javelineer",
+    "Mercenary"
+   ],
+   "icon": "units/mace/thureophoros.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Ranged",
+      "name": "Javelin",
+      "min_range": 0,
+      "max_range": 30,
+      "y_origin": 0,
+      "repeat_time": 1.5,
+      "damage": {
+       "Pierce": 35.2,
+       "Hack": 0,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 10.45,
+     "run": 17.4515,
+     "acceleration": 42
+    }
+   }
+  },
+  "theb_sacred_band": {
+   "generic_name": "Theban Sacred Band Hoplite",
+   "specific_name": "Hieroû Thebaíou Lókhou Hoplítai",
+   "tooltip": "Champion Spearman.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Spearman"
+   ],
+   "icon": "units/theb/champion_infantry_hoplite.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Spear",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 10,
+       "Pierce": 8.5
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "thesp_melanochitones": {
+   "generic_name": "Thespian Black Cloak",
+   "specific_name": "Melanochitones",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/theb/champion_infantry_swordsman.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 16
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
     }
    }
   }
@@ -42495,12 +42632,6 @@
    "description": "A bronze beak at the prow of the ship, used for ramming enemy ships.",
    "requirements_tooltip": "Unlocked in City Phase.",
    "icon": "ship_ram.png"
-  },
-  "warship_ramming_speed": {
-   "tooltip": "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”",
-   "description": "The flanking maneuver was attempted in order to position the ship for a successful ram. To pull this off in the chaos of a sea battle, a ship's crew needed to be highly trained and well-motivated.",
-   "requirements_tooltip": "Unlocked in Town Phase.",
-   "icon": "trihemiolia.png"
   },
   "warship_ranged_attack": {
    "tooltip": "Ranged Warships +10% attack damage.",
