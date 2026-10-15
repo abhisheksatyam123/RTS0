@@ -1304,6 +1304,8 @@ def collect(sim_root):
                 flags.append("ROSTER_RELIC")
             hero_auras = []
             own_auras = loader.own_tokens(name, "Auras")
+            if re.search(r"_[ae]$", name):  # an _a/_e rank keeps its _b's own aura (gaul/support_healer_e: celtic_healer)
+                own_auras = own_auras + loader.own_tokens(re.sub(r"_[ae]$", "_b", name), "Auras")
             for aname in t.tokens("Auras"):
                 apath = os.path.join(sim_root, "data", "auras", aname + ".json")
                 if not os.path.isfile(apath):

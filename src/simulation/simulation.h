@@ -545,6 +545,13 @@ public:
 	uint16_t ally_civ_mask(uint8_t pid) const;
 	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
 	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
+	// Trainer.js GetUpgradedTemplate: the template a queued `tmpl` is trained as, following its
+	// Promotion while the player's RequiredXp for the step is 0 (Marian Reforms' Legionaries,
+	// mercenaries trained Advanced), and the rank it ends on. Cost and time are that template's.
+	uint16_t trained_as(uint8_t pid, uint16_t tmpl, uint8_t &rank) const;
+	// One unit's training time before the batch multiplier: the trained-as template's
+	// Cost/BuildTime with team bonuses, technologies, AI difficulty and x1.2 per rank above Basic.
+	float unit_train_seconds(uint8_t pid, uint16_t tmpl) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	// max_gatherers 0: the gaia template default (resource_default_max_gatherers).
 	// flora: the FloraKind the supply shows (FLORA_DEFAULT: the biome's pick).
