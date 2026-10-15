@@ -213,11 +213,14 @@ int main() {
 	// City Phase needs three Town structures.
 	CHECK(s.research_check(0, TECH_PHASE_CITY, tc) == Simulation::TECH_ERR_STRUCTURES);
 
-	// The Loom (+100% civilian health) applies to existing and new units.
+	// The Loom (+100% civilian health) applies to existing and new units; 0.28's Civilian
+	// class is support_civilian's alone, so a trader (Support) keeps its health.
 	uint32_t woman = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t trader = s.spawn_unit(3.0f, 3.0f, 0, UNIT_TRADER);
 	run(s, 0.1f);
 	float hp0 = unit_max_hp(s, woman);
-	CHECK(hp0 > 0.0f);
+	const float trader_hp0 = unit_max_hp(s, trader);
+	CHECK(hp0 > 0.0f && trader_hp0 > 0.0f);
 	uint32_t house = 0;
 	for (const auto &b : s.buildings()) if (b.type == BLD_HOUSE && b.team == 0) { house = b.id; break; }
 	CHECK(s.cmd_research(0, house, TECH_HEALTH_CIVILIANS_01));
@@ -226,6 +229,7 @@ int main() {
 	CHECK(std::fabs(unit_max_hp(s, woman) - 2.0f * hp0) < 0.01f);
 	uint32_t woman2 = s.spawn_unit(2.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
 	CHECK(std::fabs(unit_max_hp(s, woman2) - 2.0f * hp0) < 0.01f);
+	CHECK(std::fabs(unit_max_hp(s, trader) - trader_hp0) < 0.01f);
 
 	// Home Garden: houses +20% population bonus.
 	int pop0 = s.pop_max();
