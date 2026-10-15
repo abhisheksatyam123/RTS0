@@ -231,6 +231,9 @@ struct NavGrid {
     // How far, in world units, the nodes' tests reach past a clearance, so that a square or a
     // rectangle that only touches a node's (a float's rounding either way) closes it.
     static constexpr float TILE_HAIR = 1e-3f;
+    // A start region of at most this many nodes is walked whole when MakeGoalReachable moves a goal
+    // the start can't reach (find_path_tiles), rather than scanned in rings round a far goal.
+    static constexpr size_t TILE_POCKET_NODES = 1024;
 
     // A static obstruction the tile pass keeps units off (CCmpObstructionManager::Rasterize: the
     // static shapes that BlockPathfinding): a rectangle centred on (x, z), hu along u = (ux, uz) and
@@ -649,45 +652,76 @@ struct NavGrid {
     // Adds (delta 1) or takes off (delta -1) obstruction o's cover of the nodes of class cls, listing
     // in `crossed` each node whose count rose from 0 or fell to it. 0.28 blocks the navcells inside
     // the shape grown by the class Clearance (RasterizeRectWithClearance); a node is covered when the
-    // obstruction grown by the clearance (and a hair) holds it. The shape is grown by the clearance
+    // obstruction grown by the clearance (and a hair) holds it, as separation() and the steering grow
+    // a footprint by a unit's clearance along its own axes. The shape is grown by the clearance
     // alone, as forest_cell_closed grows trees, not also by RasterizeRectWithClearance's
     // CLEARANCE_EXTENSION_RADIUS (1 m): on nodes twice as far apart as 0.28's navcells, that metre
-    // would close gaps beside cliffs that 0.28 leaves open. Square with the map, that rectangle
-    // (at least a node spacing wide: a narrower one is widened) can't lie across a step between two
-    // nodes outside it, nor across the square of four, without holding one of them. A turned
-    // rectangle's corner can, so a turned one also covers each node whose square of half a spacing
-    // round it the rectangle reaches into: then each point of a step, or of a square of four open
-    // nodes, lies in the square of one of them.
+    // would close gaps beside cliffs that 0.28 leaves open. A rectangle narrower than a node spacing
+    // is widened to one, so that no step between two nodes outside it crosses it from side to side.
+    // Square with the map, such a rectangle can't lie across a step between two nodes outside it,
+    // nor across the square of four, without holding one of them. A turned rectangle's corner can
+    // cut across a step (a corner no more than a step's length from both of the step's nodes), so a
+    // turned one also covers the two nodes of each step it cuts that way: a step to one of the eight
+    // neighbours, outside the rectangle too (a diagonal one only when the two nodes beside it are
+    // outside it as well, as JPS takes a diagonal step only past two open nodes). Then no step
+    // between open nodes, and no square of four, crosses it, and a path along open nodes is one a
+    // unit can walk, while the nodes beside its faces stay open as they do beside a shape square
+    // with the map.
     void tile_obs_raster(const TileObstruction &o, int cls, int delta, std::vector<uint32_t> *crossed) {
         const int nw = node_res();
         if (nw <= 0) return;
         const float s = node_step(), hs = 0.5f * s, g = tile_clearance(cls) + TILE_HAIR;
         const bool turned = o.uz != 0.0f;
-        float hu = o.hu + g, hv = o.hv + g;
-        if (!turned) {
-            hu = std::max(hu, hs + TILE_HAIR);
-            hv = std::max(hv, hs + TILE_HAIR);
-        }
+        const float hu = std::max(o.hu + g, hs + TILE_HAIR), hv = std::max(o.hv + g, hs + TILE_HAIR);
         const float au = std::fabs(o.ux), av = std::fabs(o.uz);
+        // A step that cuts a turned rectangle's corner has its nodes within s * sqrt(2) of it.
+        const float reach = turned ? 1.5f * s : 0.0f;
         // The half sizes, along x and z, of the box round the nodes it may cover.
-        const float ex = turned ? hu * au + hv * av + hs : hu, ez = turned ? hu * av + hv * au + hs : hv;
+        const float ex = turned ? hu * au + hv * av + reach : hu, ez = turned ? hu * av + hv * au + reach : hv;
         const int a0 = std::max(0, static_cast<int>(std::ceil((o.x - ex + map_half) / s)));
         const int a1 = std::min(nw - 1, static_cast<int>(std::floor((o.x + ex + map_half) / s)));
         const int b0 = std::max(0, static_cast<int>(std::ceil((o.z - ez + map_half) / s)));
         const int b1 = std::min(nw - 1, static_cast<int>(std::floor((o.z + ez + map_half) / s)));
+        // Whether node (a, b) lies inside the turned rectangle.
+        auto inside = [&](int a, int b) {
+            const float dx = node_pos(a) - o.x, dz = node_pos(b) - o.z;
+            const float lu = dx * o.ux + dz * o.uz, lv = dz * o.ux - dx * o.uz;
+            return std::fabs(lu) < hu && std::fabs(lv) < hv;
+        };
+        // Its corners. A step that crosses it from face to opposite face is at least 2 min(hu, hv)
+        // long inside it, so one at least a step and a half wide each way is cut only at a corner;
+        // a narrower one is tested at every node round it.
+        const float cu = hu * o.ux, cv = hu * o.uz, du = -hv * o.uz, dv = hv * o.ux;
+        const float corner_x[4] = {o.x + cu + du, o.x + cu - du, o.x - cu + du, o.x - cu - du};
+        const float corner_z[4] = {o.z + cv + dv, o.z + cv - dv, o.z - cv + dv, o.z - cv - dv};
+        const bool wide = std::min(hu, hv) >= 0.75f * s;
+        auto near_corner = [&](float x, float z) {
+            if (!wide) return true;
+            for (int k = 0; k < 4; ++k)
+                if (std::fabs(x - corner_x[k]) <= reach && std::fabs(z - corner_z[k]) <= reach) return true;
+            return false;
+        };
+        // Whether a step from node (a, b), outside the rectangle, to a neighbour outside it cuts it.
+        auto cut = [&](int a, int b) {
+            const float x = node_pos(a), z = node_pos(b);
+            if (!near_corner(x, z)) return false;
+            for (int db = -1; db <= 1; ++db)
+                for (int da = -1; da <= 1; ++da) {
+                    const int a2 = a + da, b2 = b + db;
+                    if ((da == 0 && db == 0) || a2 < 0 || b2 < 0 || a2 >= nw || b2 >= nw || inside(a2, b2)) continue;
+                    if (da != 0 && db != 0 && (inside(a2, b) || inside(a, b2))) continue;
+                    if (rect_segment_hit(o, hu, hv, x, z, node_pos(a2), node_pos(b2))) return true;
+                }
+            return false;
+        };
         std::vector<uint16_t> &count = tile_obs_count_[cls];
         for (int b = b0; b <= b1; ++b)
             for (int a = a0; a <= a1; ++a) {
-                const float dx = node_pos(a) - o.x, dz = node_pos(b) - o.z;
                 bool in;
                 if (!turned) {
-                    in = std::fabs(dx) < hu && std::fabs(dz) < hv;
+                    in = std::fabs(node_pos(a) - o.x) < hu && std::fabs(node_pos(b) - o.z) < hv;
                 } else {
-                    // The node's square against the rectangle: apart along x, z, u or v (the
-                    // separating axis test of nav::footprint_overlaps_box).
-                    const float lu = dx * o.ux + dz * o.uz, lv = dz * o.ux - dx * o.uz;
-                    in = std::fabs(dx) < ex && std::fabs(dz) < ez && std::fabs(lu) < hu + hs * (au + av) &&
-                         std::fabs(lv) < hv + hs * (au + av);
+                    in = inside(a, b) || cut(a, b);
                 }
                 if (!in) continue;
                 const size_t k = static_cast<size_t>(b) * static_cast<size_t>(nw) + static_cast<size_t>(a);
@@ -756,7 +790,10 @@ struct NavGrid {
     // Whether the segment from (ax, az) to (bx, bz) passes inside obstruction o grown by g, its ends
     // included: the segment in the rectangle's own axes, clipped to the slabs |u| < hu, |v| < hv.
     static bool tile_obs_segment_hit(const TileObstruction &o, float ax, float az, float bx, float bz, float g) {
-        const float hu = o.hu + g, hv = o.hv + g;
+        return rect_segment_hit(o, o.hu + g, o.hv + g, ax, az, bx, bz);
+    }
+    // The same for o's rectangle with the half sizes hu and hv.
+    static bool rect_segment_hit(const TileObstruction &o, float hu, float hv, float ax, float az, float bx, float bz) {
         const float pax = ax - o.x, paz = az - o.z, pbx = bx - o.x, pbz = bz - o.z;
         const float ua = o.uz == 0.0f ? pax : pax * o.ux + paz * o.uz, va = o.uz == 0.0f ? paz : paz * o.ux - pax * o.uz;
         const float ub = o.uz == 0.0f ? pbx : pbx * o.ux + pbz * o.uz, vb = o.uz == 0.0f ? pbz : pbz * o.ux - pbx * o.uz;
@@ -2166,17 +2203,48 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
     if (!snap_tile(gi, gj, tx, tz, tile_snap_reach(), open) && !want) return false;
     if (want && (!open(gi, gj) || regions[at(gi, gj)] != want)) {
         int best_d = -1, bi = gi0, bj = gj0;
-        const int max_r = std::max(std::max(gi0, nw - 1 - gi0), std::max(gj0, nw - 1 - gj0));
+        auto consider = [&](int i, int j) {
+            const int di = i - gi0, dj = j - gj0, d = di * di + dj * dj;
+            if (best_d >= 0 && (d > best_d || (d == best_d && (j > bj || (j == bj && i > bi))))) return;
+            best_d = d;
+            bi = i;
+            bj = j;
+        };
+        // The start's region is first walked from the start, up to TILE_POCKET_NODES nodes: a pocket
+        // (a gap between trees on a ridge) is then known whole, and a far goal costs no rings out to
+        // it. A larger region seeds best_d with the nodes walked, so the rings round the goal stop
+        // sooner; they find the same node, since every node walked is one of the region's.
+        bool whole = false;
+        {
+            thread_local std::vector<uint8_t> seen;
+            thread_local std::vector<std::pair<int, int>> todo;
+            if (seen.size() != regions.size()) seen.assign(regions.size(), 0);
+            todo.clear();
+            todo.emplace_back(si, sj);
+            seen[at(si, sj)] = 1;
+            size_t k = 0;
+            for (; k < todo.size() && todo.size() <= TILE_POCKET_NODES; ++k) {
+                const auto [i, j] = todo[k];
+                consider(i, j);
+                const int ni[4] = {i - 1, i + 1, i, i}, nj[4] = {j, j, j - 1, j + 1};
+                for (int n = 0; n < 4; ++n) {
+                    if (ni[n] < 0 || nj[n] < 0 || ni[n] >= nw || nj[n] >= nw) continue;
+                    const size_t a = at(ni[n], nj[n]);
+                    if (seen[a] || regions[a] != want) continue;
+                    seen[a] = 1;
+                    todo.emplace_back(ni[n], nj[n]);
+                }
+            }
+            whole = k == todo.size();
+            for (const auto &[i, j] : todo) seen[at(i, j)] = 0;
+        }
+        const int max_r = whole ? 0 : std::max(std::max(gi0, nw - 1 - gi0), std::max(gj0, nw - 1 - gj0));
         for (int r = 1; r <= max_r && (best_d < 0 || r * r <= best_d); ++r)
             for (int dj = -r; dj <= r; ++dj)
                 for (int di = -r; di <= r; di += (dj == -r || dj == r || di == r) ? 1 : 2 * r) {
-                    const int i = gi0 + di, j = gj0 + dj, d = di * di + dj * dj;
+                    const int i = gi0 + di, j = gj0 + dj;
                     if (i < 0 || j < 0 || i >= nw || j >= nw) continue;
-                    if (best_d >= 0 && (d > best_d || (d == best_d && (j > bj || (j == bj && i > bi))))) continue;
-                    if (regions[at(i, j)] != want) continue;
-                    best_d = d;
-                    bi = i;
-                    bj = j;
+                    if (regions[at(i, j)] == want) consider(i, j);
                 }
         if (best_d < 0) return false;
         gi = bi;

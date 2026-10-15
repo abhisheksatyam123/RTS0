@@ -108,6 +108,15 @@
 //     tiles and a structure's edge): a house across the gap's far end, on a navcell it only partly
 //     covers, which stays open. No unit fits between it and the ridge, as 0.28's 1 m navcells show,
 //     so walks across the gap go round the ridge's end instead of into the house.
+// 34. The nodes after a load (soak: Sahara seed 3, a game saved at minute 0 and loaded went out of
+//     sync): RmsGenerator's plant_flora gives palms and bushes their kind after placing them
+//     (set_resource_flora), and with it their obstruction size. The nodes take the new size, as a
+//     load of the same game does, so both copies hold the same tree list and open nodes.
+// 35. A turned structure beside a cliff: a corridor between two walls of steep tiles and a house turned
+//     45 degrees in it, its north corner leaving a gap to the north wall. The nodes close the house
+//     grown by the class clearance and the steps that cut its corners, not a margin round every
+//     face, so a swordsman and a ram walk through gaps the steering lets them through (as 0.28
+//     does), instead of round the walls' ends.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -120,7 +129,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <string>
 #include <vector>
 
 using namespace rtso;
@@ -1631,9 +1643,13 @@ static void thin_ridges() {
 			if (s.player_resource(0, RES_WOOD) >= wood0 + 10) dropped = t;
 		}
 		const int i = index_of(s, woman);
-		std::printf("  thin ridge: a woman returning wood across it dropped it after %d ticks (-1 = never in 2400), last at (%.2f, %.2f)\n",
-				dropped, s.units_.pos_x[i], s.units_.pos_z[i]);
+		const float from_store = std::hypot(s.units_.pos_x[i] - 7.0f, s.units_.pos_z[i]);
+		std::printf("  thin ridge: a woman returning wood across it dropped it after %d ticks (-1 = never in 2400), last at (%.2f, %.2f), "
+				"%.1f from the storehouse\n", dropped, s.units_.pos_x[i], s.units_.pos_z[i], from_store);
 		check(dropped >= 0, "a woman never got round a thin ridge to her storehouse");
+		// At the storehouse, not at setup()'s town centre (-52, -52), where UnitAI sends her when she
+		// can't get round (the nearest other dropsite).
+		check(dropped >= 0 && from_store < 4.0f, "a woman returning wood across a thin ridge dropped it elsewhere than at her storehouse");
 	}
 	{
 		// The same return, but the woman still holds the path straight across the ridge that a long
@@ -1670,10 +1686,13 @@ static void thin_ridges() {
 			if (s.player_resource(0, RES_WOOD) >= wood0 + 10) dropped = t;
 		}
 		const int i = index_of(s, woman);
+		const float from_store = std::hypot(s.units_.pos_x[i] - 7.0f, s.units_.pos_z[i]);
 		std::printf("  thin ridge: a woman holding a path across it reached its margin after %d ticks, dropped the wood after %d "
-				"(-1 = never in 2400), last at (%.2f, %.2f)\n", at_ridge, dropped, s.units_.pos_x[i], s.units_.pos_z[i]);
+				"(-1 = never in 2400), last at (%.2f, %.2f), %.1f from the storehouse\n", at_ridge, dropped, s.units_.pos_x[i],
+				s.units_.pos_z[i], from_store);
 		check(at_ridge >= 0, "a woman holding a path across a thin ridge never walked up to it");
 		check(dropped >= 0, "a woman holding a path across a thin ridge never planned it again");
+		check(dropped >= 0 && from_store < 4.0f, "a woman holding a path across a thin ridge dropped the wood elsewhere than at her storehouse");
 	}
 	{
 		// GARRISON.APPROACHING a tower whose west face, the side the unit comes from, is the ridge's
@@ -2019,6 +2038,101 @@ static void structure_beside_one_tile_gap() {
 		}
 }
 
+// 34. The nodes after a load.
+static void nodes_after_load() {
+	auto a = std::make_unique<Simulation>(), b = std::make_unique<Simulation>();
+	a->reset();
+	a->set_sim_seed(3);
+	a->set_waves_enabled(false);
+	const uint8_t civs[4] = {0, 5, 9, 13};
+	for (uint8_t p = 0; p < 4; ++p) a->set_team_civ(p, civs[p]);
+	a->generate_random_map(MAP_SAHARA, 3, 4, 128.0f);
+	const char *dir = std::getenv("TMPDIR");
+	const std::string path = std::string(dir && *dir ? dir : "/tmp") + "/rts0_test_building_steering_nodes.sav";
+	const bool ok = a->save_state(path.c_str()) && b->load_state(path.c_str());
+	std::remove(path.c_str());
+	const NavGrid &x = a->nav_grid_, &y = b->nav_grid_;
+	const auto &l = x.tile_obs_[NavGrid::TILE_OBS_GAIA], &m = y.tile_obs_[NavGrid::TILE_OBS_GAIA];
+	size_t differ = l.size() == m.size() ? 0 : std::max(l.size(), m.size());
+	for (size_t k = 0; k < l.size() && k < m.size(); ++k) differ += l[k] != m[k];
+	size_t open_differ[NavGrid::TILE_CLASSES] = {};
+	for (int cls = 0; cls < NavGrid::TILE_CLASSES; ++cls) {
+		const auto &p = x.tile_open_[cls], &q = y.tile_open_[cls];
+		open_differ[cls] = p.size() == q.size() ? 0 : std::max(p.size(), q.size());
+		for (size_t k = 0; k < p.size() && k < q.size(); ++k) open_differ[cls] += p[k] != q[k];
+	}
+	std::printf("  nodes after a load (Sahara, seed 3): %s, nodes kept %d, %zu trees and bushes listed, %zu of them differ in the "
+			"loaded copy, open nodes differ at %zu (default) and %zu (large)\n", ok ? "saved and loaded" : "save or load FAILED",
+			x.tile_open_cached(), l.size(), differ, open_differ[0], open_differ[1]);
+	check(ok, "the game could not be saved and loaded");
+	check(x.tile_open_cached() && !l.empty(), "Sahara keeps no nodes or lists no trees on them");
+	check(differ == 0, "a load lists the trees and bushes on the nodes otherwise than the game it was saved from");
+	check(open_differ[0] == 0 && open_differ[1] == 0, "a load opens other nodes than the game it was saved from");
+}
+
+// 35. A turned structure beside a cliff. Heights every unit, as in cliff_clearance_setup; the samples
+// along z = -1 and z = north + 1 are raised 6 for x in [-30, 30], so the tiles z -2 to 0 and north to
+// north + 2 there are steep: a corridor from z = 0 to z = north. A house (2 units a side) turned 45
+// degrees stands in it at x = xc, its north corner gap_m metres south of the north wall and its south
+// corner in the south one. A player's walk along the corridor's middle, from x = -10 to x = 10. Sets
+// the tick it got there (-1: never in 3000), its furthest from the corridor's middle, its furthest
+// along it from x = 0 (round the walls' ends: past 30) and its deepest overlap with the house.
+static void walk_past_turned_house(UnitType type, int north, float gap_m, float xc, int &arrived, float &max_dev, float &far_x,
+		float &pen) {
+	Simulation s;
+	setup(s);
+	constexpr int RES = 129;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES, 0.0f);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const int x = i - 64, z = j - 64;
+			if (x >= -30 && x <= 30 && (z == -1 || z == north + 1)) h[(size_t)j * RES + i] = 6.0f;
+		}
+	s.set_terrain_data(h, RES, -1.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+	const float rot = Simulation::DEFAULT_BUILDING_ROT + 0.785398163f;
+	const float half = building_type_info(BLD_HOUSE).footprint * Simulation::GRID * 0.5f;
+	const float corner = half * 1.41421356f; // from its centre to its north corner
+	s.spawn_building_world(xc, (float)north - gap_m / 4.0f - corner, BLD_HOUSE, 0, 1.0f, rot);
+	s.tick(DT);
+	const float mid = 0.5f * (float)north;
+	const uint32_t id = s.spawn_unit(-10.0f, mid, 0, type);
+	s.order_walk(&id, 1, 10.0f, mid, false, true);
+	arrived = -1;
+	max_dev = 0.0f;
+	far_x = 0.0f;
+	pen = 0.0f;
+	for (int t = 0; t < 3000 && arrived < 0; ++t) {
+		s.tick(DT);
+		const int i = index_of(s, id);
+		if (i < 0) break;
+		pen = std::max(pen, max_penetration(s));
+		max_dev = std::max(max_dev, std::fabs(s.units_.pos_z[i] - mid));
+		far_x = std::max(far_x, std::fabs(s.units_.pos_x[i]));
+		if (std::hypot(s.units_.pos_x[i] - 10.0f, s.units_.pos_z[i] - mid) < 1.0f) arrived = t;
+	}
+}
+
+static void turned_structure_beside_cliff() {
+	struct Case { UnitType type; const char *name; int north; float gap_m; };
+	for (const Case c : {Case{UNIT_SWORDSMAN, "a swordsman", 3, 3.5f}, Case{UNIT_SWORDSMAN, "a swordsman", 3, 4.0f},
+			Case{UNIT_SIEGE_RAM, "a ram", 5, 9.0f}})
+		for (const float xc : {0.0f, 0.13f, 0.26f, 0.39f}) {
+			int arrived;
+			float max_dev, far_x, pen;
+			walk_past_turned_house(c.type, c.north, c.gap_m, xc, arrived, max_dev, far_x, pen);
+			std::printf("  turned house beside a cliff: %s past a %.1f m gap (house at x %.2f) arrived after %d ticks (-1 = never in "
+					"3000), at most %.1f off the corridor's middle and %.1f from x = 0, max penetration %.3f\n", c.name, c.gap_m, xc,
+					arrived, max_dev, far_x, pen);
+			check(arrived >= 0, "a unit never got past a turned house beside a cliff");
+			check(far_x < 20.0f, "a unit went round a gap between a turned house and a cliff that it fits through");
+			check(pen <= MAX_PENETRATION, "a unit walked into a turned house beside a cliff");
+		}
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -2053,6 +2167,8 @@ int main() {
 	large_units_and_two_tile_gap();
 	tree_in_one_tile_gap();
 	structure_beside_one_tile_gap();
+	nodes_after_load();
+	turned_structure_beside_cliff();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

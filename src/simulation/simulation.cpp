@@ -1610,7 +1610,7 @@ void Simulation::rebuild_nav_grid() {
 // that BlockPathfinding onto 0.28's navcells. With `structures`, the ones rebuild_nav_grid closes
 // navcells for (structures, an unlocked gate's sides, scenery, mines) are listed afresh; the trees,
 // bushes and treasures (ensure_gaia_obstacles) are, with or without, when they have changed: when
-// the signature of their ids and places isn't the one NavGrid keeps with their list (init() forgets
+// the signature of their ids, places and sizes isn't the one NavGrid keeps with their list (init() forgets
 // it with the list). rebuild_nav_grid calls it with, tick() without at its end, so a game and the
 // same game loaded from a save (which rebuilds the nav grid) hold the same lists whenever a path is
 // planned.
@@ -1625,7 +1625,10 @@ void Simulation::sync_tile_obstructions(bool structures) {
 		return resources_.subtype[r] == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD) && resources_.alive[r] &&
 				resources_.amount[r] > 0;
 	};
-	// Supplies and treasures keep their place and size, so their ids and places name the Gaia list.
+	// Treasures keep their place and size, so their ids and places name them. A supply's size is its
+	// flora's (resource_block_half), which set_resource_flora sets after the supply is placed
+	// (RmsGenerator plant_flora), so its flora is named too: else the list would keep the size it had
+	// before, while a saved game, loaded, lists the new one.
 	uint64_t h = 1469598103934665603ull;
 	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
 	auto place = [](float x, float z) {
@@ -1638,6 +1641,7 @@ void Simulation::sync_tile_obstructions(bool structures) {
 		if (flora_live(r)) {
 			mix(resources_.id[r]);
 			mix(place(resources_.x[r], resources_.z[r]));
+			mix(resources_.flora[r]);
 		}
 	mix(~uint64_t{0});
 	for (const Treasure &t : treasures_) {
@@ -1679,7 +1683,7 @@ void Simulation::sync_tile_obstructions(bool structures) {
 			// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
 			if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
 				uint32_t side = 0;
-				for_each_gate_side(b, [&](float x, float z, float hu) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, b.hv); });
+				for_each_gate_side(b, [&](float x, float z, float hu, float hv) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, hv); });
 				continue;
 			}
 			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
