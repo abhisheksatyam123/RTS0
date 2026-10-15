@@ -13,6 +13,7 @@ extends SceneTree
 
 # Loaded at run time: under -s the script compiles before the autoloads exist.
 var GameDescription: GDScript
+var SetupPage: GDScript
 
 var failures := 0
 
@@ -33,6 +34,7 @@ func has_line(text: String, label: String, details: String) -> bool:
 
 func run() -> void:
 	GameDescription = load("res://scenes/session/game_description.gd")
+	SetupPage = load("res://scenes/menu/gamesetup.gd")
 	var ms = root.get_node("MatchSettings")
 	ms.map_id = "random_continental"
 	ms.seed = 99
@@ -127,6 +129,23 @@ func run() -> void:
 	check(has_line(scen, "Population Cap Type", "Team Population") and has_line(scen, "Team Population Cap", "250"), "Team Population")
 	info["victory_mask"] = 0
 	check(has_line(GameDescription.describe(info), "Endless Game", "No winner will be determined, even if everyone is defeated."), "no condition is an Endless Game")
+	# gamedescription.js Biome and Rated game lines.
+	var rinfo: Dictionary = main.get_match_settings_info()
+	rinfo["map_id"] = "random_archipelago_0ad"
+	var offered: Array = SetupPage.biome_values(SetupPage._map_types_data().get("random_biomes", {}).get("archipelago", []))
+	check(not offered.is_empty(), "archipelago offers biomes: " + str(offered))
+	rinfo["biome"] = offered[0] if not offered.is_empty() else 1
+	var bt: Array = GameDescription.BIOME_TEXT.get(int(rinfo["biome"]), ["", ""])
+	check(has_line(GameDescription.describe(rinfo), bt[0], bt[1]), "a picked biome reads its Title and Description")
+	rinfo["biome"] = 0
+	check(not GameDescription.describe(rinfo).contains(bt[0] + "[/color]"), "Map default has no biome line")
+	rinfo["rated"] = true
+	rinfo["player_count"] = 2
+	check(has_line(GameDescription.describe(rinfo), "Rated game", GameDescription.RATING_DESC), "a rated 1v1 says so")
+	rinfo["rated"] = false
+	check(not GameDescription.describe(rinfo).contains("Rated game"), "no rated line outside a lobby game")
+	rinfo["lobby_game"] = true
+	check(has_line(GameDescription.describe(rinfo), "Rated game", "disabled"), "an unrated lobby game reads disabled")
 	# gamedescription.js translates each line: labels, values, enabled/disabled and the plural minutes.
 	info["victory_mask"] = GameDescription.VK_WONDER
 	info["wonder_min"] = 2

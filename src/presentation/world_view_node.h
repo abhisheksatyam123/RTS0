@@ -95,6 +95,11 @@ class RtsoWorldView : public Node3D {
 		Node3D *upgrade_scaffold = nullptr; // child of `model`: 0 A.D.'s "upgrading" variant scaffold
 		uint8_t production = 0; // FoggedBuilding::production the effects below were made for
 		std::vector<GPUParticles3D *> production_fx; // the "researching"/"training" variant's particles
+		// 0 A.D.'s construction_dust (the foundation's "scaffold" variant) or
+		// destruction_dust_small (the "upgrading" variant) on the actor's root.
+		GPUParticles3D *site_dust = nullptr;
+		uint8_t site_dust_kind = 0; // 0 none, 1 construction, 2 upgrading
+		float site_dust_poll = 0.0f; // seconds until the builders are counted again
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -160,6 +165,8 @@ class RtsoWorldView : public Node3D {
 	bool production_fx_loaded_ = false;
 	Ref<QuadMesh> fx_sparks_quad_, fx_forge_smoke_quad_;
 	void update_production_fx(BuildingVis &v, const String &model_id, uint8_t state, float b_scale, float y_offset);
+	Ref<QuadMesh> fx_dust_quad_;
+	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
 	// World height of a unit standing on a turret point `offset` above the terrain
@@ -267,7 +274,7 @@ class RtsoWorldView : public Node3D {
 	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
 	// time a unit of that civ and type shows, so every civ in the match renders
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
-	static constexpr int CROWD_CLIP_COUNT = 25; // see kCrowdClips in world_view_node.cpp
+	static constexpr int CROWD_CLIP_COUNT = 61; // see crowd_clips() in world_view_node.cpp
 	static constexpr int FAUNA_CLIP_COUNT = 6;  // idle, move, attack, death, idle2, death2
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
 	struct CrowdPuppet {
@@ -294,6 +301,11 @@ class RtsoWorldView : public Node3D {
 	uint8_t crowd_key_utype_[CROWD_KEY_COUNT] = {}; // a unit type drawn by each key
 	Node3D *crowd_bake_root = nullptr;
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
+	// Formation.js GetFormationAnimationVariant per formation member this frame, and which
+	// variants each crowd key's 0 A.D. actor lists (bit 31: looked up).
+	std::unordered_map<uint32_t, uint8_t> form_variant_;
+	uint32_t crowd_form_mask_[rtso::CIV_COUNT][CROWD_KEY_COUNT] = {};
+	uint32_t crowd_form_mask(uint8_t civ, uint16_t key);
 
 	// wildlife fauna batched (idle / move / attack / death / second idle / second death)
 	MultiMeshInstance3D *fauna_mmi[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
@@ -412,7 +424,18 @@ private:
 	BuildingVis &acquire_building_slot(uint32_t sim_id);
 	void attach_unit_model(UnitVis &v, const String &model_name);
 	void attach_building_model(BuildingVis &v, const String &model_name);
-	void set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype);
+	void set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype,
+			uint8_t civ, const String &model_id, float b_scale);
+	// data/foundations.json (tools/extract_foundations.py): each structure's 0 A.D.
+	// FoundationActor and the scaffold of its "scaffold" variant, and where an
+	// actor's origin lies in each building GLB.
+	struct ActorFrame { float scale = 0.0f; Vector3 origin; }; // GLB units per metre, actor origin
+	struct FoundationArt { String id; ActorFrame frame; String scaffold; ActorFrame scaffold_frame; };
+	std::unordered_map<std::string, std::string> foundation_of_; // "<civ code>/<BuildingType>" -> foundation id
+	std::unordered_map<std::string, FoundationArt> foundation_art_;
+	std::unordered_map<std::string, ActorFrame> building_frames_;
+	bool foundations_loaded_ = false;
+	void load_foundations();
 	static Node *instantiate_building_id(const String &id);
 	void play_unit_clip(UnitVis &v, const StringName &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);
@@ -420,13 +443,13 @@ private:
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
 	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-			const bool *needed, int count, uint32_t death_slots, bool female = false);
+			const bool *needed, int count, uint64_t death_slots, bool female = false);
 	// Adds the 0 A.D. clips the unit GLBs lack (per-resource carry, promotion)
 	// to a biped's animation library from assets/animations/*.psa.
 	void ensure_runtime_clips(AnimationPlayer *ap, bool female);
 	// Parents the carry shuttle for `clip` (a carry variant) to its 0 A.D. prop point.
 	Node3D *attach_carry_prop(Node *model, uint8_t clip, bool female);
-	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint32_t death_slots);
+	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint64_t death_slots);
 	void ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts);
 	void ensure_fauna_frames(uint8_t ftype);
 	void init_animation_controllers();
