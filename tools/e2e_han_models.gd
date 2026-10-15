@@ -47,6 +47,14 @@ func run() -> void:
 		var maur_civ: String = m.debug_template_model_path("maur/support_civilian")
 		check(han_civ.ends_with("units/han_citizen_female.glb"), "Han civilian woman: %s" % han_civ)
 		check(maur_civ.ends_with("units/maur_citizen_female.glb"), "Mauryan civilian woman: %s" % maur_civ)
+		# Siege engines with their own 0.28 actors (pass-4 audit).
+		for pair in [["rome/siege_scorpio_packed", "units/siege_scorpio.glb"], ["rome/siege_ballista_packed", "units/siege_ballista_med.glb"],
+				["rome/siege_onager_packed", "units/siege_onager.glb"], ["han/siege_mangonel_packed", "units/siege_mangonel.glb"],
+				["mace/support_civilian", "units/athen_female_citizen.glb"]]:
+			var got: String = m.debug_template_model_path(pair[0])
+			check(got.ends_with(pair[1]), "%s: %s" % [pair[0], got])
+		var athen_lith: String = m.debug_unit_model_path(0, 6)
+		check(athen_lith.ends_with("units/mace_catapult.glb"), "Athenian stone thrower is the Hellenic lithobolos: %s" % athen_lith)
 		var athen: String = m.debug_unit_model_path(0, 17)
 		check(athen != "" and athen != woman, "Athenian woman keeps her own model: %s" % athen)
 	change_scene_to_file("res://scenes/menu/main_menu.tscn")

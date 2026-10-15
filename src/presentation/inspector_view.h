@@ -528,7 +528,7 @@ public:
 			lbl->set_text(text);
 		};
 		auto health = [&](float hp, float max) {
-			bar(hp_bar_, hp_label_, max > 0.0f, hp, max, rtso::seldet::health(hp, max));
+			bar(hp_bar_, hp_label_, max > 0.0f, hp, max, rtso::seldet::health_stats(hp, max));
 		};
 		bar(capture_bar_, capture_label_, false);
 		bar(xp_bar_, xp_label_, false);
@@ -612,7 +612,7 @@ public:
 				if (seen->max_capture_points > 0.0f)
 				{
 					bar(capture_bar_, capture_label_, true, seen->capture_points, seen->max_capture_points,
-							rtso::seldet::capture(seen->capture_points, seen->max_capture_points));
+							rtso::seldet::capture_stats(seen->capture_points, seen->max_capture_points));
 					float pts[rtso::MAX_PLAYERS + 1] = {};
 					pts[seen->team < rtso::MAX_PLAYERS ? seen->team : rtso::MAX_PLAYERS] = seen->capture_points;
 					set_capture_parts(*sim, seen->team, pts, seen->max_capture_points);
@@ -634,7 +634,7 @@ public:
 			set_structure_extras(*sim, *found);
 			if (found->max_capture_points > 0.0f) {
 				bar(capture_bar_, capture_label_, true, found->capture_points, found->max_capture_points,
-						rtso::seldet::capture(found->capture_points, found->max_capture_points));
+						rtso::seldet::capture_stats(found->capture_points, found->max_capture_points));
 				set_structure_capture_parts(*sim, *found);
 			}
 			rtso::Simulation::BuildWork work;
@@ -839,12 +839,12 @@ public:
 						? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
 						: String());
 
-				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health(found_b->hp, found_b->max_hp));
+				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health_stats(found_b->hp, found_b->max_hp));
 				set_structure_extras(*sim, *found_b);
 
 				if (found_b->max_capture_points > 0.0f) {
 					set_bar(capture_bar_, capture_label_, found_b->capture_points, found_b->max_capture_points,
-							rtso::seldet::capture(found_b->capture_points, found_b->max_capture_points));
+							rtso::seldet::capture_stats(found_b->capture_points, found_b->max_capture_points));
 					set_structure_capture_parts(*sim, *found_b);
 				} else
 					show_bar(capture_bar_, capture_label_, false);
@@ -932,7 +932,8 @@ public:
 			hp_sum += g.hp;
 			hp_max_sum += g.max_hp;
 		}
-		set_bar(hp_bar_, hp_label_, hp_sum, hp_max_sum, rtso::seldet::health(hp_sum, hp_max_sum));
+		set_bar(hp_bar_, hp_label_, hp_sum, hp_max_sum,
+				selected_ids.size() == 1 ? rtso::seldet::health_stats(hp_sum, hp_max_sum) : rtso::seldet::health(hp_sum, hp_max_sum));
 		show_bar(capture_bar_, capture_label_, false);
 
 		if (selected_ids.size() == 1 && !groups.empty()) {
@@ -1292,7 +1293,7 @@ private:
 				capture_bar_->set_visible(true);
 				capture_label_->set_visible(true);
 				capture_bar_->set_max(max);
-				capture_label_->set_text(rtso::seldet::capture(r.cp[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS], max));
+				capture_label_->set_text(rtso::seldet::capture_stats(r.cp[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS], max));
 				set_capture_parts(sim, owner, r.cp.data(), max);
 				break;
 			}
