@@ -38,7 +38,12 @@ func run() -> void:
 	var heard := int(a["workers_in_earshot"])
 	check(heard > 0, "workers at work in earshot: %d" % heard)
 	var before := int(a["work_sounds"])
-	await frames(200) # 10 s at 20 fps
+	# 10 s of game time, whatever the frame rate (a fruit gatherer's loop is
+	# 4.1-6.6 s, so 200 frames at 60 fps could end before any second swing).
+	var waited := 0.0
+	while waited < 10.0:
+		await process_frame
+		waited += main.get_process_delta_time()
 	a = main.get_audio_state()
 	var played := int(a["work_sounds"]) - before
 	check(played > 0, "their swings are heard: %d sounds in 10 s" % played)
