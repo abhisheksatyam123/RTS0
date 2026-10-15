@@ -13,7 +13,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G3 | Petra plans rushes only in the village phase and drops a mustering rush at the town phase (aggressive 0.28 Petra rushes in the town phase too) | medium | D |
 | G4 | Petra rates units on base stats, not after its own techs, so it keeps spearmen where 0.28 switches to archers | medium | D |
 | G5 | A town-phase HugeAttack waits for champions and a hero once the city phase comes (0.28 drops those classes from the plan) | medium | D |
-| G6 | A guard forgets the unit it guards after any new order (0.28 goes back to guarding once idle) | medium | Unit orders |
+| G6 | ~~A guard forgets the unit it guards after any new order~~ Closed 2026-10-15: a guard keeps its charge through other orders and goes back to guarding once idle (isGuardOf, save v92) | medium | Unit orders |
 | G7 | The bottom HUD isn't 0.28's centred 1024 px group: panels sit at the corners, the Training grid floats, and the stance buttons have captions | medium | Session UI |
 | G8 | Liu Bang's Confucian Reforms aura (Han walls regenerate 10 HP/s) does nothing; Themistocles' wall aura skips palisades | medium | Compare |
 | G9 | Units garrisoned in an ally's structure or ship don't share its vision | low | A |
