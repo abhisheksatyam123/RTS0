@@ -16319,6 +16319,19 @@ void Simulation::find_targets_then_walk_back(size_t i) {
 		units_.action_state[i] = ACTION_ATTACK;
 }
 
+// UnitAI IDLE Timer, on entering IDLE (!isIdle) with nothing left to do: a defensive unit, not a
+// formation member, more than 10 m from its held position walks back to it. Checked every tick an
+// idle unit has no order: an idle unit doesn't drift that far, so this is the check on entering.
+void Simulation::walk_back_if_drifted(size_t i) {
+	if (units_.stance[i] != STANCE_DEFENSIVE || units_.action_state[i] != ACTION_IDLE ||
+			units_.order_kind[i] != ORDER_NONE || order_queues_.count(units_.id[i]) ||
+			(!formations_.empty() && formation_group_[i] != 0))
+		return;
+	const float dx = units_.pos_x[i] - units_.anchor_x[i], dz = units_.pos_z[i] - units_.anchor_z[i];
+	constexpr float DRIFT = 10.0f * COMBAT_DISTANCE_SCALE;
+	if (dx * dx + dz * dz > DRIFT * DRIFT) walk_to_held_position(i);
+}
+
 // UnitAI WalkToHeldPosition (FINDINGNEWTARGET, respondHoldGround): a defensive unit with
 // nothing left to do walks back where it stood, an unforced walk.
 void Simulation::walk_to_held_position(size_t i) {
@@ -16901,11 +16914,14 @@ void Simulation::tick_unit_ai(float dt) {
 				const bool attack = units_.order_kind[i] == ORDER_ATTACK_BUILDING;
 				finish_order(i);
 				if (attack) find_targets_then_walk_back(i);
-			}
-			else if (unit_heals(i) && (i + ticks_) % 4 == 0) {
-				// IDLE LosHealRangeUpdate -> RespondToHealableEntities.
-				const uint32_t t = find_heal_target(i);
-				if (t != 0) start_heal(i, t, 0);
+			} else {
+				if (unit_heals(i) && (i + ticks_) % 4 == 0) {
+					// IDLE LosHealRangeUpdate -> RespondToHealableEntities.
+					const uint32_t t = find_heal_target(i);
+					if (t != 0) start_heal(i, t, 0);
+				}
+				// IDLE Timer: tick_combat has had its look for targets (FindNewTargets) by now.
+				walk_back_if_drifted(i);
 			}
 		}
 	}
