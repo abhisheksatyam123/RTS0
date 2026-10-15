@@ -26,6 +26,9 @@ var _password2: LineEdit # prelobby Register's passwordRepeat
 var _remember: CheckBox
 var _register_btn: Button
 var _games: Tree
+var _setup: GDScript = load("res://scenes/menu/gamesetup.gd")
+var game_sort_column := "Name"
+var game_sort_order := 1
 var _players: Tree
 var _players_filter: LineEdit
 var _profile: VBoxContainer
@@ -81,8 +84,17 @@ var _buddy_btn: Button
 const BUDDY_SYMBOL := "•"
 const MAX_PLAYERS := 8
 
-const GAME_COLUMNS := ["Name", "Host", "Map", "Players", "Status"]
-const RATING_COL := 3 # where the Rating column goes when shown
+# GameList.xml gamesBox: the columns, and the key each one sorts on.
+const GAME_COLUMNS := ["Name", "Map Name", "Size", "Type", "Players"]
+const RATING_COL := 5 # where the Rating column goes when shown
+const GAME_SORT_KEYS := {"Name": "gameName", "Map Name": "mapName", "Size": "mapSize", "Type": "mapType",
+	"Players": "maxnbp", "Rating": "gameRating"}
+# Game.js GameStatusOrder and StateTags: setups first, in green; running red.
+const GAME_STATES := ["init", "waiting", "running"]
+const STATE_COLORS := {"init": Color8(0, 219, 0), "waiting": Color8(255, 127, 0), "running": Color8(219, 0, 0)}
+# GameList.xml textcolor of the other columns.
+const GAME_COLUMN_COLORS := {"Map Name": Color8(128, 128, 128), "Size": Color8(128, 128, 128),
+	"Type": Color8(0, 160, 160), "Players": Color8(0, 128, 128), "Rating": Color8(0, 160, 160)}
 # GameListFilters/Rating.js RatingFilters, after "Any".
 const RATING_FILTERS := ["", ">1500", ">1400", ">1300", ">1200", "<1200", "<1100", "<1000"]
 
@@ -211,6 +223,9 @@ func _build() -> void:
 	_games.set_column_expand_ratio(2, 2)
 	_games.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_games.item_selected.connect(_on_game_selected)
+	# gamesBox sortable: a click on a heading sorts on it, again reverses.
+	_games.column_title_clicked.connect(func(c: int, _b: int) -> void: sort_games_by(game_columns(_rating_column)[c]))
+	_update_game_titles()
 	if not dialog:
 		_games.item_activated.connect(_on_join_pressed.bind(false))
 	left.add_child(_games)
@@ -706,6 +721,53 @@ static func rating_passes(filter: String, rating: int) -> bool:
 	return rating >= n if filter.begins_with(">") else rating < n
 
 
+func sort_games_by(column: String) -> void:
+	if column == game_sort_column:
+		game_sort_order = -game_sort_order
+	else:
+		game_sort_column = column
+		game_sort_order = 1
+	_update_game_titles()
+	_show_rooms()
+
+
+func _update_game_titles() -> void:
+	var titles := game_columns(_rating_column)
+	for i in titles.size():
+		_games.set_column_title(i, titles[i] + (("  ▲" if game_sort_order > 0 else "  ▼") if titles[i] == game_sort_column else ""))
+
+
+## Game.js sortValues: Name sorts setups, then running games, by name; the
+## others on the stanza's value.
+func _game_sort_value(r: Dictionary, column: String) -> Variant:
+	match GAME_SORT_KEYS.get(column, "gameName"):
+		"mapName":
+			return game_map_title(r).to_lower()
+		"mapSize":
+			return _setup.MAP_SIZES.map(func(z) -> String: return str(z[1])).find(str(r.get("map_size", "")))
+		"mapType":
+			return str(r.get("map_type", ""))
+		"maxnbp":
+			return int(r.get("max_players", MAX_PLAYERS))
+		"gameRating":
+			return _room_rating(r)
+	return "%d%s" % [GAME_STATES.find(str(r.get("state", "init"))), game_title(r).to_lower()]
+
+
+static func game_title(r: Dictionary) -> String:
+	return str(r.get("name", "")) if str(r.get("name", "")) != "" else str(r.get("id", ""))
+
+
+static func game_map_title(r: Dictionary) -> String:
+	return str(r.get("map_name", "")) if str(r.get("map_name", "")) != "" else str(r.get("map_id", ""))
+
+
+## Game.js getTranslatedPlayerCount: "current/max", "+observers" when watched.
+static func game_player_count(r: Dictionary) -> String:
+	var watching := (r.get("player_names", []) as Array).filter(func(p) -> bool: return p.get("observer", false)).size()
+	return "%d/%d" % [int(r.get("players", 1)), int(r.get("max_players", MAX_PLAYERS))] + (" +%d" % watching if watching else "")
+
+
 func _room_rating(r: Dictionary) -> int:
 	return LobbySession.game_rating(r.get("player_names", []), _ratings)
 
@@ -719,6 +781,15 @@ func _show_rooms() -> void:
 	var f := _filters()
 	_shown_rooms = _rooms.filter(func(r) -> bool:
 		return rating_passes(filter, _room_rating(r)) and room_passes(r, f))
+	var keys := {}
+	for r in _shown_rooms:
+		keys[str(r.get("id", ""))] = _game_sort_value(r, game_sort_column)
+	_shown_rooms.sort_custom(func(a, b) -> bool:
+		var ka = keys[str(a.get("id", ""))]
+		var kb = keys[str(b.get("id", ""))]
+		if ka == kb:
+			return str(a.get("id", "")) < str(b.get("id", ""))
+		return ka < kb if game_sort_order > 0 else ka > kb)
 	var buddy_list := buddies()
 	var col := func(name: String) -> int: return game_columns(_rating_column).find(name)
 	_games.clear()
@@ -726,15 +797,22 @@ func _show_rooms() -> void:
 	var reselected := false
 	for r in _shown_rooms:
 		var it := _games.create_item(top)
-		var title := str(r.get("name", "")) if str(r.get("name", "")) != "" else str(r.get("id", ""))
-		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + title
+		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + game_title(r)
 			+ (" (password)" if int(r.get("password", 0)) else ""))
-		it.set_text(1, str(r.get("host_name", "")))
-		it.set_text(2, str(r.get("map_name", "")) if str(r.get("map_name", "")) != "" else str(r.get("map_id", "")))
+		it.set_custom_color(0, STATE_COLORS.get(str(r.get("state", "init")), STATE_COLORS["init"]))
+		it.set_text(col.call("Map Name"), game_map_title(r))
+		it.set_text(col.call("Size"), str(r.get("map_size", "")))
+		var type_title := ""
+		for t in _setup.MAP_TYPES:
+			if t[0] == str(r.get("map_type", "")):
+				type_title = t[1]
+		it.set_text(col.call("Type"), type_title)
 		if _rating_column:
 			it.set_text(col.call("Rating"), str(_room_rating(r)))
-		it.set_text(col.call("Players"), "%d/%d" % [int(r.get("players", 1)), int(r.get("max_players", 8))])
-		it.set_text(col.call("Status"), "Running" if r.get("state", "init") == "running" else "Waiting")
+		it.set_text(col.call("Players"), game_player_count(r))
+		for c in GAME_COLUMN_COLORS:
+			if col.call(c) >= 0:
+				it.set_custom_color(col.call(c), GAME_COLUMN_COLORS[c])
 		it.set_metadata(0, str(r.get("id", "")))
 		if str(r.get("id", "")) == keep:
 			it.select(0)
