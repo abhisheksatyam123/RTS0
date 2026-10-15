@@ -279,6 +279,11 @@ def test_moderation():
     check(lb.kick(bob, "carol")[0] == 403 and carol in lb.players, "a player who is no moderator cannot kick")
     check(lb.set_subject(bob, "x")[0] == 403 and lb.set_subject(mod, " Be nice ")[1]["subject"] == "Be nice",
           "only a moderator sets the subject")
+    check(lb.chat[-1]["text"] == "mod changed the lobby subject to:\nBe nice" and lb.chat[-1]["from"] == "",
+          "the room hears of the new subject")
+    lb.set_subject(mod, "")
+    check(lb.chat[-1]["text"] == "mod deleted the lobby subject.", "and of its removal")
+    lb.set_subject(mod, "Be nice")
     check(lb.kick(mod, "nobody")[0] == 404, "kicking someone not in the lobby is refused")
     check(lb.kick(mod, "Bob", "spam")[0] == 200 and bob not in lb.players, "a moderator kicks bob")
     check(lb.chat[-1]["text"] == "bob has been kicked from the lobby. Reason: spam", "the lobby is told why")

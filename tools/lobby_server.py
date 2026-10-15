@@ -297,6 +297,9 @@ class Lobby:
         if p["name"].lower() not in self.moderators:
             return 403, {"error": "The command is restricted to moderators."}
         self.subject = str(subject or "").strip()[:MAX_TEXT]
+        # StatusMessageEvents.js Subject: the room hears of the change.
+        self._say(None, f"{p['name']} changed the lobby subject to:\n{self.subject}" if self.subject
+                  else f"{p['name']} deleted the lobby subject.")
         return 200, {"subject": self.subject}
 
     @staticmethod

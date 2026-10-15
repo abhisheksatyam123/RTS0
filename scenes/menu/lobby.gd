@@ -201,7 +201,7 @@ func _build() -> void:
 	_games.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_games.item_selected.connect(_on_game_selected)
 	if not dialog:
-		_games.item_activated.connect(_on_join_pressed)
+		_games.item_activated.connect(_on_join_pressed.bind(false))
 	left.add_child(_games)
 	_details = RichTextLabel.new()
 	_details.bbcode_enabled = true
@@ -727,6 +727,15 @@ func _on_kicked(text: String) -> void:
 	_system_line(text.replace("[", "[lb]"))
 	_say(text)
 	_update_signed_in()
+	# ConnectionHandler.onClientKicked: a message box titled KICKED or BANNED.
+	var box := AcceptDialog.new()
+	box.name = "KickedDialog"
+	box.title = "BANNED" if text.contains("banned") else "KICKED"
+	box.dialog_text = text
+	add_child(box)
+	box.confirmed.connect(box.queue_free)
+	box.canceled.connect(box.queue_free)
+	box.popup_centered()
 
 
 func _on_players(code: int, obj) -> void:
@@ -945,13 +954,30 @@ func _on_host_saved_pressed() -> void:
 	_on_host_pressed(true)
 
 
-func _on_join_pressed() -> void:
+func _on_join_pressed(confirmed := false) -> void:
 	var r := _selected_room()
 	if _join_ip.text.strip_edges() == "" and not r.is_empty():
 		# A listed game: its address comes from the lobby, and only to a
 		# signed-in player (0 A.D. XmppClient SendIqGetConnectionData).
 		if not LobbySession.signed_in():
 			_say("Sign in to join a listed game, or type the host's address.")
+			return
+		# JoinButton.js: a running game we are not in is joined only to watch, if we say so.
+		if not confirmed and str(r.get("state", "init")) != "init" and not (r.get("player_names", []) as Array).any(
+				func(p) -> bool: return str(p.get("name", "")) == LobbySession.player_name):
+			var ask := ConfirmationDialog.new()
+			ask.name = "ObserveDialog"
+			ask.title = "Confirmation"
+			ask.dialog_text = "The game has already started. Do you want to join as observer?"
+			ask.ok_button_text = "Yes"
+			ask.cancel_button_text = "No"
+			add_child(ask)
+			ask.confirmed.connect(func() -> void:
+				ask.queue_free()
+				_observe.button_pressed = true
+				_on_join_pressed(true))
+			ask.canceled.connect(ask.queue_free)
+			ask.popup_centered()
 			return
 		_say("Asking the lobby for the game's address...")
 		LobbySession.post_json("/rooms/connect", {"token": LobbySession.token, "id": str(r.get("id", ""))},
