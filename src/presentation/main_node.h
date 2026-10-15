@@ -587,8 +587,9 @@ public:
 	// 0 A.D. unit_actions "setup-trade-route": traders take a route in two right-clicks,
 	// the origin market, then the destination (lockstep command 35 sends both).
 	// Returns false when no selected trader trades at b; *tooltip gets the cursor text.
-	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
+	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip, const char **cursor = nullptr);
 	Dictionary debug_trade_route_clicks();
+	Dictionary debug_trade_tip(int64_t market);
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
