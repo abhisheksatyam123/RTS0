@@ -683,6 +683,7 @@ public:
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
 	String debug_unit_model_path(int civ, int unit_type);
+	String debug_template_model_path(const String &template_id);
 	Dictionary debug_snap_placement(int btype, float x, float z, bool hover, float stale_angle);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);

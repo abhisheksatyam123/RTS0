@@ -8393,7 +8393,50 @@
   "ruins": [],
   "gaia_structures": [],
   "gaia_units": [],
-  "scenery": [],
+  "scenery": [
+    {
+      "type": "obelisk",
+      "x": 36.79,
+      "z": 39.73,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": 69.74,
+      "z": 13.02,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": -15.65,
+      "z": -27.63,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": -44.47,
+      "z": -2.53,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": 36.48,
+      "z": -74.63,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": -12.98,
+      "z": 77.64,
+      "angle": 2.3562,
+      "scale": 0.25
+    }
+  ],
   "terrain": {
     "res": 256,
     "names": [
