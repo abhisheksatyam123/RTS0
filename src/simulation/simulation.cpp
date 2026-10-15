@@ -17920,6 +17920,101 @@ void Simulation::petra_manage_scouting(float dt) {
 // What Petra pays for its fortress (wood, gold, stone in ResourceType order).
 static constexpr float PETRA_FORTRESS_COST[RES_COUNT] = {300.0f, 200.0f, 300.0f, 0.0f};
 
+std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t kind) {
+	using UnitStat = PetraUnitStat;
+	const uint8_t ai_civ = petra_ps().civ;
+	const uint8_t phase = petra_ps().phase;
+	const uint8_t d = petra_config_.difficulty;
+	const float pop_scaling = petra_plan_pop_scaling();
+	auto classes_of = [](uint16_t tmpl, uint8_t type) {
+		return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	};
+	auto trainer_for = [&](uint16_t tmpl) -> uint32_t {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		return petra_best_trainer(tmpl, t.unit_type, (t.flags & ROSTER_HERO) ? PRODUCTION_QUEUE_MAX : 4);
+	};
+	// attackPlan.js constructor unitStat: {classes, priority, minSize, targetSize, batchSize,
+	// strength, costsResource stone, costsResource metal}.
+	std::vector<UnitStat> stats;
+	const TechClasses CS = TC_CITIZENSOLDIER, INF = TC_INFANTRY, FM = TC_CAVALRY, CH = TC_CHAMPION;
+	if (kind == PETRA_ATTACK_RUSH) {
+		// Infantry at the rush's own targetSize (petra_plan_sizes counted this rush already).
+		const int r = petra_attack_mgr_.rush_size[std::clamp(petra_attack_mgr_.rush_number - 1, 0, 2)];
+		stats = {{INF, 1.0f, 10, r > 0 ? r : 20, 2, 1.0f, 0.0f, 0.5f, 0.6f},
+		         {FM | CS, 1.0f, 2, 4, 2, 1.0f, 0.0f, 1.0f, 1.0f}};
+	} else if (kind == PETRA_ATTACK_RAID) {
+		stats = {{FM | CS, 1.0f, 3, 4, 2, 1.0f, 0.0f, 1.0f, 1.0f}};
+	} else if (kind == PETRA_ATTACK_HUGE) {
+		stats = {{INF | TC_RANGED | CS, 0.7f, 5, 20, 5, 3.0f, 0.0f, 1.0f, 1.0f},
+		         {INF | TC_MELEE | CS, 0.7f, 5, 20, 5, 3.0f, 0.0f, 1.0f, 1.0f},
+		         {INF | TC_RANGED | CH, 1.0f, 3, 18, 3, 3.0f, 0.0f, 1.0f, 1.0f},
+		         {INF | TC_MELEE | CH, 1.0f, 3, 18, 3, 3.0f, 0.0f, 1.0f, 1.0f},
+		         {FM | TC_RANGED | CS, 0.7f, 4, 20, 4, 2.0f, 0.0f, 1.0f, 1.0f},
+		         {FM | TC_MELEE | CS, 0.7f, 4, 20, 4, 2.0f, 0.0f, 1.0f, 1.0f},
+		         {FM | TC_RANGED | CH, 1.0f, 3, 15, 3, 3.0f, 0.0f, 1.0f, 1.0f},
+		         {FM | TC_MELEE | CH, 1.0f, 3, 15, 3, 2.0f, 0.0f, 1.0f, 1.0f},
+		         {TC_HERO, 1.0f, 0, 1, 1, 2.0f, 0.0f, 1.0f, 1.0f}};
+	} else {
+		stats = {{INF | TC_RANGED, 1.0f, 6, 16, 3, 1.6f, 0.0f, 0.3f, 0.3f},
+		         {INF | TC_MELEE, 1.0f, 6, 16, 3, 1.6f, 0.0f, 0.3f, 0.3f},
+		         {FM | CS, 1.0f, 2, 6, 2, 1.0f, 0.0f, 1.0f, 1.0f}};
+	}
+	// The sizes petra_plan_sizes drew for the plan, split back over its classes: the same
+	// variation for each (below Easy the batch is the minimum size), then popScaling.
+	if (kind == PETRA_ATTACK_RAID) {
+		stats[0].target = std::max(1, (int)petra_attack_mgr_.raid_target); // the raid plan's own size
+	} else {
+		int raw = 0;
+		for (const UnitStat &st : stats) raw += st.target;
+		const float variation = (float)petra_attack_mgr_.target_size / (pop_scaling * (float)raw);
+		for (UnitStat &st : stats) {
+			const int target = (int)std::ceil(variation * (float)st.target);
+			const int min = d < PETRA_EASY ? std::min(target, std::min(st.min, 2)) : std::min(st.min, target);
+			if (d < PETRA_EASY) st.batch = min;
+			st.target = std::max(1, (int)std::ceil(pop_scaling * (float)target));
+			st.min = (int)std::ceil(pop_scaling * (float)min);
+		}
+	}
+	// addSiegeUnits: an Attack or HugeAttack adds siege engines of one class a building of ours
+	// trains (Siege+Melee, Siege+Ranged, Elephant+Melee, starting from the plan's number), as
+	// many as its difficulty allows, picked by siegeStrength.
+	if (kind == PETRA_ATTACK_ATTACK || kind == PETRA_ATTACK_HUGE) {
+		const TechClasses siege_classes[3] = {TC_SIEGE | TC_MELEE, TC_SIEGE | TC_RANGED, TC_ELEPHANT | TC_MELEE};
+		bool has_trainer[3] = {};
+		for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
+			const CivUnitTemplate &t = civ_unit_template(tmpl);
+			if (t.phase > phase || !trainer_for(tmpl)) continue;
+			const TechClasses c = classes_of(tmpl, t.unit_type);
+			for (int k = 0; k < 3; ++k)
+				if ((c & siege_classes[k]) == siege_classes[k]) has_trainer[k] = true;
+		}
+		// The class is picked once (SIEGE_ADDED), from the plan's name: rams for plan 0.
+		int k = petra_attack_mgr_.attack_siege ? petra_attack_mgr_.attack_siege - 1 : petra_attack_mgr_.attack_name % 3;
+		for (int n = 0; n < 3 && !has_trainer[k]; ++n) k = (k + 1) % 3;
+		if (has_trainer[k]) petra_attack_mgr_.attack_siege = (uint8_t)(k + 1);
+		const bool huge = kind == PETRA_ATTACK_HUGE;
+		int target = d < PETRA_MEDIUM ? (huge ? std::max<int>(d, 1) : std::max(d - 1, 0)) : (huge ? d + 1 : d - 1);
+		target = std::max((int)std::lround(pop_scaling * (float)target), huge ? 1 : 0);
+		if (has_trainer[k] && target > 0)
+			stats.push_back({siege_classes[k], 1.0f, 0, target, std::min(target, 2), 0.0f, 3.0f, 1.0f, 1.0f});
+	}
+	return stats;
+}
+
+bool Simulation::petra_unit_stat_trainable(const PetraUnitStat &st) const {
+	const bool hero_wanted = (st.classes & TC_HERO).any();
+	for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		const TechClasses c = t.tech_classes;
+		if ((c & st.classes) != st.classes || t.phase > petra_ps().phase) continue;
+		if (!hero_wanted && (t.flags & ROSTER_HERO)) continue;
+		if ((t.flags & ROSTER_SIEGE_TOWER) || (c & TC_SIEGETOWER).any() || triggers_.template_disabled(tmpl)) continue;
+		if (!match_limit_allows(petra_pid_, tmpl, 1)) continue;
+		if (petra_best_trainer(tmpl, t.unit_type, PRODUCTION_QUEUE_MAX)) return true;
+	}
+	return false;
+}
+
 void Simulation::petra_manage_military_production(float dt) {
 	// The attack plans' training (emergency units are trainEmergencyUnits, from the defense).
 	// Nothing to do without a finished building of ours that trains the civ's units (roster
@@ -17954,13 +18049,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	auto classes_of = [](uint16_t tmpl, uint8_t type) {
 		return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	};
-	struct UnitStat {
-		TechClasses classes;
-		float priority;
-		int min, target, batch;
-		float strength, siege_strength, stone, metal; // interests; 1 = no costsResource penalty
-		int count = 0;
-	};
+	using UnitStat = PetraUnitStat;
 	// Petra's resource levels for findBestTrainableUnit, counted once on first use.
 	bool levels_counted = false;
 	float remaining[RES_COUNT] = {};
@@ -18035,71 +18124,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	const float pop_scaling = petra_plan_pop_scaling();
 	auto train_for = [&](const AttackPlan &plan, uint8_t kind) {
 		const uint8_t order_plan = &plan == &petra_raid_plan_ ? PETRA_ORDER_RAID : PETRA_ORDER_ATTACK;
-		// attackPlan.js constructor unitStat: {classes, priority, minSize, targetSize, batchSize,
-		// strength, costsResource stone, costsResource metal}.
-		std::vector<UnitStat> stats;
-		const TechClasses CS = TC_CITIZENSOLDIER, INF = TC_INFANTRY, FM = TC_CAVALRY, CH = TC_CHAMPION;
-		if (kind == PETRA_ATTACK_RUSH) {
-			// Infantry at the rush's own targetSize (petra_plan_sizes counted this rush already).
-			const int r = petra_attack_mgr_.rush_size[std::clamp(petra_attack_mgr_.rush_number - 1, 0, 2)];
-			stats = {{INF, 1.0f, 10, r > 0 ? r : 20, 2, 1.0f, 0.0f, 0.5f, 0.6f},
-			         {FM | CS, 1.0f, 2, 4, 2, 1.0f, 0.0f, 1.0f, 1.0f}};
-		} else if (kind == PETRA_ATTACK_RAID) {
-			stats = {{FM | CS, 1.0f, 3, 4, 2, 1.0f, 0.0f, 1.0f, 1.0f}};
-		} else if (kind == PETRA_ATTACK_HUGE) {
-			stats = {{INF | TC_RANGED | CS, 0.7f, 5, 20, 5, 3.0f, 0.0f, 1.0f, 1.0f},
-			         {INF | TC_MELEE | CS, 0.7f, 5, 20, 5, 3.0f, 0.0f, 1.0f, 1.0f},
-			         {INF | TC_RANGED | CH, 1.0f, 3, 18, 3, 3.0f, 0.0f, 1.0f, 1.0f},
-			         {INF | TC_MELEE | CH, 1.0f, 3, 18, 3, 3.0f, 0.0f, 1.0f, 1.0f},
-			         {FM | TC_RANGED | CS, 0.7f, 4, 20, 4, 2.0f, 0.0f, 1.0f, 1.0f},
-			         {FM | TC_MELEE | CS, 0.7f, 4, 20, 4, 2.0f, 0.0f, 1.0f, 1.0f},
-			         {FM | TC_RANGED | CH, 1.0f, 3, 15, 3, 3.0f, 0.0f, 1.0f, 1.0f},
-			         {FM | TC_MELEE | CH, 1.0f, 3, 15, 3, 2.0f, 0.0f, 1.0f, 1.0f},
-			         {TC_HERO, 1.0f, 0, 1, 1, 2.0f, 0.0f, 1.0f, 1.0f}};
-		} else {
-			stats = {{INF | TC_RANGED, 1.0f, 6, 16, 3, 1.6f, 0.0f, 0.3f, 0.3f},
-			         {INF | TC_MELEE, 1.0f, 6, 16, 3, 1.6f, 0.0f, 0.3f, 0.3f},
-			         {FM | CS, 1.0f, 2, 6, 2, 1.0f, 0.0f, 1.0f, 1.0f}};
-		}
-		// The sizes petra_plan_sizes drew for the plan, split back over its classes: the same
-		// variation for each (below Easy the batch is the minimum size), then popScaling.
-		if (kind == PETRA_ATTACK_RAID) {
-			stats[0].target = std::max(1, (int)petra_attack_mgr_.raid_target); // the raid plan's own size
-		} else {
-			int raw = 0;
-			for (const UnitStat &st : stats) raw += st.target;
-			const float variation = (float)petra_attack_mgr_.target_size / (pop_scaling * (float)raw);
-			for (UnitStat &st : stats) {
-				const int target = (int)std::ceil(variation * (float)st.target);
-				const int min = d < PETRA_EASY ? std::min(target, std::min(st.min, 2)) : std::min(st.min, target);
-				if (d < PETRA_EASY) st.batch = min;
-				st.target = std::max(1, (int)std::ceil(pop_scaling * (float)target));
-				st.min = (int)std::ceil(pop_scaling * (float)min);
-			}
-		}
-		// addSiegeUnits: an Attack or HugeAttack adds siege engines of one class a building of ours
-		// trains (Siege+Melee, Siege+Ranged, Elephant+Melee, starting from the plan's number), as
-		// many as its difficulty allows, picked by siegeStrength.
-		if (kind == PETRA_ATTACK_ATTACK || kind == PETRA_ATTACK_HUGE) {
-			const TechClasses siege_classes[3] = {TC_SIEGE | TC_MELEE, TC_SIEGE | TC_RANGED, TC_ELEPHANT | TC_MELEE};
-			bool has_trainer[3] = {};
-			for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
-				const CivUnitTemplate &t = civ_unit_template(tmpl);
-				if (t.phase > phase || !trainer_for(tmpl)) continue;
-				const TechClasses c = classes_of(tmpl, t.unit_type);
-				for (int k = 0; k < 3; ++k)
-					if ((c & siege_classes[k]) == siege_classes[k]) has_trainer[k] = true;
-			}
-			// The class is picked once (SIEGE_ADDED), from the plan's name: rams for plan 0.
-			int k = petra_attack_mgr_.attack_siege ? petra_attack_mgr_.attack_siege - 1 : petra_attack_mgr_.attack_name % 3;
-			for (int n = 0; n < 3 && !has_trainer[k]; ++n) k = (k + 1) % 3;
-			if (has_trainer[k]) petra_attack_mgr_.attack_siege = (uint8_t)(k + 1);
-			const bool huge = kind == PETRA_ATTACK_HUGE;
-			int target = d < PETRA_MEDIUM ? (huge ? std::max<int>(d, 1) : std::max(d - 1, 0)) : (huge ? d + 1 : d - 1);
-			target = std::max((int)std::lround(pop_scaling * (float)target), huge ? 1 : 0);
-			if (has_trainer[k] && target > 0)
-				stats.push_back({siege_classes[k], 1.0f, 0, target, std::min(target, 2), 0.0f, 3.0f, 1.0f, 1.0f});
-		}
+		std::vector<UnitStat> stats = petra_plan_unit_stats(kind);
 
 		// What the plan has, each unit counted once in the first class it matches, plus what is
 		// in training for it (the batches queued with its plan).
@@ -24246,7 +24271,6 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// ships out, as no land plan here carries them).
 			const bool all_units = !petra_can_build_units();
 			for (size_t i = 0; i < units_.count; ++i) {
-				if (!all_units && squad.size() >= (size_t)std::max(1, mgr.target_size)) break;
 				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 				if (all_units) {
 					const uint32_t uid = units_.id[i];
@@ -24288,15 +24312,34 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				}
 			}
 
-			// attackPlan.js updatePreparation: march once the army reaches its
-			// target size, or its minimum when the population is capped. RTS0
-			// also marches at the minimum after three minutes, since a plan
-			// here cannot reinforce on the way.
-			const size_t target = (size_t)std::max(1, mgr.target_size);
-			const size_t minimum = (size_t)std::max(1, std::min(mgr.min_size, mgr.target_size));
-			const bool capped = pop_max(petra_pid_) - pop_current(petra_pid_) < 5;
-			bool ready = squad.size() >= target ||
-			             (squad.size() >= minimum && (capped || plan.state_timer >= 180.0f));
+			// attackPlan.js mustStart: every class of the plan at its targetSize, each unit counted
+			// in the first class it matches (a class no building of ours trains drops out, as
+			// trainMoreUnits deletes it). At the population cap (under 5 free slots) the plan
+			// starts with every class at its minSize or more than lengthMin units. 0.28 fails it
+			// otherwise; RTS0's Petra sits at its cap far more often while its houses go up, so
+			// the plan keeps mustering instead.
+			std::vector<PetraUnitStat> stats = petra_plan_unit_stats(mgr.kind);
+			for (uint32_t uid : squad) {
+				const int32_t k = lookup_unit(uid);
+				if (k < 0 || !units_.alive[k]) continue;
+				const TechClasses c = unit_classes(units_.tmpl[k], units_.unit_type[k]);
+				for (PetraUnitStat &st : stats)
+					if ((c & st.classes) == st.classes) { ++st.count; break; }
+			}
+			bool max_everywhere = true, min_everywhere = true;
+			for (const PetraUnitStat &st : stats) {
+				if (st.count >= st.target || !petra_unit_stat_trainable(st)) continue;
+				max_everywhere = false;
+				if (st.count < st.min) min_everywhere = false;
+			}
+			const int pop_cap = pop_max(petra_pid_);
+			const bool capped = pop_cap - pop_current(petra_pid_) < 5;
+			bool ready = !squad.empty() && (plan.forced || max_everywhere);
+			if (capped && !plan.forced) {
+				int length_min = 16;
+				if (pop_cap < 300) length_min -= (int)std::floor(8.0f * (float)(300 - pop_cap) / 300.0f);
+				if ((min_everywhere && !squad.empty()) || squad.size() > (size_t)length_min) ready = true;
+			}
 			// attackPlan.js updatePreparation "Fasten the end game": every 5th AI turn, a plan
 			// with siege engines that outnumbers 20 + twice every enemy's units starts now
 			// (forceStart).
@@ -24308,33 +24351,6 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				for (size_t i = 0; i < units_.count; ++i)
 					if (units_.alive[i] && units_.team[i] < MAX_PLAYERS && petra_foe(units_.team[i]) && !is_defeated(units_.team[i])) ++enemies;
 				if (has_enemies && squad.size() > 20 + 2 * enemies) plan.forced = ready = true;
-			}
-			// A siege plan waits for its siege engines in the town phase on.
-			if (ready && !plan.forced && plan.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2 &&
-			    siege_units == 0 && plan.state_timer < 240.0f)
-				ready = false;
-			// attackPlan.js mustStart wants every unitStat class at its targetSize: a HugeAttack
-			// waits for its hero (Hero targetSize 1) while one of the civ's heroes can still be
-			// trained (MatchLimit) or is training, bounded like the wait below.
-			if (ready && !plan.forced && !capped && mgr.kind == PETRA_ATTACK_HUGE && plan.state_timer < 300.0f) {
-				bool hero = false;
-				for (uint32_t uid : squad) {
-					const int32_t idx = lookup_unit(uid);
-					if (idx >= 0 && (unit_classes(units_.tmpl[idx], units_.unit_type[idx]) & TC_HERO).any()) { hero = true; break; }
-				}
-				for (const auto &b : buildings_) {
-					if (hero) break;
-					if (b.team != petra_pid_) continue;
-					for (const auto &o : b.queue)
-						if (o.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(o.tmpl).flags & ROSTER_HERO)) ready = false;
-				}
-				for (uint16_t t : civ_roster_ids(petra_ps().civ)) {
-					if (hero || !ready) break;
-					const CivUnitTemplate &ct = civ_unit_template(t);
-					if ((ct.flags & ROSTER_HERO) && ct.phase <= petra_ps().phase && !triggers_.template_disabled(t) &&
-					    match_limit_allows(petra_pid_, t, 1) && petra_best_trainer(t, ct.unit_type, PRODUCTION_QUEUE_MAX))
-						ready = false;
-				}
 			}
 			// attackPlan.js updatePreparation: a plan that must start keeps on while its units
 			// finish training (countOwnQueuedEntitiesWithMetadata "plan"): the batches under way

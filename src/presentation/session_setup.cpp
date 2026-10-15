@@ -136,6 +136,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	}
 	map_has_teams_ = false;
 	map_pop_limit_ = -1;
+	random_map_ = false;
 
 	// 1. Procedural Random Map Generation (RMS Engine)
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
@@ -166,6 +167,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (map_id == id || map_id == "random_" + id) { mtype = (rtso::MapType)t; break; }
 		}
 
+		random_map_ = true;
 		load_progress(40, "Generating map");
 		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f, random_map_teams);
 		load_progress(70, "Building terrain");

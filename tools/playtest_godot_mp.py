@@ -319,7 +319,7 @@ def play(args, lobby, leave):
 
     # What the lobby showed while the match ran.
     seen = {"running": False, "two": False, "playing": set(), "names": set(), "started_at": False,
-            "punched": False}
+            "punched": False, "max": set(), "start_at": 0.0, "running_at": 0.0}
     procs = (host, join)
     deadline = time.time() + args.timeout + 30
     while any(p.poll() is None for p in procs) and time.time() < deadline:
@@ -332,6 +332,9 @@ def play(args, lobby, leave):
         room = next((r for r in rooms if r["id"] == f"room-{port}"), None)
         if room and room["state"] == "running":
             seen["running"] = True
+            seen["running_at"] = seen["running_at"] or time.time()
+        if room:
+            seen["max"].add(room.get("max_players"))
         if room and room["players"] == 2:
             seen["two"] = True
         if room:
@@ -340,6 +343,7 @@ def play(args, lobby, leave):
             seen["started_at"] = seen["started_at"] or room.get("start_time", 0) > 0
         seen["playing"] |= {p["name"] for p in players if p["status"] == "playing"}
         if frozen is None and any("pressing Start" in l for l in lines["host"]):
+            seen["start_at"] = time.time()
             os.kill(join.pid, signal.SIGSTOP)
             frozen = time.time()
         elif frozen and time.time() - frozen > 4.0:
@@ -374,7 +378,10 @@ def play(args, lobby, leave):
           and h.get("hash") == j.get("hash") and h.get("hash") not in (None, "00000000")
           and h.get("seat") == "0" and j.get("seat") == "1"
           and seen["running"] and seen["two"] and seen["playing"] == {"alice", "bob"}
-          and seen["names"] == {"alice", "bob"} and seen["started_at"])
+          and seen["names"] == {"alice", "bob"} and seen["started_at"]
+          # LobbyGameRegistration.js: maxnbp is the map's player count, and the
+          # host reports Start within moments, not on its next heartbeat.
+          and seen["max"] == {2} and seen["start_at"] and 0 < seen["running_at"] - seen["start_at"] < 8.0)
     def said(role, key):
         return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs[role]) if f" {key}=" in l), "")
     stun_found = all("[NetHost] STUN: public endpoint" in outs[role] for role in ("host", "join"))
@@ -442,7 +449,8 @@ def play(args, lobby, leave):
     if ok:
         print(f"[gmp] PASS two Godot clients: lobby sign-in, host, join from the game list, Start; "
               f"turn {args.turns} hash {h['hash']} on both (seats 0 and 1); the lobby showed the game "
-              f"running with 2 players, alice and bob in a game and in its details, and its start time")
+              f"running with 2 players, alice and bob in a game and in its details, and its start time; "
+              f"listed as n/2 all along, and running {seen['running_at'] - seen['start_at']:.1f}s after Start")
         return True
     if not (h and j):
         for role in ("host", "join"):
