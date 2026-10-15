@@ -3717,6 +3717,12 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	return UPGRADE_OK;
 }
 
+uint32_t Simulation::unit_guard_target(uint32_t uid) const {
+	const int32_t idx = lookup_unit(uid);
+	if (idx < 0 || (size_t)idx >= units_.count || units_.order_kind[idx] != ORDER_GUARD) return 0;
+	return current_order((size_t)idx).target;
+}
+
 bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice) {
 	if (upgrade_check(player_id, building_id, choice) != UPGRADE_OK) return false;
 	Building &b = buildings_[building_id_to_idx_[building_id]];
