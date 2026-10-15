@@ -233,6 +233,15 @@ func register(addr: String, name: String, password: String, cb: Callable) -> voi
 var _logout_pending := false
 var _after_logout: Array[Callable] = []
 
+## AccountSettingsPage: Engine.LobbyChangePassword, encrypted as for a login;
+## a reconnect then signs in with the new one.
+func change_password(encrypted: String, cb: Callable) -> void:
+	post_json("/password", {"token": token, "password": encrypted}, func(code: int, obj) -> void:
+		if code == 200 and not _last_login.is_empty():
+			_last_login["encrypted"] = encrypted
+		cb.call(code, obj))
+
+
 func sign_in(addr: String, name: String, cb: Callable, encrypted: String = "") -> void:
 	if _logout_pending:
 		_after_logout.append(func() -> void: sign_in(addr, name, cb, encrypted))

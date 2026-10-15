@@ -343,6 +343,22 @@ class Lobby:
         self._save_accounts()
         return 200, {"name": name}
 
+    def change_password(self, token, password):
+        """0.28 AccountSettingsPage: Engine.LobbyChangePassword, an XMPP in-band
+        password change for the signed-in account."""
+        p = self.player(token)
+        if not p:
+            return self.not_signed_in(token)
+        acct = self.accounts.get(p["name"].lower())
+        if not acct:
+            return 403, {"error": "Register an account first"}
+        if not password:
+            return 400, {"error": "Please enter your password"}
+        acct["salt"] = secrets.token_hex(16)
+        acct["hash"] = self._hash(acct["salt"], password)
+        self._save_accounts()
+        return 200, {"name": acct["name"]}
+
     def login(self, name, password=None):
         name = " ".join(str(name or "").split())[:MAX_NAME]
         if not name:
@@ -740,6 +756,8 @@ class LobbyHandler(BaseHTTPRequestHandler):
                     code, obj = LOBBY.login(data.get("name"), data.get("password"))
                 elif path == "/register":
                     code, obj = LOBBY.register_account(data.get("name"), data.get("password"))
+                elif path == "/password":
+                    code, obj = LOBBY.change_password(data.get("token"), data.get("password"))
                 elif path == "/logout":
                     code, obj = LOBBY.logout(data.get("token"))
                 elif path == "/presence":
