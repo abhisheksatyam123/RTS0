@@ -3708,7 +3708,8 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 		const float base = (float)scale_by_map_size(15, 25, half) + 15.0f;
 		for (int tries = 0; tries < 20000; ++tries) {
 			const float x = rng.range_float(-half * 0.95f, half * 0.95f), z = rng.range_float(-half * 0.95f, half * 0.95f);
-			bool ok = hm.compute_slope_world(x, z) <= 0.6f;
+			// A circular map (g_Map.randomCoordinate): the corners outside the circle are off the map.
+			bool ok = std::hypot(x, z) <= half * 0.95f && hm.compute_slope_world(x, z) <= 0.6f;
 			for (int k = 0; ok && k < 9; ++k) {
 				const float a = 0.7853982f * (float)k, r = k == 8 ? 0.0f : 2.0f;
 				ok = hm.sample_world(x + std::cos(a) * r, z + std::sin(a) * r) > water_h;
@@ -5958,10 +5959,17 @@ void RmsGenerator::synth_cycladic_archipelago(HeightmapGrid &hm, RmsRng &rng, fl
 		const float r = rng.range_float(0.1f, 0.16f) * size;
 		central[(size_t)i] = polar(start + kSeasPi * ((float)i * 2.0f / (float)central_count + rng.range_float(-1.0f, 1.0f) / 8.0f), r);
 	}
-	std::vector<uint8_t> player_mask(hm.data.size(), 0);
+	std::vector<uint8_t> player_mask(hm.data.size(), 0), coral_mask(hm.data.size(), 0);
 	std::vector<std::vector<int>> areas;
 	std::vector<std::pair<float, float>> spots;
-	auto island = [&](float x, float z, float r, bool player) {
+	auto island = [&](float x, float z, float r, float coral_r, bool player) {
+		// Deep ocean rocks: a ring of coral tiles coral_r out (no elevation), kept off earlier rings and player islands.
+		const auto coral = seas_clump(hm, rng, kSeasPi * (r + coral_r) * (r + coral_r), 0.7f, 0.1f, 1e9f, x, z,
+		                              [&](int i) { return !coral_mask[(size_t)i] && !player_mask[(size_t)i]; });
+		if (seas_any(coral)) {
+			record_area(hm, coral, AREA_CORAL);
+			seas_add(coral_mask, coral);
+		}
 		const auto m = seas_clump(hm, rng, kSeasPi * r * r, 0.7f, 0.1f, 1e9f, x, z, [&](int i) { return !player_mask[(size_t)i]; });
 		paint_mask_elevation(hm, m, land, 5.0f);
 		record_area(hm, m, AREA_ISLAND);
@@ -5975,9 +5983,9 @@ void RmsGenerator::synth_cycladic_archipelago(HeightmapGrid &hm, RmsRng &rng, fl
 		const auto p = polar(start + 2.0f * kSeasPi * (float)i / (float)island_count, 0.39f * size);
 		const bool is_player = num_players >= 6 || (n_player < num_players && i == kStarting[num_players - 1][n_player]);
 		if (is_player) { spots.push_back(p); ++n_player; }
-		island(p.first, p.second, island_r, is_player);
+		island(p.first, p.second, island_r, seas_scale(1, 5, half), is_player);
 	}
-	for (const auto &c : central) island(c.first, c.second, central_r, false);
+	for (const auto &c : central) island(c.first, c.second, central_r, 2.0f, false);
 	// placePlayerBases with sortAllPlayers(): spots in team order.
 	std::vector<int> order((size_t)num_players);
 	for (int i = 0; i < num_players; ++i) order[(size_t)i] = i;
