@@ -534,6 +534,24 @@ int main() {
 		CHECK(!s.cmd_train_template_at(0, bk, gaul, false, 1));
 	}
 
+	// 13. Alexander's Undefeated (mace_hero_alexander_iii_2: enemy Soldiers and Structures
+	// -10% attack damage): a tower near him looses weaker arrows; one out of reach doesn't.
+	{
+		fresh(s);
+		uint32_t near_t = s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+		uint32_t far_t = s.spawn_building_world(40.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+		const float res[3] = {0.0f, 0.0f, 0.0f};
+		const float base = s.structure_arrow_damage(*find_bld(s, near_t), res);
+		const uint16_t alex = template_named("mace/hero_alexander_iii");
+		CHECK(alex != CIV_UNIT_TEMPLATE_NONE);
+		s.spawn_unit(0.0f, 5.0f, 1, UNIT_HERO, 0.0f, alex);
+		s.rebuild_auras();
+		const float with = s.structure_arrow_damage(*find_bld(s, near_t), res);
+		std::printf("tower arrow %.2f, near an enemy Alexander %.2f\n", base, with);
+		CHECK(near(with, base * 0.9f));
+		CHECK(near(s.structure_arrow_damage(*find_bld(s, far_t), res), base));
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
