@@ -23343,6 +23343,7 @@ void Simulation::petra_manage_raid(float dt) {
 		uint32_t tid = find_petra_raid_target(tx, tz);
 		if (!tid) return;
 		plan.squad.clear();
+		plan.forced = plan.requested = false;
 		plan.target_building_id = tid;
 		plan.target_x = tx;
 		plan.target_z = tz;
@@ -23407,7 +23408,7 @@ void Simulation::petra_manage_raid(float dt) {
 				return std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end();
 			}), main.end());
 		}
-		const bool ready = plan.squad.size() >= raid_target || (plan.squad.size() >= raid_min && plan.state_timer >= 30.0f);
+		const bool ready = plan.forced || plan.squad.size() >= raid_target || (plan.squad.size() >= raid_min && plan.state_timer >= 30.0f);
 		if (!ready) return;
 		const float tx = plan.target_x, tz = plan.target_z;
 		// A raid overseas waits for a transport ship there, and for its last crossing to end.
@@ -23917,12 +23918,22 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 			if (plan.squad.size() > 2) available = plan.squad.size();
 		}
 	}
+	// Every upcoming plan counts, the raid mustering too (its own target stays).
+	AttackPlan &raid = petra_raid_plan_;
+	const bool raid_musters = raid.state == AttackPlan::MUSTER;
+	if (raid_musters) {
+		raid.target_player = target;
+		if (raid.squad.size() > 2) available += raid.squad.size();
+	}
 	const bool join = available > 12 && plan.target_building_id != 0;
-	if (join) { // forceStart
-		plan.forced = true;
-		plan.requested = true;
-		petra_attack_mgr_.target_size = (int)plan.squad.size();
-		petra_attack_mgr_.min_size = (int)plan.squad.size();
+	if (join) { // forceStart each upcoming plan of 3 units or more
+		if (plan.state == AttackPlan::MUSTER && plan.squad.size() >= 3) {
+			plan.forced = true;
+			plan.requested = true;
+			petra_attack_mgr_.target_size = (int)plan.squad.size();
+			petra_attack_mgr_.min_size = (int)plan.squad.size();
+		}
+		if (raid_musters && raid.squad.size() >= 3) raid.forced = raid.requested = true;
 	}
 	petra_say(join ? PETRA_CHAT_ATTACK_JOIN : PETRA_CHAT_ATTACK_DECLINE, PETRA_CHAT_ALLIES, target);
 }
