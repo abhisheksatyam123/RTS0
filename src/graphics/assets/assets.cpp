@@ -1,13 +1,29 @@
 #include "assets.h"
 #include "procedural.h"
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
+
+#include <mutex>
 
 using namespace godot;
 
 namespace rtso {
 
 bool Assets::res_exists(const String &path) {
-	return ResourceLoader::get_singleton()->exists(path);
+	// The packed res:// files don't change while the game runs, and the world view asks about
+	// the same few hundred paths every frame (decals, ambient effects, building variants), each
+	// a file system lookup: answers for res:// paths are kept. Others (user://) are asked afresh.
+	if (!path.begins_with("res://")) return ResourceLoader::get_singleton()->exists(path);
+	static std::mutex mu;
+	static HashMap<String, bool> known;
+	{
+		std::lock_guard<std::mutex> lock(mu);
+		if (const bool *b = known.getptr(path)) return *b;
+	}
+	const bool found = ResourceLoader::get_singleton()->exists(path);
+	std::lock_guard<std::mutex> lock(mu);
+	known.insert(path, found);
+	return found;
 }
 
 bool Assets::is_real_model(const String &path) {

@@ -7,11 +7,13 @@
 #include "formation_variants.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
+#include <chrono>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
 #include <godot_cpp/variant/basis.hpp>
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/core/math.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_mixer.hpp>
 #include <godot_cpp/classes/animation_library.hpp>
@@ -1617,13 +1619,21 @@ Node *RtsoWorldView::instantiate_building_id(const String &id) {
 
 // The building GLB ModelLibrary::load draws for `id` (its alias, its own GLB, or
 // its base model after the civ code), as the key of the tables written per GLB.
-static std::string building_table_key(const String &id) {
+static std::string building_table_key_uncached(const String &id) {
 	const String glb = rtso::ModelLibrary::building_glb_id(id);
 	if (glb != id || rtso::Assets::res_exists("res://assets/models/buildings/" + id + ".glb"))
 		return glb.utf8().get_data();
 	const int us = id.find("_");
 	if (us <= 0 || us >= id.length() - 1) return glb.utf8().get_data();
 	return rtso::ModelLibrary::building_glb_id(id.substr(us + 1)).utf8().get_data();
+}
+
+// The key of a building model in the per-model tables, asked for every building every frame: kept
+// per id, as the answer depends only on the id and the packed files.
+static const std::string &building_table_key(const String &id) {
+	static HashMap<String, std::string> keys;
+	if (const std::string *k = keys.getptr(id)) return *k;
+	return keys.insert(id, building_table_key_uncached(id))->value;
 }
 
 void RtsoWorldView::load_foundations() {
@@ -2458,7 +2468,8 @@ static float drawn_water_height(const rtso::Simulation *sim) {
 }
 
 // A male 0.28 Civilian draws and animates as its civ's citizen_male actor, the villager
-// model (rtso::civilian_is_male); a female one keeps the female citizen model.
+// model (rtso::civilian_is_male); a female one keeps the female citizen model, or her
+// own citizen_female actor where 0.28 has one (Han, Mauryans: unit_template_draw_index).
 static uint8_t drawn_unit_type(uint8_t utype, uint16_t tmpl, uint32_t id) {
 	return rtso::civilian_is_male(tmpl, id) ? (uint8_t)rtso::UNIT_VILLAGER : utype;
 }
@@ -2601,8 +2612,17 @@ uint32_t RtsoWorldView::crowd_form_mask(uint8_t civ, uint16_t key) {
 	return m;
 }
 
+static uint64_t bake_now_us() {
+	return (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+bool RtsoWorldView::crowd_bake_over_budget() {
+	return crowd_baked_this_frame_ && bake_now_us() >= crowd_bake_deadline_us_;
+}
+
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, uint64_t death_slots, bool female) {
+		const bool *needed, int count, uint64_t death_slots, bool female, bool budgeted) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -2610,6 +2630,10 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	}
 	for (int c = 0; c < count; ++c) {
 		if (!needed[c] || done[c]) continue;
+		if (budgeted) {
+			if (crowd_bake_over_budget()) break;
+			crowd_baked_this_frame_ = true;
+		}
 		done[c] = true;
 		ensure_form_clip(ap, (ClipId)want[c]);
 		ClipId play = resolve_clip_fallback(ap, (ClipId)want[c]);
@@ -2700,7 +2724,7 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *co
 		needed[c] = counts[c] > 0 && !b.clip_baked[c];
 		any = any || needed[c];
 	}
-	if (!any) return;
+	if (!any || crowd_bake_over_budget()) return;
 
 	auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
 	if (!entry.scene.is_valid()) {
@@ -2716,9 +2740,9 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *co
 	if (!inst) return;
 	const bool female = unit_is_female(utype);
 	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female, true);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
+		if (needed[c] && b.clip_baked[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
 			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
 	}
 	crowd_bake_root->remove_child(inst);
@@ -3582,6 +3606,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const auto &fc : sim->formations())
 		rtso::formvar::for_each_member_variant(fc, [this](uint32_t ent, uint8_t v) { form_variant_[ent] = v; });
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
+	crowd_bake_deadline_us_ = bake_now_us() + CROWD_BAKE_BUDGET_US;
+	crowd_baked_this_frame_ = false;
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
 	std::memset(counts, 0, sizeof(counts));
 	for (size_t i = 0; i < uview.count; ++i) {
@@ -4243,7 +4269,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	const auto &fres = mirages_.resources();
 	size_t n_tree = 0, fd = 0, nru = 0, fish_n = 0, n_mine[MINE_KINDS] = {};
 	if (sim->current_map_biome() != mine_biome_) pick_mine_models(sim->current_map_biome());
-	if (sim->game_time() < mine_large_time_ || sim->current_map_id() != mine_large_map_) mine_large_.clear();
+	if (sim->game_time() < mine_large_time_ || sim->current_map_id() != mine_large_map_) {
+		mine_large_.clear();
+		supply_max_.clear();
+		auto rv = sim->resources();
+		for (size_t r = 0; r < rv.count; ++r)
+			if (rv.alive[r]) supply_max_.emplace(rv.id[r], rv.amount[r]);
+	}
 	mine_large_time_ = sim->game_time();
 	mine_large_map_ = sim->current_map_id();
 	auto mine_of = [&](const rtso::FoggedResource &r) -> int {
@@ -4500,6 +4532,46 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				st.health_color = fview.owner[f] == local_player_ ? Color(0.2f, 0.95f, 0.3f, 0.95f) : Color(0.95f, 0.25f, 0.2f, 0.95f);
 			}
 			draw_status_stack(sim, Vector3(fx, fy + fent.y_offset + fent.aabb.size.y * fsc + 0.3f, fz), 0.9f, 0.08f, st);
+		}
+	}
+	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and
+	// StatusBars.js ResourceSupply bar.
+	if (!highlight_set_.empty()) {
+		for (const auto &r : mirages_.resources()) {
+			if (r.subtype == rtso::RES_SUB_GRAIN || !highlight_set_.count((int32_t)r.id)) continue;
+			const float ry = r.subtype == rtso::RES_SUB_FISH ? std::max(sim->get_terrain_height(r.x, r.z), drawn_water_height(sim))
+			                                                : sim->get_terrain_height(r.x, r.z);
+			// The StatusBars of template_gaia (2 m wide, 0.333 m tall, 5 m up), _tree,
+			// _fruit, _fish and _ore/_rock_large, at 4 m a unit.
+			const bool mine = (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) && r.subtype != rtso::RES_SUB_RUINS;
+			float radius = 0.7f, bar_w = 2.0f, bar_h = 0.333f, offset = 5.0f;
+			if (mine) {
+				auto it = mine_large_.find(r.id);
+				const bool large = it != mine_large_.end() && it->second;
+				radius = large ? 2.2f : 1.3f;
+				if (large) bar_w = 5.0f, bar_h = 0.5f;
+			} else if (r.type == rtso::RES_WOOD) {
+				bar_w = 3.0f, bar_h = 0.5f, offset = 10.0f;
+			} else if (r.subtype == rtso::RES_SUB_FISH) {
+				radius = 1.0f, bar_w = 4.0f, bar_h = 0.666f;
+			} else if (r.type == rtso::RES_FOOD) {
+				bar_w = 3.0f, bar_h = 0.5f, offset = 4.0f;
+			}
+			if (rings_used == fauna_rings_.size()) {
+				MeshInstance3D *m = memnew(MeshInstance3D);
+				m->set_mesh(ring_mesh);
+				add_child(m);
+				fauna_rings_.push_back(m);
+			}
+			MeshInstance3D *ring = fauna_rings_[rings_used++];
+			if (ring->get_material_override() != ring_hl_mat) ring->set_material_override(ring_hl_mat);
+			const float rs = 2.0f * radius;
+			ring->set_transform(Transform3D(Basis().scaled(Vector3(rs, 0.12f, rs)), Vector3(r.x, ry + 0.04f, r.z)));
+			ring->set_visible(true);
+			const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
+			StatusStack st;
+			st.supply = max > 0 ? (float)r.amount / (float)max : 1.0f;
+			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, st);
 		}
 	}
 	for (size_t k = rings_used; k < fauna_rings_.size(); ++k) fauna_rings_[k]->set_visible(false);
