@@ -360,6 +360,8 @@ int main() {
 		const float got = s.player(1).res[RES_FOOD] - food0;
 		std::printf("  Ptolemaic team bonus: a units-only ally gets %.0f food in 10 s\n", got);
 		CHECK(got >= 9.0f && got <= 11.0f);
+	}
+
 	// 15. UnitAI ConstructionFinished: the builder of a new storehouse gathers the nearest supply it
 	// takes (FindNearbyResource with the dropsite's types), not the kind she gathered last.
 	{
