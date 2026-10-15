@@ -1401,6 +1401,22 @@ void Simulation::rebuild_nav_grid() {
 			auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
 			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
 		}
+		// A WallSet segment (a wall or palisade piece, or a locked gate: the only footprints longer than
+		// they are deep, building_half_depth) is 4 to 8 m thick, under an 8 m navcell: turned, the rule
+		// above leaves navcells along it open, and a long path goes straight through the wall. 0.28's
+		// 1 m navcells close a wall whole (Rasterize.cpp:29-130 blocks each navcell whose corners all lie
+		// within the clearance plus 1 m of it, and the pieces overlap their towers), so its long paths
+		// take the gate. At 8 m navcells the navcells its centre line passes through block too, as for
+		// thin scenery below: a chain with no gap, which ends inside the towers at its ends.
+		if (b.hu != b.hv) {
+			const rtso::nav::Vec2 d = b.hv > b.hu ? rtso::nav::footprint_dir(b, 0.0f, b.hv) : rtso::nav::footprint_dir(b, b.hu, 0.0f);
+			const auto [x0, y0] = nav_grid_.world_to_navcells(b.x - d.x, b.z - d.y);
+			const auto [x1, y1] = nav_grid_.world_to_navcells(b.x + d.x, b.z + d.y);
+			nav_grid_.walk_line(x0, y0, x1, y1, [&](int x, int y) {
+				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				return true;
+			});
+		}
 	}
 	// A 14 m palisade gate is shorter than two navcells, and the towers at its ends block the cell
 	// under their centres, which can be the gate's own: an unlocked gate keeps the cell under its

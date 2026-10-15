@@ -611,16 +611,23 @@ _NAV_HARNESS_SRC = r_NAV_HARNESS_SRC = r"""
 
 static uint32_t xs(uint32_t s){ s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
 
-// Mirrors the endpoint snap at the top of NavGrid::find_path (r <= 3 spiral).
+// Mirrors the endpoint snap at the top of NavGrid::find_path for an end at a navcell centre: the
+// passable navcell nearest it within r <= 3 (FindNearestPassableNavcell), ties in scan order.
 // Leaves the cell unchanged when no passable cell is found.
 static void snap_cell(const rtso::NavGrid &g, int &cx, int &cy, uint8_t pass) {
     if (g.is_passable_for(cx, cy, pass)) return;
-    for (int r = 1; r <= 3; ++r)
+    int best = -1, bx = cx, by = cy;
+    for (int r = 1; r <= 3; ++r) {
+        if (best >= 0 && (2 * r - 1) * (2 * r - 1) >= 4 * best) break;
         for (int dy = -r; dy <= r; ++dy)
             for (int dx = -r; dx <= r; ++dx) {
                 if (std::max(std::abs(dx), std::abs(dy)) != r) continue;
-                if (g.is_passable_for(cx + dx, cy + dy, pass)) { cx += dx; cy += dy; return; }
+                if (!g.is_passable_for(cx + dx, cy + dy, pass)) continue;
+                const int d = dx * dx + dy * dy;
+                if (best < 0 || d < best) { best = d; bx = cx + dx; by = cy + dy; }
             }
+    }
+    cx = bx; cy = by;
 }
 
 // Usage: nav_probe SEED NOBS CASES
@@ -721,17 +728,22 @@ def _nav_case(seed, case, res=NAV_RES):
 
 
 def _snap_to_passable(cx, cy, passable, res=NAV_RES):
-    """grid_nav.h:714-730 -- spiral out to r<=3 for a passable cell."""
+    """find_path's endpoint snap for an end at a navcell centre: the passable navcell nearest it
+    within r <= 3 (0 A.D. FindNearestPassableNavcell), ties in scan order."""
     if passable(cx, cy):
         return cx, cy
+    best, bx, by = -1, cx, cy
     for r in range(1, 4):
+        if best >= 0 and (2 * r - 1) ** 2 >= 4 * best:
+            break
         for dy in range(-r, r + 1):
             for dx in range(-r, r + 1):
-                if max(abs(dx), abs(dy)) != r:
+                if max(abs(dx), abs(dy)) != r or not passable(cx + dx, cy + dy):
                     continue
-                if passable(cx + dx, cy + dy):
-                    return cx + dx, cy + dy
-    return cx, cy
+                d = dx * dx + dy * dy
+                if best < 0 or d < best:
+                    best, bx, by = d, cx + dx, cy + dy
+    return bx, by
 
 
 def _line_clear(x0, y0, x1, y1, passable):
