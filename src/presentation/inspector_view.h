@@ -386,6 +386,7 @@ public:
 	}
 
 	godot::Panel *panel() const { return panel_; }
+	godot::Control *portrait() const { return portrait_; }
 	// The garrison and barter panels sit in the commands' supplemental panel (0.28's
 	// selection_panels_left).
 	void move_to_left_panel(godot::Control *left) {
