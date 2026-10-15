@@ -137,8 +137,11 @@ def encrypt_password(password, username):
     return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, ENCRYPT_ITERATIONS).hex().upper()
 
 
-# 0 A.D. prelobby checkUsername for a new account.
-ACCOUNT_NAME = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
+# 0 A.D. prelobby checkUsername (credentials.js): 3 to 20 of a-z 0-9 . _ -, one
+# letter at least, any case. Guests' names follow it too: a space, comma, "@"
+# or " (1800)" would pass for something else (a buddy list entry, a moderator,
+# a rating).
+ACCOUNT_NAME = re.compile(r"^(?=.*[a-z])[a-z0-9._-]{3,20}$", re.IGNORECASE)
 ELO_K_FACTOR_CONSTANT_RATING = 2200.0  # ratings above this move at its rate
 VOLATILITY_CONSTANT = 20.0          # games after which a rating is stable
 ANTI_INFLATION = 0.015
@@ -333,6 +336,8 @@ class Lobby:
             name = acct["name"]
         elif password or self.accounts_only:
             return 401, {"error": "Wrong username or password" if password else "Register an account first"}
+        elif not ACCOUNT_NAME.match(name):
+            return 400, {"error": "Invalid username"}
         if name.lower() in self.banned:
             return 403, {"error": "You have been banned from the lobby!"}
         if any(p["name"].lower() == name.lower() for p in self.players.values()):
