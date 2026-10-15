@@ -16305,6 +16305,10 @@ void Simulation::resume_order(size_t i) {
 	if (o.kind == ORDER_NONE) {
 		units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
+		// FinishOrder of the fight or flight the unit took up while idle: an order queued
+		// meanwhile (split_queued counted it busy) runs next.
+		auto q = order_queues_.find(units_.id[i]);
+		if (q != order_queues_.end() && !q->second.empty()) { finish_order(i); return; }
 		walk_to_held_position(i);
 		return;
 	}
@@ -16797,6 +16801,11 @@ void Simulation::tick_unit_ai(float dt) {
 		if (now == ACTION_CHEER) {
 			if (units_.attack_timer[i] <= 0.0f) {
 				units_.action_state[i] = ACTION_IDLE;
+				// CHEERING FinishOrder: an order queued during the cheer runs next.
+				if (units_.order_kind[i] == ORDER_NONE) {
+					auto q = order_queues_.find(units_.id[i]);
+					if (q != order_queues_.end() && !q->second.empty()) { finish_order(i); continue; }
+				}
 				// FINDINGNEWTARGET queues WalkToHeldPosition after the Cheer.
 				if (units_.order_kind[i] == ORDER_NONE && !order_queues_.count(units_.id[i]) &&
 						(formations_.empty() || formation_group_[i] == 0))
