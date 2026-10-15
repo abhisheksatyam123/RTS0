@@ -8575,12 +8575,12 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) continue;
 		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
 		if (info.raise_range >= 0.0f && edge_distance(raiser, ux, uz) > info.raise_range) continue;
-		// The nearest structure of ours that can take it (queries sort by distance).
+		// The nearest structure of ours or a mutual ally's that can take it (queries sort by distance).
 		int32_t best = -1;
 		float best_d = info.search_range;
 		for (size_t h = 0; h < buildings_.size(); ++h) {
 			const Building &b = buildings_[h];
-			if (b.team != player || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
+			if (!is_ally(player, b.team) || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
 					turret_points_of(b) || !structure_has_enough_health(b) || // turrets aren't a GarrisonHolder
 					!structure_accepts_garrison(b, i))
 				continue;
@@ -8627,7 +8627,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 	// Units inside nearby structures (and the raiser): unload, then back to work or stop.
 	std::vector<std::pair<uint32_t, uint32_t>> out;
 	for (const Building &b : buildings_) {
-		if (b.team != player || b.garrisoned_units.empty()) continue;
+		if (!is_ally(player, b.team) || b.garrisoned_units.empty()) continue; // AlertRaiser mutualAllies
 		const float gap = std::hypot(b.x - raiser.x, b.z - raiser.z) - b.half_size - raiser.half_size;
 		if (b.id != raiser.id && info.end_range >= 0.0f && gap > info.end_range) continue;
 		for (uint32_t uid : b.garrisoned_units) {
