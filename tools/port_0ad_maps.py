@@ -926,7 +926,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 if is_unit:
                     pass
                 elif wall:
-                    structures.append(dict(wall, player=ply))
+                    # The template: SkirmishReplacer keeps skirmish/structures/iber_wall_* for
+                    # Iberians only, and default_wall_* turns into the owner's own walls.
+                    structures.append(dict(wall, player=ply, template=tpl))
                 elif any(k in ltpl for k in ["civil_centre", "town_center", "civic"]):
                     players[ply]["start_x"] = wx
                     players[ply]["start_z"] = wz
@@ -1094,8 +1096,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                         if o is not None:
                             used.add(id(o))
                         want = dict(e, x=x, z=z, length=round(e["length"] * k, 3))
-                        want.pop("template", None)
-                        if o is not None and o.get("template"):
+                        if o is not None and o.get("template") and "template" not in want:
                             want["template"] = o["template"]
                         if o is not None and o != want:
                             o.clear()
