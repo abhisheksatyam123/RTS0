@@ -3801,7 +3801,7 @@ bool Simulation::cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id) {
 void Simulation::cancel_upgrade(Building &b, uint8_t refund_to) {
 	if (b.upgrade_to == BLD_TYPE_COUNT) return;
 	if (refund_to < MAX_PLAYERS)
-		players_[refund_to].refund(b.upgrade_paid[RES_FOOD], b.upgrade_paid[RES_WOOD], b.upgrade_paid[RES_GOLD], b.upgrade_paid[RES_STONE]);
+		players_[refund_to].add(b.upgrade_paid[RES_FOOD], b.upgrade_paid[RES_WOOD], b.upgrade_paid[RES_GOLD], b.upgrade_paid[RES_STONE]);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
@@ -8939,11 +8939,24 @@ uint32_t Simulation::stat_building_value(const Building &b) const {
 	return stat_cost_value(c);
 }
 
+// The unit's StatisticsTracker classes. Heroes take Infantry or Cavalry from their 0.28
+// template (template_unit_hero_infantry / _cavalry; elephant and healer heroes have neither),
+// which the formation table carries as Identity classes.
+uint32_t Simulation::stat_unit_classes_of(size_t idx) const {
+	const uint16_t tmpl = units_.tmpl[idx];
+	uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	if ((cls & (1u << STAT_UNIT_HERO)) && tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint16_t idc = formation_unit_table()[tmpl].classes;
+		if (idc & FCLASS_INFANTRY) cls |= 1u << STAT_UNIT_INFANTRY;
+		if (idc & FCLASS_CAVALRY) cls |= 1u << STAT_UNIT_CAVALRY;
+	}
+	return cls;
+}
+
 void Simulation::stat_unit_trained(size_t idx) {
 	const uint8_t p = units_.team[idx];
 	if (p >= MAX_PLAYERS) return;
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	PlayerStatistics &st = stats_[p];
 	for (uint8_t c = 0; c < STAT_UNIT_TOTAL; ++c)
 		if (cls & (1u << c)) st.units_trained[c]++;
@@ -8955,8 +8968,7 @@ void Simulation::stat_unit_trained(size_t idx) {
 // and through regeneration or auras count nowhere, so only attack kills call these.
 void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 	const uint8_t p = units_.team[idx];
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	const uint32_t value = stat_unit_value(idx);
 	// LostEntity for the owner, KilledEntity for whoever killed it.
 	if (p < MAX_PLAYERS) {
@@ -8979,8 +8991,7 @@ void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 // from, CapturedEntity for the captor. A catafalque has no Cost, so no value.
 void Simulation::stat_unit_captured(size_t idx, uint8_t from) {
 	const uint8_t p = units_.team[idx];
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	const uint32_t value = stat_unit_value(idx);
 	if (from < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[from];
@@ -12688,9 +12699,11 @@ void Simulation::tick_combat(float dt) {
 				           unit_splash(units_.tmpl[i], u_att));
 			}
 
-		} else if (!invulnerable(units_.id[t])) {
+		} else if (units_.alive[t] && !invulnerable(units_.id[t])) {
 			// helpers/Attack.js HandleAttackEffects returns at once for an invulnerable target:
-			// no damage, xp, Attacked message or status.
+			// no damage, xp, Attacked message or status. A target another attacker killed
+			// earlier this turn is already dead: Health.Reduce does nothing for it, so its
+			// kill, loot and statistics count once.
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
 			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg, true);
 			units_.hp[t] -= final_dmg;
@@ -30716,7 +30729,13 @@ void Simulation::scenery_check_owner(Scenery &sc) {
 	if (sc.cp[owner] > 0.0f) return;
 	int best = GAIA;
 	for (int t = 0; t < GAIA; ++t) if (sc.cp[t] > sc.cp[best]) best = t;
+	const uint8_t from = sc.owner;
 	sc.owner = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
+	// Capturable.js: CapturedEntity for the new owner, LostEntity for the old (template_structure:
+	// a Structure with none of the tracked classes, so only the Total columns move).
+	if (from == sc.owner) return;
+	if (sc.owner < MAX_PLAYERS) stats_[sc.owner].buildings_captured[STAT_BLD_TOTAL]++;
+	if (from < MAX_PLAYERS) stats_[from].buildings_lost[STAT_BLD_TOTAL]++;
 }
 
 // Capturable.js TimerTick, once a second for each Capturable scenery entity: TerritoryDecay
@@ -30749,12 +30768,18 @@ void Simulation::tick_scenery_capture() {
 void Simulation::destroy_scenery(size_t k, int32_t killer) {
 	const uint32_t id = scenery_[k].id;
 	const SceneryTypeInfo &info = scenery_type_info(scenery_[k].type);
+	// Health.js KilledBy: KilledEntity / LostEntity count a Structure (Total only, costless),
+	// then Looter.Collect adds to lootCollected.
+	if (scenery_[k].owner < MAX_PLAYERS) stats_[scenery_[k].owner].buildings_lost[STAT_BLD_TOTAL]++;
 	if (killer >= 0 && units_.team[killer] < MAX_PLAYERS) {
 		PlayerState &ps = players_[units_.team[killer]];
 		ps.res[RES_FOOD] += (float)info.loot[0];
 		ps.res[RES_WOOD] += (float)info.loot[1];
 		ps.res[RES_STONE] += (float)info.loot[2];
 		ps.res[RES_GOLD] += (float)info.loot[3];
+		PlayerStatistics &st = stats_[units_.team[killer]];
+		st.enemy_buildings_destroyed[STAT_BLD_TOTAL]++;
+		st.loot_collected += (uint32_t)(info.loot[0] + info.loot[1] + info.loot[2] + info.loot[3]);
 	}
 	scenery_.erase(scenery_.begin() + (ptrdiff_t)k);
 	for (size_t i = 0; i < units_.count; ++i) {

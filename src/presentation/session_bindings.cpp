@@ -78,6 +78,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_render_debug_mode", "index"), &RtsoMain::_on_render_debug_mode);
 	ClassDB::bind_method(D_METHOD("time_warp_rewind"), &RtsoMain::time_warp_rewind);
 	ClassDB::bind_method(D_METHOD("time_warp_snapshot_count"), &RtsoMain::time_warp_snapshot_count);
+	ClassDB::bind_method(D_METHOD("activate_rejoin_test"), &RtsoMain::activate_rejoin_test);
+	ClassDB::bind_method(D_METHOD("get_rejoin_test"), &RtsoMain::get_rejoin_test);
 	ClassDB::bind_method(D_METHOD("debug_dev_overlay"), &RtsoMain::debug_dev_overlay);
 	ClassDB::bind_method(D_METHOD("debug_set_net_delay", "turns"), &RtsoMain::debug_set_net_delay);
 	ClassDB::bind_method(D_METHOD("debug_net_delay_text"), &RtsoMain::debug_net_delay_text);

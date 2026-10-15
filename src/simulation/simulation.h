@@ -144,8 +144,9 @@ struct PlayerState {
 		used[RES_FOOD] += f; used[RES_WOOD] += w; used[RES_GOLD] += g; used[RES_STONE] += s;
 		return true;
 	}
-	// Gives back a cancelled payment (ProductionQueue.RemoveItem, Upgrade.CancelUpgrade):
-	// the statistics count it as never used.
+	// Gives back a cancelled payment (Trainer / TechnologyManager RefundResources): the
+	// statistics count it as never used. Upgrade.CancelUpgrade uses add(), so a cancelled
+	// upgrade stays in Resources used.
 	void refund(float f, float w, float g, float s) {
 		add(f, w, g, s);
 		used[RES_FOOD] -= f; used[RES_WOOD] -= w; used[RES_GOLD] -= g; used[RES_STONE] -= s;
@@ -2576,6 +2577,7 @@ private:
 	float unit_template_regen(size_t i) const;
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
 	// (out of range or the victim's own owner credits nobody).
+	uint32_t stat_unit_classes_of(size_t idx) const;
 	void stat_unit_trained(size_t idx);
 	void stat_unit_lost(size_t idx, uint8_t killer);
 	void stat_building_constructed(const Building &b);
