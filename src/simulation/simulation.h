@@ -170,8 +170,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 88; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 89; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
+	static constexpr uint32_t SAVE_VERSION_PETRA_NO_UNITS = 89; // Petra's canBuildUnits and the units it sent to allies (dispatchUnits)
 	static constexpr uint32_t SAVE_VERSION_PETRA_RALLY = 87; // each Petra plan's completing step, march waypoints and last position
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
@@ -3111,7 +3112,12 @@ private:
 	float petra_timer_  = 0.0f;
 	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
 	PetraKept petra_kept_; // decided once or only raised (configFirstBase, navalManager.js, targetNumTraders)
-	void petra_config_first_base(); // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
+	void petra_config_first_base();
+	void petra_check_can_build_units(); // startingStrategy.js gameStart canBuildUnits
+	void petra_dispatch_units();        // startingStrategy.js dispatchUnits
+	bool petra_dispatched_to_ally(uint32_t uid) const; // metadata "allied"
+	bool petra_can_build_units() const { return !petra_kept_.no_units; }
+	void petra_attack_home(float &x, float &z) const; // the base an attack starts from, else one of our units // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
 	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
