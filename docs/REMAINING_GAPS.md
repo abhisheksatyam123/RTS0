@@ -60,7 +60,7 @@ Combat, loot, territory, garrison, capture, rally points, trade and camps agains
 | P8 | Allied builders go idle when your building finishes; 0.28 sends them ConstructionFinished too, so they move on to their own nearby foundations | low | Fixed |
 | P9 | A passive siege engine never flees when hit; 0.28 needs only that it can move | low | Fixed |
 | P10 | Splash, death damage and melee splash never hit animals; 0.28 queries enemies, Gaia included | low | Fixed |
-| P11 | Damage to animals ignores attack auras (0.28 builds one damage for every target) | low | Open |
+| P11 | Damage to animals ignores attack auras (0.28 builds one damage for every target) | low | Fixed |
 | P12 | IdleRegenRate also heals garrisoned units | low | Re-checked, matches: GARRISONING's FinishOrder leaves a garrisoned unit in IDLE, so 0.28 regenerates it too |
 | P13 | Negative RegenRate from templates or modifiers is ignored except for the burning fire ship (no 0.28 tech uses one today) | low | Keep unless a template needs it |
 | P14 | Arrows recompute damage at impact from the shooter's current techs; a stray arrow of a dead shooter uses the aimed target's armour; an arrow aimed at an invulnerable unit doesn't fall to the next one; aim prediction uses current velocity | low | Open |

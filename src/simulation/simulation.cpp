@@ -14615,14 +14615,15 @@ int32_t Simulation::projectile_hit_fauna(const Projectile &p) const {
 	return best;
 }
 
-// The damage of unit i's attack on animal f: Hack, Pierce and Crush (scaled by techs),
-// each reduced by the animal's Resistance as 0.9^armour.
+// The damage of unit i's attack on animal f: Hack, Pierce and Crush (scaled by techs and,
+// as for any target, its attack auras: GetAttackEffectsData), each reduced by the
+// animal's Resistance as 0.9^armour.
 float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 	const auto &uinfo = unit_info_at(i);
 	const FaunaTypeInfo &finfo = fauna_type_info(fauna_.fauna_type[f]);
 	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return units_.attack_damage[i];
 	float d[4];
-	unit_tech_damage(i, d);
+	unit_attack_effects(i, d);
 	return d[0] * powf(0.9f, finfo.hack_armor) + d[1] * powf(0.9f, finfo.pierce_armor) + d[2] * powf(0.9f, finfo.crush_armor) + d[3];
 }
 
