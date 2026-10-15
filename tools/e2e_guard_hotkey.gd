@@ -87,7 +87,10 @@ func run() -> void:
 	var before: Vector2 = main.debug_unit_screen(a)
 	await right_click(ground)
 	await key(KEY_G, false)
-	await frames(40)
+	for i in 120: # the order lands on a later turn
+		if main.debug_unit_screen(a).distance_to(before) > 5.0:
+			break
+		await frames(1)
 	check(main.debug_unit_screen(a).distance_to(before) > 5.0, "the click walks the man there")
 
 	print("2. G over an own man: guard")
