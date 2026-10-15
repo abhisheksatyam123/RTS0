@@ -10266,6 +10266,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (chase_path && using_path && units_.target_building_id[i] == 0) {
 			const float cdx = chase_x - px[i], cdz = chase_z - pz[i];
 			stop_d2 = cdx * cdx + cdz * cdz;
+		} else if (closing_in && using_path && units_.target_unit_id[i] != 0 && units_.target_building_id[i] == 0) {
+			// A hunt's path (tick_hunters keeps (tx, tz) on the animal): the hunter stops for the
+			// animal too. Its slaughter range measured to a waypoint left it standing short of one.
+			const float cdx = tx[i] - px[i], cdz = tz[i] - pz[i];
+			stop_d2 = cdx * cdx + cdz * cdz;
 		}
 		if (!backing_off && stop_d2 <= stop_dist * stop_dist) {
 			vx[i] = 0;
