@@ -271,6 +271,9 @@ func _run() -> void:
 						left += 1
 						_say("chat_left=" + line.strip_edges())
 				_say("chat_left_lines=%d" % left)
+				# LobbyGamelistReporter: the lobby's game report marks bob offline.
+				var rep: Dictionary = session.room_details(root.get_node("/root/MatchSettings"), main.get_net_setup_state(), 0)
+				_say("report_offline=" + ",".join(rep["player_names"].filter(func(p): return p.get("offline", false)).map(func(p): return str(p["name"]))))
 				break
 			if role == "join" and st.get("disconnected", false):
 				_say("net_status=" + str(st.get("net_status", "")).replace("\n", " | ") +

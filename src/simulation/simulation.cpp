@@ -16814,71 +16814,6 @@ void Simulation::petra_manage_scouting(float dt) {
 	}
 }
 
-void Simulation::petra_manage_workers(float dt) {
-	// Find safest shelter building for Team 1 across all base anchors
-	float safe_x = 36.0f, safe_z = 36.0f, safe_half = 0.0f;
-	uint32_t shelter_bld_id = 0;
-	float best_shelter_score = 1e9f;
-
-	for (const auto &b : buildings_) {
-		if (b.team != petra_pid_ || b.build_progress < 0.5f) continue;
-		if (is_civic_centre(b.type) || b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_STOREHOUSE) {
-			float b_threat = get_threat_at(b.x, b.z);
-			if (b_threat < best_shelter_score) {
-				best_shelter_score = b_threat;
-				safe_x = b.x;
-				safe_z = b.z;
-				safe_half = b.half_size;
-				shelter_bld_id = b.id;
-			}
-		}
-	}
-
-	// 1. Worker Threat Evaluation & Evacuation
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || unit_gather_class(units_.unit_type[i], units_.tmpl[i]) != GATHER_SUPPORT) continue;
-
-		float threat = get_threat_at(units_.pos_x[i], units_.pos_z[i]);
-
-		// Under heavy danger (threat >= 7.0f): Evacuate to nearest safe shelter!
-		if (threat >= 7.0f) {
-			if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_BUILD ||
-				units_.action_state[i] == ACTION_RETURN_DROPSITE || units_.action_state[i] == ACTION_IDLE) {
-				// Stop just outside the shelter's footprint on the worker's side;
-				// a point inside it is unreachable and left the worker walking forever.
-				float ox = units_.pos_x[i] - safe_x, oz = units_.pos_z[i] - safe_z;
-				float ol = std::sqrt(ox * ox + oz * oz);
-				if (ol < 0.01f) { ox = 1.0f; oz = 0.0f; ol = 1.0f; }
-				const float stand = safe_half + 1.5f;
-				units_.target_x[i] = safe_x + ox / ol * stand;
-				units_.target_z[i] = safe_z + oz / ol * stand;
-				units_.has_order[i] = 1;
-				units_.action_state[i] = ACTION_MOVE;
-				units_.target_resource_id[i] = 0;
-				units_.target_building_id[i] = 0;
-			}
-
-			// If near stronghold with garrison capacity, garrison inside for shelter
-			if (shelter_bld_id != 0) {
-				auto bit = building_id_to_idx_.find(shelter_bld_id);
-				if (bit != building_id_to_idx_.end()) {
-					Building &sb = buildings_[bit->second];
-					float dx = units_.pos_x[i] - sb.x;
-					float dz = units_.pos_z[i] - sb.z;
-					const float reach = sb.half_size + 2.5f;
-					if (dx * dx + dz * dz <= reach * reach && garrison_room(sb, i) &&
-					    structure_accepts_garrison(sb, i) && petra_around(sb).unit) { // else garrisonManager would let it straight out
-						uint32_t uid = units_.id[i];
-						order_garrison(&uid, 1, sb.id);
-					}
-				}
-			}
-		}
-	}
-
-	// petra_manage_garrisons lets them out once no enemy is near (garrisonManager.js).
-}
-
 // What Petra pays for its fortress (wood, gold, stone in ResourceType order).
 static constexpr float PETRA_FORTRESS_COST[RES_COUNT] = {300.0f, 200.0f, 300.0f, 0.0f};
 
@@ -26440,8 +26375,8 @@ void Simulation::tick_petra_ai_player(float dt) {
 	// 3. Autonomous Scouting & FoW Exploration (scoutManager.js)
 	petra_manage_scouting(dt);
 
-	// 4. Villager Danger Evaluation & Evacuation
-	petra_manage_workers(dt);
+	// 4. (0.28 has no worker evacuation of its own: defenseManager garrisonAttackedUnit shelters an
+	//    attacked support unit below garrisonHealthLevel.medium, and UnitAI makes it flee.)
 
 	// 5. Priority Queue: Emergency Defense & Military Counter-Production
 	petra_manage_military_production(dt);

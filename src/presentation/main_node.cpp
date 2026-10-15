@@ -67,6 +67,8 @@ void RtsoMain::_notification(int p_what) {
 		write_replay(); // leaving the match keeps its replay
 		// Menus get the normal arrow back (update_cursor sets action cursors).
 		if (!cursor_name_.empty()) Input::get_singleton()->set_custom_mouse_cursor(Ref<Resource>());
+		// The Render Debug Mode is the session's; the menus draw normally.
+		if (render_debug_mode_ && get_viewport()) get_viewport()->set_debug_draw(Viewport::DEBUG_DRAW_DISABLED);
 		if (SceneTree *t = get_tree()) {
 			rtso::hide_node_popups(t->get_root());
 		} else {
@@ -430,9 +432,11 @@ Array RtsoMain::debug_command_row() {
 		Label *cnt = Object::cast_to<Label>(btn->find_child("unitUpgradeCount", false, false));
 		e["count"] = cnt ? cnt->get_text().to_int() : 0;
 		e["progress"] = btn->has_meta("progress") ? (int)btn->get_meta("progress") : -1; // pixels left
-		e["grey"] = false;
+		e["grey"] = btn->has_meta("grey");
+		e["masked"] = btn->find_child("resourcesMask", false, false) != nullptr; // resourcesToAlphaMask
 		for (int k = 0; k < btn->get_child_count(); ++k)
-			if (TextureRect *ic = Object::cast_to<TextureRect>(btn->get_child(k))) e["grey"] = ic->get_material().is_valid();
+			if (TextureRect *ic = Object::cast_to<TextureRect>(btn->get_child(k)))
+				if (ic->get_material().is_valid()) e["grey"] = true;
 		out.push_back(e);
 	};
 	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
@@ -2355,6 +2359,20 @@ void RtsoMain::_on_dev_command(int command) {
 	refresh_dev_overlay();
 }
 
+// RenderDebugMode.onSelectionChange: Renderer_SetRenderDebugMode. Godot's viewport debug draws
+// stand in for 0.28's shader defines: AO shows the ambient occlusion buffer, Alpha the
+// overdraw of blended surfaces, and Custom draws albedo only, unlit.
+void RtsoMain::_on_render_debug_mode(int index) {
+	using D = rtso::RtsoDevOverlay;
+	if (index < 0 || index >= D::RENDER_DEBUG_COUNT) return;
+	render_debug_mode_ = index;
+	static constexpr Viewport::DebugDraw kDraw[D::RENDER_DEBUG_COUNT] = {
+		Viewport::DEBUG_DRAW_DISABLED, Viewport::DEBUG_DRAW_SSAO, Viewport::DEBUG_DRAW_OVERDRAW, Viewport::DEBUG_DRAW_UNSHADED,
+	};
+	if (Viewport *vp = get_viewport()) vp->set_debug_draw(kDraw[index]);
+	refresh_dev_overlay();
+}
+
 // TimeWarp.setEnabled: not in networked games (nor replays); turning it on shows
 // TimeWarpMessageBox and starts the snapshots (Engine.EnableTimeWarpRecording(10)).
 void RtsoMain::set_time_warp(bool on) {
@@ -2422,6 +2440,7 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_OBSTRUCTION_OVERLAY, debug_overlays_.on(O::OBSTRUCTION));
 		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
 		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
+		dev_overlay_.set_render_debug(render_debug_mode_);
 	}
 	if (!dev_overlay_.state_shown()) return;
 	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
@@ -2488,6 +2507,8 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
 	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
 	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
+	d["render_debug"] = render_debug_mode_;
+	d["viewport_debug_draw"] = get_viewport() ? (int)get_viewport()->get_debug_draw() : -1;
 	return d;
 }
 
@@ -3496,6 +3517,12 @@ Dictionary RtsoMain::get_net_setup_state() const {
 		e["name"] = c >= 0 ? String::utf8(net_setup_.names[c].c_str()) : String();
 		// 0.28 ReadyController: 0 not ready, 1 ready, 2 stay ready (the host is).
 		e["ready"] = c == 0 ? 2 : c < 0 ? 0 : ((net_setup_.stay_ready >> c) & 1) ? 2 : ((net_setup_.ready >> c) & 1) ? 1 : 0;
+		// LobbyGamelistReporter: in the match, who won or was defeated, and
+		// which seated client dropped out (the slot is the player id).
+		if (net_game_started_ && sim) {
+			e["state"] = sim->is_victory_for(i) ? "won" : sim->is_defeated(i) ? "defeated" : "";
+			e["offline"] = host && c > 0 && turn_mgr_.client_left((uint32_t)c);
+		}
 		slots.push_back(e);
 	}
 	d["slots"] = slots;
