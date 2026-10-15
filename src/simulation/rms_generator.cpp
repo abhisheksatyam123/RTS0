@@ -11866,6 +11866,18 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	std::vector<std::pair<float, float>> fruit_trees;
 	uint8_t fruit_kind = FLORA_DEFAULT;
 	uint16_t fruit_food = 0;
+	// placePlayerBaseTrees: each player's starting trees, 11-13 tiles from its start plus their
+	// group's spread, are the script's tree1 ("Trees": {"template": oTree1}), not stragglers
+	// (createStragglerTrees keeps off the player areas).
+	constexpr float BASE_TREE_REACH = 18.0f;
+	std::vector<std::pair<float, float>> starts;
+	for (const auto &b : sim.buildings())
+		if (is_civic_centre(b.type) && b.team < MAX_PLAYERS) starts.emplace_back(b.x, b.z);
+	auto base_tree = [&](float x, float z) {
+		for (const auto &[sx, sz] : starts)
+			if ((x - sx) * (x - sx) + (z - sz) * (z - sz) < BASE_TREE_REACH * BASE_TREE_REACH) return true;
+		return false;
+	};
 	// Trees per 2-tile cell, to tell forests from stragglers.
 	std::unordered_map<uint64_t, int> cells;
 	auto cell_key = [](int cx, int cz) { return (uint64_t)(uint32_t)cx << 32 | (uint32_t)cz; };
@@ -11901,6 +11913,10 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 			kind = f->tree3[h % (uint32_t)n3];
 			wood = f->tree3_wood[h % (uint32_t)n3];
 			gatherers = tree_slot_gatherers(slot_name, own, 1, (int)(h % (uint32_t)n3), 0);
+		} else if (base_tree(rv.x[r], rv.z[r])) {
+			kind = t12[0];
+			wood = w12[0];
+			gatherers = g12[0];
 		} else {
 			// createStragglerTrees: [tree1, tree2, tree4, tree3].
 			const uint8_t pick[4] = {t12[0], t12[1], t45[0], t3};

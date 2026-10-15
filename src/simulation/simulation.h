@@ -171,7 +171,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 90; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 91; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_MOVE_TO_GATHERER = 91; // when each Petra mobile dropsite next looks for a gatherer
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
 	static constexpr uint32_t SAVE_VERSION_PETRA_NO_UNITS = 90; // Petra's canBuildUnits and the units it sent to allies (dispatchUnits)
@@ -423,6 +424,13 @@ public:
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// The passability class Clearance of the unit at SoA index i from buildings (unit_building_clearance).
 	float unit_clearance_at(size_t i) const { return unit_building_clearance(units_.tmpl[i], units_.unit_type[i]); }
+	// The long-path class of land unit i: PASS_CAVALRY when mounted, else PASS_INFANTRY, plus
+	// PASS_LARGE for 0 A.D.'s "large" class (unit_is_large).
+	uint8_t unit_land_pass(size_t i) const {
+		const uint8_t t = units_.unit_type[i];
+		const bool mounted = t == UNIT_CAVALRY || t == UNIT_CHARIOT || t == UNIT_CAMEL || t == UNIT_SCYTHED_CHARIOT;
+		return (mounted ? PASS_CAVALRY : PASS_INFANTRY) | (unit_is_large(units_.tmpl[i], t) ? PASS_LARGE : 0);
+	}
 	// Attack MaxRange of the unit at SoA index i with technologies (the developer overlay's range overlay).
 	float unit_attack_range_at(size_t i) const { return i < units_.count ? units_.attack_range[i] : 0.0f; }
 	// The waypoints of its long path it has still to reach, *xs / *zs at the next one (the unit
@@ -951,7 +959,7 @@ public:
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
 	static bool is_dropsite_type(uint8_t type) {
-		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || is_food_dropsite(type) ||
 			civ_building_is_dropsite(type);
 	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
@@ -3143,8 +3151,13 @@ private:
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
+	uint8_t petra_target_owner(uint32_t id) const;
+	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
+	void petra_scuttle_undefendable();
+	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
+	float petra_starting_wood(float x, float z) const;
 	void petra_plan_sizes(uint8_t kind);
 	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
 	// attackPlan.js unitStat: a plan's classes with their priority, minSize, targetSize,
@@ -3201,6 +3214,10 @@ private:
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
 	std::vector<PetraHuntSearch> petra_hunt_search_;
+	// worker.js nextMoveToGatherer: when (petra_timer_) each mobile dropsite next looks for a
+	// gatherer to walk to; one with no entry looks from 5 s on.
+	struct PetraNextMove { uint32_t id; float time; };
+	std::vector<PetraNextMove> petra_move_to_gatherer_;
 	// worker.js isInaccessibleSupply: each gatherer's or hunter's approach (approachingTarget, the
 	// petra_timer_ time and spot it was last seen moving from, time < 0 none yet, carriedBefore,
 	// alreadyTried), and the supplies it flagged (inaccessibleTime: skipped until `until`).
@@ -3223,6 +3240,10 @@ private:
 	bool petra_rates_this_turn() const { return petra_rates_stamp_ == petra_rates_key(); }
 	// headquarters.js pickMostNeededResources over those rates.
 	static void petra_most_needed(const float want_rate[RES_COUNT], const float cur_rate[RES_COUNT], uint8_t out[RES_COUNT]);
+	// pickMostNeededResources for diplomacy: wanted > 0 per resource, and the most needed one;
+	// from this turn's gather rates when in, else from what our queues are short of.
+	void petra_wanted_resources(bool out[RES_COUNT]);
+	uint8_t petra_most_needed_resource();
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
 	float petra_scout_timer_ = 0.0f;
@@ -3563,7 +3584,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_)
+	X(petra_kept_) X(petra_move_to_gatherer_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -3756,14 +3777,17 @@ private:
 	// crosses the first `reach` of that line, kept `radius` off, or holds the walker. Only then does
 	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
 	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
-	// Navcells a wood closes to long paths: 1 where trees and bushes leave no way across the cell
-	// (forest_cell_closed). rebuild_nav_grid marks them obstructed. Recomputed when the Gaia
-	// obstacles change (update_forest_cells), and the nav grid rebuilt when a cell opens or closes.
+	// Navcells a wood closes to long paths: FOREST_CLOSED where trees and bushes leave no way
+	// across the cell (forest_cell_closed), FOREST_CLOSED_LARGE where only the large class's
+	// clearance finds none. rebuild_nav_grid marks the first obstructed and the second
+	// NavGrid::large_closed. Recomputed when the Gaia obstacles change (update_forest_cells), and
+	// the nav grid rebuilt when a cell changes.
+	enum : uint8_t { FOREST_OPEN = 0, FOREST_CLOSED = 1, FOREST_CLOSED_LARGE = 2 };
 	std::vector<uint8_t> forest_cells_;
 	uint64_t forest_sig_ = 0;
 	bool forest_removals_only_ = false; // tick_gather felled trees from up-to-date forest_cells_
 	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
-	bool forest_cell_closed(int cx, int cy) const;
+	bool forest_cell_closed(int cx, int cy, float clr = CLEARANCE_DEFAULT) const;
 	bool update_forest_cells();
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
@@ -3812,6 +3836,7 @@ private:
 	bool guard_keeps_target(size_t i, size_t t) const;
 	void guard_answer(size_t i, size_t g, uint32_t attacker);
 	void walk_to_held_position(size_t i);
+	void walk_back_if_drifted(size_t i);
 	void find_targets_then_walk_back(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;

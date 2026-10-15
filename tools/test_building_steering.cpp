@@ -1342,6 +1342,44 @@ static void forest_cells() {
 	check(!sparse, "a wood of oaks 8 m apart was closed to long paths");
 	check(!felled, "a lane felled through a thick wood stayed closed to long paths");
 	check(rest, "felling a lane opened the rest of a thick wood");
+
+	// A wood of oaks 6.4 m apart (4.8 m gaps): open to infantry (0.8 m clearance), closed to the
+	// large class (3 m: siege, elephants), whose long paths go round it.
+	Simulation m;
+	setup(m);
+	for (int x = -4; x <= 4; ++x)
+		for (int z = -4; z <= 4; ++z)
+			m.spawn_resource_world(1.6f * (float)x, 1.6f * (float)z, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+	m.tick(DT);
+	const auto [wx, wy] = m.nav_grid_.world_to_cell(0.0f, 0.0f);
+	const bool inf_open = m.nav_grid_.is_passable_for(wx, wy, PASS_INFANTRY);
+	const bool large_open = m.nav_grid_.is_passable_for(wx, wy, PASS_INFANTRY | PASS_LARGE);
+	WaypointPath inf, big;
+	m.find_path(-12.0f, 0.0f, 12.0f, 0.0f, inf, PASS_INFANTRY);
+	const bool big_found = m.find_path(-12.0f, 0.0f, 12.0f, 0.0f, big, PASS_INFANTRY | PASS_LARGE);
+	auto off_axis = [](const WaypointPath &p) {
+		float d = 0.0f;
+		for (int k = 0; k < p.count; ++k) d = std::max(d, std::fabs(p.zs[k]));
+		return d;
+	};
+	std::printf("  large class: a wood with 4.8 m gaps is open to infantry (%d), closed to siege (%d); "
+			"paths across stray %.1f (infantry) and %.1f (large) off the line\n", inf_open, !large_open, off_axis(inf), off_axis(big));
+	check(inf_open, "a wood with 4.8 m gaps was closed to infantry");
+	check(!large_open, "a wood with 4.8 m gaps was open to the large class");
+	check(big_found && off_axis(big) > 6.4f, "a large unit's long path crossed a wood it can't fit through");
+	check(off_axis(inf) < 6.4f, "an infantryman's long path went round a wood it fits through");
+	// With no way round, the large class falls back to the default class's path.
+	Simulation c;
+	setup(c);
+	const float half = c.map_half();
+	for (float z = -half + 0.8f; z < half; z += 1.6f)
+		for (int x = -2; x <= 2; ++x)
+			c.spawn_resource_world(1.6f * (float)x, z, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+	c.tick(DT);
+	WaypointPath across;
+	const bool across_found = c.find_path(-12.0f, 0.0f, 12.0f, 0.0f, across, PASS_INFANTRY | PASS_LARGE);
+	std::printf("  large class: across a wood from edge to edge it takes the infantry path (%d)\n", across_found);
+	check(across_found, "a large unit found no path across a wood it can only cross on the default class");
 }
 
 // 24. Repair in a house cluster (soak: Petra women stood 60 s or more at a neighbour's corner). The

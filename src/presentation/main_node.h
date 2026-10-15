@@ -169,6 +169,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	void update_net_connect_overlay();
 	Node *net_connect_overlay_ = nullptr; // scenes/menu/net_connecting.gd
 	CanvasLayer *net_connect_layer_ = nullptr;
+	// The network warnings over the setup page and the Connecting box before Start.
+	CanvasLayer *net_warnings_layer_ = nullptr;
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -229,6 +231,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoCinemaView cinema_view_;
 	bool campaign_win_noted_ = false; // summary_screen.gd mark_campaign_won ran for this match
+	bool lobby_report_noted_ = false; // LobbySession._check_report ran on this seat's win or defeat
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
@@ -380,7 +383,6 @@ public:
 	void log_render(const String &text, bool error = false);
 	void update_log_messages(bool changed = false);
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
-	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
 	static String speed_title(float speed);
 	static Array speed_choices(bool fast_forward);
@@ -435,6 +437,7 @@ public:
 	void _on_roster_gui_input(const Ref<InputEvent> &event);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
+	void _on_tech_pressed_at(int tech_id, int64_t building_id);
 	void _on_upgrade_pressed(int choice);
 	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
@@ -661,6 +664,8 @@ public:
 	// Rally point flags drawn this frame (rally_point_renderer.h).
 	int debug_rally_flags() const { return rally_points_.flag_count(); }
 	int debug_status_sprites() const { return view ? view->status_sprite_count() : 0; }
+	PackedStringArray debug_status_rank_icons() const { return view ? view->status_rank_icons() : PackedStringArray(); }
+	int debug_status_xp_bars() const { return view ? view->status_xp_bars() : 0; }
 	PackedInt32Array debug_selected_structures() const {
 		PackedInt32Array out;
 		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);
@@ -695,6 +700,9 @@ public:
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
+	void debug_select_structures(const PackedInt32Array &ids);
+	int64_t debug_spawn_relic(float dx, float dz);
+	void debug_capture_relic(const PackedInt32Array &ids, int64_t relic);
 	int64_t debug_civic_centre_id(int player) const;
 	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
@@ -943,8 +951,6 @@ private:
 	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
 	uint32_t net_oos_shown_turn_ = 0;        // OutOfSyncNetwork showed this turn (0 none)
 	static constexpr int kReplayViewGaiaId = 100;
-	OptionButton *replay_speed_picker_ = nullptr;
-	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
 	// An observer's perspective (0 A.D. session "viewPlayer" dropdown): the whole
 	// map, or one player's sight and panels. Presentation only.
@@ -987,6 +993,9 @@ private:
 	CheckBox *observer_follow_box_ = nullptr;
 	CheckBox *replay_follow_box_ = nullptr;
 	CheckBox *new_follow_player_box();
+	// PlayerViewControl.xml and FollowPlayer.xml: the picker, "Observer Mode" and Follow Player
+	// placed in the top panel's frame; returns the row holding them.
+	Control *new_player_view_row(OptionButton *picker, Label *observer_label, CheckBox *follow) const;
 	int followed_view() const;
 	void set_follow_player(bool on);
 	bool is_follow_player() const { return follow_player_; }
@@ -1059,6 +1068,10 @@ private:
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start
 	// then continues it for everyone (host_start_saved_game).
 	String net_saved_game_;
+	// The save's seats a human may take (lower-case name in the save, or empty
+	// for an AI or defeated player), by player id; filled with net_saved_game_.
+	std::vector<String> net_saved_seats_;
+	bool net_saved_setup() const { return !net_saved_game_.is_empty() && !net_game_started_; }
 	void host_start_saved_game();
 	void tick_match_archive();
 	Dictionary statistics_summary() const;

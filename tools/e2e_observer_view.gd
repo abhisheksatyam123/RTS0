@@ -58,6 +58,14 @@ func run() -> void:
 	check(is_equal_approx(m.get_game_speed(), 10.0), "a defeated player can fast-forward")
 	m.set_game_speed(1.0)
 	var pk: Dictionary = st.observer_picker
+	var row: Control = m.find_child("PlayerViewControl", true, false)
+	var picker: OptionButton = row.get_child(0) if row else null
+	var w: float = root.get_visible_rect().size.x
+	if picker:
+		var r: Rect2 = picker.get_global_rect()
+		print("    picker at ", r, " of ", w)
+		check(absf(r.position.x - (12.0 + (w - 24.0) * 0.85 - 282.0)) < 1.0 and r.position.y < 54.0,
+				"the picker sits in the top panel at 85%-282 (PlayerViewControl.xml)")
 	check(pk.visible, "the player view shows once defeated")
 	check(pk.items.size() >= 4 and pk.items[0] == "Observer" and pk.items[1] == "Gaia", "Observer, Gaia, then the players: " + str(pk.items))
 	check(not str(pk.items).contains("("), "players are named without their civ")

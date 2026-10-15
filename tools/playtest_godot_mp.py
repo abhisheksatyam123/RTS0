@@ -90,7 +90,8 @@ def play_saved(args, lobby):
     """0 A.D. Host Saved Game: a two-player match is played alone for 20 s and
     saved; the host hosts that save, the joiner joins from the game list, and
     at Start the joiner loads the host's world (it never built its own) and
-    takes the second seat. Their turn hashes must match."""
+    takes the second seat. The setup refuses the joiner's civ, team and
+    colour picks (0.28 locks every setting of a saved game but the seats). Their turn hashes must match."""
     print("[gmp] ---- a saved game: the host continues it, the joiner loads its world ----")
     port = args.port + 2
     def client(role, name, *more):
@@ -136,6 +137,8 @@ def play_saved(args, lobby):
     ok = (host.returncode == 0 and join.returncode == 0 and h and j and hosted and loaded
           and h.get("hash") == j.get("hash") and h.get("hash") not in (None, "00000000")
           and h.get("seat") == "0" and j.get("seat") == "1"
+          # GameSettingControl EnabledWhenSavedGame: the joiner's own picks are refused.
+          and "refused=The controller loaded a saved game" in outs["join"]
           # A saved game's clients load it at Start: nobody "has rejoined".
           and h.get("rejoined_lines") == "0" and j.get("rejoined_lines") == "0")
     for role in ("host", "join"):
@@ -255,7 +258,9 @@ def play_direct_join_refused(args, lobby):
 
 
 def play_setup_leave(args, lobby):
-    """0.28 reportDisconnect in the game setup: the host leaves before Start;
+    """0.28 SetupWindow netwarn: bob freezes in the setup, and the host's setup
+    page shows "bob losing connection" over itself. Then 0.28 reportDisconnect
+    in the game setup: the host leaves before Start;
     the client's setup page closes for "Lost connection to the server." with
     the reason, and its OK goes back to the lobby."""
     print("[gmp] ---- the host leaves the game setup before Start ----")
@@ -273,6 +278,18 @@ def play_setup_leave(args, lobby):
     host = client("host", "alice")
     time.sleep(2.0)
     join = client("join", "bob")
+    # Once the host has made bob an observer, bob freezes for a few seconds
+    # (a stalled client in the setup) and the host's setup page must show it.
+    deadline = time.time() + args.timeout
+    while host.poll() is None and time.time() < deadline:
+        with open(f"/proc/self/fd/{host.log.fileno()}") as f:
+            if "unassigned slot 2" in f.read():
+                break
+        time.sleep(0.25)
+    if join.poll() is None:
+        os.kill(join.pid, signal.SIGSTOP)
+        time.sleep(4.0)
+        os.kill(join.pid, signal.SIGCONT)
     outs = {}
     for role, p in (("join", join), ("host", host)):
         try:
@@ -282,18 +299,26 @@ def play_setup_leave(args, lobby):
             p.wait()
         p.log.seek(0)
         outs[role] = p.log.read()
-    def said(key):
-        return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs["join"]) if f" {key}=" in l), "")
+    def said(key, role="join"):
+        return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs[role]) if f" {key}=" in l), "")
+    # SetupWindow.js netwarn: over the setup page (layer 20), not under it.
+    warning = said("setup_net_warning", "host")
     status = said("setup_status")
     moved = said("moved_to_observers")
     ok = (host.returncode == 0 and join.returncode == 0 and moved == "Observers: bob"
           and status == "Lost connection to the server. | The host has ended the game. reason=2 saw_page=true page=false"
-          and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn")
+          and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn"
+          and warning.startswith("bob losing connection (") and warning.endswith(" layer=22")
+          # MapSelection.js Random: the host picked a map, the client saw only "Random".
+          and said("setup_map") == "random" and said("random_pick", "host").endswith(" hidden=true")
+          and not said("random_pick", "host").startswith("random "))
     for role in ("host", "join"):
         for line in gmp_lines(outs[role]):
             print("   " + line)
     if ok:
         print("[gmp] PASS the host's player assignment made bob an observer; his page listed: Observers: bob")
+        print(f"[gmp] PASS the host chose Random and picked {said('random_pick', 'host').split()[0]}; the client's setup showed Random")
+        print(f"[gmp] PASS bob froze in the setup; the host's setup page showed over it: {warning}")
         print(f"[gmp] PASS the host left the setup; the client's page closed for: {status.split(' reason=')[0]}; "
               f"OK went back to the lobby")
         return True
