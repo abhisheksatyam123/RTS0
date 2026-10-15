@@ -16818,6 +16818,9 @@ bool Simulation::self_garrison_rally(const Building &b, uint8_t unit_type, uint1
 
 void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison) {
 	const Building::RallyStep first{b.rally_x, b.rally_z, b.rally_target_res_id, b.rally_target_bld_id, b.rally_res_type, b.rally_res_sub};
+	// RallyPoint.OrderToRallyPoint: when the first command is "garrison back in here" and that
+	// is ignored (units just unloaded), none of the commands run.
+	if (ignore_self_garrison && first.bld_id == b.id) return;
 	apply_rally_step(uid, b, first, false, ignore_self_garrison);
 	for (const Building::RallyStep &st : b.rally_more) apply_rally_step(uid, b, st, true, false);
 }
