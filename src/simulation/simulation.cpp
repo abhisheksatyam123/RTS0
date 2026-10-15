@@ -348,6 +348,53 @@ struct UnitGrid {
 		return true;
 	}
 
+	// The units of each cell with their positions, laid out cell after cell in the order the
+	// chains hold them (descending index), for a caller that tests many units per query.
+	struct Packed {
+		float x, z;
+		int32_t j;
+	};
+	uint32_t *packed_start = nullptr; // cell c's units are packed[packed_start[c] .. packed_start[c + 1])
+	Packed *packed = nullptr;
+
+	bool pack(Arena &arena, size_t n, const float *px, const float *pz) {
+		const size_t cells = (size_t)res * res;
+		packed_start = arena.alloc_array<uint32_t>(cells + 1);
+		packed = arena.alloc_array<Packed>(n ? n : 1);
+		if (!packed_start || !packed) return false;
+		uint32_t k = 0;
+		for (size_t c = 0; c < cells; ++c) {
+			packed_start[c] = k;
+			for (int32_t j = head[c]; j >= 0; j = nxt[j]) packed[k++] = Packed{px[j], pz[j], j};
+		}
+		packed_start[cells] = k;
+		return true;
+	}
+
+	// visit_radius_within() over the packed units: the same units in the same order.
+	template <typename Fn>
+	void visit_packed_within(float x, float z, float radius, float reach, Fn &&fn) const {
+		int cr = std::max(1, (int)std::ceil(radius * inv) + 1);
+		int cx = std::clamp((int)((x + half) * inv), 0, res - 1);
+		int cz = std::clamp((int)((z + half) * inv), 0, res - 1);
+		int x0 = std::max(0, cx - cr);
+		int x1 = std::min(res - 1, cx + cr);
+		int z0 = std::max(0, cz - cr);
+		int z1 = std::min(res - 1, cz + cr);
+		if (reach < radius + (float)cr / inv) {
+			auto axis = [this](float f) { return std::clamp((int)((f + half) * inv), 0, res - 1); };
+			x0 = std::max(x0, axis(x - reach));
+			x1 = std::min(x1, axis(x + reach));
+			z0 = std::max(z0, axis(z - reach));
+			z1 = std::min(z1, axis(z + reach));
+		}
+		if (x0 > x1) return;
+		for (int zz = z0; zz <= z1; ++zz) {
+			const size_t row = (size_t)zz * res;
+			for (uint32_t k = packed_start[row + x0], e = packed_start[row + x1 + 1]; k < e; ++k) fn(packed[k]);
+		}
+	}
+
 	template <typename Fn>
 	void visit_radius(float x, float z, float radius, Fn &&fn) const {
 		visit_radius_within(x, z, radius, std::numeric_limits<float>::infinity(), fn);
@@ -5169,28 +5216,51 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 	const std::vector<std::pair<float, float>> points =
 			spread && count > 1 ? distribute_around(unit_ids, count, tx, tz) : std::vector<std::pair<float, float>>();
 
+	// Each walker's long path first, all on the job pool (0.28 computes long paths on worker
+	// threads too): a path is a function of the nav grid, the unit's position, its goal and its
+	// passability alone, none of which the orders below change, so the units take the same paths
+	// as when each was searched in turn. An attack plan sends fifty units across a Giant map at once.
+	struct Walk {
+		int32_t idx;
+		float dest_x, dest_z;
+		uint8_t pass;
+		WaypointPath wp;
+	};
+	std::vector<Walk> walks;
+	walks.reserve(count);
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
 		if (idx < 0 || (size_t)idx >= units_.count || !units_.alive[idx]) continue;
-
-		float dest_x = points.empty() ? tx : points[i].first;
-		float dest_z = points.empty() ? tz : points[i].second;
-		dest_x = std::clamp(dest_x, -map_half_ + 1.0f, map_half_ - 1.0f);
-		dest_z = std::clamp(dest_z, -map_half_ + 1.0f, map_half_ - 1.0f);
-		units_.target_x[idx] = dest_x;
-		units_.target_z[idx] = dest_z;
-		units_.anchor_x[idx] = dest_x;
-		units_.anchor_z[idx] = dest_z;
-		if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
-		WaypointPath wp;
-		uint8_t pass = PASS_INFANTRY;
-		uint8_t ut = units_.unit_type[idx];
+		Walk w;
+		w.idx = idx;
+		w.dest_x = std::clamp(points.empty() ? tx : points[i].first, -map_half_ + 1.0f, map_half_ - 1.0f);
+		w.dest_z = std::clamp(points.empty() ? tz : points[i].second, -map_half_ + 1.0f, map_half_ - 1.0f);
+		w.pass = PASS_INFANTRY;
+		const uint8_t ut = units_.unit_type[idx];
 		if (unit_is_ship(ut))
-			pass = unit_ship_pass(ut);
+			w.pass = unit_ship_pass(ut);
 		else if (ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL ||
 		         ut == UNIT_SCYTHED_CHARIOT)
-			pass = PASS_CAVALRY;
-		find_path(units_.pos_x[idx], units_.pos_z[idx], dest_x, dest_z, wp, pass);
+			w.pass = PASS_CAVALRY;
+		walks.push_back(w);
+	}
+	{
+		ScopedUs prof(map_scale_stats_.path_us, map_scale_stats_.path_calls);
+		JobSystem::instance().for_each_index(walks.size(), [&](size_t k) {
+			Walk &w = walks[k];
+			nav_grid_.find_path(units_.pos_x[w.idx], units_.pos_z[w.idx], w.dest_x, w.dest_z, w.wp, w.pass);
+		}, 1);
+		if (!walks.empty()) map_scale_stats_.path_calls += walks.size() - 1; // ScopedUs counts one
+	}
+
+	if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
+	for (const Walk &w : walks) {
+		const int32_t idx = w.idx;
+		const WaypointPath &wp = w.wp;
+		units_.target_x[idx] = w.dest_x;
+		units_.target_z[idx] = w.dest_z;
+		units_.anchor_x[idx] = w.dest_x;
+		units_.anchor_z[idx] = w.dest_z;
 		// HierarchicalPathfinder::MakeGoalReachable: a player's walk to a point the unit can't reach
 		// (out at sea, ashore for a ship, another island) ends where find_path ends the path, the
 		// nearest point it can reach. Petra's walks keep their goal.
@@ -10793,7 +10863,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	memset(bfz, 0, n * sizeof(float));
 
 	UnitGrid grid;
-	if (!grid.build(arena, n, px, pz, units_.alive, map_half_)) return;
+	if (!grid.build(arena, n, px, pz, units_.alive, map_half_) || !grid.pack(arena, n, px, pz)) return;
 
 	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
 	// after move_units (the pushes compare that), where it stood when the turn began (the crossing
@@ -10813,6 +10883,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	PushUnit *pu = arena.alloc_array<PushUnit>(n);
 	if (!pu) return;
 	float c_max = 0.0f;
+	float r_max = 0.0f, step_max = 0.0f; // the widest body, and the furthest a unit moved this tick on one axis
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i]) continue;
 		const uint8_t type = units_.unit_type[i];
@@ -10830,6 +10901,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		u.moving = have_steps && (steps.moving[i] & WALK_MOVING);
 		u.slot = st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK_MOVE;
 		c_max = std::max(c_max, u.r * PUSH_CLEARANCE_PER_RADIUS);
+		r_max = std::max(r_max, u.r);
+		if (have_steps) step_max = std::max({step_max, std::fabs(px[i] - steps.from_x[i]), std::fabs(pz[i] - steps.from_z[i])});
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
 
@@ -10854,7 +10927,13 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		float az = 0.0f;
 		int added_pressure = 0;
 		bool body_overlap = false; // an idle unit whose body overlaps another idle unit's
-		grid.visit_radius_within(pxi, pzi, reach + 0.5f, reach + 0.5f, [&](int32_t j) {
+		// A unit further than `skip` on either axis neither overlaps this one's body nor comes
+		// within `reach` of it once both averages are taken (each moved at most step_max), so it
+		// is passed over before its data is read. The hundredth covers float rounding.
+		const float skip = std::max(reach + step_max, ri + r_max) + 0.01f;
+		grid.visit_packed_within(pxi, pzi, reach + 0.5f, reach + 0.5f, [&](const UnitGrid::Packed &e) {
+			if (std::fabs(e.x - pxi) > skip || std::fabs(e.z - pzi) > skip) return;
+			const int32_t j = e.j;
 			if ((size_t)j == i) return;
 			const PushUnit &b = pu[j];
 			const bool mj = b.moving;
