@@ -1501,6 +1501,15 @@ void RtsoMain::_on_research_progress_pressed(int slot) {
 		if (cam_rig) cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 		return;
 	}
+	// A unit researching (a Researcher on a unit); a garrisoned one can't be selected.
+	const auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (uv.id[i] != id || !uv.alive[i]) continue;
+		clear_selection();
+		selected_ids.push_back((int32_t)id);
+		if (cam_rig) cam_rig->set_target_pos(Vector3(uv.pos_x[i], 0, uv.pos_z[i]));
+		return;
+	}
 }
 
 // DeveloperOverlay.toggle: only with cheats in a networked game; DeveloperOverlay.sendNotification
