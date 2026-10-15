@@ -327,8 +327,9 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/replay_browser.tscn")
 		"open_lobby":
 			_go_to_scene("res://scenes/menu/lobby.tscn")
-		"open_options":
-			_go_to_scene("res://scenes/menu/options.tscn")
+		"open_options": # MainMenuItems.js: Engine.PushGuiPage("page_options.xml") over the menu
+			_close_submenu()
+			load("res://scenes/menu/options.gd").open_overlay(self)
 		"open_locale":
 			_close_submenu()
 			load("res://scenes/menu/locale_page.gd").open(self)
