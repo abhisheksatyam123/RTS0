@@ -681,6 +681,10 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["chat_addressee"] = chat_window_.addressee_label();
 	d["chat_extended"] = chat_window_.extended();
 	d["chat_filters"] = (int64_t)chat_window_.filter_count();
+	Array names; // the plain names Tab completes (g_PlayerAssignments)
+	for (const String &n : const_cast<RtsoMain *>(this)->chat_autocomplete_names()) names.push_back(RtsoChatWindow::plain(n));
+	d["chat_names"] = names;
+	d["chat_addressees"] = chat_window_.addressee_list();
 	return d;
 }
 

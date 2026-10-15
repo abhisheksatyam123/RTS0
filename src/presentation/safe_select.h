@@ -46,6 +46,7 @@ public:
 	godot::String get_item_text(int index) const;
 	int get_item_index(int id) const; // OptionButton.get_item_index: -1 when no item has the id
 	int get_item_count() const { return (int)items.size(); }
+	Ref<Texture2D> get_item_icon(int index) const { return index >= 0 && index < (int)items.size() ? items[index].icon : Ref<Texture2D>(); }
 	void clear();
 
 	void _notification(int p_what);

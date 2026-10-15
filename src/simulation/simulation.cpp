@@ -12524,9 +12524,10 @@ bool Simulation::try_commit_foundation(Building &b) {
 	}
 	if (blocked) return false;
 	b.committed = true;
-	// Foundation.js Commit: GetEntitiesDeletedUponConstruction, the fish under a dock's footprint.
+	// Foundation.js Commit: GetEntitiesDeletedUponConstruction, the fish under a dock's footprint
+	// and any carcass under the site (special/filter/resource.xml: DeleteUponConstruction).
 	for (size_t r = 0; building_blocks_movement(b.type) && r < resources_.count; ++r) {
-		if (!resources_.alive[r] || resources_.subtype[r] != RES_SUB_FISH) continue;
+		if (!resources_.alive[r] || (resources_.subtype[r] != RES_SUB_FISH && resources_.subtype[r] != RES_SUB_MEAT)) continue;
 		if (!nav::footprint_contains(b, resources_.x[r], resources_.z[r], resource_block_half(r))) continue;
 		resources_.alive[r] = 0;
 		resources_.amount[r] = 0;
@@ -15721,7 +15722,11 @@ void Simulation::tick_death_damage(float dt) {
 			if (units_.team[i] == 0) record_.units_lost++;
 			else record_.enemies_killed++;
 			record_unit_death(i, owner);
+			// Health.js KilledBy: the dying entity is the attacker (DeathDamage.js CauseDamageOverArea),
+			// a Looter like every unit, so its owner takes the loot.
+			collect_unit_loot(0, owner, i);
 		}
+		bool nav_changed = false, territory_changed = false;
 		for (Building &b : buildings_) {
 			if (b.wrecked || b.hp <= 0.0f || !structure_has_health(b.type) || (b.team < MAX_PLAYERS && !hurts(b.team))) continue;
 			if (b.team >= MAX_PLAYERS && !dd.friendly_fire && !is_hostile(owner, b.team)) continue;
@@ -15733,8 +15738,19 @@ void Simulation::tick_death_damage(float dt) {
 			const float dmg = dd.damage * (dd.fire ? 1.0f : powf(0.9f, res[2])) * dd.ship_building_mult * (1.0f - d2 / r2);
 			note_attacked(0, owner, b.id, b.team, true, dmg);
 			b.hp -= dmg;
-			if (b.hp <= 0.0f) mark_building_wreck(b, owner);
+			if (b.hp > 0.0f) continue;
+			// As any other kill (cause_damage_over_area): counters, alert, loot, then the wreck,
+			// and the pathfinding and territory grids without it.
+			if (owner == 0) record_.enemies_killed++;
+			else if (b.team == 0) record_.buildings_destroyed++;
+			if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
+			collect_building_loot(0, owner, b);
+			mark_building_wreck(b, owner);
+			nav_changed = true;
+			if (has_territory_influence(b.type)) territory_changed = true;
 		}
+		if (nav_changed) rebuild_nav_grid();
+		if (territory_changed) rebuild_territory();
 	}
 }
 
@@ -16686,7 +16702,8 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	// (hero healers, the Seeress) ignores the attacker, as AttackVisibleEntity finds no target.
 	if (stance != STANCE_PASSIVE && units_.attack_damage[i] <= 0.0f) return;
 	if (stance == STANCE_PASSIVE) {
-		if (unit_is_siege_engine(units_.unit_type[i]) || !pack_state_can_move(units_.pack_state[i])) return;
+		// Order.Flee needs only AbleToMove: a passive ram flees, an unpacked catapult can't.
+		if (!pack_state_can_move(units_.pack_state[i]) || unit_walk_speed(i) <= 0.0f) return;
 		// UnitAI Flee (FLEEING enter): get FleeDistance further from the attacker than
 		// it is now, then carry on.
 		const float d = sqrtf(d2);
@@ -16802,6 +16819,9 @@ bool Simulation::self_garrison_rally(const Building &b, uint8_t unit_type, uint1
 
 void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison) {
 	const Building::RallyStep first{b.rally_x, b.rally_z, b.rally_target_res_id, b.rally_target_bld_id, b.rally_res_type, b.rally_res_sub};
+	// RallyPoint.OrderToRallyPoint: when the first command is "garrison back in here" and that
+	// is ignored (units just unloaded), none of the commands run.
+	if (ignore_self_garrison && first.bld_id == b.id) return;
 	apply_rally_step(uid, b, first, false, ignore_self_garrison);
 	for (const Building::RallyStep &st : b.rally_more) apply_rally_step(uid, b, st, true, false);
 }
@@ -16856,7 +16876,7 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 	const size_t n = units_.count;
 	std::vector<uint32_t> builders;
 	for (size_t k = 0; k < n; ++k)
-		if (units_.alive[k] && units_.team[k] == b.team &&
+		if (units_.alive[k] && (units_.team[k] == b.team || is_ally(b.team, units_.team[k])) &&
 				(k == builder || (units_.action_state[k] == ACTION_BUILD && units_.target_building_id[k] == b.id)))
 			builders.push_back(units_.id[k]);
 	const bool food = b.type == BLD_FARMSTEAD;
@@ -16898,8 +16918,11 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		// not for those UnitAI sent over from a finished structure or a guard. Petra's builders
 		// keep gathering by what they built: RTS0's Petra counts on it (0 A.D.'s Petra sends
 		// autocontinue false and reassigns them itself).
-		const bool harvest = petra_runs_for(units_.team[k]) || (units_.order_kind[k] == ORDER_BUILD &&
-				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0);
+		// An ally's builders (Foundation.GetBuilders holds them too) can't farm or drop at
+		// someone else's structure here; they only look for a foundation of their own.
+		const bool own = units_.team[k] == b.team;
+		const bool harvest = own && (petra_runs_for(units_.team[k]) || (units_.order_kind[k] == ORDER_BUILD &&
+				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0));
 		auto q = order_queues_.find(uid);
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(k); return; }
 		if (harvest && b.type == BLD_FIELD) {
@@ -16934,7 +16957,8 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 			}
 			if (r != 0) { order_gather(&uid, 1, r, false, false); return; }
 		}
-		const uint32_t f = find_nearby_foundation(b.x, b.z, b.team);
+		// FindNearbyFoundation: the builder's own player's foundations.
+		const uint32_t f = find_nearby_foundation(b.x, b.z, units_.team[k]);
 		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
 		set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
 		units_.has_order[k] = 0; // FinishOrder: it stays where it built from, in range

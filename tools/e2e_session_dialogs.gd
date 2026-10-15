@@ -241,5 +241,22 @@ func run() -> void:
 	check(not dlg()["chat_extended"], "unticking History hides it")
 	main._on_chat_history_toggled(true)
 
+	print("7. 0.28's chat dialog: centred, To / Text / Cancel / History / Send, 1024 characters")
+	main.toggle_chat()
+	await frames(2)
+	check(le.max_length == 1024, "chatInput max_length 1024")
+	var panel: Control = le.get_parent()
+	while panel and not (panel is Panel):
+		panel = panel.get_parent()
+	var vp := root.get_visible_rect().size
+	var rect := panel.get_global_rect()
+	check(absf(rect.get_center().x - vp.x / 2.0) < 2.0 and absf(rect.size.x - 432.0) < 1.0, "a 432 px dialog in the middle: %s in %s" % [rect, vp])
+	var texts := []
+	for b in panel.find_children("*", "BaseButton", true, false):
+		if b.is_visible_in_tree() and b.text != "":
+			texts.append(b.text)
+	check("Cancel" in texts and "Send" in texts and "History" in texts and not ("All" in texts or "Ally" in texts or "✕" in texts), "Cancel, History and Send only: %s" % [texts])
+	main.toggle_chat()
+
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
