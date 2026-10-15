@@ -352,8 +352,10 @@ public:
 					// team bonuses and the Library of Alexandria, as cmd_research charges it.
 					float paid[rtso::RES_COUNT], rtime = 0.0f;
 					sim->tech_price(local_player(), (uint8_t)t, found_b->type, paid, rtime);
-					// Names, tooltip, cost, right-click, requirements, needed resources.
-					String tip = String::utf8(ti.name);
+					// Names (getEntityNamesFormatted: the civ's specificName first), tooltip, cost,
+					// right-click, requirements, needed resources.
+					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
+					String tip = rtso::entity_names(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
 					if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
@@ -1061,6 +1063,7 @@ public:
 						String tip = rtso::entity_names(generic, specific);
 						auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 						add_line(classes_tooltip(text));
+						add_line(structure_auras_tooltip(text));
 						add_line(identity_tooltip(text));
 						const rtso::CostTip b_cost{(int64_t)price[rtso::RES_FOOD], (int64_t)price[rtso::RES_WOOD],
 								(int64_t)price[rtso::RES_STONE], (int64_t)price[rtso::RES_GOLD], 0,
@@ -1338,7 +1341,8 @@ private:
 			const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 					(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 			// The Research tooltip: names, tooltip, cost, right-click, requirements, needed resources.
-			String tip = String::utf8(ti.name);
+			const char *tech_specific = rtso::tech_specific_name(t, sim->player_civ(pid));
+			String tip = rtso::entity_names(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
 			if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 			const String cost_line = rtso::cost_tooltip(tech_cost, true);
 			if (!cost_line.is_empty()) tip += "\n" + cost_line;
@@ -1774,21 +1778,41 @@ private:
 	}
 
 	// getAurasTooltip: "Name: description Range: 30 meters" per aura of a roster unit.
+	// getAurasTooltip's line for one aura: "Name: description", then its range.
+	static godot::String aura_line(const godot::String &name, const godot::String &description, float radius) {
+		using namespace godot;
+		String line = rtso::sprintf0(rtso::tr0("%(auralabel)s %(aurainfo)s"),
+				{{"auralabel", rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(name)}})},
+				 {"aurainfo", rtso::tr0(description)}});
+		if (radius > 0.0f) {
+			const int64_t r = (int64_t)std::lround(radius);
+			line += " " + rtso::sprintf0(rtso::tr0("%(label)s %(val)s %(unit)s"),
+					{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
+		}
+		return line;
+	}
+
 	static godot::String auras_tooltip(const rtso::CivUnitTemplate &u) {
 		using namespace godot;
 		String out;
 		for (int16_t a : u.auras) {
 			if (a < 0) continue;
 			const auto &aura = rtso::civ_hero_aura(a);
-			String line = rtso::sprintf0(rtso::tr0("%(auralabel)s %(aurainfo)s"),
-					{{"auralabel", rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(String::utf8(aura.name))}})},
-					 {"aurainfo", rtso::tr0(String::utf8(aura.description ? aura.description : ""))}});
-			if (aura.radius > 0.0f) {
-				const int64_t r = (int64_t)std::lround(aura.radius);
-				line += " " + rtso::sprintf0(rtso::tr0("%(label)s %(val)s %(unit)s"),
-						{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
-			}
+			const String line = aura_line(String::utf8(aura.name), String::utf8(aura.description ? aura.description : ""), aura.radius);
 			out += (out.is_empty() ? String() : String("\n")) + line;
+		}
+		return out;
+	}
+
+	// The same for a structure, from its 0.28 template's Auras (templates.json).
+	static godot::String structure_auras_tooltip(const godot::Dictionary &text) {
+		using namespace godot;
+		const Array auras = text.get("auras", Array());
+		String out;
+		for (int k = 0; k < auras.size(); ++k) {
+			const Dictionary a = auras[k];
+			out += (out.is_empty() ? String() : String("\n")) +
+					aura_line(String(a.get("name", "")), String(a.get("description", "")), (float)a.get("radius", 0.0f));
 		}
 		return out;
 	}
