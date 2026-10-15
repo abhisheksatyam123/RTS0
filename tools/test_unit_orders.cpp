@@ -2578,6 +2578,21 @@ static void test_guard_towers_and_animals() {
 	}
 }
 
+static void test_structure_scan_by_centre() {
+	std::printf("74. an idle soldier picks an enemy structure by its centre, not its nearest edge (SetupAttackRangeQuery)\n");
+	auto picks = [](float off) {
+		Simulation s;
+		setup(s); // player 1's Civic Centre stands at (56, 56)
+		const uint32_t probe = s.spawn_unit(-40.0f, 40.0f, 0, UNIT_SPEARMAN);
+		const float vision = s.unit_vision_at(idx_of(s, probe));
+		const uint32_t d = s.spawn_unit(56.0f - vision - off, 56.0f, 0, UNIT_SPEARMAN);
+		s.set_reveal_map(true);
+		return run_until(s, 3.0f, [&] { return s.units_.target_building_id[idx_of(s, d)] != 0; });
+	};
+	check(!picks(1.0f), "a Civic Centre whose edge, not centre, is within vision is left alone");
+	check(picks(-1.0f), "one whose centre is within vision is attacked");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2778,6 +2793,7 @@ int main(int argc, char **argv) {
 	test_defensive_walks_back();
 	test_guard_stances();
 	test_guard_towers_and_animals();
+	test_structure_scan_by_centre();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
