@@ -575,6 +575,7 @@ public:
 	void debug_set_resource(int res, float amount);
 	bool debug_placing() const;
 	PackedInt32Array debug_highlight() const { return highlight_ids_; }
+	bool debug_structure_outlined(int64_t id) const;
 	int64_t debug_guard_target(int64_t uid) const { return sim ? (int64_t)sim->unit_guard_target((uint32_t)uid) : 0; }
 	Vector2 debug_ground_at(Vector2 screen) const {
 		const Vector3 g = get_ground_click_pos(screen);
