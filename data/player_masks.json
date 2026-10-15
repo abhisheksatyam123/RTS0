@@ -23439,6 +23439,30 @@
 0.28
 ]
 },
+"units/theb_siege_fireraiser_tex0": {
+"mask": "res://assets/textures/player_masks/structural/fireraiser_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/theb_siege_fireraiser_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/athen/epilektos_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/theb_siege_fireraiser_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/athen/epilektos_02_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/trader_tex2": {
 "mask": "res://assets/textures/player_masks/props/horse/blanket_trader_512x512.png",
 "tint": [

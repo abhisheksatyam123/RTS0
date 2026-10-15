@@ -75466,6 +75466,43 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "theb_siege_fireraiser": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 46,
+   "file": "models/units/theb_siege_fireraiser.glb",
+   "origin": "ground-center",
+   "parts": 7,
+   "size_meters": [
+    0.588,
+    0.446,
+    2.2
+   ],
+   "skeleton": "oxybeles",
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/helmets/hele_pilos.xml",
+    "actor:art/actors/units/athenians/ballista_infantry_a.xml",
+    "actor:art/actors/units/athenians/ballista_infantry_b.xml",
+    "actor:art/actors/units/thebans/siege_fireraiser.xml",
+    "mesh:props/helmet/hele_pilos_a1.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "mesh:structural/fireraiser.dae",
+    "skin:props/head/hele_a.dds",
+    "skin:props/helmet/hele_pilos_01_bronze.png",
+    "skin:skeletal/athen/epilektos_01.png",
+    "skin:skeletal/athen/epilektos_02.png",
+    "skin:structural/fireraiser.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "tower": {
    "file": "models/buildings/tower.glb",
    "origin": "ground-center",

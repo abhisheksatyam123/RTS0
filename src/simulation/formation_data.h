@@ -566,6 +566,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007cfu, 0x032u}, // merc_thureophoros
 		{0x0879fu, 0x02au}, // theb_sacred_band
 		{0x0878fu, 0x02au}, // thesp_melanochitones
+		{0x0078fu, 0x000u}, // theb_siege_fireraiser
 	};
 	return kRows;
 }
