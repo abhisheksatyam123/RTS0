@@ -22231,6 +22231,18 @@
       "template": "structures/pers/sentry_tower",
       "x": 38.16,
       "z": 2.56
+    },
+    {
+      "type": "ice_house",
+      "template": "structures/pers/ice_house",
+      "x": 49.78,
+      "z": -71.07
+    },
+    {
+      "type": "ice_house",
+      "template": "structures/pers/ice_house",
+      "x": -40.27,
+      "z": 58.65
     }
   ],
   "gaia_units": [],

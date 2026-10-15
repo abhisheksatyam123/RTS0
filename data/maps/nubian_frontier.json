@@ -10429,6 +10429,108 @@
       "template": "structures/ptol/market",
       "x": -6.39,
       "z": 115.07
+    },
+    {
+      "type": "camp_blemmye",
+      "template": "structures/kush/camp_blemmye",
+      "x": 39.68,
+      "z": -65.8
+    },
+    {
+      "type": "camp_blemmye",
+      "template": "structures/kush/camp_blemmye",
+      "x": 17.8,
+      "z": -30.48
+    },
+    {
+      "type": "camp_blemmye",
+      "template": "structures/kush/camp_blemmye",
+      "x": -8.3,
+      "z": 10.8
+    },
+    {
+      "type": "camp_blemmye",
+      "template": "structures/kush/camp_blemmye",
+      "x": -23.24,
+      "z": 39.65
+    },
+    {
+      "type": "camp_blemmye",
+      "template": "structures/kush/camp_blemmye",
+      "x": -46.3,
+      "z": 82.65
+    },
+    {
+      "type": "camp_noba",
+      "template": "structures/kush/camp_noba",
+      "x": -77.86,
+      "z": -78.65
+    },
+    {
+      "type": "camp_noba",
+      "template": "structures/kush/camp_noba",
+      "x": 32.26,
+      "z": 105.43
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": 15.54,
+      "z": 79.97
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": 13.2,
+      "z": 44.92
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": 33.5,
+      "z": 22.4
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": 56.57,
+      "z": 11.68
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": 83.81,
+      "z": 3.63
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": -61.31,
+      "z": -68.2
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": -46.0,
+      "z": -49.87
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": -44.11,
+      "z": -23.24
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": -54.61,
+      "z": -1.78
+    },
+    {
+      "type": "outpost",
+      "template": "structures/kush/outpost",
+      "x": -78.09,
+      "z": 15.38
     }
   ],
   "gaia_units": [
