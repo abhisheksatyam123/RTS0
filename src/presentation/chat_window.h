@@ -9,6 +9,7 @@
 
 #include <map>
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/label.hpp>
@@ -50,6 +51,8 @@ public:
 	// The sender's name in their player colour as bbcode (0 A.D. colorizePlayernameByGUID);
 	// an empty guid is the local player.
 	virtual String chat_user(const String &sender_guid) = 0;
+	// ChatHistory "Players chat": the sender plays (not an observer).
+	virtual bool chat_sender_is_player(const String &sender_guid) { (void)sender_guid; return true; }
 	// -> NetHost::sendChat (net_host.cpp:327), 0 A.D. NMT_CHAT parity.
 	virtual void chat_send_wire(const std::string &wire) = 0;
 	// 0 A.D. Cheats.executeCheat: true when `text` was a cheat code (it is not sent as chat).
@@ -66,6 +69,18 @@ public:
 	// as (wire tag, coloured name): "[Player-N]" for player id N - 1, "[Observer-C]" for
 	// the observer on client C.
 	virtual std::vector<std::pair<String, String>> chat_private_targets() = 0;
+};
+
+// ChatHistory.js Filters, fixed per message when it arrives.
+enum RtsoChatFilter : uint16_t {
+	CHAT_FILTER_CHAT = 1 << 0, // "message"
+	CHAT_FILTER_PLAYER = 1 << 1, // from a player, not an observer
+	CHAT_FILTER_ALLY = 1 << 2,
+	CHAT_FILTER_ENEMY = 1 << 3,
+	CHAT_FILTER_OBSERVER = 1 << 4,
+	CHAT_FILTER_PRIVATE = 1 << 5,
+	CHAT_FILTER_GAME = 1 << 6, // notifications from the game
+	CHAT_FILTER_NETWORK = 1 << 7, // notifications from the network (multiplayer only)
 };
 
 class RtsoChatWindow {
@@ -107,11 +122,21 @@ public:
 
 		HBoxContainer *chat_top_bar = memnew(HBoxContainer);
 		chat_top_bar->set_custom_minimum_size(Vector2(0, 24));
-		Label *chat_title = memnew(Label);
-		chat_title->set_text(""); // 0.28's chat window has no title
-		chat_title->add_theme_font_size_override("font_size", 12);
-		chat_title->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-		chat_top_bar->add_child(chat_title);
+		// chat_window.xml chatHistoryFilter: "Filter:" and ChatHistory's filters.
+		filter_bar_ = memnew(HBoxContainer);
+		filter_bar_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+		Label *filter_lbl = memnew(Label);
+		filter_lbl->set_text("Filter:");
+		filter_lbl->add_theme_font_size_override("font_size", 10);
+		filter_lbl->add_theme_color_override("font_color", Color(0.75f, 0.78f, 0.88f));
+		filter_bar_->add_child(filter_lbl);
+		filter_select_ = memnew(RtsoSafeSelect);
+		filter_select_->set_custom_minimum_size(Vector2(170, 22));
+		filter_select_->add_theme_font_size_override("font_size", 10);
+		refill_filters(false);
+		filter_select_->connect("item_selected", Callable(owner, "_on_chat_filter_selected"));
+		filter_bar_->add_child(filter_select_);
+		chat_top_bar->add_child(filter_bar_);
 
 		Button *chat_close = memnew(Button);
 		chat_close->set_custom_minimum_size(Vector2(22, 22));
@@ -172,11 +197,18 @@ public:
 		send_btn_->set_text("Send");
 		send_btn_->add_theme_font_size_override("font_size", 11);
 		send_btn_->connect("pressed", Callable(owner, "_on_chat_send_pressed"));
+		history_box_ = memnew(CheckBox);
+		history_box_->set_text("History");
+		history_box_->add_theme_font_size_override("font_size", 10);
+		history_box_->set_tooltip_text("Show the chat history.");
+		history_box_->connect("toggled", Callable(owner, "_on_chat_history_toggled"));
+		chat_input_bar->add_child(history_box_);
 		chat_input_bar->add_child(send_btn_);
 		chat_vbox->add_child(chat_input_bar);
 
 		panel_->set_visible(false);
 		parent->add_child(panel_);
+		set_extended(true);
 
 		// 0 A.D. gui/session/chat/ChatOverlay.js: while the chat window is closed,
 		// the last 20 chat and notification lines show over the map for 30 s.
@@ -215,6 +247,7 @@ public:
 		if (!panel_) return;
 		panel_->set_visible(true);
 		refill_addressees();
+		refill_filters(host_ && host_->net_lockstep());
 		select_tag("");
 		if (input_) input_->grab_focus();
 	}
@@ -228,6 +261,7 @@ public:
 		}
 		panel_->set_visible(vis);
 		if (vis) refill_addressees();
+		if (vis) refill_filters(host_ && host_->net_lockstep());
 		if (vis && input_) {
 			input_->grab_focus();
 		}
@@ -316,7 +350,7 @@ public:
 			if (context == "Private") last_private_ = tag;
 			const String wire_tag = tag.is_empty() ? String() : tag + " ";
 			const String line = format_line(context, host_->chat_user(""), text);
-			add_log(stamp() + line + "\n");
+			add_log(line + String("\n"), message_bits(context, !observer));
 			post_overlay(line);
 			input_->clear();
 			// Network: 0 A.D. NMT_CHAT broadcast (NetHost::sendChat net_host.cpp:327).
@@ -366,7 +400,7 @@ public:
 		if (!tag.is_empty() && host_ && !host_->chat_is_addressee(sender_guid, tag)) return false;
 		// chat.timestamp stamps the history only (ChatHistory.js); the overlay shows the bare text.
 		const String line = format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
-		add_log(stamp() + line + String("\n"));
+		add_log(line + String("\n"), message_bits(context, !host_ || host_->chat_sender_is_player(sender_guid)));
 		post_overlay(line);
 		return true;
 	}
@@ -376,7 +410,7 @@ public:
 	void post_own(const String &text) {
 		if (!log_ || !host_) return;
 		const String line = format_line("", host_->chat_user(""), text);
-		add_log(stamp() + line + "\n");
+		add_log(line + String("\n"), message_bits("", !host_->chat_local_observer()));
 		post_overlay(line);
 		if (host_->net_lockstep()) host_->chat_send_wire(text.utf8().get_data());
 	}
@@ -384,8 +418,21 @@ public:
 	// Raw bbcode line (Petra log, diplomacy/tribute feedback). With an action, the overlay
 	// line is clickable (ChatOverlay.js onPress): the owner's _on_chat_line_input gets it.
 	void append_line(const String &bbcode, const String &action = String(), const String &tooltip = String()) {
-		if (log_) add_log(bbcode.is_empty() ? bbcode : stamp() + bbcode);
+		append_kind(bbcode, CHAT_FILTER_GAME, action, tooltip);
+	}
+	// A line of a given filter kind: a network notice (ChatMessageFormatNetwork), or an
+	// AI's chat (a "message" from a player, with its context's bit).
+	void append_kind(const String &bbcode, uint16_t bits, const String &action = String(), const String &tooltip = String()) {
+		if (log_ && !bbcode.is_empty()) add_log(bbcode, bits);
 		post_overlay(bbcode.strip_edges(false, true), action, tooltip);
+	}
+	static uint16_t message_bits(const String &context, bool from_player) {
+		uint16_t bits = CHAT_FILTER_CHAT | (from_player ? CHAT_FILTER_PLAYER : 0);
+		if (context == "Ally") bits |= CHAT_FILTER_ALLY;
+		else if (context == "Enemy") bits |= CHAT_FILTER_ENEMY;
+		else if (context == "Observer") bits |= CHAT_FILTER_OBSERVER;
+		else if (context == "Private") bits |= CHAT_FILTER_PRIVATE;
+		return bits;
 	}
 
 	// 0 A.D. clearChatMessages (/clear): empties the on-screen overlay; the history stays.
@@ -403,10 +450,54 @@ public:
 	String log_text() const { return log_ ? log_->get_parsed_text() : String(); }
 	LineEdit *input() const { return input_; }
 	size_t overlay_count() const { return overlay_lines_.size(); }
+	int filter_count() const { return filter_select_ ? filter_select_->get_item_count() : 0; }
 	String addressee_label() const { return channel_ && channel_->get_selected() >= 0 ? channel_->get_item_text(channel_->get_selected()) : String(); }
 
 	// 0 A.D. chat.timestamp: each line opens with the local time, "[HH:MM]".
-	void set_timestamps(bool on) { timestamps_ = on; }
+	// It is drawn with the history, so turning it on or off changes the old lines too.
+	void set_timestamps(bool on) {
+		if (timestamps_ == on) return;
+		timestamps_ = on;
+		redraw_log();
+	}
+	// ChatHistory filter: the dropdown's index into kFilters.
+	void set_filter(int index) {
+		filter_ = index;
+		if (filter_select_ && filter_select_->get_selected() != index) filter_select_->select(index);
+		redraw_log();
+	}
+	int filter() const { return filter_; }
+	// ChatWindow "History" (chat.session.extended): the history and its filter show,
+	// else only the addressee and the input.
+	void set_extended(bool on) {
+		extended_ = on;
+		if (log_) log_->set_visible(on);
+		if (filter_bar_) filter_bar_->set_visible(on);
+		if (history_box_) history_box_->set_pressed_no_signal(on);
+		if (panel_) panel_->set_offset(SIDE_BOTTOM, on ? 300.0f : 132.0f);
+	}
+	bool extended() const { return extended_; }
+	// "Network notifications" is hidden unless in multiplayer (Engine.HasNetClient).
+	void refill_filters(bool network) {
+		if (!filter_select_) return;
+		const int n = (int)std::size(kFilters) - (network ? 0 : 1);
+		if (filter_select_->get_item_count() == n) return;
+		filter_select_->clear();
+		for (int i = 0; i < n; ++i) filter_select_->add_item(kFilters[i].label, i);
+		if (filter_ >= n) filter_ = 0;
+		filter_select_->select(filter_);
+		redraw_log();
+	}
+	// ChatHistory.prototype.Filters: the label and the bit a line needs (0: every line).
+	struct FilterDef {
+		const char *label;
+		uint16_t need;
+	};
+	static constexpr FilterDef kFilters[] = {
+		{"Chat and notifications", 0}, {"Chat messages", CHAT_FILTER_CHAT}, {"Players chat", CHAT_FILTER_PLAYER},
+		{"Ally chat", CHAT_FILTER_ALLY}, {"Enemy chat", CHAT_FILTER_ENEMY}, {"Observer chat", CHAT_FILTER_OBSERVER},
+		{"Private chat", CHAT_FILTER_PRIVATE}, {"Game notifications", CHAT_FILTER_GAME},
+		{"Network notifications", CHAT_FILTER_NETWORK}};
 
 	// Drops overlay lines older than 30 s; hides the overlay while the chat
 	// window (which shows the full history) is open. Call once per frame.
@@ -443,7 +534,7 @@ private:
 	// A message that reaches nobody: the warning 0.28 prints, in the log, and the
 	// window closes with the input cleared.
 	void refuse(const String &why) {
-		add_log("[color=#ffcc44]" + why.replace("[", "[lb]") + "[/color]\n");
+		add_log("[color=#ffcc44]" + why.replace("[", "[lb]") + "[/color]\n", CHAT_FILTER_GAME);
 		close();
 	}
 
@@ -472,12 +563,7 @@ public:
 	}
 
 private:
-	String stamp() const {
-		if (!timestamps_) return String();
-		const Dictionary t = Time::get_singleton()->get_time_dict_from_system();
-		return "[color=#aaaaaa][lb]" + String::num_int64((int64_t)t["hour"]).pad_zeros(2) + ":" +
-				String::num_int64((int64_t)t["minute"]).pad_zeros(2) + "][/color] ";
-	}
+
 
 	static constexpr size_t kOverlayLines = 20; // ChatOverlay.js chatLinesNumber
 	static constexpr uint64_t kOverlayTimeoutMs = 30000; // ChatOverlay.js chatTimeout
@@ -550,9 +636,36 @@ private:
 	RichTextLabel *log_ = nullptr;
 	String history_;
 	uint64_t history_rev_ = 0;
-	void add_log(const String &bbcode) {
-		log_->append_text(bbcode);
-		history_ += bbcode;
+	struct Entry {
+		String text, time;
+		uint16_t bits;
+	};
+	std::vector<Entry> entries_;
+	int filter_ = 0;
+	bool extended_ = false;
+	HBoxContainer *filter_bar_ = nullptr;
+	RtsoSafeSelect *filter_select_ = nullptr;
+	CheckBox *history_box_ = nullptr;
+	bool shows(const Entry &e) const {
+		const uint16_t need = filter_ >= 0 && filter_ < (int)std::size(kFilters) ? kFilters[filter_].need : 0;
+		return need == 0 || (e.bits & need);
+	}
+	String draw(const Entry &e) const {
+		return timestamps_ ? "[color=#aaaaaa][lb]" + e.time + "][/color] " + e.text : e.text;
+	}
+	void redraw_log() {
+		if (!log_) return;
+		log_->clear();
+		for (const Entry &e : entries_)
+			if (shows(e)) log_->append_text(draw(e));
+	}
+	// ChatHistory.onChatMessage: the line, its "[HH:mm]" and the filters it passes.
+	void add_log(const String &text, uint16_t bits) {
+		const Dictionary t = Time::get_singleton()->get_time_dict_from_system();
+		entries_.push_back({text, String::num_int64((int64_t)t["hour"]).pad_zeros(2) + ":" +
+				String::num_int64((int64_t)t["minute"]).pad_zeros(2), bits});
+		if (shows(entries_.back())) log_->append_text(draw(entries_.back()));
+		history_ += draw(entries_.back());
 		++history_rev_;
 	}
 	RtsoSafeSelect *channel_ = nullptr;
