@@ -818,6 +818,10 @@ void RtsoMain::update_net_warnings() {
 		bool gone = it->first != "server";
 		for (const auto &e : net_host_.playerAssignment())
 			if (rtso::peer_guid(e.client) == it->first && e.status != rtso::PlayerAssignmentMsg::LEFT) gone = false;
+		// Before Start there is no player assignment yet: the connected clients.
+		if (is_net_pregame())
+			for (const auto &p : net_host_.getPeers())
+				if (p.connected && rtso::peer_guid(p.id) == it->first) gone = false;
 		if (!on || now > it->second.first + rtso::NETWORK_WARNING_SHOW_MS || gone) {
 			it = net_warnings_.erase(it);
 			continue;
@@ -829,6 +833,23 @@ void RtsoMain::update_net_warnings() {
 		if (w.first != "server") text += String(text.is_empty() ? "" : "\n") + w.second.second;
 	net_warnings_label_->set_text("[right]" + text + "[/right]");
 	net_warnings_label_->set_visible(!text.is_empty());
+	// SetupWindow.js registers netwarn too: before Start the warnings go over
+	// the (opaque) setup page and the Connecting box, then back on the session UI.
+	Node *home = ui_layer;
+	if (is_net_pregame()) {
+		if (!net_warnings_layer_) {
+			net_warnings_layer_ = memnew(CanvasLayer);
+			net_warnings_layer_->set_name("NetWarnings");
+			net_warnings_layer_->set_layer(22); // the setup page is 20, the Connecting box 21
+			add_child(net_warnings_layer_);
+		}
+		home = net_warnings_layer_;
+	}
+	if (home && net_warnings_label_->get_parent() != home) net_warnings_label_->reparent(home, false);
+	if (!is_net_pregame() && net_warnings_layer_ && net_warnings_label_->get_parent() != net_warnings_layer_) {
+		net_warnings_layer_->queue_free();
+		net_warnings_layer_ = nullptr;
+	}
 }
 
 void RtsoMain::update_net_status_overlay() {
@@ -2484,6 +2505,8 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
 	d["net_warnings"] = net_warnings_label_ && net_warnings_label_->is_visible() ? net_warnings_label_->get_parsed_text() : String();
+	if (net_warnings_label_)
+		if (CanvasLayer *l = Object::cast_to<CanvasLayer>(net_warnings_label_->get_parent())) d["net_warnings_layer"] = (int)l->get_layer();
 	return d;
 }
 
