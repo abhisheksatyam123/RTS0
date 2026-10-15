@@ -1989,7 +1989,7 @@ func _minutes(n: int) -> String:
 	return (tr("%d minute") if n == 1 else tr("%d minutes")) % n
 
 func _show_error(msg: String) -> void:
-	var lbl := $VBox/HBox/Right/BtnStart as Button
+	var lbl := $VBox/HBox/Right/Buttons/BtnStart as Button
 	push_warning("[GameSetup] " + msg)
 	var err := $VBox/HBox/Right/ErrorLabel as Label
 	if err:
@@ -2053,19 +2053,20 @@ func _init_net() -> void:
 
 func _build_net_controls() -> void:
 	var right := $VBox/HBox/Right
-	var start := $VBox/HBox/Right/BtnStart as Button
+	var start := $VBox/HBox/Right/Buttons/BtnStart as Button
 	_wait_label = Label.new()
 	_wait_label.name = "NetWaitLabel"
 	_wait_label.text = WAIT_TEXT
 	_wait_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	right.add_child(_wait_label)
-	right.move_child(_wait_label, start.get_index())
+	right.move_child(_wait_label, $VBox/HBox/Right/Buttons.get_index())
 	_ready_btn = Button.new()
 	_ready_btn.name = "BtnReady"
 	_ready_btn.custom_minimum_size = Vector2(0, 48)
 	_ready_btn.pressed.connect(_on_ready_pressed)
-	right.add_child(_ready_btn)
-	right.move_child(_ready_btn, start.get_index())
+	_ready_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	start.get_parent().add_child(_ready_btn)
+	start.get_parent().move_child(_ready_btn, start.get_index())
 	# 0.28 GameSettingWarning: "Cheats enabled." or "Rated game." on every
 	# networked setup page.
 	_setting_warning = Label.new()
@@ -2085,7 +2086,8 @@ func _build_net_controls() -> void:
 	lobby_btn.visible = LobbySession.signed_in()
 	lobby_btn.pressed.connect(open_lobby_dialog)
 	$VBox/Header.add_child(lobby_btn)
-	$VBox/Header.move_child(lobby_btn, $VBox/Header/BtnBack.get_index())
+	# CancelButton: back to the lobby while signed in to it.
+	($VBox/HBox/Right/Buttons/BtnBack as Button).tooltip_text = "Return to the lobby." if LobbySession.signed_in() else "Return to the main menu."
 	lobby_btn.owner = self
 	lobby_btn.unique_name_in_owner = true
 	# 0.28 Rating.js "Rated Game" and Cheats.js, which the host sets in a
@@ -2206,7 +2208,7 @@ func _update_net_controls() -> void:
 		_setting_warning.text = "Cheats enabled." if %Cheats.button_pressed and not rated \
 				else "Rated game." if rated else ""
 		_setting_warning.visible = _setting_warning.text != ""
-	var start := $VBox/HBox/Right/BtnStart as Button
+	var start := $VBox/HBox/Right/Buttons/BtnStart as Button
 	if _mp_role == "host":
 		var ok := bool(_net_state.get("can_start", false))
 		start.disabled = not ok
