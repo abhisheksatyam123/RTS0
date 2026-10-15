@@ -255,6 +255,26 @@ public:
 		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 10, 36.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
 		garrison_grid_.build(panel_, Vector2(102, 148), Vector2(404, 34), owner, "_on_garrison_group_clicked", 12, 30.0f);
+		// garrison_panel.xml healthGarrison: the garrisoned units' total health, a vertical
+		// bar left of the garrison icons (updateGarrisonHealthBar).
+		garrison_hp_bar_ = memnew(ProgressBar);
+		garrison_hp_bar_->set_name("healthGarrison");
+		garrison_hp_bar_->set_position(Vector2(99, 149));
+		garrison_hp_bar_->set_size(Vector2(3, 30));
+		garrison_hp_bar_->set_fill_mode(ProgressBar::FILL_BOTTOM_TO_TOP);
+		garrison_hp_bar_->set_show_percentage(false);
+		{
+			Ref<StyleBoxFlat> bg_sb;
+			bg_sb.instantiate();
+			bg_sb->set_bg_color(Color(0.10f, 0.12f, 0.16f, 0.85f));
+			garrison_hp_bar_->add_theme_stylebox_override("background", bg_sb);
+			Ref<StyleBoxFlat> fg_sb;
+			fg_sb.instantiate();
+			fg_sb->set_bg_color(Color(0.25f, 0.75f, 0.35f));
+			garrison_hp_bar_->add_theme_stylebox_override("fill", fg_sb);
+		}
+		garrison_hp_bar_->set_visible(false);
+		panel_->add_child(garrison_hp_bar_);
 		// The Barter panel's place (0.28's left panel, shared with the garrison panel); the
 		// command panel fills it.
 		barter_host_ = memnew(Control);
@@ -631,6 +651,7 @@ public:
 		};
 		// The stamina bar has no 0 A.D. counterpart.
 		show_bar(stamina_bar_, stamina_label_, false);
+		garrison_hp_bar_->set_visible(false); // fill_garrison_grid shows it
 		clear_tooltips();
 		stats_->set_position(Vector2(102, 108));
 		stats_->set_size(Vector2(404, 38));
@@ -1164,6 +1185,7 @@ private:
 		class_->add_theme_constant_override("outline_size", 0);
 	}
 	godot::ProgressBar *hp_bar_ = nullptr;
+	godot::ProgressBar *garrison_hp_bar_ = nullptr; // healthGarrison
 	godot::Label *hp_label_ = nullptr;
 	godot::ProgressBar *capture_bar_ = nullptr;
 	static constexpr int kCaptureParts = rtso::MAX_PLAYERS + 1;
@@ -1242,6 +1264,18 @@ private:
 		if (inside.empty()) return false;
 		auto uview = sim.units();
 		std::vector<RtsoSelectionGrid::Group> groups = RtsoSelectionGrid::group_units(uview, inside.data(), inside.size(), true);
+		// updateGarrisonHealthBar: every garrisoned unit's health summed, hidden at none.
+		float hp = 0.0f, max_hp = 0.0f;
+		for (const auto &g : groups) {
+			hp += g.hp;
+			max_hp += g.max_hp;
+		}
+		garrison_hp_bar_->set_visible(hp > 0.0f);
+		if (hp > 0.0f) {
+			garrison_hp_bar_->set_max(max_hp > 0.0f ? max_hp : 1.0f);
+			garrison_hp_bar_->set_value(hp);
+			garrison_hp_bar_->set_tooltip_text(rtso::seldet::health(hp, max_hp));
+		}
 		if (groups.size() > 12) groups.resize(12);
 		const uint8_t me = host_->local_player();
 		const bool observer = me >= rtso::MAX_PLAYERS;
