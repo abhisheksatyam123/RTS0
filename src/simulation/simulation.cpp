@@ -12099,7 +12099,9 @@ void Simulation::tick_combat(float dt) {
 			}
 			units_.action_state[i] = ACTION_ATTACK;
 		} else if (found >= 0) {
-			if (units_.target_unit_id[i] != units_.id[found] && !explicit_target)
+			// A new pick is an automatic fight, also once a player's target is gone: AttackVisibleEntity
+			// pushes an unforced Attack, so it answers attackers as any automatic fight does.
+			if (units_.target_unit_id[i] != units_.id[found])
 				units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED; // go back to the order afterwards
 			units_.target_unit_id[i] = units_.id[found];
 			// Stand ground holds still, except for a player's attack (ShouldChaseTargetedEntity force).
@@ -15216,7 +15218,10 @@ void Simulation::resume_order(size_t i) {
 		return;
 	}
 	if (order_still_valid(i, o)) apply_order(units_.id[i], o);
-	else finish_order(i);
+	else {
+		finish_order(i);
+		find_targets_then_walk_back(i);
+	}
 }
 
 // COMBAT.FINDINGNEWTARGET after a player's attack, with nothing queued: FindNewTargets, else a
