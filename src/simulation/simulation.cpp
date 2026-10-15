@@ -15141,18 +15141,31 @@ void Simulation::resume_order(size_t i) {
 	if (o.kind == ORDER_NONE) {
 		units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
-		// UnitAI WalkToHeldPosition (FINDINGNEWTARGET, respondHoldGround): a defensive
-		// unit walks back where it stood, an unforced walk.
-		const float dx = units_.pos_x[i] - units_.anchor_x[i], dz = units_.pos_z[i] - units_.anchor_z[i];
-		if (units_.stance[i] == STANCE_DEFENSIVE && dx * dx + dz * dz > 0.5f * 0.5f) {
-			const uint32_t uid = units_.id[i];
-			cmd_move(&uid, 1, units_.anchor_x[i], units_.anchor_z[i]);
-			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
-		}
+		walk_to_held_position(i);
 		return;
 	}
 	if (order_still_valid(i, o)) apply_order(units_.id[i], o);
 	else finish_order(i);
+}
+
+// COMBAT.FINDINGNEWTARGET after a player's attack, with nothing queued: FindNewTargets, else a
+// defensive unit walks back to its held position (an Attack order leaves that where it was).
+// tick_combat runs the scan this tick for a unit attacking with no target; tick_unit_ai walks
+// it back next tick if that finds nothing.
+void Simulation::find_targets_then_walk_back(size_t i) {
+	if (units_.stance[i] == STANCE_DEFENSIVE && units_.action_state[i] == ACTION_IDLE &&
+			units_.order_kind[i] == ORDER_NONE && !order_queues_.count(units_.id[i]))
+		units_.action_state[i] = ACTION_ATTACK;
+}
+
+// UnitAI WalkToHeldPosition (FINDINGNEWTARGET, respondHoldGround): a defensive unit with
+// nothing left to do walks back where it stood, an unforced walk.
+void Simulation::walk_to_held_position(size_t i) {
+	const float dx = units_.pos_x[i] - units_.anchor_x[i], dz = units_.pos_z[i] - units_.anchor_z[i];
+	if (units_.stance[i] != STANCE_DEFENSIVE || dx * dx + dz * dz <= 0.5f * 0.5f) return;
+	const uint32_t uid = units_.id[i];
+	cmd_move(&uid, 1, units_.anchor_x[i], units_.anchor_z[i]);
+	units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
 }
 
 // UnitAI "Attacked" -> RespondToTargetedEntities: fight back as the stance allows,
@@ -15611,7 +15624,13 @@ void Simulation::tick_unit_ai(float dt) {
 		if (now == ACTION_HEAL) { tick_heal(i); continue; }
 		if (now == ACTION_REPAIR) { tick_repair_unit(i); continue; }
 		if (now == ACTION_CHEER) {
-			if (units_.attack_timer[i] <= 0.0f) units_.action_state[i] = ACTION_IDLE;
+			if (units_.attack_timer[i] <= 0.0f) {
+				units_.action_state[i] = ACTION_IDLE;
+				// FINDINGNEWTARGET queues WalkToHeldPosition after the Cheer.
+				if (units_.order_kind[i] == ORDER_NONE && !order_queues_.count(units_.id[i]) &&
+						(formations_.empty() || formation_group_[i] == 0))
+					walk_to_held_position(i);
+			}
 			continue;
 		}
 		// Formation members take their orders from the controller (UnitAI FORMATIONMEMBER):
@@ -15700,8 +15719,14 @@ void Simulation::tick_unit_ai(float dt) {
 			const bool cheer = (units_.order_flags[i] & ORDER_FLAG_CHEER) != 0;
 			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER;
 			if (interrupted) resume_order(i);
-			else if (units_.order_kind[i] != ORDER_NONE) finish_order(i);
-			else { units_.action_state[i] = ACTION_IDLE; units_.has_order[i] = 0; }
+			else if (units_.order_kind[i] != ORDER_NONE) {
+				finish_order(i);
+				if (!cheer) find_targets_then_walk_back(i);
+			} else {
+				units_.action_state[i] = ACTION_IDLE;
+				units_.has_order[i] = 0;
+				if (!cheer) walk_to_held_position(i);
+			}
 			if (cheer && units_.action_state[i] == ACTION_IDLE && units_.order_kind[i] == ORDER_NONE &&
 					!order_queues_.count(units_.id[i]))
 				start_cheer(i);
@@ -15714,7 +15739,12 @@ void Simulation::tick_unit_ai(float dt) {
 			continue;
 		if (now == ACTION_IDLE) {
 			if (interrupted) resume_order(i);
-			else if (units_.order_kind[i] != ORDER_NONE) finish_order(i);
+			else if (units_.order_kind[i] != ORDER_NONE) {
+				// A structure the unit was told to attack is gone (tick_combat idles its attackers).
+				const bool attack = units_.order_kind[i] == ORDER_ATTACK_BUILDING;
+				finish_order(i);
+				if (attack) find_targets_then_walk_back(i);
+			}
 			else if (unit_heals(i) && (i + ticks_) % 4 == 0) {
 				// IDLE LosHealRangeUpdate -> RespondToHealableEntities.
 				const uint32_t t = find_heal_target(i);
