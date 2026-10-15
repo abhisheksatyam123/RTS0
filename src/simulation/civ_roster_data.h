@@ -1116,7 +1116,7 @@ inline const CivUnitTemplate *civ_unit_template_table() {
 		{"mace/support_healer_e", "Surgeon", "Iatros", CIV_MACEDONIANS, UNIT_HEALER, 2, 0, bld_bit(BLD_SHRINE),
 		 85.0f, 3.204f, 12.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 100, 0, 30, 0, 1, 15.0f, 0, -1, -1, -1, TECH_NONE, 0x8000013ull, 8.4f},
 		{"gaul/support_healer_e", "Druid", "Druid", CIV_GAULS, UNIT_HEALER, 2, 0, bld_bit(BLD_SHRINE),
-		 85.0f, 3.204f, 12.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 100, 0, 30, 0, 1, 15.0f, 0, -1, -1, -1, TECH_NONE, 0x8000013ull, 8.4f},
+		 85.0f, 3.204f, 12.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 100, 0, 30, 0, 1, 15.0f, 0, 46, -1, -1, TECH_NONE, 0x8000013ull, 8.4f},
 		{"ptol/support_healer_e", "Surgeon", "Iatros", CIV_PTOLEMIES, UNIT_HEALER, 2, 0, bld_bit(BLD_SHRINE),
 		 85.0f, 3.204f, 12.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 100, 0, 30, 0, 1, 15.0f, 0, -1, -1, -1, TECH_NONE, 0x8000013ull, 8.4f},
 		{"han/support_healer_e", "Healer", "Yīshī", CIV_HAN, UNIT_HEALER, 2, 0, bld_bit(BLD_SHRINE),
