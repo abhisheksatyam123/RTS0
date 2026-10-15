@@ -159,6 +159,29 @@ int main() {
 	CHECK(p.units_.action_state[pw] == ACTION_RETURN_DROPSITE);
 	CHECK(std::fabs(p.units_.target_x[pw] - 16.0f) < 0.01f && std::fabs(p.units_.target_z[pw]) < 0.01f);
 
+	// 8. RETURNINGRESOURCE with no dropsite at all: FinishOrder. With nothing queued she walks to
+	// the supply still carrying and is free for a new task (no return held for good); with an order
+	// queued she takes it.
+	{
+		static Simulation q;
+		q.set_sim_seed(5);
+		q.reset();
+		const uint32_t tree = q.spawn_resource_world(6.0f, 0.0f, RES_WOOD, 200);
+		const uint32_t w = q.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t v = q.spawn_unit(0.0f, 4.0f, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t both[2] = {w, v};
+		q.order_gather(both, 2, tree);
+		q.order_gather(&v, 1, tree);
+		q.order_walk(&v, 1, -10.0f, 4.0f, true);
+		run(q, 20.0f);
+		const int32_t wi = q.lookup_unit(w), vi = q.lookup_unit(v);
+		std::printf("  no dropsite: carrying %d, action %d, order %d; with a walk queued: order %d at x %.1f\n",
+				q.units_.carry[wi], (int)q.units_.action_state[wi], (int)q.units_.order_kind[wi], (int)q.units_.order_kind[vi],
+				q.units_.pos_x[vi]);
+		CHECK(q.units_.carry[wi] > 0 && q.units_.action_state[wi] != ACTION_RETURN_DROPSITE && q.units_.action_state[wi] != ACTION_GATHER);
+		CHECK(q.units_.action_state[vi] != ACTION_RETURN_DROPSITE && q.units_.pos_x[vi] < -5.0f);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

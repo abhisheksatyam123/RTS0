@@ -7395,10 +7395,11 @@ const TurretPointSet *Simulation::turret_holder_points(const Building &b) const 
 }
 
 // TurretHolder.CanOccupy for "occupy-turret": a Turretable unit of the holder's owner or a
-// mutual ally, at a finished, standing holder.
+// mutual ally, at a finished, standing holder. A Regicide hero without RegicideGarrison
+// (special/filter/ungarrisonable: Garrisonable disabled, Turretable kept) still mans turrets.
 bool Simulation::structure_accepts_turret(const Building &b, size_t i) const {
 	return turret_holder_points(b) && !b.wrecked && b.build_progress >= 1.0f && is_ally(units_.team[i], b.team) &&
-			unit_garrisonable(i) && unit_turretable(i);
+			unit_turretable(i);
 }
 
 bool Simulation::turret_room(const Building &b) const {
@@ -7460,8 +7461,9 @@ void Simulation::set_team_civ(uint8_t team, uint8_t civ) {
 }
 
 bool Simulation::structure_accepts_garrison(const Building &b, size_t i) const {
-	if (!is_ally(units_.team[i], b.team) || !unit_garrisonable(i)) return false;
+	if (!is_ally(units_.team[i], b.team)) return false;
 	if (turret_points_of(b)) return unit_turretable(i); // TurretHolder.CanOccupy (mutual ally too)
+	if (!unit_garrisonable(i)) return false;
 	return structure_accepts_classes(b, garrison_classes(units_.tmpl[i], units_.unit_type[i]));
 }
 
@@ -8496,9 +8498,15 @@ std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t holder_
 	return out;
 }
 
-static bool alert_filter(uint8_t unit_type, bool traders) {
+// AlertRaiser/List: the civic centre's and farmstead's "Civilian" is 0.28's support_civilian
+// (ROSTER_CIVILIAN), which RTS0's villager plays; the legacy Female Citizens 0.28 maps still
+// place are not Civilians and ignore it. Units without a roster row go by their class.
+static bool alert_filter(uint16_t tmpl, uint8_t unit_type, bool traders) {
 	const TechClasses c = unit_tech_classes(unit_type);
-	return traders ? (c & TC_TRADER) && !(c & TC_SHIP) : (c & TC_FEMALECITIZEN) != 0;
+	if (traders) return (c & TC_TRADER) && !(c & TC_SHIP);
+	if (unit_type == UNIT_VILLAGER) return true;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return (civ_unit_template(tmpl).flags & ROSTER_CIVILIAN) != 0;
+	return (c & TC_FEMALECITIZEN) != 0;
 }
 
 bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
@@ -8512,7 +8520,7 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 	// Free slots per holder, so units don't all head for one that will be full.
 	std::unordered_map<uint32_t, int> reserved;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.unit_type[i], info.traders)) continue;
+		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) continue;
 		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
 		if (info.raise_range >= 0.0f && edge_distance(raiser, ux, uz) > info.raise_range) continue;
 		// The nearest structure of ours that can take it (queries sort by distance).
@@ -8556,7 +8564,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 	auto in_range = [&](float x, float z) { return info.end_range < 0.0f || edge_distance(raiser, x, z) <= info.end_range; };
 	// Units outside: back to work if idle or still heading for shelter, else they stop.
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.unit_type[i], info.traders)) continue;
+		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) continue;
 		if (!in_range(units_.pos_x[i], units_.pos_z[i])) continue;
 		const uint8_t k = units_.order_kind[i];
 		if (k != ORDER_NONE && k != ORDER_GARRISON) continue; // ShouldRespondToEndOfAlert
@@ -8572,7 +8580,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 		if (b.id != raiser.id && info.end_range >= 0.0f && gap > info.end_range) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t i = lookup_unit(uid);
-			if (i >= 0 && units_.team[i] == player && alert_filter(units_.unit_type[i], info.traders)) out.push_back({b.id, uid});
+			if (i >= 0 && units_.team[i] == player && alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) out.push_back({b.id, uid});
 		}
 	}
 	for (auto [bid, uid] : out) {
@@ -9542,7 +9550,8 @@ void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, fl
 }
 
 void Simulation::tick(float dt) {
-	if (game_over_ || victory_) return;
+	// The world keeps running once the match is decided: 0.28's winners see the whole map
+	// and play on (Player.js Win), and nothing in the simulation stops.
 	auto t0 = std::chrono::high_resolution_clock::now();
 	Arena &arena = frame_arena_.current();
 	arena.reset();
@@ -9594,7 +9603,7 @@ void Simulation::tick(float dt) {
 	tick_trickle(dt);        // Passive / trickle income
 
 	// 6. Waves, AI, and World simulation
-	if (waves_enabled_) tick_waves(dt);
+	if (waves_enabled_ && !game_over_) tick_waves(dt); // wave defense ends with the match
 	// The map's treasures as the match starts, before Petra's first turn looks for them (0 A.D.
 	// places them with the map; startingStrategy.js buildFirstBase counts on a Nomad start's).
 	if (ticks_ == 0 && ally_view())
@@ -11339,6 +11348,16 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			if (i < unit_paths_.size()) unit_paths_[i].clear();
 			continue;
 		}
+		// The same likelyFailure in tick_gather's own return (GATHER.RETURNINGRESOURCE.APPROACHING):
+		// DROPPINGRESOURCES is out of range, so RETURNINGRESOURCE again: the nearest dropsite, and
+		// a new move to it from where the unit stands.
+		if (move_failed && st == ACTION_RETURN_DROPSITE) {
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			units_.waypoint_cur[i] = 0;
+			units_.waypoint_count[i] = 0;
+			if (i < unit_paths_.size()) unit_paths_[i].clear();
+			continue;
+		}
 		const bool walking = (kind == ORDER_WALK && st == ACTION_MOVE) ||
 				(kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
 				(kind == ORDER_PATROL && st == ACTION_PATROL);
@@ -11800,6 +11819,26 @@ void Simulation::tick_gather(float dt) {
 					units_.target_z[i] = drop_z;
 					units_.has_order[i] = 1;
 					units_.action_state[i] = ACTION_RETURN_DROPSITE;
+				}
+			} else {
+				// RETURNINGRESOURCE enter with no dropsite (FindNearestDropsite null): FinishOrder,
+				// the next queued order, else "the player expects the unit to move upon failure":
+				// it walks to the supply it was gathering, still carrying, and Petra can task it.
+				const uint32_t former = units_.target_resource_id[i];
+				auto qit = order_queues_.find(units_.id[i]);
+				if (qit != order_queues_.end() && !qit->second.empty()) {
+					finish_order(i);
+				} else {
+					auto rit = former ? res_id_to_idx_.find(former) : res_id_to_idx_.end();
+					units_.target_resource_id[i] = 0;
+					units_.action_state[i] = ACTION_IDLE;
+					units_.has_order[i] = 0;
+					set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+					if (rit != res_id_to_idx_.end()) {
+						uint32_t id = units_.id[i];
+						cmd_move(&id, 1, resources_.x[rit->second], resources_.z[rit->second]);
+						set_order(i, ORDER_WALK, 0, 0, resources_.x[rit->second], resources_.z[rit->second]);
+					}
 				}
 			}
 			continue;
@@ -15515,6 +15554,12 @@ void Simulation::tick_death_damage(float dt) {
 // A structure's Resistance levels: its template's, plus armour auras that name Structure
 // (Maximus' Shield of Rome: his player's structures +1 everywhere).
 void Simulation::structure_resistance(const Building &b, float out[3]) const {
+	// Resistance.js GetEffectiveResistanceAgainst: a foundation takes damage with the Foundation
+	// form (template_structure.xml: Hack 1, Pierce 10, Crush 1), which no tech or aura modifies.
+	if (b.build_progress < 1.0f) {
+		out[0] = 1.0f; out[1] = 10.0f; out[2] = 1.0f;
+		return;
+	}
 	structure_armour(b.type, b.civ, out);
 	const float aura = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_ARMOR, CIV_UNIT_TEMPLATE_NONE, nullptr, true);
 	for (int k = 0; k < 3; ++k) out[k] += aura;

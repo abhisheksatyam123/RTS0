@@ -163,6 +163,12 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool net_setup_overlay_unsupported_ = false;
 	Button *lobby_start_btn_ = nullptr;
 	void update_net_setup_overlay();
+	// gamesetup_mp.js pageConnecting: "Connecting to server..." (then
+	// "Registering with server...") with Cancel over the screen until the
+	// host lets us in, and while a rejoin loads the host's game.
+	void update_net_connect_overlay();
+	Node *net_connect_overlay_ = nullptr; // scenes/menu/net_connecting.gd
+	CanvasLayer *net_connect_layer_ = nullptr;
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -694,7 +700,7 @@ public:
 	int64_t debug_civic_centre_id(int player) const;
 	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
-	Dictionary debug_structure_types();
+	Dictionary debug_structure_types(bool with_civ = false);
 	void debug_delete_units(const PackedInt32Array &ids);
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
 	Dictionary debug_diplomacy() const { return diplo_dialog_.debug_state(); } // tests: the diplomacy dialog's rows
