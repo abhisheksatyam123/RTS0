@@ -284,8 +284,8 @@ Dictionary RtsoMain::debug_civic_centre_roof() {
 // Test hook: with select_all, selects every unit the local player owns; reports
 // the selection size and the selection panel's group icons (global rects).
 // "unit": the first own unit selected; "multi": all own units; "building": the first own
-// structure; "resource" / "fauna": the first tree or mine / animal, inspected as a click would;
-// a number: that unit.
+// structure; "field": the first own finished field (spawning one if there is none); "resource" /
+// "fauna": the first tree or mine / animal, inspected as a click would; a number: that unit.
 Dictionary RtsoMain::debug_inspector(const String &what) {
 	if (!sim) return Dictionary();
 	clear_selection();
@@ -302,6 +302,16 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 	} else if (what == "building") {
 		for (const auto &b : sim->buildings())
 			if (b.team == local_player() && rtso::is_civic_centre(b.type)) { selected_building_id = b.id; break; }
+	} else if (what == "field") {
+		// The player's first finished field; the test spawns one beside the Civic Center first.
+		for (const auto &b : sim->buildings())
+			if (b.team == local_player() && b.type == rtso::BLD_FIELD && b.build_progress >= 1.0f) { selected_building_id = b.id; break; }
+		if (selected_building_id == 0)
+			for (const auto &b : sim->buildings())
+				if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
+					sim->spawn_building_world(b.x + 12.0f, b.z + 12.0f, rtso::BLD_FIELD, local_player(), 1.0f);
+					break;
+				}
 	} else if (what == "resource") {
 		auto rv = sim->resources();
 		for (size_t r = 0; r < rv.count; ++r)
