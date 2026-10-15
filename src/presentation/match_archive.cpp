@@ -380,6 +380,11 @@ void RtsoMain::begin_match_recording(const rtso::GameSetupParams *mp_setup) {
 	if (!mp_setup) turn_mgr_.reset(); // offline: turn 1 is the first turn of this match
 	replay_finished_ = false;
 	replay_written_turn_ = 0;
+	// 0 A.D. -autostart-disable-replay: no replay is written for this run.
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings")); ms && !(bool)ms->get("record_replay")) {
+		replay_recording_ = false;
+		return;
+	}
 	Ref<DirAccess> dir = DirAccess::open("user://");
 	if (dir.is_null()) { replay_recording_ = false; return; }
 	String id = timestamp_id();
