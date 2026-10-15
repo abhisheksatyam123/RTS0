@@ -14599,6 +14599,12 @@ void Simulation::spawn_regicide_heroes() {
 			const CivUnitTemplate &u = civ_unit_template(t);
 			if ((u.flags & ROSTER_HERO) && !std::strstr(u.id, "/rts0_")) heroes.push_back(t);
 		}
+		// GetTemplateNamesByClasses("Hero", civ) lists every Hero template of the civ, the
+		// ones only maps place too (Scipio's infantry form, Craterus).
+		for (uint16_t t = CIV_ROSTER_PROMOTION_ONLY_FIRST; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+			const CivUnitTemplate &u = civ_unit_template(t);
+			if (u.civ == civ_of(p) && (u.flags & ROSTER_MAP_ONLY) && (u.flags & ROSTER_HERO)) heroes.push_back(t);
+		}
 		struct Spot { int pref; uint32_t id; bool building; size_t bi; };
 		std::vector<Spot> spots;
 		for (size_t bi = 0; bi < buildings_.size(); ++bi) {
