@@ -11899,7 +11899,7 @@ void Simulation::tick_gather(float dt) {
 							rate *= 2.0f;
 					}
 					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
-					// pyramid, catafalques, Han ministers): the strongest one in reach.
+					// pyramid, catafalques, Han ministers): each one in reach, multiplied.
 					if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
 							units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
 						rate /= 1.0f - g;
@@ -31776,8 +31776,11 @@ uint16_t Simulation::aura_affected_players(uint8_t owner, uint8_t players) const
 	uint16_t mask = 0;
 	for (uint8_t p = 0; p <= MAX_PLAYERS; ++p) {
 		uint8_t pid = p < MAX_PLAYERS ? p : GAIA_PLAYER;
+		const bool ally = (players & AURA_PLAYERS_ONE_SIDED) && owner < MAX_PLAYERS && pid < MAX_PLAYERS
+			? players_[owner].team == players_[pid].team || diplomacy_[owner][pid] == DIPLO_ALLY // Player.IsAlly
+			: is_ally(owner, pid);
 		uint8_t rel = pid == owner ? AURA_PLAYERS_OWNER
-			: is_ally(owner, pid) ? AURA_PLAYERS_ALLIES
+			: ally ? AURA_PLAYERS_ALLIES
 			: is_hostile(owner, pid) ? AURA_PLAYERS_ENEMIES : 0;
 		if (players & rel) mask |= aura_player_bit(pid);
 	}
