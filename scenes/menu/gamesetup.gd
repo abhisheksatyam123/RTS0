@@ -2387,6 +2387,9 @@ func _build_net_chat() -> void:
 	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	input.max_length = 256
 	input.text_submitted.connect(func(_t: String) -> void: _send_net_chat())
+	# ChatInputPanel.onTab / Tooltip: Tab completes player names, then civs and settings.
+	input.tooltip_text = "Press Tab to autocomplete player names or settings."
+	input.gui_input.connect(func(ev: InputEvent) -> void: _on_net_chat_key(ev, input))
 	row.add_child(input)
 	var send := Button.new()
 	send.name = "NetChatSend"
@@ -2400,6 +2403,70 @@ func _build_net_chat() -> void:
 		n.owner = self
 		n.unique_name_in_owner = true
 	_update_net_chat()
+
+## functions_utility.js tryAutoComplete: the last word becomes the one entry that
+## starts with it (any case), when exactly one does.
+static func try_autocomplete(text: String, words: Array) -> String:
+	var split := text.split(" ")
+	var last := split[split.size() - 1]
+	if last.is_empty():
+		return text
+	var found := []
+	for w in words:
+		if str(w).to_lower().begins_with(last.to_lower()):
+			found.append(str(w))
+			if found.size() > 1:
+				break
+	if found.size() != 1:
+		return text
+	split.remove_at(split.size() - 1)
+	var head := " ".join(split)
+	return (head + " " if head != "" else "") + found[0]
+
+## ChatInputAutocomplete.getAutocompleteEntries: player names (order 100), civs (90),
+## then the setting titles and every dropdown's choices (0), without repeats.
+func autocomplete_entries() -> Array:
+	var names: Array = []
+	for e in Array(_net_state.get("slots", [])) + Array(_net_state.get("observers", [])):
+		if int(e.get("client", -1)) >= 0 and str(e.get("name", "")) != "":
+			names.append(str(e["name"]))
+	for i in _civ_order():
+		names.append(str(CIVS[i]["name"]))
+	var settings: Array = []
+	_collect_autocomplete($VBox, settings, _slots_grid())
+	var out: Array = []
+	for w in names + settings:
+		if w != "" and not out.has(w):
+			out.append(w)
+	return out
+
+## The per-player rows add only names and civs (above), as in 0.28.
+func _collect_autocomplete(n: Node, out: Array, skip: Node) -> void:
+	if n is Label and (n as Label).text.ends_with(":"):
+		out.append((n as Label).text.trim_suffix(":").strip_edges())
+	elif n is OptionButton or n is RtsoSafeSelect:
+		var count: int = n.get_item_count()
+		for i in count:
+			out.append(str(n.get_item_text(i)))
+	elif n is ItemList:
+		var il := n as ItemList
+		for i in il.item_count:
+			out.append(il.get_item_text(i))
+	for c in n.get_children():
+		if c is Control and c != skip and c.name != "NetChat":
+			_collect_autocomplete(c, out, skip)
+
+## autoCompleteText: Tab completes the word before the caret.
+func _on_net_chat_key(ev: InputEvent, line: LineEdit) -> void:
+	var k := ev as InputEventKey
+	if k == null or not k.pressed or k.keycode != KEY_TAB:
+		return
+	line.accept_event()
+	var caret := line.caret_column
+	var before := line.text.substr(0, caret)
+	var done := try_autocomplete(before, autocomplete_entries())
+	line.text = done + line.text.substr(caret)
+	line.caret_column = caret + done.length() - before.length()
 
 func _send_net_chat() -> void:
 	var input: LineEdit = %NetChatInput
