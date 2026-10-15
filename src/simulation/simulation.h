@@ -589,7 +589,9 @@ public:
 	// civ_bit() mask of the civs of `pid`'s allies still in the match (owning a building or unit).
 	uint16_t ally_civ_mask(uint8_t pid) const;
 	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
-	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
+	// rounded: the whole per-unit cost (tooltips, Cost.GetResourceCosts); Trainer.js keeps it
+	// unrounded and floors count * cost once (rounded = false).
+	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT], bool rounded = true) const;
 	// Trainer.js GetUpgradedTemplate: the template a queued `tmpl` is trained as, following its
 	// Promotion while the player's RequiredXp for the step is 0 (Marian Reforms' Legionaries,
 	// mercenaries trained Advanced), and the rank it ends on. Cost and time are that template's.
@@ -2336,6 +2338,9 @@ private:
 	// MovementUpdate likelyFailure for a hunter (GATHER APPROACHING / COMBAT): FINDINGNEWTARGET.
 	void give_up_hunt(size_t i);
 	bool walk_falls_short(size_t i) const;
+	// Unit i follows a long path that obstructed_long_path works on: the one move_units or cmd_move
+	// gave it, with waypoints left, more than LONG_PATH_MIN_DIST from where it is going.
+	bool follows_long_path(size_t i) const;
 	void obstructed_long_path(size_t i, uint8_t failed);
 	void abandon_chase(size_t i);
 	void give_up_attack(size_t i);
@@ -2599,6 +2604,11 @@ private:
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
+	// The static obstructions of the long paths on the terrain tiles (NavGrid::set_tile_obstructions):
+	// with `structures` the structures, scenery and mines; the trees, bushes and treasures when they
+	// changed.
+	void sync_tile_obstructions(bool structures);
+	std::vector<NavGrid::TileObstruction> tile_obs_scratch_;
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
 	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
 	bool near_deep_water(float x, float z, float c) const;

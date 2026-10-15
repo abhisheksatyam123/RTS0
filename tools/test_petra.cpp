@@ -2171,10 +2171,30 @@ static void test_attack_maybe_update() {
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 1.0f);
-	float tx = 0.0f, tz = 0.0f;
+	float ox = 0.0f, oz = 0.0f;
 	for (const auto &b : s->buildings())
-		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
-	const float hx = -tx * 0.3f, hz = -tz * 0.3f;
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ox = b.x; oz = b.z; }
+	// The scene stands on the dry, level land nearest player 0's civic centre, clear of it: on this
+	// map the land between the bases is a lake, where the woman can't flee and nothing can be reached.
+	auto dry = [&](float x0, float z0, float x1, float z1) {
+		if (s->nav_grid_.steep_tile_in(x0, z0, x1, z1)) return false;
+		for (float z = z0; z <= z1; z += 1.0f)
+			for (float x = x0; x <= x1; x += 1.0f) {
+				const auto [cx, cy] = s->nav_grid_.world_to_cell(x, z);
+				if (!s->nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY)) return false;
+			}
+		return true;
+	};
+	float hx = 0.0f, hz = 0.0f, best = 1e30f;
+	for (float z = -26.0f; z <= 26.0f; z += 1.0f)
+		for (float x = -26.0f; x <= 26.0f; x += 1.0f) {
+			const float d = (x - ox) * (x - ox) + (z - oz) * (z - oz);
+			if (d < 100.0f || d >= best || !dry(x - 3.0f, z - 6.0f, x + 12.0f, z + 4.0f)) continue;
+			best = d;
+			hx = x;
+			hz = z;
+		}
+	CHECK(best < 1e30f, "dry land for the chase");
 	for (size_t j = 0; j < s->units_.count; ++j)
 		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
 	run_for(*s, 0.5f);
