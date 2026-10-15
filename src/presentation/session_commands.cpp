@@ -487,17 +487,11 @@ void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 	if (sell_type < 0 || sell_type >= 4 || buy_type < 0 || buy_type >= 4) return;
 	// Lockstep: barter mutates resources + market prices (both hashed) -> cmd_type 23
 	// (turn_manager.cpp) applies on every peer at the turn boundary. 0 A.D. Barter.js.
-	bool ok = false;
-	if (turn_cmds()) {
+	// The button's click is its only sound: 0.28's barter has no feedback of its own.
+	if (turn_cmds())
 		post_lockstep(23, nullptr, 0, (float)sell_type, (float)buy_type, (uint32_t)amount, 0);
-		ok = true; // validated deterministically on every peer at the boundary
-	} else {
-		ok = sim->cmd_barter(local_player(), (rtso::ResourceType)sell_type, (rtso::ResourceType)buy_type, amount);
-	}
-	if (ok) {
-		play_sfx("res://assets/sounds/ui/bonus.ogg");
-		// Price labels will be refreshed on next update_hud / barter dialog visibility
-	}
+	else
+		sim->cmd_barter(local_player(), (rtso::ResourceType)sell_type, (rtso::ResourceType)buy_type, amount);
 }
 
 // 0 A.D. TradeDialog: everything the barter and trade panels show for the local
