@@ -77,17 +77,6 @@ inline RallyPointInfo get_rally_point(const rtso::Simulation *sim, uint32_t buil
 	return info;
 }
 
-inline void update_rally_marker(godot::MeshInstance3D *rally_flag, const rtso::Simulation *sim, uint32_t building_id, uint8_t team = 0) {
-	if (!rally_flag) return;
-	RallyPointInfo rpi = get_rally_point(sim, building_id, team);
-	if (rpi.has_rally) {
-		rally_flag->set_global_position(godot::Vector3(rpi.x, 0.8f, rpi.z));
-		rally_flag->set_visible(true);
-	} else {
-		rally_flag->set_visible(false);
-	}
-}
-
 } // namespace rtso
 
 // Host hooks required from RtsoMain coordinator

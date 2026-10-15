@@ -219,6 +219,8 @@ func run() -> void:
 	await frames(4)
 	st = state()
 	check(int(st["building"]) != 0 and st.has("rally") and (st["rally"] as Vector2).distance_to(spot) < 0.5, "a selected structure gets its rally point there: %s" % str(st.get("rally")))
+	# RallyPointRenderer: the civ's waypoint flag stands on it.
+	check(main.debug_rally_flags() == 1, "its rally flag is drawn (%d flags)" % main.debug_rally_flags())
 
 	print("6. Picked on the press")
 	main.clear_selection()
