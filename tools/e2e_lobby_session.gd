@@ -33,7 +33,7 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
-	run.call_deferred()
+	preload("res://tools/lobby_test_clock.gd").run_in_wall_time(self, "res://tools/e2e_lobby_session.gd", run)
 
 # max_frames counts frames at 60 fps of real time: headless --fixed-fps runs
 # frames unthrottled, and the lobby's HTTP answers take wall-clock time.
@@ -56,17 +56,24 @@ func open_lobby() -> Control:
 
 func run() -> void:
 	var server_pid := OS.create_process("python3", [ProjectSettings.globalize_path("res://tools/lobby_server.py"),
-		"--port", str(PORT), "--quiet", "--stun-port", "0"])
+		"--port", str(PORT), "--quiet", "--stun-port", "0", "--exit-with-parent"])
 	var ls: Node = root.get_node("/root/LobbySession")
 	var lobby := await open_lobby()
 	lobby._server.text = "127.0.0.1:%d" % PORT
 	lobby._name.text = "alice"
-	for attempt in 50:
-		lobby._on_sign_pressed()
-		await until(func() -> bool: return ls.signed_in() or not lobby._sign_btn.disabled, 60)
-		if ls.signed_in():
+	# Wait for the server to answer, then sign in once: retrying a sign-in that
+	# is slow to answer (a loaded machine) leaves the first one signed in on the
+	# server and the retries refused as "that name is in use".
+	ls.address = "127.0.0.1:%d" % PORT
+	var up := [false]
+	for attempt in 100:
+		ls.get_json("/players", func(code: int, _o) -> void: up[0] = up[0] or code == 200)
+		await until(func() -> bool: return up[0], 30)
+		if up[0]:
 			break
 		await create_timer(0.1).timeout
+	lobby._on_sign_pressed()
+	await until(func() -> bool: return ls.signed_in())
 	check(ls.signed_in(), "alice signs in on the lobby page")
 	var bob := [""]
 	ls.post_json("/login", {"name": "bob"}, func(code: int, o) -> void:
@@ -189,10 +196,13 @@ func run() -> void:
 				if str(it.get_metadata(0)) == id:
 					return it
 		return null
+	# Look a row up right before picking it: the 3 s refresh rebuilds the rows.
+	var pick_room := func(id: String) -> void:
+		var it: TreeItem = find_room.call(id)
+		if it:
+			it.select(0)
 	await until(func() -> bool: return find_room.call("room-29998") != null)
-	var bay: TreeItem = find_room.call("room-29998")
-	if bay:
-		bay.select(0)
+	pick_room.call("room-29998")
 	await process_frame
 	# map_preview is null in an unimported headless project; the details show what Game Setup shows.
 	var want: Texture2D = load("res://scenes/menu/gamesetup.gd").map_preview("acropolis_bay")
@@ -200,9 +210,7 @@ func run() -> void:
 		"a skirmish map's game shows Game Setup's preview of it")
 	check(lobby._details.get_parsed_text().contains("Map Description: Each player starts the match atop a large flat plateau"),
 		"and its description")
-	var other: TreeItem = find_room.call("room-29999")
-	if other:
-		other.select(0)
+	pick_room.call("room-29999")
 	await process_frame
 	check(not lobby._details_preview.visible, "a game with no known map shows none")
 
@@ -227,12 +235,10 @@ func run() -> void:
 		"a game needing other mods is listed first, in grey")
 	var same: TreeItem = find_room.call("room-29996")
 	check(same != null and same.get_custom_color(0) == Color8(0, 219, 0), "a game with our mods is green")
-	if same:
-		same.select(0)
+	pick_room.call("room-29996")
 	await process_frame
 	check(lobby._details.get_parsed_text().contains("Mods:\n0ad (0.28.0)\nfx"), "its details list the mods, fx last")
-	if old:
-		old.select(0)
+	pick_room.call("room-29997")
 	await process_frame
 	check(lobby._details.get_parsed_text().contains("Mods (incompatible):\n0ad (0.27.1)"), "the other one's say incompatible")
 	lobby._on_join_pressed()
@@ -248,12 +254,8 @@ func run() -> void:
 	var page: Node = lobby.find_child("ModSelection", true, false)
 	if page:
 		page.visible = false
-	for attempt in 50:
-		lobby._on_sign_pressed()
-		await until(func() -> bool: return ls.signed_in() or not lobby._sign_btn.disabled, 60)
-		if ls.signed_in():
-			break
-		await create_timer(0.1).timeout
+	lobby._on_sign_pressed()
+	await until(func() -> bool: return ls.signed_in())
 
 	print("7. back to the main menu signs out")
 	lobby._on_back_pressed()

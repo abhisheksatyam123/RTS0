@@ -681,6 +681,7 @@ public:
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
+		terrain_lowest_known_ = false;
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -3134,6 +3135,10 @@ private:
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
+	uint8_t petra_target_owner(uint32_t id) const;
+	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
+	void petra_scuttle_undefendable();
+	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
@@ -3214,6 +3219,10 @@ private:
 	bool petra_rates_this_turn() const { return petra_rates_stamp_ == petra_rates_key(); }
 	// headquarters.js pickMostNeededResources over those rates.
 	static void petra_most_needed(const float want_rate[RES_COUNT], const float cur_rate[RES_COUNT], uint8_t out[RES_COUNT]);
+	// pickMostNeededResources for diplomacy: wanted > 0 per resource, and the most needed one;
+	// from this turn's gather rates when in, else from what our queues are short of.
+	void petra_wanted_resources(bool out[RES_COUNT]);
+	uint8_t petra_most_needed_resource();
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
 	float petra_scout_timer_ = 0.0f;
@@ -3454,6 +3463,9 @@ private:
 	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
+	bool petra_wood_starved() const;
+	bool petra_wood_kept_for(int queue) const;
+	void petra_clear_blocked_spawns();
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
@@ -3768,6 +3780,9 @@ private:
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
 	std::vector<CaptureReach> capture_cell_buildings_;
+	// What capture_cell_* were built from (map half-size, then each building's x, z): the grid
+	// is rebuilt only when these change.
+	std::vector<float> capture_cell_key_;
 	// Capture points each player's capture attacks took from each building this tick
 	// (tick_combat fills it, tick_capture spends it). Indexed like buildings_.
 	std::vector<std::array<float, MAX_PLAYERS>> capture_attack_;
@@ -3797,6 +3812,7 @@ private:
 	bool guard_keeps_target(size_t i, size_t t) const;
 	void guard_answer(size_t i, size_t g, uint32_t attacker);
 	void walk_to_held_position(size_t i);
+	void walk_back_if_drifted(size_t i);
 	void find_targets_then_walk_back(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;
@@ -3850,6 +3866,10 @@ private:
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;
 	std::vector<float> terrain_heights_;
+	// The lowest terrain height (0 on a flat map), found once per heightmap (structure arrows' reach).
+	mutable float terrain_lowest_ = 0.0f;
+	mutable bool terrain_lowest_known_ = false;
+	float lowest_terrain_height() const;
 	TerrainTiles terrain_tiles_; // saved v49, after the heightmap
 	float terrain_water_height_ = -1.0f;
 	std::string current_map_id_ = "default";

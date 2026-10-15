@@ -30,7 +30,7 @@ func run() -> void:
 	var u: Dictionary = main.debug_inspector("unit")
 	print("unit: ", u)
 	check(u["visible"], "a selected unit shows the details panel")
-	check(String(u["health"]).begins_with("Health: ") and " / " in String(u["health"]), "health reads \"Health: current / max\"")
+	check(not String(u["health"]).begins_with("Health: ") and " / " in String(u["health"]), "health reads \"current / max\" (healthStats, rounded up, no label)")
 	var tip := String(u["stats_tooltip"])
 	check(tip.begins_with("Attack:\n"), "the detailed tooltip opens with the attack")
 	check("Hack" in tip and "Interval: " in tip and "Range: " in tip, "the attack names its damage types, range and interval")
@@ -52,6 +52,7 @@ func run() -> void:
 	check(" — " in String(u["owner_tooltip"]) and String(u["owner_tooltip"]).ends_with("Phase"), "its tooltip names the civ and, for the viewer, the phase")
 	check(String(u["owner_phase"]).begins_with("res://assets/textures/ui/archive/panel_phase_emblems_") and not String(u["owner_phase"]).ends_with("hidden.png"), "the viewer's own phase emblems show")
 	check(not " (" in String(u["owner"]), "the row names the player, the civ moves to the tooltip")
+	check(not "Kills" in String(u["owner"]) and String(u["extra"]) == "", "no RTS0-only kill count or extra line (displaySingle has no free text)")
 	check(String(u["xp"]).begins_with("Experience: ") and " / " in String(u["xp"]), "a Basic soldier's experience shows on the portrait's vertical bar")
 
 	var elite: PackedInt32Array = main.debug_spawn_units("spart/champion_infantry_swordsman", 1)
@@ -86,6 +87,8 @@ func run() -> void:
 	check(String(b["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/structures/"), "a Civic Center shows its template's 0.28 icon")
 	check(String(b["portrait_tooltip"]).ends_with("Left-click to focus. Right-click for more information.") and "Territory root." in String(b["portrait_tooltip"]), "its portrait tooltip gives the template tooltip and the focus click")
 	check(String(b["rank_icon"]) == "", "a structure has no rank glyph")
+	check(not "Garrison:" in String(b["owner"]) and not "Production:" in String(b["stats"]) and not "Attack:" in String(b["stats"])
+			and String(b["extra"]) == "", "no RTS0-only garrison, queue, attack or rally text on a structure")
 	check(String(b["title"]) == "Agora (Civic Center)", "an Athenian Civic Center is named as 0.28: \"Agora (Civic Center)\"")
 	var parts: Array = b["capture_parts"]
 	check(parts.size() == 1 and float(parts[0]["width"]) > 300.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")

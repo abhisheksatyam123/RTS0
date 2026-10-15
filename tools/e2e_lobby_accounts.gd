@@ -28,7 +28,7 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
-	run.call_deferred()
+	preload("res://tools/lobby_test_clock.gd").run_in_wall_time(self, "res://tools/e2e_lobby_accounts.gd", run)
 
 # max_frames counts frames at 60 fps of real time: headless --fixed-fps runs
 # frames unthrottled, and the lobby's HTTP answers take wall-clock time.
@@ -64,7 +64,7 @@ func run() -> void:
 	var accounts := OS.get_user_data_dir().path_join("e2e_accounts.json")
 	DirAccess.remove_absolute(accounts)
 	server_pid = OS.create_process("python3", [ProjectSettings.globalize_path("res://tools/lobby_server.py"),
-		"--port", str(PORT), "--quiet", "--stun-port", "0", "--accounts", accounts, "--accounts-only"])
+		"--port", str(PORT), "--quiet", "--stun-port", "0", "--exit-with-parent", "--accounts", accounts, "--accounts-only"])
 	check(server_pid > 0, "the lobby server starts")
 	var cfg := RtsoUserConfig.new()
 	var saved := {}

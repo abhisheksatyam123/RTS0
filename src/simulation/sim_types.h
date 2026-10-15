@@ -751,8 +751,11 @@ inline float regrow_interval(uint8_t type, uint8_t subtype) {
 	if (type != RES_FOOD) return -1.0f;
 	return subtype == RES_SUB_FISH ? FISH_REGROW_INTERVAL_S : subtype == RES_SUB_NONE ? FRUIT_REGROW_INTERVAL_S : -1.0f;
 }
-// Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
-constexpr float FISH_GATHER_REACH = 4.0f;
+// UnitAI CheckTargetRange (CCmpObstructionManager::IsInTargetRange, DistanceBetweenShapes): a fish's
+// Obstruction is a Unit shape with no UnitMotion, so no clearance (its 10 m Footprint circle is only
+// for selection); the boat reaches it from its ResourceGatherer MaxDistance (6 m) plus its own
+// ship-small Clearance (3 m): 9 m from the fish's centre, in tiles.
+constexpr float FISH_GATHER_REACH = 9.0f / 4.0f;
 
 // 0 A.D. UnitAI.js g_Stances. Values are saved and sent over the wire; 3 was an
 // invented "hold ground" and is now 0 A.D.'s "violent".
@@ -2110,7 +2113,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 		case BLD_SUPER_DOCK: add(SUP); add(INF); add(CAV); add(TC_SHIP); break;
 		default: break; // storehouse, farmstead, corral, market, dock, ...: none
 	}
-	if (civ == CIV_HAN && type != BLD_SENTRY_TOWER && type != BLD_WALL_TOWER && l.n < 5) add(TC_MINISTER);
+	if (civ == CIV_HAN && type != BLD_SENTRY_TOWER && type != BLD_WALL_TOWER && type != BLD_SHRINE && l.n < 5) add(TC_MINISTER);
 	return l;
 }
 inline bool garrison_list_matches(const GarrisonClassList &l, TechClasses classes) {

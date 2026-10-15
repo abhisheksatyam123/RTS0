@@ -1200,6 +1200,15 @@ static void test_ship_treasure() {
 	std::printf("merchant ship shore treasure: food %+.0f\n", s.player(0).food() - food0);
 	CHECK(s.player(0).food() - food0 == 200.0f);
 	CHECK(s.treasures().empty());
+	// The Ptolemaic Juggernaut's parent is template_unit_ship_warship_siege: MaxDistance 24, not 12.
+	const uint32_t siege = s.spawn_unit(-30.0f, -12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("cart/ship_siege"));
+	const uint32_t jugg = s.spawn_unit(-30.0f, -18.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("ptol/champion_juggernaut"));
+	const float r_war = s.treasure_reach((size_t)s.lookup_unit(war));
+	const float r_siege = s.treasure_reach((size_t)s.lookup_unit(siege));
+	const float r_jugg = s.treasure_reach((size_t)s.lookup_unit(jugg));
+	std::printf("ship treasure reach: warship %.2f, siege ship %.2f, juggernaut %.2f\n", r_war, r_siege, r_jugg);
+	CHECK(r_siege > r_war);
+	CHECK(r_jugg == r_siege);
 }
 
 // navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
@@ -1637,9 +1646,10 @@ static void test_petra_cothon() {
 	}
 }
 
-// A worker on the far shore carries its load only to a dropsite on its own land (0 A.D.
-// picks reachable dropsites): with the only storehouse across the sea it waits, and once
-// one stands on its side it drops off there.
+// A worker on the far shore carries its load only to a dropsite on its own land: with the only
+// storehouse across the sea she finds none and RETURNINGRESOURCE finishes the order (she stays by
+// her tree, idle and still carrying, free for a new task); sent to gather again once one stands
+// on her side, she drops off there.
 static void test_dropsite_own_land() {
 	static Simulation s;
 	fresh(s);
@@ -1655,7 +1665,9 @@ static void test_dropsite_own_land() {
 	const int carried = s.units().carry[idx(s, woman)];
 	std::printf("  dropsite across the sea: carrying %d, %s\n", carried, left_shore ? "set off for the beach" : "stayed by the tree");
 	CHECK(!left_shore && carried > 0 && total(s, 0) == 0);
+	CHECK(s.units().action_state[idx(s, woman)] != ACTION_RETURN_DROPSITE);
 	s.spawn_building_world(0.0f, -40.0f, BLD_STOREHOUSE, 0, 1.0f);
+	s.order_gather(&woman, 1, tree);
 	run(s, 20.0f);
 	std::printf("  storehouse on her side: stock %d\n", total(s, 0));
 	CHECK(total(s, 0) > 0);
@@ -1868,7 +1880,7 @@ static void test_whale_hunt() {
 		if (it != s.res_id_to_idx_.end() && w != s.fauna_id_to_idx_.end()) {
 			s.resources_.amount[it->second] = 1;
 			const float cx = s.resources_.x[it->second], cz = s.resources_.z[it->second];
-			s.fauna_.pos_x[w->second] = cx + (cx > 0.0f ? -8.0f : 8.0f);
+			s.fauna_.pos_x[w->second] = cx + (cx > 0.0f ? -6.0f : 6.0f); // in the boat's sight (UnitAI CheckTargetVisible)
 			s.fauna_.pos_z[w->second] = cz;
 		}
 	}
