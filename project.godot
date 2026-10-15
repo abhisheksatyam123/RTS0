@@ -21,6 +21,7 @@ UserSettings="*res://scenes/menu/user_settings.gd"
 LobbySession="*res://scenes/menu/lobby_session.gd"
 Tooltips="*res://scenes/common/tooltips.gd"
 MenuAudio="*res://scenes/common/menu_audio.gd"
+TouchInput="*res://scenes/common/touch_input.gd"
 
 [gui]
 

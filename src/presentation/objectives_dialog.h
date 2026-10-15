@@ -8,6 +8,7 @@
 // builds and the owner passes in.
 
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/font_variation.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/panel.hpp>
@@ -55,8 +56,15 @@ public:
 		title->set_offset(SIDE_BOTTOM, 16.0f);
 		title->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 		title->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
-		title->add_theme_font_size_override("font_size", 18);
-		title->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
+		// TitleText: sans-bold-stroke-14, white.
+		Ref<FontVariation> bold;
+		bold.instantiate();
+		bold->set_variation_embolden(0.6f);
+		title->add_theme_font_override("font", bold);
+		title->add_theme_font_size_override("font_size", 14);
+		title->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+		title->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
+		title->add_theme_constant_override("outline_size", 3);
 		panel_->add_child(title);
 
 		// matchSettingsPlayerstate: shown only once the player has won or lost.
@@ -67,6 +75,7 @@ public:
 		state_->set_offset(SIDE_TOP, 40.0f);
 		state_->set_offset(SIDE_BOTTOM, 80.0f);
 		state_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+		state_->add_theme_font_override("font", bold); // sans-bold-18
 		state_->add_theme_font_size_override("font_size", 18);
 		state_->set_visible(false);
 		panel_->add_child(state_);
@@ -89,12 +98,13 @@ public:
 		text_ = memnew(RichTextLabel);
 		text_->set_use_bbcode(true);
 		text_->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
-		text_->set_offset(SIDE_LEFT, 6.0f);
-		text_->set_offset(SIDE_TOP, 6.0f);
-		text_->set_offset(SIDE_RIGHT, -6.0f);
-		text_->set_offset(SIDE_BOTTOM, -6.0f);
-		text_->add_theme_font_size_override("normal_font_size", 13);
-		text_->add_theme_font_size_override("bold_font_size", 13);
+		// MapPlayerList: sans-14, buffer_zone 8.
+		text_->set_offset(SIDE_LEFT, 8.0f);
+		text_->set_offset(SIDE_TOP, 8.0f);
+		text_->set_offset(SIDE_RIGHT, -8.0f);
+		text_->set_offset(SIDE_BOTTOM, -8.0f);
+		text_->add_theme_font_size_override("normal_font_size", 14);
+		text_->add_theme_font_size_override("bold_font_size", 14);
 		box_->add_child(text_);
 
 		Button *close = memnew(Button);

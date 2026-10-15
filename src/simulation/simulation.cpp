@@ -5384,6 +5384,10 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 			// UnitAI Stop drops the whole order queue.
 			set_order(idx, ORDER_NONE, 0, 0, units_.pos_x[idx], units_.pos_z[idx]);
 			order_queues_.erase(units_.id[idx]);
+			// ReplaceOrder lets Stop through a pack in progress; leaving PACKING / UNPACKING calls
+			// Pack.CancelPack, so the engine stays as it was.
+			if (units_.pack_state[idx] == PACK_PACKING) { units_.pack_state[idx] = PACK_UNPACKED; units_.pack_elapsed[idx] = 0.0f; }
+			else if (units_.pack_state[idx] == PACK_UNPACKING) { units_.pack_state[idx] = PACK_PACKED; units_.pack_elapsed[idx] = 0.0f; }
 		}
 	}
 }
@@ -7009,9 +7013,10 @@ void Simulation::garrison_arrow_auras_of(const std::vector<uint32_t> &ids, uint8
 	arrows = max_arrows = 1.0f;
 	if (GARRISON_ARROW_AURA_COUNT == 0) return;
 	uint32_t seen = 0; // garrison_arrow_auras() rows applied: one aura counts once, not per carrier
+	(void)owner; // Auras.js ApplyGarrisonAura: any unit inside, an ally's too, applies its aura
 	for (uint32_t uid : ids) {
 		const int32_t g = lookup_unit(uid);
-		if (g < 0 || units_.team[g] != owner || units_.tmpl[g] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+		if (g < 0 || units_.tmpl[g] >= CIV_UNIT_TEMPLATE_COUNT) continue;
 		for (int16_t a : civ_unit_template(units_.tmpl[g]).auras) {
 			const int row = garrison_arrow_aura_index(a);
 			if (row < 0 || row >= 32 || (seen & (1u << row))) continue;
@@ -7732,6 +7737,39 @@ void Simulation::tick_turrets() {
 			units_.has_order[u] = 0; // SetImmobile: shoots what is in range, never walks
 			turret_height_[list[k]] = p.y;
 			if (b.type == BLD_TOWER_DOUBLE) rampart_turrets_.insert(list[k]);
+			// Order.Attack with !AbleToMove, and ShouldChaseTargetedEntity false for an immobile unit:
+			// a target out of reach, a player's too, ends the attack (FinishOrder / FINDINGNEWTARGET),
+			// so the unit shoots what is in range instead.
+			if (units_.order_kind[u] == ORDER_ATTACK || units_.order_kind[u] == ORDER_ATTACK_BUILDING ||
+					units_.action_state[u] == ACTION_ATTACK) {
+				const float reach = attack_reach((size_t)u);
+				const float att_y = unit_height((size_t)u);
+				auto beyond = [&](float d2, float def_y) {
+					const float max_r2 = reach * reach - 2.0f * reach * (def_y - att_y); // in_parabolic_range
+					return !(max_r2 > 0.0f && d2 <= max_r2);
+				};
+				bool out = false;
+				if (units_.target_unit_id[u] != 0) {
+					const int32_t t = lookup_unit(units_.target_unit_id[u]);
+					if (t >= 0 && units_.alive[t]) {
+						const float dx = units_.pos_x[t] - px, dz = units_.pos_z[t] - pz;
+						out = beyond(dx * dx + dz * dz, unit_height((size_t)t));
+					}
+				} else if (units_.target_building_id[u] != 0) {
+					auto tb = building_id_to_idx_.find(units_.target_building_id[u]);
+					if (tb != building_id_to_idx_.end() && !buildings_[tb->second].wrecked) {
+						const Building &t = buildings_[tb->second];
+						const float g = structure_gap(t, px, pz, unit_clearance_at((size_t)u));
+						out = beyond(g * g, get_terrain_height(t.x, t.z));
+					}
+				}
+				if (out) {
+					units_.target_unit_id[u] = units_.target_building_id[u] = 0;
+					units_.action_state[u] = ACTION_IDLE;
+					if (units_.order_kind[u] != ORDER_NONE) set_order(u, ORDER_NONE, 0, 0, px, pz);
+					order_queues_.erase(list[k]);
+				}
+			}
 			++k;
 		}
 	}
@@ -8586,12 +8624,12 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) continue;
 		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
 		if (info.raise_range >= 0.0f && edge_distance(raiser, ux, uz) > info.raise_range) continue;
-		// The nearest structure of ours that can take it (queries sort by distance).
+		// The nearest structure of ours or a mutual ally's that can take it (queries sort by distance).
 		int32_t best = -1;
 		float best_d = info.search_range;
 		for (size_t h = 0; h < buildings_.size(); ++h) {
 			const Building &b = buildings_[h];
-			if (b.team != player || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
+			if (!is_ally(player, b.team) || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
 					turret_points_of(b) || !structure_has_enough_health(b) || // turrets aren't a GarrisonHolder
 					!structure_accepts_garrison(b, i))
 				continue;
@@ -8638,7 +8676,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 	// Units inside nearby structures (and the raiser): unload, then back to work or stop.
 	std::vector<std::pair<uint32_t, uint32_t>> out;
 	for (const Building &b : buildings_) {
-		if (b.team != player || b.garrisoned_units.empty()) continue;
+		if (!is_ally(player, b.team) || b.garrisoned_units.empty()) continue; // AlertRaiser mutualAllies
 		const float gap = std::hypot(b.x - raiser.x, b.z - raiser.z) - b.half_size - raiser.half_size;
 		if (b.id != raiser.id && info.end_range >= 0.0f && gap > info.end_range) continue;
 		for (uint32_t uid : b.garrisoned_units) {
@@ -16330,6 +16368,19 @@ void Simulation::guard_answer(size_t i, size_t g, uint32_t attacker) {
 		units_.waypoint_count[i] = 0;
 		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 	};
+	// GuardedAttacked: a Support guard (civilians, healers) tends its injured charge instead.
+	if ((unit_classes_at(i) & (TC_CIVILIAN | TC_HEALER)) && units_.hp[g] < units_.max_hp[g]) {
+		auto &q = order_queues_[units_.id[i]];
+		if (unit_heals(i) && can_heal(i, (int32_t)g)) {
+			q.insert(q.begin(), current_order(i));
+			start_heal(i, units_.id[g], 0);
+		} else if (can_repair_unit(i, (int32_t)g)) {
+			q.insert(q.begin(), current_order(i));
+			start_repair_unit(i, units_.id[g], 0);
+		}
+		if (q.empty()) order_queues_.erase(units_.id[i]);
+		return;
+	}
 	// Order.Attack: an unforced attack out of range ends at once for a unit standing its ground.
 	const bool stand = units_.stance[i] == STANCE_STAND_GROUND || unit_walk_speed(i) <= 0.0f;
 	const float reach = attack_reach(i);
@@ -16860,6 +16911,17 @@ void Simulation::tick_unit_ai(float dt) {
 				tick_heal(i);
 				continue;
 			}
+			// GUARDING Timer: a builder by its charge repairs it once it is damaged (a siege engine,
+			// a ship: PushOrderFront Repair), then guards again.
+			if (g >= 0 && (i + ticks_) % 4 == 0 && can_repair_unit(i, g)) {
+				const float dx = units_.pos_x[g] - units_.pos_x[i], dz = units_.pos_z[g] - units_.pos_z[i];
+				if (dx * dx + dz * dz <= GUARD_RANGE * GUARD_RANGE) {
+					auto &q = order_queues_[units_.id[i]];
+					q.insert(q.begin(), current_order(i));
+					start_repair_unit(i, units_.id[g], 0);
+					continue;
+				}
+			}
 			if (g >= 0 && units_.alive[g] && units_.attacked_by[g] != 0) guard_answer(i, (size_t)g, units_.attacked_by[g]);
 		}
 		const uint8_t now = units_.action_state[i];
@@ -16955,6 +17017,18 @@ void Simulation::tick_unit_ai(float dt) {
 				resume_order(i);
 			}
 			continue;
+		}
+		// WALKINGANDFIGHTING / PATROL Timer -> FindWalkAndFightTargets: a healer heals whoever is
+		// hurt nearby (FindNewHealTargets, an unforced Heal pushed in front), then walks on.
+		if ((now == ACTION_ATTACK_MOVE || now == ACTION_PATROL) && !interrupted && unit_heals(i) &&
+				(i + ticks_) % 4 == 0) {
+			const uint32_t t = find_heal_target(i);
+			if (t != 0) {
+				auto &q = order_queues_[units_.id[i]];
+				q.insert(q.begin(), current_order(i));
+				start_heal(i, t, 0);
+				continue;
+			}
 		}
 		// Patrol: turn round at each end (the queue's next order goes first).
 		if (now == ACTION_PATROL && units_.order_kind[i] == ORDER_PATROL) {
@@ -18288,10 +18362,11 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 			st.min = (int)std::ceil(pop_scaling * (float)min);
 		}
 	}
-	// addSiegeUnits: an Attack or HugeAttack adds siege engines of one class a building of ours
-	// trains (Siege+Melee, Siege+Ranged, Elephant+Melee, starting from the plan's number), as
-	// many as its difficulty allows, picked by siegeStrength.
-	if (kind == PETRA_ATTACK_ATTACK || kind == PETRA_ATTACK_HUGE) {
+	// addSiegeUnits: a Rush, Attack or HugeAttack adds siege engines of one class a building of
+	// ours trains (Siege+Melee, Siege+Ranged, Elephant+Melee, starting from the plan's number), as
+	// many as its difficulty allows, picked by siegeStrength. A rush gets them in the town phase,
+	// once something trains them.
+	if (kind == PETRA_ATTACK_RUSH || kind == PETRA_ATTACK_ATTACK || kind == PETRA_ATTACK_HUGE) {
 		const TechClasses siege_classes[3] = {TC_SIEGE | TC_MELEE, TC_SIEGE | TC_RANGED, TC_ELEPHANT | TC_MELEE};
 		bool has_trainer[3] = {};
 		for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
@@ -25033,12 +25108,16 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			float tx = 0.0f, tz = 0.0f;
 			uint32_t target_id = 0;
 			uint8_t kind;
-			if (mgr.rush_number < mgr.max_rushes && have_barracks && petra_ps().phase < 2) {
+			// attackManager.js:366: a rush while any are left and a barracks stands, in any
+			// phase (aggressive AIs, at popPhase2 50, do their later rushes in the town phase).
+			if (mgr.rush_number < mgr.max_rushes && have_barracks) {
 				kind = PETRA_ATTACK_RUSH;
+				// A rush needs no target to muster and train; it picks one when it must start
+				// (attackPlan.js chooseTarget), so one with none in sight still counts as a plan.
 				target_id = find_petra_rush_target(tx, tz, plan.target_player);
-				// A rush that finds no undefended target fails, and counts as planned.
-				if (target_id == 0) { ++mgr.rush_number; return; }
 				if (auto it = building_id_to_idx_.find(target_id); it != building_id_to_idx_.end()) plan.target_player = buildings_[it->second].team;
+				if (target_id == 0)
+					if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
 				plan.type = AttackPlan::PLAN_ASSAULT;
 			} else {
 				// From the town phase (or while researching it) with a barracks, or at once with
@@ -25110,13 +25189,29 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				break;
 			}
 			const auto &mgr = petra_attack_mgr_;
-			// Rushes take infantry and citizen cavalry (attackPlan.js Rush unitStat), no siege.
-			// assignUnits: worker soldiers past the first 8 (popScaling) join a rush. Other attacks
-			// take them only when idle in 0 A.D.; here a new worker stands idle until the economy
-			// gives it work, so they take none. At Easy and below no plan takes workers.
-			const int keep_workers = petra_config_.difficulty <= PETRA_EASY ? INT32_MAX
-			                         : (int)std::lround(petra_plan_pop_scaling() * 8.0f);
+			// assignUnits: worker-role citizen soldiers past the first `keep` (8 for a rush, else
+			// 6 + 4 per enemy + 8 x defensive, times popScaling) and past the first 4 of their base
+			// join a rush; any other plan takes them only while idle. At Easy and below no plan
+			// takes workers.
+			int keep_workers = INT32_MAX;
+			if (petra_config_.difficulty > PETRA_EASY) {
+				int enemies = 0;
+				for (int p = 0; p < MAX_PLAYERS; ++p)
+					enemies += p != petra_pid_ && petra_foe((uint8_t)p) && !is_defeated((uint8_t)p);
+				const float keep = mgr.kind == PETRA_ATTACK_RUSH ? 8.0f : 6.0f + 4.0f * (float)enemies + 8.0f * petra_config_.defensive;
+				keep_workers = (int)std::lround(petra_plan_pop_scaling() * keep);
+			}
 			int seen_workers = 0;
+			std::vector<int> base_workers(petra_bases_.size() + 1, 0);
+			// A citizen soldier with the worker role: one not trained for the army (citizen
+			// cavalry hunt, as the starting cavalry do in 0 A.D.).
+			const auto &army_ids = petra_army_ids_[petra_pid_];
+			auto worker_soldier = [&](size_t i) {
+				const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+				if (g == GATHER_INFANTRY) return petra_is_worker(i);
+				return g == GATHER_CAVALRY && carry_cap(i, RES_FOOD) > 0 &&
+				       !std::binary_search(army_ids.begin(), army_ids.end(), units_.id[i]);
+			};
 			// assignUnits: an AI that can't build units sends every available unit, support
 			// units and workers too, but those guarding an ally's civic centre (RTS0 keeps
 			// ships out, as no land plan here carries them).
@@ -25136,8 +25231,6 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				}
 				if (units_.id[i] == petra_scout_unit_id_) continue; // Scout remains on exploration
 				if (petra_is_support_unit(units_.unit_type[i]) || units_.unit_type[i] == UNIT_TRIREME) continue;
-				if (mgr.kind == PETRA_ATTACK_RUSH && (units_.unit_type[i] == UNIT_ELEPHANT || units_.unit_type[i] == UNIT_CATAPULT ||
-				    units_.unit_type[i] == UNIT_SIEGE_RAM || units_.unit_type[i] == UNIT_BOLT_SHOOTER)) continue;
 				// attackPlan.js isAvailableUnit: not garrisoning, not guarding a hero,
 				// and a regicide hero only while above 80% health.
 				if (units_.order_kind[i] == ORDER_GARRISON || petra_guards_critical_ent(i)) continue;
@@ -25148,9 +25241,13 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				if (petra_in_attack_squad(uid)) continue; // in a started attack
 				if (petra_is_defender(uid)) continue; // isAvailableUnit: plan -2/-3
 				if (std::find(squad.begin(), squad.end(), uid) != squad.end()) continue;
-				if (unit_gather_class(units_.unit_type[i], units_.tmpl[i]) == GATHER_INFANTRY && petra_is_worker(i) &&
-				    (seen_workers++ < keep_workers || mgr.kind != PETRA_ATTACK_RUSH))
-					continue;
+				if (worker_soldier(i)) {
+					const PetraBase *wb = get_nearest_petra_base(units_.pos_x[i], units_.pos_z[i]);
+					int &at_base = base_workers[wb ? (size_t)(wb - petra_bases_.data()) : petra_bases_.size()];
+					++at_base;
+					if (seen_workers++ < keep_workers || at_base < 5) continue;
+					if (mgr.kind != PETRA_ATTACK_RUSH && (units_.action_state[i] != ACTION_IDLE || units_.order_kind[i] != ORDER_NONE)) continue;
+				}
 				squad.push_back(uid);
 			}
 
@@ -25216,14 +25313,6 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			}
 			// mustStart / canStart: with no units to build, as soon as it has any.
 			if (all_units) ready = !squad.empty();
-			// A rush is a village-phase plan: one not ready by the town phase is dropped.
-			if (mgr.kind == PETRA_ATTACK_RUSH && !ready && petra_ps().phase >= 2) {
-				squad.clear();
-				plan.state = AttackPlan::UNEXECUTED;
-				plan.state_timer = 0.0f;
-				return;
-			}
-
 			if (ready && !squad.empty()) {
 				float tx = 0.0f, tz = 0.0f;
 				uint32_t target_id = petra_plan_next_target(plan, tx, tz);
@@ -25877,42 +25966,40 @@ void Simulation::petra_manage_raid(float dt) {
 			return;
 		}
 		const bool naval = petra_plan_overseas(base_x, base_z, plan.target_building_id) != 0;
-		// Cavalry citizen soldiers; a raid over water takes any land soldier. As attackPlan.js
-		// addUnits does for a raid, the first two free riders stay home to hunt.
+		// attackPlan.js assignUnits for a raid: every available FastMoving unit (champion
+		// cavalry and mounted heroes too) but the first two, kept home to hunt. A raid over water
+		// takes any land soldier, up to its size. A unit in another plan is not available.
 		int hunters_kept = 0;
 		const size_t raid_target = std::max<size_t>(1, petra_attack_mgr_.raid_target);
 		const size_t raid_min = std::max<size_t>(1, std::min<size_t>(petra_attack_mgr_.raid_min, raid_target));
-		for (size_t i = 0; i < units_.count && plan.squad.size() < raid_target; ++i) {
+		for (size_t i = 0; i < units_.count && (!naval || plan.squad.size() < raid_target); ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 			uint8_t ut = units_.unit_type[i];
 			if (!petra_is_combat_unit(ut) || unit_is_ship(ut) || ut == UNIT_TRIREME) continue;
-			if (ut == UNIT_CATAPULT || ut == UNIT_SIEGE_RAM || ut == UNIT_BOLT_SHOOTER || ut == UNIT_HERO) continue;
-			const bool cavalry = ut == UNIT_CAVALRY || ut == UNIT_CAMEL || ut == UNIT_CHARIOT;
-			if (!naval) {
-				if (!cavalry) continue;
-				if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(units_.tmpl[i]).flags & ROSTER_CHAMPION)) continue;
-			}
+			const bool fast = (unit_classes(units_.tmpl[i], ut) & TC_CAVALRY) != 0;
+			if (naval ? (ut == UNIT_CATAPULT || ut == UNIT_SIEGE_RAM || ut == UNIT_BOLT_SHOOTER || ut == UNIT_HERO) : !fast) continue;
 			uint32_t uid = units_.id[i];
 			if (uid == petra_scout_unit_id_) continue;
 			if (units_.order_kind[i] == ORDER_GARRISON || petra_guards_critical_ent(i)) continue;
+			if (petra_is_critical_ent(i) && units_.hp[i] < 0.8f * units_.max_hp[i]) continue;
 			if (std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end()) continue;
-			if ((petra_attack_plan_.state != AttackPlan::MUSTER || petra_attack_plan_.completing) &&
-			    std::find(petra_attack_plan_.squad.begin(), petra_attack_plan_.squad.end(), uid) != petra_attack_plan_.squad.end())
-				continue;
-			bool marching = false;
-			for (const AttackPlan &p : petra_started_attacks_)
-				marching |= std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end();
-			if (marching) continue;
+			if (petra_in_attack_squad(uid)) continue; // the main plan's or a started attack's
 			if (petra_is_defender(uid)) continue;
-			if (cavalry && hunters_kept < 2) { ++hunters_kept; continue; }
+			if (fast && hunters_kept < 2) { ++hunters_kept; continue; }
 			plan.squad.push_back(uid);
 		}
-		if (petra_attack_plan_.state == AttackPlan::MUSTER) {
-			// A mustering main army gives up the riders the raid takes.
+		// reassignFastUnit: a main plan still preparing hands one of its units a turn to the
+		// raid, the first FastMoving or citizen soldier (hasClasses with a list is an OR).
+		if (petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing) {
 			auto &main = petra_attack_plan_.squad;
-			main.erase(std::remove_if(main.begin(), main.end(), [&](uint32_t uid) {
-				return std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end();
-			}), main.end());
+			for (auto it = main.begin(); it != main.end(); ++it) {
+				const int32_t k = lookup_unit(*it);
+				if (k < 0 || !units_.alive[k] || petra_passenger(*it)) continue;
+				if (!(unit_classes(units_.tmpl[k], units_.unit_type[k]) & (TC_CAVALRY | TC_CITIZENSOLDIER))) continue;
+				plan.squad.push_back(*it);
+				main.erase(it);
+				break;
+			}
 		}
 		// mustStart: every rider it wants, or its minimum once the target is a foundation past
 		// half built (attackPlan.js: Raids start early against a nearly finished base).
@@ -26519,7 +26606,7 @@ bool Simulation::petra_find_beach(float land_x, float land_z, float toward_x, fl
 // enemy territory only if there is no other, and not within 70 m (30 m for a foundation)
 // of an allied dock. False when that land has no shore on that sea.
 bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, float ship_z, float dest_x, float dest_z,
-                                    bool avoid_enemy, float &out_x, float &out_z) const {
+                                    bool avoid_enemy, float &out_x, float &out_z, const float *skip_near) const {
 	if (!land || !sea || nav_grid_.cells.blank()) return false;
 	const int w = nav_grid_.cells.w, h = nav_grid_.cells.h;
 	const float cell = 2.0f * nav_grid_.map_half / (float)nav_grid_.res;
@@ -26538,6 +26625,8 @@ bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, f
 				    nav_grid_.global_region_at(x + d[0], y + d[1], PASS_SHIP) == sea) { shore = true; break; }
 			if (!shore) continue;
 			const float px = ((float)x + 0.5f) * cell - nav_grid_.map_half, pz = ((float)y + 0.5f) * cell - nav_grid_.map_half;
+			// A landing point the ship could not unload at: try another.
+			if (skip_near && (px - skip_near[0]) * (px - skip_near[0]) + (pz - skip_near[1]) * (pz - skip_near[1]) < 64.0f) continue;
 			double dist = 4.0 * (std::hypot(px - ship_x, pz - ship_z) + std::hypot(dest_x - px, dest_z - pz)); // metres
 			if (avoid_enemy) {
 				const int owner = territory_owner_at(px, pz);
@@ -26626,6 +26715,27 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 
 void Simulation::petra_manage_transport(float dt) {
 	for (auto &tp : petra_transports_) petra_step_transport(tp, dt);
+	// A unit that boarded after its plan gave up (a lingering board order) would ride for good:
+	// transportPlan.js never leaves units aboard. An idle ship of ours in no plan sets them down
+	// where it lies, else sails for the nearest shore of our home land.
+	std::vector<uint32_t> laden;
+	for (const auto &[sid, pax] : transport_passengers_)
+		if (!pax.empty()) laden.push_back(sid);
+	std::sort(laden.begin(), laden.end()); // map order is not the same on every peer after a load
+	uint16_t home = 0;
+	for (uint32_t sid : laden) {
+		const int32_t si = lookup_unit(sid);
+		if (si < 0 || !units_.alive[si] || units_.team[si] != petra_pid_ || !petra_is_transport_ship((size_t)si)) continue;
+		if (units_.action_state[si] != ACTION_IDLE || petra_ship_in_plan(sid)) continue;
+		const float sx = units_.pos_x[si], sz = units_.pos_z[si];
+		order_disembark(sid, sx, sz);
+		if (get_transport_passenger_count(sid) == 0) continue;
+		if (!home) petra_classified_topo(home);
+		float lx, lz, wx, wz;
+		if (!home || !petra_boarding_pos(home, petra_ship_sea((size_t)si), sx, sz, sx, sz, false, lx, lz)) continue;
+		if (!nearest_water_for_ship((size_t)si, lx, lz, wx, wz)) { wx = lx; wz = lz; }
+		if ((wx - sx) * (wx - sx) + (wz - sz) * (wz - sz) > 4.0f) order_walk(&sid, 1, wx, wz, false);
+	}
 	// A finished or failed plan frees its owner and ship.
 	petra_transports_.erase(std::remove_if(petra_transports_.begin(), petra_transports_.end(), [](const PetraTransportPlan &tp) {
 		return tp.state == PetraTransportPlan::IDLE || tp.state == PetraTransportPlan::FAILED;
@@ -26698,7 +26808,28 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		float dx = units_.pos_x[sidx] - tp.pickup_x;
 		float dz = units_.pos_z[sidx] - tp.pickup_z;
 		bool ship_ready = (dx * dx + dz * dz) <= 36.0f;
-		if (!ship_ready && units_.action_state[sidx] == ACTION_MOVE) tp.state_timer = 0.0f;
+		// Ordered onto the beach itself, a ship that has come within reach can keep circling for
+		// the land point; it waits there instead.
+		if (ship_ready && units_.action_state[sidx] == ACTION_MOVE) cmd_stop(&tp.ship_id, 1);
+		// While the ship sails up the clock runs below zero. transportPlan.js onBoarding: a ship that
+		// does not reach its boarding point (nTry) tries another, here after 120 s: the shore of
+		// that land nearest this one, so the passengers still walk to it.
+		if (!ship_ready && units_.action_state[sidx] == ACTION_MOVE) {
+			tp.state_timer = std::min(tp.state_timer - dt, 0.0f) - dt; // this step's += dt undone
+			if (tp.state_timer <= -120.0f) {
+				const float skip[2] = {tp.pickup_x, tp.pickup_z};
+				float nx, nz;
+				if (petra_boarding_pos(petra_land_at(tp.pickup_x, tp.pickup_z), tp.sea, units_.pos_x[sidx], units_.pos_z[sidx],
+				                       tp.pickup_x, tp.pickup_z, false, nx, nz, skip)) {
+					tp.pickup_x = nx;
+					tp.pickup_z = nz;
+					order_walk(&tp.ship_id, 1, nx, nz, false);
+				}
+				tp.state_timer = 0.0f;
+			}
+		} else if (tp.state_timer < 0.0f) {
+			tp.state_timer = 0.0f;
+		}
 		if (tp.state_timer > 28.0f) {
 			if (aboard == 0) {
 				tp.state = PetraTransportPlan::FAILED;
@@ -26754,8 +26885,24 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 			tp.state = PetraTransportPlan::IDLE;
 			tp.passenger_ids.clear();
 		} else if (tp.state_timer >= 20.0f) {
-			tp.state = PetraTransportPlan::FAILED; // no shore to unload onto: they stay aboard
-			tp.failed = true;
+			// transportPlan.js onSailing never leaves units aboard: a ship that can't unload where
+			// it lies sails for another landing point on that land (getBoardingPos, nTry), here
+			// the nearest shore to the ship other than this one.
+			const float skip[2] = {tp.drop_x, tp.drop_z};
+			const float sx = units_.pos_x[sidx], sz = units_.pos_z[sidx];
+			float nx, nz;
+			if (petra_boarding_pos(petra_land_at(tp.drop_x, tp.drop_z), tp.sea, sx, sz, sx, sz, true, nx, nz, skip)) {
+				tp.drop_x = nx;
+				tp.drop_z = nz;
+				float x, z;
+				sail_point(x, z);
+				order_walk(&tp.ship_id, 1, x, z, false);
+				tp.state = PetraTransportPlan::SAILING;
+				tp.state_timer = 0.0f;
+			} else {
+				tp.state = PetraTransportPlan::FAILED; // that land has no other shore on this sea
+				tp.failed = true;
+			}
 		} else if (std::fmod(tp.state_timer, 3.0f) < dt) {
 			order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
 		}
