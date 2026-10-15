@@ -363,43 +363,41 @@ void RtsoMiniMapView::_draw() {
 	const uint8_t *fow = mirages_.view().empty() ? nullptr : mirages_.view().data();
 	const int fow_res = sim->fow_res();
 
-	// 3-Tier Fog of War shroud (Unexplored black, Explored fog 40%, Visible 100%)
-	// matching 0 A.D.'s LOS bitmap (visible=255 / explored=127 / unexplored=0,
-	// graphics/LOSTexture.cpp:443-449 composited by MiniMapTexture.cpp:523).
-	// CMiniMapTexture draws terrain, territories, then the LOS layer, and the entity
-	// points (mirages included) last at full colour, so the shroud never masks them.
+	// The shroud: CMiniMapTexture writes the LOS texture (visible 255, explored 127,
+	// unexplored 0; graphics/LOSTexture.cpp) into the final texture's alpha over a
+	// black background, so explored land is drawn at half brightness and the edges
+	// are smooth (the texture is sampled with linear filtering). The entity points
+	// (mirages included) go on top at full colour, so the shroud never masks them.
 	// SHROUD_OFF (observer / replay view) skips it.
 	auto draw_shroud = [&]() {
 		if (!fow) return;
-		float cell_w = sz.x / (float)fow_res;
-		float cell_h = sz.y / (float)fow_res;
-
-		const Color black_shroud(0.03f, 0.04f, 0.06f, 1.0f);  // 100% black unexplored
-		const Color fog_shroud(0.01f, 0.02f, 0.04f, 0.40f);    // 40% explored fog
-
-		// On a circular map the cells off the world are left undrawn, so the shroud is round too;
-		// on a square map the 12 m edge frame is off the world as well (LosIsOffWorld).
+		const size_t cells = (size_t)fow_res * (size_t)fow_res;
+		// The cells off the world are left clear: a circular map's corners, and on a square
+		// map the 12 m edge frame (LosIsOffWorld).
 		const float cell_world = half_map * 2.0f / (float)fow_res;
-		auto off_world = [&](int x, int z) {
-			return sim->off_world(-half_map + ((float)x + 0.5f) * cell_world, -half_map + ((float)z + 0.5f) * cell_world);
-		};
-		for (int z = 0; z < fow_res; ++z) {
-			int x = 0;
-			while (x < fow_res) {
-				uint8_t st = fow[z * fow_res + x];
-				if (st == rtso::Simulation::FOW_VISIBLE || off_world(x, z)) {
-					x++;
-					continue;
+		if (shroud_cache_.size() != cells || shroud_round_ != round || std::memcmp(shroud_cache_.data(), fow, cells) != 0) {
+			shroud_cache_.assign(fow, fow + cells);
+			shroud_round_ = round;
+			PackedByteArray px;
+			px.resize((int64_t)cells * 4);
+			uint8_t *out = px.ptrw();
+			for (int z = 0; z < fow_res; ++z) {
+				for (int x = 0; x < fow_res; ++x) {
+					const uint8_t st = fow[z * fow_res + x];
+					const int los = st == rtso::Simulation::FOW_VISIBLE ? 255 : st == rtso::Simulation::FOW_UNEXPLORED ? 0 : 127;
+					const bool off = sim->off_world(-half_map + ((float)x + 0.5f) * cell_world, -half_map + ((float)z + 0.5f) * cell_world);
+					uint8_t *o = out + ((size_t)z * fow_res + x) * 4;
+					o[0] = 8; o[1] = 10; o[2] = 15;
+					o[3] = off ? 0 : (uint8_t)(255 - los);
 				}
-				int run_start = x;
-				while (x < fow_res && fow[z * fow_res + x] == st && !off_world(x, z)) {
-					x++;
-				}
-				int run_len = x - run_start;
-				Color col = (st == rtso::Simulation::FOW_UNEXPLORED) ? black_shroud : fog_shroud;
-				draw_rect(Rect2(run_start * cell_w, z * cell_h, run_len * cell_w + 0.5f, cell_h + 0.5f), col, true);
+			}
+			Ref<Image> img = Image::create_from_data(fow_res, fow_res, false, Image::FORMAT_RGBA8, px);
+			if (img.is_valid()) {
+				if (shroud_tex_.is_valid() && shroud_tex_->get_width() == fow_res) shroud_tex_->set_image(img);
+				else shroud_tex_ = ImageTexture::create_from_image(img);
 			}
 		}
+		if (shroud_tex_.is_valid()) draw_texture_rect(shroud_tex_, Rect2(Vector2(0, 0), sz), false);
 	};
 
 

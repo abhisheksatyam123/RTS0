@@ -73,6 +73,10 @@ class RtsoMiniMapView : public Control {
 	uint64_t terrain_key_ = 0;
 	uint64_t terrain_checked_ms_ = 0;
 	bool ensure_terrain_texture(bool round);
+	// The LOS layer, re-uploaded when the player's fog changes.
+	Ref<ImageTexture> shroud_tex_;
+	std::vector<uint8_t> shroud_cache_;
+	bool shroud_round_ = false;
 	Color player_color(uint8_t pid) const;
 
 protected:
