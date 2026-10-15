@@ -54,6 +54,7 @@ const Default kDefaults[] = {
 	{"sharpening", "disabled"},
 	{"sharpness", "0.3"},
 	{"variant_diversity", "full"},
+	{"materialmgr.quality", "10.0"},
 	{"view.drag.speed", "0.5"},
 	{"view.drag.inverted", "false"},
 	{"particles", "true"},
