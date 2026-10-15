@@ -2985,6 +2985,53 @@ static void test_liu_bang_wall_regen() {
 	check(bld_mut(s, wall)->hp == w2, "after he dies the wall stops regenerating");
 }
 
+static void test_passive_siege_flees() {
+	std::printf("84. a passive ram flees when hit (Order.Flee needs only AbleToMove); an aggressive one doesn't\n");
+	for (uint8_t stance : {STANCE_PASSIVE, STANCE_AGGRESSIVE}) {
+		Simulation s;
+		setup(s);
+		uint32_t ram = s.spawn_unit(0, 0, 0, UNIT_SIEGE_RAM);
+		s.order_set_stance(&ram, 1, stance);
+		uint32_t e = s.spawn_unit(2, 0, 1, UNIT_SPEARMAN);
+		s.order_attack(&e, 1, ram, false);
+		const bool fled = run_until(s, 15.0f, [&] { return act_of(s, ram) == ACTION_FLEE; });
+		check(stance == STANCE_PASSIVE ? fled : !fled, stance == STANCE_PASSIVE ? "the passive ram flees" : "the aggressive ram stays");
+	}
+}
+
+static void test_unload_self_garrison_rally() {
+	std::printf("85. units unloaded from a structure whose rally garrisons back in it run none of its rally commands (OrderToRallyPoint)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t tower = s.spawn_building_world(10.0f, 10.0f, BLD_TOWER, 0, 1.0f);
+	s.cmd_set_rally_point(0, tower, 10.0f, 10.0f, 0, tower);
+	s.cmd_set_rally_point(0, tower, 30.0f, 10.0f, 0, 0, true);
+	uint32_t u = s.spawn_unit(13.0f, 10.0f, 0, UNIT_SPEARMAN);
+	s.order_garrison(&u, 1, tower);
+	check(run_until(s, 10.0f, [&] { return act_of(s, u) == ACTION_GARRISONED; }), "the spearman garrisons");
+	s.order_ungarrison(tower);
+	run(s, 8.0f);
+	const int i = idx_of(s, u);
+	check(i >= 0 && s.units_.pos_x[i] < 20.0f, "after unloading it stays by the tower instead of walking to the Shift-added point");
+}
+
+static void test_allied_builders_continue() {
+	std::printf("86. an ally's builders move on to a foundation of their own when your structure finishes (Foundation.GetBuilders)\n");
+	Simulation s;
+	setup(s);
+	s.set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+	s.set_diplomacy(1, 0, Simulation::DIPLO_ALLY);
+	const uint32_t house = s.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 0.9f);
+	const uint32_t theirs = s.spawn_building_world(8.0f, 0.0f, BLD_HOUSE, 1, 0.0f);
+	s.spawn_building_world(-8.0f, 0.0f, BLD_HOUSE, 0, 0.0f); // player 0's: not for the ally
+	uint32_t a = s.spawn_unit(3.0f, 2.0f, 1, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&a, 1, house);
+	const bool done = run_until(s, 30.0f, [&] { return bld(s, house)->build_progress >= 1.0f; });
+	run(s, 0.5f);
+	check(done && s.unit_order(a).kind == ORDER_BUILD && s.unit_order(a).target == theirs,
+			"the allied builder goes on to its own player's foundation nearby");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3072,6 +3119,9 @@ int main(int argc, char **argv) {
 	test_guards_repair_charge();
 	test_liu_bang_wall_regen();
 	test_guard_memory(save.c_str());
+	test_passive_siege_flees();
+	test_unload_self_garrison_rally();
+	test_allied_builders_continue();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

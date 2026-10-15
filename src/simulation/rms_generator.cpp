@@ -1,6 +1,7 @@
 #include "rms_generator.h"
 #include "script_terrains.h"
 #include "resource_counts_data.h"
+#include "base_resources_data.h"
 #include "tree_slot_gatherers.h"
 #include "simulation.h"
 #include "heightmap_images.h"
@@ -4088,6 +4089,10 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 	// forward gold under water).
 	const MapType mt = config.map_type;
 	const float dry_h = sim.water_height() + 0.6f;
+	// The script's placePlayerBases arguments (base_resources_data.h); none for a script with its own base code.
+	const MapBaseResources *base = map_base_resources(map_type_info(mt).id);
+	const float tiles = 2.0f * hm.map_half;
+	auto sbms = [&](float lo, float hi) { return lo + (hi - lo) * std::clamp((tiles - 128.0f) / 384.0f, 0.0f, 1.0f); };
 	// A tile land units can't stand on (0.28's passability: max minus min corner height
 	// over the tile above the class's MaxTerrainSlope), for the mines, which gatherers
 	// walk up to.
@@ -4176,29 +4181,44 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			}
 		}
 
-		// 4. Primary Food: Starter Berry Bushes (5 gaia/fruit/berry_01 bushes, Max 200 food each)
+		// 4. Primary Food: placePlayerBaseBerries, min/maxCount (5) bushes of the script's
+		// template, mostly the biome's fruitBush. Spawned unnamed at 200: plant_flora makes each
+		// the biome's fruit at its template's Max (dates 400).
 		float berry_cx = px + fx * 5.5f + rx * 6.5f;
 		float berry_cz = pz + fz * 5.5f + rz * 6.5f;
 		dry(px, pz, berry_cx, berry_cz, 2.5f);
-		for (int b = 0; b < 5; ++b) {
-			float ba = (6.2831853f * b) / 5.0f;
+		const int berries = !base ? 5 : !base->berries ? 0
+				: base->berry_min == base->berry_max ? base->berry_min : rng.range_int(base->berry_min, base->berry_max);
+		for (int b = 0; b < berries; ++b) {
+			float ba = (6.2831853f * b) / (float)berries;
 			float bx = berry_cx + std::cos(ba) * 1.5f;
 			float bz = berry_cz + std::sin(ba) * 1.5f;
 			sim.spawn_resource_world(bx, bz, RES_FOOD, 200);
 		}
 
-		// 5. Primary Forest: Dense Woodline (10 spots of two 200-wood trees). islands.js asks
-		// placePlayerBases for "Trees": {count: 5}: one group of 5 trees, 0-5 apart, 11-13
-		// from the civic centre.
+		// 5. Primary Forest: placePlayerBaseTrees, one group of "count" trees (default
+		// scaleByMapSize(7, 20); mainland 5, many scripts 2), 0-5 apart, 11-13 from the civic
+		// centre. A map script with its own base code keeps RTS0's woodline of 10 spots of two.
 		float forest_cx = px - fx * 10.5f + rx * 3.5f;
 		float forest_cz = pz - fz * 10.5f + rz * 3.5f;
 		dry(px, pz, forest_cx, forest_cz, 5.0f);
-		const bool five_trees = mt == MAP_ISLANDS;
-		for (int t = 0; t < (five_trees ? 5 : 10); ++t) {
-			float ta = five_trees ? -1.2f + (2.4f * t) / 4.0f : -1.2f + (2.4f * t) / 9.0f;
-			float tx = forest_cx + std::cos(ta) * (five_trees ? 2.0f : 4.0f) + rng.range_float(-0.4f, 0.4f);
-			float tz = forest_cz + std::sin(ta) * (five_trees ? 2.0f : 4.0f) + rng.range_float(-0.4f, 0.4f);
-			spawn_trees(sim, hm, tx, tz, dry_h, five_trees ? 1 : 2);
+		if (!base) {
+			for (int t = 0; t < 10; ++t) {
+				float ta = -1.2f + (2.4f * t) / 9.0f;
+				float tx = forest_cx + std::cos(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
+				float tz = forest_cz + std::sin(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
+				spawn_trees(sim, hm, tx, tz, dry_h, 2);
+			}
+		} else if (base->trees) {
+			const int trees = config.biome == BIOME_SAVANNA && base->tree_savanna ? base->tree_savanna
+					: (int)std::lround(sbms((float)base->tree_min, (float)base->tree_max));
+			// A sunflower spiral: one tree per tile, the group about 5 tiles across.
+			const float a0 = rng.range_float(0.0f, 6.2831853f);
+			for (int t = 0; t < trees; ++t) {
+				const float r = 1.1f * std::sqrt((float)t), a = a0 + 2.3999632f * (float)t;
+				const float tx = forest_cx + std::cos(a) * r, tz = forest_cz + std::sin(a) * r;
+				if (hm.sample_world(tx, tz) > dry_h) spawn_trees(sim, hm, tx, tz, dry_h, 1);
+			}
 		}
 
 		// 6-7. rmgen placePlayerBaseMines: one large metal mine and one large
@@ -4217,21 +4237,42 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		BiomeFauna bf = biome_fauna(config.biome, (int)config.seed);
 		// lower_nubia.js: StartingAnimal gaia/fauna_gazelle (no other base hunt; RTS0's starter hunt takes it too).
 		if (mt == MAP_LOWER_NUBIA) bf.starting = bf.main_hunt = FAUNA_GAZELLE;
-		// 10. Starter animals near the base (rmbiome startingAnimal, e.g. chickens)
+		// 10. placePlayerBaseStartingAnimal: groupCount (2) groups of the template (gaia/fauna_chicken
+		// unless the script names one; rmgen2 maps pass the biome's startingAnimal), each of
+		// round(5 * 40 / its food) animals (5 chickens, 400 food in all) unless the script sets
+		// min/maxGroupCount, 0-2 apart.
 		float deer_cx = px - fx * 14.0f - rx * 5.0f;
 		float deer_cz = pz - fz * 14.0f - rz * 5.0f;
 		dry(px, pz, deer_cx, deer_cz, 3.5f);
-		for (int d = 0; d < 4; ++d) {
-			float da = (6.2831853f * d) / 4.0f;
-			sim.spawn_fauna(deer_cx + std::cos(da) * 2.5f, deer_cz + std::sin(da) * 2.5f, bf.starting);
+		if (!base) {
+			for (int d = 0; d < 4; ++d) {
+				float da = (6.2831853f * d) / 4.0f;
+				sim.spawn_fauna(deer_cx + std::cos(da) * 2.5f, deer_cz + std::sin(da) * 2.5f, bf.starting);
+			}
+			// 11. Starter hunt: 2 of the biome's main huntable animal (RTS0's own; 0.28's
+			// placePlayerBase has none).
+			float boar_cx = px + fx * 19.0f - rx * 5.0f;
+			float boar_cz = pz + fz * 19.0f - rz * 5.0f;
+			dry(px, pz, boar_cx, boar_cz, 2.5f);
+			sim.spawn_fauna(boar_cx - 1.5f, boar_cz, bf.main_hunt);
+			sim.spawn_fauna(boar_cx + 1.5f, boar_cz, bf.main_hunt);
+		} else if (base->animal) {
+			const char *tpl = base->animal_template;
+			uint8_t kind = FAUNA_CHICKEN;
+			if (!std::strcmp(tpl, "biome:startingAnimal")) kind = bf.starting;
+			else if (!std::strncmp(tpl, "gaia/", 5) && fauna_type_by_name(tpl + 5) < FAUNA_COUNT) kind = fauna_type_by_name(tpl + 5);
+			const int food = std::max(1, fauna_type_info(kind).food_amount);
+			const int each = base->animal_min ? (base->animal_min == base->animal_max ? base->animal_min
+					: rng.range_int(base->animal_min, base->animal_max)) : std::max(1, (int)std::lround(5.0f * 40.0f / (float)food));
+			// The second group on the base's other side, as far out.
+			float herd_cx[2] = {deer_cx, px + fx * 9.0f - rx * 3.0f}, herd_cz[2] = {deer_cz, pz + fz * 9.0f - rz * 3.0f};
+			if (base->animal_groups > 1) dry(px, pz, herd_cx[1], herd_cz[1], 2.0f);
+			for (int g = 0; g < std::min<int>(base->animal_groups, 2); ++g)
+				for (int k = 0; k < each; ++k) {
+					const float a = rng.range_float(0.0f, 6.2831853f), r = k ? rng.range_float(0.5f, 1.5f) : 0.0f;
+					sim.spawn_fauna(herd_cx[g] + std::cos(a) * r, herd_cz[g] + std::sin(a) * r, kind);
+				}
 		}
-
-		// 11. Starter hunt: 2 of the biome's main huntable animal
-		float boar_cx = px + fx * 19.0f - rx * 5.0f;
-		float boar_cz = pz + fz * 19.0f - rz * 5.0f;
-		dry(px, pz, boar_cx, boar_cz, 2.5f);
-		sim.spawn_fauna(boar_cx - 1.5f, boar_cz, bf.main_hunt);
-		sim.spawn_fauna(boar_cx + 1.5f, boar_cz, bf.main_hunt);
 	}
 }
 
@@ -12064,7 +12105,12 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	for (size_t r = 0; r < rv.count; ++r) {
 		const int tx = (int)std::floor(rv.x[r]), tz = (int)std::floor(rv.z[r]);
 		if (rv.type[r] == RES_FOOD && rv.subtype[r] == RES_SUB_NONE) {
-			sim.set_resource_flora(rv.id[r], f->fruit);
+			// An unnamed fruit bush is the biome's fruitBush, at its template's Max (gaia/fruit/date
+			// 400, berries and grapes 200); one the generator named (a script's apples) keeps its kind.
+			if (rv.flora[r] == FLORA_DEFAULT) {
+				sim.set_resource_flora(rv.id[r], f->fruit);
+				if (rv.amount[r] == 200 && (f->fruit == FLORA_DATE || f->fruit == FLORA_APPLE)) sim.set_resource_amount(rv.id[r], 400);
+			}
 			continue;
 		}
 		if (rv.type[r] != RES_WOOD || rv.subtype[r] != RES_SUB_NONE) continue;
@@ -12744,6 +12790,35 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			// scaleByMapSize(500, 700) tries, avoidClasses(clLand, 2, clPlayer, 2, clFood, 10).
 			passes.push_back({(int)std::ceil(sbms(500.0f, 700.0f)), 2, 3, 2, 10.0f, 2.0f, 0, true});
 			break;
+		// 0.28's water maps each run one createFood of 2-3 fish (0-2 apart): N groups,
+		// stayClasses(clWater, w) or avoidClasses(clLand, w), avoidClasses(clFood, d).
+		case MAP_CONTINENT: // continent.js: 50 * numPlayers, clLand 2, clFood 10
+			passes.push_back({50 * players, 2, 3, 2, 10.0f, 2.0f, 0});
+			break;
+		case MAP_LAKE: // lake.js: 65 * numPlayers, clWater 4, clFood 12
+			passes.push_back({65 * players, 2, 3, 4, 12.0f, 2.0f, 0});
+			break;
+		case MAP_RIVERS: // rivers.js: 35 * numPlayers, clWater 6, clFood 8
+			passes.push_back({35 * players, 2, 3, 6, 8.0f, 2.0f, 0});
+			break;
+		case MAP_ARCHIPELAGO_0AD: // archipelago.js: 35 * numPlayers, clLand 3, clFood 15
+			passes.push_back({35 * players, 2, 3, 3, 15.0f, 2.0f, 0});
+			break;
+		case MAP_COAST_RANGE: // coast_range.js: 70 * numPlayers, clLand 2, clFood 7
+			passes.push_back({70 * players, 2, 3, 2, 7.0f, 2.0f, 0});
+			break;
+		case MAP_ENGLISH_CHANNEL: // english_channel.js: scaleByMapSize(30, 45) * numPlayers, clWater 4, clFood 6
+			passes.push_back({(int)std::lround(sbms(30.0f, 45.0f) * (float)players), 2, 3, 4, 6.0f, 2.0f, 0});
+			break;
+		case MAP_AEGEAN_SEA: // aegean_sea.js: 25 * scaleByMapSize(15, 20), clWater 5, clFood 10
+			passes.push_back({(int)std::lround(25.0f * sbms(15.0f, 20.0f)), 2, 3, 5, 10.0f, 2.0f, 0});
+			break;
+		case MAP_ISLANDS: // islands.js: 40 * numPlayers, clLand 4, clFood 14
+			passes.push_back({40 * players, 2, 3, 4, 14.0f, 2.0f, 0});
+			break;
+		case MAP_ALPINE_LAKES: // alpine_lakes.js: 20 * numPlayers, clWater 2, clFood 8
+			passes.push_back({20 * players, 2, 3, 2, 8.0f, 2.0f, 0});
+			break;
 		default:
 			passes.push_back({(int)std::lround(sbms(15.0f, 50.0f)), 2, 3, 2, 20.0f, 2.0f, 0});
 			break;
@@ -12902,11 +12977,25 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 
 	// Fruit: berry bushes in clusters of 5 (the scripts' SimpleObject(oFruitBush, 5, 5, 0, 3)),
 	// fruit trees in clusters of 2-4, each kind by its share of the script's fruit.
-	int fruit_left = target(rc->fruit) - have_fruit;
+	// A script on a generic biome was measured on temperate, whose tree3 is the apple
+	// (rmbiome/generic/temperate.json). On any other generic biome tree3 is a plain tree, so
+	// its fruit here is the biome's fruitBush alone, left unnamed for plant_flora, without
+	// the apple share.
+	const bool generic = own_terrains(sim, config.map_type) == nullptr && sim.current_map_biome() != "temperate";
+	int fruit_want = target(rc->fruit);
+	const ResourceKindShare *bush = &rc->fruit_kinds[0];
+	if (generic) {
+		for (const ResourceKindShare &k : rc->fruit_kinds)
+			if (k.name && !std::strcmp(k.name, "apple")) fruit_want = fruit_want * (100 - k.percent) / 100;
+			else if (k.name) bush = &k;
+	}
+	int fruit_left = fruit_want - have_fruit;
 	while (fruit_left > 0 && rc->fruit_kinds[0].name) {
 		const ResourceKindShare *k = &rc->fruit_kinds[0];
-		if (rc->fruit_kinds[1].name && rng.range_int(1, 100) > rc->fruit_kinds[0].percent) k = &rc->fruit_kinds[1];
-		const uint8_t flora = flora_kind_by_name(k->name);
+		if (generic) k = bush;
+		else if (rc->fruit_kinds[1].name && rng.range_int(1, 100) > rc->fruit_kinds[0].percent) k = &rc->fruit_kinds[1];
+		if (generic && !std::strcmp(k->name, "apple")) break;
+		const uint8_t flora = generic ? (uint8_t)FLORA_BERRY : flora_kind_by_name(k->name);
 		float x, z;
 		if (flora == FLORA_COUNT || !pick(kBaseGap, food, 10.0f, x, z)) break;
 		food.push_back({x, z});
@@ -12914,7 +13003,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		int placed = 0;
 		for (int i = 0; i < n; ++i) {
 			const float a = rng.range_float(0.0f, 6.2831853f), r = i ? rng.range_float(1.0f, 3.0f) : 0.0f;
-			placed += place(x + std::cos(a) * r, z + std::sin(a) * r, RES_FOOD, k->amount, flora);
+			placed += place(x + std::cos(a) * r, z + std::sin(a) * r, RES_FOOD, generic ? 200 : k->amount, generic ? FLORA_DEFAULT : flora);
 		}
 		fruit_left -= std::max(placed, 1);
 	}
