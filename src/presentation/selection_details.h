@@ -37,13 +37,15 @@ inline String resource_name(uint8_t res) {
 	}
 }
 
-// "%(label)s %(current)s / %(max)s" (getCurrentHealthTooltip, getCurrentCaptureTooltip).
-inline String current_of(const char *label_key, const char *label, float current, float max) {
-	return sprintf0(tr0(String("%(") + label_key + ")s %(current)s / %(max)s"),
-			{{label_key, tr0(label)}, {"current", num((int64_t)std::lround(current))}, {"max", num((int64_t)std::lround(max))}});
+// getCurrentHealthTooltip, getCurrentCaptureTooltip: each its own whole msgid.
+inline String health(float hp, float max) {
+	return sprintf0(tr0("%(healthLabel)s %(current)s / %(max)s"),
+			{{"healthLabel", tr0("Health:")}, {"current", num((int64_t)std::lround(hp))}, {"max", num((int64_t)std::lround(max))}});
 }
-inline String health(float hp, float max) { return current_of("healthLabel", "Health:", hp, max); }
-inline String capture(float points, float max) { return current_of("captureLabel", "Capture points:", points, max); }
+inline String capture(float points, float max) {
+	return sprintf0(tr0("%(captureLabel)s %(current)s / %(max)s"),
+			{{"captureLabel", tr0("Capture points:")}, {"current", num((int64_t)std::lround(points))}, {"max", num((int64_t)std::lround(max))}});
+}
 
 // The single-selection bar captions (healthStats, captureStats): "%(hitpoints)s / %(maxHitpoints)s"
 // rounded up, no label (selection_details.js displaySingle); tooltips keep health() / capture().

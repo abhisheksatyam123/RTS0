@@ -419,7 +419,6 @@ public:
 	void _on_barter_sell_selected(int resource);
 	void _on_pack_cancel_pressed(int pack);
 	Array debug_barter_panel();
-	uint32_t selected_garrison_holder() const;
 	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
@@ -568,6 +567,8 @@ public:
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
+	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
+	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
 	// Tests: the training roster's rows (name, disabled).
 	Array debug_roster() {
@@ -811,6 +812,7 @@ public:
 	String chat_open_hotkey_tooltip() const;
 	// input.js: session.flare held arms a flare, never in a replay (!g_IsReplay).
 	bool flare_held() const;
+	bool selected_building_shoots() const; // own, with BuildingAI arrows (try_focus_fire)
 	void refresh_chat_tooltips();
 	Dictionary debug_chat_tooltips() {
 		Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip();
@@ -870,6 +872,7 @@ private:
 	std::vector<uint32_t> extra_structures_;
 	uint32_t extras_primary_ = 0; // the selected_building_id the extras belong to
 	std::vector<uint32_t> selected_structures() const;
+	std::vector<uint32_t> selected_garrison_holders() const; // the selection's holders with units inside
 	std::vector<uint32_t> selected_structures_like_primary() const;
 	void set_selected_structures(const std::vector<uint32_t> &ids);
 	void prune_structure_selection();
@@ -1043,6 +1046,10 @@ private:
 	// a rejoin loads, and "disconnected": the host is gone, so the match stops
 	// here. Exit leaves for the summary (endGame(true)).
 	Control *net_status_overlay_ = nullptr;
+	Label *net_status_title_ = nullptr;
+	Button *net_status_exit_ = nullptr;
+	Button *net_status_faq_ = nullptr;
+	void _on_open_faq_pressed();
 	Label *net_status_label_ = nullptr;
 	RichTextLabel *net_loading_clients_ = nullptr; // loadingClientsText
 	bool net_disconnected_ = false; // session.js g_Disconnected

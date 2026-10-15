@@ -242,6 +242,24 @@ int main() {
 		CHECK(sim.fow_res() == 128, "256m map fow_res %d", sim.fow_res());
 	}
 
+	// 3c. caledonian_meadows.js's resource spots: in turn a stone mine, a metal mine, a fenced Gaia
+	// farmstead with sheep and a food bin, a grove and a camp of treasures and Gaia soldiers.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_CALEDONIAN_MEADOWS, 7, 2, 256.0f);
+		int camp_treasures = 0, fences = 0, farmsteads = 0, gaia_units = 0, sheep = 0;
+		for (const auto &t : sim.treasures()) camp_treasures += t.type == TREASURE_METAL || t.type == TREASURE_STONE;
+		for (const auto &sc : sim.scenery()) fences += sc.type == scenery_type_by_name("fence_long");
+		for (const auto &b : sim.buildings()) farmsteads += b.hp > 0 && b.team == GAIA_PLAYER && b.type == BLD_FARMSTEAD;
+		const auto u = sim.units();
+		for (size_t i = 0; i < u.count; ++i) gaia_units += u.alive[i] && u.team[i] == GAIA_PLAYER;
+		const auto fv = sim.fauna();
+		for (size_t i = 0; i < fv.count; ++i) sheep += fv.alive[i] && fv.fauna_type[i] == FAUNA_SHEEP;
+		CHECK(camp_treasures >= 5 && gaia_units >= 10, "Caledonian camps: %d metal or stone treasures, %d Gaia soldiers", camp_treasures, gaia_units);
+		CHECK(farmsteads >= 5 && fences >= 3 * farmsteads && sheep >= 3 * farmsteads,
+				"Caledonian fences: %d farmsteads, %d long fences, %d sheep", farmsteads, fences, sheep);
+	}
+
 	// 4. FoW at the far corner of a Giant map.
 	{
 		Simulation sim;
