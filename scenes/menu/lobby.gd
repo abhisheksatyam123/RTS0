@@ -31,6 +31,8 @@ var game_sort_column := "Name"
 var game_sort_order := 1
 var _players: Tree
 var _players_filter: LineEdit
+var _requests_sent := {} # _get_latest: per kind, the last request made
+var _requests_applied := {} # and the last one whose answer was used
 var _profile: VBoxContainer
 var _profile_name: Label
 var _profile_role: Label # ProfilePanel roleText
@@ -759,9 +761,24 @@ func _on_register_pressed() -> void:
 func _refresh() -> void:
 	if not LobbySession.signed_in():
 		return
-	LobbySession.get_json("/rooms", _on_rooms)
-	LobbySession.get_json("/players", _on_players)
-	LobbySession.get_json("/chat?since=%d" % _chat_last, _on_chat)
+	_get_latest("/rooms", _on_rooms)
+	_get_latest("/players", _on_players)
+	_get_latest("/chat?since=%d" % _chat_last, _on_chat, "/chat")
+
+
+## A list request whose answer is applied only if no later request of the same
+## kind was answered first: an answer that overtakes an older one must not be
+## undone by it (a game list from before a host registered, or chat from
+## before the last line, which would show that line twice).
+func _get_latest(path: String, cb: Callable, kind := "") -> void:
+	kind = kind if kind != "" else path
+	_requests_sent[kind] = int(_requests_sent.get(kind, 0)) + 1
+	var n: int = _requests_sent[kind]
+	LobbySession.get_json(path, func(code: int, obj) -> void:
+		if n < int(_requests_applied.get(kind, 0)):
+			return
+		_requests_applied[kind] = n
+		cb.call(code, obj))
 
 
 func _on_rooms(code: int, obj) -> void:
@@ -966,7 +983,7 @@ func _on_buddy_pressed() -> void:
 	if not LobbySession.signed_in() or not toggle_buddy(_selected_player, LobbySession.player_name):
 		return
 	_update_buddy_button()
-	LobbySession.get_json("/players", _on_players) # the marks follow
+	_get_latest("/players", _on_players) # the marks follow
 	_show_rooms()
 
 
