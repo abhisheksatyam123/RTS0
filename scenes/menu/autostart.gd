@@ -6,12 +6,17 @@ extends RefCounted
 ##   godot --path . -- -autostart="random/mainland" -autostart-seed=-1
 ##     -autostart-players=2 -autostart-civ=1:athen -autostart-civ=2:brit
 ##     -autostart-ai=2:petra
-## Single-player options are ported. The local player is slot 1, or an observer
-## with -autostart-player=-1 (then every seat needs an AI; one without becomes a
-## Sandbox AI). -autostart-host, -autostart-client, -autostart-nonvisual,
-## -autostart-aiseed and -autostart-disable-replay are not ported.
+## Multiplayer: -autostart-host (with -autostart-host-players, default 2) hosts
+## the named match and starts it once that many humans are in and ready;
+## -autostart-client=IP joins a host and readies up; -autostart-port and
+## -autostart-playername go with either. -autostart-nonvisual draws and plays
+## nothing and quits when the match ends; -autostart-disable-replay writes no
+## replay, and -autostart-aiseed seeds the AIs' personalities. The local player is
+## slot 1, or an observer with -autostart-player=-1 (then every seat needs an AI;
+## one without becomes a Sandbox AI).
 
 const GameSetup := preload("res://scenes/menu/gamesetup.gd")
+const Driver := preload("res://scenes/menu/autostart_driver.gd")
 
 ## Set once the command line has started a match: back at the menu it doesn't again.
 static var consumed := false
@@ -155,20 +160,58 @@ static func configure(ms: Node, opts: Dictionary, maps: Array) -> String:
 	ms.ai_civ = civs[1] if n > 1 else civs[0]
 	return ""
 
+## The multiplayer and run options: MatchSettings' net_* fields and replay flag, and
+## the driver that acts on them in the match, or null with nothing to do there.
+static func configure_run(ms: Node, opts: Dictionary) -> Node:
+	ms.record_replay = not opts.has("autostart-disable-replay")
+	# -autostart-aiseed: the AIs' seed, -1 for a random one; 0 (the default) follows the match seed.
+	var ai_seed_arg := _last(opts, "autostart-aiseed", "0")
+	ms.ai_seed = (randi() & 0x7FFFFFFF) | 1 if ai_seed_arg == "-1" else maxi(0, int(ai_seed_arg))
+	var driver: Node = Driver.new()
+	driver.name = "AutostartDriver"
+	driver.nonvisual = opts.has("autostart-nonvisual")
+	ms.net_mode = ""
+	if opts.has("autostart-host") or opts.has("autostart-client"):
+		ms.net_lobby = ""
+		ms.net_password = ""
+		ms.net_observe = false
+		ms.net_port = int(_last(opts, "autostart-port", str(ms.net_port)))
+		ms.net_player_name = _last(opts, "autostart-playername", "anonymous")
+		if opts.has("autostart-client"):
+			driver.client = true
+			ms.net_mode = "join"
+			ms.net_ip = _last(opts, "autostart-client", "127.0.0.1")
+			if ms.net_ip == "":
+				ms.net_ip = "127.0.0.1"
+		else:
+			driver.host = true
+			driver.host_players = maxi(1, int(_last(opts, "autostart-host-players", "2")))
+			ms.net_mode = "host"
+	if not (driver.host or driver.client or driver.nonvisual):
+		driver.free()
+		return null
+	return driver
+
 ## At startup: start the match the command line names, once. True when one starts.
 static func run(ms: Node) -> bool:
 	if consumed or ms == null:
 		return false
 	var opts := parse(OS.get_cmdline_user_args() + OS.get_cmdline_args())
-	if not opts.has("autostart"):
+	# 0.28 AutostartClient: a client needs no map, the host sends it.
+	if not opts.has("autostart") and not opts.has("autostart-client"):
 		return false
 	consumed = true
-	for k in ["autostart-host", "autostart-client", "autostart-nonvisual"]:
-		if opts.has(k):
-			push_warning("[Autostart] -%s is not supported; starting a single-player match." % k)
-	var err := configure(ms, opts, GameSetup.load_all_maps())
-	if err != "":
-		push_error("[Autostart] " + err)
-		return false
-	print("[Autostart] %s seed=%d slots=%s civs=%s teams=%s" % [ms.map_id, ms.seed, str(ms.slot_types), str(ms.slot_civs), str(ms.slot_teams)])
+	if not opts.has("autostart-client"):
+		var err := configure(ms, opts, GameSetup.load_all_maps())
+		if err != "":
+			push_error("[Autostart] " + err)
+			return false
+	var driver := configure_run(ms, opts)
+	if driver:
+		for old in ms.get_children():
+			if old.name == "AutostartDriver":
+				old.free()
+		ms.add_child(driver)
+	print("[Autostart] %s %s seed=%d slots=%s civs=%s teams=%s" % [ms.net_mode if ms.net_mode != "" else "offline", ms.map_id, ms.seed,
+		str(ms.slot_types), str(ms.slot_civs), str(ms.slot_teams)])
 	return ms.go("res://scenes/main.tscn") == OK

@@ -22,7 +22,8 @@
 //     than an unturned one's sides (nav/footprint.h). A unit walking along that axis must go around
 //     the corners, not the unturned square, and a woman finishes a turned house. A long, thin
 //     footprint (0 A.D.'s long wall, 36 x 5 m) lies along its width, and a quarter turn swaps its
-//     width and depth in every footprint test and in the nav grid.
+//     width and depth in every footprint test and in the nav grid. Turned any way, the wall blocks
+//     every navcell along it, so no long path goes through it.
 //  8. Siege through a gap: a catapult keeps 0 A.D.'s "large" clearance (3 m, unit_building_clearance)
 //     from buildings, so it takes a 2-unit (8 m) gap in a long row of houses instead of going around.
 //  9. Walk into a building: a move to a point inside a town centre ends beside it, as close as the
@@ -86,6 +87,7 @@
 // Private access only to turn a standing building (Building::set_rot) and rasterize it.
 #define private public
 #include "simulation/simulation.h"
+#include "simulation/nav/building_steering.h"
 #undef private
 
 #include <algorithm>
@@ -370,6 +372,31 @@ static void walk_past_turned_building() {
 		};
 		check(!open(-29.0f, -25.5f) && !open(-29.0f, -32.5f) && open(-26.0f, -29.0f) && open(-29.0f, -22.5f),
 				"the nav grid does not block the quarter-turned wall along z");
+	}
+	// Turned off the axes, the wall covers few navcells whole: every navcell along its centre line
+	// blocks all the same (0.28 closes a wall whole), so no long path goes through it, and none past
+	// its ends does.
+	for (const float a : {0.3f, 0.6f, QUARTER_PI, 1.1f, 2.0f}) {
+		Simulation w;
+		setup(w);
+		const uint32_t seg = w.spawn_building_world(-29.0f, -29.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+		float rot = 0.0f;
+		for (auto &b : w.buildings_)
+			if (b.id == seg) {
+				b.set_extents(4.5f, 0.625f);
+				b.set_rot(Simulation::DEFAULT_BUILDING_ROT + a);
+				rot = b.rot;
+			}
+		w.rebuild_nav_grid();
+		// Along its width, u = (cos a, -sin a) (0 A.D. GetObstructionSquare).
+		auto open = [&](float t) {
+			const auto [cx, cy] = w.nav_grid_.world_to_cell(-29.0f + t * std::cos(rot), -29.0f - t * std::sin(rot));
+			return w.nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY);
+		};
+		bool closed = true;
+		for (float t = -4.5f; t <= 4.5f; t += 0.25f) closed = closed && !open(t);
+		check(closed, "a navcell along a turned wall is open to long paths");
+		check(open(-8.0f) && open(8.0f), "a turned wall blocks navcells past its ends");
 	}
 
 	Simulation s;
@@ -1442,6 +1469,37 @@ static void cliff_clearance() {
 	check(west && west == east && west == below, "a rock cut the land");
 }
 
+// 26. A tree gap that trees behind it close (soak: Mainland seed 22, a spearman walking to its
+// civic centre stood between two corners for minutes). The corner into the gap is a dead end the
+// next search turns back from, so the short path takes the way round. Trees as they stood there,
+// relative to the spearman.
+static void tree_gap_dead_end() {
+	Simulation s;
+	setup(s);
+	static const float trees[][2] = {{0.39f, -1.97f}, {0.92f, -1.24f}, {0.43f, -0.49f}, {-0.46f, -0.37f},
+		{2.76f, -2.63f}, {2.92f, -1.74f}, {-2.05f, -5.58f}, {-2.89f, -5.89f}, {-1.52f, -3.75f}, {-1.99f, -2.98f},
+		{-2.95f, -2.39f}, {-2.75f, -3.27f}, {-2.15f, -4.48f}, {-2.20f, -3.58f}, {-2.47f, -5.42f}, {2.60f, -1.37f},
+		{3.43f, -1.71f}, {-3.84f, -3.64f}, {-0.15f, -2.14f}, {-0.98f, -2.50f}};
+	for (const auto &t : trees) s.spawn_resource_world(t[0], t[1], RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_TREE_CYPRESS_WILD);
+	s.tick(DT);
+	// The short path from where the spearman stood, then from the corner it gives: the second leg
+	// must not turn back (it flipped between the two corners for minutes).
+	auto steer = [&](nav::Vec2 pos) {
+		std::vector<Simulation::SteerObstacle> near;
+		ShortPathMemo memo{};
+		nav::Vec2 out = pos;
+		const nav::Vec2 aim(-0.06f, -9.0f);
+		nav::steer_around_obstacles(pos, aim, CLEARANCE_DEFAULT, s.steer_obstacles_, false, near, true,
+				[&](std::vector<Simulation::SteerObstacle> &o) { s.gaia_obstacles_near(pos.x, pos.y, Simulation::GAIA_STEER_REACH, o); },
+				Simulation::GAIA_STEER_REACH, 0, s.nav_grid_, 1u, memo, out);
+		return out;
+	};
+	const nav::Vec2 start(0.09f, 0.21f), w1 = steer(start), w2 = steer(w1);
+	const float back = (w1 - start).dot(w2 - w1); // < 0: the way on from the corner turns back
+	std::printf("  tree gap: from (%.2f, %.2f) the short path goes to (%.2f, %.2f), then (%.2f, %.2f)\n", start.x, start.y, w1.x, w1.y, w2.x, w2.y);
+	check(back >= 0.0f, "the short path turns back at a tree gap that trees behind it close");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -1469,6 +1527,7 @@ int main() {
 	forest_cells();
 	repair_in_house_cluster();
 	cliff_clearance();
+	tree_gap_dead_end();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

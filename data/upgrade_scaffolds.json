@@ -1,0 +1,713 @@
+{
+ "athen_wall": {
+  "offset": [
+   -0.05,
+   0.1341,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2624
+ },
+ "athen_wall_segment": {
+  "offset": [
+   -0.05,
+   0.1341,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2624
+ },
+ "brit_wall": {
+  "offset": [
+   -0.0482,
+   -0.0118,
+   0.0006
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2534
+ },
+ "brit_wall_segment": {
+  "offset": [
+   -0.0482,
+   -0.0118,
+   0.0006
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2534
+ },
+ "cart_house": {
+  "offset": [
+   -0.0292,
+   -0.4365,
+   0.2729
+  ],
+  "scaffold": "scaffold_up_4x4",
+  "scale": 0.801
+ },
+ "cart_wall": {
+  "offset": [
+   -0.0104,
+   0.0141,
+   -0.0259
+  ],
+  "scaffold": "scaffold_up_cart_wall_long",
+  "scale": 0.2558
+ },
+ "cart_wall_segment": {
+  "offset": [
+   -0.0104,
+   0.0141,
+   -0.0259
+  ],
+  "scaffold": "scaffold_up_cart_wall_long",
+  "scale": 0.2558
+ },
+ "gaul_wall": {
+  "offset": [
+   -0.0645,
+   0.049,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2518
+ },
+ "gaul_wall_segment": {
+  "offset": [
+   -0.0645,
+   0.049,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2518
+ },
+ "han_outpost": {
+  "offset": [
+   -0.2713,
+   -1.324,
+   -0.0965
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.3457
+ },
+ "han_tower_large": {
+  "offset": [
+   0.0062,
+   0.2249,
+   0.3638
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.3842
+ },
+ "han_tower_small": {
+  "offset": [
+   0.0686,
+   -0.6966,
+   -0.165
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 0.7568
+ },
+ "han_town_center": {
+  "offset": [
+   0.0099,
+   0.9177,
+   0.2045
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 0.7246
+ },
+ "han_wall_long": {
+  "offset": [
+   -0.0476,
+   -0.1729,
+   -0.0002
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.259
+ },
+ "iber_wall": {
+  "offset": [
+   -0.0497,
+   0.314,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2626
+ },
+ "iber_wall_segment": {
+  "offset": [
+   -0.0497,
+   0.314,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2626
+ },
+ "kush_defense_tower_stone": {
+  "offset": [
+   0.0062,
+   0.178,
+   0.2227
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.4059
+ },
+ "kush_wall": {
+  "offset": [
+   -0.0518,
+   0.2101,
+   0.0005
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2584
+ },
+ "kush_wall_segment": {
+  "offset": [
+   -0.0518,
+   0.2101,
+   0.0005
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2584
+ },
+ "mace_wall": {
+  "offset": [
+   -0.05,
+   0.1341,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2624
+ },
+ "mace_wall_segment": {
+  "offset": [
+   -0.05,
+   0.1341,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2624
+ },
+ "maur_outpost": {
+  "offset": [
+   -0.2713,
+   -1.324,
+   -0.0965
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.3457
+ },
+ "maur_scout_tower": {
+  "offset": [
+   0.0167,
+   -0.9229,
+   0.3126
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.2648
+ },
+ "maur_wall": {
+  "offset": [
+   -0.0498,
+   0.3816,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2632
+ },
+ "maur_wall_segment": {
+  "offset": [
+   -0.0498,
+   0.3816,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2632
+ },
+ "maur_wooden_tower": {
+  "offset": [
+   0.0052,
+   -0.3259,
+   0.2537
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.1579
+ },
+ "outpost": {
+  "offset": [
+   -0.2713,
+   -1.324,
+   -0.0965
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.3457
+ },
+ "pers_wall": {
+  "offset": [
+   -0.0495,
+   0.5759,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2607
+ },
+ "pers_wall_segment": {
+  "offset": [
+   -0.0495,
+   0.5759,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2607
+ },
+ "ptol_wall": {
+  "offset": [
+   -0.047,
+   0.0399,
+   0.0003
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2483
+ },
+ "ptol_wall_segment": {
+  "offset": [
+   -0.047,
+   0.0399,
+   0.0003
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2483
+ },
+ "rome_wall": {
+  "offset": [
+   -0.0511,
+   0.114,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2552
+ },
+ "rome_wall_segment": {
+  "offset": [
+   -0.0511,
+   0.114,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2552
+ },
+ "s_athenians_wall_long": {
+  "offset": [
+   -0.2266,
+   0.6083,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_britons_wall_long": {
+  "offset": [
+   -0.2266,
+   -0.0555,
+   0.0029
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_britons_wooden_tower": {
+  "offset": [
+   -0.0101,
+   0.0394,
+   0.1651
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.0588
+ },
+ "s_carthaginians_outpost": {
+  "offset": [
+   -0.2828,
+   -1.3802,
+   -0.1006
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.4027
+ },
+ "s_carthaginians_wall_long": {
+  "offset": [
+   -0.0482,
+   0.0658,
+   -0.1206
+  ],
+  "scaffold": "scaffold_up_cart_wall_long",
+  "scale": 1.1905
+ },
+ "s_carthaginians_wooden_tower": {
+  "offset": [
+   0.125,
+   0.8353,
+   -0.0045
+  ],
+  "scaffold": "scaffold_up_cart_defense_tower",
+  "scale": 1.1586
+ },
+ "s_celts_outpost": {
+  "offset": [
+   -0.2828,
+   -1.3802,
+   -0.1006
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.4027
+ },
+ "s_gauls_wall_long": {
+  "offset": [
+   -0.3049,
+   0.2317,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_gauls_wooden_tower": {
+  "offset": [
+   0.0171,
+   0.7884,
+   0.1855
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.1913
+ },
+ "s_germans_encampment": {
+  "offset": [
+   -0.055,
+   1.9929,
+   -0.0469
+  ],
+  "scaffold": "scaffold_up_8x8",
+  "scale": 0.5459
+ },
+ "s_germans_wooden_wall_long": {
+  "offset": [
+   -0.2238,
+   0.6488,
+   -0.0196
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_han_tower_small": {
+  "offset": [
+   0.0717,
+   -0.7283,
+   -0.1725
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 0.7912
+ },
+ "s_han_wall_long": {
+  "offset": [
+   -0.0476,
+   -0.1729,
+   -0.0002
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.259
+ },
+ "s_han_wall_long_wall_long": {
+  "offset": [
+   -0.2188,
+   -0.7946,
+   -0.0008
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_hellenes_wall_long": {
+  "offset": [
+   -0.2266,
+   0.6083,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_hellenes_wooden_tower": {
+  "offset": [
+   0.006,
+   0.4809,
+   0.1864
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.336
+ },
+ "s_iberians_outpost": {
+  "offset": [
+   -0.2828,
+   -1.3802,
+   -0.1006
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.4027
+ },
+ "s_iberians_wall_long": {
+  "offset": [
+   -0.2255,
+   1.4231,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_iberians_wooden_tower": {
+  "offset": [
+   -0.1322,
+   0.7705,
+   0.2141
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 0.7437
+ },
+ "s_kushites_outpost": {
+  "offset": [
+   -0.2828,
+   -1.3802,
+   -0.1006
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.4027
+ },
+ "s_kushites_outpost_stone": {
+  "offset": [
+   0.0084,
+   0.3799,
+   0.1498
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.3804
+ },
+ "s_kushites_wall_long": {
+  "offset": [
+   -0.2385,
+   0.9678,
+   0.0021
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_mauryas_wall_long": {
+  "offset": [
+   -0.2255,
+   1.7263,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_mauryas_wooden_tower": {
+  "offset": [
+   0.0052,
+   -0.3259,
+   0.2537
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.1579
+ },
+ "s_persians_outpost": {
+  "offset": [
+   -0.2828,
+   -1.3802,
+   -0.1006
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.4027
+ },
+ "s_persians_wall_long": {
+  "offset": [
+   -0.2259,
+   2.6299,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_persians_wooden_tower": {
+  "offset": [
+   0.0075,
+   1.6577,
+   0.2341
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.6778
+ },
+ "s_ptolemies_wall_long": {
+  "offset": [
+   -0.2255,
+   0.1915,
+   0.0014
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1905
+ },
+ "s_ptolemies_wooden_tower": {
+  "offset": [
+   0.0056,
+   0.2099,
+   0.2508
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.2365
+ },
+ "s_romans_outpost": {
+  "offset": [
+   -0.2828,
+   -1.3802,
+   -0.1006
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.4027
+ },
+ "s_romans_wall_long": {
+  "offset": [
+   -0.2383,
+   0.5316,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1904
+ },
+ "s_romans_wooden_tower": {
+  "offset": [
+   0.0717,
+   0.0655,
+   -0.1725
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 0.7912
+ },
+ "s_seleucids_outpost": {
+  "offset": [
+   -0.2828,
+   -1.3802,
+   -0.1006
+  ],
+  "scaffold": "scaffold_up_cart_wooden_tower",
+  "scale": 1.4027
+ },
+ "s_seleucids_wall_long": {
+  "offset": [
+   -0.1852,
+   1.5415,
+   0.0004
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1904
+ },
+ "s_seleucids_wooden_tower": {
+  "offset": [
+   0.0373,
+   -0.342,
+   0.1451
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.093
+ },
+ "s_spartans_sentry_tower": {
+  "offset": [
+   0.0087,
+   -0.6093,
+   0.1605
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.1041
+ },
+ "sele_wall": {
+  "offset": [
+   -0.0412,
+   0.3426,
+   0.0001
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2646
+ },
+ "sele_wall_segment": {
+  "offset": [
+   -0.0412,
+   0.3426,
+   0.0001
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2646
+ },
+ "sentry_tower": {
+  "offset": [
+   0.0014,
+   -0.4626,
+   0.1973
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.2647
+ },
+ "spart_tower": {
+  "offset": [
+   0.0056,
+   -0.4995,
+   0.3547
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.2534
+ },
+ "spart_wall": {
+  "offset": [
+   -0.05,
+   0.1341,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2624
+ },
+ "spart_wall_segment": {
+  "offset": [
+   -0.05,
+   0.1341,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2624
+ },
+ "spart_wall_tower": {
+  "offset": [
+   0.0056,
+   -0.4995,
+   0.3547
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.2534
+ },
+ "wall": {
+  "offset": [
+   -0.05,
+   0.1341,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2624
+ },
+ "wall_segment": {
+  "offset": [
+   -0.05,
+   0.1341,
+   -0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 0.2624
+ },
+ "wooden_tower": {
+  "offset": [
+   -0.0127,
+   0.0493,
+   0.2064
+  ],
+  "scaffold": "scaffold_up_3x3_tower",
+  "scale": 1.3235
+ }
+}

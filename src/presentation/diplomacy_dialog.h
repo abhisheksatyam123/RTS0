@@ -47,7 +47,17 @@ public:
 	virtual void update_hud() = 0;
 	// The player this client plays as (0xFF for an observer).
 	virtual uint8_t local_player() const = 0;
+	// 0 A.D. controlsPlayer: an observer, a defeated player or a replay viewer who follows
+	// a player sees that player's diplomacy, but its buttons stay disabled.
+	virtual bool controls_player(uint8_t pid) const { return pid == local_player(); }
+	// Whose sight the world shows: a player, or past MAX_PLAYERS for an observer watching
+	// the whole map (0 A.D. g_ViewedPlayer < 1).
+	virtual uint8_t view_player() const { return local_player(); }
+	// translateAISettings: "Medium Balanced Petra Bot" for an AI, "" for a human.
+	virtual String ai_settings_text(uint8_t pid) const { (void)pid; return String(); }
 	virtual rtso::Simulation *ui_sim() = 0;
+	// setCameraFollow: follow a unit (messages.js "spy-response" shows the bribed one).
+	virtual void follow_unit(uint32_t id) { (void)id; }
 	// 0 A.D. colorizePlayernameByID's name: lobby, Options or AI name.
 	virtual String player_display_name(uint8_t pid) const = 0;
 	// The session.masstribute hotkey (Shift) is held.
@@ -161,6 +171,7 @@ public:
 			r.box->set_custom_minimum_size(Vector2(0, 26));
 			r.box->add_theme_constant_override("separation", 6);
 			r.name = add_label(r.box, NAME_W);
+			r.name->set_mouse_filter(Control::MOUSE_FILTER_PASS); // the AI settings tooltip
 			r.civ = add_label(r.box, CIV_W);
 			r.team = add_label(r.box, TEAM_W);
 			r.theirs = add_label(r.box, THEIRS_W);
@@ -227,15 +238,51 @@ public:
 	}
 
 	bool is_open() const { return panel_ != nullptr && panel_->is_visible(); }
+	// Tests: each shown row's name, its tooltip and whether its buttons can be pressed.
+	godot::Dictionary debug_state() const {
+		godot::Dictionary d;
+		d["open"] = is_open();
+		godot::Array rows;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			const Row &r = rows_[p];
+			if (!r.box || !r.box->is_visible()) continue;
+			godot::Dictionary row;
+			row["player"] = (int)p;
+			row["name"] = r.name->get_text();
+			row["name_tooltip"] = r.name->get_tooltip_text();
+			bool any_enabled = false, any_shown = false;
+			for (int t = 0; t < 4; ++t)
+				if (r.tribute[t]->is_visible()) { any_shown = true; any_enabled |= !r.tribute[t]->is_disabled(); }
+			row["tribute_shown"] = any_shown;
+			row["tribute_enabled"] = any_enabled;
+			rows.push_back(row);
+		}
+		d["rows"] = rows;
+		return d;
+	}
 
 	void close() {
 		if (panel_) panel_->set_visible(false);
 	}
 
-	// DiplomacyDialog.open: only a player (not an observer) opens it.
+	// messages.js "spy-response" with an entity: the dialog closes and the camera follows the
+	// bribed unit. Run every frame, before refresh() can settle the request.
+	void poll_spies() {
+		const rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
+		const uint8_t me = host_ ? host_->local_player() : 0xFF;
+		if (!sim || me >= rtso::MAX_PLAYERS) return;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			if (!spy_pending_[p] || sim->statistics(me).successful_bribes <= spy_pending_success_[p]) continue;
+			spy_pending_[p] = false;
+			show_bribed(*sim, me);
+		}
+	}
+
+	// DiplomacyDialog.open: only with a player to show (g_ViewedPlayer >= 1); an observer
+	// who follows a player sees that player's side.
 	void toggle() {
 		if (!panel_ || !host_) return;
-		if (!panel_->is_visible() && host_->local_player() >= rtso::MAX_PLAYERS) return;
+		if (!panel_->is_visible() && (host_->local_player() >= rtso::MAX_PLAYERS || host_->view_player() >= rtso::MAX_PLAYERS)) return;
 		panel_->set_visible(!panel_->is_visible());
 		if (panel_->is_visible()) {
 			host_->play_sfx("res://assets/sounds/ui/diplomacy.ogg");
@@ -248,7 +295,8 @@ public:
 		const rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
 		if (!sim || !panel_) return;
 		const uint8_t me = host_->local_player();
-		if (me >= rtso::MAX_PLAYERS) { close(); return; }
+		if (me >= rtso::MAX_PLAYERS || host_->view_player() >= rtso::MAX_PLAYERS) { close(); return; } // onViewedPlayerChange
+		const bool ctrl = host_->controls_player(me); // controlsPlayer(g_ViewedPlayer)
 		const bool mass_held = host_->mass_tribute_held();
 		if (colors_btn_) colors_btn_->set_pressed_no_signal(rtso::display_colors::state().enabled);
 		const bool stances_hidden = sim->ceasefire_active() || sim->teams_locked();
@@ -260,6 +308,7 @@ public:
 			const uint32_t rgb = rtso::display_colors::rgb(*sim, p); // DiplomacyPlayerText: g_DiplomacyColors
 			const Color col(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f);
 			set_text(r.name, host_->player_display_name(p));
+			r.name->set_tooltip_text(host_->ai_settings_text(p)); // DiplomacyPlayerText.init
 			r.name->add_theme_color_override("font_color", col);
 			set_text(r.civ, rtso::civ_info(sim->player_civ(p)).name);
 			set_text(r.team, team_text(*sim, p));
@@ -273,11 +322,12 @@ public:
 			for (int s = 0; s < 3; ++s) {
 				r.stance[s]->set_visible(!inactive && !stances_hidden);
 				r.stance[s]->set_text(cur == s ? "x" : "");
-				r.stance[s]->set_disabled(cur == s);
+				r.stance[s]->set_disabled(cur == s || !ctrl);
 			}
 			for (int t = 0; t < 4; ++t) {
 				r.tribute[t]->set_visible(!inactive);
 				// TributeButton.onMassTributeRelease: releasing Shift sends a gathered mass tribute.
+				r.tribute[t]->set_disabled(!ctrl);
 				if (!mass_held && r.amount[t] >= TRIBUTE_MASS) send_tribute(p, t);
 				r.tribute[t]->set_text(String::num_int64(r.amount[t]) + " " + res_name(TRIBUTE_RES[t]));
 				r.tribute[t]->set_tooltip_text("Tribute " + String::num_int64(r.amount[t]) + " " + res_name(TRIBUTE_RES[t]) +
@@ -317,7 +367,7 @@ public:
 							sim->game_time() - spy_pending_time_[p] > SPY_REQUEST_TIMEOUT)
 						spy_pending_[p] = false;
 				}
-				r.spy->set_disabled(!can || spy_pending_[p]);
+				r.spy->set_disabled(!can || spy_pending_[p] || !ctrl);
 				r.spy->set_tooltip_text(tip);
 			}
 			// AttackRequestButton.update: for an enemy, while we have an ally to ask.
@@ -325,6 +375,7 @@ public:
 			for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q)
 				has_ally |= q != me && sim->player(q).active && !sim->is_defeated(q) && sim->is_ally(me, q);
 			r.attack->set_visible(!inactive && !sim->ceasefire_active() && has_ally && sim->is_hostile(me, p));
+			r.attack->set_disabled(!ctrl);
 		}
 		// DiplomacyDialogCeasefireCounter.
 		ceasefire_->set_visible(sim->ceasefire_active());
@@ -340,6 +391,7 @@ public:
 		rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
 		const uint8_t me = host_ ? host_->local_player() : 0xFF;
 		if (!sim || player_idx < 0 || player_idx >= rtso::MAX_PLAYERS || me >= rtso::MAX_PLAYERS || player_idx == me) return;
+		if (!host_->controls_player(me)) return;
 		if (sim->teams_locked() || sim->ceasefire_active()) return; // the buttons are hidden then
 		if (host_->turn_cmds())
 			host_->post_lockstep(22, nullptr, 0, 0, 0, (uint32_t)player_idx, (uint8_t)stance);
@@ -352,6 +404,7 @@ public:
 	// click sends it (Commands.js "tribute", lockstep cmd 27).
 	void tribute_pressed(int player_idx, int res_type) {
 		if (!host_ || !host_->ui_sim() || player_idx < 0 || player_idx >= rtso::MAX_PLAYERS) return;
+		if (!host_->controls_player(host_->local_player())) return;
 		int t = 0;
 		while (t < 4 && TRIBUTE_RES[t] != res_type) ++t;
 		if (t == 4) return;
@@ -366,6 +419,7 @@ public:
 		rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
 		const uint8_t me = host_ ? host_->local_player() : 0xFF;
 		if (!sim || player_idx < 0 || player_idx >= rtso::MAX_PLAYERS || !sim->can_bribe(me, (uint8_t)player_idx)) return;
+		if (!host_->controls_player(me)) return;
 		String msg;
 		bool ok;
 		if (host_->turn_cmds()) {
@@ -375,6 +429,7 @@ public:
 				const auto st = sim->statistics(me);
 				spy_pending_[player_idx] = true;
 				spy_pending_bribes_[player_idx] = st.successful_bribes + st.failed_bribes;
+				spy_pending_success_[player_idx] = st.successful_bribes;
 				spy_pending_time_[player_idx] = sim->game_time();
 			}
 			msg = ok ? "Bribing a unit of " : "Not enough metal to bribe ";
@@ -386,6 +441,7 @@ public:
 															  : "Not enough metal to bribe ";
 		}
 		if (chat_) chat_->append_line("[color=#eebb22]" + msg + host_->player_display_name((uint8_t)player_idx) + "[/color]\n");
+		if (ok && !host_->turn_cmds()) show_bribed(*sim, me);
 		if (ok) host_->play_sfx("res://assets/sounds/ui/bonus.ogg");
 		else host_->play_alarm("res://assets/sounds/ui/alarm.ogg");
 		host_->update_hud();
@@ -397,6 +453,7 @@ public:
 		rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
 		const uint8_t me = host_ ? host_->local_player() : 0xFF;
 		if (!sim || player_idx < 0 || player_idx >= rtso::MAX_PLAYERS || me >= rtso::MAX_PLAYERS || player_idx == me) return;
+		if (!host_->controls_player(me)) return;
 		if (host_->turn_cmds()) host_->post_lockstep(46, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
 		else sim->cmd_attack_request(me, (uint8_t)player_idx);
 		refresh();
@@ -411,6 +468,16 @@ private:
 	static constexpr float SPY_REQUEST_TIMEOUT = 5.0f;
 	bool spy_pending_[rtso::MAX_PLAYERS] = {};
 	uint32_t spy_pending_bribes_[rtso::MAX_PLAYERS] = {};
+	uint32_t spy_pending_success_[rtso::MAX_PLAYERS] = {};
+	void show_bribed(const rtso::Simulation &sim, uint8_t me) {
+		const auto &spies = sim.spies();
+		for (auto it = spies.rbegin(); it != spies.rend(); ++it)
+			if (it->player == me) {
+				close();
+				host_->follow_unit(it->unit_id);
+				return;
+			}
+	}
 	float spy_pending_time_[rtso::MAX_PLAYERS] = {};
 
 	struct Row {
@@ -442,7 +509,7 @@ private:
 		Row &r = rows_[to];
 		const int amount = r.amount[t];
 		r.amount[t] = TRIBUTE_DEFAULT;
-		if (!sim || me >= rtso::MAX_PLAYERS || to == me) return;
+		if (!sim || me >= rtso::MAX_PLAYERS || to == me || !host_->controls_player(me)) return;
 		const uint8_t res = TRIBUTE_RES[t];
 		bool ok;
 		if (host_->turn_cmds()) {

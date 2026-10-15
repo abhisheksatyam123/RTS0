@@ -49,6 +49,26 @@ bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
 	return false;
 }
 
+// unit_actions.js "garrison" on an entity: an own or mutually allied ship, ram or siege tower
+// (GarrisonHolder) under the cursor that some selected unit may board; 0 if none.
+uint32_t RtsoMain::transport_under(float x, float z) const {
+	if (!sim || selected_ids.is_empty()) return 0;
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (!uv.alive[i] || !sim->is_ally(local_player(), uv.team[i]) || selected_ids.has((int32_t)uv.id[i])) continue;
+		const float dx = uv.pos_x[i] - x, dz = uv.pos_z[i] - z;
+		if (dx * dx + dz * dz <= 3.2f * 3.2f && selection_can_board(uv.id[i])) return uv.id[i];
+	}
+	return 0;
+}
+
+bool RtsoMain::selection_can_board(uint32_t holder) const {
+	if (!sim || !sim->is_transport(holder)) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->can_board_unit(holder, (uint32_t)(int64_t)selected_ids[s])) return true;
+	return false;
+}
+
 // unit_actions.js "occupy-turret" actionCheck: some selected unit may occupy a turret point of
 // this own or mutually allied holder (Turretable). Room is not checked.
 bool RtsoMain::selection_can_occupy_turret(uint32_t building_id) const {
@@ -60,10 +80,13 @@ bool RtsoMain::selection_can_occupy_turret(uint32_t building_id) const {
 
 void RtsoMain::_on_ungarrison_pressed() {
 	if (selected_building_id != 0) {
-		if (turn_cmds())
-			post_lockstep(13, nullptr, 0, 0, 0, selected_building_id, 0);
-		else
-			sim->cmd_unload(local_player(), selected_building_id, nullptr, 0);
+		// unloadAll: every selected structure empties.
+		for (uint32_t id : selected_structures()) {
+			if (turn_cmds())
+				post_lockstep(13, nullptr, 0, 0, 0, id, 0);
+			else
+				sim->cmd_unload(local_player(), id, nullptr, 0);
+		}
 	} else if (!selected_ids.is_empty()) {
 		for (int s = 0; s < selected_ids.size(); ++s) {
 			if (sim->is_transport((uint32_t)selected_ids[s])) {
@@ -101,7 +124,7 @@ void RtsoMain::_on_remove_guard_pressed() {
 		sim->order_remove_guard(ids.data(), ids.size());
 }
 
-// g_EntityCommands "call-to-arms": arms ACTION_CALLTOARMS, so the next right-click
+// g_EntityCommands "call-to-arms": arms ACTION_CALLTOARMS, so the next left click
 // sends the selection there (drop loads, then attack-move; lockstep command 38).
 void RtsoMain::_on_call_to_arms_pressed() {
 	if (selected_ids.is_empty()) return;
@@ -123,7 +146,7 @@ void RtsoMain::_on_entity_command(const String &name) {
 		request_delete();
 	} else if (name == "autoqueue-on" || name == "autoqueue-off") { // turnAutoQueueOn / Off
 		_on_autoqueue_pressed(name == "autoqueue-on" ? 1 : 0);
-	} else if (name == "share-dropsite") { // set-dropsite-sharing, toggled
+	} else if (name == "share-dropsite") { // set-dropsite-sharing, toggled from the first structure's state
 		for (const auto &b : sim->buildings())
 			if (b.id == selected_building_id) { _on_dropsite_sharing_pressed(b.dropsite_shared ? 0 : 1); break; }
 	} else if (name == "stop") { // stopUnits
@@ -147,9 +170,10 @@ void RtsoMain::_on_entity_command(const String &name) {
 		arm(garrison_mode);
 	} else if (name == "occupy-turret") {
 		arm(turret_mode);
-	} else if (name == "unload-all-turrets") { // unloadAllTurrets
+	} else if (name == "unload-all-turrets") { // unloadAllTurrets, on every selected structure
+		const std::vector<uint32_t> structs = selected_structures();
 		for (const auto &b : sim->buildings()) {
-			if (b.id != selected_building_id || b.turret_units.empty()) continue;
+			if (b.turret_units.empty() || std::find(structs.begin(), structs.end(), b.id) == structs.end()) continue;
 			if (turn_cmds()) post_lockstep(13, nullptr, 0, 0, 0, b.id, 3);
 			else sim->cmd_unload_turrets(local_player(), b.id);
 		}
@@ -189,8 +213,9 @@ void RtsoMain::_on_entity_command(const String &name) {
 void RtsoMain::request_delete() {
 	delete_pending_.clear();
 	for (int s = 0; s < selected_ids.size(); ++s) delete_pending_.push_back(selected_ids[s]);
+	const std::vector<uint32_t> structs = selected_structures();
 	for (const auto &b : sim->buildings())
-		if (b.id == selected_building_id && b.team == local_player() && !(b.max_capture_points > 0.0f &&
+		if (std::find(structs.begin(), structs.end(), b.id) != structs.end() && b.team == local_player() && !(b.max_capture_points > 0.0f &&
 				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))
 			delete_pending_.push_back((int32_t)b.id);
 	if (delete_pending_.is_empty()) return;
@@ -327,56 +352,90 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 	}
 }
 
+// The selected structures of the primary one's type, primary first: 0.28's selection
+// panels (Upgrade, Gate, Queue, AlertRaiser) send their command for every selected entity
+// that has the component, and RTS0's per-type components follow the structure type.
+std::vector<uint32_t> RtsoMain::selected_structures_like_primary() const {
+	std::vector<uint32_t> out;
+	const std::vector<uint32_t> structs = selected_structures();
+	int type = -1;
+	for (const auto &b : sim->buildings())
+		if (b.id == selected_building_id) type = b.type;
+	for (uint32_t id : structs)
+		for (const auto &b : sim->buildings())
+			if (b.id == id) {
+				if ((int)b.type == type) out.push_back(id);
+				break;
+			}
+	return out;
+}
+
 // 0 A.D. Upgrade.js through lockstep command 26: `choice` is which of
-// building_upgrade()'s choices (target_x), -1 cancels and refunds (param 1).
+// building_upgrade()'s choices (target_x), -1 cancels and refunds (param 1). Every
+// selected structure of the same type upgrades (g_SelectionPanels.Upgrade).
 void RtsoMain::_on_upgrade_pressed(int choice) {
 	if (selected_building_id == 0) return;
-	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_BUILDING, nullptr, 0, choice < 0 ? 0.0f : (float)choice, 0,
-				selected_building_id, choice < 0 ? 1 : 0);
-	else if (choice < 0)
-		sim->cmd_cancel_upgrade(local_player(), selected_building_id);
-	else
-		sim->cmd_upgrade_building(local_player(), selected_building_id, choice);
+	for (uint32_t id : selected_structures_like_primary()) {
+		if (turn_cmds())
+			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_BUILDING, nullptr, 0, choice < 0 ? 0.0f : (float)choice, 0,
+					id, choice < 0 ? 1 : 0);
+		else if (choice < 0)
+			sim->cmd_cancel_upgrade(local_player(), id);
+		else
+			sim->cmd_upgrade_building(local_player(), id, choice);
+	}
 }
 
-// 0 A.D. Gate.js LockGate / UnlockGate through lockstep command 27.
+// 0 A.D. Gate.js LockGate / UnlockGate through lockstep command 27, on every selected gate.
 void RtsoMain::_on_gate_lock_pressed(int lock) {
 	if (selected_building_id == 0) return;
-	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_LOCK_GATE, nullptr, 0, 0, 0, selected_building_id, lock ? 1 : 0);
-	else
-		sim->cmd_lock_gate(local_player(), selected_building_id, lock != 0);
+	const std::vector<uint32_t> structs = selected_structures();
+	for (const auto &b : sim->buildings()) {
+		if (!rtso::is_gate_type(b.type) || std::find(structs.begin(), structs.end(), b.id) == structs.end()) continue;
+		const uint32_t id = b.id;
+		if (turn_cmds())
+			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_LOCK_GATE, nullptr, 0, 0, 0, id, lock ? 1 : 0);
+		else
+			sim->cmd_lock_gate(local_player(), id, lock != 0);
+	}
 }
 
-// 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 44.
+// 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 44,
+// on every selected structure that trains.
 void RtsoMain::_on_autoqueue_pressed(int on) {
 	if (selected_building_id == 0) return;
-	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_AUTOQUEUE, nullptr, 0, 0, 0, selected_building_id, on ? 1 : 0);
-	else
-		sim->cmd_set_autoqueue(local_player(), selected_building_id, on != 0);
+	for (uint32_t id : selected_structures()) {
+		if (!building_trains_units(id)) continue;
+		if (turn_cmds())
+			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_AUTOQUEUE, nullptr, 0, 0, 0, id, on ? 1 : 0);
+		else
+			sim->cmd_set_autoqueue(local_player(), id, on != 0);
+	}
 }
 
-// 0 A.D. set-dropsite-sharing through lockstep command 45.
+// 0 A.D. set-dropsite-sharing through lockstep command 45, on every selected structure.
 void RtsoMain::_on_dropsite_sharing_pressed(int shared) {
 	if (selected_building_id == 0) return;
-	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SET_DROPSITE_SHARING, nullptr, 0, 0, 0, selected_building_id,
-				shared ? 1 : 0);
-	else
-		sim->cmd_set_dropsite_sharing(local_player(), selected_building_id, shared != 0);
+	for (uint32_t id : selected_structures()) {
+		if (turn_cmds())
+			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SET_DROPSITE_SHARING, nullptr, 0, 0, 0, id, shared ? 1 : 0);
+		else
+			sim->cmd_set_dropsite_sharing(local_player(), id, shared != 0);
+	}
 }
 
-// 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35.
+// 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35, from every
+// selected structure of the primary one's type.
 void RtsoMain::_on_alert_pressed(int end) {
 	if (selected_building_id == 0) return;
-	if (net_lockstep())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_ALERT, nullptr, 0, 0, 0, selected_building_id, end ? 1 : 0);
-	else if (end)
-		sim->cmd_end_alert(local_player(), selected_building_id);
-	else
-		sim->cmd_raise_alert(local_player(), selected_building_id);
+	for (uint32_t id : selected_structures_like_primary()) {
+		if (net_lockstep())
+			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_ALERT, nullptr, 0, 0, 0, id, end ? 1 : 0);
+		else if (end)
+			sim->cmd_end_alert(local_player(), id);
+		else
+			sim->cmd_raise_alert(local_player(), id);
+	}
 }
 
 // 0 A.D. unit Upgrade on the selection through lockstep command 43 (`to` = roster

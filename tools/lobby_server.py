@@ -28,7 +28,13 @@ behind a small JSON API:
                                          answers 401 with "kicked": that line for them, and a banned
                                          name's login 403. 403 for a player who is no moderator
   POST /subject   {token, subject}       a moderator sets the room subject
-  GET  /rooms                            -> {rooms: [...]}
+  GET  /rooms                            -> {rooms: [...]}, without host_ip and host_port: as in
+                                         0 A.D.'s game list, nobody learns a host's address from it
+  POST /rooms/connect {token, id}        -> {host_ip, host_port}: the address a signed-in joiner
+                                         connects to (0 A.D. sends a joiner the connection data
+                                         on request, XmppClient SendIqGetConnectionData); one
+                                         behind the host's public address learns the LAN one
+                                         from /rooms/punch
   POST /rooms     {id, host_ip, host_port, players, max_players, map_id,
                    name, host_name, map_name, victory, state, password,
                    map_type, map_size, start_time, player_names}
@@ -103,6 +109,7 @@ ROOM_STATES = ("init", "running")
 PUNCH_KEEP = 16         # joiner endpoints kept per game
 PUNCH_TIMEOUT = 30.0    # seconds a joiner endpoint stays listed
 PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port", "base", "owner", "poster_ip")
+LISTED_HIDDEN_KEYS = PRIVATE_ROOM_KEYS + ("host_ip", "host_port")
 STUN_MAGIC_COOKIE = 0x2112A442
 
 
@@ -510,7 +517,18 @@ class Lobby:
         return next((r for r in rooms if mine(r)), None)
 
     def room_list(self):
-        return 200, {"rooms": [{k: v for k, v in r.items() if k not in PRIVATE_ROOM_KEYS} for r in self.rooms]}
+        return 200, {"rooms": [{k: v for k, v in r.items() if k not in LISTED_HIDDEN_KEYS} for r in self.rooms]}
+
+    def connect(self, data):
+        """A game's address, only for a signed-in joiner (0 A.D. XmppClient
+        SendIqGetConnectionData; the host's own checks, the password and its
+        bans, stay at the game socket)."""
+        if not self.player(data.get("token")):
+            return 401, {"error": "not signed in"}
+        room = next((r for r in self.rooms if r["id"] == str(data.get("id"))), None)
+        if not room:
+            return 404, {"error": "no such game"}
+        return 200, {"host_ip": room["host_ip"], "host_port": room["host_port"]}
 
     def register(self, data, peer_ip="127.0.0.1"):
         """Registers a game, or updates the fields a host sends again (a field
@@ -661,6 +679,8 @@ class LobbyHandler(BaseHTTPRequestHandler):
                     code, obj = LOBBY.register(data, self.client_address[0])
                 elif path == "/rooms/punch":
                     code, obj = LOBBY.add_punch(data)
+                elif path == "/rooms/connect":
+                    code, obj = LOBBY.connect(data)
                 elif path == "/rooms/unregister":
                     code, obj = LOBBY.unregister(data.get("id"), data.get("token"), self.client_address[0])
                 elif path == "/login":

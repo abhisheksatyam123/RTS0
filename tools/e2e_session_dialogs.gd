@@ -125,12 +125,46 @@ func run() -> void:
 	check(RegEx.create_from_string("Users \\(1\\): \\S").search(log) != null, "/list: Users (1): <you>")
 	check(not log.contains("> /kick") and not log.contains("> /list") and not log.contains("> /banspecs"),
 		"the commands are not chat lines")
+	print("5. Commands and addressees that reach nobody")
 	main.toggle_chat()
 	await frames(2)
+	le.text = "/foo secret"
+	main._on_chat_send_pressed()
+	await frames(2)
+	log = dlg()["chat_log"]
+	check(log.contains("Unknown chat command: /foo") and not log.contains("> /foo") and not log.contains("secret"),
+		"an unknown command is not sent")
+	main.toggle_chat()
+	await frames(2)
+	le.text = "/msg nobody hello"
+	main._on_chat_send_pressed()
+	await frames(2)
+	log = dlg()["chat_log"]
+	check(log.contains("Unknown chat addressee: nobody hello") and not log.contains("> /msg") and not log.contains("> nobody"),
+		"/msg to nobody known is not sent: " + log.strip_edges().get_slice("\n", log.strip_edges().get_slice_count("\n") - 1))
+	main.toggle_chat()
+	await frames(2)
+	le.text = "unsent"
+	main.toggle_chat()
+	await frames(2)
+	check(le.text == "", "closing empties the input")
+	main.toggle_chat()
+	await frames(2)
+	main._on_chat_channel_btn_pressed(1)
+	main.toggle_chat()
+	await frames(2)
+	main.chat_open_page()
+	await frames(2)
+	check(dlg()["chat"] and dlg()["chat_addressee"] == "Everyone", "the chat hotkey opens on Everyone: " + dlg()["chat_addressee"])
+
+	main.toggle_chat()
+	await frames(2)
+	var overlay_before: int = dlg()["chat_overlay"]
 	le.text = "/clear"
 	main._on_chat_send_pressed()
 	await frames(2)
-	check(dlg()["chat_log"].strip_edges() == "", "/clear empties the history: " + dlg()["chat_log"].strip_edges())
+	check(overlay_before > 0 and dlg()["chat_overlay"] == 0, "/clear empties the overlay")
+	check(dlg()["chat_log"].contains("hello there"), "and keeps the history")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

@@ -248,6 +248,10 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 		auto rv = sim->resources();
 		for (size_t r = 0; r < rv.count; ++r)
 			if (rv.alive[r] && rv.amount[r] > 0 && rv.type[r] == rtso::RES_WOOD) { inspector_.inspect(RtsoInspectorView::INSPECT_RESOURCE, rv.id[r]); break; }
+	} else if (what == "livestock") {
+		auto fv = sim->fauna();
+		for (size_t f = 0; f < fv.count; ++f)
+			if (sim->fauna_selectable_by(local_player(), fv.id[f])) selected_ids.push_back((int32_t)fv.id[f]);
 	} else if (what == "fauna") {
 		auto fv = sim->fauna();
 		for (size_t f = 0; f < fv.count; ++f)
@@ -403,6 +407,20 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 	return out;
 }
 
+// Test hook: `count` animals of a FaunaType by the player's Civic Centre, owned by the
+// player (trained livestock) or Gaia.
+PackedInt32Array RtsoMain::debug_spawn_fauna(int fauna_type, int count, bool owned) {
+	PackedInt32Array out;
+	if (!sim) return out;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : sim->buildings())
+		if (b.team == local_player() && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+	for (int i = 0; i < count; ++i)
+		out.push_back((int32_t)sim->spawn_fauna(cx + 16.0f + 3.0f * i, cz + 16.0f, (uint8_t)fauna_type,
+				owned ? local_player() : rtso::GAIA_PLAYER));
+	return out;
+}
+
 // Test hooks: put units in a structure at once (a map's <Garrison>) or send them aboard a
 // ship, ram or siege tower; select one entity by id.
 int RtsoMain::debug_put_inside(const PackedInt32Array &ids, int64_t holder) {
@@ -433,12 +451,13 @@ void RtsoMain::debug_select_entity(int64_t id) {
 }
 
 // Test hook: a finished structure of ours `dx`, `dz` from our Civic Center.
-int64_t RtsoMain::debug_spawn_building(int type, float dx, float dz) {
+// `player`: the owner (the local player by default), still placed by the local Civic Center.
+int64_t RtsoMain::debug_spawn_building(int type, float dx, float dz, int player) {
 	if (!sim) return 0;
 	const uint8_t me = local_player();
 	for (const auto &b : sim->buildings())
 		if (b.team == me && rtso::is_civic_centre(b.type))
-			return sim->spawn_building_world(b.x + dx, b.z + dz, (uint8_t)type, me, 1.0f);
+			return sim->spawn_building_world(b.x + dx, b.z + dz, (uint8_t)type, player < 0 ? me : (uint8_t)player, 1.0f);
 	return 0;
 }
 
@@ -515,6 +534,8 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
 	d["overlay_by"] = pause_by_label_ ? pause_by_label_->get_text() : String();
 	d["chat_log"] = chat_window_.log_text();
+	d["chat_overlay"] = (int64_t)chat_window_.overlay_count();
+	d["chat_addressee"] = chat_window_.addressee_label();
 	return d;
 }
 

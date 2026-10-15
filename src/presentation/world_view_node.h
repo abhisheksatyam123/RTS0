@@ -92,6 +92,7 @@ class RtsoWorldView : public Node3D {
 		GPUParticles3D *fx_flame = nullptr;
 		uint8_t fx_level = 0;
 		MeshInstance3D *flag = nullptr; // 0 A.D. garrison flag, shown while garrisoned
+		Node3D *upgrade_scaffold = nullptr; // child of `model`: 0 A.D.'s "upgrading" variant scaffold
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -143,6 +144,12 @@ class RtsoWorldView : public Node3D {
 	Ref<Mesh> flag_mesh_;
 	bool flags_loaded_ = false;
 	void load_garrison_flags();
+	// data/upgrade_scaffolds.json (tools/extract_upgrade_scaffolds.py): the scaffold
+	// 0 A.D.'s "upgrading" actor variant props on a building GLB, in the GLB's units.
+	struct UpgradeScaffold { String id; float scale = 1.0f; Vector3 offset; };
+	std::unordered_map<std::string, UpgradeScaffold> upgrade_scaffolds_;
+	bool upgrade_scaffolds_loaded_ = false;
+	void update_upgrade_scaffold(BuildingVis &v, const String &model_id, bool show);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
 	// World height of a unit standing on a turret point `offset` above the terrain
@@ -335,6 +342,8 @@ public:
 		for (uint32_t id : ids) sel_buildings_.insert((int32_t)id);
 	}
 	bool structure_outlined(uint32_t id) const { return sel_buildings_.count((int32_t)id) > 0; }
+	// The structures the viewer sees, live or as mirages (what the world draws).
+	const std::vector<rtso::FoggedBuilding> &seen_buildings() const { return mirages_.buildings(); }
 	void set_highlight_ids(const PackedInt32Array &ids) {
 		highlight_set_.clear();
 		for (int i = 0; i < ids.size(); ++i) highlight_set_.insert(ids[i]);
