@@ -21913,7 +21913,8 @@
     "Attack",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Feeding"
    ],
    "bones": 35,
    "file": "models/units/cow.glb",
@@ -21927,6 +21928,7 @@
    "skeleton": "cow",
    "sources": [
     "actor:art/actors/fauna/cow.xml",
+    "anim:quadraped/bovidae_feeding.dae",
     "mesh:skeletal/cattle_female_a.dae",
     "skin:skeletal/animal_cattle_black_and_white.png"
    ],
@@ -22598,7 +22600,8 @@
     "Attack",
     "Death",
     "Idle2",
-    "Death2"
+    "Death2",
+    "Feeding"
    ],
    "bones": 31,
    "file": "models/units/fauna_bull.glb",
@@ -22616,6 +22619,7 @@
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
     "anim:quadraped/bovidae_death_b.dae",
+    "anim:quadraped/bovidae_feeding.dae",
     "anim:quadraped/bovidae_idle_a.dae",
     "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
@@ -23215,7 +23219,8 @@
     "Attack",
     "Death",
     "Idle2",
-    "Death2"
+    "Death2",
+    "Feeding"
    ],
    "bones": 31,
    "file": "models/units/fauna_sanga_cattle.glb",
@@ -23233,6 +23238,7 @@
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
     "anim:quadraped/bovidae_death_b.dae",
+    "anim:quadraped/bovidae_feeding.dae",
     "anim:quadraped/bovidae_idle_a.dae",
     "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
@@ -23381,7 +23387,8 @@
     "Attack",
     "Death",
     "Idle2",
-    "Death2"
+    "Death2",
+    "Feeding"
    ],
    "bones": 31,
    "file": "models/units/fauna_wildebeest.glb",
@@ -23399,6 +23406,7 @@
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
     "anim:quadraped/bovidae_death_b.dae",
+    "anim:quadraped/bovidae_feeding.dae",
     "anim:quadraped/bovidae_idle_a.dae",
     "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
@@ -23417,7 +23425,8 @@
     "Attack",
     "Death",
     "Idle2",
-    "Death2"
+    "Death2",
+    "Feeding"
    ],
    "bones": 31,
    "file": "models/units/fauna_zebu_wild.glb",
@@ -23435,6 +23444,7 @@
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
     "anim:quadraped/bovidae_death_b.dae",
+    "anim:quadraped/bovidae_feeding.dae",
     "anim:quadraped/bovidae_idle_a.dae",
     "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
@@ -30455,7 +30465,8 @@
     "Walk",
     "Run",
     "Death",
-    "Attack"
+    "Attack",
+    "Feeding"
    ],
    "bones": 40,
    "file": "models/units/fox.glb",
@@ -30469,6 +30480,7 @@
    "skeleton": "fox",
    "sources": [
     "actor:art/actors/fauna/fox_red.xml",
+    "anim:quadraped/fox_feeding.dae",
     "mesh:skeletal/fox.dae",
     "skin:skeletal/animal_fox_red.png"
    ],
@@ -70492,6 +70504,116 @@
     "skin:structural/rome_struct_2.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_romans_siege_wall_gate": {
+   "file": "models/buildings/s_romans_siege_wall_gate.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    10.246,
+    5.71,
+    2.45
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/romans/siege_walls_gate_banners.xml",
+    "actor:art/actors/props/structures/romans/siege_walls_turf_gate.xml",
+    "actor:art/actors/structures/romans/siege_wall_gate.xml",
+    "mesh:structural/siege_gate_banner.dae",
+    "mesh:structural/siege_gate_turf.dae",
+    "mesh:structural/siege_gate_wood.dae",
+    "skin:props/rome_sb_turf.png",
+    "skin:structural/rome_struct.png",
+    "skin:structural/siege_walls_wood.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_romans_siege_wall_long": {
+   "file": "models/buildings/s_romans_siege_wall_long.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    10.246,
+    4.173,
+    1.987
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/romans/siege_walls_long_banners.xml",
+    "actor:art/actors/props/structures/romans/siege_walls_turf_long.xml",
+    "actor:art/actors/structures/romans/siege_wall_long.xml",
+    "mesh:structural/siege_large_banner.dae",
+    "mesh:structural/siege_large_turf.dae",
+    "mesh:structural/siege_large_wood.dae",
+    "skin:props/rome_sb_turf.png",
+    "skin:structural/rome_struct.png",
+    "skin:structural/siege_walls_wood.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "s_romans_siege_wall_medium": {
+   "file": "models/buildings/s_romans_siege_wall_medium.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    7.135,
+    4.173,
+    1.854
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/romans/siege_walls_medium_banners.xml",
+    "actor:art/actors/props/structures/romans/siege_walls_turf_medium.xml",
+    "actor:art/actors/structures/romans/siege_wall_medium.xml",
+    "mesh:structural/siege_medium_banner.dae",
+    "mesh:structural/siege_medium_turf.dae",
+    "mesh:structural/siege_medium_wood.dae",
+    "skin:props/rome_sb_turf.png",
+    "skin:structural/rome_struct.png",
+    "skin:structural/siege_walls_wood.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "s_romans_siege_wall_short": {
+   "file": "models/buildings/s_romans_siege_wall_short.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    4.061,
+    4.173,
+    1.854
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/romans/siege_walls_turf_small.xml",
+    "actor:art/actors/structures/romans/siege_wall_short.xml",
+    "mesh:structural/siege_small_turf.dae",
+    "mesh:structural/siege_small_wood.dae",
+    "skin:props/rome_sb_turf.png",
+    "skin:structural/siege_walls_wood.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "s_romans_siege_wall_tower": {
+   "file": "models/buildings/s_romans_siege_wall_tower.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    2.56,
+    5.69,
+    2.45
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/romans/siege_walls_tower_banners.xml",
+    "actor:art/actors/props/structures/romans/siege_walls_turf_tower.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/romans/siege_wall_tower.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/siege_walltwr_banner.dae",
+    "mesh:structural/siege_walltwr_turf.dae",
+    "mesh:structural/siege_walltwr_wood.dae",
+    "skin:props/rome_sb_turf.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/rome_struct.png",
+    "skin:structural/siege_walls_wood.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
   },
   "s_romans_stable": {
    "file": "models/buildings/s_romans_stable.glb",

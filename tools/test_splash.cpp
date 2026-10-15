@@ -14,6 +14,7 @@
 //     units beside the strip or short of the impact don't.
 //  4. In play: a stone thrower's stone and an elephant's tusks splash; an
 //     archer's arrow hurts only whom it hits.
+//  5. Animals: a splash hurts Gaia's animals in range, not the attacker's own livestock.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_splash.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -186,11 +187,33 @@ static void test_in_play() {
 	}
 }
 
+static void test_animals() {
+	std::printf("5. animals\n");
+	Simulation s;
+	setup(s);
+	const uint8_t onager = row_of("rome/siege_onager_packed");
+	const uint32_t deer = s.spawn_fauna(1.0f, 0.0f, FAUNA_DEER);
+	const uint32_t far_deer = s.spawn_fauna(8.0f, 0.0f, FAUNA_DEER);
+	const uint32_t sheep = s.spawn_fauna(-1.0f, 0.0f, FAUNA_SHEEP, 0);
+	auto fhp = [&](uint32_t id) { return s.fauna_.hp[s.fauna_id_to_idx_.at(id)]; };
+	const float d0 = fhp(deer), f0 = fhp(far_deer), s0 = fhp(sheep);
+	s.cause_damage_over_area(onager, 0, 0, 0.0f, 0.0f, 1.0f, 0.0f);
+	check(fhp(deer) < d0, "a Gaia deer by the impact takes the splash (CauseDamageOverArea queries Gaia too)");
+	check(fhp(far_deer) == f0, "one out of range doesn't");
+	check(fhp(sheep) == s0, "the attacker's own sheep doesn't");
+	for (int k = 0; k < 4; ++k) s.tick(DT);
+	const bool killed = d0 <= 160.0f * 0.5f;
+	const auto it = s.fauna_id_to_idx_.find(deer);
+	const bool gone = it == s.fauna_id_to_idx_.end() || !s.fauna_.alive[it->second];
+	check(!killed || gone, "a deer the splash kills leaves the world (its carcass stays as food)");
+}
+
 int main() {
 	test_data();
 	test_circular();
 	test_linear();
 	test_in_play();
+	test_animals();
 	if (g_failures) {
 		std::printf("test_splash: FAIL (%d)\n", g_failures);
 		return 1;

@@ -259,7 +259,14 @@ func _close() -> void:
 	queue_free()
 
 ## _input, not _unhandled_input: a focused LineEdit takes Escape (ui_cancel) itself.
+## gamesetup_mp.xml: Continue answers the "confirm" hotkey (Return by default) too.
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and "cancel" in RtsoHotkeyConfig.new().fired(event):
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var fired: Array = Array(RtsoHotkeyConfig.new().fired(event))
+	if "cancel" in fired:
 		get_viewport().set_input_as_handled()
 		cancel()
+	elif "confirm" in fired and continue_button and continue_button.visible and not continue_button.disabled:
+		get_viewport().set_input_as_handled()
+		confirm_setup()

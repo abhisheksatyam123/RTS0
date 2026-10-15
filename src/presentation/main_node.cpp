@@ -150,8 +150,11 @@ Dictionary RtsoMain::get_audio_state() const {
 
 void RtsoMain::update_music_state() {
 	if (!sim) return;
-	const uint8_t me = local_player();
-	const uint8_t civ = sim->player_civ(me);
+	// session.js initializeMusic: the civ tracks of the player this client starts as,
+	// stored once (an observer or a replay viewer, player -1, keeps the default list).
+	const bool replay = turn_mgr_.is_replaying();
+	const uint8_t seat = replay ? (uint8_t)0xFF : seat_player();
+	const uint8_t civ = seat < rtso::MAX_PLAYERS ? sim->player_civ(seat) : (uint8_t)0xFE;
 	if (civ != music_civ_) {
 		music_civ_ = civ;
 		music_.store_civ_tracks(civ);
@@ -161,14 +164,30 @@ void RtsoMain::update_music_state() {
 			music_.set_state(keep);
 		}
 	}
-	rtso::RtsoMusic::State want = session_audio_.in_battle() ? rtso::RtsoMusic::BATTLE : rtso::RtsoMusic::PEACE;
-	if (sim->is_victory_for(me)) want = rtso::RtsoMusic::VICTORY;
-	else if (sim->is_victory() || sim->is_game_over() || sim->is_defeated(me)) want = rtso::RtsoMusic::DEFEAT;
-	const auto was = music_.state();
-	if (want == was) return;
-	if (want == rtso::RtsoMusic::VICTORY) session_audio_.play_victory();
-	else if (want == rtso::RtsoMusic::DEFEAT) session_audio_.play_defeat();
-	music_.set_state(want);
+	// Player.OnGlobalPlayerDefeated: this client's player hears "defeated" when it
+	// falls, "defeated_ally" when an ally does and "defeated_enemy" when an enemy
+	// does, unless it has already won (template_player has no "won" group).
+	uint32_t defeated = 0;
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+		if (sim->is_defeated(p)) defeated |= 1u << p;
+	if (music_primed_ && seat < rtso::MAX_PLAYERS) {
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			if (!((defeated & ~defeated_heard_) >> p & 1)) continue;
+			if (p == seat) session_audio_.play_defeat();
+			else if (sim->is_ally(seat, p)) session_audio_.play_defeated_ally();
+			else if (!sim->is_victory_for(seat)) session_audio_.play_defeated_enemy();
+		}
+	}
+	defeated_heard_ = defeated;
+	music_primed_ = true;
+	// session.js onSimulationUpdate: battle music only while not an observer (a replay
+	// viewer, an observer, or a player who has lost or won); VICTORY and DEFEAT only
+	// for this client's own player (the music doesn't follow the viewed player).
+	const bool observer = replay || seat >= rtso::MAX_PLAYERS || spectating();
+	rtso::RtsoMusic::State want = !observer && session_audio_.in_battle() ? rtso::RtsoMusic::BATTLE : rtso::RtsoMusic::PEACE;
+	if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat)) want = rtso::RtsoMusic::VICTORY;
+	else if (seat < rtso::MAX_PLAYERS && sim->is_defeated(seat)) want = rtso::RtsoMusic::DEFEAT;
+	if (want != music_.state()) music_.set_state(want);
 }
 
 void RtsoMain::play_spatial_sfx(const char *path, Vector3 pos) {
@@ -2164,7 +2183,9 @@ void RtsoMain::flush_training_batch() {
 void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count) {
 	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
 	if (turn_cmds()) {
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id, 0);
+		// input.js addTrainingToQueue / flushTrainingBatch: "pushFront" with session.pushorderfront.
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id,
+				rtso::hotkeys::held("session.pushorderfront") ? rtso::NET_PARAM_PUSH_FRONT_ORDER : 0);
 		play_civ_voice("select");
 		return;
 	}
@@ -3157,6 +3178,10 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_z = z;
 	c.target_id = tid;
 	c.param = param;
+	// input.js: an order not queued with Shift goes first while session.pushorderfront is held.
+	if (rtso::net_cmd_takes_push_front(cmd_type) && !(param & rtso::NET_PARAM_QUEUED) &&
+			rtso::hotkeys::held("session.pushorderfront"))
+		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
 	if (spectating()) return; // observers and defeated players order nothing
 	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
 		apply_default_formation(ids, n);
@@ -3676,6 +3701,11 @@ std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
 		                       : "[Player-" + String::num_int64((int)e.player + 1) + "]";
 		out.push_back({tag, chat_user("peer-" + String::num_int64(e.client))});
 	}
+	// sortGUIDsByPlayerID: players by id, observers after them.
+	std::stable_sort(out.begin(), out.end(), [](const auto &a, const auto &b) {
+		auto key = [](const String &tag) { return tag.begins_with("[Player-") ? tag.substr(8).to_int() : 1000; };
+		return key(a.first) < key(b.first);
+	});
 	return out;
 }
 
