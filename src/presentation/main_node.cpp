@@ -894,6 +894,18 @@ void RtsoMain::update_net_status_overlay() {
 					tr("If the issue persists or occurs regularly, visit the official FAQ for detailed guidance and troubleshooting steps.");
 		}
 		net_status_label_->set_text(text);
+		// The timeout is a "Connection Error" box with Close and Open FAQ.
+		const bool timed_out = !joined && net_host_.disconnectReason() == 0;
+		if (net_status_title_) {
+			net_status_title_->set_text(timed_out ? tr("Connection Error") : String());
+			net_status_title_->set_visible(timed_out);
+		}
+		if (net_status_exit_) {
+			net_status_exit_->set_text(timed_out ? tr("Close") : tr("Exit"));
+			net_status_exit_->set_offset(SIDE_LEFT, timed_out ? -176 : -84);
+			net_status_exit_->set_offset(SIDE_RIGHT, timed_out ? -8 : 84);
+		}
+		if (net_status_faq_) net_status_faq_->set_visible(timed_out);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
 		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
@@ -922,6 +934,11 @@ void RtsoMain::update_net_status_overlay() {
 	if (net_loading_clients_->get_text() != centred) net_loading_clients_->set_text(centred);
 	net_loading_clients_->set_visible(!loading.is_empty());
 	if (net_status_overlay_->is_visible() == status.is_empty()) net_status_overlay_->set_visible(!status.is_empty());
+}
+
+// reportConnectionRequestTimeOut's Open FAQ.
+void RtsoMain::_on_open_faq_pressed() {
+	OS::get_singleton()->shell_open("https://gitea.wildfiregames.com/0ad/0ad/wiki/FAQ#what-shall-i-do-when-joining-multiplayer-matches-fails-with-an-error-message");
 }
 
 // disconnectedExitButton: endGame(true), the summary page.
@@ -1911,36 +1928,46 @@ void RtsoMain::select_group(int key, bool drop) {
 
 // The garrison panel's holder: the selected structure, or a lone selected ship, ram or
 // siege tower.
-uint32_t RtsoMain::selected_garrison_holder() const {
-	if (selected_building_id != 0) return selected_building_id;
-	if (sim && selected_ids.size() == 1 && sim->is_transport((uint32_t)selected_ids[0])) return (uint32_t)selected_ids[0];
-	return 0;
+// unloadTemplate's garrisonHolders: the selected structures and units that hold units.
+std::vector<uint32_t> RtsoMain::selected_garrison_holders() const {
+	std::vector<uint32_t> out;
+	if (!sim) return out;
+	for (uint32_t id : selected_structures())
+		if (!sim->holder_contents(id).empty()) out.push_back(id);
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t id = (uint32_t)selected_ids[s];
+		if (sim->is_transport(id) && !sim->holder_contents(id).empty()) out.push_back(id);
+	}
+	return out;
 }
 
-// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): unload
-// one unit of the group (template and owner), or all of them with session.unloadtype (Shift).
+bool RtsoMain::ui_garrison_panel_shown() const { return !selected_garrison_holders().empty(); }
+
+// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): every selected
+// holder (Commands.js "unload-template" -> GarrisonHolder.UnloadTemplate) unloads one unit of the
+// group (template and owner), or all of them with session.unloadtype (Shift).
 void RtsoMain::_on_garrison_group_clicked(int key) {
-	const uint32_t holder = selected_garrison_holder();
-	if (!sim || holder == 0) return;
-	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
-	if (mine.empty()) return;
+	if (!sim) return;
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
-	std::vector<uint32_t> out;
-	for (uint32_t gid : mine) {
-		for (size_t i = 0; i < uview.count; ++i) {
-			if (uview.id[i] != gid) continue;
-			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-			if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
-			break;
+	for (uint32_t holder : selected_garrison_holders()) {
+		const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
+		std::vector<uint32_t> out;
+		for (uint32_t gid : mine) {
+			for (size_t i = 0; i < uview.count; ++i) {
+				if (uview.id[i] != gid) continue;
+				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
+				break;
+			}
+			if (!all && !out.empty()) break;
 		}
-		if (!all && !out.empty()) break;
+		if (out.empty()) continue;
+		if (turn_cmds())
+			post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
+		else
+			sim->cmd_unload(local_player(), holder, out.data(), out.size());
 	}
-	if (out.empty()) return;
-	if (turn_cmds())
-		post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
-	else
-		sim->cmd_unload(local_player(), holder, out.data(), out.size());
 }
 
 void RtsoMain::update_command_panel() { command_panel_.update(); }
@@ -2506,6 +2533,13 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["setup_page"] = net_setup_overlay_ != nullptr;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
+	d["net_status_title"] = net_status_title_ && net_status_title_->is_visible() ? net_status_title_->get_text() : String();
+	{
+		String buttons;
+		for (Button *b : {net_status_exit_, net_status_faq_})
+			if (b && b->is_visible()) buttons += (buttons.is_empty() ? "" : ",") + b->get_text();
+		d["net_status_buttons"] = buttons;
+	}
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
 	d["net_warnings"] = net_warnings_label_ && net_warnings_label_->is_visible() ? net_warnings_label_->get_parsed_text() : String();

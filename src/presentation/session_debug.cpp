@@ -146,8 +146,9 @@ Dictionary RtsoMain::debug_guard_step(int step) {
 	d["guarding"] = !selected_ids.is_empty() && sim->unit_is_guarding((uint32_t)selected_ids[0]);
 	update_command_panel();
 	PackedStringArray buttons;
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i)
-		if (Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i))) buttons.push_back(btn->get_text());
+	for (Node *bar : {(Node *)command_panel_.commands_row(), (Node *)command_panel_.production_bar()})
+		for (int i = 0; i < bar->get_child_count(); ++i)
+			if (Button *btn = Object::cast_to<Button>(bar->get_child(i))) buttons.push_back(btn->get_text());
 	d["buttons"] = buttons;
 	return d;
 }
@@ -178,6 +179,7 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 		if (!Object::cast_to<Button>(n))
 			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j));
 	}
+	for (int i = 0; i < command_panel_.commands_row()->get_child_count(); ++i) add(command_panel_.commands_row()->get_child(i));
 	return out;
 }
 
@@ -198,8 +200,10 @@ Dictionary RtsoMain::debug_command_button(const String &prefix) {
 		}
 	}
 	d["build_mode"] = build_mode;
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
-		Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i));
+	for (int k = 0; k < 2 && !d.has("id"); ++k) {
+	Node *bar = k == 0 ? (Node *)command_panel_.commands_row() : (Node *)command_panel_.production_bar();
+	for (int i = 0; i < bar->get_child_count(); ++i) {
+		Button *btn = Object::cast_to<Button>(bar->get_child(i));
 		if (!btn) continue;
 		const String label = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
 		if (!label.begins_with(prefix)) continue;
@@ -207,6 +211,7 @@ Dictionary RtsoMain::debug_command_button(const String &prefix) {
 		d["rect"] = btn->get_global_rect();
 		d["disabled"] = btn->is_disabled();
 		break;
+	}
 	}
 	return d;
 }
@@ -421,6 +426,8 @@ Array RtsoMain::debug_command_row() {
 		if (!Object::cast_to<Button>(n))
 			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j), true);
 	}
+	// unit_commands.xml: the entity commands along the details panel's bottom.
+	for (int i = 0; i < command_panel_.commands_row()->get_child_count(); ++i) add(command_panel_.commands_row()->get_child(i), false);
 	return out;
 }
 

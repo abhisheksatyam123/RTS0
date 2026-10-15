@@ -46,12 +46,12 @@ public:
 		panel_->set_name("MiniMapPanel");
 		panel_->set_meta("tooltip_style", "session_bottom"); // minimap_panel.xml sessionToolTipBottom
 		panel_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		panel_->set_anchor(SIDE_LEFT, 0.0f);
-		panel_->set_anchor(SIDE_RIGHT, 0.0f);
+		panel_->set_anchor(SIDE_LEFT, 0.5f);
+		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_anchor(SIDE_TOP, 1.0f);
 		panel_->set_anchor(SIDE_BOTTOM, 1.0f);
-		panel_->set_offset(SIDE_LEFT, 14.0f - 8.0f);
-		panel_->set_offset(SIDE_RIGHT, 14.0f - 8.0f + 200.0f);
+		panel_->set_offset(SIDE_LEFT, -512.0f); // session.xml: 50%-512 .. 50%-312
+		panel_->set_offset(SIDE_RIGHT, -312.0f);
 		panel_->set_offset(SIDE_TOP, -204.0f - 10.0f);
 		panel_->set_offset(SIDE_BOTTOM, -204.0f - 10.0f + 200.0f);
 		parent->add_child(panel_);
@@ -122,12 +122,12 @@ public:
 		back_ = memnew(Control);
 		back_->set_name("MiniMapBackground");
 		back_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		back_->set_anchor(SIDE_LEFT, 0.0f);
-		back_->set_anchor(SIDE_RIGHT, 0.0f);
+		back_->set_anchor(SIDE_LEFT, 0.5f);
+		back_->set_anchor(SIDE_RIGHT, 0.5f);
 		back_->set_anchor(SIDE_TOP, 1.0f);
 		back_->set_anchor(SIDE_BOTTOM, 1.0f);
-		back_->set_offset(SIDE_LEFT, 14.0f - 8.0f);
-		back_->set_offset(SIDE_RIGHT, 14.0f - 8.0f + 200.0f);
+		back_->set_offset(SIDE_LEFT, -512.0f); // session.xml: 50%-512 .. 50%-312
+		back_->set_offset(SIDE_RIGHT, -312.0f);
 		back_->set_offset(SIDE_TOP, -204.0f - 10.0f);
 		back_->set_offset(SIDE_BOTTOM, -204.0f - 10.0f + 200.0f);
 		parent->add_child(back_);

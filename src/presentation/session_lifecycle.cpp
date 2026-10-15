@@ -534,19 +534,20 @@ void RtsoMain::_ready() {
 	// 0 A.D. selection_details.js: the "i" button opens the Template Viewer
 	// (gui/reference/viewer) for the selected unit or structure.
 	template_info_btn_ = memnew(Button);
-	template_info_btn_->set_position(Vector2(72, 72));
-	template_info_btn_->set_size(Vector2(22, 22));
+	template_info_btn_->set_position(Vector2(74, 74));
+	template_info_btn_->set_size(Vector2(20, 20));
 	template_info_btn_->set_text("i");
 	template_info_btn_->add_theme_font_size_override("font_size", 12);
 	template_info_btn_->set_focus_mode(Control::FOCUS_NONE);
 	template_info_btn_->connect("pressed", Callable(this, "_on_template_info_pressed"));
-	inspector_.panel()->add_child(template_info_btn_);
+	inspector_.portrait()->add_child(template_info_btn_); // hides with the portrait
 
 
 	// =========================================================================
 	// 3. COMMAND & ACTION PANEL (Stances, Formations, Training, 8-Slot Queue)
 	// =========================================================================
 	command_panel_.build(this, ui_layer, zeroad_theme, this, this);
+	inspector_.move_to_left_panel(command_panel_.left_panel());
 
 	// =========================================================================
 	// 4. BANNER OVERLAY (Victory / Defeat)
@@ -674,6 +675,19 @@ void RtsoMain::_ready() {
 		net_status_label_->add_theme_font_size_override("font_size", 18);
 		net_status_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		net_status_overlay_->add_child(net_status_label_);
+		// reportConnectionRequestTimeOut's messageBox title.
+		net_status_title_ = memnew(Label);
+		net_status_title_->set_name("NetStatusTitle");
+		net_status_title_->set_anchors_preset(Control::PRESET_CENTER);
+		net_status_title_->set_offset(SIDE_LEFT, -300);
+		net_status_title_->set_offset(SIDE_RIGHT, 300);
+		net_status_title_->set_offset(SIDE_TOP, -150);
+		net_status_title_->set_offset(SIDE_BOTTOM, -120);
+		net_status_title_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		net_status_title_->add_theme_font_size_override("font_size", 20);
+		net_status_title_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		net_status_title_->set_visible(false);
+		net_status_overlay_->add_child(net_status_title_);
 		// loadingClientsText: 50%-300 50%+60 50%+300 50%+110, the names in their colours.
 		net_loading_clients_ = memnew(RichTextLabel);
 		net_loading_clients_->set_use_bbcode(true);
@@ -697,6 +711,20 @@ void RtsoMain::_ready() {
 		exit->set_offset(SIDE_BOTTOM, 160);
 		exit->connect("pressed", Callable(this, "_on_disconnected_exit_pressed"));
 		net_status_overlay_->add_child(exit);
+		net_status_exit_ = exit;
+		// reportConnectionRequestTimeOut: Close and Open FAQ.
+		Button *faq = memnew(Button);
+		faq->set_name("OpenFaqButton");
+		faq->set_text(tr("Open FAQ"));
+		faq->set_anchors_preset(Control::PRESET_CENTER);
+		faq->set_offset(SIDE_LEFT, 8);
+		faq->set_offset(SIDE_RIGHT, 176);
+		faq->set_offset(SIDE_TOP, 128);
+		faq->set_offset(SIDE_BOTTOM, 160);
+		faq->set_visible(false);
+		faq->connect("pressed", Callable(this, "_on_open_faq_pressed"));
+		net_status_overlay_->add_child(faq);
+		net_status_faq_ = faq;
 	}
 	ui_layer->add_child(net_status_overlay_);
 
