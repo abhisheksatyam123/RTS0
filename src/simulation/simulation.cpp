@@ -24487,10 +24487,12 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		// loading reach: a fresh order every turn re-paths it from its own navcell,
 		// which can hold it in place beside a building.
 		std::vector<uint32_t> board, to_beach;
+		bool walking_up = false; // a passenger still walking to the ship
 		for (uint32_t uid : tp.passenger_ids) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0 || !units_.alive[u]) continue;
 			const bool heading = units_.action_state[u] == ACTION_MOVE && units_.target_unit_id[u] == tp.ship_id;
+			walking_up |= heading;
 			const float ux = units_.pos_x[u] - units_.pos_x[sidx], uz = units_.pos_z[u] - units_.pos_z[sidx];
 			const float reach = ship_loading_reach((size_t)sidx, (size_t)u);
 			const bool in_reach = ux * ux + uz * uz <= reach * reach;
@@ -24505,8 +24507,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		if (!to_beach.empty()) order_walk(to_beach.data(), to_beach.size(), tp.pickup_x, tp.pickup_z, false);
 		if (!board.empty()) order_board_transport(board.data(), board.size(), tp.ship_id);
 		aboard = get_transport_passenger_count(tp.ship_id);
+		// transportPlan.js onBoarding sails once every unit is aboard; RTS0 also leaves after 8 s
+		// with whoever boarded, but not while others are still walking up to the ship.
 		if ((aboard >= 1 && aboard >= tp.passenger_ids.size()) ||
-		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f))
+		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f && !walking_up))
 			sail();
 	} else if (tp.state == PetraTransportPlan::SAILING) {
 		float x, z;
