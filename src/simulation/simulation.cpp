@@ -1381,10 +1381,10 @@ void Simulation::rebuild_nav_grid() {
 	for (const auto &b : buildings_) {
 		// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
 		if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
-			for_each_gate_side(b, [&](float x, float z, float hu) {
+			for_each_gate_side(b, [&](float x, float z, float hu, float hv) {
 				rtso::nav::rasterize_rect_with_clearance(
 					rtso::nav::Vec2(x, z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
-					rtso::nav::Vec2(hu, b.hv), 0.0f, nav_cell, nav_origin,
+					rtso::nav::Vec2(hu, hv), 0.0f, nav_cell, nav_origin,
 					nav_grid_.cells.w, nav_grid_.cells.h,
 					[&](int cx, int cy) { nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED; });
 			});
@@ -9621,8 +9621,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (is_gate_type(b.type) && b.build_progress >= 1.0f)
 				closed_gates_.push_back(steer_obstacles_.back());
 		} else if (gate_open_now(b)) {
-			for_each_gate_side(b, [&](float x, float z, float hu) {
-				steer_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, b.hv, b.type));
+			for_each_gate_side(b, [&](float x, float z, float hu, float hv) {
+				steer_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, hv, b.type));
 			});
 		}
 	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
@@ -10611,8 +10611,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		if (!b.wrecked && blocks_movement_now(b))
 			sep_obstacles_.push_back(steer_obstacle(b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type));
 		else if (gate_open_now(b))
-			for_each_gate_side(b, [&](float x, float z, float hu) {
-				sep_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, b.hv, b.type));
+			for_each_gate_side(b, [&](float x, float z, float hu, float hv) {
+				sep_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, hv, b.type));
 			});
 	}
 	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
@@ -11027,6 +11027,21 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			}
 		}
 		const uint8_t kind = units_.order_kind[i], st = units_.action_state[i];
+		// RETURNRESOURCE.APPROACHING MovementUpdate with likelyFailure: DROPPINGRESOURCES, which drops
+		// the load if the dropsite is within reach and else takes it to the nearest dropsite
+		// (FindNearestDropsite, FinishOrder and PushOrderFront ReturnResource, a new move from where
+		// the unit stands). That is tick_gather's return (ACTION_RETURN_DROPSITE), as when the walk
+		// ends short of the dropsite (tick_unit_ai). Without it the unit would push on for good.
+		if (move_failed && kind == ORDER_RETURN_RESOURCE && st == ACTION_MOVE &&
+				!(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED)) {
+			units_.action_state[i] = ACTION_RETURN_DROPSITE;
+			units_.target_resource_id[i] = 0;
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			units_.waypoint_cur[i] = 0;
+			units_.waypoint_count[i] = 0;
+			if (i < unit_paths_.size()) unit_paths_[i].clear();
+			continue;
+		}
 		const bool walking = (kind == ORDER_WALK && st == ACTION_MOVE) ||
 				(kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
 				(kind == ORDER_PATROL && st == ACTION_PATROL);
@@ -16844,9 +16859,15 @@ void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count
 	for (uint32_t uid : now) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0 || units_.carry[i] <= 0 || !dropsite_accepts((size_t)i, b)) continue;
-		// RETURNRESOURCE.APPROACHING: walk to this dropsite; tick_unit_ai drops the load there.
+		// RETURNRESOURCE.APPROACHING: MoveTo the dropsite with IID_ResourceGatherer, a
+		// MoveToTargetRange (UnitAI.js MoveTo). As order_garrison walks: towards the side of the
+		// structure the unit comes from, as close as it can stand. A walk to its centre would end on
+		// whichever side the centre is pushed out to, a dock's water side or the far side of a wall,
+		// where the unit can't get. tick_unit_ai drops the load once within reach.
+		float sx, sz;
+		stand_outside(b, uid, units_.pos_x[i], units_.pos_z[i], &sx, &sz, unit_clearance_at((size_t)i) + kStandMargin);
 		uint32_t id = uid;
-		cmd_move(&id, 1, b.x, b.z);
+		cmd_move(&id, 1, sx, sz);
 		set_order((size_t)i, ORDER_RETURN_RESOURCE, 0, dropsite_id, b.x, b.z);
 		units_.target_resource_id[i] = 0;
 	}
