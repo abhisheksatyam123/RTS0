@@ -44,12 +44,7 @@ custom_minimum_size = Vector2(400, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "Game Setup — Skirmish vs Petra AI"
-
-[node name="BtnBack" type="Button" parent="VBox/Header"]
-custom_minimum_size = Vector2(120, 36)
-layout_mode = 2
-text = "Back"
+text = "Match Setup"
 
 [node name="HBox" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -169,7 +164,7 @@ text = "Reroll"
 [node name="MapSizeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Map size (random maps)"
+text = "Map Size"
 
 [node name="MapSizeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
@@ -184,7 +179,7 @@ layout_mode = 2
 [node name="WaterLevelLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Flood: rising water floods the home islands over the match; shallow or deep keep it at one level."
+tooltip_text = "Select the water level of this map."
 mouse_filter = 1
 text = "Water level"
 
@@ -197,9 +192,9 @@ size_flags_horizontal = 3
 [node name="SeaRiseLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Extinct Volcano: the minute the water starts to rise."
+tooltip_text = "Set the time when the water will start to rise."
 mouse_filter = 1
-text = "Sea level rise"
+text = "Sea Level Rise Time"
 
 [node name="SeaRiseSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
 unique_name_in_owner = true
@@ -266,7 +261,7 @@ layout_mode = 2
 [node name="BiomeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/BiomeSpeedRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Random maps: the map's own biome, or another one."
+tooltip_text = "Select the flora and fauna."
 mouse_filter = 1
 text = "Biome"
 
@@ -283,14 +278,14 @@ layout_mode = 2
 [node name="Nomad" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/StartRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Random maps: players start with units only and must build their first Civic Centre."
+tooltip_text = "In Nomad mode, players start with only few units and have to find a suitable place to build their city. Ceasefire is recommended."
 text = "Nomad"
 
 [node name="DisableTreasures" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/StartRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Remove every treasure from the map when the match starts."
-text = "No treasures"
+tooltip_text = "Do not add treasures to the map."
+text = "Disable Treasures"
 
 [node name="MapVisRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
@@ -299,14 +294,14 @@ layout_mode = 2
 [node name="RevealMap" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Everyone sees the whole map all match."
-text = "Revealed map"
+tooltip_text = "Toggle revealed map (see everything)."
+text = "Revealed Map"
 
 [node name="ExploreMap" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "The terrain is known from the start; enemy units stay hidden outside your vision."
-text = "Explored map"
+tooltip_text = "Toggle explored map (see initial map)."
+text = "Explored Map"
 
 [node name="AlliedView" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
 unique_name_in_owner = true
@@ -342,7 +337,7 @@ layout_mode = 2
 [node name="ResLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Starting resources"
+text = "Starting Resources"
 
 [node name="ResSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
 unique_name_in_owner = true
@@ -432,8 +427,8 @@ layout_mode = 2
 [node name="RegicideGarrison" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/GameRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Regicide: the hero may garrison in structures, siege engines and ships."
-text = "Hero garrison"
+tooltip_text = "Toggle whether heroes can be garrisoned."
+text = "Hero Garrison"
 
 [node name="SpeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/GameTypeTab"]
 unique_name_in_owner = true
@@ -469,14 +464,14 @@ layout_mode = 2
 [node name="LockTeams" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/TeamsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Toggle the locked teams. Players can't change diplomacy during the match."
-text = "Lock teams"
+tooltip_text = "Toggle locked teams."
+text = "Teams Locked"
 
 [node name="LastManStanding" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/TeamsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Allies don't share a win: the match goes on until only one player is left."
-text = "Last man standing"
+tooltip_text = "Toggle whether the last remaining player or the last remaining set of allies wins."
+text = "Last Man Standing"
 
 [node name="Right" type="VBoxContainer" parent="VBox/HBox"]
 custom_minimum_size = Vector2(380, 0)
@@ -516,22 +511,6 @@ offset_bottom = -10.0
 text = "Map preview"
 autowrap_mode = 2
 
-[node name="CivPreview" type="HBoxContainer" parent="VBox/HBox/Right"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="Crest" type="TextureRect" parent="VBox/HBox/Right/CivPreview"]
-custom_minimum_size = Vector2(56, 56)
-layout_mode = 2
-expand_mode = 1
-stretch_mode = 5
-
-[node name="CivLabel" type="Label" parent="VBox/HBox/Right/CivPreview"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Civilization"
-autowrap_mode = 2
-
 [node name="SlotsBox" type="VBoxContainer" parent="VBox/HBox/Right"]
 layout_mode = 2
 theme_override_constants/separation = 4
@@ -552,9 +531,9 @@ max_value = 8.0
 step = 1.0
 value = 2.0
 
-[node name="SlotsHeader" type="Label" parent="VBox/HBox/Right/SlotsBox"]
+[node name="SlotsHeader" type="Control" parent="VBox/HBox/Right/SlotsBox"]
+custom_minimum_size = Vector2(0, 22)
 layout_mode = 2
-text = "Slot      Type        Civ                Team   AI   Colour"
 
 [node name="SlotsGrid" type="GridContainer" parent="VBox/HBox/Right/SlotsBox"]
 layout_mode = 2
@@ -567,10 +546,22 @@ theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
 text = ""
 autowrap_mode = 2
 
-[node name="BtnStart" type="Button" parent="VBox/HBox/Right"]
+[node name="Buttons" type="HBoxContainer" parent="VBox/HBox/Right"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnBack" type="Button" parent="VBox/HBox/Right/Buttons"]
+custom_minimum_size = Vector2(160, 48)
+layout_mode = 2
+tooltip_text = "Return to the main menu."
+text = "Back"
+
+[node name="BtnStart" type="Button" parent="VBox/HBox/Right/Buttons"]
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
-text = "Start Game"
+size_flags_horizontal = 3
+tooltip_text = "Start a new game with the current settings."
+text = "Start Game!"
 
-[connection signal="pressed" from="VBox/Header/BtnBack" to="." method="_on_back_pressed"]
-[connection signal="pressed" from="VBox/HBox/Right/BtnStart" to="." method="_on_start_pressed"]
+[connection signal="pressed" from="VBox/HBox/Right/Buttons/BtnBack" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="VBox/HBox/Right/Buttons/BtnStart" to="." method="_on_start_pressed"]

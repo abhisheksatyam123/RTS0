@@ -822,6 +822,7 @@ static void test_petra_overseas_attack() {
 	slot.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
 	slot.petra_attack_plan_.target_building_id = house;
 	slot.petra_attack_plan_.state_timer = 0.0f;
+	slot.petra_attack_plan_.forced = true; // six spearmen: no plan's classes are full (mustStart)
 	run(s, 4.0f);
 	// Ready, but nothing to sail in: it waits, and a transport ship is in training.
 	CHECK(s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER);
@@ -1152,7 +1153,7 @@ static void test_petra_land_skips_wreck() {
 }
 
 // worker.js startFishing: Petra's idle boat takes the fish nearest its dock, not the one
-// nearest itself; with no fish left on its sea the boat is deleted.
+// nearest itself; with no fish left on its sea (live whales aside) the boat is deleted.
 static void test_petra_fishing() {
 	static Simulation s;
 	fresh(s);
@@ -1169,6 +1170,8 @@ static void test_petra_fishing() {
 
 	for (size_t r = 0; r < s.resources_.count; ++r)
 		if (s.resources_.subtype[r] == RES_SUB_FISH) s.resources_.amount[r] = 0;
+	// filters.js isFishable skips what can move: a live whale left on the sea is no fish for Petra.
+	s.spawn_fauna(0.0f, -4.0f, FAUNA_WHALE_FIN);
 	s.cmd_stop(&boat, 1);
 	s.petra_manage_naval(2.0f);
 	const int32_t bi = s.lookup_unit(boat);
@@ -1375,9 +1378,22 @@ static void test_petra_dock_position() {
 	CHECK(found);
 	CHECK(z > 10.0f && z < 24.0f);  // the north shore
 	CHECK(x > 8.0f && x < 30.0f);   // by the wood, not straight below the civic centre
+	// template_gaia_fish BlockFoundation false: a shoal on the site doesn't stop the dock, and
+	// Foundation.js Commit deletes it (DeleteUponConstruction).
+	const uint32_t shoal = s.spawn_resource_world(x, z, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	CHECK(s.check_placement(1, cx, cz, BLD_DOCK) == Simulation::PLACE_OK);
 	const uint32_t bid = found ? s.spawn_building(cx, cz, BLD_DOCK, 1, 0.0f) : 0;
 	const Simulation::Building *b = bid ? bld(s, bid) : nullptr;
 	CHECK(b && s.dock_sea(*b) == sea);
+	if (b) {
+		Simulation::Building &mb = s.buildings_[s.building_id_to_idx_.at(bid)];
+		mb.committed = false;
+		CHECK(s.try_commit_foundation(mb));
+		bool left = false;
+		for (size_t r = 0; r < s.resources_.count; ++r) left = left || (s.resources_.id[r] == shoal && s.resources_.alive[r]);
+		std::printf("Petra dock position: the shoal on the site is %s once building starts\n", left ? "left" : "gone");
+		CHECK(!left);
+	}
 }
 
 static void test_fire_ship() {

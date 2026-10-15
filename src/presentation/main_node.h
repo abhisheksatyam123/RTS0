@@ -446,6 +446,8 @@ public:
 	void net_query_stun(const String &server, int port);
 	void net_hole_punch(const String &ip, int port);
 	void net_retarget_host(const String &ip, int port);
+	// LobbySession.verify_join's answer: the lobby name the ticket belongs to ("" unknown).
+	void net_lobby_auth_result(int peer, const String &ticket, const String &name);
 	// Networked Game Setup for scenes/menu/gamesetup.gd: see net_setup_.
 	bool is_net_pregame() const;
 	Dictionary get_net_setup_state() const;
@@ -473,11 +475,11 @@ public:
 		if (observer_view_ < rtso::MAX_PLAYERS && spectating()) return observer_view_;
 		return seat_player();
 	}
-	// The seat this client plays: its lockstep slot in multiplayer, player 0
-	// offline; 0xFF for an observer (multiplayer, or every slot AI).
+	// The seat this client plays: its lockstep slot in multiplayer, Game Setup's
+	// assigned slot offline (player 0 by default); 0xFF for an observer.
 	uint8_t seat_player() const {
 		if (net_lockstep() || turn_mgr_.perspective_changed()) return turn_mgr_.local_player();
-		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0;
+		return local_observer_ ? (uint8_t)0xFF : turn_mgr_.offline_seat();
 	}
 	// This client only watches: an observer, or a player who was defeated
 	// (0 A.D. g_IsObserver). Not in a replay, which has its own picker.
@@ -662,6 +664,8 @@ public:
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
+	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
+	Dictionary debug_snap_placement(int btype, float x, float z, bool hover, float stale_angle);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
@@ -834,7 +838,8 @@ private:
 	// 0 A.D. input.js snap to edges: with isSnapToEdgesEnabled, turns placement_angle to the
 	// nearest structure's sides (ObstructionSnap.getPosition) and moves (cell_x, cell_y) to the
 	// building cell nearest the flush position.
-	void snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y);
+	bool snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y, bool hover = false);
+	bool debug_force_snap_ = false; // debug_snap_placement: snapping on whatever the option and hotkey say
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
 	void try_train_unit(rtso::UnitType utype);
@@ -919,7 +924,6 @@ private:
 	// session.timewarp.fastforward runs the game at 20x while held.
 	bool time_warp_ = false;
 	bool time_warp_ff_ = false;
-	float time_warp_speed_ = 1.0f; // the speed to go back to when fast forward is let go
 	uint32_t time_warp_turn_ = UINT32_MAX;
 	uint32_t time_warp_serial_ = 0;
 	std::vector<String> time_warp_snapshots_;
@@ -936,6 +940,7 @@ public:
 	Dictionary get_rejoin_test() const;
 private:
 	bool rejoin_test_ = false;
+	bool random_map_ = false; // the match's map was generated (0.28 mapType "random")
 	std::unique_ptr<rtso::Simulation> rejoin_sim_;
 	std::unique_ptr<rtso::TurnManager> rejoin_tm_;
 	uint32_t rejoin_from_turn_ = 0, rejoin_turns_ = 0, rejoin_oos_turn_ = 0;
@@ -1012,8 +1017,8 @@ private:
 	void apply_settings_snapshot(const Dictionary &settings);
 	Array player_list() const;
 	void begin_match_recording(const rtso::GameSetupParams *mp_setup);
-	void write_replay();
-	void stop_replay_recording();
+	void write_replay(bool ended = false); // ended: leaving the match (0.28 endGame), which adds the summary
+	void stop_replay_recording(bool ended = false);
 	bool start_pending_replay();
 	bool load_pending_save();
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start

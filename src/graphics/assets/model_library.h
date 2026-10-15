@@ -77,6 +77,10 @@ public:
 	// Owner colour for the 0 A.D. player_trans surfaces under root (the
 	// instance uniform of shaders/player_color.gdshader).
 	static void set_player_color(godot::Node *root, const godot::Color &c);
+	// The entity's draw in [0, 1) that picks its body skin (variant_u of
+	// shaders/player_color.gdshader, data/unit_variants.json).
+	static void set_variant(godot::Node *root, float u);
+	static float variant_draw(uint32_t entity_id);
 	static bool is_player_color_material(const godot::Ref<godot::Material> &mat);
 	// The GLB a building model id draws with (data/building_models.json), or id itself.
 	static godot::String building_glb_id(const godot::String &id);

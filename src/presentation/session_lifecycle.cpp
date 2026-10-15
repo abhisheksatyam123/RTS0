@@ -940,6 +940,8 @@ void RtsoMain::_process(double delta) {
 		if (auth == rtso::ARC_PASSWORD_INVALID) lobby_status->set_text("Wrong password");
 		else if (auth == rtso::ARC_BANNED) lobby_status->set_text("You have been banned from this game");
 		else if (net_host_.disconnectReason() == rtso::NDR_SERVER_FULL) lobby_status->set_text(tr("Server full."));
+		else if (net_host_.disconnectReason() == rtso::NDR_LOBBY_AUTH_FAILED)
+			lobby_status->set_text(tr("Secure lobby authentication failed. Join via lobby."));
 		else if (net_host_.disconnectReason() == rtso::NDR_PLAYERNAME_IN_USE)
 			lobby_status->set_text(tr("Player name in use. If you were disconnected, retry in few seconds."));
 		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_PROTOCOL_VERSION)
@@ -1404,7 +1406,7 @@ void RtsoMain::_process(double delta) {
 						placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 					}
 				}
-				snap_placement_to_edges(current_build_type, cell_x, cell_y);
+				snap_placement_to_edges(current_build_type, cell_x, cell_y, !build_click_pending);
 				int footprint = rtso::building_type_info(current_build_type).footprint;
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;

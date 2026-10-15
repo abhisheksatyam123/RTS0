@@ -136,12 +136,14 @@ static func titles(info: Dictionary) -> Array:
 			var tp: Array = SetupPage.TEAM_PLACEMENTS[clampi(int(info.get("team_placement", 0)), 0, SetupPage.TEAM_PLACEMENTS.size() - 1)]
 			out.append([tp[1], tp[2]] if int(info.get("team_placement", 0)) > 0
 				else ["Random Player Placement", "Randomly select a player placement from the list."])
-		# Biome: the Game Setup pick when the map's SupportedBiomes offer it ("Map default"
-		# keeps the map's own and, unlike 0.28's resolved random pick, has no line).
+		# Biome: the Game Setup pick when the map's SupportedBiomes offer it; Random until
+		# Start resolves it (0 keeps the map's own and has no line).
 		var biome := int(info.get("biome", 0))
 		var offered: Array = SetupPage.biome_values(SetupPage._map_types_data().get("random_biomes", {}).get(SetupPage.rms_script(map_id), []))
 		if biome > 0 and BIOME_TEXT.has(biome) and offered.has(biome) and not map_id in SetupPage.OWN_RMS_MAPS:
 			out.append(BIOME_TEXT[biome])
+		elif biome == SetupPage.RANDOM_BIOME and not offered.is_empty() and not map_id in SetupPage.OWN_RMS_MAPS:
+			out.append(["Random Biome", "Randomly select a biome from the list."])
 		if SetupPage.TRIGGER_DIFFICULTY_MAPS.has(map_id):
 			out.append(SetupPage.TRIGGER_DIFFICULTIES[clampi(int(info.get("trigger_difficulty", 3)) - 1, 0, 4)])
 		var nomad := bool(info.get("nomad", false))

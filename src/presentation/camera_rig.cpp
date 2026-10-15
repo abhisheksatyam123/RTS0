@@ -89,12 +89,15 @@ void RtsoCameraRig::follow_to(Vector3 pos) {
 void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 	if (cinema_view_) return;
 	Ref<InputEventMouseButton> mb = event;
-	if (mb.is_valid()) {
-		// Middle Mouse Button Drag (0 A.D. pan = MouseMiddle)
-		if (mb->get_button_index() == MOUSE_BUTTON_MIDDLE) {
-			mmb_dragging = mb->is_pressed();
-			return;
+	if (mb.is_valid() || Ref<InputEventKey>(event).is_valid()) {
+		// CameraController camera.pan (MouseMiddle by default): drag the view while it is held.
+		const bool pan = rtso::hotkeys::held("camera.pan");
+		if (pan != mmb_dragging) {
+			mmb_dragging = pan;
+			if (mb.is_valid()) return;
 		}
+	}
+	if (mb.is_valid()) {
 		if (mb->is_pressed()) {
 			// 0 A.D. camera.zoom.wheel.* and camera.rotate.wheel.* (Shift+wheel rotates).
 			const auto hk = rtso::hotkeys::fired(mb);

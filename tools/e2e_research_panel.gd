@@ -6,6 +6,7 @@ extends SceneTree
 #   2. a pair (pair_*.json, the Temple of Isis's Pharaonic and Serapis Cults)
 #      stands together with the pair connector, top first, and hovering one
 #      crosses out the other;
+#   0. names follow getEntityNamesFormatted: the civ's specificName, then the generic one;
 #   3. a technology the stock can't pay for is disabled under a red mask with the
 #      missing resources; one whose requirements fail is disabled and grey;
 #   4. a technology being researched leaves the panel (Researcher.js
@@ -42,6 +43,13 @@ func frames(n: int) -> void:
 
 func run() -> void:
 	await frames(60)
+	print("0. Names")
+	main.debug_train_buttons(0)  # a Civic Center: the Town Phase
+	await frames(2)
+	var town: Array = main.debug_command_row().filter(func(e): return TT.plain(str(e["tip"])).contains("(Town Phase)"))
+	print("    ", town.map(func(e): return TT.plain(str(e["tip"])).get_slice("\n", 0)))
+	check(town.size() == 1 and TT.plain(str(town[0]["tip"])).begins_with("Kōmopolis (Town Phase)"), "the Ptolemies' Town Phase: Kōmopolis (Town Phase)")
+
 	print("1-2. The Temple of Isis' pair")
 	main.debug_train_buttons(BLD_TEMPLE_ISIS)
 	await frames(2)

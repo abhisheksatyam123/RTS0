@@ -56,6 +56,9 @@ var disable_spies: bool = false
 var disable_treasures: bool = false
 # Random-map biome: 0 = the map's own, else rtso::BiomeType + 1. Game speed at the start.
 var biome: int = 0
+# 0.28 PlayerAssignment: the setup slot this machine plays offline (index into
+# slot_types), -1 to watch; -2 (older setups, -autostart) seats you in slot 1.
+var local_slot: int = -2
 var game_speed: float = 1.0
 # The map sets every slot's civ, team and colour (a scenario): in a networked
 # game setup, clients may not ask to change theirs.
@@ -97,6 +100,9 @@ var net_ip: String = "127.0.0.1"
 var net_port: int = 20595
 var net_password: String = ""
 var net_observe: bool = false
+# The lobby's one-use ticket for a game joined from its list (/rooms/connect):
+# the host has the lobby name who it belongs to (0 A.D. lobby authentication).
+var net_lobby_ticket: String = ""
 # 0 A.D. "Host Saved Game": with net_mode "host", the save in load_save_path is
 # continued in multiplayer (cleared once used).
 var net_saved_game: bool = false

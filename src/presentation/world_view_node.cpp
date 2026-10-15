@@ -2398,8 +2398,13 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
-		for (int s = 0; slot->rest.is_valid() && s < slot->rest->get_surface_count(); ++s)
-			if (rtso::ModelLibrary::is_player_color_material(slot->rest->surface_get_material(s))) slot->player_color = true;
+		// Owner-coloured: a player_color.gdshader surface with a mask (the shader also
+		// draws unmasked skins that vary by unit or carry specular or height maps).
+		for (int s = 0; slot->rest.is_valid() && s < slot->rest->get_surface_count(); ++s) {
+			Ref<ShaderMaterial> sm = slot->rest->surface_get_material(s);
+			if (rtso::ModelLibrary::is_player_color_material(sm) && sm->get_shader_parameter("mask_tex").get_type() != Variant::NIL)
+				slot->player_color = true;
+		}
 	}
 	return *slot;
 }
@@ -3642,7 +3647,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			// Custom data reaches the shader raw; the close-up path's source_color
 			// instance uniform is converted to linear, so match it here.
 			const Color pc = player_display_color(sim, uview.team[i]).srgb_to_linear();
-			cmm->set_instance_custom_data(slot, Color(pc.r, pc.g, pc.b, 1.0f));
+			// Alpha 1 + the unit's body skin draw (player_color.gdshader variant_u).
+			cmm->set_instance_custom_data(slot, Color(pc.r, pc.g, pc.b, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(id)));
 		}
 
 		// StatusBars.js on a selected, highlighted (hovered or band-boxed) or, with
@@ -3683,6 +3689,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.yaw = yaw;
 		attach_unit_model(v, utype_str);
 		push_player_color(v.model, v.player_rgba, player_display_color(sim, uview.team[i]));
+		if (v.variant_model != v.model || v.variant_id != id) {
+			rtso::ModelLibrary::set_variant(v.model, rtso::ModelLibrary::variant_draw(id));
+			v.variant_model = v.model;
+			v.variant_id = id;
+		}
 		{
 			const Color sc = player_display_color(sim, uview.team[i]);
 			const int64_t key = silhouettes_ ? (int64_t)sc.to_rgba32() : -2;
