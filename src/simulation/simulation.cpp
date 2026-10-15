@@ -8498,9 +8498,15 @@ std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t holder_
 	return out;
 }
 
-static bool alert_filter(uint8_t unit_type, bool traders) {
+// AlertRaiser/List: the civic centre's and farmstead's "Civilian" is 0.28's support_civilian
+// (ROSTER_CIVILIAN), which RTS0's villager plays; the legacy Female Citizens 0.28 maps still
+// place are not Civilians and ignore it. Units without a roster row go by their class.
+static bool alert_filter(uint16_t tmpl, uint8_t unit_type, bool traders) {
 	const TechClasses c = unit_tech_classes(unit_type);
-	return traders ? (c & TC_TRADER) && !(c & TC_SHIP) : (c & TC_FEMALECITIZEN) != 0;
+	if (traders) return (c & TC_TRADER) && !(c & TC_SHIP);
+	if (unit_type == UNIT_VILLAGER) return true;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return (civ_unit_template(tmpl).flags & ROSTER_CIVILIAN) != 0;
+	return (c & TC_FEMALECITIZEN) != 0;
 }
 
 bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
@@ -8514,7 +8520,7 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 	// Free slots per holder, so units don't all head for one that will be full.
 	std::unordered_map<uint32_t, int> reserved;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.unit_type[i], info.traders)) continue;
+		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) continue;
 		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
 		if (info.raise_range >= 0.0f && edge_distance(raiser, ux, uz) > info.raise_range) continue;
 		// The nearest structure of ours that can take it (queries sort by distance).
@@ -8558,7 +8564,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 	auto in_range = [&](float x, float z) { return info.end_range < 0.0f || edge_distance(raiser, x, z) <= info.end_range; };
 	// Units outside: back to work if idle or still heading for shelter, else they stop.
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.unit_type[i], info.traders)) continue;
+		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) continue;
 		if (!in_range(units_.pos_x[i], units_.pos_z[i])) continue;
 		const uint8_t k = units_.order_kind[i];
 		if (k != ORDER_NONE && k != ORDER_GARRISON) continue; // ShouldRespondToEndOfAlert
@@ -8574,7 +8580,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 		if (b.id != raiser.id && info.end_range >= 0.0f && gap > info.end_range) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t i = lookup_unit(uid);
-			if (i >= 0 && units_.team[i] == player && alert_filter(units_.unit_type[i], info.traders)) out.push_back({b.id, uid});
+			if (i >= 0 && units_.team[i] == player && alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) out.push_back({b.id, uid});
 		}
 	}
 	for (auto [bid, uid] : out) {
