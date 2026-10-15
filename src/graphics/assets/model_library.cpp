@@ -1092,6 +1092,20 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 	Entry e;
 
 	Vector<String> candidates;
+	if (category == "units") {
+		// Civ class models whose 0.28 actor was extracted under another name (pass-3 audit):
+		// the Han woman is units/han/female_citizen.xml (han_villager_female), the Han class
+		// cavalry the Academy champion's cavalry_spearman_c_m, the Han fishing boat
+		// structures/han/fishing_ship.xml.
+		static const char *const kAliases[][2] = {
+			{"han_female_citizen", "units/han_villager_female"},
+			{"han_cavalry", "units/han_cavalry_spearman"},
+			{"han_fishing_boat", "buildings/han_fishing_ship"},
+		};
+		for (const auto &a : kAliases) {
+			if (id == a[0]) candidates.push_back(String("res://assets/models/") + a[1] + String(".glb"));
+		}
+	}
 	if (category == "buildings") {
 		const String glb = building_glb_id(id);
 		if (glb != id) candidates.push_back(String("res://assets/models/buildings/") + glb + String(".glb"));
@@ -1150,6 +1164,7 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 					apply_imported_material_fixups(inst);
 					apply_clip_tools(inst, StringName("Idle"));
 					e.scene = ps;
+					e.path = path;
 					e.animated = find_animation_player(inst) != nullptr;
 					Vector<MeshXform> mesh_instances;
 					collect_mesh_xforms(inst, Transform3D(), mesh_instances);

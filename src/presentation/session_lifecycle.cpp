@@ -1127,6 +1127,17 @@ void RtsoMain::_process(double delta) {
 			}
 			txt += line.replace("[", "[lb]"); // a map's text, not markup
 		}
+		{
+			// GetTimeNotifications sorts by end time, latest first.
+			const uint32_t now = (uint32_t)std::lround(sim->game_time() * 1000.0f);
+			text_notices_.erase(std::remove_if(text_notices_.begin(), text_notices_.end(),
+					[now](const TextNotice &t) { return t.end_ms <= now || t.end_ms > now + 10000; }), text_notices_.end());
+			for (auto it = text_notices_.rbegin(); it != text_notices_.rend(); ++it) {
+				if (!txt.is_empty()) txt += "\n";
+				txt += it->text;
+			}
+			if (spawn_notified_.size() > 64) spawn_notified_.clear();
+		}
 		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
 		// player (the wonder's owner, its allies or everyone else).
 		{

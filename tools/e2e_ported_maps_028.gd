@@ -8,7 +8,10 @@ extends SceneTree
 # Exit code 0 = pass.
 
 const MAPS := ["obedska_bog", "obedska_bog_night", "sahyadri_buttes", "scythia", "tarim_basin_2p", "tarim_basin_4p", "team_oasis",
-	"temperate_roadway", "thessalian_plains", "via_augusta", "white_cliffs_of_dover", "yangtze"]
+	"temperate_roadway", "thessalian_plains", "via_augusta", "white_cliffs_of_dover", "yangtze",
+	# The other sizes of maps ported from GitHub or the built-in list (pass-3 audit).
+	"corinthian_isthmus_2p", "cycladic_archipelago_3p", "greek_acropolis_2p", "median_oasis_4p", "neareastern_badlands_2p",
+	"saharan_oases_2p"]
 
 # 0.28 skirmishes start with no teams; a map whose description suggests them is
 # played that way (White Cliffs of Dover: the Britons against four invaders who

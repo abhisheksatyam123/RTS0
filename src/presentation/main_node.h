@@ -198,6 +198,13 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Label *banner_label = nullptr;
 	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
 	RichTextLabel *time_notification_label_ = nullptr; // notificationText: player names in their colours
+	// The sim's "text" notices (SessionNotice::TEXT) shown under it until end_ms (match time).
+	struct TextNotice {
+		String text;
+		uint32_t end_ms;
+	};
+	std::vector<TextNotice> text_notices_;
+	std::unordered_map<uint32_t, uint32_t> spawn_notified_; // building -> match ms of its last blocked-spawn notice
 	// 0.28 NetworkDelayOverlay: "Delay to live stream" while this peer holds more
 	// than MAX_LIVE_DELAY turns it hasn't run yet; checked once a second.
 	Label *net_delay_label_ = nullptr;
@@ -665,6 +672,7 @@ public:
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
+	String debug_unit_model_path(int civ, int unit_type);
 	Dictionary debug_snap_placement(int btype, float x, float z, bool hover, float stale_angle);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
