@@ -174,6 +174,30 @@ int main() {
 		CHECK(!m.cmd_train(0, tc, UNIT_SWORDSMAN));
 	}
 
+	// Another civ's unique structure trains its Trainer list's "units/{civ}/..." for the captor
+	// (Trainer.js): an Athenian Roman Army Camp trains Athenian rams, an Athenian Crannog
+	// Athenian infantry and fishing boats.
+	{
+		static Simulation k;
+		k.set_sim_seed(11);
+		k.set_team_civ(0, CIV_ATHENIANS);
+		k.set_team_civ(1, CIV_ROMANS);
+		k.reset();
+		k.set_player_resources(0, 5000, 5000, 5000, 5000);
+		k.player(0).phase = 3;
+		const uint32_t camp = k.spawn_building(-20, -20, BLD_ARMY_CAMP, 0, 1.0f);
+		CHECK(k.cmd_train(0, camp, UNIT_SIEGE_RAM));
+		const Simulation::Building *b = nullptr;
+		for (const Simulation::Building &x : k.buildings()) if (x.id == camp) b = &x;
+		CHECK(b && !b->queue.empty() && b->queue.back().tmpl == roster_id("athen/siege_ram"));
+		CHECK(!k.cmd_train(0, camp, UNIT_CAVALRY));
+		const uint32_t crannog = k.spawn_building(20, -20, BLD_CRANNOG, 0, 1.0f);
+		CHECK(k.cmd_train(0, crannog, UNIT_SPEARMAN));
+		CHECK(civ_unit_template(roster_id("athen/ship_fishing")).trainers.test(BLD_CRANNOG));
+		// A kind the captor builds itself keeps its own list: the Roman Army Camp adds nothing to Roman rows.
+		CHECK(civ_unit_template(roster_id("rome/infantry_swordsman_a")).trainers == bld_bit(BLD_ARMY_CAMP));
+	}
+
 	// Building health takes 0 A.D.'s civ structure bonus (Hellenic Architecture +10%).
 	uint32_t ath_house = s.spawn_building(10, 10, BLD_HOUSE, 0, 1.0f);
 	s.set_team_civ(5, CIV_PERSIANS);
@@ -343,8 +367,8 @@ int main() {
 		const uint16_t ram = roster_id("athen/siege_ram");
 		const uint16_t merc = roster_id("cart/infantry_swordsman_gaul_b");
 		CHECK(cav != CIV_UNIT_TEMPLATE_NONE && ram != CIV_UNIT_TEMPLATE_NONE && merc != CIV_UNIT_TEMPLATE_NONE);
-		CHECK(civ_unit_template(cav).trainers == bld_bit(BLD_STABLE));
-		CHECK(civ_unit_template(ram).trainers == bld_bit(BLD_ARSENAL));
+		CHECK(civ_unit_template(cav).trainers.test(BLD_STABLE) && !civ_unit_template(cav).trainers.test(BLD_BARRACKS));
+		CHECK(civ_unit_template(ram).trainers.test(BLD_ARSENAL) && !civ_unit_template(ram).trainers.test(BLD_BARRACKS));
 		CHECK(civ_unit_template(merc).trainers == bld_bit(BLD_EMBASSY));
 		// The Briton crannog (structures/brit/crannog.xml): a Town phase Civic Center that trains
 		// what the Civic Center trains and ships, and shoots like one.
@@ -366,7 +390,8 @@ int main() {
 			CHECK(civ_t != CIV_UNIT_TEMPLATE_NONE && std::strstr(civ_unit_template(civ_t).id, "/support_civilian"));
 		}
 		CHECK(civ_unit_template(roster_id("athen/support_civilian")).trainers == bld_bit(BLD_TOWN_CENTER));
-		CHECK(civ_unit_template(roster_id("athen/support_civilian_house")).trainers == bld_bit(BLD_HOUSE));
+		CHECK(civ_unit_template(roster_id("athen/support_civilian_house")).trainers.test(BLD_HOUSE));
+		CHECK(!civ_unit_template(roster_id("athen/support_civilian_house")).trainers.test(BLD_TOWN_CENTER));
 		CHECK(civ_unit_template(roster_id("athen/support_civilian_house")).unlock_tech == TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC);
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen")).trainers);
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen_house")).trainers);

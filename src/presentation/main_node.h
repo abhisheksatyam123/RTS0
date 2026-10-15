@@ -862,7 +862,8 @@ private:
 	uint32_t transport_under(float x, float z) const;
 	// unit_actions.js "set-rallypoint" target under the cursor: a resource, else a structure
 	// (not one of the selected).
-	void rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) const;
+	// cmd and ent: the RallyCommand and unit or treasure the target alone doesn't give.
+	void rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, uint32_t *ent = nullptr, uint8_t *cmd = nullptr) const;
 	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();

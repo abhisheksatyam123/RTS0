@@ -2171,10 +2171,30 @@ static void test_attack_maybe_update() {
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 1.0f);
-	float tx = 0.0f, tz = 0.0f;
+	float ox = 0.0f, oz = 0.0f;
 	for (const auto &b : s->buildings())
-		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
-	const float hx = -tx * 0.3f, hz = -tz * 0.3f;
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ox = b.x; oz = b.z; }
+	// The scene stands on the dry, level land nearest player 0's civic centre, clear of it: on this
+	// map the land between the bases is a lake, where the woman can't flee and nothing can be reached.
+	auto dry = [&](float x0, float z0, float x1, float z1) {
+		if (s->nav_grid_.steep_tile_in(x0, z0, x1, z1)) return false;
+		for (float z = z0; z <= z1; z += 1.0f)
+			for (float x = x0; x <= x1; x += 1.0f) {
+				const auto [cx, cy] = s->nav_grid_.world_to_cell(x, z);
+				if (!s->nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY)) return false;
+			}
+		return true;
+	};
+	float hx = 0.0f, hz = 0.0f, best = 1e30f;
+	for (float z = -26.0f; z <= 26.0f; z += 1.0f)
+		for (float x = -26.0f; x <= 26.0f; x += 1.0f) {
+			const float d = (x - ox) * (x - ox) + (z - oz) * (z - oz);
+			if (d < 100.0f || d >= best || !dry(x - 3.0f, z - 6.0f, x + 12.0f, z + 4.0f)) continue;
+			best = d;
+			hx = x;
+			hz = z;
+		}
+	CHECK(best < 1e30f, "dry land for the chase");
 	for (size_t j = 0; j < s->units_.count; ++j)
 		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
 	run_for(*s, 0.5f);
@@ -5111,6 +5131,59 @@ static void test_raid_keeps_hunters() {
 	CHECK((int)plan.squad.size() == std::min(4, riders - 2), "a raid leaves two riders home to hunt");
 }
 
+// attackPlan.js updatePreparation runs addSiegeUnits for a raid too: once a building of ours
+// trains siege engines, a raid still preparing adds them (rams for plan name 0) and waits for
+// them before it sets off, taking them along.
+static void test_raid_takes_siege() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0;
+	for (const auto &b : s->buildings_)
+		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
+	s->players_[1].phase = 3;
+	s->spawn_building_world(ox + 14.0f, oz - 4.0f, BLD_ARSENAL, 1, 1.0f);
+	const uint32_t target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	for (int k = 0; k < 3; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
+	s->petra_scout_unit_id_ = 0;
+	auto &m = s->petra_attack_mgr_;
+	m.raid_target = 4;
+	m.raid_min = 3;
+	m.raid_name = 0;
+	m.raid_siege = 0;
+	auto &plan = s->petra_raid_plan_;
+	plan = Simulation::AttackPlan();
+	plan.type = Simulation::AttackPlan::PLAN_RAID;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = target;
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const int siege_target = s->petra_plan_siege_target(false);
+	bool stat = false;
+	for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_RAID, 0))
+		stat |= (st.classes & (TC_SIEGE | TC_MELEE)) == (TC_SIEGE | TC_MELEE) && st.target == siege_target;
+	std::printf("  raid short of riders: siege class %d (1 = rams), %d rams wanted, in its unitStat %s\n", (int)m.raid_siege, siege_target,
+	            stat ? "yes" : "no");
+	CHECK(m.raid_siege == 1 && siege_target > 0 && stat, "a raid still preparing adds rams once an arsenal of ours trains them");
+	// Every rider it wants, but no ram yet: it waits.
+	for (int k = 0; k < 6; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 8.0f, 1, UNIT_CAVALRY);
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const bool waited = plan.state == Simulation::AttackPlan::MUSTER;
+	std::vector<uint32_t> rams;
+	for (int k = 0; k < siege_target; ++k) rams.push_back(s->spawn_unit(ox + 8.0f + 3.0f * k, oz - 6.0f, 1, UNIT_SIEGE_RAM));
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	int rams_in = 0;
+	for (uint32_t r : rams) rams_in += std::find(plan.squad.begin(), plan.squad.end(), r) != plan.squad.end();
+	std::printf("  with its riders it waits for the rams %s; with %d rams it sets off %s, taking %d\n", waited ? "yes" : "no", siege_target,
+	            plan.state == Simulation::AttackPlan::WALKING ? "yes" : "no", rams_in);
+	CHECK(waited, "a raid with its riders waits for its siege engines");
+	CHECK(plan.state == Simulation::AttackPlan::WALKING && rams_in == siege_target, "the raid sets off with its rams");
+}
+
 // defenseManager.js targetList / attackPlan.js Raid: an enemy civic centre going up in neutral
 // land within 30000 m² of our structures is a raid target; past half built the raid sets off
 // with its minimum, and it fights on until the target falls (no time limit).
@@ -6085,6 +6158,7 @@ int main(int argc, char **argv) {
 	RUN(test_build_defenses);
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);
+	RUN(test_raid_takes_siege);
 	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
 	RUN(test_dropsites);

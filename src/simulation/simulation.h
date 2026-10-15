@@ -171,10 +171,13 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 94; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 97; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
+	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
 	static constexpr uint32_t SAVE_VERSION_PETRA_SUPPLY_ROOM = 94; // each Petra gatherer's supply; structures with no room, for 90 s; the AIs' own random stream
 	static constexpr uint32_t SAVE_VERSION_PETRA_STUCK = 93; // each Petra attack plan's position 5 turns ago (siege stuck check)
 	static constexpr uint32_t SAVE_VERSION_GUARD_OF = 92; // each unit's isGuardOf, kept through other orders
+	static constexpr uint32_t SAVE_VERSION_WORK_ORDERS = 96; // each unit's workOrders queue (Back to Work)
 	static constexpr uint32_t SAVE_VERSION_PETRA_MOVE_TO_GATHERER = 91; // when each Petra mobile dropsite next looks for a gatherer
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
@@ -321,11 +324,17 @@ public:
 		// target, so a trained unit gathers near the spot once the target is gone
 		// (gather-near-position). 0xFF: no resource target.
 		uint8_t rally_res_type = 0xFF, rally_res_sub = 0xFF;
+		// RallyPoint data.command where the target alone doesn't say it (RallyCommand), and the
+		// unit or treasure it names (attack, collect-treasure).
+		uint8_t rally_cmd = 0;
+		uint32_t rally_target_ent_id = 0;
 		// Shift-added positions after the first (RallyPoint.AddPosition), in order.
 		struct RallyStep {
 			float x, z;
 			uint32_t res_id, bld_id;
 			uint8_t res_type, res_sub;
+			uint8_t cmd = 0;
+			uint32_t ent_id = 0;
 		};
 		std::vector<RallyStep> rally_more;
 
@@ -588,7 +597,9 @@ public:
 	// civ_bit() mask of the civs of `pid`'s allies still in the match (owning a building or unit).
 	uint16_t ally_civ_mask(uint8_t pid) const;
 	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
-	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
+	// rounded: the whole per-unit cost (tooltips, Cost.GetResourceCosts); Trainer.js keeps it
+	// unrounded and floors count * cost once (rounded = false).
+	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT], bool rounded = true) const;
 	// Trainer.js GetUpgradedTemplate: the template a queued `tmpl` is trained as, following its
 	// Promotion while the player's RequiredXp for the step is 0 (Marian Reforms' Legionaries,
 	// mercenaries trained Advanced), and the rank it ends on. Cost and time are that template's.
@@ -764,8 +775,10 @@ public:
 		return it == unit_queues_.end() ? nullptr : &it->second.orders;
 	}
 	// queued (Shift) adds a position after the ones already set (RallyPoint.AddPosition).
+	// cmd (RallyCommand) and ent_id: the commands a target alone doesn't give (attack-walk,
+	// attack a unit, trade, collect a treasure, occupy a turret).
 	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0,
-			bool queued = false);
+			bool queued = false, uint8_t cmd = 0, uint32_t ent_id = 0);
 	// 0 A.D. "unset-rallypoint": the structure forgets every rally position.
 	void cmd_unset_rally_point(uint8_t player, uint32_t building_id);
 
@@ -2335,6 +2348,9 @@ private:
 	// MovementUpdate likelyFailure for a hunter (GATHER APPROACHING / COMBAT): FINDINGNEWTARGET.
 	void give_up_hunt(size_t i);
 	bool walk_falls_short(size_t i) const;
+	// Unit i follows a long path that obstructed_long_path works on: the one move_units or cmd_move
+	// gave it, with waypoints left, more than LONG_PATH_MIN_DIST from where it is going.
+	bool follows_long_path(size_t i) const;
 	void obstructed_long_path(size_t i, uint8_t failed);
 	void abandon_chase(size_t i);
 	void give_up_attack(size_t i);
@@ -2598,6 +2614,11 @@ private:
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
+	// The static obstructions of the long paths on the terrain tiles (NavGrid::set_tile_obstructions):
+	// with `structures` the structures, scenery and mines; the trees, bushes and treasures when they
+	// changed.
+	void sync_tile_obstructions(bool structures);
+	std::vector<NavGrid::TileObstruction> tile_obs_scratch_;
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
 	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
 	bool near_deep_water(float x, float z, float c) const;
@@ -3127,6 +3148,7 @@ private:
 	PetraQueueManager petra_queues_;
 	std::vector<PetraTransportPlan> petra_transports_; // under way (BOARDING to UNLOADING), one per owner
 	const PetraTransportPlan *petra_transport_for(uint8_t owner) const;
+	void petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
 	std::vector<PetraChatLine> petra_chat_;
@@ -3525,6 +3547,8 @@ private:
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
+	int petra_plan_siege_target(bool huge) const; // addSiegeUnits targetSize
+	void petra_raid_add_siege();                  // addSiegeUnits for the raid plan
 	int petra_config_max_pop(int unlimited = 300) const; // config.js setConfig's getPopulationMax
 	float petra_config_pop_scaling() const; // Config.popScaling: pop_scaling times sqrt(maxPop/300) under 300
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
@@ -3866,6 +3890,13 @@ private:
 	// keep it and the IDLE Timer goes back to guarding; remove-guard, a guard order for
 	// someone else or a charge that is gone or no longer an ally ends it.
 	std::unordered_map<uint32_t, uint32_t> guard_of_;
+	// UnitAI workOrders: the queue from its first Gather, Trade, Repair or ReturnResource order,
+	// kept when an order that isn't work replaces it (UpdateWorkOrders), for Back to Work.
+	std::unordered_map<uint32_t, std::vector<UnitOrder>> work_orders_;
+	static bool is_work_order_kind(uint8_t k) {
+		return k == ORDER_GATHER || k == ORDER_TRADE || k == ORDER_BUILD || k == ORDER_RETURN_RESOURCE;
+	}
+	void update_work_orders(size_t i, uint8_t kind);
 	bool guard_charge_ok(size_t i, uint32_t charge) const;
 	bool applying_queued_ = false; // set while an order from a queue is applied: keep the rest
 	UnitOrder current_order(size_t i) const;
