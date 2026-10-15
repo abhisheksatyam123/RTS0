@@ -334,6 +334,16 @@ public:
 			if (!living && fire && fauna_seen_.count(fv.id[i]))
 				play_death(sim, me, fauna_death_sound(fv.fauna_type[i]), fv.owner[i], fv.pos_x[i], fv.pos_z[i]);
 			if (living) fauna_seen.insert(fv.id[i]);
+			// UnitAI FLEEING enter: PlaySound("panic"), which only fauna_chicken has (chickens.xml).
+			if (fv.fauna_type[i] == FAUNA_CHICKEN) {
+				const bool fleeing = living && fv.behavior[i] == FAUNA_FLEE;
+				auto it = chicken_fleeing_.find(fv.id[i]);
+				if (fleeing && fire && it != chicken_fleeing_.end() && !it->second &&
+						sim->is_entity_visible_to_viewer(fv.pos_x[i], fv.pos_z[i], fv.owner[i], me))
+					play_spatial_group("actor/fauna/animal", "chicken_", fv.pos_x[i], fv.pos_z[i], 1.0f);
+				if (living) chicken_fleeing_[fv.id[i]] = fleeing;
+				else chicken_fleeing_.erase(fv.id[i]);
+			}
 		}
 		fauna_seen_.swap(fauna_seen);
 		if (fire) tick_work_sounds(sim, me, uv, t);
@@ -718,6 +728,7 @@ private:
 	std::unordered_map<std::string, godot::Ref<godot::AudioStream>> streams_;
 	std::unordered_map<uint32_t, float> bld_progress_;
 	std::unordered_map<uint32_t, bool> gate_open_; // gate id -> open last frame
+	std::unordered_map<uint32_t, bool> chicken_fleeing_; // chicken id -> fleeing last frame
 	std::unordered_map<uint32_t, Seen> seen_;
 	std::unordered_set<uint32_t> fauna_seen_; // animals alive last frame
 	std::unordered_set<uint32_t> known_;

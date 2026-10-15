@@ -20,7 +20,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G28 | The developer overlay lacks Control all units and the culling boxes | low | Stats |
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
 | G30 | Pathfinding grid: 8 m navcells against 0.28's 1 m, no JumpPointCache, float maths | low | Migrate |
-| G33 | Match music stops on the summary screen, where 0.28 seems to keep it playing until the main menu (inferred from its GUI scripts, unconfirmed); a fleeing chicken plays no panic sound; siege engines train with footsteps, not ram_trained (its sound file isn't in the shared 0.28 data) | low | Session UI |
+| G33 | Match music stops on the summary screen, where 0.28 seems to keep it playing until the main menu (inferred from its GUI scripts, unconfirmed); siege engines train with footsteps, not ram_trained (its sound file isn't in the shared 0.28 data). A fleeing chicken's panic sound (chickens.xml) is in | low | Session UI |
 
 Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of woods too tight for them, #1086) and the rows below.
 
