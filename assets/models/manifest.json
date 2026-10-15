@@ -64490,6 +64490,121 @@
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
   },
+  "scaffold_up_3x3_tower": {
+   "file": "models/buildings/scaffold_up_3x3_tower.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.609,
+    5.781,
+    3.445
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/construction/scaf_3x3_tower.xml",
+    "mesh:props/scaf_3x3_tower.dae",
+    "skin:props/scaffold.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "scaffold_up_4x4": {
+   "file": "models/buildings/scaffold_up_4x4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.968,
+    5.11,
+    3.811
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/construction/scaf_4x4.xml",
+    "mesh:props/scaf_4x4.dae",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "scaffold_up_8x8": {
+   "file": "models/buildings/scaffold_up_8x8.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    7.136,
+    4.796,
+    7.235
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/construction/scaf_8x8.xml",
+    "mesh:props/scaf_8x8.dae",
+    "skin:props/scaffold.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "scaffold_up_9x3_wall": {
+   "file": "models/buildings/scaffold_up_9x3_wall.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.011,
+    4.672,
+    3.115
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/construction/scaf_9x3_wall.xml",
+    "mesh:props/scaf_9x3_wall.dae",
+    "skin:props/scaffold.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "scaffold_up_cart_defense_tower": {
+   "file": "models/buildings/scaffold_up_cart_defense_tower.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.245,
+    5.909,
+    2.745
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/construction/scaf_cart_defense_tower.xml",
+    "mesh:structural/kart_defense_tower_scaffolding.dae",
+    "skin:structural/ao/kart_defense_tower_scaffolding_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "scaffold_up_cart_wall_long": {
+   "file": "models/buildings/scaffold_up_cart_wall_long.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    7.804,
+    5.122,
+    3.352
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/construction/scaf_cart_wall_long.xml",
+    "mesh:structural/kart_wall_long_b_scaffolding.dae",
+    "skin:structural/ao/kart_wall_long_b_scaffolding_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "scaffold_up_cart_wooden_tower": {
+   "file": "models/buildings/scaffold_up_cart_wooden_tower.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.741,
+    5.356,
+    2.277
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/construction/scaf_cart_wooden_tower.xml",
+    "mesh:structural/kart_wooden_tower_scaffolding.dae",
+    "skin:structural/ao/kart_wooden_tower_scaffold_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "scout_tower": {
    "file": "models/buildings/scout_tower.glb",
    "origin": "ground-center",

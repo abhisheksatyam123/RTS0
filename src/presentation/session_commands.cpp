@@ -49,6 +49,26 @@ bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
 	return false;
 }
 
+// unit_actions.js "garrison" on an entity: an own or mutually allied ship, ram or siege tower
+// (GarrisonHolder) under the cursor that some selected unit may board; 0 if none.
+uint32_t RtsoMain::transport_under(float x, float z) const {
+	if (!sim || selected_ids.is_empty()) return 0;
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (!uv.alive[i] || !sim->is_ally(local_player(), uv.team[i]) || selected_ids.has((int32_t)uv.id[i])) continue;
+		const float dx = uv.pos_x[i] - x, dz = uv.pos_z[i] - z;
+		if (dx * dx + dz * dz <= 3.2f * 3.2f && selection_can_board(uv.id[i])) return uv.id[i];
+	}
+	return 0;
+}
+
+bool RtsoMain::selection_can_board(uint32_t holder) const {
+	if (!sim || !sim->is_transport(holder)) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->can_board_unit(holder, (uint32_t)(int64_t)selected_ids[s])) return true;
+	return false;
+}
+
 // unit_actions.js "occupy-turret" actionCheck: some selected unit may occupy a turret point of
 // this own or mutually allied holder (Turretable). Room is not checked.
 bool RtsoMain::selection_can_occupy_turret(uint32_t building_id) const {

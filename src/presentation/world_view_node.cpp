@@ -1595,6 +1595,7 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 		v.model = nullptr;
 	}
 	v.model_id = model_name;
+	v.upgrade_scaffold = nullptr; // freed with the old model
 	v.fog_dim = -1.0f; // new nodes: re-apply the fog overlay
 	v.player_rgba = -1;
 	v.model = instantiate_building_id(model_name);
@@ -1603,6 +1604,47 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 		v.model = mi;
 	}
 	v.root->add_child(v.model);
+}
+
+// 0 A.D. Upgrade.js SetUpgradeAnimationVariant: while a structure upgrades its
+// actor shows the "upgrading" variant, a construction scaffold propped on its root.
+void RtsoWorldView::update_upgrade_scaffold(BuildingVis &v, const String &model_id, bool show) {
+	if (!show) {
+		if (v.upgrade_scaffold) v.upgrade_scaffold->set_visible(false);
+		return;
+	}
+	if (!v.upgrade_scaffold) {
+		Node3D *model = Object::cast_to<Node3D>(v.model);
+		if (!model) return;
+		if (!upgrade_scaffolds_loaded_) {
+			upgrade_scaffolds_loaded_ = true;
+			Ref<FileAccess> f = FileAccess::open("res://data/upgrade_scaffolds.json", FileAccess::READ);
+			Dictionary root = f.is_valid() ? Dictionary(JSON::parse_string(f->get_as_text())) : Dictionary();
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Dictionary e = root[keys[i]];
+				Array off = e.get("offset", Array());
+				UpgradeScaffold s;
+				s.id = e.get("scaffold", "");
+				s.scale = (float)e.get("scale", 1.0);
+				if (off.size() == 3) s.offset = Vector3((float)off[0], (float)off[1], (float)off[2]);
+				upgrade_scaffolds_[String(keys[i]).utf8().get_data()] = s;
+			}
+		}
+		const auto it = upgrade_scaffolds_.find(rtso::ModelLibrary::building_glb_id(model_id).utf8().get_data());
+		if (it == upgrade_scaffolds_.end()) return;
+		Node3D *scaf = Object::cast_to<Node3D>(instantiate_building_id(it->second.id));
+		if (!scaf) return;
+		// The scaffold GLB is centred and grounded like the building's, so the
+		// offset and scale place it as the actor prop sat on the structure.
+		scaf->set_scale(Vector3(it->second.scale, it->second.scale, it->second.scale));
+		scaf->set_position(it->second.offset);
+		model->add_child(scaf);
+		v.upgrade_scaffold = scaf;
+		v.fog_dim = -1.0f;
+		v.player_rgba = -1;
+	}
+	v.upgrade_scaffold->set_visible(true);
 }
 
 void RtsoWorldView::hide_unit_vis(UnitVis &v) {
@@ -3130,6 +3172,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 			update_damage_fx(v, lvl, b.half_size, entry.aabb.size.y * b_scale);
 		}
+		update_upgrade_scaffold(v, visual_id, v.phase == 0 && b.upgrading);
 		update_garrison_flag(v, visual_id, v.phase == 0 && !b.miraged && (sim->get_garrison_count(b.id) > 0 || (b.type == rtso::BLD_CORRAL && sim->corral_count(b.id) > 0)),
 				player_display_color(sim, b.team), b_scale, entry.y_offset);
 

@@ -655,6 +655,7 @@ public:
 	}
 	bool armed_target_ok(const Vector3 &at) const;
 	bool run_armed_click(const Ref<InputEventMouseButton> &press);
+	bool minimap_unit_order(Vector2 world_pos);
 	Dictionary debug_right_line() const {
 		Dictionary d;
 		d["active"] = right_line_.active;
@@ -733,6 +734,8 @@ private:
 	void clear_selection();
 	bool selection_can_garrison(uint32_t building_id) const;
 	bool selection_can_occupy_turret(uint32_t building_id) const;
+	uint32_t transport_under(float x, float z) const;
+	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();
 	void prune_selection();

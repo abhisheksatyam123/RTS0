@@ -3,6 +3,7 @@ extends SceneTree
 # Turret, Call to Arms) arms an action that the next LEFT click runs on what is under the
 # cursor, without selecting it. A click on an invalid target does nothing and keeps it armed;
 # a right click drops it and gives the usual order; Shift keeps it armed after a click.
+# On the minimap (MiniMap.js onWorldClick) a left click runs an armed ground action.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_armed_actions.gd
 # Exit code 0 = pass.
@@ -119,6 +120,22 @@ func run() -> void:
 	await move(ground)
 	check(main.debug_cursor_tip()["cursor"] != "action-patrol", "a plain click then disarms it")
 	check(selected() == [c], "the selection is kept: " + str(selected()))
+
+	print("5. The minimap: a left click runs an armed ground action, a right click cancels it")
+	main.debug_select_units(PackedInt32Array([c]))
+	var from: Vector2 = main.debug_ground_at(main.debug_unit_screen(c))
+	var goal: Vector2 = from + Vector2(30, 0)
+	main._on_entity_command("patrol")
+	main._on_minimap_clicked(goal)
+	await frames(60)
+	var now: Vector2 = main.debug_ground_at(main.debug_unit_screen(c))
+	check(now.distance_to(goal) < from.distance_to(goal) - 3.0, "the man patrols toward the minimap point: %s -> %s" % [from, now])
+	await move(ground)
+	check(main.debug_cursor_tip()["cursor"] != "action-patrol", "Patrol is disarmed after the minimap click")
+	main._on_entity_command("patrol")
+	main._on_minimap_order(from)
+	await move(ground)
+	check(main.debug_cursor_tip()["cursor"] != "action-patrol", "a minimap right click drops the armed Patrol")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
