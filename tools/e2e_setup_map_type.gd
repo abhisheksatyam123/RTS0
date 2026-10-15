@@ -144,6 +144,22 @@ func run() -> void:
 		select_map(page, "random_mainland")
 		await frames(2)
 		check(bio_ids.call().has(7) and bio.text == "Savanna", "Mainland offers Savanna too and keeps it: " + bio.text)
+		print("3d. 0.28's Last Man Standing, Nomad and Hero Garrison rules")
+		var lock: CheckBox = page.get_node("%LockTeams")
+		var lms: CheckBox = page.get_node("%LastManStanding")
+		var hg: CheckBox = page.get_node("%RegicideGarrison")
+		check(page.get_node("%Nomad").visible, "Nomad shows on a random map")
+		lms.button_pressed = true
+		lock.button_pressed = true
+		check(lms.disabled and not page._collect_setup()["lms"], "Locked Teams disables Last Man Standing")
+		lock.button_pressed = false
+		check(not lms.disabled and page._collect_setup()["lms"], "unlocked teams bring it back")
+		lms.button_pressed = false
+		var vm: int = page._victory_mask()
+		page._set_victory_mask(vm | page.VK_REGICIDE)
+		check(hg.visible, "Hero Garrison shows with Regicide")
+		page._set_victory_mask(vm & ~page.VK_REGICIDE)
+		check(not hg.visible, "and hides without it")
 		select_map(page, "random_archipelago")
 		await frames(2)
 		check(not bio_slot.is_visible_in_tree() and page._collect_setup()["biome"] == 0, "RTS0's own Archipelago has no Biome")
@@ -205,6 +221,7 @@ func run() -> void:
 	check(pop.disabled and cf.disabled and cf.text == "No ceasefire", "population and ceasefire locked")
 	for path in ["LastManStanding", "StartRow/LockTeams", "StartRow/DisableTreasures", "MapVisRow/RevealMap", "MapVisRow/ExploreMap", "MapVisRow/AlliedView", "MapVisRow/DisableSpies"]:
 		check(node(page, path).disabled, path + " locked")
+	check(not page.get_node("%Nomad").visible and not page.get_node("%RegicideGarrison").visible, "no Nomad or Hero Garrison on a scenario")
 	check(select_map(page, "sahel_scenario"), "the Sahel scenario")
 	await frames(2)
 	rows = slot_selects(page)

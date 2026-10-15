@@ -634,6 +634,7 @@ func _update_lock_teams_for_pop() -> void:
 		lock.disabled = true
 	else:
 		lock.disabled = _is_scenario()
+	_render_mode_checks()
 
 func _make_option(slot: Control) -> RtsoSafeSelect:
 	for c in slot.get_children():
@@ -877,6 +878,7 @@ func _apply_map_locks() -> void:
 		cb.disabled = scen
 		if scen:
 			cb.button_pressed = bool(s.get(checks[path], false))
+	_render_mode_checks()
 	var pop: RtsoSafeSelect = %PopCapSlot.get_child(0)
 	var res: RtsoSafeSelect = %ResSlot.get_child(0)
 	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
@@ -1429,6 +1431,7 @@ func _build_options() -> void:
 		%VictorySlot.add_child(cb)
 		_victory_checks[int(k[0])] = cb
 	_set_victory_mask(1)
+	%LockTeams.toggled.connect(func(_on): _render_mode_checks())
 	var msz := _make_option(%MapSizeSlot)
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
@@ -1538,6 +1541,16 @@ func _set_victory_mask(mask: int) -> void:
 	for bit in _victory_checks:
 		_victory_checks[bit].disabled = (disabled & int(bit)) != 0
 	_refresh_victory_times(mask)
+	_render_mode_checks()
+
+## 0.28 Checkboxes: Last Man Standing is always shown but needs unlocked teams (its
+## setting's "available") and no scenario; Nomad shows only on random maps; Hero
+## Garrison only while Regicide is checked, and never on a scenario.
+func _render_mode_checks() -> void:
+	var scen := _is_scenario()
+	%LastManStanding.disabled = scen or %LockTeams.button_pressed
+	%Nomad.visible = str(_selected_map().get("kind", "")) == "Random"
+	%RegicideGarrison.visible = not scen and (_victory_mask() & VK_REGICIDE) != 0
 
 ## 0.28 WonderDuration / RelicCount / RelicDuration: shown only while their condition
 ## is checked, and fixed (disabled) on a scenario.
@@ -1785,7 +1798,8 @@ func _collect_setup() -> Dictionary:
 			break
 	return {"map": m, "seed": seed, "victory": victory_code(vmask),
 		"waves": %Waves.button_pressed,
-		"lms": %LastManStanding.button_pressed,
+		# 0.28 LastManStanding is only sent while teams are unlocked.
+		"lms": %LastManStanding.button_pressed and (_is_scenario() or not %LockTeams.button_pressed),
 		"pop_cap": _pop_cap_setting(),
 		"team_pop": _pop_type == POP_TYPE_TEAM,
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
