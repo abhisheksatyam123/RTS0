@@ -33300,7 +33300,10 @@ bool Simulation::register_trigger_script(const std::string &name) {
 	};
 	for (const auto &k : kScripts)
 		if (name == k.name) {
-			if (k.tutorial != TUTORIAL_NONE) triggers_.vars[7] = k.tutorial;
+			if (k.tutorial != TUTORIAL_NONE) {
+				triggers_.vars[7] = k.tutorial;
+				triggers_.vars[0] = -1; // no goal until InitTutorial (the panel stays hidden)
+			}
 			triggers_.register_trigger(TRIGGER_ON_INIT_GAME, k.init, true);
 			return true;
 		}
