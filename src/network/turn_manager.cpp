@@ -828,20 +828,20 @@ bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 
 // 0 A.D. gamesetup: observers take no slot, a client the host assigned a human
 // slot takes it, and the rest take the free human slots in slot order.
-void TurnManager::seat_clients(const GameSetupParams &setup, uint8_t out[8]) {
+void TurnManager::seat_clients(const GameSetupParams &setup, uint8_t out[NET_SETUP_CLIENTS], uint64_t present) {
 	bool taken[8] = {};
-	bool seated[8] = {};
-	for (uint32_t client = 0; client < 8; ++client) {
+	bool seated[NET_SETUP_CLIENTS] = {};
+	for (uint32_t client = 0; client < NET_SETUP_CLIENTS; ++client) {
 		const uint8_t slot = setup.seats[client];
 		out[client] = 0xFF;
-		if ((setup.observers >> client) & 1) seated[client] = true;
+		if (!((present >> client) & 1) || ((setup.observers >> client) & 1)) seated[client] = true;
 		else if (slot < setup.slot_count && slot < 8 && setup.slot_types[slot] == 'h' && !taken[slot]) {
 			out[client] = slot;
 			taken[slot] = seated[client] = true;
 		}
 	}
 	uint8_t slot = 0;
-	for (uint32_t client = 0; client < 8; ++client) {
+	for (uint32_t client = 0; client < NET_SETUP_CLIENTS; ++client) {
 		if (seated[client]) continue;
 		while (slot < setup.slot_count && slot < 8 && (setup.slot_types[slot] != 'h' || taken[slot])) ++slot;
 		if (slot < setup.slot_count && slot < 8) { out[client] = slot; taken[slot] = true; }
@@ -849,10 +849,12 @@ void TurnManager::seat_clients(const GameSetupParams &setup, uint8_t out[8]) {
 }
 
 void TurnManager::assign_slot_players(const GameSetupParams &setup) {
-	uint8_t seats[8];
+	uint8_t seats[NET_SETUP_CLIENTS];
 	seat_clients(setup, seats);
 	client_player_.clear();
-	for (uint32_t client = 0; client < 8; ++client) client_player_[client] = seats[client];
+	// Clients 0-7 always (0xFF: none), higher ids only when the setup seats or lists them.
+	for (uint32_t client = 0; client < NET_SETUP_CLIENTS; ++client)
+		if (client < 8 || seats[client] < 8 || ((setup.observers >> client) & 1)) client_player_[client] = seats[client];
 }
 
 void TurnManager::reset() {
