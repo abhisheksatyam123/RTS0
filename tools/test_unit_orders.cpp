@@ -2470,6 +2470,36 @@ static void test_stance_held_position() {
 	check(s.units_.anchor_x[idx_of(s, d)] == hx && s.units_.anchor_z[idx_of(s, d)] == hz, "its held position stays");
 }
 
+static void test_defensive_walks_back() {
+	std::printf("71. a defensive unit walks back to its held position after a player's attack, an aggressive one stays (COMBAT.FINDINGNEWTARGET WalkToHeldPosition)\n");
+	auto run_case = [](uint8_t stance, bool structure) {
+		Simulation s;
+		setup(s);
+		uint32_t d = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&d, 1, stance); // held at (0, 0)
+		if (structure) {
+			const uint32_t h = s.spawn_building_world(16.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+			for (Simulation::Building &b : s.buildings_)
+				if (b.id == h) b.hp = 1.0f;
+			s.order_attack_building(&d, 1, h, false);
+			check(run_until(s, 30.0f, [&] { const auto *b = bld(s, h); return !b || b->wrecked || b->hp <= 0.0f; }),
+					"the spearman razes the house");
+		} else {
+			const uint32_t e = post(s, 16.0f, 0.0f, UNIT_SPEARMAN, 2.0f);
+			run_until(s, 0.5f, [] { return false; }); // the player sees it first
+			s.order_attack(&d, 1, e);
+			check(run_until(s, 30.0f, [&] { return !s.units().alive[idx_of(s, e)]; }), "the spearman kills its target");
+		}
+		const float far = dist(s, d, 0, 0);
+		check(far > 8.0f, "the target was well away from the held position");
+		run_until(s, 30.0f, [&] { return dist(s, d, 0, 0) < 1.5f && act_of(s, d) == ACTION_IDLE; });
+		return dist(s, d, 0, 0);
+	};
+	check(run_case(STANCE_DEFENSIVE, false) < 1.5f, "a defensive unit walks back after killing a unit (after its cheer)");
+	check(run_case(STANCE_DEFENSIVE, true) < 1.5f, "... and after razing a structure");
+	check(run_case(STANCE_AGGRESSIVE, false) > 8.0f, "an aggressive unit stays where the fight ended");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2667,6 +2697,7 @@ int main(int argc, char **argv) {
 	test_unarmed_aggressive_stays();
 	test_passive_mid_fight();
 	test_stance_held_position();
+	test_defensive_walks_back();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

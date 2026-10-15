@@ -217,11 +217,16 @@ void RtsoMain::update_highlight() {
 	if (sim && vp && view && !sim->cinema_playing()) {
 		const Vector2 mouse = vp->get_mouse_position();
 		if (dragging && drag_start.distance_to(mouse) >= user_opts_.drag_delta) {
-			for (int32_t id : band_box_ids(drag_start, mouse)) ids.push_back(id);
+			const std::vector<int32_t> boxed = band_box_ids(drag_start, mouse);
+			for (int32_t id : boxed) ids.push_back(id);
+			if (boxed.empty())
+				for (uint32_t id : band_box_structures(drag_start, mouse)) ids.push_back((int32_t)id);
 		} else if (!dragging && !build_mode && !wall_drag_mode && vp->gui_get_hovered_control() == nullptr) {
 			const size_t u = own_unit_under_mouse(mouse, true);
 			if (u != (size_t)-1) {
 				ids.push_back((int32_t)sim->units().id[u]);
+			} else if (const uint32_t bid = building_under_mouse(mouse); bid != 0) {
+				ids.push_back((int32_t)bid);
 			} else {
 				const Vector3 at = get_ground_click_pos(mouse);
 				auto fv = sim->fauna();

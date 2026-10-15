@@ -281,6 +281,7 @@ struct NetPeer {
 constexpr size_t NET_MAX_CLIENTS = 41;
 // 0 A.D. NetHost.h ENetDisconnectReason values a host sends with its disconnect.
 constexpr uint8_t NDR_INCORRECT_PROTOCOL_VERSION = 3;
+constexpr uint8_t NDR_SERVER_ALREADY_IN_GAME = 5; // a late observer the host does not take
 constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;
 constexpr uint8_t NDR_INCORRECT_SOFTWARE_VERSION = 17;
