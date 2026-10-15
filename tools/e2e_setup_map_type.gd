@@ -181,7 +181,7 @@ func run() -> void:
 	# 0.28 MapSize: random maps only, Normal (256) by default; WonderDuration and the relic
 	# sliders only while their condition is checked.
 	var msz: RtsoSafeSelect = node(page, "MapSizeSlot").get_child(0)
-	check(node(page, "MapSizeSlot").visible and msz.text == "Normal (256 m)", "map size Normal (256 m): " + msz.text)
+	check(node(page, "MapSizeSlot").visible and msz.text == "Normal", "map size Normal: " + msz.text)
 	var vt: Control = node(page, "VictoryTimesRow")
 	page._set_victory_mask(1)
 	check(not vt.visible, "no wonder or relic settings under Conquest")

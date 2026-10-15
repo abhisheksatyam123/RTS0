@@ -247,8 +247,8 @@ const START_RES_AMOUNTS := [100, 300, 500, 1000, 3000, 50000]
 
 # 0.28 settings/map_sizes.json (width in meters) for random maps; Normal is the default.
 const DEFAULT_MAP_SIZE := 2
-const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Normal (256 m)"],
-	[320, "Medium (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
+const MAP_SIZES := [[128, "Tiny"], [192, "Small"], [256, "Normal"],
+	[320, "Medium"], [384, "Large"], [448, "Very Large"], [512, "Giant"]]
 # map_sizes.json Tooltip, index == MAP_SIZES.
 const MAP_SIZE_TIPS := ["This map size has barely any room for even the most basic resources.",
 	"Small maps are suitable for 1v1 matches, as players can reach the enemy quickly while still having some room to expand.",
@@ -613,6 +613,32 @@ func _set_pop_type(type: int, cap: int) -> void:
 	var at: int = t[5].find(cap)
 	pop.select(at if at >= 0 else t[5].find(t[6]))
 	pop.tooltip_text = tr(t[4])
+	_render_pop_tips()
+
+## 0.28 PopulationCap.onHoverChange: an entry whose cap lets the match pass 1200 units
+## (players × cap, teams × cap with each teamless player a team, or the world cap) warns
+## of lag instead of the cap type's tooltip.
+const POP_RECOMMENDATION := 1200
+func _render_pop_tips() -> void:
+	if %PopCapSlot.get_child_count() == 0:
+		return
+	var pop := _pop_select()
+	var t: Array = POP_CAP_TYPES[_pop_type]
+	var n := mini(int(_slot_count_node().value), _slot_rows.size())
+	var teams := {}
+	for i in range(n):
+		var team := int(_slot_rows[i]["team"])
+		teams[team if team > 0 else -1 - i] = true
+	for i in range(mini(pop.get_item_count(), (t[5] as Array).size())):
+		var cap := int(t[5][i])
+		var total := cap
+		match _pop_type:
+			POP_TYPE_PLAYER:
+				total = n * cap
+			POP_TYPE_TEAM:
+				total = teams.size() * cap
+		pop.set_item_tooltip(i, tr("Warning: These settings can result in significant lag when all players reach their maximum population capacity.")
+			if total > POP_RECOMMENDATION else tr(t[4]))
 	_update_lock_teams_for_pop()
 
 ## The selected cap as RTS0's pop_cap setting.
@@ -1205,6 +1231,7 @@ func refresh_slots() -> void:
 	_rebuilding_slots = false
 	_apply_mp_locks()
 	_render_speeds()
+	_render_pop_tips()
 
 ## GameSpeed.render: the Fast Forward speeds only while nobody holds a player
 ## slot (every slot AI or unassigned); a speed no longer listed goes back to Normal.
@@ -1378,6 +1405,7 @@ func _on_slot_team(idx: int, slot: int) -> void:
 		return
 	_slot_rows[slot]["team"] = idx
 	_net_request("team", idx)
+	_render_pop_tips()
 
 func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -1434,9 +1462,10 @@ func _build_options() -> void:
 	%LockTeams.toggled.connect(func(_on): _render_mode_checks())
 	var msz := _make_option(%MapSizeSlot)
 	for s in MAP_SIZES:
-		msz.add_item(s[1], s[0])
+		msz.add_item(tr(s[1]), s[0])
 		msz.set_item_tooltip(msz.get_item_count() - 1, tr(MAP_SIZE_TIPS[msz.get_item_count() - 1]))
 	msz.select(DEFAULT_MAP_SIZE)
+	msz.tooltip_text = tr("Select map size. (Larger sizes may reduce performance.)")
 	var popt := _make_option(%PopCapTypeSlot)
 	for t in POP_CAP_TYPES:
 		popt.add_item(tr(t[1]))
@@ -1469,10 +1498,12 @@ func _build_options() -> void:
 	for w in WATER_LEVELS:
 		wl.add_item(w)
 	wl.select(0)
+	wl.tooltip_text = tr("Select the water level of this map.")
 	var sr := _make_option(%SeaRiseSlot)
 	for t in SEA_RISE_TIMES:
-		sr.add_item("rise at %d min" % t)
+		sr.add_item(_minutes(t))
 	sr.select(SEA_RISE_TIMES.find(25))
+	sr.tooltip_text = tr("Set the time when the water will start to rise.")
 	var tpl := _make_option(%TeamPlacementSlot)
 	tpl.item_selected.connect(_on_team_placement_selected)
 	_rebuild_team_placement([])
@@ -1495,10 +1526,11 @@ func _build_options() -> void:
 	dsel.select(0)
 	var res := _make_option(%ResSlot)
 	for r in START_RES:
-		res.add_item(r)
+		res.add_item(tr(r.get_slice(" (", 0))) # starting_resources.json Title
 		# StartingResources.HoverTooltip
 		res.set_item_tooltip(res.get_item_count() - 1, tr("Initial amount of each resource: %(resources)s.").replace("%(resources)s", str(START_RES_AMOUNTS[res.get_item_count() - 1])))
 	res.select(1)
+	res.tooltip_text = tr("Select the game's starting resources.")
 	var bio := _make_option(%BiomeSlot)
 	bio.add_item(BIOMES[0], 0)
 	bio.select(0)
@@ -1957,7 +1989,7 @@ func _minutes(n: int) -> String:
 	return (tr("%d minute") if n == 1 else tr("%d minutes")) % n
 
 func _show_error(msg: String) -> void:
-	var lbl := $VBox/HBox/Right/BtnStart as Button
+	var lbl := $VBox/HBox/Right/Buttons/BtnStart as Button
 	push_warning("[GameSetup] " + msg)
 	var err := $VBox/HBox/Right/ErrorLabel as Label
 	if err:
@@ -2021,19 +2053,20 @@ func _init_net() -> void:
 
 func _build_net_controls() -> void:
 	var right := $VBox/HBox/Right
-	var start := $VBox/HBox/Right/BtnStart as Button
+	var start := $VBox/HBox/Right/Buttons/BtnStart as Button
 	_wait_label = Label.new()
 	_wait_label.name = "NetWaitLabel"
 	_wait_label.text = WAIT_TEXT
 	_wait_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	right.add_child(_wait_label)
-	right.move_child(_wait_label, start.get_index())
+	right.move_child(_wait_label, $VBox/HBox/Right/Buttons.get_index())
 	_ready_btn = Button.new()
 	_ready_btn.name = "BtnReady"
 	_ready_btn.custom_minimum_size = Vector2(0, 48)
 	_ready_btn.pressed.connect(_on_ready_pressed)
-	right.add_child(_ready_btn)
-	right.move_child(_ready_btn, start.get_index())
+	_ready_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	start.get_parent().add_child(_ready_btn)
+	start.get_parent().move_child(_ready_btn, start.get_index())
 	# 0.28 GameSettingWarning: "Cheats enabled." or "Rated game." on every
 	# networked setup page.
 	_setting_warning = Label.new()
@@ -2053,7 +2086,8 @@ func _build_net_controls() -> void:
 	lobby_btn.visible = LobbySession.signed_in()
 	lobby_btn.pressed.connect(open_lobby_dialog)
 	$VBox/Header.add_child(lobby_btn)
-	$VBox/Header.move_child(lobby_btn, $VBox/Header/BtnBack.get_index())
+	# CancelButton: back to the lobby while signed in to it.
+	($VBox/HBox/Right/Buttons/BtnBack as Button).tooltip_text = "Return to the lobby." if LobbySession.signed_in() else "Return to the main menu."
 	lobby_btn.owner = self
 	lobby_btn.unique_name_in_owner = true
 	# 0.28 Rating.js "Rated Game" and Cheats.js, which the host sets in a
@@ -2174,7 +2208,7 @@ func _update_net_controls() -> void:
 		_setting_warning.text = "Cheats enabled." if %Cheats.button_pressed and not rated \
 				else "Rated game." if rated else ""
 		_setting_warning.visible = _setting_warning.text != ""
-	var start := $VBox/HBox/Right/BtnStart as Button
+	var start := $VBox/HBox/Right/Buttons/BtnStart as Button
 	if _mp_role == "host":
 		var ok := bool(_net_state.get("can_start", false))
 		start.disabled = not ok
