@@ -50,6 +50,8 @@ public:
 	virtual uint8_t local_player() const = 0;
 	virtual uint8_t view_player() const = 0;
 	virtual godot::String player_display_name(uint8_t pid) const = 0;
+	// messages.js onClientLeave g_Players[id].offline: a human who left the match.
+	virtual bool player_offline(uint8_t pid) const { (void)pid; return false; }
 	virtual uint32_t ui_selected_building_id() const = 0;
 	virtual const godot::PackedInt32Array &ui_selected_ids() const = 0;
 	// Every selected structure, the first being ui_selected_building_id().
@@ -1098,7 +1100,10 @@ private:
 		const rtso::Simulation::UnitDetails d = sim.unit_details(u);
 		auto uv0 = sim.units();
 		const godot::Dictionary viewer = rtso::portraits::unit_entry(uv0.tmpl ? uv0.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE).get("viewer", godot::Dictionary());
-		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array())), resistance = resistance_tooltip(d.resistance);
+		// GuiInterface elevationAdaptedRange: the Ranged reach where the unit stands, averaged round it.
+		const float elevated = d.ranged ? sim.average_elevation_range(uv0.pos_x[u], uv0.pos_z[u], sim.unit_attack_range_at(u), 0.0f) /
+				rtso::COMBAT_DISTANCE_SCALE : 0.0f;
+		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array()), elevated), resistance = resistance_tooltip(d.resistance);
 		stats_->set_text(join_lines({body_lines(attack), body_lines(resistance)}));
 		auto uv = sim.units();
 		Amounts loot;
@@ -1130,8 +1135,11 @@ private:
 		sim.structure_resistance(b, res);
 		const rtso::Simulation::StructureDetails d = sim.structure_details(b);
 		constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+		// GuiInterface elevationAdaptedRange for BuildingAI: the reach from its arrows' origin there.
+		const float elevated = d.shoots ? sim.average_elevation_range(b.x, b.z, d.max_range,
+				rtso::civ_building_ai_info(b.civ, b.type).origin_y) * kM : 0.0f;
 		const String attack = d.shoots ? structure_attack_tooltip(d.damage, d.min_range * kM, d.max_range * kM, d.repeat_time,
-				d.arrows ? d.arrows : d.default_arrows) : String();
+				d.arrows ? d.arrows : d.default_arrows, elevated) : String();
 		const rtso::LootInfo l = rtso::structure_loot(b.type, b.civ, b.half_size);
 		Amounts loot;
 		loot.res[rtso::RES_FOOD] = l.food;
@@ -1188,7 +1196,10 @@ private:
 		owner_bg_->set_visible(true);
 		class_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
 		class_->add_theme_constant_override("outline_size", 2);
-		class_->set_text(host_->player_display_name(owner) + suffix);
+		// selection_details.js: a disconnected player's name is prefixed "[OFFLINE]".
+		const godot::String owner_name = host_->player_display_name(owner);
+		class_->set_text((host_->player_offline(owner)
+				? rtso::sprintf0(rtso::tr0("[OFFLINE] %(player)s"), {{"player", owner_name}}) : owner_name) + suffix);
 		const uint8_t civ = sim.player_civ(owner);
 		owner_civ_->set_texture(civ < rtso::CIV_COUNT ? rtso::load_ui_texture(rtso::civ_info(civ).emblem_path) : Ref<Texture2D>());
 		owner_civ_->set_visible(owner_civ_->get_texture().is_valid());

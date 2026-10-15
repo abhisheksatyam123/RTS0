@@ -135,6 +135,8 @@ int main() {
 	CHECK(join("bob", "") == -1 && admitted == std::vector<std::string>{"bob"}, "bob joins");
 	CHECK(join("carol", "RTS0-other") == NDR_INCORRECT_SOFTWARE_VERSION && admitted.size() == 1,
 	      "another engine version is refused (NDR_INCORRECT_SOFTWARE_VERSION)");
+	CHECK(live.back()->hostSoftwareVersion() == game.softwareVersion() && live.back()->softwareVersion() == "RTS0-other",
+	      "the refused client knows the host's version, for the mismatch detail");
 	CHECK(join("bob", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1,
 	      "a second bob is refused (NDR_PLAYERNAME_IN_USE)");
 	CHECK(join("alice", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1, "so is the host's own name");
@@ -173,6 +175,33 @@ int main() {
 	      "eve's three wrong passwords are refused as wrong");
 	CHECK(attempt("eve", "hunter2") == ARC_BANNED, "then eve is banned, even with the right password");
 	CHECK(attempt("frank", "hunter2") == ARC_OK, "another name still gets in");
+	// With a hasher (0 A.D. HashCryptographically) the client sends hash(password,
+	// name), never the text, and the host checks it against its own password.
+	{
+		auto toy = [](const std::string &pw, const std::string &name) { return "H(" + pw + "|" + name + ")"; };
+		NetHost hashed;
+		hashed.setPassword("hunter2");
+		hashed.setPasswordHasher(toy);
+		hashed.startHost(c);
+		auto try_hashed = [&](const std::string &name, const std::string &password, bool hasher) {
+			std::vector<std::unique_ptr<NetHost>> one;
+			one.push_back(std::make_unique<NetHost>());
+			NetHost &cl = *one[0];
+			cl.setLocalPlayerName(name);
+			cl.setPassword(password);
+			if (hasher) cl.setPasswordHasher(toy);
+			cl.startClient("127.0.0.1", hashed.localPort());
+			pump(hashed, one, 5000, [&] { return cl.authResult() >= 0 || cl.connectionLost(); });
+			const int code = cl.authResult();
+			cl.stop();
+			pump(hashed, none, 100, [&] { return false; });
+			return code;
+		};
+		CHECK(try_hashed("gina", "hunter2", true) == ARC_OK, "a hashed password is accepted");
+		CHECK(try_hashed("hal", "hunter2", false) == ARC_PASSWORD_INVALID, "the plain text is not");
+		CHECK(try_hashed("ivy", "nope", true) == ARC_PASSWORD_INVALID, "a wrong hashed password is refused");
+		hashed.stop();
+	}
 
 	// 5. Chat routing. Seats: host 0 and client A 1 are allies, client B 2 is
 	// their enemy, client O watches (255).

@@ -73,6 +73,26 @@ func run() -> void:
 	check(Autostart.configure(ms, Autostart.parse(PackedStringArray(["-autostart=maps/x"])), maps).begins_with("Unrecognized map type"), "unknown type")
 	check(Autostart.configure(ms, Autostart.parse(PackedStringArray(["-autostart=skirmishes/no_such_map"])), maps).begins_with("Map "), "unknown map")
 
+	print("5b. Multiplayer and run options")
+	var d: Node = Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland",
+		"-autostart-host", "-autostart-host-players=3", "-autostart-port=20700", "-autostart-playername=alice"])))
+	check(d != null and d.host and not d.client and d.host_players == 3 and ms.net_mode == "host" and ms.net_port == 20700
+		and ms.net_player_name == "alice" and ms.record_replay and ms.ai_seed == 0, "host: waits for 3 players on port 20700 as alice")
+	d.free()
+	d = Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart-client=10.0.0.5", "-autostart-disable-replay"])))
+	check(d != null and d.client and ms.net_mode == "join" and ms.net_ip == "10.0.0.5" and ms.net_player_name == "anonymous"
+		and not ms.record_replay, "client: joins 10.0.0.5 as anonymous, no replay")
+	d.free()
+	d = Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-nonvisual"])))
+	check(d != null and d.nonvisual and not d.host and not d.client and ms.net_mode == "", "nonvisual, offline")
+	d.free()
+	check(Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-aiseed=12"]))) == null
+		and ms.ai_seed == 12, "-autostart-aiseed=12 seeds the AIs")
+	Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-aiseed=-1"])))
+	check(ms.ai_seed > 0, "-autostart-aiseed=-1 picks one")
+	check(Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland"]))) == null
+		and ms.record_replay and ms.net_mode == "", "a plain autostart needs no driver")
+
 	print("6. Main menu")
 	var menu = load("res://scenes/menu/main_menu.tscn").instantiate()
 	root.add_child(menu)

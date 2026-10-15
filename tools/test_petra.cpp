@@ -1783,7 +1783,7 @@ static void test_attack_blocked_by_walls() {
 	float bx = 0.0f, bz = 0.0f;
 	const uint32_t to = s->petra_target_obstruction(house, ox, oz, bx, bz);
 	const auto it = s->building_id_to_idx_.find(to);
-	const bool wall = to != house && it != s->building_id_to_idx_.end() && (building_tech_classes(s->buildings_[it->second].type) & TC_WALL).any();
+	const bool wall = to != house && it != s->building_id_to_idx_.end() && is_wall_piece(s->buildings_[it->second].type);
 	std::printf("  %zu wall pieces round a house: the target becomes %s\n", laid, wall ? "a wall piece" : to == house ? "still the house" : "something else");
 	CHECK(laid >= 8, "the wall closes round the house");
 	CHECK(wall, "the wall piece in the way becomes the target (checkTargetObstruction)");
@@ -4216,7 +4216,21 @@ static void test_personality_draw() {
 	// setConfig draws no personality on Sandbox: the default 0.5 whatever the behaviour.
 	assert(t.petra_config_for(2).aggressive == 0.5f && t.petra_config_for(2).defensive == 0.5f &&
 	       t.petra_config_for(2).pop_scaling == 0.5f);
-	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
+	// -autostart-aiseed: a set AI seed draws another personality, the same one on every peer
+	// and whatever the match seed; 0 goes back to the match seed's draw.
+	Simulation u;
+	u.set_sim_seed(4242);
+	u.set_petra_behavior(2, PETRA_BEHAVIOR_AGGRESSIVE);
+	u.set_ai_seed(99);
+	const float seeded = u.petra_config_for(2).aggressive;
+	Simulation v;
+	v.set_sim_seed(777);
+	v.set_ai_seed(99);
+	v.set_petra_behavior(2, PETRA_BEHAVIOR_AGGRESSIVE);
+	assert(seeded != a2 && v.petra_config_for(2).aggressive == seeded);
+	u.set_ai_seed(0);
+	assert(u.petra_config_for(2).aggressive == a2);
+	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f, AI seed 99 %.2f\n", a2, a3, d.aggressive, seeded);
 }
 
 // headquarters.js trainEmergencyUnits: citizen infantry from the civic centre nearest the
@@ -4284,8 +4298,11 @@ static void test_new_cc_defenders() {
 		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
+	// Copy the position: spawning resizes buildings_ and would leave cc dangling.
+	const float ccx = cc->x, ccz = cc->z;
+	cc = nullptr;
 	for (const auto &b : s->petra_bases()) CHECK(b.needed_defenders == 0, "the first civic centre trains no defenders");
-	const uint32_t tc = s->spawn_building_world(cc->x * 0.1f, cc->z * 0.1f, BLD_TOWN_CENTER, 1, 1.0f);
+	const uint32_t tc = s->spawn_building_world(ccx * 0.1f, ccz * 0.1f, BLD_TOWN_CENTER, 1, 1.0f);
 	CHECK(tc != 0, "a second civic centre is placed");
 	if (!tc) return;
 	auto needed = [&]() -> int {
@@ -4305,7 +4322,7 @@ static void test_new_cc_defenders() {
 		auto it = s->building_id_to_idx_.find(tc);
 		if (it != s->building_id_to_idx_.end()) most = std::max(most, s->buildings_[it->second].garrisoned_units.size());
 	}
-	std::printf("  new civic centre at Hard (%.0f units from the first): %d defenders wanted, %d left, garrison up to %zu\n", 0.9f * std::hypot(cc->x, cc->z), start, needed(), most);
+	std::printf("  new civic centre at Hard (%.0f units from the first): %d defenders wanted, %d left, garrison up to %zu\n", 0.9f * std::hypot(ccx, ccz), start, needed(), most);
 	CHECK(start == 5, "a new civic centre at Hard wants 5 defenders (3 + 2 (4 - 3))");
 	CHECK(needed() == 0, "it trains them all");
 	CHECK(most >= 1, "they garrison it");
