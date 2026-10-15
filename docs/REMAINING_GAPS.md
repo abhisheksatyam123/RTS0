@@ -24,7 +24,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
 | G15 | Petra buys trade-gain and population techs only if it can pay at the check | low | E |
 | G16 | A defensive-stance unit keeps chasing a target that leaves its reach; boarding a transport skips 0.28's garrison rules | low | Unit orders |
-| G17 | No collect_treasure voice | low | Unit orders |
+| G17 | ~~No collect_treasure voice~~ Closed 2026-10-15: a treasure order plays 0.28's collect_treasure lines (greek male As you wish, greek female and latin gather together, persian and kushite gather) | low | Unit orders |
 | G18 | Animals never play their feeding animation; each species wears one coat, and template trees draw one mesh | low | Animal models (feeding), Fauna (variants) |
 | G19 | Siege walls draw the stone wall model (siege_wall.glb is unused) | low | Animal models |
 | G20 | Session UI: no flare, target or "no" cursors; no paused queue items; no unexplored-area placement message; the garrison panel shows one holder where 0.28 merges several; the Barter dialog lacks 0.28's titles, labels and (i) buttons; some selection-detail strings are built from parts | low | Session UI |
