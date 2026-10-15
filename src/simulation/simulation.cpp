@@ -23627,9 +23627,23 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 	return true;
 }
 
+// researchTradeBonus / researchPopulationBonus queue their technology in minorTech
+// (researchManager.js:43, :61), where it waits until paid for; neither queues one while
+// minorTech holds a plan.
+bool Simulation::petra_minor_tech_waiting() const {
+	const PetraQueueAccount &w = petra_queues_.wants[PETRA_Q_MINOR_TECH];
+	return petra_queues_.special_tech != 0 || w.food + w.wood + w.gold + w.stone > 0.0f;
+}
+void Simulation::petra_queue_special_tech(uint8_t t) {
+	if (petra_start_research(t)) return;
+	const ResearchCheck rc = research_check(petra_pid_, t);
+	if (rc == TECH_OK || rc == TECH_ERR_COST) petra_queues_.special_tech = t;
+}
+
 // researchManager.js researchPopulationBonus: headquarters.js buildMoreHouses
 // found no room for a house.
 void Simulation::petra_research_population_bonus() {
+	if (petra_minor_tech_waiting()) return;
 	std::vector<uint8_t> techs;
 	petra_available_techs(techs);
 	for (uint8_t t : techs) {
@@ -23638,7 +23652,7 @@ void Simulation::petra_research_population_bonus() {
 		// (its XP part lives in promotion_data.h).
 		if (t == TECH_WAGON_TRAINS) continue;
 		if (ti.effect_count && tech_effects_table()[ti.effect_begin].stat == TSTAT_POP_BONUS) {
-			petra_start_research(t);
+			petra_queue_special_tech(t);
 			return;
 		}
 	}
@@ -23646,6 +23660,7 @@ void Simulation::petra_research_population_bonus() {
 
 // researchManager.js researchTradeBonus: a trader speed or gain technology.
 void Simulation::petra_research_trade_bonus() {
+	if (petra_minor_tech_waiting()) return;
 	std::vector<uint8_t> techs;
 	petra_available_techs(techs);
 	for (uint8_t t : techs) {
@@ -23653,7 +23668,7 @@ void Simulation::petra_research_trade_bonus() {
 		if (!ti.effect_count || !petra_tech_affects(t, TC_TRADER)) continue;
 		const uint8_t first = tech_effects_table()[ti.effect_begin].stat;
 		if (first != TSTAT_SPEED && first != TSTAT_TRADE_GAIN) continue;
-		petra_start_research(t);
+		petra_queue_special_tech(t);
 		return;
 	}
 }
@@ -23805,6 +23820,16 @@ void Simulation::petra_manage_research(float dt) {
 	if (!active_base) return;
 	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
 	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
+	// A trade or population technology queued by researchTradeBonus/researchPopulationBonus:
+	// update returns while it waits (researchManager.js:163), so it is bought before any other.
+	if (uint8_t &st = petra_queues_.special_tech; st) {
+		const ResearchCheck rc = research_check(petra_pid_, st);
+		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
+		else {
+			if (start_tech(st)) st = 0;
+			return;
+		}
+	}
 	std::vector<uint8_t> techs;
 	petra_available_techs(techs);
 	// Only a researcher with room in its queue can take the technology.
@@ -30783,9 +30808,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else if constexpr (std::is_same_v<T, PetraQueueManager>) {
 			if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
 				ar.pod(v);
-				if constexpr (Ar::loading)
+				if constexpr (Ar::loading) {
 					for (int q = 0; q < PETRA_Q_COUNT; ++q)
 						if (v.reset_on_start[q] > PETRA_Q_COUNT) ar.ok = false;
+					if (v.special_tech >= TECH_COUNT) ar.ok = false; // a former pad byte: 0 in older saves
+				}
 			} else if constexpr (Ar::loading) {
 				// The six coarse queues: their wants come back within a turn, so they restart empty.
 				PetraQueueManagerV59 old;
