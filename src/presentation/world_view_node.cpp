@@ -1606,6 +1606,17 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 	v.root->add_child(v.model);
 }
 
+// The building GLB ModelLibrary::load draws for `id` (its alias, its own GLB, or
+// its base model after the civ code), as the key of the tables written per GLB.
+static std::string building_table_key(const String &id) {
+	const String glb = rtso::ModelLibrary::building_glb_id(id);
+	if (glb != id || rtso::Assets::res_exists("res://assets/models/buildings/" + id + ".glb"))
+		return glb.utf8().get_data();
+	const int us = id.find("_");
+	if (us <= 0 || us >= id.length() - 1) return glb.utf8().get_data();
+	return rtso::ModelLibrary::building_glb_id(id.substr(us + 1)).utf8().get_data();
+}
+
 // 0 A.D. Upgrade.js SetUpgradeAnimationVariant: while a structure upgrades its
 // actor shows the "upgrading" variant, a construction scaffold propped on its root.
 void RtsoWorldView::update_upgrade_scaffold(BuildingVis &v, const String &model_id, bool show) {
@@ -1631,7 +1642,7 @@ void RtsoWorldView::update_upgrade_scaffold(BuildingVis &v, const String &model_
 				upgrade_scaffolds_[String(keys[i]).utf8().get_data()] = s;
 			}
 		}
-		const auto it = upgrade_scaffolds_.find(rtso::ModelLibrary::building_glb_id(model_id).utf8().get_data());
+		const auto it = upgrade_scaffolds_.find(building_table_key(model_id));
 		if (it == upgrade_scaffolds_.end()) return;
 		Node3D *scaf = Object::cast_to<Node3D>(instantiate_building_id(it->second.id));
 		if (!scaf) return;
@@ -1645,6 +1656,107 @@ void RtsoWorldView::update_upgrade_scaffold(BuildingVis &v, const String &model_
 		v.player_rgba = -1;
 	}
 	v.upgrade_scaffold->set_visible(true);
+}
+
+// 0 A.D. ProductionQueue.js SetAnimation: while the first item of a structure's
+// queue runs, its actor shows the "researching" or "training" variant; the
+// forges' prop blacksmith sparks, forge smoke and flames (art/particles/
+// sparks_blacksmith.xml, smoke_blacksmith.xml, flame.xml: rates, lifetimes,
+// speeds and sizes in metres, scaled to the model).
+void RtsoWorldView::update_production_fx(BuildingVis &v, const String &model_id, uint8_t state, float b_scale, float y_offset) {
+	if (state == v.production || !v.root) return;
+	v.production = state;
+	for (GPUParticles3D *p : v.production_fx) {
+		if (p->get_parent()) p->get_parent()->remove_child(p);
+		p->queue_free();
+	}
+	v.production_fx.clear();
+	if (state == 0) return;
+	if (!production_fx_loaded_) {
+		production_fx_loaded_ = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/production_fx.json", FileAccess::READ);
+		Dictionary root = f.is_valid() ? Dictionary(JSON::parse_string(f->get_as_text())) : Dictionary();
+		Array keys = root.keys();
+		for (int i = 0; i < keys.size(); ++i) {
+			Dictionary e = root[keys[i]];
+			ProductionFxSet set;
+			set.metre = (float)e.get("metre", 0.25);
+			const char *states[2] = { "researching", "training" };
+			for (int s = 0; s < 2; ++s) {
+				Array list = e.get(states[s], Array());
+				for (int j = 0; j < list.size(); ++j) {
+					Dictionary fx = list[j];
+					Array pos = fx.get("pos", Array());
+					const String kind = fx.get("fx", "");
+					if (pos.size() != 3) continue;
+					set.fx[s].push_back({ (uint8_t)(kind == "sparks" ? 0 : kind == "smoke" ? 1 : 2),
+							Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
+				}
+			}
+			production_fx_[String(keys[i]).utf8().get_data()] = set;
+		}
+		auto quad = [](const char *tex_path, bool additive) {
+			Ref<StandardMaterial3D> m;
+			m.instantiate();
+			m->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+			m->set_billboard_mode(BaseMaterial3D::BILLBOARD_PARTICLES);
+			m->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+			if (additive) m->set_blend_mode(BaseMaterial3D::BLEND_MODE_ADD);
+			m->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+			m->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+			if (rtso::Assets::res_exists(tex_path)) {
+				Ref<Texture2D> t = ResourceLoader::get_singleton()->load(tex_path);
+				if (t.is_valid()) m->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, t);
+			}
+			Ref<QuadMesh> q;
+			q.instantiate();
+			q->set_size(Vector2(1.0f, 1.0f));
+			q->set_material(m);
+			return q;
+		};
+		fx_sparks_quad_ = quad("res://assets/textures/particles/sparks.png", true);
+		fx_forge_smoke_quad_ = quad("res://assets/textures/particles/smoke_64a_blacksmith.png", false);
+	}
+	const auto it = production_fx_.find(building_table_key(model_id));
+	if (it == production_fx_.end()) return;
+	const ProductionFxSet &set = it->second;
+	const float m = set.metre * b_scale; // world units per 0 A.D. metre
+	for (const ProductionFx &fx : set.fx[state == 1 ? 0 : 1]) {
+		// rate /s, lifetime s, upward speed m/s, sideways speed m/s, size m
+		struct Def { float rate, life_min, life_max, up_min, up_max, side, size_min, size_max; };
+		static const Def kDefs[3] = {
+			{ 3.0f, 2.0f, 6.0f, 1.5f, 2.0f, 0.5f, 0.1f, 0.2f }, // sparks_blacksmith
+			{ 9.0f, 14.0f, 16.0f, 2.0f, 2.5f, 0.5f, 1.5f, 2.5f }, // smoke_blacksmith
+			{ 20.0f, 1.0f, 1.5f, 2.0f, 2.5f, 0.3f, 1.0f, 2.0f }, // flame
+		};
+		const Def &d = kDefs[fx.kind];
+		Ref<ParticleProcessMaterial> pm;
+		pm.instantiate();
+		pm->set_direction(Vector3(0, 1, 0));
+		pm->set_spread(Math::rad_to_deg(Math::atan2(d.side, d.up_min)));
+		pm->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, d.up_min * m);
+		pm->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, d.up_max * m);
+		pm->set_gravity(Vector3(0, 0, 0));
+		pm->set_param_min(ParticleProcessMaterial::PARAM_SCALE, d.size_min * m);
+		pm->set_param_max(ParticleProcessMaterial::PARAM_SCALE, d.size_max * m);
+		pm->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, fx.kind == 1 ? -180.0f : -28.0f);
+		pm->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, fx.kind == 1 ? 180.0f : 28.0f);
+		if (fx.kind != 0 && fx_flame_ppm_.is_valid()) // smoke and flames fade like the damage fire
+			pm->set_color_ramp(fx.kind == 1 ? fx_smoke_ppm_->get_color_ramp() : fx_flame_ppm_->get_color_ramp());
+		if (fx.kind == 1) pm->set_color(Color(0.8f, 0.8f, 0.8f, 1.0f)); // color.r 0.6-1.0
+		GPUParticles3D *p = memnew(GPUParticles3D);
+		p->set_process_material(pm);
+		p->set_draw_pass_mesh(0, fx.kind == 0 ? fx_sparks_quad_ : fx.kind == 1 ? fx_forge_smoke_quad_ : fx_flame_quad_);
+		p->set_amount(std::max(1, (int)std::ceil(d.rate * d.life_max)));
+		p->set_lifetime(d.life_max);
+		p->set_randomness_ratio(1.0f - d.life_min / d.life_max);
+		p->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		p->set_visibility_aabb(AABB(Vector3(-8, -1, -8), Vector3(16, 40, 16)));
+		// The model node sits at (0, y_offset, 0) under the root, scaled by b_scale.
+		p->set_position(Vector3(fx.pos.x * b_scale, y_offset + fx.pos.y * b_scale, fx.pos.z * b_scale));
+		v.root->add_child(p);
+		v.production_fx.push_back(p);
+	}
 }
 
 void RtsoWorldView::hide_unit_vis(UnitVis &v) {
@@ -3173,6 +3285,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			update_damage_fx(v, lvl, b.half_size, entry.aabb.size.y * b_scale);
 		}
 		update_upgrade_scaffold(v, visual_id, v.phase == 0 && b.upgrading);
+		update_production_fx(v, visual_id, v.phase == 0 && !b.miraged ? b.production : 0, b_scale, entry.y_offset);
 		update_garrison_flag(v, visual_id, v.phase == 0 && !b.miraged && (sim->get_garrison_count(b.id) > 0 || (b.type == rtso::BLD_CORRAL && sim->corral_count(b.id) > 0)),
 				player_display_color(sim, b.team), b_scale, entry.y_offset);
 
@@ -3245,6 +3358,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].fx_flame = nullptr;
 			building_pool[s].fx_level = 0;
 			building_pool[s].flag = nullptr;
+			building_pool[s].upgrade_scaffold = nullptr;
+			building_pool[s].production = 0;
+			building_pool[s].production_fx.clear();
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}

@@ -1211,7 +1211,8 @@ private:
 			elevated = sim.elevation_range_toward(uv0.pos_x[u], uv0.pos_z[u], hx, hz, sim.unit_attack_range_at(u), 0.0f) /
 					rtso::COMBAT_DISTANCE_SCALE;
 		}
-		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array()), elevated), resistance = resistance_tooltip(d.resistance);
+		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array()), elevated), resistance = resistance_tooltip(d.resistance,
+				rtso::unit_is_ship(uv0.unit_type[u]) || sim.unit_combat_at(u).classes.has(rtso::CC_SIEGE));
 		stats_->set_text(join_lines({body_lines(attack), body_lines(resistance)}));
 		auto uv = sim.units();
 		Amounts loot;
@@ -1263,7 +1264,7 @@ private:
 		loot.res[rtso::RES_STONE] = l.stone;
 		loot.res[rtso::RES_GOLD] = l.metal;
 		loot.xp = l.xp;
-		return join_lines({attack, resistance_tooltip(res), garrison_limit_tooltip(b.garrison_cap), garrison_heal_tooltip(d.heal),
+		return join_lines({attack, resistance_tooltip(res, true), garrison_limit_tooltip(b.garrison_cap), garrison_heal_tooltip(d.heal),
 				turrets_tooltip(d.turrets), population_bonus_tooltip(d.pop_bonus),
 				projectiles_tooltip(d.projectile_limit, d.default_arrows, d.per_unit),
 				d.trickles ? trickle_tooltip(d.trickle, rtso::Simulation::TRICKLE_STRUCTURE_INTERVAL) : String(), loot_tooltip(loot)});
