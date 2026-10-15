@@ -37,6 +37,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
 | G30 | Pathfinding grid: 8 m navcells against 0.28's 1 m, no JumpPointCache, float maths | low | Migrate |
 | G31 | ~~0.28's new_rms_test demo map isn't ported~~ Done: New RMS Test (RMS) under Demo Maps | low | Triggers |
+| G33 | Area D pass 4 leftovers: units from a "{native}" trainer (Kushite camps, Carthaginian embassies, a captured civic centre's civilians) carry their template civ's baked bonuses, not the owner's (a German misses germ_women speed on a captured Briton civic centre's civilian); a promotion that skips ranks applies range auras from before the step | low | D |
 
 Closed since re-check 3: G1 (large units' long paths keep out of woods too tight for them, #1086).
 

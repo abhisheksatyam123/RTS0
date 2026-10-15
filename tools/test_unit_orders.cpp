@@ -2171,11 +2171,13 @@ static void test_hero_global_auras() {
 		const auto civ0 = s.player(0).civ;
 		s.player(0).civ = CIV_IBERIANS;
 		s.set_player_resources(0, 1000, 1000, 1000, 1000);
+		s.player(0).phase = 2; // the Iberian spearman is a Town phase unit in 0.28
 		const uint32_t ib = s.spawn_building_world(-40, -40, BLD_BARRACKS, 0, 1.0f);
 		const float f0 = s.player(0).food();
 		check(s.cmd_train_template(0, ib, spear, 1) && near1(f0 - s.player(0).food(), 42.0f), "a batch of one pays floor(42.5) = 42");
 		check(s.cmd_train_template(0, ib, spear, 2) && near1(f0 - s.player(0).food(), 42.0f + 85.0f), "a batch of two pays floor(85) = 85");
 		s.player(0).civ = civ0;
+		s.player(0).phase = 1;
 	}
 	// Pericles' Periclean Building: technologies -10% cost and half the research time;
 	// Themistocles' Long Walls: walls half the stone. A garrisoned hero still projects them.

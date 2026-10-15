@@ -187,8 +187,8 @@ int main() {
 		k.player(0).phase = 3;
 		const uint32_t camp = k.spawn_building(-20, -20, BLD_ARMY_CAMP, 0, 1.0f);
 		CHECK(k.cmd_train(0, camp, UNIT_SIEGE_RAM));
-		const rtso::Building *b = nullptr;
-		for (const rtso::Building &x : k.buildings()) if (x.id == camp) b = &x;
+		const Simulation::Building *b = nullptr;
+		for (const Simulation::Building &x : k.buildings()) if (x.id == camp) b = &x;
 		CHECK(b && !b->queue.empty() && b->queue.back().tmpl == roster_id("athen/siege_ram"));
 		CHECK(!k.cmd_train(0, camp, UNIT_CAVALRY));
 		const uint32_t crannog = k.spawn_building(20, -20, BLD_CRANNOG, 0, 1.0f);
