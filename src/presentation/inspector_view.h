@@ -534,7 +534,7 @@ public:
 						rtso::seldet::build_work_caption(work.builders, work.remaining)));
 				build_tip = build_work_tooltip(work);
 			} else {
-				stats_->set_text(String());
+				stats_->set_text(supply_lines(*sim, sim->field_resource_id(found->id)));
 			}
 			stats_->set_tooltip_text(rtso::seldet::join_lines({build_tip, structure_tooltip(*sim, *found)}));
 			return true;
@@ -587,16 +587,7 @@ public:
 		// resourceSection ("Wood:" and amount / max, ∞ for a field) and the gatherers count
 		// (current / max, "Current/max gatherers").
 		(void)kind;
-		int gatherers = 0;
-		{
-			auto uv = sim->units();
-			for (size_t i = 0; i < uv.count; ++i)
-				if (uv.alive[i] && uv.target_resource_id[i] == rv.id[r] && uv.action_state[i] == rtso::ACTION_GATHER) ++gatherers;
-		}
-		stats_->set_text(rtso::seldet::resource_label(rv.type[r]) + " " +
-				rtso::seldet::resource_amount(rv.amount[r], sim->resource_supply_max(rv.id[r]),
-						rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY) +
-				"\n" + rtso::seldet::amount_of(gatherers, sim->resource_max_gatherers(rv.id[r])));
+		stats_->set_text(supply_lines(*sim, rv.id[r]));
 		stats_->set_tooltip_text(rtso::tr0("Current/max gatherers"));
 		return true;
 	}
@@ -717,7 +708,8 @@ public:
 					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sd.arrows) + " arrows of " +
 							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
 							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
-				stats_->set_text(status);
+				// A field's resourceSection: "Food: ∞" and its gatherers.
+				stats_->set_text(rtso::seldet::join_lines({status, supply_lines(*sim, sim->field_resource_id(found_b->id))}));
 				// Beside the Barter panel when it shows.
 				const bool barter = barter_host_ && barter_host_->is_visible();
 				if (barter) {
@@ -937,6 +929,24 @@ private:
 			pts[0] = 0.0f;
 		}
 		set_capture_parts(sim, b.team, pts, b.max_capture_points);
+	}
+
+	// selection_details.js resourceSection of a ResourceSupply (a tree, a mine, a field): "Wood:" and
+	// amount / max (∞ for a field), then its gatherers, current / max. Empty without a supply.
+	static String supply_lines(const rtso::Simulation &sim, uint32_t res_id) {
+		if (!res_id) return String();
+		auto rv = sim.resources();
+		size_t r = 0;
+		for (; r < rv.count; ++r)
+			if (rv.id[r] == res_id) break;
+		if (r == rv.count || !rv.alive[r]) return String();
+		int gatherers = 0;
+		auto uv = sim.units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.alive[i] && uv.target_resource_id[i] == res_id && uv.action_state[i] == rtso::ACTION_GATHER) ++gatherers;
+		return rtso::seldet::resource_label(rv.type[r]) + " " +
+				rtso::seldet::resource_amount(rv.amount[r], sim.resource_supply_max(res_id), rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY) +
+				"\n" + rtso::seldet::amount_of(gatherers, sim.resource_max_gatherers(res_id));
 	}
 
 	static String join_spaced(const String &a, const String &b) { return b.is_empty() ? a : a + String("  ") + b; }

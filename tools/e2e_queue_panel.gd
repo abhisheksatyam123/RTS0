@@ -66,7 +66,7 @@ func run() -> void:
 			rl = n
 	var pick := 0
 	for i in rl.item_count:
-		if not rl.is_item_disabled(i) and rl.get_item_text(i).contains("Artisan"):
+		if not rl.is_item_disabled(i) and rl.get_item_tooltip(i).contains("Artisan"):
 			pick = i
 	print("1. A batch bigger than the population room")
 	await key(KEY_SHIFT, true)

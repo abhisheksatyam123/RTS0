@@ -429,6 +429,10 @@ public:
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
 	// or -1 when the unit has no next rank.
 	float promotion_required_xp(size_t i) const;
+	// 0 A.D. Identity Rank: only units whose template has a rank (citizen infantry,
+	// cavalry, elephants, healers; the ones with Promotion) show the Basic rank icon.
+	bool unit_has_rank(size_t i) const;
+	void debug_add_xp(uint32_t unit_id, float xp) { if (const int32_t i = lookup_unit(unit_id); i >= 0) gain_xp((size_t)i, xp); } // tests
 	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
