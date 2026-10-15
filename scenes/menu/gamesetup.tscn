@@ -511,22 +511,6 @@ offset_bottom = -10.0
 text = "Map preview"
 autowrap_mode = 2
 
-[node name="CivPreview" type="HBoxContainer" parent="VBox/HBox/Right"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="Crest" type="TextureRect" parent="VBox/HBox/Right/CivPreview"]
-custom_minimum_size = Vector2(56, 56)
-layout_mode = 2
-expand_mode = 1
-stretch_mode = 5
-
-[node name="CivLabel" type="Label" parent="VBox/HBox/Right/CivPreview"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Civilization"
-autowrap_mode = 2
-
 [node name="SlotsBox" type="VBoxContainer" parent="VBox/HBox/Right"]
 layout_mode = 2
 theme_override_constants/separation = 4

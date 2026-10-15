@@ -27,21 +27,21 @@ const SLOT_COLUMNS := 6
 
 const RefCommon := preload("res://scenes/reference/reference_common.gd")
 const CIVS := [
-	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
-	{"id": 1, "code": "spart", "name": "Spartans", "emblem": "res://assets/textures/ui/emblems/spartans.png", "blurb": "Agoge: +35% HP and +25% melee for citizen-soldiers and champions."},
-	{"id": 2, "code": "pers", "name": "Persians", "emblem": "res://assets/textures/ui/emblems/persians.png", "blurb": "Achaemenid trade: +25% market gain, faster cavalry production."},
-	{"id": 3, "code": "rome", "name": "Romans", "emblem": "res://assets/textures/ui/emblems/romans.png", "blurb": "Legionary discipline: +30% build rate, heavy legionary armor."},
-	{"id": 4, "code": "cart", "name": "Carthaginians", "emblem": "res://assets/textures/ui/emblems/carthaginians.png", "blurb": "Naval mastery and war elephants. Elite mercenary forces."},
-	{"id": 5, "code": "mace", "name": "Macedonians", "emblem": "res://assets/textures/ui/emblems/macedonians.png", "blurb": "Sarissa phalanx and companion cavalry shock charges."},
-	{"id": 6, "code": "brit", "name": "Britons", "emblem": "res://assets/textures/ui/emblems/britons.png", "blurb": "Celtic chariot raiders, war dogs, and rotary mills."},
-	{"id": 7, "code": "gaul", "name": "Gauls", "emblem": "res://assets/textures/ui/emblems/gauls.png", "blurb": "Carnyx morale aura and fearless broadsword champions."},
-	{"id": 8, "code": "iber", "name": "Iberians", "emblem": "res://assets/textures/ui/emblems/iberians.png", "blurb": "Balearic slingers, fast cavalry, +20% mining rate."},
-	{"id": 9, "code": "maur", "name": "Mauryans", "emblem": "res://assets/textures/ui/emblems/mauryans.png", "blurb": "Worker elephants, archer maidens, high economic stamina."},
-	{"id": 10, "code": "kush", "name": "Kushites", "emblem": "res://assets/textures/ui/emblems/kushites.png", "blurb": "Bleeding and poison arrows. Nubian archers, pyramid shrines."},
-	{"id": 11, "code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png", "blurb": "Mercenary camps, camel raiders, +30% trade gain."},
-	{"id": 12, "code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png", "blurb": "Silver shields, cataphracts, and scythed chariots."},
-	{"id": 13, "code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png", "blurb": "Crossbowmen, war chariots and imperial ministers."},
-	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/germans.png", "blurb": "Seeresses: champion healers in City Phase. Wheel-axe champions and the hero Teutobod."},
+	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png"},
+	{"id": 1, "code": "spart", "name": "Spartans", "emblem": "res://assets/textures/ui/emblems/spartans.png"},
+	{"id": 2, "code": "pers", "name": "Persians", "emblem": "res://assets/textures/ui/emblems/persians.png"},
+	{"id": 3, "code": "rome", "name": "Romans", "emblem": "res://assets/textures/ui/emblems/romans.png"},
+	{"id": 4, "code": "cart", "name": "Carthaginians", "emblem": "res://assets/textures/ui/emblems/carthaginians.png"},
+	{"id": 5, "code": "mace", "name": "Macedonians", "emblem": "res://assets/textures/ui/emblems/macedonians.png"},
+	{"id": 6, "code": "brit", "name": "Britons", "emblem": "res://assets/textures/ui/emblems/britons.png"},
+	{"id": 7, "code": "gaul", "name": "Gauls", "emblem": "res://assets/textures/ui/emblems/gauls.png"},
+	{"id": 8, "code": "iber", "name": "Iberians", "emblem": "res://assets/textures/ui/emblems/iberians.png"},
+	{"id": 9, "code": "maur", "name": "Mauryans", "emblem": "res://assets/textures/ui/emblems/mauryans.png"},
+	{"id": 10, "code": "kush", "name": "Kushites", "emblem": "res://assets/textures/ui/emblems/kushites.png"},
+	{"id": 11, "code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png"},
+	{"id": 12, "code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png"},
+	{"id": 13, "code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png"},
+	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/germans.png"},
 ]
 ## A slot's "civ" is the rtso::Civilization id (14 is Gaia, never listed); this one is "Random".
 const RANDOM_CIV := -1
@@ -822,12 +822,70 @@ func _unhandled_input(event: InputEvent) -> void:
 	if MAP_BROWSER_HOTKEY in fired:
 		get_viewport().set_input_as_handled()
 		_open_map_browser()
+	elif "civinfo" in fired or "structree" in fired:
+		get_viewport().set_input_as_handled()
+		open_civ_reference(0 if "civinfo" in fired else 1)
+	elif "cancel" in fired and get_node_or_null("CivReference"):
+		get_viewport().set_input_as_handled()
+		get_node("CivReference").queue_free()
 	elif "cancel" in fired and _tab >= 0:
 		get_viewport().set_input_as_handled()
 		select_tab(-1)
 	elif ("tab.next" in fired or "tab.prev" in fired) and not _focus_is_text():
 		get_viewport().set_input_as_handled()
 		select_tab(TAB_BUTTONS_JS.next_index(_tab, 1 if "tab.next" in fired else -1, TAB_BUTTONS.size()))
+
+## CivInfoButton: the Civilization Overview (0) or Structure Tree (1) over the setup, on
+## slot 1's civilization; the two hotkeys switch between them (pageLoop) and the
+## button reopens the last one viewed.
+var _civ_ref_tab := 0
+func open_civ_reference(tab: int) -> void:
+	_civ_ref_tab = tab
+	var layer := get_node_or_null("CivReference") as CanvasLayer
+	if layer:
+		(layer.find_child("Pages", true, false) as TabContainer).current_tab = tab
+		return
+	layer = CanvasLayer.new()
+	layer.name = "CivReference"
+	layer.layer = 20
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(dim)
+	var panel := PanelContainer.new()
+	panel.theme = theme
+	panel.theme_type_variation = "ModernDialogContainer"
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.offset_left = 40
+	panel.offset_top = 30
+	panel.offset_right = -40
+	panel.offset_bottom = -30
+	layer.add_child(panel)
+	var vbox := VBoxContainer.new()
+	panel.add_child(vbox)
+	var tabs := TabContainer.new()
+	tabs.name = "Pages"
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(tabs)
+	var civinfo = load("res://scenes/reference/civinfo_page.gd").new()
+	var tree = load("res://scenes/reference/structree_page.gd").new()
+	tabs.add_child(civinfo)
+	tabs.add_child(tree)
+	civinfo.civ_changed.connect(tree.set_civ)
+	tree.civ_changed.connect(civinfo.set_civ)
+	var civ := _slot_civ(0)
+	if _civ_pos(civ) >= 0: # not Random
+		civinfo.set_civ.call_deferred(civ)
+		tree.set_civ.call_deferred(civ)
+	tabs.current_tab = tab
+	tabs.tab_changed.connect(func(i): _civ_ref_tab = i)
+	var close := Button.new()
+	close.text = tr("Close")
+	close.custom_minimum_size = Vector2(160, 32)
+	close.size_flags_horizontal = Control.SIZE_SHRINK_END
+	close.pressed.connect(layer.queue_free)
+	vbox.add_child(close)
+	add_child(layer)
 
 ## MapFilters.getFilteredMaps: the maps of the type the filter matches, by
 ## name, after the Random entry for random maps; keeps the selected map if listed.
@@ -1033,8 +1091,6 @@ func _update_preview() -> void:
 		img.texture = null if m.is_empty() else map_preview(str(m["id"]))
 		img.visible = img.texture != null
 		if info: info.offset_left = 192.0 if img.visible else 12.0
-	var crest := $VBox/HBox/Right/CivPreview/Crest as TextureRect
-	var civ_lbl := $VBox/HBox/Right/CivPreview/CivLabel as Label
 	if m.is_empty():
 		if lbl: lbl.text = "No map selected."
 		return
@@ -1045,13 +1101,6 @@ func _update_preview() -> void:
 		if _slot_rows.size() > 0 and int(_slot_rows[0]["kind"]) == 1:
 			lbl.text += "\nNo Human slot: you watch the AIs play with the map revealed."
 	_update_description()
-	# Civ preview follows slot 0 (the human player).
-	var civ := _civ_pos(_slot_civ(0))
-	if crest and civ >= 0:
-		var tex: Texture2D = load(CIVS[civ]["emblem"])
-		if tex: crest.texture = tex
-	if civ_lbl and civ >= 0:
-		civ_lbl.text = "%s\n%s" % [CIVS[civ]["name"], CIVS[civ]["blurb"]]
 
 ## 0.28 Panels/GameDescription.js: getGameDescription of the settings as they
 ## stand, a line per setting, under the Map Preview's name and description.
@@ -1192,6 +1241,22 @@ func _build_slot_headings() -> void:
 		l.text = tr(h)
 		l.clip_text = true
 		header.add_child(l)
+	# Panels/Buttons/CivInfoButton.js: the info icon at the Civilization heading's end.
+	var info := Button.new()
+	info.name = "CivInfoButton"
+	info.text = "i"
+	info.flat = true
+	info.add_theme_color_override("font_color", Color(0.95, 0.8, 0.3))
+	info.add_theme_color_override("font_hover_color", Color.WHITE)
+	info.custom_minimum_size = Vector2(16, 16)
+	info.size = Vector2(16, 16)
+	var ck: Array = _hotkeys.get_hotkey_map().get("civinfo", [])
+	var sk: Array = _hotkeys.get_hotkey_map().get("structree", [])
+	info.tooltip_text = L10n.sprintf(L10n.t("%(hotkey_civinfo)s / %(hotkey_structree)s: View Civilization Overview / Structure Tree\nLast opened will be reopened on click."),
+		{"hotkey_civinfo": ", ".join(PackedStringArray(ck)) if not ck.is_empty() else L10n.t("Unassigned"),
+		"hotkey_structree": ", ".join(PackedStringArray(sk)) if not sk.is_empty() else L10n.t("Unassigned")})
+	info.pressed.connect(func(): open_civ_reference(_civ_ref_tab))
+	header.add_child(info)
 	var grid := _slots_grid()
 	grid.sort_children.connect(_place_slot_headings)
 	# PlayerColor.render: each row on its player's colour (alpha 100 of 255).
@@ -1216,6 +1281,10 @@ func _place_slot_headings() -> void:
 		if c < cells.size():
 			l.position = Vector2((cells[c] as Control).position.x, 0.0)
 			l.size = Vector2((cells[c] as Control).size.x if c < grid.columns - 1 else maxf((cells[c] as Control).size.x, 48.0), header.size.y)
+	var info := header.get_node_or_null("CivInfoButton") as Control
+	if info and cells.size() > 2:
+		var cc: Control = cells[2]
+		info.position = Vector2(cc.position.x + cc.size.x - 18.0, 2.0)
 	grid.queue_redraw()
 
 func _slots_grid() -> GridContainer:
