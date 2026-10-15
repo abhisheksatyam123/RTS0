@@ -19,6 +19,10 @@
 //     two blocked navcells that share a corner (plain Bresenham steps through those).
 //  7. A find_path start or goal on a blocked navcell moves to the nearest open navcell, as 0 A.D.'s
 //     FindNearestPassableNavcell and MakeGoalReachable do, not to the first one a scan meets.
+//  8. With the open cells as bits (nav::JpsBits, as NavGrid keeps its nodes), the straight scans
+//     stop on the same cells: every query gives the same path, reach, cost and expansions on grids
+//     whose sides are and aren't whole words, up to 512 a side, and a JpsBuffers kept from search to
+//     search (cleared only where the last search wrote) gives what a fresh one does.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/grid_nav.h"
 
@@ -274,6 +278,56 @@ int main() {
 		for (int i = 0; i < wp.count; ++i) below = below || wp.zs[i] < -24.0f;
 		if (!ok2 || wp.count < 1 || below)
 			fail("a goal on a wall snaps to its far side", 0, 20, 24, 20, 20, wp.count, 1);
+	}
+	{
+		int queries = 0, differ = 0;
+		nav::JpsBuffers kept;
+		static const int sizes[][2] = {{70, 130}, {128, 128}, {512, 512}, {65, 63}};
+		for (int g = 0; g < 24; ++g) {
+			const int w = sizes[g % 4][0], h = sizes[g % 4][1];
+			Rng rng{static_cast<uint32_t>(g) * 2246822519u + 7u};
+			std::vector<uint8_t> open(static_cast<size_t>(w) * static_cast<size_t>(h));
+			const int density = 5 + (g * 7) % 40;
+			for (uint8_t &o : open) o = rng.range(100) >= density ? 1 : 0;
+			for (int k = rng.range(6); k > 0; --k) { // walls with a gap
+				const bool vert = rng.range(2) == 0;
+				const int at = rng.range(vert ? w : h), len = vert ? h : w, gap = rng.range(len);
+				for (int t = 0; t < len; ++t)
+					if (t != gap) open[vert ? static_cast<size_t>(t) * w + at : static_cast<size_t>(at) * w + t] = 0;
+			}
+			const int rw = (w + 63) / 64, cw = (h + 63) / 64;
+			std::vector<uint64_t> rows(static_cast<size_t>(h) * rw, 0), cols(static_cast<size_t>(w) * cw, 0);
+			for (int y = 0; y < h; ++y)
+				for (int x = 0; x < w; ++x)
+					if (open[static_cast<size_t>(y) * w + x]) {
+						rows[static_cast<size_t>(y) * rw + x / 64] |= uint64_t{1} << (x % 64);
+						cols[static_cast<size_t>(x) * cw + y / 64] |= uint64_t{1} << (y % 64);
+					}
+			nav::JpsBits bits;
+			bits.row_words = rw;
+			bits.col_words = cw;
+			bits.rows = rows.data();
+			bits.cols = cols.data();
+			auto pass = [&](int x, int y) { return open[static_cast<size_t>(y) * w + x] != 0; };
+			for (int q = 0; q < 40; ++q) {
+				int sx, sy, tx, ty;
+				do { sx = rng.range(w); sy = rng.range(h); } while (!pass(sx, sy));
+				tx = rng.range(w);
+				ty = rng.range(h); // open or not: a closed goal is never reached
+				std::vector<std::pair<int, int>> a, b, c;
+				nav::JpsStats sa, sb, sc;
+				const bool ra = nav::compute_jps_path(w, h, pass, sx, sy, tx, ty, a, &sa);
+				const bool rb = nav::compute_jps_path(w, h, pass, sx, sy, tx, ty, b, &sb, nullptr, &bits);
+				const bool rc = nav::compute_jps_path(w, h, pass, sx, sy, tx, ty, c, &sc, &kept, &bits);
+				++queries;
+				if (ra != rb || ra != rc || a != b || a != c || sa.cost != sb.cost || sa.cost != sc.cost || sa.steps != sb.steps ||
+						sa.steps != sc.steps || sa.pushes != sb.pushes) {
+					++differ;
+					fail("bit scans find another path than cell scans", g, sx, sy, tx, ty, static_cast<long>(sb.cost), static_cast<long>(sa.cost));
+				}
+			}
+		}
+		std::printf("  bit scans: %d of %d queries differ from the cell scans\n", differ, queries);
 	}
 	if (segments_clipping) fail("find_path segments pass through blocked navcells", 0, 0, 0, 0, 0, segments_clipping, 0);
 	if (lines_through_blocked) fail("line_clear accepts lines through blocked navcells", 0, 0, 0, 0, 0, lines_through_blocked, lines);

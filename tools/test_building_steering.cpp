@@ -81,6 +81,33 @@
 //     rock (one raised height sample, steep tiles inside a navcell that is not steep) is walked
 //     round, never within the walker's clearance; an elephant and a swordsman sent to the foot of a
 //     one-tile cliff stop 3 m and 0.8 m off it; a walk round an oak beside the rock always ends.
+// 27. Thin ridges: a ridge of steep tiles narrower than a navcell, whose navcells aren't steep (soak:
+//     workers and garrisons stood for good at the margin of such cliffs, stacked on one point). 0.28
+//     plans long paths on the passability grid units move on, so a walk across it, a return to a
+//     storehouse behind it and a garrison into a tower whose near side is its margin all go round
+//     its end and get there; so does a return that still holds a path across it (laid before, or in
+//     a saved game), which HandleObstructedMove plans again; and a spearman hunting a deer beyond it
+//     reaches it along a path with waypoints closer than its reach, and kills it (MoveToTargetRange
+//     measures the range to the animal, not to a waypoint).
+// 28. A ridge the navcells miss, from the map's edge: a walk, a walk to a dropsite and a gatherer's
+//     return across it all go round its one end, 50 units past them, instead of standing against it.
+// 29. A pass the navcells close: a ridge across the whole map along a navcell corner line, so every
+//     navcell along it is steep, but for a pass one tile wide whose tiles are level. The same three
+//     walks take the pass, as 0.28's long path does, instead of stopping on the near side.
+// 30. Large units and a one-tile gap: the thin ridge of 27 with a gap one tile wide. A swordsman
+//     takes the gap; an elephant and a ram, whose 3 m clearance ("large", ExpandImpassableCells per
+//     class) the gap doesn't leave, go round the ridge's end instead of standing in the gap for good.
+// 31. Large units and a two-tile gap: 0.28's 3 m expansion of the steep tiles either side leaves 2 m
+//     of an 8 m gap open. Elephants, rams and swordsmen given a player's walk on lines through the
+//     gap off its middle all take the gap and get to their point, which stays where it was.
+// 32. A tree in a one-tile gap: 0.28 rasterizes each tree, grown by the class clearance, onto the
+//     long paths' navcells, so a tree in the gap of 30 shuts it. A swordsman and a horseman walking
+//     across the ridge go round its end instead of into the tree (or through it); once it is felled,
+//     through the gap.
+// 33. A structure beside a one-tile gap (soak: map 16 seed 9, a horseman stood for good between steep
+//     tiles and a structure's edge): a house across the gap's far end, on a navcell it only partly
+//     covers, which stays open. No unit fits between it and the ridge, as 0.28's 1 m navcells show,
+//     so walks across the gap go round the ridge's end instead of into the house.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -1500,6 +1527,458 @@ static void tree_gap_dead_end() {
 	check(back >= 0.0f, "the short path turns back at a tree gap that trees behind it close");
 }
 
+// 27. Thin ridges. Heights every unit, as in cliff_clearance_setup, and the samples along x = 1 for
+// z in [-40, 30] raised 3: the tiles x 0 to 2 there are steep, the navcells holding them (their
+// corners at even x, flat) are not, and the way round is past the ridge's north end, 31 units up,
+// further than a short path searches. With thick_middle the samples at x = 0 and x = 2 are raised
+// too for z in [-4, 4], so the navcells either side of the ridge there are steep: a line across it
+// there crosses navcells no land unit can (line_crosses_impassable), and an attacker closing in is
+// pathed. With gap tiles, the samples at z = 0 to gap are left flat: a gap that many tiles wide.
+static void thin_ridge_setup(Simulation &s, bool thick_middle = false, int gap = 0) {
+	setup(s);
+	constexpr int RES = 129;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+			bool raised = x == 1.0f && z >= -40.0f && z <= 30.0f;
+			raised = raised || (thick_middle && (x == 0.0f || x == 2.0f) && z >= -4.0f && z <= 4.0f);
+			if (gap > 0 && z >= 0.0f && z <= (float)gap) raised = false;
+			h[(size_t)j * RES + i] = raised ? 3.0f : 0.0f;
+		}
+	s.set_terrain_data(h, RES, -1.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+}
+
+static void thin_ridges() {
+	{
+		Simulation s;
+		thin_ridge_setup(s);
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(1.0f, 0.0f);
+		check(s.nav_grid_.near_steep_tile(1.0f, 0.0f, 0.0f) && !s.nav_grid_.is_steep(cx, cy),
+				"the ridge is not steep tiles in navcells that are not steep");
+		const uint32_t id = s.spawn_unit(-6.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		s.cmd_move(&id, 1, 6.0f, 0.0f);
+		int arrived = -1, near = 0;
+		for (int t = 0; t < 2400 && arrived < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			near += s.nav_grid_.near_steep_tile(s.units_.pos_x[i], s.units_.pos_z[i], CLEARANCE_DEFAULT - 0.01f);
+			if (std::hypot(s.units_.pos_x[i] - 6.0f, s.units_.pos_z[i]) < 0.5f) arrived = t;
+		}
+		std::printf("  thin ridge: a walk across it arrived after %d ticks (-1 = never in 2400), %d ticks within its clearance of it\n",
+				arrived, near);
+		check(arrived >= 0, "a walk across a thin ridge never got round it");
+		check(near == 0, "a walker came within its clearance of a thin ridge");
+	}
+	{
+		// RETURNRESOURCE.APPROACHING to a storehouse across the ridge.
+		Simulation s;
+		thin_ridge_setup(s);
+		const uint32_t store = s.spawn_building_world(7.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t woman = s.spawn_unit(-6.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const int w = index_of(s, woman);
+		s.units_.res_type_carried[w] = RES_WOOD;
+		s.units_.carry[w] = 10;
+		const int wood0 = s.player_resource(0, RES_WOOD);
+		s.order_return_resource(&woman, 1, store);
+		int dropped = -1;
+		for (int t = 0; t < 2400 && dropped < 0; ++t) {
+			s.tick(DT);
+			if (s.player_resource(0, RES_WOOD) >= wood0 + 10) dropped = t;
+		}
+		const int i = index_of(s, woman);
+		std::printf("  thin ridge: a woman returning wood across it dropped it after %d ticks (-1 = never in 2400), last at (%.2f, %.2f)\n",
+				dropped, s.units_.pos_x[i], s.units_.pos_z[i]);
+		check(dropped >= 0, "a woman never got round a thin ridge to her storehouse");
+	}
+	{
+		// The same return, but the woman still holds the path straight across the ridge that a long
+		// path on the navcells alone gave (a game saved before, or a path laid before the tiles were
+		// looked at): she walks to the ridge's margin, can't go on, and HandleObstructedMove plans the
+		// path again (ShouldAlternatePathfinder) instead of leaving her there for good.
+		Simulation s;
+		thin_ridge_setup(s);
+		const uint32_t store = s.spawn_building_world(7.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t woman = s.spawn_unit(-6.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		int w = index_of(s, woman);
+		s.units_.res_type_carried[w] = RES_WOOD;
+		s.units_.carry[w] = 10;
+		const int wood0 = s.player_resource(0, RES_WOOD);
+		s.order_return_resource(&woman, 1, store);
+		s.tick(DT);
+		w = index_of(s, woman);
+		const float gx = s.units_.target_x[w], gz = s.units_.target_z[w];
+		WaypointPath &wp = s.unit_paths_[w];
+		wp.clear();
+		wp.push_back(-1.0f, 0.0f);
+		wp.push_back(3.0f, 0.0f);
+		wp.push_back(gx, gz);
+		wp.has_goal = true;
+		wp.goal_x = gx;
+		wp.goal_z = gz;
+		s.units_.waypoint_cur[w] = 0;
+		s.units_.waypoint_count[w] = (int16_t)wp.count;
+		int dropped = -1, at_ridge = -1;
+		for (int t = 0; t < 2400 && dropped < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, woman);
+			if (at_ridge < 0 && s.units_.pos_x[i] > -0.6f) at_ridge = t;
+			if (s.player_resource(0, RES_WOOD) >= wood0 + 10) dropped = t;
+		}
+		const int i = index_of(s, woman);
+		std::printf("  thin ridge: a woman holding a path across it reached its margin after %d ticks, dropped the wood after %d "
+				"(-1 = never in 2400), last at (%.2f, %.2f)\n", at_ridge, dropped, s.units_.pos_x[i], s.units_.pos_z[i]);
+		check(at_ridge >= 0, "a woman holding a path across a thin ridge never walked up to it");
+		check(dropped >= 0, "a woman holding a path across a thin ridge never planned it again");
+	}
+	{
+		// GARRISON.APPROACHING a tower whose west face, the side the unit comes from, is the ridge's
+		// margin: the point beside it on that side is no place to stand.
+		Simulation s;
+		thin_ridge_setup(s);
+		const float hu = building_type_info(BLD_TOWER).footprint * Simulation::GRID * 0.5f;
+		const uint32_t tower = s.spawn_building_world(2.0f + hu, 0.0f, BLD_TOWER, 0, 1.0f);
+		const uint32_t id = s.spawn_unit(-6.0f, 0.5f, 0, UNIT_SPEARMAN);
+		s.order_garrison(&id, 1, tower);
+		const int i0 = index_of(s, id);
+		const float aim_x = s.units_.target_x[i0], aim_z = s.units_.target_z[i0];
+		int in = -1;
+		float last_x = -6.0f, last_z = 0.5f;
+		for (int t = 0; t < 2400 && in < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			if (i < 0 || !s.units().alive[i]) in = t;
+			else last_x = s.units_.pos_x[i], last_z = s.units_.pos_z[i];
+		}
+		std::printf("  thin ridge: a spearman sent into a tower beside it aimed at (%.2f, %.2f), got in after %d ticks "
+				"(-1 = never in 2400), last seen at (%.2f, %.2f)\n", aim_x, aim_z, in, last_x, last_z);
+		check(!s.nav_grid_.near_steep_tile(aim_x, aim_z, CLEARANCE_DEFAULT), "a garrison walk aimed at a point within a cliff's margin");
+		check(in >= 0, "a unit never got round a thin ridge into the tower beside it");
+	}
+	{
+		// A hunt across the ridge's thick middle: the spearman's line to the deer crosses steep
+		// navcells, so it is pathed, and the path goes round the ridge's end on the tiles, its corner
+		// waypoints closer together than the spearman's reach. It stops for the deer, not for them.
+		Simulation s;
+		thin_ridge_setup(s, true);
+		const uint32_t deer = s.spawn_fauna(6.0f, 0.5f, FAUNA_DEER);
+		s.fauna_.hp[s.fauna_id_to_idx_.at(deer)] = 1.0f; // one blow kills it
+		const uint32_t id = s.spawn_unit(-6.0f, 0.5f, 0, UNIT_SPEARMAN);
+		s.order_hunt(&id, 1, deer);
+		int killed = -1, near = 0, max_path = 0, stalled = 0;
+		for (int t = 0; t < 1200 && killed < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			near += s.nav_grid_.near_steep_tile(s.units_.pos_x[i], s.units_.pos_z[i], CLEARANCE_DEFAULT - 0.01f);
+			max_path = std::max(max_path, (int)s.units_.waypoint_count[i]);
+			const auto f = s.fauna_id_to_idx_.find(deer);
+			if (f == s.fauna_id_to_idx_.end() || !s.fauna_.alive[f->second] || s.fauna_.hp[f->second] <= 0.0f) {
+				killed = t;
+				break;
+			}
+			// Standing still while the deer is well out of a spear's reach: stopped short of it.
+			const float dx = s.fauna_.pos_x[f->second] - s.units_.pos_x[i], dz = s.fauna_.pos_z[f->second] - s.units_.pos_z[i];
+			const float v2 = s.units_.vel_x[i] * s.units_.vel_x[i] + s.units_.vel_z[i] * s.units_.vel_z[i];
+			stalled += v2 < 1e-4f && dx * dx + dz * dz > 3.0f * 3.0f;
+		}
+		const int i = index_of(s, id);
+		std::printf("  thin ridge: a spearman hunting a deer beyond it, along a path of up to %d waypoints, killed it after %d ticks "
+				"(-1 = never in 1200), stood still out of reach %d ticks, %d ticks within its clearance of the ridge, "
+				"last at (%.2f, %.2f)\n", max_path, killed, stalled, near, s.units_.pos_x[i], s.units_.pos_z[i]);
+		check(max_path >= 2, "a hunter across a thick ridge was not pathed");
+		check(killed >= 0, "a melee hunter never reached a deer beyond a thin ridge");
+		check(stalled < 20, "a melee hunter stopped short of a deer beyond a thin ridge");
+		check(near == 0, "a hunter came within its clearance of a thin ridge");
+	}
+}
+
+// 28. A ridge the navcells miss. Heights every unit (a terrain tile a unit), and a ridge along z, 3
+// high on the line x = 1 and flat at x = 0 and x = 2, from the map's south edge to z = 30: the tiles
+// either side of it are steep, the 2-unit navcells holding them (their corners all at 0) are not.
+// Beyond z = 30 the ground is flat. A long path over the navcells runs straight across the ridge,
+// where no land unit may step, and the way round is far beyond a short path's reach.
+// 29. A pass the navcells close: the ridge on the line x = 0 instead, a navcell corner line, across
+// the whole map but for a pass one tile wide (the height samples at z = 11 and z = 12 left flat).
+// Every navcell along the ridge is steep by its corners, the pass among them, so the navcells split
+// the map; the tiles of the pass are level, and 0.28's navcells, which take their tiles' slopes,
+// leave the pass open.
+static void ridge_setup(Simulation &s, bool pass) {
+	setup(s);
+	constexpr int RES = 129;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+			const bool ridge = pass ? x == 0.0f && z != 11.0f && z != 12.0f : x == 1.0f && z < 30.0f;
+			h[(size_t)j * RES + i] = ridge ? 3.0f : 0.0f;
+		}
+	s.set_terrain_data(h, RES, -1.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+}
+
+// From west of the ridge to east of it: a walk (kind 0), a walk to a dropsite (1, Petra's
+// ReturnResource) or a gatherer's return with its load (2, GATHER.RETURNINGRESOURCE). Sets the tick
+// it got there (-1: never in 4800) and the ticks spent within its clearance of a steep tile.
+static void walk_across_ridge(bool pass, int kind, int &done, int &near) {
+	Simulation s;
+	ridge_setup(s, pass);
+	const uint32_t store = s.spawn_building_world(12.0f, -20.0f, BLD_STOREHOUSE, 0, 1.0f);
+	s.spawn_building_world(30.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f); // its territory, so it doesn't decay
+	uint32_t id = s.spawn_unit(-8.0f, -20.0f, 0, kind ? UNIT_VILLAGER : UNIT_SWORDSMAN, 0.0f);
+	int i = index_of(s, id);
+	const int wood0 = s.player_resource(0, RES_WOOD);
+	if (kind == 0) {
+		s.cmd_move(&id, 1, 8.0f, -20.0f);
+	} else if (kind == 1) {
+		s.units_.carry[i] = 10.0f;
+		s.units_.res_type_carried[i] = RES_WOOD;
+		s.order_return_resource(&id, 1, store);
+	} else {
+		const uint32_t tree = s.spawn_resource_world(-10.0f, -20.0f, RES_WOOD, 5000);
+		s.order_gather(&id, 1, tree);
+	}
+	done = -1;
+	near = 0;
+	for (int t = 0; t < 4800 && done < 0; ++t) {
+		s.tick(DT);
+		i = index_of(s, id);
+		near += s.nav_grid_.near_steep_tile(s.units_.pos_x[i], s.units_.pos_z[i], CLEARANCE_DEFAULT - 0.01f);
+		if (kind == 0 ? std::hypot(s.units_.pos_x[i] - 8.0f, s.units_.pos_z[i] + 20.0f) < 0.5f
+		              : s.player_resource(0, RES_WOOD) > wood0)
+			done = t;
+	}
+}
+
+static void ridge_from_map_edge_and_pass() {
+	static const char *what[] = {"a walk", "a walk to a dropsite", "a gatherer's return"};
+	{
+		Simulation s;
+		ridge_setup(s, false);
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(1.0f, -20.0f);
+		check(s.nav_grid_.near_steep_tile(1.0f, -20.0f, 0.0f) && !s.nav_grid_.is_steep(cx, cy),
+				"the ridge is not steep tiles in navcells that are not steep");
+		check(s.petra_access_at(-10.0f, -20.0f) == s.petra_access_at(10.0f, -20.0f), "the ridge cut the land");
+	}
+	// 28. All three go round the ridge's end, as 0.28's long path, planned on the tiles' slopes, does,
+	// and never come within their clearance of a steep tile.
+	for (int kind = 0; kind < 3; ++kind) {
+		int done, near;
+		walk_across_ridge(false, kind, done, near);
+		std::printf("  ridge the navcells miss: %s across it got there after %d ticks (-1 = never in 4800), %d ticks within its "
+				"clearance of a steep tile\n", what[kind], done, near);
+		check(done >= 0, "a unit never got round a ridge its navcells miss");
+		check(near == 0, "a unit came within its clearance of a ridge");
+	}
+	{
+		Simulation s;
+		ridge_setup(s, true);
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(0.5f, 11.5f);
+		check(!s.nav_grid_.near_steep_tile(0.5f, 11.5f, CLEARANCE_DEFAULT) && s.nav_grid_.is_steep(cx, cy),
+				"the pass is not level tiles in a navcell that is steep");
+	}
+	// 29. All three go through the pass instead of stopping at the navcell nearest the far side.
+	for (int kind = 0; kind < 3; ++kind) {
+		int done, near;
+		walk_across_ridge(true, kind, done, near);
+		std::printf("  pass the navcells close: %s across the ridge got there after %d ticks (-1 = never in 4800), %d ticks "
+				"within its clearance of a steep tile\n", what[kind], done, near);
+		check(done >= 0, "a unit never took a pass its navcells close");
+		check(near == 0, "a unit came within its clearance of the ridge by the pass");
+	}
+}
+
+// 30. Large units and a one-tile gap in a thin ridge. The gap's tiles leave a swordsman (0.8 m
+// clearance) room; an elephant's or a ram's 3 m reaches the steep tiles either side, so 0.28's
+// "large" class (ExpandImpassableCells grows impassable terrain by it) has no way through there.
+static void large_units_and_one_tile_gap() {
+	{
+		Simulation s;
+		thin_ridge_setup(s, false, 1);
+		check(!s.nav_grid_.near_steep_tile(0.5f, 0.5f, CLEARANCE_DEFAULT) && s.nav_grid_.near_steep_tile(0.5f, 0.5f, CLEARANCE_LARGE),
+				"the gap is not open to the default class and closed to the large one");
+	}
+	struct Walker { UnitType type; bool large; const char *name; };
+	for (const Walker w : {Walker{UNIT_SWORDSMAN, false, "a swordsman"}, Walker{UNIT_ELEPHANT, true, "an elephant"},
+			Walker{UNIT_SIEGE_RAM, true, "a ram"}}) {
+		Simulation s;
+		thin_ridge_setup(s, false, 1);
+		const uint32_t id = s.spawn_unit(-6.0f, 0.5f, 0, w.type);
+		s.cmd_move(&id, 1, 6.0f, 0.5f);
+		const float c = w.large ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
+		int arrived = -1, near = 0;
+		float max_dev = 0.0f;
+		for (int t = 0; t < 4800 && arrived < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			if (i < 0) break;
+			near += s.nav_grid_.near_steep_tile(s.units_.pos_x[i], s.units_.pos_z[i], c - 0.01f);
+			max_dev = std::max(max_dev, std::fabs(s.units_.pos_z[i] - 0.5f));
+			if (std::hypot(s.units_.pos_x[i] - 6.0f, s.units_.pos_z[i] - 0.5f) < 1.0f) arrived = t;
+		}
+		std::printf("  one-tile gap: %s arrived after %d ticks (-1 = never in 4800), at most %.1f off the gap's line, %d ticks "
+				"within its clearance of the ridge\n", w.name, arrived, max_dev, near);
+		check(arrived >= 0, "a unit never got across a thin ridge with a one-tile gap");
+		check(near == 0, "a unit came within its clearance of a thin ridge");
+		if (w.large) check(max_dev > 20.0f, "a large unit was sent through a gap narrower than its clearance");
+		else check(max_dev < 1.0f, "a swordsman went round a thin ridge instead of through its gap");
+	}
+}
+
+// 31. Large units and a two-tile gap in a thin ridge: the gap's tiles lie at z 0 to 2, and its middle,
+// the line z = 1 of tile corners, keeps 1 unit (4 m) off the steep tiles either side, more than the
+// large class's 3 m. Lines through the gap at z 0.3, 1 and 1.7: each walker is set down west of the
+// ridge on one and given a player's walk (beach_goal) to the point east of it on the same line.
+static void large_units_and_two_tile_gap() {
+	{
+		Simulation s;
+		thin_ridge_setup(s, false, 2);
+		check(!s.nav_grid_.near_steep_tile(1.0f, 1.0f, CLEARANCE_LARGE) && s.nav_grid_.near_steep_tile(1.0f, 0.5f, CLEARANCE_LARGE) &&
+				s.nav_grid_.near_steep_tile(1.0f, 1.5f, CLEARANCE_LARGE),
+				"the gap's middle line is not open to the large class, or its tiles' centres are");
+	}
+	struct Walker { UnitType type; bool large; const char *name; };
+	for (const float line : {0.3f, 1.0f, 1.7f})
+		for (const Walker w : {Walker{UNIT_ELEPHANT, true, "an elephant"}, Walker{UNIT_SIEGE_RAM, true, "a ram"},
+				Walker{UNIT_SWORDSMAN, false, "a swordsman"}}) {
+			Simulation s;
+			thin_ridge_setup(s, false, 2);
+			const uint32_t id = s.spawn_unit(-6.0f, line, 0, w.type);
+			s.order_walk(&id, 1, 6.0f, line, false, true);
+			const int i0 = index_of(s, id);
+			const bool kept = s.units_.target_x[i0] == 6.0f && s.units_.target_z[i0] == line;
+			const float c = w.large ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
+			int arrived = -1, near = 0;
+			float max_dev = 0.0f;
+			for (int t = 0; t < 2400 && arrived < 0; ++t) {
+				s.tick(DT);
+				const int i = index_of(s, id);
+				if (i < 0) break;
+				near += s.nav_grid_.near_steep_tile(s.units_.pos_x[i], s.units_.pos_z[i], c - 0.01f);
+				max_dev = std::max(max_dev, std::fabs(s.units_.pos_z[i] - 1.0f));
+				if (std::hypot(s.units_.pos_x[i] - 6.0f, s.units_.pos_z[i] - line) < 0.5f) arrived = t;
+			}
+			std::printf("  two-tile gap: %s walking along z = %.1f %s its point, arrived after %d ticks (-1 = never in 2400), "
+					"at most %.1f off the gap's middle, %d ticks within its clearance of the ridge\n",
+					w.name, line, kept ? "kept" : "lost", arrived, max_dev, near);
+			check(kept, "a player's walk through a two-tile gap had its point moved");
+			check(arrived >= 0, "a unit never got through a two-tile gap in a thin ridge");
+			check(near == 0, "a unit came within its clearance of a thin ridge");
+			check(max_dev < 3.0f, "a unit went round a thin ridge instead of through its two-tile gap");
+		}
+}
+
+// The walks of 32 across the thin ridge with a one-tile gap: a player's walk from (-6, sz) to
+// (gx, gz), whose line crosses the ridge by the gap. Sets the tick the unit got there (-1: never in
+// 4800), the furthest it went from z = 0 (round the ridge's end: past 30), the ticks it spent within
+// its clearance of a steep tile and its deepest overlap with a tree.
+static void walk_across_gap(Simulation &s, UnitType type, float sz, float gx, float gz, int &arrived, float &far_z, int &near,
+		float &pen) {
+	const uint32_t id = s.spawn_unit(-6.0f, sz, 0, type);
+	s.order_walk(&id, 1, gx, gz, false, true);
+	arrived = -1;
+	near = 0;
+	far_z = 0.0f;
+	pen = 0.0f;
+	for (int t = 0; t < 4800 && arrived < 0; ++t) {
+		s.tick(DT);
+		const int i = index_of(s, id);
+		if (i < 0) break;
+		pen = std::max(pen, gaia_penetration(s));
+		near += s.nav_grid_.near_steep_tile(s.units_.pos_x[i], s.units_.pos_z[i], CLEARANCE_DEFAULT - 0.01f);
+		far_z = std::max(far_z, std::fabs(s.units_.pos_z[i]));
+		if (std::hypot(s.units_.pos_x[i] - gx, s.units_.pos_z[i] - gz) < 0.5f) arrived = t;
+	}
+}
+
+// 32. A tree in a one-tile gap: a 1.6 m tree (template_gaia_tree) in the middle of the gap of 30, and
+// walks along the gap's line, from (-6, 0.5) to (6, 0.5), and across it, from (-6, 4) to (6, -3).
+static void tree_in_one_tile_gap() {
+	struct Walker { UnitType type; const char *name; };
+	struct Line { float sz, gz; };
+	for (const Walker w : {Walker{UNIT_SWORDSMAN, "a swordsman"}, Walker{UNIT_CAVALRY, "a horseman"}})
+		for (const Line l : {Line{0.5f, 0.5f}, Line{4.0f, -3.0f}}) {
+			Simulation s;
+			thin_ridge_setup(s, false, 1);
+			const uint32_t tree = s.spawn_resource_world(1.0f, 0.5f, RES_WOOD, 200);
+			s.tick(DT);
+			const float half = s.resource_block_half(s.res_id_to_idx_.at(tree));
+			int arrived, near;
+			float far_z, pen;
+			walk_across_gap(s, w.type, l.sz, 6.0f, l.gz, arrived, far_z, near, pen);
+			std::printf("  tree in a one-tile gap (half size %.2f): %s from (-6, %.1f) to (6, %.1f) arrived after %d ticks (-1 = never "
+					"in 4800), at most %.1f from z = 0, %d ticks within its clearance of the ridge, max penetration %.3f\n",
+					half, w.name, l.sz, l.gz, arrived, far_z, near, pen);
+			check(half + 2.0f * CLEARANCE_DEFAULT > 0.5f, "the tree leaves a unit room beside it in the gap");
+			check(arrived >= 0, "a walk across a thin ridge whose gap a tree shuts never got there");
+			check(near == 0, "a unit came within its clearance of a thin ridge");
+			check(pen <= MAX_PENETRATION, "a unit walked through a tree in a gap in a thin ridge");
+			check(far_z > 30.0f, "a unit was sent through a gap a tree shuts");
+		}
+	{
+		// Felled: the gap opens again (Simulation::sync_tile_obstructions at the end of the tick).
+		Simulation s;
+		thin_ridge_setup(s, false, 1);
+		const uint32_t tree = s.spawn_resource_world(1.0f, 0.5f, RES_WOOD, 200);
+		s.tick(DT);
+		s.resources_.amount[s.res_id_to_idx_.at(tree)] = 0;
+		s.tick(DT);
+		const bool gone = s.res_id_to_idx_.find(tree) == s.res_id_to_idx_.end();
+		int arrived, near;
+		float far_z, pen;
+		walk_across_gap(s, UNIT_SWORDSMAN, 4.0f, 6.0f, -3.0f, arrived, far_z, near, pen);
+		std::printf("  tree in a one-tile gap, felled (%s): a swordsman arrived after %d ticks (-1 = never in 4800), at most %.1f "
+				"from z = 0, %d ticks within its clearance of the ridge\n", gone ? "gone" : "still there", arrived, far_z, near);
+		check(gone, "a tree with nothing left in it was not removed");
+		check(arrived >= 0 && far_z < 5.0f, "a swordsman didn't take a gap once the tree in it was felled");
+		check(near == 0, "a unit came within its clearance of a thin ridge");
+	}
+}
+
+// 33. A structure beside a one-tile gap: a house (2 units a side) at (3.05, -0.3), its west face 0.05
+// off the ridge, its north face at z 0.7, across the gap's east end. It covers the navcell x 2 to 4,
+// z 0 to 2 only in part, which stays open. Walks to the far side along the gap's line, from (-6, 0.5)
+// to (6, 0.5), and across it, from (-6, 3.5) to (6, -2.5).
+static void structure_beside_one_tile_gap() {
+	struct Walker { UnitType type; const char *name; };
+	for (const Walker w : {Walker{UNIT_SWORDSMAN, "a swordsman"}, Walker{UNIT_CAVALRY, "a horseman"}})
+		for (const float sz : {0.5f, 3.5f}) {
+			Simulation s;
+			thin_ridge_setup(s, false, 1);
+			s.spawn_building_world(3.05f, -0.3f, BLD_HOUSE, 0, 1.0f);
+			const auto [cx, cy] = s.nav_grid_.world_to_cell(2.1f, 0.5f);
+			const bool cell_open = s.nav_grid_.cells.at(cx, cy) != NAV_OBSTRUCTED;
+			const float gz = sz == 0.5f ? 0.5f : -2.5f;
+			const uint32_t id = s.spawn_unit(-6.0f, sz, 0, w.type);
+			s.order_walk(&id, 1, 6.0f, gz, false, true);
+			int arrived = -1, near = 0;
+			float far_z = 0.0f, pen = 0.0f;
+			for (int t = 0; t < 4800 && arrived < 0; ++t) {
+				s.tick(DT);
+				const int i = index_of(s, id);
+				if (i < 0) break;
+				pen = std::max(pen, max_penetration(s));
+				near += s.nav_grid_.near_steep_tile(s.units_.pos_x[i], s.units_.pos_z[i], CLEARANCE_DEFAULT - 0.01f);
+				far_z = std::max(far_z, std::fabs(s.units_.pos_z[i]));
+				if (std::hypot(s.units_.pos_x[i] - 6.0f, s.units_.pos_z[i] - gz) < 0.5f) arrived = t;
+			}
+			std::printf("  house beside a one-tile gap (its navcell by the gap %s): %s from (-6, %.1f) to (6, %.1f) arrived after %d "
+					"ticks (-1 = never in 4800), at most %.1f from z = 0, %d ticks within its clearance of the ridge, max "
+					"penetration %.3f\n", cell_open ? "open" : "closed", w.name, sz, gz, arrived, far_z, near, pen);
+			check(cell_open, "the house closes the navcell it only partly covers");
+			check(arrived >= 0, "a walk across a thin ridge whose gap a house shuts never got there");
+			check(near == 0, "a unit came within its clearance of a thin ridge");
+			check(pen <= MAX_PENETRATION, "a unit walked through a house beside a thin ridge");
+			check(far_z > 30.0f, "a unit was sent between a house and a thin ridge where it can't fit");
+		}
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -1528,6 +2007,12 @@ int main() {
 	repair_in_house_cluster();
 	cliff_clearance();
 	tree_gap_dead_end();
+	thin_ridges();
+	ridge_from_map_edge_and_pass();
+	large_units_and_one_tile_gap();
+	large_units_and_two_tile_gap();
+	tree_in_one_tile_gap();
+	structure_beside_one_tile_gap();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

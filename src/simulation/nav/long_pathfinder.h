@@ -17,7 +17,13 @@
 //     of clearing the open list (e.g. LongPathfinder.cpp:537 `state.open.clear()`).
 //     The vendor shortcut can return a longer path; pushing keeps JPS optimal.
 //   - No JumpPointCache. 0 A.D. ships with m_UseJPSCache = false too, and on a
-//     64x64 grid the linear scans are cheaper than rebuilding the cache.
+//     64x64 grid the linear scans are cheaper than rebuilding the cache. A caller
+//     that keeps its open cells as bits (JpsBits: NavGrid's nodes, 512 a side on
+//     a 256 map) has the straight scans read 64 cells a step instead; they stop
+//     on the same cells.
+//   - The search's per-tile state and open list can live in a JpsBuffers the
+//     caller keeps (NavGrid keeps one per thread), as 0 A.D. keeps one
+//     PathfinderState per LongPathfinder: a search reallocates nothing.
 //   - Point goals only; PathGoal shapes and MakeGoalReachable are handled by the
 //     caller (NavGrid::find_path) before the search runs.
 //   - Out-of-bounds cells read as impassable (0 A.D. relies on an impassable
@@ -70,10 +76,97 @@ inline bool jps_on_the_way(int i, int j, int di, int dj, int iGoal, int jGoal) {
 	return true;
 }
 
+// An open-list entry: PriorityQueueHeap's item, f = g + h.
+struct JpsOpenItem {
+	uint32_t f;
+	uint32_t h;
+	uint32_t g;
+	int id;
+};
+
+// The state of one search (0 A.D. PathfinderState's tiles grid and open list), kept between searches
+// so a caller that runs many (NavGrid::find_path, from each worker thread) allocates it once. Every
+// search resets what it reads, so a result never depends on the search before it.
+struct JpsBuffers {
+	std::vector<uint8_t> status;
+	std::vector<uint32_t> cost;
+	std::vector<int> pred;
+	std::vector<JpsOpenItem> open; // a binary heap (std::push_heap / std::pop_heap), as std::priority_queue keeps it
+	std::vector<int> touched;      // the tiles whose status the last search set, which the next one clears
+};
+
+// A grid's open cells as bits, for the straight scans: cell (x, y) is bit x % 64 of
+// rows[y * row_words + x / 64] and bit y % 64 of cols[x * col_words + y / 64]; bits past the
+// grid's edge are 0. The caller keeps them as its passability callable answers.
+struct JpsBits {
+	int row_words = 0, col_words = 0;
+	const uint64_t *rows = nullptr;
+	const uint64_t *cols = nullptr;
+};
+
+inline int jps_lowest_bit(uint64_t v) {
+#if defined(__GNUC__) || defined(__clang__)
+	return __builtin_ctzll(v);
+#else
+	int n = 0;
+	while (!(v & 1)) v >>= 1, ++n;
+	return n;
+#endif
+}
+inline int jps_highest_bit(uint64_t v) {
+#if defined(__GNUC__) || defined(__clang__)
+	return 63 - __builtin_clzll(v);
+#else
+	int n = 63;
+	while (!(v >> 63)) v <<= 1, --n;
+	return n;
+#endif
+}
+
+// HasJumpedHoriz / HasJumpedVert on a line of cells kept as bits (a row, or a column), words
+// words long, beside lines a and b (null past the grid's edge): from `start` in direction dir
+// (+1 or -1), the first cell that is closed or past the end gives `start` (no jump point); else the
+// first that is the goal (goal: its place on the line, or -1) or has a forced neighbour, a cell on
+// line a or b that is open where the one before it is closed, gives its place.
+inline int jps_scan_bits(const uint64_t *line, const uint64_t *a, const uint64_t *b, int words, int start, int dir, int goal) {
+	if (dir > 0) {
+		const int x0 = start + 1;
+		for (int k = x0 >> 6; k < words; ++k) {
+			const uint64_t l = line[k];
+			uint64_t stop = ~l;
+			if (a) stop |= a[k] & ~((a[k] << 1) | (k > 0 ? a[k - 1] >> 63 : 0));
+			if (b) stop |= b[k] & ~((b[k] << 1) | (k > 0 ? b[k - 1] >> 63 : 0));
+			if (goal >= 0 && (goal >> 6) == k) stop |= uint64_t{1} << (goal & 63);
+			if (k == (x0 >> 6)) stop &= ~uint64_t{0} << (x0 & 63);
+			if (stop) {
+				const int x = (k << 6) + jps_lowest_bit(stop);
+				return (l >> (x & 63)) & 1 ? x : start;
+			}
+		}
+		return start;
+	}
+	const int x0 = start - 1;
+	if (x0 < 0) return start;
+	for (int k = x0 >> 6; k >= 0; --k) {
+		const uint64_t l = line[k];
+		uint64_t stop = ~l;
+		if (a) stop |= a[k] & ~((a[k] >> 1) | (k + 1 < words ? a[k + 1] << 63 : 0));
+		if (b) stop |= b[k] & ~((b[k] >> 1) | (k + 1 < words ? b[k + 1] << 63 : 0));
+		if (goal >= 0 && (goal >> 6) == k) stop |= uint64_t{1} << (goal & 63);
+		if (k == (x0 >> 6) && (x0 & 63) != 63) stop &= (uint64_t{1} << ((x0 & 63) + 1)) - 1;
+		if (stop) {
+			const int x = (k << 6) + jps_highest_bit(stop);
+			return (l >> (x & 63)) & 1 ? x : start;
+		}
+	}
+	return start;
+}
+
 template <typename PassFn>
 class LongPathfinder {
 public:
-	LongPathfinder(int w, int h, PassFn passable) : w_(w), h_(h), passable_(passable) {}
+	LongPathfinder(int w, int h, PassFn passable, JpsBuffers *buffers = nullptr, const JpsBits *bits = nullptr)
+		: w_(w), h_(h), passable_(passable), bits_(bits), buf_(buffers ? *buffers : own_) {}
 
 	// Finds a path from (i0,j0) to (iGoal,jGoal). On success `cells` holds the
 	// start cell, every jump point, and the goal cell, in walking order; each
@@ -87,7 +180,7 @@ public:
 		iGoal_ = iGoal;
 		jGoal_ = jGoal;
 		reset_tiles();
-		open_ = OpenList();
+		buf_.open.clear();
 		steps_ = 0;
 		pushes_ = 0;
 
@@ -95,19 +188,21 @@ public:
 		iBest_ = i0;
 		jBest_ = j0;
 		hBest_ = jps_heuristic(i0, j0, iGoal, jGoal);
-		status_[start] = STATUS_OPEN;
-		cost_[start] = 0;
-		pred_[start] = start;
-		open_.push({hBest_, hBest_, 0, start});
+		buf_.status[start] = STATUS_OPEN;
+		buf_.touched.push_back(start);
+		buf_.cost[start] = 0;
+		buf_.pred[start] = start;
+		open_push({hBest_, hBest_, 0, start});
 
 		bool reached = false;
-		while (!open_.empty()) {
-			const OpenItem cur = open_.top();
-			open_.pop();
+		while (!buf_.open.empty()) {
+			const OpenItem cur = buf_.open.front();
+			std::pop_heap(buf_.open.begin(), buf_.open.end(), OpenGreater());
+			buf_.open.pop_back();
 			// Lazy deletion stands in for PriorityQueueHeap::promote().
-			if (status_[cur.id] == STATUS_CLOSED || cur.g != cost_[cur.id]) continue;
+			if (buf_.status[cur.id] == STATUS_CLOSED || cur.g != buf_.cost[cur.id]) continue;
 			++steps_;
-			status_[cur.id] = STATUS_CLOSED;
+			buf_.status[cur.id] = STATUS_CLOSED;
 			const int i = cur.id % w_;
 			const int j = cur.id / w_;
 
@@ -119,8 +214,8 @@ public:
 				break;
 			}
 
-			const uint32_t g = cost_[cur.id];
-			const int p = pred_[cur.id];
+			const uint32_t g = buf_.cost[cur.id];
+			const int p = buf_.pred[cur.id];
 			int dpi = p % w_ - i;
 			int dpj = p / w_ - j;
 			dpi = dpi < 0 ? -1 : (dpi > 0 ? 1 : 0);
@@ -175,14 +270,14 @@ public:
 		while (true) {
 			cells.emplace_back(cur % w_, cur / w_);
 			if (cur == start) break;
-			cur = pred_[cur];
+			cur = buf_.pred[cur];
 		}
 		std::reverse(cells.begin(), cells.end());
 
 		if (stats) {
 			stats->steps = steps_;
 			stats->pushes = pushes_;
-			stats->cost = cost_[idx(iBest_, jBest_)];
+			stats->cost = buf_.cost[idx(iBest_, jBest_)];
 		}
 		return reached;
 	}
@@ -190,12 +285,7 @@ public:
 private:
 	enum : uint8_t { STATUS_UNEXPLORED = 0, STATUS_OPEN = 1, STATUS_CLOSED = 2 };
 
-	struct OpenItem {
-		uint32_t f;
-		uint32_t h;
-		uint32_t g;
-		int id;
-	};
+	using OpenItem = JpsOpenItem;
 	// PriorityQueueHeap order: lowest f first, ties broken by lowest h; the id
 	// tie-break keeps the search fully deterministic across platforms.
 	struct OpenGreater {
@@ -205,7 +295,11 @@ private:
 			return a.id > b.id;
 		}
 	};
-	using OpenList = std::priority_queue<OpenItem, std::vector<OpenItem>, OpenGreater>;
+	// std::priority_queue's push: append, then sift up (pop: std::pop_heap, then drop the last).
+	void open_push(const OpenItem &item) {
+		buf_.open.push_back(item);
+		std::push_heap(buf_.open.begin(), buf_.open.end(), OpenGreater());
+	}
 
 	bool inside(int i, int j) const { return i >= 0 && i < w_ && j >= 0 && j < h_; }
 	int idx(int i, int j) const { return j * w_ + i; }
@@ -214,19 +308,26 @@ private:
 
 	void reset_tiles() {
 		const size_t n = static_cast<size_t>(w_) * static_cast<size_t>(h_);
-		status_.assign(n, STATUS_UNEXPLORED);
-		// cost_ and pred_ are only read for tiles whose status was set during this
+		// Every status the last search set is listed in touched: on a grid of the same size only those
+		// need clearing.
+		if (buf_.status.size() == n) {
+			for (const int t : buf_.touched) buf_.status[static_cast<size_t>(t)] = STATUS_UNEXPLORED;
+		} else {
+			buf_.status.assign(n, STATUS_UNEXPLORED);
+		}
+		buf_.touched.clear();
+		// cost and pred are only read for tiles whose status was set during this
 		// search (the start tile, or a tile that process_neighbour opened), so they
-		// need no zero fill. Uninitialised storage keeps every result identical.
-		cost_.reset(new uint32_t[n]);
-		pred_.reset(new int[n]);
+		// need no fill: what an earlier search left there keeps every result identical.
+		if (buf_.cost.size() < n) buf_.cost.resize(n);
+		if (buf_.pred.size() < n) buf_.pred.resize(n);
 	}
 
 	// LongPathfinder::ProcessNeighbour (LongPathfinder.cpp:409).
 	void process_neighbour(int pi, int pj, int i, int j, uint32_t pg) {
 		if (!pass(i, j)) return;
 		const int n = idx(i, j);
-		if (status_[n] == STATUS_CLOSED) return;
+		if (buf_.status[n] == STATUS_CLOSED) return;
 
 		uint32_t dg;
 		if (pi == i)
@@ -239,21 +340,22 @@ private:
 		const uint32_t g = pg + dg;
 		const uint32_t h = jps_heuristic(i, j, iGoal_, jGoal_);
 
-		if (status_[n] == STATUS_UNEXPLORED) {
+		if (buf_.status[n] == STATUS_UNEXPLORED) {
 			// Remember the best tile so far, in case we never reach the target
 			if (h < hBest_) {
 				hBest_ = h;
 				iBest_ = i;
 				jBest_ = j;
 			}
-		} else if (g >= cost_[n]) {
+			buf_.touched.push_back(n);
+		} else if (g >= buf_.cost[n]) {
 			return;
 		}
 
-		status_[n] = STATUS_OPEN;
-		cost_[n] = g;
-		pred_[n] = idx(pi, pj);
-		open_.push({g + h, h, g, n});
+		buf_.status[n] = STATUS_OPEN;
+		buf_.cost[n] = g;
+		buf_.pred[n] = idx(pi, pj);
+		open_push({g + h, h, g, n});
 		++pushes_;
 	}
 
@@ -271,6 +373,11 @@ private:
 
 	// HasJumpedHoriz: i-coordinate of the next jump point, or i if none.
 	int has_jumped_horiz(int i, int j, int di, bool detectGoal) const {
+		if (bits_) {
+			const uint64_t *row = bits_->rows + static_cast<size_t>(j) * static_cast<size_t>(bits_->row_words);
+			return jps_scan_bits(row, j > 0 ? row - bits_->row_words : nullptr, j + 1 < h_ ? row + bits_->row_words : nullptr,
+					bits_->row_words, i, di, detectGoal && j == jGoal_ ? iGoal_ : -1);
+		}
 		int ni = i + di;
 		while (true) {
 			if (!pass(ni, j)) return i;
@@ -282,6 +389,11 @@ private:
 
 	// HasJumpedVert: j-coordinate of the next jump point, or j if none.
 	int has_jumped_vert(int i, int j, int dj, bool detectGoal) const {
+		if (bits_) {
+			const uint64_t *col = bits_->cols + static_cast<size_t>(i) * static_cast<size_t>(bits_->col_words);
+			return jps_scan_bits(col, i > 0 ? col - bits_->col_words : nullptr, i + 1 < w_ ? col + bits_->col_words : nullptr,
+					bits_->col_words, j, dj, detectGoal && i == iGoal_ ? jGoal_ : -1);
+		}
 		int nj = j + dj;
 		while (true) {
 			if (!pass(i, nj)) return j;
@@ -333,6 +445,7 @@ private:
 	int w_;
 	int h_;
 	PassFn passable_;
+	const JpsBits *bits_ = nullptr;
 	int iGoal_ = 0;
 	int jGoal_ = 0;
 	int iBest_ = 0;
@@ -340,16 +453,15 @@ private:
 	uint32_t hBest_ = 0;
 	uint32_t steps_ = 0;
 	uint32_t pushes_ = 0;
-	std::vector<uint8_t> status_;
-	std::unique_ptr<uint32_t[]> cost_;
-	std::unique_ptr<int[]> pred_;
-	OpenList open_;
+	JpsBuffers own_; // when the caller keeps none (declared before buf_, which may refer to it)
+	JpsBuffers &buf_;
 };
 
 template <typename PassFn>
 inline bool compute_jps_path(int w, int h, PassFn passable, int i0, int j0, int iGoal, int jGoal,
-		std::vector<std::pair<int, int>> &cells, JpsStats *stats = nullptr) {
-	LongPathfinder<PassFn> pf(w, h, passable);
+		std::vector<std::pair<int, int>> &cells, JpsStats *stats = nullptr, JpsBuffers *buffers = nullptr,
+		const JpsBits *bits = nullptr) {
+	LongPathfinder<PassFn> pf(w, h, passable, buffers, bits);
 	return pf.compute_path(i0, j0, iGoal, jGoal, cells, stats);
 }
 

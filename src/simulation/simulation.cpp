@@ -305,6 +305,41 @@ static void stand_outside(const B &b, uint32_t uid, float from_x, float from_z, 
 	*oz = w.y;
 }
 
+// MoveToTargetRange's goal is the band round the structure within range, and MakeGoalReachable
+// (HierarchicalPathfinder.cpp) takes the navcell of that goal nearest the unit that it can reach,
+// where stand_outside's point is the band's nearest point whether a unit can stand there and walk
+// to it or not. One that `blocked` refuses (a cliff's margin, deep water, ground the unit can't get
+// to) moves to the nearest point to (from_x, from_z) of the band `off` out from the footprint that
+// it doesn't refuse, tested every quarter unit round it. It stays put when the whole band is refused.
+template <class B, class Blocked>
+static void stand_outside_clear(const B &b, float from_x, float from_z, float off, Blocked &&blocked, float *ox, float *oz) {
+	if (!blocked(*ox, *oz)) return;
+	const float hu = b.hu + off, hv = b.hv + off;
+	constexpr float STEP = 0.25f;
+	float best = -1.0f, bx = *ox, bz = *oz;
+	auto consider = [&](float lu, float lv) {
+		const nav::Vec2 w = nav::footprint_world(b, lu, lv);
+		const float dx = w.x - from_x, dz = w.y - from_z, d = dx * dx + dz * dz;
+		if ((best >= 0.0f && d >= best) || blocked(w.x, w.y)) return;
+		best = d;
+		bx = w.x;
+		bz = w.y;
+	};
+	const int nu = std::max(1, (int)std::ceil(2.0f * hu / STEP)), nv = std::max(1, (int)std::ceil(2.0f * hv / STEP));
+	for (int k = 0; k < nu; ++k) {
+		const float t = -hu + 2.0f * hu * (float)k / (float)nu;
+		consider(t, -hv);
+		consider(-t, hv);
+	}
+	for (int k = 0; k < nv; ++k) {
+		const float t = -hv + 2.0f * hv * (float)k / (float)nv;
+		consider(hu, t);
+		consider(-hu, -t);
+	}
+	*ox = bx;
+	*oz = bz;
+}
+
 static bool outside_and_in_build_range(const Simulation::Building &b, float x, float z, float radius) {
 	if (nav::footprint_aligned(b)) return outside_and_in_build_range(b.x, b.z, b.hu, b.hv, x, z, radius);
 	const nav::Vec2 l = nav::footprint_local(b, x, z);
@@ -1484,9 +1519,12 @@ void Simulation::rebuild_nav_grid() {
 			}
 	}
 	// Off-world passability (CCmpPathfinder::UpdateGrid): on a circular map every navcell whose
-	// centre lies past its edge is impassable to every class, ships included.
+	// centre lies past its edge is impassable to every class, ships included. The nodes of the long
+	// paths on the terrain tiles take the edge at their own spacing (NavGrid::point_terrain_open).
+	nav_grid_.edge_r = 0.0f;
 	if (circular_map()) {
 		const float r = map_half_ - MAP_EDGE_DIST, r2 = r * r;
+		nav_grid_.edge_r = r;
 		for (int y = 0; y < nav_grid_.res; ++y) {
 			const float wz = nav_origin.y + ((float)y + 0.5f) * nav_cell;
 			for (int x = 0; x < nav_grid_.res; ++x) {
@@ -1505,8 +1543,119 @@ void Simulation::rebuild_nav_grid() {
 	} else if (!nav_grid_.dirty.blank()) {
 		nav_grid_.dirty.fill(1);
 	}
+	sync_tile_obstructions(true);
 	nav_grid_.rebuild_dirty_regions();
 	++nav_terrain_stamp_;
+}
+
+// The static obstructions the nodes of the long paths on the terrain tiles keep units off
+// (NavGrid::set_tile_obstructions), as CCmpObstructionManager::Rasterize puts the static shapes
+// that BlockPathfinding onto 0.28's navcells. With `structures`, the ones rebuild_nav_grid closes
+// navcells for (structures, an unlocked gate's sides, scenery, mines) are listed afresh; the trees,
+// bushes and treasures (ensure_gaia_obstacles) are, with or without, when they have changed: when
+// the signature of their ids and places isn't the one NavGrid keeps with their list (init() forgets
+// it with the list). rebuild_nav_grid calls it with, tick() without at its end, so a game and the
+// same game loaded from a save (which rebuilds the nav grid) hold the same lists whenever a path is
+// planned.
+// Without a steep tile, or on tiles no finer than the navcells (a 512 map), the nodes aren't kept
+// and nothing reads the lists; the terrain changes only in rebuild_nav_grid, which lists them
+// before the nodes are worked out.
+void Simulation::sync_tile_obstructions(bool structures) {
+	using TileObs = NavGrid::TileObstruction;
+	if (!nav_grid_.tile_paths_on()) return;
+	auto flora_live = [&](size_t r) {
+		const uint8_t t = resources_.type[r];
+		return resources_.subtype[r] == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD) && resources_.alive[r] &&
+				resources_.amount[r] > 0;
+	};
+	// Supplies and treasures keep their place and size, so their ids and places name the Gaia list.
+	uint64_t h = 1469598103934665603ull;
+	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
+	auto place = [](float x, float z) {
+		uint32_t a, b;
+		std::memcpy(&a, &x, sizeof a);
+		std::memcpy(&b, &z, sizeof b);
+		return (uint64_t)a << 32 | b;
+	};
+	for (size_t r = 0; r < resources_.count; ++r)
+		if (flora_live(r)) {
+			mix(resources_.id[r]);
+			mix(place(resources_.x[r], resources_.z[r]));
+		}
+	mix(~uint64_t{0});
+	for (const Treasure &t : treasures_) {
+		mix(t.id);
+		mix(place(t.x, t.z));
+	}
+	if (h == 0) h = 1; // 0 is NavGrid's "none"
+	const bool gaia_listed = h == nav_grid_.tile_obs_sig_[NavGrid::TILE_OBS_GAIA];
+	if (!structures && gaia_listed) return;
+
+	std::vector<TileObs> &list = tile_obs_scratch_;
+	// Keys: the kind, then the entity id, then which part of it.
+	enum : uint64_t { K_BUILDING = 1, K_GATE_SIDE, K_SCENERY, K_MINE, K_FLORA, K_TREASURE };
+	auto put = [&](uint64_t kind, uint32_t id, uint32_t part, float x, float z, float ux, float uz, float hu, float hv) {
+		TileObs o;
+		o.key = (kind << 56) | ((uint64_t)id << 2) | part;
+		o.x = x;
+		o.z = z;
+		// Square with the map: u = (1, 0) (nav/footprint.h), the half sizes along x and z.
+		if (std::fabs(uz) < 1e-6f) {
+			ux = 1.0f;
+			uz = 0.0f;
+		} else if (std::fabs(ux) < 1e-6f) {
+			ux = 1.0f;
+			uz = 0.0f;
+			std::swap(hu, hv);
+		}
+		o.ux = ux;
+		o.uz = uz;
+		o.hu = hu;
+		o.hv = hv;
+		list.push_back(o);
+	};
+	auto by_key = [](const TileObs &a, const TileObs &b) { return a.key < b.key; };
+	if (structures) {
+		list.clear();
+		for (const auto &b : buildings_) {
+			const nav::Vec2 u = nav::footprint_u(b);
+			// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
+			if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
+				uint32_t side = 0;
+				for_each_gate_side(b, [&](float x, float z, float hu) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, b.hv); });
+				continue;
+			}
+			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
+			if ((b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
+			put(K_BUILDING, b.id, 0, b.x, b.z, u.x, u.y, b.hu, b.hv);
+		}
+		for (const Scenery &sc : scenery_)
+			put(K_SCENERY, sc.id, 0, sc.x, sc.z, std::cos(sc.angle), -std::sin(sc.angle), sc.half_w, sc.half_d);
+		for (size_t r = 0; r < resources_.count; ++r) {
+			nav::Footprint m;
+			if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
+			put(K_MINE, resources_.id[r], 0, m.x, m.z, m.ux, m.uz, m.hu, m.hv);
+		}
+		std::sort(list.begin(), list.end(), by_key);
+		nav_grid_.set_tile_obstructions(NavGrid::TILE_OBS_STRUCTURES, list);
+	}
+	if (gaia_listed) return;
+	list.clear();
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!flora_live(r)) continue;
+		const float half = resource_block_half(r);
+		put(K_FLORA, resources_.id[r], 0, resources_.x[r], resources_.z[r], 1.0f, 0.0f, half, half);
+	}
+	for (const Treasure &t : treasures_) {
+		const auto &ti = treasure_type_info(t.type);
+		const float hw = ti.width * 0.125f, hd = ti.depth * 0.125f; // metres to half-extents in world units
+		float ux, uz;
+		bool swapped;
+		nav::footprint_axis(treasure_angle(t.id), ux, uz, swapped);
+		put(K_TREASURE, t.id, 0, t.x, t.z, ux, uz, swapped ? hd : hw, swapped ? hw : hd);
+	}
+	std::sort(list.begin(), list.end(), by_key);
+	nav_grid_.set_tile_obstructions(NavGrid::TILE_OBS_GAIA, list, h);
 }
 
 void Simulation::rebuild_territory() {
@@ -1643,6 +1792,17 @@ void Simulation::rebuild_territory_grids() {
 // clearance from the shore) for warships and transports (grid_nav.h PASS_WARSHIP).
 static uint8_t unit_ship_pass(uint8_t type) {
 	return type == UNIT_FISHING_BOAT || type == UNIT_MERCHANT_SHIP ? PASS_SHIP : PASS_WARSHIP;
+}
+
+// A land unit's long-path class: PASS_CAVALRY for the mounted, PASS_INFANTRY for the rest, and
+// PASS_LARGE for 0 A.D.'s "large" class (siege, elephants, wagons, chariots: unit_is_large), whose
+// 3 m Clearance find_path keeps off steep terrain tiles, deep water and static obstructions where
+// it plans on the tiles' nodes (NavGrid::find_path_tiles).
+static_assert(NavGrid::TILE_PATH_CLEARANCE == CLEARANCE_DEFAULT && NavGrid::TILE_PATH_CLEARANCE_LARGE == CLEARANCE_LARGE,
+		"the tile pass keeps the classes' own clearances");
+static uint8_t unit_land_pass(uint8_t type, uint16_t tmpl) {
+	const bool mounted = type == UNIT_CAVALRY || type == UNIT_CHARIOT || type == UNIT_CAMEL || type == UNIT_SCYTHED_CHARIOT;
+	return (mounted ? PASS_CAVALRY : PASS_INFANTRY) | (unit_is_large(tmpl, type) ? PASS_LARGE : 0);
 }
 
 // Whether the straight walk from (x0, z0) to (x1, z1) crosses a navcell no land unit can cross:
@@ -5037,13 +5197,8 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 		units_.anchor_z[idx] = dest_z;
 		if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
 		WaypointPath wp;
-		uint8_t pass = PASS_INFANTRY;
-		uint8_t ut = units_.unit_type[idx];
-		if (unit_is_ship(ut))
-			pass = unit_ship_pass(ut);
-		else if (ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL ||
-		         ut == UNIT_SCYTHED_CHARIOT)
-			pass = PASS_CAVALRY;
+		const uint8_t ut = units_.unit_type[idx];
+		const uint8_t pass = unit_is_ship(ut) ? unit_ship_pass(ut) : unit_land_pass(ut, units_.tmpl[idx]);
 		find_path(units_.pos_x[idx], units_.pos_z[idx], dest_x, dest_z, wp, pass);
 		// HierarchicalPathfinder::MakeGoalReachable: a player's walk to a point the unit can't reach
 		// (out at sea, ashore for a ship, another island) ends where find_path ends the path, the
@@ -5568,7 +5723,7 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 	const FormationTemplate &t = formation_template(fc.tmpl);
 	std::vector<FormationMember> active;
 	float ax = 0.0f, az = 0.0f;
-	bool mounted = false;
+	bool mounted = false, large = false;
 	for (uint32_t id : fc.members) {
 		const int32_t idx = lookup_unit(id);
 		if (idx < 0 || !units_.alive[idx]) continue;
@@ -5578,9 +5733,11 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 		ax += units_.pos_x[idx];
 		az += units_.pos_z[idx];
 		mounted = mounted || formation_unit_mounted(units_.unit_type[idx]);
+		large = large || unit_is_large(units_.tmpl[idx], units_.unit_type[idx]);
 	}
 	if (active.empty()) return;
-	fc.pass = mounted ? PASS_CAVALRY : PASS_INFANTRY; // ComputeMotionParameters: the widest member's class
+	// ComputeMotionParameters: the widest member's class ("large" when one is, as its Clearance is).
+	fc.pass = (mounted ? PASS_CAVALRY : PASS_INFANTRY) | (large ? PASS_LARGE : 0);
 	if (move_center) {
 		ax /= active.size();
 		az /= active.size();
@@ -5649,8 +5806,7 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 			units_.waypoint_cur[idx] = units_.waypoint_count[idx] = 0;
 			continue;
 		}
-		find_path(units_.pos_x[idx], units_.pos_z[idx], wx, wz, wp,
-				formation_unit_mounted(units_.unit_type[idx]) ? PASS_CAVALRY : PASS_INFANTRY);
+		find_path(units_.pos_x[idx], units_.pos_z[idx], wx, wz, wp, unit_land_pass(units_.unit_type[idx], units_.tmpl[idx]));
 		wp.has_goal = true;
 		wp.goal_x = wx;
 		wp.goal_z = wz;
@@ -6418,8 +6574,7 @@ void Simulation::tick_formations(float dt) {
 			const float gdx = wp.goal_x - wx, gdz = wp.goal_z - wz;
 			const bool stale = !wp.has_goal || wp.count == 0 || gdx * gdx + gdz * gdz > 4.0f * 4.0f;
 			if (arrived || (stale && (ticks_ + s.ent) % 10 == 0)) {
-				find_path(units_.pos_x[idx], units_.pos_z[idx], wx, wz, wp,
-						formation_unit_mounted(units_.unit_type[idx]) ? PASS_CAVALRY : PASS_INFANTRY);
+				find_path(units_.pos_x[idx], units_.pos_z[idx], wx, wz, wp, unit_land_pass(units_.unit_type[idx], units_.tmpl[idx]));
 				wp.has_goal = true;
 				wp.goal_x = wx;
 				wp.goal_z = wz;
@@ -7029,8 +7184,16 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 		// MoveToTargetRange: towards the side of the structure the unit comes from, as close as it
 		// can stand (a walk to its centre would end on whichever side the centre is pushed out to).
 		float sx, sz;
-		stand_outside(b, unit_ids[i], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz,
-				unit_clearance_at((size_t)uidx) + kStandMargin);
+		const float c = unit_clearance_at((size_t)uidx);
+		stand_outside(b, unit_ids[i], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz, c + kStandMargin);
+		// A ship (a Cothon takes them) sails to its band on the water: the land rules below are not its.
+		if (!unit_is_ship(units_.unit_type[uidx])) {
+			const int cls = NavGrid::tile_class(unit_land_pass(units_.unit_type[uidx], units_.tmpl[uidx]));
+			const uint32_t region = nav_grid_.tile_region_at(units_.pos_x[uidx], units_.pos_z[uidx], nav_grid_.tile_snap_reach(), cls);
+			stand_outside_clear(b, units_.pos_x[uidx], units_.pos_z[uidx], c + kStandMargin, [&](float x, float z) {
+				return near_impassable_terrain(x, z, c) || (region != 0 && nav_grid_.tile_region_at(x, z, 1, cls) != region);
+			}, &sx, &sz);
+		}
 		const bool was = applying_queued_;
 		applying_queued_ = true; // keep the unit's queue: this is the garrison order, not a walk
 		cmd_move(&unit_ids[i], 1, sx, sz);
@@ -9359,6 +9522,10 @@ void Simulation::tick(float dt) {
 		tick_fow(); // the fog shows that LOS
 	}
 
+	// The trees, bushes and treasures this tick felled, gathered up or added, for the long paths
+	// on the terrain tiles.
+	sync_tile_obstructions(false);
+
 	frame_arena_.flip();
 	auto t1 = std::chrono::high_resolution_clock::now();
 	tick_us_ += std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
@@ -9739,12 +9906,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		}
 
 		// GATHER, BUILD, RETURN_DROPSITE and TRADE walk at (tx, tz) with no cmd_move path. When
-		// buildings, deep water or a slope too steep block that line, path them too, as 0 A.D.
-		// UnitMotion paths every move. An attacker closing in on its target is pathed only
-		// around water and slopes (it would stop at the shore otherwise). A ship is pathed on
-		// its own class when land or a structure lies on its line: fishing boats, merchant ships
-		// and warships sail round islands and headlands. The path is kept while (tx, tz) stays
-		// within 2 world units of the target it was computed for.
+		// buildings, deep water or a slope too steep block that line, or it comes within the unit's
+		// clearance of a steep terrain tile (a cliff narrower than a navcell, which find_path plans
+		// round on the tiles), path them too, as 0 A.D. UnitMotion paths every move. An attacker
+		// closing in on its target is pathed only around water and slopes (it would stop at the
+		// shore otherwise). A ship is pathed on its own class when land or a structure lies on its
+		// line: fishing boats, merchant ships and warships sail round islands and headlands. The
+		// path is kept while (tx, tz) stays within 2 world units of the target it was computed for.
 		const uint8_t st = units_.action_state[i];
 		const bool closing_in = st == ACTION_ATTACK;
 		const bool ship = unit_is_ship(units_.unit_type[i]);
@@ -9755,12 +9923,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			const float gdx = wp.goal_x - tx[i];
 			const float gdz = wp.goal_z - tz[i];
 			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
-			if (!task_path && ((!closing_in && !ship && steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]),
-					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_clearance_at(i), units_.target_building_id[i])) ||
+			// The steep tiles' test grows the clearance by half a sample (NavGrid::steep_sample_pad), so a
+			// line that clips a steep tile's corner between two samples counts. Only where find_path plans
+			// on the tiles (not on a 512 map, whose navcells take each tile's slope).
+			if (!task_path && ((!closing_in && !ship && (steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]),
+					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_clearance_at(i), units_.target_building_id[i]) ||
+					(nav_grid_.tile_paths_on() &&
+					 nav_grid_.segment_near_steep_tile(px[i], pz[i], tx[i], tz[i], unit_clearance_at(i) + nav_grid_.steep_sample_pad())))) ||
 					line_crosses_impassable(px[i], pz[i], tx[i], tz[i], ship ? unit_ship_pass(units_.unit_type[i]) : 0))) {
 				const uint8_t ut = units_.unit_type[i];
-				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
-				find_path(px[i], pz[i], tx[i], tz[i], wp, ship ? unit_ship_pass(ut) : mounted ? PASS_CAVALRY : PASS_INFANTRY);
+				find_path(px[i], pz[i], tx[i], tz[i], wp, ship ? unit_ship_pass(ut) : unit_land_pass(ut, units_.tmpl[i]));
 				wp.has_goal = true;
 				wp.goal_x = tx[i];
 				wp.goal_z = tz[i];
@@ -9979,10 +10151,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			}
 		}
 
-		// Along a chase path the unit stops for its target, not at a waypoint.
+		// Along a chase path the unit stops for its target, not at a waypoint. So does a hunter along
+		// its path: tick_hunters keeps (tx, tz) on the animal, which chase_goal leaves out (0.28
+		// UnitMotion MoveToTargetRange measures the range to the target, never to a waypoint).
 		float stop_d2 = d2;
 		if (chase_path && using_path && units_.target_building_id[i] == 0) {
 			const float cdx = chase_x - px[i], cdz = chase_z - pz[i];
+			stop_d2 = cdx * cdx + cdz * cdz;
+		} else if (closing_in && task_path && using_path && units_.target_unit_id[i] != 0 &&
+				units_.target_building_id[i] == 0 && is_fauna_id(units_.target_unit_id[i])) {
+			const float cdx = tx[i] - px[i], cdz = tz[i] - pz[i];
 			stop_d2 = cdx * cdx + cdz * cdz;
 		}
 		if (!backing_off && stop_d2 <= stop_dist * stop_dist) {
@@ -10926,6 +11104,10 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 // From two turns, a walk, attack-move or patrol leg within 12 m (UnitAI DefaultRelaxedMaxRange)
 // of its point ends there; after 35 turns without moving (MAX_FAILED_MOVEMENTS) it ends wherever
 // the unit is (MoveFailed), as UnitAI WALKING finishes the order on likelyFailure.
+// CCmpUnitMotion ALTERNATE_PATH_TYPE_DELAY: on this failed turn HandleObstructedMove plans the long
+// path again (ShouldAlternatePathfinder).
+static constexpr uint8_t ALTERNATE_PATH_TYPE_DELAY = 3;
+
 void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 	constexpr float OBSTRUCTED_PROGRESS = 0.15f, FREE_PROGRESS = 0.5f;
 	constexpr float RELAXED_RANGE = 12.0f / 4.0f;
@@ -10991,8 +11173,16 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		// where it stands (nav::no_terrain_path_key): a resource up a cliff or in a pocket its long
 		// path can't reach, a point beyond a ridge. 0.28's long path, on the same navcells as its
 		// short ones, knows the goal is out of reach, and the walk fails two obstructed turns later,
-		// where RTS0's unit would push at the cliff's margin for 35 turns.
-		if (m.failed < FAILED_AT - 3 && units_.short_path[i].key == nav::no_terrain_path_key(short_path_key_))
+		// where RTS0's unit would push at the cliff's margin for 35 turns. But 0.28 bumps the count in
+		// PathResult, once a long path it asked for has come back no better, and after each MoveFailed
+		// counts from 0 again, so HandleObstructedMove asks for the long path again on the third failed
+		// turn (ShouldAlternatePathfinder, RequestLongPath) before the hack: a unit that follows a long
+		// path gets there first (obstructed_long_path), so one holding a path that leads it against a
+		// cliff (laid before a way round opened, or in a saved game) plans it again instead of standing
+		// there for good.
+		const bool replans_first = m.failed < ALTERNATE_PATH_TYPE_DELAY && (formations_.empty() || formation_group_[i] == 0) &&
+				follows_long_path(i);
+		if (m.failed < FAILED_AT - 3 && !replans_first && units_.short_path[i].key == nav::no_terrain_path_key(short_path_key_))
 			m.failed = FAILED_AT - 3;
 		bool move_failed = false;
 		if (++m.failed >= FAILED_AT) {
@@ -11137,6 +11327,19 @@ void Simulation::give_up_hunt(size_t i) {
 	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 }
 
+// Whether unit i walks a long path obstructed_long_path can work on: the one move_units or
+// cmd_move gave it, with waypoints left, more than LONG_PATH_MIN_DIST from where it is going.
+bool Simulation::follows_long_path(size_t i) const {
+	if (i >= unit_paths_.size()) return false;
+	const WaypointPath &wp = unit_paths_[i];
+	const int cnt = units_.waypoint_count[i], cur = units_.waypoint_cur[i];
+	if (cnt <= 0 || cnt != wp.count || cur < 0 || cur >= cnt) return false;
+	const float x = units_.pos_x[i], z = units_.pos_z[i];
+	const float goal_x = wp.has_goal ? wp.goal_x : units_.target_x[i], goal_z = wp.has_goal ? wp.goal_z : units_.target_z[i];
+	constexpr float LONG_PATH_MIN_DIST = 16.0f / 4.0f; // map lengths: 4 m a unit
+	return (goal_x - x) * (goal_x - x) + (goal_z - z) * (goal_z - z) >= LONG_PATH_MIN_DIST * LONG_PATH_MIN_DIST;
+}
+
 // HandleObstructedMove's fixes for a unit obstructed on its way along a long path, more than
 // LONG_PATH_MIN_DIST (16 m) from where it is going (nearer, 0 A.D. paths straight to the goal, as
 // avoid_idle_units' search does): the next waypoint, when others follow it and it lies within
@@ -11144,26 +11347,30 @@ void Simulation::give_up_hunt(size_t i) {
 // failed turn (ShouldAlternatePathfinder) the whole path is planned again from where the unit
 // stands, in case it went down a dead end.
 void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
-	if (i >= unit_paths_.size()) return;
+	if (!follows_long_path(i)) return;
 	WaypointPath &wp = unit_paths_[i];
 	const int cnt = units_.waypoint_count[i], cur = units_.waypoint_cur[i];
-	if (cnt <= 0 || cnt != wp.count || cur < 0 || cur >= cnt) return;
 	const float x = units_.pos_x[i], z = units_.pos_z[i];
 	const float goal_x = wp.has_goal ? wp.goal_x : units_.target_x[i], goal_z = wp.has_goal ? wp.goal_z : units_.target_z[i];
-	constexpr float LONG_PATH_MIN_DIST = 16.0f / 4.0f, SKIP_MIN = 8.0f / 4.0f; // map lengths: 4 m a unit
-	if ((goal_x - x) * (goal_x - x) + (goal_z - z) * (goal_z - z) < LONG_PATH_MIN_DIST * LONG_PATH_MIN_DIST) return;
+	constexpr float SKIP_MIN = 8.0f / 4.0f; // map lengths: 4 m a unit
+	const uint8_t ut = units_.unit_type[i];
 	const float skip = std::max(short_path_search_range(failed) / 3.0f, SKIP_MIN);
 	const float wx = wp.xs[cur] - x, wz = wp.zs[cur] - z;
-	if (cur + 1 < cnt && wx * wx + wz * wz < skip * skip) {
+	// A land unit keeps the waypoint when the straight line from where it stands to the next one
+	// comes within its clearance of a steep tile. 0.28 skips it all the same and leaves its short
+	// path to round the corner, but RTS0's short path can't round steep ground beyond its range, so
+	// the unit keeps the corner its path on the tiles' nodes rounds the cliff by (only where find_path
+	// plans on them: not on a 512 map).
+	if (cur + 1 < cnt && wx * wx + wz * wz < skip * skip &&
+			(unit_is_ship(ut) || !nav_grid_.tile_paths_on() ||
+			 !nav_grid_.segment_near_steep_tile(x, z, wp.xs[cur + 1], wp.zs[cur + 1], unit_clearance_at(i) + nav_grid_.steep_sample_pad()))) {
 		units_.waypoint_cur[i] = static_cast<int16_t>(cur + 1);
 		wp.cur = cur + 1;
 		return;
 	}
-	if (failed != 3) return; // ALTERNATE_PATH_TYPE_DELAY
-	const uint8_t ut = units_.unit_type[i];
-	const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
+	if (failed != ALTERNATE_PATH_TYPE_DELAY) return;
 	const bool has_goal = wp.has_goal;
-	find_path(x, z, goal_x, goal_z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : mounted ? PASS_CAVALRY : PASS_INFANTRY);
+	find_path(x, z, goal_x, goal_z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : unit_land_pass(ut, units_.tmpl[i]));
 	wp.has_goal = has_goal;
 	wp.goal_x = goal_x;
 	wp.goal_z = goal_z;
@@ -30024,7 +30231,8 @@ void Simulation::fauna_path_aim(size_t f, float tx, float tz, float &ax, float &
 	az = tz;
 	if (nav_grid_.res <= 0) return;
 	const FaunaTypeInfo &info = fauna_type_info(fauna_.fauna_type[f]);
-	const uint8_t pass = info.is_naval() ? PASS_SHIP : PASS_INFANTRY;
+	// Bulls and adult elephants are "large" (pathfinder.xml), whose clearance a path on the steep tiles keeps.
+	const uint8_t pass = info.is_naval() ? PASS_SHIP : info.is_large() ? PASS_INFANTRY | PASS_LARGE : PASS_INFANTRY;
 	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
 	auto [sx, sy] = nav_grid_.world_to_cell(fx, fz);
 	auto [gx, gy] = nav_grid_.world_to_cell(tx, tz);
