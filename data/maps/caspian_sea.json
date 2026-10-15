@@ -6646,13 +6646,13 @@
     },
     {
       "id": 3,
-      "team": 0,
+      "team": 2,
       "start_x": -69.23,
       "start_z": 28.72
     },
     {
       "id": 4,
-      "team": 1,
+      "team": 3,
       "start_x": 67.71,
       "start_z": -55.55
     }

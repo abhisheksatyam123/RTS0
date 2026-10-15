@@ -16653,31 +16653,31 @@
   "players": [
     {
       "id": 5,
-      "team": 1,
+      "team": 4,
       "start_x": -3.85,
       "start_z": -212.43
     },
     {
       "id": 2,
-      "team": 0,
+      "team": 1,
       "start_x": -3.92,
       "start_z": 213.86
     },
     {
       "id": 6,
-      "team": 1,
+      "team": 5,
       "start_x": -130.01,
       "start_z": -142.07
     },
     {
       "id": 3,
-      "team": 0,
+      "team": 2,
       "start_x": 126.37,
       "start_z": 136.16
     },
     {
       "id": 4,
-      "team": 1,
+      "team": 3,
       "start_x": 122.63,
       "start_z": -148.78
     },

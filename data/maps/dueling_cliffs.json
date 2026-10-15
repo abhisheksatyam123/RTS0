@@ -9498,13 +9498,13 @@
   "players": [
     {
       "id": 4,
-      "team": 1,
+      "team": 3,
       "start_x": -23.88,
       "start_z": 136.31
     },
     {
       "id": 3,
-      "team": 0,
+      "team": 2,
       "start_x": -140.73,
       "start_z": 11.28
     },
@@ -9522,13 +9522,13 @@
     },
     {
       "id": 5,
-      "team": 0,
+      "team": 4,
       "start_x": -80.86,
       "start_z": 71.76
     },
     {
       "id": 6,
-      "team": 1,
+      "team": 5,
       "start_x": 78.19,
       "start_z": -85.28
     }

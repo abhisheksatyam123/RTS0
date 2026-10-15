@@ -135,7 +135,6 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		map_team_[p] = 0;
 	}
 	map_has_teams_ = false;
-	map_lock_teams_ = false;
 	map_pop_limit_ = -1;
 	random_map_ = false;
 
@@ -234,8 +233,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (p.has("team")) {
 				const int t = (int)p["team"];
 				map_team_[team] = (uint8_t)(t >= 0 && t < rtso::MAX_PLAYERS ? t + 1 : 0);
-				// port_0ad_maps.py gives every player "team": id - 1 by default; a map
-				// whose PlayerData sets teams has another value somewhere.
+				// port_0ad_maps.py gives every player "team": id - 1 by default; only a
+				// map with LockTeams (another value somewhere) sets the teams itself.
 				if (t != id - 1) map_has_teams_ = true;
 			}
 		}
@@ -253,8 +252,6 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	sim->set_map_half(world_size * 0.5f);
 	// 0.28 ScriptSettings CircularMap ("circular", from port_0ad_maps.py); square when absent.
 	sim->set_circular_map((bool)d.get("circular", false));
-	// 0.28 ScriptSettings LockTeams: the map's PlayerData teams can't be changed in Game Setup.
-	map_lock_teams_ = (bool)d.get("lock_teams", false);
 	sim->set_map_info(map_id.utf8().get_data(), name.utf8().get_data(), biome.utf8().get_data());
 
 	Array h_arr = d.get("heightmap", Array());

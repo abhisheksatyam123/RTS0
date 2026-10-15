@@ -2271,13 +2271,8 @@ void RtsoMain::apply_map_player_overrides() {
 		sim->set_player_pop_cap(p, map_player_pop_limit_[p]);
 	}
 	if (map_pop_limit_ > 0) sim->set_pop_cap(map_pop_limit_);
-	// 0.28 gamesetup: a map's PlayerData teams are Game Setup's defaults, locked with LockTeams.
-	// Unlocked, they hold unless Game Setup allied some players itself.
-	bool setup_allied = false;
-	for (uint8_t p = 0; p < rtso::MAX_PLAYERS && !setup_allied; ++p)
-		for (uint8_t q = 0; q < p; ++q)
-			if (sim->player_team(p) == sim->player_team(q)) { setup_allied = true; break; }
-	if (map_has_teams_ && (map_lock_teams_ || !setup_allied)) {
+	if (map_has_teams_) {
+		// A map with LockTeams sets the teams itself (0 A.D. gamesetup locks them).
 		sim->set_setup_teams(map_team_);
 		sim->apply_team_diplomacy();
 	}

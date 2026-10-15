@@ -16861,21 +16861,21 @@
   "players": [
     {
       "id": 3,
-      "team": 1,
+      "team": 2,
       "start_x": -37.82,
       "start_z": -233.05,
       "civ": 4
     },
     {
       "id": 6,
-      "team": 1,
+      "team": 5,
       "start_x": -240.05,
       "start_z": 56.26,
       "civ": 3
     },
     {
       "id": 5,
-      "team": 0,
+      "team": 4,
       "start_x": 78.16,
       "start_z": 0.68,
       "civ": 11
@@ -16889,14 +16889,14 @@
     },
     {
       "id": 4,
-      "team": 1,
+      "team": 3,
       "start_x": 159.93,
       "start_z": 172.05,
       "civ": 2
     },
     {
       "id": 2,
-      "team": 0,
+      "team": 1,
       "start_x": 116.02,
       "start_z": -121.3,
       "civ": 10

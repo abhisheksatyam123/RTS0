@@ -9502,7 +9502,7 @@
     },
     {
       "id": 3,
-      "team": 1,
+      "team": 2,
       "start_x": 22.14,
       "start_z": -137.72,
       "resources": {
@@ -9514,7 +9514,7 @@
     },
     {
       "id": 4,
-      "team": 1,
+      "team": 3,
       "start_x": -10.56,
       "start_z": -140.67,
       "resources": {
@@ -9526,7 +9526,7 @@
     },
     {
       "id": 5,
-      "team": 1,
+      "team": 4,
       "start_x": 57.19,
       "start_z": -134.81,
       "resources": {
