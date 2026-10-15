@@ -459,7 +459,7 @@ public:
 			const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
 			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
-			title_->set_text(String::utf8(uinfo.name));
+			title_->set_text(unit_name(uv, u, uinfo.name));
 			set_owner(*sim, uv.team[u]);
 			health(uv.hp[u], uv.max_hp[u]);
 			fill_unit_details(*sim, u, title_->get_text());
@@ -515,7 +515,7 @@ public:
 			if (seen->miraged) {
 				const auto &binfo = rtso::building_type_info(seen->type);
 				portrait_->set_texture(rtso::portraits::structure(seen->civ, seen->type));
-				title_->set_text(String(binfo.name));
+				title_->set_text(structure_name(seen->civ, seen->type, binfo.name));
 				set_owner(*sim, seen->team);
 				health(seen->hp, seen->max_hp);
 				if (seen->max_capture_points > 0.0f)
@@ -537,7 +537,7 @@ public:
 			if (!found || found->wrecked || found->hp <= 0.0f) return false;
 			const auto &binfo = rtso::building_type_info(found->type);
 			portrait_->set_texture(rtso::portraits::structure(found->civ, found->type));
-			title_->set_text(String(binfo.name));
+			title_->set_text(structure_name(found->civ, found->type, binfo.name));
 			set_owner(*sim, found->team);
 			health(found->hp, found->max_hp);
 			set_structure_extras(*sim, *found);
@@ -677,7 +677,7 @@ public:
 			if (found_b) {
 				const auto &binfo = rtso::building_type_info(found_b->type);
 				portrait_->set_texture(rtso::portraits::structure(found_b->civ, found_b->type));
-				title_->set_text(String(binfo.name));
+				title_->set_text(structure_name(found_b->civ, found_b->type, binfo.name));
 				const uint8_t owner = found_b->team;
 				set_owner(*sim, owner, found_b->garrison_cap > 0
 						? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
@@ -793,8 +793,7 @@ public:
 			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
 
 			// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
-			const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
-			const String name = rtso::entity_names(String::utf8(uinfo.name), String::utf8(specific ? specific : ""));
+			const String name = unit_name(uview, u, uinfo.name);
 			title_->set_text(name);
 			const uint8_t owner = uview.team[u];
 			set_owner(*sim, owner, " - Kills: " + String::num_int64(uview.kills[u]));
@@ -968,6 +967,22 @@ private:
 		return rtso::seldet::resource_label(rv.type[r]) + " " +
 				rtso::seldet::resource_amount(rv.amount[r], sim.resource_supply_max(res_id), rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY) +
 				"\n" + rtso::seldet::amount_of(gatherers, sim.resource_max_gatherers(res_id));
+	}
+
+	// The primary and secondary names (getEntityNames): a civ's structure from its template
+	// ("Agora (Civic Center)"), else the RTS0 name.
+	static String structure_name(uint8_t civ, uint8_t type, const char *fallback) {
+		const godot::Dictionary e = rtso::portraits::structure_entry(civ, type);
+		const String generic = e.get("generic_name", String());
+		if (generic.is_empty()) return String(fallback);
+		return rtso::entity_names(generic, e.get("specific_name", String()));
+	}
+	// A unit's names, with " — Packed" on a packed siege engine (selection_details.js).
+	static String unit_name(const rtso::Simulation::UnitView &uv, size_t u, const char *generic) {
+		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
+		const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
+		return rtso::entity_names(String::utf8(generic), String::utf8(specific ? specific : ""),
+				uv.pack_state && uv.pack_state[u] == rtso::PACK_PACKED);
 	}
 
 	static String join_spaced(const String &a, const String &b) { return b.is_empty() ? a : a + String("  ") + b; }

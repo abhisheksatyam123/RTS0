@@ -8,8 +8,8 @@ extends Control
 ##   "menu":  the current run's levels with their status (Completed, Available,
 ##            greyed out until what they Require is done), the selected level's
 ##            name, preview and description, and Start to play it.
-## A level won marks it completed when the summary page closes, which then
-## comes back here (default_menu/endgame).
+## A level is marked completed as soon as the player wins it (session
+## CampaignSession and default_menu/endgame); the summary then comes back here.
 
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
 const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
@@ -35,6 +35,7 @@ var info_name: Label
 var info_preview: TextureRect
 var info_desc: RichTextLabel
 var start_button: Button
+var back_button: Button
 var delete_button: Button
 var saved_games_button: Button
 var empty_text: Label
@@ -75,7 +76,7 @@ func render() -> void:
 			title.text = "Load Campaign"
 			for r in runs:
 				var cr: CampaignRun = r["run"]
-				var idx := list.add_item(cr.filename + CampaignRun.EXTENSION + " (file cannot be loaded)" if r["broken"] else cr.label())
+				var idx := list.add_item(cr.filename + CampaignRun.EXTENSION + " (file cannot be loaded)" if r["broken"] else cr.label(true))
 				if r["broken"]:
 					list.set_item_custom_fg_color(idx, Color.RED)
 				entries.append(r)
@@ -95,9 +96,11 @@ func render() -> void:
 				elif status == "Available":
 					list.set_item_custom_fg_color(idx, GREEN)
 				entries.append(e["id"])
-			start_button.text = "Start"
+			start_button.text = "Start Scenario"
+	# CampaignMenu.xml "Back to Main Menu", LoadModal.xml "Cancel".
+	back_button.text = "Cancel" if mode == "load" else "Back to Main Menu"
 	empty_text.visible = entries.is_empty()
-	empty_text.text = "No saved campaigns." if mode == "load" else "No campaigns." if mode == "setup" else "No levels."
+	empty_text.text = "No ongoing campaigns." if mode == "load" else "No campaigns." if mode == "setup" else "No levels."
 	if selected >= entries.size():
 		selected = -1
 	if selected >= 0:
@@ -116,10 +119,13 @@ func render_details() -> void:
 		"setup":
 			if selected < 0:
 				info_name.text = "No campaign selected."
-				return
-			var t: Dictionary = entries[selected]
-			info_name.text = str(t.get("Name", ""))
-			info_desc.text = str(t.get("Description", ""))
+			else:
+				var t: Dictionary = entries[selected]
+				info_name.text = str(t.get("Name", ""))
+				info_desc.text = str(t.get("Description", ""))
+				# CampaignSetupPage: the template's Image (RTS0 shows nothing for 0 A.D.'s
+				# "no preview" picture, like Game Setup's map without one).
+				info_preview.texture = _texture(str(t.get("Image", "")))
 		"load":
 			if selected < 0:
 				return
@@ -128,13 +134,33 @@ func render_details() -> void:
 			info_name.text = (r["run"] as CampaignRun).label()
 		_:
 			if selected < 0:
+				info_name.text = "No scenario selected"
 				return
 			var level: Dictionary = run.template["Levels"][entries[selected]]
 			info_name.text = level_name(level)
-			info_desc.text = str(level.get("Description", ""))
-			info_preview.texture = SetupPage.map_preview(CampaignRun.level_map_id(level))
+			# getLevelDescription and getLevelPreview: the level's own, else its map's.
+			info_desc.text = str(level["Description"]) if level.has("Description") \
+				else str(_map_json(CampaignRun.level_map_id(level)).get("desc", ""))
+			info_preview.texture = _level_preview(level)
 			start_button.disabled = not run.meets_requirements(level)
 	info_preview.visible = info_preview.texture != null
+
+## A level's Preview ("session/icons/mappreview/Introductory_Tutorial.png") is one of
+## 0 A.D.'s map previews, which RTS0 keeps as assets/maps/previews/<name>.jpg;
+## without one, the map's own preview.
+static func _level_preview(level: Dictionary) -> Texture2D:
+	if level.has("Preview"):
+		var base := str(level["Preview"]).get_file().get_basename().to_lower()
+		for ext in [".jpg", ".png"]:
+			var t := _texture("res://assets/maps/previews/" + base + ext)
+			if t:
+				return t
+	return SetupPage.map_preview(CampaignRun.level_map_id(level))
+
+static func _texture(p: String) -> Texture2D:
+	if p == "" or not ResourceLoader.exists(p):
+		return null
+	return load(p) as Texture2D
 
 ## getLevelName: the level's Name, else its map's.
 static func level_name(level: Dictionary) -> String:
@@ -189,7 +215,7 @@ func delete_pressed() -> void:
 	if mode != "load" or selected < 0:
 		return
 	# LoadModal.js messageBox(400, 200, …, "Confirmation", No, Yes).
-	confirm = MSGBOX.open(self, 400, 200, tr("Are you sure you want to delete run %s? This cannot be undone.") % list.get_item_text(selected),
+	confirm = MSGBOX.open(self, 400, 200, tr("Are you sure you want to delete run %s? This cannot be undone.") % (entries[selected]["run"] as CampaignRun).label(),
 		tr("Confirmation"), [tr("No"), tr("Yes")])
 	confirm.answered.connect(func(i: int):
 		confirm = null
@@ -309,7 +335,8 @@ func _build() -> void:
 	bottom.alignment = BoxContainer.ALIGNMENT_END
 	bottom.add_theme_constant_override("separation", 12)
 	add_child(_anchor(bottom, 0, 1, 1, 1, 20, -50, -20, -12))
-	bottom.add_child(_button("Main Menu", "BackButton", back_to_main_menu))
+	back_button = _button("Back to Main Menu", "BackButton", back_to_main_menu)
+	bottom.add_child(back_button)
 	delete_button = _button("Delete", "DeleteButton", delete_pressed)
 	bottom.add_child(delete_button)
 	saved_games_button = _button("Saved Games", "SavedGamesButton", load_savegame)
@@ -320,11 +347,14 @@ func _build() -> void:
 	# NewCampaignModal: the run's name, the campaign's name to start with.
 	name_dialog = ConfirmationDialog.new()
 	name_dialog.name = "NewCampaignModal"
-	name_dialog.title = "Name your campaign run"
+	name_dialog.title = "Start a campaign"
+	var name_box := VBoxContainer.new()
+	name_box.add_child(_label("Please enter the name of your new campaign run:"))
 	name_edit = LineEdit.new()
 	if has_node("/root/MatchSettings"):
 		get_node("/root/MatchSettings").prepare_line_edit(name_edit)
-	name_dialog.add_child(name_edit)
+	name_box.add_child(name_edit)
+	name_dialog.add_child(name_box)
 	name_edit.text_changed.connect(func(t): name_dialog.get_ok_button().disabled = t.strip_edges() == "")
 	name_edit.text_submitted.connect(func(t): if t.strip_edges() != "": name_dialog.hide(); create_run(t.strip_edges()))
 	name_dialog.confirmed.connect(func(): create_run(name_edit.text.strip_edges()))
