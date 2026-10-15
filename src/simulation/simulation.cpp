@@ -6058,7 +6058,7 @@ void Simulation::formation_apply_order(const std::vector<uint32_t> &members, con
 		case ORDER_ATTACK_BUILDING: order_attack_building(ids, n, o.target, false, capture); break;
 		case ORDER_GATHER: order_gather(ids, n, o.target); break;
 		case ORDER_BUILD: order_build_or_repair(ids, n, o.target); break;
-		case ORDER_GARRISON: order_garrison(ids, n, o.target); break;
+		case ORDER_GARRISON: order_garrison(ids, n, o.target, false, (o.flags & ORDER_FLAG_TURRET) != 0); break;
 		case ORDER_GUARD: order_guard(ids, n, o.target); break;
 		case ORDER_HEAL: order_heal(ids, n, o.target); break;
 		default: for (uint32_t uid : members) apply_order(uid, o); break; // members do it one by one
@@ -6937,14 +6937,20 @@ void Simulation::unload_sunk_ship(size_t ship) {
 	transport_passengers_.erase(units_.id[ship]);
 }
 
-void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued) {
+void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued,
+		bool turret) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
 	if (b.build_progress < 1.0f) return;
+	// "occupy-turret" on a wall, gate or outpost is their garrison order; on the rampart tower it
+	// goes to the turret points instead of the garrison.
+	turret = turret && !turret_points_of(b) && turret_holder_points(b);
 	UnitOrder o; o.kind = ORDER_GARRISON; o.target = building_id; o.x = b.x; o.z = b.z;
+	if (turret) o.flags = ORDER_FLAG_TURRET;
 	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
-	if (!queued && !formations_.empty()) now = formation_take_task(now, FTASK_GARRISON, building_id);
+	// The GUI sends "occupy-turret" with no formation (g_AutoFormation.getNull()).
+	if (!queued && !turret && !formations_.empty()) now = formation_take_task(now, FTASK_GARRISON, building_id);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
 
@@ -6957,13 +6963,16 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 		// UnitAI.Garrison: a unit the holder can't take (not own or allied, not on its List,
 		// or no room left) walks to it instead (WalkToTarget). EjectHealth is not part of
 		// CanGarrison: a unit sent into a burning structure walks there and stops (GARRISONING).
-		if (!structure_accepts_garrison(b, (size_t)uidx) || !garrison_room(b, (size_t)uidx)) {
+		// UnitAI.OccupyTurret likewise walks a unit that can't occupy a free point there.
+		if (turret ? !structure_accepts_turret(b, (size_t)uidx) || !turret_room(b)
+		           : !structure_accepts_garrison(b, (size_t)uidx) || !garrison_room(b, (size_t)uidx)) {
 			cmd_move(&unit_ids[i], 1, b.x, b.z);
 			continue;
 		}
 		// UnitAI Order.Garrison: an unpacked siege engine packs first (a forced Pack), then gets in.
 		if (garrison_in_range((size_t)uidx, b) && pack_state_can_move(units_.pack_state[uidx])) {
-			if (structure_has_enough_health(b)) garrison_now((size_t)uidx, b);
+			if (turret) occupy_turret((size_t)uidx, b);
+			else if (structure_has_enough_health(b)) garrison_now((size_t)uidx, b);
 			continue;
 		}
 		// MoveToTargetRange: towards the side of the structure the unit comes from, as close as it
@@ -6975,7 +6984,7 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 		applying_queued_ = true; // keep the unit's queue: this is the garrison order, not a walk
 		cmd_move(&unit_ids[i], 1, sx, sz);
 		applying_queued_ = was;
-		set_order((size_t)uidx, ORDER_GARRISON, ORDER_FLAG_FORCE, building_id, b.x, b.z);
+		set_order((size_t)uidx, ORDER_GARRISON, ORDER_FLAG_FORCE | (turret ? ORDER_FLAG_TURRET : 0), building_id, b.x, b.z);
 	}
 }
 
@@ -7034,7 +7043,9 @@ void Simulation::garrison_now(size_t i, Building &b) {
 // garrison there stand on a free point: they stay alive and visible, shoot with their own
 // attack from the point's height, hold their ground (SetTurretStance), and step down beside
 // the structure when given any order other than an attack (UnitAI LeaveTurret). Turret
-// units are kept in Building::garrisoned_units, alive, so nothing new is saved.
+// units are kept in Building::garrisoned_units, alive. The Mauryan rampart tower has both a
+// garrison and turret points: its turret units, sent there with "occupy-turret"
+// (session.occupyturret), are kept in Building::turret_units.
 // ---------------------------------------------------------------------------
 
 bool Simulation::unit_turretable(size_t i) const {
@@ -7066,6 +7077,30 @@ const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
 	}
 	const TurretPointSet &set = TURRET_POINTS[c][kind];
 	return set.count ? &set : nullptr;
+}
+
+const TurretPointSet *Simulation::turret_holder_points(const Building &b) const {
+	if (const TurretPointSet *t = turret_points_of(b)) return t;
+	return b.type == BLD_TOWER_DOUBLE ? &TURRET_POINTS_TOWER_DOUBLE : nullptr;
+}
+
+// TurretHolder.CanOccupy for "occupy-turret": a Turretable unit of the holder's owner or a
+// mutual ally, at a finished, standing holder.
+bool Simulation::structure_accepts_turret(const Building &b, size_t i) const {
+	return turret_holder_points(b) && !b.wrecked && b.build_progress >= 1.0f && is_ally(units_.team[i], b.team) &&
+			unit_garrisonable(i) && unit_turretable(i);
+}
+
+bool Simulation::turret_room(const Building &b) const {
+	const TurretPointSet *pts = turret_holder_points(b);
+	return pts && (int)turret_list(b).size() < pts->count;
+}
+
+bool Simulation::can_occupy_turret_in(uint32_t unit_id, uint32_t building_id) const {
+	const int32_t i = lookup_unit(unit_id);
+	auto it = building_id_to_idx_.find(building_id);
+	if (i < 0 || !units_.alive[i] || it == building_id_to_idx_.end() || turret_height_.count(unit_id)) return false;
+	return structure_accepts_turret(buildings_[it->second], (size_t)i);
 }
 
 // Where turret point k of `b` stands in the world. A WallSet piece's points are in 0 A.D.'s frame
@@ -7145,19 +7180,55 @@ bool Simulation::can_garrison_in(uint32_t unit_id, uint32_t building_id) const {
 
 uint32_t Simulation::turret_holder_of(uint32_t unit_id) const {
 	if (!turret_height_.count(unit_id)) return 0;
-	for (const Building &b : buildings_)
-		if (turret_points_of(b) &&
-				std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), unit_id) != b.garrisoned_units.end())
-			return b.id;
+	for (const Building &b : buildings_) {
+		if (!turret_holder_points(b)) continue;
+		const std::vector<uint32_t> &list = turret_list(b);
+		if (std::find(list.begin(), list.end(), unit_id) != list.end()) return b.id;
+	}
 	return 0;
+}
+
+// Turretable.LeaveTurret for a unit on one of `holder`'s turret points.
+void Simulation::step_down_turret(Building &b, uint32_t unit_id) {
+	if (turret_points_of(b)) {
+		order_ungarrison_single(b.id, unit_id);
+		return;
+	}
+	auto it = std::find(b.turret_units.begin(), b.turret_units.end(), unit_id);
+	if (it == b.turret_units.end()) return;
+	b.turret_units.erase(it);
+	if (const int32_t i = lookup_unit(unit_id); i >= 0) {
+		units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+		leave_turret((size_t)i, b);
+	}
+	rally_after_ungarrison(unit_id, b.id);
 }
 
 void Simulation::cmd_leave_turret(uint8_t player, const uint32_t *unit_ids, size_t count) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
 		if (i < 0 || units_.team[i] != player) continue;
-		if (const uint32_t holder = turret_holder_of(unit_ids[k]); holder != 0)
-			cmd_unload(player, holder, &unit_ids[k], 1); // Turretable.LeaveTurret
+		const uint32_t holder = turret_holder_of(unit_ids[k]);
+		auto bit = building_id_to_idx_.find(holder);
+		if (holder != 0 && bit != building_id_to_idx_.end())
+			step_down_turret(buildings_[bit->second], unit_ids[k]); // Turretable.LeaveTurret
+	}
+}
+
+// Commands.js "unload-turrets": the holder's owner takes everyone off its turret points, a mutual
+// ally only its own units (TurretHolder.EjectOrKill / LeaveTurret).
+void Simulation::cmd_unload_turrets(uint8_t player, uint32_t building_id) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return;
+	Building &b = buildings_[bit->second];
+	if (!turret_holder_points(b) || (b.team != player && !is_ally(player, b.team))) return;
+	const std::vector<uint32_t> list = turret_list(b);
+	for (uint32_t uid : list) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || !turret_height_.count(uid) || (b.team != player && units_.team[i] != player)) continue;
+		step_down_turret(b, uid);
 	}
 }
 
@@ -7177,10 +7248,11 @@ static int nearest_turret_point(const TurretPointSet &pts, const Simulation::Bui
 }
 
 void Simulation::occupy_turret(size_t i, Building &b) {
-	const TurretPointSet *pts = turret_points_of(b);
-	if (!pts || (int)b.garrisoned_units.size() >= pts->count) return;
+	const TurretPointSet *pts = turret_holder_points(b);
+	std::vector<uint32_t> &list = turret_points_of(b) ? b.garrisoned_units : b.turret_units;
+	if (!pts || (int)list.size() >= pts->count) return;
 	bool taken[TURRET_POINTS_MAX] = {};
-	for (uint32_t uid : b.garrisoned_units) {
+	for (uint32_t uid : list) {
 		const int32_t u = lookup_unit(uid);
 		if (u >= 0) taken[nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u])] = true;
 	}
@@ -7200,19 +7272,28 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	// stance with respondStandGround), keeping the stance it had for later.
 	turret_prev_stance_[units_.id[i]] = units_.stance[i];
 	units_.stance[i] = STANCE_STAND_GROUND;
-	b.garrisoned_units.push_back(units_.id[i]);
+	list.push_back(units_.id[i]);
 	turret_height_[units_.id[i]] = pts->pt[k].y;
 }
 
 // Turretable.LeaveTurret: down beside the structure, on the side of the unit's point,
-// with its stance back (ResetTurretStance). Its new order, if any, stands.
+// with its stance back (ResetTurretStance). Its new order, if any, stands. The rampart
+// tower's turret units step onto its free spawn spots (PositionHelper.GetSpawnPosition), as
+// its sixteen points would otherwise drop pairs of them on one spot.
 void Simulation::leave_turret(size_t i, const Building &b) {
-	float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
-	const float len = std::sqrt(dx * dx + dz * dz);
-	if (len < 1e-3f) { dx = 0.0f; dz = 1.0f; } else { dx /= len; dz /= len; }
-	const float r = b.half_size + 1.2f;
-	units_.pos_x[i] = std::clamp(b.x + dx * r, -map_half_ + 1.0f, map_half_ - 1.0f);
-	units_.pos_z[i] = std::clamp(b.z + dz * r, -map_half_ + 1.0f, map_half_ - 1.0f);
+	float sx, sz;
+	if (!turret_points_of(b) && pick_spawn_point(b, units_.unit_type[i], units_.id[i], sx, sz)) {
+		units_.pos_x[i] = sx;
+		units_.pos_z[i] = sz;
+		face_away_from(i, b.x, b.z);
+	} else {
+		float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+		const float len = std::sqrt(dx * dx + dz * dz);
+		if (len < 1e-3f) { dx = 0.0f; dz = 1.0f; } else { dx /= len; dz /= len; }
+		const float r = b.half_size + 1.2f;
+		units_.pos_x[i] = std::clamp(b.x + dx * r, -map_half_ + 1.0f, map_half_ - 1.0f);
+		units_.pos_z[i] = std::clamp(b.z + dz * r, -map_half_ + 1.0f, map_half_ - 1.0f);
+	}
 	auto it = turret_prev_stance_.find(units_.id[i]);
 	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i], units_.tmpl[i]);
 	if (it != turret_prev_stance_.end()) turret_prev_stance_.erase(it);
@@ -7222,10 +7303,18 @@ void Simulation::leave_turret(size_t i, const Building &b) {
 void Simulation::tick_turrets() {
 	turret_height_.clear();
 	for (Building &b : buildings_) {
-		if (b.garrisoned_units.empty()) continue;
-		const TurretPointSet *pts = turret_points_of(b);
+		const bool own_list = !b.turret_units.empty(); // the rampart tower's
+		if (b.garrisoned_units.empty() && !own_list) continue;
+		const TurretPointSet *pts = own_list ? turret_holder_points(b) : turret_points_of(b);
 		if (!pts) continue;
-		auto &list = b.garrisoned_units;
+		auto &list = own_list ? b.turret_units : b.garrisoned_units;
+		if (own_list && (b.wrecked || b.hp <= 0.0f)) { // TurretHolder.OnDestroy: everyone steps down
+			for (uint32_t uid : list)
+				if (const int32_t u = lookup_unit(uid); u >= 0 && units_.alive[u]) leave_turret((size_t)u, b);
+				else turret_prev_stance_.erase(uid);
+			list.clear();
+			continue;
+		}
 		bool taken[TURRET_POINTS_MAX] = {};
 		for (size_t k = 0; k < list.size();) {
 			const int32_t u = lookup_unit(list[k]);
@@ -14962,7 +15051,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 			if (k >= 0 && units_.order_kind[k] == ORDER_BUILD) units_.order_flags[k] |= o.flags & ORDER_FLAG_AUTOHARVEST;
 			break;
 		}
-		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
+		case ORDER_GARRISON: order_garrison(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_TURRET) != 0); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
@@ -15752,6 +15841,11 @@ void Simulation::tick_unit_ai(float dt) {
 			Building *b = bit == building_id_to_idx_.end() ? nullptr : &buildings_[bit->second];
 			if (!b || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
 			if (garrison_in_range(i, *b)) {
+				if (units_.order_flags[i] & ORDER_FLAG_TURRET) { // OCCUPYTURRET enter: Turretable.OccupyTurret
+					if (turret_room(*b) && structure_accepts_turret(*b, i)) occupy_turret(i, *b);
+					else finish_order(i);
+					continue;
+				}
 				// GARRISONING enter: Garrisonable.Garrison fails on a full holder, one that no longer
 				// takes the unit, or one below EjectHealth, and the unit stops where it stands.
 				if (!garrison_room(*b, i) || !structure_accepts_garrison(*b, i) || !structure_has_enough_health(*b)) {
@@ -26746,7 +26840,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply); v82 CinemaManager's camera paths, path queue and timers (save_tick_state); v83 Petra's plan names (attackManager.js totalNumber), its main plan's siege class (SIEGE_ADDED) and its raid's unitStat sizes; v84 which players have seen each structure (Fogging seen, so mirages survive a load)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply); v82 CinemaManager's camera paths, path queue and timers (save_tick_state); v83 Petra's plan names (attackManager.js totalNumber), its main plan's siege class (SIEGE_ADDED) and its raid's unitStat sizes; v84 which players have seen each structure (Fogging seen, so mirages survive a load); v85 the Mauryan rampart tower's turret units beside its garrison (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -27495,15 +27589,17 @@ bool Simulation::load_state(const char *filepath) {
 	// them before this tick's tick_turrets).
 	turret_height_.clear();
 	for (const Building &b : buildings_) {
-		const TurretPointSet *pts = b.garrisoned_units.empty() ? nullptr : turret_points_of(b);
+		const bool own_list = !b.turret_units.empty();
+		const TurretPointSet *pts = own_list ? turret_holder_points(b) : b.garrisoned_units.empty() ? nullptr : turret_points_of(b);
 		if (!pts) continue;
+		const std::vector<uint32_t> &list = own_list ? b.turret_units : b.garrisoned_units;
 		bool taken[TURRET_POINTS_MAX] = {};
-		for (size_t k = 0; k < b.garrisoned_units.size() && (int)k < pts->count; ++k) {
-			const int32_t u = lookup_unit(b.garrisoned_units[k]);
+		for (size_t k = 0; k < list.size() && (int)k < pts->count; ++k) {
+			const int32_t u = lookup_unit(list[k]);
 			if (u < 0 || !units_.alive[u]) continue;
 			const int pi = nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u], taken);
 			taken[pi] = true;
-			turret_height_[b.garrisoned_units[k]] = pts->pt[pi].y;
+			turret_height_[list[k]] = pts->pt[pi].y;
 		}
 	}
 	if (version < SAVE_VERSION_WONDER_TIMERS) // older saves kept one countdown per player
@@ -28342,6 +28438,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			for (uint16_t q : c.queue)
 				if (q >= c.paths.size()) ar.ok = false;
 	}
+
+	// v85: each structure's turret units beside its garrison (the Mauryan rampart tower), in
+	// the order of the structures saved above.
+	if (ar.version >= Simulation::SAVE_VERSION_TURRET_UNITS)
+		for (Simulation::Building &b : s.buildings_) ids(b.turret_units);
 
 	// 9. Aura sources (v38): rebuilt every 0.4 s, and move_units() reads speed auras
 	// before the next rebuild, so a loaded game needs the ones in force.
