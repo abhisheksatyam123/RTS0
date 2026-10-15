@@ -185,6 +185,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_placing"), &RtsoMain::debug_placing);
 	ClassDB::bind_method(D_METHOD("debug_highlight"), &RtsoMain::debug_highlight);
 	ClassDB::bind_method(D_METHOD("debug_selected_structures"), &RtsoMain::debug_selected_structures);
+	ClassDB::bind_method(D_METHOD("debug_rally_flags"), &RtsoMain::debug_rally_flags);
+	ClassDB::bind_method(D_METHOD("debug_status_sprites"), &RtsoMain::debug_status_sprites);
 	ClassDB::bind_method(D_METHOD("debug_building_queue", "id"), &RtsoMain::debug_building_queue);
 	ClassDB::bind_method(D_METHOD("debug_structure_outlined", "id"), &RtsoMain::debug_structure_outlined);
 	ClassDB::bind_method(D_METHOD("debug_guard_target", "unit_id"), &RtsoMain::debug_guard_target);
