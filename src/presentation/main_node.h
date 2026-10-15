@@ -573,6 +573,7 @@ public:
 	void debug_set_carry(int64_t unit_id, int res, int amount);
 	void debug_set_resource(int res, float amount);
 	bool debug_placing() const;
+	PackedInt32Array debug_highlight() const { return highlight_ids_; }
 	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
@@ -590,7 +591,11 @@ public:
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
-	size_t own_unit_under_mouse(Vector2 mouse_pos) const;
+	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
+	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
+	// input.js setHighlightList: the entity under the cursor, or what the band box would pick.
+	void update_highlight();
+	PackedInt32Array highlight_ids_;
 	struct BatchTraining {
 		bool active = false;
 		bool from_unit = false; // trained by a unit (Trainer on a unit), else a structure
