@@ -713,6 +713,8 @@ public:
 	// Roster templates the unit `tmpl` trains for `player` now (Trainer/Entities with their
 	// requirements met), and every one it could train (`all`).
 	std::vector<uint16_t> unit_trainables(uint8_t player, uint16_t tmpl, bool all = false) const;
+	// The technology a training unit's Trainer list entry requires (unit_trainer_data.h), or TECH_NONE.
+	static uint8_t unit_trainee_tech(uint16_t trainer_tmpl, uint16_t trainee);
 	static bool unit_is_trainer(uint16_t tmpl); // trains or researches (Trainer or Researcher)
 	// 0 A.D. Researcher on a unit (Athenian triremes: Iphicratean Reforms): the technologies the
 	// roster unit `tmpl` researches, and queueing one (research_check's rules, without a structure).

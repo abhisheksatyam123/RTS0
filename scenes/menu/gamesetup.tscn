@@ -396,9 +396,9 @@ layout_mode = 2
 [node name="WonderLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Wonder victory: how long a finished wonder must stand."
+tooltip_text = "Minutes until the player has achieved Wonder Victory"
 mouse_filter = 1
-text = "Wonder"
+text = "Wonder Duration"
 
 [node name="WonderTimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
@@ -409,9 +409,9 @@ size_flags_horizontal = 3
 [node name="RelicLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Capture the Relic: how many relics, and how long all of them must be held."
+tooltip_text = "Total number of relics spawned on the map, and the minutes until the player has achieved Relic Victory."
 mouse_filter = 1
-text = "Relics"
+text = "Relic Count, Duration"
 
 [node name="RelicCountSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
@@ -442,9 +442,9 @@ layout_mode = 2
 [node name="SpeedLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/SpeedRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Game speed at the start (the speed button in game still changes it)."
+tooltip_text = "Select game speed."
 mouse_filter = 1
-text = "Speed"
+text = "Game Speed"
 
 [node name="SpeedSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/SpeedRow"]
 unique_name_in_owner = true
@@ -542,12 +542,12 @@ layout_mode = 2
 [node name="SlotsLabel" type="Label" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
-text = "Players (2-8)"
+text = "Players (1-8)"
 
 [node name="SpinSlots" type="SpinBox" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-min_value = 2.0
+min_value = 1.0
 max_value = 8.0
 step = 1.0
 value = 2.0
