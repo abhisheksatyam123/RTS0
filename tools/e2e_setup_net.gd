@@ -249,6 +249,25 @@ func run() -> void:
 	check(page.get_node("VBox/HBox/Right/ErrorLabel").text == "That colour is taken.", "a refused request says why")
 	check(not page.get_node("VBox/HBox/Right/Buttons/BtnBack").disabled and page.get_node("%NetChatInput").editable
 		and not page.get_node("%NetChatSend").disabled, "a client may still go Back and chat")
+	# ChatInputPanel.onTab / ChatInputAutocomplete: names first, then civs, then settings.
+	var chat_in: LineEdit = page.get_node("%NetChatInput")
+	check(chat_in.tooltip_text == "Press Tab to autocomplete player names or settings.", "the chat tooltip names Tab")
+	var entries: Array = page.autocomplete_entries()
+	check(entries.find("bob") >= 0 and entries.find("bob") < entries.find("Britons")
+		and entries.find("Britons") < entries.find("Random"), "names come before civs, civs before settings")
+	# "bo" also starts Botswanan Haven, as in 0.28's list.
+	check(page.try_autocomplete("hi bo", entries) == "hi bo" and page.try_autocomplete("hi bob", entries) == "hi bob"
+		and page.try_autocomplete("kush", entries) == "Kushites", "a word completes only when one entry starts with it")
+	chat_in.grab_focus()
+	chat_in.text = "gg ali"
+	chat_in.caret_column = 6
+	var tab := InputEventKey.new()
+	tab.keycode = KEY_TAB
+	tab.pressed = true
+	Input.parse_input_event(tab)
+	await frames(3)
+	check(chat_in.text == "gg alice" and chat_in.caret_column == 8 and chat_in.has_focus(), "Tab in the chat completes alice: " + chat_in.text)
+	chat_in.clear()
 	page._on_back_pressed()
 	check(client.left == 1, "Back leaves the networked game")
 	client.state["locked"] = true

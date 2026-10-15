@@ -2255,6 +2255,55 @@ void Simulation::gaia_obstacles_near(float x, float z, float reach, std::vector<
 	});
 }
 
+bool Simulation::ship_wreck_steer(size_t i, float x, float z, float ax, float az, nav::Vec2 &out) const {
+	if (gaia_grid_.empty()) return false;
+	const nav::Vec2 pos(x, z), aim(ax, az), dir = aim - pos;
+	const float len = dir.length();
+	if (len < 1e-3f) return false;
+	const nav::Vec2 end = len > SHIP_WRECK_STEER_REACH ? pos + dir * (SHIP_WRECK_STEER_REACH / len) : aim;
+	const float r = unit_clearance_at(i);
+	const SteerObstacle *hit = nullptr;
+	float hit_d2 = 0.0f;
+	const float pad = r * 1.4143f; // a square grown by r reaches r * sqrt(2) further at its corners
+	gaia_grid_.for_each_in_box(std::min(x, end.x) - pad, std::min(z, end.y) - pad, std::max(x, end.x) + pad, std::max(z, end.y) + pad,
+			[&](uint32_t k) {
+		if (gaia_res_idx_[k] != UINT32_MAX) return; // trees and bushes stand on land
+		const SteerObstacle &o = gaia_obstacles_[k];
+		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + r, o.hv + r);
+		// The treasure the ship sails to collect, and one it already overlaps, are not steered round.
+		if (nav::PointIsInSquare(aim - c, u, v, half) || nav::PointIsInSquare(pos - c, u, v, half)) return;
+		if (!nav::TestRaySquare(pos - c, end - c, u, v, half)) return;
+		const float d2 = (c - pos).dot(c - pos);
+		if (!hit || d2 < hit_d2) { hit = &o; hit_d2 = d2; }
+	});
+	if (!hit) return false;
+	// The corner of the wreck's square (grown by the hull) the ship can see that makes the shorter way.
+	const nav::Vec2 c(hit->x, hit->z), u = nav::footprint_u(*hit), v = nav::footprint_v(*hit);
+	const nav::Vec2 half(hit->hu + r, hit->hv + r), wide(half.x + 0.25f, half.y + 0.25f);
+	float best = -1.0f;
+	for (int sx = -1; sx <= 1; sx += 2)
+		for (int sz = -1; sz <= 1; sz += 2) {
+			const nav::Vec2 corner = c + u * ((float)sx * wide.x) + v * ((float)sz * wide.y);
+			if (nav::TestRaySquare(pos - c, corner - c, u, v, half)) continue;
+			const float cost = (corner - pos).length() + (aim - corner).length();
+			if (best < 0.0f || cost < best) { best = cost; out = corner; }
+		}
+	return best >= 0.0f;
+}
+
+bool Simulation::ship_step_into_wreck(size_t i, float x, float z, float nx, float nz, float ax, float az) const {
+	if (gaia_grid_.empty()) return false;
+	const float r = unit_clearance_at(i);
+	const float pad = r * 1.4143f; // a square grown by r reaches r * sqrt(2) further at its corners
+	return gaia_grid_.any_in_box(std::min(x, nx) - pad, std::min(z, nz) - pad, std::max(x, nx) + pad, std::max(z, nz) + pad, [&](uint32_t k) {
+		if (gaia_res_idx_[k] != UINT32_MAX) return false;
+		const SteerObstacle &o = gaia_obstacles_[k];
+		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + r, o.hv + r);
+		return nav::PointIsInSquare(nav::Vec2(nx, nz) - c, u, v, half) && !nav::PointIsInSquare(nav::Vec2(x, z) - c, u, v, half) &&
+				!nav::PointIsInSquare(nav::Vec2(ax, az) - c, u, v, half);
+	});
+}
+
 bool Simulation::gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const {
 	if (gaia_grid_.empty()) return false;
 	const nav::Vec2 pos(x, z), aim(ax, az), dir = aim - pos;
@@ -10407,6 +10456,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// does, whatever way round buildings it is heading for.
 			const float lx = px[i] - last.x, lz = pz[i] - last.z;
 			if (last.key == idle_stuck_key() && lx * lx + lz * lz < 0.25f) memo = last;
+		} else if (!backing_off) {
+			rtso::nav::Vec2 steer;
+			if (ship_wreck_steer((size_t)i, px[i], pz[i], aim_x, aim_z, steer)) {
+				dx = steer.x - px[i];
+				dz = steer.y - pz[i];
+				d2 = dx * dx + dz * dz;
+				steered = true;
+			}
 		}
 
 		float inv = 1.0f / sqrtf(d2);
@@ -10442,7 +10499,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
 					return !nav_grid_.is_passable_for(cx, cy, PASS_SHIP);
 				};
-				return off(x, z) && !off(px[i], pz[i]);
+				return (off(x, z) && !off(px[i], pz[i])) || ship_step_into_wreck((size_t)i, px[i], pz[i], x, z, aim_x, aim_z);
 			};
 			if (barred(npx[i], npz[i])) {
 				// A refused step that reaches a short-path waypoint ends on it and spends the rest heading on
@@ -18284,9 +18341,9 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 	auto classes_of = [](uint16_t tmpl, uint8_t type) {
 		return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	};
+	// A building of ours that trains `tmpl` at all (findTrainableUnits ignores queue lengths).
 	auto trainer_for = [&](uint16_t tmpl) -> uint32_t {
-		const CivUnitTemplate &t = civ_unit_template(tmpl);
-		return petra_best_trainer(tmpl, t.unit_type, (t.flags & ROSTER_HERO) ? PRODUCTION_QUEUE_MAX : 4);
+		return petra_best_trainer(tmpl, civ_unit_template(tmpl).unit_type, PRODUCTION_QUEUE_MAX);
 	};
 	// attackPlan.js constructor unitStat: {classes, priority, minSize, targetSize, batchSize,
 	// strength, costsResource stone, costsResource metal}.
@@ -18386,11 +18443,13 @@ void Simulation::petra_manage_military_production(float dt) {
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_)) return;
 	const uint8_t phase = petra_ps().phase;
 
-	// The building of ours that trains roster unit `tmpl` soonest (TrainingPlan.getBestTrainers).
-	// A hero, wanted once, is not kept off a civic centre busy with worker batches.
+	// The building of ours that trains roster unit `tmpl` soonest (TrainingPlan.getBestTrainers):
+	// one with under 4 batches queued, else any. findBestTrainableUnit picks the unit first
+	// without looking at queues, so busy buildings don't change what is trained.
 	auto trainer_for = [&](uint16_t tmpl) -> uint32_t {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
-		return petra_best_trainer(tmpl, t.unit_type, (t.flags & ROSTER_HERO) ? PRODUCTION_QUEUE_MAX : 4);
+		const uint32_t free = (t.flags & ROSTER_HERO) ? 0 : petra_best_trainer(tmpl, t.unit_type, 4);
+		return free ? free : petra_best_trainer(tmpl, t.unit_type, PRODUCTION_QUEUE_MAX);
 	};
 
 	// attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
@@ -18903,7 +18962,7 @@ int Simulation::petra_train_more_workers() {
 			float cost[RES_COUNT];
 			unit_train_cost(petra_pid_, tmpl, ui, cost);
 			float value = 0.1f;
-			if (total < 45) value += ui.speed / FORMATION_METRE * 0.5f; // walkSpeed in m/s
+			if (total < 45) value += ui.speed * unit_tech_mods(petra_pid_, t.unit_type, tmpl).speed / FORMATION_METRE * 0.5f; // walkSpeed in m/s
 			else value += petra_template_strength(ui, tmpl, t.unit_type);
 			for (int r = 0; r < RES_COUNT; ++r)
 				if (cost[r] > 0.0f) value *= penalty[r];
@@ -18930,20 +18989,28 @@ int Simulation::petra_train_more_workers() {
 // getMaxStrength's Capture attack: MaxRange 4 m x 0.0125 + RepeatTime 1000 / 1e5.
 static constexpr float PETRA_CAPTURE_STRENGTH = 4.0f * 0.0125f + 1000.0f / 100000.0f;
 
-// PETRA.getMaxStrength for a template at its base stats (petra_unit_strength reads a unit),
-// its damage times `attack_mult` (getMultiplierAgainst for a class it is measured against).
+// PETRA.getMaxStrength for a template (petra_unit_strength reads a unit), its damage times
+// `attack_mult` (getMultiplierAgainst for a class it is measured against). Petra's templates
+// carry the player's technology modifications (common-api entity.js get), so the stats are
+// the ones a unit of ours trained now would have.
 float Simulation::petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult) const {
+	const UnitTechMods m = unit_tech_mods(petra_pid_, type, tmpl);
 	float s = 0.0f;
 	if (ui.attack_damage > 0.0f) {
-		s += (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage) * attack_mult / 4.0f;
+		const float hack = ui.hack_damage * m.atk_mul[0] + m.atk_add[0];
+		const float pierce = ui.pierce_damage * m.atk_mul[1] + m.atk_add[1];
+		const float crush = ui.crush_damage * m.atk_mul[2] + m.atk_add[2];
+		s += (0.075f * hack + 0.085f * pierce + 0.045f * crush) * attack_mult / 4.0f;
 		const bool ranged = (unit_classes(tmpl, type) & TC_RANGED) != 0;
-		s += ui.attack_range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
+		const float range = ui.attack_range * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
+		s += range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
 		s += ui.attack_cooldown * 1000.0f / 100000.0f;
 	}
 	// attackTypes() lists Capture too: no attackStrengths, but its MaxRange 4 and RepeatTime 1000.
 	if (unit_capture_attack(tmpl, type) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
-	s += (0.075f * ui.hack_armor + 0.085f * ui.pierce_armor + 0.045f * ui.crush_armor) / 4.0f;
-	return s * ui.hp / 100.0f;
+	s += (0.075f * (ui.hack_armor + m.armor[0]) + 0.085f * (ui.pierce_armor + m.armor[1]) +
+	      0.045f * (ui.crush_armor + m.armor[2])) / 4.0f;
+	return s * ui.hp * m.health / 100.0f;
 }
 
 // Sends up to `max` of `workers` to build foundation `bid`. On a naval map only

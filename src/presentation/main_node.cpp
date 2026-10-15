@@ -3654,6 +3654,22 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 	chat_window_.send_pressed();
 }
 
+void RtsoMain::_on_chat_input_gui(const Ref<InputEvent> &event) {
+	Ref<InputEventKey> k = event;
+	if (k.is_valid() && k->is_pressed() && k->get_keycode() == KEY_TAB) chat_window_.tab_complete();
+}
+
+std::vector<String> RtsoMain::chat_autocomplete_names() {
+	std::vector<String> out;
+	if (net_lockstep()) {
+		for (const auto &e : net_host_.playerAssignment())
+			if (!e.name.empty()) out.push_back(String::utf8(e.name.c_str()));
+	} else if (local_player() < rtso::MAX_PLAYERS) {
+		out.push_back(player_display_name(local_player()));
+	}
+	return out;
+}
+
 // 0 A.D. MatchSettingsDialog.toggle.
 void RtsoMain::toggle_objectives() {
 	const bool open = objectives_dialog_.is_open();

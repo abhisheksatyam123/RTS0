@@ -27,12 +27,13 @@ void RtsoMiniMapView::_bind_methods() {
 }
 
 RtsoMiniMapView::RtsoMiniMapView() {
-	set_anchor(SIDE_LEFT, 0.0f);
-	set_anchor(SIDE_RIGHT, 0.0f);
+	// Inside the minimap panel at session.xml's 50%-512 (minimap_panel_view.h).
+	set_anchor(SIDE_LEFT, 0.5f);
+	set_anchor(SIDE_RIGHT, 0.5f);
 	set_anchor(SIDE_TOP, 1.0f);
 	set_anchor(SIDE_BOTTOM, 1.0f);
-	set_offset(SIDE_LEFT, 14.0f);
-	set_offset(SIDE_RIGHT, 204.0f);
+	set_offset(SIDE_LEFT, -504.0f);
+	set_offset(SIDE_RIGHT, -314.0f);
 	set_offset(SIDE_TOP, -204.0f);
 	set_offset(SIDE_BOTTOM, -14.0f);
 	set_custom_minimum_size(Vector2(190, 190));
