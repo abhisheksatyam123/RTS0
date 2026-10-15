@@ -55,6 +55,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_game_paused"), &RtsoMain::is_game_paused);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
 	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
+	ClassDB::bind_method(D_METHOD("debug_combat_sound", "x", "z"), &RtsoMain::debug_combat_sound);
 	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
 	ClassDB::bind_method(D_METHOD("_on_trading_goods_requested", "shares"), &RtsoMain::_on_trading_goods_requested);
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
