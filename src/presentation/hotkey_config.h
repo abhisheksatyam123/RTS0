@@ -41,6 +41,8 @@ public:
 	PackedStringArray fired(const Ref<InputEvent> &event) const;
 	// Formats held keys as a combination, modifiers first ("Ctrl+Shift+A").
 	String format_keys(const PackedStringArray &keys) const;
+	String display(const String &name) const;
+	String display_combo(const String &combo) const;
 	// Engine.HotkeyIsPressed(name): every key of one of its combinations is down.
 	bool is_held(const String &name) const;
 };
