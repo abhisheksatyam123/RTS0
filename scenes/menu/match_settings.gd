@@ -97,6 +97,9 @@ var net_ip: String = "127.0.0.1"
 var net_port: int = 20595
 var net_password: String = ""
 var net_observe: bool = false
+# The lobby's one-use ticket for a game joined from its list (/rooms/connect):
+# the host has the lobby name who it belongs to (0 A.D. lobby authentication).
+var net_lobby_ticket: String = ""
 # 0 A.D. "Host Saved Game": with net_mode "host", the save in load_save_path is
 # continued in multiplayer (cleared once used).
 var net_saved_game: bool = false

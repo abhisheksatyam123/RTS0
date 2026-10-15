@@ -446,6 +446,8 @@ public:
 	void net_query_stun(const String &server, int port);
 	void net_hole_punch(const String &ip, int port);
 	void net_retarget_host(const String &ip, int port);
+	// LobbySession.verify_join's answer: the lobby name the ticket belongs to ("" unknown).
+	void net_lobby_auth_result(int peer, const String &ticket, const String &name);
 	// Networked Game Setup for scenes/menu/gamesetup.gd: see net_setup_.
 	bool is_net_pregame() const;
 	Dictionary get_net_setup_state() const;

@@ -281,9 +281,13 @@ struct NetPeer {
 constexpr size_t NET_MAX_CLIENTS = 41;
 // 0 A.D. NetHost.h ENetDisconnectReason values a host sends with its disconnect.
 constexpr uint8_t NDR_INCORRECT_PROTOCOL_VERSION = 3;
+// 0 A.D. NetMessages.h: the handshake response flag of a host that checks a
+// joiner's name with the lobby.
+constexpr uint32_t PS_NETWORK_FLAG_REQUIRE_LOBBYAUTH = 0x1;
 constexpr uint8_t NDR_SERVER_ALREADY_IN_GAME = 5; // a late observer the host does not take
 constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;
+constexpr uint8_t NDR_LOBBY_AUTH_FAILED = 10;
 constexpr uint8_t NDR_INCORRECT_SOFTWARE_VERSION = 17;
 // What this build sends in its handshake (0 A.D. CNetServerWorker::CheckHandshake
 // compares engine versions and enabled mods): a host refuses any other.
@@ -331,6 +335,11 @@ struct AuthenticateMsg {
 	std::string name;
 	std::string password;
 	std::string controller_secret;
+	// RTS0: the one-use ticket the lobby gave this joiner with the game's
+	// address (/rooms/connect); the host redeems it to learn the joiner's
+	// lobby name, as 0.28's host learns it from the lobby's LobbyAuth iq.
+	// Optional on the wire.
+	std::string lobby_ticket;
 };
 
 struct AuthenticateResultMsg {
@@ -1132,6 +1141,7 @@ public:
 		NetSerde::write_string(buf, msg.name);
 		NetSerde::write_string(buf, msg.password);
 		NetSerde::write_string(buf, msg.controller_secret);
+		if (!msg.lobby_ticket.empty()) NetSerde::write_string(buf, msg.lobby_ticket);
 		return buf;
 	}
 
@@ -1140,6 +1150,7 @@ public:
 		if (!NetSerde::read_string(data, size, offset, msg.name)) return false;
 		if (!NetSerde::read_string(data, size, offset, msg.password)) return false;
 		if (!NetSerde::read_string(data, size, offset, msg.controller_secret)) return false;
+		if (offset < size && !NetSerde::read_string(data, size, offset, msg.lobby_ticket)) return false;
 		return true;
 	}
 

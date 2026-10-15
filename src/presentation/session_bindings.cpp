@@ -258,6 +258,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("net_query_stun", "server", "port"), &RtsoMain::net_query_stun);
 	ClassDB::bind_method(D_METHOD("net_hole_punch", "ip", "port"), &RtsoMain::net_hole_punch);
 	ClassDB::bind_method(D_METHOD("net_retarget_host", "ip", "port"), &RtsoMain::net_retarget_host);
+	ClassDB::bind_method(D_METHOD("net_lobby_auth_result", "peer", "ticket", "name"), &RtsoMain::net_lobby_auth_result);
 	ClassDB::bind_method(D_METHOD("get_turn_hash", "turn"), &RtsoMain::get_turn_hash);
 
 	const StringName cls = get_class_static();
