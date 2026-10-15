@@ -21,6 +21,9 @@ func _unhandled_input(event):
 		get_viewport().set_input_as_handled()
 		_on_resume_pressed()
 
+## Menu.js MENU_SPEED: 1.2 px per ms, sliding down to open and back up to close.
+const MENU_SPEED := 1200.0
+
 # Menu.xml / Menu.js startAnimation: the panel (164 wide) hangs under the Menu button at the
 # top right and slides down out of it.
 func _slide_down() -> void:
@@ -38,7 +41,36 @@ func _slide_down() -> void:
 	panel.size = Vector2(164.0, h)
 	panel.position = Vector2(0.0, -h)
 	var tw := create_tween()
-	tw.tween_property(panel, "position:y", 0.0, 0.15)
+	tw.tween_property(panel, "position:y", 0.0, h / MENU_SPEED)
+
+# Menu.js close: the panel slides back up into the Menu button. The menu is closed at
+# once (so its buttons and Esc stop at once); an inert copy of the panel slides up.
+func _slide_up() -> void:
+	var box: Control = $CenterContainer
+	var panel: Control = $CenterContainer/Panel
+	var h: float = panel.size.y
+	var main := get_parent()
+	if main == null or h <= 0.0 or not box.visible:
+		return
+	var ghost_layer := CanvasLayer.new()
+	ghost_layer.name = "PauseMenuClosing"
+	ghost_layer.layer = layer
+	ghost_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	var ghost := Control.new()
+	ghost.position = box.position
+	ghost.size = box.size
+	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var copy: Control = panel.duplicate(0)
+	copy.position = panel.position
+	copy.size = panel.size
+	for c in [copy] + copy.find_children("*", "Control", true, false):
+		(c as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ghost.add_child(copy)
+	ghost_layer.add_child(ghost)
+	main.add_child(ghost_layer)
+	var tw := ghost_layer.create_tween()
+	tw.tween_property(copy, "position:y", -h, maxf(copy.position.y + h, 0.0) / MENU_SPEED)
+	tw.tween_callback(ghost_layer.queue_free)
 
 # Closes the menu, through RtsoMain when it is there (Menu.close).
 func _on_resume_pressed():
@@ -46,6 +78,7 @@ func _on_resume_pressed():
 	if visible and main and main.has_method("_on_menu_button_pressed"):
 		main._on_menu_button_pressed()
 		return
+	_slide_up()
 	visible = false
 	$CenterContainer.visible = false
 
@@ -161,6 +194,8 @@ func _on_resign_pressed():
 		load("res://scenes/session/quit_confirmation.gd").resign(main)
 
 func toggle():
+	if visible:
+		_slide_up()
 	visible = !visible
 	$CenterContainer.visible = visible
 	if visible:
@@ -170,6 +205,12 @@ func toggle():
 	var chat: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnChat")
 	if chat and get_parent().has_method("chat_open_hotkey_tooltip"):
 		chat.tooltip_text = get_parent().chat_open_hotkey_tooltip()
+	# MenuButtons.js Summary: the current "summary" hotkey.
+	var summary: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnSummary")
+	if summary:
+		var skeys: Array = _hotkeys.get_hotkey_map().get("summary", [])
+		summary.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to open the summary screen."),
+			{"hotkey": ", ".join(PackedStringArray(skeys)) if not skeys.is_empty() else L10n.t("Unassigned")})
 	var lobby: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnLobby")
 	if lobby:
 		lobby.disabled = not (get_parent().has_method("has_lobby_client") and get_parent().has_lobby_client())
