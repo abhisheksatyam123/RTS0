@@ -6737,6 +6737,34 @@ float Simulation::building_arrow_range(const Building &b) const {
 	return ai.max_range + (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_range[b.type] * COMBAT_DISTANCE_SCALE : 0.0f);
 }
 
+float Simulation::structure_arrow_range(uint8_t player, uint8_t type) const {
+	const BuildingAIInfo &ai = building_ai_info(type);
+	if (!ai.shoots()) return 0.0f;
+	return ai.max_range + (player < MAX_PLAYERS ? tech_mods(player).bld_range[type] * COMBAT_DISTANCE_SCALE : 0.0f);
+}
+
+// RangeManager getParabolicRangeForm: along each of 16 directions the farthest point d
+// (out to twice the range) with d^2 <= range^2 + 2 range (y0 - ground(d)); their average.
+float Simulation::average_elevation_range(float x, float z, float range, float y_origin) const {
+	if (range <= 0.0f) return 0.0f;
+	constexpr int kSteps = 16, kSamples = 64;
+	const float y0 = get_terrain_height(x, z) + y_origin;
+	float sum = 0.0f;
+	for (int k = 0; k < kSteps; ++k) {
+		const float a = 6.2831853f * (float)k / (float)kSteps;
+		const float ux = std::sin(a), uz = std::cos(a);
+		float reach = 0.0f;
+		for (int i = 1; i <= kSamples; ++i) {
+			const float d = 2.0f * range * (float)i / (float)kSamples;
+			const float h = y0 - get_terrain_height(x + ux * d, z + uz * d);
+			const float r2 = range * range + 2.0f * range * h;
+			if (r2 > 0.0f && d * d <= r2) reach = d;
+		}
+		sum += reach;
+	}
+	return sum / (float)kSteps;
+}
+
 // Who may board: same owner, not a transport itself; land siege only takes
 // 0 A.D.'s Support and Infantry classes.
 bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
@@ -9403,7 +9431,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				const bool capture = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
 						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f &&
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
-				const float reach = capture ? CAPTURE_RANGE : attack_reach(i);
+				float reach = capture ? CAPTURE_RANGE : attack_reach(i);
+				if (!capture && reach > 3.0f) { // Ranged: the elevation-adapted range, as for a unit target
+					const float h = get_terrain_height(b.x, b.z) - unit_height(i);
+					const float eff = std::sqrt(std::max(0.0f, reach * reach - 2.0f * reach * h));
+					reach = eff > reach ? 0.5f * (reach + eff) : eff;
+				}
 				const float eff_d = structure_gap(b, px[i], pz[i], unit_clearance_at(i));
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
