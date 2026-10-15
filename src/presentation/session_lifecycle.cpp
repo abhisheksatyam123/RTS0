@@ -5,6 +5,7 @@
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
+#include <godot_cpp/classes/input_event_key.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <cmath>
 #include <godot_cpp/classes/time.hpp>
@@ -1551,6 +1552,13 @@ void RtsoMain::chat_open_page() {
 }
 
 void RtsoMain::_on_chat_filter_selected(int index) { chat_window_.set_filter(index); }
+
+void RtsoMain::_on_chat_input_key(const Ref<InputEvent> &event) {
+	Ref<InputEventKey> k = event;
+	if (k.is_null() || !k->is_pressed() || k->get_keycode() != KEY_TAB) return;
+	if (chat_window_.input()) chat_window_.input()->accept_event();
+	chat_window_.autocomplete();
+}
 
 void RtsoMain::_on_chat_history_toggled(bool on) {
 	chat_window_.set_extended(on);

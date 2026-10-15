@@ -546,6 +546,7 @@ public:
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
 	std::vector<std::pair<String, String>> chat_private_targets() override;
+	std::vector<String> chat_assigned_names() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
@@ -612,6 +613,7 @@ public:
 	void _on_chat_send_pressed();
 	void _on_chat_filter_selected(int index); // ChatHistory.onSelectionChange
 	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
+	void _on_chat_input_key(const Ref<InputEvent> &event); // ChatInput onTab: name autocomplete
 	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
 	void _on_chat_text_submitted(const String &text);
 	void _on_chat_channel_btn_pressed(int channel_idx);

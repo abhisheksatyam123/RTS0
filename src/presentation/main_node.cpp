@@ -3571,6 +3571,21 @@ std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
 		                       : "[Player-" + String::num_int64((int)e.player + 1) + "]";
 		out.push_back({tag, chat_user("peer-" + String::num_int64(e.client))});
 	}
+	// sortGUIDsByPlayerID: players by id, observers after them.
+	std::stable_sort(out.begin(), out.end(), [](const auto &a, const auto &b) {
+		auto key = [](const String &tag) { return tag.begins_with("[Player-") ? tag.substr(8).to_int() : 1000; };
+		return key(a.first) < key(b.first);
+	});
+	return out;
+}
+
+std::vector<String> RtsoMain::chat_assigned_names() {
+	std::vector<String> out;
+	if (!net_lockstep()) {
+		out.push_back(chat_user("local"));
+		return out;
+	}
+	for (const auto &e : net_host_.playerAssignment()) out.push_back(chat_user("peer-" + String::num_int64(e.client)));
 	return out;
 }
 

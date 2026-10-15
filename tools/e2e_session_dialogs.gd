@@ -241,5 +241,28 @@ func run() -> void:
 	check(not dlg()["chat_extended"], "unticking History hides it")
 	main._on_chat_history_toggled(true)
 
+	print("7. Tab completes a player name; at most 1024 characters")
+	check(le.max_length == 1024, "chatInput max_length 1024")
+	main.toggle_chat()
+	await frames(2)
+	check(le.is_visible_in_tree() and le.is_connected("gui_input", Callable(main, "_on_chat_input_key")), "the chat input's keys reach the Tab handler")
+	le.text = ""
+	var tab := InputEventKey.new()
+	tab.keycode = KEY_TAB
+	tab.pressed = true
+	le.text = "zz"
+	le.caret_column = 2
+	main._on_chat_input_key(tab)
+	check(le.text == "zz", "no name starts with the word: left alone (%s)" % le.text)
+	var first: String = String(dlg().get("chat_names", [""])[0]) if dlg().has("chat_names") else ""
+	if first != "":
+		le.text = first.substr(0, 2)
+		le.caret_column = 2
+		main._on_chat_input_key(tab) # as lobby e2e does: headless key events skip the GUI
+		check(le.text == first + ", ", "a lone word completes to the name and \", \" (%s)" % le.text)
+	else:
+		check(false, "chat_names lists the assigned names")
+	main.toggle_chat()
+
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

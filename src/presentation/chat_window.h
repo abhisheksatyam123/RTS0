@@ -13,7 +13,11 @@
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/label.hpp>
+#include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/line_edit.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/script.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/rich_text_label.hpp>
@@ -69,6 +73,8 @@ public:
 	// as (wire tag, coloured name): "[Player-N]" for player id N - 1, "[Observer-C]" for
 	// the observer on client C.
 	virtual std::vector<std::pair<String, String>> chat_private_targets() = 0;
+	// g_PlayerAssignments: every connected human's (coloured) name, the local one too.
+	virtual std::vector<String> chat_assigned_names() { return {}; }
 };
 
 // ChatHistory.js Filters, fixed per message when it arrives.
@@ -190,6 +196,8 @@ public:
 		input_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 		input_->add_theme_font_size_override("font_size", 11);
 		input_->connect("text_submitted", Callable(owner, "_on_chat_text_submitted"));
+		input_->connect("gui_input", Callable(owner, "_on_chat_input_key"));
+		input_->set_max_length(1024); // chat_window.xml chatInput max_length
 		rtso::parent_line_edit(chat_input_bar, input_);
 
 		send_btn_ = memnew(Button);
@@ -297,10 +305,18 @@ public:
 		}
 		add("Observers", "[Observers]");
 		bool kept = keep.is_empty() || keep.begins_with("[") && !keep.begins_with("[Player-") && !keep.begins_with("[Observer-");
+		// A player's entry is its name after a box in its colour (colorizePlayernameHelper("■")),
+		// an observer's the bare name.
 		if (host_)
 			for (const auto &t : host_->chat_private_targets()) {
-				add(t.second, t.first);
 				names_[t.first] = plain(t.second);
+				const int c = t.second.find("[color=#");
+				if (t.first.begins_with("[Player-") && c >= 0) {
+					channel_->add_icon_item(color_box(Color::html(t.second.substr(c + 8, 6))), names_[t.first], (int)tags_.size());
+					tags_.push_back(t.first);
+				} else {
+					add(names_[t.first], t.first);
+				}
 				kept = kept || t.first == keep;
 			}
 		// ChatAddressees.onUpdatePlayers: a private addressee who went offline stays
@@ -449,8 +465,29 @@ public:
 	// Test hooks: the log as plain text, and the input line.
 	String log_text() const { return log_ ? log_->get_parsed_text() : String(); }
 	LineEdit *input() const { return input_; }
+
+	// ChatInput.autoComplete (onTab): autoCompleteText over g_PlayerAssignments' names, the
+	// lobby's port of tryAutoComplete (lobby.gd autocomplete) on the text before the caret.
+	void autocomplete() {
+		if (!input_ || !host_) return;
+		Array names;
+		for (const String &n : host_->chat_assigned_names()) names.push_back(plain(n));
+		Ref<Script> lobby = ResourceLoader::get_singleton()->load("res://scenes/menu/lobby.gd");
+		if (lobby.is_null()) return;
+		const int caret = input_->get_caret_column();
+		const String before = input_->get_text().substr(0, caret);
+		const String done = lobby->call("autocomplete", before, names);
+		input_->set_text(done + input_->get_text().substr(caret));
+		input_->set_caret_column(caret + done.length() - before.length());
+	}
 	size_t overlay_count() const { return overlay_lines_.size(); }
 	int filter_count() const { return filter_select_ ? filter_select_->get_item_count() : 0; }
+	String addressee_list() const { // the dropdown's labels, "|"-joined (an icon item: "■" first)
+		String out;
+		for (int i = 0; channel_ && i < channel_->get_item_count(); ++i)
+			out += String(i ? "|" : "") + (channel_->get_item_icon(i).is_valid() ? String::utf8("■ ") : String()) + channel_->get_item_text(i);
+		return out;
+	}
 	String addressee_label() const { return channel_ && channel_->get_selected() >= 0 ? channel_->get_item_text(channel_->get_selected()) : String(); }
 
 	// 0 A.D. chat.timestamp: each line opens with the local time, "[HH:MM]".
@@ -550,6 +587,11 @@ private:
 	}
 public:
 	// A bbcode name without its colour tags.
+	static Ref<ImageTexture> color_box(const Color &c) {
+		Ref<Image> img = Image::create_empty(10, 10, false, Image::FORMAT_RGBA8);
+		img->fill(c);
+		return ImageTexture::create_from_image(img);
+	}
 	static String plain(const String &bb) {
 		String out;
 		bool in_tag = false;
