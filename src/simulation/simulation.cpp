@@ -7028,6 +7028,24 @@ void Simulation::kill_passengers_of(size_t holder) {
 	}
 }
 
+// GarrisonHolder OnGlobalOwnershipChanged (to INVALID_PLAYER): a unit destroyed while
+// garrisoned or aboard leaves its holder's list.
+void Simulation::drop_from_holder(uint32_t unit_id) {
+	for (Building &b : buildings_) {
+		auto it = std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), unit_id);
+		if (it != b.garrisoned_units.end()) { b.garrisoned_units.erase(it); return; }
+	}
+	for (size_t t = 0; t < units_.count; ++t) {
+		auto pit = transport_passengers_.find(units_.id[t]);
+		if (pit == transport_passengers_.end()) continue;
+		auto it = std::find(pit->second.begin(), pit->second.end(), unit_id);
+		if (it == pit->second.end()) continue;
+		pit->second.erase(it);
+		if (pit->second.empty()) transport_passengers_.erase(pit);
+		return;
+	}
+}
+
 // GarrisonHolder OnDiplomacyChanged / OnGlobalOwnershipChanged: a passenger whose owner is no
 // longer the holder's owner or its mutual ally gets off; with no spot to land (a ship out at
 // sea) EjectOrKill kills it.
@@ -14381,7 +14399,7 @@ void Simulation::tick_status_effects(float dt) {
 		if (gone) continue;
 		if (st.target_kind == STATUS_ON_UNIT) {
 			const int32_t u = lookup_unit(st.target);
-			if (u < 0 || !units_.alive[u]) continue;
+			if (u < 0 || !status_holds_unit((size_t)u)) continue;
 			on[(size_t)u] |= status_effect_bit(st.kind);
 		}
 		statuses_[keep++] = st;
@@ -14414,9 +14432,10 @@ bool Simulation::status_tick(const StatusInstance &st) {
 	const float dmg = st.damage;
 	if (st.target_kind == STATUS_ON_UNIT) {
 		const int32_t u = lookup_unit(st.target);
-		if (u < 0 || !units_.alive[u]) return false;
+		if (u < 0 || !status_holds_unit((size_t)u)) return false;
 		const size_t i = (size_t)u;
 		if (invulnerable(units_.id[i])) return true;
+		const bool inside = !units_.alive[i];
 		// helpers/Attack.js HandleAttackEffects returns before Promotion.IncreaseXp for a
 		// StatusEffect's damage: the kill and the loot still go to `src`, the xp doesn't.
 		units_.hp[i] -= dmg;
@@ -14430,6 +14449,13 @@ bool Simulation::status_tick(const StatusInstance &st) {
 		if (units_.team[i] == 0) record_.units_lost++;
 		else record_.enemies_killed++;
 		collect_unit_loot(st.src, st.src_owner, i);
+		if (inside) {
+			// Killed inside a structure, ship or siege engine: out of the world, so no corpse
+			// (Health.Kill), and its holder lets go of it; a loaded ram's passengers die with it.
+			units_.death_timer[i] = unit_death_duration(units_.unit_type[i]);
+			drop_from_holder(units_.id[i]);
+			kill_passengers_of(i);
+		}
 		return false;
 	}
 	if (st.target_kind == STATUS_ON_STRUCTURE) {
