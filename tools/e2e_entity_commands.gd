@@ -176,11 +176,11 @@ func run() -> void:
 	await frames(2)
 	var n_vill: int = main.debug_selection_state()["selected"].size()
 	check(press("Garrison"), "pressing Garrison")
-	# Right-click the foot of the Civic Centre, in viewport pixels.
+	# input.js INPUT_PRESELECTEDACTION: the next left click on the foot of the Civic Centre runs it.
 	var c: Vector2 = r["centre"]
 	var at: Vector2 = root.get_camera_3d().unproject_position(Vector3(c.x, 0.5, c.y))
 	var mb := InputEventMouseButton.new()
-	mb.button_index = MOUSE_BUTTON_RIGHT
+	mb.button_index = MOUSE_BUTTON_LEFT
 	mb.position = at
 	mb.global_position = at
 	mb.pressed = true
