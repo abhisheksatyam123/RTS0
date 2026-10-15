@@ -11252,6 +11252,64 @@
    ],
    "metre": 0.1426
   },
+  "s_romans_siege_wall_long": {
+   "fx": [
+    {
+     "p": "destruction_smoke_med",
+     "pos": [
+      0.0008,
+      2.0981,
+      0.0
+     ]
+    },
+    {
+     "p": "destruction_dust_med",
+     "pos": [
+      0.0008,
+      2.0981,
+      0.0
+     ]
+    },
+    {
+     "p": "destruction_dust_med_gray",
+     "pos": [
+      0.0008,
+      2.0981,
+      0.0
+     ]
+    }
+   ],
+   "metre": 0.24999
+  },
+  "s_romans_siege_wall_tower": {
+   "fx": [
+    {
+     "p": "destruction_smoke_small",
+     "pos": [
+      0.0,
+      2.0644,
+      0.0
+     ]
+    },
+    {
+     "p": "destruction_dust_small",
+     "pos": [
+      0.0,
+      2.0644,
+      0.0
+     ]
+    },
+    {
+     "p": "destruction_dust_small_gray",
+     "pos": [
+      0.0,
+      2.0644,
+      0.0
+     ]
+    }
+   ],
+   "metre": 0.25
+  },
   "s_romans_stable": {
    "fx": [
     {

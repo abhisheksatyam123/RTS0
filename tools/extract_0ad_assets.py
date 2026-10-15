@@ -992,6 +992,13 @@ ZIP_STRUCTURES = {
     "s_germans_wooden_wall_medium": ("art/actors/structures/germans/wooden_wall_medium.xml", "scale", 0.25, None),
     "s_germans_wooden_wall_long":   ("art/actors/structures/germans/wooden_wall_long.xml",   "scale", 0.25, None),
     "s_germans_wooden_wall_gate":   ("art/actors/structures/germans/wooden_wall_gate.xml",   "scale", 0.25, None),
+    # Rome's siege WallSet (rome/wallset_siege): its own long, medium and short
+    # segments, tower and gate, at the stone walls' 1 unit = 4 m.
+    "s_romans_siege_wall_long":   ("art/actors/structures/romans/siege_wall_long.xml",   "scale", 0.25, None),
+    "s_romans_siege_wall_medium": ("art/actors/structures/romans/siege_wall_medium.xml", "scale", 0.25, None),
+    "s_romans_siege_wall_short":  ("art/actors/structures/romans/siege_wall_short.xml",  "scale", 0.25, None),
+    "s_romans_siege_wall_tower":  ("art/actors/structures/romans/siege_wall_tower.xml",  "scale", 0.25, None),
+    "s_romans_siege_wall_gate":   ("art/actors/structures/romans/siege_wall_gate.xml",   "scale", 0.25, None),
     # Carthage's three 0.28 embassies (the generic `embassy` is the older
     # shared actor) and the apartment its houses upgrade to, sized like the
     # embassy and the Carthaginian house they stood in for.

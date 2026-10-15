@@ -1,0 +1,7 @@
+Terms of Service (template)
+
+This is the template for an RTS0 lobby server's Terms of Service. Whoever runs a lobby server writes their own terms here and starts tools/lobby_server.py with --terms-dir pointing at this folder.
+
+The lobby lets players list multiplayer games, chat in a shared room and keep a rating. Accounts, chat and ratings live on the server that its operator runs.
+
+The operator may remove games, kick or ban players and reset ratings to keep the lobby usable.
