@@ -226,6 +226,7 @@ int main() {
 	{
 		static Simulation s;
 		fresh(s);
+		s.set_explore_map(true); // FindNearbyResource takes only trees the player has seen
 		s.spawn_building_world(40.0f, 20.0f, BLD_TOWN_CENTER, 0, 1.0f);
 		const uint32_t full = s.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 200);
 		const uint32_t other = s.spawn_resource_world(0.0f, 6.0f, RES_WOOD, 200);
