@@ -47,7 +47,8 @@
     "athen/rts0_villager",
     "athen/catafalque",
     "athen/support_civilian",
-    "athen/support_civilian_house"
+    "athen/support_civilian_house",
+    "athen/infantry_marine_archer_b"
    ],
    "auto_bonuses": [
     {
@@ -106,7 +107,8 @@
     "spart/champion_infantry_spear_olympian",
     "spart/catafalque",
     "spart/support_civilian",
-    "spart/support_civilian_house"
+    "spart/support_civilian_house",
+    "spart/champion_infantry_pike"
    ],
    "auto_bonuses": [
     {
@@ -169,7 +171,10 @@
     "pers/champion_infantry_archer_upgrade",
     "pers/support_civilian",
     "pers/support_civilian_house",
-    "pers/support_healer_e"
+    "pers/support_healer_e",
+    "pers/hero_xerxes_i_chariot",
+    "pers/kardakes_hoplite",
+    "pers/kardakes_skirmisher"
    ],
    "auto_bonuses": [
     {
@@ -238,7 +243,11 @@
     "rome/cavalry_javelineer_auxiliary_b",
     "rome/cavalry_spearman_auxiliary_b",
     "rome/champion_infantry_swordsman_first",
-    "rome/support_healer_e"
+    "rome/support_healer_e",
+    "rome/hero_marcellus_infantry",
+    "rome/hero_maximus_infantry",
+    "rome/hero_scipio_infantry",
+    "rome/infantry_swordsman_slave"
    ],
    "auto_bonuses": [
     {
@@ -300,7 +309,8 @@
     "cart/catafalque",
     "cart/support_civilian",
     "cart/support_civilian_house",
-    "cart/infantry_spearman_ital_b"
+    "cart/infantry_spearman_ital_b",
+    "cart/champion_pikeman"
    ],
    "auto_bonuses": [
     {
@@ -362,7 +372,10 @@
     "mace/catafalque",
     "mace/support_civilian",
     "mace/support_civilian_house",
-    "mace/support_healer_e"
+    "mace/support_healer_e",
+    "mace/hero_craterus",
+    "mace/hero_philip_ii_pike",
+    "mace/hero_pyrrhus_i"
    ],
    "auto_bonuses": [
     {
@@ -413,7 +426,10 @@
     "brit/catafalque",
     "brit/ship_fire_fire",
     "brit/support_civilian",
-    "brit/support_civilian_house"
+    "brit/support_civilian_house",
+    "brit/hero_boudicca_cavalry_javelineer",
+    "brit/hero_boudicca_sword",
+    "brit/hero_cunobelin_infantry"
    ],
    "auto_bonuses": [
     {
@@ -466,7 +482,8 @@
     "gaul/ship_fire_fire",
     "gaul/support_civilian",
     "gaul/support_civilian_house",
-    "gaul/support_healer_e"
+    "gaul/support_healer_e",
+    "gaul/hero_vercingetorix_infantry"
    ],
    "auto_bonuses": [
     {
@@ -521,7 +538,8 @@
     "iber/catafalque",
     "iber/ship_fire_fire",
     "iber/support_civilian",
-    "iber/support_civilian_house"
+    "iber/support_civilian_house",
+    "iber/hero_indibil_infantry"
    ],
    "auto_bonuses": []
   },
@@ -558,7 +576,10 @@
     "maur/rts0_villager",
     "maur/catafalque",
     "maur/support_civilian",
-    "maur/support_civilian_house"
+    "maur/support_civilian_house",
+    "maur/hero_ashoka_infantry",
+    "maur/hero_bindusara_infantry",
+    "maur/hero_chandragupta_infantry"
    ],
    "auto_bonuses": [
     {
@@ -620,7 +641,9 @@
     "kush/rts0_villager",
     "kush/catafalque",
     "kush/support_civilian",
-    "kush/support_civilian_house"
+    "kush/support_civilian_house",
+    "kush/hero_amanirenas_infantry",
+    "kush/hero_harsiotef"
    ],
    "auto_bonuses": []
   },
@@ -672,7 +695,8 @@
     "ptol/catafalque",
     "ptol/support_civilian",
     "ptol/support_civilian_house",
-    "ptol/support_healer_e"
+    "ptol/support_healer_e",
+    "ptol/champion_juggernaut"
    ],
    "auto_bonuses": [
     {
@@ -767,7 +791,13 @@
     "han/catafalque",
     "han/support_civilian",
     "han/support_civilian_house",
-    "han/support_healer_e"
+    "han/support_healer_e",
+    "han/cavalry_crossbowman_b",
+    "han/champion_infantry_archer_academy",
+    "han/hero_han_xin",
+    "han/hero_liu_bang",
+    "han/hero_wei_qing",
+    "han/hero_wei_qing_horse"
    ],
    "auto_bonuses": [
     {
@@ -24745,7 +24775,9 @@
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
-   "auras": [],
+   "auras": [
+    46
+   ],
    "civ_bonuses": [],
    "classes": [
     "Healer",
@@ -24865,6 +24897,1991 @@
     "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "athen/infantry_marine_archer_b",
+   "civ": "athen",
+   "class": "UNIT_ARCHER",
+   "name": "Cretan Mercenary Archer",
+   "specific_name": "Toxótēs Krētikós",
+   "phase": 2,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_CITIZEN",
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_IPHICRATEAN_REFORMS",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Mercenary",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 50.0,
+    "cooldown": 1.25,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 7.920000000000001,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 10.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 60,
+    "stone": 0,
+    "train_time": 7.0,
+    "pop": 1,
+    "speed": 3.6668000000000003,
+    "vision": 22.400000000000002,
+    "damage": 7.920000000000001,
+    "range": 16.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "spart/champion_infantry_pike",
+   "civ": "spart",
+   "class": "UNIT_SPEARMAN",
+   "name": "Spartan Pikeman",
+   "specific_name": "Phalangites Spartiatis",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 2.0,
+    "hack_dmg": 8.0,
+    "pierce_dmg": 15.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 8.0,
+    "crush_armor": 20.0,
+    "food": 80,
+    "wood": 60,
+    "gold": 80,
+    "stone": 0,
+    "train_time": 20.0,
+    "pop": 1,
+    "speed": 3.0438,
+    "vision": 22.400000000000002,
+    "damage": 23.0,
+    "range": 4.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "pers/hero_xerxes_i_chariot",
+   "civ": "pers",
+   "class": "UNIT_HERO",
+   "name": "Xerxes I",
+   "specific_name": "Xšayāršā",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    107,
+    108
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1500.0,
+    "cooldown": 1.25,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 28.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 8.0,
+    "crush_armor": 25.0,
+    "food": 360,
+    "wood": 250,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 60.0,
+    "pop": 0,
+    "speed": 6.052,
+    "vision": 28.000000000000004,
+    "damage": 28.0,
+    "range": 16.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "pers/kardakes_hoplite",
+   "civ": "pers",
+   "class": "UNIT_SPEARMAN",
+   "name": "Cardaces Hoplite",
+   "specific_name": "Hoplites Kardakes",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_MERCENARY",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Mercenary",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 1.0,
+    "hack_dmg": 11.0,
+    "pierce_dmg": 9.350000000000001,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 20.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 60,
+    "stone": 0,
+    "train_time": 14.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 20.35,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "pers/kardakes_skirmisher",
+   "civ": "pers",
+   "class": "UNIT_ARCHER",
+   "name": "Cardaces Skirmisher",
+   "specific_name": "Peltastes Kardakes",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_RANGED",
+    "ROSTER_MERCENARY",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Mercenary",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 120.0,
+    "cooldown": 1.5,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 35.2,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 20.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 60,
+    "stone": 0,
+    "train_time": 14.0,
+    "pop": 1,
+    "speed": 3.7202,
+    "vision": 22.400000000000002,
+    "damage": 35.2,
+    "range": 8.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/hero_marcellus_infantry",
+   "civ": "rome",
+   "class": "UNIT_HERO",
+   "name": "Hero Swordsman",
+   "specific_name": "Mārcus Claudius Mārcellus",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    25,
+    26
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/hero_maximus_infantry",
+   "civ": "rome",
+   "class": "UNIT_HERO",
+   "name": "Hero Swordsman",
+   "specific_name": "Quīntus Fabius Maximus Verrūcōsus Cūnctātor",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    27
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/hero_scipio_infantry",
+   "civ": "rome",
+   "class": "UNIT_HERO",
+   "name": "Hero Swordsman",
+   "specific_name": "Pūblius Cornēlius Scīpiō Āfricānus",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    28
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/infantry_swordsman_slave",
+   "civ": "rome",
+   "class": "UNIT_SWORDSMAN",
+   "name": "Slave",
+   "specific_name": "Servus",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CITIZEN",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 0.75,
+    "hack_dmg": 8.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 40,
+    "gold": 10,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "cart/champion_pikeman",
+   "civ": "cart",
+   "class": "UNIT_SPEARMAN",
+   "name": "Sacred Band Pikeman",
+   "specific_name": "Mašal",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 2.0,
+    "hack_dmg": 8.0,
+    "pierce_dmg": 15.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 8.0,
+    "crush_armor": 20.0,
+    "food": 80,
+    "wood": 60,
+    "gold": 80,
+    "stone": 0,
+    "train_time": 20.0,
+    "pop": 1,
+    "speed": 3.0438,
+    "vision": 22.400000000000002,
+    "damage": 23.0,
+    "range": 4.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "mace/hero_craterus",
+   "civ": "mace",
+   "class": "UNIT_HERO",
+   "name": "Craterus",
+   "specific_name": "Krateros",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    121
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "mace/hero_philip_ii_pike",
+   "civ": "mace",
+   "class": "UNIT_HERO",
+   "name": "Philip II of Macedon",
+   "specific_name": "Philippos B' ho Makedōn",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    40
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 2.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 16.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 17.0,
+    "pierce_armor": 15.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 200,
+    "gold": 150,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 28.0,
+    "range": 4.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "mace/hero_pyrrhus_i",
+   "civ": "mace",
+   "class": "UNIT_HERO",
+   "name": "Pyrrhus I of Epirus",
+   "specific_name": "Pyrrhos ho Epeiros",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    122
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1200.0,
+    "cooldown": 1.25,
+    "hack_dmg": 16.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 11.0,
+    "pierce_armor": 10.0,
+    "crush_armor": 25.0,
+    "food": 300,
+    "wood": 200,
+    "gold": 250,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
+    "damage": 28.0,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "brit/hero_boudicca_cavalry_javelineer",
+   "civ": "brit",
+   "class": "UNIT_HERO",
+   "name": "Boudicca",
+   "specific_name": "Boudica",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    43
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1200.0,
+    "cooldown": 1.5,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 60.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 25.0,
+    "food": 300,
+    "wood": 200,
+    "gold": 250,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 5.7672,
+    "vision": 28.000000000000004,
+    "damage": 60.0,
+    "range": 8.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "brit/hero_boudicca_sword",
+   "civ": "brit",
+   "class": "UNIT_HERO",
+   "name": "Boudicca",
+   "specific_name": "Boudica",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    43
+   ],
+   "civ_bonuses": [
+    "brit_woad_warriors"
+   ],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.3642000000000003,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "brit/hero_cunobelin_infantry",
+   "civ": "brit",
+   "class": "UNIT_HERO",
+   "name": "Cunobeline",
+   "specific_name": "Cunobelinos",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    45
+   ],
+   "civ_bonuses": [
+    "brit_woad_warriors"
+   ],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.3642000000000003,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "gaul/hero_vercingetorix_infantry",
+   "civ": "gaul",
+   "class": "UNIT_HERO",
+   "name": "Vercingetorix",
+   "specific_name": "Uercingetorix",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    51
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "iber/hero_indibil_infantry",
+   "civ": "iber",
+   "class": "UNIT_HERO",
+   "name": "Hero Spearman",
+   "specific_name": "Indibil",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    57
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 1.0,
+    "hack_dmg": 15.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 200,
+    "gold": 150,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 27.0,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "maur/hero_ashoka_infantry",
+   "civ": "maur",
+   "class": "UNIT_HERO",
+   "name": "Ashoka the Great",
+   "specific_name": "Aśoka Devānāmpriya",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    62
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 1.25,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 27.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 200,
+    "gold": 150,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 27.0,
+    "range": 16.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "maur/hero_bindusara_infantry",
+   "civ": "maur",
+   "class": "UNIT_HERO",
+   "name": "Bindusara",
+   "specific_name": "Bindusara",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "maur/hero_chandragupta_infantry",
+   "civ": "maur",
+   "class": "UNIT_HERO",
+   "name": "Chandragupta Maurya",
+   "specific_name": "Chandragupta Maurya",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "kush/hero_amanirenas_infantry",
+   "civ": "kush",
+   "class": "UNIT_HERO",
+   "name": "Amanirenas",
+   "specific_name": "Amnirense qore li kdwe li",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    69
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 1.25,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 27.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 200,
+    "gold": 150,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 27.0,
+    "range": 16.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "kush/hero_harsiotef",
+   "civ": "kush",
+   "class": "UNIT_HERO",
+   "name": "Harsiotef",
+   "specific_name": "Ḥr-sȝ-it.f Sȝ-mrı͗-I͗mn",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1200.0,
+    "cooldown": 1.25,
+    "hack_dmg": 16.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 11.0,
+    "pierce_armor": 10.0,
+    "crush_armor": 25.0,
+    "food": 300,
+    "wood": 200,
+    "gold": 250,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
+    "damage": 28.0,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "ptol/champion_juggernaut",
+   "civ": "ptol",
+   "class": "UNIT_TRIREME",
+   "name": "Juggernaut",
+   "specific_name": "Tessarakonterēs",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Heavy",
+    "Juggernaut",
+    "NavalSiege",
+    "Quinquereme",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
+   "stats": {
+    "hp": 4000.0,
+    "cooldown": 4.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 220.0,
+    "hack_armor": 2.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 4.0,
+    "food": 0,
+    "wood": 800,
+    "gold": 400,
+    "stone": 0,
+    "train_time": 60.0,
+    "pop": 5,
+    "speed": 4.272,
+    "vision": 28.000000000000004,
+    "damage": 220.0,
+    "range": 22.400000000000002,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/cavalry_crossbowman_b",
+   "civ": "han",
+   "class": "UNIT_CAVALRY",
+   "name": "Cavalry Crossbowman",
+   "specific_name": "Han Cavalry Crossbowman",
+   "phase": 2,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_CITIZEN",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Crossbowman",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 3.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 25.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 2.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 15.0,
+    "food": 100,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 5.1264,
+    "vision": 22.400000000000002,
+    "damage": 25.0,
+    "range": 12.600000000000001,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/champion_infantry_archer_academy",
+   "civ": "han",
+   "class": "UNIT_ARCHER",
+   "name": "Palace Guard Archer",
+   "specific_name": "Yǔ Lín",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 120.0,
+    "cooldown": 1.25,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 14.4,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 20.0,
+    "food": 80,
+    "wood": 60,
+    "gold": 80,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.6668000000000003,
+    "vision": 22.400000000000002,
+    "damage": 14.4,
+    "range": 16.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/hero_han_xin",
+   "civ": "han",
+   "class": "UNIT_HERO",
+   "name": "Hero Pikeman",
+   "specific_name": "Hán Xìn",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    90,
+    91
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 2.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 16.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 17.0,
+    "pierce_armor": 15.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 200,
+    "gold": 150,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 28.0,
+    "range": 4.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/hero_liu_bang",
+   "civ": "han",
+   "class": "UNIT_HERO",
+   "name": "Hero Swordsman",
+   "specific_name": "Liú Bāng",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    92,
+    93
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 26.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/hero_wei_qing",
+   "civ": "han",
+   "class": "UNIT_HERO",
+   "name": "Hero Infantry Crossbowman",
+   "specific_name": "Wèi Qīng",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    94,
+    95
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Crossbowman",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 3.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 60.0,
+    "crush_dmg": 3.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 200,
+    "gold": 150,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 63.0,
+    "range": 16.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/hero_wei_qing_horse",
+   "civ": "han",
+   "class": "UNIT_HERO",
+   "name": "Hero Cavalry Crossbowman",
+   "specific_name": "Wèi Qīng",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    94,
+    95
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "Crossbowman",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1200.0,
+    "cooldown": 3.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 45.0,
+    "crush_dmg": 3.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 25.0,
+    "food": 300,
+    "wood": 200,
+    "gold": 250,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 5.1264,
+    "vision": 28.000000000000004,
+    "damage": 48.0,
+    "range": 15.400000000000002,
+    "carry": 0
+   }
+  },
+  {
+   "id": "merc_black_cloak",
+   "civ": "gaia",
+   "class": "UNIT_SWORDSMAN",
+   "name": "Thracian Black Cloak",
+   "specific_name": "Rhomphaiophoros",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_MERCENARY",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Mercenary",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 0.75,
+    "hack_dmg": 17.6,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 20.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 60,
+    "stone": 0,
+    "train_time": 14.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 17.6,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "noldor_warship",
+   "civ": "gaia",
+   "class": "UNIT_TRIREME",
+   "name": "Arrow Ship",
+   "specific_name": "Mankar Cirya",
+   "phase": 2,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 32.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
+    "food": 0,
+    "wood": 100,
+    "gold": 100,
+    "stone": 0,
+    "train_time": 24.0,
+    "pop": 1,
+    "speed": 4.984,
+    "vision": 22.400000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
+    "carry": 0
+   }
+  },
+  {
+   "id": "pirates/ship_arrow",
+   "civ": "gaia",
+   "class": "UNIT_TRIREME",
+   "name": "Arrow Ship",
+   "specific_name": "Rhodian Marauder",
+   "phase": 2,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Pirate",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
+   "stats": {
+    "hp": 1200.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 32.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 0,
+    "speed": 4.984,
+    "vision": 22.400000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
+    "carry": 0
+   }
+  },
+  {
+   "id": "pirates/ship_merchant",
+   "civ": "gaia",
+   "class": "UNIT_MERCHANT_SHIP",
+   "name": "Treasure Ship",
+   "specific_name": "Blockade Runner",
+   "phase": 2,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Pirate",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 288.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 10.0,
+    "crush_armor": 3.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 0,
+    "speed": 4.3254,
+    "vision": 14.000000000000002,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 100
+   }
+  },
+  {
+   "id": "pirates/ship_scout",
+   "civ": "gaia",
+   "class": "UNIT_TRIREME",
+   "name": "Scout Ship",
+   "specific_name": "Cilician Pirate Ship",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Pirate",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
+   "stats": {
+    "hp": 600.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 28.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 4.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 200,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 0,
+    "speed": 6.052,
+    "vision": 22.400000000000002,
+    "damage": 28.0,
+    "range": 10.360000000000001,
+    "carry": 0
+   }
+  },
+  {
+   "id": "samnite_skirmisher",
+   "civ": "gaia",
+   "class": "UNIT_ARCHER",
+   "name": "Samnite Skirmisher",
+   "specific_name": "Samnite Skirmisher",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_RANGED",
+    "ROSTER_MERCENARY",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Mercenary",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 120.0,
+    "cooldown": 1.5,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 35.2,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 20.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 60,
+    "stone": 0,
+    "train_time": 14.0,
+    "pop": 1,
+    "speed": 3.7202,
+    "vision": 22.400000000000002,
+    "damage": 35.2,
+    "range": 8.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "samnite_spearman",
+   "civ": "gaia",
+   "class": "UNIT_SPEARMAN",
+   "name": "Samnite Spearman",
+   "specific_name": "Samnite Spearman",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_MERCENARY",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Mercenary",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 1.0,
+    "hack_dmg": 11.0,
+    "pierce_dmg": 9.350000000000001,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 20.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 60,
+    "stone": 0,
+    "train_time": 14.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 20.35,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "samnite_swordsman",
+   "civ": "gaia",
+   "class": "UNIT_SWORDSMAN",
+   "name": "Samnite Swordsman",
+   "specific_name": "Samnite Swordsman",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_MERCENARY",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Mercenary",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 0.75,
+    "hack_dmg": 17.6,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 20.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 60,
+    "stone": 0,
+    "train_time": 14.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 17.6,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "viking_longship",
+   "civ": "gaia",
+   "class": "UNIT_TRIREME",
+   "name": "Arrow Ship",
+   "specific_name": "Longship",
+   "phase": 2,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 32.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
+    "food": 0,
+    "wood": 100,
+    "gold": 100,
+    "stone": 0,
+    "train_time": 24.0,
+    "pop": 1,
+    "speed": 4.984,
+    "vision": 22.400000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   }
@@ -28628,6 +30645,90 @@
    ],
    "modifications": [],
    "rts0": null
+  },
+  {
+   "id": "mace_hero_craterus",
+   "name": "Taxiarchès",
+   "description": "Infantry Pikemen +20% capture attack strength, +20% melee attack damage.",
+   "type": "range",
+   "radius": 60.0,
+   "affects": [
+    "Infantry Pikeman"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Capture/Capture",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Melee/Damage/Hack",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Melee/Damage/Pierce",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Melee/Damage/Crush",
+     "multiply": 1.2
+    }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    16.8
+   ]
+  },
+  {
+   "id": "mace_hero_pyrrhus_i",
+   "name": "Pyrrhic Victory",
+   "description": "Soldiers +20% melee and ranged attack damage, −15% health.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Melee/Damage/Hack",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Melee/Damage/Pierce",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Melee/Damage/Crush",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Ranged/Damage/Hack",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Ranged/Damage/Pierce",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Ranged/Damage/Crush",
+     "multiply": 1.2
+    },
+    {
+     "value": "Health/Max",
+     "multiply": 0.85
+    }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    1000.0
+   ]
   }
  ]
 }

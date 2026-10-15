@@ -105,7 +105,7 @@ def roster_ids():
     ids = []
     with open(ROSTER_HEADER, encoding="utf-8") as f:
         for line in f:
-            mm = re.match(r'\t\t\{"([a-z]+/[a-z0-9_]+)", "', line)
+            mm = re.match(r'\t\t\{"([a-z0-9_/]+)", "(?:[^"\\]|\\.)*", "(?:[^"\\]|\\.)*", CIV_[A-Z]+, UNIT_', line)
             if mm:
                 ids.append(mm.group(1))
     return ids

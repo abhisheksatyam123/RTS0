@@ -2141,7 +2141,8 @@ enum CivRosterFlag : uint16_t {
 	ROSTER_SIEGE_TOWER = 64,
 	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
 	ROSTER_NO_GATHER = 256, // a Citizen whose template disables ResourceGatherer (mercenaries)
-	ROSTER_CIVILIAN = 512 // 0.28's Civilian class (template_unit_support_civilian): StatisticsTracker's Civilian
+	ROSTER_CIVILIAN = 512, // 0.28's Civilian class (template_unit_support_civilian): StatisticsTracker's Civilian
+	ROSTER_MAP_ONLY = 1024 // only maps place it (scenario heroes, Samnites, pirate ships): no structure trains it
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
