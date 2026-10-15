@@ -12,7 +12,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G11 | ~~Ptolemaic and Seleucid walls give 3 stone of loot; a bribe's spy ignores vision techs~~ (fixed in #1101); garrisoned traders can't be bribed | low | A |
 | G12 | Petra: ~~starting cavalry joins attacks instead of hunting; rushes take no siege~~ (fixed: citizen cavalry hunters follow assignUnits' worker rule, rushes add siege like other plans); raids take no siege; far-off gatherers aren't sent back | low | D (raid siege), C (gatherers) |
 | G13 | Petra's numberMissingRoom has no 90 s lapse | low | C |
-| G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
+| G14 | Petra overseas: one transport plan and ship per army (H4); ~~defenders on another island aren't ferried~~ (fixed: a defender on another land than its foe asks for a defense transport, navalManager.requireTransport) | low | Formations |
 | G15 | Petra buys trade-gain and population techs only if it can pay at the check | low | E |
 | G18 | Animals never play their feeding animation, and each species wears one coat (template trees now mix up to four of their actor's looks) | low | Animal models |
 | G19 | Siege walls draw the stone wall model (siege_wall.glb is unused) | low | Animal models |

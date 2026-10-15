@@ -231,7 +231,8 @@ struct PetraTransportPlan {
 };
 // navalManager.js runs a transportPlan per ship; each asker here has at most one.
 enum PetraTransportOwner : uint8_t { PETRA_TRANSPORT_ATTACK = 0, PETRA_TRANSPORT_RAID = 1, PETRA_TRANSPORT_BUILDERS = 2, PETRA_TRANSPORT_TRADER = 3,
-                                      PETRA_TRANSPORT_WORKERS = 4 };
+                                      PETRA_TRANSPORT_WORKERS = 4,
+                                      PETRA_TRANSPORT_DEFENSE = 5 }; // defenders for a foe on another land
 
 // chatHelper.js: what a Petra line says; petra_chat.h holds each kind's lines.
 enum PetraChatKind : uint8_t {

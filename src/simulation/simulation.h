@@ -3109,6 +3109,7 @@ private:
 	PetraQueueManager petra_queues_;
 	std::vector<PetraTransportPlan> petra_transports_; // under way (BOARDING to UNLOADING), one per owner
 	const PetraTransportPlan *petra_transport_for(uint8_t owner) const;
+	void petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
 	std::vector<PetraChatLine> petra_chat_;
