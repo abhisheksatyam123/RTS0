@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
@@ -2329,6 +2330,9 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_PATHFINDER_OVERLAY: // PathfinderOverlay: SetPathfinderDebugOverlay
 			debug_overlays_.set(rtso::RtsoDebugOverlays::PATHFINDER, on);
 			break;
+		case D::DEV_HIER_PATHFINDER_OVERLAY: // HierarchicalPathfinderOverlay: SetPathfinderHierDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::HIER_PATHFINDER, on);
+			break;
 		case D::DEV_OBSTRUCTION_OVERLAY: // ObstructionOverlay: SetObstructionDebugOverlay
 			debug_overlays_.set(rtso::RtsoDebugOverlays::OBSTRUCTION, on);
 			break;
@@ -2437,6 +2441,7 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 		using O = rtso::RtsoDebugOverlays;
 		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
+		dev_overlay_.set_checked(D::DEV_HIER_PATHFINDER_OVERLAY, debug_overlays_.on(O::HIER_PATHFINDER));
 		dev_overlay_.set_checked(D::DEV_OBSTRUCTION_OVERLAY, debug_overlays_.on(O::OBSTRUCTION));
 		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
 		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
@@ -2504,6 +2509,7 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["commands"] = commands;
 	using O = rtso::RtsoDebugOverlays;
 	d["pathfinder_drawn"] = debug_overlays_.drawn(O::PATHFINDER);
+	d["hier_pathfinder_drawn"] = debug_overlays_.drawn(O::HIER_PATHFINDER);
 	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
 	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
 	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
@@ -2516,29 +2522,61 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 // "snap" also moves the camera to the first.
 void RtsoMain::perform_group(int grp, GroupAction action) {
 	if (!sim || grp < 0 || grp > 9) return;
-	PackedInt32Array recall;
-	Vector3 first_pos;
+	// input.js performGroup: the group's living units, and its structure (one at a time
+	// here); a member inside a structure stays in the group and the camera snaps to its
+	// holder when nothing else of the group is out.
+	PackedInt32Array recall, kept;
+	uint32_t recall_building = 0;
+	bool have_pos = false;
+	Vector3 first_pos, holder_pos;
+	bool have_holder = false;
 	auto gview = sim->units();
 	for (int m = 0; m < selected_groups[grp].size(); ++m) {
 		const int32_t gid = selected_groups[grp][m];
+		bool found = false;
 		for (size_t i = 0; i < gview.count; ++i) {
-			if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == local_player()) {
-				if (recall.is_empty()) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
+			if (gview.id[i] != (uint32_t)gid || gview.team[i] != local_player()) continue;
+			if (gview.alive[i]) {
+				if (!have_pos) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
+				have_pos = true;
 				recall.push_back(gid);
-				break;
+				found = true;
+			} else if (gview.hp[i] > 0.0f) {
+				for (const auto &b : sim->buildings())
+					if (std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), (uint32_t)gid) != b.garrisoned_units.end()) {
+						if (!have_holder) holder_pos = Vector3(b.x, 0, b.z);
+						have_holder = found = true;
+						break;
+					}
 			}
+			break;
 		}
+		if (!found)
+			for (const auto &b : sim->buildings())
+				if (b.id == (uint32_t)gid && b.team == local_player() && !b.wrecked && b.hp > 0.0f) {
+					if (!recall_building) recall_building = b.id;
+					if (!have_pos) first_pos = Vector3(b.x, 0, b.z);
+					have_pos = found = true;
+					break;
+				}
+		if (found) kept.push_back(gid);
 	}
-	selected_groups[grp] = recall;
-	if (recall.is_empty()) return;
+	selected_groups[grp] = kept;
+	if (kept.is_empty()) return;
+	if (recall.is_empty() && !recall_building) {
+		// Everyone is inside: snap to the holder, the selection stays.
+		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(holder_pos);
+		return;
+	}
 	if (action == GROUP_ADD) {
 		for (int m = 0; m < recall.size(); ++m)
 			if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
+		if (recall_building) selected_building_id = recall_building;
 	} else {
 		selected_ids = recall;
+		selected_building_id = recall_building;
 	}
-	selected_building_id = 0;
-	if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(first_pos);
+	if (action == GROUP_SNAP && cam_rig && (have_pos || have_holder)) cam_rig->set_target_pos(have_pos ? first_pos : holder_pos);
 	play_civ_voice("select");
 }
 

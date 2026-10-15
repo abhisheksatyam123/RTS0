@@ -1334,7 +1334,23 @@ void RtsoMain::_process(double delta) {
 				const auto placed = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle);
 				const bool can_build = placed == rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
-				set_placement_tip(can_build ? String() : placement_failure_text(placed, (uint8_t)current_build_type, gx, gz), true);
+				String range_tip;
+				if (can_build) {
+					// input.js updateBuildingPlacementPreview: a structure with a Ranged attack shows
+					// its basic range and the average bonus the terrain gives it there.
+					const float range = sim->structure_arrow_range(local_player(), (uint8_t)current_build_type);
+					if (range > 0.0f) {
+						constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+						const float origin = rtso::civ_building_ai_info(sim->team_civ(local_player()), (uint8_t)current_build_type).origin_y;
+						const int64_t basic = (int64_t)std::lround(range * kM);
+						const int64_t bonus = (int64_t)std::lround((sim->average_elevation_range(gx, gz, range, origin) - range) * kM);
+						range_tip = rtso::sprintf0(rtso::tr0(basic == 1 ? "Basic range: %(range)s meter" : "Basic range: %(range)s meters"),
+											{{"range", String::num_int64(basic)}}) + "\n" +
+								rtso::sprintf0(rtso::tr0(bonus == 1 || bonus == -1 ? "Average bonus range: %(range)s meter" : "Average bonus range: %(range)s meters"),
+										{{"range", String::num_int64(bonus)}});
+					}
+				}
+				set_placement_tip(can_build ? range_tip : placement_failure_text(placed, (uint8_t)current_build_type, gx, gz), !can_build);
 			}
 		}
 	} else {

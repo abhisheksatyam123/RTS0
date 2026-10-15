@@ -22,6 +22,7 @@
 
 #include "../simulation/simulation.h"
 #include "panel_entities_view.h"
+#include "template_portraits.h"
 
 namespace rtso {
 
@@ -105,11 +106,23 @@ public:
 					best_cost = cost;
 				}
 			}
+			// A group of structures only (EntityGroupsContainer holds any entity): the first
+			// structure's portrait.
+			const Simulation::Building *structure = nullptr;
+			if (total == 0)
+				for (int m = 0; m < g.size() && !structure; ++m)
+					for (const auto &b : sim.buildings())
+						if (b.id == (uint32_t)g[m] && b.team == player && !b.wrecked && b.hp > 0.0f) {
+							structure = &b;
+							break;
+						}
+			const uint32_t key = structure ? (0x80000000u | ((uint32_t)structure->civ << 8) | structure->type) : best;
 			Slot &s = slots_[k];
-			s.button->set_visible(total > 0);
-			if (total > 0 && best != s.icon_key) {
-				s.icon_key = best;
-				s.icon->set_texture(RtsoPanelEntities::portrait((uint16_t)(best >> 8), (uint8_t)(best & 0xFF)));
+			s.button->set_visible(total > 0 || structure);
+			if ((total > 0 || structure) && key != s.icon_key) {
+				s.icon_key = key;
+				s.icon->set_texture(structure ? portraits::structure(structure->civ, structure->type)
+						: RtsoPanelEntities::portrait((uint16_t)(best >> 8), (uint8_t)(best & 0xFF)));
 			}
 		}
 	}
