@@ -392,6 +392,11 @@ static void test_transport() {
 	CHECK(s.get_transport_capacity(arrow) == 30);
 	CHECK(s.get_transport_capacity(siege) == 50);
 	CHECK(s.get_transport_capacity(scout) == 10);
+	// TreasureCollector/MaxDistance: 24 m for template_unit_ship_warship_siege and its
+	// child the Juggernaut, 12 m for other warships.
+	const uint32_t jugg = s.spawn_unit(-30.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("ptol/champion_juggernaut"));
+	CHECK(s.treasure_reach((size_t)s.lookup_unit(jugg)) == s.treasure_reach((size_t)s.lookup_unit(siege)));
+	CHECK(s.treasure_reach((size_t)s.lookup_unit(siege)) > s.treasure_reach((size_t)s.lookup_unit(arrow)));
 	CHECK(s.get_transport_capacity(merchant) == 15);
 	CHECK(s.get_transport_capacity(fisher) == 1);
 	CHECK(!s.is_transport(fire));
