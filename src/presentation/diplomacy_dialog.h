@@ -350,15 +350,15 @@ public:
 					rtso::CostTip cost, failed;
 					cost.metal = sim->bribe_cost(me, p);
 					failed.metal = sim->bribe_cost(me, p, true);
-					tip += rtso::cost_tooltip(cost);
+					tip += rtso::cost_tooltip(cost, true);
 					const String need = rtso::needed_resources_tooltip(cost, sim->player_resource(me, rtso::RES_FOOD),
 							sim->player_resource(me, rtso::RES_WOOD), sim->player_resource(me, rtso::RES_STONE),
-							sim->player_resource(me, rtso::RES_GOLD));
+							sim->player_resource(me, rtso::RES_GOLD), true);
 					if (!need.is_empty()) {
 						tip += "\n" + need;
 						can = false;
 					} else {
-						tip += "\nA failed bribe will cost you:\n" + rtso::cost_tooltip(failed);
+						tip += "\nA failed bribe will cost you:\n" + rtso::cost_tooltip(failed, true);
 					}
 				}
 				if (spy_pending_[p]) {

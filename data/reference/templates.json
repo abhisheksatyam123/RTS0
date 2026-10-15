@@ -359,6 +359,13 @@
      1.0,
      1.0,
      0.9
+    ],
+    "rome/infantry_swordsman_slave": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.9
     ]
    }
   },
@@ -25051,6 +25058,1867 @@
      "acceleration": 35
     },
     "rank": "Elite"
+   }
+  },
+  "athen/infantry_marine_archer_b": {
+   "generic_name": "Cretan Mercenary Archer",
+   "specific_name": "Toxótēs Krētikós",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Builder",
+    "Citizen",
+    "Worker",
+    "Soldier",
+    "Infantry",
+    "Ranged",
+    "Archer",
+    "Mercenary"
+   ],
+   "icon": "units/mace/infantry_archer.png",
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    24,
+    26,
+    27
+   ],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 2.5
+     },
+     {
+      "type": "Ranged",
+      "name": "Bow",
+      "min_range": 0,
+      "max_range": 60,
+      "y_origin": 0,
+      "repeat_time": 1.25,
+      "damage": {
+       "Pierce": 7.92,
+       "Hack": 0,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 10.3,
+     "run": 17.201,
+     "acceleration": 37.4
+    },
+    "rank": "Basic"
+   }
+  },
+  "spart/champion_infantry_pike": {
+   "generic_name": "Spartan Pikeman",
+   "specific_name": "Phalangites Spartiatis",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Pikeman"
+   ],
+   "icon": "units/spart/champion_infantry_pike.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Pike",
+      "min_range": 0,
+      "max_range": 8,
+      "y_origin": 0,
+      "repeat_time": 2,
+      "damage": {
+       "Hack": 8,
+       "Pierce": 15
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 8.55,
+     "run": 14.2785,
+     "acceleration": 31.5
+    }
+   }
+  },
+  "pers/hero_xerxes_i_chariot": {
+   "generic_name": "Xerxes I",
+   "specific_name": "Xšayāršā",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Cavalry",
+    "Ranged",
+    "Archer",
+    "Chariot"
+   ],
+   "icon": "units/pers/hero_xerxes.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Ranged",
+      "name": "Bow",
+      "min_range": 0,
+      "max_range": 60,
+      "y_origin": 0,
+      "repeat_time": 1.25,
+      "damage": {
+       "Pierce": 28
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 17,
+     "run": 23.8,
+     "acceleration": 14.875
+    }
+   }
+  },
+  "pers/kardakes_hoplite": {
+   "generic_name": "Cardaces Hoplite",
+   "specific_name": "Hoplites Kardakes",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Spearman",
+    "Mercenary"
+   ],
+   "icon": "units/pers/kardakes.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Spear",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 11,
+       "Pierce": 9.35,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "pers/kardakes_skirmisher": {
+   "generic_name": "Cardaces Skirmisher",
+   "specific_name": "Peltastes Kardakes",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Ranged",
+    "Javelineer",
+    "Mercenary"
+   ],
+   "icon": "units/pers/kardakes_skirmisher.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Ranged",
+      "name": "Javelin",
+      "min_range": 0,
+      "max_range": 30,
+      "y_origin": 0,
+      "repeat_time": 1.5,
+      "damage": {
+       "Pierce": 35.2,
+       "Hack": 0,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 10.45,
+     "run": 17.4515,
+     "acceleration": 42
+    }
+   }
+  },
+  "rome/hero_marcellus_infantry": {
+   "generic_name": "Hero Swordsman",
+   "specific_name": "Mārcus Claudius Mārcellus",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/rome/hero_marcellus.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "rome/hero_maximus_infantry": {
+   "generic_name": "Hero Swordsman",
+   "specific_name": "Quīntus Fabius Maximus Verrūcōsus Cūnctātor",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/rome/hero_maximus.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "rome/hero_scipio_infantry": {
+   "generic_name": "Hero Swordsman",
+   "specific_name": "Pūblius Cornēlius Scīpiō Āfricānus",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/rome/hero_scipio.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "rome/infantry_swordsman_slave": {
+   "generic_name": "Slave",
+   "specific_name": "Servus",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Builder",
+    "Citizen",
+    "Worker",
+    "Soldier",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/rome/infantry_swordsman.png",
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    31,
+    49
+   ],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 2.5
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 8
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    },
+    "gather": {
+     "food.fruit": 0.5,
+     "food.grain": 0.25,
+     "food.meat": 1,
+     "wood.tree": 0.75,
+     "stone.rock": 0.5,
+     "metal.ore": 0.5
+    },
+    "rank": "Basic"
+   }
+  },
+  "cart/champion_pikeman": {
+   "generic_name": "Sacred Band Pikeman",
+   "specific_name": "Mašal",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Pikeman"
+   ],
+   "icon": "units/cart/champion_infantry.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Pike",
+      "min_range": 0,
+      "max_range": 8,
+      "y_origin": 0,
+      "repeat_time": 2,
+      "damage": {
+       "Hack": 8,
+       "Pierce": 15
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 8.55,
+     "run": 14.2785,
+     "acceleration": 31.5
+    }
+   }
+  },
+  "mace/hero_craterus": {
+   "generic_name": "Craterus",
+   "specific_name": "Krateros",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/mace/hero_craterus.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "mace/hero_philip_ii_pike": {
+   "generic_name": "Philip II of Macedon",
+   "specific_name": "Philippos B' ho Makedōn",
+   "tooltip": "Counters: 3× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Pikeman"
+   ],
+   "icon": "units/mace/hero_philip.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Pike",
+      "min_range": 0,
+      "max_range": 8,
+      "y_origin": 0,
+      "repeat_time": 2,
+      "damage": {
+       "Hack": 12,
+       "Pierce": 16
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "mace/hero_pyrrhus_i": {
+   "generic_name": "Pyrrhus I of Epirus",
+   "specific_name": "Pyrrhos ho Epeiros",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Cavalry",
+    "Melee",
+    "Spearman"
+   ],
+   "icon": "units/mace/hero_pyrrhus.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Spear",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1.25,
+      "damage": {
+       "Hack": 16,
+       "Pierce": 12
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 18,
+     "run": 25.2,
+     "acceleration": 35
+    }
+   }
+  },
+  "brit/hero_boudicca_cavalry_javelineer": {
+   "generic_name": "Boudicca",
+   "specific_name": "Boudica",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Cavalry",
+    "Ranged",
+    "Javelineer"
+   ],
+   "icon": "units/brit/hero_boudicca.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Ranged",
+      "name": "Javelin",
+      "min_range": 0,
+      "max_range": 30,
+      "y_origin": 0,
+      "repeat_time": 1.5,
+      "damage": {
+       "Pierce": 60
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 16.2,
+     "run": 22.68,
+     "acceleration": 31.5
+    }
+   }
+  },
+  "brit/hero_boudicca_sword": {
+   "generic_name": "Boudicca",
+   "specific_name": "Boudica",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/brit/hero_boudicca.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "brit/hero_cunobelin_infantry": {
+   "generic_name": "Cunobeline",
+   "specific_name": "Cunobelinos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/brit/hero_cunobelin.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "gaul/hero_vercingetorix_infantry": {
+   "generic_name": "Vercingetorix",
+   "specific_name": "Uercingetorix",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/gaul/hero_vercingetorix.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "iber/hero_indibil_infantry": {
+   "generic_name": "Hero Spearman",
+   "specific_name": "Indibil",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Spearman"
+   ],
+   "icon": "units/iber/hero_indibil.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Spear",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 15,
+       "Pierce": 12
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "maur/hero_ashoka_infantry": {
+   "generic_name": "Ashoka the Great",
+   "specific_name": "Aśoka Devānāmpriya",
+   "tooltip": "Hero Special: \"Edicts of Ashoka\" - Edict Pillars of Ashoka can be built during Ashoka's lifetime.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Ranged",
+    "Archer"
+   ],
+   "icon": "units/maur/hero_ashoka.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Ranged",
+      "name": "Bow",
+      "min_range": 0,
+      "max_range": 60,
+      "y_origin": 0,
+      "repeat_time": 1.25,
+      "damage": {
+       "Pierce": 27
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "maur/hero_bindusara_infantry": {
+   "generic_name": "Bindusara",
+   "specific_name": "Bindusara",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/maur/hero_chandragupta.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "maur/hero_chandragupta_infantry": {
+   "generic_name": "Chandragupta Maurya",
+   "specific_name": "Chandragupta Maurya",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/maur/hero_chandragupta.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "kush/hero_amanirenas_infantry": {
+   "generic_name": "Amanirenas",
+   "specific_name": "Amnirense qore li kdwe li",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Ranged",
+    "Archer"
+   ],
+   "icon": "units/kush/hero_amanirenas.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Ranged",
+      "name": "Bow",
+      "min_range": 0,
+      "max_range": 60,
+      "y_origin": 0,
+      "repeat_time": 1.25,
+      "damage": {
+       "Pierce": 27
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "kush/hero_harsiotef": {
+   "generic_name": "Harsiotef",
+   "specific_name": "Ḥr-sȝ-it.f Sȝ-mrı͗-I͗mn",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Cavalry",
+    "Melee",
+    "Spearman"
+   ],
+   "icon": "units/kush/hero_harsiotef.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Spear",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1.25,
+      "damage": {
+       "Hack": 16,
+       "Pierce": 12
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 18,
+     "run": 25.2,
+     "acceleration": 35
+    }
+   }
+  },
+  "ptol/champion_juggernaut": {
+   "generic_name": "Juggernaut",
+   "specific_name": "Tessarakonterēs",
+   "tooltip": "Garrison units for transport across water. Good against Ships and Structures.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "NavalSiege",
+    "Heavy"
+   ],
+   "icon": "units/rome/ship_siege.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Ranged",
+      "name": "Stone",
+      "min_range": 0,
+      "max_range": 80,
+      "y_origin": 0,
+      "repeat_time": 4,
+      "damage": {
+       "Hack": 0,
+       "Pierce": 0,
+       "Crush": 220
+      },
+      "splash": {
+       "damage": {
+        "Crush": 100
+       },
+       "shape": "Circular",
+       "friendly_fire": false
+      }
+     }
+    ],
+    "garrison": {
+     "capacity": 100,
+     "buff_heal": 0
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 12,
+     "run": 20.04,
+     "acceleration": 11.34
+    },
+    "status_resistance": {
+     "Poisoned": {
+      "block": 1,
+      "duration": 0
+     }
+    }
+   }
+  },
+  "han/cavalry_crossbowman_b": {
+   "generic_name": "Cavalry Crossbowman",
+   "specific_name": "Han Cavalry Crossbowman",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Citizen",
+    "Soldier",
+    "Cavalry",
+    "Ranged",
+    "Crossbowman"
+   ],
+   "icon": "units/han/cavalry_crossbowman.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 1.75
+     },
+     {
+      "type": "Ranged",
+      "name": "Crossbow",
+      "min_range": 0,
+      "max_range": 45,
+      "y_origin": 0,
+      "repeat_time": 3,
+      "damage": {
+       "Pierce": 25
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 14.4,
+     "run": 20.16,
+     "acceleration": 28
+    },
+    "gather": {
+     "food.meat": 5
+    },
+    "rank": "Basic"
+   }
+  },
+  "han/champion_infantry_archer_academy": {
+   "generic_name": "Palace Guard Archer",
+   "specific_name": "Yǔ Lín",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Ranged",
+    "Archer"
+   ],
+   "icon": "units/han/champion_infantry_archer.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Ranged",
+      "name": "Bow",
+      "min_range": 0,
+      "max_range": 60,
+      "y_origin": 0,
+      "repeat_time": 1.25,
+      "damage": {
+       "Pierce": 14.4
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 10.3,
+     "run": 17.201,
+     "acceleration": 37.4
+    }
+   }
+  },
+  "han/hero_han_xin": {
+   "generic_name": "Hero Pikeman",
+   "specific_name": "Hán Xìn",
+   "tooltip": "Counters: 3× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Pikeman"
+   ],
+   "icon": "units/han/hero_han_xin.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Pike",
+      "min_range": 0,
+      "max_range": 8,
+      "y_origin": 0,
+      "repeat_time": 2,
+      "damage": {
+       "Hack": 12,
+       "Pierce": 16
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "han/hero_liu_bang": {
+   "generic_name": "Hero Swordsman",
+   "specific_name": "Liú Bāng",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/han/hero_liu_bang.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 26
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "han/hero_wei_qing": {
+   "generic_name": "Hero Infantry Crossbowman",
+   "specific_name": "Wèi Qīng",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Ranged",
+    "Crossbowman"
+   ],
+   "icon": "units/han/hero_wei_qing.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Ranged",
+      "name": "Crossbow",
+      "min_range": 0,
+      "max_range": 60,
+      "y_origin": 0,
+      "repeat_time": 3,
+      "damage": {
+       "Pierce": 60,
+       "Crush": 3
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "han/hero_wei_qing_horse": {
+   "generic_name": "Hero Cavalry Crossbowman",
+   "specific_name": "Wèi Qīng",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Cavalry",
+    "Ranged",
+    "Crossbowman"
+   ],
+   "icon": "units/han/hero_wei_qing.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Ranged",
+      "name": "Crossbow",
+      "min_range": 0,
+      "max_range": 55,
+      "y_origin": 0,
+      "repeat_time": 3,
+      "damage": {
+       "Pierce": 45,
+       "Crush": 3
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 14.4,
+     "run": 20.16,
+     "acceleration": 28
+    }
+   }
+  },
+  "merc_black_cloak": {
+   "generic_name": "Thracian Black Cloak",
+   "specific_name": "Rhomphaiophoros",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Swordsman",
+    "Mercenary"
+   ],
+   "icon": "units/thrac/champion_infantry_swordsman.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Rhomphaia",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 17.6,
+       "Pierce": 0,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "noldor_warship": {
+   "generic_name": "Arrow Ship",
+   "specific_name": "Mankar Cirya",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "ArrowShip",
+    "Ranged"
+   ],
+   "icon": "units/noldor_ship_bireme.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Ranged",
+      "name": "Arrow",
+      "min_range": 0,
+      "max_range": 56.25,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 0,
+       "Pierce": 32,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison": {
+     "capacity": 30,
+     "buff_heal": 0
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 14,
+     "run": 23.38,
+     "acceleration": 31.5
+    },
+    "status_resistance": {
+     "Poisoned": {
+      "block": 1,
+      "duration": 0
+     }
+    }
+   }
+  },
+  "pirates/ship_arrow": {
+   "generic_name": "Arrow Ship",
+   "specific_name": "Rhodian Marauder",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "ArrowShip",
+    "Ranged",
+    "Pirate"
+   ],
+   "icon": "units/pirates/ship_arrow.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Ranged",
+      "name": "Arrow",
+      "min_range": 0,
+      "max_range": 56.25,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 0,
+       "Pierce": 32,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison": {
+     "capacity": 30,
+     "buff_heal": 0
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 14,
+     "run": 23.38,
+     "acceleration": 31.5
+    },
+    "status_resistance": {
+     "Poisoned": {
+      "block": 1,
+      "duration": 0
+     }
+    }
+   }
+  },
+  "pirates/ship_merchant": {
+   "generic_name": "Treasure Ship",
+   "specific_name": "Blockade Runner",
+   "tooltip": "Destroy this ship to loot its large amount of treasure.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Trader",
+    "Bribable",
+    "Pirate"
+   ],
+   "icon": "units/pirates/ship_merchant.png",
+   "builds": [],
+   "viewer": {
+    "garrison": {
+     "capacity": 15,
+     "buff_heal": 0
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 12.15,
+     "run": 20.2905,
+     "acceleration": 5.6
+    },
+    "status_resistance": {
+     "Poisoned": {
+      "block": 1,
+      "duration": 0
+     }
+    }
+   }
+  },
+  "pirates/ship_scout": {
+   "generic_name": "Scout Ship",
+   "specific_name": "Cilician Pirate Ship",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "ScoutShip",
+    "Ranged",
+    "Pirate"
+   ],
+   "icon": "units/pirates/ship_scout.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Ranged",
+      "name": "Arrow",
+      "min_range": 0,
+      "max_range": 37,
+      "y_origin": 0,
+      "repeat_time": 2,
+      "damage": {
+       "Hack": 0,
+       "Pierce": 28,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison": {
+     "capacity": 10,
+     "buff_heal": 0
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 17,
+     "run": 28.39,
+     "acceleration": 31.5
+    },
+    "status_resistance": {
+     "Poisoned": {
+      "block": 1,
+      "duration": 0
+     }
+    }
+   }
+  },
+  "samnite_skirmisher": {
+   "generic_name": "Samnite Skirmisher",
+   "specific_name": "Samnite Skirmisher",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Ranged",
+    "Javelineer",
+    "Mercenary"
+   ],
+   "icon": "units/samn/skirmisher.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Ranged",
+      "name": "Javelin",
+      "min_range": 0,
+      "max_range": 30,
+      "y_origin": 0,
+      "repeat_time": 1.5,
+      "damage": {
+       "Pierce": 35.2,
+       "Hack": 0,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 10.45,
+     "run": 17.4515,
+     "acceleration": 42
+    }
+   }
+  },
+  "samnite_spearman": {
+   "generic_name": "Samnite Spearman",
+   "specific_name": "Samnite Spearman",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Spearman",
+    "Mercenary"
+   ],
+   "icon": "units/samn/spearman.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Spear",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 11,
+       "Pierce": 9.35,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "samnite_swordsman": {
+   "generic_name": "Samnite Swordsman",
+   "specific_name": "Samnite Swordsman",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Swordsman",
+    "Mercenary"
+   ],
+   "icon": "units/samn/swordsman.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 17.6,
+       "Pierce": 0,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "viking_longship": {
+   "generic_name": "Arrow Ship",
+   "specific_name": "Longship",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "ArrowShip",
+    "Ranged"
+   ],
+   "icon": "units/viking_longship.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Ranged",
+      "name": "Arrow",
+      "min_range": 0,
+      "max_range": 56.25,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 0,
+       "Pierce": 32,
+       "Crush": 0
+      }
+     }
+    ],
+    "garrison": {
+     "capacity": 30,
+     "buff_heal": 0
+    },
+    "garrison_size": 1,
+    "speed": {
+     "walk": 14,
+     "run": 23.38,
+     "acceleration": 31.5
+    },
+    "status_resistance": {
+     "Poisoned": {
+      "block": 1,
+      "duration": 0
+     }
+    }
    }
   }
  },

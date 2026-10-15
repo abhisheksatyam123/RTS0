@@ -16,6 +16,8 @@ const BLD_DOCK := 11
 const BLD_TEMPLE_ISIS := 85
 const CIV_PTOLEMIES := 11
 
+const TT = preload("res://scenes/common/tooltips.gd")
+
 var main
 var failures := 0
 
@@ -51,7 +53,7 @@ func run() -> void:
 		var box: Node = top.get_parent()
 		check(box.name.begins_with("unitResearchPair") and box.find_child("unitResearchPairIcon", false, false) != null, "joined by the pair connector")
 		check(top.text == "" and (top.find_child("unitResearchIcon", false, false) as TextureRect).texture != null, "an icon, no text")
-		check(str(pair[0]["tip"]).contains("Right-click for more information.") and str(pair[0]["tip"]).contains("Cost: "), "names, cost, right-click line")
+		check(TT.plain(str(pair[0]["tip"])).contains("Right-click for more information.") and TT.plain(str(pair[0]["tip"])).contains("Cost: "), "names, cost, right-click line")
 		var cross: Control = bottom.find_child("unitResearchUnchosenIcon", false, false)
 		top.mouse_entered.emit()
 		check(cross != null and cross.visible, "hovering one crosses out the other")
@@ -64,7 +66,7 @@ func run() -> void:
 	main.debug_train_buttons(BLD_DOCK)
 	await frames(2)
 	row = main.debug_command_row()
-	var poor: Array = row.filter(func(e): return str(e["tip"]).contains("\nInsufficient resources: "))
+	var poor: Array = row.filter(func(e): return TT.plain(str(e["tip"])).contains("\nInsufficient resources: "))
 	print("    ", row.map(func(e): return "%s %s" % [e["text"], "disabled" if e["disabled"] else ""]))
 	# Tribute wood away (100 at a time) until one is out of reach.
 	for i in 4:
@@ -73,7 +75,7 @@ func run() -> void:
 		main._on_diplo_tribute_pressed(1, 0)
 		await frames(10)
 		row = main.debug_command_row()
-		poor = row.filter(func(e): return str(e["tip"]).contains("\nInsufficient resources: "))
+		poor = row.filter(func(e): return TT.plain(str(e["tip"])).contains("\nInsufficient resources: "))
 	check(not poor.is_empty(), "a technology the stock can't pay for")
 	if not poor.is_empty():
 		var b: Button = instance_from_id(poor[0]["id"])

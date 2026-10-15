@@ -1172,6 +1172,20 @@ private:
 		set_rank(entry, uv.rank[u]);
 		set_statuses(sim, rtso::Simulation::STATUS_ON_UNIT, uv.id[u]);
 		set_portrait_target(true, uv.id[u], uv.pos_x[u], uv.pos_z[u], tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? "unit" : "", tmpl, 0);
+		// captureSection for any entity with capturePoints: a relic (catafalque) shows its points
+		// per player, the owner's first, and "Capture points: n / 250".
+		if (uv.unit_type[u] == rtso::UNIT_CATAFALQUE)
+			for (const auto &r : sim.relics()) {
+				if (r.id != uv.id[u]) continue;
+				const uint8_t owner = uv.team[u];
+				const float max = (float)rtso::RELIC_CAPTURE_POINTS;
+				capture_bar_->set_visible(true);
+				capture_label_->set_visible(true);
+				capture_bar_->set_max(max);
+				capture_label_->set_text(rtso::seldet::capture(r.cp[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS], max));
+				set_capture_parts(sim, owner, r.cp.data(), max);
+				break;
+			}
 		portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), entry, aura_label_->get_tooltip_text(), String(), true));
 	}
 

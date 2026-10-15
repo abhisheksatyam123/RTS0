@@ -2,7 +2,8 @@ extends SceneTree
 # unit_actions.js with session.guard (G) held: "guard" (specificness 40) on an own or allied
 # unit or structure under the cursor with the action-guard cursor; else "remove-guard" (41)
 # when a selected unit guards, with action-remove-guard; else the usual action, as
-# hotkeyActionCheck fails for both.
+# hotkeyActionCheck fails for both. Guard and remove-guard play no voice (0.28's units have no
+# order_guard sound group).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_guard_hotkey.gd
 # Exit code 0 = pass.
@@ -99,10 +100,12 @@ func run() -> void:
 	await key(KEY_G, true)
 	await move(b_at)
 	check(cursor() == "action-guard", "the guard cursor over the man: " + cursor())
+	var voices: int = main.debug_voices()
 	await right_click(b_at)
 	await key(KEY_G, false)
 	await wait_guard(a, b)
 	check(main.debug_guard_target(a) == b, "the selected man guards him")
+	check(main.debug_voices() == voices, "silently")
 
 	print("3. G over bare ground while guarding: remove-guard")
 	a_at = main.debug_unit_screen(a)

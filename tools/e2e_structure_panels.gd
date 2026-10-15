@@ -12,6 +12,8 @@ extends SceneTree
 
 const BLD_SENTRY_TOWER := 19
 
+const TT = preload("res://scenes/common/tooltips.gd")
+
 var main
 var failures := 0
 
@@ -40,7 +42,7 @@ func cheat(c: String) -> void:
 	await frames(20)
 
 func row_with(prefix: String) -> Array:
-	return main.debug_command_row().filter(func(e): return str(e["tip"]).begins_with(prefix))
+	return main.debug_command_row().filter(func(e): return TT.plain(str(e["tip"])).begins_with(prefix))
 
 func run() -> void:
 	await frames(60)
@@ -49,8 +51,8 @@ func run() -> void:
 	await frames(4)
 	var raise := row_with("Raise an alert!")
 	var end := row_with("End the alert.")
-	check(raise.size() == 1 and str(raise[0]["tip"]).ends_with("\nAlert nearby Civilians to seek refuge.") and raise[0]["text"] == "Raise alert", "Raise an alert!")
-	check(end.size() == 1 and str(end[0]["tip"]).ends_with("\nUnload nearby Civilians."), "End the alert.")
+	check(raise.size() == 1 and TT.plain(str(raise[0]["tip"])).ends_with("\nAlert nearby Civilians to seek refuge.") and raise[0]["text"] == "Raise alert", "Raise an alert!")
+	check(end.size() == 1 and TT.plain(str(end[0]["tip"])).ends_with("\nUnload nearby Civilians."), "End the alert.")
 	if raise.size() == 1:
 		var b: Button = instance_from_id(raise[0]["id"])
 		var icon := b.get_child(0) as TextureRect
@@ -61,9 +63,9 @@ func run() -> void:
 	main.debug_select_entity(tower)
 	await frames(4)
 	var u := row_with("Upgrade to a")
-	print("    ", u.map(func(e): return "%s | %s" % [e["text"], str(e["tip"]).replace("\n", " | ")]))
-	check(u.size() == 1 and str(u[0]["tip"]).contains("Reinforce with stone and upgrade to a defense tower.") and str(u[0]["tip"]).contains("Cost: "), "names, tooltip and cost")
-	check(u.size() == 1 and u[0]["disabled"] and u[0]["grey"] and str(u[0]["tip"]).contains("Requires Town Phase"), "disabled and grey: Requires Town Phase")
+	print("    ", u.map(func(e): return "%s | %s" % [e["text"], TT.plain(str(e["tip"])).replace("\n", " | ")]))
+	check(u.size() == 1 and TT.plain(str(u[0]["tip"])).contains("Reinforce with stone and upgrade to a defense tower.") and TT.plain(str(u[0]["tip"])).contains("Cost: "), "names, tooltip and cost")
+	check(u.size() == 1 and u[0]["disabled"] and u[0]["grey"] and TT.plain(str(u[0]["tip"])).contains("Requires Town Phase"), "disabled and grey: Requires Town Phase")
 
 	print("3. In the Town Phase")
 	await cheat("back to the future")

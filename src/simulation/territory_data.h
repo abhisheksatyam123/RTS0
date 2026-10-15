@@ -3,7 +3,7 @@
 // Included by sim_types.h inside namespace rtso.
 #pragma once
 
-// 0 A.D. TerritoryInfluence. radius is RTS0 units (COMBAT_DISTANCE_SCALE), 0 = claims no territory.
+// 0 A.D. TerritoryInfluence. radius is RTS0 map units (x0.25: 1 unit = 4 m), 0 = claims no territory.
 struct TerritoryInfluenceInfo {
 	float radius; // Radius
 	uint16_t weight; // Weight
@@ -13,92 +13,92 @@ struct TerritoryInfluenceInfo {
 inline constexpr uint8_t TERRITORY_INFLUENCE_ROWS = 86;
 inline const TerritoryInfluenceInfo &territory_influence_info(uint8_t type) {
 	static const TerritoryInfluenceInfo kTable[TERRITORY_INFLUENCE_ROWS + 1] = {
-		{39.2f, 10000, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre (140 m)
-		{4.48f, 65535, false}, // BLD_HOUSE: template_structure_civic_house (16 m)
-		{14.0f, 40000, false}, // BLD_BARRACKS: template_structure_military_barracks (50 m)
-		{5.6f, 30000, false}, // BLD_STOREHOUSE: template_structure_economic_storehouse (20 m)
-		{8.96f, 30000, false}, // BLD_TOWER: template_structure_defensive_tower_stone (32 m)
-		{5.6f, 30000, false}, // BLD_FARMSTEAD: template_structure_economic_farmstead (20 m)
-		{11.2f, 30000, false}, // BLD_MARKET: template_structure_economic_market (40 m)
-		{22.4f, 40000, false}, // BLD_FORTRESS: template_structure_military_fortress (80 m)
-		{5.6f, 65535, false}, // BLD_GATE: template_structure_defensive_wall_gate (20 m)
-		{11.2f, 30000, false}, // BLD_TEMPLE: template_structure_civic_temple (40 m)
-		{28.0f, 65535, true}, // BLD_WONDER: template_structure_wonder (100 m)
+		{35.0f, 10000, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre (140 m)
+		{4.0f, 65535, false}, // BLD_HOUSE: template_structure_civic_house (16 m)
+		{12.5f, 40000, false}, // BLD_BARRACKS: template_structure_military_barracks (50 m)
+		{5.0f, 30000, false}, // BLD_STOREHOUSE: template_structure_economic_storehouse (20 m)
+		{8.0f, 30000, false}, // BLD_TOWER: template_structure_defensive_tower_stone (32 m)
+		{5.0f, 30000, false}, // BLD_FARMSTEAD: template_structure_economic_farmstead (20 m)
+		{10.0f, 30000, false}, // BLD_MARKET: template_structure_economic_market (40 m)
+		{20.0f, 40000, false}, // BLD_FORTRESS: template_structure_military_fortress (80 m)
+		{5.0f, 65535, false}, // BLD_GATE: template_structure_defensive_wall_gate (20 m)
+		{10.0f, 30000, false}, // BLD_TEMPLE: template_structure_civic_temple (40 m)
+		{25.0f, 65535, true}, // BLD_WONDER: template_structure_wonder (100 m)
 		{0.0f, 0, false}, // BLD_DOCK: template_structure_military_dock
-		{5.6f, 65535, false}, // BLD_WALL_SEGMENT: template_structure_defensive_wall_long (20 m)
-		{5.6f, 30000, false}, // BLD_CORRAL: template_structure_resource_corral (20 m)
+		{5.0f, 65535, false}, // BLD_WALL_SEGMENT: template_structure_defensive_wall_long (20 m)
+		{5.0f, 30000, false}, // BLD_CORRAL: template_structure_resource_corral (20 m)
 		{0.0f, 0, false}, // BLD_FIELD: template_structure_resource_field
-		{14.0f, 40000, false}, // BLD_STABLE: template_structure_military_stable (50 m)
-		{14.0f, 40000, false}, // BLD_RANGE: template_structure_military_range (50 m)
-		{10.64f, 30000, false}, // BLD_FORGE: template_structure_military_forge (38 m)
-		{10.64f, 40000, false}, // BLD_ARSENAL: template_structure_military_arsenal (38 m)
-		{4.48f, 30000, false}, // BLD_SENTRY_TOWER: template_structure_defensive_tower_sentry (16 m)
+		{12.5f, 40000, false}, // BLD_STABLE: template_structure_military_stable (50 m)
+		{12.5f, 40000, false}, // BLD_RANGE: template_structure_military_range (50 m)
+		{9.5f, 30000, false}, // BLD_FORGE: template_structure_military_forge (38 m)
+		{9.5f, 40000, false}, // BLD_ARSENAL: template_structure_military_arsenal (38 m)
+		{4.0f, 30000, false}, // BLD_SENTRY_TOWER: template_structure_defensive_tower_sentry (16 m)
 		{0.0f, 0, false}, // BLD_OUTPOST: template_structure_defensive_outpost
 		{0.0f, 0, false}, // BLD_PALISADE: template_structure_defensive_palisade
-		{5.6f, 65535, false}, // BLD_WALL_TOWER: template_structure_defensive_wall_tower (20 m)
-		{10.64f, 40000, false}, // BLD_ELEPHANT_STABLE: template_structure_military_elephant_stable (38 m)
-		{28.0f, 40000, false}, // BLD_THEATER: template_structure_special_theater (100 m)
-		{7.0f, 40000, false}, // BLD_EMBASSY: template_structure_military_embassy (25 m)
-		{10.64f, 40000, false}, // BLD_GYMNASIUM: structures/athen/gymnasium (38 m)
-		{10.64f, 40000, false}, // BLD_PRYTANEION: structures/athen/prytaneion (38 m)
-		{10.64f, 40000, false}, // BLD_GEROUSIA: structures/spart/gerousia (38 m)
-		{10.64f, 40000, false}, // BLD_SYSSITON: structures/spart/syssiton (38 m)
-		{13.44f, 40000, true}, // BLD_TACHARA: structures/pers/tachara (48 m)
+		{5.0f, 65535, false}, // BLD_WALL_TOWER: template_structure_defensive_wall_tower (20 m)
+		{9.5f, 40000, false}, // BLD_ELEPHANT_STABLE: template_structure_military_elephant_stable (38 m)
+		{25.0f, 40000, false}, // BLD_THEATER: template_structure_special_theater (100 m)
+		{6.25f, 40000, false}, // BLD_EMBASSY: template_structure_military_embassy (25 m)
+		{9.5f, 40000, false}, // BLD_GYMNASIUM: structures/athen/gymnasium (38 m)
+		{9.5f, 40000, false}, // BLD_PRYTANEION: structures/athen/prytaneion (38 m)
+		{9.5f, 40000, false}, // BLD_GEROUSIA: structures/spart/gerousia (38 m)
+		{9.5f, 40000, false}, // BLD_SYSSITON: structures/spart/syssiton (38 m)
+		{12.0f, 40000, true}, // BLD_TACHARA: structures/pers/tachara (48 m)
 		{0.0f, 0, false}, // BLD_ARMY_CAMP: structures/rome/army_camp
-		{28.0f, 40000, false}, // BLD_AMPHITHEATER: structures/rome/amphitheater_pompeii (100 m)
-		{14.0f, 40000, false}, // BLD_LIBRARY: structures/mace/library (50 m)
-		{5.6f, 30000, false}, // BLD_KENNEL: structures/brit/kennel (20 m)
-		{11.2f, 40000, false}, // BLD_ASSEMBLY: structures/gaul/assembly (40 m)
+		{25.0f, 40000, false}, // BLD_AMPHITHEATER: structures/rome/amphitheater_pompeii (100 m)
+		{12.5f, 40000, false}, // BLD_LIBRARY: structures/mace/library (50 m)
+		{5.0f, 30000, false}, // BLD_KENNEL: structures/brit/kennel (20 m)
+		{10.0f, 40000, false}, // BLD_ASSEMBLY: structures/gaul/assembly (40 m)
 		{0.0f, 0, false}, // BLD_MONUMENT: structures/iber/monument
-		{10.64f, 40000, true}, // BLD_PALACE: structures/maur/palace (38 m)
+		{9.5f, 40000, true}, // BLD_PALACE: structures/maur/palace (38 m)
 		{0.0f, 0, false}, // BLD_PILLAR: structures/maur/pillar_ashoka
-		{11.2f, 40000, false}, // BLD_PYRAMID_LARGE: structures/kush/pyramid_large (40 m)
-		{8.4f, 30000, false}, // BLD_PYRAMID_SMALL: structures/kush/pyramid_small (30 m)
+		{10.0f, 40000, false}, // BLD_PYRAMID_LARGE: structures/kush/pyramid_large (40 m)
+		{7.5f, 30000, false}, // BLD_PYRAMID_SMALL: structures/kush/pyramid_small (30 m)
 		{0.0f, 0, false}, // BLD_MERCENARY_CAMP: structures/ptol/mercenary_camp
 		{0.0f, 0, false}, // BLD_LIGHTHOUSE: structures/ptol/lighthouse
-		{21.0f, 10000, true}, // BLD_MILITARY_COLONY: structures/ptol/military_colony (75 m)
-		{14.0f, 40000, false}, // BLD_ACADEMY: structures/han/academy (50 m)
-		{16.8f, 30000, true}, // BLD_MINISTRY: structures/han/ministry (60 m)
+		{18.75f, 10000, true}, // BLD_MILITARY_COLONY: structures/ptol/military_colony (75 m)
+		{12.5f, 40000, false}, // BLD_ACADEMY: structures/han/academy (50 m)
+		{15.0f, 30000, true}, // BLD_MINISTRY: structures/han/ministry (60 m)
 		{0.0f, 0, false}, // BLD_CAMP_BLEMMYE: structures/kush/camp_blemmye
 		{0.0f, 0, false}, // BLD_CAMP_NOBA: structures/kush/camp_noba
-		{22.4f, 30000, false}, // BLD_TEMPLE_AMUN: structures/kush/temple_amun (80 m)
-		{11.2f, 30000, false}, // BLD_TEMPLE_VESTA: structures/rome/temple_vesta (40 m)
-		{14.56f, 30000, false}, // BLD_TEMPLE_MARS: structures/rome/temple_mars (52 m)
-		{5.6f, 30000, false}, // BLD_ICE_HOUSE: structures/pers/ice_house (20 m)
-		{56.0f, 25000, true}, // BLD_SUPER_DOCK: structures/cart/super_dock (200 m)
-		{13.44f, 40000, true}, // BLD_TACHARA_FOOD: structures/pers/tachara_food (48 m)
-		{13.44f, 40000, true}, // BLD_TACHARA_WOOD: structures/pers/tachara_wood (48 m)
-		{13.44f, 40000, true}, // BLD_TACHARA_STONE: structures/pers/tachara_stone (48 m)
-		{13.44f, 40000, true}, // BLD_TACHARA_METAL: structures/pers/tachara_metal (48 m)
-		{5.6f, 40000, false}, // BLD_APARTMENT: structures/cart/apartment (20 m)
-		{39.2f, 10000, true}, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court (140 m)
-		{11.76f, 30000, false}, // BLD_TOWER_GREAT: structures/han/defense_tower_great (42 m)
+		{20.0f, 30000, false}, // BLD_TEMPLE_AMUN: structures/kush/temple_amun (80 m)
+		{10.0f, 30000, false}, // BLD_TEMPLE_VESTA: structures/rome/temple_vesta (40 m)
+		{13.0f, 30000, false}, // BLD_TEMPLE_MARS: structures/rome/temple_mars (52 m)
+		{5.0f, 30000, false}, // BLD_ICE_HOUSE: structures/pers/ice_house (20 m)
+		{50.0f, 25000, true}, // BLD_SUPER_DOCK: structures/cart/super_dock (200 m)
+		{12.0f, 40000, true}, // BLD_TACHARA_FOOD: structures/pers/tachara_food (48 m)
+		{12.0f, 40000, true}, // BLD_TACHARA_WOOD: structures/pers/tachara_wood (48 m)
+		{12.0f, 40000, true}, // BLD_TACHARA_STONE: structures/pers/tachara_stone (48 m)
+		{12.0f, 40000, true}, // BLD_TACHARA_METAL: structures/pers/tachara_metal (48 m)
+		{5.0f, 40000, false}, // BLD_APARTMENT: structures/cart/apartment (20 m)
+		{35.0f, 10000, true}, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court (140 m)
+		{10.5f, 30000, false}, // BLD_TOWER_GREAT: structures/han/defense_tower_great (42 m)
 		{0.0f, 0, false}, // BLD_PALISADE_GATE: structures/palisades_gate
-		{7.0f, 40000, false}, // BLD_EMBASSY_IBERIAN: structures/cart/embassy_iberian (25 m)
-		{7.0f, 40000, false}, // BLD_EMBASSY_ITALIC: structures/cart/embassy_italic (25 m)
+		{6.25f, 40000, false}, // BLD_EMBASSY_IBERIAN: structures/cart/embassy_iberian (25 m)
+		{6.25f, 40000, false}, // BLD_EMBASSY_ITALIC: structures/cart/embassy_italic (25 m)
 		{0.0f, 0, false}, // BLD_SIEGE_WALL: structures/rome/siege_wall_long
 		{0.0f, 0, false}, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
-		{39.2f, 10000, true}, // BLD_CRANNOG: structures/brit/crannog (140 m)
-		{10.64f, 40000, false}, // BLD_GREAT_HALL: structures/germ/great_hall (38 m)
+		{35.0f, 10000, true}, // BLD_CRANNOG: structures/brit/crannog (140 m)
+		{9.5f, 40000, false}, // BLD_GREAT_HALL: structures/germ/great_hall (38 m)
 		{0.0f, 0, false}, // BLD_WAGON_ENCAMPMENT: structures/germ/encampment
 		{0.0f, 0, false}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
 		{0.0f, 0, false}, // BLD_SHRINE: structures/shrine_greek_01
 		{0.0f, 0, false}, // BLD_TRADING_POST: structures/trading_post_desert
-		{8.96f, 30000, false}, // BLD_TOWER_BOLT: structures/athen/tower_bolt (32 m)
-		{8.96f, 30000, false}, // BLD_TOWER_ARTILLERY: structures/athen/tower_artillery (32 m)
-		{11.2f, 65535, false}, // BLD_STOA: structures/athen/royal_stoa (40 m)
-		{10.08f, 65535, false}, // BLD_HELLENIC_STOA: structures/hellenic_stoa (36 m)
-		{7.28f, 65535, false}, // BLD_INN: structures/pers/inn (26 m)
+		{8.0f, 30000, false}, // BLD_TOWER_BOLT: structures/athen/tower_bolt (32 m)
+		{8.0f, 30000, false}, // BLD_TOWER_ARTILLERY: structures/athen/tower_artillery (32 m)
+		{10.0f, 65535, false}, // BLD_STOA: structures/athen/royal_stoa (40 m)
+		{9.0f, 65535, false}, // BLD_HELLENIC_STOA: structures/hellenic_stoa (36 m)
+		{6.5f, 65535, false}, // BLD_INN: structures/pers/inn (26 m)
 		{0.0f, 0, false}, // BLD_TENT: structures/rome/tent
 		{0.0f, 0, false}, // BLD_TRIUMPHAL_ARCH: structures/rome/arch
-		{10.64f, 40000, false}, // BLD_HALL: structures/pers/hall (38 m)
-		{8.4f, 65535, false}, // BLD_WAREHOUSE: structures/pers/warehouse (30 m)
-		{8.4f, 65535, false}, // BLD_TAVERN: structures/gaul/tavern (30 m)
-		{8.96f, 30000, false}, // BLD_TOWER_DOUBLE: structures/maur/tower_double (32 m)
-		{11.2f, 30000, false}, // BLD_KUSH_SHRINE: structures/kush/shrine (40 m)
-		{22.4f, 40000, false}, // BLD_FORTRESS_OLD: structures/han/fortress_old (80 m)
+		{9.5f, 40000, false}, // BLD_HALL: structures/pers/hall (38 m)
+		{7.5f, 65535, false}, // BLD_WAREHOUSE: structures/pers/warehouse (30 m)
+		{7.5f, 65535, false}, // BLD_TAVERN: structures/gaul/tavern (30 m)
+		{8.0f, 30000, false}, // BLD_TOWER_DOUBLE: structures/maur/tower_double (32 m)
+		{10.0f, 30000, false}, // BLD_KUSH_SHRINE: structures/kush/shrine (40 m)
+		{20.0f, 40000, false}, // BLD_FORTRESS_OLD: structures/han/fortress_old (80 m)
 		{0.0f, 0, false}, // BLD_LAOZI_GATE: structures/han/laozigate
-		{11.2f, 30000, false}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2 (40 m)
+		{10.0f, 30000, false}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2 (40 m)
 		{0.0f, 0, false}, // out of range
 	};
 	return kTable[type < TERRITORY_INFLUENCE_ROWS ? type : TERRITORY_INFLUENCE_ROWS];

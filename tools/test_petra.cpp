@@ -1248,6 +1248,63 @@ static void test_barter() {
 	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0, "short on gold, none for what it has plenty of");
 }
 
+// queueplanBuilding.js findGoodPosition favorBorder: with no market or dock anywhere to measure
+// from (findMarketLocation [-1, -1, -1, 0]), the first market goes anywhere in our bases, +50
+// on the map border's tiles, so a later market can be far from it.
+// config.js setConfig scales and clamps popPhase2 first; startingStrategy.js then takes 3/4
+// of that when the start is short of wood (saveResources).
+static void test_pop_phase2_save_resources() {
+	auto s = std::make_unique<Simulation>();
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->petra_pid_ = 1;
+	s->petra_config_.pop_phase2 = 150;
+	s->pop_cap_ = 300;
+	s->petra_attack_mgr_.save_resources = 0;
+	CHECK(s->petra_pop_phase2() == 150, "Medium phases at 150 with 300 population");
+	s->petra_attack_mgr_.save_resources = 1;
+	CHECK(s->petra_pop_phase2() == 112, "saving resources: floor(0.75 * 150)");
+	s->pop_cap_ = 50; // floor(150 * sqrt(50/300)) = 61, clamped to 25, then 3/4
+	const int low = s->petra_pop_phase2();
+	std::printf("popPhase2 at 50 population, saving resources: %d (0.28 18)\n", low);
+	CHECK(low == 18, "3/4 of the clamped value under a low population cap");
+}
+
+static void test_first_market_border() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) { cx = b.x; cz = b.z; }
+	const float half = s->map_half(), edge = half - 80.0f / 4.0f;
+	auto on_border = [&](float x, float z) {
+		return s->circular_map() ? x * x + z * z >= edge * edge : std::abs(x) >= edge || std::abs(z) >= edge;
+	};
+	// Our territory reaches the border somewhere (the start is near the map's edge).
+	bool border_ours = false;
+	for (float z = -half; z < half; z += 2.0f)
+		for (float x = -half; x < half; x += 2.0f)
+			border_ours |= on_border(x, z) && s->territory_owner_at(x, z) == 1;
+	s->players_[1].phase = 2; // a market needs the town phase
+	s->set_player_resources(1, 50000, 50000, 50000, 50000);
+	for (auto &a : s->petra_queues_.accounts) a = {50000, 50000, 50000, 50000};
+	for (auto &p : s->petra_queues_.paused) p = 0; // checkPausedQueues counts few workers yet
+	s->petra_turn_built_ = false;
+	const uint32_t id = s->petra_build_market(cx, cz, PETRA_Q_ECONOMIC_BUILDING);
+	const Simulation::Building *m = nullptr;
+	for (const auto &b : s->buildings_) if (b.id == id) m = &b;
+	std::printf("  first market: %s at (%.1f, %.1f), civic centre (%.1f, %.1f), border in our territory %s\n",
+	            m ? "placed" : "not placed", m ? m->x : 0.0f, m ? m->z : 0.0f, cx, cz, border_ours ? "yes" : "no");
+	CHECK(border_ours, "our territory reaches the map border");
+	CHECK(m && s->territory_owner_at(m->x, m->z) == 1, "the first market is in our territory");
+	CHECK(m && on_border(m->x, m->z), "on the map border (favorBorder)");
+}
+
 // tradeManager.js prospectForNewMarket with headquarters.js findMarketLocation: with one
 // market of its own, Petra looks for the spot in its territory farthest from it and
 // builds a second market there when the route would pay; checkRoutes then finds it.
@@ -4705,6 +4762,8 @@ int main(int argc, char **argv) {
 	RUN(test_hunters_028);
 	RUN(test_first_base);
 	RUN(test_barter);
+	RUN(test_first_market_border);
+	RUN(test_pop_phase2_save_resources);
 	RUN(test_market_prospection);
 	RUN(test_market_dock_route);
 	RUN(test_civ_structures);

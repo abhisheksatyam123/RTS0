@@ -34,7 +34,7 @@ COPY_SUFFIXES = ("_trireme",)
 
 def roster_ids():
     with open(ROSTER, encoding="utf-8") as fh:
-        return re.findall(r'^\t\t\{"([a-z_]+/[a-z0-9_]+)"', fh.read(), re.M)
+        return re.findall(r'^\t\t\{"([a-z0-9_/]+)", "(?:[^"\\]|\\.)*", "(?:[^"\\]|\\.)*", CIV_[A-Z]+, UNIT_', fh.read(), re.M)
 
 
 def trainer_rows(loader, ids):

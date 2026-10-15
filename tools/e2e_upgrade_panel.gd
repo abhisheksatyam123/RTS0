@@ -11,7 +11,7 @@ extends SceneTree
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_upgrade_panel.gd
 # Exit code 0 = pass.
 
-const DEV_PROMOTE := 5
+const TT = preload("res://scenes/common/tooltips.gd")
 
 var main
 var failures := 0
@@ -31,8 +31,12 @@ func frames(n: int) -> void:
 	for i in n:
 		await process_frame
 
+# The developer overlay row by its label (rows get added, so no fixed index).
+func promote() -> void:
+	main._on_dev_command(Array(main.debug_dev_overlay()["commands"]).find("Promote selected units"))
+
 func upgrades() -> Array:
-	return main.debug_command_row().filter(func(e): return str(e["tip"]).begins_with("Upgrade to a") or e["tip"] == "Cancel Upgrading" or str(e["tip"]).begins_with("Cannot upgrade"))
+	return main.debug_command_row().filter(func(e): return TT.plain(str(e["tip"])).begins_with("Upgrade to a") or e["tip"] == "Cancel Upgrading" or TT.plain(str(e["tip"])).begins_with("Cannot upgrade"))
 
 func run() -> void:
 	await frames(60)
@@ -41,8 +45,8 @@ func run() -> void:
 	main.debug_select_units(imm)
 	await frames(4)
 	var u := upgrades()
-	print("    ", u.map(func(e): return "%s | %s | x%d" % [e["text"], str(e["tip"]).replace("\n", " | "), e["count"]]))
-	check(u.size() == 1 and str(u[0]["tip"]).begins_with("Upgrade to a Anušiya (Persian Immortal).") and u[0]["count"] == 3 and not u[0]["disabled"], "one button, names, three of them")
+	print("    ", u.map(func(e): return "%s | %s | x%d" % [e["text"], TT.plain(str(e["tip"])).replace("\n", " | "), e["count"]]))
+	check(u.size() == 1 and TT.plain(str(u[0]["tip"])).begins_with("Upgrade to a Anušiya (Persian Immortal).") and u[0]["count"] == 3 and not u[0]["disabled"], "one button, names, three of them")
 	var mixed := imm.duplicate()
 	mixed.append_array(main.debug_spawn_units("athen/infantry_spearman_b", 1))
 	main.debug_select_units(mixed)
@@ -67,28 +71,28 @@ func run() -> void:
 		(instance_from_id(u[0]["id"]) as Button).pressed.emit()
 	await frames(30)
 	u = upgrades()
-	check(u.size() == 1 and str(u[0]["tip"]).begins_with("Upgrade to a"), "a click cancels")
+	check(u.size() == 1 and TT.plain(str(u[0]["tip"])).begins_with("Upgrade to a"), "a click cancels")
 
 	print("3. Roman Centurions")
 	var rom: PackedInt32Array = main.debug_spawn_units("rome/infantry_spearman_b", 2)
 	main.debug_select_units(rom)
 	await frames(2)
 	for i in 2:
-		main._on_dev_command(DEV_PROMOTE)
+		promote()
 		await frames(30)
 	u = upgrades()
-	print("    ", u.map(func(e): return "%s | %s" % [e["text"], str(e["tip"]).replace("\n", " | ")]))
-	check(u.size() == 1 and str(u[0]["tip"]).contains("200") and str(u[0]["tip"]).contains("100"), "two of them: the cost doubles")
+	print("    ", u.map(func(e): return "%s | %s" % [e["text"], TT.plain(str(e["tip"])).replace("\n", " | ")]))
+	check(u.size() == 1 and TT.plain(str(u[0]["tip"])).contains("200") and TT.plain(str(u[0]["tip"])).contains("100"), "two of them: the cost doubles")
 	var more: PackedInt32Array = main.debug_spawn_units("rome/infantry_spearman_b", 8)
 	main.debug_select_units(more)
 	for i in 2:
-		main._on_dev_command(DEV_PROMOTE)
+		promote()
 		await frames(30)
 	more.append_array(rom)
 	main.debug_select_units(more)
 	await frames(4)
 	u = upgrades()
-	print("    ", u.map(func(e): return "%s | %s" % [e["text"], str(e["tip"]).replace("\n", " | ")]))
-	check(u.size() == 1 and u[0]["disabled"] and str(u[0]["tip"]).contains("Insufficient resources:"), "ten of them: disabled, with what the stock lacks")
+	print("    ", u.map(func(e): return "%s | %s" % [e["text"], TT.plain(str(e["tip"])).replace("\n", " | ")]))
+	check(u.size() == 1 and u[0]["disabled"] and TT.plain(str(u[0]["tip"])).contains("Insufficient resources:"), "ten of them: disabled, with what the stock lacks")
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

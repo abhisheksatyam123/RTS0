@@ -611,6 +611,45 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // gaul/support_healer_e
 	{LIMIT_NONE, 0}, // ptol/support_healer_e
 	{LIMIT_NONE, 0}, // han/support_healer_e
+	{LIMIT_NONE, 0}, // athen/infantry_marine_archer_b
+	{LIMIT_NONE, 0}, // spart/champion_infantry_pike
+	{LIMIT_HERO, 1}, // pers/hero_xerxes_i_chariot
+	{LIMIT_NONE, 0}, // pers/kardakes_hoplite
+	{LIMIT_NONE, 0}, // pers/kardakes_skirmisher
+	{LIMIT_HERO, 1}, // rome/hero_marcellus_infantry
+	{LIMIT_HERO, 1}, // rome/hero_maximus_infantry
+	{LIMIT_HERO, 1}, // rome/hero_scipio_infantry
+	{LIMIT_NONE, 0}, // rome/infantry_swordsman_slave
+	{LIMIT_NONE, 0}, // cart/champion_pikeman
+	{LIMIT_HERO, 1}, // mace/hero_craterus
+	{LIMIT_HERO, 1}, // mace/hero_philip_ii_pike
+	{LIMIT_HERO, 1}, // mace/hero_pyrrhus_i
+	{LIMIT_HERO, 1}, // brit/hero_boudicca_cavalry_javelineer
+	{LIMIT_HERO, 1}, // brit/hero_boudicca_sword
+	{LIMIT_HERO, 1}, // brit/hero_cunobelin_infantry
+	{LIMIT_HERO, 1}, // gaul/hero_vercingetorix_infantry
+	{LIMIT_HERO, 1}, // iber/hero_indibil_infantry
+	{LIMIT_HERO, 1}, // maur/hero_ashoka_infantry
+	{LIMIT_HERO, 1}, // maur/hero_bindusara_infantry
+	{LIMIT_HERO, 1}, // maur/hero_chandragupta_infantry
+	{LIMIT_HERO, 1}, // kush/hero_amanirenas_infantry
+	{LIMIT_HERO, 1}, // kush/hero_harsiotef
+	{LIMIT_JUGGERNAUT, 0}, // ptol/champion_juggernaut
+	{LIMIT_NONE, 0}, // han/cavalry_crossbowman_b
+	{LIMIT_NONE, 0}, // han/champion_infantry_archer_academy
+	{LIMIT_HERO, 1}, // han/hero_han_xin
+	{LIMIT_HERO, 1}, // han/hero_liu_bang
+	{LIMIT_HERO, 1}, // han/hero_wei_qing
+	{LIMIT_HERO, 1}, // han/hero_wei_qing_horse
+	{LIMIT_NONE, 0}, // merc_black_cloak
+	{LIMIT_NONE, 0}, // noldor_warship
+	{LIMIT_NONE, 0}, // pirates/ship_arrow
+	{LIMIT_NONE, 0}, // pirates/ship_merchant
+	{LIMIT_NONE, 0}, // pirates/ship_scout
+	{LIMIT_NONE, 0}, // samnite_skirmisher
+	{LIMIT_NONE, 0}, // samnite_spearman
+	{LIMIT_NONE, 0}, // samnite_swordsman
+	{LIMIT_NONE, 0}, // viking_longship
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");

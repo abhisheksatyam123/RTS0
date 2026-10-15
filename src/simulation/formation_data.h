@@ -523,6 +523,45 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x040u}, // gaul/support_healer_e
 		{0x0078fu, 0x040u}, // ptol/support_healer_e
 		{0x0078fu, 0x040u}, // han/support_healer_e
+		{0x007cfu, 0x130u}, // athen/infantry_marine_archer_b
+		{0x0478fu, 0x02au}, // spart/champion_infantry_pike
+		{0x007efu, 0x015u}, // pers/hero_xerxes_i_chariot
+		{0x0879fu, 0x02au}, // pers/kardakes_hoplite
+		{0x007cfu, 0x032u}, // pers/kardakes_skirmisher
+		{0x0878fu, 0x029u}, // rome/hero_marcellus_infantry
+		{0x0878fu, 0x029u}, // rome/hero_maximus_infantry
+		{0x0878fu, 0x029u}, // rome/hero_scipio_infantry
+		{0x0878fu, 0x128u}, // rome/infantry_swordsman_slave
+		{0x0478fu, 0x02au}, // cart/champion_pikeman
+		{0x0878fu, 0x029u}, // mace/hero_craterus
+		{0x0478fu, 0x029u}, // mace/hero_philip_ii_pike
+		{0x007afu, 0x00du}, // mace/hero_pyrrhus_i
+		{0x007efu, 0x015u}, // brit/hero_boudicca_cavalry_javelineer
+		{0x0878fu, 0x029u}, // brit/hero_boudicca_sword
+		{0x0878fu, 0x029u}, // brit/hero_cunobelin_infantry
+		{0x0878fu, 0x029u}, // gaul/hero_vercingetorix_infantry
+		{0x0878fu, 0x029u}, // iber/hero_indibil_infantry
+		{0x007cfu, 0x031u}, // maur/hero_ashoka_infantry
+		{0x0878fu, 0x029u}, // maur/hero_bindusara_infantry
+		{0x0878fu, 0x029u}, // maur/hero_chandragupta_infantry
+		{0x007cfu, 0x031u}, // kush/hero_amanirenas_infantry
+		{0x007afu, 0x00du}, // kush/hero_harsiotef
+		{0x00000u, 0x800u}, // ptol/champion_juggernaut
+		{0x007efu, 0x114u}, // han/cavalry_crossbowman_b
+		{0x007cfu, 0x032u}, // han/champion_infantry_archer_academy
+		{0x0478fu, 0x029u}, // han/hero_han_xin
+		{0x0878fu, 0x029u}, // han/hero_liu_bang
+		{0x007cfu, 0x031u}, // han/hero_wei_qing
+		{0x007efu, 0x015u}, // han/hero_wei_qing_horse
+		{0x0878fu, 0x02au}, // merc_black_cloak
+		{0x00000u, 0x010u}, // noldor_warship
+		{0x00000u, 0x010u}, // pirates/ship_arrow
+		{0x00000u, 0x000u}, // pirates/ship_merchant
+		{0x00000u, 0x010u}, // pirates/ship_scout
+		{0x007cfu, 0x032u}, // samnite_skirmisher
+		{0x0879fu, 0x02au}, // samnite_spearman
+		{0x0878fu, 0x02au}, // samnite_swordsman
+		{0x00000u, 0x010u}, // viking_longship
 	};
 	return kRows;
 }

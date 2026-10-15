@@ -33,9 +33,10 @@ Dictionary cost_dict(int food, int wood, int stone, int metal) {
 }
 
 // 0 A.D. Identity classes the combat tables carry (civ_attack_data.h CombatClass order).
-static_assert(rtso::COMBAT_CLASS_COUNT == 11, "combat classes changed: update kCombatClassNames");
+// Trader: the pirate ships' Brigandry bonus (mixins/pirate.xml, x2 against Traders).
+static_assert(rtso::COMBAT_CLASS_COUNT == 12, "combat classes changed: update kCombatClassNames");
 const char *const kCombatClassNames[rtso::COMBAT_CLASS_COUNT] = {
-	"Building", "Cavalry", "Field", "Hero", "Human", "Organic", "Ship", "Siege", "Soldier", "Structure", "Unit",
+	"Building", "Cavalry", "Field", "Hero", "Human", "Organic", "Ship", "Siege", "Soldier", "Structure", "Trader", "Unit",
 };
 
 String class_list(const rtso::CombatClasses &c) {

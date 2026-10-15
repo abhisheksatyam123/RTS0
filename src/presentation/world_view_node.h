@@ -18,6 +18,7 @@
 #include <godot_cpp/classes/audio_stream_player3d.hpp>
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/decal.hpp>
 #include <godot_cpp/classes/gpu_particles3d.hpp>
 #include <godot_cpp/classes/particle_process_material.hpp>
 #include <godot_cpp/classes/quad_mesh.hpp>
@@ -96,6 +97,15 @@ class RtsoWorldView : public Node3D {
 		Node3D *upgrade_scaffold = nullptr; // child of `model`: 0 A.D.'s "upgrading" variant scaffold
 		uint8_t production = 0; // FoggedBuilding::production the effects below were made for
 		std::vector<GPUParticles3D *> production_fx; // the "researching"/"training" variant's particles
+		// 0 A.D.'s construction_dust (the foundation's "scaffold" variant) or
+		// destruction_dust_small (the "upgrading" variant) on the actor's root.
+		GPUParticles3D *site_dust = nullptr;
+		uint8_t site_dust_kind = 0; // 0 none, 1 construction, 2 upgrading
+		float site_dust_poll = 0.0f; // seconds until the builders are counted again
+		// 0 A.D.'s ground decals (props/structures/decals/*.xml) under the model or foundation drawn.
+		std::vector<Decal *> decals;
+		String decal_key; // the GLB id, scale and position the decals were laid for
+		String foundation_glb; // the foundation GLB set_building_site_visible drew
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -161,6 +171,15 @@ class RtsoWorldView : public Node3D {
 	bool production_fx_loaded_ = false;
 	Ref<QuadMesh> fx_sparks_quad_, fx_forge_smoke_quad_;
 	void update_production_fx(BuildingVis &v, const String &model_id, uint8_t state, float b_scale, float y_offset);
+	Ref<QuadMesh> fx_dust_quad_;
+	// data/building_decals.json: each building GLB's ground decals, in its units.
+	struct BuildingDecal { String tex; Vector2 pos, size; float angle = 0.0f; };
+	std::unordered_map<std::string, std::vector<BuildingDecal>> building_decals_;
+	std::unordered_map<std::string, Ref<Texture2D>> decal_tex_;
+	bool building_decals_loaded_ = false;
+	static constexpr uint32_t DECAL_LAYER = 1u << 19; // the terrain's extra render layer: decals land only on it
+	void update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness);
+	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
 	// World height of a unit standing on a turret point `offset` above the terrain
@@ -451,6 +470,11 @@ private:
 	std::unordered_map<std::string, std::string> foundation_of_; // "<civ code>/<BuildingType>" -> foundation id
 	std::unordered_map<std::string, FoundationArt> foundation_art_;
 	std::unordered_map<std::string, ActorFrame> building_frames_;
+	// data/rubble.json: each civ's SpawnEntityOnDeath rubble per BuildingType and its actor frame.
+	std::unordered_map<std::string, std::string> rubble_of_;
+	std::unordered_map<std::string, ActorFrame> rubble_frames_;
+	bool rubble_loaded_ = false;
+	void load_rubble();
 	bool foundations_loaded_ = false;
 	void load_foundations();
 	static Node *instantiate_building_id(const String &id);

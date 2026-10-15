@@ -170,7 +170,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 87; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 88; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
 	static constexpr uint32_t SAVE_VERSION_PETRA_RALLY = 87; // each Petra plan's completing step, march waypoints and last position
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
@@ -553,6 +554,13 @@ public:
 	uint16_t ally_civ_mask(uint8_t pid) const;
 	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
 	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
+	// Trainer.js GetUpgradedTemplate: the template a queued `tmpl` is trained as, following its
+	// Promotion while the player's RequiredXp for the step is 0 (Marian Reforms' Legionaries,
+	// mercenaries trained Advanced), and the rank it ends on. Cost and time are that template's.
+	uint16_t trained_as(uint8_t pid, uint16_t tmpl, uint8_t &rank) const;
+	// One unit's training time before the batch multiplier: the trained-as template's
+	// Cost/BuildTime with team bonuses, technologies, AI difficulty and x1.2 per rank above Basic.
+	float unit_train_seconds(uint8_t pid, uint16_t tmpl) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	// max_gatherers 0: the gaia template default (resource_default_max_gatherers).
 	// flora: the FloraKind the supply shows (FLORA_DEFAULT: the biome's pick).
@@ -683,6 +691,8 @@ public:
 	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1);
 	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
 	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// The same for a training unit (a trireme, Cyrus II): its Trainer/BatchTimeModifier.
+	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.
 	bool cmd_set_autoqueue(uint8_t player, uint32_t building_id, bool on);
 	// The technology a structure is researching now (the front of its queue), else TECH_NONE.
@@ -1182,6 +1192,12 @@ public:
 		const float r = map_half_ - MAP_EDGE_DIST - c;
 		return r <= 0.0f || x * x + z * z > r * r;
 	}
+	// Within `b` of the map's edge, its circle on a circular map (Petra's mapModule.js
+	// createBorderMap fullBorder).
+	bool near_map_border(float x, float z, float b) const {
+		if (circular_map()) return x * x + z * z >= (map_half_ - b) * (map_half_ - b);
+		return std::abs(x) >= map_half_ - b || std::abs(z) >= map_half_ - b;
+	}
 	// A footprint reaching past a circular map's passable edge (CheckBuildingPlacement).
 	template <class F>
 	bool footprint_past_map_edge(const F &f) const {
@@ -1477,7 +1493,9 @@ public:
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
+		PLACE_UNEXPLORED, // land the (human) player has never explored
 	};
+	bool placement_unexplored(uint8_t player, float x, float z) const;
 	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type,
 			float angle = DEFAULT_BUILDING_ROT) const;
 	// What BuildRestrictions.CheckPlacement's GUI message names for `player` placing `b_type`
@@ -2449,7 +2467,6 @@ private:
 	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
 	void tick_unit_production(float dt); // units' Trainer queues (unit_queues_)
-	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
 	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
@@ -2655,6 +2672,9 @@ private:
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
 	// tick, and the stance each had before it went up (UnitAI previousStance).
 	std::unordered_map<uint32_t, float> turret_height_;
+	// The turret_height_ units up on a Mauryan rampart tower: its TurretHolder has no
+	// wall_garrisoned aura. Rebuilt with turret_height_.
+	std::unordered_set<uint32_t> rampart_turrets_;
 	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
@@ -3056,6 +3076,8 @@ private:
 	// headquarters.js isDangerousLocation: near an army invading us or within `radius` of an
 	// enemy shooting structure's range.
 	bool petra_dangerous_location(float x, float z, float radius) const;
+	void petra_invading_army_centres(std::vector<std::array<float, 2>> &out) const;
+	static bool petra_near_invading_army(float x, float z, const std::vector<std::array<float, 2>> &centres);
 	// attackPlan.js getPathToTarget and setRallyPoint: the plan's march path from (rx, rz) to
 	// its target, and its rally point where that path leaves our territory.
 	void petra_plan_path(AttackPlan &plan, float rx, float rz);
@@ -3098,6 +3120,8 @@ private:
 	mutable Petra petra_fleets_; // per-sea warship registry (navalManager.seaWarShips)
 	float petra_timer_  = 0.0f;
 	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
+	PetraKept petra_kept_; // decided once or only raised (configFirstBase, navalManager.js, targetNumTraders)
+	void petra_config_first_base(); // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
 	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
@@ -3270,7 +3294,8 @@ private:
 	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites
 	void petra_cancel_attacks_against(uint8_t player); // attackManager.js cancelAttacksAgainstPlayer
 	// navalManager.requireTransport for a worker: ship it from its land to a supply's on another.
-	bool petra_require_worker_transport(size_t unit_idx, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
+	bool petra_require_worker_transport(size_t unit_idx, uint16_t from_land, uint16_t to_land, float to_x, float to_z,
+	                                    uint8_t owner = PETRA_TRANSPORT_WORKERS);
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	void petra_manage_critical_ent_guards();
 	void petra_manage_critical_ent_healers();
@@ -3339,7 +3364,8 @@ private:
 	// sea; for a land trader the best land route anywhere when its own land has none.
 	const PetraTradeRoute *petra_route_for(const PetraTradeRoutes &r, uint16_t access, bool ship) const;
 	int petra_trade_minimal_gain() const; // tradeManager.js minimalGain
-	int petra_target_traders() const;     // targetNumTraders as setTradingGoods sets it
+	int petra_target_traders() const;     // targetNumTraders: the config value until setTradingGoods sets it
+	int petra_compute_target_traders() const; // what setTradingGoods sets it to
 	bool petra_line_in_enemy_territory(float x1, float z1, float x2, float z2) const;
 	// headquarters.js findMarketLocation: 1 with a spot (out_x, out_z) and its expected gain,
 	// 0 when there are no markets to measure from (place it anywhere), -1 when nothing will do.
@@ -3351,7 +3377,7 @@ private:
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
-	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
+	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
@@ -3441,7 +3467,8 @@ private:
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
-	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_)
+	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
+	X(petra_kept_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -3546,14 +3573,21 @@ private:
 		o.ext = nav::footprint_extent(nav::Footprint{x, z, ux, uz, hu, hv});
 		return o;
 	}
-	// An open gate's Left and Right parts, which keep blocking (gate_door_fraction): f(x, z, hu) for
-	// each, along the gate's u axis either side of its Door.
+	// An open gate's Left and Right parts, which keep blocking (gate_door_fraction): f(x, z, hu, hv)
+	// for each, along the gate's width either side of its Door. The template's obstruction cluster
+	// lines Left, Door and Right up along the gate's width (structures/{civ}/wall_gate.xml). That
+	// width lies along u, or along v when the footprint is turned an odd number of quarter turns
+	// (Building::set_rot swaps hu and hv then): parts laid along u there would be two slabs the
+	// gate's whole length, shutting the open gate.
 	template <class F>
 	static void for_each_gate_side(const Building &b, F &&f) {
-		const float door = b.hu * gate_door_fraction(b.type, b.civ), side = 0.5f * (b.hu - door);
+		const bool along_v = b.hv > b.hu;
+		const float half_w = along_v ? b.hv : b.hu;
+		const float door = half_w * gate_door_fraction(b.type, b.civ), side = 0.5f * (half_w - door);
 		if (side <= 0.0f) return;
+		const nav::Vec2 w = along_v ? nav::footprint_v(b) : nav::Vec2(b.ux, b.uz);
 		for (const float sgn : {-1.0f, 1.0f})
-			f(b.x + b.ux * sgn * (door + side), b.z + b.uz * sgn * (door + side), side);
+			f(b.x + w.x * sgn * (door + side), b.z + w.y * sgn * (door + side), along_v ? b.hu : side, along_v ? side : b.hv);
 	}
 	// A finished gate that is open now: only its door lets units through.
 	static bool gate_open_now(const Building &b) {

@@ -58,6 +58,8 @@ const LANGUAGE_NAMES := {
 	"uk": "Українська", "zh": "中文 (简体)", "zh_TW": "中文 (繁體)",
 }
 
+const DEFAULT_CURSOR := "res://assets/textures/cursors/default-arrow.png"
+
 var cfg := RtsoUserConfig.new()
 var _gen := -1
 var _in_session := false
@@ -68,6 +70,8 @@ var _cas: CanvasLayer
 var _cas_material: ShaderMaterial
 var _overlay_label: Label
 var _overlay_timer := 0.0
+var _message: Label # take_screenshot's on-screen line
+var _message_left := 0.0
 var _hotkeys: RtsoHotkeyConfig
 var last_mouse_grab := false # what mousegrabtoggle last asked for
 var _locale := ""
@@ -81,6 +85,9 @@ func _ready() -> void:
 	_make_overlay()
 	get_tree().node_added.connect(_on_node_added)
 	apply_all()
+	# VideoMode.cpp DEFAULT_CURSOR_NAME: 0 A.D.'s own arrow (default-arrow.txt: hotspot 1 1).
+	if ResourceLoader.exists(DEFAULT_CURSOR):
+		Input.set_custom_mouse_cursor(load(DEFAULT_CURSOR), Input.CURSOR_ARROW, Vector2(1, 1))
 
 ## main.cpp's global hotkeys: togglefullscreen (Alt+Return, CVideoMode::ToggleFullscreen,
 ## not saved) and mousegrabtoggle (F3, the window grab on or off until the next change).
@@ -96,6 +103,44 @@ func _input(event: InputEvent) -> void:
 	elif "mousegrabtoggle" in fired:
 		get_viewport().set_input_as_handled()
 		toggle_mouse_grab()
+	elif "fps.toggle" in fired or "realtime.toggle" in fired:
+		# OverlayCounter.js: the toggle is saved (ConfigDB_CreateAndSaveValue).
+		get_viewport().set_input_as_handled()
+		var key := "overlay.fps" if "fps.toggle" in fired else "overlay.realtime"
+		cfg.set_value(key, "false" if cfg.get_bool(key) else "true")
+		cfg.save()
+	elif "bigscreenshot" in fired or "screenshot" in fired:
+		get_viewport().set_input_as_handled()
+		take_screenshot()
+
+## main.cpp screenshot (F2) and bigscreenshot (Shift+F2) on every page:
+## screenshots/screenshotNNNN.png, "Screenshot written to '<path>'" on screen.
+## The big screenshot is the window's size too (0.28 renders it tiled, larger).
+## Returns the path written, "" when there is nothing to capture (headless).
+func take_screenshot() -> String:
+	var img := get_viewport().get_texture().get_image() if not is_headless() else null
+	DirAccess.make_dir_recursive_absolute("user://screenshots")
+	var n := 1
+	while FileAccess.file_exists("user://screenshots/screenshot%04d.png" % n):
+		n += 1
+	var path := "user://screenshots/screenshot%04d.png" % n
+	if img == null or img.is_empty() or img.save_png(path) != OK:
+		return ""
+	show_message(tr("Screenshot written to '%s'") % ProjectSettings.globalize_path(path))
+	return path
+
+## LOGMESSAGERENDER: a line in the top-left corner for a few seconds.
+func show_message(text: String) -> void:
+	if _message == null:
+		_message = Label.new()
+		_message.position = Vector2(8, 4)
+		_message.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_message.add_theme_color_override("font_outline_color", Color.BLACK)
+		_message.add_theme_constant_override("outline_size", 3)
+		_overlay.add_child(_message)
+	_message.text = text
+	_message.visible = true
+	_message_left = 5.0
 
 func toggle_fullscreen() -> void:
 	if is_headless():
@@ -120,6 +165,9 @@ func _process(delta: float) -> void:
 	if in_session != _in_session:
 		_in_session = in_session
 		_apply_fps()
+	if _message != null and _message.visible:
+		_message_left -= delta
+		_message.visible = _message_left > 0.0
 	_overlay_timer -= delta
 	if _overlay_timer <= 0.0:
 		_overlay_timer = 0.25

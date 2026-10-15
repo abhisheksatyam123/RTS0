@@ -10,7 +10,7 @@ struct UnitMotionProfile {
 	float cos_instant_turn; // cos(instant_turn_angle); -2 (no turn stops it) from pi up
 };
 
-inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 463; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 502; // = CIV_UNIT_TEMPLATE_COUNT
 inline const UnitMotionProfile *motion_template_table() {
 	static const UnitMotionProfile kTable[MOTION_TEMPLATE_COUNT] = {
 		{11.214f, 1.5f, 10.0f, 0.0707f}, // athen/cavalry_javelineer_b
@@ -476,6 +476,45 @@ inline const UnitMotionProfile *motion_template_table() {
 		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/support_healer_e
 		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/support_healer_e
 		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/support_healer_e
+		{13.3144f, 1.5f, 14.0f, 0.0707f}, // athen/infantry_marine_archer_b
+		{11.214f, 1.5f, 8.0f, 0.0707f}, // spart/champion_infantry_pike
+		{5.2955f, 1.5f, 5.0f, 0.0707f}, // pers/hero_xerxes_i_chariot
+		{12.46f, 1.5f, 8.0f, 0.0707f}, // pers/kardakes_hoplite
+		{14.952f, 1.5f, 8.0f, 0.0707f}, // pers/kardakes_skirmisher
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/hero_marcellus_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/hero_maximus_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/hero_scipio_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_swordsman_slave
+		{11.214f, 1.5f, 8.0f, 0.0707f}, // cart/champion_pikeman
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/hero_craterus
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/hero_philip_ii_pike
+		{12.46f, 1.5f, 5.0f, 0.0707f}, // mace/hero_pyrrhus_i
+		{11.214f, 1.5f, 5.0f, 0.0707f}, // brit/hero_boudicca_cavalry_javelineer
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/hero_boudicca_sword
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/hero_cunobelin_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/hero_vercingetorix_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/hero_indibil_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/hero_ashoka_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/hero_bindusara_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/hero_chandragupta_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/hero_amanirenas_infantry
+		{12.46f, 1.5f, 5.0f, 0.0707f}, // kush/hero_harsiotef
+		{4.037f, 10.0f, 0.75f, -2.0f}, // ptol/champion_juggernaut
+		{9.968f, 1.5f, 10.0f, 0.0707f}, // han/cavalry_crossbowman_b
+		{13.3144f, 1.5f, 8.0f, 0.0707f}, // han/champion_infantry_archer_academy
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/hero_han_xin
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/hero_liu_bang
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/hero_wei_qing
+		{9.968f, 1.5f, 5.0f, 0.0707f}, // han/hero_wei_qing_horse
+		{12.46f, 1.5f, 8.0f, 0.0707f}, // merc_black_cloak
+		{11.214f, 10.0f, 1.3f, -2.0f}, // noldor_warship
+		{11.214f, 10.0f, 1.3f, -2.0f}, // pirates/ship_arrow
+		{1.9936f, 10.0f, 1.2f, -2.0f}, // pirates/ship_merchant
+		{11.214f, 10.0f, 1.5f, -2.0f}, // pirates/ship_scout
+		{14.952f, 1.5f, 8.0f, 0.0707f}, // samnite_skirmisher
+		{12.46f, 1.5f, 8.0f, 0.0707f}, // samnite_spearman
+		{12.46f, 1.5f, 8.0f, 0.0707f}, // samnite_swordsman
+		{11.214f, 10.0f, 1.3f, -2.0f}, // viking_longship
 	};
 	return kTable;
 }

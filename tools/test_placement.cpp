@@ -39,6 +39,7 @@ static void fresh(Simulation &s) {
 		s.set_player_resources(p, 5000, 5000, 5000, 5000);
 		s.players_[p].phase = 3;
 	}
+	s.set_explore_map(true); // the seated players test placement rules, not the shroud
 }
 
 // The cell a building of `type` centred on (x, z) is placed at.
@@ -270,10 +271,10 @@ static void test_unconnected_territory() {
 // Monument), maur/pillar_ashoka (75 m from a Pillar).
 static void test_camps() {
 	// TerritoryInfluence of the civ's own template: big houses 20 m at 40000, the Iberian tower 38 m.
-	CHECK(std::fabs(structure_territory_influence(BLD_HOUSE, CIV_ATHENIANS).radius - 5.6f) < 1e-4f &&
+	CHECK(std::fabs(structure_territory_influence(BLD_HOUSE, CIV_ATHENIANS).radius - 5.0f) < 1e-4f &&
 		structure_territory_influence(BLD_HOUSE, CIV_ATHENIANS).weight == 40000);
-	CHECK(std::fabs(structure_territory_influence(BLD_HOUSE, CIV_BRITONS).radius - 4.48f) < 1e-4f);
-	CHECK(std::fabs(structure_territory_influence(BLD_TOWER, CIV_IBERIANS).radius - 10.64f) < 1e-4f);
+	CHECK(std::fabs(structure_territory_influence(BLD_HOUSE, CIV_BRITONS).radius - 4.0f) < 1e-4f);
+	CHECK(std::fabs(structure_territory_influence(BLD_TOWER, CIV_IBERIANS).radius - 9.5f) < 1e-4f);
 	static Simulation s;
 	fresh(s);
 	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);

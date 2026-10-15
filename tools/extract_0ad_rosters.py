@@ -1101,6 +1101,43 @@ PREVIOUS_SIM_ROOT = None
 KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER")}
 # --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
 APPEND_ROWS = set()
+# Templates only 0.28's maps place (scenario heroes, the Samnite, Kardakes and pirate units,
+# Juggernaut, Noldor and Viking ships): no structure trains them, so the civ walk never reaches
+# them, and a map spawning one fell back to its owner's generic unit of the class. Each is a
+# row of its own (ROSTER_MAP_ONLY, no trainers), after every existing row (name them in
+# --append): a units/<civ>/ template goes in its civ's slot, a template without a civ
+# (template_unit.xml's Identity/Civ gaia) in CIV_GAIA's. The map's owner fields it as it is,
+# whatever its own civ: 0.28's scenarios give a Roman player Samnite mercenaries.
+# An _a/_e template stays its _b row at that rank (Simulation::resolve_map_template).
+MAP_CIV = "gaia"
+MAP_ROWS = (
+    "units/athen/infantry_marine_archer_b",
+    "units/brit/hero_boudicca_cavalry_javelineer", "units/brit/hero_boudicca_sword", "units/brit/hero_cunobelin_infantry",
+    "units/cart/champion_pikeman",
+    "units/gaul/hero_vercingetorix_infantry",
+    "units/han/cavalry_crossbowman_b", "units/han/champion_infantry_archer_academy",
+    "units/han/hero_han_xin", "units/han/hero_liu_bang", "units/han/hero_wei_qing", "units/han/hero_wei_qing_horse",
+    "units/iber/hero_indibil_infantry",
+    "units/kush/hero_amanirenas_infantry", "units/kush/hero_harsiotef",
+    "units/mace/hero_craterus", "units/mace/hero_philip_ii_pike", "units/mace/hero_pyrrhus_i",
+    "units/maur/hero_ashoka_infantry", "units/maur/hero_bindusara_infantry", "units/maur/hero_chandragupta_infantry",
+    "units/pers/hero_xerxes_i_chariot", "units/pers/kardakes_hoplite", "units/pers/kardakes_skirmisher",
+    "units/ptol/champion_juggernaut",
+    "units/rome/hero_marcellus_infantry", "units/rome/hero_maximus_infantry", "units/rome/hero_scipio_infantry",
+    "units/rome/infantry_swordsman_slave",
+    "units/spart/champion_infantry_pike",
+    "units/merc_black_cloak", "units/noldor_warship",
+    "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",
+    "units/samnite_skirmisher", "units/samnite_spearman", "units/samnite_swordsman",
+    "units/viking_longship",
+)
+
+
+def map_row_civ(name):
+    civ = name.split("/")[1] if name.count("/") >= 2 else ""
+    return civ if civ in CIVS else MAP_CIV
+
+
 # --retire: kept rows (fnmatch patterns) the release no longer trains: they keep their ids for
 # saves but lose their trainers (0.28's Civilians replace the Female Citizens).
 RETIRE_ROWS = []
@@ -1203,17 +1240,19 @@ def collect(sim_root):
     rows = []
     auras = []
     skipped = []
-    for civ in CIVS:
+    for civ in CIVS + [MAP_CIV]:  # MAP_CIV: MAP_ROWS without a civ, after every civ
         native = civ
         sdir = os.path.join(loader.root, "structures", civ)
         trainers = {}  # unit template -> {buildings}, structure phase
         # The civ's own structures, then Gaia ones that train "{civ}" units for
         # whoever captures them (the mercenary camp).
-        structs = [("structures/%s/%s" % (civ, fn[:-4]), structure_kind(fn[:-4]))
-                   for fn in sorted(os.listdir(sdir)) if fn.endswith(".xml")]
-        structs += [("structures/" + stem, kind) for stem, kind in sorted(GAIA_TRAINERS.items())]
-        structs += [("structures/" + stem, "shrine") for stem in GAIA_NATIVE_TRAINERS
-                    if loader.load("structures/" + stem).value("Identity/Civ") == civ]
+        structs = []
+        if civ != MAP_CIV:
+            structs = [("structures/%s/%s" % (civ, fn[:-4]), structure_kind(fn[:-4]))
+                       for fn in sorted(os.listdir(sdir)) if fn.endswith(".xml")]
+            structs += [("structures/" + stem, kind) for stem, kind in sorted(GAIA_TRAINERS.items())]
+            structs += [("structures/" + stem, "shrine") for stem in GAIA_NATIVE_TRAINERS
+                        if loader.load("structures/" + stem).value("Identity/Civ") == civ]
         for path, kind in structs:
             s = loader.load(path)
             ents = s.tokens("Trainer/Entities")
@@ -1232,6 +1271,9 @@ def collect(sim_root):
                 slot["buildings"].add(bld)
                 slot["kinds"].add(kind)
                 slot["phase"] = min(slot["phase"], sphase)
+        map_only = {ent for ent in MAP_ROWS if map_row_civ(ent) == civ and ent not in trainers and loader.exists(ent)}
+        for ent in sorted(map_only):
+            trainers[ent] = {"buildings": set(), "kinds": set(), "phase": 9}
         # Units no structure trains but a trained unit promotes into (0 A.D.
         # Promotion/Entity to another unit: Marian Reforms' auxiliary cavalry and
         # Antesignani, the Olympic champion, ...): rows with no trainer.
@@ -1265,7 +1307,7 @@ def collect(sim_root):
                     trainers[ent] = {"buildings": set(pblds), "kinds": set(), "phase": pphase}
         # The civ's catafalque: no structure trains it; Capture the Relic places it for Gaia.
         relic = "units/%s/catafalque" % civ
-        if loader.exists(relic) and relic not in trainers:
+        if civ != MAP_CIV and loader.exists(relic) and relic not in trainers:
             trainers[relic] = {"buildings": set(), "kinds": set(), "phase": 9}
         for name in sorted(trainers):
             t = loader.load(name)
@@ -1301,10 +1343,14 @@ def collect(sim_root):
                 flags.append("ROSTER_PACKABLE")  # 0 A.D. Pack: unpack before firing, pack to move
             if "SiegeTower" in c:
                 flags.append("ROSTER_SIEGE_TOWER")
+            if name in map_only:
+                flags.append("ROSTER_MAP_ONLY")  # MAP_ROWS: only maps place it
             if "Relic" in c:
                 flags.append("ROSTER_RELIC")
             hero_auras = []
             own_auras = loader.own_tokens(name, "Auras")
+            if re.search(r"_[ae]$", name):  # an _a/_e rank keeps its _b's own aura (gaul/support_healer_e: celtic_healer)
+                own_auras = own_auras + loader.own_tokens(re.sub(r"_[ae]$", "_b", name), "Auras")
             for aname in t.tokens("Auras"):
                 apath = os.path.join(sim_root, "data", "auras", aname + ".json")
                 if not os.path.isfile(apath):
@@ -1365,6 +1411,8 @@ def collect(sim_root):
             })
         # RTS0-only classes every civ (or a named civ) keeps.
         for cls in RTS0_ONLY:
+            if civ == MAP_CIV:
+                break
             if any(r["civ"] == civ and r["class"] == cls for r in rows):
                 continue
             base = dict(zip(RTS0_FIELDS, RTS0_CLASSES[cls]))
@@ -1543,7 +1591,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         a = r["auras"] + [-1, -1, -1]
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
-            CIV_ENUM_OF[r["civ"]], r["class"], r["phase"], flags, trainers))
+            CIV_ENUM_OF.get(r["civ"], "CIV_GAIA"), r["class"], r["phase"], flags, trainers))
         w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, %s, %s}," % (
             f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
             f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),

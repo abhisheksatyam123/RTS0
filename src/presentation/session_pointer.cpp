@@ -45,6 +45,13 @@ static Ref<Texture2D> load_tex(const String &path) {
 	return Ref<Texture2D>();
 }
 
+// VideoMode.cpp DEFAULT_CURSOR_NAME "default-arrow" (default-arrow.txt: hotspot 1 1), the
+// arrow every page shows; scenes/menu/user_settings.gd sets it at start-up.
+void RtsoMain::reset_default_cursor() {
+	Input::get_singleton()->set_custom_mouse_cursor(load_tex("res://assets/textures/cursors/default-arrow.png"),
+			Input::CURSOR_ARROW, Vector2(1, 1));
+}
+
 void RtsoMain::update_cursor() {
 	Viewport *vp = get_viewport();
 	if (!sim || !vp) return;
@@ -55,7 +62,7 @@ void RtsoMain::update_cursor() {
 	const Vector2 mouse = vp->get_mouse_position();
 	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
 	if (!over_ui && !build_mode) {
-		if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
+		if (flare_armed_ || flare_held()) {
 			want = "action-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
 			const Vector3 at = get_ground_click_pos(mouse);
@@ -279,7 +286,7 @@ void RtsoMain::update_cursor() {
 	cursor_name_ = want;
 	Input *in = Input::get_singleton();
 	if (!*want) {
-		in->set_custom_mouse_cursor(Ref<Resource>());
+		reset_default_cursor();
 		return;
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
@@ -449,7 +456,7 @@ void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 		flare_armed_ = false;
 		return;
 	}
-	if (rtso::hotkeys::held("session.flare")) {
+	if (flare_held()) {
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
 	}
@@ -515,7 +522,7 @@ bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
 			apply_default_formation(sel_ptr, sel_n);
 			sim->order_patrol(sel_ptr, sel_n, world_pos.x, world_pos.y, queued);
 		}
-		play_civ_voice("select");
+		// "order_patrol" has no sound group in 0.28, so the order is silent.
 	} else {
 		if (turn_cmds())
 			post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
@@ -623,4 +630,10 @@ bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execu
 		trade_origin_traders_.clear();
 	}
 	return true;
+}
+
+// input.js updateCursorAndTooltip / handleInputBeforeGui: session.flare held arms a flare,
+// never in a replay (!g_IsReplay).
+bool RtsoMain::flare_held() const {
+	return !turn_mgr_.is_replaying() && rtso::hotkeys::held("session.flare");
 }

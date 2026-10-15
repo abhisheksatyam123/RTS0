@@ -76,6 +76,9 @@ int main() {
 			CHECK(k != CIV_UNIT_TEMPLATE_NONE && civ_unit_template(k).phase == 2); // healers need phase_town
 		}
 		CHECK(!civ_unit_template(roster_id("mace/support_healer_b")).trainers.test(BLD_SHRINE));
+		// The Celtic shrine's elite druid keeps the Deas Celtica aura its _b declares.
+		CHECK(civ_unit_template(roster_id("gaul/support_healer_e")).auras[0] >= 0 &&
+		      civ_unit_template(roster_id("gaul/support_healer_e")).auras[0] == civ_unit_template(roster_id("gaul/support_healer_b")).auras[0]);
 		CHECK(civ_unit_template(roster_id("rome/support_trader")).trainers.test(BLD_TRADING_POST));
 	}
 

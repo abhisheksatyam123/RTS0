@@ -630,6 +630,103 @@ int main() {
 		CHECK(past > 0 && past_ok == 0 && inside_ok > 0);
 	}
 
+	// 18. BuildRestrictions.CheckPlacement: a seated human player can't build in unexplored land,
+	// so a wall dragged into the shroud is laid only where the player has explored.
+	{
+		setup(s, 5000.0f);
+		s.set_player_active(0, true, false);
+		for (int i = 0; i < 10; ++i) s.tick(Simulation::FIXED_STEP);
+		const float far = s.map_half() * 0.8f;
+		const int fc = (int)(far / Simulation::GRID);
+		const auto near_r = s.check_placement(0, -3, 7, BLD_HOUSE), far_r = s.check_placement(0, fc, fc, BLD_HOUSE);
+		const size_t shroud = s.cmd_build_wall(0, far, far, far, far - 12.0f);
+		const auto plan = s.wall_placement(0, -10.0f, 10.0f, far, 10.0f);
+		const size_t into = s.cmd_build_wall(0, -10.0f, 10.0f, far, 10.0f);
+		std::printf("  unexplored: house near %d far %d; wall in the shroud %zu pieces, into it %zu of %zu\n", (int)near_r,
+				(int)far_r, shroud, into, plan.size());
+		CHECK(near_r != Simulation::PLACE_UNEXPLORED && far_r == Simulation::PLACE_UNEXPLORED);
+		CHECK(shroud == 0 && into >= 3 && into < plan.size());
+		bool all_seen = true;
+		for (const auto &bld : s.buildings())
+			if (bld.type == BLD_WALL_TOWER || bld.type == BLD_WALL_SEGMENT) all_seen &= s.los_explored(0, bld.x, bld.z);
+		CHECK(all_seen);
+		// AI players have no visibility info in 0.28: no such check.
+		s.set_player_active(0, true, true);
+		CHECK(s.check_placement(0, fc, fc, BLD_HOUSE) != Simulation::PLACE_UNEXPLORED);
+	}
+
+	// 19. tryPlaceWall sends nothing when its first segment is blocked: no lone start tower is
+	// laid or paid for.
+	{
+		setup(s, 1000.0f);
+		const auto plan = s.wall_placement(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		CHECK(plan.size() >= 3 && plan[1].type == BLD_WALL_SEGMENT);
+		s.spawn_building_world(plan[1].x, plan[1].z, BLD_HOUSE, 0, 1.0f);
+		const size_t laid = s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		std::printf("  blocked first segment: %zu pieces, %d towers\n", laid, count_type(s, BLD_WALL_TOWER));
+		CHECK(laid == 0 && count_type(s, BLD_WALL_TOWER) == 0 && s.player(0).res[RES_STONE] == 1000.0f);
+		// Only enough stone for the start tower: nothing either.
+		setup(s, 60.0f);
+		CHECK(s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f) == 0 && s.player(0).res[RES_STONE] == 60.0f);
+	}
+
+	// 20. 0.28 Builder lists hold only the WallSets: a wall tower or gate is never a lone foundation.
+	{
+		setup(s, 1000.0f);
+		s.player(0).res[RES_WOOD] = 1000.0f;
+		CHECK(s.cmd_build(0, -3, 7, BLD_WALL_TOWER) == 0 && s.cmd_build(0, -3, 7, BLD_GATE) == 0 &&
+				s.cmd_build(0, -3, 7, BLD_WALL_SEGMENT) == 0 && s.cmd_build(0, -3, 7, BLD_PALISADE) == 0);
+		CHECK(s.cmd_build(0, -3, 7, BLD_HOUSE) != 0);
+	}
+
+	// 21. RETURNRESOURCE.APPROACHING (UnitAI.js): a returner walks to the dropsite within range
+	// (MoveToTargetRange), from the side it comes from. An Iberian woman inside her starting walls
+	// on Continental (seed 19) takes wood to a dock on the shore past a gate: the walk to the
+	// dock's centre would end on its water side, beyond the gate's Right part, and she pushed on
+	// at the wall for good; she goes out through the door and drops the wood at the dock.
+	{
+		s.reset();
+		s.set_sim_seed(19);
+		s.set_waves_enabled(false);
+		const uint8_t civs[4] = {CIV_IBERIANS, CIV_MAURYANS, CIV_KUSHITES, CIV_PTOLEMIES};
+		for (uint8_t p = 0; p < 4; ++p) s.set_team_civ(p, civs[p]);
+		s.generate_random_map(MAP_RANDOM_CONTINENTAL, 19, 4, 128.0f);
+		for (uint8_t p = 0; p < 4; ++p) s.set_team_civ(p, civs[p]);
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < 4, false);
+		const Simulation::Building *gate = nullptr;
+		for (const auto &b : s.buildings())
+			if (b.team == 0 && b.type == BLD_GATE && std::hypot(b.x - 36.75f, b.z - 39.0f) < 1.0f) gate = &b;
+		// The layout comes from the map script: if Continental or the Iberian walls change, find the
+		// new gate beside a shore and move the dock and the woman with it.
+		if (!gate) std::printf("  Continental seed 19 has no Iberian gate at (36.75, 39.0) any more\n");
+		CHECK(gate != nullptr);
+		const uint32_t dock = s.spawn_building_world(34.0f, 36.0f, BLD_DOCK, 0, 1.0f, 0.785398f);
+		const uint32_t woman = s.spawn_unit(49.25f, 30.65f, 0, UNIT_FEMALE_CITIZEN);
+		auto at = [&](uint32_t id) {
+			auto uv = s.units();
+			for (size_t i = 0; i < uv.count; ++i) if (uv.id[i] == id) return (int32_t)i;
+			return (int32_t)-1;
+		};
+		const int32_t w = at(woman);
+		CHECK(dock != 0 && w >= 0);
+		if (dock != 0 && w >= 0) {
+			s.units_.res_type_carried[w] = RES_WOOD;
+			s.units_.carry[w] = 10;
+			const float wood0 = s.player_resource(0, RES_WOOD);
+			s.order_return_resource(&woman, 1, dock);
+			for (int t = 0; t < (int)(40.0f / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
+			const int32_t i = at(woman);
+			const float got = s.player_resource(0, RES_WOOD) - wood0;
+			// Delivered at the dock itself, not at another dropsite after giving it up.
+			const Simulation::Building *db = nullptr;
+			for (const auto &b : s.buildings()) if (b.id == dock) db = &b;
+			const float gap = db && i >= 0 ? nav::footprint_gap(*db, s.units_.pos_x[i], s.units_.pos_z[i]).length() : 99.0f;
+			std::printf("  returner to a dock past an Iberian gate: %.0f wood delivered, woman at (%.2f, %.2f), %.2f from the dock\n", got,
+					i >= 0 ? s.units_.pos_x[i] : NAN, i >= 0 ? s.units_.pos_z[i] : NAN, gap);
+			CHECK(got == 10.0f && gap < 2.5f); // tick_unit_ai drops within 1.5 of the footprint, plus her body
+		}
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

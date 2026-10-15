@@ -9,6 +9,8 @@ extends SceneTree
 
 const RES_FOOD := 3
 
+const TT = preload("res://scenes/common/tooltips.gd")
+
 var main
 var failures := 0
 
@@ -50,20 +52,20 @@ func run() -> void:
 	if rl == null:
 		quit(1)
 		return
-	print("    ", rl.get_item_tooltip(0).get_slice("\n", 0))
-	check(rl.get_item_tooltip(0).begins_with("[Z] "), "the first line starts with the hotkey")
+	print("    ", TT.plain(rl.get_item_tooltip(0)).get_slice("\n", 0))
+	check(TT.plain(rl.get_item_tooltip(0)).begins_with("[Z] "), "the first line starts with the hotkey")
 
 	print("2. No food")
 	var women := -1
 	for i in rl.item_count:
-		if rl.get_item_tooltip(i).contains("Food") and not rl.is_item_disabled(i):
+		if TT.plain(rl.get_item_tooltip(i)).contains("Food") and not rl.is_item_disabled(i):
 			women = i
 			break
 	main.debug_set_resource(RES_FOOD, 0)
 	await frames(3)
-	print("    ", rl.get_item_tooltip(women).get_slice("\n", rl.get_item_tooltip(women).get_slice_count("\n") - 1))
+	print("    ", TT.plain(rl.get_item_tooltip(women)).get_slice("\n", TT.plain(rl.get_item_tooltip(women)).get_slice_count("\n") - 1))
 	check(women >= 0 and rl.get_item_icon_modulate(women).g < 0.5 and rl.get_item_icon_modulate(women).r > 0.9, "masked red")
-	check(rl.get_item_tooltip(women).contains("Insufficient resources"), "the tooltip lists what is missing")
+	check(TT.plain(rl.get_item_tooltip(women)).contains("Insufficient resources"), "the tooltip lists what is missing")
 	main.debug_set_resource(RES_FOOD, 5000)
 	await frames(3)
 	check(rl.get_item_icon_modulate(women) == Color(1, 1, 1), "back to normal once affordable")

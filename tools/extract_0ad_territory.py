@@ -12,7 +12,7 @@ A template without TerritoryInfluence (walls, docks, fields, outposts, ...)
 claims none.
 
 One row per RTS0 BuildingType, mapped to templates as tools/extract_0ad_attack.py
-does. Radii are RTS0 units (x COMBAT_DISTANCE_SCALE 0.28, as ranges and vision).
+does. Radii are RTS0 map units (x0.25, 1 unit = 4 m as the maps are ported), so a territory covers the same share of the map as in 0.28.
 
 Usage:
   python3 -I tools/extract_0ad_territory.py --0ad PATH/TO/0ad [--check]
@@ -27,7 +27,7 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_HEADER = os.path.join(REPO, "src", "simulation", "territory_data.h")
-SCALE = 0.28  # COMBAT_DISTANCE_SCALE (civ_attack_data.h)
+SCALE = 0.25  # map space: 1 RTS0 unit = 4 m (tools/port_0ad_maps.py), as territory is drawn on the map
 
 _spec = importlib.util.spec_from_file_location("extract_0ad_attack",
                                                os.path.join(REPO, "tools", "extract_0ad_attack.py"))
@@ -60,7 +60,7 @@ def emit(rows):
     w("// Included by sim_types.h inside namespace rtso.")
     w("#pragma once")
     w("")
-    w("// 0 A.D. TerritoryInfluence. radius is RTS0 units (COMBAT_DISTANCE_SCALE), 0 = claims no territory.")
+    w("// 0 A.D. TerritoryInfluence. radius is RTS0 map units (x0.25: 1 unit = 4 m), 0 = claims no territory.")
     w("struct TerritoryInfluenceInfo {")
     w("\tfloat radius; // Radius")
     w("\tuint16_t weight; // Weight")
