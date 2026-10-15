@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cassert>
+#include "aligned.h"
 
 namespace rtso {
 
@@ -36,13 +37,12 @@ public:
 
 	void init(size_t capacity) {
 		cap = align_up(capacity, CACHE_LINE);
-		// aligned_alloc requires size multiple of alignment
-		buf = (uint8_t *)aligned_alloc(CACHE_LINE, cap);
+		buf = (uint8_t *)aligned_malloc(CACHE_LINE, cap);
 		assert(buf && "Arena alloc failed");
 		offset = 0;
 	}
 	void release() {
-		if (buf) free(buf);
+		if (buf) aligned_free(buf);
 		buf = nullptr; cap = offset = 0;
 	}
 	void reset() { offset = 0; }
