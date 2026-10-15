@@ -330,7 +330,9 @@ public:
 						if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 					}
 					rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
-					if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
+					// Researcher.js GetTechnologiesList: a researched or in-progress tech leaves its slot
+					// to its successor.
+					if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_IN_PROGRESS || rc == rtso::Simulation::TECH_ERR_CIV
 					    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
 					// 0.28 Research panel (g_SelectionPanels.Research): an icon button per technology.
 					Button *btn = memnew(Button);
@@ -362,7 +364,6 @@ public:
 					String why;
 					bool reqs_failed = false;
 					switch (rc) {
-						case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; reqs_failed = true; break;
 						// selection_panels.js: the tech's own requirementsTooltip ("Unlocked in Town
 						// Phase.", "Unlocked in City Phase. Requires “Shipwrights.”").
 						case rtso::Simulation::TECH_ERR_PHASE:
@@ -397,6 +398,13 @@ public:
 						default: break;
 					}
 					if (!why.is_empty()) tip += "\n" + owner_->tr(why);
+					// getNeededResourcesTooltip follows whatever requirement failed.
+					if (rc != rtso::Simulation::TECH_ERR_COST) {
+						const auto &ps = sim->player(local_player());
+						const String need = rtso::needed_resources_tooltip(tech_cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+								ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD], true);
+						if (!need.is_empty()) tip += "\n" + need;
+					}
 					// Requirements not met: "color:0 0 0 127:grayscale:"; resources missing: the
 					// resources' alpha mask (red here); both disable the button.
 					if (reqs_failed) {
@@ -440,6 +448,7 @@ public:
 					Button *bottom = top == btn ? other : btn;
 					HBoxContainer *pair = memnew(HBoxContainer);
 					pair->set_name("unitResearchPair");
+					pair->set_meta("node_name", "unitResearchPair");
 					pair->add_theme_constant_override("separation", 1);
 					pair->add_child(top);
 					pair->add_child(bottom);
@@ -1290,7 +1299,7 @@ private:
 		}
 		for (uint8_t t : techs) {
 			const auto check = sim->research_check(pid, t);
-			if (check == rtso::Simulation::TECH_ERR_RESEARCHED) continue;
+			if (check == rtso::Simulation::TECH_ERR_RESEARCHED || check == rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 			const rtso::TechInfo &ti = rtso::tech_info(t);
 			String costs;
 			auto add_cost = [&](int v, const char *suffix) {
@@ -1599,6 +1608,10 @@ private:
 			bar->remove_child(n);
 			memdelete(n);
 		}
+		// A fresh set built beside a named old one got Godot's unique name; it gets its own back.
+		if (!same)
+			for (int i = 0; i < bar->get_child_count(); ++i)
+				if (Node *n = bar->get_child(i); n->has_meta("node_name")) n->set_name(String(n->get_meta("node_name")));
 	}
 
 	// A structure's icon: its portrait, else 0 A.D.'s session portrait from
