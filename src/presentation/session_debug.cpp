@@ -549,6 +549,22 @@ void RtsoMain::debug_select_units(const PackedInt32Array &ids) {
 	selected_ids = ids;
 }
 
+// A Gaia catafalque at (dx, dz) from the player's Civic Center.
+int64_t RtsoMain::debug_spawn_relic(float dx, float dz) {
+	if (!sim) return 0;
+	for (const auto &b : sim->buildings())
+		if (b.team == local_player() && rtso::is_civic_centre(b.type)) return sim->spawn_relic(b.x + dx, b.z + dz);
+	return 0;
+}
+
+// The units go and capture the relic (the "capture" order on a catafalque).
+void RtsoMain::debug_capture_relic(const PackedInt32Array &ids, int64_t relic) {
+	if (!sim) return;
+	std::vector<uint32_t> v;
+	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
+	sim->order_capture_relic(v.data(), v.size(), (uint32_t)relic);
+}
+
 void RtsoMain::debug_select_structures(const PackedInt32Array &ids) {
 	selected_ids.clear();
 	std::vector<uint32_t> v;
@@ -834,6 +850,7 @@ Dictionary RtsoMain::debug_minimap_panel() const {
 		d[names[i]] = e;
 	}
 	d["idle_count"] = minimap_panel_.idle_count_text();
+	d["civ_background"] = minimap_panel_.civ_background();
 	d["flare_armed"] = flare_armed_;
 	d["pings"] = minimap_view ? (int64_t)minimap_view->entity_ping_count() : (int64_t)0;
 	return d;
