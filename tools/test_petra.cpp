@@ -1213,12 +1213,17 @@ static void test_barter() {
 	PlayerState &ps = s->players_[1];
 	for (auto &a : s->petra_queues_.accounts) a = PetraQueueAccount{};
 	for (auto &w : s->petra_queues_.wants) w = PetraQueueAccount{};
+	// GetCurrentGatherRates as the economy left them this turn: nobody gathers. The wood income
+	// is trade's, which performBarter's rate doesn't count.
 	for (float &g : ps.gathered_window) g = 0.0f;
+	ps.gathered_window[RES_WOOD] = 1000.0f;
+	for (int r = 0; r < RES_COUNT; ++r) s->petra_cur_rate_[r] = s->petra_want_rate_[r] = 0.0f;
+	s->petra_rates_stamp_ = s->petra_rates_key();
 	ps.food() = 3000.0f; ps.wood() = 0.0f; ps.gold() = 0.0f; ps.stone() = 0.0f;
 	s->petra_queues_.wants[PETRA_Q_PLAN].wood = 300.0f; // a plan waits on wood
 	const bool necessity = s->petra_perform_barter();
 	std::printf("  barter: necessity deal %s, food %.0f wood %.0f\n", necessity ? "yes" : "no", ps.food(), ps.wood());
-	CHECK(necessity && ps.wood() > 0.0f && ps.food() < 3000.0f, "sells spare food for the wood a plan waits on");
+	CHECK(necessity && ps.wood() > 0.0f && ps.food() < 3000.0f, "sells spare food for the wood a plan waits on, trade income aside");
 
 	s->petra_queues_.wants[PETRA_Q_PLAN] = PetraQueueAccount{};
 	ps.food() = 6000.0f; ps.wood() = 2000.0f; ps.gold() = 300.0f; ps.stone() = 2000.0f;
@@ -1227,7 +1232,11 @@ static void test_barter() {
 	std::printf("  barter: contingency deal %s, gold %.0f -> %.0f\n", contingency ? "yes" : "no", gold_before, ps.gold());
 	CHECK(contingency && ps.gold() > gold_before, "sells spare food for the scarcest finite resource");
 
+	// setTradingGoods: a share for low stock (more when wanted), the rest to pickMostNeededResources
+	// (wanted against current gather rate): gold is wanted and nobody mines it.
 	ps.food() = 300.0f; ps.wood() = 3000.0f; ps.gold() = 50.0f; ps.stone() = 3000.0f;
+	s->petra_want_rate_[RES_GOLD] = 1.0f;
+	s->petra_cur_rate_[RES_FOOD] = 2.0f;
 	s->petra_set_trading_goods();
 	const uint8_t *g = s->trading_goods(1);
 	std::printf("  trading goods: food %d wood %d stone %d gold %d\n", g[RES_FOOD], g[RES_WOOD], g[RES_STONE], g[RES_GOLD]);
@@ -1322,9 +1331,11 @@ static void test_market_dock_route() {
 	run_for(*s, 2.0f);
 	s->petra_pid_ = 1;
 	s->players_[1].phase = 2;
-	const uint32_t market = s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 1.0f);
+	// The dock first, as on a naval map (population 25, village phase) before the market
+	// (town phase): the dock then has the lower id and is the route's source.
 	const uint32_t dock = s->spawn_building((int)((tx - tx / len * 45.0f) / Simulation::GRID), (int)((tz - tz / len * 45.0f + 10.0f) / Simulation::GRID),
 	                                        BLD_DOCK, 1, 1.0f);
+	const uint32_t market = s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 1.0f);
 	CHECK(market && dock, "a market and a dock for AI 1");
 	Simulation::PetraTradeRoutes routes;
 	s->petra_check_routes(routes);
@@ -1336,6 +1347,20 @@ static void test_market_dock_route() {
 	CHECK(land_gain < s->petra_trade_minimal_gain() ||
 	      (routes.potential.land != 0 && routes.potential.gain == land_gain), "the market and the dock make a land route");
 	CHECK(land_gain >= s->petra_trade_minimal_gain(), "the test spots are far enough apart to pay");
+
+	// trainMoreTraders: the land trader trains at our market, not at the dock ending the route
+	// (a dock can't train land traders).
+	s->players_[1].food() = s->players_[1].wood() = s->players_[1].gold() = s->players_[1].stone() = 5000.0f;
+	fund_queues(*s);
+	while (!s->petra_turn_mod(5)) s->ticks_ += 4;
+	s->petra_manage_trading(Simulation::FIXED_STEP);
+	int at_market = 0, at_dock = 0;
+	for (const auto &b : s->buildings())
+		for (const auto &o : b.queue)
+			if (!o.is_tech() && o.unit_type == UNIT_TRADER) (b.id == market ? at_market : b.id == dock ? at_dock : at_dock) += 1;
+	std::printf("  route %u -> %u (dock %u): traders queued at the market %d, elsewhere %d\n", routes.best.source, routes.best.target, dock,
+	            at_market, at_dock);
+	CHECK(at_market == 1 && at_dock == 0, "the land trader trains at the market");
 }
 
 static void test_civ_structures() {
@@ -4021,6 +4046,26 @@ static void test_land_access() {
 	// The civic centre's own cell is a structure's, yet on the same land as the ground beside it.
 	const float side = tc->x + tc->half_size + 2.0f;
 	CHECK(s->petra_access_at(side, tc->z) == home, "a structure doesn't split land");
+
+	// tradeManager.js checkRoutes compares getLandAccess on every map: a market above the
+	// cliffs and one beside the civic centre make no land route.
+	s->petra_pid_ = 1;
+	const float tcx = tc->x, tcz = tc->z;
+	const uint32_t near = s->spawn_building_world(side + 6.0f, tcz, BLD_MARKET, 1, 1.0f);
+	uint32_t far = 0;
+	for (size_t r = 0; r < s->resources_.count && !far; ++r) {
+		if (!s->resources_.alive[r] || s->resources_.type[r] != RES_WOOD) continue;
+		const float x = s->resources_.x[r] + 6.0f, z = s->resources_.z[r];
+		const float dx = x - tcx, dz = z - tcz;
+		if (dx * dx + dz * dz < 60.0f * 60.0f || s->petra_access_at(x, z) == home || !s->petra_access_at(x, z)) continue;
+		far = s->spawn_building_world(x, z, BLD_MARKET, 1, 1.0f);
+	}
+	CHECK(near && far, "a market by the civic centre and one above the cliffs");
+	Simulation::PetraTradeRoutes routes;
+	s->petra_check_routes(routes);
+	std::printf("  markets on lands %u and %u: %zu routes\n", home, far ? s->petra_access_at(s->buildings_.back().x, s->buildings_.back().z) : 0,
+	            routes.finished.size());
+	CHECK(routes.finished.empty() && routes.potential.gain == 0, "no land route across the cliffs");
 }
 
 // worker.js isInaccessibleSupply: a gatherer that stands still at its supply for over 10 s
