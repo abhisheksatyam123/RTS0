@@ -168,10 +168,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 83; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 84; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_STATUS_STACKS = 80; // each Poisoned/Burning hit its own status, on units, structures and animals
 	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_NAMES = 83; // Petra's plan counter, the main plan's siege class, the raid's sizes
+	static constexpr uint32_t SAVE_VERSION_SEEN_MASK = 84; // which players have seen each structure (Fogging seen)
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_INACCESSIBLE = 81; // Petra workers' approach watch and supplies flagged inaccessible
 	static constexpr uint32_t SAVE_VERSION_PETRA_HUNT_SEARCH = 79; // each Petra hunter's last fruitless hunt search; storehouse checks per base
@@ -291,6 +292,9 @@ public:
 		float wonder_hold = 0.0f;
 		uint8_t wonder_owner = 255;
 		uint8_t wonder_allies = 0;
+		// Fogging.js seen[player]: the players who have seen this structure (in their own or shared
+		// sight, or in land explored at the start), so their mirage of it outlives a load or rejoin.
+		uint8_t seen_mask = 0;
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -1620,6 +1624,8 @@ public:
 	}
 	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
+	// A field's MaxGatherers, from the civ it was placed as (its owner's when that is unset).
+	int field_cap(const Building &b) const { return field_max_gatherers(b.civ != CIV_COUNT ? b.civ : player(b.team).civ); }
 	// A civ chosen after the player's starting structures were placed re-templates them too.
 	void set_team_civ(uint8_t team, uint8_t civ);
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
@@ -2417,7 +2423,9 @@ private:
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
 	void explore_territories(); // InitGame.js ExploreTerritories, before the first turn
+	void mark_buildings_seen(); // Fogging seen from los_ (tick_los) and from cells explored at the start
 	void reset_los();
+	void rebuild_revealed_fow(); // revealed_fow_: all visible but a circular map's off-world cells
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
@@ -3113,6 +3121,8 @@ private:
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
+	// The unit's land is a pocket of at most 16 navcells (shut in among trees or structures).
+	bool stands_in_pocket(size_t unit_idx) const;
 	bool petra_mobile_dropsite_on_land(size_t unit_idx) const; // a supply wagon or worker elephant it may drop at, on its land
 	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with
 	// emergency the nearest holder at all (unloading one unit when it is full).

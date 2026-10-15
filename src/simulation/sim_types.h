@@ -1675,6 +1675,8 @@ inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 // 0 A.D. template_structure_resource_field ResourceSupply.
 constexpr int32_t FIELD_FOOD_SUPPLY = 1000000000; // <Max>Infinity</Max>
 constexpr int FIELD_MAX_GATHERERS = 5;            // <MaxGatherers>
+// han/field.xml (the rice paddy) overrides it with 3.
+inline int field_max_gatherers(uint8_t civ) { return civ == CIV_HAN ? 3 : FIELD_MAX_GATHERERS; }
 constexpr float FIELD_DIMINISHING_RETURNS = 0.90f; // <DiminishingReturns>
 
 // ResourceSupply.js GetDiminishingReturns: each extra gatherer on a field works
