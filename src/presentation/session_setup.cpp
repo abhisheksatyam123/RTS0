@@ -75,8 +75,12 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 	const uint8_t kind = ws == "palisade" ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
 	const uint8_t p = piece == "tower" ? rtso::Simulation::MAP_WALL_TOWER
 			: piece == "gate" ? rtso::Simulation::MAP_WALL_GATE : rtso::Simulation::MAP_WALL_SEGMENT;
-	return sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0), (float)b.get("angle", 0.0),
-			(float)b.get("length", 9.0));
+	const uint32_t id = sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0),
+			(float)b.get("angle", 0.0), (float)b.get("length", 9.0));
+	// palisades_spike_* (<TerritoryDecay disable=""/>), palisades_fort (<Capturable disable=""/>).
+	if (id && (bool)b.get("no_decay", false)) sim.set_structure_no_decay(id);
+	if (id && (bool)b.get("no_capture", false)) sim.set_structure_uncapturable(id);
+	return id;
 }
 
 // A player structure's 0 A.D. template ("athen/field", "spart/gerousia"; port_0ad_maps.py),
