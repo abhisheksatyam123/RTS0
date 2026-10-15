@@ -728,6 +728,10 @@ static void test_attack_plans() {
 		// The kind of each plan as it starts mustering (whether a HugeAttack
 		// marches before the idle player runs out of buildings depends on timing).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
+		// No rushes: a rush with no target in sight musters and fails at start (attackPlan.js
+		// chooseTarget), which test_rush_any_phase covers; here the Attack and HugeAttack order.
+		s->petra_attack_mgr_.rushes_set = 1;
+		s->petra_attack_mgr_.max_rushes = 0;
 		// Fortresses on dry land around its base keep the idle player standing after the Attacks raze its
 		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
 		// still a target to plan the HugeAttack against. The one at (20, 12) keeps Petra's second
@@ -765,11 +769,10 @@ static void test_attack_plans() {
 			last = st;
 		}
 		const auto &m = s->petra_attack_manager();
-		std::printf("  no rush target: rushes planned %d, plans", m.rush_number);
+		std::printf("  no rushes: plans");
 		for (int k : kinds) std::printf(" %s", k == PETRA_ATTACK_ATTACK ? "Attack" : k == PETRA_ATTACK_HUGE ? "HugeAttack" : "other");
 		std::printf(", launched attack %d huge %d, target sizes %d / %d\n",
 		            m.launched[PETRA_ATTACK_ATTACK], m.launched[PETRA_ATTACK_HUGE], attack_size, huge_size);
-		CHECK(m.launched[PETRA_ATTACK_RUSH] == 0, "no rush without an undefended target");
 		CHECK(kinds.size() >= 3 && kinds[0] == PETRA_ATTACK_ATTACK && kinds[1] == PETRA_ATTACK_ATTACK,
 		      "the first two plans are Attack");
 		CHECK(kinds.size() >= 3 && kinds[2] == PETRA_ATTACK_HUGE, "then HugeAttack");
@@ -2355,6 +2358,143 @@ static void test_raid_sizes_vary() {
 	}
 }
 
+// attackManager.js:366: a rush while any are left and a barracks stands, in any phase; one with
+// no target in sight still musters, trains and counts as a plan (it picks a target at start).
+static void test_rush_any_phase() {
+	for (bool town : {true, false}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_petra_difficulty(PETRA_MEDIUM);
+		s->set_petra_behavior(PETRA_BEHAVIOR_AGGRESSIVE);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		const uint32_t barracks = s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+		// test_attack_plans' storehouse: an undefended structure a rush may target.
+		const uint32_t store = town ? s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f) : 0;
+		if (town) s->players_[1].phase = 2;
+		auto &m = s->petra_attack_mgr_;
+		m.rushes_set = 1;
+		m.max_rushes = 2;
+		m.rush_number = town ? 1 : 0;
+		const uint8_t made = m.plans_made;
+		s->petra_attack_plan_.state = Simulation::AttackPlan::UNEXECUTED;
+		run_ai_turns(*s, 3);
+		const auto &plan = s->petra_attack_plan_;
+		std::printf("  %s: barracks %s, plan %s state %d, target %s, rushes %d, plans made %d -> %d\n",
+		            town ? "town phase with a target" : "village phase, no target", barracks ? "up" : "missing",
+		            m.kind == PETRA_ATTACK_RUSH ? "Rush" : "other", (int)plan.state,
+		            plan.target_building_id == store ? (town ? "the storehouse" : "none") : "another", m.rush_number, made, m.plans_made);
+		CHECK(plan.state == Simulation::AttackPlan::MUSTER && m.kind == PETRA_ATTACK_RUSH && m.rush_number == 2 - !town,
+		      town ? "a rush still left is planned in the town phase" : "a rush with no target in sight still musters");
+		CHECK(m.plans_made == made + 1, "the rush counts as a plan made (totalNumber)");
+		if (!town) continue;
+		run_for(*s, 30.0f);
+		bool rush = s->petra_attack_mgr_.kind == PETRA_ATTACK_RUSH && plan.state == Simulation::AttackPlan::MUSTER;
+		for (const auto &p : s->petra_started_attacks_) rush |= p.kind == PETRA_ATTACK_RUSH;
+		CHECK(rush, "a town-phase rush is not dropped while it musters");
+	}
+}
+
+// attackPlan.js assignUnits: a citizen cavalry hunter has the worker role, so only a rush takes
+// it, past the workers kept home; a soldier trained for the army joins any plan.
+static void test_attack_plan_keeps_hunters() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	const uint32_t rider = s->spawn_unit(tx + 4.0f, tz + 4.0f, 1, UNIT_CAVALRY);
+	const uint32_t soldier = s->spawn_unit(tx + 4.0f, tz - 4.0f, 1, UNIT_SPEARMAN);
+	auto &army = s->petra_army_ids_[1];
+	army.insert(std::upper_bound(army.begin(), army.end(), soldier), soldier);
+	auto &plan = s->petra_attack_plan_;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.squad.clear();
+	plan.completing = false;
+	m.kind = PETRA_ATTACK_ATTACK;
+	m.target_size = 200; // keeps mustering
+	m.min_size = 200;
+	run_ai_turns(*s, 3);
+	const bool has_rider = std::find(plan.squad.begin(), plan.squad.end(), rider) != plan.squad.end();
+	const bool has_soldier = std::find(plan.squad.begin(), plan.squad.end(), soldier) != plan.squad.end();
+	std::printf("  Attack plan mustering: the rider %s, the army soldier %s\n", has_rider ? "joined" : "kept hunting", has_soldier ? "joined" : "stayed out");
+	CHECK(!has_rider, "an Attack plan leaves the citizen cavalry to hunt");
+	CHECK(has_soldier, "a soldier trained for the army joins the plan");
+}
+
+// attackPlan.js assignUnits for a raid: every free FastMoving unit, champion cavalry included,
+// but the first two (hunters), even past the raid's size; and a main plan still preparing hands
+// the raid one unit a turn (reassignFastUnit).
+static void test_raid_takes_every_rider() {
+	for (bool main_musters : {false, true}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_petra_difficulty(PETRA_MEDIUM);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		uint16_t champion_tmpl = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && champion_tmpl == CIV_UNIT_TEMPLATE_NONE; ++t)
+			if ((civ_unit_template(t).flags & ROSTER_CHAMPION) && civ_unit_template(t).unit_type == UNIT_CAVALRY) champion_tmpl = t;
+		auto &m = s->petra_attack_mgr_;
+		m.rushes_set = 1;
+		m.max_rushes = 0;
+		uint32_t spear = 0, champion = 0;
+		if (main_musters) {
+			// A main plan mustering with a spearman of the army.
+			spear = s->spawn_unit(tx + 4.0f, tz - 6.0f, 1, UNIT_SPEARMAN);
+			auto &army = s->petra_army_ids_[1];
+			army.insert(std::upper_bound(army.begin(), army.end(), spear), spear);
+			auto &main = s->petra_attack_plan_;
+			main.state = Simulation::AttackPlan::MUSTER;
+			main.completing = false;
+			main.squad = {spear};
+			m.kind = PETRA_ATTACK_ATTACK;
+			m.target_size = 200;
+			m.min_size = 200;
+		}
+		for (int i = 0; i < 8; ++i) s->spawn_unit(tx + 2.0f * (float)i - 8.0f, tz + 6.0f, 1, UNIT_CAVALRY);
+		if (!main_musters) champion = s->spawn_unit(tx, tz + 9.0f, 1, UNIT_CAVALRY, 0.0f, champion_tmpl);
+		s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f); // an enemy structure in Petra's land
+		size_t raiders = 0;
+		bool champion_in = false, spear_in = false;
+		for (float t = 0.0f; t < 20.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			const auto &raid = s->petra_raid_plan_;
+			if (raid.state != Simulation::AttackPlan::WALKING) continue;
+			raiders = raid.squad.size();
+			champion_in = std::find(raid.squad.begin(), raid.squad.end(), champion) != raid.squad.end();
+			spear_in = std::find(raid.squad.begin(), raid.squad.end(), spear) != raid.squad.end();
+			break;
+		}
+		if (!main_musters) {
+			std::printf("  raid: %zu raiders for a size of %d, champion %s\n", raiders, (int)m.raid_target, champion_in ? "in" : "out");
+			CHECK(champion_tmpl != CIV_UNIT_TEMPLATE_NONE && champion_in, "a raid takes champion cavalry");
+			CHECK(raiders > (size_t)m.raid_target, "a raid takes every free rider but two, past its size");
+		} else {
+			std::printf("  raid beside a mustering Attack: the plan's spearman %s\n", spear_in ? "handed over" : "kept");
+			CHECK(spear_in, "a main plan preparing hands the raid a citizen soldier");
+		}
+	}
+}
+
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
 // and leave the plan; those of a started attack are held back.
 static void test_mustering_units_defend() {
@@ -2644,7 +2784,7 @@ static void test_attack_request_counts_raid() {
 	slot.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
 	slot.petra_attack_mgr_.target_size = 60;
 	slot.petra_attack_mgr_.min_size = 30;
-	// The raid on an enemy outpost in AI 2's land, 4 riders mustering of 5 wanted.
+	// The raid on an enemy outpost in AI 2's land, 4 riders mustering of 8 wanted.
 	auto &raid = slot.petra_raid_plan_;
 	raid.state = Simulation::AttackPlan::MUSTER;
 	raid.state_timer = 0.0f;
@@ -2652,8 +2792,10 @@ static void test_attack_request_counts_raid() {
 	raid.target_x = bx - 10.0f; raid.target_z = bz;
 	raid.squad.clear();
 	for (int k = 0; k < 4; ++k) raid.squad.push_back(s->spawn_unit(bx - 6.0f, bz + 6.0f + (float)k, 2, UNIT_CAVALRY));
-	slot.petra_attack_mgr_.raid_target = 5;
-	slot.petra_attack_mgr_.raid_min = 5;
+	// Wanting 8 keeps it mustering this turn: a raid takes every free rider, and the main plan
+	// hands it a unit a turn (reassignFastUnit).
+	slot.petra_attack_mgr_.raid_target = 8;
+	slot.petra_attack_mgr_.raid_min = 8;
 	s->clear_petra_chat();
 	s->cmd_attack_request(3, 0);
 	run_ai_turns(*s, 1, 2);
@@ -5659,6 +5801,42 @@ static void test_corral_by_owner() {
 	CHECK(corrals() == 2, "a second corral in the town phase past 30 population");
 }
 
+
+// common-api entity.js: Petra scores its templates with the player's technologies applied.
+// After Archery Tradition (+10 m range) a Kushite's best citizen infantry per cost, by
+// strength, is the archer, as in 0.28; on base stats it was the spearman.
+static void test_strength_with_techs() {
+	std::printf("strength with technologies\n");
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->set_team_civ(1, CIV_KUSHITES);
+	s->reset();
+	s->petra_pid_ = 1;
+	auto best = [&]() {
+		uint16_t pick = CIV_UNIT_TEMPLATE_NONE;
+		float best_value = 0.0f;
+		for (uint16_t tmpl : civ_roster_ids(CIV_KUSHITES)) {
+			const CivUnitTemplate &t = civ_unit_template(tmpl);
+			const TechClasses c = civ_unit_template(tmpl).tech_classes;
+			if (t.phase > 1 || !t.trainers || (c & (TC_CITIZENSOLDIER | TC_INFANTRY)) != (TC_CITIZENSOLDIER | TC_INFANTRY)) continue;
+			const UnitTypeInfo &ui = civ_template_unit_info(tmpl, t.unit_type);
+			float cost[RES_COUNT];
+			s->unit_train_cost(1, tmpl, ui, cost);
+			const float v = (0.1f + s->petra_template_strength(ui, tmpl, t.unit_type)) /
+				(1.0f + cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE]);
+			if (pick == CIV_UNIT_TEMPLATE_NONE || v > best_value) { pick = tmpl; best_value = v; }
+		}
+		return pick;
+	};
+	const uint16_t before = best();
+	CHECK(before != CIV_UNIT_TEMPLATE_NONE && !(civ_unit_template(before).tech_classes & TC_RANGED), "base stats: a melee unit");
+	s->complete_research(1, TECH_ARCHERY_TRADITION);
+	const uint16_t after = best();
+	std::printf("  %s -> %s\n", before != CIV_UNIT_TEMPLATE_NONE ? civ_unit_template(before).id : "-",
+		after != CIV_UNIT_TEMPLATE_NONE ? civ_unit_template(after).id : "-");
+	CHECK(after != CIV_UNIT_TEMPLATE_NONE && (civ_unit_template(after).tech_classes & TC_RANGED), "Archery Tradition: the archer");
+}
+
 int main(int argc, char **argv) {
 	// Optional test names on the command line run just those.
 	auto want = [&](const char *name) {
@@ -5669,6 +5847,7 @@ int main(int argc, char **argv) {
 #define RUN(t) if (want(#t)) t()
 	std::printf("test_petra\n");
 	RUN(test_no_early_rush);
+	RUN(test_strength_with_techs);
 	RUN(test_phase_up);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
@@ -5712,6 +5891,9 @@ int main(int argc, char **argv) {
 	RUN(test_attack_helps_other_attack);
 	RUN(test_scuttle_undefendable);
 	RUN(test_sandbox_builds_no_defenses);
+	RUN(test_rush_any_phase);
+	RUN(test_attack_plan_keeps_hunters);
+	RUN(test_raid_takes_every_rider);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);
