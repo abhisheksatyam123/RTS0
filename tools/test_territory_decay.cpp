@@ -5,7 +5,8 @@
 //     placement keeps structures out of neutral land,
 //   - in another player's connected territory: to that player, unless they are allies,
 //   - in its owner's territory cut off from every civic centre: to the connected regions
-//     bordering it, or to Gaia when there are none; never next to a connected ally.
+//     bordering it, or to Gaia when there are none; never next to a connected ally,
+//   - in another player's cut-off territory: to Gaia.
 // A Gaia structure in a player's connected territory decays to that player. A structure changes
 // hands once its owner holds no points, to whoever holds most (Gaia included).
 //   g++ -std=c++20 -O2 -Isrc tools/test_territory_decay.cpp src/simulation/simulation.cpp \
@@ -130,6 +131,29 @@ int main() {
 		CHECK(owner_of(s, bk) == 0);
 	}
 
+	// 8. A structure on another player's cut-off territory decays all to Gaia (TerritoryDecay.js
+	// IsConnected, the #4749 special case), so a Gaia one there keeps its points rather than going
+	// to the players bordering that territory.
+	{
+		fresh(s);
+		s.spawn_building_world(40.0f, -4.0f, BLD_TOWER, 0, 1.0f);
+		uint32_t bk = s.spawn_building_world(36.0f, -4.0f, BLD_BARRACKS, 0, 1.0f);
+		Simulation::Building *b = find_bld(s, bk);
+		b->team = GAIA_PLAYER;
+		b->capture_points_by_team.fill(0.0f);
+		s.rebuild_territory();
+		run(s, 1.0f);
+		std::printf("Gaia barracks at (36,-4): territory owner %d\n", s.territory_owner_at(36.0f, -4.0f));
+		CHECK(s.territory_owner_at(36.0f, -4.0f) == 0);
+		std::array<float, MAX_PLAYERS> to;
+		float to_gaia = 0.0f;
+		CHECK(s.territory_decay_targets(*find_bld(s, bk), to, to_gaia));
+		CHECK(to_gaia == 1.0f && to[0] == 0.0f && to[1] == 0.0f);
+		run(s, 30.0f);
+		CHECK(owner_of(s, bk) == GAIA_PLAYER);
+		CHECK(points_of(s, bk, 0) == 0.0f && points_of(s, bk, 1) == 0.0f);
+	}
+
 	// 7. Save mid-decay: the loaded copy decays the same way and hashes the same.
 	{
 		fresh(s);
@@ -145,6 +169,40 @@ int main() {
 		TurnManager tm;
 		CHECK(points_of(s, bk, 0) == points_of(l, bk, 0));
 		CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(l));
+	}
+
+	// Circular maps: territory stops at the passable edge (CCmpTerritoryManager cost 255 off the
+	// world), so the ring and the corners hold none and don't count as map.
+	{
+		static Simulation c;
+		c.set_sim_seed(41);
+		c.reset();
+		c.set_circular_map(true);
+		const float h = c.map_half();
+		const float d = (h - MAP_EDGE_DIST) * 0.72f; // near the edge, on the diagonal
+		c.spawn_building_world(d, d, BLD_TOWN_CENTER, 0, 1.0f);
+		c.rebuild_territory();
+		CHECK(c.territory_owner_at(d, d) == 0);
+		CHECK(c.territory_owner_at(h - 1.0f, h - 1.0f) == -1); // the corner, off the world
+		const float in = (h - MAP_EDGE_DIST - 1.0f) * 0.7071f;
+		const float out = (h - 1.0f) * 0.7071f;
+		CHECK(c.territory_owner_at(in, in) == 0);   // just inside the edge
+		CHECK(c.territory_owner_at(out, out) == -1); // in the edge band
+		static Simulation q;
+		q.set_sim_seed(41);
+		q.reset();
+		q.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		q.rebuild_territory();
+		static Simulation r;
+		r.set_sim_seed(41);
+		r.reset();
+		r.set_circular_map(true);
+		r.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		r.rebuild_territory();
+		// The same central territory is a bigger share of the circle than of the square (pi/4).
+		const int sq = q.territory_percentages()[0], ci = r.territory_percentages()[0];
+		std::printf("territory %% square %d circle %d\n", sq, ci);
+		CHECK(ci >= sq * 4 / 3 - 1);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

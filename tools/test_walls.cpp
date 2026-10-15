@@ -542,6 +542,94 @@ int main() {
 		CHECK(house != 0 && s.cmd_build_wall(0, -12.0f, z, 12.0f, z, nullptr, 0, false) == plan.size());
 	}
 
+	// 15. Each civ lays its own WallSet (structures/{civ}/wall_tower WallPiece/Length, wallset_stone
+	// overlaps, wall_* lengths and Static depth): Roman 10 m towers reaching 0.10-0.80 into 8 m deep
+	// segments, kept through save/load; Ptolemaic 38 m long segments, which upgrade to gates.
+	{
+		setup(s, 1000.0f);
+		s.set_team_civ(0, CIV_ROMANS);
+		const WallSetInfo rome = wallset_info(WALLSET_STONE, CIV_ROMANS);
+		CHECK(rome.tower_length == 2.5f && rome.min_overlap == 0.10f && rome.max_overlap == 0.80f && rome.half_depth == 1.0f);
+		bool all_ok = true;
+		for (float d = rome.tower_length + 0.1f; d < 60.0f; d += 0.37f) {
+			const auto p = s.wall_placement(0, -d * 0.5f, 10.0f, d * 0.5f, 10.0f);
+			bool ok = p.size() >= 3 && p.size() % 2 == 1;
+			for (size_t i = 1; ok && i + 1 < p.size(); i += 2) {
+				const auto &seg = p[i];
+				const float tl = rome.tower_length;
+				const float reach_l = (seg.half_w - (seg.x - p[i - 1].x) + 0.5f * tl) / tl;
+				const float reach_r = (seg.half_w - (p[i + 1].x - seg.x) + 0.5f * tl) / tl;
+				for (float r : {reach_l, reach_r}) ok = ok && r >= 0.10f - 1e-3f && r <= 0.80f + 1e-3f;
+			}
+			all_ok = all_ok && ok;
+		}
+		CHECK(all_ok);
+		const size_t laid = s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		int deep = 0;
+		for (const auto &bld : s.buildings()) deep += bld.type == BLD_WALL_SEGMENT && bld.half_d == 1.0f && bld.civ == CIV_ROMANS;
+		const char *path = "/tmp/rtso_test_walls_civ.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		int deep_loaded = 0;
+		for (const auto &bld : l.buildings()) deep_loaded += bld.type == BLD_WALL_SEGMENT && bld.half_d == 1.0f;
+		std::remove(path);
+		std::printf("  roman wall: %zu pieces, %d segments 8 m deep (%d after load)\n", laid, deep, deep_loaded);
+		CHECK(laid >= 3 && deep >= 1 && deep_loaded == deep);
+
+		setup(s, 1000.0f);
+		s.set_team_civ(0, CIV_PTOLEMIES);
+		const auto pp = s.wall_placement(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		CHECK(pp.size() == 5 && pp[1].half_w == 4.75f && pp[3].half_w == 4.75f);
+		const float stone0 = s.player(0).res[RES_STONE];
+		CHECK(s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f) == 5);
+		std::printf("  ptolemaic wall: long segments %.2f units, %.0f stone\n", pp[1].half_w * 2.0f, stone0 - s.player(0).res[RES_STONE]);
+		uint32_t seg = 0;
+		for (auto &bld : s.buildings_)
+			if (bld.type == BLD_WALL_SEGMENT) { bld.build_progress = 1.0f; bld.hp = bld.max_hp; seg = bld.id; }
+		CHECK(s.upgrade_check(0, seg) == Simulation::UPGRADE_OK);
+		CHECK(std::fabs(wallset_piece_value(BLD_WALL_SEGMENT, 4.75f, 1, CIV_PTOLEMIES) - WALL_LONG_STONE) < 1e-3f);
+		// The wall snaps onto a tower within half its WallPiece length (GuiInterface.js), not further.
+		const float tx = pp.back().x, tz = pp.back().z, near = 0.5f * wallset_info(WALLSET_STONE, CIV_PTOLEMIES).tower_length;
+		CHECK(s.wall_snap_tower(0, tx + near - 0.05f, tz, WALLSET_STONE) != 0);
+		CHECK(s.wall_snap_tower(0, tx + near + 0.05f, tz, WALLSET_STONE) == 0);
+	}
+
+	// 16. A Gaia gate opens for Gaia's own units (Diplomacy: every player, Gaia included, is its
+	// own ally), and still not for a player's.
+	{
+		setup(s, 0.0f);
+		s.spawn_gaia_gate(20.0f, 20.0f, 0.0f, WALLSET_STONE);
+		uint32_t gate = 0;
+		for (const auto &bld : s.buildings()) if (bld.type == BLD_GATE) gate = bld.id;
+		const uint32_t g = s.spawn_gaia_unit(20.0f, 22.0f, UNIT_SPEARMAN, nullptr);
+		for (int i = 0; i < 10; ++i) s.tick(Simulation::FIXED_STEP);
+		const bool opened = gate && find_bld(s, gate)->gate_open;
+		std::printf("  gaia gate: %s for a gaia unit beside it (unit %u)\n", opened ? "open" : "shut", g);
+		CHECK(opened);
+	}
+
+	// 17. On a circular map a wall piece past the passable edge fails CheckFoundation (the
+	// off-world edge mask blocks every class): a palisade dragged out to a corner stops there.
+	{
+		setup(s, 1000.0f);
+		s.player(0).res[RES_WOOD] = 5000.0f;
+		s.set_circular_map(true);
+		const float a = s.map_half() * 0.55f, b = s.map_half() * 0.95f;
+		const auto p = s.wall_placement(0, a, a, b, b, nullptr, nullptr, WALLSET_PALISADE);
+		int past = 0, past_ok = 0, inside_ok = 0;
+		for (const auto &q : p) {
+			const bool edge = s.past_map_edge(q.x, q.z), well_inside = !s.past_map_edge(q.x, q.z, 2.0f * q.half_w);
+			const bool ok = s.check_wall_piece(0, q) == Simulation::PLACE_OK;
+			past += edge;
+			past_ok += edge && ok;
+			inside_ok += well_inside && ok;
+		}
+		std::printf("  circular edge: %zu palisade pieces, %d centred past the edge (%d placeable), %d well inside placeable\n",
+				p.size(), past, past_ok, inside_ok);
+		CHECK(past > 0 && past_ok == 0 && inside_ok > 0);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

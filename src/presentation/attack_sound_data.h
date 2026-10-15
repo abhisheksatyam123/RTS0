@@ -12,50 +12,83 @@ struct AttackSoundGroup {
 };
 
 inline constexpr uint8_t ATTACK_SOUND_NONE = 255;
-inline constexpr uint8_t ATTACK_SOUND_GROUP_COUNT = 20;
+inline constexpr uint8_t ATTACK_SOUND_PHENOTYPE = 254; // {phenotype}_death: phenotype_death_sound
+inline constexpr uint8_t ATTACK_SOUND_GROUP_COUNT = 36;
 
 inline const AttackSoundGroup &attack_sound_group(uint8_t g) {
 	static const char *const kFiles0[] = {"cattle_03.ogg", "cattle_04.ogg", "cattle_07.ogg", nullptr}; // actor/fauna/animal/cattle_attack.xml
-	static const char *const kFiles1[] = {"elephant_attack1.ogg", "elephant_attack2.ogg", "elephant_attack3.ogg", "elephant_order1.ogg", "elephant_order2.ogg", "elephant_select1.ogg", "elephant_select2.ogg", "elephant_order1.ogg", "elephant_order2.ogg", "elephant_select1.ogg", "elephant_select2.ogg", nullptr}; // actor/fauna/animal/elephant_attack.xml
-	static const char *const kFiles2[] = {"lion1.ogg", "lion2.ogg", "lion3.ogg", nullptr}; // actor/fauna/attack/lion.xml
-	static const char *const kFiles3[] = {"building_collapse_large_01.ogg", "building_collapse_large_02.ogg", nullptr}; // attack/destruction/building_collapse_large.xml
-	static const char *const kFiles4[] = {"arrow_metal_01.ogg", "arrow_metal_02.ogg", "arrow_metal_03.ogg", "arrow_metal_04.ogg", "arrow_metal_05.ogg", "arrow_metal_06.ogg", "arrow_metal_07.ogg", "arrow_metal_08.ogg", "arrow_metal_09.ogg", "arrow_metal_10.ogg", "arrow_metal_11.ogg", "arrow_metal_12.ogg", "arrow_metal_13.ogg", "arrow_stone_01.ogg", "arrow_stone_02.ogg", "arrow_stone_03.ogg", "arrow_stone_04.ogg", "arrow_stone_05.ogg", "arrow_stone_06.ogg", "arrow_stone_07.ogg", "arrow_stone_08.ogg", "arrow_stone_09.ogg", "arrow_stone_10.ogg", "arrow_stone_11.ogg", "arrow_stone_12.ogg", "arrow_wood_01.ogg", "arrow_wood_02.ogg", "arrow_wood_03.ogg", "arrow_wood_04.ogg", "arrow_wood_05.ogg", "arrow_wood_06.ogg", "arrow_wood_07.ogg", "arrow_wood_08.ogg", "arrow_wood_09.ogg", "arrow_wood_10.ogg", "arrow_wood_11.ogg", "arrow_wood_12.ogg", "arrow_wood_13.ogg", "arrow_wood_14.ogg", "arrow_wood_15.ogg", "arrow_wood_16.ogg", "arrow_wood_17.ogg", "arrow_wood_18.ogg", "arrow_wood_19.ogg", "arrow_wood_20.ogg", "arrow_wood_21.ogg", nullptr}; // attack/impact/arrow_all.xml
-	static const char *const kFiles5[] = {"arrow_dirt_01.ogg", "arrow_dirt_02.ogg", "arrow_dirt_03.ogg", "arrow_dirt_04.ogg", "arrow_dirt_05.ogg", "arrow_dirt_06.ogg", "arrow_dirt_07.ogg", "arrow_dirt_08.ogg", "arrow_dirt_09.ogg", "arrow_dirt_10.ogg", "arrow_dirt_11.ogg", "arrow_dirt_12.ogg", "arrow_dirt_13.ogg", "arrow_dirt_14.ogg", "arrow_dirt_15.ogg", "arrow_dirt_16.ogg", "arrow_dirt_17.ogg", "arrow_dirt_18.ogg", nullptr}; // attack/impact/arrow_impact.xml
-	static const char *const kFiles6[] = {"arrow_metal_01.ogg", "arrow_metal_02.ogg", "arrow_metal_03.ogg", "arrow_metal_04.ogg", "arrow_metal_05.ogg", "arrow_metal_06.ogg", "arrow_metal_07.ogg", "arrow_metal_08.ogg", "arrow_metal_09.ogg", "arrow_metal_10.ogg", "arrow_metal_11.ogg", "arrow_metal_12.ogg", "arrow_metal_13.ogg", nullptr}; // attack/impact/arrow_metal.xml
-	static const char *const kFiles7[] = {"arrow_dirt_01.ogg", "arrow_dirt_02.ogg", "arrow_dirt_03.ogg", "arrow_dirt_04.ogg", "arrow_dirt_05.ogg", "arrow_dirt_06.ogg", "arrow_dirt_07.ogg", "arrow_dirt_08.ogg", "arrow_dirt_09.ogg", "arrow_dirt_10.ogg", "arrow_dirt_11.ogg", "arrow_dirt_12.ogg", "arrow_dirt_13.ogg", "arrow_dirt_14.ogg", "arrow_dirt_15.ogg", "arrow_dirt_16.ogg", "arrow_dirt_17.ogg", "arrow_dirt_18.ogg", nullptr}; // attack/impact/javelin_impact.xml
-	static const char *const kFiles8[] = {"siegeprojectilehit_01.ogg", "siegeprojectilehit_02.ogg", "siegeprojectilehit_03.ogg", "siegeprojectilehit_04.ogg", nullptr}; // attack/impact/siegeprojectilehit.xml
-	static const char *const kFiles9[] = {"ballist_attack_01.ogg", "ballist_attack_02.ogg", nullptr}; // attack/siege/ballist_attack.xml
-	static const char *const kFiles10[] = {"ram_attack.ogg", nullptr}; // attack/siege/ram_attack.xml
-	static const char *const kFiles11[] = {"arrowfly_01.ogg", "arrowfly_02.ogg", "arrowfly_03.ogg", "arrowfly_04.ogg", "arrowfly_05.ogg", "arrowfly_06.ogg", "arrowfly_07.ogg", "arrowfly_08.ogg", "arrowfly_09.ogg", nullptr}; // attack/weapon/arrowfly.xml
-	static const char *const kFiles12[] = {"bow_attack_01.ogg", "bow_attack_02.ogg", "bow_attack_03.ogg", "bow_attack_04.ogg", "bow_attack_05.ogg", "bow_attack_06.ogg", "bow_attack_07.ogg", "bow_attack_08.ogg", "bow_attack_09.ogg", "bow_attack_10.ogg", "bow_attack_11.ogg", "bow_attack_12.ogg", nullptr}; // attack/weapon/bow_attack.xml
-	static const char *const kFiles13[] = {"jav_attack_01.ogg", "jav_attack_02.ogg", "jav_attack_03.ogg", "jav_attack_04.ogg", nullptr}; // attack/weapon/javelin_attack.xml
-	static const char *const kFiles14[] = {"fleshstab_01.ogg", "fleshstab_02.ogg", "fleshstab_03.ogg", nullptr}; // attack/weapon/knife_attack.xml
-	static const char *const kFiles15[] = {"pike_attack_01.ogg", "pike_attack_02.ogg", "pike_attack_03.ogg", "pike_attack_04.ogg", "pike_attack_05.ogg", "pike_attack_06.ogg", "pike_attack_07.ogg", "pike_attack_08.ogg", "pike_attack_09.ogg", "pike_attack_10.ogg", "pike_attack_11.ogg", "pike_attack_12.ogg", "pike_attack_13.ogg", "pike_attack_14.ogg", "pike_attack_15.ogg", nullptr}; // attack/weapon/pike_attack.xml
-	static const char *const kFiles16[] = {"sling_attack_01.ogg", "sling_attack_02.ogg", "sling_attack_03.ogg", "sling_attack_04.ogg", "sling_attack_05.ogg", "sling_attack_06.ogg", nullptr}; // attack/weapon/sling_attack.xml
-	static const char *const kFiles17[] = {"spear_attack_01.ogg", "spear_attack_02.ogg", "spear_attack_03.ogg", "spear_attack_04.ogg", "spear_attack_05.ogg", "spear_attack_06.ogg", "spear_attack_07.ogg", "spear_attack_08.ogg", "spear_attack_09.ogg", "spear_attack_10.ogg", "spear_attack_11.ogg", "spear_attack_12.ogg", "spear_attack_13.ogg", "spear_attack_14.ogg", "spear_attack_15.ogg", nullptr}; // attack/weapon/spear_attack.xml
-	static const char *const kFiles18[] = {"swordhit_12a.ogg", "swordhit_10.ogg", "swordhit_10a.ogg", "swordhit_11.ogg", "swordhit_11a.ogg", "swordhit_11b.ogg", "swordhit_12.ogg", "swordhit_15.ogg", "swordhit_12b.ogg", "swordhit_13.ogg", "swordhit_13a.ogg", "swordhit_13b.ogg", "swordhit_14.ogg", "swordhit_14a.ogg", "swordhit_14b.ogg", "swordhit_18.ogg", "swordhit_15a.ogg", "swordhit_15b.ogg", "swordhit_16.ogg", "swordhit_16a.ogg", "swordhit_16b.ogg", "swordhit_17.ogg", "swordhit_17a.ogg", "swordhit_17b.ogg", "swordhit_19a.ogg", "swordhit_18a.ogg", "swordhit_19.ogg", nullptr}; // attack/weapon/sword.xml
-	static const char *const kFiles19[] = {"sword_attack_01.ogg", "sword_attack_02.ogg", "sword_attack_03.ogg", "sword_attack_04.ogg", "sword_attack_05.ogg", "sword_attack_06.ogg", "sword_attack_07.ogg", "sword_attack_08.ogg", "sword_attack_09.ogg", "sword_attack_10.ogg", "sword_attack_11.ogg", "sword_attack_12.ogg", "sword_attack_13.ogg", "sword_attack_14.ogg", "sword_attack_15.ogg", nullptr}; // attack/weapon/sword_attack.xml
+	static const char *const kFiles1[] = {"cattle_02.ogg", "cattle_05.ogg", nullptr}; // actor/fauna/animal/cattle_death.xml
+	static const char *const kFiles2[] = {"chicken_13.ogg", "chicken_10.ogg", "chicken_11.ogg", "chicken_12.ogg", nullptr}; // actor/fauna/animal/chickens.xml
+	static const char *const kFiles3[] = {"elephant_attack1.ogg", "elephant_attack2.ogg", "elephant_attack3.ogg", "elephant_order1.ogg", "elephant_order2.ogg", "elephant_select1.ogg", "elephant_select2.ogg", "elephant_order1.ogg", "elephant_order2.ogg", "elephant_select1.ogg", "elephant_select2.ogg", nullptr}; // actor/fauna/animal/elephant_attack.xml
+	static const char *const kFiles4[] = {"elephant_death1.ogg", "elephant_death2.ogg", nullptr}; // actor/fauna/animal/elephant_death.xml
+	static const char *const kFiles5[] = {"horse_death1.ogg", "horse_death2.ogg", nullptr}; // actor/fauna/animal/horse_death.xml
+	static const char *const kFiles6[] = {"lion_select1.ogg", nullptr}; // actor/fauna/animal/lion_death.xml
+	static const char *const kFiles7[] = {"peacock_call_01.ogg", nullptr}; // actor/fauna/animal/peacock_call.xml
+	static const char *const kFiles8[] = {"pig_12.ogg", "pig_10.ogg", "pig_11.ogg", nullptr}; // actor/fauna/animal/pig.xml
+	static const char *const kFiles9[] = {"pig_death.ogg", nullptr}; // actor/fauna/animal/pig_death.xml
+	static const char *const kFiles10[] = {"sheep_11.ogg", "sheep_10.ogg", nullptr}; // actor/fauna/animal/sheep.xml
+	static const char *const kFiles11[] = {"lion1.ogg", "lion2.ogg", "lion3.ogg", nullptr}; // actor/fauna/attack/lion.xml
+	static const char *const kFiles12[] = {"Animal_death_generic_12.ogg", "Animal_death_generic_13.ogg", nullptr}; // actor/fauna/death/death_animal_gen.xml
+	static const char *const kFiles13[] = {"death_camel_10.ogg", "death_camel_10.ogg", nullptr}; // actor/fauna/death/death_camel.xml
+	static const char *const kFiles14[] = {"death_horse_10.ogg", "death_horse_11.ogg", "death_horse_12.ogg", "death_horse_13.ogg", nullptr}; // actor/fauna/death/death_horse.xml
+	static const char *const kFiles15[] = {"goat_10.ogg", "goat_11.ogg", "goat_12.ogg", "goat_13.ogg", "goat_14.ogg", "goat_15.ogg", "goat_16.ogg", "goat_17.ogg", nullptr}; // actor/fauna/death/goat.xml
+	static const char *const kFiles16[] = {"female_death_01.ogg", "female_death_02.ogg", "female_death_03.ogg", "female_death_04.ogg", "female_death_05.ogg", "female_death_06.ogg", "female_death_07.ogg", "female_death_08.ogg", "female_death_09.ogg", "female_death_10.ogg", "female_death_11.ogg", "female_death_12.ogg", nullptr}; // actor/human/death/female_death.xml
+	static const char *const kFiles17[] = {"death_11.ogg", "death_13.ogg", "death_14.ogg", "death_15.ogg", "death_16.ogg", "death_17.ogg", "death_18.ogg", "male_death_01.ogg", "male_death_02.ogg", "male_death_03.ogg", "male_death_04.ogg", "male_death_05.ogg", "male_death_06.ogg", "male_death_07.ogg", "male_death_08.ogg", "male_death_09.ogg", "male_death_10.ogg", "male_death_11.ogg", "male_death_12.ogg", "male_death_13.ogg", "male_death_14.ogg", "male_death_15.ogg", "male_death_16.ogg", "male_death_17.ogg", "male_death_18.ogg", "male_death_19.ogg", "male_death_20.ogg", "male_death_21.ogg", "male_death_22.ogg", "male_death_23.ogg", "male_death_24.ogg", "male_death_25.ogg", "male_death_26.ogg", "male_death_27.ogg", "male_death_28.ogg", "male_death_29.ogg", "male_death_30.ogg", "male_death_31.ogg", "male_death_32.ogg", "male_death_33.ogg", "male_death_34.ogg", "male_death_35.ogg", "male_death_36.ogg", "male_death_37.ogg", "male_death_38.ogg", "male_death_39.ogg", "male_death_40.ogg", "male_death_41.ogg", "male_death_42.ogg", "male_death_43.ogg", "male_death_44.ogg", "male_death_45.ogg", "male_death_46.ogg", "male_death_47.ogg", "male_death_48.ogg", "male_death_49.ogg", "male_death_50.ogg", "male_death_51.ogg", "male_death_52.ogg", "male_death_53.ogg", "male_death_54.ogg", "male_death_55.ogg", "male_death_56.ogg", "male_death_57.ogg", "male_death_58.ogg", "male_death_59.ogg", "male_death_60.ogg", "male_death_61.ogg", "male_death_62.ogg", nullptr}; // actor/human/death/male_death.xml
+	static const char *const kFiles18[] = {"warship_death_01.ogg", "warship_death_02.ogg", nullptr}; // actor/ship/warship_death.xml
+	static const char *const kFiles19[] = {"building_collapse_large_01.ogg", "building_collapse_large_02.ogg", nullptr}; // attack/destruction/building_collapse_large.xml
+	static const char *const kFiles20[] = {"arrow_metal_01.ogg", "arrow_metal_02.ogg", "arrow_metal_03.ogg", "arrow_metal_04.ogg", "arrow_metal_05.ogg", "arrow_metal_06.ogg", "arrow_metal_07.ogg", "arrow_metal_08.ogg", "arrow_metal_09.ogg", "arrow_metal_10.ogg", "arrow_metal_11.ogg", "arrow_metal_12.ogg", "arrow_metal_13.ogg", "arrow_stone_01.ogg", "arrow_stone_02.ogg", "arrow_stone_03.ogg", "arrow_stone_04.ogg", "arrow_stone_05.ogg", "arrow_stone_06.ogg", "arrow_stone_07.ogg", "arrow_stone_08.ogg", "arrow_stone_09.ogg", "arrow_stone_10.ogg", "arrow_stone_11.ogg", "arrow_stone_12.ogg", "arrow_wood_01.ogg", "arrow_wood_02.ogg", "arrow_wood_03.ogg", "arrow_wood_04.ogg", "arrow_wood_05.ogg", "arrow_wood_06.ogg", "arrow_wood_07.ogg", "arrow_wood_08.ogg", "arrow_wood_09.ogg", "arrow_wood_10.ogg", "arrow_wood_11.ogg", "arrow_wood_12.ogg", "arrow_wood_13.ogg", "arrow_wood_14.ogg", "arrow_wood_15.ogg", "arrow_wood_16.ogg", "arrow_wood_17.ogg", "arrow_wood_18.ogg", "arrow_wood_19.ogg", "arrow_wood_20.ogg", "arrow_wood_21.ogg", nullptr}; // attack/impact/arrow_all.xml
+	static const char *const kFiles21[] = {"arrow_dirt_01.ogg", "arrow_dirt_02.ogg", "arrow_dirt_03.ogg", "arrow_dirt_04.ogg", "arrow_dirt_05.ogg", "arrow_dirt_06.ogg", "arrow_dirt_07.ogg", "arrow_dirt_08.ogg", "arrow_dirt_09.ogg", "arrow_dirt_10.ogg", "arrow_dirt_11.ogg", "arrow_dirt_12.ogg", "arrow_dirt_13.ogg", "arrow_dirt_14.ogg", "arrow_dirt_15.ogg", "arrow_dirt_16.ogg", "arrow_dirt_17.ogg", "arrow_dirt_18.ogg", nullptr}; // attack/impact/arrow_impact.xml
+	static const char *const kFiles22[] = {"arrow_metal_01.ogg", "arrow_metal_02.ogg", "arrow_metal_03.ogg", "arrow_metal_04.ogg", "arrow_metal_05.ogg", "arrow_metal_06.ogg", "arrow_metal_07.ogg", "arrow_metal_08.ogg", "arrow_metal_09.ogg", "arrow_metal_10.ogg", "arrow_metal_11.ogg", "arrow_metal_12.ogg", "arrow_metal_13.ogg", nullptr}; // attack/impact/arrow_metal.xml
+	static const char *const kFiles23[] = {"arrow_dirt_01.ogg", "arrow_dirt_02.ogg", "arrow_dirt_03.ogg", "arrow_dirt_04.ogg", "arrow_dirt_05.ogg", "arrow_dirt_06.ogg", "arrow_dirt_07.ogg", "arrow_dirt_08.ogg", "arrow_dirt_09.ogg", "arrow_dirt_10.ogg", "arrow_dirt_11.ogg", "arrow_dirt_12.ogg", "arrow_dirt_13.ogg", "arrow_dirt_14.ogg", "arrow_dirt_15.ogg", "arrow_dirt_16.ogg", "arrow_dirt_17.ogg", "arrow_dirt_18.ogg", nullptr}; // attack/impact/javelin_impact.xml
+	static const char *const kFiles24[] = {"siegeprojectilehit_01.ogg", "siegeprojectilehit_02.ogg", "siegeprojectilehit_03.ogg", "siegeprojectilehit_04.ogg", nullptr}; // attack/impact/siegeprojectilehit.xml
+	static const char *const kFiles25[] = {"ballist_attack_01.ogg", "ballist_attack_02.ogg", nullptr}; // attack/siege/ballist_attack.xml
+	static const char *const kFiles26[] = {"ram_attack.ogg", nullptr}; // attack/siege/ram_attack.xml
+	static const char *const kFiles27[] = {"arrowfly_01.ogg", "arrowfly_02.ogg", "arrowfly_03.ogg", "arrowfly_04.ogg", "arrowfly_05.ogg", "arrowfly_06.ogg", "arrowfly_07.ogg", "arrowfly_08.ogg", "arrowfly_09.ogg", nullptr}; // attack/weapon/arrowfly.xml
+	static const char *const kFiles28[] = {"bow_attack_01.ogg", "bow_attack_02.ogg", "bow_attack_03.ogg", "bow_attack_04.ogg", "bow_attack_05.ogg", "bow_attack_06.ogg", "bow_attack_07.ogg", "bow_attack_08.ogg", "bow_attack_09.ogg", "bow_attack_10.ogg", "bow_attack_11.ogg", "bow_attack_12.ogg", nullptr}; // attack/weapon/bow_attack.xml
+	static const char *const kFiles29[] = {"jav_attack_01.ogg", "jav_attack_02.ogg", "jav_attack_03.ogg", "jav_attack_04.ogg", nullptr}; // attack/weapon/javelin_attack.xml
+	static const char *const kFiles30[] = {"fleshstab_01.ogg", "fleshstab_02.ogg", "fleshstab_03.ogg", nullptr}; // attack/weapon/knife_attack.xml
+	static const char *const kFiles31[] = {"pike_attack_01.ogg", "pike_attack_02.ogg", "pike_attack_03.ogg", "pike_attack_04.ogg", "pike_attack_05.ogg", "pike_attack_06.ogg", "pike_attack_07.ogg", "pike_attack_08.ogg", "pike_attack_09.ogg", "pike_attack_10.ogg", "pike_attack_11.ogg", "pike_attack_12.ogg", "pike_attack_13.ogg", "pike_attack_14.ogg", "pike_attack_15.ogg", nullptr}; // attack/weapon/pike_attack.xml
+	static const char *const kFiles32[] = {"sling_attack_01.ogg", "sling_attack_02.ogg", "sling_attack_03.ogg", "sling_attack_04.ogg", "sling_attack_05.ogg", "sling_attack_06.ogg", nullptr}; // attack/weapon/sling_attack.xml
+	static const char *const kFiles33[] = {"spear_attack_01.ogg", "spear_attack_02.ogg", "spear_attack_03.ogg", "spear_attack_04.ogg", "spear_attack_05.ogg", "spear_attack_06.ogg", "spear_attack_07.ogg", "spear_attack_08.ogg", "spear_attack_09.ogg", "spear_attack_10.ogg", "spear_attack_11.ogg", "spear_attack_12.ogg", "spear_attack_13.ogg", "spear_attack_14.ogg", "spear_attack_15.ogg", nullptr}; // attack/weapon/spear_attack.xml
+	static const char *const kFiles34[] = {"swordhit_12a.ogg", "swordhit_10.ogg", "swordhit_10a.ogg", "swordhit_11.ogg", "swordhit_11a.ogg", "swordhit_11b.ogg", "swordhit_12.ogg", "swordhit_15.ogg", "swordhit_12b.ogg", "swordhit_13.ogg", "swordhit_13a.ogg", "swordhit_13b.ogg", "swordhit_14.ogg", "swordhit_14a.ogg", "swordhit_14b.ogg", "swordhit_18.ogg", "swordhit_15a.ogg", "swordhit_15b.ogg", "swordhit_16.ogg", "swordhit_16a.ogg", "swordhit_16b.ogg", "swordhit_17.ogg", "swordhit_17a.ogg", "swordhit_17b.ogg", "swordhit_19a.ogg", "swordhit_18a.ogg", "swordhit_19.ogg", nullptr}; // attack/weapon/sword.xml
+	static const char *const kFiles35[] = {"sword_attack_01.ogg", "sword_attack_02.ogg", "sword_attack_03.ogg", "sword_attack_04.ogg", "sword_attack_05.ogg", "sword_attack_06.ogg", "sword_attack_07.ogg", "sword_attack_08.ogg", "sword_attack_09.ogg", "sword_attack_10.ogg", "sword_attack_11.ogg", "sword_attack_12.ogg", "sword_attack_13.ogg", "sword_attack_14.ogg", "sword_attack_15.ogg", nullptr}; // attack/weapon/sword_attack.xml
 	static const AttackSoundGroup kGroups[ATTACK_SOUND_GROUP_COUNT] = {
 		{"actor/fauna/animal", kFiles0, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles1, 0.75f, 1.0f, 1.0f},
-		{"actor/fauna/attack", kFiles2, 1.0f, 1.0f, 1.0f},
-		{"attack/destruction", kFiles3, 1.0f, 0.8f, 1.2f},
-		{"attack/impact", kFiles4, 0.25f, 1.0f, 1.0f},
-		{"attack/impact", kFiles5, 0.4f, 0.7f, 1.3f},
-		{"attack/impact", kFiles6, 0.4f, 0.7f, 1.3f},
-		{"attack/impact", kFiles7, 0.5f, 0.4f, 0.9f},
-		{"attack/impact", kFiles8, 0.25f, 0.8f, 1.2f},
-		{"attack/siege", kFiles9, 1.0f, 1.0f, 1.0f},
-		{"attack/siege", kFiles10, 1.0f, 0.7f, 1.3f},
-		{"attack/weapon", kFiles11, 0.3f, 0.8f, 1.2f},
-		{"attack/weapon", kFiles12, 0.4f, 1.0f, 1.5f},
-		{"attack/weapon", kFiles13, 0.7f, 0.8f, 1.0f},
-		{"attack/impact", kFiles14, 0.7f, 0.8f, 1.2f},
-		{"attack/weapon", kFiles15, 0.4f, 0.9f, 1.1f},
-		{"attack/weapon", kFiles16, 0.5f, 0.8f, 1.2f},
-		{"attack/weapon", kFiles17, 0.6f, 0.8f, 1.2f},
-		{"attack/weapon", kFiles18, 1.0f, 1.0f, 1.0f},
-		{"attack/weapon", kFiles19, 0.7f, 0.8f, 1.2f},
+		{"actor/fauna/animal", kFiles1, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles2, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles3, 0.75f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles4, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles5, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles6, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles7, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles8, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles9, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles10, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/attack", kFiles11, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/death", kFiles12, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/death", kFiles13, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/death", kFiles14, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/death", kFiles15, 0.6f, 1.0f, 1.0f},
+		{"actor/human/death", kFiles16, 0.9f, 1.0f, 1.0f},
+		{"actor/human/death", kFiles17, 0.2f, 0.8f, 1.0f},
+		{"actor/ship", kFiles18, 1.0f, 0.8f, 1.0f},
+		{"attack/destruction", kFiles19, 1.0f, 0.8f, 1.2f},
+		{"attack/impact", kFiles20, 0.25f, 1.0f, 1.0f},
+		{"attack/impact", kFiles21, 0.4f, 0.7f, 1.3f},
+		{"attack/impact", kFiles22, 0.4f, 0.7f, 1.3f},
+		{"attack/impact", kFiles23, 0.5f, 0.4f, 0.9f},
+		{"attack/impact", kFiles24, 0.25f, 0.8f, 1.2f},
+		{"attack/siege", kFiles25, 1.0f, 1.0f, 1.0f},
+		{"attack/siege", kFiles26, 1.0f, 0.7f, 1.3f},
+		{"attack/weapon", kFiles27, 0.3f, 0.8f, 1.2f},
+		{"attack/weapon", kFiles28, 0.4f, 1.0f, 1.5f},
+		{"attack/weapon", kFiles29, 0.7f, 0.8f, 1.0f},
+		{"attack/impact", kFiles30, 0.7f, 0.8f, 1.2f},
+		{"attack/weapon", kFiles31, 0.4f, 0.9f, 1.1f},
+		{"attack/weapon", kFiles32, 0.5f, 0.8f, 1.2f},
+		{"attack/weapon", kFiles33, 0.6f, 0.8f, 1.2f},
+		{"attack/weapon", kFiles34, 1.0f, 1.0f, 1.0f},
+		{"attack/weapon", kFiles35, 0.7f, 0.8f, 1.2f},
 	};
 	return kGroups[g < ATTACK_SOUND_GROUP_COUNT ? g : 0];
 }
@@ -68,389 +101,389 @@ struct EntityAttackSounds {
 
 inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 463;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
-inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 85;
+inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 86;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
 
 // Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).
 inline const EntityAttackSounds *roster_attack_sounds() {
 	static const EntityAttackSounds kRows[ATTACK_SOUND_ROSTER_ROWS] = {
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // athen/cavalry_javelineer_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // athen/cavalry_swordsman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/champion_infantry
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/champion_marine
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/champion_marine_dock
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // athen/champion_ranged
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // athen/cavalry_javelineer_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // athen/cavalry_swordsman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/champion_infantry
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/champion_marine
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/champion_marine_dock
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // athen/champion_ranged
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/hero_hippocrates
-		{ATTACK_SOUND_NONE, 13, 7, ATTACK_SOUND_NONE}, // athen/hero_iphicrates
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/hero_pericles
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/hero_themistocles
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // athen/infantry_archer_b
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // athen/infantry_archer_b_dock
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // athen/infantry_javelineer_b
-		{ATTACK_SOUND_NONE, 16, ATTACK_SOUND_NONE, 14}, // athen/infantry_slinger_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // athen/infantry_spearman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // athen/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // athen/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // athen/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // athen/ship_ram
-		{10, 11, 4, ATTACK_SOUND_NONE}, // athen/ship_scout
-		{ATTACK_SOUND_NONE, 9, 8, ATTACK_SOUND_NONE}, // athen/siege_lithobolos_packed
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // athen/siege_oxybeles_packed
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/siege_ram
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // athen/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // athen/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 29, 23, ATTACK_SOUND_NONE}, // athen/hero_iphicrates
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/hero_pericles
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/hero_themistocles
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // athen/infantry_archer_b
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // athen/infantry_archer_b_dock
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // athen/infantry_javelineer_b
+		{ATTACK_SOUND_NONE, 32, ATTACK_SOUND_NONE, 30}, // athen/infantry_slinger_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // athen/infantry_spearman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // athen/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // athen/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // athen/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // athen/ship_ram
+		{26, 27, 20, ATTACK_SOUND_NONE}, // athen/ship_scout
+		{ATTACK_SOUND_NONE, 25, 24, ATTACK_SOUND_NONE}, // athen/siege_lithobolos_packed
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // athen/siege_oxybeles_packed
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/siege_ram
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // athen/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // athen/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/rts0_villager
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // spart/cavalry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // spart/cavalry_spearman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/champion_infantry_spear
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // spart/champion_infantry_swordsman
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/hero_agis
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/hero_brasidas
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/hero_leonidas
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // spart/infantry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // spart/infantry_spearman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // spart/infantry_spearman_neodamodes
-		{10, 11, 4, ATTACK_SOUND_NONE}, // spart/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // spart/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // spart/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // spart/ship_ram
-		{10, 11, 4, ATTACK_SOUND_NONE}, // spart/ship_scout
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // spart/siege_oxybeles_packed
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/siege_ram
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // spart/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // spart/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // spart/cavalry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // spart/cavalry_spearman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/champion_infantry_spear
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // spart/champion_infantry_swordsman
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/hero_agis
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/hero_brasidas
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/hero_leonidas
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // spart/infantry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // spart/infantry_spearman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // spart/infantry_spearman_neodamodes
+		{26, 27, 20, ATTACK_SOUND_NONE}, // spart/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // spart/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // spart/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // spart/ship_ram
+		{26, 27, 20, ATTACK_SOUND_NONE}, // spart/ship_scout
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // spart/siege_oxybeles_packed
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/siege_ram
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // spart/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // spart/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/rts0_villager
-		{ATTACK_SOUND_NONE, 12, 5, 19}, // pers/cavalry_archer_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // pers/cavalry_axeman_b
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // pers/cavalry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // pers/cavalry_spearman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/champion_cavalry
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // pers/champion_cavalry_archer
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // pers/champion_chariot
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/champion_elephant
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/champion_infantry
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/hero_cyrus_ii
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // pers/hero_darius_i
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // pers/hero_xerxes_i
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // pers/infantry_archer_b
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // pers/infantry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // pers/infantry_spearman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // pers/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // pers/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // pers/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // pers/ship_ram
-		{10, 11, 4, ATTACK_SOUND_NONE}, // pers/ship_scout
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/siege_ram
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // pers/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // pers/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 28, 21, 35}, // pers/cavalry_archer_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // pers/cavalry_axeman_b
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // pers/cavalry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // pers/cavalry_spearman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/champion_cavalry
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // pers/champion_cavalry_archer
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // pers/champion_chariot
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/champion_elephant
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/champion_infantry
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/hero_cyrus_ii
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // pers/hero_darius_i
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // pers/hero_xerxes_i
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // pers/infantry_archer_b
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // pers/infantry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // pers/infantry_spearman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // pers/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // pers/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // pers/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // pers/ship_ram
+		{26, 27, 20, ATTACK_SOUND_NONE}, // pers/ship_scout
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/siege_ram
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // pers/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // pers/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/rts0_villager
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // rome/cavalry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // rome/cavalry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_cavalry
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/champion_infantry_spear_gladiator
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/champion_infantry_sword_gladiator
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_centurion
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/hero_marcellus
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/hero_maximus
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/hero_scipio
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // rome/infantry_javelineer_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/infantry_legionary
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/infantry_spearman_a
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/infantry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/infantry_swordsman_a
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/infantry_swordsman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // rome/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // rome/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // rome/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // rome/ship_ram
-		{10, 11, 4, ATTACK_SOUND_NONE}, // rome/ship_scout
-		{10, 9, 8, ATTACK_SOUND_NONE}, // rome/ship_siege
-		{ATTACK_SOUND_NONE, 9, 8, ATTACK_SOUND_NONE}, // rome/siege_ballista_packed
-		{ATTACK_SOUND_NONE, 9, 8, ATTACK_SOUND_NONE}, // rome/siege_onager_packed
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/siege_ram
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // rome/siege_scorpio_packed
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // rome/cavalry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // rome/cavalry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_cavalry
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/champion_infantry_spear_gladiator
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/champion_infantry_sword_gladiator
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_centurion
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/hero_marcellus
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/hero_maximus
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/hero_scipio
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // rome/infantry_javelineer_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/infantry_legionary
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/infantry_spearman_a
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/infantry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/infantry_swordsman_a
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/infantry_swordsman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // rome/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // rome/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // rome/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // rome/ship_ram
+		{26, 27, 20, ATTACK_SOUND_NONE}, // rome/ship_scout
+		{26, 25, 24, ATTACK_SOUND_NONE}, // rome/ship_siege
+		{ATTACK_SOUND_NONE, 25, 24, ATTACK_SOUND_NONE}, // rome/siege_ballista_packed
+		{ATTACK_SOUND_NONE, 25, 24, ATTACK_SOUND_NONE}, // rome/siege_onager_packed
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/siege_ram
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // rome/siege_scorpio_packed
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/rts0_villager
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // cart/cavalry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // cart/cavalry_spearman_ital_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // cart/cavalry_swordsman_gaul_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // cart/cavalry_swordsman_iber_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/champion_cavalry
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/champion_elephant
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/champion_infantry
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/hero_hamilcar
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/hero_hannibal
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/hero_maharbal
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // cart/infantry_archer_b
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // cart/infantry_javelineer_iber_b
-		{ATTACK_SOUND_NONE, 16, ATTACK_SOUND_NONE, 14}, // cart/infantry_slinger_iber_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // cart/infantry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // cart/infantry_swordsman_gaul_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // cart/infantry_swordsman_ital_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // cart/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // cart/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // cart/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // cart/ship_ram
-		{10, 11, 4, ATTACK_SOUND_NONE}, // cart/ship_scout
-		{10, 9, 8, ATTACK_SOUND_NONE}, // cart/ship_siege
-		{ATTACK_SOUND_NONE, 9, 8, ATTACK_SOUND_NONE}, // cart/siege_ballista_packed
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // cart/siege_oxybeles_packed
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/siege_ram
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // cart/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // cart/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // cart/cavalry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // cart/cavalry_spearman_ital_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // cart/cavalry_swordsman_gaul_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // cart/cavalry_swordsman_iber_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/champion_cavalry
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/champion_elephant
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/champion_infantry
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/hero_hamilcar
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/hero_hannibal
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/hero_maharbal
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // cart/infantry_archer_b
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // cart/infantry_javelineer_iber_b
+		{ATTACK_SOUND_NONE, 32, ATTACK_SOUND_NONE, 30}, // cart/infantry_slinger_iber_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // cart/infantry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // cart/infantry_swordsman_gaul_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // cart/infantry_swordsman_ital_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // cart/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // cart/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // cart/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // cart/ship_ram
+		{26, 27, 20, ATTACK_SOUND_NONE}, // cart/ship_scout
+		{26, 25, 24, ATTACK_SOUND_NONE}, // cart/ship_siege
+		{ATTACK_SOUND_NONE, 25, 24, ATTACK_SOUND_NONE}, // cart/siege_ballista_packed
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // cart/siege_oxybeles_packed
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/siege_ram
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // cart/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // cart/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/rts0_villager
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // mace/cavalry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // mace/cavalry_spearman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/champion_cavalry
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // mace/champion_infantry_crossbowman
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/champion_infantry_spearman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/champion_infantry_swordsman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/hero_alexander_iii
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/hero_demetrius_i
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/hero_philip_ii
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // mace/infantry_archer_b
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // mace/infantry_javelineer_b
-		{15, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // mace/infantry_pikeman_b
-		{ATTACK_SOUND_NONE, 16, ATTACK_SOUND_NONE, 14}, // mace/infantry_slinger_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // mace/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // mace/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // mace/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // mace/ship_ram
-		{10, 11, 4, ATTACK_SOUND_NONE}, // mace/ship_scout
-		{ATTACK_SOUND_NONE, 9, 8, ATTACK_SOUND_NONE}, // mace/siege_lithobolos_packed
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // mace/siege_oxybeles_packed
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/siege_ram
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // mace/siege_tower
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // mace/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // mace/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // mace/cavalry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // mace/cavalry_spearman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/champion_cavalry
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // mace/champion_infantry_crossbowman
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/champion_infantry_spearman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/champion_infantry_swordsman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/hero_alexander_iii
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/hero_demetrius_i
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/hero_philip_ii
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // mace/infantry_archer_b
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // mace/infantry_javelineer_b
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // mace/infantry_pikeman_b
+		{ATTACK_SOUND_NONE, 32, ATTACK_SOUND_NONE, 30}, // mace/infantry_slinger_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // mace/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // mace/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // mace/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // mace/ship_ram
+		{26, 27, 20, ATTACK_SOUND_NONE}, // mace/ship_scout
+		{ATTACK_SOUND_NONE, 25, 24, ATTACK_SOUND_NONE}, // mace/siege_lithobolos_packed
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // mace/siege_oxybeles_packed
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/siege_ram
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // mace/siege_tower
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // mace/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // mace/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/rts0_villager
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // brit/cavalry_javelineer_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // brit/cavalry_swordsman_b
-		{ATTACK_SOUND_NONE, 13, 7, ATTACK_SOUND_NONE}, // brit/champion_chariot
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/champion_infantry_swordsman
-		{ATTACK_SOUND_NONE, 13, 7, ATTACK_SOUND_NONE}, // brit/hero_boudicca
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/hero_caratacos
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/hero_cunobelin
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // brit/infantry_javelineer_b
-		{ATTACK_SOUND_NONE, 16, ATTACK_SOUND_NONE, 14}, // brit/infantry_slinger_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // brit/infantry_spearman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // brit/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // brit/ship_fire
-		{10, 11, 4, ATTACK_SOUND_NONE}, // brit/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // brit/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // brit/ship_scout
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/siege_ram
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // brit/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // brit/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // brit/cavalry_javelineer_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // brit/cavalry_swordsman_b
+		{ATTACK_SOUND_NONE, 29, 23, ATTACK_SOUND_NONE}, // brit/champion_chariot
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/champion_infantry_swordsman
+		{ATTACK_SOUND_NONE, 29, 23, ATTACK_SOUND_NONE}, // brit/hero_boudicca
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/hero_caratacos
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/hero_cunobelin
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // brit/infantry_javelineer_b
+		{ATTACK_SOUND_NONE, 32, ATTACK_SOUND_NONE, 30}, // brit/infantry_slinger_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // brit/infantry_spearman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // brit/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // brit/ship_fire
+		{26, 27, 20, ATTACK_SOUND_NONE}, // brit/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // brit/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // brit/ship_scout
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/siege_ram
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // brit/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // brit/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/support_trader
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/war_dog
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/war_dog
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/rts0_villager
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // gaul/cavalry_javelineer_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // gaul/cavalry_swordsman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/champion_cavalry
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/champion_fanatic
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/champion_infantry_swordsman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/champion_infantry_trumpeter
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/hero_brennus
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/hero_vercingetorix
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/hero_viridomarus
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // gaul/infantry_javelineer_b
-		{ATTACK_SOUND_NONE, 16, ATTACK_SOUND_NONE, 14}, // gaul/infantry_slinger_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // gaul/infantry_spearman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // gaul/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // gaul/ship_fire
-		{10, 11, 4, ATTACK_SOUND_NONE}, // gaul/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // gaul/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // gaul/ship_scout
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/siege_ram
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // gaul/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // gaul/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // gaul/cavalry_javelineer_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // gaul/cavalry_swordsman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/champion_cavalry
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/champion_fanatic
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/champion_infantry_swordsman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/champion_infantry_trumpeter
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/hero_brennus
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/hero_vercingetorix
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/hero_viridomarus
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // gaul/infantry_javelineer_b
+		{ATTACK_SOUND_NONE, 32, ATTACK_SOUND_NONE, 30}, // gaul/infantry_slinger_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // gaul/infantry_spearman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // gaul/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // gaul/ship_fire
+		{26, 27, 20, ATTACK_SOUND_NONE}, // gaul/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // gaul/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // gaul/ship_scout
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/siege_ram
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // gaul/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // gaul/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // gaul/rts0_villager
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // iber/cavalry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // iber/cavalry_spearman_b
-		{ATTACK_SOUND_NONE, 13, 7, ATTACK_SOUND_NONE}, // iber/champion_cavalry
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/champion_infantry_swordsman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/hero_caros
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/hero_indibil
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/hero_viriato
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // iber/infantry_javelineer_b
-		{ATTACK_SOUND_NONE, 16, ATTACK_SOUND_NONE, 14}, // iber/infantry_slinger_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // iber/infantry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // iber/infantry_swordsman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // iber/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // iber/ship_fire
-		{10, 11, 4, ATTACK_SOUND_NONE}, // iber/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // iber/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // iber/ship_scout
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/siege_ram
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // iber/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // iber/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // iber/cavalry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // iber/cavalry_spearman_b
+		{ATTACK_SOUND_NONE, 29, 23, ATTACK_SOUND_NONE}, // iber/champion_cavalry
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/champion_infantry_swordsman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/hero_caros
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/hero_indibil
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/hero_viriato
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // iber/infantry_javelineer_b
+		{ATTACK_SOUND_NONE, 32, ATTACK_SOUND_NONE, 30}, // iber/infantry_slinger_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // iber/infantry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // iber/infantry_swordsman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // iber/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // iber/ship_fire
+		{26, 27, 20, ATTACK_SOUND_NONE}, // iber/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // iber/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // iber/ship_scout
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/siege_ram
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // iber/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // iber/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/rts0_villager
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // maur/cavalry_javelineer_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // maur/cavalry_swordsman_b
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // maur/champion_chariot
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/champion_elephant
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/champion_infantry_maceman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/champion_maiden
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // maur/champion_maiden_archer
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // maur/elephant_archer_b
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // maur/hero_ashoka
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // maur/cavalry_javelineer_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // maur/cavalry_swordsman_b
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // maur/champion_chariot
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/champion_elephant
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/champion_infantry_maceman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/champion_maiden
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // maur/champion_maiden_archer
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // maur/elephant_archer_b
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // maur/hero_ashoka
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/hero_chanakya
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/hero_chandragupta
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // maur/infantry_archer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // maur/infantry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // maur/infantry_swordsman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // maur/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // maur/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // maur/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // maur/ship_scout
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/siege_ram
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/hero_chandragupta
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // maur/infantry_archer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // maur/infantry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // maur/infantry_swordsman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // maur/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // maur/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // maur/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // maur/ship_scout
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/siege_ram
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/support_elephant
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // maur/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // maur/support_female_citizen_house
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // maur/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // maur/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/rts0_villager
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // kush/cavalry_javelineer_b
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // kush/cavalry_javelineer_merc_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // kush/cavalry_spearman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/champion_cavalry
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/champion_elephant
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/champion_infantry_amun
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/champion_infantry_apedemak
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // kush/champion_infantry_archer
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // kush/hero_amanirenas
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/hero_arakamani
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/hero_nastasen
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // kush/infantry_archer_b
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // kush/infantry_javelineer_merc_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // kush/infantry_maceman_merc_b
-		{15, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // kush/infantry_pikeman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // kush/infantry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // kush/infantry_swordsman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // kush/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // kush/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // kush/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // kush/ship_scout
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/siege_ram
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // kush/siege_tower
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // kush/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // kush/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // kush/cavalry_javelineer_b
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // kush/cavalry_javelineer_merc_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // kush/cavalry_spearman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/champion_cavalry
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/champion_elephant
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/champion_infantry_amun
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/champion_infantry_apedemak
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // kush/champion_infantry_archer
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // kush/hero_amanirenas
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/hero_arakamani
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/hero_nastasen
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // kush/infantry_archer_b
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // kush/infantry_javelineer_merc_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/infantry_maceman_merc_b
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/infantry_pikeman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/infantry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/infantry_swordsman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // kush/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // kush/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // kush/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // kush/ship_scout
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/siege_ram
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // kush/siege_tower
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/support_healer_e
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // kush/rts0_villager
-		{ATTACK_SOUND_NONE, 12, 5, 19}, // ptol/cavalry_archer_b
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // ptol/cavalry_javelineer_merc_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // ptol/cavalry_spearman_merc_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/champion_cavalry
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/champion_elephant
-		{15, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/champion_infantry_pikeman
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // ptol/hero_cleopatra_vii
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/hero_ptolemy_i
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/hero_ptolemy_iv
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // ptol/infantry_archer_b
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // ptol/infantry_javelineer_b
-		{15, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // ptol/infantry_pikeman_b
-		{ATTACK_SOUND_NONE, 16, ATTACK_SOUND_NONE, 14}, // ptol/infantry_slinger_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // ptol/infantry_spearman_merc_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // ptol/infantry_swordsman_merc_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // ptol/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // ptol/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // ptol/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // ptol/ship_ram
-		{10, 11, 4, ATTACK_SOUND_NONE}, // ptol/ship_scout
-		{10, 9, 8, ATTACK_SOUND_NONE}, // ptol/ship_siege
-		{ATTACK_SOUND_NONE, 9, 8, ATTACK_SOUND_NONE}, // ptol/siege_lithobolos_packed
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // ptol/siege_polybolos_packed
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/siege_ram
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // ptol/siege_tower
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // ptol/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // ptol/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 28, 21, 35}, // ptol/cavalry_archer_b
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // ptol/cavalry_javelineer_merc_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // ptol/cavalry_spearman_merc_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/champion_cavalry
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/champion_elephant
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/champion_infantry_pikeman
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // ptol/hero_cleopatra_vii
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/hero_ptolemy_i
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/hero_ptolemy_iv
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // ptol/infantry_archer_b
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // ptol/infantry_javelineer_b
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // ptol/infantry_pikeman_b
+		{ATTACK_SOUND_NONE, 32, ATTACK_SOUND_NONE, 30}, // ptol/infantry_slinger_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // ptol/infantry_spearman_merc_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // ptol/infantry_swordsman_merc_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // ptol/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // ptol/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // ptol/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // ptol/ship_ram
+		{26, 27, 20, ATTACK_SOUND_NONE}, // ptol/ship_scout
+		{26, 25, 24, ATTACK_SOUND_NONE}, // ptol/ship_siege
+		{ATTACK_SOUND_NONE, 25, 24, ATTACK_SOUND_NONE}, // ptol/siege_lithobolos_packed
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // ptol/siege_polybolos_packed
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/siege_ram
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // ptol/siege_tower
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // ptol/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // ptol/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/rts0_villager
-		{ATTACK_SOUND_NONE, 12, 5, 19}, // sele/cavalry_archer_b
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // sele/cavalry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // sele/cavalry_spearman_merc_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/champion_cavalry
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // sele/champion_chariot
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/champion_elephant
-		{15, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/champion_infantry_pikeman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/champion_infantry_swordsman
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/hero_antiochus_iii
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/hero_antiochus_iv
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/hero_seleucus_i
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // sele/infantry_archer_merc_b
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // sele/infantry_javelineer_b
-		{15, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // sele/infantry_pikeman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // sele/infantry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // sele/infantry_swordsman_merc_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // sele/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // sele/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // sele/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // sele/ship_ram
-		{10, 11, 4, ATTACK_SOUND_NONE}, // sele/ship_scout
-		{10, 9, 8, ATTACK_SOUND_NONE}, // sele/ship_siege
-		{ATTACK_SOUND_NONE, 9, 8, ATTACK_SOUND_NONE}, // sele/siege_lithobolos_packed
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/siege_ram
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // sele/siege_tower
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // sele/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // sele/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 28, 21, 35}, // sele/cavalry_archer_b
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // sele/cavalry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // sele/cavalry_spearman_merc_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/champion_cavalry
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // sele/champion_chariot
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/champion_elephant
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/champion_infantry_pikeman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/champion_infantry_swordsman
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/hero_antiochus_iii
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/hero_antiochus_iv
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/hero_seleucus_i
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // sele/infantry_archer_merc_b
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // sele/infantry_javelineer_b
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // sele/infantry_pikeman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // sele/infantry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // sele/infantry_swordsman_merc_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // sele/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // sele/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // sele/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // sele/ship_ram
+		{26, 27, 20, ATTACK_SOUND_NONE}, // sele/ship_scout
+		{26, 25, 24, ATTACK_SOUND_NONE}, // sele/ship_siege
+		{ATTACK_SOUND_NONE, 25, 24, ATTACK_SOUND_NONE}, // sele/siege_lithobolos_packed
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/siege_ram
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // sele/siege_tower
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // sele/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // sele/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/rts0_villager
-		{ATTACK_SOUND_NONE, 12, 5, 19}, // han/cavalry_archer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // han/cavalry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // han/cavalry_swordsman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/champion_cavalry_spearman_academy
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // han/champion_chariot_academy
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // han/champion_infantry_crossbowman_academy
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/champion_infantry_spearman_academy
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/hero_han_xin_horse
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/hero_liu_bang_horse
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // han/hero_wei_qing_chariot
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // han/infantry_archer_b
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // han/infantry_crossbowman_b
-		{15, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // han/infantry_pikeman_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // han/infantry_spearman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // han/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // han/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // han/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // han/ship_scout
-		{10, 9, 8, ATTACK_SOUND_NONE}, // han/ship_siege
-		{ATTACK_SOUND_NONE, 9, 8, ATTACK_SOUND_NONE}, // han/siege_mangonel_packed
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/siege_ram
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // han/siege_tower
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // han/support_female_citizen
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // han/support_female_citizen_house
+		{ATTACK_SOUND_NONE, 28, 21, 35}, // han/cavalry_archer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // han/cavalry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // han/cavalry_swordsman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/champion_cavalry_spearman_academy
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // han/champion_chariot_academy
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // han/champion_infantry_crossbowman_academy
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/champion_infantry_spearman_academy
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/hero_han_xin_horse
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/hero_liu_bang_horse
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // han/hero_wei_qing_chariot
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // han/infantry_archer_b
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // han/infantry_crossbowman_b
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // han/infantry_pikeman_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // han/infantry_spearman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // han/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // han/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // han/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // han/ship_scout
+		{26, 25, 24, ATTACK_SOUND_NONE}, // han/ship_siege
+		{ATTACK_SOUND_NONE, 25, 24, ATTACK_SOUND_NONE}, // han/siege_mangonel_packed
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/siege_ram
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // han/siege_tower
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // han/support_female_citizen
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // han/support_female_citizen_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/rts0_villager
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/champion_infantry_spear_olympian
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // rome/cavalry_auxiliary_b
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // rome/infantry_antesignanus
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/champion_infantry_spearman_02
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/support_minister
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/champion_infantry_spear_olympian
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // rome/cavalry_auxiliary_b
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // rome/infantry_antesignanus
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // mace/champion_infantry_spearman_02
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/support_minister
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/catafalque
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/catafalque
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/catafalque
@@ -465,70 +498,70 @@ inline const EntityAttackSounds *roster_attack_sounds() {
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // ptol/catafalque
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/catafalque
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // han/catafalque
-		{ATTACK_SOUND_NONE, 12, 5, ATTACK_SOUND_NONE}, // pers/champion_infantry_archer_upgrade
-		{10, 11, 4, ATTACK_SOUND_NONE}, // brit/ship_fire_fire
-		{10, 11, 4, ATTACK_SOUND_NONE}, // gaul/ship_fire_fire
-		{10, 11, 4, ATTACK_SOUND_NONE}, // iber/ship_fire_fire
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // athen/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // athen/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // spart/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // spart/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // pers/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // pers/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // cart/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // cart/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // mace/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // mace/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // brit/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // brit/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // gaul/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // gaul/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // iber/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // iber/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // maur/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // maur/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // kush/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // kush/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // ptol/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // ptol/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // sele/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // sele/support_civilian_house
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // han/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // han/support_civilian_house
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // germ/cavalry_javelineer_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // germ/cavalry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/champion_cavalry
+		{ATTACK_SOUND_NONE, 28, 21, ATTACK_SOUND_NONE}, // pers/champion_infantry_archer_upgrade
+		{26, 27, 20, ATTACK_SOUND_NONE}, // brit/ship_fire_fire
+		{26, 27, 20, ATTACK_SOUND_NONE}, // gaul/ship_fire_fire
+		{26, 27, 20, ATTACK_SOUND_NONE}, // iber/ship_fire_fire
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // athen/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // athen/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // spart/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // spart/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // pers/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // pers/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // cart/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // cart/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // mace/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // mace/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // brit/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // brit/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // gaul/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // gaul/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // iber/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // iber/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // maur/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // maur/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // ptol/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // ptol/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // sele/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // sele/support_civilian_house
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // han/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // han/support_civilian_house
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // germ/cavalry_javelineer_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // germ/cavalry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/champion_cavalry
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/champion_healer
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/champion_infantry_axeman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // germ/champion_infantry_maceman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/hero_boiorix
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/hero_lugius
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/hero_teutobod
-		{ATTACK_SOUND_NONE, 13, 7, 14}, // germ/infantry_javelineer_b
-		{ATTACK_SOUND_NONE, 16, ATTACK_SOUND_NONE, 14}, // germ/infantry_slinger_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // germ/infantry_spearman_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // germ/infantry_swordsman_b
-		{10, 11, 4, ATTACK_SOUND_NONE}, // germ/ship_arrow
-		{10, 11, 4, ATTACK_SOUND_NONE}, // germ/ship_fire
-		{10, 11, 4, ATTACK_SOUND_NONE}, // germ/ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // germ/ship_merchant
-		{10, 11, 4, ATTACK_SOUND_NONE}, // germ/ship_scout
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/siege_ram
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/siege_ram_covered
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // germ/support_civilian
-		{14, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // germ/support_civilian_house
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/champion_infantry_axeman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/champion_infantry_maceman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/hero_boiorix
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/hero_lugius
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/hero_teutobod
+		{ATTACK_SOUND_NONE, 29, 23, 30}, // germ/infantry_javelineer_b
+		{ATTACK_SOUND_NONE, 32, ATTACK_SOUND_NONE, 30}, // germ/infantry_slinger_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/infantry_spearman_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/infantry_swordsman_b
+		{26, 27, 20, ATTACK_SOUND_NONE}, // germ/ship_arrow
+		{26, 27, 20, ATTACK_SOUND_NONE}, // germ/ship_fire
+		{26, 27, 20, ATTACK_SOUND_NONE}, // germ/ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // germ/ship_merchant
+		{26, 27, 20, ATTACK_SOUND_NONE}, // germ/ship_scout
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/siege_ram
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/siege_ram_covered
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/support_civilian
+		{30, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/support_civilian_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_healer_b
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_trader
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/rts0_villager
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/catafalque
-		{10, 11, 4, ATTACK_SOUND_NONE}, // germ/ship_fire_fire
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // rome/infantry_spearman_conscript
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // cart/infantry_spearman_ital_b
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // rome/cavalry_javelineer_auxiliary_b
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // rome/cavalry_spearman_auxiliary_b
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_first
+		{26, 27, 20, ATTACK_SOUND_NONE}, // germ/ship_fire_fire
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // rome/infantry_spearman_conscript
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // cart/infantry_spearman_ital_b
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // rome/cavalry_javelineer_auxiliary_b
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // rome/cavalry_spearman_auxiliary_b
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_first
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_wagon
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_wagon_house
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/support_healer_e
@@ -545,29 +578,29 @@ inline const EntityAttackSounds *roster_attack_sounds() {
 inline const EntityAttackSounds *generic_attack_sounds() {
 	static const EntityAttackSounds kRows[ATTACK_SOUND_GENERIC_ROWS] = {
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_VILLAGER: template_unit_support_slave
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // UNIT_SWORDSMAN: template_unit_infantry_melee_swordsman
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // UNIT_ARCHER: template_unit_infantry_ranged_archer
-		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // UNIT_SPEARMAN: template_unit_infantry_melee_spearman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // UNIT_CAVALRY: template_unit_cavalry_melee_swordsman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // UNIT_SWORDSMAN: template_unit_infantry_melee_swordsman
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // UNIT_ARCHER: template_unit_infantry_ranged_archer
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // UNIT_SPEARMAN: template_unit_infantry_melee_spearman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 35}, // UNIT_CAVALRY: template_unit_cavalry_melee_swordsman
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_TRADER: template_unit_support_trader
-		{ATTACK_SOUND_NONE, 9, 8, ATTACK_SOUND_NONE}, // UNIT_CATAPULT: template_unit_siege_stonethrower
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_HERO: template_unit_hero_infantry_swordsman
-		{10, 11, 4, ATTACK_SOUND_NONE}, // UNIT_TRIREME: template_unit_ship_warship_arrow
-		{1, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_ELEPHANT: template_unit_champion_elephant_melee
-		{10, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_SIEGE_RAM: template_unit_siege_ram
+		{ATTACK_SOUND_NONE, 25, 24, ATTACK_SOUND_NONE}, // UNIT_CATAPULT: template_unit_siege_stonethrower
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_HERO: template_unit_hero_infantry_swordsman
+		{26, 27, 20, ATTACK_SOUND_NONE}, // UNIT_TRIREME: template_unit_ship_warship_arrow
+		{3, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_ELEPHANT: template_unit_champion_elephant_melee
+		{26, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_SIEGE_RAM: template_unit_siege_ram
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_HEALER: template_unit_support_healer
-		{ATTACK_SOUND_NONE, 13, 7, 19}, // UNIT_CHARIOT: units/brit/cavalry_javelineer_b
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_WAR_DOG: template_unit_dog
-		{ATTACK_SOUND_NONE, 11, 6, ATTACK_SOUND_NONE}, // UNIT_BOLT_SHOOTER: template_unit_siege_boltshooter
-		{10, 11, 4, ATTACK_SOUND_NONE}, // UNIT_FISHING_BOAT: template_unit_ship_fishing
-		{10, 11, 4, ATTACK_SOUND_NONE}, // UNIT_MERCHANT_SHIP: template_unit_ship_merchant
-		{18, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 14}, // UNIT_FEMALE_CITIZEN: template_unit_support_female_citizen
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_CARNYX: template_unit_champion_infantry_trumpeter
+		{ATTACK_SOUND_NONE, 29, 23, 35}, // UNIT_CHARIOT: units/brit/cavalry_javelineer_b
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_WAR_DOG: template_unit_dog
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // UNIT_BOLT_SHOOTER: template_unit_siege_boltshooter
+		{26, 27, 20, ATTACK_SOUND_NONE}, // UNIT_FISHING_BOAT: template_unit_ship_fishing
+		{26, 27, 20, ATTACK_SOUND_NONE}, // UNIT_MERCHANT_SHIP: template_unit_ship_merchant
+		{34, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // UNIT_FEMALE_CITIZEN: template_unit_support_female_citizen
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_CARNYX: template_unit_champion_infantry_trumpeter
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_WORKER_ELEPHANT: template_unit_support_elephant
-		{ATTACK_SOUND_NONE, 12, 5, 14}, // UNIT_ARCHER_MAIDEN: template_unit_infantry_ranged_archer
-		{ATTACK_SOUND_NONE, 12, 5, 19}, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
-		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_MINISTER: units/han/support_minister
+		{ATTACK_SOUND_NONE, 28, 21, 30}, // UNIT_ARCHER_MAIDEN: template_unit_infantry_ranged_archer
+		{ATTACK_SOUND_NONE, 28, 21, 35}, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_MINISTER: units/han/support_minister
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_CATAFALQUE: template_unit_catafalque
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_TYPE_TECH: no template
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // UNIT_WAGON: template_unit_support_wagon
@@ -579,92 +612,93 @@ inline const EntityAttackSounds *generic_attack_sounds() {
 // (added since the last run) takes template_structure's.
 inline const EntityAttackSounds &building_attack_sounds(uint8_t type) {
 	static const EntityAttackSounds kRows[ATTACK_SOUND_BUILDING_ROWS + 1] = {
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_HOUSE: template_structure_civic_house
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_BARRACKS: template_structure_military_barracks
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_STOREHOUSE: template_structure_economic_storehouse
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_TOWER: template_structure_defensive_tower_stone
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_FARMSTEAD: template_structure_economic_farmstead
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_MARKET: template_structure_economic_market
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_FORTRESS: template_structure_military_fortress
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_GATE: template_structure_defensive_wall_gate
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TEMPLE: template_structure_civic_temple
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_WONDER: template_structure_wonder
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_DOCK: template_structure_military_dock
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_WALL_SEGMENT: template_structure_defensive_wall_long
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_CORRAL: template_structure_resource_corral
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_FIELD: template_structure_resource_field
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_STABLE: template_structure_military_stable
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_RANGE: template_structure_military_range
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_FORGE: template_structure_military_forge
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_ARSENAL: template_structure_military_arsenal
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_SENTRY_TOWER: template_structure_defensive_tower_sentry
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_OUTPOST: template_structure_defensive_outpost
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_PALISADE: template_structure_defensive_palisade
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_WALL_TOWER: template_structure_defensive_wall_tower
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_ELEPHANT_STABLE: template_structure_military_elephant_stable
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_THEATER: template_structure_special_theater
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_EMBASSY: template_structure_military_embassy
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_GYMNASIUM: structures/athen/gymnasium
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_PRYTANEION: structures/athen/prytaneion
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_GEROUSIA: structures/spart/gerousia
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_SYSSITON: structures/spart/syssiton
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TACHARA: structures/pers/tachara
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_ARMY_CAMP: structures/rome/army_camp
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_AMPHITHEATER: structures/rome/amphitheater_pompeii
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_LIBRARY: structures/mace/library
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_KENNEL: structures/brit/kennel
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_ASSEMBLY: structures/gaul/assembly
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_MONUMENT: structures/iber/monument
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_PALACE: structures/maur/palace
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_PILLAR: structures/maur/pillar_ashoka
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_PYRAMID_LARGE: structures/kush/pyramid_large
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_PYRAMID_SMALL: structures/kush/pyramid_small
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_MERCENARY_CAMP: structures/ptol/mercenary_camp
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_LIGHTHOUSE: structures/ptol/lighthouse
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_MILITARY_COLONY: structures/ptol/military_colony
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_ACADEMY: structures/han/academy
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_MINISTRY: structures/han/ministry
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_CAMP_BLEMMYE: structures/kush/camp_blemmye
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_CAMP_NOBA: structures/kush/camp_noba
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TEMPLE_AMUN: structures/kush/temple_amun
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TEMPLE_VESTA: structures/rome/temple_vesta
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TEMPLE_MARS: structures/rome/temple_mars
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_ICE_HOUSE: structures/pers/ice_house
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_SUPER_DOCK: structures/cart/super_dock
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TACHARA_FOOD: structures/pers/tachara_food
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TACHARA_WOOD: structures/pers/tachara_wood
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TACHARA_STONE: structures/pers/tachara_stone
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TACHARA_METAL: structures/pers/tachara_metal
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_APARTMENT: structures/cart/apartment
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_TOWER_GREAT: structures/han/defense_tower_great
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_PALISADE_GATE: structures/palisades_gate
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_EMBASSY_IBERIAN: structures/cart/embassy_iberian
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_EMBASSY_ITALIC: structures/cart/embassy_italic
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_SIEGE_WALL: structures/rome/siege_wall_long
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_CRANNOG: structures/brit/crannog
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_GREAT_HALL: structures/germ/great_hall
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_WAGON_ENCAMPMENT: structures/germ/encampment
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_SHRINE: structures/shrine_greek_01
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TRADING_POST: structures/trading_post_desert
-		{11, 6, 3, ATTACK_SOUND_NONE}, // BLD_TOWER_BOLT: structures/athen/tower_bolt
-		{9, 8, 3, ATTACK_SOUND_NONE}, // BLD_TOWER_ARTILLERY: structures/athen/tower_artillery
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_STOA: structures/athen/royal_stoa
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_HELLENIC_STOA: structures/hellenic_stoa
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_INN: structures/pers/inn
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TENT: structures/rome/tent
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TRIUMPHAL_ARCH: structures/rome/arch
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_HALL: structures/pers/hall
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_WAREHOUSE: structures/pers/warehouse
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_TAVERN: structures/gaul/tavern
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_TOWER_DOUBLE: structures/maur/tower_double
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_KUSH_SHRINE: structures/kush/shrine
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_FORTRESS_OLD: structures/han/fortress_old
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_LAOZI_GATE: structures/han/laozigate
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // default: template_structure
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_HOUSE: template_structure_civic_house
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_BARRACKS: template_structure_military_barracks
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_STOREHOUSE: template_structure_economic_storehouse
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_TOWER: template_structure_defensive_tower_stone
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_FARMSTEAD: template_structure_economic_farmstead
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_MARKET: template_structure_economic_market
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_FORTRESS: template_structure_military_fortress
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_GATE: template_structure_defensive_wall_gate
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TEMPLE: template_structure_civic_temple
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_WONDER: template_structure_wonder
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_DOCK: template_structure_military_dock
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_WALL_SEGMENT: template_structure_defensive_wall_long
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_CORRAL: template_structure_resource_corral
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_FIELD: template_structure_resource_field
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_STABLE: template_structure_military_stable
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_RANGE: template_structure_military_range
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_FORGE: template_structure_military_forge
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_ARSENAL: template_structure_military_arsenal
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_SENTRY_TOWER: template_structure_defensive_tower_sentry
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_OUTPOST: template_structure_defensive_outpost
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PALISADE: template_structure_defensive_palisade
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_WALL_TOWER: template_structure_defensive_wall_tower
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_ELEPHANT_STABLE: template_structure_military_elephant_stable
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_THEATER: template_structure_special_theater
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_EMBASSY: template_structure_military_embassy
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_GYMNASIUM: structures/athen/gymnasium
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PRYTANEION: structures/athen/prytaneion
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_GEROUSIA: structures/spart/gerousia
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_SYSSITON: structures/spart/syssiton
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TACHARA: structures/pers/tachara
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_ARMY_CAMP: structures/rome/army_camp
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_AMPHITHEATER: structures/rome/amphitheater_pompeii
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_LIBRARY: structures/mace/library
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_KENNEL: structures/brit/kennel
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_ASSEMBLY: structures/gaul/assembly
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_MONUMENT: structures/iber/monument
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PALACE: structures/maur/palace
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PILLAR: structures/maur/pillar_ashoka
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PYRAMID_LARGE: structures/kush/pyramid_large
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PYRAMID_SMALL: structures/kush/pyramid_small
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_MERCENARY_CAMP: structures/ptol/mercenary_camp
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_LIGHTHOUSE: structures/ptol/lighthouse
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_MILITARY_COLONY: structures/ptol/military_colony
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_ACADEMY: structures/han/academy
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_MINISTRY: structures/han/ministry
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_CAMP_BLEMMYE: structures/kush/camp_blemmye
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_CAMP_NOBA: structures/kush/camp_noba
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TEMPLE_AMUN: structures/kush/temple_amun
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TEMPLE_VESTA: structures/rome/temple_vesta
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TEMPLE_MARS: structures/rome/temple_mars
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_ICE_HOUSE: structures/pers/ice_house
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_SUPER_DOCK: structures/cart/super_dock
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TACHARA_FOOD: structures/pers/tachara_food
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TACHARA_WOOD: structures/pers/tachara_wood
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TACHARA_STONE: structures/pers/tachara_stone
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TACHARA_METAL: structures/pers/tachara_metal
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_APARTMENT: structures/cart/apartment
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_TOWER_GREAT: structures/han/defense_tower_great
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PALISADE_GATE: structures/palisades_gate
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_EMBASSY_IBERIAN: structures/cart/embassy_iberian
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_EMBASSY_ITALIC: structures/cart/embassy_italic
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_SIEGE_WALL: structures/rome/siege_wall_long
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_CRANNOG: structures/brit/crannog
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_GREAT_HALL: structures/germ/great_hall
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_WAGON_ENCAMPMENT: structures/germ/encampment
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_SHRINE: structures/shrine_greek_01
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TRADING_POST: structures/trading_post_desert
+		{27, 22, 19, ATTACK_SOUND_NONE}, // BLD_TOWER_BOLT: structures/athen/tower_bolt
+		{25, 24, 19, ATTACK_SOUND_NONE}, // BLD_TOWER_ARTILLERY: structures/athen/tower_artillery
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_STOA: structures/athen/royal_stoa
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_HELLENIC_STOA: structures/hellenic_stoa
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_INN: structures/pers/inn
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TENT: structures/rome/tent
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TRIUMPHAL_ARCH: structures/rome/arch
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_HALL: structures/pers/hall
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_WAREHOUSE: structures/pers/warehouse
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TAVERN: structures/gaul/tavern
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_TOWER_DOUBLE: structures/maur/tower_double
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_KUSH_SHRINE: structures/kush/shrine
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_FORTRESS_OLD: structures/han/fortress_old
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_LAOZI_GATE: structures/han/laozigate
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // default: template_structure
 	};
 	return kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];
 }
@@ -676,9 +710,9 @@ inline uint8_t fauna_attack_sound(uint8_t type) {
 		ATTACK_SOUND_NONE, // fauna_boar
 		ATTACK_SOUND_NONE, // fauna_sheep
 		ATTACK_SOUND_NONE, // fauna_wolf
-		2, // fauna_bear_black
-		2, // fauna_bear_brown
-		2, // fauna_bear_polar
+		11, // fauna_bear_black
+		11, // fauna_bear_brown
+		11, // fauna_bear_polar
 		ATTACK_SOUND_NONE, // fauna_camel
 		ATTACK_SOUND_NONE, // fauna_camel_trainable
 		0, // fauna_cattle_bull
@@ -689,15 +723,15 @@ inline uint8_t fauna_attack_sound(uint8_t type) {
 		ATTACK_SOUND_NONE, // fauna_cattle_zebu
 		ATTACK_SOUND_NONE, // fauna_cattle_zebu_trainable
 		ATTACK_SOUND_NONE, // fauna_chicken
-		2, // fauna_crocodile_nile
-		18, // fauna_dog_mastiff
-		18, // fauna_dog_wolfhound
+		11, // fauna_crocodile_nile
+		34, // fauna_dog_mastiff
+		34, // fauna_dog_wolfhound
 		ATTACK_SOUND_NONE, // fauna_donkey
-		1, // fauna_elephant_african_bush
+		3, // fauna_elephant_african_bush
 		ATTACK_SOUND_NONE, // fauna_elephant_african_infant
-		1, // fauna_elephant_asian
+		3, // fauna_elephant_asian
 		ATTACK_SOUND_NONE, // fauna_elephant_asian_infant
-		1, // fauna_elephant_north_african
+		3, // fauna_elephant_north_african
 		ATTACK_SOUND_NONE, // fauna_fox_arctic
 		ATTACK_SOUND_NONE, // fauna_fox_red
 		ATTACK_SOUND_NONE, // fauna_gazelle
@@ -705,7 +739,7 @@ inline uint8_t fauna_attack_sound(uint8_t type) {
 		ATTACK_SOUND_NONE, // fauna_giraffe_infant
 		ATTACK_SOUND_NONE, // fauna_goat
 		ATTACK_SOUND_NONE, // fauna_goat_trainable
-		2, // fauna_hippopotamus
+		11, // fauna_hippopotamus
 		ATTACK_SOUND_NONE, // fauna_horse
 		ATTACK_SOUND_NONE, // fauna_horse_breed
 		ATTACK_SOUND_NONE, // fauna_horse_lusitano
@@ -713,8 +747,8 @@ inline uint8_t fauna_attack_sound(uint8_t type) {
 		ATTACK_SOUND_NONE, // fauna_horse_persian
 		ATTACK_SOUND_NONE, // fauna_horse_pony
 		ATTACK_SOUND_NONE, // fauna_horse_trainable
-		2, // fauna_lion
-		2, // fauna_lioness
+		11, // fauna_lion
+		11, // fauna_lioness
 		ATTACK_SOUND_NONE, // fauna_muskox
 		ATTACK_SOUND_NONE, // fauna_peacock
 		ATTACK_SOUND_NONE, // fauna_pig
@@ -722,10 +756,10 @@ inline uint8_t fauna_attack_sound(uint8_t type) {
 		ATTACK_SOUND_NONE, // fauna_pig_trainable
 		ATTACK_SOUND_NONE, // fauna_piglet
 		ATTACK_SOUND_NONE, // fauna_rabbit
-		2, // fauna_rhinoceros_white
+		11, // fauna_rhinoceros_white
 		ATTACK_SOUND_NONE, // fauna_shark
 		ATTACK_SOUND_NONE, // fauna_sheep_trainable
-		2, // fauna_tiger
+		11, // fauna_tiger
 		ATTACK_SOUND_NONE, // fauna_walrus
 		ATTACK_SOUND_NONE, // fauna_whale_fin
 		ATTACK_SOUND_NONE, // fauna_whale_humpback
@@ -735,4 +769,582 @@ inline uint8_t fauna_attack_sound(uint8_t type) {
 		ATTACK_SOUND_NONE, // fauna_zebra
 	};
 	return type < ATTACK_SOUND_FAUNA_ROWS ? kRows[type] : ATTACK_SOUND_NONE;
+}
+
+// Health.js death sound (Sound/SoundGroups/death) of a civ roster row, ATTACK_SOUND_NONE
+// for none and ATTACK_SOUND_PHENOTYPE for a human's {phenotype}_death.
+inline uint8_t roster_death_sound(uint16_t row) {
+	static const uint8_t kRows[ATTACK_SOUND_ROSTER_ROWS] = {
+		14, // athen/cavalry_javelineer_b
+		14, // athen/cavalry_swordsman_b
+		ATTACK_SOUND_PHENOTYPE, // athen/champion_infantry
+		ATTACK_SOUND_PHENOTYPE, // athen/champion_marine
+		ATTACK_SOUND_PHENOTYPE, // athen/champion_marine_dock
+		ATTACK_SOUND_PHENOTYPE, // athen/champion_ranged
+		ATTACK_SOUND_PHENOTYPE, // athen/hero_hippocrates
+		ATTACK_SOUND_PHENOTYPE, // athen/hero_iphicrates
+		ATTACK_SOUND_PHENOTYPE, // athen/hero_pericles
+		ATTACK_SOUND_PHENOTYPE, // athen/hero_themistocles
+		ATTACK_SOUND_PHENOTYPE, // athen/infantry_archer_b
+		ATTACK_SOUND_PHENOTYPE, // athen/infantry_archer_b_dock
+		ATTACK_SOUND_PHENOTYPE, // athen/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // athen/infantry_slinger_b
+		ATTACK_SOUND_PHENOTYPE, // athen/infantry_spearman_b
+		18, // athen/ship_arrow
+		18, // athen/ship_fishing
+		18, // athen/ship_merchant
+		18, // athen/ship_ram
+		18, // athen/ship_scout
+		ATTACK_SOUND_NONE, // athen/siege_lithobolos_packed
+		ATTACK_SOUND_NONE, // athen/siege_oxybeles_packed
+		ATTACK_SOUND_NONE, // athen/siege_ram
+		ATTACK_SOUND_PHENOTYPE, // athen/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // athen/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // athen/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // athen/support_trader
+		ATTACK_SOUND_PHENOTYPE, // athen/rts0_villager
+		14, // spart/cavalry_javelineer_b
+		14, // spart/cavalry_spearman_b
+		ATTACK_SOUND_PHENOTYPE, // spart/champion_infantry_spear
+		ATTACK_SOUND_PHENOTYPE, // spart/champion_infantry_swordsman
+		ATTACK_SOUND_PHENOTYPE, // spart/hero_agis
+		ATTACK_SOUND_PHENOTYPE, // spart/hero_brasidas
+		ATTACK_SOUND_PHENOTYPE, // spart/hero_leonidas
+		ATTACK_SOUND_PHENOTYPE, // spart/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // spart/infantry_spearman_b
+		ATTACK_SOUND_PHENOTYPE, // spart/infantry_spearman_neodamodes
+		18, // spart/ship_arrow
+		18, // spart/ship_fishing
+		18, // spart/ship_merchant
+		18, // spart/ship_ram
+		18, // spart/ship_scout
+		ATTACK_SOUND_NONE, // spart/siege_oxybeles_packed
+		ATTACK_SOUND_NONE, // spart/siege_ram
+		ATTACK_SOUND_PHENOTYPE, // spart/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // spart/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // spart/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // spart/support_trader
+		ATTACK_SOUND_PHENOTYPE, // spart/rts0_villager
+		14, // pers/cavalry_archer_b
+		14, // pers/cavalry_axeman_b
+		14, // pers/cavalry_javelineer_b
+		14, // pers/cavalry_spearman_b
+		14, // pers/champion_cavalry
+		14, // pers/champion_cavalry_archer
+		14, // pers/champion_chariot
+		4, // pers/champion_elephant
+		ATTACK_SOUND_PHENOTYPE, // pers/champion_infantry
+		14, // pers/hero_cyrus_ii
+		14, // pers/hero_darius_i
+		ATTACK_SOUND_PHENOTYPE, // pers/hero_xerxes_i
+		ATTACK_SOUND_PHENOTYPE, // pers/infantry_archer_b
+		ATTACK_SOUND_PHENOTYPE, // pers/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // pers/infantry_spearman_b
+		18, // pers/ship_arrow
+		18, // pers/ship_fishing
+		18, // pers/ship_merchant
+		18, // pers/ship_ram
+		18, // pers/ship_scout
+		ATTACK_SOUND_NONE, // pers/siege_ram
+		ATTACK_SOUND_PHENOTYPE, // pers/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // pers/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // pers/support_healer_b
+		13, // pers/support_trader
+		ATTACK_SOUND_PHENOTYPE, // pers/rts0_villager
+		14, // rome/cavalry_javelineer_b
+		14, // rome/cavalry_spearman_b
+		14, // rome/champion_cavalry
+		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_spear_gladiator
+		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_sword_gladiator
+		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman
+		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_centurion
+		14, // rome/hero_marcellus
+		14, // rome/hero_maximus
+		14, // rome/hero_scipio
+		ATTACK_SOUND_PHENOTYPE, // rome/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // rome/infantry_legionary
+		ATTACK_SOUND_PHENOTYPE, // rome/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // rome/infantry_spearman_b
+		ATTACK_SOUND_PHENOTYPE, // rome/infantry_swordsman_a
+		ATTACK_SOUND_PHENOTYPE, // rome/infantry_swordsman_b
+		18, // rome/ship_arrow
+		18, // rome/ship_fishing
+		18, // rome/ship_merchant
+		18, // rome/ship_ram
+		18, // rome/ship_scout
+		18, // rome/ship_siege
+		ATTACK_SOUND_NONE, // rome/siege_ballista_packed
+		ATTACK_SOUND_NONE, // rome/siege_onager_packed
+		ATTACK_SOUND_NONE, // rome/siege_ram
+		ATTACK_SOUND_NONE, // rome/siege_scorpio_packed
+		ATTACK_SOUND_PHENOTYPE, // rome/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // rome/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // rome/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // rome/support_trader
+		ATTACK_SOUND_PHENOTYPE, // rome/rts0_villager
+		14, // cart/cavalry_javelineer_b
+		14, // cart/cavalry_spearman_ital_b
+		14, // cart/cavalry_swordsman_gaul_b
+		14, // cart/cavalry_swordsman_iber_b
+		14, // cart/champion_cavalry
+		4, // cart/champion_elephant
+		ATTACK_SOUND_PHENOTYPE, // cart/champion_infantry
+		14, // cart/hero_hamilcar
+		4, // cart/hero_hannibal
+		14, // cart/hero_maharbal
+		ATTACK_SOUND_PHENOTYPE, // cart/infantry_archer_b
+		ATTACK_SOUND_PHENOTYPE, // cart/infantry_javelineer_iber_b
+		ATTACK_SOUND_PHENOTYPE, // cart/infantry_slinger_iber_b
+		ATTACK_SOUND_PHENOTYPE, // cart/infantry_spearman_b
+		ATTACK_SOUND_PHENOTYPE, // cart/infantry_swordsman_gaul_b
+		ATTACK_SOUND_PHENOTYPE, // cart/infantry_swordsman_ital_b
+		18, // cart/ship_arrow
+		18, // cart/ship_fishing
+		18, // cart/ship_merchant
+		18, // cart/ship_ram
+		18, // cart/ship_scout
+		18, // cart/ship_siege
+		ATTACK_SOUND_NONE, // cart/siege_ballista_packed
+		ATTACK_SOUND_NONE, // cart/siege_oxybeles_packed
+		ATTACK_SOUND_NONE, // cart/siege_ram
+		ATTACK_SOUND_PHENOTYPE, // cart/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // cart/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // cart/support_healer_b
+		13, // cart/support_trader
+		ATTACK_SOUND_PHENOTYPE, // cart/rts0_villager
+		14, // mace/cavalry_javelineer_b
+		14, // mace/cavalry_spearman_b
+		14, // mace/champion_cavalry
+		ATTACK_SOUND_PHENOTYPE, // mace/champion_infantry_crossbowman
+		ATTACK_SOUND_PHENOTYPE, // mace/champion_infantry_spearman
+		ATTACK_SOUND_PHENOTYPE, // mace/champion_infantry_swordsman
+		14, // mace/hero_alexander_iii
+		ATTACK_SOUND_PHENOTYPE, // mace/hero_demetrius_i
+		14, // mace/hero_philip_ii
+		ATTACK_SOUND_PHENOTYPE, // mace/infantry_archer_b
+		ATTACK_SOUND_PHENOTYPE, // mace/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // mace/infantry_pikeman_b
+		ATTACK_SOUND_PHENOTYPE, // mace/infantry_slinger_b
+		18, // mace/ship_arrow
+		18, // mace/ship_fishing
+		18, // mace/ship_merchant
+		18, // mace/ship_ram
+		18, // mace/ship_scout
+		ATTACK_SOUND_NONE, // mace/siege_lithobolos_packed
+		ATTACK_SOUND_NONE, // mace/siege_oxybeles_packed
+		ATTACK_SOUND_NONE, // mace/siege_ram
+		ATTACK_SOUND_NONE, // mace/siege_tower
+		ATTACK_SOUND_PHENOTYPE, // mace/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // mace/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // mace/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // mace/support_trader
+		ATTACK_SOUND_PHENOTYPE, // mace/rts0_villager
+		14, // brit/cavalry_javelineer_b
+		14, // brit/cavalry_swordsman_b
+		14, // brit/champion_chariot
+		ATTACK_SOUND_PHENOTYPE, // brit/champion_infantry_swordsman
+		14, // brit/hero_boudicca
+		ATTACK_SOUND_PHENOTYPE, // brit/hero_caratacos
+		14, // brit/hero_cunobelin
+		ATTACK_SOUND_PHENOTYPE, // brit/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // brit/infantry_slinger_b
+		ATTACK_SOUND_PHENOTYPE, // brit/infantry_spearman_b
+		18, // brit/ship_arrow
+		18, // brit/ship_fire
+		18, // brit/ship_fishing
+		18, // brit/ship_merchant
+		18, // brit/ship_scout
+		ATTACK_SOUND_NONE, // brit/siege_ram
+		ATTACK_SOUND_PHENOTYPE, // brit/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // brit/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // brit/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // brit/support_trader
+		12, // brit/war_dog
+		ATTACK_SOUND_PHENOTYPE, // brit/rts0_villager
+		14, // gaul/cavalry_javelineer_b
+		14, // gaul/cavalry_swordsman_b
+		14, // gaul/champion_cavalry
+		ATTACK_SOUND_PHENOTYPE, // gaul/champion_fanatic
+		ATTACK_SOUND_PHENOTYPE, // gaul/champion_infantry_swordsman
+		ATTACK_SOUND_PHENOTYPE, // gaul/champion_infantry_trumpeter
+		ATTACK_SOUND_PHENOTYPE, // gaul/hero_brennus
+		14, // gaul/hero_vercingetorix
+		ATTACK_SOUND_PHENOTYPE, // gaul/hero_viridomarus
+		ATTACK_SOUND_PHENOTYPE, // gaul/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // gaul/infantry_slinger_b
+		ATTACK_SOUND_PHENOTYPE, // gaul/infantry_spearman_b
+		18, // gaul/ship_arrow
+		18, // gaul/ship_fire
+		18, // gaul/ship_fishing
+		18, // gaul/ship_merchant
+		18, // gaul/ship_scout
+		ATTACK_SOUND_NONE, // gaul/siege_ram
+		ATTACK_SOUND_PHENOTYPE, // gaul/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // gaul/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // gaul/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // gaul/support_trader
+		ATTACK_SOUND_PHENOTYPE, // gaul/rts0_villager
+		14, // iber/cavalry_javelineer_b
+		14, // iber/cavalry_spearman_b
+		14, // iber/champion_cavalry
+		ATTACK_SOUND_PHENOTYPE, // iber/champion_infantry_swordsman
+		ATTACK_SOUND_PHENOTYPE, // iber/hero_caros
+		14, // iber/hero_indibil
+		ATTACK_SOUND_PHENOTYPE, // iber/hero_viriato
+		ATTACK_SOUND_PHENOTYPE, // iber/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // iber/infantry_slinger_b
+		ATTACK_SOUND_PHENOTYPE, // iber/infantry_spearman_b
+		ATTACK_SOUND_PHENOTYPE, // iber/infantry_swordsman_b
+		18, // iber/ship_arrow
+		18, // iber/ship_fire
+		18, // iber/ship_fishing
+		18, // iber/ship_merchant
+		18, // iber/ship_scout
+		ATTACK_SOUND_NONE, // iber/siege_ram
+		ATTACK_SOUND_PHENOTYPE, // iber/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // iber/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // iber/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // iber/support_trader
+		ATTACK_SOUND_PHENOTYPE, // iber/rts0_villager
+		14, // maur/cavalry_javelineer_b
+		14, // maur/cavalry_swordsman_b
+		14, // maur/champion_chariot
+		4, // maur/champion_elephant
+		ATTACK_SOUND_PHENOTYPE, // maur/champion_infantry_maceman
+		ATTACK_SOUND_PHENOTYPE, // maur/champion_maiden
+		ATTACK_SOUND_PHENOTYPE, // maur/champion_maiden_archer
+		4, // maur/elephant_archer_b
+		14, // maur/hero_ashoka
+		ATTACK_SOUND_PHENOTYPE, // maur/hero_chanakya
+		4, // maur/hero_chandragupta
+		ATTACK_SOUND_PHENOTYPE, // maur/infantry_archer_b
+		ATTACK_SOUND_PHENOTYPE, // maur/infantry_spearman_b
+		ATTACK_SOUND_PHENOTYPE, // maur/infantry_swordsman_b
+		18, // maur/ship_arrow
+		18, // maur/ship_fishing
+		18, // maur/ship_merchant
+		18, // maur/ship_scout
+		ATTACK_SOUND_NONE, // maur/siege_ram
+		4, // maur/support_elephant
+		ATTACK_SOUND_PHENOTYPE, // maur/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // maur/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // maur/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // maur/support_trader
+		ATTACK_SOUND_PHENOTYPE, // maur/rts0_villager
+		14, // kush/cavalry_javelineer_b
+		13, // kush/cavalry_javelineer_merc_b
+		14, // kush/cavalry_spearman_b
+		14, // kush/champion_cavalry
+		4, // kush/champion_elephant
+		ATTACK_SOUND_PHENOTYPE, // kush/champion_infantry_amun
+		ATTACK_SOUND_PHENOTYPE, // kush/champion_infantry_apedemak
+		ATTACK_SOUND_PHENOTYPE, // kush/champion_infantry_archer
+		14, // kush/hero_amanirenas
+		4, // kush/hero_arakamani
+		14, // kush/hero_nastasen
+		ATTACK_SOUND_PHENOTYPE, // kush/infantry_archer_b
+		ATTACK_SOUND_PHENOTYPE, // kush/infantry_javelineer_merc_b
+		ATTACK_SOUND_PHENOTYPE, // kush/infantry_maceman_merc_b
+		ATTACK_SOUND_PHENOTYPE, // kush/infantry_pikeman_b
+		ATTACK_SOUND_PHENOTYPE, // kush/infantry_spearman_b
+		ATTACK_SOUND_PHENOTYPE, // kush/infantry_swordsman_b
+		18, // kush/ship_arrow
+		18, // kush/ship_fishing
+		18, // kush/ship_merchant
+		18, // kush/ship_scout
+		ATTACK_SOUND_NONE, // kush/siege_ram
+		ATTACK_SOUND_NONE, // kush/siege_tower
+		ATTACK_SOUND_PHENOTYPE, // kush/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // kush/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // kush/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // kush/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // kush/support_trader
+		ATTACK_SOUND_PHENOTYPE, // kush/rts0_villager
+		13, // ptol/cavalry_archer_b
+		14, // ptol/cavalry_javelineer_merc_b
+		14, // ptol/cavalry_spearman_merc_b
+		14, // ptol/champion_cavalry
+		4, // ptol/champion_elephant
+		ATTACK_SOUND_PHENOTYPE, // ptol/champion_infantry_pikeman
+		ATTACK_SOUND_PHENOTYPE, // ptol/hero_cleopatra_vii
+		4, // ptol/hero_ptolemy_i
+		14, // ptol/hero_ptolemy_iv
+		ATTACK_SOUND_PHENOTYPE, // ptol/infantry_archer_b
+		ATTACK_SOUND_PHENOTYPE, // ptol/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // ptol/infantry_pikeman_b
+		ATTACK_SOUND_PHENOTYPE, // ptol/infantry_slinger_b
+		ATTACK_SOUND_PHENOTYPE, // ptol/infantry_spearman_merc_b
+		ATTACK_SOUND_PHENOTYPE, // ptol/infantry_swordsman_merc_b
+		18, // ptol/ship_arrow
+		18, // ptol/ship_fishing
+		18, // ptol/ship_merchant
+		18, // ptol/ship_ram
+		18, // ptol/ship_scout
+		18, // ptol/ship_siege
+		ATTACK_SOUND_NONE, // ptol/siege_lithobolos_packed
+		ATTACK_SOUND_NONE, // ptol/siege_polybolos_packed
+		ATTACK_SOUND_NONE, // ptol/siege_ram
+		ATTACK_SOUND_NONE, // ptol/siege_tower
+		ATTACK_SOUND_PHENOTYPE, // ptol/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // ptol/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // ptol/support_healer_b
+		13, // ptol/support_trader
+		ATTACK_SOUND_PHENOTYPE, // ptol/rts0_villager
+		14, // sele/cavalry_archer_b
+		14, // sele/cavalry_javelineer_b
+		14, // sele/cavalry_spearman_merc_b
+		14, // sele/champion_cavalry
+		14, // sele/champion_chariot
+		4, // sele/champion_elephant
+		ATTACK_SOUND_PHENOTYPE, // sele/champion_infantry_pikeman
+		ATTACK_SOUND_PHENOTYPE, // sele/champion_infantry_swordsman
+		14, // sele/hero_antiochus_iii
+		14, // sele/hero_antiochus_iv
+		4, // sele/hero_seleucus_i
+		ATTACK_SOUND_PHENOTYPE, // sele/infantry_archer_merc_b
+		ATTACK_SOUND_PHENOTYPE, // sele/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // sele/infantry_pikeman_b
+		ATTACK_SOUND_PHENOTYPE, // sele/infantry_spearman_b
+		ATTACK_SOUND_PHENOTYPE, // sele/infantry_swordsman_merc_b
+		18, // sele/ship_arrow
+		18, // sele/ship_fishing
+		18, // sele/ship_merchant
+		18, // sele/ship_ram
+		18, // sele/ship_scout
+		18, // sele/ship_siege
+		ATTACK_SOUND_NONE, // sele/siege_lithobolos_packed
+		ATTACK_SOUND_NONE, // sele/siege_ram
+		ATTACK_SOUND_NONE, // sele/siege_tower
+		ATTACK_SOUND_PHENOTYPE, // sele/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // sele/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // sele/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // sele/support_trader
+		ATTACK_SOUND_PHENOTYPE, // sele/rts0_villager
+		14, // han/cavalry_archer_b
+		14, // han/cavalry_spearman_b
+		14, // han/cavalry_swordsman_b
+		14, // han/champion_cavalry_spearman_academy
+		14, // han/champion_chariot_academy
+		ATTACK_SOUND_PHENOTYPE, // han/champion_infantry_crossbowman_academy
+		ATTACK_SOUND_PHENOTYPE, // han/champion_infantry_spearman_academy
+		14, // han/hero_han_xin_horse
+		14, // han/hero_liu_bang_horse
+		14, // han/hero_wei_qing_chariot
+		ATTACK_SOUND_PHENOTYPE, // han/infantry_archer_b
+		ATTACK_SOUND_PHENOTYPE, // han/infantry_crossbowman_b
+		ATTACK_SOUND_PHENOTYPE, // han/infantry_pikeman_b
+		ATTACK_SOUND_PHENOTYPE, // han/infantry_spearman_b
+		18, // han/ship_arrow
+		18, // han/ship_fishing
+		18, // han/ship_merchant
+		18, // han/ship_scout
+		18, // han/ship_siege
+		ATTACK_SOUND_NONE, // han/siege_mangonel_packed
+		ATTACK_SOUND_NONE, // han/siege_ram
+		ATTACK_SOUND_NONE, // han/siege_tower
+		ATTACK_SOUND_PHENOTYPE, // han/support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // han/support_female_citizen_house
+		ATTACK_SOUND_PHENOTYPE, // han/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // han/support_trader
+		ATTACK_SOUND_PHENOTYPE, // han/rts0_villager
+		ATTACK_SOUND_PHENOTYPE, // spart/champion_infantry_spear_olympian
+		14, // rome/cavalry_auxiliary_b
+		ATTACK_SOUND_PHENOTYPE, // rome/infantry_antesignanus
+		ATTACK_SOUND_PHENOTYPE, // mace/champion_infantry_spearman_02
+		ATTACK_SOUND_PHENOTYPE, // han/support_minister
+		ATTACK_SOUND_NONE, // athen/catafalque
+		ATTACK_SOUND_NONE, // spart/catafalque
+		ATTACK_SOUND_NONE, // pers/catafalque
+		ATTACK_SOUND_NONE, // rome/catafalque
+		ATTACK_SOUND_NONE, // cart/catafalque
+		ATTACK_SOUND_NONE, // mace/catafalque
+		ATTACK_SOUND_NONE, // brit/catafalque
+		ATTACK_SOUND_NONE, // gaul/catafalque
+		ATTACK_SOUND_NONE, // iber/catafalque
+		ATTACK_SOUND_NONE, // maur/catafalque
+		ATTACK_SOUND_NONE, // kush/catafalque
+		ATTACK_SOUND_NONE, // ptol/catafalque
+		ATTACK_SOUND_NONE, // sele/catafalque
+		ATTACK_SOUND_NONE, // han/catafalque
+		ATTACK_SOUND_PHENOTYPE, // pers/champion_infantry_archer_upgrade
+		18, // brit/ship_fire_fire
+		18, // gaul/ship_fire_fire
+		18, // iber/ship_fire_fire
+		ATTACK_SOUND_PHENOTYPE, // athen/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // athen/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // spart/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // spart/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // pers/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // pers/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // rome/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // rome/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // cart/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // cart/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // mace/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // mace/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // brit/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // brit/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // gaul/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // gaul/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // iber/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // iber/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // maur/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // maur/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // kush/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // kush/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // ptol/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // ptol/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // sele/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // sele/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // han/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // han/support_civilian_house
+		14, // germ/cavalry_javelineer_b
+		14, // germ/cavalry_spearman_b
+		14, // germ/champion_cavalry
+		ATTACK_SOUND_NONE, // germ/champion_healer
+		ATTACK_SOUND_PHENOTYPE, // germ/champion_infantry_axeman
+		ATTACK_SOUND_PHENOTYPE, // germ/champion_infantry_maceman
+		14, // germ/hero_boiorix
+		14, // germ/hero_lugius
+		ATTACK_SOUND_PHENOTYPE, // germ/hero_teutobod
+		ATTACK_SOUND_PHENOTYPE, // germ/infantry_javelineer_b
+		ATTACK_SOUND_PHENOTYPE, // germ/infantry_slinger_b
+		ATTACK_SOUND_PHENOTYPE, // germ/infantry_spearman_b
+		ATTACK_SOUND_PHENOTYPE, // germ/infantry_swordsman_b
+		18, // germ/ship_arrow
+		18, // germ/ship_fire
+		18, // germ/ship_fishing
+		18, // germ/ship_merchant
+		18, // germ/ship_scout
+		ATTACK_SOUND_NONE, // germ/siege_ram
+		ATTACK_SOUND_NONE, // germ/siege_ram_covered
+		ATTACK_SOUND_PHENOTYPE, // germ/support_civilian
+		ATTACK_SOUND_PHENOTYPE, // germ/support_civilian_house
+		ATTACK_SOUND_PHENOTYPE, // germ/support_healer_b
+		ATTACK_SOUND_PHENOTYPE, // germ/support_trader
+		ATTACK_SOUND_PHENOTYPE, // germ/rts0_villager
+		ATTACK_SOUND_NONE, // germ/catafalque
+		18, // germ/ship_fire_fire
+		ATTACK_SOUND_PHENOTYPE, // rome/infantry_spearman_conscript
+		ATTACK_SOUND_PHENOTYPE, // cart/infantry_spearman_ital_b
+		14, // rome/cavalry_javelineer_auxiliary_b
+		14, // rome/cavalry_spearman_auxiliary_b
+		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_first
+		ATTACK_SOUND_PHENOTYPE, // germ/support_wagon
+		ATTACK_SOUND_PHENOTYPE, // germ/support_wagon_house
+		ATTACK_SOUND_PHENOTYPE, // pers/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // rome/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // mace/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // gaul/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // ptol/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // han/support_healer_e
+	};
+	return row < ATTACK_SOUND_ROSTER_ROWS ? kRows[row] : ATTACK_SOUND_NONE;
+}
+
+// The same for a unit without a roster row, by UnitType.
+inline uint8_t generic_death_sound(uint8_t type) {
+	static const uint8_t kRows[ATTACK_SOUND_GENERIC_ROWS] = {
+		ATTACK_SOUND_PHENOTYPE, // UNIT_VILLAGER: template_unit_support_slave
+		ATTACK_SOUND_PHENOTYPE, // UNIT_SWORDSMAN: template_unit_infantry_melee_swordsman
+		ATTACK_SOUND_PHENOTYPE, // UNIT_ARCHER: template_unit_infantry_ranged_archer
+		ATTACK_SOUND_PHENOTYPE, // UNIT_SPEARMAN: template_unit_infantry_melee_spearman
+		14, // UNIT_CAVALRY: template_unit_cavalry_melee_swordsman
+		ATTACK_SOUND_PHENOTYPE, // UNIT_TRADER: template_unit_support_trader
+		ATTACK_SOUND_NONE, // UNIT_CATAPULT: template_unit_siege_stonethrower
+		ATTACK_SOUND_PHENOTYPE, // UNIT_HERO: template_unit_hero_infantry_swordsman
+		18, // UNIT_TRIREME: template_unit_ship_warship_arrow
+		4, // UNIT_ELEPHANT: template_unit_champion_elephant_melee
+		ATTACK_SOUND_NONE, // UNIT_SIEGE_RAM: template_unit_siege_ram
+		ATTACK_SOUND_PHENOTYPE, // UNIT_HEALER: template_unit_support_healer
+		14, // UNIT_CHARIOT: units/brit/cavalry_javelineer_b
+		12, // UNIT_WAR_DOG: template_unit_dog
+		ATTACK_SOUND_NONE, // UNIT_BOLT_SHOOTER: template_unit_siege_boltshooter
+		18, // UNIT_FISHING_BOAT: template_unit_ship_fishing
+		18, // UNIT_MERCHANT_SHIP: template_unit_ship_merchant
+		ATTACK_SOUND_PHENOTYPE, // UNIT_FEMALE_CITIZEN: template_unit_support_female_citizen
+		ATTACK_SOUND_PHENOTYPE, // UNIT_CARNYX: template_unit_champion_infantry_trumpeter
+		4, // UNIT_WORKER_ELEPHANT: template_unit_support_elephant
+		ATTACK_SOUND_PHENOTYPE, // UNIT_ARCHER_MAIDEN: template_unit_infantry_ranged_archer
+		14, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
+		14, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
+		ATTACK_SOUND_PHENOTYPE, // UNIT_MINISTER: units/han/support_minister
+		ATTACK_SOUND_NONE, // UNIT_CATAFALQUE: template_unit_catafalque
+		ATTACK_SOUND_NONE, // UNIT_TYPE_TECH: no template
+		ATTACK_SOUND_PHENOTYPE, // UNIT_WAGON: template_unit_support_wagon
+	};
+	return type < ATTACK_SOUND_GENERIC_ROWS ? kRows[type] : ATTACK_SOUND_NONE;
+}
+
+// An animal's death group by FaunaType (ATTACK_SOUND_NONE past the table).
+inline uint8_t fauna_death_sound(uint8_t type) {
+	static const uint8_t kRows[ATTACK_SOUND_FAUNA_ROWS] = {
+		ATTACK_SOUND_NONE, // fauna_deer
+		ATTACK_SOUND_NONE, // fauna_boar
+		10, // fauna_sheep
+		ATTACK_SOUND_NONE, // fauna_wolf
+		6, // fauna_bear_black
+		6, // fauna_bear_brown
+		6, // fauna_bear_polar
+		13, // fauna_camel
+		13, // fauna_camel_trainable
+		1, // fauna_cattle_bull
+		1, // fauna_cattle_cow
+		1, // fauna_cattle_cow_trainable
+		1, // fauna_cattle_sanga
+		1, // fauna_cattle_sanga_trainable
+		1, // fauna_cattle_zebu
+		1, // fauna_cattle_zebu_trainable
+		2, // fauna_chicken
+		6, // fauna_crocodile_nile
+		12, // fauna_dog_mastiff
+		12, // fauna_dog_wolfhound
+		5, // fauna_donkey
+		4, // fauna_elephant_african_bush
+		4, // fauna_elephant_african_infant
+		4, // fauna_elephant_asian
+		4, // fauna_elephant_asian_infant
+		4, // fauna_elephant_north_african
+		ATTACK_SOUND_NONE, // fauna_fox_arctic
+		ATTACK_SOUND_NONE, // fauna_fox_red
+		ATTACK_SOUND_NONE, // fauna_gazelle
+		ATTACK_SOUND_NONE, // fauna_giraffe
+		ATTACK_SOUND_NONE, // fauna_giraffe_infant
+		15, // fauna_goat
+		15, // fauna_goat_trainable
+		6, // fauna_hippopotamus
+		5, // fauna_horse
+		5, // fauna_horse_breed
+		5, // fauna_horse_lusitano
+		5, // fauna_horse_marwari
+		5, // fauna_horse_persian
+		5, // fauna_horse_pony
+		5, // fauna_horse_trainable
+		6, // fauna_lion
+		6, // fauna_lioness
+		ATTACK_SOUND_NONE, // fauna_muskox
+		7, // fauna_peacock
+		8, // fauna_pig
+		9, // fauna_pig_flaming
+		8, // fauna_pig_trainable
+		8, // fauna_piglet
+		ATTACK_SOUND_NONE, // fauna_rabbit
+		6, // fauna_rhinoceros_white
+		ATTACK_SOUND_NONE, // fauna_shark
+		10, // fauna_sheep_trainable
+		6, // fauna_tiger
+		ATTACK_SOUND_NONE, // fauna_walrus
+		ATTACK_SOUND_NONE, // fauna_whale_fin
+		ATTACK_SOUND_NONE, // fauna_whale_humpback
+		ATTACK_SOUND_NONE, // fauna_wildebeest
+		ATTACK_SOUND_NONE, // fauna_wolf_arctic
+		ATTACK_SOUND_NONE, // fauna_wolf_arctic_violent
+		ATTACK_SOUND_NONE, // fauna_zebra
+	};
+	return type < ATTACK_SOUND_FAUNA_ROWS ? kRows[type] : ATTACK_SOUND_NONE;
+}
+
+// A human's {phenotype}_death group.
+inline uint8_t phenotype_death_sound(bool female) {
+	return female ? 16 : 17;
 }

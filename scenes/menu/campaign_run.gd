@@ -6,8 +6,9 @@ extends RefCounted
 ## A campaign template (res://data/campaigns/<id>.json, 0 A.D.'s campaigns/*.json)
 ## names its levels, their maps and what each level Requires. A run is one
 ## playthrough of a template, kept in user://saves/campaigns/<filename>.0adcampaign
-## as {"template", "data", "meta"} like 0 A.D.'s; data.completedLevels lists the
-## levels won. 0 A.D. keeps the current run in user.cfg's "currentcampaign";
+## as 0 A.D.'s {"data", "meta", "template_identifier"}: the template is read
+## from data/campaigns when the run loads, so a changed template reaches old runs.
+## data.completedLevels lists the levels won. 0 A.D. keeps the current run in user.cfg's "currentcampaign";
 ## RTS0 keeps it in user://saves/campaigns/current.
 
 const TEMPLATE_DIR := "res://data/campaigns"
@@ -59,12 +60,29 @@ func set_meta_description(description: String) -> CampaignRun:
 	meta["userDescription"] = description
 	return self
 
-## Reads the run; false when the file is missing or broken (0 A.D.'s BrokenRun).
+## The template with this identifier (CampaignTemplate.getTemplate), {} if there is none.
+static func template_by_id(id: String) -> Dictionary:
+	for t in available_templates():
+		if t["identifier"] == id:
+			return t
+	return {}
+
+## Reads the run; false when the file is missing or broken, or its template is
+## gone (0 A.D.'s BrokenRun). Runs saved before RTS0 used 0 A.D.'s format carry
+## a copy of their template, which is used when its file is gone.
 func load_run() -> bool:
 	var parsed: Variant = _read_json(path())
-	if typeof(parsed) != TYPE_DICTIONARY or typeof(parsed.get("template")) != TYPE_DICTIONARY:
+	if typeof(parsed) != TYPE_DICTIONARY:
 		return false
-	template = parsed["template"]
+	var t := template_by_id(str(parsed.get("template_identifier", "")))
+	if t.is_empty() and typeof(parsed.get("template")) == TYPE_DICTIONARY:
+		var copy: Dictionary = parsed["template"]
+		t = template_by_id(str(copy.get("identifier", "")))
+		if t.is_empty():
+			t = copy
+	if t.is_empty():
+		return false
+	template = t
 	data = parsed.get("data", {}) if typeof(parsed.get("data")) == TYPE_DICTIONARY else {}
 	meta = parsed.get("meta", {}) if typeof(parsed.get("meta")) == TYPE_DICTIONARY else {}
 	return true
@@ -73,7 +91,7 @@ func save() -> CampaignRun:
 	DirAccess.make_dir_recursive_absolute(RUN_DIR)
 	var f := FileAccess.open(path(), FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"template": template, "data": data, "meta": meta}, "\t"))
+		f.store_string(JSON.stringify({"data": data, "meta": meta, "template_identifier": str(template.get("identifier", ""))}, "\t"))
 	return self
 
 func destroy() -> void:
@@ -81,11 +99,14 @@ func destroy() -> void:
 	if current_filename() == filename:
 		clear_current()
 
-## getLabel: "<the player's name for it> - <campaign name>".
-func label() -> String:
+## getLabel: "<the player's name for it> - <campaign name>", or just the name
+## when the player kept the campaign's own (unless full).
+func label(full := false) -> String:
 	var desc := str(meta.get("userDescription", ""))
 	var name := str(template.get("Name", filename))
-	return name if desc == "" else "%s - %s" % [desc, name]
+	if desc == "" or (not full and desc == name):
+		return name if desc == "" else desc
+	return "%s - %s" % [desc, name]
 
 # --- The current run -------------------------------------------------------------
 
@@ -139,7 +160,7 @@ static func new_filename(template_id: String) -> String:
 func is_completed(level_id: String) -> bool:
 	return data.get("completedLevels", []).has(level_id)
 
-## meetsRequirements: Requires is a class list ("a b" all of them, "a|b" either, "!a" not).
+## meetsRequirements: Requires is a class list ("a b" either, "a+b" both, "!a" not).
 func meets_requirements(level: Dictionary) -> bool:
 	var req := str(level.get("Requires", ""))
 	return req == "" or matches_class_list(data.get("completedLevels", []), req)

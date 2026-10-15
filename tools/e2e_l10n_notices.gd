@@ -137,7 +137,8 @@ func run() -> void:
 		main.debug_train_buttons(0)  # a Civic Centre: the roster list
 		await frames(2)
 		var lists: Array = main.find_children("*", "ItemList", true, false).filter(func(l): return l.visible and l.item_count > 0)
-		names_by_mode[mode] = str(lists[0].get_item_tooltip(0)).get_slice("\n", 0) if lists.size() > 0 else ""
+		# The first line, after the Training panel's "[Z] " hotkey.
+		names_by_mode[mode] = str(lists[0].get_item_tooltip(0)).get_slice("\n", 0).trim_prefix("[Z] ") if lists.size() > 0 else ""
 	cfg.set_value("gui.session.howtoshownames", saved)
 	print("  ", names_by_mode)
 	var spec: String = names_by_mode["2"]

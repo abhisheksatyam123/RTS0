@@ -811,6 +811,45 @@ static bool run_game_setup_wire(const char *ph) {
 	return g_failures == 0;
 }
 
+// ---- Out-of-sync re-arms once the desynced client leaves ---------------------
+// NetServerTurnManager::UninitialiseClient: the host reports a divergence once;
+// after every out-of-sync client has left it checks again, so a second one is
+// reported to everyone too.
+static bool run_oos_rearm(const char *ph) {
+	Refs ra;
+	Simulation sa;
+	build_world(sa, 4242, ra);
+	NetHost h;
+	NetConfig cfg;
+	cfg.port = 0;
+	if (!check(h.startHost(cfg), "a host to report from", ph)) return false;
+	TurnManager ta;
+	ta.set_net_host(&h, 0);
+	ta.set_client_player(1, 1);
+	ta.set_client_player(2, 2);
+	ta.set_lockstep_peers({0, 1, 2});
+	ta.mark_game_started(&sa);
+	for (int t = 0; t < 4; ++t) {
+		ta.receive_remote_turn_batch(ta.current_turn() + 1, 1, {});
+		ta.receive_remote_turn_batch(ta.current_turn() + 1, 2, {});
+		ta.tick(TurnManager::TURN_DURATION, sa);
+	}
+	const uint32_t t1 = ta.current_turn() - 1;
+	ta.receive_sync_check(t1, 1, 0xDEADBEEF);
+	if (!check(ta.has_out_of_sync() && ta.oos_turn() == t1, "client 1's wrong hash is reported", ph)) return false;
+	ta.drop_client(1);
+	CHECK(ta.has_out_of_sync() && ta.oos_turn() == t1, "the report stays readable after it left", ph);
+	for (int t = 0; t < 2; ++t) {
+		ta.receive_remote_turn_batch(ta.current_turn() + 1, 2, {});
+		ta.tick(TurnManager::TURN_DURATION, sa);
+	}
+	ta.receive_sync_check(ta.current_turn() - 1, 2, 0xBADF00D);
+	CHECK(ta.has_out_of_sync() && ta.oos_turn() > t1 && ta.oos_peers().size() == 1 && ta.oos_peers()[0] == 2,
+	      "a later divergence is reported anew", ph);
+	h.stop();
+	return true;
+}
+
 int main(int argc, char **argv) {
 	(void)argv;
 	if (argc > 1) {
@@ -828,6 +867,7 @@ int main(int argc, char **argv) {
 		{"P3 late-join GAME_START resend + turn-0 hash handshake", run_late_join_game_start_resend},
 		{"tribute (cmd 27) and barter (cmd 23) on two lockstep peers", run_tribute_and_barter},
 		{"game setup: NMT_GAME_SETUP, setup requests and ready", run_game_setup_wire},
+		{"out-of-sync re-arms after the desynced client leaves", run_oos_rearm},
 	};
 	const size_t n = sizeof(phases) / sizeof(phases[0]);
 	for (size_t i = 0; i < n; ++i) {

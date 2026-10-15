@@ -337,8 +337,16 @@ static void check_treasure_islands() {
 	CHECK(s.treasures().empty(), "treasure not collected");
 	CHECK(s.triggers_.vars[0] == 1, "collected treasure counted %d times", s.triggers_.vars[0]);
 	CHECK(shown(s, 0, "You have collected a treasure!") && !shown(s, 1, "You have collected"), "pickup message not player 1's alone");
+	// GuiInterface: an observer sees only notifications for everyone; the latest to end comes first.
+	CHECK(!shown(s, 0xFF, "You have collected") && !shown(s, 0xFF, "Collect the treasures"), "an observer sees the players' own messages");
+	{
+		const auto list = s.time_notifications_for(0);
+		bool sorted = true;
+		for (size_t i = 1; i < list.size(); ++i) sorted &= list[i - 1]->end_ms >= list[i]->end_ms;
+		CHECK(list.size() >= 2 && sorted, "notifications not latest-ending first (%zu)", list.size());
+	}
 	collected(s, 0, 15); // 16: three short of 19
-	CHECK(shown(s, 1, "Hurry up!") && shown(s, 0, "Treasures remaining to collect for victory:  3!"), "no near-victory messages at 16");
+	CHECK(shown(s, 1, "Hurry up!") && shown(s, 0, "Treasures remaining to collect for victory:  %(remainingTreasures)s!\x1fremainingTreasures=3"), "no near-victory messages at 16");
 	collected(s, 0, 2);  // 18
 	collected(s, 1, 18); // 18 - 18
 	CHECK(shown(s, 0, "No winner yet, prepare for battle!") && shown(s, 1, "No winner yet"), "no battle message at 18-18");
@@ -427,8 +435,12 @@ static void check_survival() {
 	{
 		const int32_t u = s.lookup_unit(seeker[0]);
 		const float hp = s.units_.hp[u];
-		s.units_.status_effects[u] |= EFFECT_POISON;
-		s.units_.poison_timer[u] = 5.0f;
+		CombatProfile poison{};
+		poison.status = 1;
+		poison.status_damage = 20.0f;
+		poison.status_interval = 0.5f;
+		poison.status_time = 5.0f;
+		s.apply_status((size_t)u, poison);
 		for (int t = 0; t < 20; ++t) s.tick(Simulation::FIXED_STEP);
 		CHECK(s.units_.hp[u] == hp, "invulnerable seeker lost %.1f hp to poison", hp - s.units_.hp[u]);
 	}
@@ -788,6 +800,59 @@ static void check_unit_motion() {
 	run_to(s, 7.2f);
 	CHECK(!standing(), "the enclosed palisade went at 7 s");
 	if (failures == before) std::printf("unit_motion_integration_test: 651 units at 3 s, the palisade gone at 7 s: ok\n");
+}
+
+static void check_cinema_demo() {
+	// scenarios/cinema_demo.js: a notice at 1 s, the "test" path queued and played at 6 s
+	// (CCmpCinemaManager): the map is revealed while it plays, OnCinemaPathEnded and
+	// OnCinemaQueueEnded fire when its time is up, and a save mid-path keeps the queue.
+	const int before = failures;
+	static Simulation s, b;
+	auto setup = [](Simulation &sim) {
+		sim.reset();
+		sim.set_sim_seed(SEED);
+		sim.spawn_initial();
+		sim.set_waves_enabled(false);
+		sim.set_victory_condition(VICTORY_ENDLESS);
+		CinemaPath p;
+		std::strcpy(p.info.name, "test");
+		p.info.look_at_target = 1;
+		p.nodes = {{0, 10, 0, 0}, {10, 8, 5, 2}, {20, 6, 0, 3}};
+		p.targets = {{5, 0, 5, 0}, {15, 0, 5, 4}};
+		sim.add_cinema_path(p);
+		sim.add_cinema_path(p); // a second path of the same name is ignored
+	};
+	setup(s);
+	CHECK(s.cinema().paths.size() == 1 && s.cinema().paths[0].duration_ms() == 5000, "one 5 s path");
+	CHECK(s.register_trigger_script("cinema_demo"), "cinema_demo not registered");
+	run_to(s, 1.1f);
+	CHECK(s.trigger_state().notifications.size() == 1 && !s.cinema_playing(), "the notice at 1 s");
+	run_to(s, 6.1f);
+	CHECK(s.cinema_playing() && s.reveal_map() && s.cinema().queue.size() == 1, "the path plays at 6 s, map revealed");
+	run_to(s, 8.0f);
+	const char *path = "/tmp/rts0_test_triggers_cinema.sav";
+	CHECK(s.save_state(path), "save");
+	setup(b);
+	CHECK(b.load_state(path), "load");
+	CHECK(b.cinema_playing() && b.cinema().path_elapsed_ms == s.cinema().path_elapsed_ms && b.trigger_hash() == s.trigger_hash(),
+	      "cinema state differs after loading");
+	const uint32_t ended = s.trigger_event_calls(TRIGGER_ON_CINEMA_PATH_ENDED);
+	run_to(s, 11.2f);
+	CHECK(!s.cinema_playing() && !s.reveal_map() && s.cinema().queue.empty(), "the path ended after 5 s, map hidden again");
+	CHECK(s.trigger_event_calls(TRIGGER_ON_CINEMA_PATH_ENDED) == ended + 1 && s.trigger_event_calls(TRIGGER_ON_CINEMA_QUEUE_ENDED) == 1,
+	      "OnCinemaPathEnded and OnCinemaQueueEnded once each");
+	// The camera: at the first node at the start, the last at the end, looking along the target spline.
+	const CinemaPath &cp = s.cinema().paths[0];
+	cinema::Spline ps(cp.nodes), ts(cp.targets);
+	float eye[3], look[3];
+	CHECK(cinema::camera_at(cp, ps, ts, 0.0f, eye, look) && std::fabs(eye[0]) < 1e-4f && std::fabs(eye[1] - 10) < 1e-4f &&
+	      std::fabs(look[0] - 5) < 1e-4f, "camera at the first node");
+	CHECK(cinema::camera_at(cp, ps, ts, 5.0f, eye, look) && std::fabs(eye[0] - 20) < 1e-3f && std::fabs(look[0] - 15) < 1e-3f,
+	      "camera at the last node");
+	CHECK(cinema::camera_at(cp, ps, ts, 2.0f, eye, look) && std::fabs(eye[0] - 10) < 1e-3f && std::fabs(eye[2] - 5) < 1e-3f,
+	      "camera at the middle node after its 2 s");
+	CHECK(!cinema::camera_at(cp, ps, ts, 5.1f, eye, look), "nothing past the end");
+	if (failures == before) std::printf("cinema_demo: notice at 1 s, a 5 s path from 6 s with the map revealed, saved mid-path: ok\n");
 }
 
 static void check_gallic_fields() {
@@ -1264,6 +1329,7 @@ int main() {
 	check_unit_dancing();
 	check_unit_pushing();
 	check_unit_motion();
+	check_cinema_demo();
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
 	check_on_range();

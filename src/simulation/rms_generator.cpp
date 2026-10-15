@@ -1283,32 +1283,6 @@ void RmsGenerator::synth_rivers(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
-void RmsGenerator::synth_canyon(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// canyon.js: high rocky ground; each base sits in a gorge that leads
-	// to a central basin. No water.
-	water_h = -10.0f;
-	hm.init(hm.res, hm.map_half, 14.0f);
-	const float half = hm.map_half;
-	hm.apply_ridged_noise(rng, 3, 0.03f, 0.5f, 2.0f, 4.0f);
-	const float floor_h = 2.0f;
-	const float start = rng.range_float(0.0f, 6.2831853f);
-	const float ring_r = half * 0.62f;
-	hm.level_area(0.0f, 0.0f, half * 0.22f, half * 0.08f, floor_h);
-	for (int i = 0; i < num_players; ++i) {
-		const float a = start + 6.2831853f * (float)i / (float)std::max(1, num_players);
-		const float sx = std::cos(a) * ring_r, sz = std::sin(a) * ring_r;
-		hm.level_area(sx, sz, 18.0f, 8.0f, floor_h);
-		// A gorge from the base to the basin, with a slight bend.
-		const float mid = a + rng.range_float(-0.25f, 0.25f);
-		std::vector<std::pair<float, float>> gorge = {
-			{sx, sz}, {std::cos(mid) * ring_r * 0.55f, std::sin(mid) * ring_r * 0.55f}, {0.0f, 0.0f}};
-		hm.carve_spline_path(gorge, 4.0f + half * 0.03f, 1.0f, floor_h + 1.0f);
-	}
-	hm.thermal_erosion(4, 0.8f, 0.2f);
-	hm.blur(1, 0.35f);
-	place_ring_spawns(hm, spawns, num_players, ring_r, start, 6.2831853f, floor_h);
-}
-
 void RmsGenerator::synth_corinthian_isthmus(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// corinthian_isthmus.js: two lands (north and south) joined by a narrow
 	// isthmus in the middle; the sea fills the gulfs on either side of it.
@@ -3537,12 +3511,12 @@ int skirmish_replace(uint8_t civ, const char *map_template, uint16_t &out_tmpl) 
 }
 
 static void place_start_entities(Simulation &sim, const HeightmapGrid &hm, uint8_t team, float cx, float cz,
-                                 bool infantry_only = false) {
-	constexpr float kDist = 6.0f, kSpace = 2.0f, kOrientation = -0.25f * 3.14159265f;
+                                 bool infantry_only = false, float kDist = 6.0f, int j = 0) {
+	// `j` counts the entries placed before the first unit (the civic centre is entry 0).
+	constexpr float kSpace = 2.0f, kOrientation = -0.25f * 3.14159265f;
 	const uint8_t civ = sim.team_civ(team);
 	const float dry_h = sim.water_height() + 0.6f;
 	const StartEntity *table = start_entity_table();
-	int j = 0;
 	for (int e = 0; e < START_ENTITY_COUNT; ++e) {
 		const StartEntity &se = table[e];
 		if (se.civ != civ || (infantry_only && !std::strstr(se.tmpl, "infantry"))) continue;
@@ -3562,6 +3536,80 @@ static void place_start_entities(Simulation &sim, const HeightmapGrid &hm, uint8
 				z = cz + (z - cz) * 0.9f;
 			}
 			sim.spawn_unit(x, z, team, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+		}
+	}
+}
+
+// rmgen-common placePlayersNomad (player.js:435-488): each player's StartEntities units as
+// one group 1-3 tiles round a random dry, gentle spot clear of resources and structures, the
+// groups kept scaleByMapSize(60, 240) tiles apart, relaxed to 1/2, 1/4 and then 0, in a
+// shuffled player order (200 tries each). spawn_nomad_treasures adds the treasures by them.
+static void place_nomad_units(Simulation &sim, const HeightmapGrid &hm, const std::vector<RmsGenerator::PlayerSpawn> &spawns, RmsRng &rng) {
+	const float half = hm.map_half, lim = half - 6.0f; // MAP_BORDER_WIDTH 3 tiles and a margin
+	const float dry_h = sim.water_height() + 0.6f, max_slope = 0.5f * LAND_MAX_TERRAIN_SLOPE;
+	const float distance = 60.0f + 180.0f * std::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f);
+	const bool circle = sim.circular_map();
+	// Tiles next to a resource or a structure (avoidClasses of the map's own constraints).
+	const int side = (int)std::ceil(2.0f * half) + 1;
+	std::vector<uint8_t> blocked((size_t)side * (size_t)side, 0);
+	auto mark = [&](float x, float z, int r) {
+		const int cx = (int)std::floor(x + half), cz = (int)std::floor(z + half);
+		for (int dz = -r; dz <= r; ++dz)
+			for (int dx = -r; dx <= r; ++dx) {
+				const int tx = cx + dx, tz = cz + dz;
+				if (tx >= 0 && tz >= 0 && tx < side && tz < side) blocked[(size_t)tz * (size_t)side + (size_t)tx] = 1;
+			}
+	};
+	const auto rv = sim.resources();
+	for (size_t r = 0; r < rv.count; ++r) mark(rv.x[r], rv.z[r], 1);
+	for (const Simulation::Building &b : sim.buildings()) mark(b.x, b.z, 6);
+	auto ok = [&](float x, float z) {
+		if (circle ? x * x + z * z > lim * lim : (std::abs(x) > lim || std::abs(z) > lim)) return false;
+		const int tx = (int)std::floor(x + half), tz = (int)std::floor(z + half);
+		if (tx < 0 || tz < 0 || tx >= side || tz >= side || blocked[(size_t)tz * (size_t)side + (size_t)tx]) return false;
+		if (hm.sample_world(x, z) < dry_h) return false;
+		return std::abs(hm.sample_world(x + 0.5f, z) - hm.sample_world(x - 0.5f, z)) <= max_slope &&
+		       std::abs(hm.sample_world(x, z + 0.5f) - hm.sample_world(x, z - 0.5f)) <= max_slope;
+	};
+	std::vector<size_t> order(spawns.size());
+	for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+	for (size_t i = order.size(); i > 1; --i) std::swap(order[i - 1], order[(size_t)rng.range_int(0, (int)i - 1)]);
+	std::vector<std::pair<float, float>> placed;
+	const StartEntity *table = start_entity_table();
+	for (size_t o : order) {
+		const uint8_t team = spawns[o].team, civ = sim.team_civ(team);
+		float gx = spawns[o].x, gz = spawns[o].z; // no spot at all: the planned base
+		bool found = false;
+		for (float factor : {1.0f, 0.5f, 0.25f, 0.0f}) {
+			const float d2 = distance * factor * distance * factor;
+			for (int t = 0; t < 200 && !found; ++t) {
+				const float x = rng.range_float(-lim, lim), z = rng.range_float(-lim, lim);
+				if (!ok(x, z)) continue;
+				bool near = false;
+				for (const auto &p : placed) near |= (p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < d2;
+				if (near) continue;
+				gx = x;
+				gz = z;
+				found = true;
+			}
+			if (found) break;
+		}
+		placed.push_back({gx, gz});
+		for (int e = 0; e < START_ENTITY_COUNT; ++e) {
+			if (table[e].civ != civ) continue;
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+			for (uint16_t t : civ_roster_ids(civ))
+				if (std::strcmp(civ_unit_template(t).id, table[e].tmpl) == 0) { tmpl = t; break; }
+			if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
+			for (int num = 0; num < table[e].count; ++num) {
+				float x = gx, z = gz; // SimpleObject(template, n, n, 1, 3)
+				for (int t = 0; t < 20; ++t) {
+					const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(1.0f, 3.0f);
+					const float ux = gx + std::cos(a) * r, uz = gz + std::sin(a) * r;
+					if (ok(ux, uz)) { x = ux; z = uz; break; }
+				}
+				sim.spawn_unit(x, z, team, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+			}
 		}
 	}
 }
@@ -4038,6 +4086,9 @@ void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &
 }
 
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
+	// placePlayerBase returns at once for Nomad (player.js:152-153): no civic centre, walls,
+	// mines, trees, berries, hunt or treasures. place_nomad_units scatters the units later.
+	if (sim.nomad()) return;
 	const bool fortress = config.map_type == MAP_FORTRESS;
 	// 0 A.D.'s base placers (rmgen's placePlayerBase*) keep every starting
 	// resource on land and away from water (avoidClasses(clWater, ...)).
@@ -4047,9 +4098,29 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 	// forward gold under water).
 	const MapType mt = config.map_type;
 	const float dry_h = sim.water_height() + 0.6f;
-	auto dry = [&](float px, float pz, float &cx, float &cz, float spread) {
+	// A tile land units can't stand on (0.28's passability: max minus min corner height
+	// over the tile above the class's MaxTerrainSlope), for the mines, which gatherers
+	// walk up to.
+	auto steep = [&](float x, float z) {
+		float lo = 1e9f, hi = -1e9f;
+		for (float dz : {-0.5f, 0.5f})
+			for (float dx : {-0.5f, 0.5f}) {
+				const float h = hm.sample_world(x + dx, z + dz);
+				lo = std::min(lo, h);
+				hi = std::max(hi, h);
+			}
+		return hi - lo > LAND_MAX_TERRAIN_SLOPE;
+	};
+	auto dry = [&](float px, float pz, float &cx, float &cz, float spread, bool flat = false) {
 		auto wet = [&](float x, float z) {
 			if (hm.sample_world(x, z) < dry_h) return true;
+			if (flat) {
+				if (steep(x, z)) return true;
+				for (int k = 0; k < 8; ++k) {
+					const float a = 0.7853982f * (float)k;
+					if (steep(x + std::cos(a) * spread, z + std::sin(a) * spread)) return true;
+				}
+			}
 			for (int k = 0; k < 8; ++k) {
 				const float a = 0.7853982f * (float)k;
 				if (hm.sample_world(x + std::cos(a) * spread, z + std::sin(a) * spread) < dry_h) return true;
@@ -4094,9 +4165,11 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 2. The civ's StartEntities units (placeCivDefaultStartingEntities).
 		place_start_entities(sim, hm, team, px, pz);
 
-		// fortress.js gives no starting mines, trees or berries, only
-		// treasures (which RTS0 has no entity for yet).
+		// fortress.js gives no starting mines, trees or berries, only treasures; its
+		// `for (const dist of [6, 8])` places the infantry a second time at 8 tiles, from a
+		// list without the civic centre (fortress.js:79-90).
 		if (fortress) {
+			place_start_entities(sim, hm, team, px, pz, true, 8.0f, -1);
 			place_fortress_walls(sim, spawns, (size_t)(&sp - spawns.data()));
 			continue;
 		}
@@ -4136,33 +4209,17 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		}
 
 		// 6-7. rmgen placePlayerBaseMines: one large metal mine and one large
-		// stone mine (template_gaia_ore_large / _rock_large, 5000 each).
+		// stone mine (template_gaia_ore_large / _rock_large, 5000 each), each on a tile
+		// land units can stand on. 0.28's bases have no other mines.
 		float gold_cx = px + fx * 3.5f - rx * 11.5f;
 		float gold_cz = pz + fz * 3.5f - rz * 11.5f;
-		dry(px, pz, gold_cx, gold_cz, 2.8f);
+		dry(px, pz, gold_cx, gold_cz, 2.8f, true);
 		sim.spawn_resource_world(gold_cx, gold_cz, RES_GOLD, LARGE_MINE_SUPPLY);
 
 		float stone_cx = px - fx * 8.5f - rx * 9.5f;
 		float stone_cz = pz - fz * 8.5f - rz * 9.5f;
-		dry(px, pz, stone_cx, stone_cz, 2.5f);
+		dry(px, pz, stone_cx, stone_cz, 2.5f, true);
 		sim.spawn_resource_world(stone_cx, stone_cz, RES_STONE, LARGE_MINE_SUPPLY);
-
-		// 8. Secondary Forward Gold Mine (Expansion): small metal rocks, 1000 each
-		float sec_gold_cx = px + fx * 22.0f + rx * 6.0f;
-		float sec_gold_cz = pz + fz * 22.0f + rz * 6.0f;
-		dry(px, pz, sec_gold_cx, sec_gold_cz, 2.8f);
-		for (int g = 0; g < 3; ++g) {
-			float ga = (6.2831853f * g) / 3.0f;
-			sim.spawn_resource_world(sec_gold_cx + std::cos(ga) * 1.8f, sec_gold_cz + std::sin(ga) * 1.8f, RES_GOLD, MINE_SUPPLY);
-		}
-
-		// 9. Secondary Stone Mine (Flank): small stone rocks, 1000 each
-		float sec_stone_cx = px + fx * 18.0f - rx * 16.0f;
-		float sec_stone_cz = pz + fz * 18.0f - rz * 16.0f;
-		dry(px, pz, sec_stone_cx, sec_stone_cz, 2.5f);
-		for (int s = 0; s < 2; ++s) {
-			sim.spawn_resource_world(sec_stone_cx + (s == 0 ? -1.3f : 1.3f), sec_stone_cz, RES_STONE, MINE_SUPPLY);
-		}
 
 		BiomeFauna bf = biome_fauna(config.biome, (int)config.seed);
 		// lower_nubia.js: StartingAnimal gaia/fauna_gazelle (no other base hunt; RTS0's starter hunt takes it too).
@@ -4505,6 +4562,7 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 	};
 	// placePlayerBaseTreasures: the base's treasures on a ring round the civic centre.
 	auto base_ring = [&](uint8_t type, int n) {
+		if (sim.nomad()) return; // placePlayerBase places nothing for Nomad
 		for (const auto &sp : spawns)
 			for (int k = 0; k < n; ++k) {
 				const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(10.0f, 13.0f);
@@ -4619,6 +4677,7 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 			break;
 		case MAP_WILD_LAKE:          // wild_lake.js and caledonian_meadows.js: a food bin
 		case MAP_CALEDONIAN_MEADOWS: // beside each civic centre
+			if (!sim.nomad())
 			for (const auto &sp : spawns) {
 				const float tx = sp.x + sp.forward_dir_x * 6.0f, tz = sp.z + sp.forward_dir_z * 6.0f;
 				if (dry(tx, tz)) sim.spawn_treasure(tx, tz, TREASURE_FOOD_BIN);
@@ -5008,6 +5067,79 @@ void seas_spawns(HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSpawn> &spaw
 }
 
 } // namespace
+
+void RmsGenerator::synth_canyon(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// canyon.js: the map starts as high ground (heightHill 30 m) and the land (3 m) is cut into
+	// it: a canyon round each base (ClumpPlacer(diskArea(scaleByMapSize(18, 32)))), a central
+	// basin (radius f = 0.16), wild clearings (f = 0.06, 6 apart) each joined to the two nearest
+	// bases, and a road from every base to its neighbour and to the centre. Ridges of 30 m
+	// (PathPlacer) cross the map first, kept 6 off the bases. Players on a circle at f = 0.35.
+	water_h = -10.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = 3.0f * kMetre, hill = 30.0f * kMetre;
+	hm.init(hm.res, hm.map_half, hill);
+	const size_t nv = (size_t)hm.res * (size_t)hm.res;
+	const float sp = grid_spacing(hm);
+	std::vector<uint8_t> cl_land(nv, 0), cl_player(nv, 0), cl_hill(nv, 0), cl_hill2(nv, 0);
+	auto paint = [&](const std::vector<uint8_t> &m, float h, float blend, std::vector<uint8_t> *cls) {
+		if (m.empty()) return;
+		paint_mask_elevation(hm, m, h, blend);
+		if (cls) seas_add(*cls, m);
+	};
+	const auto anywhere = [](int) { return true; };
+	auto disk = [](float r) { return 3.14159265f * r * r; };
+	const float canyon_r = seas_scale(18.0f, 32.0f, half);
+	const auto locs = seas_circle_players(num_players, rng.range_float(0.0f, 2.0f * kSeasPi), 0.35f * size, nullptr);
+	for (const auto &l : locs)
+		for (int j = 1; j <= 2; ++j)
+			paint(seas_clump(hm, rng, disk(canyon_r / (float)j), 0.65f, 0.1f, 1e9f, l.first, l.second, anywhere), land, 2.0f,
+			      j == 1 ? &cl_land : &cl_player);
+	paint(seas_clump(hm, rng, disk(0.16f * size), 0.7f, 0.1f, 1e9f, 0.0f, 0.0f, anywhere), land, 3.0f, &cl_land);
+	seas_add(cl_hill, seas_clump(hm, rng, 150.0f, 0.6f, 0.3f, 1e9f, 0.0f, 0.0f, anywhere));
+	auto rand_pos = [&]() { return std::make_pair(-half + (float)rng.range_int(1, (int)size - 1), -half + (float)rng.range_int(1, (int)size - 1)); };
+	{
+		const auto d_player = distance_to_mask(cl_player, hm.res, sp), d_hill = distance_to_mask(cl_hill, hm.res, sp);
+		for (int i = 0, n = scale_by_map_size(9, 16, half); i < n; ++i) {
+			const auto d_hill2 = distance_to_mask(cl_hill2, hm.res, sp);
+			const auto a = rand_pos(), b = rand_pos();
+			const auto m = seas_path(hm, rng, a.first, a.second, b.first, b.second, seas_scale(11.0f, 16.0f, half), 0.4f,
+			                         3.0f * seas_scale(1.0f, 4.0f, half), 0.1f, 0.0f, 0.0f,
+			                         [&](int k) { return d_player[(size_t)k] > 6.0f && d_hill2[(size_t)k] > 3.0f && d_hill[(size_t)k] > 2.0f; });
+			paint(m, hill, 3.0f, &cl_hill2);
+		}
+	}
+	for (int g = 0, n = scale_by_map_size(5, 30, half); g < n; ++g) {
+		const auto c = rand_pos();
+		const auto d_land = distance_to_mask(cl_land, hm.res, sp);
+		const auto m = seas_clump(hm, rng, disk(0.06f * size), 0.7f, 0.1f, 1e9f, c.first, c.second, [&](int k) { return d_land[(size_t)k] > 6.0f; });
+		if (!seas_any(m)) continue;
+		paint(m, land, 3.0f, &cl_land);
+		// The two nearest bases.
+		int p1 = -1, p2 = -1;
+		float d1 = 1e9f, d2 = 1e9f;
+		for (int i = 0; i < (int)locs.size(); ++i) {
+			const float d = std::hypot(c.first - locs[(size_t)i].first, c.second - locs[(size_t)i].second);
+			if (d1 >= d) { d2 = d1; p2 = p1; d1 = d; p1 = i; }
+			else if (d2 >= d) { d2 = d; p2 = i; }
+		}
+		for (int p : {p1, p2}) {
+			if (p < 0) continue;
+			paint(seas_path(hm, rng, c.first, c.second, locs[(size_t)p].first, locs[(size_t)p].second, seas_scale(11.0f, 17.0f, half), 0.4f,
+			                seas_scale(3.0f, 12.0f, half), 0.1f, 0.1f, 0.0f, anywhere),
+			      land, 3.0f, &cl_land);
+		}
+	}
+	for (int i = 0; i < (int)locs.size(); ++i) {
+		const auto &from = locs[(size_t)i];
+		for (const auto &to : {locs[(size_t)((i + 1) % (int)locs.size())], std::make_pair(0.0f, 0.0f)}) {
+			const auto m = seas_path(hm, rng, from.first, from.second, to.first, to.second, seas_scale(8.0f, 13.0f, half), 0.4f,
+			                         3.0f * seas_scale(1.0f, 4.0f, half), 0.1f, 0.0f, 0.0f, anywhere);
+			paint(m, land, 2.0f, &cl_land);
+			seas_add(cl_hill, m);
+		}
+	}
+	seas_spawns(hm, spawns, locs, 12.0f, 4.0f, water_h, land);
+}
 
 void RmsGenerator::synth_aegean_sea(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
 		const uint8_t *teams) {
@@ -11446,6 +11578,8 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// The rest of the mines, fruit and hunt the map's 0 A.D. script places
 	top_up_resources(sim, hm, water_h, spawns, config, base_resources, base_fauna);
 
+	if (sim.nomad()) place_nomad_units(sim, hm, spawns, rng);
+
 	// The Iberians' Starting Walls (player.js placeStartingWalls), last so the trees and bushes
 	// under them go (template_gaia_flora's DeleteUponConstruction).
 	const int map_tiles = (int)std::lround(2.0f * hm.map_half);
@@ -11540,6 +11674,176 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 		// (the Survival of the Fittest forests keep their own 800).
 		if (wood != 0 && rv.amount[r] == TREE_WOOD_SUPPLY) sim.set_resource_amount(rv.id[r], wood);
 		if (gatherers != 8) sim.set_resource_max_gatherers(rv.id[r], gatherers);
+	}
+}
+
+void RmsGenerator::keep_resources_passable(Simulation &sim, uint8_t type) {
+	const auto &H = sim.terrain_heights();
+	const int hr = sim.terrain_res(), tr = hr - 1;
+	if (tr <= 0 || H.size() < (size_t)hr * (size_t)hr) return;
+	const float half = sim.map_half(), tile = 2.0f * half / (float)tr;
+	const float dry_h = sim.water_height() + 0.6f;
+	// 0.28's passability per terrain tile: highest corner minus lowest over the tile.
+	std::vector<uint8_t> steep((size_t)tr * (size_t)tr, 0);
+	for (int j = 0; j < tr; ++j)
+		for (int i = 0; i < tr; ++i) {
+			const float a = H[(size_t)j * hr + i], b = H[(size_t)j * hr + i + 1];
+			const float c = H[(size_t)(j + 1) * hr + i], d = H[(size_t)(j + 1) * hr + i + 1];
+			const float sl = (std::max(std::max(a, b), std::max(c, d)) - std::min(std::min(a, b), std::min(c, d))) / tile;
+			steep[(size_t)j * tr + i] = sl > LAND_MAX_TERRAIN_SLOPE;
+		}
+	auto tidx = [&](float v) { return std::clamp((int)std::floor((v + half) / tile), 0, tr - 1); };
+	auto steep_at = [&](float x, float z) { return steep[(size_t)tidx(z) * tr + tidx(x)] != 0; };
+	// A tile a gatherer can stand beside: within r of (x, z).
+	auto open_near = [&](float x, float z, float r) {
+		for (int j = tidx(z - r); j <= tidx(z + r); ++j)
+			for (int i = tidx(x - r); i <= tidx(x + r); ++i)
+				if (!steep[(size_t)j * tr + i]) return true;
+		return false;
+	};
+	// rmgen's MAP_BORDER_WIDTH: entities stay 3 tiles in from the edge; on a circular map the
+	// ring past_map_edge bars is impassable, so whatever starts there moves in across it.
+	const float inner = half - MAP_EDGE_DIST - 1.5f;
+	auto in_ring = [&](float x, float z) { return sim.circular_map() && x * x + z * z > inner * inner; };
+	auto pull_in = [&](float &x, float &z) {
+		const float d = std::max(1e-3f, std::hypot(x, z)), k = (inner - 0.5f) / d;
+		x *= k;
+		z *= k;
+	};
+	const auto fv = sim.fauna();
+	for (size_t f = 0; f < fv.count; ++f) {
+		float x = fv.pos_x[f], z = fv.pos_z[f];
+		if (!fv.alive[f] || !in_ring(x, z)) continue;
+		pull_in(x, z);
+		sim.set_fauna_position(fv.id[f], x, z);
+	}
+	const auto rv = sim.resources();
+	for (size_t r = 0; r < rv.count; ++r) {
+		float x = rv.x[r], z = rv.z[r];
+		if (!rv.alive[r] || !in_ring(x, z)) continue;
+		pull_in(x, z);
+		sim.set_resource_position(rv.id[r], x, z);
+	}
+	std::vector<std::pair<float, float>> taken;
+	taken.reserve(rv.count);
+	for (size_t r = 0; r < rv.count; ++r)
+		if (rv.alive[r]) taken.push_back({rv.x[r], rv.z[r]});
+	auto spot_ok = [&](float x, float z, float gap, size_t self) {
+		if (std::fabs(x) > half - 2.0f || std::fabs(z) > half - 2.0f) return false;
+		if (in_ring(x, z)) return false;
+		if (sim.get_terrain_height(x, z) < dry_h) return false;
+		for (float dz : {-tile, 0.0f, tile})
+			for (float dx : {-tile, 0.0f, tile})
+				if (steep_at(x + dx, z + dz)) return false;
+		for (const auto &b : sim.buildings())
+			if (std::hypot(x - b.x, z - b.z) < 7.0f) return false;
+		for (size_t k = 0; k < taken.size(); ++k)
+			if (k != self && std::hypot(x - taken[k].first, z - taken[k].second) < gap) return false;
+		return true;
+	};
+	size_t live = 0;
+	for (size_t r = 0; r < rv.count; ++r) {
+		if (!rv.alive[r]) continue;
+		const size_t self = live++;
+		const uint8_t ty = rv.type[r];
+		const bool mine = ty == RES_GOLD || ty == RES_STONE;
+		const bool bush = ty == RES_FOOD && rv.subtype[r] == RES_SUB_NONE;
+		const bool tree = ty == RES_WOOD;
+		if (!mine && !bush && !tree) continue;
+		const float x = rv.x[r], z = rv.z[r];
+		if (tree ? open_near(x, z, 1.5f) : !steep_at(x, z)) continue;
+		// The nearest spot outwards in rings of half a tile, up to 6 units away.
+		const float gap = mine ? 3.0f : 1.0f;
+		bool moved = false;
+		for (float rad = 0.5f * tile; rad <= 6.0f && !moved; rad += 0.5f * tile) {
+			const int n = std::max(8, (int)(6.2831853f * rad / (0.5f * tile)));
+			for (int k = 0; k < n; ++k) {
+				const float a = 6.2831853f * (float)k / (float)n;
+				const float nx = x + std::cos(a) * rad, nz = z + std::sin(a) * rad;
+				if (!spot_ok(nx, nz, gap, self)) continue;
+				sim.set_resource_position(rv.id[r], nx, nz);
+				taken[self] = {nx, nz};
+				moved = true;
+				break;
+			}
+		}
+	}
+	// 0.28's scripts place mines, fruit and hunt on the land the bases share (stayClasses(clLand),
+	// avoidClasses(clHill, ...)): one walled off from every civic centre by cliffs moves to the
+	// nearest spot of that land. Water counts as open here (islands are the sea's business), and
+	// Survival of the Fittest walls its bases in on purpose.
+	if (type == MAP_SURVIVAL_OF_THE_FITTEST) return;
+	std::vector<uint8_t> reach((size_t)tr * (size_t)tr, 0);
+	std::vector<int> todo;
+	for (const auto &b : sim.buildings()) {
+		if (b.type != BLD_TOWN_CENTER || b.team >= MAX_PLAYERS) continue;
+		// Seed from the open tiles round the centre's footprint.
+		for (int j = tidx(b.z - 8.0f); j <= tidx(b.z + 8.0f); ++j)
+			for (int i = tidx(b.x - 8.0f); i <= tidx(b.x + 8.0f); ++i) {
+				const size_t t = (size_t)j * tr + i;
+				if (steep[t] || reach[t]) continue;
+				reach[t] = 1;
+				todo.push_back((int)t);
+			}
+	}
+	if (todo.empty()) return;
+	auto ring_tile = [&](int i, int j) { return in_ring(-half + ((float)i + 0.5f) * tile, -half + ((float)j + 0.5f) * tile); };
+	while (!todo.empty()) {
+		const int t = todo.back();
+		todo.pop_back();
+		const int i = t % tr, j = t / tr;
+		const int di[4] = {1, -1, 0, 0}, dj[4] = {0, 0, 1, -1};
+		for (int k = 0; k < 4; ++k) {
+			const int ni = i + di[k], nj = j + dj[k];
+			if (ni < 0 || nj < 0 || ni >= tr || nj >= tr) continue;
+			const size_t n = (size_t)nj * tr + ni;
+			if (reach[n] || steep[n] || ring_tile(ni, nj)) continue;
+			reach[n] = 1;
+			todo.push_back((int)n);
+		}
+	}
+	auto reached_near = [&](float x, float z, float r) {
+		for (int j = tidx(z - r); j <= tidx(z + r); ++j)
+			for (int i = tidx(x - r); i <= tidx(x + r); ++i)
+				if (reach[(size_t)j * tr + i]) return true;
+		return false;
+	};
+	auto reached_at = [&](float x, float z) { return reach[(size_t)tidx(z) * tr + tidx(x)] != 0; };
+	// The nearest spot outwards, up to 16 units away, that passes ok.
+	auto nearest = [&](float x, float z, const auto &ok, float &ox, float &oz) {
+		for (float rad = 0.5f * tile; rad <= 16.0f; rad += 0.5f * tile) {
+			const int n = std::max(8, (int)(6.2831853f * rad / (0.5f * tile)));
+			for (int k = 0; k < n; ++k) {
+				const float a = 6.2831853f * (float)k / (float)n;
+				ox = x + std::cos(a) * rad;
+				oz = z + std::sin(a) * rad;
+				if (ok(ox, oz)) return true;
+			}
+		}
+		return false;
+	};
+	live = 0;
+	for (size_t r = 0; r < rv.count; ++r) {
+		if (!rv.alive[r]) continue;
+		const size_t self = live++;
+		const uint8_t ty = rv.type[r];
+		if (!(ty == RES_GOLD || ty == RES_STONE || (ty == RES_FOOD && rv.subtype[r] == RES_SUB_NONE))) continue;
+		const float x = rv.x[r], z = rv.z[r];
+		if (reached_near(x, z, 1.5f)) continue;
+		const float gap = ty == RES_FOOD ? 1.0f : 3.0f;
+		float nx, nz;
+		if (nearest(x, z, [&](float px, float pz) { return reached_at(px, pz) && spot_ok(px, pz, gap, self); }, nx, nz)) {
+			sim.set_resource_position(rv.id[r], nx, nz);
+			taken[self] = {nx, nz};
+		}
+	}
+	for (size_t f = 0; f < fv.count; ++f) {
+		if (!fv.alive[f] || fv.owner[f] != GAIA_PLAYER) continue;
+		const float x = fv.pos_x[f], z = fv.pos_z[f];
+		if (sim.get_terrain_height(x, z) < dry_h || reached_near(x, z, 1.0f)) continue; // fish and whales stay at sea
+		float nx, nz;
+		if (nearest(x, z, [&](float px, float pz) { return reached_at(px, pz) && sim.get_terrain_height(px, pz) >= dry_h; }, nx, nz))
+			sim.set_fauna_position(fv.id[f], nx, nz);
 	}
 }
 

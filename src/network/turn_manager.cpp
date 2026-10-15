@@ -180,6 +180,13 @@ void TurnManager::apply_peer_left(uint32_t client_id, uint32_t last_turn) {
 	// before leaving may never arrive, so the host runs those turns without
 	// it (0 A.D. NetServerTurnManager::UninitialiseClient stops checking it).
 	left_clients_.insert(client_id);
+	// NetServerTurnManager::UninitialiseClient: once every out-of-sync client
+	// has left, the host checks hashes again, so a later divergence (say, after
+	// the player rejoined) is reported to everyone anew. The last report stays
+	// readable until then.
+	if (net_host_ && net_host_->isHost() && oos_reported_ && !oos_peers_.empty() &&
+			std::all_of(oos_peers_.begin(), oos_peers_.end(), [&](uint32_t p) { return left_clients_.count(p) != 0; }))
+		oos_rearmed_ = true;
 	for (auto &t : peer_hashes_)
 		if (t.first > current_turn_) t.second.erase(client_id);
 	for (auto &t : turn_remote_cmds_) {
@@ -550,7 +557,8 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 		// host's lobby.buddies, "disabled" nobody.
 		if (late_observers_ == LATE_OBSERVERS_DISABLED || !buddies_.count(name)) {
 			reject(6);
-			net_host_->refusePeer(client_id);
+			// 0.28 NetServer: "Game has already started, no observers allowed."
+			net_host_->refusePeer(client_id, NDR_SERVER_ALREADY_IN_GAME);
 			return;
 		}
 	}
@@ -560,7 +568,7 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 		int watching = 0;
 		for (const auto &p : net_host_->getPeers())
 			if (p.id != client_id && p.connected && p.is_authenticated && p.is_observer) ++watching;
-		if (watching + 1 > observer_limit_) { reject(7); net_host_->refusePeer(client_id); return; }
+		if (watching + 1 > observer_limit_) { reject(7); net_host_->refusePeer(client_id, NDR_SERVER_FULL); return; }
 	}
 	const std::string path = rejoin_path("host");
 	std::vector<uint8_t> world;
@@ -705,6 +713,8 @@ bool TurnManager::saved_game_hold() {
 bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	if (!rejoin_wanted_ || rejoined_) return false;
 	if (!rejoin_have_header_ || rejoin_received_ != rejoin_world_.size()) {
+		// Chunks held behind a lost one are progress: the resend is on its way.
+		if (net_host_ && net_host_->held_count(0)) rejoin_progress_ms_ = rejoin_now_ms();
 		if (rejoin_now_ms() - rejoin_progress_ms_ > REJOIN_RETRY_MS) {
 			std::cerr << "[TurnManager] rejoin transfer stalled; asking the host again\n";
 			request_rejoin(rejoin_observe_);
@@ -843,6 +853,7 @@ void TurnManager::reset() {
 	oos_turn_ = 0;
 	oos_players_.clear();
 	oos_reported_ = false;
+	oos_rearmed_ = false;
 	oos_from_host_ = false;
 	oos_dump_pending_ = false;
 	oos_dump_written_.clear();
@@ -1552,6 +1563,16 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	// drops every unit the sender doesn't own, so a peer can only order its own side.
 	std::vector<uint32_t> owned;
 	for (const auto &c : frame.commands) {
+		if (c.cmd_type == 39 && c.param == Simulation::CHEAT_DEV_PERSPECTIVE) {
+			// The developer overlay's Change perspective (PlayerViewControl: Engine.SetPlayerID):
+			// with cheats on, the sender plays `target_id` from here on, or watches (0xFF).
+			// Defeated players may use it too, as in 0.28 (the host drops observers' commands).
+			if (sim.cheats_enabled() && (c.target_id < MAX_PLAYERS || c.target_id == 0xFF)) {
+				client_player_[c.client_id] = (uint8_t)c.target_id;
+				if (c.client_id == local_client_id_ && !is_replaying_) perspective_changed_ = true;
+			}
+			continue;
+		}
 		const uint8_t pl = player_for_client(c.client_id);
 		if (pl >= MAX_PLAYERS || sim.is_defeated(pl)) continue; // defeated players only watch
 		sim.filter_owned_units(pl, c.entity_ids.data(), c.entity_ids.size(), owned);
@@ -1603,13 +1624,15 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 11) { // Patrol
 			sim.order_patrol(ids, n, c.target_x, c.target_z, queued);
 		} else if (c.cmd_type == 12) { // Garrison
-			sim.order_garrison(ids, n, c.target_id, queued);
+			sim.order_garrison(ids, n, c.target_id, queued, (c.param & NET_PARAM_OCCUPY_TURRET) != 0);
 			if (raw_n > n) sim.order_fauna_walk(pl, raw, raw_n, 0.0f, 0.0f, c.target_id);
 		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all / leave-turret
 			if (c.param == 1) {
 				if (n) sim.order_disembark_all(ids[0]);
 			} else if (c.param == 2) { // 0 A.D. "leave-turret": entity_ids are the turret units
 				sim.cmd_leave_turret(pl, c.entity_ids.data(), c.entity_ids.size());
+			} else if (c.param == 3) { // 0 A.D. "unload-turrets": target_id is the holder
+				sim.cmd_unload_turrets(pl, c.target_id);
 			} else { // entity_ids: the garrisoned units to unload (UnloadTemplate); none: all
 				sim.cmd_unload(pl, c.target_id, c.entity_ids.data(), c.entity_ids.size());
 			}
@@ -1795,6 +1818,12 @@ uint32_t TurnManager::local_hash_at(uint32_t turn) const {
 }
 
 void TurnManager::note_out_of_sync(uint32_t turn, uint32_t local_hash, uint32_t peer_hash, uint32_t peer_id) {
+	if (oos_rearmed_) {
+		oos_rearmed_ = false;
+		oos_detected_ = false;
+		oos_reported_ = false;
+		oos_peers_.clear();
+	}
 	const bool earlier = !oos_detected_ || turn < oos_turn_;
 	if (earlier) {
 		oos_turn_ = turn;

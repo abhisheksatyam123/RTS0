@@ -82,7 +82,10 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 // A player structure's 0 A.D. template ("athen/field", "spart/gerousia"; port_0ad_maps.py),
 // BLD_TYPE_COUNT when RTS0 has no such building.
 static uint8_t map_building_template(const String &tmpl) {
-	const String n = tmpl.get_slice("/", tmpl.get_slice_count("/") - 1);
+	String n = tmpl.get_slice("/", tmpl.get_slice_count("/") - 1);
+	// skirmish/structures/default_X: SkirmishReplacer.js puts structures/{civ}/X in its place.
+	if (n.begins_with("default_")) n = n.substr(8);
+	if (n == "house_5" || n == "house_10") return rtso::BLD_HOUSE;
 	static const struct { const char *name; uint8_t type; } kNames[] = {
 		{"civil_centre", rtso::BLD_TOWN_CENTER}, {"house", rtso::BLD_HOUSE}, {"barracks", rtso::BLD_BARRACKS},
 		{"storehouse", rtso::BLD_STOREHOUSE}, {"farmstead", rtso::BLD_FARMSTEAD}, {"field", rtso::BLD_FIELD},
@@ -178,17 +181,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		return true;
 	}
 
-	if (map_id == "default" || map_id == "arena") {
-		sim->set_sim_seed(seed);
-		sim->spawn_initial();
-		view->rebuild_terrain(sim);
-		if (cam_rig) {
-			cam_rig->set_map_bounds_half(sim->map_half());
-			cam_rig->set_target_pos(Vector3(0, 0, 0));
-		}
-		UtilityFunctions::print("[RtsoMain] Loaded default arena map.");
-		return true;
-	}
+	// RTS0's old "default"/"arena" start (a TC, barracks, houses and RTS0 villagers) is not a
+	// 0.28 start: 0.28's default map, Mainland, gives each player its civ's StartEntities.
+	if (map_id == "default" || map_id == "arena") return load_map_seeded("random_mainland", seed);
 
 	String path = "res://data/maps/" + map_id + ".json";
 	if (!FileAccess::file_exists(path)) {
@@ -340,13 +335,22 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
+		// SkirmishReplacer.js: a civ's SkirmishReplacements keep one of default_house_5 and
+		// default_house_10 (the size of its own house; Han lists neither) and the empty
+		// replacement destroys the piece (the Spartans' default_wall_*).
+		const String tmpl = b.get("template", "");
+		const uint8_t civ = (uint8_t)sim->player(team).civ;
+		if (tmpl.ends_with("default_house_5") || tmpl.ends_with("default_house_10")) {
+			const int pop = rtso::civ_building_type_info(civ, rtso::BLD_HOUSE).pop_bonus;
+			if (civ == rtso::CIV_HAN || (pop == 5) != tmpl.ends_with("default_house_5")) continue;
+		}
+		if (civ == rtso::CIV_SPARTANS && tmpl.contains("default_wall_")) continue;
 		if (b.has("wallset")) {
 			spawn_map_wall(*sim, b, team);
 			continue;
 		}
 		// The structures only maps place (bolt towers, stoas, tents) by their template, then the
 		// generic and civ structures by template or name.
-		const String tmpl = b.get("template", "");
 		uint8_t btype = rtso::map_structure_template(tmpl.utf8().get_data()).type;
 		if (btype >= rtso::BLD_TYPE_COUNT && !tmpl.is_empty()) btype = map_building_template(tmpl);
 		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(stype_str);
@@ -461,6 +465,29 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (ref.is_empty()) continue;
 		sim->add_trigger_point((uint8_t)ref.unicode_at(0), (float)tp.get("x", 0.0), (float)tp.get("z", 0.0),
 				owner <= 0 ? rtso::GAIA_PLAYER : (uint8_t)std::min(owner - 1, rtso::MAX_PLAYERS - 1));
+	}
+	// The map's <Paths> (MapReader ReadPaths): cinematic camera paths its scripts play.
+	Array cp_arr = d.get("cinema_paths", Array());
+	for (int i = 0; i < cp_arr.size(); ++i) {
+		Dictionary cp = cp_arr[i];
+		rtso::CinemaPath path;
+		const CharString name = String(cp.get("name", "")).utf8();
+		std::strncpy(path.info.name, name.get_data(), sizeof(path.info.name) - 1);
+		path.info.timescale = (float)(double)cp.get("timescale", 1.0);
+		path.info.mode = rtso::cinema_mode_from_name(String(cp.get("mode", "ease_inout")).utf8().get_data());
+		path.info.style = rtso::cinema_style_from_name(String(cp.get("style", "default")).utf8().get_data());
+		path.info.look_at_target = String(cp.get("orientation", "")) == "target" ? 1 : 0;
+		auto nodes = [](const Array &arr, std::vector<rtso::CinemaNode> &out) {
+			for (int k = 0; k < arr.size(); ++k) {
+				const Array n = arr[k];
+				if (n.size() < 4) continue;
+				out.push_back(rtso::CinemaNode{(float)(double)n[0], (float)(double)n[1], (float)(double)n[2], (float)(double)n[3]});
+			}
+		};
+		nodes(cp.get("nodes", Array()), path.nodes);
+		nodes(cp.get("targets", Array()), path.targets);
+		if (path.info.look_at_target && path.targets.empty()) path.info.look_at_target = 0;
+		sim->add_cinema_path(path);
 	}
 	// The map's TriggerScripts (0 A.D. ScriptSettings), ported to C++ (triggers.h).
 	Array trig_arr = d.get("trigger_scripts", Array());
@@ -638,7 +665,7 @@ void RtsoMain::apply_match_settings() {
 	if (!sim) return;
 	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
 	if (!ms) {
-		sim->spawn_initial();
+		load_map_seeded("random_mainland", (uint32_t)Time::get_singleton()->get_ticks_msec());
 		return;
 	}
 	String map_id = (String)ms->get("map_id");
@@ -694,10 +721,10 @@ void RtsoMain::apply_match_settings() {
 	}
 	sim->set_nomad((bool)ms->get("nomad")); // random maps only (generate_random_map)
 	if (!load_map_seeded(map_id, seed)) {
-		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
+		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - Mainland.");
 		if (rtso::is_playable_civ(civ)) sim->set_player_civ((uint8_t)civ);
 		if (rtso::is_playable_civ(ai)) sim->set_team_civ(1, (uint8_t)ai);
-		sim->spawn_initial();
+		if (!load_map_seeded("random_mainland", seed)) sim->spawn_initial();
 		return;
 	}
 	if (victory >= 0 && victory < 256 && rtso::valid_victory_code((uint8_t)victory)) sim->set_victory_condition((uint8_t)victory);

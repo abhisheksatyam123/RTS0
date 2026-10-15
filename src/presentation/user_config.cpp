@@ -50,6 +50,7 @@ const Default kDefaults[] = {
 	{"waterrefraction", "true"},
 	{"waterreflection", "true"},
 	{"textures.quality", "2"},
+	{"textures.maxanisotropy", "2"},
 	{"sharpening", "disabled"},
 	{"sharpness", "0.3"},
 	{"variant_diversity", "full"},
@@ -93,10 +94,14 @@ const Default kDefaults[] = {
 	{"network.observermaxlag", "-1"},
 	{"network.autocatchup", "true"},
 	{"network.duplicateplayernames", "false"},
+	// 0.28 maps the host's port with UPnP when built with miniupnpc
+	// (NetServer SetupUPnP); RTS0 makes that build switch a setting.
+	{"network.upnp", "true"},
 	{"overlay.netwarnings", "true"},
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},
 	{"gui.session.formationwalkonly", "true"},
+	{"gui.session.defaultformation", "special/formations/box"},
 	{"gui.session.selectformationasone", "true"},
 	{"gui.session.rankabovestatusbar", "true"},
 	{"gui.session.experiencestatusbar", "true"},

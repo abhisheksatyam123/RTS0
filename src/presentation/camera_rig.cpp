@@ -76,6 +76,7 @@ void RtsoCameraRig::follow_to(Vector3 pos) {
 }
 
 void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
+	if (cinema_view_) return;
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_valid()) {
 		// Middle Mouse Button Drag (0 A.D. pan = MouseMiddle)
@@ -159,6 +160,7 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 }
 
 void RtsoCameraRig::_process(double delta) {
+	if (cinema_view_) return; // back at the rig's own view when the path ends
 	Vector3 input_dir(0, 0, 0);
 
 	// Held camera hotkeys (0 A.D. [hotkey.camera]: WASD/arrows scroll, Q/E and

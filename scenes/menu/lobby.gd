@@ -49,6 +49,12 @@ var _chat_last := 0
 var _chat_backlog := true # the first fetch after signing in is the backlog (lobby.history)
 var _rooms: Array = []
 var _ratings := {} # player name -> rating, from the player list
+## lobby.js with attribs.dialog: opened from the game setup's Lobby button
+## over the setup, without Host and Join; Back (or Escape) closes it.
+var dialog := false
+signal closed
+var _moderators := {} # names the lobby lists as moderators
+var _subject := "" # the lobby room subject (Subject.js)
 var _details: RichTextLabel
 var _rating_column := false # lobby.columns.gamerating
 var _rating_filter: OptionButton
@@ -77,6 +83,7 @@ func _ready() -> void:
 	_timer.start()
 	_server.text = LobbySession.address
 	_name.text = LobbySession.player_name if LobbySession.signed_in() else multiplayer_name()
+	LobbySession.kicked.connect(_on_kicked)
 	_update_signed_in()
 	_refresh()
 
@@ -102,9 +109,10 @@ func _build() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	header.add_child(_button("Leaderboard", _on_leaderboard_pressed))
-	header.add_child(_button("Main Menu", _on_back_pressed))
+	header.add_child(_button("Back" if dialog else "Main Menu", _on_back_pressed))
 
 	var login := HBoxContainer.new()
+	login.visible = not dialog
 	root.add_child(login)
 	login.add_child(_label("Lobby server"))
 	_server = _line("127.0.0.1:8088", 180)
@@ -177,7 +185,8 @@ func _build() -> void:
 	_games.set_column_expand_ratio(2, 2)
 	_games.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_games.item_selected.connect(_on_game_selected)
-	_games.item_activated.connect(_on_join_pressed)
+	if not dialog:
+		_games.item_activated.connect(_on_join_pressed)
 	left.add_child(_games)
 	_details = RichTextLabel.new()
 	_details.bbcode_enabled = true
@@ -187,6 +196,7 @@ func _build() -> void:
 	left.add_child(_details)
 
 	var join := HBoxContainer.new()
+	join.visible = not dialog
 	left.add_child(join)
 	join.add_child(_label("Address"))
 	_join_ip = _line("127.0.0.1", 140)
@@ -203,6 +213,7 @@ func _build() -> void:
 	join.add_child(_button("Join Game", _on_join_pressed))
 
 	var host := HBoxContainer.new()
+	host.visible = not dialog
 	left.add_child(host)
 	host.add_child(_label("Game name"))
 	_host_name = _line("", 180)
@@ -407,7 +418,18 @@ func _update_signed_in() -> void:
 
 
 func _on_back_pressed() -> void:
+	if dialog:
+		# QuitButton.closeDialog: back to the game setup.
+		closed.emit()
+		queue_free()
+		return
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if dialog and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_on_back_pressed()
 
 
 func _on_sign_pressed() -> void:
@@ -628,9 +650,19 @@ func _on_buddy_pressed() -> void:
 
 
 func _show_details(r: Dictionary) -> void:
-	_details.visible = not r.is_empty()
+	# Subject.js: the room subject shows while no game is selected.
+	_details.visible = not r.is_empty() or (_subject != "" and LobbySession.signed_in())
 	if not r.is_empty():
 		_details.text = LobbySession.game_details(r, _ratings)
+	elif _details.visible:
+		_details.text = _subject.replace("[", "[lb]")
+
+
+## KickStrings.Local: a moderator removed us from the lobby.
+func _on_kicked(text: String) -> void:
+	_system_line(text.replace("[", "[lb]"))
+	_say(text)
+	_update_signed_in()
 
 
 func _on_players(code: int, obj) -> void:
@@ -640,21 +672,30 @@ func _on_players(code: int, obj) -> void:
 		return
 	_players.clear()
 	_ratings = {}
+	_moderators = {}
 	var buddy_list := buddies()
 	var top := _players.create_item()
 	for p in obj.get("players", []):
 		if p.get("rating") != null:
 			_ratings[str(p.get("name", ""))] = p["rating"]
 		var st := str(p.get("status", "available"))
+		if p.get("moderator", false):
+			_moderators[str(p.get("name", ""))] = true
 		var it := _players.create_item(top)
 		var col: Color = {"available": Color(0.6, 0.9, 0.6), "away": Color(0.9, 0.8, 0.4), "playing": Color(0.9, 0.5, 0.5)}.get(st, Color.WHITE)
-		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Playing"}.get(st, st))
+		# PlayerList.js presences: Online, Away, Busy (in a game).
+		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Busy"}.get(st, st))
 		it.set_custom_color(0, col)
-		it.set_text(1, (BUDDY_SYMBOL + " " if buddy_list.has(str(p.get("name", ""))) else "") + str(p.get("name", "")))
+		it.set_text(1, (BUDDY_SYMBOL + " " if buddy_list.has(str(p.get("name", ""))) else "") + _nick(str(p.get("name", ""))))
 		it.set_text(2, str(p.get("rating", "")))
 		it.set_metadata(0, str(p.get("name", "")))
 		if str(p.get("name", "")) == _selected_player:
 			it.select(0)
+	LobbySession.moderator = _moderators.has(LobbySession.player_name)
+	var subject := str(obj.get("subject", ""))
+	if subject != _subject:
+		_subject = subject
+		_show_details(_selected_room())
 	if _rating_column or _details.visible:
 		_show_rooms() # the games' ratings follow the players'
 
@@ -676,11 +717,18 @@ func _on_chat(code: int, obj) -> void:
 		if notify and who != "" and who != me and str(m.get("text", "")).findn(me) >= 0:
 			notify = false
 			_play_nick_alert()
-		var text := str(m.get("text", "")).replace("[", "[lb]")
+		var raw := str(m.get("text", ""))
+		var text := raw.replace("[", "[lb]")
+		var when := _chat_time(m)
 		if who == "":
-			_chat_log.append_text("[color=#aaaaaa]%s[/color]\n" % text)
+			_chat_log.append_text("%s[color=#aaaaaa]%s[/color]\n" % [when, text])
+		elif raw.begins_with("/me "):
+			# ChatMessageFormatMe: "* %(sender)s %(message)s".
+			_chat_log.append_text("%s* [b]%s[/b] %s\n" % [when, _nick(who).replace("[", "[lb]"), text.substr(4)])
 		else:
-			_chat_log.append_text("[color=#e0c070]%s:[/color] %s\n" % [who.replace("[", "[lb]"), text])
+			if raw.begins_with("/say "):
+				text = text.substr(5)
+			_chat_log.append_text("%s[color=#e0c070]%s:[/color] %s\n" % [when, _nick(who).replace("[", "[lb]"), text])
 	_chat_last = int(obj.get("last", _chat_last))
 
 
@@ -692,11 +740,83 @@ func _play_nick_alert() -> void:
 	p.play()
 
 
+## TimestampWrapper.js: "[HH:MM] " before a line when chat.timestamp is on.
+func _chat_time(m: Dictionary) -> String:
+	if not RtsoUserConfig.new().get_bool("chat.timestamp") or not m.has("time"):
+		return ""
+	var t := Time.get_datetime_dict_from_unix_time(int(m["time"]) + int(Time.get_time_zone_from_system().get("bias", 0)) * 60)
+	return "[color=#aaaaaa][lb]%02d:%02d] [/color]" % [int(t["hour"]), int(t["minute"])]
+
+## PlayerColor.ColorPlayerName: "@" before a moderator's name.
+func _nick(name: String) -> String:
+	return ("@" + name) if _moderators.has(name) else name
+
+## 0.28 ChatCommandHandler.ChatCommands, in their order; the moderator-only
+## ones (kick, ban) work for moderators (tools/lobby_server.py --moderators).
+const CHAT_COMMANDS := [
+	["away", "Set your state to 'Away'."],
+	["back", "Set your state to 'Online'."],
+	["kick", "Kick a specified user from the lobby. Usage: /kick nick reason", true],
+	["ban", "Ban a specified user from the lobby. Usage: /ban nick reason", true],
+	["help", "Show this help."],
+	["me", "Send a chat message about yourself. Example: /me goes swimming."],
+	["say", "Send text as a chat message (even if it starts with slash). Example: /say /help is a great command."],
+	["clear", "Clear all chat scrollback."],
+]
+
+func _system_line(text: String) -> void:
+	_chat_log.append_text("[color=#aaaaaa]%s[/color]\n" % text)
+
+## handleChatCommand: true when the input was a command, run here and not sent.
+func _chat_command(text: String) -> bool:
+	if not text.begins_with("/"):
+		return false
+	var i := text.find(" ")
+	var cmd := text.substr(1, i - 1 if i >= 0 else -1)
+	var args := text.substr(i + 1).strip_edges() if i >= 0 else ""
+	var entry: Array = []
+	for c in CHAT_COMMANDS:
+		if c[0] == cmd:
+			entry = c
+	var tag := func(s: String) -> String: return "[color=#c8c8ff]%s[/color]" % s.replace("[", "[lb]")
+	if entry.is_empty():
+		_system_line("The command '%s' is not supported. Try %s to get more information about the supported commands." % [tag.call(cmd), tag.call("/help")])
+		return true
+	if entry.size() > 2 and entry[2] and not LobbySession.moderator:
+		_system_line("The command '%s' is restricted to moderators." % tag.call(cmd))
+		return true
+	match cmd:
+		"away", "back":
+			LobbySession.away = cmd == "away"
+			LobbySession.post_json("/presence", {"token": LobbySession.token, "status": "away" if cmd == "away" else "available"},
+				func(_c: int, _o) -> void: _refresh())
+		"help":
+			var txt := "Chat commands:"
+			for c in CHAT_COMMANDS:
+				if not (c.size() > 2 and c[2]) or LobbySession.moderator:
+					txt += "\n%s - %s" % [tag.call(c[0]), c[1]]
+			_system_line(txt)
+		"me", "say":
+			if args == "":
+				_system_line("The command '%s' requires at least one argument." % tag.call("/" + cmd))
+				return true
+			return false
+		"clear":
+			_chat_log.clear()
+		"kick", "ban":
+			# Engine.LobbyKick / LobbyBan: the nick, then the reason.
+			var j := args.find(" ")
+			LobbySession.post_json("/kick", {"token": LobbySession.token, "nick": args.substr(0, j) if j >= 0 else args,
+				"reason": args.substr(j + 1) if j >= 0 else "", "ban": cmd == "ban"}, func(_c: int, _o) -> void: _refresh())
+	return true
+
 func _on_send_pressed() -> void:
 	var text := _chat_line.text.strip_edges()
 	if text == "" or not LobbySession.signed_in():
 		return
 	_chat_line.text = ""
+	if _chat_command(text):
+		return
 	LobbySession.post_json("/chat", {"token": LobbySession.token, "text": text}, func(_c: int, _o) -> void: _refresh())
 
 
@@ -775,12 +895,19 @@ func _on_host_pressed(saved := false) -> void:
 		_say("Type a port for the game.")
 		return
 	var who := _player_name()
+	var game_name := _host_name.text.strip_edges() if _host_name.text.strip_edges() != "" else who + "'s game"
+	# gamesetup_mp.js: a game name another host already lists is refused.
+	for r in _rooms:
+		if str(r.get("name", "")) == game_name and str(r.get("host_name", "")) != who:
+			_say("Game name already in use.")
+			return
 	MatchSettings.net_mode = "host"
 	MatchSettings.net_lobby = LobbySession.address
 	MatchSettings.net_player_name = who
 	MatchSettings.net_port = port
 	MatchSettings.net_password = _host_pwd.text
 	MatchSettings.net_observe = false
+	LobbySession.map_upnp(port)
 	if saved:
 		# gamesetup_mp.js handleAuthenticated: the host picks the save (the
 		# load page), and the match scene hosts it once loaded
@@ -792,11 +919,12 @@ func _on_host_pressed(saved := false) -> void:
 			MatchSettings.net_mode = "")
 		return
 	if LobbySession.signed_in():
-		# The same id main_node registers, so both update one entry.
+		# The same id main_node registers, so both update one entry (the lobby
+		# matches main_node's untokened post to it by address).
 		LobbySession.host_game({
 			"id": "room-%d" % port,
 			"host_port": port,
-			"name": _host_name.text.strip_edges() if _host_name.text.strip_edges() != "" else who + "'s game",
+			"name": game_name,
 			"host_name": who,
 			"map_id": MatchSettings.map_id,
 			"map_name": MatchSettings.map_id.replace("_", " ").capitalize(),

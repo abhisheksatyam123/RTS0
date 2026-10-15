@@ -2,10 +2,13 @@
 #include "net_types.h"
 #include "../core/memory/arena.h"
 #include <functional>
+#include <map>
 #include <vector>
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <atomic>
+#include <thread>
 
 namespace rtso {
 
@@ -16,6 +19,9 @@ constexpr uint8_t NET_FLAG_CONNECT_ACK = 0x04;
 constexpr uint8_t NET_FLAG_DISCONNECT  = 0x08;
 constexpr uint8_t NET_FLAG_RELIABLE    = 0x10;
 constexpr uint8_t NET_FLAG_HEARTBEAT   = 0x20;
+// A reliable message too long for one datagram goes as several; every part but
+// the last carries this flag (ENet's fragments, NetEnet.cpp: network.enetmtu).
+constexpr uint8_t NET_FLAG_FRAGMENT    = 0x40;
 
 #pragma pack(push, 1)
 struct NetWireHeader {
@@ -115,6 +121,19 @@ public:
 	// it has an authoritative setup to hand a late joiner. NetHost never parses
 	// the attributes itself (TurnManager owns the payload) but records the id.
 	void note_game_start_sent() { game_start_sent_ = true; }
+	// 0.28 polls ENet on its own thread "to avoid getting timeouts if the main
+	// thread hangs" (NetSession.h). RTS0 polls in _process, so a step that
+	// blocks it, the map load at Start, keeps its peers from timing it out by
+	// sending heartbeats from a thread meanwhile. KeepAlive scopes that.
+	void begin_keepalive();
+	void end_keepalive();
+	struct KeepAlive {
+		NetHost &host;
+		explicit KeepAlive(NetHost &h) : host(h) { host.begin_keepalive(); }
+		~KeepAlive() { host.end_keepalive(); }
+		KeepAlive(const KeepAlive &) = delete;
+		KeepAlive &operator=(const KeepAlive &) = delete;
+	};
 	bool game_start_sent() const { return game_start_sent_; }
 	void sendHandshake();
 	void sendAuthenticate(const std::string &name, const std::string &password = "");
@@ -168,7 +187,8 @@ public:
 	// from then on. False if there is no such admitted client.
 	// Host: close a client's link once the answer just sent reaches it, with
 	// no kick notice (0 A.D. NetServer Disconnect(NDR_SERVER_FULL)).
-	void refusePeer(uint32_t peer_id);
+	// reason: the NDR_* the closing packet names (0.28 NetServer refusals).
+	void refusePeer(uint32_t peer_id, uint8_t reason = 0);
 	bool kickPeer(uint32_t peer_id, bool ban);
 	// Host: the admitted client with this name (0 if none).
 	uint32_t peerByName(const std::string &name) const;
@@ -191,6 +211,13 @@ public:
 	void onPeerConnected(std::function<void(uint32_t)> cb);
 	void onPeerDisconnected(std::function<void(uint32_t)> cb);
 	void onChat(std::function<void(const ChatMsg&)> cb);
+	// Host: 0 A.D. NetServer OnChat sends an addressed line (ally, enemy,
+	// observer, private, flare) only to its addressees. The router answers
+	// whether `message` from client `from` goes to client `to`; unset, every
+	// line goes to everyone and receivers filter (chat_routing.h).
+	void setChatRouter(std::function<bool(uint32_t from, uint32_t to, const std::string &message)> router) {
+		chat_router_ = std::move(router);
+	}
 	// Fired for a late-join request this host may answer. Returns true when the
 	// owner answered it, filling turn_out / hash_out with the state it can prove a
 	// joiner can rebuild; returns false to have NetHost reply ERR_JOINED_LATE.
@@ -231,6 +258,27 @@ private:
 	void send_raw_packet(const std::string &ip, uint16_t port, const uint8_t *data, size_t size);
 	void send_wire_packet(const std::string &ip, uint16_t port, uint32_t peer_id, uint8_t flags, uint8_t channel, const uint8_t *payload, size_t payload_len, bool reliable);
 	void handle_incoming_packet(const uint8_t *data, size_t size, const std::string &from_ip, uint16_t from_port);
+	// The part of a packet that follows the reliable-order check: disconnect,
+	// fragment reassembly and the message itself.
+	void deliver_packet(uint8_t flags, const uint8_t *payload, size_t payload_size, uint32_t sender_peer_id);
+	// Delivers the held reliable packets that are next in order; with skip, the
+	// first one even across a gap that outlived kHoldGapMs.
+	void release_held(NetPeer &p, bool skip);
+	void check_held(uint64_t now_ms);
+public:
+	// The largest message payload one datagram carries: 0.28's ENet MTU (1372)
+	// less its headers, so no datagram relies on IP fragmentation.
+	static constexpr size_t kFragmentPayload = 1200;
+	// A gap in a reliable stream is filled by a resend, within seconds even on a
+	// lossy link; one that lasts this long (the sender gave up) is skipped.
+	static constexpr uint64_t kHoldGapMs = 30000;
+	// Reliable packets from peer_id that arrived early and wait for a resend of
+	// an earlier one: the stream is still coming, only held back.
+	size_t held_count(uint32_t peer_id) const {
+		const NetPeer *p = getPeer(peer_id);
+		return p ? p->held_packets.size() : 0;
+	}
+private:
 	void send_ack(const std::string &ip, uint16_t port, uint32_t peer_id, uint32_t seq);
 	void send_heartbeats(uint64_t now_ms);
 	void check_retransmissions(uint64_t now_ms);
@@ -244,6 +292,11 @@ private:
 	void refuse_with(NetPeer &p, uint8_t reason);
 	bool name_taken(const std::string &name, const NetPeer *self) const;
 	std::set<std::string> banned_names_, banned_addresses_;
+	// 0 A.D. NetServer m_FailedAttempts: wrong passwords per name (the address
+	// for an unnamed client); FAILED_PASSWORD_TRIES_BEFORE_BAN of them bans it,
+	// and the right password before that resets the count.
+	std::map<std::string, int> failed_passwords_;
+	static constexpr int FAILED_PASSWORD_TRIES_BEFORE_BAN = 3;
 	int auth_result_ = -1;
 	std::vector<KickedMsg> kicks_;
 	bool kicked_self_ = false;
@@ -253,6 +306,8 @@ private:
 	// The disconnect notice is a bare unreliable datagram (ENet's waits for an
 	// ack); a few copies make a lost one unlikely, and repeats are harmless.
 	static constexpr int kDisconnectSends = 3;
+	// A client gives up on a host that never answers its connect after this long.
+	static constexpr uint64_t kConnectTimeoutMs = 11000;
 	std::vector<ClientPerformanceMsg::Entry> client_perf_;
 	uint64_t client_perf_reports_ = 0;
 	uint64_t last_perf_ms_ = 0;
@@ -284,6 +339,7 @@ private:
 	std::function<void(uint32_t)> peer_connected_cb_;
 	std::function<void(uint32_t)> peer_disconnected_cb_;
 	std::function<void(const ChatMsg&)> chat_cb_;
+	std::function<bool(uint32_t, uint32_t, const std::string &)> chat_router_;
 	std::function<bool(uint32_t, uint32_t, uint32_t &, uint32_t &)> join_sync_request_cb_;
 
 	void check_stun(uint64_t now_ms);
@@ -306,6 +362,8 @@ private:
 	// True after this host sent NMT_GAME_START, so a late joiner is only answered
 	// with an authoritative setup. Cleared by startHost/startClient/stop.
 	bool game_start_sent_ = false;
+	std::thread keepalive_;
+	std::atomic<bool> keepalive_stop_{false};
 };
 
 } // namespace rtso

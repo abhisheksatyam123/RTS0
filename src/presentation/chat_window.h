@@ -52,14 +52,18 @@ public:
 	virtual void chat_send_wire(const std::string &wire) = 0;
 	// 0 A.D. Cheats.executeCheat: true when `text` was a cheat code (it is not sent as chat).
 	virtual bool chat_try_cheat(const String &text) = 0;
+	// 0 A.D. g_NetworkCommands (gui/common/network.js): true when `text` was
+	// /kick, /ban, /kickspecs, /banspecs, /list or /clear (it is not sent as chat).
+	virtual bool chat_network_command(const String &text) = 0;
 	// ChatAddressees.js isAddressee for the local player: tag is the wire tag ("[Allies]",
-	// "[Enemies]", "[Observers]", "[Player-N]") of a message from sender_guid.
+	// "[Enemies]", "[Observers]", "[Player-N]", "[Observer-C]") of a message from sender_guid.
 	virtual bool chat_is_addressee(const String &sender_guid, const String &tag) = 0;
 	// The local client is an observer (no seat): no Allies or Enemies, private messages only to observers.
 	virtual bool chat_local_observer() = 0;
 	// ChatAddressees.onUpdatePlayers: the other connected humans a private message can go to,
-	// as (player id + 1, coloured name); 0 for an observer.
-	virtual std::vector<std::pair<int, String>> chat_private_targets() = 0;
+	// as (wire tag, coloured name): "[Player-N]" for player id N - 1, "[Observer-C]" for
+	// the observer on client C.
+	virtual std::vector<std::pair<String, String>> chat_private_targets() = 0;
 };
 
 class RtsoChatWindow {
@@ -238,7 +242,7 @@ public:
 		add("Observers", "[Observers]");
 		if (host_)
 			for (const auto &t : host_->chat_private_targets())
-				add(t.second, "[Player-" + String::num_int64(t.first) + "]");
+				add(t.second, t.first);
 		select_tag(keep);
 	}
 
@@ -247,7 +251,7 @@ public:
 	void send_pressed() {
 		if (!host_ || !input_ || !log_) return;
 		String text = input_->get_text().strip_edges();
-		if (!text.is_empty() && host_->chat_try_cheat(text)) {
+		if (!text.is_empty() && (host_->chat_network_command(text) || host_->chat_try_cheat(text))) {
 			input_->clear();
 			if (panel_) panel_->set_visible(false);
 			return;
@@ -264,7 +268,7 @@ public:
 				for (const auto &t : host_->chat_private_targets()) {
 					const String name = plain(t.second);
 					if (rest.begins_with(name + String(" "))) {
-						tag = "[Player-" + String::num_int64(t.first) + "]";
+						tag = t.first;
 						text = rest.substr(name.length() + 1).strip_edges();
 						break;
 					}
@@ -276,7 +280,7 @@ public:
 			if (context == "Private") last_private_ = tag;
 			const String wire_tag = tag.is_empty() ? String() : tag + " ";
 			const String line = format_line(context, host_->chat_user(""), text);
-			log_->append_text(stamp() + line + "\n");
+			add_log(stamp() + line + "\n");
 			post_overlay(stamp() + line);
 			input_->clear();
 			host_->play_sfx("res://assets/sounds/ui/chat.ogg");
@@ -316,7 +320,7 @@ public:
 			context = "Observer";
 			tag = "[Observers]";
 			msg = msg.substr(11).strip_edges();
-		} else if (msg.begins_with("[Player-")) {
+		} else if (msg.begins_with("[Player-") || msg.begins_with("[Observer-")) {
 			int close_b = msg.find("]");
 			if (close_b > 0) {
 				context = "Private";
@@ -326,7 +330,7 @@ public:
 		}
 		if (!tag.is_empty() && host_ && !host_->chat_is_addressee(sender_guid, tag)) return false;
 		const String line = stamp() + format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
-		log_->append_text(line + String("\n"));
+		add_log(line + String("\n"));
 		post_overlay(line);
 		return true;
 	}
@@ -336,7 +340,7 @@ public:
 	void post_own(const String &text) {
 		if (!log_ || !host_) return;
 		const String line = format_line("", host_->chat_user(""), text);
-		log_->append_text(stamp() + line + "\n");
+		add_log(stamp() + line + "\n");
 		post_overlay(stamp() + line);
 		if (host_->net_lockstep()) host_->chat_send_wire(text.utf8().get_data());
 	}
@@ -344,9 +348,23 @@ public:
 	// Raw bbcode line (Petra log, diplomacy/tribute feedback).
 	void append_line(const String &bbcode) {
 		const String line = bbcode.is_empty() ? bbcode : stamp() + bbcode;
-		if (log_) log_->append_text(line);
+		if (log_) add_log(line);
 		post_overlay(line.strip_edges(false, true));
 	}
+
+	// 0 A.D. clearChatMessages (/clear): empties the history and the overlay.
+	void clear() {
+		if (log_) log_->clear();
+		history_ = String();
+		++history_rev_;
+		overlay_lines_.clear();
+		if (overlay_) rebuild_overlay();
+	}
+
+	// The log's bbcode, for the networked game setup's chat panel (0.28 shows
+	// the same chat there before Start), and a counter that moves on each change.
+	const String &history() const { return history_; }
+	uint64_t history_rev() const { return history_rev_; }
 
 	// Test hooks: the log as plain text, and the input line.
 	String log_text() const { return log_ ? log_->get_parsed_text() : String(); }
@@ -431,6 +449,13 @@ private:
 	std::deque<std::pair<String, uint64_t>> overlay_lines_;
 	Panel *panel_ = nullptr;
 	RichTextLabel *log_ = nullptr;
+	String history_;
+	uint64_t history_rev_ = 0;
+	void add_log(const String &bbcode) {
+		log_->append_text(bbcode);
+		history_ += bbcode;
+		++history_rev_;
+	}
 	RtsoSafeSelect *channel_ = nullptr;
 	LineEdit *input_ = nullptr;
 	Button *send_btn_ = nullptr;

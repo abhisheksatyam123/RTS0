@@ -96,6 +96,10 @@ static func out_of_sync_replay(m: Node) -> Node:
 	var turn := int(m.get_replay_status().get("out_of_sync_turn", 0))
 	return _open(m, TITLE_OOS, "\n".join(CAPTIONS_OOS) % turn, [])
 
+## TimeWarpMessageBox (developer overlay, Enable time warp): 500x250, OK.
+static func time_warp(m: Node) -> Node:
+	return _open(m, "Time warp mode", "Note: time warp mode is a developer option, and not intended for use over long periods of time. Using it incorrectly may cause the game to run out of memory or crash.", [], Vector2(500, 250))
+
 ## OutOfSyncNetwork: the host found a peer whose state differs (NMT_SYNC_ERROR).
 ## The match runs on behind the box; OK closes it.
 static func out_of_sync_network(m: Node) -> Node:

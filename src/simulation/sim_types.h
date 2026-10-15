@@ -28,8 +28,9 @@ struct RecentDeath {
 // DeathDamage.js: Circular splash when the entity dies (Range in RTS0 units, Damage summed).
 struct DeathDamageInfo {
 	float range;
-	float damage;
+	float damage; // Damage/Crush, against the target's crush Resistance
 	bool friendly_fire;
+	float ship_building_mult; // Bonuses: Classes "Ship Building" Multiplier
 };
 enum BiomeType : uint8_t {
 	BIOME_AEGEAN = 0,
@@ -268,7 +269,7 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_ARDENNES_FOREST, "ardennes_forest", "Ardennes Forest (RMS)", "temperate", true, "Dense hilly forest with clearings for each base; wood everywhere, little open ground."},
 		{MAP_NEARESTERN_BADLANDS, "nearestern_badlands", "Near-Eastern Badlands (RMS)", "oasis", true, "Dry eroded badlands split by canyons, with a few oases and rich mines."},
 		{MAP_RIVERS, "rivers", "Rivers (RMS)", "temperate", true, "Rivers run from a central lake out between the players, crossed by shallow fords."},
-		{MAP_CANYON, "canyon", "Canyon (RMS)", "oasis", true, "High rocky ground cut by canyons: each base sits in a gorge that leads to a central basin."},
+		{MAP_CANYON, "canyon", "Canyon (RMS)", "oasis", true, "Players start around the map in deep canyons."},
 		{MAP_CORINTHIAN_ISTHMUS, "corinthian_isthmus", "Corinthian Isthmus (RMS)", "mediterranean", true, "Two lands joined by a narrow isthmus, with the sea on both sides of it."},
 		{MAP_BELGIAN_UPLANDS, "belgian_uplands", "Belgian Uplands (RMS)", "temperate", true, "Steep wooded hills and valleys with no water, high ground everywhere."},
 		{MAP_LORRAINE_PLAIN, "lorraine_plain", "Lorraine Plain (RMS)", "temperate", true, "A flat plain split by a river with a few fords, players on either bank."},
@@ -513,7 +514,8 @@ enum BuildingType : uint8_t {
 	BLD_KUSH_SHRINE = 82,     // kush/shrine (a temple that trains and researches nothing)
 	BLD_FORTRESS_OLD = 83,    // han/fortress_old (the fortress with the old actor)
 	BLD_LAOZI_GATE = 84,      // han/laozigate (not capturable)
-	BLD_TYPE_COUNT = 85
+	BLD_TEMPLE_ISIS = 85,     // ptol/temple_2 (Temple of Isis: City, one per player, trains the heroes)
+	BLD_TYPE_COUNT = 86
 };
 
 #include "civ_building_data.h"
@@ -537,7 +539,7 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	          type == BLD_TOWER_DOUBLE) ? (uint8_t)BLD_TOWER
 	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN) ? (uint8_t)BLD_HOUSE
 	       : type == BLD_FORTRESS_OLD ? (uint8_t)BLD_FORTRESS
-	       : type == BLD_KUSH_SHRINE ? (uint8_t)BLD_TEMPLE
+	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS) ? (uint8_t)BLD_TEMPLE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -577,7 +579,7 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"pers/hall", BLD_HALL, CIV_PERSIANS}, {"pers/warehouse", BLD_WAREHOUSE, CIV_PERSIANS},
 		{"gaul/tavern", BLD_TAVERN, CIV_GAULS}, {"maur/tower_double", BLD_TOWER_DOUBLE, CIV_MAURYANS},
 		{"kush/shrine", BLD_KUSH_SHRINE, CIV_KUSHITES}, {"han/fortress_old", BLD_FORTRESS_OLD, CIV_HAN},
-		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN},
+		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN}, {"ptol/temple_2", BLD_TEMPLE_ISIS, CIV_PTOLEMIES},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -786,7 +788,9 @@ enum UnitOrderFlag : uint8_t {
 	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
 	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
 	// or gathers near the new dropsite.
-	ORDER_FLAG_AUTOHARVEST = 32
+	ORDER_FLAG_AUTOHARVEST = 32,
+	// ORDER_GARRISON only: occupy a turret point of the holder (Commands.js "occupy-turret").
+	ORDER_FLAG_TURRET = 32
 };
 // A gather order keeps its resource's subtype (ResourceSubtype) in flag bits 5-7, so the
 // unit can look for the same kind once the resource is gone (UnitAI GATHER FINDINGNEWTARGET).
@@ -863,7 +867,7 @@ inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
 // GarrisonHolder LoadingRange of a structure, 0 A.D. metres to RTS0 (x0.28), counted from
 // its obstruction: 1 m for civic centres (military colonies, wagon encampments and the
 // crannog too), houses and apartments, and Han's ministry, farmstead and storehouse;
-// 6 m for the fortress and the Roman army camp; 4 m for the corral; 2 m elsewhere
+// 6 m for the fortress (and Han's fortress_old) and the Roman army camp; 4 m for the corral; 2 m elsewhere
 // (template_structure_*.xml and the civ templates of 0.28).
 inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
 	switch (type) {
@@ -873,7 +877,7 @@ inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
 			return 1.0f * 0.28f;
 		case BLD_FARMSTEAD: case BLD_STOREHOUSE:
 			return (civ == CIV_HAN ? 1.0f : 2.0f) * 0.28f;
-		case BLD_FORTRESS: case BLD_ARMY_CAMP:
+		case BLD_FORTRESS: case BLD_FORTRESS_OLD: case BLD_ARMY_CAMP:
 			return 6.0f * 0.28f;
 		case BLD_CORRAL:
 			return 4.0f * 0.28f;
@@ -883,12 +887,13 @@ inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
 }
 // template_unit_siege_ram.xml and template_unit_siege_tower.xml LoadingRange, 2 m.
 inline constexpr float SIEGE_LOADING_RANGE = 2.0f * 0.28f;
-// Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
-// 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
+// Attack.js Ranged MinRange as a share of MaxRange (0.28): template_unit_siege_stonethrower.xml
+// 26 of 85, template_unit_siege_stonethrower_onager.xml 20 of 60, template_unit_siege_boltshooter.xml
+// 15 of 80; template_unit_siege_tower.xml has none. Scaled to each unit's own range.
 inline float unit_min_range_ratio(uint8_t type) {
 	switch (type) {
 		case UNIT_CATAPULT: return 26.0f / 85.0f;
-		case UNIT_BOLT_SHOOTER: return 15.0f / 90.0f;
+		case UNIT_BOLT_SHOOTER: return 15.0f / 80.0f;
 		default: return 0.0f;
 	}
 }
@@ -1109,6 +1114,9 @@ inline bool unit_is_ship(uint8_t type) {
 // a land unit's or animal's centre comes to a structure. "default" 0.8 m, "large" 3 m.
 inline constexpr float CLEARANCE_DEFAULT = 0.8f / 4.0f;
 inline constexpr float CLEARANCE_LARGE = 3.0f / 4.0f;
+// helpers/MapEdgeTiles.h MAP_EDGE_TILES in RTS0 units: 3 terrain tiles (12 m). On a circular map
+// CCmpPathfinder makes everything that far inside the LOS circle's edge impassable to every class.
+inline constexpr float MAP_EDGE_DIST = 12.0f / 4.0f;
 
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
@@ -1428,7 +1436,41 @@ struct WallSetInfo {
 	float tower_health, tower_cost, tower_build_time;
 };
 
-inline const WallSetInfo &wallset_info(uint8_t kind) {
+// Each civ's stone WallSet (structures/{civ}/wallset_stone.xml Min/MaxTowerOverlap, else
+// template_wallset's 0.05 and 0.85; wall_tower WallPiece/Length; wall_long/medium/short
+// WallPiece/Length and Obstruction Static depth), in metres. Gaia's maps lay the Athenian set.
+struct WallCivGeometry {
+	float tower_length, min_overlap, max_overlap, lengths[3], depth;
+};
+
+inline const WallCivGeometry &wall_civ_geometry(uint8_t civ) {
+	static const WallCivGeometry kCivs[CIV_COUNT] = {
+		{7.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // athen
+		{7.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // spart
+		{7.0f, 0.05f, 0.85f, {36.0f, 24.0f, 12.0f}, 6.0f},  // pers (template_wallset overlaps)
+		{10.0f, 0.10f, 0.80f, {36.0f, 24.0f, 12.0f}, 8.0f}, // rome
+		{11.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 7.0f}, // cart
+		{7.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // mace
+		{10.0f, 0.05f, 0.80f, {36.0f, 24.0f, 12.0f}, 6.0f}, // brit
+		{8.0f, 0.05f, 0.80f, {36.0f, 24.0f, 12.0f}, 6.0f},  // gaul
+		{10.0f, 0.20f, 0.80f, {36.0f, 24.0f, 12.0f}, 7.0f}, // iber
+		{7.0f, 0.05f, 0.85f, {36.0f, 24.0f, 12.0f}, 4.0f},  // maur (template_wallset overlaps)
+		{8.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // kush
+		{9.0f, 0.15f, 0.90f, {38.0f, 25.0f, 15.0f}, 5.0f},  // ptol
+		{7.0f, 0.05f, 0.90f, {34.0f, 21.0f, 11.0f}, 5.0f},  // sele (MinTowerOverlap from template_wallset)
+		{10.0f, 0.10f, 0.80f, {36.0f, 24.0f, 12.0f}, 8.0f}, // han
+		{7.0f, 0.05f, 0.90f, {36.0f, 24.0f, 12.0f}, 5.0f},  // Gaia: athen
+		{9.0f, 0.05f, 0.80f, {36.0f, 24.0f, 12.0f}, 8.0f},  // germ
+	};
+	return kCivs[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
+}
+
+// The `kind` WallSet of `civ` (CIV_COUNT: the generic one, the Athenian stone set). Only stone
+// walls differ by civ, and Han palisades reach further into their towers (han/wallset_palisade.xml
+// MaxTowerOverlap 0.95).
+inline WallSetInfo wallset_info(uint8_t kind, uint8_t civ = CIV_COUNT);
+
+inline const WallSetInfo &wallset_base_info(uint8_t kind) {
 	static const WallSetInfo kSets[WALLSET_COUNT] = {
 		{BLD_WALL_SEGMENT, BLD_WALL_TOWER, {WALL_SEGMENT_LENGTHS[0], WALL_SEGMENT_LENGTHS[1], WALL_SEGMENT_LENGTHS[2]},
 			WALL_TOWER_LENGTH, 1.0f, WALL_MIN_TOWER_OVERLAP, WALL_MAX_TOWER_OVERLAP, WALL_HALF_DEPTH,
@@ -1450,6 +1492,22 @@ inline const WallSetInfo &wallset_info(uint8_t kind) {
 			3000.0f, 80.0f, 40.0f * 0.25f},
 	};
 	return kSets[kind < WALLSET_COUNT ? kind : 0];
+}
+
+inline WallSetInfo wallset_info(uint8_t kind, uint8_t civ) {
+	WallSetInfo ws = wallset_base_info(kind);
+	if (civ >= CIV_COUNT) return ws;
+	if (ws.segment == BLD_WALL_SEGMENT) {
+		const WallCivGeometry &g = wall_civ_geometry(civ);
+		for (int k = 0; k < 3; ++k) ws.lengths[k] = g.lengths[k] / 4.0f;
+		ws.tower_length = g.tower_length / 4.0f;
+		ws.min_overlap = g.min_overlap;
+		ws.max_overlap = g.max_overlap;
+		ws.half_depth = g.depth / 4.0f * 0.5f;
+	} else if (ws.segment == BLD_PALISADE && civ == CIV_HAN) {
+		ws.max_overlap = 0.95f;
+	}
+	return ws;
 }
 
 // Gate.js holders: the stone gate, the palisade gate (a palisades_long Upgrade) and the Roman
@@ -1488,21 +1546,37 @@ inline bool is_wallset_piece(uint8_t type, float half_w) {
 
 // A WallSet piece's 0 A.D. values (wallset_info) by its type and length; negative when it keeps
 // its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
-inline float wallset_piece_value(uint8_t type, float half_w, int what) {
+// `civ` is the piece's template civ (Building::civ); the generic set's lengths are tried too, as
+// maps lay Athenian pieces for every civ.
+inline float wallset_piece_value(uint8_t type, float half_w, int what, uint8_t civ = CIV_COUNT) {
 	if (!is_wallset_piece(type, half_w) || is_gate_type(type)) return -1.0f;
-	const WallSetInfo &ws = wallset_info(wallset_kind_of(type));
+	const WallSetInfo ws = wallset_info(wallset_kind_of(type), civ);
 	if (is_wallset_tower_piece(type, half_w)) return what == 0 ? ws.tower_health : what == 1 ? ws.tower_cost : ws.tower_build_time;
 	const float *v = what == 0 ? ws.health : what == 1 ? ws.cost : ws.build_time;
-	for (int k = 0; k < 3; ++k)
-		if (std::fabs(0.5f * ws.lengths[k] - half_w) < 0.01f) return v[k];
+	const WallSetInfo &generic = wallset_base_info(wallset_kind_of(type));
+	for (const WallSetInfo *set : {&ws, &generic})
+		for (int k = 0; k < 3; ++k)
+			if (std::fabs(0.5f * set->lengths[k] - half_w) < 0.01f) return v[k];
 	return v[0] * 2.0f * half_w / ws.lengths[0]; // any other length: its share of a long one
 }
 
+// Which of `civ`'s segments (0 long, 1 medium, 2 short) a WallSet segment of half length `half_w`
+// is, by the civ's lengths or the generic ones maps lay; -1 for any other length.
+inline int wallset_segment_index(uint8_t type, float half_w, uint8_t civ) {
+	const WallSetInfo ws = wallset_info(wallset_kind_of(type), civ);
+	const WallSetInfo &generic = wallset_base_info(wallset_kind_of(type));
+	for (const WallSetInfo *set : {&ws, &generic})
+		for (int k = 0; k < 3; ++k)
+			if (std::fabs(0.5f * set->lengths[k] - half_w) < 0.01f) return k;
+	return -1;
+}
+
 // Half the depth (along the footprint's v axis, nav/footprint.h) of a building of `type` whose half
-// width is `half_w`. RTS0's buildings are square but for WallSet segments, long and thin.
-inline float building_half_depth(uint8_t type, float half_w) {
+// width is `half_w`, of `civ`'s template. RTS0's buildings are square but for WallSet segments,
+// long and thin.
+inline float building_half_depth(uint8_t type, float half_w, uint8_t civ = CIV_COUNT) {
 	if (!is_wallset_piece(type, half_w) || is_wallset_tower_piece(type, half_w)) return half_w;
-	return wallset_info(wallset_kind_of(type)).half_depth;
+	return wallset_info(wallset_kind_of(type), civ).half_depth;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
@@ -1580,6 +1654,7 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 // and temple_vesta, kush/camp_blemmye and camp_noba, spart/gerousia, athen/gymnasium,
 // iber/monument, cart/super_dock, mace/arsenal and maur/elephant_stable are Town.
 inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
+	if (type == BLD_TEMPLE_ISIS) return 0; // ptol/temple_2: VisibleClasses -Town City
 	if (type == BLD_TENT) return 0; // rome/tent: VisibleClasses -Village
 	if (type == BLD_STOA) return 2; // template_structure_civic_stoa: Town
 	if (type == BLD_TAVERN || type == BLD_LAOZI_GATE) return 2; // gaul/tavern -Village Town, han/laozigate Town
@@ -1602,6 +1677,8 @@ inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 // 0 A.D. template_structure_resource_field ResourceSupply.
 constexpr int32_t FIELD_FOOD_SUPPLY = 1000000000; // <Max>Infinity</Max>
 constexpr int FIELD_MAX_GATHERERS = 5;            // <MaxGatherers>
+// han/field.xml (the rice paddy) overrides it with 3.
+inline int field_max_gatherers(uint8_t civ) { return civ == CIV_HAN ? 3 : FIELD_MAX_GATHERERS; }
 constexpr float FIELD_DIMINISHING_RETURNS = 0.90f; // <DiminishingReturns>
 
 // ResourceSupply.js GetDiminishingReturns: each extra gatherer on a field works
@@ -1613,9 +1690,9 @@ inline float field_gather_efficiency(int gatherers) {
 	return (1.0f - p) / (1.0f - FIELD_DIMINISHING_RETURNS) / (float)gatherers;
 }
 
-// 0 A.D. Obstruction BlockMovement=false: fields don't block units.
+// 0 A.D. Obstruction BlockMovement=false: fields and the Han paifang (han/laozigate) don't block units.
 inline bool building_blocks_movement(uint8_t type) {
-	return type != BLD_FIELD;
+	return type != BLD_FIELD && type != BLD_LAOZI_GATE;
 }
 
 inline const char *building_type_name(uint8_t type) { return building_type_info(type).name; }
@@ -1773,6 +1850,8 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return tech_id == TECH_TOWER_HEALTH;
 	case BLD_TENT: return false;
 	case BLD_KUSH_SHRINE: return false; // kush/shrine: Researcher disable=
+	// ptol/temple_2 adds pair_unlock_cult_ptol (Pharaonic and Serapis Cult) to the temple's list.
+	case BLD_TEMPLE_ISIS: return r == BLD_TEMPLE || r == BLD_TEMPLE_ISIS;
 	default: return r == building_research_base(type);
 	}
 }
@@ -1844,7 +1923,8 @@ inline float building_garrison_heal(uint8_t type) {
 		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: case BLD_MILITARY_COLONY:
 		case BLD_WAGON_ENCAMPMENT: return 1.0f;
 		// kush/temple_amun, rome/temple_mars, rome/temple_vesta and the shrines keep template_structure_civic_temple's 3
-		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE: return 3.0f;
+		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE:
+		case BLD_TEMPLE_ISIS: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
 	}
@@ -1857,7 +1937,7 @@ inline constexpr float WALL_TURRET_VISION = 20.0f * 0.28f;
 // han/farmstead seat a Minister with the usual 0.1.
 inline float building_eject_health(uint8_t type, uint8_t civ) {
 	switch (type) {
-		case BLD_FORTRESS: return 0.075f;
+		case BLD_FORTRESS: case BLD_FORTRESS_OLD: return 0.075f; // han/fortress_old: a fortress child
 		case BLD_CORRAL: return 0.5f;
 		case BLD_MINISTRY: return 0.0f;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 0.1f : 0.0f;
@@ -1892,7 +1972,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_FORTRESS: case BLD_FORTRESS_OLD: return c | TC_FORTRESS | TC_DEFENSIVE;
 		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
-		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: return c | TC_TEMPLE | TC_CIVIC;
+		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
 		case BLD_STABLE: case BLD_ELEPHANT_STABLE: return c | TC_STABLE;
@@ -2029,6 +2109,20 @@ struct ShortPathMemo {
 	uint32_t key = 0;
 };
 static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
+
+// A unit's last short path search and what it found, kept beside the saved state, not in it: a
+// search is a function of these inputs alone, so while they are the same bit for bit (a unit held
+// where it stands, which searches again each tick for the same aim) its answer is reused, and a
+// game loaded or joined, which starts without it, searches and finds the same.
+struct ShortPathSearchMemo {
+	uint32_t pos_x = 0, pos_z = 0, aim_x = 0, aim_z = 0, radius = 0, range = 0; // float bits
+	uint32_t key = 0;     // the buildings (ShortPathMemo::key)
+	uint32_t ignore = 0;  // the building not steered round
+	uint32_t terrain = 0; // NavGrid::terrain_version
+	uint64_t small = 0;   // the small obstacles' contents (small_obstacles_hash), 0 for none
+	float out_x = 0.0f, out_z = 0.0f;
+	bool found = false, valid = false;
+};
 
 // CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
 // ticks), which motion_feedback() judges when the turn ends, as UnitMotion judges each turn's Move,
@@ -2338,6 +2432,16 @@ inline float unit_heal_range_base(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_RANGE;
 	return 12.0f;
 }
+// unit_min_range_ratio for the unit's template: siege towers have no MinRange, the onager 20 of 60.
+inline float unit_min_range_ratio(uint8_t type, uint16_t tmpl) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (t.flags & ROSTER_SIEGE_TOWER) return 0.0f;
+		if (type == UNIT_CATAPULT && std::strstr(t.id, "onager")) return 20.0f / 60.0f;
+	}
+	return unit_min_range_ratio(type);
+}
+
 // UnitAI/DefaultStance of the unit's template where it differs from its RTS0 class: siege towers
 // (template_unit_siege) and the Seeress (template_unit_champion_support_healer) are aggressive.
 inline uint8_t unit_default_stance(uint8_t type, uint16_t tmpl) {
@@ -2426,8 +2530,19 @@ inline bool unit_has_slaughter(uint8_t unit_type, uint16_t tmpl) {
 
 // 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
 // workers build and repair; cavalry, champions, heroes, siege and ships do not.
+// Mercenary citizen infantry (CitizenSoldier Infantry with ResourceGatherer disabled).
+inline bool unit_is_mercenary_infantry(uint8_t unit_type, uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const uint16_t f = civ_unit_template(tmpl).flags;
+	return (f & ROSTER_MERCENARY) && (f & ROSTER_CITIZEN) && !(f & ROSTER_CHAMPION) &&
+			(unit_tech_classes(unit_type) & TC_INFANTRY) && !(unit_tech_classes(unit_type) & TC_CAVALRY);
+}
+
+// Mercenary infantry keep Builder in 0.28 though their ResourceGatherer is gone (template_unit_infantry
+// pulls in mixins/builder); the Neodamodes, no mercenaries, disable it.
 inline bool unit_can_build(uint8_t unit_type, uint16_t tmpl) {
 	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER || unit_type == UNIT_WORKER_ELEPHANT) return true;
+	if (unit_is_mercenary_infantry(unit_type, tmpl)) return true;
 	return unit_gather_class(unit_type, tmpl) == GATHER_INFANTRY;
 }
 
@@ -2622,7 +2737,7 @@ enum PackState : uint8_t {
 	PACK_PACKING = 3, // unpacked -> packed in progress
 	PACK_UNPACKING = 4, // packed -> unpacked in progress
 };
-inline constexpr float PACK_TIME_S = 10.0f; // template_unit_siege_*.xml Pack/Time 10000 ms
+inline constexpr float PACK_TIME_S = 5.0f; // 0.28 template_unit_siege_stonethrower/_boltshooter Pack/Time 5000 ms
 
 inline bool unit_has_pack(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return (civ_unit_template(tmpl).flags & ROSTER_PACKABLE) != 0;
@@ -2893,6 +3008,18 @@ inline bool civ_can_build(uint8_t civ, uint8_t type) {
 inline bool building_trains_native(uint8_t type) {
 	return type == BLD_SHRINE || type == BLD_CAMP_NOBA || type == BLD_CAMP_BLEMMYE ||
 	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
+}
+
+// The civ whose roster `t` must come from to train at a `type` structure built by `bld_civ`
+// and held by a `owner_civ` player. Civic centres (the CC, crannog, Han court, Seleucid
+// military colony and German encampments) list units/{native}/support_civilian, so a
+// captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
+inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
+	if (building_trains_native(type)) return bld_civ;
+	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
+	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
+	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
+	return civic && (t.flags & ROSTER_CIVILIAN) && (t.trainers & bld_bit(type)) ? bld_civ : owner_civ;
 }
 
 // BuildingAI and Attack/Ranged of a civ's structure: the generic row plus 0.28's one civ
