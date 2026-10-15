@@ -70,7 +70,7 @@ inline const std::vector<const char *> &civ_peace_tracks(uint8_t civ) {
 
 class RtsoMusic {
 public:
-	enum State { OFF = 0, MENU, PEACE, BATTLE, VICTORY, DEFEAT };
+	enum State { OFF = 0, MENU, PEACE, BATTLE, VICTORY, DEFEAT, CUSTOM };
 
 	static constexpr const char *kPath = "res://assets/audio/music/";
 	// music.js musicGain 0.3.
@@ -121,6 +121,17 @@ public:
 	}
 	State state() const { return state_; }
 	void set_locked(bool l) { locked_ = l; }
+	// messages.js "play-tracks" (the "retro me" cheat): storeTracks as the custom list,
+	// setState(CUSTOM), then locked so battles don't change it; empty unlocks.
+	void play_custom(const std::vector<std::string> &tracks) {
+		locked_ = false;
+		if (!tracks.empty()) {
+			tracks_[CUSTOM] = tracks;
+			state_ = OFF; // restart even when already custom
+			set_state(CUSTOM);
+		}
+		locked_ = !tracks.empty();
+	}
 	godot::String current_track() const { return current_name_; }
 
 	// Fades and moves to the next playlist item when a track ends (looping).
@@ -175,7 +186,7 @@ private:
 		}
 	}
 
-	std::vector<std::string> tracks_[DEFEAT + 1];
+	std::vector<std::string> tracks_[CUSTOM + 1];
 	std::vector<std::string> playlist_;
 	size_t index_ = 0;
 	State state_ = OFF;
