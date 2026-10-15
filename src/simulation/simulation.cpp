@@ -11839,7 +11839,6 @@ void Simulation::tick_combat(float dt) {
 	float *bld_x = nb ? arena.alloc_array<float>(nb) : nullptr;
 	float *bld_z = nb ? arena.alloc_array<float>(nb) : nullptr;
 	uint8_t *bld_live = nb ? arena.alloc_array<uint8_t>(nb) : nullptr;
-	float bld_half_max = 0.0f;
 	UnitGrid bgrid;
 	bool have_bgrid = false;
 	if (nb && bld_x && bld_z && bld_live) {
@@ -11848,7 +11847,6 @@ void Simulation::tick_combat(float dt) {
 			bld_x[bi] = b.x;
 			bld_z[bi] = b.z;
 			bld_live[bi] = !b.wrecked && b.hp > 0.0f && b.team < MAX_PLAYERS;
-			if (bld_live[bi]) bld_half_max = std::max(bld_half_max, nav::footprint_extent(b));
 		}
 		have_bgrid = bgrid.build(arena, nb, bld_x, bld_z, bld_live, map_half_);
 	}
@@ -12019,7 +12017,7 @@ void Simulation::tick_combat(float dt) {
 			if (have_bgrid && !(walk_and_fight && (units_.order_flags[i] & ORDER_FLAG_UNITS_ONLY))) {
 				const bool capture = walk_and_fight && (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
 						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f;
-				bgrid.visit_radius(pxi, pzi, scan_range + bld_half_max, [&](int32_t bi) {
+				bgrid.visit_radius(pxi, pzi, scan_range, [&](int32_t bi) {
 					if (!bld_live[bi]) return;
 					const Building &b = buildings_[bi];
 					// Only enemies' structures (FindWalkAndFightTargets): none of ours to recapture.
@@ -12027,8 +12025,10 @@ void Simulation::tick_combat(float dt) {
 					if (!can_attack(my_team, b.team) && !(capture && !friendly && can_capture_building(my_team, b))) return;
 					if (!capture && !unit_can_target_building(i, b.type)) return;
 					if (units_.order_kind[i] == ORDER_WALK_AND_FIGHT && attack_move_avoids(units_.order_flags[i], b.type)) return;
-					const nav::Vec2 gap = nav::footprint_gap(b, pxi, pzi);
-					const float d2 = gap.x * gap.x + gap.y * gap.y;
+					// SetupAttackRangeQuery: "Do not compensate for entity sizes", so a structure
+					// is in the query, and ranked, by its centre.
+					const float cx = b.x - pxi, cz = b.z - pzi;
+					const float d2 = cx * cx + cz * cz;
 					if (d2 > scan_range * scan_range || d2 < minr * minr) return;
 					if (stance == STANCE_DEFENSIVE) { // CheckTargetDistanceFromHeldPosition: to its centre
 						const float hx = b.x - anc_x, hz = b.z - anc_z;
