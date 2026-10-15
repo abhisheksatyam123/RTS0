@@ -23,6 +23,8 @@ extends SceneTree
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_l10n_notices.gd
 # Exit code 0 = pass.
 
+const TT = preload("res://scenes/common/tooltips.gd")
+
 var main
 var failures := 0
 
@@ -83,19 +85,19 @@ func run() -> void:
 	print("3. Requirements")
 	main.debug_train_buttons(11)  # a dock: its Town Phase techs
 	await frames(2)
-	var tips: Array = main.debug_command_row().map(func(e): return str(e["tip"]))
+	var tips: Array = main.debug_command_row().map(func(e): return TT.plain(str(e["tip"])))
 	var req: String = TranslationServer.translate("Requires %(technology)s").get_slice("%(technology)s", 0)
 	check(req != "Requires " and tips.any(func(t): return t.contains(req)), "\"%s...\" on a tech button" % req)
 	TranslationServer.set_locale("en")
 	TranslationServer.remove_translation(de)
 	main.debug_train_buttons(11)
-	tips = main.debug_command_row().map(func(e): return str(e["tip"]))
+	tips = main.debug_command_row().map(func(e): return TT.plain(str(e["tip"])))
 	check(tips.any(func(t): return t.contains("Requires Town Phase")), "\"Requires Town Phase\" in English")
 	main._on_diplo_tribute_pressed(1, 0)  # 100 more wood: 100 left, under Fishing Nets' 200
 	await frames(10)
 	main.debug_train_buttons(11)
 	await frames(2)
-	var nets: Array = main.debug_command_row().map(func(e): return str(e["tip"])).filter(func(t): return t.begins_with("Fishing Nets"))
+	var nets: Array = main.debug_command_row().map(func(e): return TT.plain(str(e["tip"]))).filter(func(t): return t.begins_with("Fishing Nets"))
 	print("  ", nets.map(func(t): return t.replace("\n", " | ")))
 	check(nets.size() == 1 and RegEx.create_from_string("\nInsufficient resources: Wood \\d+$").search(nets[0]) != null, "Insufficient resources: Wood N")
 
@@ -138,7 +140,7 @@ func run() -> void:
 		await frames(2)
 		var lists: Array = main.find_children("*", "ItemList", true, false).filter(func(l): return l.visible and l.item_count > 0)
 		# The first line, after the Training panel's "[Z] " hotkey.
-		names_by_mode[mode] = str(lists[0].get_item_tooltip(0)).get_slice("\n", 0).trim_prefix("[Z] ") if lists.size() > 0 else ""
+		names_by_mode[mode] = TT.plain(str(lists[0].get_item_tooltip(0))).get_slice("\n", 0).trim_prefix("[Z] ") if lists.size() > 0 else ""
 	cfg.set_value("gui.session.howtoshownames", saved)
 	print("  ", names_by_mode)
 	var spec: String = names_by_mode["2"]
@@ -151,14 +153,14 @@ func run() -> void:
 	await frames(2)
 	var roster_tip := func() -> String:
 		var ls: Array = main.find_children("*", "ItemList", true, false).filter(func(l): return l.visible and l.item_count > 0)
-		return str(ls[0].get_item_tooltip(0)) if ls.size() > 0 else ""
+		return TT.plain(str(ls[0].get_item_tooltip(0))) if ls.size() > 0 else ""
 	var rt: String = roster_tip.call()
 	print("  ", rt.replace("\n", " | "))
 	check(RegEx.create_from_string("\nCost: (Food|Wood|Stone|Metal) \\d+.* \\d+ seconds?").search(rt) != null, "a unit's cost with population and time")
 	check(rt.contains("\nShift-click to train "), "and the batch line")
 	main.debug_train_buttons(11)
 	await frames(2)
-	var techs: Array = main.debug_command_row().map(func(e): return str(e["tip"])).filter(func(t): return t.contains("Cost: "))
+	var techs: Array = main.debug_command_row().map(func(e): return TT.plain(str(e["tip"]))).filter(func(t): return t.contains("Cost: "))
 	print("  ", techs.map(func(t): return t.replace("\n", " | ")))
 	check(techs.size() > 0, "techs show their cost")
 	check(techs.all(func(t): return not t.contains("Not enough resources")), "no bare \"Not enough resources\"")

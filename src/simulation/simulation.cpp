@@ -2849,6 +2849,7 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float progress) {
 	const uint32_t bid = spawn_building_world(p.x, p.z, p.type, team, progress);
 	Building &b = buildings_[building_id_to_idx_[bid]];
+	if (p.civ < CIV_COUNT) b.civ = p.civ; // a map's Gaia piece of a civ's WallSet (wall_builder.h)
 	const Building fp = wall_piece_footprint(p);
 	b.rot = fp.rot;
 	b.set_extents(fp.half_size, building_half_depth(b.type, fp.half_size, b.civ)); // as a load sets it
@@ -3273,9 +3274,7 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	order.count = (uint8_t)count;
 	order.timer = 0.0f;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
-	order.duration = uinfo.train_time * team_bonus_mult(player_id, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
-		* unit_tech_mods(player_id, t.unit_type, tmpl).train_time * ai_time_mult(player_id) * promotion_train_time_mult(tmpl)
-		* batch_time_multiplier(player_id, b.type, count);
+	order.duration = unit_train_seconds(player_id, tmpl) * batch_time_multiplier(player_id, b.type, count);
 	b.queue.push_back(order);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnTrainingQueued
 		TriggerEventData ev;
@@ -3364,9 +3363,7 @@ bool Simulation::cmd_train_from_unit(uint8_t player, uint32_t unit_id, uint16_t 
 	order.count = (uint8_t)count;
 	order.timer = 0.0f;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
-	order.duration = uinfo.train_time * team_bonus_mult(player, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
-		* unit_tech_mods(player, t.unit_type, tmpl).train_time * ai_time_mult(player) * promotion_train_time_mult(tmpl)
-		* unit_trainer_batch_mult(units_.tmpl[i], tmpl, count);
+	order.duration = unit_train_seconds(player, tmpl) * unit_trainer_batch_mult(units_.tmpl[i], tmpl, count);
 	UnitQueue &q = unit_queues_[unit_id];
 	q.player = player;
 	q.orders.push_back(order);
@@ -3475,7 +3472,10 @@ float Simulation::team_bonus_mult(uint8_t pid, uint8_t stat, int8_t res, uint16_
 	return civ_team_bonus_mult(players_[pid].civ, ally_civ_mask(pid), stat, res, tmpl, building);
 }
 
-void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const {
+void Simulation::unit_train_cost(uint8_t pid, uint16_t queued, const UnitTypeInfo &queued_info, float out[RES_COUNT]) const {
+	uint8_t rank = 1;
+	const uint16_t tmpl = trained_as(pid, queued, rank);
+	const UnitTypeInfo &info = tmpl != queued ? civ_template_unit_info(tmpl, civ_unit_template(tmpl).unit_type) : queued_info;
 	out[RES_FOOD] = (float)info.food_cost;
 	out[RES_WOOD] = (float)info.wood_cost;
 	out[RES_GOLD] = (float)info.gold_cost;
@@ -3738,7 +3738,7 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	if (bit == building_id_to_idx_.end() || player_id >= MAX_PLAYERS) return UPGRADE_ERR_NONE;
 	const Building &b = buildings_[bit->second];
 	if (b.team != player_id) return UPGRADE_ERR_OWNER;
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
+	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
 	if (up.to >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) return UPGRADE_ERR_NONE;
 	// Of the WallSet segments only wall_long has an Upgrade (to the gate).
 	if (b.type == BLD_WALL_SEGMENT && is_wallset_piece(b.type, b.half_size) &&
@@ -3774,7 +3774,7 @@ uint32_t Simulation::unit_guard_target(uint32_t uid) const {
 bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice) {
 	if (upgrade_check(player_id, building_id, choice) != UPGRADE_OK) return false;
 	Building &b = buildings_[building_id_to_idx_[building_id]];
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
+	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
 	players_[player_id].pay((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_paid[RES_FOOD] = (float)up.food_cost;
@@ -3800,7 +3800,7 @@ bool Simulation::cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id) {
 void Simulation::cancel_upgrade(Building &b, uint8_t refund_to) {
 	if (b.upgrade_to == BLD_TYPE_COUNT) return;
 	if (refund_to < MAX_PLAYERS)
-		players_[refund_to].refund(b.upgrade_paid[RES_FOOD], b.upgrade_paid[RES_WOOD], b.upgrade_paid[RES_GOLD], b.upgrade_paid[RES_STONE]);
+		players_[refund_to].add(b.upgrade_paid[RES_FOOD], b.upgrade_paid[RES_WOOD], b.upgrade_paid[RES_GOLD], b.upgrade_paid[RES_STONE]);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
@@ -6676,6 +6676,12 @@ float Simulation::unit_height(size_t i) const {
 	return std::max(ground, terrain_water_height_);
 }
 
+// Attack/Ranged/Origin/Y above the unit's position (the parabolic range's height): 10 m for
+// template_unit_siege_tower, none for other units.
+float Simulation::unit_attack_origin_y(size_t i) const {
+	return is_siege_tower_at(i) ? 10.0f * COMBAT_DISTANCE_SCALE : 0.0f;
+}
+
 bool Simulation::is_siege_tower_at(size_t i) const {
 	const uint16_t tmpl = units_.tmpl[i];
 	return tmpl != CIV_UNIT_TEMPLATE_NONE && tmpl < CIV_UNIT_TEMPLATE_COUNT
@@ -7512,42 +7518,31 @@ size_t Simulation::place_custom_fortress(uint8_t player, float x, float z, float
 		bool (*skip)(float x, float z, const void *ctx), const void *ctx) {
 	if (n == 0) return 0;
 	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
-	const float tl = ws.tower_length, overlap = ws.min_overlap * tl, quarter = 1.5707963f;
-	// getWallElement: WallPiece Length, Indent and Bend in tiles (RTS0 units). A cornerIn is a
-	// tower of no length turned 45 degrees and set a quarter of its size in; a structure
+	const float tl = ws.tower_length, overlap = ws.min_overlap * tl, quarter = kWallQuarter<float>;
+	// getWallElement of the generic stone set (the Athenian one, WALL_STYLE_ATHEN_STONE): a cornerIn
+	// is a tower of no length turned 45 degrees and set a quarter of its size in; a structure
 	// (structures/{civ}/<name>) has no length and stands 3.5 towers in.
-	struct El { float length, indent, bend; };
-	auto el = [&](const FortressPart &p) -> El {
-		switch (p.element) {
-			case FORT_LONG: case FORT_GATE: return {ws.lengths[0], 0.0f, 0.0f};
-			case FORT_CORNER_IN: return {0.0f, 0.25f * tl, quarter};
-			case FORT_BUILDING: return {0.0f, 3.5f * tl, 0.0f};
-			default: return {tl, 0.0f, 0.0f};
+	std::vector<WallElementT<float>> els(n);
+	for (size_t i = 0; i < n; ++i) {
+		WallElementName e;
+		switch (wall[i].element) {
+			case FORT_LONG: e.type = WALL_EL_LONG; break;
+			case FORT_GATE: e.type = WALL_EL_GATE; break;
+			case FORT_CORNER_IN: e.type = WALL_EL_CORNER_IN; break;
+			case FORT_BUILDING: e.type = WALL_EL_STRUCTURE; e.building = wall[i].building; break;
+			default: e.type = WALL_EL_TOWER; break;
 		}
-	};
-	// getWallAlignment with 0 A.D.'s Vector2D: rotate(a) turns clockwise, perpendicular() a
-	// quarter counter-clockwise; the wall runs along perpendicular(rotate((1, 0), -o)).
+		els[i] = wall_element<float>(WALL_STYLE_ATHEN_STONE, e);
+	}
+	// getWallAlignment (wall_builder.h), the wall running along perpendicular(rotate((1, 0), -o)).
 	struct V { float x, z; };
 	auto rot = [](V v, float a) { return V{v.x * std::cos(a) + v.z * std::sin(a), -v.x * std::sin(a) + v.z * std::cos(a)}; };
 	struct Align { V pos; float run; };
 	std::vector<Align> al(n);
-	V pos{0.0f, 0.0f};
-	float o = 0.0f;
+	const std::vector<WallAlignT<float>> lined = wall_alignment<float>(0.0f, 0.0f, els, overlap, 0.0f);
 	for (size_t i = 0; i < n; ++i) {
-		const El e = el(wall[i]);
-		const V in = rot({e.indent, 0.0f}, -o);
-		const V run = rot({1.0f, 0.0f}, -o);
-		al[i] = {{pos.x - in.x, pos.z - in.z}, std::atan2(run.x, -run.z)};
-		if (i + 1 == n) break;
-		o += e.bend;
-		float d = 0.5f * (e.length + el(wall[i + 1]).length) - overlap;
-		if (e.bend != 0.0f && e.indent != 0.0f) {
-			d += e.indent * std::sin(e.bend);
-			const V back = rot({e.indent, 0.0f}, -o);
-			pos = {pos.x + back.x, pos.z + back.z};
-		}
-		const V step = rot({d, 0.0f}, -o);
-		pos = {pos.x - step.z, pos.z + step.x};
+		const V run = rot({1.0f, 0.0f}, -lined[i].orientation);
+		al[i] = {{lined[i].x, lined[i].y}, std::atan2(run.x, -run.z)};
 	}
 	// getCenterToFirstElement: the outline's centre is the mean of its elements; then turn it so
 	// the first element lies towards `facing`.
@@ -7585,8 +7580,9 @@ size_t Simulation::place_custom_fortress(uint8_t player, float x, float z, float
 }
 
 size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
-		float irregularity, int gate_every, int max_tries) {
+		float irregularity, int gate_every, int max_tries, uint8_t style) {
 	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
+	const bool styled = style < WALL_STYLE_COUNT;
 	uint64_t state = (uint64_t)seed * 0x9E3779B97F4A7C15ull + 0x2545F4914F6CDD1Dull;
 	auto rnd = [&state]() { // splitmix64, [0, 1)
 		uint64_t v = (state += 0x9E3779B97F4A7C15ull);
@@ -7599,8 +7595,9 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 	auto polar = [](float r, float a) { return V{r * std::cos(a), r * std::sin(a)}; };
 	auto dist = [](V a, V b) { return std::hypot(a.x - b.x, a.z - b.z); };
 	// getWallLength(style, ["long", "tower"]): each element's length less the tower overlap.
-	const float overlap = ws.min_overlap * ws.tower_length;
-	const float pd = (ws.lengths[0] - overlap) + (ws.tower_length - overlap);
+	const float overlap = styled ? (float)wall_overlap<double>(style) : ws.min_overlap * ws.tower_length;
+	const float pd = styled ? (float)wall_length<double>(style, {WallElementName{WALL_EL_LONG}, WallElementName{}})
+	                        : (ws.lengths[0] - overlap) + (ws.tower_length - overlap);
 	// Walk round the centre a wall's length at a time, each corner pushed in or out at random,
 	// until the outline closes; keep the try whose last wall overlaps the first least. As in
 	// placeGenericFortress, a try starts where the previous one stopped.
@@ -7636,7 +7633,24 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 	size_t placed = 0;
 	auto place = [&](const WallPiece &p) { placed += place_map_wall_piece(p, player); };
 	const size_t n = best.size();
-	for (size_t i = 0; i < n; ++i) {
+	if (styled) {
+		const WallElement tower = wall_element<double>(style, WallElementName{});
+		const WallElement long_wall = wall_element<double>(style, WallElementName{WALL_EL_LONG});
+		const WallElement gate = wall_element<double>(style, WallElementName{WALL_EL_GATE});
+		for (size_t i = 0; i < n; ++i) {
+			// placeGenericFortress: the wall from this point to the next at their midpoint, every
+			// gate_every-th a gate; then the tower at this point, along the wall from the previous point.
+			const double ax = x + best[i].x, az = z + best[i].z;
+			const double bx = x + best[(i + 1) % n].x, bz = z + best[(i + 1) % n].z;
+			const double wa = std::atan2(bz - az, bx - ax), half_len = 0.5 * std::hypot(bx - ax, bz - az);
+			const WallElement &e = gate_every > 0 && (int)((i + 1) % (size_t)gate_every) == 0 ? gate : long_wall;
+			placed += place_wall_element(e, ax + half_len * std::cos(wa), az + half_len * std::sin(wa),
+					wa - kWallPi<double> / 2.0 + e.angle, player);
+			const double px = x + best[(i + n - 1) % n].x, pz = z + best[(i + n - 1) % n].z;
+			placed += place_wall_element(tower, ax, az, std::atan2(bz - pz, bx - px) - kWallPi<double> / 2.0 + tower.angle, player);
+		}
+	}
+	for (size_t i = 0; !styled && i < n; ++i) {
 		// The wall from this corner to the next: every gate_every-th a gate, else a long wall.
 		const V a{x + best[i].x, z + best[i].z}, b{x + best[(i + 1) % n].x, z + best[(i + 1) % n].z};
 		const float wa = std::atan2(b.z - a.z, b.x - a.x);
@@ -7646,6 +7660,282 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 		// The tower at this corner, turned along the wall from the previous corner to the next.
 		const V prev{x + best[(i + n - 1) % n].x, z + best[(i + n - 1) % n].z};
 		place({ws.tower, a.x, a.z, -std::atan2(b.z - prev.z, b.x - prev.x), ws.tower_half});
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+bool Simulation::wall_builder_passable(double x, double z) const {
+	// rmgen tile coordinates: the map's corner at the origin.
+	const double size = 2.0 * (double)map_half_, px = x + (double)map_half_, pz = z + (double)map_half_;
+	if (!(px >= 0.0 && pz >= 0.0 && px < size && pz < size)) return false; // inMapBounds
+	constexpr double kBorder = 3.0;                                          // MAP_BORDER_WIDTH
+	if (circular_map()) return std::round(std::hypot(x, z)) < 0.5 * size - kBorder - 1.0;
+	return px >= kBorder && pz >= kBorder && px < size - kBorder && pz < size - kBorder;
+}
+
+bool Simulation::place_wall_element(const WallElement &e, double x, double z, double angle, uint8_t player) {
+	if (!e.placed() || !wall_builder_passable(x, z)) return false;
+	// RandomMap.exportEntityList: the Position angle is pi/2 less the rmgen angle.
+	const float rot = (float)(kWallPi<double> / 2.0 - angle);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	if (e.piece == WALL_PIECE_STRUCTURE) {
+		set_building_civ(spawn_building_world((float)x, (float)z, e.building, player, 1.0f, rot), e.civ);
+	} else {
+		// A palisades_curve's 9 m obstruction lies across its Position angle (along its z axis).
+		const float u = e.piece == WALL_PIECE_CURVE ? rot + 1.5707963f : rot;
+		const uint32_t id = spawn_wall_piece({e.building, (float)x, (float)z, u, (float)e.half_w, e.civ}, player, 1.0f);
+		if (player == GAIA_PLAYER) set_structure_uncapturable(id); // walls have no Capturable
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk) rebuild_nav_grid();
+	return true;
+}
+
+namespace {
+struct WallVec { double x, y; };
+// 0.28's Vector2D.rotate (clockwise by a) and perpendicular (a quarter counter-clockwise).
+WallVec wall_rotate(WallVec v, double a) {
+	const double s = std::sin(a), c = std::cos(a);
+	return {v.x * c + v.y * s, -v.x * s + v.y * c};
+}
+WallVec wall_perpendicular(WallVec v) { return {-v.y, v.x}; }
+// validateStyle: a style that isn't one is the first (Gaia) or the player's civ's stone one.
+uint8_t valid_wall_style(uint8_t style, uint8_t player, uint8_t civ) {
+	if (style < WALL_STYLE_COUNT) return style;
+	return player < MAX_PLAYERS ? wall_style_of_civ(civ) : (uint8_t)WALL_STYLE_PALISADE;
+}
+WallVec operator+(WallVec a, WallVec b) { return {a.x + b.x, a.y + b.y}; }
+WallVec operator-(WallVec a, WallVec b) { return {a.x - b.x, a.y - b.y}; }
+// getAngle(x1, y1, x2, y2).
+double wall_angle(WallVec a, WallVec b) { return std::atan2(b.y - a.y, b.x - a.x); }
+} // namespace
+
+size_t Simulation::place_wall(double x, double z, const std::vector<WallElementName> &wall, uint8_t style, uint8_t player,
+		double orientation) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA); // validateStyle
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (const WallAlignT<double> &a : wall_alignment<double>(x, z, wall_elements<double>(style, wall),
+			wall_overlap<double>(style), orientation))
+		placed += place_wall_element(a.element, a.x, a.y, a.angle, player);
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+size_t Simulation::place_wall_fortress(double x, double z, const std::vector<WallElementName> &wall, uint8_t style,
+		uint8_t player, double orientation) {
+	if (wall.empty()) return 0;
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	// getCenterToFirstElement of the wall laid from the origin at orientation 0: the vector from
+	// the mean of its elements to the first one.
+	const std::vector<WallAlignT<double>> al = wall_alignment<double>(0.0, 0.0, wall_elements<double>(style, wall),
+			wall_overlap<double>(style), 0.0);
+	WallVec c{0.0, 0.0};
+	for (const WallAlignT<double> &a : al) c = c - WallVec{a.x / (double)al.size(), a.y / (double)al.size()};
+	const double o = orientation;
+	const WallVec start = WallVec{x, z} + wall_rotate({c.x, 0.0}, -o) + wall_rotate(wall_perpendicular({c.y, 0.0}), -o);
+	return place_wall(start.x, start.y, wall, style, player, orientation);
+}
+
+size_t Simulation::place_fortress(double x, double z, const char *type, uint8_t style, uint8_t player, double orientation) {
+	std::vector<WallElementName> wall = wall_fortress_type(type ? type : "medium");
+	if (wall.empty()) wall = wall_fortress_type("medium"); // g_FortressTypes[type] undefined: the default
+	return place_wall_fortress(x, z, wall, style, player, orientation);
+}
+
+size_t Simulation::place_linear_wall(double sx, double sz, double ex, double ez, const std::vector<WallElementName> &part,
+		uint8_t style, uint8_t player, bool end_with_first) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	const double total = std::hypot((double)ex - sx, (double)ez - sz);
+	const double part_length = wall_length<double>(style, part);
+	if (part.empty()) return 0; // 0.28 would loop for ever on an empty part
+	const WallElement first = wall_element<double>(style, part[0]);
+	const double parts = std::ceil((end_with_first ? total - first.length : total) / part_length);
+	if (!std::isfinite(parts)) return 0;
+	const double scale = end_with_first ? total / (parts * part_length + first.length) : total / (parts * part_length);
+	const double wall_a = wall_angle({sx, sz}, {ex, ez}), place_a = wall_a - kWallPi<double> / 2.0;
+	const double overlap = wall_overlap<double>(style);
+	const std::vector<WallElement> els = wall_elements<double>(style, part);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	WallVec pos{sx, sz};
+	for (long long k = 0; k < (long long)parts; ++k)
+		for (const WallElement &e : els) {
+			const WallVec d = wall_rotate({scale * (e.length - overlap) / 2.0, 0.0}, -wall_a);
+			pos = pos + d;                                                   // length correction
+			const WallVec at = pos + wall_rotate({0.0, e.indent}, -wall_a); // indent correction
+			placed += place_wall_element(e, at.x, at.y, place_a + e.angle, player);
+			pos = pos + d;
+		}
+	if (end_with_first) {
+		pos = pos + wall_rotate({scale * (first.length - overlap) / 2.0, 0.0}, -wall_a);
+		placed += place_wall_element(first, pos.x, pos.y, place_a + first.angle, player);
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+size_t Simulation::place_circular_wall(double cx, double cz, double radius, const std::vector<WallElementName> &part,
+		uint8_t style, uint8_t player, double orientation, double max_angle, int end_with_first) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	if (part.empty() || !(radius > 0.0f)) return 0;
+	const double r = radius, max_a = max_angle;
+	const bool ewf = end_with_first < 0 ? max_a < kWallPi<double> * 2.0 - 0.001 : end_with_first != 0;
+	const double total = max_a * r, part_length = wall_length<double>(style, part);
+	const WallElement first = wall_element<double>(style, part[0]);
+	const double parts = std::ceil((ewf ? total - first.length : total) / part_length);
+	if (!std::isfinite(parts)) return 0;
+	const double scale = ewf ? total / (parts * part_length + first.length) : total / (parts * part_length);
+	const double overlap = wall_overlap<double>(style);
+	const std::vector<WallElement> els = wall_elements<double>(style, part);
+	const WallVec c{cx, cz};
+	double actual = orientation;
+	WallVec pos = c + wall_rotate({r, 0.0}, -actual);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (long long k = 0; k < (long long)parts; ++k)
+		for (const WallElement &e : els) {
+			const double add = scale * (e.length - overlap) / r; // width correction
+			const WallVec target = c + wall_rotate({r, 0.0}, -actual - add);
+			const double place_a = actual + add / 2.0;
+			const WallVec at = WallVec{(pos.x + target.x) / 2.0, (pos.y + target.y) / 2.0} - wall_rotate({e.indent, 0.0}, -place_a);
+			placed += place_wall_element(e, at.x, at.y, place_a + e.angle, player);
+			actual += add;
+			pos = c + wall_rotate({r, 0.0}, -actual);
+		}
+	if (ewf) {
+		// The first element again, its whole length taken (0.28 leaves the overlap and indent out here).
+		const double add = scale * first.length / r;
+		const WallVec target = c + wall_rotate({r, 0.0}, -actual - add);
+		const double place_a = actual + add / 2.0;
+		placed += place_wall_element(first, (pos.x + target.x) / 2.0, (pos.y + target.y) / 2.0, place_a + first.angle, player);
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+size_t Simulation::place_polygonal_wall(double cx, double cz, double radius, const std::vector<WallElementName> &part,
+		const WallElementName &corner, uint8_t style, uint8_t player, double orientation, int num_corners,
+		bool skip_first_wall) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	if (num_corners <= 0) return 0;
+	const WallVec c{cx, cz};
+	const double add = kWallPi<double> * 2.0 / num_corners, start = orientation - add / 2.0;
+	std::vector<WallVec> corners((size_t)num_corners);
+	for (int i = 0; i < num_corners; ++i) corners[(size_t)i] = c + wall_rotate({radius, 0.0}, -start - i * add);
+	const WallElement corner_el = wall_element<double>(style, corner);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (int i = 0; i < num_corners; ++i) {
+		const WallVec &at = corners[(size_t)i];
+		const double to_corner = wall_angle(at, c);
+		placed += place_wall_element(corner_el, at.x, at.y, to_corner, player);
+		if (skip_first_wall && i == 0) continue;
+		// Each side from a corner's edge to the next one's (approximately).
+		const WallVec edge = wall_perpendicular(wall_rotate({corner_el.length / 2.0, 0.0}, -(to_corner + add / 2.0)));
+		const WallVec a = at - edge, b = corners[(size_t)((i + 1) % num_corners)] + edge;
+		placed += place_linear_wall(a.x, a.y, b.x, b.y, part, style, player, true);
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+size_t Simulation::place_irregular_polygonal_wall(double cx, double cz, double radius, const WallElementName &corner,
+		uint8_t style, uint8_t player, double orientation, int num_corners, double irregularity, bool skip_first_wall,
+		uint32_t seed) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	uint64_t state = (uint64_t)seed * 0x9E3779B97F4A7C15ull + 0x2545F4914F6CDD1Dull;
+	auto rnd = [&state]() { // splitmix64, [0, 1)
+		uint64_t v = (state += 0x9E3779B97F4A7C15ull);
+		v = (v ^ (v >> 30)) * 0xBF58476D1CE4E5B9ull;
+		v = (v ^ (v >> 27)) * 0x94D049BB133111EBull;
+		v ^= v >> 31;
+		return (double)(v >> 11) * (1.0 / 9007199254740992.0);
+	};
+	if (num_corners <= 0) num_corners = 5 + (int)(rnd() * 3.0); // randIntInclusive(5, 7)
+	// The default wallPartsAssortment: short, medium and long walls, a gate with a tower and a short
+	// wall, a gate alone, and the gate lengthened on alternate sides by tower-long and tower-medium
+	// pairs once for each tile of the radius.
+	using P = std::vector<WallElementName>;
+	const WallElementName gate{WALL_EL_GATE}, tower{WALL_EL_TOWER};
+	std::vector<P> assortment = {P{WallElementName{WALL_EL_SHORT}}, P{WallElementName{WALL_EL_MEDIUM}},
+			P{WallElementName{WALL_EL_LONG}}, P{gate, tower, WallElementName{WALL_EL_SHORT}}, P{gate}};
+	for (const P &ext : {P{tower, WallElementName{WALL_EL_LONG}}, P{tower, WallElementName{WALL_EL_MEDIUM}}}) {
+		P wall_part{gate};
+		for (int j = 0; (double)j < radius; ++j) {
+			if (j % 2 == 0) {
+				wall_part.insert(wall_part.end(), ext.begin(), ext.end());
+			} else {
+				P front(ext.rbegin(), ext.rend());
+				front.insert(front.end(), wall_part.begin(), wall_part.end());
+				wall_part = std::move(front);
+			}
+			assortment.push_back(wall_part);
+		}
+	}
+	// The angles each side covers, at random within the irregularity (less variety as they go).
+	double to_cover = kWallPi<double> * 2.0;
+	std::vector<double> adds;
+	for (int i = 0; i < num_corners; ++i) {
+		adds.push_back(to_cover / (num_corners - i) * (1.0 + (-irregularity + rnd() * 2.0 * irregularity)));
+		to_cover -= adds.back();
+	}
+	const WallVec c{cx, cz};
+	std::vector<WallVec> corners;
+	double actual = orientation - adds[0] / 2.0;
+	for (int i = 0; i < num_corners; ++i) {
+		corners.push_back(c + wall_rotate({radius, 0.0}, -actual));
+		if (i < num_corners - 1) actual += adds[(size_t)i + 1];
+	}
+	// Each side the part whose whole number of copies fits it shortest, past its length.
+	std::vector<double> lengths;
+	double max_length = 0.0;
+	for (const P &p : assortment) {
+		lengths.push_back(wall_length<double>(style, p));
+		max_length = std::max(max_length, lengths.back());
+	}
+	std::vector<const P *> parts;
+	for (int i = 0; i < num_corners; ++i) {
+		const P *best = nullptr;
+		double best_length = std::numeric_limits<double>::infinity();
+		const WallVec &a = corners[(size_t)i], &b = corners[(size_t)((i + 1) % num_corners)];
+		const double side = std::hypot(b.x - a.x, b.y - a.y), copies = std::ceil(side / max_length);
+		for (size_t k = 0; k < assortment.size(); ++k) {
+			const double l = copies * lengths[k];
+			if (l < best_length && l > side) {
+				best = &assortment[k];
+				best_length = l;
+			}
+		}
+		parts.push_back(best);
+	}
+	const WallElement corner_el = wall_element<double>(style, corner);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (int i = 0; i < num_corners; ++i) {
+		const WallVec &at = corners[(size_t)i];
+		const double to_corner = wall_angle(at, c);
+		placed += place_wall_element(corner_el, at.x, at.y, to_corner, player);
+		if (skip_first_wall && i == 0) continue;
+		const int next = (i + 1) % num_corners;
+		const double half_corner = corner_el.length / 2.0;
+		const double start_a = to_corner + adds[(size_t)i] / 2.0, target_a = to_corner + adds[(size_t)next] / 2.0;
+		const WallVec a = at - wall_rotate(wall_perpendicular({half_corner, 0.0}), -start_a);
+		const WallVec b = corners[(size_t)next] + wall_rotate({half_corner, 0.0}, -target_a - kWallPi<double> / 2.0);
+		if (parts[(size_t)i]) // none fits: 0.28 would lay an empty part, which never ends
+			placed += place_linear_wall(a.x, a.y, b.x, b.y, *parts[(size_t)i], style, player, false);
 	}
 	bulk_spawn_ = bulk;
 	if (!bulk && placed) rebuild_nav_grid();
@@ -8648,11 +8938,24 @@ uint32_t Simulation::stat_building_value(const Building &b) const {
 	return stat_cost_value(c);
 }
 
+// The unit's StatisticsTracker classes. Heroes take Infantry or Cavalry from their 0.28
+// template (template_unit_hero_infantry / _cavalry; elephant and healer heroes have neither),
+// which the formation table carries as Identity classes.
+uint32_t Simulation::stat_unit_classes_of(size_t idx) const {
+	const uint16_t tmpl = units_.tmpl[idx];
+	uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	if ((cls & (1u << STAT_UNIT_HERO)) && tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint16_t idc = formation_unit_table()[tmpl].classes;
+		if (idc & FCLASS_INFANTRY) cls |= 1u << STAT_UNIT_INFANTRY;
+		if (idc & FCLASS_CAVALRY) cls |= 1u << STAT_UNIT_CAVALRY;
+	}
+	return cls;
+}
+
 void Simulation::stat_unit_trained(size_t idx) {
 	const uint8_t p = units_.team[idx];
 	if (p >= MAX_PLAYERS) return;
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	PlayerStatistics &st = stats_[p];
 	for (uint8_t c = 0; c < STAT_UNIT_TOTAL; ++c)
 		if (cls & (1u << c)) st.units_trained[c]++;
@@ -8664,8 +8967,7 @@ void Simulation::stat_unit_trained(size_t idx) {
 // and through regeneration or auras count nowhere, so only attack kills call these.
 void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 	const uint8_t p = units_.team[idx];
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	const uint32_t value = stat_unit_value(idx);
 	// LostEntity for the owner, KilledEntity for whoever killed it.
 	if (p < MAX_PLAYERS) {
@@ -8688,8 +8990,7 @@ void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 // from, CapturedEntity for the captor. A catafalque has no Cost, so no value.
 void Simulation::stat_unit_captured(size_t idx, uint8_t from) {
 	const uint8_t p = units_.team[idx];
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	const uint32_t value = stat_unit_value(idx);
 	if (from < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[from];
@@ -9623,7 +9924,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 				float reach = capture ? CAPTURE_RANGE : attack_reach(i);
 				if (!capture && reach > 3.0f) { // Ranged: the elevation-adapted range, as for a unit target
-					const float h = get_terrain_height(b.x, b.z) - unit_height(i);
+					const float h = get_terrain_height(b.x, b.z) - unit_height(i) - unit_attack_origin_y(i);
 					const float eff = std::sqrt(std::max(0.0f, reach * reach - 2.0f * reach * h));
 					reach = eff > reach ? 0.5f * (reach + eff) : eff;
 				}
@@ -9665,7 +9966,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				if (units_.target_unit_id[i] != 0) {
 					const int32_t t = lookup_unit(units_.target_unit_id[i]);
 					if (t >= 0) {
-						const float h = unit_height((size_t)t) - unit_height(i);
+						const float h = unit_height((size_t)t) - unit_height(i) - unit_attack_origin_y(i);
 						const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
 						r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
 					}
@@ -11872,6 +12173,10 @@ void Simulation::tick_production(float dt) {
 	}
 }
 
+// The widest unit_building_clearance (a trireme's 1.8): how far past a range a unit's centre
+// can be while its obstruction edge is in it, for the grid searches round a range.
+constexpr float UNIT_RANGE_MARGIN = 2.0f;
+
 inline bool in_parabolic_range(float d2, float att_y, float def_y, float base_range) {
 	float height_diff = def_y - att_y; // target_y - attacker_y
 	float max_r2 = base_range * base_range - 2.0f * base_range * height_diff;
@@ -11910,7 +12215,7 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 			const size_t i = (size_t)ui;
 			ok = units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && can_attack(b.team, units_.team[i])
 					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
-					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, 0.0f, unit_height(i));
+					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		} else if (tb != building_id_to_idx_.end()) {
 			const Building &ob = buildings_[tb->second];
 			ok = !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
@@ -12397,9 +12702,11 @@ void Simulation::tick_combat(float dt) {
 				           unit_splash(units_.tmpl[i], u_att));
 			}
 
-		} else if (!invulnerable(units_.id[t])) {
+		} else if (units_.alive[t] && !invulnerable(units_.id[t])) {
 			// helpers/Attack.js HandleAttackEffects returns at once for an invulnerable target:
-			// no damage, xp, Attacked message or status.
+			// no damage, xp, Attacked message or status. A target another attacker killed
+			// earlier this turn is already dead: Health.Reduce does nothing for it, so its
+			// kill, loot and statistics count once.
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
 			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg, true);
 			units_.hp[t] -= final_dmg;
@@ -12607,14 +12914,18 @@ void Simulation::tick_combat(float dt) {
 		const int volley = siege_tower_arrows(i);
 		if (volley <= 0) continue;
 		const uint8_t team = units_.team[i];
-		const float sx = units_.pos_x[i], sz = units_.pos_z[i], sy = unit_height(i);
+		// template_unit_siege_tower Attack/Ranged/Origin/Y: its range is measured from 10 m up.
+		const float ground_y = unit_height(i);
+		const float sx = units_.pos_x[i], sz = units_.pos_z[i], sy = ground_y + unit_attack_origin_y(i);
 		const float range = units_.attack_range[i];
 		const bool check_los = team < MAX_PLAYERS && los_.cells() != 0;
 		auto unit_ok = [&](int32_t t) {
 			if (!units_.alive[t] || units_.action_state[t] == ACTION_GARRISONED || !can_attack(team, units_.team[t])) return false;
 			if (units_.team[t] == GAIA_PLAYER && units_.attack_damage[t] <= 0.0f) return false;
+			// From obstruction edge to obstruction edge, as the range query measures.
 			const float dx = units_.pos_x[t] - sx, dz = units_.pos_z[t] - sz;
-			if (!in_parabolic_range(dx * dx + dz * dz, sy, unit_height(t), range)) return false;
+			const float gap = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_clearance_at(i) - unit_clearance_at((size_t)t));
+			if (!in_parabolic_range(gap * gap, sy, unit_height(t), range)) return false;
 			return !check_los || los_visible(team, units_.pos_x[t], units_.pos_z[t]);
 		};
 		auto building_ok = [&](const Building &ob) {
@@ -12624,9 +12935,13 @@ void Simulation::tick_combat(float dt) {
 			return !check_los || los_explored(team, ob.x, ob.z);
 		};
 		const bool shoots_gaia = team != GAIA_PLAYER && is_hostile(team, GAIA_PLAYER);
+		// Dangerous Gaia animals, and enemy players' livestock (BuildingAI's enemy query takes
+		// every entity with Resistance), as for structures.
 		auto fauna_ok = [&](int32_t f) {
 			const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
-			return shoots_gaia && in_parabolic_range(dx * dx + dz * dz, sy, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]), range)
+			const uint8_t owner = fauna_owner_[f];
+			const bool foe = owner < MAX_PLAYERS ? team != GAIA_PLAYER && can_attack(team, owner) : shoots_gaia;
+			return foe && in_parabolic_range(dx * dx + dz * dz, sy, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]), range)
 					&& (!check_los || los_visible(team, fauna_.pos_x[f], fauna_.pos_z[f]));
 		};
 		// The UnitAI target first, then the best of the rest.
@@ -12650,16 +12965,19 @@ void Simulation::tick_combat(float dt) {
 					best_pref = pref; best_d2 = d2; best_kind = kind; best_idx = idx;
 				}
 			};
-			if (n) grid.visit_radius(sx, sz, range, [&](int32_t t) {
+			// The flat-ground reach from the tower's Origin/Y, past which no unit's edge is in range.
+			const float reach = std::sqrt(range * range + 2.0f * range * (sy - ground_y)) + UNIT_RANGE_MARGIN + unit_clearance_at(i);
+			if (n) grid.visit_radius(sx, sz, reach, [&](int32_t t) {
 				if (!unit_ok(t)) return;
 				const float dx = units_.pos_x[t] - sx, dz = units_.pos_z[t] - sz;
 				consider(prefers_human && unit_combat_at((size_t)t).classes.has(CC_HUMAN) ? 0 : 49, dx * dx + dz * dz, 0, t);
 			});
-			for (const int32_t f : wild) {
-				if (!fauna_ok(f)) continue;
-				const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
-				consider(49, dx * dx + dz * dz, 1, f);
-			}
+			for (const std::vector<uint16_t> *list : {&wild, &herd})
+				for (const int32_t f : *list) {
+					if (!fauna_ok(f)) continue;
+					const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
+					consider(49, dx * dx + dz * dz, 1, f);
+				}
 			for (size_t o = 0; o < buildings_.size(); ++o) {
 				if (!building_ok(buildings_[o])) continue;
 				const float dx = buildings_[o].x - sx, dz = buildings_[o].z - sz;
@@ -12673,7 +12991,7 @@ void Simulation::tick_combat(float dt) {
 		if (!have) continue;
 		const float tech_spread = team < MAX_PLAYERS ? unit_tech_mods(team, units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
 		const float spread = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread;
-		const float launch_y = sy + 1.4f;
+		const float launch_y = ground_y + 1.4f;
 		const uint8_t splash = unit_splash(units_.tmpl[i], units_.unit_type[i]);
 		if (tf >= 0) {
 			for (int v = 0; v < volley; ++v) fire_at_fauna(i, (size_t)tf);
@@ -12746,7 +13064,7 @@ void Simulation::tick_combat(float dt) {
 		auto unit_target = [&](int32_t i) {
 			return units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && can_attack(b.team, units_.team[i])
 					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
-					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, 0.0f, unit_height(i));
+					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		};
 		auto building_target = [&](const Building &ob) {
 			return !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
@@ -12762,7 +13080,7 @@ void Simulation::tick_combat(float dt) {
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) { any = any || unit_target(i); });
+			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
 			for (size_t k = 0; k < wild.size() && !any; ++k) any = fauna_target(wild[k]);
 			for (size_t k = 0; k < herd.size() && !any; ++k) any = fauna_target(herd[k]);
 			for (size_t o = 0; o < buildings_.size() && !any; ++o) any = building_target(buildings_[o]);
@@ -12779,7 +13097,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
@@ -13008,6 +13326,38 @@ float Simulation::promotion_train_time_mult(uint16_t tmpl) {
 	return m;
 }
 
+uint16_t Simulation::trained_as(uint8_t pid, uint16_t tmpl, uint8_t &rank) const {
+	rank = promotion_start_rank(tmpl);
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || pid >= MAX_PLAYERS) return tmpl;
+	for (int step = 0; step < 6; ++step) {
+		const uint8_t type = civ_unit_template(tmpl).unit_type;
+		const PromotionLink *l = promotion_link(tmpl, type, rank);
+		if (!l) break;
+		// promotion_required_xp without the range auras: the player's modified RequiredXp.
+		float xp = l->xp;
+		const TechClasses cls = unit_classes(tmpl, type);
+		for (const PromotionXpTech &t : PROMOTION_XP_TECHS)
+			if ((t.tech == TECH_NONE || players_[pid].has_tech(t.tech)) && (!t.rank || t.rank == rank) &&
+					(cls & t.need) == t.need && !(cls & t.forbid))
+				xp = t.replace_zero ? 0.0f : xp * t.multiply;
+		xp *= unit_tech_mods(pid, type, tmpl).required_xp;
+		if (xp > 0.0f) break;
+		if (l->target != CIV_UNIT_TEMPLATE_NONE) tmpl = l->target;
+		rank = l->target_rank;
+	}
+	return tmpl;
+}
+
+float Simulation::unit_train_seconds(uint8_t pid, uint16_t queued) const {
+	uint8_t rank = 1;
+	const uint16_t tmpl = trained_as(pid, queued, rank);
+	const uint8_t type = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).unit_type : (uint8_t)UNIT_VILLAGER;
+	float m = 1.0f; // unit_advanced.json / unit_elite.json Cost/BuildTime
+	for (uint8_t r = 2; r <= rank; ++r) m *= rank_bonus(r).train_time_mul;
+	return civ_template_unit_info(tmpl, type).train_time * team_bonus_mult(pid, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl) *
+	       unit_tech_mods(pid, type, tmpl).train_time * ai_time_mult(pid) * m;
+}
+
 bool Simulation::unit_has_rank(size_t i) const {
 	if (i >= units_.count) return false;
 	if (units_.rank[i] >= 2) return true;
@@ -13086,7 +13436,7 @@ float Simulation::heal_amount_of(size_t h) const {
 	return hp;
 }
 
-// Health/Max x1.25 and, for melee units, Attack/Melee damage x1.2 for each rank gained.
+// Health/Max x1.25 and, for melee units, Attack/Melee damage x1.1 for each rank gained.
 void Simulation::apply_rank_bonus(size_t i, uint8_t from_rank, uint8_t to_rank) {
 	const bool melee = (unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_MELEE).any();
 	for (uint8_t r = std::max<uint8_t>(from_rank, 1) + 1; r <= std::min<uint8_t>(to_rank, 3); ++r) {
@@ -13684,11 +14034,15 @@ float Simulation::unit_damage_to_structure(size_t i, const Building &b) const {
 }
 
 // A structure's arrow (BuildingAI) against resistance `res`: its Attack/Ranged Damage,
-// pierce scaled by its owner's technologies.
+// pierce scaled by its owner's technologies, times the attack auras reaching structures
+// (Alexander's Undefeated: enemy Structures -10% attack damage).
 float Simulation::structure_arrow_damage(const Building &shooter, const float res[3]) const {
 	const BuildingAIInfo &ai = building_ai_info(shooter.type);
 	const float pierce = ai.pierce * (shooter.team < MAX_PLAYERS ? tech_mods(shooter.team).bld_attack[shooter.type] : 1.0f);
-	return ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
+	const float aura = aura_mgr_.query_modifier(shooter.x, shooter.z, shooter.team, AURA_ATTACK,
+		CIV_UNIT_TEMPLATE_NONE, nullptr, true);
+	const float dmg = ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
+	return aura > 0.0f ? dmg * aura : dmg; // 0 = none in range
 }
 
 // DelayedDamage.js Hit -> Attacking.HandleAttackEffects: the projectile's effects meet
@@ -17518,9 +17872,7 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	order.timer = 0.0f;
 	order.petra_plan = plan;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
-	order.duration = uinfo.train_time * team_bonus_mult(pid, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
-		* unit_tech_mods(pid, t.unit_type, tmpl).train_time * ai_time_mult(pid) * promotion_train_time_mult(tmpl)
-		* batch_time_multiplier(pid, b.type, count);
+	order.duration = unit_train_seconds(pid, tmpl) * batch_time_multiplier(pid, b.type, count);
 	b.queue.push_back(order);
 	return true;
 }
@@ -19357,8 +19709,11 @@ int Simulation::petra_target_traders() const {
 	float demand[RES_COUNT];
 	petra_resource_demand(demand);
 	const PlayerState &ps = petra_ps();
+	// setTradingGoods' wantedGatherRates (the economy's want_rate this turn; before it has run,
+	// the shortfall over 30 s). 0 A.D. holds the result for 60 AI turns (saved); here it is live.
+	const bool rates = petra_rates_this_turn();
 	for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD}) {
-		const float wanted_rate = std::max(0.0f, demand[r] - ps.res[r]) / 30.0f;
+		const float wanted_rate = rates ? petra_want_rate_[r] : std::max(0.0f, demand[r] - ps.res[r]) / 30.0f;
 		if (ps.res[r] < 200.0f) target += std::min(5, 3 + (int)std::ceil(wanted_rate / 30.0f));
 		else if (ps.res[r] < 500.0f) target += 2;
 		else if (ps.res[r] < 1000.0f) target += 1;
@@ -19500,9 +19855,11 @@ int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_
 	if (!found) return 0;
 	out_gain = trader_gain_at(std::sqrt(best_d2), 0.0, petra_pid_, UNIT_TRADER);
 	if (out_gain < petra_trade_minimal_gain()) {
-		// Too little to gain, except for our first market.
+		// Too little to gain: none, except our first market, which then goes where
+		// findGoodPosition puts one (idx -1: queueplanBuilding.js keeps the plan, not the spot).
 		for (const Building &b : buildings_)
 			if (b.type == BLD_MARKET && b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked) return -1;
+		return 0;
 	}
 	return 1;
 }
@@ -19514,7 +19871,9 @@ uint32_t Simulation::petra_build_market(float home_x, float home_z, uint8_t queu
 	int gain = 0;
 	const int where = petra_find_market_location(x, z, gain);
 	if (where < 0) return 0;
-	if (where == 0) return petra_place_building(BLD_MARKET, home_x, home_z, 4, 16, queue);
+	// The first one: findGoodPosition over every base, +50 on the map border to leave room
+	// for a long route later (favorBorder).
+	if (where == 0) return petra_place_generic(BLD_MARKET, queue, nullptr, nullptr, false);
 	const float half = building_type_info(BLD_MARKET).footprint * GRID * 0.5f;
 	return petra_place_building(BLD_MARKET, x - half, z - half, 0, 2, queue);
 }
@@ -19548,7 +19907,9 @@ void Simulation::petra_manage_trading(float dt) {
 	// tradeManager.js update: every AI turn.
 	petra_trade_timer_ = 0.0f;
 
-	if (petra_ps().phase < 2) return;
+	// No phase gate (tradeManager.js update): a village-phase dock-to-dock sea route with an
+	// ally's dock can run, with Carthage's village merchantman. Barter needs a market, training
+	// refuses a later phase's template, and prospection waits for the town phase.
 	petra_perform_barter();
 	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
 
@@ -19601,8 +19962,7 @@ void Simulation::petra_manage_trading(float dt) {
 						const float px = units_.pos_x[i], pz = units_.pos_z[i];
 						const Building &end = (s.x - px) * (s.x - px) + (s.z - pz) * (s.z - pz) <=
 						                      (t.x - px) * (t.x - px) + (t.z - pz) * (t.z - pz) ? s : t;
-						const uint16_t sea = topo.sea_between(access, r->land);
-						if (sea) petra_start_transport({uid}, px, pz, end.x, end.z, sea, PETRA_TRANSPORT_TRADER);
+						petra_require_worker_transport(i, access, r->land, end.x, end.z, PETRA_TRANSPORT_TRADER);
 					}
 				}
 				continue;
@@ -20060,16 +20420,17 @@ size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, fl
 	return n_away;
 }
 
-// navalManager.requireTransport for a worker: it joins our workers' crossing from its land to
-// that one while the ship still boards, or a new crossing starts (one at a time, on a ship
-// already on that sea).
-bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, uint16_t to_land, float to_x, float to_z) {
+// navalManager.requireTransport for a worker (or, with `owner`, a trader): it joins our crossing
+// of that kind from its land to that one while the ship still boards, or a new crossing starts
+// (one of each kind at a time, on a ship already on that sea).
+bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, uint16_t to_land, float to_x, float to_z,
+                                                uint8_t owner) {
 	const uint32_t uid = units_.id[i];
 	if (!from_land || !to_land || from_land == to_land || petra_passenger(uid) || petra_aboard(uid)) return false;
 	uint16_t home = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(home);
 	for (auto &tp : petra_transports_) {
-		if (tp.owner != PETRA_TRANSPORT_WORKERS) continue;
+		if (tp.owner != owner) continue;
 		if (tp.state != PetraTransportPlan::BOARDING || petra_land_at(tp.pickup_x, tp.pickup_z) != from_land ||
 		    petra_land_at(tp.drop_x, tp.drop_z) != to_land || !tp.ship_id ||
 		    tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id))
@@ -20082,7 +20443,7 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 	}
 	const uint16_t sea = topo.sea_between(from_land, to_land);
 	if (!sea) return false;
-	return petra_start_transport({uid}, units_.pos_x[i], units_.pos_z[i], to_x, to_z, sea, PETRA_TRANSPORT_WORKERS);
+	return petra_start_transport({uid}, units_.pos_x[i], units_.pos_z[i], to_x, to_z, sea, owner);
 }
 
 const PetraTransportPlan *Simulation::petra_transport_for(uint8_t owner) const {
@@ -20399,11 +20760,13 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			cands.push_back({score + 16.0f - (float)water, ix, iz, water});
 		}
 	}
-	// The best first: the first that fits wins (later tiles on ties, as the scan replaced them).
-	std::sort(cands.begin(), cands.end(), [w](const Cand &a, const Cand &b) {
-		return a.val != b.val ? a.val < b.val : a.iz * w + a.ix > b.iz * w + b.ix;
-	});
+	// findDockPosition's scan in tile order: a later spot replaces the best only when its score
+	// plus five times its missing open water is no worse than the best's score plus its own
+	// missing water (bestVal = score + maxWater - water), so open water weighs five times.
+	std::sort(cands.begin(), cands.end(), [w](const Cand &a, const Cand &b) { return a.iz * w + a.ix < b.iz * w + b.ix; });
+	float best_val = 0.0f;
 	for (const Cand &c : cands) {
+		if (found && c.val + 4.0f * (16.0f - (float)c.water) > best_val) continue;
 		{
 			const float x = ((float)c.ix + 0.5f) * kCcTile - map_half_, z = ((float)c.iz + 0.5f) * kCcTile - map_half_;
 			// getNonObstructedTile: the dock on this tile or one beside it, out of danger
@@ -20428,10 +20791,10 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 					}
 			if (!fits) continue;
 			found = true;
+			best_val = c.val;
 			best_water = c.water;
 			out_cx = cx;
 			out_cz = cz;
-			break;
 		}
 	}
 	// Still in the village phase with little water around: wait for the territory to grow.
@@ -20467,10 +20830,10 @@ void Simulation::petra_manage_naval(float dt) {
 	const size_t nseas = topo.sea_size.size();
 
 	// startingStrategy.js: a starting land under 25000 m² docks at 16 population
-	// and wants two fishing boats per sea (config.js popForDock 25, targetNumFishers 1).
+	// and wants two fishing boats on each sea it touches (config.js popForDock 25, targetNumFishers 1).
 	const bool small_land = home && home < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[home] < 25000.0f;
 	const int pop_for_dock = small_land ? 16 : 25;
-	const int target_fishers = small_land ? 2 : 1;
+	const int target_fishers = 1;
 
 	// Our docks by sea; ships by sea.
 	std::vector<uint32_t> sea_dock(nseas, 0); // a finished dock on each sea
@@ -20622,15 +20985,22 @@ void Simulation::petra_manage_naval(float dt) {
 		if (tp.sea && tp.sea < nseas) ++plans_on[tp.sea];
 	for (size_t s = 1; s < nseas; ++s)
 		if (plans_on[s]) want_transport[s] = std::max(want_transport[s], plans_on[s] + (want_transport[s] > 0 ? 1 : 0));
-	std::vector<int> fish_food(nseas, 0);
+	// navalManager.js init: a sea with over 1000 fish wants targetNumFishers boats, kept until a
+	// boat finds it exhausted; startingStrategy.js raises it to 2 on the seas touching a small
+	// starting land. 0 A.D. decides at the start; unsaved here, the shoals still alive stand in
+	// for the fish then: each regrows to FISH_FOOD_SUPPLY, so their full supply is what they started with.
+	std::vector<int> fish_food(nseas, 0), fish_start(nseas, 0);
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_FISH) continue;
 		auto [fx, fz] = nav_grid_.world_to_cell(resources_.x[r], resources_.z[r]);
 		const uint16_t s = nav_grid_.global_region_at(fx, fz, PASS_SHIP);
-		if (s && s < nseas) fish_food[s] += resources_.amount[r];
+		if (!s || s >= nseas) continue;
+		fish_food[s] += resources_.amount[r];
+		fish_start[s] += resources_.max_amount[r] < 0 ? resources_.amount[r] : FISH_FOOD_SUPPLY; // a whale carcass doesn't regrow
 	}
 	for (size_t s = 1; s < nseas; ++s)
-		if (naval((uint16_t)s) && fish_food[s] > 1000) want_fish[s] = target_fishers;
+		if (naval((uint16_t)s) && fish_food[s] > 0 && fish_start[s] > 1000)
+			want_fish[s] = small_land && topo.linked(home, (uint16_t)s) ? 2 : target_fishers;
 
 	// maintainFleet: a sea already training a ship waits (queues.ships holds that plan); every
 	// other sea may add one this check.
@@ -21741,12 +22111,12 @@ void Simulation::petra_build_defenses() {
 				bid = petra_spawn_foundation(cx, cz, btype);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
-			// takes the standard placement.
+			// takes the standard placement map (away from houses, off the border, +8 m).
 			bool has_fortress = false;
 			for (const Building &b : buildings_)
 				if (b.team == petra_pid_ && b.type == BLD_FORTRESS && b.hp > 0.0f && !b.wrecked) { has_fortress = true; break; }
 			const PetraBase *home = get_primary_petra_base();
-			if (!has_fortress && home) bid = petra_place_building(BLD_FORTRESS, home->x, home->z, 4, 12, PETRA_Q_DEFENSE_BUILDING);
+			if (!has_fortress && home) bid = petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
 		}
 		if (bid) {
 			auto idle = petra_idle_builders();
@@ -21791,7 +22161,9 @@ void Simulation::petra_build_defenses() {
 	auto has_spot = [&](uint8_t t) { int sx = 0, sz = 0; return petra_find_defensive_location(t, sx, sz); };
 	constexpr float kNoRoomWait = 90.0f;
 
-	if (!saving && (phase > 2 || (phase == 2 && petra_phasing()))) {
+	// From City, or while City is being researched (gameState.isResearching(phase 3)); not
+	// while Petra only saves for it.
+	if (!saving && (phase > 2 || (phase == 2 && research_check(petra_pid_, TECH_PHASE_CITY) == TECH_ERR_IN_PROGRESS))) {
 		if (can_build(BLD_FORTRESS) &&
 		    (n_fortresses == 0 || now > (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse + d.fortress_start) &&
 		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2 &&
@@ -21996,10 +22368,11 @@ void Simulation::petra_manage_research(float dt) {
 			}
 		} else {
 			// The first of market, temple and forge we lack and can build (checkPhaseRequirements
-			// "Town"), else another temple.
-			uint8_t t = BLD_TEMPLE;
+			// "Town"); nothing when none is missing.
+			uint8_t t = BLD_TYPE_COUNT;
 			for (uint8_t k : kTown)
 				if (!have_building(k) && civ_can_build(petra_ps().civ, k)) { t = k; break; }
+			if (t == BLD_TYPE_COUNT) return;
 			const uint8_t q = phase_up(t == BLD_FORGE ? PETRA_Q_MILITARY_BUILDING : PETRA_Q_ECONOMIC_BUILDING);
 			if (t == BLD_MARKET) petra_build_market(home->x, home->z, q);
 			else petra_place_generic(t, q);
@@ -22016,7 +22389,7 @@ void Simulation::petra_manage_research(float dt) {
 	if (petra_ps().phase >= 2 && home && petra_turn_mod(3)) {
 		const int own = player_pop_cap(petra_pid_) > 0 ? player_pop_cap(petra_pid_) : pop_cap_;
 		const int cap = own > 0 ? own : 200;
-		const int pop_for_forge = std::min(std::max((int)std::floor(65.0f * petra_config_.pop_scaling), 30), cap / 2);
+		const int pop_for_forge = std::min(std::max((int)std::floor(65.0f * petra_pop_scaling_for(petra_config_.pop_scaling, cap)), 30), cap / 2);
 		const bool saving = petra_attack_mgr_.save_resources != 0;
 		const uint8_t civ = petra_ps().civ;
 		auto can_build = [&](uint8_t t) {
@@ -22038,7 +22411,7 @@ void Simulation::petra_manage_research(float dt) {
 				petra_change_priority(PETRA_Q_ECONOMIC_BUILDING, 3 * petra_queue_base_priority(PETRA_Q_ECONOMIC_BUILDING), PETRA_Q_ECONOMIC_BUILDING);
 			}
 			petra_build_market(home->x, home->z, PETRA_Q_ECONOMIC_BUILDING);
-		} else if (!saving && pop >= pop_for_forge && !have_building(BLD_FORGE)) {
+		} else if (!saving && petra_accounted_population() >= pop_for_forge && !have_building(BLD_FORGE)) {
 			petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING);
 		}
 		// buildTemple (not while saving resources): one temple, after a market, from the city
@@ -24804,10 +25177,12 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		// loading reach: a fresh order every turn re-paths it from its own navcell,
 		// which can hold it in place beside a building.
 		std::vector<uint32_t> board, to_beach;
+		bool walking_up = false; // a passenger still walking to the ship
 		for (uint32_t uid : tp.passenger_ids) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0 || !units_.alive[u]) continue;
 			const bool heading = units_.action_state[u] == ACTION_MOVE && units_.target_unit_id[u] == tp.ship_id;
+			walking_up |= heading;
 			const float ux = units_.pos_x[u] - units_.pos_x[sidx], uz = units_.pos_z[u] - units_.pos_z[sidx];
 			const float reach = ship_loading_reach((size_t)sidx, (size_t)u);
 			const bool in_reach = ux * ux + uz * uz <= reach * reach;
@@ -24822,8 +25197,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		if (!to_beach.empty()) order_walk(to_beach.data(), to_beach.size(), tp.pickup_x, tp.pickup_z, false);
 		if (!board.empty()) order_board_transport(board.data(), board.size(), tp.ship_id);
 		aboard = get_transport_passenger_count(tp.ship_id);
+		// transportPlan.js onBoarding sails once every unit is aboard; RTS0 also leaves after 8 s
+		// with whoever boarded, but not while others are still walking up to the ship.
 		if ((aboard >= 1 && aboard >= tp.passenger_ids.size()) ||
-		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f))
+		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f && !walking_up))
 			sail();
 	} else if (tp.state == PetraTransportPlan::SAILING) {
 		float x, z;
@@ -25030,16 +25407,24 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 				v[j] = (uint8_t)std::clamp(val, 0.0f, 255.0f);
 			}
 	}
+	// mapModule.js createBorderMap: within 80 m of the map's edge (its circle on a circular map).
+	// A market favours it (the first one, to maximise later routes); from the town phase a
+	// structure that doesn't shoot keeps off it.
+	const bool favor_border = btype == BLD_MARKET;
 	const bool disfavor_border = petra_ps().phase > 1 && !building_ai_info(btype).shoots();
 	const float border = 80.0f / 4.0f;
+	auto on_border = [&](float x, float z) {
+		if (circular_map()) return x * x + z * z >= (map_half_ - border) * (map_half_ - border);
+		return std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border;
+	};
 	for (int iz = 0; iz < bh; ++iz)
 		for (int ix = 0; ix < bw; ++ix) {
 			const size_t j = (size_t)iz * bw + ix;
 			if (base > 0 ? m.base[j] != base : m.base[j] == 0) { v[j] = 0; continue; }
 			if (v[j] == 0) continue;
 			const float x = ((float)(ix + m.x0) + 0.5f) * GRID - map_half_, z = ((float)(iz + m.z0) + 0.5f) * GRID - map_half_;
-			if (disfavor_border && std::abs(x) < map_half_ - border && std::abs(z) < map_half_ - border)
-				v[j] = (uint8_t)std::min(255, v[j] + 10);
+			if (favor_border && on_border(x, z)) v[j] = (uint8_t)std::min(255, v[j] + 50);
+			else if (disfavor_border && !on_border(x, z)) v[j] = (uint8_t)std::min(255, v[j] + 10);
 			if (!is_position_safe(x, z, 5.0f)) v[j] = 0; // isNearInvadingArmy
 			else if (base <= 0 && favored > 0 && m.base[j] == favored) v[j] = (uint8_t)std::min(255, v[j] + 100);
 		}
@@ -30419,7 +30804,13 @@ void Simulation::scenery_check_owner(Scenery &sc) {
 	if (sc.cp[owner] > 0.0f) return;
 	int best = GAIA;
 	for (int t = 0; t < GAIA; ++t) if (sc.cp[t] > sc.cp[best]) best = t;
+	const uint8_t from = sc.owner;
 	sc.owner = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
+	// Capturable.js: CapturedEntity for the new owner, LostEntity for the old (template_structure:
+	// a Structure with none of the tracked classes, so only the Total columns move).
+	if (from == sc.owner) return;
+	if (sc.owner < MAX_PLAYERS) stats_[sc.owner].buildings_captured[STAT_BLD_TOTAL]++;
+	if (from < MAX_PLAYERS) stats_[from].buildings_lost[STAT_BLD_TOTAL]++;
 }
 
 // Capturable.js TimerTick, once a second for each Capturable scenery entity: TerritoryDecay
@@ -30452,12 +30843,18 @@ void Simulation::tick_scenery_capture() {
 void Simulation::destroy_scenery(size_t k, int32_t killer) {
 	const uint32_t id = scenery_[k].id;
 	const SceneryTypeInfo &info = scenery_type_info(scenery_[k].type);
+	// Health.js KilledBy: KilledEntity / LostEntity count a Structure (Total only, costless),
+	// then Looter.Collect adds to lootCollected.
+	if (scenery_[k].owner < MAX_PLAYERS) stats_[scenery_[k].owner].buildings_lost[STAT_BLD_TOTAL]++;
 	if (killer >= 0 && units_.team[killer] < MAX_PLAYERS) {
 		PlayerState &ps = players_[units_.team[killer]];
 		ps.res[RES_FOOD] += (float)info.loot[0];
 		ps.res[RES_WOOD] += (float)info.loot[1];
 		ps.res[RES_STONE] += (float)info.loot[2];
 		ps.res[RES_GOLD] += (float)info.loot[3];
+		PlayerStatistics &st = stats_[units_.team[killer]];
+		st.enemy_buildings_destroyed[STAT_BLD_TOTAL]++;
+		st.loot_collected += (uint32_t)(info.loot[0] + info.loot[1] + info.loot[2] + info.loot[3]);
 	}
 	scenery_.erase(scenery_.begin() + (ptrdiff_t)k);
 	for (size_t i = 0; i < units_.count; ++i) {
@@ -31190,6 +31587,7 @@ void Simulation::register_map_triggers(MapType type) {
 		case MAP_ELEPHANTINE: register_trigger_script("elephantine_triggers"); break;
 		case MAP_DANUBIUS: register_trigger_script("danubius_triggers"); break;
 		case MAP_JEBEL_BARKAL: register_trigger_script("jebel_barkal_triggers"); break;
+		case MAP_WALL_DEMO: register_trigger_script("wall_demo_triggers"); break;
 		default: break;
 	}
 }
@@ -31214,6 +31612,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"unit_pushing_test", TRIGGER_ACTION_UNIT_PUSHING, TUTORIAL_NONE},
 		{"unit_motion_integration_test", TRIGGER_ACTION_UNIT_MOTION, TUTORIAL_NONE},
 		{"cinema_demo", TRIGGER_ACTION_CINEMA_DEMO, TUTORIAL_NONE},
+		{"wall_demo_triggers", TRIGGER_ACTION_WALL_DEMO_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -31471,6 +31870,10 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_CINEMA_DEMO:
 			trigger_cinema_demo((int)arg);
+			break;
+		case TRIGGER_ACTION_WALL_DEMO_INIT:
+			// wall_demo_triggers.js: RangeManager SetLosRevealAll(-1, true), the map revealed to everyone.
+			reveal_map_ = true;
 			break;
 		case TRIGGER_ACTION_TRIGGERS_DEMO_RANGE:
 			// RangeAction: warn(uneval(data)). vars 0-2 count what it saw (the demo keeps no state).

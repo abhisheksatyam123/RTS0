@@ -185,7 +185,8 @@ enum MapType : uint8_t {
 	MAP_CONTINENT = 90,
 	MAP_FOOTHILLS = 91,
 	MAP_COAST_RANGE = 92,
-	MAP_TYPE_COUNT = 93
+	MAP_WALL_DEMO = 93, // 0.28's demo of rmgen-common wall_builder.js (keyword "demo")
+	MAP_TYPE_COUNT = 94
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -236,11 +237,11 @@ inline bool map_has_team_placement(uint8_t type) { return map_team_placements(ty
 
 // 0 A.D. CircularMap: the map is the circle inside the square (LOS and passability end at
 // it). Every 0.28 random map is circular except the ones whose JSON says CircularMap false
-// (corsica, phoenician_levant, latium); RTS0's own maps (0-10) fill the square.
+// (corsica, phoenician_levant, latium, wall_demo); RTS0's own maps (0-10) fill the square.
 inline bool map_circular(uint8_t type) {
 	if (type <= MAP_RANDOM_MEDITERRANEAN || type >= MAP_TYPE_COUNT) return false;
 	switch (type) {
-		case MAP_CORSICA: case MAP_PHOENICIAN_LEVANT: case MAP_LATIUM: return false;
+		case MAP_CORSICA: case MAP_PHOENICIAN_LEVANT: case MAP_LATIUM: case MAP_WALL_DEMO: return false;
 		default: return true;
 	}
 }
@@ -339,7 +340,8 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."},
 		{MAP_CONTINENT, "continent", "Continent (RMS)", "temperate", true, "All players starts on a continent surrounded by water."},
 		{MAP_FOOTHILLS, "foothills", "Foothills (RMS)", "temperate", true, "A land map with rolling hills and no obstructions."},
-		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."}
+		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."},
+		{MAP_WALL_DEMO, "wall_demo", "Wall Demo (RMS)", "temperate", true, "A demonstration of wall placement methods/code in random maps. Giant map size is recommended!"}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -1300,10 +1302,10 @@ inline bool civ_has_big_house(uint8_t civ) {
 inline TerritoryInfluenceInfo structure_territory_influence(uint8_t type, uint8_t civ) {
 	TerritoryInfluenceInfo ti = territory_influence_info(type);
 	if (type == BLD_HOUSE && civ_has_big_house(civ)) {
-		ti.radius = 20.0f * 0.28f;
+		ti.radius = 20.0f * 0.25f; // map units, as territory_data.h
 		ti.weight = 40000;
 	} else if (type == BLD_TOWER && civ == CIV_IBERIANS) {
-		ti.radius = 38.0f * 0.28f;
+		ti.radius = 38.0f * 0.25f;
 	}
 	return ti;
 }
@@ -2139,7 +2141,8 @@ enum CivRosterFlag : uint16_t {
 	ROSTER_SIEGE_TOWER = 64,
 	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
 	ROSTER_NO_GATHER = 256, // a Citizen whose template disables ResourceGatherer (mercenaries)
-	ROSTER_CIVILIAN = 512 // 0.28's Civilian class (template_unit_support_civilian): StatisticsTracker's Civilian
+	ROSTER_CIVILIAN = 512, // 0.28's Civilian class (template_unit_support_civilian): StatisticsTracker's Civilian
+	ROSTER_MAP_ONLY = 1024 // only maps place it (scenario heroes, Samnites, pirate ships): no structure trains it
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }

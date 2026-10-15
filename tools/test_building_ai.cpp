@@ -515,6 +515,34 @@ int main() {
 		for (const Projectile &p : a.fired) { at_sheep += p.target_unit_id == sheep; at_wild += p.target_unit_id == wild_sheep; }
 		std::printf("civic centre beside an enemy's sheep over 10 s: %d arrows, %d at it, %d at Gaia's\n", (int)a.fired.size(), at_sheep, at_wild);
 		CHECK(at_sheep > 0 && at_wild == 0);
+		// So does a siege tower's (template_unit_siege_tower has BuildingAI).
+		fresh(s);
+		uint32_t tower = s.spawn_unit(20.0f, 20.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, template_named("mace/siege_tower"));
+		std::vector<uint32_t> crew;
+		for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(21.0f, 20.0f + k, 0, UNIT_ARCHER));
+		s.order_board_transport(crew.data(), crew.size(), tower);
+		uint32_t flock = s.spawn_fauna(26.0f, 20.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		ArrowCounter st;
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); st.step(s, tower); }
+		int at_flock = 0;
+		for (const Projectile &p : st.fired) at_flock += p.target_unit_id == flock;
+		std::printf("siege tower beside an enemy's sheep over 10 s: %d arrows, %d at it\n", (int)st.fired.size(), at_flock);
+		CHECK(at_flock > 0);
+	}
+
+	// 11b. The range query measures to the target's obstruction edge: a war elephant (3 m
+	// clearance) whose centre is just past a tower's range is still shot.
+	{
+		fresh(s);
+		uint32_t tw = s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+		const Simulation::Building &b = *find_bld(s, tw);
+		const float edge = b.half_size + s.building_arrow_range(b);
+		uint32_t ele = foe(s, edge + CLEARANCE_LARGE * 0.5f, 0.0f, UNIT_ELEPHANT);
+		CHECK(s.unit_clearance_at((size_t)idx_of(s, ele)) == CLEARANCE_LARGE);
+		ArrowCounter a;
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); a.step(s, tw); }
+		std::printf("tower at an elephant %.2f wu past its range: %d arrows\n", CLEARANCE_LARGE * 0.5f, (int)a.fired.size());
+		CHECK(!a.fired.empty());
 	}
 
 	// 12. Trainer.js {native}: a captured Carthaginian embassy trains its Celtic mercenaries
@@ -532,6 +560,24 @@ int main() {
 		CHECK(ok);
 		uint32_t bk = s.spawn_building_world(40.0f, 40.0f, BLD_BARRACKS, 0, 1.0f);
 		CHECK(!s.cmd_train_template_at(0, bk, gaul, false, 1));
+	}
+
+	// 13. Alexander's Undefeated (mace_hero_alexander_iii_2: enemy Soldiers and Structures
+	// -10% attack damage): a tower near him looses weaker arrows; one out of reach doesn't.
+	{
+		fresh(s);
+		uint32_t near_t = s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+		uint32_t far_t = s.spawn_building_world(40.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+		const float res[3] = {0.0f, 0.0f, 0.0f};
+		const float base = s.structure_arrow_damage(*find_bld(s, near_t), res);
+		const uint16_t alex = template_named("mace/hero_alexander_iii");
+		CHECK(alex != CIV_UNIT_TEMPLATE_NONE);
+		s.spawn_unit(0.0f, 5.0f, 1, UNIT_HERO, 0.0f, alex);
+		s.rebuild_auras();
+		const float with = s.structure_arrow_damage(*find_bld(s, near_t), res);
+		std::printf("tower arrow %.2f, near an enemy Alexander %.2f\n", base, with);
+		CHECK(near(with, base * 0.9f));
+		CHECK(near(s.structure_arrow_damage(*find_bld(s, far_t), res), base));
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

@@ -76,6 +76,7 @@ func run() -> void:
 	print("    range ", rng_m.get_string(0) if rng_m else "none")
 	check(rng_m != null and (rng_m.get_string(3) == "" or int(rng_m.get_string(3)) != 0), "its range, with what the ground there adds")
 	check("\nResistance:\n" in String(b["stats_tooltip"]), "then its resistance")
+	check("\n  Status Effects: Blocks Poisoned" in String(b["stats_tooltip"]), "which blocks Poisoned, as every 0.28 structure's does")
 	check("Projectile Limit: " in String(b["stats_tooltip"]) and ", Per Unit: " in String(b["stats_tooltip"]), "its projectile limit, default and per unit")
 	check("Population Bonus: " in String(b["stats_tooltip"]) and "\nLoot: " in String(b["stats_tooltip"]), "its population bonus and loot")
 	check("Garrison Limit: " in String(b["stats_tooltip"]), "and its garrison limit")
@@ -122,6 +123,10 @@ func run() -> void:
 	print("ram: ", String(rt["stats_tooltip"]).replace("\n", " | "))
 	check("\nGarrison Limit: " in String(rt["stats_tooltip"]), "a ram's tooltip gives its Garrison Limit (getGarrisonTooltip)")
 	check("\nGarrison Size: 1 + 2" in String(rt["stats_tooltip"]), "and its Garrison Size with what it carries")
+	var tower: PackedInt32Array = main.debug_spawn_units("mace/siege_tower", 1)
+	await frames(2)
+	var tw: Dictionary = main.debug_inspector(str(tower[0]))
+	check("\nProjectile Limit: 10, Default: 0, Per Unit: 1" in String(tw["stats_tooltip"]), "a siege tower's tooltip gives its projectiles (getProjectilesTooltip)")
 
 	main.debug_spawn_fauna(2, 2, true) # FAUNA_SHEEP
 	main.debug_spawn_fauna(31, 1, true) # FAUNA_GOAT
@@ -136,6 +141,11 @@ func run() -> void:
 	(instance_from_id(licons[0]["id"]) as Button).pressed.emit()
 	await frames(2)
 	check(int(main.debug_selection_grid(false)["selected"]) == 2, "a click on the sheep keeps only the sheep")
+
+	var rl: Dictionary = main.debug_inspector("relic")
+	print("relic: ", rl["title"], " ", rl["capture_parts"].size())
+	var rparts: Array = rl["capture_parts"]
+	check(rparts.size() == 1 and float(rparts[0]["width"]) > 300.0, "a Gaia relic shows its capture bar, all Gaia's (captureSection)")
 
 	print("e2e_selection_details: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)

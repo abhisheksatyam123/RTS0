@@ -38,6 +38,7 @@ static func auras_tooltip(auras: Array) -> String:
 	return "\n".join(lines)
 
 func _ready() -> void:
+	set_meta("tooltip_style", "reference") # 0.28 referenceTooltip (tooltips.gd)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var fade := ColorRect.new() # "BackgroundTranslucent"
