@@ -1213,14 +1213,22 @@ private:
 				const rtso::FaunaTrainCost &c = rtso::fauna_train_cost(f);
 				String label = String::utf8(rtso::fauna_type_info(f).name) + " (" + String::num_int64(c.res[0]) + "f)";
 				const int idx = add_roster_icon(label, rtso::portraits::fauna(f), ROSTER_ANIMAL | (int)f);
-				set_roster_tip(idx, String::utf8(rtso::fauna_type_info(f).name) + "\nTrain " +
-						String::num(sim->livestock_train_time(pid, f), 0) + " s, " +
-						String::num_int64(rtso::fauna_type_info(f).food_amount) + " food when slaughtered, " +
-						String::num(rtso::fauna_corral_food(f), 0) + " food every " +
-						String::num(rtso::CORRAL_TRICKLE_INTERVAL, 0) + " s while penned" +
-						(rtso::Simulation::livestock_required_phase(f) > phase
-										? String(rtso::Simulation::livestock_required_phase(f) >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase")
-										: String()));
+				// The Training panel's tooltip for gaia/fauna_*_trainable: hotkey and names, Tooltip,
+				// cost, limit, batch line and requirements; the live part adds the rest.
+				const Dictionary gaia = reference_templates().get("gaia", Dictionary());
+				const Dictionary text = gaia.get(String("gaia/") + rtso::fauna_type_info(f).template_name, Dictionary());
+				const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
+				String tip = (hotkey.empty() ? String() : rtso::hotkey_tag(String(hotkey.c_str())) + " ") +
+						rtso::entity_names(String(text.get("generic_name", String::utf8(rtso::fauna_type_info(f).name))),
+								String(text.get("specific_name", String())));
+				auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
+				add_line(identity_tooltip(text));
+				tip += "\n" + String(COST_SLOT);
+				add_line(limit_tooltip(pid, rtso::LIMIT_ANIMAL));
+				tip += "\n" + String(BATCH_SLOT);
+				const uint8_t need_phase = rtso::Simulation::livestock_required_phase(f);
+				if (need_phase > phase) tip += "\n" + requires_text(need_phase >= 3 ? "City Phase" : "Town Phase");
+				set_roster_tip(idx, tip);
 				if (rtso::Simulation::livestock_required_phase(f) > phase) roster_list_->set_item_disabled(idx, true);
 			}
 			finish_roster(b);
@@ -1397,13 +1405,15 @@ private:
 		const uint16_t trainer_tmpl = b ? 0 : sim->unit_template(trainer_unit_id_);
 		for (int idx = 0; idx < roster_list_->get_item_count() && idx < (int)roster_state_.size(); ++idx) {
 			const int meta = (int)roster_list_->get_item_metadata(idx);
-			if (meta & (ROSTER_ANIMAL | ROSTER_TECH) || meta >= rtso::CIV_UNIT_TEMPLATE_COUNT) continue;
-			const uint16_t tmpl = (uint16_t)meta;
-			const uint8_t cat = rtso::UNIT_LIMITS[tmpl].category;
+			const bool animal = meta & ROSTER_ANIMAL;
+			if (meta & ROSTER_TECH || (!animal && meta >= rtso::CIV_UNIT_TEMPLATE_COUNT)) continue;
+			// A corral's animal: ROSTER_ANIMAL | FaunaType, trained one Shift batch at a time.
+			const uint16_t tmpl = animal ? (uint16_t)(meta & 0xFF) : (uint16_t)meta;
+			const uint8_t cat = animal ? (uint8_t)rtso::LIMIT_ANIMAL : rtso::UNIT_LIMITS[tmpl].category;
 			const int limit = cat == rtso::LIMIT_NONE || cat >= rtso::LIMIT_CATEGORY_COUNT ? -1 : sim->entity_limit(pid, cat);
 			const int allowed = limit < 0 ? -1 : std::max(0, limit - sim->entity_limit_count(pid, cat));
-			const int buildings = b ? std::max(1, host_->ui_trainer_count(tmpl, b->id)) : 1;
-			const int pending = host_->ui_pending_batch(tmpl);
+			const int buildings = b && !animal ? std::max(1, host_->ui_trainer_count(tmpl, b->id)) : 1;
+			const int pending = animal ? 0 : host_->ui_pending_batch(tmpl);
 			int next = pending;
 			if (shift && (allowed < 0 || allowed > pending * buildings)) next += size;
 			next = std::max(next, 1);
@@ -1414,13 +1424,26 @@ private:
 			}
 			const int num = full * next + rest;
 			const int batch = full > 0 ? next : rest;
-			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(tmpl);
-			float cost[rtso::RES_COUNT];
-			sim->unit_train_cost(pid, tmpl, rtso::civ_template_unit_info(tmpl, u.unit_type), cost);
+			float cost[rtso::RES_COUNT] = {};
+			int pop = 0;
+			float seconds = 0.0f;
+			if (animal) {
+				const rtso::FaunaTrainCost &c = rtso::fauna_train_cost((uint8_t)tmpl); // food, wood, stone, metal
+				cost[rtso::RES_FOOD] = c.res[0];
+				cost[rtso::RES_WOOD] = c.res[1];
+				cost[rtso::RES_STONE] = c.res[2];
+				cost[rtso::RES_GOLD] = c.res[3];
+				seconds = sim->livestock_train_time(pid, (uint8_t)tmpl);
+			} else {
+				const rtso::CivUnitTemplate &u = rtso::civ_unit_template(tmpl);
+				sim->unit_train_cost(pid, tmpl, rtso::civ_template_unit_info(tmpl, u.unit_type), cost);
+				pop = u.pop_cost;
+				seconds = sim->unit_train_seconds(pid, tmpl);
+			}
 			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
 			const rtso::CostTip total{(int64_t)std::floor(cost[rtso::RES_FOOD] * num), (int64_t)std::floor(cost[rtso::RES_WOOD] * num),
 					(int64_t)std::floor(cost[rtso::RES_STONE] * num), (int64_t)std::floor(cost[rtso::RES_GOLD] * num),
-					(int64_t)u.pop_cost * num, (int64_t)std::ceil(sim->unit_train_seconds(pid, tmpl) * batch_mult)};
+					(int64_t)pop * num, (int64_t)std::ceil(seconds * batch_mult)};
 			const int64_t costs[4] = {total.food, total.wood, total.stone, total.metal};
 			const int res_of[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
 			String sig = String::num_int64(full) + "," + String::num_int64(next) + "," + String::num_int64(rest) + "," +
