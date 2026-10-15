@@ -1979,12 +1979,97 @@ static void test_attack_request() {
 		s->tick(Simulation::FIXED_STEP);
 		for (const auto &p : s->petra_slots_[2].petra_started_attacks_)
 			marched |= p.requested && p.state == Simulation::AttackPlan::WALKING;
+		marched |= s->petra_slots_[2].petra_attack_plan_.requested && s->petra_slots_[2].petra_attack_plan_.completing; // gathering to set off
 	}
 	bool asked_again = false;
 	for (const auto &line : s->pending_petra_chat()) asked_again |= line.kind == PETRA_CHAT_ATTACK_REQUESTED && line.from == 2;
 	std::printf("  AI 2's requested attack marches: %s, asks its allies again: %s\n", marched ? "yes" : "no", asked_again ? "yes" : "no");
 	CHECK(marched, "the requested attack marches at once");
 	CHECK(!asked_again, "a requested attack asks no one to join it");
+}
+
+// attackPlan.js getPathToTarget, setRallyPoint, updatePreparation "completing" and
+// UpdateWalking: a land army gathers at a rally point where its path leaves our territory,
+// sets off once gathered, walks the path's waypoints and arrives together near its target.
+static void test_attack_rally_point() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+	s->set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
+	run_for(*s, 5.0f);
+	float bx = 0.0f, bz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { bx = b.x; bz = b.z; }
+	// Player 0's own soldiers stay out of it: only its structures stand.
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 0) s->units_.stance[i] = STANCE_PASSIVE;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	for (int k = 0; k < 12; ++k) plan.squad.push_back(s->spawn_unit(bx + 6.0f + (float)(k % 4), bz + 6.0f + (float)(k / 4), 1, UNIT_SPEARMAN));
+	s->petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	s->petra_attack_mgr_.target_size = 12;
+	s->petra_attack_mgr_.min_size = 12;
+	const std::vector<uint32_t> army = plan.squad;
+	auto centre = [&](float &cx, float &cz) {
+		cx = cz = 0.0f;
+		int n = 0;
+		for (uint32_t uid : army) {
+			const int32_t k = s->lookup_unit(uid);
+			if (k >= 0 && s->units_.alive[k]) { cx += s->units_.pos_x[k]; cz += s->units_.pos_z[k]; ++n; }
+		}
+		if (n) { cx /= (float)n; cz /= (float)n; }
+		return n;
+	};
+	for (int t = 0; t < 10 && !plan.completing; ++t) run_ai_turns(*s, 1);
+	CHECK(plan.completing && plan.state == Simulation::AttackPlan::MUSTER, "a ready land army first gathers (completing)");
+	if (!plan.completing) return;
+	const float rx = plan.staging_x, rz = plan.staging_z;
+	const float rally_d = std::sqrt((rx - bx) * (rx - bx) + (rz - bz) * (rz - bz));
+	const bool rally_ours = s->territory_owner_at(rx, rz) == 1;
+	const bool next_out = plan.path_x.size() > 1 && s->territory_owner_at(plan.path_x[1], plan.path_z[1]) != 1;
+	std::printf("  rally point %.1f from our civic centre, ours %d, next waypoint out of our territory %d, %zu waypoints, started attacks %zu\n",
+	            rally_d, (int)rally_ours, (int)next_out, plan.path_x.size(), s->petra_started_attacks_.size());
+	CHECK(rally_ours && next_out, "the rally point is the path's last point in our territory");
+	CHECK(s->petra_started_attacks_.empty(), "a completing plan has not started");
+	float t_gather = 0.0f;
+	for (; t_gather < 70.0f && s->petra_started_attacks_.empty(); t_gather += Simulation::FIXED_STEP) s->tick(Simulation::FIXED_STEP);
+	CHECK(!s->petra_started_attacks_.empty(), "the army sets off once gathered");
+	if (s->petra_started_attacks_.empty()) return;
+	float cx, cz;
+	centre(cx, cz);
+	const float at_rally = std::sqrt((cx - rx) * (cx - rx) + (cz - rz) * (cz - rz));
+	std::printf("  set off after %.1f s, army centre %.1f from the rally point\n", t_gather, at_rally);
+	CHECK(at_rally < 6.0f, "the army sets off from its rally point");
+	const auto &march = s->petra_started_attacks_[0];
+	CHECK(march.state == Simulation::AttackPlan::WALKING && !march.path_x.empty(), "the march follows its path");
+	float t_walk = 0.0f;
+	size_t waypoints = march.path_x.size(), fewest = waypoints;
+	for (; t_walk < 120.0f && !s->petra_started_attacks_.empty() && s->petra_started_attacks_[0].state == Simulation::AttackPlan::WALKING; t_walk += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		if (!s->petra_started_attacks_.empty()) fewest = std::min(fewest, s->petra_started_attacks_[0].path_x.size());
+	}
+	CHECK(!s->petra_started_attacks_.empty() && s->petra_started_attacks_[0].state == Simulation::AttackPlan::ATTACKED, "the march arrives");
+	if (s->petra_started_attacks_.empty()) return;
+	const auto &arr = s->petra_started_attacks_[0];
+	const int n = centre(cx, cz);
+	int together = 0;
+	for (uint32_t uid : army) {
+		const int32_t k = s->lookup_unit(uid);
+		if (k >= 0 && s->units_.alive[k] && (s->units_.pos_x[k] - cx) * (s->units_.pos_x[k] - cx) + (s->units_.pos_z[k] - cz) * (s->units_.pos_z[k] - cz) < 12.0f * 12.0f) ++together;
+	}
+	const float to_target = std::sqrt((cx - arr.target_x) * (cx - arr.target_x) + (cz - arr.target_z) * (cz - arr.target_z));
+	std::printf("  arrived after %.1f s (%zu of %zu waypoints passed), %.1f from the target, %d of %d within 12 of the centre\n",
+	            t_walk, waypoints - fewest, waypoints, to_target, together, n);
+	CHECK(fewest < waypoints, "the march passes its waypoints");
+	CHECK(to_target < 26.0f || s->territory_owner_at(cx, cz) == 0, "the march arrives near the target");
+	CHECK(n > 0 && together * 4 >= n * 3, "the army arrives together");
 }
 
 // attackManager.js checkEvents AttackRequest counts every upcoming plan, the raid
@@ -3588,7 +3673,7 @@ static void test_fasten_end_game() {
 		mgr.kind = PETRA_ATTACK_HUGE;
 		mgr.target_size = mgr.min_size = 500;
 		run_ai_turns(*s, 5); // "Fasten the end game" every 5th AI turn
-		const bool marched = s->petra_attack_plan_.state != Simulation::AttackPlan::MUSTER;
+		const bool marched = s->petra_attack_plan_.state != Simulation::AttackPlan::MUSTER || s->petra_attack_plan_.completing;
 		std::printf("  end game: %zu soldiers%s against %zu enemy units, marches %s\n", n, siege ? " and a catapult" : "", enemies, marched ? "yes" : "no");
 		if (siege) CHECK(marched, "a plan with siege engines that far outnumbers the enemy starts (forceStart)");
 		else CHECK(!marched, "without siege engines it keeps mustering to its size");
@@ -4610,6 +4695,7 @@ int main(int argc, char **argv) {
 	RUN(test_diplomacy);
 	RUN(test_ai_slots);
 	RUN(test_attack_plans);
+	RUN(test_attack_rally_point);
 	RUN(test_slot_config);
 	RUN(test_allow_capture);
 	RUN(test_garrisons);
