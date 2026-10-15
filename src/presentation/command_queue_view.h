@@ -61,6 +61,7 @@ public:
 	// The units a held Shift batch of this template holds so far (input.js g_NumberOfBatches
 	// x the batch size), 0 when none is being built.
 	virtual int ui_pending_batch(uint16_t tmpl) const = 0;
+	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
 };
 
 class RtsoCommandPanelView {
@@ -267,8 +268,18 @@ public:
 				if (b.id == selected_building_id) { found_b = &b; break; }
 			}
 
-			// Update 8-slot Visual Production Queue (ProductionQueue.js parity)
-			production_queue_.update(found_b);
+			// Update 8-slot Visual Production Queue (ProductionQueue.js parity); with several
+			// structures selected, their queues merged (Queue.getItems).
+			const std::vector<uint32_t> structs = host_->ui_selected_structures();
+			if (structs.size() > 1) {
+				std::vector<const rtso::Simulation::Building *> producers;
+				for (uint32_t id : structs)
+					for (const auto &b : bldgs)
+						if (b.id == id) producers.push_back(&b);
+				production_queue_.update_multi(producers);
+			} else {
+				production_queue_.update(found_b);
+			}
 			update_roster_list(found_b);
 
 			if (found_b && found_b->build_progress >= 1.0f) {
@@ -1080,6 +1091,17 @@ private:
 			(ps.has_tech(rtso::TECH_UNLOCK_CHAMPION_CHARIOTS) ? 4u : 0u);
 		uint64_t key = ((uint64_t)b->id << 32) | ((uint64_t)sim->ally_civ_mask(pid) << 12) |
 			(unlocks << 8) | ((uint64_t)(civ & 0x3F) << 2) | (uint64_t)(phase & 0x3);
+		// getAllTrainableEntitiesFromSelection: every selected finished structure's list, the
+		// first structure's first (a corral alone keeps its animals).
+		std::vector<const rtso::Simulation::Building *> offering{b};
+		if (b->type != rtso::BLD_CORRAL)
+			for (uint32_t id : host_->ui_selected_structures())
+				for (const auto &o : sim->buildings())
+					if (o.id == id && o.id != b->id && o.team == pid && o.build_progress >= 1.0f && !o.wrecked &&
+							o.type != rtso::BLD_CORRAL) {
+						offering.push_back(&o);
+						key = key * 1000003ull + o.id;
+					}
 		// The tooltips' "Current Count: x, Limit: y." lines follow the counts.
 		for (uint8_t c = 0; c < rtso::LIMIT_CATEGORY_COUNT; ++c)
 			key = key * 1000003ull + (uint64_t)(sim->entity_limit_count(pid, c) + 1);
@@ -1117,20 +1139,24 @@ private:
 		}
 		// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies) offer the
 		// structure's own civ's units.
-		for (uint16_t i : rtso::civ_roster_ids(rtso::building_trains_native(b->type) ? b->civ : civ)) {
+		std::vector<uint16_t> listed;
+		for (const rtso::Simulation::Building *ob : offering)
+		for (uint16_t i : rtso::civ_roster_ids(rtso::building_trains_native(ob->type) ? ob->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
-			if (!(u.trainers & rtso::bld_bit(b->type))) continue;
+			if (!(u.trainers & rtso::bld_bit(ob->type))) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
 			// 0 A.D. has no such unit, so players don't see it.
 			if (std::strstr(u.id, "/rts0_")) continue;
+			if (std::find(listed.begin(), listed.end(), i) != listed.end()) continue;
+			listed.push_back(i);
 			String tip;
 			const int idx = add_roster_item(pid, i, tip);
 			if (u.phase > phase) {
 				roster_list_->set_item_disabled(idx, true);
 				tip += "\n" + requires_text(u.phase >= 3 ? "City Phase" : "Town Phase");
-			} else if (!sim->can_train_at(pid, u.unit_type, b->type, i)) {
+			} else if (!sim->can_train_at(pid, u.unit_type, ob->type, i)) {
 				roster_list_->set_item_disabled(idx, true);
-				uint8_t gate = sim->train_unlock_tech(pid, u.unit_type, b->type, i);
+				uint8_t gate = sim->train_unlock_tech(pid, u.unit_type, ob->type, i);
 				if (gate != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
 			}
 			set_roster_tip(idx, tip);
