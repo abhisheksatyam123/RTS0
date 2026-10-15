@@ -95,6 +95,11 @@ class RtsoWorldView : public Node3D {
 		Node3D *upgrade_scaffold = nullptr; // child of `model`: 0 A.D.'s "upgrading" variant scaffold
 		uint8_t production = 0; // FoggedBuilding::production the effects below were made for
 		std::vector<GPUParticles3D *> production_fx; // the "researching"/"training" variant's particles
+		// 0 A.D.'s construction_dust (the foundation's "scaffold" variant) or
+		// destruction_dust_small (the "upgrading" variant) on the actor's root.
+		GPUParticles3D *site_dust = nullptr;
+		uint8_t site_dust_kind = 0; // 0 none, 1 construction, 2 upgrading
+		float site_dust_poll = 0.0f; // seconds until the builders are counted again
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -160,6 +165,8 @@ class RtsoWorldView : public Node3D {
 	bool production_fx_loaded_ = false;
 	Ref<QuadMesh> fx_sparks_quad_, fx_forge_smoke_quad_;
 	void update_production_fx(BuildingVis &v, const String &model_id, uint8_t state, float b_scale, float y_offset);
+	Ref<QuadMesh> fx_dust_quad_;
+	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
 	// World height of a unit standing on a turret point `offset` above the terrain

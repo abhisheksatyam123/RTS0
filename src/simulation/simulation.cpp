@@ -3274,9 +3274,7 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	order.count = (uint8_t)count;
 	order.timer = 0.0f;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
-	order.duration = uinfo.train_time * team_bonus_mult(player_id, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
-		* unit_tech_mods(player_id, t.unit_type, tmpl).train_time * ai_time_mult(player_id) * promotion_train_time_mult(tmpl)
-		* batch_time_multiplier(player_id, b.type, count);
+	order.duration = unit_train_seconds(player_id, tmpl) * batch_time_multiplier(player_id, b.type, count);
 	b.queue.push_back(order);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnTrainingQueued
 		TriggerEventData ev;
@@ -3365,9 +3363,7 @@ bool Simulation::cmd_train_from_unit(uint8_t player, uint32_t unit_id, uint16_t 
 	order.count = (uint8_t)count;
 	order.timer = 0.0f;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
-	order.duration = uinfo.train_time * team_bonus_mult(player, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
-		* unit_tech_mods(player, t.unit_type, tmpl).train_time * ai_time_mult(player) * promotion_train_time_mult(tmpl)
-		* unit_trainer_batch_mult(units_.tmpl[i], tmpl, count);
+	order.duration = unit_train_seconds(player, tmpl) * unit_trainer_batch_mult(units_.tmpl[i], tmpl, count);
 	UnitQueue &q = unit_queues_[unit_id];
 	q.player = player;
 	q.orders.push_back(order);
@@ -3476,7 +3472,10 @@ float Simulation::team_bonus_mult(uint8_t pid, uint8_t stat, int8_t res, uint16_
 	return civ_team_bonus_mult(players_[pid].civ, ally_civ_mask(pid), stat, res, tmpl, building);
 }
 
-void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const {
+void Simulation::unit_train_cost(uint8_t pid, uint16_t queued, const UnitTypeInfo &queued_info, float out[RES_COUNT]) const {
+	uint8_t rank = 1;
+	const uint16_t tmpl = trained_as(pid, queued, rank);
+	const UnitTypeInfo &info = tmpl != queued ? civ_template_unit_info(tmpl, civ_unit_template(tmpl).unit_type) : queued_info;
 	out[RES_FOOD] = (float)info.food_cost;
 	out[RES_WOOD] = (float)info.wood_cost;
 	out[RES_GOLD] = (float)info.gold_cost;
@@ -13327,6 +13326,38 @@ float Simulation::promotion_train_time_mult(uint16_t tmpl) {
 	return m;
 }
 
+uint16_t Simulation::trained_as(uint8_t pid, uint16_t tmpl, uint8_t &rank) const {
+	rank = promotion_start_rank(tmpl);
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || pid >= MAX_PLAYERS) return tmpl;
+	for (int step = 0; step < 6; ++step) {
+		const uint8_t type = civ_unit_template(tmpl).unit_type;
+		const PromotionLink *l = promotion_link(tmpl, type, rank);
+		if (!l) break;
+		// promotion_required_xp without the range auras: the player's modified RequiredXp.
+		float xp = l->xp;
+		const TechClasses cls = unit_classes(tmpl, type);
+		for (const PromotionXpTech &t : PROMOTION_XP_TECHS)
+			if ((t.tech == TECH_NONE || players_[pid].has_tech(t.tech)) && (!t.rank || t.rank == rank) &&
+					(cls & t.need) == t.need && !(cls & t.forbid))
+				xp = t.replace_zero ? 0.0f : xp * t.multiply;
+		xp *= unit_tech_mods(pid, type, tmpl).required_xp;
+		if (xp > 0.0f) break;
+		if (l->target != CIV_UNIT_TEMPLATE_NONE) tmpl = l->target;
+		rank = l->target_rank;
+	}
+	return tmpl;
+}
+
+float Simulation::unit_train_seconds(uint8_t pid, uint16_t queued) const {
+	uint8_t rank = 1;
+	const uint16_t tmpl = trained_as(pid, queued, rank);
+	const uint8_t type = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).unit_type : (uint8_t)UNIT_VILLAGER;
+	float m = 1.0f; // unit_advanced.json / unit_elite.json Cost/BuildTime
+	for (uint8_t r = 2; r <= rank; ++r) m *= rank_bonus(r).train_time_mul;
+	return civ_template_unit_info(tmpl, type).train_time * team_bonus_mult(pid, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl) *
+	       unit_tech_mods(pid, type, tmpl).train_time * ai_time_mult(pid) * m;
+}
+
 bool Simulation::unit_has_rank(size_t i) const {
 	if (i >= units_.count) return false;
 	if (units_.rank[i] >= 2) return true;
@@ -13405,7 +13436,7 @@ float Simulation::heal_amount_of(size_t h) const {
 	return hp;
 }
 
-// Health/Max x1.25 and, for melee units, Attack/Melee damage x1.2 for each rank gained.
+// Health/Max x1.25 and, for melee units, Attack/Melee damage x1.1 for each rank gained.
 void Simulation::apply_rank_bonus(size_t i, uint8_t from_rank, uint8_t to_rank) {
 	const bool melee = (unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_MELEE).any();
 	for (uint8_t r = std::max<uint8_t>(from_rank, 1) + 1; r <= std::min<uint8_t>(to_rank, 3); ++r) {
@@ -17841,9 +17872,7 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	order.timer = 0.0f;
 	order.petra_plan = plan;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
-	order.duration = uinfo.train_time * team_bonus_mult(pid, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
-		* unit_tech_mods(pid, t.unit_type, tmpl).train_time * ai_time_mult(pid) * promotion_train_time_mult(tmpl)
-		* batch_time_multiplier(pid, b.type, count);
+	order.duration = unit_train_seconds(pid, tmpl) * batch_time_multiplier(pid, b.type, count);
 	b.queue.push_back(order);
 	return true;
 }
@@ -19834,9 +19863,11 @@ int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_
 	if (!found) return 0;
 	out_gain = trader_gain_at(std::sqrt(best_d2), 0.0, petra_pid_, UNIT_TRADER);
 	if (out_gain < petra_trade_minimal_gain()) {
-		// Too little to gain, except for our first market.
+		// Too little to gain: none, except our first market, which then goes where
+		// findGoodPosition puts one (idx -1: queueplanBuilding.js keeps the plan, not the spot).
 		for (const Building &b : buildings_)
 			if (b.type == BLD_MARKET && b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked) return -1;
+		return 0;
 	}
 	return 1;
 }
@@ -20737,11 +20768,13 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			cands.push_back({score + 16.0f - (float)water, ix, iz, water});
 		}
 	}
-	// The best first: the first that fits wins (later tiles on ties, as the scan replaced them).
-	std::sort(cands.begin(), cands.end(), [w](const Cand &a, const Cand &b) {
-		return a.val != b.val ? a.val < b.val : a.iz * w + a.ix > b.iz * w + b.ix;
-	});
+	// findDockPosition's scan in tile order: a later spot replaces the best only when its score
+	// plus five times its missing open water is no worse than the best's score plus its own
+	// missing water (bestVal = score + maxWater - water), so open water weighs five times.
+	std::sort(cands.begin(), cands.end(), [w](const Cand &a, const Cand &b) { return a.iz * w + a.ix < b.iz * w + b.ix; });
+	float best_val = 0.0f;
 	for (const Cand &c : cands) {
+		if (found && c.val + 4.0f * (16.0f - (float)c.water) > best_val) continue;
 		{
 			const float x = ((float)c.ix + 0.5f) * kCcTile - map_half_, z = ((float)c.iz + 0.5f) * kCcTile - map_half_;
 			// getNonObstructedTile: the dock on this tile or one beside it, out of danger
@@ -20766,10 +20799,10 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 					}
 			if (!fits) continue;
 			found = true;
+			best_val = c.val;
 			best_water = c.water;
 			out_cx = cx;
 			out_cz = cz;
-			break;
 		}
 	}
 	// Still in the village phase with little water around: wait for the territory to grow.
@@ -22161,12 +22194,12 @@ void Simulation::petra_build_defenses() {
 				bid = petra_spawn_foundation(cx, cz, btype);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
-			// takes the standard placement.
+			// takes the standard placement map (away from houses, off the border, +8 m).
 			bool has_fortress = false;
 			for (const Building &b : buildings_)
 				if (b.team == petra_pid_ && b.type == BLD_FORTRESS && b.hp > 0.0f && !b.wrecked) { has_fortress = true; break; }
 			const PetraBase *home = get_primary_petra_base();
-			if (!has_fortress && home) bid = petra_place_building(BLD_FORTRESS, home->x, home->z, 4, 12, PETRA_Q_DEFENSE_BUILDING);
+			if (!has_fortress && home) bid = petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
 		}
 		if (bid) {
 			auto idle = petra_idle_builders();
@@ -22211,7 +22244,9 @@ void Simulation::petra_build_defenses() {
 	auto has_spot = [&](uint8_t t) { int sx = 0, sz = 0; return petra_find_defensive_location(t, sx, sz); };
 	constexpr float kNoRoomWait = 90.0f;
 
-	if (!saving && (phase > 2 || (phase == 2 && petra_phasing()))) {
+	// From City, or while City is being researched (gameState.isResearching(phase 3)); not
+	// while Petra only saves for it.
+	if (!saving && (phase > 2 || (phase == 2 && research_check(petra_pid_, TECH_PHASE_CITY) == TECH_ERR_IN_PROGRESS))) {
 		if (can_build(BLD_FORTRESS) &&
 		    (n_fortresses == 0 || now > (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse + d.fortress_start) &&
 		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2 &&
@@ -22416,10 +22451,11 @@ void Simulation::petra_manage_research(float dt) {
 			}
 		} else {
 			// The first of market, temple and forge we lack and can build (checkPhaseRequirements
-			// "Town"), else another temple.
-			uint8_t t = BLD_TEMPLE;
+			// "Town"); nothing when none is missing.
+			uint8_t t = BLD_TYPE_COUNT;
 			for (uint8_t k : kTown)
 				if (!have_building(k) && civ_can_build(petra_ps().civ, k)) { t = k; break; }
+			if (t == BLD_TYPE_COUNT) return;
 			const uint8_t q = phase_up(t == BLD_FORGE ? PETRA_Q_MILITARY_BUILDING : PETRA_Q_ECONOMIC_BUILDING);
 			if (t == BLD_MARKET) petra_build_market(home->x, home->z, q);
 			else petra_place_generic(t, q);
@@ -22436,7 +22472,7 @@ void Simulation::petra_manage_research(float dt) {
 	if (petra_ps().phase >= 2 && home && petra_turn_mod(3)) {
 		const int own = player_pop_cap(petra_pid_) > 0 ? player_pop_cap(petra_pid_) : pop_cap_;
 		const int cap = own > 0 ? own : 200;
-		const int pop_for_forge = std::min(std::max((int)std::floor(65.0f * petra_config_.pop_scaling), 30), cap / 2);
+		const int pop_for_forge = std::min(std::max((int)std::floor(65.0f * petra_pop_scaling_for(petra_config_.pop_scaling, cap)), 30), cap / 2);
 		const bool saving = petra_attack_mgr_.save_resources != 0;
 		const uint8_t civ = petra_ps().civ;
 		auto can_build = [&](uint8_t t) {
@@ -22458,7 +22494,7 @@ void Simulation::petra_manage_research(float dt) {
 				petra_change_priority(PETRA_Q_ECONOMIC_BUILDING, 3 * petra_queue_base_priority(PETRA_Q_ECONOMIC_BUILDING), PETRA_Q_ECONOMIC_BUILDING);
 			}
 			petra_build_market(home->x, home->z, PETRA_Q_ECONOMIC_BUILDING);
-		} else if (!saving && pop >= pop_for_forge && !have_building(BLD_FORGE)) {
+		} else if (!saving && petra_accounted_population() >= pop_for_forge && !have_building(BLD_FORGE)) {
 			petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING);
 		}
 		// buildTemple (not while saving resources): one temple, after a market, from the city
@@ -25226,10 +25262,12 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		// loading reach: a fresh order every turn re-paths it from its own navcell,
 		// which can hold it in place beside a building.
 		std::vector<uint32_t> board, to_beach;
+		bool walking_up = false; // a passenger still walking to the ship
 		for (uint32_t uid : tp.passenger_ids) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0 || !units_.alive[u]) continue;
 			const bool heading = units_.action_state[u] == ACTION_MOVE && units_.target_unit_id[u] == tp.ship_id;
+			walking_up |= heading;
 			const float ux = units_.pos_x[u] - units_.pos_x[sidx], uz = units_.pos_z[u] - units_.pos_z[sidx];
 			const float reach = ship_loading_reach((size_t)sidx, (size_t)u);
 			const bool in_reach = ux * ux + uz * uz <= reach * reach;
@@ -25244,8 +25282,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		if (!to_beach.empty()) order_walk(to_beach.data(), to_beach.size(), tp.pickup_x, tp.pickup_z, false);
 		if (!board.empty()) order_board_transport(board.data(), board.size(), tp.ship_id);
 		aboard = get_transport_passenger_count(tp.ship_id);
+		// transportPlan.js onBoarding sails once every unit is aboard; RTS0 also leaves after 8 s
+		// with whoever boarded, but not while others are still walking up to the ship.
 		if ((aboard >= 1 && aboard >= tp.passenger_ids.size()) ||
-		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f))
+		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f && !walking_up))
 			sail();
 	} else if (tp.state == PetraTransportPlan::SAILING) {
 		float x, z;

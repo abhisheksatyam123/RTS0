@@ -339,7 +339,7 @@ bool RtsoMain::chat_network_command(const String &text) {
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
-	if (flare_armed_ || rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare wins
+	if (flare_armed_ || flare_held()) { // MiniMap.js onWorldClick: the flare wins
 		flare_armed_ = false;
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
@@ -3341,6 +3341,7 @@ void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 
 void RtsoMain::toggle_chat() {
 	if (!chat_window_.is_open()) close_open_dialogs();
+	refresh_chat_tooltips();
 	chat_window_.toggle();
 }
 

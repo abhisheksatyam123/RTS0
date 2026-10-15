@@ -381,12 +381,17 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_valid()) {
 		Vector2 mouse_pos = mb->get_position();
+		// input.js: a left or right click in the game world closes the session menu (g_Menu.close),
+		// and still does what it does.
+		if (mb->get_button_index() == MOUSE_BUTTON_LEFT || mb->get_button_index() == MOUSE_BUTTON_RIGHT)
+			if (CanvasLayer *menu = Object::cast_to<CanvasLayer>(get_node_or_null(NodePath("PauseMenu"))); menu && menu->is_visible())
+				_on_menu_button_pressed();
 
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 			if (mb->is_pressed()) {
 				// Hold K and click to send a flare (0 A.D. session.flare), or click once
 				// the flare button armed it (INPUT_FLARE).
-				if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
+				if (flare_armed_ || flare_held()) {
 					flare_armed_ = false;
 					const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 					trigger_flare(click_pos.x, click_pos.z);

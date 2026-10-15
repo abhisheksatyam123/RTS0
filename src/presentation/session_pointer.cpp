@@ -55,7 +55,7 @@ void RtsoMain::update_cursor() {
 	const Vector2 mouse = vp->get_mouse_position();
 	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
 	if (!over_ui && !build_mode) {
-		if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
+		if (flare_armed_ || flare_held()) {
 			want = "action-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
 			const Vector3 at = get_ground_click_pos(mouse);
@@ -449,7 +449,7 @@ void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 		flare_armed_ = false;
 		return;
 	}
-	if (rtso::hotkeys::held("session.flare")) {
+	if (flare_held()) {
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
 	}
@@ -623,4 +623,10 @@ bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execu
 		trade_origin_traders_.clear();
 	}
 	return true;
+}
+
+// input.js updateCursorAndTooltip / handleInputBeforeGui: session.flare held arms a flare,
+// never in a replay (!g_IsReplay).
+bool RtsoMain::flare_held() const {
+	return !turn_mgr_.is_replaying() && rtso::hotkeys::held("session.flare");
 }
