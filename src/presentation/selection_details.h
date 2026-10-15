@@ -62,7 +62,7 @@ inline String amount_of(int64_t amount, int64_t max) {
 // alone when RTS0 keeps no Max for the supply.
 inline String resource_label(uint8_t res) { return sprintf0(tr0("%(resource)s:"), {{"resource", resource_name(res)}}); }
 inline String resource_amount(int64_t amount, int64_t max, bool infinite) {
-	if (infinite) return tr0("∞");
+	if (infinite) return tr0(String::utf8("∞"));
 	return max > 0 ? amount_of(amount, max) : num(amount);
 }
 
