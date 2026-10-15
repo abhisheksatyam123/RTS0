@@ -439,7 +439,7 @@ public:
 			const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
 			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
-			title_->set_text(String::utf8(uinfo.name));
+			title_->set_text(unit_name(uv, u, uinfo.name));
 			set_owner(*sim, uv.team[u]);
 			health(uv.hp[u], uv.max_hp[u]);
 			fill_unit_details(*sim, u, title_->get_text());
@@ -495,7 +495,7 @@ public:
 			if (seen->miraged) {
 				const auto &binfo = rtso::building_type_info(seen->type);
 				portrait_->set_texture(rtso::portraits::structure(seen->civ, seen->type));
-				title_->set_text(String(binfo.name));
+				title_->set_text(structure_name(seen->civ, seen->type, binfo.name));
 				set_owner(*sim, seen->team);
 				health(seen->hp, seen->max_hp);
 				if (seen->max_capture_points > 0.0f)
@@ -517,7 +517,7 @@ public:
 			if (!found || found->wrecked || found->hp <= 0.0f) return false;
 			const auto &binfo = rtso::building_type_info(found->type);
 			portrait_->set_texture(rtso::portraits::structure(found->civ, found->type));
-			title_->set_text(String(binfo.name));
+			title_->set_text(structure_name(found->civ, found->type, binfo.name));
 			set_owner(*sim, found->team);
 			health(found->hp, found->max_hp);
 			set_structure_extras(*sim, *found);
@@ -534,7 +534,7 @@ public:
 						rtso::seldet::build_work_caption(work.builders, work.remaining)));
 				build_tip = build_work_tooltip(work);
 			} else {
-				stats_->set_text(String());
+				stats_->set_text(supply_lines(*sim, sim->field_resource_id(found->id)));
 			}
 			stats_->set_tooltip_text(rtso::seldet::join_lines({build_tip, structure_tooltip(*sim, *found)}));
 			return true;
@@ -587,16 +587,7 @@ public:
 		// resourceSection ("Wood:" and amount / max, ∞ for a field) and the gatherers count
 		// (current / max, "Current/max gatherers").
 		(void)kind;
-		int gatherers = 0;
-		{
-			auto uv = sim->units();
-			for (size_t i = 0; i < uv.count; ++i)
-				if (uv.alive[i] && uv.target_resource_id[i] == rv.id[r] && uv.action_state[i] == rtso::ACTION_GATHER) ++gatherers;
-		}
-		stats_->set_text(rtso::seldet::resource_label(rv.type[r]) + " " +
-				rtso::seldet::resource_amount(rv.amount[r], sim->resource_supply_max(rv.id[r]),
-						rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY) +
-				"\n" + rtso::seldet::amount_of(gatherers, sim->resource_max_gatherers(rv.id[r])));
+		stats_->set_text(supply_lines(*sim, rv.id[r]));
 		stats_->set_tooltip_text(rtso::tr0("Current/max gatherers"));
 		return true;
 	}
@@ -665,7 +656,7 @@ public:
 			if (found_b) {
 				const auto &binfo = rtso::building_type_info(found_b->type);
 				portrait_->set_texture(rtso::portraits::structure(found_b->civ, found_b->type));
-				title_->set_text(String(binfo.name));
+				title_->set_text(structure_name(found_b->civ, found_b->type, binfo.name));
 				const uint8_t owner = found_b->team;
 				set_owner(*sim, owner, found_b->garrison_cap > 0
 						? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
@@ -717,7 +708,8 @@ public:
 					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sd.arrows) + " arrows of " +
 							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
 							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
-				stats_->set_text(status);
+				// A field's resourceSection: "Food: ∞" and its gatherers.
+				stats_->set_text(rtso::seldet::join_lines({status, supply_lines(*sim, sim->field_resource_id(found_b->id))}));
 				// Beside the Barter panel when it shows.
 				const bool barter = barter_host_ && barter_host_->is_visible();
 				if (barter) {
@@ -780,8 +772,7 @@ public:
 			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
 
 			// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
-			const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
-			const String name = rtso::entity_names(String::utf8(uinfo.name), String::utf8(specific ? specific : ""));
+			const String name = unit_name(uview, u, uinfo.name);
 			title_->set_text(name);
 			const uint8_t owner = uview.team[u];
 			set_owner(*sim, owner, " - Kills: " + String::num_int64(uview.kills[u]));
@@ -937,6 +928,40 @@ private:
 			pts[0] = 0.0f;
 		}
 		set_capture_parts(sim, b.team, pts, b.max_capture_points);
+	}
+
+	// selection_details.js resourceSection of a ResourceSupply (a tree, a mine, a field): "Wood:" and
+	// amount / max (∞ for a field), then its gatherers, current / max. Empty without a supply.
+	static String supply_lines(const rtso::Simulation &sim, uint32_t res_id) {
+		if (!res_id) return String();
+		auto rv = sim.resources();
+		size_t r = 0;
+		for (; r < rv.count; ++r)
+			if (rv.id[r] == res_id) break;
+		if (r == rv.count || !rv.alive[r]) return String();
+		int gatherers = 0;
+		auto uv = sim.units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.alive[i] && uv.target_resource_id[i] == res_id && uv.action_state[i] == rtso::ACTION_GATHER) ++gatherers;
+		return rtso::seldet::resource_label(rv.type[r]) + " " +
+				rtso::seldet::resource_amount(rv.amount[r], sim.resource_supply_max(res_id), rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY) +
+				"\n" + rtso::seldet::amount_of(gatherers, sim.resource_max_gatherers(res_id));
+	}
+
+	// The primary and secondary names (getEntityNames): a civ's structure from its template
+	// ("Agora (Civic Center)"), else the RTS0 name.
+	static String structure_name(uint8_t civ, uint8_t type, const char *fallback) {
+		const godot::Dictionary e = rtso::portraits::structure_entry(civ, type);
+		const String generic = e.get("generic_name", String());
+		if (generic.is_empty()) return String(fallback);
+		return rtso::entity_names(generic, e.get("specific_name", String()));
+	}
+	// A unit's names, with " — Packed" on a packed siege engine (selection_details.js).
+	static String unit_name(const rtso::Simulation::UnitView &uv, size_t u, const char *generic) {
+		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
+		const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
+		return rtso::entity_names(String::utf8(generic), String::utf8(specific ? specific : ""),
+				uv.pack_state && uv.pack_state[u] == rtso::PACK_PACKED);
 	}
 
 	static String join_spaced(const String &a, const String &b) { return b.is_empty() ? a : a + String("  ") + b; }

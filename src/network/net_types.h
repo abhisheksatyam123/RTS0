@@ -373,7 +373,7 @@ struct GameSetupParams {
 	uint8_t lms = 0;        // 1 = Last Man Standing (no allied victory)
 	uint8_t saved_game = 0; // 1 = the host continues a saved game (0 A.D. NMT_SAVED_GAME_START):
 	                        // joiners take the host's world by the rejoin transfer
-	uint16_t pop_cap = 200;  // per-player population limit, 0 = unlimited
+	uint16_t pop_cap = 300;  // per-player population limit (0.28 default 300), 0 = unlimited
 	uint16_t world_pop = 0;  // 0 A.D. World Population (shared by live players), 0 = off; wins over pop_cap
 	uint16_t team_pop = 0;   // 0 A.D. 0.28 Team Population (per team, shared by its live players), 0 = off; wins over pop_cap
 	uint8_t ceasefire = 0;  // minutes of ceasefire at match start

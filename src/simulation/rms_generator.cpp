@@ -11547,7 +11547,7 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	}
 }
 
-void RmsGenerator::keep_resources_passable(Simulation &sim) {
+void RmsGenerator::keep_resources_passable(Simulation &sim, uint8_t type) {
 	const auto &H = sim.terrain_heights();
 	const int hr = sim.terrain_res(), tr = hr - 1;
 	if (tr <= 0 || H.size() < (size_t)hr * (size_t)hr) return;
@@ -11637,6 +11637,83 @@ void RmsGenerator::keep_resources_passable(Simulation &sim) {
 				break;
 			}
 		}
+	}
+	// 0.28's scripts place mines, fruit and hunt on the land the bases share (stayClasses(clLand),
+	// avoidClasses(clHill, ...)): one walled off from every civic centre by cliffs moves to the
+	// nearest spot of that land. Water counts as open here (islands are the sea's business), and
+	// Survival of the Fittest walls its bases in on purpose.
+	if (type == MAP_SURVIVAL_OF_THE_FITTEST) return;
+	std::vector<uint8_t> reach((size_t)tr * (size_t)tr, 0);
+	std::vector<int> todo;
+	for (const auto &b : sim.buildings()) {
+		if (b.type != BLD_TOWN_CENTER || b.team >= MAX_PLAYERS) continue;
+		// Seed from the open tiles round the centre's footprint.
+		for (int j = tidx(b.z - 8.0f); j <= tidx(b.z + 8.0f); ++j)
+			for (int i = tidx(b.x - 8.0f); i <= tidx(b.x + 8.0f); ++i) {
+				const size_t t = (size_t)j * tr + i;
+				if (steep[t] || reach[t]) continue;
+				reach[t] = 1;
+				todo.push_back((int)t);
+			}
+	}
+	if (todo.empty()) return;
+	auto ring_tile = [&](int i, int j) { return in_ring(-half + ((float)i + 0.5f) * tile, -half + ((float)j + 0.5f) * tile); };
+	while (!todo.empty()) {
+		const int t = todo.back();
+		todo.pop_back();
+		const int i = t % tr, j = t / tr;
+		const int di[4] = {1, -1, 0, 0}, dj[4] = {0, 0, 1, -1};
+		for (int k = 0; k < 4; ++k) {
+			const int ni = i + di[k], nj = j + dj[k];
+			if (ni < 0 || nj < 0 || ni >= tr || nj >= tr) continue;
+			const size_t n = (size_t)nj * tr + ni;
+			if (reach[n] || steep[n] || ring_tile(ni, nj)) continue;
+			reach[n] = 1;
+			todo.push_back((int)n);
+		}
+	}
+	auto reached_near = [&](float x, float z, float r) {
+		for (int j = tidx(z - r); j <= tidx(z + r); ++j)
+			for (int i = tidx(x - r); i <= tidx(x + r); ++i)
+				if (reach[(size_t)j * tr + i]) return true;
+		return false;
+	};
+	auto reached_at = [&](float x, float z) { return reach[(size_t)tidx(z) * tr + tidx(x)] != 0; };
+	// The nearest spot outwards, up to 16 units away, that passes ok.
+	auto nearest = [&](float x, float z, const auto &ok, float &ox, float &oz) {
+		for (float rad = 0.5f * tile; rad <= 16.0f; rad += 0.5f * tile) {
+			const int n = std::max(8, (int)(6.2831853f * rad / (0.5f * tile)));
+			for (int k = 0; k < n; ++k) {
+				const float a = 6.2831853f * (float)k / (float)n;
+				ox = x + std::cos(a) * rad;
+				oz = z + std::sin(a) * rad;
+				if (ok(ox, oz)) return true;
+			}
+		}
+		return false;
+	};
+	live = 0;
+	for (size_t r = 0; r < rv.count; ++r) {
+		if (!rv.alive[r]) continue;
+		const size_t self = live++;
+		const uint8_t ty = rv.type[r];
+		if (!(ty == RES_GOLD || ty == RES_STONE || (ty == RES_FOOD && rv.subtype[r] == RES_SUB_NONE))) continue;
+		const float x = rv.x[r], z = rv.z[r];
+		if (reached_near(x, z, 1.5f)) continue;
+		const float gap = ty == RES_FOOD ? 1.0f : 3.0f;
+		float nx, nz;
+		if (nearest(x, z, [&](float px, float pz) { return reached_at(px, pz) && spot_ok(px, pz, gap, self); }, nx, nz)) {
+			sim.set_resource_position(rv.id[r], nx, nz);
+			taken[self] = {nx, nz};
+		}
+	}
+	for (size_t f = 0; f < fv.count; ++f) {
+		if (!fv.alive[f] || fv.owner[f] != GAIA_PLAYER) continue;
+		const float x = fv.pos_x[f], z = fv.pos_z[f];
+		if (sim.get_terrain_height(x, z) < dry_h || reached_near(x, z, 1.0f)) continue; // fish and whales stay at sea
+		float nx, nz;
+		if (nearest(x, z, [&](float px, float pz) { return reached_at(px, pz) && sim.get_terrain_height(px, pz) >= dry_h; }, nx, nz))
+			sim.set_fauna_position(fv.id[f], nx, nz);
 	}
 }
 

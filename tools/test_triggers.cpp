@@ -337,8 +337,16 @@ static void check_treasure_islands() {
 	CHECK(s.treasures().empty(), "treasure not collected");
 	CHECK(s.triggers_.vars[0] == 1, "collected treasure counted %d times", s.triggers_.vars[0]);
 	CHECK(shown(s, 0, "You have collected a treasure!") && !shown(s, 1, "You have collected"), "pickup message not player 1's alone");
+	// GuiInterface: an observer sees only notifications for everyone; the latest to end comes first.
+	CHECK(!shown(s, 0xFF, "You have collected") && !shown(s, 0xFF, "Collect the treasures"), "an observer sees the players' own messages");
+	{
+		const auto list = s.time_notifications_for(0);
+		bool sorted = true;
+		for (size_t i = 1; i < list.size(); ++i) sorted &= list[i - 1]->end_ms >= list[i]->end_ms;
+		CHECK(list.size() >= 2 && sorted, "notifications not latest-ending first (%zu)", list.size());
+	}
 	collected(s, 0, 15); // 16: three short of 19
-	CHECK(shown(s, 1, "Hurry up!") && shown(s, 0, "Treasures remaining to collect for victory:  3!"), "no near-victory messages at 16");
+	CHECK(shown(s, 1, "Hurry up!") && shown(s, 0, "Treasures remaining to collect for victory:  %(remainingTreasures)s!\x1fremainingTreasures=3"), "no near-victory messages at 16");
 	collected(s, 0, 2);  // 18
 	collected(s, 1, 18); // 18 - 18
 	CHECK(shown(s, 0, "No winner yet, prepare for battle!") && shown(s, 1, "No winner yet"), "no battle message at 18-18");

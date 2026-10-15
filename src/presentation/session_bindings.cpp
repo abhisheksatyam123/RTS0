@@ -165,6 +165,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_set_carry", "unit_id", "res", "amount"), &RtsoMain::debug_set_carry);
 	ClassDB::bind_method(D_METHOD("debug_set_resource", "res", "amount"), &RtsoMain::debug_set_resource);
 	ClassDB::bind_method(D_METHOD("debug_placing"), &RtsoMain::debug_placing);
+	ClassDB::bind_method(D_METHOD("debug_highlight"), &RtsoMain::debug_highlight);
 	ClassDB::bind_method(D_METHOD("debug_inspector", "what"), &RtsoMain::debug_inspector);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_garrison_icons"), &RtsoMain::debug_garrison_icons);
@@ -180,6 +181,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_structure_types"), &RtsoMain::debug_structure_types);
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
+	ClassDB::bind_method(D_METHOD("debug_add_xp", "ids", "xp"), &RtsoMain::debug_add_xp);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
