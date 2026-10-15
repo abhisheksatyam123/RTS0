@@ -555,6 +555,25 @@ public:
 						found_b->dropsite_shared ? "Shared Dropsite\nYou are allowed to use this dropsite."
 												 : "Locked Dropsite\nThe use of this dropsite is prohibited.",
 						found_b->dropsite_shared ? "unlocked_small.png" : "locked_small.png", false);
+			// unload-all / unload-all-turrets on an ally's structure (allowedPlayers Player and Ally):
+			// counts and unloads only our own units in it (unload-all-by-owner).
+			if (found_b && found_b->team != local_player() && local_player() < rtso::MAX_PLAYERS &&
+					sim->is_ally(local_player(), found_b->team)) {
+				auto uv = sim->units();
+				auto own = [&](const std::vector<uint32_t> &ids) {
+					int n = 0;
+					for (uint32_t id : ids)
+						for (size_t i = 0; i < uv.count; ++i)
+							if (uv.id[i] == id) { n += uv.team[i] == local_player(); break; }
+					return n;
+				};
+				if (const int inside = own(found_b->garrisoned_units))
+					add_entity_command("unload-all", "Unload All", "session.unload",
+							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
+				if (const int turrets = own(found_b->turret_units))
+					add_entity_command("unload-all-turrets", "Unload Turrets", "session.unloadturrets",
+							"Unload Turrets\nOrder all units to leave the selected turret points.", "garrison-out.png", true, turrets);
+			}
 			// The structure's command row (unit_actions.js g_EntityCommands).
 			if (found_b && found_b->team == local_player()) {
 				const int inside = (int)found_b->garrisoned_units.size();
@@ -1369,7 +1388,7 @@ private:
 		add_line(auras_tooltip(u));
 		add_line(identity_tooltip(text));
 		const rtso::CostTip unit_cost{(int64_t)cost[rtso::RES_FOOD], (int64_t)cost[rtso::RES_WOOD], (int64_t)cost[rtso::RES_STONE],
-				(int64_t)cost[rtso::RES_GOLD], (int64_t)u.pop_cost, (int64_t)std::ceil(u.train_time)};
+				(int64_t)cost[rtso::RES_GOLD], (int64_t)u.pop_cost, (int64_t)std::ceil(sim->unit_train_seconds(pid, i))};
 		add_line(rtso::cost_tooltip(unit_cost));
 		// formatLimitString, formatMatchLimitString (heroes: MatchLimit 1).
 		if (i < rtso::CIV_UNIT_TEMPLATE_COUNT) {

@@ -435,6 +435,7 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | `scenes/session/savegame_dialog.gd` | Save and load dialogs from 0 A.D. `gui/loadgame/load.xml`, `SavegameList.js`, `SavegameDetails.js`, `SavegameDeleter.js`, `SavegameLoader.js`, `SavegameWriter.js` | Port |
 | `assets/l10n/*.po` | 0 A.D. translations (`binaries/data/mods/public/l10n/<lang>.*.po`, `binaries/data/l10n/<lang>.engine.po` at 61a3b95), one file per language with the translators credited in its header; same license as 0 A.D. (GPL-2.0-or-later for strings from code, CC BY-SA 3.0 for strings from data) | `tools/fetch_0ad_l10n.py` |
 | `scenes/menu/user_settings.gd` (`_apply_locale`, `resolve_locale`), the Language option in `scenes/menu/options.gd` | 0 A.D. `source/i18n/L10n.cpp` (locale config key, system-language fallback), `gui/locale/locale.js` (language list) | Port |
+| `src/presentation/formation_variants.h`, `data/formation_variants.json` | 0 A.D. `simulation/components/Formation.js` (AnimationVariants, GetFormationAnimationVariant), the AnimationVariants of `simulation/templates/special/formations/{phalanx,syntagma,testudo,anti_cavalry}.xml`, `art/variants/biped/formations/*.xml` and the unit actors that list them | Port; `tools/extract_formation_variants.py` |
 
 Fonts in `assets/fonts/` carry their own licenses; see `assets/LICENSE`.
 

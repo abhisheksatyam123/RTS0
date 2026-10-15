@@ -21,6 +21,25 @@ func _unhandled_input(event):
 		get_viewport().set_input_as_handled()
 		_on_resume_pressed()
 
+# Menu.xml / Menu.js startAnimation: the panel (164 wide) hangs under the Menu button at the
+# top right and slides down out of it.
+func _slide_down() -> void:
+	var box: Control = $CenterContainer
+	var panel: Control = $CenterContainer/Panel
+	var h: float = panel.get_combined_minimum_size().y
+	var main := get_parent()
+	var at := Rect2(Vector2(get_viewport().get_visible_rect().size.x - 164.0, 0.0), Vector2(164.0, 32.0))
+	if main and main.has_method("menu_button_rect"):
+		var r: Rect2 = main.menu_button_rect()
+		if r.size.x > 0.0:
+			at = r
+	box.position = Vector2(at.end.x - 164.0, at.end.y + 2.0)
+	box.size = Vector2(164.0, h)
+	panel.size = Vector2(164.0, h)
+	panel.position = Vector2(0.0, -h)
+	var tw := create_tween()
+	tw.tween_property(panel, "position:y", 0.0, 0.15)
+
 # Closes the menu, through RtsoMain when it is there (Menu.close).
 func _on_resume_pressed():
 	var main := get_parent()
@@ -139,7 +158,13 @@ func _on_resign_pressed():
 func toggle():
 	visible = !visible
 	$CenterContainer.visible = visible
+	if visible:
+		_slide_down()
 	rebuild_pause()
+	# MenuButtons.js Chat: the chat hotkeys' lines.
+	var chat: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnChat")
+	if chat and get_parent().has_method("chat_open_hotkey_tooltip"):
+		chat.tooltip_text = get_parent().chat_open_hotkey_tooltip()
 	var lobby: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnLobby")
 	if lobby:
 		lobby.disabled = not (get_parent().has_method("has_lobby_client") and get_parent().has_lobby_client())

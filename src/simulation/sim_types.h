@@ -1302,10 +1302,10 @@ inline bool civ_has_big_house(uint8_t civ) {
 inline TerritoryInfluenceInfo structure_territory_influence(uint8_t type, uint8_t civ) {
 	TerritoryInfluenceInfo ti = territory_influence_info(type);
 	if (type == BLD_HOUSE && civ_has_big_house(civ)) {
-		ti.radius = 20.0f * 0.28f;
+		ti.radius = 20.0f * 0.25f; // map units, as territory_data.h
 		ti.weight = 40000;
 	} else if (type == BLD_TOWER && civ == CIV_IBERIANS) {
-		ti.radius = 38.0f * 0.28f;
+		ti.radius = 38.0f * 0.25f;
 	}
 	return ti;
 }

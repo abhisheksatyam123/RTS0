@@ -361,6 +361,9 @@ void RtsoMain::_ready() {
 	menu_btn = memnew(Button);
 	menu_btn->set_custom_minimum_size(Vector2(60, 28));
 	menu_btn->set_text("Menu");
+	// Menu.js rebuild: "Press %(hotkey)s to toggle this menu."
+	menu_btn->set_tooltip_text(String(rtso::tr0("Press %(hotkey)s to toggle this menu.")).replace("%(hotkey)s",
+			rtso::hotkeys::table().label("session.gui.menu.toggle").c_str()));
 	menu_btn->add_theme_font_size_override("font_size", 12);
 	menu_btn->connect("pressed", Callable(this, "_on_menu_button_pressed"));
 	top_hbox->add_child(menu_btn);
@@ -718,6 +721,7 @@ void RtsoMain::_ready() {
 	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
 	// handler methods below delegate into them).
 	chat_window_.build(this, ui_layer, this);
+	refresh_chat_tooltips();
 	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
 	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
@@ -1526,7 +1530,29 @@ void RtsoMain::sound_notification_nick() {
 
 void RtsoMain::chat_open_page() {
 	close_open_dialogs();
+	refresh_chat_tooltips();
 	chat_window_.open_page();
+}
+
+// ChatInput.getOpenHotkeyTooltip: the chat, teamchat (observer chat for an observer) and
+// privatechat hotkeys; an unbound one reads "Unassigned hotkey: <name>" (colorizeHotkey).
+String RtsoMain::chat_open_hotkey_tooltip() const {
+	auto line = [](const char *text, const char *hotkey) {
+		std::string key = rtso::hotkeys::table().label(hotkey);
+		String k = key.empty() ? String(rtso::tr0("Unassigned hotkey: %(hotkeyName)s")).replace("%(hotkeyName)s", hotkey)
+							   : String(key.c_str());
+		return String("\n") + String(rtso::tr0(text)).replace("%(hotkey)s", k);
+	};
+	return (line("Press %(hotkey)s to open the public chat.", "chat") +
+			line(spectating() ? "Press %(hotkey)s to open the observer chat." : "Press %(hotkey)s to open the ally chat.", "teamchat") +
+			line("Press %(hotkey)s to open the previously selected private chat.", "privatechat"))
+			.strip_edges();
+}
+
+void RtsoMain::refresh_chat_tooltips() {
+	chat_window_.set_input_tooltip(String(rtso::tr0("Type the message to send.")) + "\n" +
+			String(rtso::tr0("Press %(hotkey)s to autocomplete player names.")).replace("%(hotkey)s", rtso::tr0("Tab")) + "\n" +
+			chat_open_hotkey_tooltip());
 }
 
 // gui/common/styles.xml sound_pressed, and the dropdowns' sound_opened / sound_selected.

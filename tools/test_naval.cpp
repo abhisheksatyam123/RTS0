@@ -181,7 +181,8 @@ static void test_petra_sea_trade() {
 }
 
 // tradeManager.js updateTrader: a land trader whose land has no route asks for a ship
-// (navalManager.requireTransport) to the nearer end of the best route on another land.
+// (navalManager.requireTransport) to the nearer end of the best route on another land. A second
+// trader there joins the same crossing while the ship boards.
 static void test_petra_trader_transport() {
 	static Simulation s;
 	fresh(s);
@@ -192,21 +193,27 @@ static void test_petra_trader_transport() {
 	s.spawn_building_world(-50.0f, 52.0f, BLD_MARKET, 1);
 	s.spawn_building_world(30.0f, 52.0f, BLD_MARKET, 1);
 	const uint32_t trader = s.spawn_unit(-30.0f, -40.0f, 1, UNIT_TRADER);
+	const uint32_t second = s.spawn_unit(-26.0f, -40.0f, 1, UNIT_TRADER);
 	s.spawn_unit(-30.0f, -10.0f, 1, UNIT_TRIREME);
-	bool planned = false;
-	for (int t = 0; t < 40 && !planned; ++t) {
+	bool planned = false, joined = false;
+	for (int t = 0; t < 40 && !(planned && joined); ++t) {
 		run(s, 1.0f);
-		for (const auto &tp : s.petra_transports_)
-			if (tp.owner == PETRA_TRANSPORT_TRADER && std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), trader) != tp.passenger_ids.end())
-				planned = true;
+		for (const auto &tp : s.petra_transports_) {
+			if (tp.owner != PETRA_TRANSPORT_TRADER) continue;
+			const auto has = [&](uint32_t id) { return std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), id) != tp.passenger_ids.end(); };
+			planned |= has(trader);
+			joined |= has(trader) && has(second);
+		}
 	}
 	bool routed = false;
 	for (int t = 0; t < 120 && !routed; ++t) {
 		run(s, 1.0f);
 		routed = s.trader_routes_.count(trader) && s.units_.action_state[s.lookup_unit(trader)] == ACTION_TRADE;
 	}
-	std::printf("Petra trader on the other land: transport %s, trading %s\n", planned ? "yes" : "no", routed ? "yes" : "no");
+	std::printf("Petra trader on the other land: transport %s, second trader on board %s, trading %s\n", planned ? "yes" : "no",
+	            joined ? "yes" : "no", routed ? "yes" : "no");
 	CHECK(planned);
+	CHECK(joined);
 	CHECK(routed);
 }
 
@@ -747,6 +754,21 @@ static void test_petra_navy() {
 	std::printf("Petra navy: %d fishing boats (%d fishing), %d warships\n", count_units(t, 1, UNIT_FISHING_BOAT), fishing, count_units(t, 1, UNIT_TRIREME));
 	CHECK(count_units(t, 1, UNIT_FISHING_BOAT) == 1 && fishing == 1);
 	CHECK(count_units(t, 1, UNIT_TRIREME) == 0);
+
+	// navalManager.js decides at the start: a sea that began with over 1000 fish keeps its
+	// boat after it is fished below 1000, until it is empty.
+	static Simulation u;
+	fresh(u);
+	u.set_player_active(1, true, true);
+	u.set_player_resources(1, 5000, 5000, 5000, 5000);
+	u.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	u.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	for (int k = 0; k < 2; ++k) u.spawn_resource_world(-40.0f + 10.0f * k, 0.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	for (size_t r = 0; r < u.resources_.count; ++r)
+		if (u.resources_.subtype[r] == RES_SUB_FISH) u.resources_.amount[r] = 300;
+	run(u, 90.0f);
+	std::printf("Petra navy: %d fishing boats on a sea fished down to 600\n", count_units(u, 1, UNIT_FISHING_BOAT));
+	CHECK(count_units(u, 1, UNIT_FISHING_BOAT) == 1);
 }
 
 // attackPlan.js overseas: an attack on the other land waits for a transport ship,

@@ -80,6 +80,7 @@ void RtsoMain::_notification(int p_what) {
 
 void RtsoMain::play_voice(const char *path) {
 	if (!voice_player || !path) return;
+	++voices_played_;
 	String p = path;
 	String final_path = p;
 	if (!final_path.begins_with("res://")) {
@@ -3340,6 +3341,7 @@ void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 
 void RtsoMain::toggle_chat() {
 	if (!chat_window_.is_open()) close_open_dialogs();
+	refresh_chat_tooltips();
 	chat_window_.toggle();
 }
 

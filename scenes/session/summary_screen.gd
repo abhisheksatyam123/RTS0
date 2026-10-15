@@ -647,15 +647,20 @@ func _build() -> void:
 	_window.add_child(title)
 	var header := HBoxContainer.new()
 	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	header.offset_left = 70
-	header.offset_right = -70
-	header.offset_top = 34
-	header.offset_bottom = 62
+	# summary.xml: "20 26 100%-20 92", each caption "16" in from its top and bottom.
+	header.offset_left = 20
+	header.offset_right = -20
+	header.offset_top = 42
+	header.offset_bottom = 76
 	_window.add_child(header)
 	for t in [[summary_text(), HORIZONTAL_ALIGNMENT_LEFT, "SummaryText"],
 			[map_caption(), HORIZONTAL_ALIGNMENT_CENTER, "MapName"],
 			[L10n.sprintf(L10n.t("Game time elapsed: %(time)s"), {"time": time_to_string(float(data.get("game_time", 0.0)))}), HORIZONTAL_ALIGNMENT_RIGHT, "TimeElapsed"]]:
-		var l := _label(t[0], 16)
+		var l := _label(t[0], 18) # sans-bold-18
+		var bold := FontVariation.new()
+		bold.variation_embolden = 0.6
+		l.add_theme_font_override("font", bold)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		l.name = t[2]
 		l.horizontal_alignment = t[1]
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -674,13 +679,13 @@ func _build() -> void:
 			L10n.sprintf(L10n.t("Scroll up or use %(hotkey)s to move a tab left."), {"hotkey": _hotkey_text("tab.prev")})])
 		b.pressed.connect(select_panel.bind(i))
 		b.gui_input.connect(_on_tab_wheel)
-		_place(b, _window, Vector2(17 + i * (TAB_W + TAB_GAP), 66), Vector2(TAB_W, 28))
+		_place(b, _window, Vector2(17 + i * (TAB_W + TAB_GAP), 92), Vector2(TAB_W, 28)) # tabButtonsFrame "17 92 883 120"
 		_tab_buttons.append(b)
 	var frame := Panel.new() # generalPanel / chartsPanel frame
 	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	frame.offset_left = 20
 	frame.offset_right = -20
-	frame.offset_top = 96
+	frame.offset_top = 120 # generalPanel "20 120 100%-20 100%-54"
 	frame.offset_bottom = -54
 	var fs := StyleBoxFlat.new()
 	fs.bg_color = Color(0, 0, 0, 0.25)
@@ -806,7 +811,7 @@ func _update_panel(pd: Dictionary) -> void:
 			keys.erase(-1)
 		for t in keys:
 			var members: Array = teams[t]
-			var head := _label(L10n.sprintf(L10n.t("Team %(team)s"), {"team": t + 1}), 14, GOLD)
+			var head := _label(L10n.sprintf(L10n.t("Team %(team)s"), {"team": t + 1}), 14) # ModernLeftTopLabelText: white
 			head.name = "TeamHeading%d" % t
 			_place(head, _general, Vector2(15, y + 5), Vector2(200, 22))
 			for n in members.size():
@@ -836,6 +841,7 @@ func _player_row(p: Dictionary, counters: Array, headings: Array, index: int, po
 		icon.tooltip_text = "Victorious" if p["state"] == "won" else "Defeated"
 		_place(icon, box, Vector2(4, 5), Vector2(32, 32))
 	var name := _label(p["name"], 14)
+	name.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED # a player's own name
 	name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name.clip_text = true
 	name.tooltip_text = p["tooltip"]
@@ -872,13 +878,13 @@ func _build_charts() -> void:
 		var pickers := []
 		for j in 3:
 			var cap := _label(["Category:", "Value:", "Type:"][j], 13)
-			_place(cap, part, Vector2(1 + j * 150, 4), Vector2(144, 20))
+			_place(cap, part, Vector2(1 + j * 150, 6), Vector2(144, 20)) # "1 6 145 26"
 			var dd := OptionButton.new()
 			dd.name = ["Category", "Value", "Type"][j]
 			dd.tooltip_text = ["Category", "Value", "Type"][j]
 			dd.fit_to_longest_item = false
 			dd.clip_text = true
-			_place(dd, part, Vector2(5 + j * 150, 26), Vector2(140, 26))
+			_place(dd, part, Vector2(5 + j * 150, 28), Vector2(140, 28)) # "5 28 145 56"
 			pickers.append(dd)
 			if j == 2:
 				pickers.append(cap)
@@ -889,22 +895,23 @@ func _build_charts() -> void:
 		var bg := ColorRect.new()
 		bg.color = Color(1, 1, 1, 20.0 / 255.0)
 		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		bg.offset_top = 60
+		bg.offset_top = 80 # "0 80 100% 100%"
 		part.add_child(bg)
 		var chart := Control.new()
 		chart.name = "Chart%d" % k
 		chart.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		chart.offset_left = 5
 		chart.offset_right = -5
-		chart.offset_top = 64
-		chart.offset_bottom = -22
+		chart.offset_top = 85 # "5 85 100%-5 100%-25"
+		chart.offset_bottom = -25
 		chart.draw.connect(_draw_chart.bind(k))
 		part.add_child(chart)
 		_chart_nodes.append(chart)
 		var axis := _label("Time elapsed", 12)
 		axis.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		axis.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-		axis.offset_top = -20
+		axis.offset_top = -25 # XAxisLabel "5 100%-25 100%-5 100%-5"
+		axis.offset_bottom = -5
 		part.add_child(axis)
 	_legend = _rich("", 13)
 	_legend.name = "ChartLegend"
