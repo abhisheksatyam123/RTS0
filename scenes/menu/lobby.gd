@@ -27,6 +27,7 @@ var _remember: CheckBox
 var _register_btn: Button
 var _games: Tree
 var _players: Tree
+var _players_filter: LineEdit
 var _profile: VBoxContainer
 var _profile_name: Label
 var _profile_role: Label # ProfilePanel roleText
@@ -262,6 +263,13 @@ func _build() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(right)
 	right.add_child(_label("Players online"))
+	# PlayerList.xml playersFilter: Enter picks the typed player, Tab completes.
+	_players_filter = _line("", 0)
+	_players_filter.placeholder_text = "Search for Player"
+	_players_filter.tooltip_text = AUTOCOMPLETE_TIP
+	_players_filter.text_submitted.connect(_select_player)
+	_players_filter.gui_input.connect(_on_name_input.bind(_players_filter))
+	right.add_child(_players_filter)
 	_players = Tree.new()
 	_players.columns = 3
 	_players.hide_root = true
@@ -276,6 +284,7 @@ func _build() -> void:
 		if picked == _selected_player:
 			return # the refresh re-selecting it
 		_selected_player = picked
+		_select_game_of(_selected_player)
 		_update_buddy_button()
 		_request_profile(_selected_player))
 	right.add_child(_players)
@@ -283,6 +292,8 @@ func _build() -> void:
 	_buddy_btn.disabled = true
 	right.add_child(_buddy_btn)
 	_players.item_activated.connect(_on_buddy_pressed) # PlayerList double click
+	# onMouseLeftClickItem: a click on the picked player finds their game again.
+	_players.item_mouse_selected.connect(func(_p: Vector2, _b: int) -> void: _select_game_of(_selected_player))
 	_profile = _build_profile()
 	right.add_child(_profile)
 	_leaderboard = _build_leaderboard()
@@ -301,6 +312,8 @@ func _build() -> void:
 	_chat_line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_chat_line.placeholder_text = "Chat"
 	_chat_line.text_submitted.connect(func(_t: String) -> void: _on_send_pressed())
+	_chat_line.tooltip_text = AUTOCOMPLETE_TIP # ChatInputPanel onTab
+	_chat_line.gui_input.connect(_on_name_input.bind(_chat_line))
 	chat_row.add_child(_chat_line)
 	_chat_send = _button("Send", _on_send_pressed)
 	chat_row.add_child(_chat_send)
@@ -424,6 +437,7 @@ func _on_lookup_view() -> void:
 			_lookup_error.text = 'Player "%s" not found.' % asked
 			return
 		_lookup_values["name"].text = LobbySession.rated_name(str(obj.get("name", "")), obj.get("rating"))
+		_lookup_values["name"].add_theme_color_override("font_color", player_color(str(obj.get("name", ""))))
 		for k in ["rank", "highestRating", "totalGamesPlayed", "wins", "losses"]:
 			_lookup_values[k].text = str(obj.get(k, NOT_AVAILABLE))
 		_lookup_values["ratio"].text = LobbySession.format_win_rate(obj))
@@ -435,6 +449,7 @@ func _request_profile(player: String) -> void:
 	if player == "" or not LobbySession.signed_in():
 		return
 	_profile_name.text = player
+	_profile_name.add_theme_color_override("font_color", player_color(player)) # ColorPlayerName
 	# ProfilePanel RoleNames: Moderator, else Player (the lobby mutes nobody).
 	_profile_role.text = "Moderator" if _moderators.has(player) else "Player"
 	for k in _profile_values:
@@ -845,6 +860,7 @@ func _on_players(code: int, obj) -> void:
 		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Busy"}.get(st, st))
 		it.set_custom_color(0, col)
 		it.set_text(1, (BUDDY_SYMBOL + " " if buddy_list.has(str(p.get("name", ""))) else "") + _nick(str(p.get("name", ""))))
+		it.set_custom_color(1, player_color(str(p.get("name", ""))))
 		it.set_text(2, str(p.get("rating", "")))
 		it.set_metadata(0, str(p.get("name", "")))
 		if str(p.get("name", "")) == _selected_player:
@@ -880,19 +896,23 @@ func _on_chat(code: int, obj) -> void:
 		if notify and who != "" and who != me and str(m.get("text", "")).findn(me) >= 0:
 			notify = false
 			_play_nick_alert()
-		var raw := str(m.get("text", ""))
-		var text := raw.replace("[", "[lb]")
-		var when := _chat_time(m)
-		if who == "":
-			_chat_log.append_text("%s[color=#aaaaaa]%s[/color]\n" % [when, text])
-		elif raw.begins_with("/me "):
-			# ChatMessageFormatMe: "* %(sender)s %(message)s".
-			_chat_log.append_text("%s* [b]%s[/b] %s\n" % [when, _nick(who).replace("[", "[lb]"), text.substr(4)])
-		else:
-			if raw.begins_with("/say "):
-				text = text.substr(5)
-			_chat_log.append_text("%s[color=#e0c070]%s:[/color] %s\n" % [when, _nick(who).replace("[", "[lb]"), text])
+		_chat_log.append_text(_chat_time(m) + _format_chat(who, str(m.get("text", "")), me) + "\n")
 	_chat_last = int(obj.get("last", _chat_last))
+
+
+## ChatMessageFormat: a system line in grey; a player's line with their name
+## in its colour (after /me, "* name text") and our name highlighted.
+func _format_chat(who: String, raw: String, me: String) -> String:
+	var text := raw.replace("[", "[lb]")
+	if who == "":
+		return "[color=#aaaaaa]%s[/color]" % text
+	if who != me:
+		text = highlight_name(text, me)
+	if raw.begins_with("/me "):
+		return "* [b]%s[/b] %s" % [colored_name(who, _nick(who)), text.substr(4)]
+	if raw.begins_with("/say "):
+		text = text.substr(5)
+	return "%s: %s" % [colored_name(who, _nick(who)), text]
 
 
 func _play_nick_alert() -> void:
@@ -909,6 +929,161 @@ func _chat_time(m: Dictionary) -> String:
 		return ""
 	var t := Time.get_datetime_dict_from_unix_time(int(m["time"]) + int(Time.get_time_zone_from_system().get("bias", 0)) * 60)
 	return "[color=#aaaaaa][lb]%02d:%02d] [/color]" % [int(t["hour"]), int(t["minute"])]
+
+## PlayerColor.GetPlayerColor: a colour from the name's hash, lightness at
+## least 0.7 so it reads on the dark background.
+static func player_color(name: String) -> Color:
+	var h := 0
+	var buf := name.to_utf16_buffer()
+	for i in range(0, buf.size() - 1, 2):
+		# hash = charCode + ((hash << 5) - hash); JS "<<" takes hash's int32.
+		h = (buf[i] | (buf[i + 1] << 8)) + (_int32(_int32(h) << 5) - h)
+	h = _int32(h)
+	var hsl := _rgb_to_hsl(((h >> 24) & 0xFF) / 255.0, ((h >> 16) & 0xFF) / 255.0, ((h >> 8) & 0xFF) / 255.0)
+	var rgb := _hsl_to_rgb(hsl.x, hsl.y, maxf(0.7, hsl.z))
+	return Color8(roundi(rgb.x * 255), roundi(rgb.y * 255), roundi(rgb.z * 255))
+
+static func _int32(x: int) -> int:
+	return ((x & 0xFFFFFFFF) ^ 0x80000000) - 0x80000000
+
+## color.js rgbToHsl and hslToRgb.
+static func _rgb_to_hsl(r: float, g: float, b: float) -> Vector3:
+	var mx := maxf(r, maxf(g, b))
+	var mn := minf(r, minf(g, b))
+	var l := (mx + mn) / 2
+	if mx == mn:
+		return Vector3(0, 0, l)
+	var d := mx - mn
+	var s := d / (2 - mx - mn) if l > 0.5 else d / (mx + mn)
+	var h: float
+	if mx == r:
+		h = (g - b) / d + (6.0 if g < b else 0.0)
+	elif mx == g:
+		h = (b - r) / d + 2
+	else:
+		h = (r - g) / d + 4
+	return Vector3(h / 6, s, l)
+
+static func _hsl_to_rgb(h: float, s: float, l: float) -> Vector3:
+	if s == 0:
+		return Vector3(l, l, l)
+	var q := l * (1 + s) if l < 0.5 else l + s - l * s
+	var p := 2 * l - q
+	return Vector3(_hue2rgb(p, q, h + 1.0 / 3), _hue2rgb(p, q, h), _hue2rgb(p, q, h - 1.0 / 3))
+
+static func _hue2rgb(p: float, q: float, t: float) -> float:
+	if t < 0:
+		t += 1
+	if t > 1:
+		t -= 1
+	if t < 1.0 / 6:
+		return p + (q - p) * 6 * t
+	if t < 0.5:
+		return q
+	if t < 2.0 / 3:
+		return p + (q - p) * (2.0 / 3 - t) * 6
+	return p
+
+## PlayerColor.ColorPlayerName as BBCode: what is shown (escaped), in the
+## colour of the player's name.
+static func colored_name(name: String, shown := "") -> String:
+	return "[color=#%s]%s[/color]" % [player_color(name).to_html(false), (shown if shown != "" else name).replace("[", "[lb]")]
+
+## ChatMessageFormat: the first mention of our name in an escaped chat line,
+## in our colour.
+static func highlight_name(text: String, me: String) -> String:
+	var esc := me.replace("[", "[lb]")
+	var at := text.find(esc)
+	if me == "" or at < 0:
+		return text
+	return text.substr(0, at) + colored_name(me) + text.substr(at + esc.length())
+
+## color.js colorizeAutocompleteHotkey.
+const AUTOCOMPLETE_TIP := "Press [Tab] to autocomplete player names."
+
+## functions_utility.js tryAutoComplete: the last word, completed when exactly
+## one name starts with it (any case); ", " after a lone word, else " ".
+static func autocomplete(text: String, names: Array) -> String:
+	var words := text.split(" ")
+	var last := words[words.size() - 1]
+	if last.is_empty():
+		return text
+	var found := []
+	for w in names:
+		if str(w).to_lower().begins_with(last.to_lower()):
+			found.append(str(w))
+			if found.size() > 1:
+				break
+	if found.size() != 1:
+		return text
+	words.remove_at(words.size() - 1)
+	var head := " ".join(words)
+	return (head + " " + found[0] + " ") if head != "" else (found[0] + ", ")
+
+func _online_names() -> Array:
+	var names := []
+	if _players.get_root():
+		for it in _players.get_root().get_children():
+			names.append(str(it.get_metadata(0)))
+	return names
+
+## autoCompleteText: Tab in the search field or the chat line completes the
+## name before the caret.
+func _on_name_input(ev: InputEvent, line: LineEdit) -> void:
+	var k := ev as InputEventKey
+	if k == null or not k.pressed or k.keycode != KEY_TAB:
+		return
+	line.accept_event()
+	var caret := line.caret_column
+	var before := line.text.substr(0, caret)
+	var done := autocomplete(before, _online_names())
+	line.text = done + line.text.substr(caret)
+	line.caret_column = caret + done.length() - before.length()
+
+## PlayerList.selectPlayer: Enter in the search field picks that player.
+func _select_player(name: String) -> void:
+	if _players.get_root() == null:
+		return
+	for it in _players.get_root().get_children():
+		if str(it.get_metadata(0)) == name:
+			it.select(0)
+			_players.scroll_to_item(it)
+			return
+
+## GameList.selectGameFromPlayername: the game the player plays in, else the
+## last one they watch, else the last one they were in (now offline).
+static func game_of_player(rooms: Array, name: String) -> int:
+	if name == "":
+		return -1
+	var pick := -1
+	var as_observer := false
+	for i in rooms.size():
+		for p in rooms[i].get("player_names", []):
+			if split_rating(str(p.get("name", ""))) != name:
+				continue
+			if p.get("observer", false):
+				as_observer = true
+				pick = i
+			elif not p.get("offline", false):
+				return i
+			if not as_observer:
+				pick = i
+	return pick
+
+## splitRatingFromNick: "name (1500)" is "name".
+static func split_rating(s: String) -> String:
+	var m := RegEx.create_from_string("^(.+) \\(\\d+\\)$").search(s)
+	return m.get_string(1) if m else s
+
+func _select_game_of(name: String) -> void:
+	var i := game_of_player(_shown_rooms, name)
+	var top := _games.get_root()
+	if i < 0 or top == null or i >= top.get_child_count():
+		return
+	var it := top.get_child(i)
+	if not it.is_selected(0):
+		it.select(0)
+	_games.scroll_to_item(it)
 
 ## PlayerColor.ColorPlayerName: "@" before a moderator's name.
 func _nick(name: String) -> String:
