@@ -3808,6 +3808,7 @@ private:
 	bool guard_keeps_target(size_t i, size_t t) const;
 	void guard_answer(size_t i, size_t g, uint32_t attacker);
 	void walk_to_held_position(size_t i);
+	void walk_back_if_drifted(size_t i);
 	void find_targets_then_walk_back(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;
