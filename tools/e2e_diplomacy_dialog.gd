@@ -48,6 +48,9 @@ func run() -> void:
 	var ai: Array = others(d, 0).filter(func(r): return String(r["name_tooltip"]).ends_with(" Petra Bot"))
 	check(ai.size() >= 1, "an AI's name reads its difficulty, behaviour and Petra Bot")
 	check(others(d, 0).all(func(r): return not r["tribute_shown"] or r["tribute_enabled"]), "tribute buttons work")
+	check(d["rows"].all(func(r): return absf(Color(r["tint"]).a - 32.0 / 255.0) < 0.01), "each row on its player's colour at alpha 32")
+	check(others(d, 0).all(func(r): return str(r["tribute_icon"]).ends_with("_small.png") and str(r["tribute_text"]) == ""), "tribute buttons are resource icons")
+	check(str(d["close_text"]) == "Close" and str(d["colors_tooltip"]).ends_with("Toggle Diplomacy Colors"), "\"Close\" and the colours icon's hotkey-led tooltip")
 	main.toggle_diplomacy()
 
 	print("2. Out of the game")

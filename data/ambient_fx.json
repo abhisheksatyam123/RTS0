@@ -14332,6 +14332,67 @@
     ]
    ]
   },
+  "flame_catapult": {
+   "add": true,
+   "angle": [
+    -0.5,
+    0.5
+   ],
+   "color": [
+    0.8,
+    1.0
+   ],
+   "force": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "growth": 0.0,
+   "life": [
+    0.25,
+    0.35
+   ],
+   "pos": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ]
+   ],
+   "rate": 50.0,
+   "relative": false,
+   "size": [
+    0.75,
+    1.0
+   ],
+   "spin": [
+    -0.5,
+    0.5
+   ],
+   "start_full": false,
+   "tex": "flame.png",
+   "vel": [
+    [
+     -0.3,
+     0.3
+    ],
+    [
+     2.5,
+     3.5
+    ],
+    [
+     -0.3,
+     0.3
+    ]
+   ]
+  },
   "flame_firepit_1": {
    "add": true,
    "angle": [
@@ -14630,6 +14691,67 @@
     [
      2.0,
      2.5
+    ],
+    [
+     -0.5,
+     0.5
+    ]
+   ]
+  },
+  "smoke_catapult": {
+   "add": false,
+   "angle": [
+    -3.14,
+    3.14
+   ],
+   "color": [
+    0.4,
+    0.8
+   ],
+   "force": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "growth": 0.0,
+   "life": [
+    5.0,
+    10.0
+   ],
+   "pos": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.5,
+     1.5
+    ],
+    [
+     0.0,
+     0.0
+    ]
+   ],
+   "rate": 10.0,
+   "relative": false,
+   "size": [
+    2.0,
+    3.0
+   ],
+   "spin": [
+    -2.0,
+    2.0
+   ],
+   "start_full": false,
+   "tex": "smoke_128a.png",
+   "vel": [
+    [
+     -0.5,
+     0.5
+    ],
+    [
+     2.5,
+     3.5
     ],
     [
      -0.5,
@@ -15064,6 +15186,12 @@
     ]
    ]
   }
+ },
+ "projectiles": {
+  "stone": [
+   "smoke_catapult",
+   "flame_catapult"
+  ]
  },
  "run": {
   "athen_catafalque": [

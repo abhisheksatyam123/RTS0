@@ -662,6 +662,8 @@ public:
 	// Rally point flags drawn this frame (rally_point_renderer.h).
 	int debug_rally_flags() const { return rally_points_.flag_count(); }
 	int debug_status_sprites() const { return view ? view->status_sprite_count() : 0; }
+	PackedStringArray debug_status_rank_icons() const { return view ? view->status_rank_icons() : PackedStringArray(); }
+	int debug_status_xp_bars() const { return view ? view->status_xp_bars() : 0; }
 	PackedInt32Array debug_selected_structures() const {
 		PackedInt32Array out;
 		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);
@@ -989,6 +991,9 @@ private:
 	CheckBox *observer_follow_box_ = nullptr;
 	CheckBox *replay_follow_box_ = nullptr;
 	CheckBox *new_follow_player_box();
+	// PlayerViewControl.xml and FollowPlayer.xml: the picker, "Observer Mode" and Follow Player
+	// placed in the top panel's frame; returns the row holding them.
+	Control *new_player_view_row(OptionButton *picker, Label *observer_label, CheckBox *follow) const;
 	int followed_view() const;
 	void set_follow_player(bool on);
 	bool is_follow_player() const { return follow_player_; }
@@ -1061,6 +1066,10 @@ private:
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start
 	// then continues it for everyone (host_start_saved_game).
 	String net_saved_game_;
+	// The save's seats a human may take (lower-case name in the save, or empty
+	// for an AI or defeated player), by player id; filled with net_saved_game_.
+	std::vector<String> net_saved_seats_;
+	bool net_saved_setup() const { return !net_saved_game_.is_empty() && !net_game_started_; }
 	void host_start_saved_game();
 	void tick_match_archive();
 	Dictionary statistics_summary() const;

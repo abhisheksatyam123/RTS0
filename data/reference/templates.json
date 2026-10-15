@@ -857,6 +857,13 @@
      1.0,
      0.8
     ],
+    "s86": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.8
+    ],
     "brit/support_healer_b": [
      0.8,
      1.0,
@@ -1134,6 +1141,13 @@
      0.8
     ],
     "s80": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.8
+    ],
+    "s86": [
      1.0,
      1.0,
      1.0,
@@ -1473,6 +1487,13 @@
      1.5
     ],
     "s70": [
+     1.0,
+     0.6,
+     1.0,
+     1.0,
+     1.5
+    ],
+    "s86": [
      1.0,
      0.6,
      1.0,
@@ -20369,7 +20390,7 @@
     "Javelineer",
     "Auxiliary"
    ],
-   "icon": "units/rome/cavalry_javelinist_auxiliary.png",
+   "icon": "units/rome/cavalry_auxiliary.png",
    "builds": [],
    "viewer": {
     "attacks": [
@@ -20380,7 +20401,7 @@
       "max_range": 4,
       "y_origin": 0,
       "repeat_time": 1,
-      "capture": 1.75
+      "capture": 2.5
      },
      {
       "type": "Ranged",
@@ -28156,6 +28177,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "spart": {
@@ -29120,6 +29167,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "pers": {
@@ -30252,6 +30325,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "rome": {
@@ -31417,6 +31516,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "cart": {
@@ -32454,6 +32579,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "mace": {
@@ -33440,6 +33591,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "brit": {
@@ -34363,6 +34540,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "gaul": {
@@ -35265,6 +35468,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "iber": {
@@ -36145,6 +36374,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "maur": {
@@ -37088,6 +37343,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "kush": {
@@ -38116,6 +38397,32 @@
       "name": "Medical Treatment",
       "description": "Humans +1 health regeneration rate.",
       "radius": 40
+     }
+    ]
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
      }
     ]
    }
@@ -39213,6 +39520,32 @@
       "radius": 40
      }
     ]
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "sele": {
@@ -40181,6 +40514,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "han": {
@@ -41243,6 +41602,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   },
   "germ": {
@@ -42211,6 +42596,32 @@
       }
      }
     }
+   },
+   "86": {
+    "generic_name": "Rotary Mill",
+    "specific_name": "Epoikion",
+    "tooltip": "Dropsite for harvested Food. Capture one of these to increase nearby food production.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead",
+     "RotaryMill"
+    ],
+    "icon": "structures/rotarymill.png",
+    "template": "structures/mill_greek",
+    "viewer": {
+     "dropsite": [
+      "food"
+     ]
+    },
+    "auras": [
+     {
+      "name": "Farmland",
+      "description": "Workers +75% grain gather rate around a captured Rotary Mill.",
+      "radius": 60
+     }
+    ]
    }
   }
  },
@@ -44053,6 +44464,12 @@
    "description": "A bronze beak at the prow of the ship, used for ramming enemy ships.",
    "requirements_tooltip": "Unlocked in City Phase.",
    "icon": "ship_ram.png"
+  },
+  "warship_ramming_speed": {
+   "tooltip": "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”",
+   "description": "The flanking maneuver was attempted in order to position the ship for a successful ram. To pull this off in the chaos of a sea battle, a ship's crew needed to be highly trained and well-motivated.",
+   "requirements_tooltip": "Unlocked in Town Phase.",
+   "icon": "trihemiolia.png"
   },
   "warship_ranged_attack": {
    "tooltip": "Ranged Warships +10% attack damage.",

@@ -25,6 +25,8 @@
 #include <godot_cpp/classes/environment.hpp>
 #include <godot_cpp/classes/sky.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
+#include <map>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -214,11 +216,13 @@ class RtsoWorldView : public Node3D {
 	void load_ambient_fx();
 	GPUParticles3D *make_ambient_emitter(const AmbientParticle &d, float m);
 	// The dust 0 A.D.'s "Run" variant props (dust_cav) under running cavalry, camels,
-	// elephants and animals: per unit GLB its particles, and one world-space
-	// emitter per particle and scale that emit_particle feeds.
-	std::unordered_map<std::string, std::vector<std::string>> run_fx_;
-	std::unordered_map<std::string, GPUParticles3D *> run_emitters_;
+	// elephants and animals (per unit GLB its particles), the flaming stones' trail,
+	// and one world-space emitter per particle and scale that emit_particle feeds.
+	HashMap<String, std::vector<std::string>> run_fx_;
+	std::vector<std::string> stone_fx_; // the flaming stones' flame and smoke
+	std::map<std::pair<const AmbientParticle *, int>, GPUParticles3D *> world_emitters_;
 	void emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta);
+	void emit_world_fx(const std::vector<std::string> &names, const Vector3 &at, float sc, float delta);
 	// Unit models started loading on a worker before their first draw (per civ and crowd key).
 	std::vector<bool> prefetched_;
 	float prefetch_poll_ = 0.0f;
@@ -350,6 +354,9 @@ class RtsoWorldView : public Node3D {
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
+		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
+		String model_id;
+		float y_offset = 0.0f, scale = 1.0f, height = 0.0f;
 		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
 	// Crowd keys: a unit type, UNIT_TYPE_COUNT + type for a siege engine
@@ -359,6 +366,11 @@ class RtsoWorldView : public Node3D {
 	static constexpr int CROWD_KEY_COUNT = 2 * rtso::UNIT_TYPE_COUNT + rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT;
 	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][CROWD_KEY_COUNT];
 	uint8_t crowd_key_utype_[CROWD_KEY_COUNT] = {}; // a unit type drawn by each key
+	// The (civ << 16 | key) of every crowd batch made, ascending, and of those drawing units
+	// this frame (crowd_seen_ marks them), so a frame visits those batches only.
+	std::vector<uint32_t> crowd_made_;
+	std::vector<uint32_t> crowd_seen_list_;
+	uint8_t crowd_seen_[rtso::CIV_COUNT][CROWD_KEY_COUNT] = {};
 	Node3D *crowd_bake_root = nullptr;
 	// Crowd clip baking is spread over frames: past this frame's deadline (set in sync)
 	// a clip waits for a later frame, drawn in the rest pose meanwhile; one clip always
@@ -449,6 +461,8 @@ public:
 	bool show_all_status_bars() const { return show_all_status_bars_; }
 	// StatusBars.js sprites drawn this frame (tests).
 	int status_sprite_count() const { return status_sprites_.sprite_count(); }
+	const PackedStringArray &status_rank_icons() const { return status_rank_icons_; } // drawn last frame (tests)
+	int status_xp_bars() const { return status_xp_bars_; }
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
@@ -480,6 +494,8 @@ private:
 		int n_icons = 0;
 	};
 	void status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const;
+	PackedStringArray status_rank_icons_;
+	int status_xp_bars_ = 0;
 	void draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, const StatusStack &st);
 
 	// Fog of war (0 A.D. Fogging.js/Mirage.js + CLOSTexture): what the local
