@@ -1622,6 +1622,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		const size_t n = owned.size();
 		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
 		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
+		struct PushFront { // input.js pushFront for this one command
+			Simulation &sim;
+			~PushFront() { sim.set_push_front_order(false); }
+		} push_front_reset{sim};
+		sim.set_push_front_order(!queued && (c.param & NET_PARAM_PUSH_FRONT_ORDER) && net_cmd_takes_push_front(c.cmd_type));
 		note_player_command(sim, pl, c);
 		if (record_applied_ && applied_cmds_.size() < 256) {
 			applied_cmds_.push_back({pl, c});
@@ -1660,7 +1665,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 8) { // Formation
 			sim.order_set_formation(ids, n, c.param);
 		} else if (c.cmd_type == 9) { // Research
-			sim.cmd_research(pl, c.target_id, c.param);
+			sim.cmd_research(pl, c.target_id, c.param, c.target_x == 1.0f);
 		} else if (c.cmd_type == 10) { // Attack-move
 			sim.order_attack_move(ids, n, c.target_x, c.target_z, queued, (c.param & NET_PARAM_UNITS_ONLY) != 0, capture);
 		} else if (c.cmd_type == 11) { // Patrol
@@ -1744,7 +1749,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_pack(ids, n, c.param == 1);
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
-				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z));
+				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z),
+						(c.param & NET_PARAM_PUSH_FRONT_ORDER) != 0);
 		} else if (c.cmd_type == 48) { // Unit Trainer/Researcher — target_id=unit, target_x=template (param 0), tech (2) or
 			// queue slot (param 1 cancels), target_z=batch.
 			if (c.param == 2) { // research technology target_x (Researcher on a unit)
