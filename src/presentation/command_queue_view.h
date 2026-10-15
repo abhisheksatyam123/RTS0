@@ -1115,11 +1115,14 @@ private:
 			finish_roster(b);
 			return;
 		}
-		// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies) offer the
-		// structure's own civ's units.
-		for (uint16_t i : rtso::civ_roster_ids(rtso::building_trains_native(b->type) ? b->civ : civ)) {
+		// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies, a captured
+		// civic centre's civilian) offer the structure's own civ's units.
+		for (int pass = 0; pass < 2; ++pass) {
+		if (pass == 1 && b->civ == civ) break;
+		for (uint16_t i : rtso::civ_roster_ids(pass == 0 ? b->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 			if (!(u.trainers & rtso::bld_bit(b->type))) continue;
+			if (rtso::building_train_civ(b->type, b->civ, civ, u) != u.civ) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
 			// 0 A.D. has no such unit, so players don't see it.
 			if (std::strstr(u.id, "/rts0_")) continue;
@@ -1134,6 +1137,7 @@ private:
 				if (gate != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
 			}
 			set_roster_tip(idx, tip);
+		}
 		}
 		finish_roster(b);
 	}

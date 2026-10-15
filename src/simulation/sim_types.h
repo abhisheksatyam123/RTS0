@@ -3008,6 +3008,18 @@ inline bool building_trains_native(uint8_t type) {
 	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
 }
 
+// The civ whose roster `t` must come from to train at a `type` structure built by `bld_civ`
+// and held by a `owner_civ` player. Civic centres (the CC, crannog, Han court, Seleucid
+// military colony and German encampments) list units/{native}/support_civilian, so a
+// captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
+inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
+	if (building_trains_native(type)) return bld_civ;
+	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
+	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
+	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
+	return civic && (t.flags & ROSTER_CIVILIAN) && (t.trainers & bld_bit(type)) ? bld_civ : owner_civ;
+}
+
 // BuildingAI and Attack/Ranged of a civ's structure: the generic row plus 0.28's one civ
 // override, iber/defense_tower.xml (DefaultArrowCount +1, MinRange 12 m).
 inline BuildingAIInfo civ_building_ai_info(uint8_t civ, uint8_t type) {
