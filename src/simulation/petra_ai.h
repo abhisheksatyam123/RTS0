@@ -452,7 +452,10 @@ struct PetraAttackManager {
 	// handleNewBase clears saveResources, so the cut outlives it (0 in older saves, which kept
 	// the cut only while saving).
 	uint8_t phase2_cut_kept = 0;
-	uint8_t spare[2] = {};
+	// attackPlan.js trainMoreUnits deletes a unitStat that no template of ours trains (HugeAttack's
+	// champions and hero before the city phase): a bit per class of the main plan, by its index in
+	// petra_plan_unit_stats; cleared when a new plan is made. (Was padding; 0 in older saves.)
+	uint16_t dropped_classes = 0;
 	int32_t rush_size[3] = {};
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total

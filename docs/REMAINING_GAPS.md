@@ -8,7 +8,6 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 
 | # | Gap | Impact | Owner |
 |---|---|---|---|
-| G5 | A town-phase HugeAttack waits for champions and a hero once the city phase comes (0.28 drops those classes from the plan) | medium | D |
 | G10 | Trade: ~~a zero-gain route keeps its trader busy forever~~ (fixed in #1101), and traders boarding or leaving a ship mid-voyage don't change that leg's gain | low | A |
 | G11 | ~~Ptolemaic and Seleucid walls give 3 stone of loot; a bribe's spy ignores vision techs~~ (fixed in #1101); garrisoned traders can't be bribed | low | A |
 | G12 | Petra: ~~starting cavalry joins attacks instead of hunting; rushes take no siege~~ (fixed: citizen cavalry hunters follow assignUnits' worker rule, rushes add siege like other plans); raids take no siege; far-off gatherers aren't sent back | low | D (raid siege), C (gatherers) |
@@ -32,6 +31,7 @@ Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of wo
 |---|---|---|---|
 | G2 | ~~Idle traders start trade routes on their own, and a stopped trader restarts and loses its goods~~ Fixed (#1101): a seated player's traders trade only when ordered | medium | A |
 | G3 | ~~Petra plans rushes only in the village phase and drops a mustering rush at the town phase~~ Fixed: rushes are planned in any phase while any are left, and a rush with no target in sight musters and picks one when it sets out (attackManager.js:366) | medium | Formations |
+| G5 | ~~A town-phase HugeAttack waits for champions and a hero once the city phase comes~~ Fixed: a class no template of ours trains leaves the plan for good, as trainMoreUnits deletes its unitStat (`PetraAttackManager::dropped_classes`) | medium | Formations |
 | G6 | ~~A guard forgets the unit it guards after any new order~~ Closed 2026-10-15 (#1115): a guard keeps its charge through other orders and goes back to guarding once idle (isGuardOf, save v92) | medium | Unit orders |
 | G7 | ~~The bottom HUD isn't 0.28's centred 1024 px group: panels sit at the corners, the Training grid floats, and the stance buttons have captions~~ Closed 2026-10-15: the bottom HUD is 0.28's centred 1024 px group (minimap 204 px, supplemental panel 206 px with the 38 px icon-only stance row, 228 px details panel with its six-icon command row in g_EntityCommands order, 402 px commands panel with the Training grid at its top and the queue strip above it) | medium | Session UI |
 | G8 | ~~Themistocles' wall aura skips palisades~~ Fixed (#1101); Liu Bang's Confucian Reforms wall regen fixed by Compare (10 hp/s on finished Han walls, gates and wall towers while he lives, `tools/test_unit_orders.cpp` 82) | low | A |
