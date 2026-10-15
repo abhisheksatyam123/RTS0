@@ -225,7 +225,7 @@ void RtsoMain::update_highlight() {
 			const size_t u = own_unit_under_mouse(mouse, true);
 			if (u != (size_t)-1) {
 				ids.push_back((int32_t)sim->units().id[u]);
-			} else if (const uint32_t bid = building_under_mouse(mouse); bid != 0) {
+			} else if (const uint32_t bid = building_under_mouse(mouse, nullptr, true); bid != 0) {
 				ids.push_back((int32_t)bid);
 			} else {
 				const Vector3 at = get_ground_click_pos(mouse);
@@ -270,16 +270,22 @@ void RtsoMain::update_highlight() {
 
 // The local player's structure whose box the mouse ray enters first: its
 // turned footprint (hu, hv) from the ground up to a height that grows with its
-// size, so a click on a roof selects it and not the ground behind it.
-uint32_t RtsoMain::building_under_mouse(Vector2 mouse_pos, float *hit_t) const {
+// size, so a click on a roof selects it and not the ground behind it. With
+// `any_player`, any structure the viewer sees, live or as a mirage
+// (Engine.PickEntityAtPoint).
+uint32_t RtsoMain::building_under_mouse(Vector2 mouse_pos, float *hit_t, bool any_player) const {
 	if (!sim || !cam_rig || !cam_rig->get_camera()) return 0;
 	Camera3D *cam = cam_rig->get_camera();
 	const Vector3 o = cam->project_ray_origin(mouse_pos);
 	const Vector3 d = cam->project_ray_normal(mouse_pos);
 	uint32_t best = 0;
 	float best_t = 1e30f;
+	std::unordered_set<uint32_t> seen;
+	if (any_player && view)
+		for (const auto &fb : view->seen_buildings())
+			if (!fb.wrecked) seen.insert(fb.id);
 	for (const auto &b : sim->buildings()) {
-		if (b.team != local_player()) continue;
+		if (any_player ? (b.wrecked || !seen.count(b.id)) : b.team != local_player()) continue;
 		const float hu = (b.hu > 0.0f ? b.hu : b.half_size) + 0.3f;
 		const float hv = (b.hv > 0.0f ? b.hv : b.half_size) + 0.3f;
 		const float base = sim->get_terrain_height(b.x, b.z);

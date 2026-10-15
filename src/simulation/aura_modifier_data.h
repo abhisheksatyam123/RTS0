@@ -48,8 +48,8 @@ inline const RelicAuraModifier *relic_aura_modifiers() {
 		{TSTAT_COST_STONE, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // pers_catafalque
 		{TSTAT_COST_METAL, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // pers_catafalque
 		{TSTAT_HEALTH, TOP_MUL, 1.05f, 1, {{TC_STRUCTURE, 0}}}, // pers_catafalque
-		{TSTAT_COST_FOOD, TOP_MUL, 0.8f, 1, {{TC_CIVILIAN, 0}}}, // rome_catafalque_1
-		{TSTAT_GATHER_ALL, TOP_MUL, 1.1f, 1, {{TC_CIVILIAN, 0}}}, // rome_catafalque_1
+		{TSTAT_COST_FOOD, TOP_MUL, 0.8f, 1, {{TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}}}, // rome_catafalque_1
+		{TSTAT_GATHER_ALL, TOP_MUL, 1.1f, 1, {{TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}}}, // rome_catafalque_1
 		{TSTAT_ARMOR_HACK, TOP_ADD, 1.0f, 2, {{TC_UNIT, TC_SIEGE | TC_SHIP}, {TC_SIEGE, 0}}}, // rome_catafalque_2
 		{TSTAT_ARMOR_PIERCE, TOP_ADD, 1.0f, 2, {{TC_UNIT, TC_SIEGE | TC_SHIP}, {TC_SIEGE, 0}}}, // rome_catafalque_2
 		{TSTAT_ARMOR_CRUSH, TOP_ADD, 1.0f, 2, {{TC_UNIT, TC_SIEGE | TC_SHIP}, {TC_SIEGE, 0}}}, // rome_catafalque_2
@@ -75,7 +75,7 @@ inline const RelicAuraModifier *relic_aura_modifiers() {
 		{TSTAT_HEALTH, TOP_MUL, 1.1f, 1, {{TC_SOLDIER, 0}}}, // iber_catafalque_2
 		{TSTAT_TERRITORY_RADIUS, TOP_MUL, 1.2f, 1, {{TC_STRUCTURE, 0}}}, // maur_catafalque_1
 		{TSTAT_CAPTURE_ATTACK, TOP_MUL, 1.15f, 1, {{TC_SOLDIER, 0}}}, // maur_catafalque_2
-		{TSTAT_GATHER_ALL, TOP_MUL, 0.85f, 1, {{TC_CIVILIAN, 0}}}, // kush_catafalque_1
+		{TSTAT_GATHER_ALL, TOP_MUL, 0.85f, 1, {{TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}}}, // kush_catafalque_1
 		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // ptol_catafalque
 		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // ptol_catafalque
 		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // ptol_catafalque
