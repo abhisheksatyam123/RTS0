@@ -1989,8 +1989,9 @@ inline constexpr float SIEGE_EJECT_HEALTH = 0.1f;
 inline TechClasses building_tech_classes(uint8_t type) {
 	const TechClasses c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
-		// The Crannog and the military colony are template_structure_civic_civil_centre too.
-		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC;
+		// The Crannog and the military colony are template_structure_civic_civil_centre too,
+		// whose VisibleClasses are Defensive CivilCentre (Danubius and Jebel Barkal aim at them).
+		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		// han/academy and ptol/mercenary_camp are template_structure_military_barracks.
 		case BLD_BARRACKS: case BLD_ACADEMY: case BLD_MERCENARY_CAMP: return c | TC_BARRACKS;
@@ -2023,7 +2024,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_ARSENAL: return c | TC_ARSENAL;
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
-		case BLD_MILITARY_COLONY: return c | TC_CIVCENTRE | TC_CIVIC | TC_COLONY;
+		case BLD_MILITARY_COLONY: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE | TC_COLONY;
 		// germ/encampment: VisibleClasses Civic Defensive Colony Encampment (no CivCentre).
 		case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED: return c | TC_CIVIC | TC_DEFENSIVE | TC_COLONY;
 		default: return c;

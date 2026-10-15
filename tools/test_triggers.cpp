@@ -253,6 +253,13 @@ static void check_polar_sea() {
 	const auto &pts = s.trigger_state().points;
 	CHECK(!pts.empty(), "Polar Sea has no wolf trigger points");
 	s.tick(Simulation::FIXED_STEP); // OnInitGame
+	// The map is circular: no wolf point in the corners off the map, where wolves stood still.
+	int boxed_in = 0;
+	for (const TriggerPoint &p : pts) {
+		auto [cx, cy] = s.nav_grid_.world_to_cell(p.x, p.z);
+		boxed_in += !s.nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY);
+	}
+	CHECK(boxed_in == 0, "%d of %zu wolf points on impassable ground", boxed_in, pts.size());
 	for (uint8_t t : {TECH_WOODCUTTING_1, TECH_GATHER_LUMBERING_SHARPAXES, TECH_GATHER_LUMBERING_STRONGERAXES, TECH_GATHER_WICKER_BASKETS})
 		CHECK(s.research_check(1, t) == Simulation::TECH_ERR_DISABLED, "Polar Sea tech %d not disabled", t);
 	CHECK(s.research_check(1, TECH_GATHER_WICKER_BASKETS_MAUR) != Simulation::TECH_ERR_DISABLED, "Polar Sea disabled the Mauryan baskets");
@@ -485,6 +492,14 @@ static void check_survival() {
 		CHECK(u < 0 || !s.units_.alive[u], "defeated player's seeker still alive");
 		CHECK(!s.invulnerable(seeker[1]), "defeated player's seeker still invulnerable");
 	}
+	// StartAnEnemyWave draws from ["gaia", ...civs]: about one wave in 15 is the Samnite and
+	// mercenary champions.
+	int gaia_civ = 0, other_civ = 0;
+	for (int k = 0; k < 60; ++k) s.trigger_survival_wave();
+	for (size_t i = 0; i < s.units_.count; ++i)
+		if (s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER && s.units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT)
+			(civ_unit_template(s.units_.tmpl[i]).civ == CIV_GAIA ? gaia_civ : other_civ)++;
+	CHECK(gaia_civ > 0 && other_civ > 0, "60 waves: %d Gaia-civ attackers, %d of playable civs", gaia_civ, other_civ);
 	if (failures == before)
 		std::printf("Survival of the Fittest: %d treasure points a set, seekers in the valley and invulnerable, economy disabled, %d attackers in the first wave, defeat on civic centre loss: ok\n", bcd[0], w1);
 }
@@ -1010,10 +1025,12 @@ static void check_danubius() {
 	for (const TriggerPoint &p : s.triggers_.points)
 		if (p.ref == 'C' || p.ref == 'D') CHECK(s.danubius_is_left(p.x, p.z) == (p.ref == 'C'), "unload point %c on the wrong bank", p.ref);
 
-	// UngarrisonShipsOrder needs a player's Defensive structure on a bank; give player 1 a
-	// sentry tower so the landing doesn't hang on when its Petra builds its first.
-	for (const Simulation::Building &b : std::vector<Simulation::Building>(s.buildings_))
-		if (b.team == 1 && b.type == BLD_TOWN_CENTER) s.spawn_building_world(b.x * 0.9f, b.z * 0.9f, BLD_SENTRY_TOWER, 1);
+	// UngarrisonShipsOrder needs a player's Defensive structure on a bank: the civic centres
+	// are one (template_structure_civic_civil_centre VisibleClasses), so the landings start
+	// before any player builds a tower.
+	bool left_active = false, right_active = false;
+	s.danubius_active_riversides(left_active, right_active);
+	CHECK(left_active || right_active, "no bank active from the players' civic centres");
 	run_to(s, 1.0f);
 	int holders = 0, full = 0;
 	for (const Simulation::Building &b : s.buildings_) {
