@@ -1,5 +1,5 @@
-// 0 A.D. TurretHolder / Turretable: ranged infantry on the turret points of walls, gates
-// and outposts. They stay visible and alive up there, shoot from the point's height,
+// 0 A.D. TurretHolder / Turretable: ranged infantry on the turret points of walls, gates,
+// outposts and the Mauryan rampart tower. They stay visible and alive up there, shoot from the point's height,
 // hold their ground, and finish any order but an attack up there until they leave the turret.
 //   g++ -std=c++20 -O2 -Isrc tools/test_turrets.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -218,6 +218,90 @@ int main() {
 		CHECK(zmax - zmin > 0.5f * L0 && zmax <= 0.5f * L0 + 1e-3f && zmin >= -0.5f * L0 - 1e-3f);
 		CHECK(xmax < WALL_HALF_DEPTH + 0.5f);
 		std::printf("long WallSet segment: 16 archers at %.2f, spread %.2f along it, %.2f across\n", y, zmax - zmin, xmax);
+	}
+
+	// 8. The Mauryan rampart tower (maur/tower_double) has a garrison and 16 turret points:
+	//    "occupy-turret" (session.occupyturret) puts archers on the points, 8 at 12.5 m and 8 at
+	//    18 m, while a plain garrison order still goes inside; a spearman can't occupy a point,
+	//    and a 17th archer finds none free. The turret units survive a save, step down with
+	//    "leave-turret" or the tower's "unload-turrets", and come down when the tower falls.
+	{
+		fresh(s);
+		s.set_player_civ(CIV_MAURYANS);
+		const uint16_t bow = tmpl_of("maur/infantry_archer_b");
+		const uint16_t spear = tmpl_of("maur/infantry_spearman_b");
+		const uint32_t tw = s.spawn_building_world(0.0f, 0.0f, BLD_TOWER_DOUBLE, 0, 1.0f);
+		CHECK(s.turret_points_of(bld(s, tw)) == nullptr);
+		CHECK(s.turret_holder_points(bld(s, tw)) == &TURRET_POINTS_TOWER_DOUBLE);
+		CHECK(TURRET_POINTS_TOWER_DOUBLE.count == 16);
+		uint32_t up[17], in[2];
+		for (int k = 0; k < 17; ++k) up[k] = s.spawn_unit(-4.0f + (k % 9) * 0.8f, 5.0f + (k / 9) * 0.8f, 0, UNIT_ARCHER, 0.0f, bow);
+		for (int k = 0; k < 2; ++k) in[k] = s.spawn_unit(-4.0f + k * 0.8f, -5.0f, 0, UNIT_ARCHER, 0.0f, bow);
+		const uint32_t sp = s.spawn_unit(4.0f, -5.0f, 0, UNIT_SPEARMAN, 0.0f, spear);
+		CHECK(s.can_occupy_turret_in(up[0], tw) && !s.can_occupy_turret_in(sp, tw));
+		s.order_garrison(up, 17, tw, false, true);
+		s.order_garrison(in, 2, tw);
+		s.order_garrison(&sp, 1, tw, false, true);
+		run(s, 10.0f);
+		const auto &b = bld(s, tw);
+		CHECK(b.turret_units.size() == 16);
+		CHECK(b.garrisoned_units.size() == 2);
+		int low = 0, high = 0;
+		for (uint32_t id : b.turret_units) {
+			const int32_t i = s.lookup_unit(id);
+			CHECK(s.units_.alive[i] && s.turret_holder_of(id) == tw);
+			const float h = s.unit_height_offset((size_t)i);
+			low += std::fabs(h - 3.125f) < 1e-3f;
+			high += std::fabs(h - 4.5f) < 1e-3f;
+			CHECK(std::fabs(s.units_.pos_x[i]) < 0.6f && std::fabs(s.units_.pos_z[i]) < 0.6f);
+		}
+		CHECK(low == 8 && high == 8);
+		CHECK(s.turret_holder_of(up[16]) == 0 && s.units_.alive[s.lookup_unit(up[16])]);
+		CHECK(s.turret_holder_of(sp) == 0 && s.units_.alive[s.lookup_unit(sp)]);
+		std::printf("rampart tower: %d archers at 12.5 m, %d at 18 m, %zu inside\n", low, high, b.garrisoned_units.size());
+
+		const char *path = "/tmp/rts0_test_turrets_tower.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		CHECK(bld(l, tw).turret_units == b.turret_units && l.turret_height_.size() == 16);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
+		run(s, 1.0f);
+		run(l, 1.0f);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
+		std::remove(path);
+
+		const uint32_t first = b.turret_units[0];
+		s.cmd_leave_turret(0, &first, 1);
+		run(s, 0.2f);
+		CHECK(s.turret_holder_of(first) == 0 && b.turret_units.size() == 15);
+		CHECK(s.units_.stance[s.lookup_unit(first)] == unit_default_stance(UNIT_ARCHER));
+		s.cmd_unload_turrets(1, tw); // not the owner's, nor an ally's
+		CHECK(b.turret_units.size() == 15);
+		s.cmd_unload_turrets(0, tw);
+		run(s, 0.2f);
+		CHECK(b.turret_units.empty() && b.garrisoned_units.size() == 2 && s.turret_height_.empty());
+		// Each steps onto its own spawn spot, none two on one.
+		int stacked = 0;
+		for (int p = 0; p < 16; ++p)
+			for (int q = p + 1; q < 16; ++q) {
+				const int32_t i = s.lookup_unit(up[p]), j = s.lookup_unit(up[q]);
+				const float dx = s.units_.pos_x[i] - s.units_.pos_x[j], dz = s.units_.pos_z[i] - s.units_.pos_z[j];
+				stacked += dx * dx + dz * dz < 0.01f;
+			}
+		CHECK(stacked == 0);
+
+		// The rest walk off: the stepped-down archers stand all round the tower's foot.
+		s.cmd_move(&up[4], 13, 0.0f, 12.0f);
+		run(s, 4.0f);
+		s.order_garrison(up, 4, tw, false, true);
+		run(s, 6.0f);
+		CHECK(bld(s, tw).turret_units.size() == 4);
+		s.destroy_building(s.buildings_[s.building_id_to_idx_.at(tw)]);
+		run(s, 0.2f);
+		CHECK(bld(s, tw).turret_units.empty() && s.turret_height_.empty());
+		for (int k = 0; k < 4; ++k) CHECK(s.units_.alive[s.lookup_unit(up[k])]);
+		std::printf("rampart tower: turret units step down, unload and survive its fall\n");
 	}
 
 	if (failures) {

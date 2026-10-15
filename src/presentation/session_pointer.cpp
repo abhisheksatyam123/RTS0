@@ -75,6 +75,7 @@ void RtsoMain::update_cursor() {
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
 			else if (garrison_mode) want = "action-garrison";
+			else if (turret_mode) want = "action-occupy-turret";
 			else if (repair_mode) want = "action-repair";
 			if (!*want) {
 				auto uv = sim->units();
@@ -173,6 +174,14 @@ void RtsoMain::update_cursor() {
 						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
 						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
 								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					}
+					// unit_actions "occupy-turret" (session.occupyturret): the rampart tower's points.
+					else if (rtso::hotkeys::held("session.occupyturret") && selection_can_occupy_turret(b.id)) {
+						want = "action-occupy-turret";
+						const int occupied = (int)sim->turret_list(b).size(), capacity = sim->turret_holder_points(b)->count;
+						tip = rtso::sprintf0(rtso::tr0("Current turrets: %(occupied)s/%(capacity)s"),
+								{{"occupied", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
 						tip_orange = occupied >= capacity;
 					}
 					break;

@@ -243,6 +243,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// The Garrison and Repair buttons (unit_actions.js ACTION_GARRISON / ACTION_REPAIR): the
 	// next right-click garrisons or repairs, as holding session.garrison / session.repair does.
 	bool garrison_mode = false;
+	bool turret_mode = false; // "occupy-turret" armed (ACTION_OCCUPY_TURRET)
 	bool repair_mode = false;
 	uint8_t current_build_type = rtso::BLD_HOUSE;
 	uint32_t selected_building_id = 0;
@@ -704,6 +705,7 @@ private:
 	std::pair<int, int> mouse_cell(Vector2 mouse_pos) const;
 	void clear_selection();
 	bool selection_can_garrison(uint32_t building_id) const;
+	bool selection_can_occupy_turret(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
 	void prune_selection();
