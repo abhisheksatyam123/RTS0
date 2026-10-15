@@ -18171,9 +18171,13 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_outpost",
       "x": 28.24,
-      "z": -79.91
+      "z": -79.91,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.034,
+      "length": 1.5,
+      "template": "structures/palisades_outpost"
     },
     {
       "type": "palisade",
@@ -18217,43 +18221,47 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_spike_angle",
       "x": 32.75,
       "z": -75.98,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.0123,
-      "length": 0.75
+      "length": 0.75,
+      "no_decay": true,
+      "template": "structures/palisades_spike_angle"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_spike_angle",
       "x": 30.64,
       "z": -78.47,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.1167,
-      "length": 0.75
+      "length": 0.75,
+      "no_decay": true,
+      "template": "structures/palisades_spike_angle"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_spike_angle",
       "x": 29.47,
       "z": -79.16,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.3444,
-      "length": 0.75
+      "length": 0.75,
+      "no_decay": true,
+      "template": "structures/palisades_spike_angle"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_spike_angle",
       "x": 26.91,
       "z": -79.53,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.3798,
-      "length": 0.75
+      "length": 0.75,
+      "no_decay": true,
+      "template": "structures/palisades_spike_angle"
     },
     {
       "type": "palisade",
@@ -18497,9 +18505,13 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_straight",
       "x": 69.21,
-      "z": -73.68
+      "z": -73.68,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 4.6059,
+      "length": 2.25,
+      "template": "structures/palisades_straight"
     },
     {
       "type": "palisade",

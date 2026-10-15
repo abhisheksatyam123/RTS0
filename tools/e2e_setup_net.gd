@@ -106,10 +106,10 @@ func run() -> void:
 		"observers": [], "locked": false, "version": 1, "settings_version": 1}
 	var page := await open_page(host)
 	check(page._mp_role == "host", "the controller hosts the page")
-	var start: Button = page.get_node("VBox/HBox/Right/BtnStart")
+	var start: Button = page.get_node("VBox/HBox/Right/Buttons/BtnStart")
 	check(start.visible and start.disabled and start.tooltip_text == page.START_WAIT_TOOLTIP,
 		"Start waits for every player to be ready")
-	check(not page.get_node("VBox/HBox/Right/BtnReady").visible, "the host has no Ready button")
+	check(not page.get_node("VBox/HBox/Right/Buttons/BtnReady").visible, "the host has no Ready button")
 	check(ms.slot_types == [0, 0] and ms.slot_civs == [1, -1] and ms.player_count == 2,
 		"the setup drops the Closed slot and keeps Random (%s %s)" % [str(ms.slot_types), str(ms.slot_civs)])
 	check(host.pushes > 0 and not ms.cheats, "the host sends its setup, cheats off")
@@ -180,8 +180,8 @@ func run() -> void:
 	ms.cheats = false
 	page = await open_page(client)
 	check(page._mp_role == "client", "a client's page")
-	start = page.get_node("VBox/HBox/Right/BtnStart")
-	var ready_btn: Button = page.get_node("VBox/HBox/Right/BtnReady")
+	start = page.get_node("VBox/HBox/Right/Buttons/BtnStart")
+	var ready_btn: Button = page.get_node("VBox/HBox/Right/Buttons/BtnReady")
 	check(not start.visible and page.get_node("VBox/HBox/Right/NetWaitLabel").visible, "no Start: waiting for the host")
 	check(page.get_node("%SpinSeed").value == 1234 and page._slot_rows[1]["civ"] == 3,
 		"the host's setup shows")
@@ -231,8 +231,8 @@ func run() -> void:
 	ms.net_lobby = ""
 	ms.rated = false
 	page = await open_page(null)
-	check(page._mp_role == "none" and page.get_node("VBox/HBox/Right/BtnStart").visible
-		and not page.has_node("VBox/HBox/Right/BtnReady") and not page.get_node("%Waves").disabled
+	check(page._mp_role == "none" and page.get_node("VBox/HBox/Right/Buttons/BtnStart").visible
+		and not page.has_node("VBox/HBox/Right/Buttons/BtnReady") and not page.get_node("%Waves").disabled
 		and not page.has_node("%RatedGame")
 		and page.get_node("%Cheats").disabled,
 		"the single-player page")

@@ -1273,6 +1273,67 @@ static void test_pop_phase2_save_resources() {
 	CHECK(low == 18, "3/4 of the clamped value under a low population cap");
 }
 
+// startingStrategy.js gameStart: no civic centre and none to build (Death Canyon's invasion
+// force): canBuildUnits is false, so no first base; dispatchUnits sends 5 units (half ranged,
+// half melee infantry) and every support unit to the ally's civic centre, and attackManager
+// starts an Attack at once with every other unit (assignUnits, mustStart).
+static void test_petra_no_units() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 3, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	for (int a = 0; a < 3; ++a)
+		for (int b = 0; b < 3; ++b)
+			if (a != b) s->set_diplomacy(a, b, a == 0 || b == 0 ? Simulation::DIPLO_ENEMY : Simulation::DIPLO_ALLY);
+	float x = 0.0f, z = 0.0f;
+	for (auto &b : s->buildings_)
+		if (b.team == 1) {
+			if (b.type == BLD_TOWN_CENTER) { x = b.x; z = b.z; }
+			s->destroy_building(b);
+		}
+	s->triggers_.disabled_buildings[1] |= bld_bit(BLD_TOWN_CENTER);
+	for (int k = 0; k < 8; ++k) s->spawn_unit(x + (float)k, z + 3.0f, 1, UNIT_SPEARMAN);
+	for (int k = 0; k < 8; ++k) s->spawn_unit(x + (float)k, z + 5.0f, 1, UNIT_ARCHER);
+	run_for(*s, 30.0f);
+	const PetraKept &kept = s->petra_kept_;
+	int alive = 0, support = 0, in_attack = 0, allied_in_attack = 0, allied_soldiers = 0, defending = 0, idle = 0;
+	bool cc = false;
+	for (size_t i = 0; i < s->units_.count; ++i) {
+		if (!s->units_.alive[i] || s->units_.team[i] != 1 || unit_is_ship(s->units_.unit_type[i])) continue;
+		++alive;
+		const uint32_t id = s->units_.id[i];
+		const bool allied = s->petra_dispatched_to_ally(id);
+		support += petra_is_support_unit(s->units_.unit_type[i]);
+		allied_soldiers += allied && !petra_is_support_unit(s->units_.unit_type[i]);
+		if (s->petra_in_attack_squad(id)) { ++in_attack; allied_in_attack += allied; }
+		else if (!allied && s->petra_is_defender(id)) ++defending; // a defense army's: plan -2, not available
+		else if (!allied && s->units_.order_kind[i] == ORDER_NONE && s->units_.action_state[i] == ACTION_IDLE) ++idle;
+	}
+	for (const auto &b : s->buildings_) cc |= b.team == 1 && b.hp > 0.0f && is_civic_centre(b.type);
+	std::printf("  no units to build: canBuildUnits %s, %zu sent to the ally (%d soldiers, %d support units of ours), "
+	            "%d of %d in an attack (%d defending, %d idle), civic centre laid out %s\n",
+	            kept.no_units ? "false" : "true", kept.allied.size(), allied_soldiers, support, in_attack, alive,
+	            defending, idle, cc ? "yes" : "no");
+	CHECK(kept.no_units, "no civic centre and none to build: canBuildUnits false");
+	CHECK(!cc, "and no first base");
+	CHECK(allied_soldiers == 5 && (int)kept.allied.size() == 5 + support, "5 soldiers and every support unit guard the ally");
+	CHECK(allied_in_attack == 0 && idle == 0 && 2 * in_attack > alive - (int)kept.allied.size(),
+	      "an attack takes the other units at once, and none stands idle");
+	run_for(*s, 60.0f);
+	std::printf("  then %zu attack(s) under way\n", s->petra_started_attacks_.size());
+	CHECK(!s->petra_started_attacks_.empty(), "and sets off");
+
+	// The choice is saved.
+	const std::string path = "/tmp/rtso_petra_no_units.sav";
+	CHECK(s->save_state(path.c_str()), "save");
+	auto t = std::make_unique<Simulation>();
+	CHECK(t->load_state(path.c_str()), "load");
+	std::remove(path.c_str());
+	CHECK(t->petra_kept_.units_checked && t->petra_kept_.no_units && t->petra_kept_.allied == kept.allied,
+	      "canBuildUnits and the allied units survive a save");
+}
+
 static void test_first_market_border() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -4832,6 +4893,7 @@ int main(int argc, char **argv) {
 	RUN(test_barter);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
+	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_dock_route);
 	RUN(test_civ_structures);

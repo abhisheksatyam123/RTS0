@@ -27,21 +27,21 @@ const SLOT_COLUMNS := 6
 
 const RefCommon := preload("res://scenes/reference/reference_common.gd")
 const CIVS := [
-	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
-	{"id": 1, "code": "spart", "name": "Spartans", "emblem": "res://assets/textures/ui/emblems/spartans.png", "blurb": "Agoge: +35% HP and +25% melee for citizen-soldiers and champions."},
-	{"id": 2, "code": "pers", "name": "Persians", "emblem": "res://assets/textures/ui/emblems/persians.png", "blurb": "Achaemenid trade: +25% market gain, faster cavalry production."},
-	{"id": 3, "code": "rome", "name": "Romans", "emblem": "res://assets/textures/ui/emblems/romans.png", "blurb": "Legionary discipline: +30% build rate, heavy legionary armor."},
-	{"id": 4, "code": "cart", "name": "Carthaginians", "emblem": "res://assets/textures/ui/emblems/carthaginians.png", "blurb": "Naval mastery and war elephants. Elite mercenary forces."},
-	{"id": 5, "code": "mace", "name": "Macedonians", "emblem": "res://assets/textures/ui/emblems/macedonians.png", "blurb": "Sarissa phalanx and companion cavalry shock charges."},
-	{"id": 6, "code": "brit", "name": "Britons", "emblem": "res://assets/textures/ui/emblems/britons.png", "blurb": "Celtic chariot raiders, war dogs, and rotary mills."},
-	{"id": 7, "code": "gaul", "name": "Gauls", "emblem": "res://assets/textures/ui/emblems/gauls.png", "blurb": "Carnyx morale aura and fearless broadsword champions."},
-	{"id": 8, "code": "iber", "name": "Iberians", "emblem": "res://assets/textures/ui/emblems/iberians.png", "blurb": "Balearic slingers, fast cavalry, +20% mining rate."},
-	{"id": 9, "code": "maur", "name": "Mauryans", "emblem": "res://assets/textures/ui/emblems/mauryans.png", "blurb": "Worker elephants, archer maidens, high economic stamina."},
-	{"id": 10, "code": "kush", "name": "Kushites", "emblem": "res://assets/textures/ui/emblems/kushites.png", "blurb": "Bleeding and poison arrows. Nubian archers, pyramid shrines."},
-	{"id": 11, "code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png", "blurb": "Mercenary camps, camel raiders, +30% trade gain."},
-	{"id": 12, "code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png", "blurb": "Silver shields, cataphracts, and scythed chariots."},
-	{"id": 13, "code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png", "blurb": "Crossbowmen, war chariots and imperial ministers."},
-	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/germans.png", "blurb": "Seeresses: champion healers in City Phase. Wheel-axe champions and the hero Teutobod."},
+	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png"},
+	{"id": 1, "code": "spart", "name": "Spartans", "emblem": "res://assets/textures/ui/emblems/spartans.png"},
+	{"id": 2, "code": "pers", "name": "Persians", "emblem": "res://assets/textures/ui/emblems/persians.png"},
+	{"id": 3, "code": "rome", "name": "Romans", "emblem": "res://assets/textures/ui/emblems/romans.png"},
+	{"id": 4, "code": "cart", "name": "Carthaginians", "emblem": "res://assets/textures/ui/emblems/carthaginians.png"},
+	{"id": 5, "code": "mace", "name": "Macedonians", "emblem": "res://assets/textures/ui/emblems/macedonians.png"},
+	{"id": 6, "code": "brit", "name": "Britons", "emblem": "res://assets/textures/ui/emblems/britons.png"},
+	{"id": 7, "code": "gaul", "name": "Gauls", "emblem": "res://assets/textures/ui/emblems/gauls.png"},
+	{"id": 8, "code": "iber", "name": "Iberians", "emblem": "res://assets/textures/ui/emblems/iberians.png"},
+	{"id": 9, "code": "maur", "name": "Mauryans", "emblem": "res://assets/textures/ui/emblems/mauryans.png"},
+	{"id": 10, "code": "kush", "name": "Kushites", "emblem": "res://assets/textures/ui/emblems/kushites.png"},
+	{"id": 11, "code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png"},
+	{"id": 12, "code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png"},
+	{"id": 13, "code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png"},
+	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/germans.png"},
 ]
 ## A slot's "civ" is the rtso::Civilization id (14 is Gaia, never listed); this one is "Random".
 const RANDOM_CIV := -1
@@ -162,10 +162,11 @@ const POP_TYPE_PLAYER := 0
 const POP_TYPE_TEAM := 1
 const POP_TYPE_WORLD := 2
 const POP_UNLIMITED := 10000
-const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
-# 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
-const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
-const RELIC_COUNTS := [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
+# 0.28 Sliders/Ceasefire.js (0-45 min), WonderDuration.js and RelicDuration.js (0-60 min,
+# default 20) and RelicCount.js (1 to the number of civs, default 2), one entry a step.
+static var CEASEFIRES: Array = range(0, 46)
+static var VICTORY_TIMES: Array = range(0, 61)
+static var RELIC_COUNTS: Array = range(1, CIVS.size() + 1)
 # 0 A.D. map trigger options: Flood's WaterLevel and Extinct Volcano's SeaLevelRiseTime.
 const WATER_LEVELS := ["Rising water", "Shallow water", "Deep water"]
 const SEA_RISE_TIMES := [0, 5, 10, 15, 20, 25, 30, 40, 50, 60]
@@ -246,8 +247,8 @@ const START_RES_AMOUNTS := [100, 300, 500, 1000, 3000, 50000]
 
 # 0.28 settings/map_sizes.json (width in meters) for random maps; Normal is the default.
 const DEFAULT_MAP_SIZE := 2
-const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Normal (256 m)"],
-	[320, "Medium (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
+const MAP_SIZES := [[128, "Tiny"], [192, "Small"], [256, "Normal"],
+	[320, "Medium"], [384, "Large"], [448, "Very Large"], [512, "Giant"]]
 # map_sizes.json Tooltip, index == MAP_SIZES.
 const MAP_SIZE_TIPS := ["This map size has barely any room for even the most basic resources.",
 	"Small maps are suitable for 1v1 matches, as players can reach the enemy quickly while still having some room to expand.",
@@ -266,7 +267,10 @@ const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 # Options-page aibehavior values -> RTS0 PetraBehavior (petra_ai.h).
 const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
+## The AI Behavior list order (0.28 settings.js loadAIBehaviors); entries are BEHAVIORS values.
+const BEHAVIOR_ORDER := [0, 2, 1, 3]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
+const RANDOM_BIOME := 99 # the Biome dropdown's Random entry (its item id too); resolved at Start
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India", "Autumn", "Nubia"]
 ## 0.28 rmbiome ids -> BIOMES index, as tools/extract_0ad_map_types.py RTS0_BIOMES maps
 ## them to BiomeType for the sim (map_biomes_data.h); 0.28 biomes RTS0 lacks are left out.
@@ -335,7 +339,7 @@ var _sel_map: int = 0
 # The Player Placement picked (rtso::TeamPlacement), kept while maps change.
 var _pop_type := POP_TYPE_PLAYER
 var _team_placement := 0
-var _biome := 0 # the Biome pick (BIOMES index), kept across maps that offer it
+var _biome := RANDOM_BIOME # the Biome pick (BIOMES index or RANDOM_BIOME), kept across maps that offer it
 var _map_type := "skirmish"
 var _map_filter_name := "default"
 var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
@@ -356,6 +360,7 @@ func _ready() -> void:
 	for b in TAB_BUTTONS:
 		get_node("%" + b).theme_type_variation = "ModernTabButtonHorizontal"
 	_build_description()
+	_build_slot_headings()
 	_load_maps()
 	_build_map_type()
 	_build_map_filter()
@@ -461,18 +466,20 @@ static func rms_script(map_id: String) -> String:
 	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
 	return "neareastern_badlands" if s == "nearestern_badlands" else s
 
-## 0.28 gamesetup Biome: only the map's SupportedBiomes, hidden on a map with none;
-## "Map default" first (the map's own biome); the pick stays when the new map offers it.
+## 0.28 Dropdowns/Biome.js: Random (the default), then only the map's SupportedBiomes,
+## hidden on a map with none; the pick stays when the new map offers it, else Random.
 func _rebuild_biomes(values: Array) -> void:
 	var slot := get_node_or_null("%BiomeSlot")
 	if slot == null or slot.get_child_count() == 0:
 		return
 	var bio: RtsoSafeSelect = slot.get_child(0)
 	bio.clear()
-	bio.add_item(BIOMES[0], 0)
+	bio.add_item(tr("Random"), RANDOM_BIOME)
+	bio.set_item_tooltip(0, tr("Pick a biome at random."))
 	for v in values:
 		bio.add_item(BIOMES[v], v)
-	bio.select(maxi(([0] + values).find(_biome), 0))
+		bio.set_item_tooltip(bio.get_item_count() - 1, GameDescription.BIOME_TEXT.get(v, ["", ""])[1])
+	bio.select(maxi(([RANDOM_BIOME] + values).find(_biome), 0))
 	slot.visible = not values.is_empty()
 	%BiomeLabel.visible = not values.is_empty()
 
@@ -481,7 +488,7 @@ func _selected_biome() -> int:
 	if slot == null or slot.get_child_count() == 0 or not slot.visible:
 		return 0
 	var bio: RtsoSafeSelect = slot.get_child(0)
-	return maxi(bio.get_item_id(bio.get_selected()), 0) if bio.get_selected() >= 0 else 0
+	return bio.get_item_id(bio.get_selected()) if bio.get_selected() >= 0 else RANDOM_BIOME
 
 func _on_biome_selected(_index: int) -> void:
 	_biome = _selected_biome()
@@ -607,6 +614,32 @@ func _set_pop_type(type: int, cap: int) -> void:
 	var at: int = t[5].find(cap)
 	pop.select(at if at >= 0 else t[5].find(t[6]))
 	pop.tooltip_text = tr(t[4])
+	_render_pop_tips()
+
+## 0.28 PopulationCap.onHoverChange: an entry whose cap lets the match pass 1200 units
+## (players × cap, teams × cap with each teamless player a team, or the world cap) warns
+## of lag instead of the cap type's tooltip.
+const POP_RECOMMENDATION := 1200
+func _render_pop_tips() -> void:
+	if %PopCapSlot.get_child_count() == 0:
+		return
+	var pop := _pop_select()
+	var t: Array = POP_CAP_TYPES[_pop_type]
+	var n := mini(int(_slot_count_node().value), _slot_rows.size())
+	var teams := {}
+	for i in range(n):
+		var team := int(_slot_rows[i]["team"])
+		teams[team if team > 0 else -1 - i] = true
+	for i in range(mini(pop.get_item_count(), (t[5] as Array).size())):
+		var cap := int(t[5][i])
+		var total := cap
+		match _pop_type:
+			POP_TYPE_PLAYER:
+				total = n * cap
+			POP_TYPE_TEAM:
+				total = teams.size() * cap
+		pop.set_item_tooltip(i, tr("Warning: These settings can result in significant lag when all players reach their maximum population capacity.")
+			if total > POP_RECOMMENDATION else tr(t[4]))
 	_update_lock_teams_for_pop()
 
 ## The selected cap as RTS0's pop_cap setting.
@@ -628,6 +661,7 @@ func _update_lock_teams_for_pop() -> void:
 		lock.disabled = true
 	else:
 		lock.disabled = _is_scenario()
+	_render_mode_checks()
 
 func _make_option(slot: Control) -> RtsoSafeSelect:
 	for c in slot.get_children():
@@ -788,12 +822,70 @@ func _unhandled_input(event: InputEvent) -> void:
 	if MAP_BROWSER_HOTKEY in fired:
 		get_viewport().set_input_as_handled()
 		_open_map_browser()
+	elif "civinfo" in fired or "structree" in fired:
+		get_viewport().set_input_as_handled()
+		open_civ_reference(0 if "civinfo" in fired else 1)
+	elif "cancel" in fired and get_node_or_null("CivReference"):
+		get_viewport().set_input_as_handled()
+		get_node("CivReference").queue_free()
 	elif "cancel" in fired and _tab >= 0:
 		get_viewport().set_input_as_handled()
 		select_tab(-1)
 	elif ("tab.next" in fired or "tab.prev" in fired) and not _focus_is_text():
 		get_viewport().set_input_as_handled()
 		select_tab(TAB_BUTTONS_JS.next_index(_tab, 1 if "tab.next" in fired else -1, TAB_BUTTONS.size()))
+
+## CivInfoButton: the Civilization Overview (0) or Structure Tree (1) over the setup, on
+## slot 1's civilization; the two hotkeys switch between them (pageLoop) and the
+## button reopens the last one viewed.
+var _civ_ref_tab := 0
+func open_civ_reference(tab: int) -> void:
+	_civ_ref_tab = tab
+	var layer := get_node_or_null("CivReference") as CanvasLayer
+	if layer:
+		(layer.find_child("Pages", true, false) as TabContainer).current_tab = tab
+		return
+	layer = CanvasLayer.new()
+	layer.name = "CivReference"
+	layer.layer = 20
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(dim)
+	var panel := PanelContainer.new()
+	panel.theme = theme
+	panel.theme_type_variation = "ModernDialogContainer"
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.offset_left = 40
+	panel.offset_top = 30
+	panel.offset_right = -40
+	panel.offset_bottom = -30
+	layer.add_child(panel)
+	var vbox := VBoxContainer.new()
+	panel.add_child(vbox)
+	var tabs := TabContainer.new()
+	tabs.name = "Pages"
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(tabs)
+	var civinfo = load("res://scenes/reference/civinfo_page.gd").new()
+	var tree = load("res://scenes/reference/structree_page.gd").new()
+	tabs.add_child(civinfo)
+	tabs.add_child(tree)
+	civinfo.civ_changed.connect(tree.set_civ)
+	tree.civ_changed.connect(civinfo.set_civ)
+	var civ := _slot_civ(0)
+	if _civ_pos(civ) >= 0: # not Random
+		civinfo.set_civ.call_deferred(civ)
+		tree.set_civ.call_deferred(civ)
+	tabs.current_tab = tab
+	tabs.tab_changed.connect(func(i): _civ_ref_tab = i)
+	var close := Button.new()
+	close.text = tr("Close")
+	close.custom_minimum_size = Vector2(160, 32)
+	close.size_flags_horizontal = Control.SIZE_SHRINK_END
+	close.pressed.connect(layer.queue_free)
+	vbox.add_child(close)
+	add_child(layer)
 
 ## MapFilters.getFilteredMaps: the maps of the type the filter matches, by
 ## name, after the Random entry for random maps; keeps the selected map if listed.
@@ -871,6 +963,7 @@ func _apply_map_locks() -> void:
 		cb.disabled = scen
 		if scen:
 			cb.button_pressed = bool(s.get(checks[path], false))
+	_render_mode_checks()
 	var pop: RtsoSafeSelect = %PopCapSlot.get_child(0)
 	var res: RtsoSafeSelect = %ResSlot.get_child(0)
 	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
@@ -998,8 +1091,6 @@ func _update_preview() -> void:
 		img.texture = null if m.is_empty() else map_preview(str(m["id"]))
 		img.visible = img.texture != null
 		if info: info.offset_left = 192.0 if img.visible else 12.0
-	var crest := $VBox/HBox/Right/CivPreview/Crest as TextureRect
-	var civ_lbl := $VBox/HBox/Right/CivPreview/CivLabel as Label
 	if m.is_empty():
 		if lbl: lbl.text = "No map selected."
 		return
@@ -1010,13 +1101,6 @@ func _update_preview() -> void:
 		if _slot_rows.size() > 0 and int(_slot_rows[0]["kind"]) == 1:
 			lbl.text += "\nNo Human slot: you watch the AIs play with the map revealed."
 	_update_description()
-	# Civ preview follows slot 0 (the human player).
-	var civ := _civ_pos(_slot_civ(0))
-	if crest and civ >= 0:
-		var tex: Texture2D = load(CIVS[civ]["emblem"])
-		if tex: crest.texture = tex
-	if civ_lbl and civ >= 0:
-		civ_lbl.text = "%s\n%s" % [CIVS[civ]["name"], CIVS[civ]["blurb"]]
 
 ## 0.28 Panels/GameDescription.js: getGameDescription of the settings as they
 ## stand, a line per setting, under the Map Preview's name and description.
@@ -1147,6 +1231,62 @@ func _render_reset_buttons() -> void:
 func _slot_count_node() -> SpinBox:
 	return $VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots as SpinBox
 
+## 0.28 PlayersPanel.xml headings over the player rows, one per grid column (the AI
+## gear's has none); Color hides with the colour pickers on a scenario.
+const SLOT_HEADINGS := ["Player Name", "Player Placement", "Civilization", "Team", "", "Color"]
+func _build_slot_headings() -> void:
+	var header: Control = $VBox/HBox/Right/SlotsBox/SlotsHeader
+	for h in SLOT_HEADINGS:
+		var l := Label.new()
+		l.text = tr(h)
+		l.clip_text = true
+		header.add_child(l)
+	# Panels/Buttons/CivInfoButton.js: the info icon at the Civilization heading's end.
+	var info := Button.new()
+	info.name = "CivInfoButton"
+	info.text = "i"
+	info.flat = true
+	info.add_theme_color_override("font_color", Color(0.95, 0.8, 0.3))
+	info.add_theme_color_override("font_hover_color", Color.WHITE)
+	info.custom_minimum_size = Vector2(16, 16)
+	info.size = Vector2(16, 16)
+	var ck: Array = _hotkeys.get_hotkey_map().get("civinfo", [])
+	var sk: Array = _hotkeys.get_hotkey_map().get("structree", [])
+	info.tooltip_text = L10n.sprintf(L10n.t("%(hotkey_civinfo)s / %(hotkey_structree)s: View Civilization Overview / Structure Tree\nLast opened will be reopened on click."),
+		{"hotkey_civinfo": ", ".join(PackedStringArray(ck)) if not ck.is_empty() else L10n.t("Unassigned"),
+		"hotkey_structree": ", ".join(PackedStringArray(sk)) if not sk.is_empty() else L10n.t("Unassigned")})
+	info.pressed.connect(func(): open_civ_reference(_civ_ref_tab))
+	header.add_child(info)
+	var grid := _slots_grid()
+	grid.sort_children.connect(_place_slot_headings)
+	# PlayerColor.render: each row on its player's colour (alpha 100 of 255).
+	grid.draw.connect(func():
+		var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
+		for r in range(cells.size() / grid.columns):
+			if r >= _slot_rows.size():
+				break
+			var first: Control = cells[r * grid.columns]
+			var last: Control = cells[r * grid.columns + grid.columns - 1]
+			var col: Color = PLAYER_COLORS[clampi(int(_slot_rows[r]["color"]), 0, PLAYER_COLORS.size() - 1)]
+			col.a = 100.0 / 255.0
+			grid.draw_rect(Rect2(Vector2(0.0, first.position.y - 1.0), Vector2(last.position.x + last.size.x, first.size.y + 2.0)), col))
+
+func _place_slot_headings() -> void:
+	var header: Control = $VBox/HBox/Right/SlotsBox/SlotsHeader
+	var grid := _slots_grid()
+	var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
+	for c in range(mini(header.get_child_count(), grid.columns)):
+		var l: Label = header.get_child(c)
+		l.visible = c < cells.size() and (c != 5 or not _is_scenario())
+		if c < cells.size():
+			l.position = Vector2((cells[c] as Control).position.x, 0.0)
+			l.size = Vector2((cells[c] as Control).size.x if c < grid.columns - 1 else maxf((cells[c] as Control).size.x, 48.0), header.size.y)
+	var info := header.get_node_or_null("CivInfoButton") as Control
+	if info and cells.size() > 2:
+		var cc: Control = cells[2]
+		info.position = Vector2(cc.position.x + cc.size.x - 18.0, 2.0)
+	grid.queue_redraw()
+
 func _slots_grid() -> GridContainer:
 	return $VBox/HBox/Right/SlotsBox/SlotsGrid as GridContainer
 
@@ -1197,6 +1337,7 @@ func refresh_slots() -> void:
 	_rebuilding_slots = false
 	_apply_mp_locks()
 	_render_speeds()
+	_render_pop_tips()
 
 ## GameSpeed.render: the Fast Forward speeds only while nobody holds a player
 ## slot (every slot AI or unassigned); a speed no longer listed goes back to Normal.
@@ -1257,15 +1398,17 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var civ_pos := _civ_pos(int(row["civ"]))
 	civ.select(_civ_order().find(civ_pos) + 1 if civ_pos >= 0 else 0)
 	civ.disabled = _map_civ(_map_player(i)) >= 0
+	civ.tooltip_text = tr("Choose the civilization for this player.")
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
 	var team_slot := Control.new()
 	team_slot.custom_minimum_size = Vector2(64, 28)
 	grid.add_child(team_slot)
 	var team := _make_option(team_slot)
-	team.add_item("None")
+	team.add_item(tr("None"))
 	for t in range(1, 5):
-		team.add_item("T%d" % t)
+		team.add_item(str(t))
+	team.tooltip_text = tr("Select player's team.")
 	team.select(clampi(int(row["team"]), 0, 4))
 	team.disabled = _is_scenario()
 	team.item_selected.connect(_on_slot_team.bind(i))
@@ -1291,6 +1434,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	for c in range(PLAYER_COLORS.size()):
 		col.add_icon_item(_color_icon(c), "")
 	col.select(clampi(int(row["color"]), 0, PLAYER_COLORS.size() - 1))
+	col.tooltip_text = tr("Pick a color.")
 	col.item_selected.connect(_on_slot_color.bind(i))
 	# PlayerColor.js hides the colours on a scenario (kept in place for the grid's columns).
 	col.disabled = _is_scenario()
@@ -1370,6 +1514,7 @@ func _on_slot_team(idx: int, slot: int) -> void:
 		return
 	_slot_rows[slot]["team"] = idx
 	_net_request("team", idx)
+	_render_pop_tips()
 
 func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -1423,11 +1568,13 @@ func _build_options() -> void:
 		%VictorySlot.add_child(cb)
 		_victory_checks[int(k[0])] = cb
 	_set_victory_mask(1)
+	%LockTeams.toggled.connect(func(_on): _render_mode_checks())
 	var msz := _make_option(%MapSizeSlot)
 	for s in MAP_SIZES:
-		msz.add_item(s[1], s[0])
+		msz.add_item(tr(s[1]), s[0])
 		msz.set_item_tooltip(msz.get_item_count() - 1, tr(MAP_SIZE_TIPS[msz.get_item_count() - 1]))
 	msz.select(DEFAULT_MAP_SIZE)
+	msz.tooltip_text = tr("Select map size. (Larger sizes may reduce performance.)")
 	var popt := _make_option(%PopCapTypeSlot)
 	for t in POP_CAP_TYPES:
 		popt.add_item(tr(t[1]))
@@ -1439,27 +1586,33 @@ func _build_options() -> void:
 	_select_pop(300, false) # 0 A.D. default: 300 per player
 	var cf := _make_option(%CeasefireSlot)
 	for c in CEASEFIRES:
-		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
+		cf.add_item(tr("No ceasefire") if c == 0 else _minutes(c))
 	cf.select(0)
+	cf.tooltip_text = tr("Set time where no attacks are possible.")
 	var wt := _make_option(%WonderTimeSlot)
 	var rt := _make_option(%RelicTimeSlot)
 	for t in VICTORY_TIMES:
-		wt.add_item("%d min" % t)
-		rt.add_item("hold %d min" % t)
+		wt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
+		rt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
 	wt.select(VICTORY_TIMES.find(20))
 	rt.select(VICTORY_TIMES.find(20))
+	wt.tooltip_text = tr("Minutes until the player has achieved Wonder Victory")
+	rt.tooltip_text = tr("Minutes until the player has achieved Relic Victory.")
 	var rc := _make_option(%RelicCountSlot)
 	for c in RELIC_COUNTS:
-		rc.add_item(str(c))
+		rc.add_item(tr("%d relic") % c if c == 1 else tr("%d relics") % c)
 	rc.select(RELIC_COUNTS.find(2))
+	rc.tooltip_text = tr("Total number of relics spawned on the map. Relic victory is most realistic with only one or two relics. With greater numbers, the relics are important to capture to receive aura bonuses.")
 	var wl := _make_option(%WaterLevelSlot)
 	for w in WATER_LEVELS:
 		wl.add_item(w)
 	wl.select(0)
+	wl.tooltip_text = tr("Select the water level of this map.")
 	var sr := _make_option(%SeaRiseSlot)
 	for t in SEA_RISE_TIMES:
-		sr.add_item("rise at %d min" % t)
+		sr.add_item(_minutes(t))
 	sr.select(SEA_RISE_TIMES.find(25))
+	sr.tooltip_text = tr("Set the time when the water will start to rise.")
 	var tpl := _make_option(%TeamPlacementSlot)
 	tpl.item_selected.connect(_on_team_placement_selected)
 	_rebuild_team_placement([])
@@ -1482,10 +1635,11 @@ func _build_options() -> void:
 	dsel.select(0)
 	var res := _make_option(%ResSlot)
 	for r in START_RES:
-		res.add_item(r)
+		res.add_item(tr(r.get_slice(" (", 0))) # starting_resources.json Title
 		# StartingResources.HoverTooltip
 		res.set_item_tooltip(res.get_item_count() - 1, tr("Initial amount of each resource: %(resources)s.").replace("%(resources)s", str(START_RES_AMOUNTS[res.get_item_count() - 1])))
 	res.select(1)
+	res.tooltip_text = tr("Select the game's starting resources.")
 	var bio := _make_option(%BiomeSlot)
 	bio.add_item(BIOMES[0], 0)
 	bio.select(0)
@@ -1528,6 +1682,16 @@ func _set_victory_mask(mask: int) -> void:
 	for bit in _victory_checks:
 		_victory_checks[bit].disabled = (disabled & int(bit)) != 0
 	_refresh_victory_times(mask)
+	_render_mode_checks()
+
+## 0.28 Checkboxes: Last Man Standing is always shown but needs unlocked teams (its
+## setting's "available") and no scenario; Nomad shows only on random maps; Hero
+## Garrison only while Regicide is checked, and never on a scenario.
+func _render_mode_checks() -> void:
+	var scen := _is_scenario()
+	%LastManStanding.disabled = scen or %LockTeams.button_pressed
+	%Nomad.visible = str(_selected_map().get("kind", "")) == "Random"
+	%RegicideGarrison.visible = not scen and (_victory_mask() & VK_REGICIDE) != 0
 
 ## 0.28 WonderDuration / RelicCount / RelicDuration: shown only while their condition
 ## is checked, and fixed (disabled) on a scenario.
@@ -1672,7 +1836,9 @@ func _apply_settings(ms: Dictionary) -> void:
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
 	res.select(clampi(int(ms.get("start_res")), 0, START_RES.size() - 1))
-	_biome = clampi(int(ms.get("biome")), 0, BIOMES.size() - 1)
+	_biome = int(ms.get("biome"))
+	if _biome != RANDOM_BIOME:
+		_biome = clampi(_biome, 0, BIOMES.size() - 1)
 	_rebuild_biomes(_selected_map().get("biomes", []))
 	for i in range(SPEEDS.size()):
 		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))) and spd.get_item_index(i) >= 0:
@@ -1773,7 +1939,8 @@ func _collect_setup() -> Dictionary:
 			break
 	return {"map": m, "seed": seed, "victory": victory_code(vmask),
 		"waves": %Waves.button_pressed,
-		"lms": %LastManStanding.button_pressed,
+		# 0.28 LastManStanding is only sent while teams are unlocked.
+		"lms": %LastManStanding.button_pressed and (_is_scenario() or not %LockTeams.button_pressed),
 		"pop_cap": _pop_cap_setting(),
 		"team_pop": _pop_type == POP_TYPE_TEAM,
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
@@ -1911,6 +2078,9 @@ func _on_start_pressed() -> void:
 	ms.disable_spies = bool(st["disable_spies"])
 	ms.disable_treasures = bool(st["disable_treasures"])
 	ms.biome = int(st["biome"])
+	var offered: Array = m.get("biomes", [])
+	if ms.biome == RANDOM_BIOME: # 0.28 picks the random biome at launch
+		ms.biome = int(offered[randi() % offered.size()]) if not offered.is_empty() else 0
 	ms.game_speed = float(st["speed"])
 	ms.player_count = int(st["slots"])
 	ms.player_civ = int(st["civs"][0])
@@ -1923,8 +2093,12 @@ func _on_start_pressed() -> void:
 	if err != OK:
 		_show_error("Could not load match scene.")
 
+## translatePlural("%(min)s minute", "%(min)s minutes").
+func _minutes(n: int) -> String:
+	return (tr("%d minute") if n == 1 else tr("%d minutes")) % n
+
 func _show_error(msg: String) -> void:
-	var lbl := $VBox/HBox/Right/BtnStart as Button
+	var lbl := $VBox/HBox/Right/Buttons/BtnStart as Button
 	push_warning("[GameSetup] " + msg)
 	var err := $VBox/HBox/Right/ErrorLabel as Label
 	if err:
@@ -1988,19 +2162,20 @@ func _init_net() -> void:
 
 func _build_net_controls() -> void:
 	var right := $VBox/HBox/Right
-	var start := $VBox/HBox/Right/BtnStart as Button
+	var start := $VBox/HBox/Right/Buttons/BtnStart as Button
 	_wait_label = Label.new()
 	_wait_label.name = "NetWaitLabel"
 	_wait_label.text = WAIT_TEXT
 	_wait_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	right.add_child(_wait_label)
-	right.move_child(_wait_label, start.get_index())
+	right.move_child(_wait_label, $VBox/HBox/Right/Buttons.get_index())
 	_ready_btn = Button.new()
 	_ready_btn.name = "BtnReady"
 	_ready_btn.custom_minimum_size = Vector2(0, 48)
 	_ready_btn.pressed.connect(_on_ready_pressed)
-	right.add_child(_ready_btn)
-	right.move_child(_ready_btn, start.get_index())
+	_ready_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	start.get_parent().add_child(_ready_btn)
+	start.get_parent().move_child(_ready_btn, start.get_index())
 	# 0.28 GameSettingWarning: "Cheats enabled." or "Rated game." on every
 	# networked setup page.
 	_setting_warning = Label.new()
@@ -2020,7 +2195,8 @@ func _build_net_controls() -> void:
 	lobby_btn.visible = LobbySession.signed_in()
 	lobby_btn.pressed.connect(open_lobby_dialog)
 	$VBox/Header.add_child(lobby_btn)
-	$VBox/Header.move_child(lobby_btn, $VBox/Header/BtnBack.get_index())
+	# CancelButton: back to the lobby while signed in to it.
+	($VBox/HBox/Right/Buttons/BtnBack as Button).tooltip_text = "Return to the lobby." if LobbySession.signed_in() else "Return to the main menu."
 	lobby_btn.owner = self
 	lobby_btn.unique_name_in_owner = true
 	# 0.28 Rating.js "Rated Game" and Cheats.js, which the host sets in a
@@ -2141,7 +2317,7 @@ func _update_net_controls() -> void:
 		_setting_warning.text = "Cheats enabled." if %Cheats.button_pressed and not rated \
 				else "Rated game." if rated else ""
 		_setting_warning.visible = _setting_warning.text != ""
-	var start := $VBox/HBox/Right/BtnStart as Button
+	var start := $VBox/HBox/Right/Buttons/BtnStart as Button
 	if _mp_role == "host":
 		var ok := bool(_net_state.get("can_start", false))
 		start.disabled = not ok
