@@ -1752,6 +1752,7 @@ public:
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
 	int petra_pop_phase2() const; // config.js Economy.popPhase2 after setConfig's population scaling
+	int petra_config_pop_phase2() const; // the same before startingStrategy.js's saveResources cut
 	int petra_accounted_population() const;
 	int petra_pop_for_barracks1() const;
 	int petra_pop_for_barracks2() const;
@@ -3141,6 +3142,8 @@ private:
 	// attackPlan.js isBlocked: the plan's target is a wall piece that blocked its path.
 	bool petra_plan_blocked(const AttackPlan &plan) const;
 	bool petra_unit_reserved(uint32_t uid) const;
+	std::unordered_set<uint32_t> petra_launched_units() const;
+	bool petra_builder_worker(size_t unit_idx, const std::unordered_set<uint32_t> &launched) const;
 	bool petra_mustering(uint32_t uid) const;
 	void petra_leave_mustering(uint32_t uid);
 
@@ -3388,7 +3391,17 @@ private:
 	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
-	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const;
+	// findDockPosition's other searches, over the whole map: buildOverseaDock's (on any of
+	// `lands`, by land id, facing any sea) and buildFirstBase's (nearest to (px, pz)).
+	struct PetraDockSearch {
+		const std::vector<uint8_t> *lands = nullptr; // oversea
+		bool proximity = false;
+		float px = 0.0f, pz = 0.0f;
+	};
+	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz,
+	                              const PetraDockSearch *search = nullptr) const;
+	bool petra_build_oversea_dock();
+	void petra_transport_garrisons_to(uint32_t foundation_id);
 	void petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, float x1, float z0, float z1) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
@@ -3419,6 +3432,8 @@ private:
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
+	int petra_config_max_pop(int unlimited = 300) const; // config.js setConfig's getPopulationMax
+	float petra_config_pop_scaling() const; // Config.popScaling: pop_scaling times sqrt(maxPop/300) under 300
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
