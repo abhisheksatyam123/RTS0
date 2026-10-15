@@ -90,7 +90,8 @@ def play_saved(args, lobby):
     """0 A.D. Host Saved Game: a two-player match is played alone for 20 s and
     saved; the host hosts that save, the joiner joins from the game list, and
     at Start the joiner loads the host's world (it never built its own) and
-    takes the second seat. Their turn hashes must match."""
+    takes the second seat. The setup refuses the joiner's civ, team and
+    colour picks (0.28 locks every setting of a saved game but the seats). Their turn hashes must match."""
     print("[gmp] ---- a saved game: the host continues it, the joiner loads its world ----")
     port = args.port + 2
     def client(role, name, *more):
@@ -136,6 +137,8 @@ def play_saved(args, lobby):
     ok = (host.returncode == 0 and join.returncode == 0 and h and j and hosted and loaded
           and h.get("hash") == j.get("hash") and h.get("hash") not in (None, "00000000")
           and h.get("seat") == "0" and j.get("seat") == "1"
+          # GameSettingControl EnabledWhenSavedGame: the joiner's own picks are refused.
+          and "refused=The controller loaded a saved game" in outs["join"]
           # A saved game's clients load it at Start: nobody "has rejoined".
           and h.get("rejoined_lines") == "0" and j.get("rejoined_lines") == "0")
     for role in ("host", "join"):
