@@ -515,7 +515,8 @@ public:
 			DEFEATED = 6,   // player is out; tech: the EndReason
 			WON = 7,        // other: the winners' mask; tech: the EndReason
 			LOST = 8,       // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
-			TEXT = 9 };     // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
+			TEXT = 9,       // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
+			CHEAT = 10 };   // Commands.js "aichat" from `player`: tech 0 "(Cheat - reveal map)", 1 "(Cheat - promoted units)"
 		// The "text" time notifications (10 s, centre top) the sim pushes for `player`.
 		enum TextMessage : uint8_t {
 			TEXT_QUEUE_FULL = 0,       // ProductionQueue.js AddItem: "The production queue is full."
@@ -3132,6 +3133,7 @@ private:
 	uint8_t petra_enemy_player(uint8_t kind) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
+	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
@@ -3273,7 +3275,7 @@ private:
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
-	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const;
+	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id, bool any_base = false) const;
 	void petra_lands_around(float x, float z, float half, uint16_t out[8]) const; // a structure's lands, or a unit's
 	void petra_attack_from_lands(uint16_t same_land, uint16_t out[8]) const; // same_land, or the home base's lands
 	bool petra_lands_reach(const uint16_t from[8], const uint16_t to[8], bool by_sea, const PetraNavalTopo *&topo) const;
@@ -3348,6 +3350,10 @@ private:
 	bool petra_is_critical_relic(size_t unit_idx) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
 	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
+	// A defense army's foe that is still about: a living unit, or an animal neither dead nor
+	// penned (defenseManager.js checkEnemyUnits keeps animals attacking us or our allies).
+	bool petra_army_foe_pos(uint32_t fid, float &x, float &z) const;
+	float petra_fauna_strength(size_t f) const; // getMaxStrength, x3 for an elephant (evaluateStrength)
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
 	float petra_enemy_capture_points(const Building &b) const;
 	bool petra_near_invading_army(float x, float z, float dist2) const;

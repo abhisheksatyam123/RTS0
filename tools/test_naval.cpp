@@ -800,6 +800,61 @@ static void test_petra_landing_spot() {
 	CHECK(s.petra_land_at(ax, az) == land);
 }
 
+// attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
+// plan rallies there and needs no ship for the attack itself; its army on the home land is
+// ferried to the rally point, and marches from there.
+static void test_petra_attack_from_far_base() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	s.spawn_building_world(-36.0f, -44.0f, BLD_MILITARY_COLONY, 1); // a base on the south land
+	const uint32_t target = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0);
+	std::vector<uint32_t> army;
+	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	s.petra_army_ids_[1] = army;
+	run(s, 1.0f);
+	const uint16_t overseas = s.petra_plan_overseas(-30.0f, 40.0f, target, true);
+	std::printf("Petra attack from a far base: overseas %u from any base, %u from the first\n",
+	            (unsigned)overseas, (unsigned)s.petra_plan_overseas(-30.0f, 40.0f, target));
+	CHECK(overseas == 0);
+	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	s.petra_attack_mgr_.target_size = 6;
+	s.petra_attack_mgr_.min_size = 6;
+	s.petra_attack_mgr_.rushes_set = 1;
+	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s.petra_attack_plan_.target_building_id = target;
+	s.petra_attack_plan_.state_timer = 0.0f;
+	s.petra_attack_plan_.forced = true;
+	bool completing = false;
+	for (int k = 0; k < 240 && !completing; ++k) {
+		run(s, 1.0f);
+		completing = s.petra_attack_plan_.completing;
+	}
+	const auto &plan = s.petra_attack_plan_;
+	std::printf("Petra attack from a far base: completing %s, rally (%.0f, %.0f), %zu in the squad, ferry %s\n",
+	            completing ? "yes" : "no", plan.staging_x, plan.staging_z, plan.squad.size(),
+	            s.petra_transport_for(PETRA_TRANSPORT_ATTACK) ? "yes" : "no");
+	CHECK(completing && plan.staging_z < -16.0f);
+	int south = 0;
+	bool marched = false;
+	for (int k = 0; k < 300 && !(marched && south >= 4); ++k) {
+		run(s, 1.0f);
+		marched |= s.petra_started_attacks_.size() > 0 || s.petra_attack_plan_.state == Simulation::AttackPlan::WALKING;
+		south = 0;
+		for (uint32_t uid : army) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.units().pos_z[i] < -16.0f) ++south;
+		}
+	}
+	std::printf("Petra attack from a far base: %d of 6 ferried to the south land, marched %s\n", south, marched ? "yes" : "no");
+	CHECK(south >= 4 && marched);
+}
+
 static void test_petra_overseas_attack() {
 	static Simulation s;
 	fresh(s);
@@ -1894,6 +1949,7 @@ int main() {
 	test_warships_keep_off_shore();
 	test_petra_navy();
 	test_petra_overseas_attack();
+	test_petra_attack_from_far_base();
 	test_petra_landing_spot();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
