@@ -22,6 +22,7 @@ var _server: LineEdit
 var _name: LineEdit
 var _sign_btn: Button
 var _password: LineEdit
+var _password2: LineEdit # prelobby Register's passwordRepeat
 var _remember: CheckBox
 var _register_btn: Button
 var _games: Tree
@@ -137,6 +138,10 @@ func _build() -> void:
 	_password = _line("", 140)
 	_password.secret = true
 	login.add_child(_password)
+	_password2 = _line("", 120)
+	_password2.secret = true
+	_password2.placeholder_text = "Repeat to register"
+	login.add_child(_password2)
 	_remember = CheckBox.new()
 	_remember.text = "Remember password"
 	_remember.button_pressed = cfg.get_bool("lobby.rememberpassword")
@@ -416,6 +421,7 @@ func _update_signed_in() -> void:
 	_server.editable = not on
 	_name.editable = not on
 	_password.editable = not on
+	_password2.editable = not on
 	_register_btn.disabled = on
 	_chat_line.editable = on
 	_chat_send.disabled = not on
@@ -526,6 +532,7 @@ func _sign_in(who: String) -> void:
 			cfg.set_value("lobby.password", encrypted if _remember.button_pressed else "")
 			cfg.save()
 			_password.text = ""
+			_password2.text = ""
 			MatchSettings.net_player_name = LobbySession.player_name
 			_chat_last = 0
 			_chat_backlog = true
@@ -541,8 +548,7 @@ func _sign_in(who: String) -> void:
 
 func _on_register_pressed() -> void:
 	var who := _name.text.strip_edges()
-	# One field here, so the password is its own confirmation; 0 A.D. asks twice.
-	var problem := LobbySession.register_problem(who, _password.text, _password.text)
+	var problem := LobbySession.register_problem(who, _password.text, _password2.text)
 	if problem != "":
 		_say(problem)
 		return

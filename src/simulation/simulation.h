@@ -2639,7 +2639,7 @@ private:
 	void award_structure_damage_xp(uint32_t attacker_id, const Building &b, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-			bool target_is_building, float damage, bool melee = false);
+			bool target_is_building, float damage, bool melee = false, bool capture = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
 	std::vector<TriggerEventData> pending_attack_alerts_; // OnAttackDetected, raised at the end of the tick that detected them
