@@ -1092,6 +1092,9 @@ static void test_petra_concurrent_transports() {
 	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
 	s.petra_attack_plan_.target_building_id = house;
 	s.petra_attack_plan_.state_timer = 0.0f;
+	// Forced (as an ally's call for help): it sets off with what it has, whatever siege class
+	// the plan rotation would still have it wait for.
+	s.petra_attack_plan_.forced = true;
 	// The army is the six given above: drop the batches Petra queues for the attack, which
 	// the plan would wait for (updatePreparation waits for its units in training), here and
 	// on each second below (trainMoreUnits keeps filling its ranged and cavalry classes).

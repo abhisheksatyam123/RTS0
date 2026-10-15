@@ -2755,7 +2755,7 @@ static void test_attack_request_counts_raid() {
 	slot.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
 	slot.petra_attack_mgr_.target_size = 60;
 	slot.petra_attack_mgr_.min_size = 30;
-	// The raid on an enemy outpost in AI 2's land, 4 riders mustering of 5 wanted.
+	// The raid on an enemy outpost in AI 2's land, 4 riders mustering of 8 wanted.
 	auto &raid = slot.petra_raid_plan_;
 	raid.state = Simulation::AttackPlan::MUSTER;
 	raid.state_timer = 0.0f;
@@ -2763,8 +2763,10 @@ static void test_attack_request_counts_raid() {
 	raid.target_x = bx - 10.0f; raid.target_z = bz;
 	raid.squad.clear();
 	for (int k = 0; k < 4; ++k) raid.squad.push_back(s->spawn_unit(bx - 6.0f, bz + 6.0f + (float)k, 2, UNIT_CAVALRY));
-	slot.petra_attack_mgr_.raid_target = 5;
-	slot.petra_attack_mgr_.raid_min = 5;
+	// Wanting 8 keeps it mustering this turn: a raid takes every free rider, and the main plan
+	// hands it a unit a turn (reassignFastUnit).
+	slot.petra_attack_mgr_.raid_target = 8;
+	slot.petra_attack_mgr_.raid_min = 8;
 	s->clear_petra_chat();
 	s->cmd_attack_request(3, 0);
 	run_ai_turns(*s, 1, 2);
