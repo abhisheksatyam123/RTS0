@@ -298,12 +298,15 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 		bool set = false;
 		Vector3 pos;
 	};
-	CameraBookmark camera_bookmarks_[4];
+	CameraBookmark camera_bookmarks_[10]; // camera.jump.1-10
+	// g_JumpCameraLast: where the camera was before the last jump, for the jump back.
+	CameraBookmark camera_jump_last_;
 	// Single-player pause from the pause hotkey (Pause, Shift+Space).
 	bool hotkey_paused_ = false;
 	// Where the local player was last attacked (camera.lastattackfocus = Space).
 	bool has_last_attack_ = false;
 	Vector3 last_attack_pos_;
+	uint32_t last_attack_unit_ = 0; // the attacked unit, which camera.lastattackfocus follows
 	// Under-attack alerts (0 A.D. AttackDetection.js + messages.js "attack"):
 	// last seen health of each local entity, to spot damage between frames.
 	rtso::AttackDetection attack_detection_;
@@ -786,7 +789,17 @@ private:
 	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;
-	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);
+	void notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target = 0);
+	void _on_chat_line_input(const Ref<InputEvent> &event, const String &action);
+	Array debug_chat_overlay() const { return chat_window_.overlay_state(); }
+	// Tests: the camera's target on the ground and the unit it follows.
+	Dictionary debug_camera() const {
+		Dictionary d;
+		if (!cam_rig) return d;
+		d["target"] = Vector2(cam_rig->get_target_pos().x, cam_rig->get_target_pos().z);
+		d["follow"] = (int64_t)cam_rig->follow_id();
+		return d;
+	}
 	void play_voice(const char *path);
 	// Tells the loading page how far setup got (signal load_progress).
 	void load_progress(int percent, const char *description) { emit_signal("load_progress", percent, String(description)); }

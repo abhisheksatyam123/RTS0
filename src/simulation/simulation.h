@@ -1438,6 +1438,16 @@ public:
 		leg = lit == trader_leg_.end() ? 0 : lit->second;
 		return true;
 	}
+	// Trader.js goods.amount: the gains of the goods a trader carries, worked out when they were
+	// loaded. False while it carries none.
+	bool trader_goods(uint32_t unit_id, TradeGain &out) const {
+		auto it = trader_goods_.find(unit_id);
+		if (it == trader_goods_.end()) return false;
+		const int32_t u = lookup_unit(unit_id);
+		if (u < 0 || units_.carry[u] <= 0) return false;
+		out = it->second;
+		return true;
+	}
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
 	float get_market_sell_price(ResourceType t) const { return market_sell_price(t); }
 	int get_market_history(ResourceType t) const { return market_trade_history_[t]; }
@@ -2294,7 +2304,6 @@ private:
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
 	}
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
-	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
 	void tick_pack(float dt);
 	// Formation.js port (formation.h): controllers walk, members follow their slots.

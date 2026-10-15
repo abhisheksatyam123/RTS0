@@ -227,6 +227,39 @@ public:
 		// 5. Aura Influence Bar (Magenta / Violet) - no public.zip session icon, fallback to text glyph badge
 		make_insp_bar(aura_bar_, aura_label_, 93, Color(0.85f, 0.35f, 0.85f), "AURA", nullptr);
 
+		// resourceSection: "Wood:" beside a bar of the supply left, "amount / max" (or "∞") on it.
+		// It takes the first bar row under the health bar that nothing else uses.
+		resource_name_ = memnew(Label);
+		resource_name_->set_size(Vector2(44, 14));
+		resource_name_->add_theme_font_size_override("font_size", 9);
+		resource_name_->add_theme_color_override("font_color", Color(0.95f, 0.8f, 0.35f));
+		resource_name_->set_visible(false);
+		panel_->add_child(resource_name_);
+		resource_bar_ = memnew(ProgressBar);
+		resource_bar_->set_name("resourceBar");
+		resource_bar_->set_size(Vector2(358, 11));
+		resource_bar_->set_show_percentage(false);
+		{
+			Ref<StyleBoxFlat> bg_sb, fg_sb;
+			bg_sb.instantiate();
+			bg_sb->set_bg_color(Color(0.10f, 0.12f, 0.16f, 0.85f));
+			bg_sb->set_corner_radius_all(2);
+			fg_sb.instantiate();
+			fg_sb->set_bg_color(Color(0.85f, 0.65f, 0.2f));
+			fg_sb->set_corner_radius_all(2);
+			resource_bar_->add_theme_stylebox_override("background", bg_sb);
+			resource_bar_->add_theme_stylebox_override("fill", fg_sb);
+		}
+		resource_bar_->set_visible(false);
+		panel_->add_child(resource_bar_);
+		resource_stats_ = memnew(Label);
+		resource_stats_->set_size(Vector2(358, 13));
+		resource_stats_->add_theme_font_size_override("font_size", 9);
+		resource_stats_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		resource_stats_->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
+		resource_stats_->set_visible(false);
+		panel_->add_child(resource_stats_);
+
 		stats_ = memnew(Label);
 		stats_->set_position(Vector2(102, 108));
 		stats_->set_size(Vector2(404, 38));
@@ -346,6 +379,7 @@ public:
 		d["xp_tooltip"] = xp_bar_->get_tooltip_text();
 		d["stats_tooltip"] = stats_->get_tooltip_text();
 		d["extra"] = extra_->get_text();
+		d["resource"] = resource_bar_->is_visible() ? resource_name_->get_text() + " " + resource_stats_->get_text() : godot::String();
 		d["extra_tooltip"] = extra_->get_tooltip_text();
 		return d;
 	}
@@ -450,6 +484,7 @@ public:
 		bar(xp_bar_, xp_label_, false);
 		bar(aura_bar_, aura_label_, false);
 		extra_->set_text("");
+		hide_resource_bar();
 		clear_tooltips();
 
 		if (kind_ == INSPECT_UNIT) {
@@ -505,10 +540,9 @@ public:
 					resistance = rtso::seldet::resistance_tooltip(d.resistance);
 			stats_->set_text(rtso::seldet::join_lines({body_lines(attack), body_lines(resistance)}));
 			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance, rtso::seldet::speed_tooltip(d)}));
-			// resourceSection: the meat it yields, "Food: 100 / 100".
+			// resourceSection: the meat it yields, "Food:" and 100 / 100 on the bar.
 			if (fv.food_amount[f] > 0)
-				extra_->set_text(rtso::seldet::resource_label(rtso::RES_FOOD) + " " +
-						rtso::seldet::amount_of(fv.food_amount[f], std::max(fi.food_amount, fv.food_amount[f])));
+				show_resource_bar(rtso::RES_FOOD, fv.food_amount[f], std::max(fi.food_amount, fv.food_amount[f]), false);
 			return true;
 		}
 		if (kind_ == INSPECT_BUILDING) {
@@ -682,6 +716,7 @@ public:
 		hp_bar_->set_value(hp);
 		hp_label_->set_text(rtso::seldet::health(hp, max_hp));
 		for (int i = 0; i < kStatusIcons; ++i) status_icons_[i]->set_visible(false);
+		hide_resource_bar();
 		stats_->set_text("");
 		stats_->set_tooltip_text("");
 		extra_->set_text("");
@@ -710,6 +745,7 @@ public:
 		};
 		// The stamina bar has no 0 A.D. counterpart.
 		show_bar(stamina_bar_, stamina_label_, false);
+		hide_resource_bar();
 		garrison_hp_bar_->set_visible(false); // fill_garrison_grid shows it
 		clear_tooltips();
 		stats_->set_position(Vector2(102, 108));
@@ -890,19 +926,20 @@ public:
 			String extra;
 			uint32_t route_a = 0, route_b = 0;
 			int route_leg = 0;
-			if (rtso::unit_is_trader(uview.unit_type[u]) &&
-					sim->trader_route(uview.id[u], route_a, route_b, route_leg)) {
-				// selection_details.js: a trader shows its goods and their total gain.
+			rtso::Simulation::TradeGain g;
+			if (rtso::unit_is_trader(uview.unit_type[u]) && sim->trader_route(uview.id[u], route_a, route_b, route_leg) &&
+					sim->trader_goods(uview.id[u], g)) {
+				// selection_details.js: a trader shows its goods and their total gain only while it
+				// carries goods (trader.goods.amount), heading to market a on leg 0, else b.
 				const rtso::Simulation::Building *ma = nullptr, *mb = nullptr;
 				for (const auto &bb : sim->buildings()) {
-					if (bb.id == route_a) ma = &bb;
-					if (bb.id == route_b) mb = &bb;
+					if (bb.id == (route_leg == 0 ? route_b : route_a)) ma = &bb;
+					if (bb.id == (route_leg == 0 ? route_a : route_b)) mb = &bb;
 				}
 				if (ma && mb) {
 					// resourceCarrying for traders: the goods and the total gain, "Gain: 30 (Alice), 5 (Bob)"
 					// as the tooltip (getTradingTooltip: market1 pays the arrival market's owner, market2
 					// the starting market's).
-					const auto g = sim->calculate_trade_gain(*ma, *mb, uview.team[u], uview.unit_type[u]);
 					const uint8_t goods = uview.res_type_carried[u];
 					extra = rtso::seldet::resource_name(goods) + " " + String::num_int64(g.trader + g.market1 + g.market2);
 					const uint8_t owner = uview.team[u];
@@ -917,10 +954,8 @@ public:
 					for (const auto &m : markets)
 						if (m.gain && m.owner != owner) gains += rtso::tr0(", ") + gain_of(String::num_int64(m.gain), m.owner);
 					extra_->set_tooltip_text(rtso::sprintf0(rtso::tr0("Gain: %(gain)s"), {{"gain", gains}}));
-				} else {
-					extra = "Trade route lost";
 				}
-			} else if (uview.carry[u] > 0 && uview.res_type_carried[u] < rtso::RES_COUNT) {
+			} else if (!rtso::unit_is_trader(uview.unit_type[u]) && uview.carry[u] > 0 && uview.res_type_carried[u] < rtso::RES_COUNT) {
 				// resourceCarrying: the resource and "amount / max".
 				extra = rtso::seldet::resource_name(uview.res_type_carried[u]) + " " +
 						rtso::seldet::amount_of(uview.carry[u], sim->unit_details(u).carry_max);
@@ -1022,7 +1057,28 @@ private:
 
 	// selection_details.js resourceSection of a ResourceSupply (a tree, a mine, a field): "Wood:" and
 	// amount / max (∞ for a field), then its gatherers, current / max. Empty without a supply.
-	static String supply_lines(const rtso::Simulation &sim, uint32_t res_id) {
+	void hide_resource_bar() {
+		for (godot::Control *c : std::initializer_list<godot::Control *>{resource_name_, resource_bar_, resource_stats_}) c->set_visible(false);
+	}
+	// resourceSection: the bar of `res` with "amount / max", full with "∞" when infinite, in the
+	// first bar row below the health bar left free (capture and the build/repair row come first).
+	void show_resource_bar(uint8_t res, int64_t amount, int64_t max, bool infinite) {
+		using namespace godot;
+		float y = 54.0f;
+		if (capture_bar_->is_visible()) y = 67.0f;
+		if (y == 67.0f && xp_bar_->is_visible()) y = 80.0f;
+		resource_name_->set_position(Vector2(102, y - 2));
+		resource_name_->set_text(rtso::seldet::resource_label(res));
+		resource_bar_->set_position(Vector2(148, y));
+		resource_bar_->set_max(1.0);
+		resource_bar_->set_value(infinite ? 1.0 : max > 0 ? std::clamp((double)amount / (double)max, 0.0, 1.0) : 0.0);
+		resource_stats_->set_position(Vector2(148, y - 1));
+		resource_stats_->set_text(rtso::seldet::resource_amount(amount, max, infinite));
+		for (Control *c : std::initializer_list<Control *>{resource_name_, resource_bar_, resource_stats_}) c->set_visible(true);
+	}
+	// A resource's (or a field's) supply as the resource bar, and its gatherers, current / max,
+	// as the returned line (resourceCarryingText, "Current/max gatherers").
+	String supply_lines(const rtso::Simulation &sim, uint32_t res_id) {
 		if (!res_id) return String();
 		auto rv = sim.resources();
 		size_t r = 0;
@@ -1033,9 +1089,8 @@ private:
 		auto uv = sim.units();
 		for (size_t i = 0; i < uv.count; ++i)
 			if (uv.alive[i] && uv.target_resource_id[i] == res_id && uv.action_state[i] == rtso::ACTION_GATHER) ++gatherers;
-		return rtso::seldet::resource_label(rv.type[r]) + " " +
-				rtso::seldet::resource_amount(rv.amount[r], sim.resource_supply_max(res_id), rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY) +
-				"\n" + rtso::seldet::amount_of(gatherers, sim.resource_max_gatherers(res_id));
+		show_resource_bar(rv.type[r], rv.amount[r], sim.resource_supply_max(res_id), rv.amount[r] >= rtso::FIELD_FOOD_SUPPLY);
+		return rtso::seldet::amount_of(gatherers, sim.resource_max_gatherers(res_id));
 	}
 
 	// The primary and secondary names (getEntityNames): a civ's structure from its template
@@ -1303,6 +1358,9 @@ private:
 	godot::Label *xp_label_ = nullptr;
 	godot::ProgressBar *stamina_bar_ = nullptr;
 	godot::Label *stamina_label_ = nullptr;
+	godot::Label *resource_name_ = nullptr;   // resourceLabel
+	godot::ProgressBar *resource_bar_ = nullptr;
+	godot::Label *resource_stats_ = nullptr;  // resourceStats
 	godot::ProgressBar *aura_bar_ = nullptr;
 	godot::Label *aura_label_ = nullptr;
 	godot::Label *stats_ = nullptr;
@@ -1374,7 +1432,7 @@ private:
 	godot::Control *barter_host_ = nullptr;
 
 	// 0.28's Selection panel (g_SelectionPanels.Selection setupButton): each group's tooltip
-	// is its names, what its units carry (a trader counts its goods' total gain) and, for an
+	// is its names, what its units carry (a trader its goods' total gain, while it has goods) and, for an
 	// observer, the owner, whose colour then shows behind the icon.
 	std::vector<RtsoSelectionGrid::Group> selection_groups(const rtso::Simulation &sim,
 			const rtso::Simulation::UnitView &uview, std::vector<RtsoSelectionGrid::Group> groups) {
@@ -1391,21 +1449,8 @@ private:
 				if (RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) != g.key) continue;
 				const uint8_t res = uview.res_type_carried[i];
 				if (res >= rtso::RES_COUNT) continue;
-				uint32_t route_a = 0, route_b = 0;
-				int route_leg = 0;
-				if (rtso::unit_is_trader(uview.unit_type[i]) && sim.trader_route(uview.id[i], route_a, route_b, route_leg)) {
-					const rtso::Simulation::Building *ma = nullptr, *mb = nullptr;
-					for (const auto &bb : sim.buildings()) {
-						if (bb.id == route_a) ma = &bb;
-						if (bb.id == route_b) mb = &bb;
-					}
-					if (ma && mb) {
-						const auto gain = sim.calculate_trade_gain(*ma, *mb, uview.team[i], uview.unit_type[i]);
-						carried.res[res] += gain.trader + gain.market1 + gain.market2;
-					}
-				} else if (uview.carry[i] > 0) {
-					carried.res[res] += uview.carry[i];
-				}
+				// A trader's carry is its goods' total gain (trader + both markets), as 0.28 adds.
+				if (uview.carry[i] > 0) carried.res[res] += uview.carry[i];
 			}
 			const auto &info = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(g.tmpl, g.unit_type) : rtso::unit_type_info(g.unit_type);
 			const char *specific = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(g.tmpl).specific_name : nullptr;
