@@ -368,6 +368,8 @@ Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
 // MiniMap.js onWorldClick, right button: determineAction with no entity under the
 // cursor, so a structure sets its rally point and units walk there (attack-walk
 // with session.attackmove), queued with session.queue.
+// MiniMap.js onWorldClick, right button: an armed action or flare is only cancelled;
+// otherwise the order determineAction(fromMiniMap) gives at that point.
 void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 	if (!sim) return;
 	if (flare_armed_) { // INPUT_FLARE: a right click cancels it
@@ -378,39 +380,83 @@ void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
 	}
-	const bool queued = rtso::hotkeys::held("session.queue");
-	const uint8_t qbit = queued ? rtso::NET_PARAM_QUEUED : 0;
-	if (selected_building_id != 0) {
-		if (turn_cmds()) {
-			uint32_t extra[2] = {0, 0};
-			post_lockstep(14, extra, 2, world_pos.x, world_pos.y, selected_building_id, qbit);
-		} else {
-			sim->cmd_set_rally_point(local_player(), selected_building_id, world_pos.x, world_pos.y, 0, 0, queued);
-		}
+	if (any_armed_mode()) { // INPUT_PRESELECTEDACTION: a right click cancels it
+		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 		return;
 	}
-	if (selected_ids.is_empty()) return;
+	minimap_unit_order(world_pos);
+}
+
+// determineAction(fromMiniMap): no entity is under a minimap click, so only the ground actions
+// apply: call-to-arms, attack-walk, patrol, walk, or (structures alone) set-rallypoint.
+// Returns false when no action applies.
+bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
+	if (spectating()) return false;
+	const bool queued = rtso::hotkeys::held("session.queue");
+	const uint8_t qbit = queued ? rtso::NET_PARAM_QUEUED : 0;
+	if (selected_ids.is_empty()) {
+		if (selected_building_id == 0) return false;
+		for (uint32_t sb : selected_structures()) { // unit_actions.js "set-rallypoint": every selected structure
+			if (sb != selected_building_id && !building_trains_units(sb)) continue;
+			if (turn_cmds()) {
+				uint32_t extra[2] = {0, 0};
+				post_lockstep(14, extra, 2, world_pos.x, world_pos.y, sb, qbit);
+			} else {
+				sim->cmd_set_rally_point(local_player(), sb, world_pos.x, world_pos.y, 0, 0, queued);
+			}
+		}
+		return true;
+	}
 	const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
-	const size_t sel_n = selected_ids.size();
-	range_overlays_.add_target_marker(world_pos.x, world_pos.y);
+	size_t sel_n = selected_ids.size();
+	// session.orderone: the first unit only, which then leaves the selection.
+	uint32_t one_id = 0;
+	if (rtso::hotkeys::held("session.orderone")) {
+		one_id = sel_ptr[0];
+		sel_ptr = &one_id;
+		sel_n = 1;
+	}
 	const bool units_only = rtso::hotkeys::held("session.attackmoveUnit"); // targetClasses Unit
-	if (rtso::hotkeys::held("session.attackmove") || units_only) {
+	// Only the ground actions can be armed here; Guard, Garrison, Repair and Occupy Turret need an entity.
+	if (garrison_mode || guard_mode || repair_mode || turret_mode) return false;
+	range_overlays_.add_target_marker(world_pos.x, world_pos.y);
+	if (call_to_arms_mode || rtso::hotkeys::held("session.calltoarms")) {
+		const bool capture = rtso::hotkeys::held("session.capture");
+		if (turn_cmds())
+			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_CALL_TO_ARMS, sel_ptr, sel_n, world_pos.x, world_pos.y, 0,
+					(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0) | (capture ? rtso::NET_PARAM_CAPTURE : 0)));
+		else
+			sim->order_call_to_arms(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, units_only, capture);
+		play_civ_voice("attack");
+	} else if (attack_move_mode || rtso::hotkeys::held("session.attackmove") || units_only) {
 		if (turn_cmds())
 			post_lockstep(10, sel_ptr, sel_n, world_pos.x, world_pos.y, 0,
 					(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
 		else
 			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, units_only, true);
 		play_civ_voice("attack");
-		return;
-	}
-	if (turn_cmds())
-		post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
-	else
-		{
+	} else if (patrol_mode || rtso::hotkeys::held("session.patrol")) {
+		if (turn_cmds())
+			post_lockstep(11, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
+		else {
+			apply_default_formation(sel_ptr, sel_n);
+			sim->order_patrol(sel_ptr, sel_n, world_pos.x, world_pos.y, queued);
+		}
+		play_civ_voice("select");
+	} else {
+		if (turn_cmds())
+			post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
+		else {
 			apply_default_formation(sel_ptr, sel_n);
 			sim->order_walk(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, true);
 		}
-	play_civ_voice("move");
+		play_civ_voice("move");
+	}
+	if (one_id != 0) { // input.js popOneFromSelection
+		const int64_t at = selected_ids.find((int32_t)one_id);
+		if (at >= 0) selected_ids.remove_at(at);
+	}
+	return true;
 }
 
 bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip) {

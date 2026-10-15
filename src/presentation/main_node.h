@@ -655,6 +655,7 @@ public:
 	}
 	bool armed_target_ok(const Vector3 &at) const;
 	bool run_armed_click(const Ref<InputEventMouseButton> &press);
+	bool minimap_unit_order(Vector2 world_pos);
 	Dictionary debug_right_line() const {
 		Dictionary d;
 		d["active"] = right_line_.active;
