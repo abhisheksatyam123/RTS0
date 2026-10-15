@@ -461,6 +461,8 @@ public:
 	bool show_all_status_bars() const { return show_all_status_bars_; }
 	// StatusBars.js sprites drawn this frame (tests).
 	int status_sprite_count() const { return status_sprites_.sprite_count(); }
+	const PackedStringArray &status_rank_icons() const { return status_rank_icons_; } // drawn last frame (tests)
+	int status_xp_bars() const { return status_xp_bars_; }
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
@@ -492,6 +494,8 @@ private:
 		int n_icons = 0;
 	};
 	void status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const;
+	PackedStringArray status_rank_icons_;
+	int status_xp_bars_ = 0;
 	void draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, const StatusStack &st);
 
 	// Fog of war (0 A.D. Fogging.js/Mirage.js + CLOSTexture): what the local
