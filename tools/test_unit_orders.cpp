@@ -2825,6 +2825,25 @@ static void test_queue_after_auto_fight() {
 	}
 }
 
+static void test_healers_on_attack_move() {
+	std::printf("79. a healer on attack-move or patrol heals the hurt on its way, then walks on (FindWalkAndFightTargets -> FindNewHealTargets)\n");
+	for (int mode = 0; mode < 2; ++mode) {
+		Simulation s;
+		setup(s);
+		uint32_t h = s.spawn_unit(-20, 0, 0, UNIT_HEALER);
+		uint32_t w = s.spawn_unit(0, 2, 0, UNIT_SPEARMAN);
+		const int wi = idx_of(s, w);
+		s.units_.hp[wi] = s.units_.max_hp[wi] * 0.3f;
+		const float hp0 = s.units_.hp[wi];
+		if (mode == 0) s.order_attack_move(&h, 1, 25, 0, false, false, false);
+		else s.order_patrol(&h, 1, 25, 0, false);
+		check(run_until(s, 30.0f, [&] { return s.units_.hp[idx_of(s, w)] > hp0 + 1.0f; }),
+				mode == 0 ? "the attack-moving healer heals the spearman" : "the patrolling healer heals the spearman");
+		if (mode == 0)
+			check(run_until(s, 120.0f, [&] { return dist(s, h, 25, 0) < 3.0f; }), "then goes on to the attack-move's end");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2907,6 +2926,7 @@ int main(int argc, char **argv) {
 	test_forced_flag_not_inherited();
 	test_idle_drift_walk_back();
 	test_queue_after_auto_fight();
+	test_healers_on_attack_move();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
