@@ -62,7 +62,7 @@ public:
 		// DeveloperOverlay.xml size="100%-250 50%-280 100%-8 50%", sessionOverlayBackground.
 		panel_ = memnew(ColorRect);
 		panel_->set_name("DevCommandsOverlay");
-		panel_->set_color(Color(0.0f, 0.0f, 0.0f, 0.6f));
+		panel_->set_color(Color(0.0f, 0.0f, 0.0f, 185.0f / 255.0f)); // sessionOverlayBackground "0 0 0 185"
 		panel_->set_anchor(SIDE_LEFT, 1.0f);
 		panel_->set_anchor(SIDE_RIGHT, 1.0f);
 		panel_->set_anchor(SIDE_TOP, 0.5f);
@@ -76,10 +76,11 @@ public:
 		for (int i = 0; i < DEV_COUNT; ++i) {
 			Label *l = memnew(Label); // devCommandsText
 			l->set_text(kLabels[i]);
-			l->set_position(Vector2(4, i * kRow));
+			l->set_position(Vector2(0, i * kRow)); // "0 0 100%-26 100%", sans-12, text_align right
 			l->set_size(Vector2(250 - 8 - 30, kRow));
 			l->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
-			l->add_theme_font_size_override("font_size", 13);
+			l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
+			l->add_theme_font_size_override("font_size", 12);
 			l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 			panel_->add_child(l);
 			CheckBox *cb = memnew(CheckBox); // ModernTickBox, "100%-24 1 100% 100%"
