@@ -1048,13 +1048,19 @@ void RtsoMain::_process(double delta) {
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
 			if (!txt.is_empty()) txt += "\n";
-			// GuiInterface time notifications: %(time)s is the time left (timeToString).
-			String line = String::utf8(n->text).replace("[", "[lb]"); // a map's text, not markup
+			// TimeNotificationOverlay: the message translated, then its parameters
+			// ("\x1fname=value" after the format) and %(time)s, the time left (timeToString).
+			const PackedStringArray parts = String::utf8(n->text).split(String::chr(0x1f));
+			String line = rtso::tr0(parts[0]);
+			for (int k = 1; k < parts.size(); ++k) {
+				const int eq = parts[k].find("=");
+				if (eq > 0) line = line.replace("%(" + parts[k].substr(0, eq) + ")s", parts[k].substr(eq + 1));
+			}
 			if (line.contains("%(time)s")) {
 				const uint32_t now = sim->trigger_state().time_ms;
 				line = line.replace("%(time)s", time_to_string(n->end_ms > now ? (int64_t)(n->end_ms - now) : 0));
 			}
-			txt += line;
+			txt += line.replace("[", "[lb]"); // a map's text, not markup
 		}
 		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
 		// player (the wonder's owner, its allies or everyone else).
@@ -1076,11 +1082,13 @@ void RtsoMain::_process(double delta) {
 					if (sim->wonder_hold(p) <= 0.0f || sim->is_defeated(p)) continue;
 					const String left = clock(sim->wonder_duration() - sim->wonder_hold(p));
 					const uint8_t allies = allies_of(p);
-					if (p == me) add(allies ? "You own a Wonder and you and your allies will win in " + left + "."
-							: "You own a Wonder and will win in " + left + ".");
-					else if (me < rtso::MAX_PLAYERS && ((allies >> me) & 1)) add(colored_player_name(p) + " owns a Wonder and you will win in " + left + ".");
-					else add(colored_player_name(p) + " owns a Wonder and " + (allies ? colored_player_name(p) + " and their allies" : String()) +
-							(allies ? " will win in " : "will win in ") + left + ".");
+					const String who = colored_player_name(p);
+					if (p == me) add(rtso::sprintf0(rtso::tr0(allies ? "You own a Wonder and you and your allies will win in %(time)s."
+							: "You own a Wonder and will win in %(time)s."), {{"time", left}}));
+					else if (me < rtso::MAX_PLAYERS && ((allies >> me) & 1))
+						add(rtso::sprintf0(rtso::tr0("%(_player_)s owns a Wonder and you will win in %(time)s."), {{"_player_", who}, {"time", left}}));
+					else add(rtso::sprintf0(rtso::tr0(allies ? "%(_player_)s owns a Wonder and %(_player_)s and their allies will win in %(time)s."
+							: "%(_player_)s owns a Wonder and will win in %(time)s."), {{"_player_", who}, {"time", left}}));
 				}
 			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
 				// StartCaptureTheRelicCountdown: named after the first relic's owner, "and their
@@ -1091,11 +1099,11 @@ void RtsoMain::_process(double delta) {
 					const bool team = (side & (side - 1)) != 0;
 					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
 					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
-						add(team ? "You and your allies have captured all relics and will win in " + left + "."
-								: "You have captured all relics and will win in " + left + ".");
+						add(rtso::sprintf0(rtso::tr0(team ? "You and your allies have captured all relics and will win in %(time)s."
+								: "You have captured all relics and will win in %(time)s."), {{"time", left}}));
 					else
-						add(colored_player_name(owner) + (team ? " and their allies have captured all relics and will win in "
-								: " has captured all relics and will win in ") + left + ".");
+						add(rtso::sprintf0(rtso::tr0(team ? "%(_player_)s and their allies have captured all relics and will win in %(time)s."
+								: "%(_player_)s has captured all relics and will win in %(time)s."), {{"_player_", colored_player_name(owner)}, {"time", left}}));
 				}
 			}
 		}
@@ -1104,8 +1112,8 @@ void RtsoMain::_process(double delta) {
 		if (sim->ceasefire_seconds() > 0.0f) {
 			const float left = sim->ceasefire_seconds() - sim->game_time();
 			String line;
-			if (left > 0.0f && left <= 10.0f) line = "You can attack in " + time_to_string((int64_t)(left * 1000.0f));
-			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
+			if (left > 0.0f && left <= 10.0f) line = rtso::sprintf0(rtso::tr0("You can attack in %(time)s"), {{"time", time_to_string((int64_t)(left * 1000.0f))}});
+			else if (left <= 0.0f && left > -5.0f) line = rtso::tr0("You can attack now!");
 			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
 		if (!txt.is_empty()) txt = "[center]" + txt + "[/center]";
@@ -1372,6 +1380,12 @@ void RtsoMain::_process(double delta) {
 	update_observer_view_picker();
 	// Check Victory / Defeat Condition, from the local player's seat
 	if (sim->is_victory_for(seat_player())) {
+		if (!campaign_win_noted_ && !turn_mgr_.is_replaying()) {
+			// CampaignSession.onFinish: a campaign level is completed as soon as it is won.
+			campaign_win_noted_ = true;
+			Ref<Script> summary = ResourceLoader::get_singleton()->load("res://scenes/session/summary_screen.gd");
+			if (summary.is_valid()) summary->call("mark_campaign_won");
+		}
 		banner_panel->set_visible(true);
 		banner_label->set_text("VICTORY!\nYour side has prevailed.");
 		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));
