@@ -8,6 +8,8 @@
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <cmath>
 #include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/classes/crypto.hpp>
+#include <godot_cpp/classes/hashing_context.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
@@ -41,6 +43,34 @@
 using namespace godot;
 using rtso::sprintf0;
 
+// 0 A.D. HashCryptographically, as lobby_session.gd encrypt_password: PBKDF2-
+// HMAC-SHA256, 1337 rounds, salted with SHA-256(fixed base + lower-case name),
+// as upper-case hex. The game password travels only as this.
+static std::string hash_game_password(const std::string &password, const std::string &name) {
+	static const uint8_t kSaltBase[32] = {244, 243, 249, 244, 32, 33, 34, 35, 10, 11, 12, 13, 14, 15, 16, 17,
+			18, 19, 20, 32, 33, 244, 224, 127, 129, 130, 140, 153, 133, 123, 234, 123};
+	PackedByteArray base;
+	base.resize(32);
+	std::memcpy(base.ptrw(), kSaltBase, 32);
+	Ref<HashingContext> ctx;
+	ctx.instantiate();
+	ctx->start(HashingContext::HASH_SHA256);
+	ctx->update(base);
+	ctx->update(String::utf8(name.c_str()).to_lower().to_utf8_buffer());
+	PackedByteArray block = ctx->finish();
+	for (uint8_t b : {0, 0, 0, 1}) block.push_back(b);
+	Ref<Crypto> crypto;
+	crypto.instantiate();
+	const PackedByteArray key = String::utf8(password.c_str()).to_utf8_buffer();
+	PackedByteArray u = crypto->hmac_digest(HashingContext::HASH_SHA256, key, block);
+	PackedByteArray out = u.duplicate();
+	for (int i = 1; i < 1337; ++i) {
+		u = crypto->hmac_digest(HashingContext::HASH_SHA256, key, u);
+		for (int64_t j = 0; j < out.size(); ++j) out.set(j, out[j] ^ u[j]);
+	}
+	return std::string(out.hex_encode().to_upper().utf8().get_data());
+}
+
 void RtsoMain::_ready() {
 	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready - Full 0 A.D. UI & Simulation");
 	// 0 A.D. writes oos_dump.txt/.dat to its log dir; ours is user://.
@@ -52,9 +82,10 @@ void RtsoMain::_ready() {
 	// net_host.cpp:540 dispatch -> onChat (:395) -> display here.
 	// 0 A.D. NetServer OnChat: as host, an addressed line goes only to the
 	// clients it is for (the receivers keep their own check too).
+	net_host_.setPasswordHasher(hash_game_password);
 	net_host_.setChatRouter([this](uint32_t from, uint32_t to, const std::string &message) {
 		const std::string tag = rtso::chat_wire_tag(message);
-		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag);
+		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag, to);
 	});
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
 		String msg = String::utf8(cm.message.c_str());
@@ -64,6 +95,18 @@ void RtsoMain::_ready() {
 			// 0 A.D. sends a flare to the sender's mutual allies and the observers.
 			const String guid = String::utf8(cm.sender_guid.c_str());
 			if (!chat_local_observer() && !chat_is_addressee(guid, "[Allies]")) return;
+			// messages.js g_FlareRateLimitScope / g_FlareRateLimitMaximumFlares: at
+			// most 16 flares from others in any 6 s; more are dropped.
+			const uint64_t now = Time::get_singleton()->get_ticks_msec();
+			flare_received_ms_.erase(std::remove_if(flare_received_ms_.begin(), flare_received_ms_.end(),
+					[now](uint64_t t) { return now - t >= 6000; }), flare_received_ms_.end());
+			if (flare_received_ms_.size() >= 16) {
+				const std::string line = "Received too many flares. Dropping a flare request by '" +
+						std::string(guid.utf8().get_data()) + "'.";
+				rtso::Logger::warn("Chat", line.c_str());
+				return;
+			}
+			flare_received_ms_.push_back(now);
 			String coords = msg.substr(7).strip_edges();
 			int32_t comma = coords.find(",");
 			if (comma > 0) {
@@ -1009,6 +1052,9 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
+	{
+		view->set_selected_buildings(sim->cinema_playing() ? std::vector<uint32_t>() : selected_structures());
+	}
 	if (sim->cinema_playing()) {
 		// ICmpSelectable::SetOverrideVisibility(false): no selection rings while a path plays.
 		view->sync(sim, (float)delta, PackedInt32Array());
@@ -1134,6 +1180,7 @@ void RtsoMain::_process(double delta) {
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
 	prune_selection();
+	prune_structure_selection();
 	if (!selected_ids.is_empty() || selected_building_id != 0) inspector_.clear();
 	update_inspector();
 	update_command_panel();

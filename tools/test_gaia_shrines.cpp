@@ -144,6 +144,18 @@ int main() {
 	CHECK(!s.cmd_train_template(0, post, roster_id("pers/support_trader"), 1));
 	CHECK(s.research_check(0, TECH_TRADE_GAIN_01, post) != Simulation::TECH_OK);
 
+	// 3b. A civic centre lists units/{native}/support_civilian: a captured Gaulish CC trains
+	// Gaulish civilians for its Roman holder, and Roman soldiers alongside them.
+	{
+		const uint32_t gcc = s.spawn_building_world(-60.0f, 60.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		s.set_building_civ(gcc, CIV_GAULS);
+		CHECK(!s.cmd_train_template(0, gcc, roster_id("rome/support_civilian"), 1));
+		CHECK(s.cmd_train_template(0, gcc, roster_id("gaul/support_civilian"), 1));
+		CHECK(!s.cmd_train_template(0, gcc, roster_id("gaul/infantry_spearman_b"), 1));
+		CHECK(s.cmd_train_template(0, gcc, roster_id("rome/infantry_swordsman_b"), 1));
+		CHECK(building_train_civ(BLD_HOUSE, CIV_GAULS, CIV_ROMANS, civ_unit_template(roster_id("rome/support_civilian_house"))) == CIV_ROMANS);
+	}
+
 	// 4. Saves keep the shrine's civ.
 	const char *path = "/tmp/rtso_test_gaia_shrines.sav";
 	CHECK(s.save_state(path));

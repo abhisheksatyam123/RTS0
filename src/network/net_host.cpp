@@ -527,7 +527,7 @@ void NetHost::sendHandshake() {
 void NetHost::sendAuthenticate(const std::string &name, const std::string &password) {
 	AuthenticateMsg am;
 	am.name = name;
-	am.password = password;
+	am.password = password.empty() || !password_hasher_ ? password : password_hasher_(password, name);
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_authenticate(am);
 	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_AUTHENTICATE, 0, payload);
 	broadcastCommand(msg.data(), msg.size());
@@ -1008,6 +1008,7 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 		if (NetPacketSerializer::parse_authenticate(msg.payload.data(), msg.payload.size(), auth)) {
 			NetPeer *p = getPeer(peerId);
 			if (isHost() && p && !p->is_authenticated && !p->kick_disconnect_ms) {
+				const std::string sent_name = auth.name; // the password's salt, before any dedupe
 				// 0 A.D. NetServer::OnAuthenticate: a name already in the game is
 				// refused, or with network.duplicateplayernames made unique
 				// (DeduplicatePlayerName); unnamed (test) clients are left alone.
@@ -1031,7 +1032,8 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 						failed >= FAILED_PASSWORD_TRIES_BEFORE_BAN) {
 					res.code = ARC_BANNED;
 					res.message = "You have been banned from this game";
-				} else if (!password_.empty() && auth.password != password_) {
+				} else if (!password_.empty() &&
+						auth.password != (password_hasher_ ? password_hasher_(password_, sent_name) : password_)) {
 					++failed;
 					res.code = ARC_PASSWORD_INVALID;
 					res.message = "Wrong password";
@@ -1382,9 +1384,12 @@ bool NetHost::name_taken(const std::string &name, const NetPeer *self) const {
 	return false;
 }
 
-void NetHost::refusePeer(uint32_t peer_id) {
+void NetHost::refusePeer(uint32_t peer_id, uint8_t reason) {
 	NetPeer *p = isHost() && peer_id != 0 ? getPeer(peer_id) : nullptr;
-	if (p && p->connected && !p->kick_disconnect_ms) p->kick_disconnect_ms = get_now_ms() + 2000;
+	if (p && p->connected && !p->kick_disconnect_ms) {
+		p->kick_disconnect_ms = get_now_ms() + 2000;
+		if (reason) p->disconnect_reason = reason;
+	}
 }
 
 bool NetHost::kickPeer(uint32_t peer_id, bool ban) {

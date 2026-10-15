@@ -174,6 +174,12 @@ public:
 	// Host: the password joiners must give (empty = open game; 0 A.D. lobby
 	// password). Client: the password this client sends.
 	void setPassword(const std::string &password) { password_ = password; }
+	// 0 A.D. HashCryptographically(password, name): what travels instead of the
+	// typed password (CNetClient::SetGamePassword), and what the host checks
+	// against its own (CNetServerWorker::CheckPassword). Unset: the plain text.
+	void setPasswordHasher(std::function<std::string(const std::string &password, const std::string &name)> hasher) {
+		password_hasher_ = std::move(hasher);
+	}
 	// The engine version and mods this side sends in its handshake (0 A.D.
 	// engine version + enabled mods); a host refuses a client whose differs
 	// (NDR_INCORRECT_SOFTWARE_VERSION).
@@ -187,7 +193,8 @@ public:
 	// from then on. False if there is no such admitted client.
 	// Host: close a client's link once the answer just sent reaches it, with
 	// no kick notice (0 A.D. NetServer Disconnect(NDR_SERVER_FULL)).
-	void refusePeer(uint32_t peer_id);
+	// reason: the NDR_* the closing packet names (0.28 NetServer refusals).
+	void refusePeer(uint32_t peer_id, uint8_t reason = 0);
 	bool kickPeer(uint32_t peer_id, bool ban);
 	// Host: the admitted client with this name (0 if none).
 	uint32_t peerByName(const std::string &name) const;
@@ -285,6 +292,7 @@ private:
 	void send_client_performance(uint64_t now_ms);
 	bool admitted(const NetPeer &p) const { return p.connected && p.is_authenticated && !p.kick_disconnect_ms; }
 	std::string password_;
+	std::function<std::string(const std::string &, const std::string &)> password_hasher_;
 	std::string software_version_ = NET_SOFTWARE_VERSION;
 	bool duplicate_names_ = false;
 	// Host: close a link with this reason, sent in the disconnect's channel byte.

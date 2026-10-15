@@ -166,6 +166,9 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_set_resource", "res", "amount"), &RtsoMain::debug_set_resource);
 	ClassDB::bind_method(D_METHOD("debug_placing"), &RtsoMain::debug_placing);
 	ClassDB::bind_method(D_METHOD("debug_highlight"), &RtsoMain::debug_highlight);
+	ClassDB::bind_method(D_METHOD("debug_selected_structures"), &RtsoMain::debug_selected_structures);
+	ClassDB::bind_method(D_METHOD("debug_building_queue", "id"), &RtsoMain::debug_building_queue);
+	ClassDB::bind_method(D_METHOD("debug_structure_outlined", "id"), &RtsoMain::debug_structure_outlined);
 	ClassDB::bind_method(D_METHOD("debug_guard_target", "unit_id"), &RtsoMain::debug_guard_target);
 	ClassDB::bind_method(D_METHOD("debug_right_line"), &RtsoMain::debug_right_line);
 	ClassDB::bind_method(D_METHOD("debug_ground_at", "screen"), &RtsoMain::debug_ground_at);
@@ -179,12 +182,14 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_select_entity", "id"), &RtsoMain::debug_select_entity);
 	ClassDB::bind_method(D_METHOD("debug_select_units", "ids"), &RtsoMain::debug_select_units);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_id", "player"), &RtsoMain::debug_civic_centre_id);
-	ClassDB::bind_method(D_METHOD("debug_spawn_building", "type", "dx", "dz"), &RtsoMain::debug_spawn_building);
+	ClassDB::bind_method(D_METHOD("debug_spawn_building", "type", "dx", "dz", "player"), &RtsoMain::debug_spawn_building, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
 	ClassDB::bind_method(D_METHOD("debug_structure_types"), &RtsoMain::debug_structure_types);
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_add_xp", "ids", "xp"), &RtsoMain::debug_add_xp);
+	ClassDB::bind_method(D_METHOD("debug_diplomacy"), &RtsoMain::debug_diplomacy);
+	ClassDB::bind_method(D_METHOD("debug_set_observer_view", "player"), &RtsoMain::debug_set_observer_view);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);

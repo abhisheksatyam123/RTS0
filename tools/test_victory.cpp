@@ -5,6 +5,8 @@
 #define private public
 #include <set>
 #include "simulation/simulation.h"
+#include "simulation/start_entities_data.h"
+#include <cstring>
 #undef private
 #include "network/net_types.h"
 #include <cstdio>
@@ -500,13 +502,29 @@ int main() {
 		sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
 		int structures = 0;
 		for (const auto &b : sim.buildings()) structures += b.team < MAX_PLAYERS;
-		const size_t units = sim.unit_count();
+		const size_t units = sim.unit_count(), resources = sim.resources().count;
 		CHECK(structures > 0);
 		sim.set_nomad(true);
 		sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
 		int left = 0;
 		for (const auto &b : sim.buildings()) left += b.team < MAX_PLAYERS;
 		CHECK(left == 0 && sim.unit_count() == units);
+		// placePlayerBase places nothing (no base berries, woodline or mines), and
+		// placePlayersNomad groups each player's units 1-3 tiles round one spot.
+		CHECK(sim.resources().count < resources);
+		{
+			const auto uv = sim.units();
+			for (uint8_t p = 0; p < 2; ++p) {
+				float cx = 0.0f, cz = 0.0f;
+				int n = 0;
+				for (size_t i = 0; i < uv.count; ++i)
+					if (uv.alive[i] && uv.team[i] == p) { cx += uv.pos_x[i]; cz += uv.pos_z[i]; ++n; }
+				CHECK(n > 0);
+				cx /= (float)n; cz /= (float)n;
+				for (size_t i = 0; i < uv.count; ++i)
+					if (uv.alive[i] && uv.team[i] == p) CHECK(std::hypot(uv.pos_x[i] - cx, uv.pos_z[i] - cz) < 6.5f);
+			}
+		}
 		sim.set_player_active(0, true, false);
 		sim.set_player_active(1, true, true);
 		sim.set_starting_resources(0, 0, 0, 0); // every Civic Centre resource comes from treasure
@@ -524,6 +542,33 @@ int main() {
 		}
 		const BuildingTypeInfo &cc = building_type_info(BLD_TOWN_CENTER);
 		CHECK(tre_res[RES_WOOD] >= 2 * cc.wood_cost && tre_res[RES_STONE] >= 2 * cc.stone_cost && tre_res[RES_GOLD] >= 2 * cc.gold_cost);
+	}
+
+	// 15a. fortress.js places the StartEntities infantry a second time at 8 tiles.
+	{
+		Simulation main_sim, fort;
+		main_sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
+		fort.generate_random_map(MAP_FORTRESS, 5, 2, 64.0f);
+		int infantry = 0;
+		for (int e = 0; e < START_ENTITY_COUNT; ++e)
+			for (uint8_t p = 0; p < 2; ++p)
+				if (start_entity_table()[e].civ == fort.team_civ(p) && std::strstr(start_entity_table()[e].tmpl, "infantry"))
+					infantry += start_entity_table()[e].count;
+		CHECK(infantry > 0 && fort.unit_count() == main_sim.unit_count() + (size_t)infantry);
+	}
+
+	// 15b. Nomad with Disable Treasures: Setup.js destroys every treasure, the Nomad ones too.
+	{
+		Simulation sim;
+		sim.set_nomad(true);
+		sim.set_disable_treasures(true);
+		sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
+		sim.set_player_active(0, true, false);
+		sim.set_player_active(1, true, true);
+		sim.set_starting_resources(0, 0, 0, 0);
+		sim.set_victory_condition(VICTORY_CONQUEST);
+		sim.tick(0.05f);
+		CHECK(sim.treasures().empty());
 	}
 
 	// 16. RegicideGarrison: the Regicide hero stays out of structures unless the option is on.
