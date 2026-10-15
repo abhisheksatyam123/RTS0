@@ -679,7 +679,7 @@ public:
 				static const char *const kFormationIcons[rtso::FORMATION_COUNT] = {
 					"null", "line_closed", "box", "column", "phalanx", "wedge", "skirmish", "line_open",
 					"column_open", "flank", "battle_line", "ship_line", "ship_column", "flank", "syntagma",
-					"testudo", "testudo"};
+					"testudo", "testudo", "phalanx"};
 				const uint32_t *sel_ids = (const uint32_t *)selected_ids.ptr();
 				const size_t sel_n = (size_t)selected_ids.size();
 				uint32_t in_use = 0;       // formations a selected unit is in (bit 0: a unit in none)

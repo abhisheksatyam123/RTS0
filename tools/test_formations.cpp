@@ -142,12 +142,19 @@ static void test_templates() {
 	check(civ_has(CIV_KUSHITES, FORMATION_SYNTAGMA) && !civ_has(CIV_KUSHITES, FORMATION_PHALANX), "Kushites: syntagma");
 	check(!civ_has(CIV_BRITONS, FORMATION_PHALANX) && !civ_has(CIV_BRITONS, FORMATION_TESTUDO) &&
 			civ_has(CIV_BRITONS, FORMATION_WEDGE) && civ_has(CIV_BRITONS, FORMATION_BOX), "Britons: only the common formations");
+	// shield_wall.xml: the Germans' (players/germ.xml) for their spearmen, 10+, phalanx-like.
+	const FormationTemplate &sw = formation_template(FORMATION_SHIELD_WALL);
+	check(civ_has(CIV_GERMANS, FORMATION_SHIELD_WALL) && !civ_has(CIV_GERMANS, FORMATION_PHALANX) &&
+			!civ_has(CIV_ATHENIANS, FORMATION_SHIELD_WALL) && sw.required_members == 10 && sw.max_columns == 20 &&
+			sw.width_depth_ratio == 4.0f && sw.shift_rows, "Germans: shield wall (10+, up to 20 columns)");
 
 	auto unit_has = [](const char *id, uint8_t f) {
 		const uint16_t r = roster(id);
 		return r != CIV_UNIT_TEMPLATE_NONE && ((formation_unit_table()[r].formations >> f) & 1u);
 	};
 	check(unit_has("athen/infantry_spearman_b", FORMATION_PHALANX), "Athenian Hoplite may form a phalanx (hoplite mixin)");
+	check(unit_has("germ/infantry_spearman_b", FORMATION_SHIELD_WALL) && !unit_has("germ/infantry_javelineer_b", FORMATION_SHIELD_WALL),
+			"German spearman may form a shield wall, the javelineer may not");
 	check(!unit_has("gaul/infantry_spearman_b", FORMATION_PHALANX), "a Gallic spearman may not");
 	check(unit_has("mace/infantry_pikeman_b", FORMATION_SYNTAGMA), "Macedonian pikeman: syntagma");
 	check(unit_has("rome/infantry_swordsman_b", FORMATION_TESTUDO), "Roman swordsman: testudo");
