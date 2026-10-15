@@ -1343,6 +1343,8 @@ void RtsoMain::update_hud() {
 		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
 		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
 				turn_mgr_.is_replaying());
+		const uint8_t vp = view_player();
+		minimap_panel_.set_civ(vp < rtso::MAX_PLAYERS ? rtso::civ_info(sim->player_civ(vp)).code : "gaia");
 	}
 	// GameSpeedButton: hidden in networked games (g_IsNetworked), shown in replays with Fast Forward.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep());
