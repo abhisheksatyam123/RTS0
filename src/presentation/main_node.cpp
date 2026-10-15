@@ -894,6 +894,18 @@ void RtsoMain::update_net_status_overlay() {
 					tr("If the issue persists or occurs regularly, visit the official FAQ for detailed guidance and troubleshooting steps.");
 		}
 		net_status_label_->set_text(text);
+		// The timeout is a "Connection Error" box with Close and Open FAQ.
+		const bool timed_out = !joined && net_host_.disconnectReason() == 0;
+		if (net_status_title_) {
+			net_status_title_->set_text(timed_out ? tr("Connection Error") : String());
+			net_status_title_->set_visible(timed_out);
+		}
+		if (net_status_exit_) {
+			net_status_exit_->set_text(timed_out ? tr("Close") : tr("Exit"));
+			net_status_exit_->set_offset(SIDE_LEFT, timed_out ? -176 : -84);
+			net_status_exit_->set_offset(SIDE_RIGHT, timed_out ? -8 : 84);
+		}
+		if (net_status_faq_) net_status_faq_->set_visible(timed_out);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
 		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
@@ -922,6 +934,11 @@ void RtsoMain::update_net_status_overlay() {
 	if (net_loading_clients_->get_text() != centred) net_loading_clients_->set_text(centred);
 	net_loading_clients_->set_visible(!loading.is_empty());
 	if (net_status_overlay_->is_visible() == status.is_empty()) net_status_overlay_->set_visible(!status.is_empty());
+}
+
+// reportConnectionRequestTimeOut's Open FAQ.
+void RtsoMain::_on_open_faq_pressed() {
+	OS::get_singleton()->shell_open("https://gitea.wildfiregames.com/0ad/0ad/wiki/FAQ#what-shall-i-do-when-joining-multiplayer-matches-fails-with-an-error-message");
 }
 
 // disconnectedExitButton: endGame(true), the summary page.
@@ -2518,6 +2535,13 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["setup_page"] = net_setup_overlay_ != nullptr;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
+	d["net_status_title"] = net_status_title_ && net_status_title_->is_visible() ? net_status_title_->get_text() : String();
+	{
+		String buttons;
+		for (Button *b : {net_status_exit_, net_status_faq_})
+			if (b && b->is_visible()) buttons += (buttons.is_empty() ? "" : ",") + b->get_text();
+		d["net_status_buttons"] = buttons;
+	}
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
 	d["net_warnings"] = net_warnings_label_ && net_warnings_label_->is_visible() ? net_warnings_label_->get_parsed_text() : String();

@@ -3167,8 +3167,10 @@ private:
 		int min, target, batch;
 		float strength, siege_strength, stone, metal; // interests; 1 = no costsResource penalty
 		int count = 0;
+		uint8_t index = 0; // its place in the plan's full list (PetraAttackManager::dropped_classes)
 	};
-	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind);
+	// The plan's unitStat classes, less those whose bit is set in `dropped`.
+	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind, uint16_t dropped = 0);
 	// Whether a building of ours trains some roster template of the class now (trainMoreUnits
 	// drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
@@ -3323,6 +3325,8 @@ private:
 	bool petra_phasing() const;
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
+	bool petra_minor_tech_waiting() const;
+	void petra_queue_special_tech(uint8_t t);
 	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);

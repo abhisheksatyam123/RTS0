@@ -243,6 +243,7 @@
    "72": "rubble_stone_2x2",
    "73": "rubble_stone_6x4",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x6"
   },
   "brit": {
@@ -275,6 +276,7 @@
    "7": "rubble_stone_5x5",
    "70": "rubble_stone_5x5",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_5x5"
   },
   "cart": {
@@ -311,6 +313,7 @@
    "71": "rubble_stone_2x2",
    "72": "rubble_stone_2x2",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x6"
   },
   "gaul": {
@@ -343,6 +346,7 @@
    "70": "rubble_stone_5x5",
    "8": "rubble_stone_wall_long",
    "80": "rubble_stone_4x4",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_5x5"
   },
   "germ": {
@@ -377,6 +381,7 @@
    "7": "rubble_stone_5x5",
    "70": "rubble_stone_5x5",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_6x4"
   },
   "han": {
@@ -413,6 +418,7 @@
    "8": "rubble_stone_wall_long",
    "83": "rubble_stone_6x6",
    "84": "rubble_stone_4x2",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x6"
   },
   "iber": {
@@ -444,6 +450,7 @@
    "7": "rubble_stone_6x6",
    "70": "rubble_stone_5x5",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x4"
   },
   "kush": {
@@ -480,6 +487,7 @@
    "70": "rubble_stone_5x5",
    "8": "rubble_stone_wall_long",
    "82": "rubble_stone_4x4",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x6"
   },
   "mace": {
@@ -514,6 +522,7 @@
    "72": "rubble_stone_2x2",
    "73": "rubble_stone_6x4",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x6"
   },
   "maur": {
@@ -547,6 +556,7 @@
    "70": "rubble_stone_5x5",
    "8": "rubble_stone_wall_long",
    "81": "rubble_stone_2x2",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x4"
   },
   "pers": {
@@ -586,6 +596,7 @@
    "78": "rubble_stone_6x6",
    "79": "rubble_stone_2x2",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x4"
   },
   "ptol": {
@@ -623,6 +634,7 @@
    "72": "rubble_stone_2x2",
    "8": "rubble_stone_wall_long",
    "85": "rubble_stone_6x6",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x6"
   },
   "rome": {
@@ -663,6 +675,7 @@
    "76": "rubble_stone_2x2",
    "77": "rubble_stone_4x4",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x6"
   },
   "sele": {
@@ -696,6 +709,7 @@
    "70": "rubble_stone_5x5",
    "72": "rubble_stone_2x2",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x6"
   },
   "spart": {
@@ -730,6 +744,7 @@
    "71": "rubble_stone_2x2",
    "73": "rubble_stone_5x5",
    "8": "rubble_stone_wall_long",
+   "86": "rubble_stone_4x4",
    "9": "rubble_stone_4x6"
   }
  }

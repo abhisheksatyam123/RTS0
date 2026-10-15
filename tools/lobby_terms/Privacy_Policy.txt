@@ -1,0 +1,5 @@
+Privacy Policy (template)
+
+This is the template for an RTS0 lobby server's Privacy Policy. Replace it with what your server keeps and for how long.
+
+The lobby server keeps your player name, an encrypted form of your password (never the password itself), your rating and games played, and the lobby chat. Hosting or joining a game shares your network address with the other players of that game.
