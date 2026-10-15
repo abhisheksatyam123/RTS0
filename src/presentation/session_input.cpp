@@ -69,7 +69,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 
 		// While placing a building, letters pick the building to place
-		// (RTS0 [hotkey.rts0.build]); the camera scrolls with the arrows only.
+		// (RTS0 [hotkey.rts0.build], unbound by default as 0.28 has no such keys).
 		if (build_mode) {
 			static const struct { const char *name; uint8_t type; } kBuildKeys[] = {
 				{"rts0.build.civilcentre", rtso::BLD_TOWN_CENTER}, {"rts0.build.house", rtso::BLD_HOUSE},
