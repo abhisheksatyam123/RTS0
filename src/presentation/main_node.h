@@ -78,6 +78,7 @@
 #include "minimap_panel_view.h"
 #include "control_groups_view.h"
 #include "range_overlays.h"
+#include "rally_point_renderer.h"
 #include "music_manager.h"
 #include "session_audio.h"
 
@@ -226,8 +227,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	MeshInstance3D *ghost_mesh = nullptr;
 	Ref<StandardMaterial3D> ghost_mat_ok;
 	Ref<StandardMaterial3D> ghost_mat_bad;
-	MeshInstance3D *rally_flag = nullptr;
 	RtsoRangeOverlays range_overlays_;
+	RtsoRallyPoints rally_points_;
 	std::vector<MeshInstance3D *> wall_ghosts;
 
 	bool build_mode = false;
@@ -632,6 +633,9 @@ public:
 				}
 		return -1;
 	}
+	// Rally point flags drawn this frame (rally_point_renderer.h).
+	int debug_rally_flags() const { return rally_points_.flag_count(); }
+	int debug_status_sprites() const { return view ? view->status_sprite_count() : 0; }
 	PackedInt32Array debug_selected_structures() const {
 		PackedInt32Array out;
 		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);

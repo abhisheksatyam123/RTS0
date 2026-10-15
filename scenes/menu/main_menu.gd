@@ -31,11 +31,24 @@ const BACKGROUNDS = {
 }
 
 const BG_KEYS = ["hellenes", "carthage", "kush", "seleucid"]
+# pregame/backgrounds/background.js, per layer: [cosine amplitude (share of the
+# 16:9 width), cosine rate (per second), constant offset (share of the width),
+# tiling]; the Kushite third layer adds 0.01 * width * cos(0.04 t) and the fourth
+# sits at -0.1 px.
+const LAYERS = {
+	"carthage": [[0.02, 0.05, 0.0, true], [0.04, 0.05, 0.0, true], [0.10, 0.05, 0.0, false], [0.18, 0.05, 0.0, false]],
+	"hellenes": [[0.02, 0.05, 0.0, true], [0.12, 0.05, -0.1, false], [0.16, 0.05, 0.25, false]],
+	"kush": [[0.07, 0.1, 0.0, true], [0.05, 0.1, 0.0, true], [0.04, 0.1, 0.0, true], [0.0, 0.0, 0.0, true]],
+	"seleucid": [[0.05, 0.02, 0.0, true], [0.10, 0.04, 0.0, true], [0.17, 0.05, 0.125, false]],
+}
+const MENU_SPEED := 1200.0 # MainMenuItemHandler.js MenuSpeed: 1.2 px/ms
 var current_bg_index: int = 0
-var bg_layers: Array[TextureRect] = []
+var bg_layers: Array[Control] = []
+var _bg_specs: Array = []
+var _bg_civ := "hellenes"
 
 var time_elapsed: float = 0.0
-var mouse_pos_norm: Vector2 = Vector2.ZERO
+var _slide: Tween
 
 @onready var parallax_container: Control = $ParallaxContainer
 @onready var main_panel: Control = $MainPanel
@@ -124,6 +137,7 @@ func _ready() -> void:
 	MenuAudio.play_menu_music()
 
 	submenu_panel.visible = false
+	move_child(submenu_panel, main_panel.get_index()) # it slides out from behind the panel
 	# Back at the main menu, nothing played next belongs to a campaign until one is started.
 	if has_node("/root/MatchSettings"):
 		get_node("/root/MatchSettings").campaign_run = ""
@@ -168,27 +182,72 @@ func _setup_background(civ_name: String) -> void:
 	for child in parallax_container.get_children():
 		child.queue_free()
 	bg_layers.clear()
-
-	var textures = BACKGROUNDS.get(civ_name, BACKGROUNDS["hellenes"])
-	for path in textures:
-		var tex = load(path)
-		if tex:
-			var rect = TextureRect.new()
+	_bg_civ = civ_name if BACKGROUNDS.has(civ_name) else "hellenes"
+	_bg_specs = LAYERS[_bg_civ]
+	parallax_container.clip_contents = true
+	var textures: Array = BACKGROUNDS[_bg_civ]
+	for i in textures.size():
+		var tex = load(textures[i])
+		# BackgroundLayer: a tiling layer repeats its 2:1 image across the screen,
+		# the others are one 2:1 piece placed from the centre.
+		var layer := Control.new()
+		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for k in (3 if _bg_specs[i][3] else 1):
+			var rect := TextureRect.new()
 			rect.texture = tex
 			rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-			rect.anchor_right = 1.0
-			rect.anchor_bottom = 1.0
-			rect.offset_left = -120.0
-			rect.offset_right = 120.0
-			rect.offset_top = -40.0
-			rect.offset_bottom = 40.0
-			parallax_container.add_child(rect)
-			bg_layers.append(rect)
+			rect.stretch_mode = TextureRect.STRETCH_SCALE
+			rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			layer.add_child(rect)
+		parallax_container.add_child(layer)
+		bg_layers.append(layer)
+	_place_layers()
 
 	var civ_lbl = get_node_or_null("CivSwitcher/CivLabel")
 	if civ_lbl:
 		civ_lbl.text = "CIVILIZATION: " + civ_name.to_upper()
+
+## BackgroundLayer.update: each layer's offset at the time since the menu opened.
+func _layer_offset(i: int, t: float, width: float) -> float:
+	var spec: Array = _bg_specs[i]
+	if _bg_civ == "kush" and i == 3:
+		return -0.1
+	var off: float = spec[0] * width * cos(spec[1] * t) + spec[2] * width
+	if _bg_civ == "kush" and i == 2:
+		off += 0.01 * width * cos(0.04 * t)
+	return off
+
+func _place_layers() -> void:
+	var vp := get_viewport_rect().size
+	var height := vp.y
+	var width := height * 16.0 / 9.0 # BackgroundLayer.AspectRatio
+	for i in bg_layers.size():
+		var layer := bg_layers[i]
+		if not is_instance_valid(layer):
+			continue
+		var off := _layer_offset(i, time_elapsed, width)
+		layer.position = Vector2.ZERO
+		layer.size = vp
+		var pieces := layer.get_children()
+		if _bg_specs[i][3]:
+			var iw := height * 2.0
+			var left := fmod(off, iw)
+			if left >= 0.0:
+				left -= iw
+			for k in pieces.size():
+				pieces[k].position = Vector2(left + k * iw, 0)
+				pieces[k].size = Vector2(iw, height)
+			# enough copies to reach the right edge
+			while left + pieces.size() * iw < vp.x:
+				var extra: TextureRect = pieces[0].duplicate()
+				layer.add_child(extra)
+				pieces = layer.get_children()
+				extra.position = Vector2(left + (pieces.size() - 1) * iw, 0)
+				extra.size = Vector2(iw, height)
+		else:
+			var right := vp.x / 2.0 + off
+			pieces[0].position = Vector2(right - height, 0)
+			pieces[0].size = Vector2(2.0 * height, height)
 
 func _cycle_background() -> void:
 	current_bg_index = (current_bg_index + 1) % BG_KEYS.size()
@@ -196,29 +255,11 @@ func _cycle_background() -> void:
 
 func _process(delta: float) -> void:
 	time_elapsed += delta
-	var vp_size = get_viewport_rect().size
-	if vp_size.x <= 0:
-		return
-
-	# Gentle 0 A.D. trigonometric parallax drift + subtle mouse reactivity
-	var num_layers = bg_layers.size()
-	for i in range(num_layers):
-		var layer = bg_layers[i]
-		if not is_instance_valid(layer):
-			continue
-		var depth_factor: float = float(i + 1) / float(num_layers)
-		var drift: float = sin(time_elapsed * (0.2 + depth_factor * 0.15)) * (20.0 * depth_factor)
-		var mouse_drift: float = (mouse_pos_norm.x - 0.5) * (35.0 * depth_factor)
-		var target_offset_x: float = -120.0 + drift + mouse_drift
-		layer.offset_left = lerp(layer.offset_left, target_offset_x, delta * 3.0)
-		layer.offset_right = layer.offset_left + vp_size.x + 240.0
+	if get_viewport_rect().size.x > 0:
+		_place_layers()
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion:
-		var vp_size = get_viewport_rect().size
-		if vp_size.x > 0 and vp_size.y > 0:
-			mouse_pos_norm = Vector2(event.position.x / vp_size.x, event.position.y / vp_size.y)
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		# If clicked outside main panel and submenu, close submenu
 		if submenu_panel.visible:
 			var main_rect = main_panel.get_global_rect()
@@ -238,6 +279,7 @@ func _toggle_submenu(menu_id: String, anchor_button: Button) -> void:
 		return
 
 	submenu_title.text = data["title"]
+	submenu_title.visible = false # 0.28's submenu has no heading
 
 	# Populate items
 	for c in submenu_buttons_box.get_children():
@@ -259,12 +301,24 @@ func _toggle_submenu(menu_id: String, anchor_button: Button) -> void:
 	# Position adjacent to the anchor button
 	var btn_global_pos = anchor_button.global_position
 	var main_global_rect = main_panel.get_global_rect()
-	submenu_panel.global_position.x = main_global_rect.position.x + main_global_rect.size.x + 4
+	var target_x: float = main_global_rect.position.x + main_global_rect.size.x + 4
 	submenu_panel.global_position.y = clamp(btn_global_pos.y - 12, 10, get_viewport_rect().size.y - submenu_panel.size.y - 10)
+	# MainMenuItemHandler.onTick: it slides out from behind the panel at MenuSpeed.
+	var was_open: bool = submenu_panel.visible
 	submenu_panel.visible = true
+	if _slide:
+		_slide.kill()
+	if was_open:
+		submenu_panel.global_position.x = target_x
+	else:
+		submenu_panel.global_position.x = target_x - submenu_panel.size.x
+		_slide = create_tween()
+		_slide.tween_property(submenu_panel, "global_position:x", target_x, submenu_panel.size.x / MENU_SPEED)
 
 func _close_submenu() -> void:
 	active_menu_id = ""
+	if _slide:
+		_slide.kill()
 	submenu_panel.visible = false
 
 ## colorizeHotkey: "%(hotkey)s" becomes the item's hotkey keys.
