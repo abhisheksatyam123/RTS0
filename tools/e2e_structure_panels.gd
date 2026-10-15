@@ -11,6 +11,8 @@ extends SceneTree
 # Exit code 0 = pass.
 
 const BLD_SENTRY_TOWER := 19
+const BLD_HOUSE := 1
+const BLD_GATE := 8
 
 const TT = preload("res://scenes/common/tooltips.gd")
 
@@ -87,5 +89,42 @@ func run() -> void:
 		(instance_from_id(u[0]["id"]) as Button).pressed.emit()
 	await frames(30)
 	check(row_with("Upgrade to a").size() == 1, "a click cancels")
+	print("4. Gates and alerts across the selection (selection_panels.js Gate, Alert)")
+	var house: int = main.debug_spawn_building(BLD_HOUSE, -30.0, 30.0)
+	var g1: int = main.debug_spawn_building(BLD_GATE, -30.0, -30.0)
+	var g2: int = main.debug_spawn_building(BLD_GATE, -40.0, -30.0)
+	await frames(4)
+	main.debug_select_structures(PackedInt32Array([house, g1]))
+	await frames(4)
+	check(row_with("Lock Gate").size() == 1 and row_with("Unlock Gate").size() == 1, "a house first and a gate: the Gate panel shows")
+	main.debug_select_entity(g1)
+	await frames(4)
+	(instance_from_id(row_with("Lock Gate")[0]["id"]) as Button).pressed.emit()
+	await frames(30)
+	main.debug_select_structures(PackedInt32Array([g1, g2]))
+	await frames(4)
+	var lk := row_with("Lock Gate")
+	var ul := row_with("Unlock Gate")
+	check(lk.size() == 1 and ul.size() == 1 and lk[0]["corners"] and ul[0]["corners"], "a locked and an unlocked gate frame both buttons")
+	var cc: int = main.debug_civic_centre_id(0)
+	main.debug_select_structures(PackedInt32Array([house, cc]))
+	await frames(4)
+	check(row_with("Raise an alert!").size() == 1, "a house first and a Civic Center: the Alert panel shows")
+	(instance_from_id(row_with("Raise an alert!")[0]["id"]) as Button).pressed.emit()
+	var inside := 0
+	for i in 400:
+		await frames(1)
+		if i % 20 != 19:
+			continue
+		inside = 0
+		for id in [cc, house]:
+			main.debug_select_entity(id)
+			await frames(1)
+			var g = main.debug_selected_building().get("garrisoned", 0)
+			inside += g.size() if g is Array or g is PackedInt32Array else int(g)
+		if inside > 0:
+			break
+	print("    garrisoned after the alert: ", inside)
+	check(inside > 0, "the Civic Center's alert sends its civilians inside")
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

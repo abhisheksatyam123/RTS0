@@ -754,46 +754,70 @@ bool RtsoMain::load_pending_save() {
 	// Host Saved Game: host it once loaded; Start continues it for everyone.
 	net_saved_game_ = (bool)ms->get("net_saved_game") && String(ms->get("net_mode")) == "host" ? path : String();
 	ms->set("net_saved_game", false);
+	net_saved_seats_.clear();
+	if (!net_saved_game_.is_empty()) {
+		const Array players = meta.get("players", Array());
+		for (int i = 0; i < players.size(); ++i) {
+			const Dictionary p = players[i];
+			const int id = (int)p.get("id", -1);
+			if (id < 0 || id >= rtso::MAX_PLAYERS) continue;
+			if ((int)net_saved_seats_.size() <= id) net_saved_seats_.resize(id + 1);
+			if (!(bool)p.get("ai", false) && !(bool)p.get("defeated", false))
+				net_saved_seats_[id] = "@" + String(p.get("name", "")).to_lower(); // "@": a seat, even unnamed
+		}
+	}
 	return true;
 }
 
-// 0 A.D. NMT_SAVED_GAME_START, with gamesetup PlayerAssignmentsController's
-// seating: a client takes the seat its name had in the save, else the first
-// free seat a human played (no AI's), else watches. The host seats itself the
-// same way. Every client then loads the host's world (TurnManager::start_saved_game).
+// 0 A.D. NMT_SAVED_GAME_START: everyone keeps the seat the setup page's player
+// assignment gave them (which seats only in the save's human seats). Anyone
+// not seated there yet takes, as PlayerAssignmentsController does, the seat
+// its name had in the save, else the first free seat a human played (no
+// AI's), else watches. Every client then loads the host's world (TurnManager::start_saved_game).
 void RtsoMain::host_start_saved_game() {
 	Dictionary meta = read_json(net_saved_game_.get_basename() + ".json");
-	std::vector<std::pair<uint8_t, String>> human; // seat, name in the save
-	const Array players = meta.get("players", Array());
-	for (int i = 0; i < players.size(); ++i) {
-		const Dictionary p = players[i];
-		const int id = (int)p.get("id", -1);
-		if (id >= 0 && id < rtso::MAX_PLAYERS && !(bool)p.get("ai", false) && !(bool)p.get("defeated", false))
-			human.emplace_back((uint8_t)id, String(p.get("name", "")).to_lower());
-	}
+	// The setup page could change nothing but the seats (GameSettingControl
+	// EnabledWhenSavedGame); the save's own settings go out with it.
+	apply_settings_snapshot(meta.get("settings", Dictionary()));
+	auto is_seat = [&](int id) { return id >= 0 && id < (int)net_saved_seats_.size() && !net_saved_seats_[id].is_empty(); };
 	std::set<uint8_t> taken;
-	auto seat_for = [&](const std::string &name, bool observer) -> uint8_t {
-		if (observer) return 0xFF;
-		const String n = String::utf8(name.c_str()).to_lower();
-		for (const auto &h : human)
-			if (h.second == n && !taken.count(h.first)) { taken.insert(h.first); return h.first; }
-		for (const auto &h : human)
-			if (!taken.count(h.first)) { taken.insert(h.first); return h.first; }
+	auto seat_for = [&](const std::string &name) -> uint8_t {
+		const String n = "@" + String::utf8(name.c_str()).to_lower();
+		for (int id = 0; id < (int)net_saved_seats_.size(); ++id)
+			if (net_saved_seats_[id] == n && !taken.count(id)) { taken.insert(id); return id; }
+		for (int id = 0; id < (int)net_saved_seats_.size(); ++id)
+			if (is_seat(id) && !taken.count(id)) { taken.insert(id); return id; }
 		return 0xFF;
 	};
 	std::map<uint32_t, uint8_t> seats;
-	// Names first, so a returning player is not pushed out by an earlier joiner.
 	std::vector<const rtso::NetPeer *> clients;
 	for (const auto &p : net_host_.getPeers())
 		if (p.id != 0 && p.connected && p.is_authenticated && !p.kick_disconnect_ms) clients.push_back(&p);
+	// The host's player assignment first (PlayerAssignmentsController: the
+	// page seats clients only in the save's human seats; Unassigned watches).
+	auto assigned = [&](uint32_t c) -> int {
+		if (c >= 8 || !((net_setup_.clients >> c) & 1)) return -2; // not on the page yet
+		for (int k = 0; k < 8; ++k)
+			if (net_setup_.slot_client[k] == (int8_t)c) return is_seat(k) && !taken.count(k) ? k : -2;
+		return -1;
+	};
+	auto seat_from_page = [&](uint32_t c) {
+		const int k = assigned(c);
+		if (k >= 0) { taken.insert((uint8_t)k); seats[c] = (uint8_t)k; }
+		else if (k == -1) seats[c] = 0xFF;
+	};
+	seat_from_page(0);
+	for (const auto *p : clients) if (!p->is_observer) seat_from_page(p->id);
+	// Anyone the page has not seated yet: the seat its name had in the save,
+	// else the first free one a human played (no AI's), else watches.
 	auto named = [&](const std::string &name) {
-		const String n = String::utf8(name.c_str()).to_lower();
-		for (const auto &h : human) if (h.second == n) return true;
+		const String n = "@" + String::utf8(name.c_str()).to_lower();
+		for (const auto &h : net_saved_seats_) if (h == n) return true;
 		return false;
 	};
-	seats[0] = seat_for(net_host_.localPlayerName(), false);
-	for (const auto *p : clients) if (named(p->player_name)) seats[p->id] = seat_for(p->player_name, p->is_observer);
-	for (const auto *p : clients) if (!seats.count(p->id)) seats[p->id] = seat_for(p->player_name, p->is_observer);
+	if (!seats.count(0)) seats[0] = seat_for(net_host_.localPlayerName());
+	for (const auto *p : clients) if (!seats.count(p->id) && (p->is_observer || named(p->player_name))) seats[p->id] = p->is_observer ? 0xFF : seat_for(p->player_name);
+	for (const auto *p : clients) if (!seats.count(p->id)) seats[p->id] = seat_for(p->player_name);
 	rtso::GameSetupParams setup;
 	match_settings_setup(setup);
 	setup.saved_game = 1;

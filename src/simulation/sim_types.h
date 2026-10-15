@@ -2126,7 +2126,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 		case BLD_SUPER_DOCK: add(SUP); add(INF); add(CAV); add(TC_SHIP); break;
 		default: break; // storehouse, farmstead, corral, market, dock, ...: none
 	}
-	if (civ == CIV_HAN && type != BLD_SENTRY_TOWER && type != BLD_WALL_TOWER && l.n < 5) add(TC_MINISTER);
+	if (civ == CIV_HAN && type != BLD_SENTRY_TOWER && type != BLD_WALL_TOWER && type != BLD_SHRINE && l.n < 5) add(TC_MINISTER);
 	return l;
 }
 inline bool garrison_list_matches(const GarrisonClassList &l, TechClasses classes) {

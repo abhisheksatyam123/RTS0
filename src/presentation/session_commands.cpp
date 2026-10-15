@@ -449,10 +449,15 @@ void RtsoMain::_on_dropsite_sharing_pressed(int shared) {
 }
 
 // 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35, from every
-// selected structure of the primary one's type.
+// selected structure that raises alerts (raiseAlert: the selection's AlertRaisers).
 void RtsoMain::_on_alert_pressed(int end) {
 	if (selected_building_id == 0) return;
-	for (uint32_t id : selected_structures_like_primary()) {
+	for (uint32_t id : selected_structures()) {
+		rtso::AlertRaiserInfo ai;
+		bool raiser = false;
+		for (const auto &b : sim->buildings())
+			if (b.id == id) raiser = b.team == local_player() && rtso::building_alert_raiser(b.type, ai);
+		if (!raiser) continue;
 		if (net_lockstep())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_ALERT, nullptr, 0, 0, 0, id, end ? 1 : 0);
 		else if (end)
