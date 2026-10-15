@@ -16,6 +16,8 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
+	# The batch Shift trains comes from user.cfg; pin 0 A.D.'s default (in memory only).
+	RtsoUserConfig.new().set_value("gui.session.batchtrainingsize", "5")
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	run.call_deferred()
@@ -97,8 +99,10 @@ func run() -> void:
 	print("    grid ", icons.map(func(e): return str(e["tip"]).get_slice("\n", 0)))
 	check(icons.size() == 1 and str(icons[0]["tip"]).contains("Barracks"), "the details show one Barracks group")
 	var ins: Dictionary = main.debug_inspector("current")
-	print("    capture ", ins["capture_parts"].size(), " parts")
-	check(ins["capture_parts"].size() == 1 and float(ins["capture_parts"][0]["width"]) > 300.0, "captureMultiple: their summed capture points show, all the owner's")
+	var cparts: Array = ins["capture_multiple_parts"]
+	print("    count ", ins["count"], " health ", ins["health_multiple"], " capture ", ins["capture_multiple"], " parts ", cparts)
+	check(String(ins["count"]) == "2" and String(ins["health_multiple"]).begins_with("Health:"), "displayMultiple: the count in large text and a vertical health bar")
+	check(cparts.size() == 1 and float(cparts[0]) > 35.0 and String(ins["capture_multiple"]) != "", "captureMultiple: their summed capture points show, all the owner's")
 
 	print("2. Training spreads over them")
 	var rl: ItemList = null
@@ -118,7 +122,10 @@ func run() -> void:
 	main._on_roster_item_clicked(pick, Vector2(), MOUSE_BUTTON_LEFT)
 	await frames(2)
 	await key(KEY_SHIFT, false)
-	await frames(6)
+	for i in 60: # the batch is posted as a command, so it lands a turn later
+		await frames(1)
+		if main.debug_building_queue(b1) == 6 and main.debug_building_queue(b2) == 6:
+			break
 	print("    queues ", main.debug_building_queue(b1), " ", main.debug_building_queue(b2))
 	check(main.debug_building_queue(b1) == 6 and main.debug_building_queue(b2) == 6, "a batch of 5 goes to each")
 	var producers := []

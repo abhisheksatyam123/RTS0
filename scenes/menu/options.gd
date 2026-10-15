@@ -12,6 +12,13 @@ extends Control
 ## [category, [[type, key, label, tooltip, extra], ...]]; extra is
 ## [min, max] for slider and number, [[label, value], ...] for dropdowns.
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
+const TABS := preload("res://scenes/common/tab_buttons.gd")
+const MODERN := preload("res://scenes/common/modern_theme.gd")
+# options.json tooltip of each SCHEMA category, in order.
+const TAB_TIPS := ["Change general options.", "Set the balance between performance and visual appearance.",
+	"Adjust advanced graphic options.", "Make changes to the sound options.",
+	"Change options relevant on the game setup page.", "Change multiplayer options.",
+	"Configure the in-game chat.", "Customize the in-game display.", "Change options affecting the gameplay."]
 
 const SCHEMA := [
 	["General", [
@@ -226,6 +233,8 @@ var _controls := {} # key -> [type, control, extra]
 var _labels := {} # key -> its Label
 var _saved := {} # key -> value at the last save / load
 var _tabs: TabContainer
+var _tab_buttons: VBoxContainer # tab_buttons.xml, vertical
+var _hotkeys := RtsoHotkeyConfig.new()
 var _description: Label
 var _confirm: Control # the open message box, null when closed
 var _updating := false
@@ -248,32 +257,55 @@ func _ready() -> void:
 	_load_controls()
 
 func _build() -> void:
+	# options.xml: ModernFade over the page behind, an 800x748 ModernDialog titled
+	# "Game Options", vertical tab buttons on the left, the options in a box on the
+	# right and Reset, Revert, Save and Close across the bottom.
+	theme = MODERN.theme()
 	var bg := ColorRect.new()
-	bg.color = Color(0.07, 0.08, 0.12, 0.96 if overlay else 1.0)
+	bg.color = Color(0, 0, 0, 0.6) if overlay else Color(0.07, 0.08, 0.12, 1.0)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(860, 600)
+	panel.name = "Dialog"
+	panel.theme_type_variation = "ModernDialogContainer"
+	panel.custom_minimum_size = Vector2(800, minf(748.0, get_viewport_rect().size.y - 24.0))
 	center.add_child(panel)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
 	panel.add_child(vb)
-	var head := HBoxContainer.new()
-	vb.add_child(head)
 	var title := Label.new()
 	title.text = "Game Options"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", Color(1, 0.85, 0.4))
-	head.add_child(title)
-	if not overlay:
-		head.add_child(_button("Hotkeys", _on_hotkeys_pressed, "BtnHotkeys"))
+	vb.add_child(title)
+	var body := HBoxContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 10)
+	vb.add_child(body)
+	_tab_buttons = VBoxContainer.new()
+	_tab_buttons.name = "TabButtons"
+	_tab_buttons.custom_minimum_size = Vector2(215, 0)
+	_tab_buttons.add_theme_constant_override("separation", 4)
+	body.add_child(_tab_buttons)
+	var box := PanelContainer.new() # ModernDarkBoxGold
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0.45)
+	sb.border_color = Color(0.83, 0.68, 0.21)
+	sb.set_border_width_all(1)
+	sb.set_content_margin_all(8)
+	box.add_theme_stylebox_override("panel", sb)
+	body.add_child(box)
 	_tabs = TabContainer.new()
+	_tabs.tabs_visible = false
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vb.add_child(_tabs)
+	_tabs.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	_tabs.tab_changed.connect(_on_tab_changed)
+	box.add_child(_tabs)
 	for cat in SCHEMA:
 		var scroll := ScrollContainer.new()
 		scroll.name = cat[0]
@@ -287,18 +319,47 @@ func _build() -> void:
 		scroll.add_child(grid)
 		for opt in cat[1]:
 			_add_option(grid, opt)
+	# tab_buttons.js placeTabButtons(g_Options, false, ...): vertical, options.json tooltips.
+	var keys: Dictionary = RtsoHotkeyConfig.new().get_hotkey_map()
+	var group := ButtonGroup.new()
+	for i in SCHEMA.size():
+		var b := Button.new()
+		b.text = tr(SCHEMA[i][0])
+		b.toggle_mode = true
+		b.button_group = group
+		b.theme_type_variation = "ModernTabButtonVertical"
+		b.custom_minimum_size = Vector2(215, 30)
+		b.tooltip_text = TABS.tooltip(tr(TAB_TIPS[i]) if i < TAB_TIPS.size() else "", false, keys)
+		_tabs.set_tab_tooltip(i, b.tooltip_text)
+		b.pressed.connect(func(): _tabs.current_tab = i)
+		b.gui_input.connect(func(ev: InputEvent):
+			var d: int = TABS.wheel(ev)
+			if d != 0:
+				_tabs.current_tab = TABS.next_index(_tabs.current_tab, d, _tabs.get_tab_count())
+				b.accept_event())
+		_tab_buttons.add_child(b)
+	_on_tab_changed(_tabs.current_tab)
 	_description = Label.new()
 	_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_description.custom_minimum_size = Vector2(0, 40)
 	_description.add_theme_color_override("font_color", Color(0.85, 0.85, 0.75))
 	vb.add_child(_description)
 	var foot := HBoxContainer.new()
-	foot.alignment = BoxContainer.ALIGNMENT_END
+	foot.alignment = BoxContainer.ALIGNMENT_CENTER
+	foot.add_theme_constant_override("separation", 10)
 	vb.add_child(foot)
-	foot.add_child(_button("Reset", _on_reset, "BtnReset"))
-	foot.add_child(_button("Revert", _on_revert, "BtnRevert"))
-	foot.add_child(_button("Save", _on_save, "BtnSave"))
-	foot.add_child(_button("Close", _on_close, "BtnBack"))
+	for spec in [["Reset", _on_reset, "BtnReset", "Resets user settings to their game default"],
+			["Revert", _on_revert, "BtnRevert", "Reverts to previous saved settings"],
+			["Save", _on_save, "BtnSave", "Saves changes"],
+			["Close", _on_close, "BtnBack", "Unsaved changes affect this session only"]]:
+		var btn := _button(spec[0], spec[1], spec[2])
+		btn.custom_minimum_size = Vector2(162, 28)
+		btn.tooltip_text = spec[3]
+		foot.add_child(btn)
+
+func _on_tab_changed(i: int) -> void:
+	if _tab_buttons and i >= 0 and i < _tab_buttons.get_child_count():
+		(_tab_buttons.get_child(i) as Button).set_pressed_no_signal(true)
 
 func _button(text: String, cb: Callable, node_name: String = "") -> Button:
 	var b := Button.new()
@@ -314,7 +375,8 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 	var key: String = opt[1]
 	var label := Label.new()
 	label.text = opt[2]
-	label.custom_minimum_size = Vector2(320, 0)
+	label.custom_minimum_size = Vector2(320, 0) # option_label: 65% of the 545 px box
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.mouse_filter = Control.MOUSE_FILTER_PASS
 	_labels[key] = label
 	if DEPENDENCIES.has(key):
@@ -339,9 +401,9 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			s.min_value = extra[0]
 			s.max_value = extra[1]
 			s.step = 0.01 if float(extra[1]) <= 2.0 else 1.0
-			s.custom_minimum_size = Vector2(240, 24)
+			s.custom_minimum_size = Vector2(130, 24)
 			var v := Label.new()
-			v.custom_minimum_size = Vector2(56, 0)
+			v.custom_minimum_size = Vector2(50, 0)
 			row.add_child(s)
 			row.add_child(v)
 			s.value_changed.connect(func(x):
@@ -361,7 +423,8 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			if extra is String and extra == "locales":
 				extra = _locale_items()
 			var ob = RtsoSafeSelect.new()
-			ob.custom_minimum_size = Vector2(300, 30)
+			ob.custom_minimum_size = Vector2(190, 30) # option_control_dropdown: the other 35%
+			ob.clip_text = true
 			for item in extra:
 				ob.add_item(item[0])
 			ob.item_selected.connect(func(i):
@@ -372,7 +435,7 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			c = ob
 		"string":
 			var le := LineEdit.new()
-			le.custom_minimum_size = Vector2(300, 30)
+			le.custom_minimum_size = Vector2(190, 30)
 			MatchSettings.prepare_line_edit(le)
 			le.text_changed.connect(func(t): _changed(key, t.replace("\"", "").strip_edges())) # user.cfg quotes values
 			c = le
@@ -380,7 +443,7 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			# options.js "color": the "R G B" value with a swatch of it.
 			var row := HBoxContainer.new()
 			var le := LineEdit.new()
-			le.custom_minimum_size = Vector2(160, 30)
+			le.custom_minimum_size = Vector2(150, 30)
 			MatchSettings.prepare_line_edit(le)
 			var sw := ColorRect.new()
 			sw.custom_minimum_size = Vector2(30, 30)
@@ -579,12 +642,13 @@ func _close() -> void:
 	if not overlay:
 		MatchSettings.go("res://scenes/menu/main_menu.tscn")
 
-func _on_hotkeys_pressed() -> void:
-	if has_unsaved_changes():
-		_on_save()
-	MatchSettings.go("res://scenes/menu/hotkeys.tscn")
-
 func _unhandled_input(event: InputEvent) -> void:
-	if overlay and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+	var d: int = TABS.direction(event, _hotkeys)
+	if d != 0 and _confirm == null:
+		get_viewport().set_input_as_handled()
+		_tabs.current_tab = TABS.next_index(_tabs.current_tab, d, _tabs.get_tab_count())
+		return
+	# closeButton hotkey="cancel", over a match or opened from the main menu.
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE and _confirm == null:
 		_on_close()
 		get_viewport().set_input_as_handled()

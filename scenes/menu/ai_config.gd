@@ -6,6 +6,7 @@ extends Control
 ## opens it for that player: AI Player (None or Petra Bot), AI Difficulty and
 ## AI Behavior, the AI's description, and OK. Choosing None makes the slot an
 ## unassigned one again and closes the dialog (AIConfigPage.maybeClose).
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 signal closed
 
@@ -60,11 +61,8 @@ func _ready() -> void:
 	dialog.offset_right = 290
 	dialog.offset_top = -200
 	dialog.offset_bottom = 200
-	var sheet := StyleBoxFlat.new()
-	sheet.bg_color = Color(0.09, 0.08, 0.07, 0.98)
-	sheet.border_color = Color(0.72, 0.6, 0.3)
-	sheet.set_border_width_all(2)
-	dialog.add_theme_stylebox_override("panel", sheet)
+	theme = MODERN.theme() # 0.28's modern skin (ModernDialog and its widgets)
+	dialog.theme_type_variation = "ModernDialog"
 	add_child(dialog)
 	var title := Label.new()
 	title.text = tr("AI Configuration")

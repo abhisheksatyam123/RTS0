@@ -326,6 +326,7 @@ void RtsoWorldView::_ready() {
 	terrain = memnew(MeshInstance3D);
 	terrain->set_mesh(plane_mesh);
 	terrain->set_position(Vector3(0, -0.01f, 0));
+	terrain->set_layer_mask(1u | DECAL_LAYER);
 	add_child(terrain);
 
 	Ref<ShaderMaterial> terrain_mat = rtso::Assets::load_terrain_material();
@@ -1665,6 +1666,31 @@ void RtsoWorldView::load_foundations() {
 		building_frames_[String(glbs[i]).utf8().get_data()] = actor_frame_of(frames[glbs[i]], "metre");
 }
 
+void RtsoWorldView::load_rubble() {
+	rubble_loaded_ = true;
+	Ref<FileAccess> f = FileAccess::open("res://data/rubble.json", FileAccess::READ);
+	if (!f.is_valid()) return;
+	Dictionary root = JSON::parse_string(f->get_as_text());
+	Dictionary structures = root.get("structures", Dictionary());
+	Array civs = structures.keys();
+	for (int i = 0; i < civs.size(); ++i) {
+		Dictionary rows = structures[civs[i]];
+		Array types = rows.keys();
+		for (int j = 0; j < types.size(); ++j)
+			rubble_of_[String(String(civs[i]) + "/" + String(types[j])).utf8().get_data()] = String(rows[types[j]]).utf8().get_data();
+	}
+	Dictionary rubble = root.get("rubble", Dictionary());
+	Array ids = rubble.keys();
+	for (int i = 0; i < ids.size(); ++i) {
+		Dictionary e = rubble[ids[i]];
+		ActorFrame fr;
+		fr.scale = (float)e.get("scale", 0.0);
+		Array o = e.get("origin", Array());
+		if (o.size() == 3) fr.origin = Vector3((float)o[0], (float)o[1], (float)o[2]);
+		rubble_frames_[String(ids[i]).utf8().get_data()] = fr;
+	}
+}
+
 // 0 A.D. Foundation.js: a structure being built draws its template's
 // FoundationActor, switched to the "scaffold" variant once building starts. Both
 // sit on the entity's position: under the building model as drawn, the actor
@@ -1719,6 +1745,7 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 			frame = &fr->second;
 		}
 	}
+	v.foundation_glb = art ? art->id : String(rtso::civ_building_foundation(btype));
 	if (!art) {
 		place(v.foundation, rtso::civ_building_foundation(btype), foundation_on);
 		place(v.scaffold, rtso::civ_building_scaffold(btype), scaffold_on);
@@ -2011,6 +2038,67 @@ void RtsoWorldView::update_site_dust(BuildingVis &v, uint8_t kind, int builders,
 		v.site_dust->set_amount_ratio(ratio);
 		v.site_dust->set_emitting(ratio > 0.0f);
 	}
+}
+
+// 0 A.D. CModelDecal: a structure's or foundation's decal prop lays a textured
+// rectangle (width x depth metres, turned by angle degrees) on the terrain under
+// it. Godot Decal nodes on the root project them onto the terrain's DECAL_LAYER
+// only; `k` and `base` place the GLB's units under the root (the model's scale,
+// or the foundation's seat). The terrain shader darkens out-of-sight ground
+// before decals blend in, so they take the LOS brightness as their modulate.
+void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness) {
+	if (!v.root) return;
+	const String key = glb_id.is_empty() ? String() : glb_id + String("|") + String::num(k, 4) + String("|") + String::num(base.x, 3) + String("|") + String::num(base.z, 3);
+	if (key != v.decal_key) {
+		for (Decal *d : v.decals) {
+			if (d->get_parent()) d->get_parent()->remove_child(d);
+			d->queue_free();
+		}
+		v.decals.clear();
+		v.decal_key = key;
+		if (key.is_empty()) return;
+		if (!building_decals_loaded_) {
+			building_decals_loaded_ = true;
+			Ref<FileAccess> f = FileAccess::open("res://data/building_decals.json", FileAccess::READ);
+			Dictionary root = f.is_valid() ? Dictionary(Dictionary(JSON::parse_string(f->get_as_text())).get("decals", Dictionary())) : Dictionary();
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Array list = root[keys[i]];
+				std::vector<BuildingDecal> &out = building_decals_[String(keys[i]).utf8().get_data()];
+				for (int j = 0; j < list.size(); ++j) {
+					Dictionary e = list[j];
+					Array pos = e.get("pos", Array()), size = e.get("size", Array());
+					if (pos.size() != 2 || size.size() != 2) continue;
+					out.push_back({ e.get("tex", ""), Vector2((float)pos[0], (float)pos[1]), Vector2((float)size[0], (float)size[1]),
+							(float)e.get("angle", 0.0) });
+				}
+			}
+		}
+		const auto it = building_decals_.find(building_table_key(glb_id));
+		if (it == building_decals_.end()) return;
+		for (const BuildingDecal &bd : it->second) {
+			Ref<Texture2D> &tex = decal_tex_[bd.tex.utf8().get_data()];
+			if (tex.is_null()) {
+				const String path = "res://assets/textures/decals/" + bd.tex + ".png";
+				if (rtso::Assets::res_exists(path)) tex = ResourceLoader::get_singleton()->load(path);
+				if (tex.is_null()) continue;
+			}
+			const Vector2 sz = bd.size * k;
+			Decal *d = memnew(Decal);
+			d->set_texture(Decal::TEXTURE_ALBEDO, tex);
+			// Tall enough to reach ground the structure does not flatten.
+			d->set_size(Vector3(sz.x, std::max(2.0f, 0.5f * std::max(sz.x, sz.y)), sz.y));
+			d->set_cull_mask(DECAL_LAYER);
+			d->set_normal_fade(0.3f);
+			d->set_transform(Transform3D(Basis(Vector3(0, 1, 0), Math::deg_to_rad(bd.angle)),
+					Vector3(base.x + bd.pos.x * k, 0.0f, base.z + bd.pos.y * k)));
+			v.root->add_child(d);
+			v.decals.push_back(d);
+		}
+	}
+	const Color mod(brightness, brightness, brightness, 1.0f);
+	for (Decal *d : v.decals)
+		if (d->get_modulate() != mod) d->set_modulate(mod);
 }
 
 void RtsoWorldView::hide_unit_vis(UnitVis &v) {
@@ -3562,6 +3650,27 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		String cat_b = "buildings";
 		// Collapse = house sinks (no skeletal death clip). Then SpawnEntityOnDeath rubble.
 		String visual_id = (v.phase == 4) ? String(rubble_id) : String(mid);
+		// 0 A.D. Health/SpawnEntityOnDeath: the structure's own rubble actor (data/rubble.json),
+		// laid on the entity's position through the building GLB's actor frame.
+		bool own_rubble = false;
+		float rubble_k = 1.0f, rubble_metre = 0.25f;
+		Vector3 rubble_pos;
+		if (v.phase == 4) {
+			if (!rubble_loaded_) load_rubble();
+			if (!foundations_loaded_) load_foundations();
+			const auto ro = rubble_of_.find(std::string(rtso::civ_info(bciv < rtso::CIV_COUNT ? bciv : rtso::CIV_ATHENIANS).code) + "/" + std::to_string(b.type));
+			const auto fr = building_frames_.find(building_table_key(mid));
+			const auto rf = ro == rubble_of_.end() ? rubble_frames_.end() : rubble_frames_.find(ro->second);
+			if (rf != rubble_frames_.end() && rf->second.scale > 0.0f && fr != building_frames_.end() && fr->second.scale > 0.0f) {
+				const auto &me = rtso::ModelLibrary::get(cat_b, mid);
+				const float ms = me.scale > 0.05f ? me.scale : 1.0f;
+				rubble_metre = fr->second.scale * ms;
+				rubble_k = rubble_metre / rf->second.scale;
+				rubble_pos = Vector3(fr->second.origin.x * ms, 0.0f, fr->second.origin.z * ms) - rf->second.origin * rubble_k;
+				visual_id = String(ro->second.c_str());
+				own_rubble = true;
+			}
+		}
 		attach_building_model(v, visual_id);
 		auto entry = rtso::ModelLibrary::get(cat_b, visual_id);
 		float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
@@ -3594,6 +3703,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					dy = 4.0f;
 				n3->set_rotation(Vector3(t * 0.22f, t * 0.40f, t * -0.14f));
 				n3->set_position(Vector3((t - 0.5f) * 0.45f, entry.y_offset - t * dy * 0.90f, (0.5f - t) * 0.35f));
+			} else if (v.phase == 4 && own_rubble) {
+				// template_rubble.xml Decay: it stands DelayTime 15 s, then sinks at SinkRate 0.2 m/s.
+				n3->set_visible(true);
+				n3->set_scale(Vector3(rubble_k, rubble_k, rubble_k));
+				const float sink = std::max(0.0f, v.phase_t - 0.70f - 15.0f) * 0.2f * rubble_metre;
+				n3->set_position(rubble_pos - Vector3(0, sink, 0));
 			} else if (v.phase == 4) {
 				n3->set_visible(true);
 				float sink = Math::clamp((v.phase_t - 0.70f) / 2.40f, 0.0f, 1.0f);
@@ -3615,6 +3730,26 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 		push_player_color(v.root, v.player_rgba, player_display_color(sim, b.team));
+		{
+			// The ground decal of the model drawn: the foundation's while it is a site.
+			String decal_glb;
+			float dk = b_scale;
+			Vector3 dbase;
+			if (v.phase == 0) {
+				decal_glb = visual_id;
+			} else if (v.phase == 4 && own_rubble) {
+				decal_glb = visual_id;
+				dk = rubble_k;
+				dbase = rubble_pos;
+			} else if (v.phase == 1 || v.phase == 2) {
+				if (Node3D *fn = Object::cast_to<Node3D>(v.foundation); fn && fn->is_visible()) {
+					decal_glb = v.foundation_glb;
+					dk = fn->get_scale().x;
+					dbase = fn->get_position();
+				}
+			}
+			update_building_decals(v, decal_glb, dk, dbase, Math::round(los_brightness(b.x, b.z) * (FOG_OVERLAY_LEVELS - 1)) / (FOG_OVERLAY_LEVELS - 1));
+		}
 
 		{
 			const float frac = b.max_hp > 0.0f ? b.hp / b.max_hp : 1.0f;
@@ -3724,6 +3859,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].site_dust = nullptr;
 			building_pool[s].site_dust_kind = 0;
 			building_pool[s].site_dust_poll = 0.0f;
+			building_pool[s].decals.clear();
+			building_pool[s].decal_key = String();
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}

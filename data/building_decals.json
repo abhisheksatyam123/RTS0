@@ -1,0 +1,5542 @@
+{
+ "decals": {
+  "academy": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.2201
+    ],
+    "size": [
+     5.8026,
+     5.8026
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "amphitheater": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     5.8007,
+     5.8007
+    ],
+    "tex": "decal_struct_sand_large_round"
+   }
+  ],
+  "archery_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0008,
+     -0.0064
+    ],
+    "size": [
+     4.9849,
+     4.9849
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "arsenal": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1006,
+     0.1039
+    ],
+    "size": [
+     6.5311,
+     6.3496
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "athen_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.1487
+    ],
+    "size": [
+     4.8592,
+     4.8592
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "athen_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0156,
+     -0.6619
+    ],
+    "size": [
+     -5.1555,
+     3.3623
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "athen_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1917,
+     0.0442
+    ],
+    "size": [
+     4.2058,
+     2.2941
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "athen_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0173,
+     0.0912
+    ],
+    "size": [
+     7.1631,
+     7.1631
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "athen_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0201,
+     -0.0498
+    ],
+    "size": [
+     3.2504,
+     3.2504
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "athen_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0018
+    ],
+    "size": [
+     3.0132,
+     3.0132
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "athen_storehouse": [
+   {
+    "angle": -45.0,
+    "pos": [
+     -0.0894,
+     -0.0334
+    ],
+    "size": [
+     5.5741,
+     3.5674
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "athen_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.2469,
+     0.0333
+    ],
+    "size": [
+     6.2503,
+     6.2503
+    ],
+    "tex": "decal_struct_paving_aegean_large"
+   }
+  ],
+  "athen_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6635,
+     8.6635
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.1487
+    ],
+    "size": [
+     4.8592,
+     4.8592
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1303,
+     -0.0743
+    ],
+    "size": [
+     4.0637,
+     4.0637
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "blacksmith_brit": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0241,
+     -0.1292
+    ],
+    "size": [
+     4.4991,
+     4.4991
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "blacksmith_kart": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0154,
+     -0.0175
+    ],
+    "size": [
+     3.6702,
+     3.6702
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "brit_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0601,
+     -0.1334
+    ],
+    "size": [
+     -4.9771,
+     4.9771
+    ],
+    "tex": "celt_barracks_decal"
+   }
+  ],
+  "brit_corral": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0168,
+     -0.2135
+    ],
+    "size": [
+     4.1596,
+     2.6622
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "brit_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.2781,
+     0.0053
+    ],
+    "size": [
+     4.6872,
+     2.5566
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "brit_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1127,
+     -0.0635
+    ],
+    "size": [
+     5.545,
+     5.545
+    ],
+    "tex": "celt_barracks_decal"
+   }
+  ],
+  "brit_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0273,
+     0.026
+    ],
+    "size": [
+     5.7908,
+     5.7908
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "brit_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.074,
+     -0.4761
+    ],
+    "size": [
+     -4.2603,
+     2.7785
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "brit_temple": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0785,
+     0.1745
+    ],
+    "size": [
+     6.9262,
+     6.9262
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "brit_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0111,
+     -0.1084
+    ],
+    "size": [
+     6.0752,
+     6.0752
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "brit_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0908,
+     -0.0115
+    ],
+    "size": [
+     8.6207,
+     8.6207
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "cart_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0015,
+     0.1613
+    ],
+    "size": [
+     4.8374,
+     4.8374
+    ],
+    "tex": "spart_barracks_decal"
+   }
+  ],
+  "cart_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.03,
+     -0.6775
+    ],
+    "size": [
+     -5.1865,
+     3.3825
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "cart_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1155,
+     0.012
+    ],
+    "size": [
+     3.4384,
+     3.4384
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "cart_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0012,
+     0.3749
+    ],
+    "size": [
+     4.0582,
+     4.0582
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "cart_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0001,
+     0.221
+    ],
+    "size": [
+     3.3644,
+     3.3644
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "cart_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0658,
+     0.1204
+    ],
+    "size": [
+     2.9961,
+     2.9961
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "cart_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.207,
+     0.1721
+    ],
+    "size": [
+     4.4724,
+     4.4724
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "cart_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0474,
+     0.1519
+    ],
+    "size": [
+     4.7877,
+     4.7877
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "cart_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6636,
+     8.6636
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.03,
+     -0.6775
+    ],
+    "size": [
+     -5.1865,
+     3.3825
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "defense_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.001,
+     -0.0
+    ],
+    "size": [
+     4.592,
+     4.592
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1917,
+     0.0442
+    ],
+    "size": [
+     4.2058,
+     2.2941
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "fndn_10x12": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     -0.0004
+    ],
+    "size": [
+     8.8201,
+     10.5001
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_10x18": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0,
+     2.6255
+    ],
+    "size": [
+     8.8198,
+     10.4997
+    ],
+    "tex": "decal_struct_sand_large"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0,
+     -2.6255
+    ],
+    "size": [
+     8.8198,
+     10.4997
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_2x2": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0978,
+     0.022
+    ],
+    "size": [
+     2.0999,
+     2.0999
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "fndn_3x1": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0,
+     0.0166
+    ],
+    "size": [
+     2.941,
+     1.2604
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_3x3": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.076,
+     -0.0324
+    ],
+    "size": [
+     2.9399,
+     2.9399
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "fndn_3x3_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.076,
+     -0.0324
+    ],
+    "size": [
+     2.9399,
+     2.9399
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "fndn_3x6": [
+   {
+    "angle": 90.0,
+    "pos": [
+     -0.0976,
+     0.0233
+    ],
+    "size": [
+     5.4602,
+     2.9401
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_4x3": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0,
+     0.0004
+    ],
+    "size": [
+     3.7798,
+     2.9399
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "fndn_4x4": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     0.0004
+    ],
+    "size": [
+     3.7801,
+     3.7801
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "fndn_4x5": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     -0.0004
+    ],
+    "size": [
+     3.7801,
+     4.6202
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "fndn_4x6": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0338,
+     -0.0156
+    ],
+    "size": [
+     5.4598,
+     3.7798
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_4x8": [
+   {
+    "angle": 90.0,
+    "pos": [
+     -0.0424,
+     0.0
+    ],
+    "size": [
+     7.1397,
+     3.7798
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_5x3": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0065,
+     -0.0004
+    ],
+    "size": [
+     4.6199,
+     2.9399
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "fndn_5x4": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     0.0004
+    ],
+    "size": [
+     4.6202,
+     3.7801
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "fndn_5x5": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0788,
+     -0.052
+    ],
+    "size": [
+     4.6203,
+     4.6203
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_5x6": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0004,
+     -0.0004
+    ],
+    "size": [
+     4.6201,
+     5.4601
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_5x7": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     0.0004
+    ],
+    "size": [
+     4.6201,
+     6.3001
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_5x7_temple": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0995,
+     0.0091
+    ],
+    "size": [
+     4.6197,
+     6.2996
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_5x8": [
+   {
+    "angle": 90.0,
+    "pos": [
+     -0.0004,
+     0.0004
+    ],
+    "size": [
+     7.1402,
+     4.6201
+    ],
+    "tex": "decal_struct_sand_long_big"
+   }
+  ],
+  "fndn_5x9": [
+   {
+    "angle": 90.0,
+    "pos": [
+     -0.0004,
+     -0.0004
+    ],
+    "size": [
+     7.9801,
+     4.6201
+    ],
+    "tex": "decal_struct_sand_long_big"
+   }
+  ],
+  "fndn_6x2": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0125
+    ],
+    "size": [
+     5.4598,
+     2.0999
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_6x4": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0156,
+     -0.0338
+    ],
+    "size": [
+     5.4598,
+     3.7798
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_6x5": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     -0.0004
+    ],
+    "size": [
+     5.4601,
+     4.6201
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_6x6": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     -0.0004
+    ],
+    "size": [
+     5.4601,
+     5.4601
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_6x7": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0059,
+     0.0004
+    ],
+    "size": [
+     5.4598,
+     6.2997
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_6x9": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0075,
+     0.0004
+    ],
+    "size": [
+     5.4601,
+     7.9801
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_7x15": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     2.6255
+    ],
+    "size": [
+     6.2998,
+     7.9798
+    ],
+    "tex": "decal_struct_sand_large"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -2.6255
+    ],
+    "size": [
+     6.2998,
+     7.9798
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_7x15_hele": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     2.6258
+    ],
+    "size": [
+     6.3004,
+     7.9806
+    ],
+    "tex": "decal_struct_sand_large"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -2.6258
+    ],
+    "size": [
+     6.3004,
+     7.9806
+    ],
+    "tex": "decal_struct_sand_large"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0054
+    ],
+    "size": [
+     4.6203,
+     6.3004
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_7x5": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     -0.0004
+    ],
+    "size": [
+     6.3001,
+     4.6201
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_7x6": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     0.0059
+    ],
+    "size": [
+     6.2997,
+     5.4598
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_7x7": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     -0.0004
+    ],
+    "size": [
+     6.3001,
+     6.3001
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_7x8": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0141,
+     -0.0286
+    ],
+    "size": [
+     6.2997,
+     7.1397
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_7x9": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0004,
+     -0.0004
+    ],
+    "size": [
+     6.3001,
+     7.9801
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_8x15": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     2.6257
+    ],
+    "size": [
+     7.1402,
+     7.9802
+    ],
+    "tex": "decal_struct_sand_large"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -2.6257
+    ],
+    "size": [
+     7.1402,
+     7.9802
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_8x15_hele": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     2.6258
+    ],
+    "size": [
+     7.1404,
+     7.9805
+    ],
+    "tex": "decal_struct_sand_large"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -2.6258
+    ],
+    "size": [
+     7.1404,
+     7.9805
+    ],
+    "tex": "decal_struct_sand_large"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0054
+    ],
+    "size": [
+     4.6203,
+     6.3004
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_8x4": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0424
+    ],
+    "size": [
+     7.1397,
+     3.7798
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_8x7": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0286,
+     0.0141
+    ],
+    "size": [
+     7.1397,
+     6.2997
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_8x8": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0141,
+     -0.0286
+    ],
+    "size": [
+     7.1397,
+     7.1397
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_8x9": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0004,
+     -0.0004
+    ],
+    "size": [
+     7.1401,
+     7.9801
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_9x2": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0546
+    ],
+    "size": [
+     7.9797,
+     2.0999
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_9x3_wall": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0004
+    ],
+    "size": [
+     7.9797,
+     2.9399
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_9x7": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0004,
+     0.0004
+    ],
+    "size": [
+     7.9801,
+     6.3001
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_9x8": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0004,
+     0.0004
+    ],
+    "size": [
+     7.9801,
+     7.1401
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_9x9": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     -0.0004
+    ],
+    "size": [
+     -7.9801,
+     -7.9801
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_carthaginians_defense_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.2305,
+     0.0138
+    ],
+    "size": [
+     2.1003,
+     2.1003
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "fndn_carthaginians_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.2645,
+     0.0147
+    ],
+    "size": [
+     2.94,
+     2.94
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "fndn_carthaginians_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0019,
+     0.4409
+    ],
+    "size": [
+     5.46,
+     5.46
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fndn_carthaginians_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0001,
+     0.1549
+    ],
+    "size": [
+     2.9403,
+     2.9403
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "fndn_carthaginians_wall_long": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0405,
+     0.0
+    ],
+    "size": [
+     2.1,
+     2.1
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "fndn_carthaginians_wall_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0043
+    ],
+    "size": [
+     2.0999,
+     2.0999
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "fndn_carthaginians_wooden_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0087,
+     0.0159
+    ],
+    "size": [
+     2.0998,
+     2.0998
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "fndn_dock_iber": [
+   {
+    "angle": 90.0,
+    "pos": [
+     -0.0004,
+     1.6608
+    ],
+    "size": [
+     3.7801,
+     2.1001
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "fndn_stonehenge": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     13.6505,
+     13.6505
+    ],
+    "tex": "decal_struct_sand_large_round"
+   }
+  ],
+  "fndn_theater": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.2544,
+     -0.5695
+    ],
+    "size": [
+     12.6005,
+     12.6005
+    ],
+    "tex": "decal_struct_sand_large_round"
+   }
+  ],
+  "forge_germ": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0441,
+     0.0729
+    ],
+    "size": [
+     4.0728,
+     5.5538
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "forge_han": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.2461
+    ],
+    "size": [
+     5.0972,
+     5.0972
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0173,
+     0.0912
+    ],
+    "size": [
+     7.1631,
+     7.1631
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "foundation_3x3": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0615,
+     -0.0262
+    ],
+    "size": [
+     2.3772,
+     2.3772
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "foundation_3x3_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0615,
+     -0.0262
+    ],
+    "size": [
+     2.3772,
+     2.3772
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "foundation_4x6": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0328,
+     -0.0151
+    ],
+    "size": [
+     5.2896,
+     3.662
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "foundation_5x5": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0638,
+     -0.0421
+    ],
+    "size": [
+     3.7396,
+     3.7396
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "foundation_6x6": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0003,
+     -0.0003
+    ],
+    "size": [
+     4.6822,
+     4.6822
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "foundation_8x8": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0127,
+     -0.0258
+    ],
+    "size": [
+     6.4464,
+     6.4464
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "foundation_large": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0004,
+     -0.0004
+    ],
+    "size": [
+     6.5417,
+     6.5417
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "foundation_small": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0002,
+     0.0002
+    ],
+    "size": [
+     2.6289,
+     2.6289
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "foundation_wall": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0002
+    ],
+    "size": [
+     4.0812,
+     1.5036
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "gaul_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1413,
+     0.0131
+    ],
+    "size": [
+     5.4921,
+     5.4921
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "gaul_corral": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0168,
+     -0.2135
+    ],
+    "size": [
+     4.1596,
+     2.6622
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "gaul_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0054,
+     0.0334
+    ],
+    "size": [
+     3.6161,
+     2.9586
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "gaul_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0134,
+     -0.0284
+    ],
+    "size": [
+     6.2863,
+     6.2863
+    ],
+    "tex": "decal_struct_gravel_large"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0134,
+     -0.0284
+    ],
+    "size": [
+     5.4481,
+     5.4481
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "gaul_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1183,
+     -0.0366
+    ],
+    "size": [
+     5.7961,
+     5.7961
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "gaul_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0616,
+     -0.6348
+    ],
+    "size": [
+     -4.5746,
+     2.9835
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "gaul_temple": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0785,
+     0.1745
+    ],
+    "size": [
+     6.9262,
+     6.9262
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "gaul_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.083,
+     0.1442
+    ],
+    "size": [
+     6.9878,
+     6.9878
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "gaul_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1177,
+     0.2445
+    ],
+    "size": [
+     5.5334,
+     5.5334
+    ],
+    "tex": "decal_destruct_medium"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1177,
+     0.2445
+    ],
+    "size": [
+     9.5577,
+     9.5577
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "gaul_wonder": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0837,
+     -0.1029
+    ],
+    "size": [
+     9.7324,
+     9.7324
+    ],
+    "tex": "decal_struct_sand_large_round"
+   }
+  ],
+  "germ_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.042,
+     -0.064
+    ],
+    "size": [
+     5.1664,
+     5.1664
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "germ_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0044,
+     -0.0067
+    ],
+    "size": [
+     4.1882,
+     4.7593
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "germ_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.2061,
+     0.0049
+    ],
+    "size": [
+     -2.7733,
+     2.2186
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "germ_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0164,
+     -0.004
+    ],
+    "size": [
+     -7.6059,
+     -7.6059
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "germ_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0847,
+     -0.0051
+    ],
+    "size": [
+     2.5669,
+     2.5669
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "germ_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0256,
+     0.0049
+    ],
+    "size": [
+     5.1622,
+     5.0188
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "germ_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0673,
+     0.1386
+    ],
+    "size": [
+     4.3193,
+     4.3193
+    ],
+    "tex": "spart_3x3_decal"
+   }
+  ],
+  "germ_temple": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0293,
+     0.1304
+    ],
+    "size": [
+     5.9619,
+     5.7963
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "germ_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0009,
+     -0.0
+    ],
+    "size": [
+     4.0409,
+     4.0409
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "germ_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0172,
+     0.0431
+    ],
+    "size": [
+     7.347,
+     7.1429
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "germ_wonder": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0905,
+     -0.1004
+    ],
+    "size": [
+     7.2689,
+     7.2689
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "great_hall": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0022,
+     0.0048
+    ],
+    "size": [
+     4.7738,
+     6.5098
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "gymnasium": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0146,
+     0.5377
+    ],
+    "size": [
+     5.8028,
+     5.8028
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "han_academy": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.2201
+    ],
+    "size": [
+     5.8026,
+     5.8026
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "han_arsenal": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1006,
+     0.1039
+    ],
+    "size": [
+     6.5311,
+     6.3496
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "han_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0141
+    ],
+    "size": [
+     3.2802,
+     3.2802
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "han_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.2121,
+     0.1344
+    ],
+    "size": [
+     2.6486,
+     2.6486
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "han_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1335,
+     -0.0444
+    ],
+    "size": [
+     3.9073,
+     4.4401
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "han_forge": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.2461
+    ],
+    "size": [
+     5.0972,
+     5.0972
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "han_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     -7.6211,
+     -7.6211
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "han_fortress_old": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.1878
+    ],
+    "size": [
+     3.7031,
+     3.7031
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "han_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0557,
+     0.0485
+    ],
+    "size": [
+     1.8661,
+     1.8661
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "han_imperial_court": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0007,
+     0.0923
+    ],
+    "size": [
+     4.0731,
+     4.0731
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "han_imperial_ministry": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.045
+    ],
+    "size": [
+     4.6545,
+     4.6545
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "han_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0476,
+     -0.0617
+    ],
+    "size": [
+     5.158,
+     5.158
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "han_pagoda": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0061,
+     -0.0049
+    ],
+    "size": [
+     7.0688,
+     7.0688
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "han_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0387,
+     0.0
+    ],
+    "size": [
+     3.7883,
+     3.7883
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "han_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0031,
+     -0.3333
+    ],
+    "size": [
+     -4.2509,
+     2.7723
+    ],
+    "tex": "decal_struct_mud_long"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0031,
+     -0.3333
+    ],
+    "size": [
+     -4.2509,
+     2.7723
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "han_storehouse": [
+   {
+    "angle": -90.0,
+    "pos": [
+     0.0406,
+     -0.0563
+    ],
+    "size": [
+     4.12,
+     2.6368
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "han_tower_great": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.198
+    ],
+    "size": [
+     3.4762,
+     3.4762
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "han_tower_large": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.1706
+    ],
+    "size": [
+     2.9069,
+     2.9069
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "han_tower_small": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0652,
+     -0.2706
+    ],
+    "size": [
+     0.9535,
+     0.9535
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "han_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0067,
+     0.1034
+    ],
+    "size": [
+     4.5649,
+     4.5649
+    ],
+    "tex": "decal_struct_gravel_large"
+   }
+  ],
+  "house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.051,
+     0.0
+    ],
+    "size": [
+     2.9246,
+     2.9246
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "iber_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0167,
+     -0.1345
+    ],
+    "size": [
+     2.3082,
+     2.3082
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "iber_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0856,
+     -0.6233
+    ],
+    "size": [
+     -4.8584,
+     3.1685
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "iber_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1465,
+     0.1135
+    ],
+    "size": [
+     5.3946,
+     2.9425
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "iber_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0
+    ],
+    "size": [
+     5.146,
+     5.146
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "iber_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0003,
+     0.1363
+    ],
+    "size": [
+     1.7817,
+     1.7817
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "iber_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0502,
+     -0.0304
+    ],
+    "size": [
+     3.9302,
+     3.9302
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "iber_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0102,
+     0.0326
+    ],
+    "size": [
+     5.1727,
+     5.1727
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "iber_temple": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.003,
+     -0.0442
+    ],
+    "size": [
+     4.2418,
+     4.2418
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "iber_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.3513,
+     0.0242
+    ],
+    "size": [
+     6.4376,
+     6.4376
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "iber_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     7.5471,
+     7.5471
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "iber_wonder": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0008,
+     0.5898
+    ],
+    "size": [
+     7.1322,
+     7.1322
+    ],
+    "tex": "decal_struct_sand_large_round"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -2.2353,
+     1.556
+    ],
+    "size": [
+     1.1887,
+     1.1887
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "kush_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0035,
+     0.0801
+    ],
+    "size": [
+     4.2197,
+     4.2197
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "kush_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0753,
+     -0.0917
+    ],
+    "size": [
+     4.2436,
+     4.2436
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "kush_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.3603,
+     -0.4146
+    ],
+    "size": [
+     -4.2813,
+     3.4251
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "kush_defense_tower_stone": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0001,
+     0.0266
+    ],
+    "size": [
+     1.7714,
+     1.7714
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "kush_dock": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0044,
+     -0.3421
+    ],
+    "size": [
+     -3.4207,
+     2.7366
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "kush_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1659,
+     -0.0675
+    ],
+    "size": [
+     3.9813,
+     4.5242
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "kush_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0117,
+     0.2656
+    ],
+    "size": [
+     4.9782,
+     4.9782
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "kush_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0724,
+     0.0422
+    ],
+    "size": [
+     1.6671,
+     1.6671
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "kush_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0115,
+     -0.0146
+    ],
+    "size": [
+     2.9049,
+     2.9049
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "kush_pyramid_large": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0,
+     0.8688
+    ],
+    "size": [
+     3.4172,
+     1.8985
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "kush_pyramid_small": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0352
+    ],
+    "size": [
+     2.29,
+     2.29
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "kush_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0262,
+     0.0551
+    ],
+    "size": [
+     5.0585,
+     5.0585
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "kush_shrine": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     2.4467,
+     2.4467
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "kush_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0535,
+     -0.4236
+    ],
+    "size": [
+     -4.1528,
+     2.7083
+    ],
+    "tex": "decal_struct_mud_long"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0535,
+     -0.4236
+    ],
+    "size": [
+     -4.1528,
+     2.7083
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "kush_stable_elephant": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0157
+    ],
+    "size": [
+     5.1296,
+     5.1296
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "kush_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0206,
+     -0.1027
+    ],
+    "size": [
+     3.178,
+     3.178
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "kush_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0204
+    ],
+    "size": [
+     1.6386,
+     1.6386
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "kush_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6636,
+     8.6636
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "kush_wall_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0204
+    ],
+    "size": [
+     1.6386,
+     1.6386
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "kush_wonder": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0054,
+     -0.2791
+    ],
+    "size": [
+     2.3495,
+     2.3495
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "kush_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1381,
+     0.1046
+    ],
+    "size": [
+     5.5162,
+     5.3629
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "mace_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.1487
+    ],
+    "size": [
+     3.3641,
+     3.3641
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "mace_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0156,
+     -0.6619
+    ],
+    "size": [
+     -5.1555,
+     3.3623
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "mace_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1917,
+     0.0442
+    ],
+    "size": [
+     4.2058,
+     2.2941
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "mace_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0173,
+     0.0912
+    ],
+    "size": [
+     5.2529,
+     5.2529
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "mace_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0201,
+     -0.0498
+    ],
+    "size": [
+     3.2504,
+     3.2504
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "mace_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0018
+    ],
+    "size": [
+     3.0132,
+     3.0132
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "mace_storehouse": [
+   {
+    "angle": -45.0,
+    "pos": [
+     -0.0894,
+     -0.0334
+    ],
+    "size": [
+     5.5741,
+     3.5674
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "mace_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.2091,
+     0.0329
+    ],
+    "size": [
+     6.1794,
+     6.1794
+    ],
+    "tex": "decal_struct_paving_aegean_large"
+   }
+  ],
+  "mace_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6635,
+     8.6635
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0018
+    ],
+    "size": [
+     3.0132,
+     3.0132
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "maur_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.1704
+    ],
+    "size": [
+     3.1099,
+     3.1099
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "maur_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0184,
+     0.0255
+    ],
+    "size": [
+     3.4364,
+     3.4364
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "maur_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0429,
+     0.0726
+    ],
+    "size": [
+     4.3708,
+     2.3841
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "maur_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     5.4879,
+     5.4879
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "maur_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     2.9983,
+     2.9983
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "maur_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0166,
+     0.0547
+    ],
+    "size": [
+     5.0269,
+     4.4355
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "maur_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0759,
+     -0.5515
+    ],
+    "size": [
+     -4.1771,
+     2.7242
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "maur_stable_elephant": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0073
+    ],
+    "size": [
+     5.4053,
+     5.4053
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "maur_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0712,
+     -0.665
+    ],
+    "size": [
+     -5.7069,
+     3.7219
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "maur_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6635,
+     8.6635
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "maur_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1762,
+     0.0446
+    ],
+    "size": [
+     5.5755,
+     5.4206
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "palace": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0178,
+     0.17
+    ],
+    "size": [
+     4.7379,
+     4.7379
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "pers_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0818,
+     0.0504
+    ],
+    "size": [
+     3.8046,
+     3.8046
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "pers_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0698,
+     -0.3834
+    ],
+    "size": [
+     -4.0136,
+     3.2109
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "pers_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0236,
+     0.0406
+    ],
+    "size": [
+     2.341,
+     2.341
+    ],
+    "tex": "decal_struct_sand_medium"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0236,
+     0.0406
+    ],
+    "size": [
+     3.6787,
+     2.0066
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "pers_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.096,
+     0.0266
+    ],
+    "size": [
+     5.3768,
+     5.3768
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "pers_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1519,
+     0.0213
+    ],
+    "size": [
+     2.8926,
+     2.8926
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "pers_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0048,
+     -0.0094
+    ],
+    "size": [
+     3.4343,
+     3.4343
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "pers_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0266,
+     0.0187
+    ],
+    "size": [
+     5.4625,
+     5.4625
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "pers_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0311
+    ],
+    "size": [
+     6.0775,
+     6.0775
+    ],
+    "tex": "decal_struct_paving_sahara_large"
+   }
+  ],
+  "pers_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6635,
+     8.6635
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "ptol_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0184
+    ],
+    "size": [
+     3.2449,
+     3.2449
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "ptol_corral": [
+   {
+    "angle": -90.0,
+    "pos": [
+     -0.035,
+     0.0072
+    ],
+    "size": [
+     4.3513,
+     2.7848
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "ptol_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0047,
+     -0.4191
+    ],
+    "size": [
+     -3.2608,
+     2.6086
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "ptol_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     5.3536,
+     5.3536
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "ptol_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0068,
+     0.009
+    ],
+    "size": [
+     4.3358,
+     4.3358
+    ],
+    "tex": "spart_3x3_decal"
+   }
+  ],
+  "ptol_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1881,
+     0.0125
+    ],
+    "size": [
+     4.2856,
+     4.2856
+    ],
+    "tex": "decal_struct_paving_sahara_large"
+   }
+  ],
+  "ptol_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0134,
+     -0.0916
+    ],
+    "size": [
+     2.8395,
+     2.8395
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "ptol_temple": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.006,
+     0.0099
+    ],
+    "size": [
+     -3.0876,
+     5.8811
+    ],
+    "tex": "spart_temple_decal"
+   }
+  ],
+  "ptol_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     3.4375,
+     3.4375
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "ptol_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.3777
+    ],
+    "size": [
+     5.9677,
+     5.9677
+    ],
+    "tex": "decal_struct_paving_sahara_large"
+   }
+  ],
+  "ptol_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6635,
+     8.6635
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "ptol_wall_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     3.4375,
+     3.4375
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "ptol_wonder": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.1445
+    ],
+    "size": [
+     1.4334,
+     1.4334
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0008,
+     -0.0064
+    ],
+    "size": [
+     4.9849,
+     4.9849
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "rome_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1754,
+     0.157
+    ],
+    "size": [
+     4.3086,
+     4.3086
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "rome_corral": [
+   {
+    "angle": -90.0,
+    "pos": [
+     -0.0455,
+     0.0088
+    ],
+    "size": [
+     4.5821,
+     2.9325
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "rome_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1162,
+     -0.3495
+    ],
+    "size": [
+     -2.7229,
+     2.1784
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "rome_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0539
+    ],
+    "size": [
+     5.5978,
+     5.5978
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "rome_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.051,
+     0.0
+    ],
+    "size": [
+     2.9246,
+     2.9246
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "rome_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0241,
+     -0.0886
+    ],
+    "size": [
+     4.7654,
+     4.7654
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "rome_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0285,
+     0.0471
+    ],
+    "size": [
+     7.7186,
+     7.7186
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_3x3": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0538,
+     -0.121
+    ],
+    "size": [
+     4.6204,
+     4.6204
+    ],
+    "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_brit_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0973,
+     -0.0124
+    ],
+    "size": [
+     9.2399,
+     9.2399
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_celt_dock": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0351,
+     0.0546
+    ],
+    "size": [
+     7.979,
+     3.1496
+    ],
+    "tex": "decal_destruct_long_big"
+   }
+  ],
+  "rubble_gaul_civic_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0983,
+     0.2042
+    ],
+    "size": [
+     4.6201,
+     4.6201
+    ],
+    "tex": "decal_destruct_medium"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0983,
+     0.2042
+    ],
+    "size": [
+     7.9802,
+     7.9802
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_hele_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1147
+    ],
+    "size": [
+     9.2401,
+     9.2401
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_iber_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0428,
+     0.1317
+    ],
+    "size": [
+     9.2395,
+     9.2395
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_kart_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1147
+    ],
+    "size": [
+     9.2399,
+     9.2399
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_large": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6636,
+     8.6636
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_maur_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1147
+    ],
+    "size": [
+     9.2399,
+     9.2399
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_pers_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1148
+    ],
+    "size": [
+     9.2407,
+     9.2407
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_pers_dock": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1373,
+     0.3913
+    ],
+    "size": [
+     4.6202,
+     4.6202
+    ],
+    "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_rome_camp_palisade": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1151,
+     -0.1277
+    ],
+    "size": [
+     9.2404,
+     9.2404
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_rome_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0341,
+     0.0564
+    ],
+    "size": [
+     9.2395,
+     9.2395
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_rome_dock": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1659,
+     -0.5366
+    ],
+    "size": [
+     9.2402,
+     9.2402
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_small": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0416,
+     -0.0166
+    ],
+    "size": [
+     2.6826,
+     2.6826
+    ],
+    "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_stone_2x2": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0266,
+     0.0055
+    ],
+    "size": [
+     3.1498,
+     3.1498
+    ],
+    "tex": "decal_destruct_small"
+   }
+  ],
+  "rubble_stone_3x3": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0717,
+     -0.0286
+    ],
+    "size": [
+     4.6201,
+     4.6201
+    ],
+    "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_stone_4x2": [
+   {
+    "angle": 180.0,
+    "pos": [
+     0.0,
+     -0.0213
+    ],
+    "size": [
+     5.8802,
+     3.5701
+    ],
+    "tex": "decal_destruct_llong"
+   }
+  ],
+  "rubble_stone_4x4": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0303,
+     0.0934
+    ],
+    "size": [
+     6.2999,
+     6.2999
+    ],
+    "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_stone_4x6": [
+   {
+    "angle": 90.0,
+    "pos": [
+     -0.0352,
+     0.0
+    ],
+    "size": [
+     8.3998,
+     5.4599
+    ],
+    "tex": "decal_destruct_llong"
+   }
+  ],
+  "rubble_stone_5x5": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0376,
+     0.1157
+    ],
+    "size": [
+     7.9801,
+     7.9801
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_stone_6x4": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0054,
+     0.1662
+    ],
+    "size": [
+     8.6095,
+     -6.7196
+    ],
+    "tex": "decal_destruct_long_big"
+   }
+  ],
+  "rubble_stone_6x6": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1147
+    ],
+    "size": [
+     9.2399,
+     9.2399
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_stone_wall_long": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0022,
+     0.0476
+    ],
+    "size": [
+     7.9804,
+     2.3101
+    ],
+    "tex": "decal_destruct_long_big"
+   }
+  ],
+  "rubble_stone_wall_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0266,
+     0.0055
+    ],
+    "size": [
+     3.1498,
+     3.1498
+    ],
+    "tex": "decal_destruct_small"
+   }
+  ],
+  "s_britons_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0241,
+     -0.1292
+    ],
+    "size": [
+     4.4991,
+     4.4991
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_britons_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0189,
+     0.0711
+    ],
+    "size": [
+     5.2009,
+     5.2009
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_britons_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0326,
+     -0.4261
+    ],
+    "size": [
+     -4.4717,
+     2.9163
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_britons_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     5.5849,
+     5.4298
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_carthaginians_apartment": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     3.6992,
+     3.6992
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_carthaginians_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0154,
+     -0.0175
+    ],
+    "size": [
+     3.6702,
+     3.6702
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_carthaginians_embassy_celtic": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.01,
+     -0.0141
+    ],
+    "size": [
+     4.5792,
+     4.5792
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_carthaginians_embassy_iberian": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0191,
+     0.249
+    ],
+    "size": [
+     4.4194,
+     4.4194
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_carthaginians_embassy_italic": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0077,
+     0.0048
+    ],
+    "size": [
+     4.6752,
+     4.6752
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_carthaginians_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0915,
+     -0.0017
+    ],
+    "size": [
+     4.9916,
+     4.9916
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_carthaginians_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.073,
+     -0.5265
+    ],
+    "size": [
+     -4.3676,
+     2.8484
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_carthaginians_wooden_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0101,
+     0.0196
+    ],
+    "size": [
+     1.4599,
+     1.4599
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_carthaginians_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0935,
+     0.044
+    ],
+    "size": [
+     6.1971,
+     6.025
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_celts_tavern": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.006,
+     -0.0027
+    ],
+    "size": [
+     3.7801,
+     3.7801
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_gauls_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0007,
+     0.016
+    ],
+    "size": [
+     4.8608,
+     4.8608
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_gauls_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1012,
+     -0.1724
+    ],
+    "size": [
+     4.6345,
+     4.0893
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_gauls_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0525,
+     -0.4905
+    ],
+    "size": [
+     -4.1042,
+     2.6767
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_gauls_theater": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0217,
+     -0.3372
+    ],
+    "size": [
+     6.7005,
+     6.7005
+    ],
+    "tex": "decal_struct_gaul_theater"
+   }
+  ],
+  "s_gauls_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.09,
+     0.1082
+    ],
+    "size": [
+     5.9879,
+     5.8216
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_germans_encampment": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0186,
+     -0.059
+    ],
+    "size": [
+     4.3561,
+     4.3561
+    ],
+    "tex": "decal_struct_sand_large_round"
+   }
+  ],
+  "s_germans_encampment_fortified": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0294,
+     0.0294
+    ],
+    "size": [
+     4.3548,
+     4.3548
+    ],
+    "tex": "decal_struct_sand_large_round"
+   }
+  ],
+  "s_germans_forge": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0441,
+     0.0729
+    ],
+    "size": [
+     4.0728,
+     5.5538
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_germans_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0558,
+     -0.0078
+    ],
+    "size": [
+     4.9985,
+     4.9985
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_germans_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0259,
+     -0.5741
+    ],
+    "size": [
+     -4.1797,
+     2.7259
+    ],
+    "tex": "decal_struct_mud_long"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.35,
+     -1.2854
+    ],
+    "size": [
+     -4.1797,
+     2.7259
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_germans_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0009,
+     -0.016
+    ],
+    "size": [
+     5.9897,
+     5.8234
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_han_forge": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.2192
+    ],
+    "size": [
+     4.541,
+     4.541
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_han_pagoda": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0025,
+     -0.0021
+    ],
+    "size": [
+     2.9398,
+     2.9398
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_han_tower_small": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0681,
+     -0.2829
+    ],
+    "size": [
+     0.9969,
+     0.9969
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_hellenes_wooden_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     1.6834,
+     1.6834
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_hellenes_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1527,
+     0.0615
+    ],
+    "size": [
+     6.3139,
+     6.1385
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_iberians_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0143,
+     0.0303
+    ],
+    "size": [
+     3.8505,
+     3.8505
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_iberians_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.016
+    ],
+    "size": [
+     4.563,
+     3.9546
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_iberians_sb_1": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.1071
+    ],
+    "size": [
+     1.9799,
+     1.9799
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_iberians_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.4849
+    ],
+    "size": [
+     -4.0118,
+     2.6164
+    ],
+    "tex": "decal_struct_mud_long"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.3105
+    ],
+    "size": [
+     -3.4886,
+     2.7908
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_iberians_wooden_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1356,
+     0.1103
+    ],
+    "size": [
+     0.9371,
+     0.9371
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_iberians_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0164,
+     -0.434
+    ],
+    "size": [
+     5.404,
+     5.2539
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_kushites_outpost_stone": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0022,
+     -0.0428
+    ],
+    "size": [
+     2.8988,
+     2.8988
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_kushites_pyramid_small": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.044
+    ],
+    "size": [
+     2.8625,
+     2.8625
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_kushites_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1501,
+     0.1136
+    ],
+    "size": [
+     5.9958,
+     5.8293
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_macedonians_theater": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0008,
+     0.092
+    ],
+    "size": [
+     3.3251,
+     3.3251
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_mauryas_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1916,
+     0.0485
+    ],
+    "size": [
+     6.0603,
+     5.892
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_mercenaries_camp_blemmye": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.7113,
+     0.8214
+    ],
+    "size": [
+     1.3473,
+     1.3473
+    ],
+    "tex": "decal_struct_sand_small"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     1.1529,
+     -0.7985
+    ],
+    "size": [
+     1.3473,
+     1.3473
+    ],
+    "tex": "decal_struct_sand_small"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.8704,
+     0.8314
+    ],
+    "size": [
+     1.3473,
+     1.3473
+    ],
+    "tex": "decal_struct_sand_small"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0416,
+     -0.2238
+    ],
+    "size": [
+     2.9641,
+     2.9641
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_mercenaries_camp_nuba": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1105,
+     -0.0927
+    ],
+    "size": [
+     3.2935,
+     3.2935
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_persians_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1251,
+     -0.0106
+    ],
+    "size": [
+     3.8941,
+     3.8941
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_persians_ice_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0126
+    ],
+    "size": [
+     3.7702,
+     3.7702
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_persians_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0064,
+     -0.0126
+    ],
+    "size": [
+     4.62,
+     4.62
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_persians_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0503,
+     0.038
+    ],
+    "size": [
+     5.0512,
+     4.457
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_persians_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.007,
+     -0.6953
+    ],
+    "size": [
+     -4.8884,
+     3.1881
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_persians_stable_elephant": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0737
+    ],
+    "size": [
+     5.6713,
+     5.6713
+    ],
+    "tex": "decal_struct_sand_large"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.4073
+    ],
+    "size": [
+     -3.336,
+     2.6688
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_persians_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1771,
+     -0.0452
+    ],
+    "size": [
+     6.4465,
+     6.2674
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_ptolemies_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0166,
+     -0.0519
+    ],
+    "size": [
+     3.5636,
+     3.5636
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_ptolemies_kiosk": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     2.9398,
+     2.9398
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_ptolemies_library": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0071,
+     -0.5128
+    ],
+    "size": [
+     2.9358,
+     2.9358
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_ptolemies_military_colony": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0138
+    ],
+    "size": [
+     5.4391,
+     5.4391
+    ],
+    "tex": "decal_struct_paving_sahara_large"
+   }
+  ],
+  "s_ptolemies_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.012,
+     0.0111
+    ],
+    "size": [
+     4.9581,
+     4.9581
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_ptolemies_settlement": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     3.2152,
+     3.2152
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_ptolemies_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0535,
+     -0.4236
+    ],
+    "size": [
+     -4.1528,
+     2.7083
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_ptolemies_stable_elephant": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0171
+    ],
+    "size": [
+     5.5756,
+     5.5756
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_ptolemies_wooden_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0001,
+     0.0783
+    ],
+    "size": [
+     3.5056,
+     3.5056
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "s_ptolemies_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1501,
+     0.1136
+    ],
+    "size": [
+     5.9958,
+     5.8293
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_romans_amphitheater_pompeii": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     4.3509,
+     4.3509
+    ],
+    "tex": "decal_struct_sand_large_round"
+   }
+  ],
+  "s_romans_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0869,
+     -0.0067
+    ],
+    "size": [
+     4.1478,
+     4.1478
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_romans_camp": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0
+    ],
+    "size": [
+     -3.7026,
+     -3.7026
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_romans_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0001,
+     -0.0076
+    ],
+    "size": [
+     4.8484,
+     4.8484
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_romans_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0318,
+     -0.5749
+    ],
+    "size": [
+     -4.2493,
+     2.7713
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_romans_wooden_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0681,
+     -0.2829
+    ],
+    "size": [
+     0.9969,
+     0.9969
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_romans_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1301,
+     0.0048
+    ],
+    "size": [
+     6.2421,
+     6.0687
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_seleucids_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1196,
+     -0.0109
+    ],
+    "size": [
+     3.2862,
+     3.2862
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_seleucids_library": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0307,
+     -0.0511
+    ],
+    "size": [
+     4.2344,
+     4.2344
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_seleucids_military_colony": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0043,
+     0.0703
+    ],
+    "size": [
+     5.7902,
+     5.7902
+    ],
+    "tex": "decal_struct_paving_sahara_large"
+   }
+  ],
+  "s_seleucids_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1043,
+     0.0172
+    ],
+    "size": [
+     4.9569,
+     4.9569
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_seleucids_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0648,
+     -0.5267
+    ],
+    "size": [
+     -4.0065,
+     2.6129
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_seleucids_stable_elephant": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0308
+    ],
+    "size": [
+     5.8118,
+     5.8118
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_seleucids_wooden_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0324,
+     -0.0074
+    ],
+    "size": [
+     2.2953,
+     2.2953
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_seleucids_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.13,
+     -0.2028
+    ],
+    "size": [
+     5.7994,
+     5.6383
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_spartans_blacksmith": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0811,
+     0.0301
+    ],
+    "size": [
+     4.7921,
+     4.7921
+    ],
+    "tex": "spart_blacksmith_decal"
+   }
+  ],
+  "s_spartans_gerousia": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0272,
+     0.4316
+    ],
+    "size": [
+     3.3596,
+     3.3596
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "s_spartans_range": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.3393,
+     0.0587
+    ],
+    "size": [
+     4.264,
+     3.7624
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_spartans_sentry_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0037,
+     0.0065
+    ],
+    "size": [
+     3.1301,
+     3.1301
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "s_spartans_stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0067,
+     -0.5037
+    ],
+    "size": [
+     -3.9401,
+     2.5696
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "s_spartans_syssiton": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0,
+     -0.0473
+    ],
+    "size": [
+     6.9584,
+     4.5025
+    ],
+    "tex": "decal_struct_sand_long_big"
+   }
+  ],
+  "s_spartans_theater": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0013,
+     -0.1826
+    ],
+    "size": [
+     5.0012,
+     5.0012
+    ],
+    "tex": "decal_struct_sand_large_round"
+   }
+  ],
+  "s_spartans_workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0014,
+     -0.3683
+    ],
+    "size": [
+     5.2833,
+     5.1366
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "sele_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0995
+    ],
+    "size": [
+     3.1866,
+     3.1866
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "sele_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.013,
+     -0.5383
+    ],
+    "size": [
+     -4.8645,
+     3.1725
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "sele_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0324,
+     0.1528
+    ],
+    "size": [
+     2.27,
+     2.27
+    ],
+    "tex": "decal_struct_sand_medium"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0324,
+     -0.3336
+    ],
+    "size": [
+     -3.7292,
+     2.4321
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "sele_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.031,
+     -0.0784
+    ],
+    "size": [
+     4.4898,
+     4.4898
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "sele_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0755,
+     -0.0493
+    ],
+    "size": [
+     2.6902,
+     2.6902
+    ],
+    "tex": "decal_struct_sand_medium"
+   }
+  ],
+  "sele_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.025,
+     0.07
+    ],
+    "size": [
+     3.6986,
+     3.6986
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "sele_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0592,
+     -0.082
+    ],
+    "size": [
+     2.8825,
+     2.8825
+    ],
+    "tex": "decal_struct_sand_medium"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0592,
+     -0.6996
+    ],
+    "size": [
+     -4.7355,
+     3.0884
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "sele_temple": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0464,
+     -0.0441
+    ],
+    "size": [
+     4.2729,
+     2.9581
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "sele_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0048,
+     0.0019
+    ],
+    "size": [
+     1.4398,
+     1.4398
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "sele_town_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0232,
+     0.0025
+    ],
+    "size": [
+     5.3793,
+     5.3793
+    ],
+    "tex": "decal_struct_paving_aegean_large"
+   }
+  ],
+  "sele_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6635,
+     8.6635
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "sele_wall_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0048,
+     0.0019
+    ],
+    "size": [
+     1.4398,
+     1.4398
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "sele_wonder": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0378,
+     -0.0699
+    ],
+    "size": [
+     2.6311,
+     1.8216
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "sentry_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0043,
+     0.0209
+    ],
+    "size": [
+     1.5935,
+     1.5935
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
+  "spart_barracks": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0114,
+     -0.1631
+    ],
+    "size": [
+     4.9767,
+     4.9767
+    ],
+    "tex": "spart_barracks_decal"
+   }
+  ],
+  "spart_corral": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.074,
+     0.1045
+    ],
+    "size": [
+     4.7736,
+     4.7736
+    ],
+    "tex": "spart_3x3_decal"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.074,
+     -0.3294
+    ],
+    "size": [
+     -4.3396,
+     3.4717
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "spart_dock": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0,
+     0.3429
+    ],
+    "size": [
+     3.8227,
+     2.6465
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
+  "spart_farmstead": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0147,
+     -0.0826
+    ],
+    "size": [
+     3.8963,
+     3.8963
+    ],
+    "tex": "spart_3x3_decal"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0147,
+     -0.4368
+    ],
+    "size": [
+     -3.5421,
+     2.8337
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "spart_fortress": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0058,
+     -0.0388
+    ],
+    "size": [
+     7.6578,
+     7.4451
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "spart_house": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0538,
+     -0.0204
+    ],
+    "size": [
+     3.4742,
+     3.4742
+    ],
+    "tex": "spart_3x3_decal"
+   }
+  ],
+  "spart_market": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0488,
+     -0.0823
+    ],
+    "size": [
+     4.6397,
+     4.5108
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ],
+  "spart_storehouse": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0537,
+     -0.0371
+    ],
+    "size": [
+     4.1789,
+     4.1789
+    ],
+    "tex": "spart_3x3_decal"
+   }
+  ],
+  "spart_temple": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0042,
+     0.0012
+    ],
+    "size": [
+     -3.0157,
+     5.7442
+    ],
+    "tex": "spart_temple_decal"
+   }
+  ],
+  "spart_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.1798
+    ],
+    "size": [
+     3.5535,
+     3.5535
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "spart_town_center_rubble": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0349,
+     0.1076
+    ],
+    "size": [
+     8.6635,
+     8.6635
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "spart_wall_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.1798
+    ],
+    "size": [
+     3.5535,
+     3.5535
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "spart_wonder": [
+   {
+    "angle": 90.0,
+    "pos": [
+     -0.0242,
+     -0.0261
+    ],
+    "size": [
+     4.5641,
+     2.2821
+    ],
+    "tex": "decal_struct_sand_long_big"
+   }
+  ],
+  "stable": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0802,
+     -0.5119
+    ],
+    "size": [
+     -4.2288,
+     2.7579
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "stable_elephant": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     -0.0557
+    ],
+    "size": [
+     5.5263,
+     5.5263
+    ],
+    "tex": "decal_struct_sand_large"
+   }
+  ],
+  "stables": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0802,
+     -0.5119
+    ],
+    "size": [
+     -4.2288,
+     2.7579
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "storehouse": [
+   {
+    "angle": -45.0,
+    "pos": [
+     -0.0894,
+     -0.0334
+    ],
+    "size": [
+     5.5741,
+     3.5674
+    ],
+    "tex": "decal_struct_mud_long"
+   }
+  ],
+  "theater": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0008,
+     0.092
+    ],
+    "size": [
+     7.6734,
+     7.6734
+    ],
+    "tex": "decal_struct_sand_large_round"
+   }
+  ],
+  "tower_artillery": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.396
+    ],
+    "size": [
+     3.6835,
+     3.6835
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "tower_bolt": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.3335
+    ],
+    "size": [
+     3.3946,
+     3.3946
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
+  "workshop": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1283,
+     0.0516
+    ],
+    "size": [
+     5.3036,
+     5.1562
+    ],
+    "tex": "spart_5x5_decal"
+   }
+  ]
+ }
+}

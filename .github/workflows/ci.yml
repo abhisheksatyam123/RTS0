@@ -73,10 +73,17 @@ jobs:
 
       - name: Unit tests (nav, maths, civ rosters)
         run: |
-          for t in test_long_pathfinder test_fixed test_geometry test_rasterize test_vertex_pathfinder test_civ_roster; do
+          for t in test_long_pathfinder test_fixed test_geometry test_rasterize test_vertex_pathfinder; do
             g++ -std=c++20 -O2 -Isrc tools/$t.cpp -o /tmp/$t
             /tmp/$t
           done
+
+      - name: Civ roster tests (spawns map-only units through the simulation)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_civ_roster.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_civ_roster
+          /tmp/test_civ_roster
 
       - name: Hotkey table tests (0 A.D. default.cfg)
         run: |
