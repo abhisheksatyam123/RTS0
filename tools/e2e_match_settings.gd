@@ -131,6 +131,7 @@ func run() -> void:
 	info["victory_mask"] = GameDescription.VK_WONDER
 	info["wonder_min"] = 2
 	info["ally_view"] = true
+	TranslationServer.add_translation(load("res://assets/l10n/de.po"))
 	TranslationServer.set_locale("de")
 	var de: String = GameDescription.describe(info)
 	TranslationServer.set_locale("en")
