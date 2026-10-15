@@ -2,7 +2,8 @@ extends SceneTree
 # The ported 0.28 skirmish maps' skirmish/structures/default_X pieces load as
 # the civ's own X (SkirmishReplacer.js): sentry towers, outposts and fields keep
 # their type, each civ keeps only the default house of its own size (Han
-# neither), and the Spartans drop the default walls.
+# neither), the Spartans drop the default walls, and only Iberians keep the
+# iber_wall_* starting walls.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_skirmish_structures.gd
 # Exit code 0 = pass.
@@ -50,7 +51,7 @@ func n(d: Dictionary, p: int, name: String) -> int:
 	return int(d.get(p, {}).get(name, 0))
 
 func run() -> void:
-	# Civ ids: 0 athen, 1 spart, 6 brit, 11 ptol, 13 han.
+	# Civ ids: 0 athen, 1 spart, 6 brit, 8 iber, 11 ptol, 13 han.
 	var y := await structures("yangtze", [0, 1])
 	check(n(y, 0, "Sentry Tower") == 4 and n(y, 1, "Sentry Tower") == 4, "yangtze: 4 sentry towers each (%s)" % str(y))
 	var dc := await structures("dueling_cliffs", [0, 0, 0, 0, 0, 0])
@@ -74,6 +75,17 @@ func run() -> void:
 				c += int(d[0][k])
 		return c
 	check(walls.call(athen) > 0 and walls.call(spart) < walls.call(athen), "skirmish_demo: the Spartans drop the default walls (%d vs %d)" % [walls.call(spart), walls.call(athen)])
+	# skirmish/structures/iber_wall_*: only the Iberians' SkirmishReplacements keep them.
+	var ab := await structures("acropolis_bay", [8, 0])
+	var ab2 := await structures("acropolis_bay", [0, 8])
+	var walls_of := func(d: Dictionary, p: int) -> int:
+		var c := 0
+		for k in d.get(p, {}):
+			if String(k).to_lower().contains("wall") or String(k).to_lower().contains("gate"):
+				c += int(d[p][k])
+		return c
+	check(walls_of.call(ab, 0) > 0 and walls_of.call(ab, 1) == 0 and walls_of.call(ab2, 0) == 0 and walls_of.call(ab2, 1) > 0,
+			"acropolis_bay: only the Iberian keeps the starting walls (%s / %s)" % [str(ab), str(ab2)])
 	change_scene_to_file("res://scenes/menu/main_menu.tscn")
 	await frames(3)
 	print("e2e_skirmish_structures: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)

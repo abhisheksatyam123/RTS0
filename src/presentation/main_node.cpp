@@ -65,7 +65,7 @@ void RtsoMain::_notification(int p_what) {
 		toggle_pause();
 	}
 	if (p_what == NOTIFICATION_EXIT_TREE) {
-		write_replay(); // leaving the match keeps its replay
+		write_replay(true); // leaving the match keeps its replay, with its summary (endGame)
 		// Menus get the normal arrow back (update_cursor sets action cursors).
 		if (!cursor_name_.empty()) reset_default_cursor();
 		// The Render Debug Mode is the session's; the menus draw normally.
@@ -531,10 +531,13 @@ bool RtsoMain::try_focus_fire(const Vector3 &at) {
 	}
 	if (!target) return false;
 	const bool queued = rtso::hotkeys::held("session.queue");
+	// input.js: pushFront = session.pushorderfront held (unbound by default).
+	const bool push_front = rtso::hotkeys::held("session.pushorderfront");
 	const uint32_t ids[1] = {selected_building_id};
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target, queued ? rtso::NET_PARAM_QUEUED : 0);
-	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued))
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target,
+				(queued ? rtso::NET_PARAM_QUEUED : 0) | (push_front ? rtso::NET_PARAM_PUSH_FRONT : 0));
+	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued, push_front))
 		return false;
 	return true;
 }
@@ -801,6 +804,7 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_PLAYERNAME_IN_USE: why = tr("Player name in use. If you were disconnected, retry in few seconds."); break;
 			case rtso::NDR_SERVER_ALREADY_IN_GAME: why = tr("Game has already started, no observers allowed."); break;
 			case rtso::NDR_SERVER_FULL: why = tr("Server full."); break;
+			case rtso::NDR_LOBBY_AUTH_FAILED: why = tr("Secure lobby authentication failed. Join via lobby."); break;
 			case 14: why = tr("Password is invalid."); break;
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = mismatch_detail(); break;
 			default: why = tr("An unknown error occurred."); break;
@@ -1076,8 +1080,9 @@ bool RtsoMain::load_game(String path) {
 	if (!sim) return false;
 	String global_path = ProjectSettings::get_singleton()->globalize_path(path);
 	load_progress(50, "Loading saved game");
-	// The replay so far stays valid up to here; what follows starts from the save.
-	stop_replay_recording();
+	// The replay so far stays valid up to here; what follows starts from the save. Loading
+	// leaves this match (0.28 endGame), so its replay keeps its summary.
+	stop_replay_recording(true);
 	bool success = sim->load_state(global_path.utf8().get_data());
 	if (success) {
 		selected_ids.clear();
@@ -1581,7 +1586,7 @@ void RtsoMain::set_time_warp(bool on) {
 	if (on == time_warp_) return;
 	time_warp_ = on;
 	if (!on) {
-		if (time_warp_ff_) game_speed = time_warp_speed_;
+		if (time_warp_ff_) game_speed = 1.0f;
 		time_warp_ff_ = false;
 		for (const String &p : time_warp_snapshots_) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(p));
 		time_warp_snapshots_.clear();
@@ -1592,13 +1597,12 @@ void RtsoMain::set_time_warp(bool on) {
 }
 
 // CTurnManager time warp: a snapshot of the game every 10 turns, and SetSimRate(20)
-// while the fast forward hotkey is held.
+// while the fast forward hotkey is held, back to 1 when it is let go.
 void RtsoMain::time_warp_tick() {
 	if (!time_warp_ || !sim) return;
 	const bool ff = rtso::hotkeys::held("session.timewarp.fastforward");
 	if (ff != time_warp_ff_) {
-		if (ff) time_warp_speed_ = game_speed;
-		game_speed = ff ? 20.0f : time_warp_speed_;
+		game_speed = ff ? 20.0f : 1.0f; // TimeWarp.resetSpeed: SetSimRate(1), whatever the speed was
 		time_warp_ff_ = ff;
 	}
 	const uint32_t turn = turn_mgr_.current_turn();
@@ -1637,7 +1641,8 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 		dev_overlay_.set_checked(D::DEV_REJOIN_TEST, rejoin_test_); // checked(): this.disabled
-		dev_overlay_.set_enabled(D::DEV_REJOIN_TEST, !rejoin_test_ && !turn_mgr_.is_replaying());
+		// 0.28 enabled(): !this.disabled && g_InitAttributes.mapType != "random".
+		dev_overlay_.set_enabled(D::DEV_REJOIN_TEST, !rejoin_test_ && !random_map_ && !turn_mgr_.is_replaying());
 		using O = rtso::RtsoDebugOverlays;
 		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
 		dev_overlay_.set_checked(D::DEV_HIER_PATHFINDER_OVERLAY, debug_overlays_.on(O::HIER_PATHFINDER));
@@ -2350,6 +2355,9 @@ void RtsoMain::_start_menu_net() {
 	}
 	if (lobby_name) lobby_name->set_text(ms->get("net_player_name"));
 	if (lobby_host && mode == "join") lobby_host->set_text(ms->get("net_ip"));
+	// The lobby's ticket for a game joined from its list, once.
+	net_host_.setLobbyTicket(mode == "join" ? String(ms->get("net_lobby_ticket")).utf8().get_data() : "");
+	ms->set("net_lobby_ticket", "");
 	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
@@ -2419,6 +2427,10 @@ void RtsoMain::net_query_stun(const String &server, int port) {
 void RtsoMain::net_hole_punch(const String &ip, int port) {
 	if (port <= 0 || port > 65535) return;
 	net_host_.holePunch(ip.utf8().get_data(), (uint16_t)port);
+}
+
+void RtsoMain::net_lobby_auth_result(int peer, const String &ticket, const String &name) {
+	net_host_.finishLobbyAuth((uint32_t)peer, ticket.utf8().get_data(), name.utf8().get_data());
 }
 
 void RtsoMain::net_retarget_host(const String &ip, int port) {
@@ -3024,6 +3036,17 @@ void RtsoMain::_on_lobby_host_pressed() {
 	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
 	kicks_shown_ = 0;
 	apply_net_host_options(net_host_);
+	// 0 A.D. StartNetworkHost: a host signed in to the lobby has it vouch for
+	// every joiner's name (CNetServer useLobbyAuth = HasXmppClient).
+	Node *lobby_session = get_node_or_null(NodePath("/root/LobbySession"));
+	if (lobby_session && bool(lobby_session->call("signed_in")))
+		net_host_.setLobbyAuth([this](uint32_t peer, const std::string &ticket) {
+			Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
+			if (ls) ls->call("verify_join", (int64_t)peer, String::utf8(ticket.c_str()));
+			else net_host_.finishLobbyAuth(peer, ticket, "");
+		});
+	else
+		net_host_.setLobbyAuth(nullptr);
 	if (!net_host_.startHost(cfg)) {
 		if (lobby_status) lobby_status->set_text("Host bind failed");
 		return;
@@ -3044,7 +3067,11 @@ void RtsoMain::_on_lobby_host_pressed() {
 	   << cfg.port << ",\"players\":1,\"max_players\":" << (int)cfg.maxPlayers
 	   << ",\"map_id\":\"default\"}";
 	std::string body;
-	rtso::lobby_http_post_json(lobby_http_host_, lobby_http_port_, "/rooms", js.str(), body);
+	// The menu's LobbySession lists a game it hosts itself, with its details;
+	// this post would overwrite them with placeholders.
+	Node *ls_node = get_node_or_null(NodePath("/root/LobbySession"));
+	const bool menu_listed = ls_node && !Dictionary(ls_node->get("room")).is_empty();
+	if (!menu_listed) rtso::lobby_http_post_json(lobby_http_host_, lobby_http_port_, "/rooms", js.str(), body);
 	if (lobby_status) lobby_status->set_text("Hosting on " + String::num_int64(cfg.port));
 	refresh_lobby_rooms();
 }

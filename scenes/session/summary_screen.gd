@@ -13,6 +13,9 @@ extends CanvasLayer
 const L10n := preload("res://scenes/menu/l10n.gd")
 
 const Ref = preload("res://scenes/reference/reference_common.gd")
+# gui/common/sprites.xml iconBubbleGold: global/icon/bubble.png, add_color 237 227 167.
+const BUBBLE_ICON := "res://assets/textures/ui/global/icon/bubble.png"
+const BUBBLE_GOLD := Color8(237, 227, 167)
 
 ## summary.js g_TypeColors.
 const TYPE_COLORS := {
@@ -584,23 +587,38 @@ func map_caption() -> String:
 		else str(load("res://scenes/menu/replay_browser.gd").map_info(map_id)["type"])
 	return "%s - %s" % [map_name, kind] if kind != "" else map_name
 
-func _label(text: String, size := 13, color := Color.WHITE) -> Label:
+# gui/common/modern/styles.xml ModernLabelText and its kin: sans-bold-stroke-14, white.
+static var _bold_font: FontVariation
+
+static func bold_font() -> FontVariation:
+	if _bold_font == null:
+		_bold_font = FontVariation.new()
+		_bold_font.variation_embolden = 0.6
+	return _bold_font
+
+func _label(text: String, size := 14, color := Color.WHITE) -> Label:
 	var l := Label.new()
 	l.text = text
+	l.add_theme_font_override("font", bold_font())
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 3)
 	l.mouse_filter = Control.MOUSE_FILTER_PASS
 	return l
 
-func _rich(bbcode: String, size := 12) -> RichTextLabel:
+func _rich(bbcode: String, size := 14) -> RichTextLabel:
 	var r := RichTextLabel.new()
 	r.bbcode_enabled = true
 	r.fit_content = true
 	r.scroll_active = false
 	r.autowrap_mode = TextServer.AUTOWRAP_OFF
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.add_theme_font_override("normal_font", bold_font())
 	r.add_theme_font_size_override("normal_font_size", size)
 	r.add_theme_font_size_override("bold_font_size", size)
+	r.add_theme_color_override("font_outline_color", Color.BLACK)
+	r.add_theme_constant_override("outline_size", 3)
 	r.text = bbcode
 	return r
 
@@ -637,13 +655,23 @@ func _build() -> void:
 	style.set_border_width_all(2)
 	_window.add_theme_stylebox_override("panel", style)
 	add_child(_window)
-	var title := _label("Summary", 18, GOLD)
+	var title := _label(L10n.t("Summary")) # summaryWindowTitle: ModernLabelText
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	title.offset_left = -128
 	title.offset_right = 128
 	title.offset_top = 4
 	title.offset_bottom = 30
+	if dialog:
+		# summary.js: in a dialog the title sits on the top edge, "50%-128 -16 50%+128 16".
+		title.offset_top = -16
+		title.offset_bottom = 16
+		var plate := StyleBoxFlat.new()
+		plate.bg_color = style.bg_color
+		plate.border_color = GOLD
+		plate.set_border_width_all(2)
+		title.add_theme_stylebox_override("normal", plate)
+		title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_window.add_child(title)
 	var header := HBoxContainer.new()
 	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -711,10 +739,11 @@ func _build() -> void:
 	_continue_button.pressed.connect(continue_pressed)
 	_continue_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_window.add_child(_continue_button)
-	_continue_button.offset_left = -170
+	# summary.xml continueButton "100%-200 100%-48 100%-20 100%-20", replayButton "100%-410 ... 100%-210".
+	_continue_button.offset_left = -200
 	_continue_button.offset_right = -20
-	_continue_button.offset_top = -46
-	_continue_button.offset_bottom = -12
+	_continue_button.offset_top = -48
+	_continue_button.offset_bottom = -20
 	_replay_button = Button.new()
 	_replay_button.name = "ReplayButton"
 	_replay_button.text = "Watch Replay"
@@ -722,24 +751,31 @@ func _build() -> void:
 	_replay_button.visible = not gui.get("isInGame", false) and str(gui.get("replayDirectory", "")) != ""
 	_replay_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_window.add_child(_replay_button)
-	_replay_button.offset_left = -330
-	_replay_button.offset_right = -180
-	_replay_button.offset_top = -46
-	_replay_button.offset_bottom = -12
+	_replay_button.offset_left = -410
+	_replay_button.offset_right = -210
+	_replay_button.offset_top = -48
+	_replay_button.offset_bottom = -20
 	# lobbyButton: after a game while signed in to the lobby, left of the other buttons.
-	var lobby := Button.new()
+	# A 16 px speech bubble (sprite iconBubbleGold, iconBubbleWhite under the mouse), "100%-436
+	# 100%-45 100%-420 100%-29": 10 px left of the Watch Replay button.
+	var lobby := TextureButton.new()
 	lobby.name = "LobbyButton"
-	lobby.text = "Lobby"
+	lobby.texture_normal = Ref.texture(BUBBLE_ICON)
+	lobby.ignore_texture_size = true
+	lobby.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	lobby.self_modulate = BUBBLE_GOLD
+	lobby.mouse_entered.connect(func(): lobby.self_modulate = Color.WHITE)
+	lobby.mouse_exited.connect(func(): lobby.self_modulate = BUBBLE_GOLD)
 	lobby.tooltip_text = "%s: Toggle the multiplayer lobby in a dialog window." % _hotkey_text("lobby")
 	lobby.visible = not gui.get("isInGame", false) and _lobby_signed_in()
 	lobby.pressed.connect(open_lobby)
 	lobby.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_window.add_child(lobby)
 	var right := (_replay_button.offset_left if _replay_button.visible else _continue_button.offset_left) - 10
-	lobby.offset_left = right - 80
+	lobby.offset_left = right - 16
 	lobby.offset_right = right
-	lobby.offset_top = -46
-	lobby.offset_bottom = -12
+	lobby.offset_top = -45
+	lobby.offset_bottom = -29
 
 ## tab_buttons.xml MouseWheelDown / MouseWheelUp: the next or previous tab.
 func _on_tab_wheel(event: InputEvent) -> void:
@@ -781,7 +817,7 @@ func _update_panel(pd: Dictionary) -> void:
 		var cap: String = L10n.t(h.get("header", h["caption"])) # layout.js translate(), before the markup
 		if hi == 0 and not teams.is_empty() and not teams.has(-1):
 			cap = "" # no players without a team: no "Player name" heading
-		var r := _rich("[center][b]%s[/b][/center]" % cap if hi > 0 else "[b]%s[/b]" % cap, 13)
+		var r := _rich("[center][b]%s[/b][/center]" % cap if hi > 0 else "[b]%s[/b]" % cap)
 		r.name = "Heading%d" % hi
 		r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # long captions wrap in their column
 		_place(r, _general, Vector2(left, h["y"]), Vector2(h["w"], 40))
@@ -789,7 +825,7 @@ func _update_panel(pd: Dictionary) -> void:
 			left += h["w"]
 	left = 250
 	for t in pd["titles"]:
-		var r := _rich("[center][b]%s[/b][/center]" % L10n.t(t["caption"]), 13)
+		var r := _rich("[center][b]%s[/b][/center]" % L10n.t(t["caption"]))
 		_place(r, _general, Vector2(left, t["y"]), Vector2(t["w"], 20))
 	var row_w := 240
 	for c in counters:
@@ -817,7 +853,7 @@ func _update_panel(pd: Dictionary) -> void:
 			for n in members.size():
 				_player_row(players[members[n]], counters, headings, index, Vector2(10, y + 30 + n * (BOX_H + BOX_GAP)), row_w)
 			var total_y: int = y + 30 + members.size() * (BOX_H + BOX_GAP) + 10
-			var total := _label("Team total", 13, GOLD)
+			var total := _label(L10n.t("Team total")) # teamHeading: ModernLeftLabelText, white
 			_place(total, _general, Vector2(50, total_y), Vector2(180, 20))
 			var x := 240
 			for ci in counters.size():
@@ -877,7 +913,7 @@ func _build_charts() -> void:
 		_charts_panel.add_child(part)
 		var pickers := []
 		for j in 3:
-			var cap := _label(["Category:", "Value:", "Type:"][j], 13)
+			var cap := _label(["Category:", "Value:", "Type:"][j])
 			_place(cap, part, Vector2(1 + j * 150, 6), Vector2(144, 20)) # "1 6 145 26"
 			var dd := OptionButton.new()
 			dd.name = ["Category", "Value", "Type"][j]
@@ -907,13 +943,13 @@ func _build_charts() -> void:
 		chart.draw.connect(_draw_chart.bind(k))
 		part.add_child(chart)
 		_chart_nodes.append(chart)
-		var axis := _label("Time elapsed", 12)
+		var axis := _label("Time elapsed")
 		axis.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		axis.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 		axis.offset_top = -25 # XAxisLabel "5 100%-25 100%-5 100%-5"
 		axis.offset_bottom = -5
 		part.add_child(axis)
-	_legend = _rich("", 13)
+	_legend = _rich("")
 	_legend.name = "ChartLegend"
 	_legend.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	_legend.offset_left = 15
@@ -1034,6 +1070,7 @@ func _update_legend() -> void:
 			parts.append("%s %s" % [_bb("■", p["color"]), p["name"]])
 	_legend.text = "[center]%s[/center]" % "   ".join(parts)
 
+## CChart::AddFormattedValue.
 static func format_axis(v: float, format: String) -> String:
 	match format:
 		"PERCENTAGE":
@@ -1041,58 +1078,80 @@ static func format_axis(v: float, format: String) -> String:
 		"DECIMAL2":
 			return "%.2f" % v
 		"DURATION_SHORT":
-			return time_to_string(v)
+			var sec := int(v)
+			return "%d:%02d" % [sec / 60, sec % 60]
 	return str(roundi(v))
 
-## CChart: the series as lines over axes with their ranges marked.
-func _draw_chart(n: int) -> void:
-	var chart: Control = _chart_nodes[n]
-	var font := ThemeDB.fallback_font
-	var left := 48.0
-	var bottom := chart.size.y - 16.0
-	var right := chart.size.x - 8.0
-	var top := 8.0
-	var min_x := INF
-	var max_x := -INF
-	var min_y := 0.0
-	var max_y := 0.0
-	# CChart::UpdateBounds: infinite values (a kill/death ratio with no deaths) set no bounds.
-	for s in series[n]:
+# gui/common/modern/styles.xml ModernChart: axis_color, axis_width, buffer_zone, sans-stroke-14.
+const CHART_AXIS_COLOR := Color8(209, 174, 132)
+const CHART_AXIS_WIDTH := 2.0
+const CHART_BUFFER := 4.0
+const CHART_FONT_SIZE := 14
+
+## CChart::UpdateBounds: the smallest and largest finite x and y over every series, from
+## the first point on (no zero baseline); an axis with one value gets 1 added to its top.
+## Returns [left_bottom, right_top, equal_x, equal_y].
+static func chart_bounds(all_series: Array) -> Array:
+	var lb := Vector2(INF, INF)
+	var rt := Vector2(-INF, -INF)
+	for s in all_series:
 		for pt in s["points"]:
 			if not is_inf(pt.x):
-				min_x = minf(min_x, pt.x)
-				max_x = maxf(max_x, pt.x)
+				lb.x = minf(lb.x, pt.x)
+				rt.x = maxf(rt.x, pt.x)
 			if not is_inf(pt.y):
-				min_y = minf(min_y, pt.y)
-				max_y = maxf(max_y, pt.y)
-	if min_x == INF:
-		min_x = 0.0
-		max_x = 1.0
-	if max_x <= min_x:
-		max_x = min_x + 1.0
-	if max_y <= min_y:
-		max_y = min_y + 1.0
-	var axis_color := Color(1, 1, 1, 0.6)
-	for g in 5:
-		var gy := bottom - (bottom - top) * g / 4.0
-		chart.draw_line(Vector2(left, gy), Vector2(right, gy), Color(1, 1, 1, 0.08 if g > 0 else 0.6), 1.0)
-		chart.draw_string(font, Vector2(2, gy + 4), format_axis(min_y + (max_y - min_y) * g / 4.0, chart_format[n]),
-			HORIZONTAL_ALIGNMENT_LEFT, left - 4, 11, axis_color)
-		var gx := left + (right - left) * g / 4.0
-		chart.draw_string(font, Vector2(gx - 20, chart.size.y - 2), format_axis(min_x + (max_x - min_x) * g / 4.0, "DURATION_SHORT"),
-			HORIZONTAL_ALIGNMENT_CENTER, 40, 11, axis_color)
-	chart.draw_line(Vector2(left, top), Vector2(left, bottom), axis_color, 1.0)
-	# CChart::Draw: an infinite point is not drawn and breaks the line there.
+				lb.y = minf(lb.y, pt.y)
+				rt.y = maxf(rt.y, pt.y)
+	if is_inf(lb.x):
+		lb.x = 0.0
+		rt.x = 0.0
+	if is_inf(lb.y):
+		lb.y = 0.0
+		rt.y = 0.0
+	var equal_x := rt.x == lb.x
+	var equal_y := rt.y == lb.y
+	if equal_x:
+		rt.x += 1.0
+	if equal_y:
+		rt.y += 1.0
+	return [lb, rt, equal_x, equal_y]
+
+## CChart::Draw: the series as 2 px lines inside the axes, the left and bottom axes, and
+## SetupText's labels: three y values down the left from the top, three x values along
+## the bottom from the right (one each when an axis has a single value).
+func _draw_chart(n: int) -> void:
+	var chart: Control = _chart_nodes[n]
+	if series[n].is_empty():
+		return
+	var font := ThemeDB.fallback_font
+	var rect := Rect2(Vector2(CHART_AXIS_WIDTH, CHART_AXIS_WIDTH), chart.size - Vector2(2, 2) * CHART_AXIS_WIDTH)
+	var b := chart_bounds(series[n])
+	var lb: Vector2 = b[0]
+	var rt: Vector2 = b[1]
+	var scale := Vector2(rect.size.x / (rt.x - lb.x), rect.size.y / (rt.y - lb.y))
 	for s in series[n]:
 		for line in chart_lines(s["points"]):
+			if line.size() < 2:
+				continue # a one-point line draws nothing
 			var pts := PackedVector2Array()
 			for pt in line:
-				pts.append(Vector2(left + (right - left) * (pt.x - min_x) / (max_x - min_x),
-					bottom - (bottom - top) * (pt.y - min_y) / (max_y - min_y)))
-			if pts.size() == 1:
-				chart.draw_circle(pts[0], 2.5, s["color"])
-			elif pts.size() > 1:
-				chart.draw_polyline(pts, s["color"], 2.0, true)
+				pts.append(Vector2(rect.position.x + (pt.x - lb.x) * scale.x, rect.end.y - (pt.y - lb.y) * scale.y))
+			chart.draw_polyline(pts, s["color"], 2.0, true)
+	chart.draw_rect(Rect2(0, 0, CHART_AXIS_WIDTH, chart.size.y), CHART_AXIS_COLOR)
+	chart.draw_rect(Rect2(0, chart.size.y - CHART_AXIS_WIDTH, chart.size.x, CHART_AXIS_WIDTH), CHART_AXIS_COLOR)
+	var ascent := font.get_ascent(CHART_FONT_SIZE)
+	var text := func(t: String, top_left: Vector2) -> void:
+		chart.draw_string_outline(font, top_left + Vector2(CHART_BUFFER, CHART_BUFFER + ascent), t,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, CHART_FONT_SIZE, 3, Color.BLACK)
+		chart.draw_string(font, top_left + Vector2(CHART_BUFFER, CHART_BUFFER + ascent), t,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, CHART_FONT_SIZE, Color.WHITE)
+	var box := func(t: String) -> Vector2:
+		return font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, CHART_FONT_SIZE) + Vector2(2, 2) * CHART_BUFFER
+	for i in (1 if b[3] else 3):
+		text.call(format_axis(rt.y - (rt.y - lb.y) / 3.0 * i, chart_format[n]), rect.position + Vector2(0, rect.size.y / 3.0 * i))
+	for i in (1 if b[2] else 3):
+		var t := format_axis(rt.x - (rt.x - lb.x) / 3.0 * i, "DURATION_SHORT")
+		text.call(t, rect.end - box.call(t) - Vector2(rect.size.x / 3.0 * i, 0))
 
 ## A series' runs of finite points, split where a point is infinite (CChart::Draw).
 static func chart_lines(points: PackedVector2Array) -> Array:
@@ -1198,7 +1257,7 @@ func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if _fired(event, "summary") or (gui.get("isInGame", false) and event is InputEventKey and event.pressed
-			and event.keycode == KEY_ESCAPE):
+			and "cancel" in RtsoHotkeyConfig.new().fired(event)):
 		get_viewport().set_input_as_handled()
 		continue_pressed()
 	elif _fired(event, "lobby") and not gui.get("isInGame", false) and _lobby_signed_in():

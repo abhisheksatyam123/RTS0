@@ -29,6 +29,8 @@ void RtsoHotkeyConfig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("event_key_name", "event"), &RtsoHotkeyConfig::event_key_name);
 	ClassDB::bind_method(D_METHOD("fired", "event"), &RtsoHotkeyConfig::fired);
 	ClassDB::bind_method(D_METHOD("format_keys", "keys"), &RtsoHotkeyConfig::format_keys);
+	ClassDB::bind_method(D_METHOD("display", "name"), &RtsoHotkeyConfig::display);
+	ClassDB::bind_method(D_METHOD("display_combo", "combo"), &RtsoHotkeyConfig::display_combo);
 	ClassDB::bind_method(D_METHOD("is_held", "name"), &RtsoHotkeyConfig::is_held);
 }
 
@@ -101,6 +103,16 @@ PackedStringArray RtsoHotkeyConfig::fired(const Ref<InputEvent> &event) const {
 	else if (mb.is_valid()) names = hk::fired(mb);
 	for (const auto &n : names) out.push_back(to_godot(n));
 	return out;
+}
+
+// colorizeHotkey / formatHotkeyCombinations: every binding as 0.28 shows it, "" when unbound.
+String RtsoHotkeyConfig::display(const String &name) const {
+	return String::utf8(hk::table().label(to_std(name)).c_str());
+}
+
+// formatHotkeyCombination for one stored combination ("LeftArrow" -> the arrow glyph).
+String RtsoHotkeyConfig::display_combo(const String &combo) const {
+	return String::utf8(hk::combo_display(hk::parse_combo(to_std(combo))).c_str());
 }
 
 String RtsoHotkeyConfig::format_keys(const PackedStringArray &keys) const {

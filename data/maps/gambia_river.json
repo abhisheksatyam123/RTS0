@@ -47722,313 +47722,344 @@
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": -18.81,
       "z": -102.13,
       "wallset": "stone",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": -24.23,
       "z": -109.68,
       "wallset": "stone",
       "piece": "wall",
       "angle": 2.0238,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": -22.79,
       "z": -125.53,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.1224,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": -17.51,
       "z": -132.8,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.286,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": -10.24,
       "z": -137.77,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.7708,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": -11.52,
       "z": -97.14,
       "wallset": "stone",
       "piece": "wall",
       "angle": 2.7174,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": 6.63,
       "z": -96.12,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.8033,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": 14.79,
       "z": -100.03,
       "wallset": "stone",
       "piece": "wall",
       "angle": 0.5581,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": 20.72,
       "z": -106.9,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.0187,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": 18.02,
       "z": -130.3,
       "wallset": "stone",
       "piece": "wall",
       "angle": 2.0406,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": 12.05,
       "z": -136.68,
       "wallset": "stone",
       "piece": "wall",
       "angle": 2.5884,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": 4.04,
       "z": -139.55,
       "wallset": "stone",
       "piece": "wall",
       "angle": 3.0312,
-      "length": 9.0
+      "length": 9.0,
+      "player": 2,
+      "template": "structures/iber_wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": -3.24,
       "z": -139.66,
       "wallset": "stone",
       "piece": "wall",
       "angle": -3.0149,
-      "length": 6.0
+      "length": 6.0,
+      "player": 2,
+      "template": "structures/iber_wall_medium"
     },
     {
       "type": "wall_segment",
-      "player": 2,
       "x": 20.86,
       "z": -123.33,
       "wallset": "stone",
       "piece": "wall",
       "angle": -1.2862,
-      "length": 6.0
+      "length": 6.0,
+      "player": 2,
+      "template": "structures/iber_wall_medium"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": -6.77,
       "z": -95.07,
       "wallset": "stone",
       "piece": "tower",
       "angle": 1.0483,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": -16.01,
       "z": -99.19,
       "wallset": "stone",
       "piece": "tower",
       "angle": -0.6679,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": -22.17,
       "z": -105.26,
       "wallset": "stone",
       "piece": "tower",
       "angle": 1.7386,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": -26.18,
       "z": -113.64,
       "wallset": "stone",
       "piece": "tower",
       "angle": -0.9987,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": -25.49,
       "z": -121.17,
       "wallset": "stone",
       "piece": "tower",
       "angle": -1.9333,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": 1.7,
       "z": -94.48,
       "wallset": "stone",
       "piece": "tower",
       "angle": 0.4373,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": 11.09,
       "z": -97.77,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.5032,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": 18.78,
       "z": -102.45,
       "wallset": "stone",
       "piece": "tower",
       "angle": -0.7794,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": 22.48,
       "z": -110.49,
       "wallset": "stone",
       "piece": "tower",
       "angle": 1.2238,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": 21.74,
       "z": -120.21,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": 20.02,
       "z": -125.98,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": 15.75,
       "z": -134.36,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.2863,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": 8.24,
       "z": -138.8,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.9865,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": -0.5,
       "z": -139.99,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": -6.3,
       "z": -139.27,
       "wallset": "stone",
       "piece": "tower",
       "angle": 0.0089,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": -14.62,
       "z": -135.84,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.4064,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 2,
       "x": -20.31,
       "z": -129.34,
       "wallset": "stone",
       "piece": "tower",
       "angle": -0.5654,
-      "length": 2.5
+      "length": 2.5,
+      "player": 2,
+      "template": "structures/iber_wall_tower"
     },
     {
       "type": "town_center",
