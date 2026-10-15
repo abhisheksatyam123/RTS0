@@ -75,7 +75,13 @@ func run() -> void:
 	await frames(2)
 	var at: Vector2 = main.debug_unit_screen(ram)
 	await move(at)
+	# The hover pick and its tooltip settle over a few frames.
 	var t: Dictionary = main.debug_cursor_tip()
+	for i in 40:
+		if t["visible"] and t["cursor"] == "action-garrison":
+			break
+		await frames(1)
+		t = main.debug_cursor_tip()
 	print("    ", t)
 	check(t["cursor"] == "action-garrison", "the garrison cursor over the ram")
 	check(t["visible"] and str(t["text"]).begins_with("Current garrison: 0/"), "Current garrison: 0/capacity")
