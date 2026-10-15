@@ -2901,6 +2901,32 @@ static void test_guards_repair_charge() {
 	}
 }
 
+static void test_liu_bang_wall_regen() {
+	std::printf("82. while Liu Bang lives, his owner's walls regenerate 10 hp/s (han_hero_liu_bang_1); palisades and others' walls don't\n");
+	Simulation s;
+	s.set_team_civ(0, CIV_HAN);
+	s.set_team_civ(1, CIV_HAN);
+	setup(s);
+	const uint32_t wall = s.spawn_building_world(-20.0f, 20.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+	const uint32_t pal = s.spawn_building_world(-20.0f, 36.0f, BLD_PALISADE, 0, 1.0f);
+	const uint32_t theirs = s.spawn_building_world(20.0f, -20.0f, BLD_WALL_SEGMENT, 1, 1.0f);
+	auto wound = [&](uint32_t id) { bld_mut(s, id)->hp = bld_mut(s, id)->max_hp * 0.25f; return bld_mut(s, id)->hp; };
+	const float w0 = wound(wall), p0 = wound(pal), t0 = wound(theirs);
+	run(s, 5.0f);
+	check(bld_mut(s, wall)->hp == w0, "no Liu Bang: the wall stays damaged");
+	const uint32_t hero = s.spawn_unit(-40.0f, -40.0f, 0, UNIT_HERO, 0.0f, roster_named("han/hero_liu_bang"));
+	run(s, 10.0f);
+	const float w1 = bld_mut(s, wall)->hp;
+	std::printf("  wall %.1f -> %.1f in 10 s\n", w0, w1);
+	check(std::fabs(w1 - (w0 + 100.0f)) < 1.0f, "with Liu Bang: +10 hp/s");
+	check(bld_mut(s, pal)->hp == p0 && bld_mut(s, theirs)->hp == t0, "not palisades, not the enemy's walls");
+	s.cmd_delete(0, &hero, 1);
+	run(s, 3.0f);
+	const float w2 = bld_mut(s, wall)->hp;
+	run(s, 5.0f);
+	check(bld_mut(s, wall)->hp == w2, "after he dies the wall stops regenerating");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2986,6 +3012,7 @@ int main(int argc, char **argv) {
 	test_healers_on_attack_move();
 	test_alert_allied_shelter();
 	test_guards_repair_charge();
+	test_liu_bang_wall_regen();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
