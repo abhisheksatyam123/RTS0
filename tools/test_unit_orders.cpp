@@ -2162,6 +2162,23 @@ static void test_hero_global_auras() {
 			"Indibil: his player's soldiers -15% cost");
 	check(near1(s.tech_mods(0).tmpl[spear].train_time, 0.8f), "and -20% training time");
 	check(near1(s.tech_mods(1).tmpl[spear].cost[RES_FOOD], 1.0f), "the enemy's soldiers keep theirs");
+	{ // Trainer.js keeps the per-unit cost unrounded and floors count * cost: 50 * 0.85 -> 42, 85 for two.
+		float c[RES_COUNT], r[RES_COUNT];
+		const UnitTypeInfo &si = civ_template_unit_info(spear, civ_unit_template(spear).unit_type);
+		s.unit_train_cost(0, spear, si, c, false);
+		s.unit_train_cost(0, spear, si, r);
+		check(near1(c[RES_FOOD], 42.5f) && near1(r[RES_FOOD], 43.0f), "Indibil: 42.5 food a spearman, 43 in the tooltip");
+		const auto civ0 = s.player(0).civ;
+		s.player(0).civ = CIV_IBERIANS;
+		s.set_player_resources(0, 1000, 1000, 1000, 1000);
+		s.player(0).phase = 2; // the Iberian spearman is a Town phase unit in 0.28
+		const uint32_t ib = s.spawn_building_world(-40, -40, BLD_BARRACKS, 0, 1.0f);
+		const float f0 = s.player(0).food();
+		check(s.cmd_train_template(0, ib, spear, 1) && near1(f0 - s.player(0).food(), 42.0f), "a batch of one pays floor(42.5) = 42");
+		check(s.cmd_train_template(0, ib, spear, 2) && near1(f0 - s.player(0).food(), 42.0f + 85.0f), "a batch of two pays floor(85) = 85");
+		s.player(0).civ = civ0;
+		s.player(0).phase = 1;
+	}
 	// Pericles' Periclean Building: technologies -10% cost and half the research time;
 	// Themistocles' Long Walls: walls half the stone. A garrisoned hero still projects them.
 	const uint32_t per = s.spawn_unit(-20, -16, 0, UNIT_HERO, 0.0f, roster_named("athen/hero_pericles"));

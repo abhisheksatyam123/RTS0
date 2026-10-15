@@ -589,7 +589,9 @@ public:
 	// civ_bit() mask of the civs of `pid`'s allies still in the match (owning a building or unit).
 	uint16_t ally_civ_mask(uint8_t pid) const;
 	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
-	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
+	// rounded: the whole per-unit cost (tooltips, Cost.GetResourceCosts); Trainer.js keeps it
+	// unrounded and floors count * cost once (rounded = false).
+	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT], bool rounded = true) const;
 	// Trainer.js GetUpgradedTemplate: the template a queued `tmpl` is trained as, following its
 	// Promotion while the player's RequiredXp for the step is 0 (Marian Reforms' Legionaries,
 	// mercenaries trained Advanced), and the rank it ends on. Cost and time are that template's.

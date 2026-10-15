@@ -19,6 +19,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
 | G30 | Pathfinding grid: 8 m navcells against 0.28's 1 m, no JumpPointCache, float maths | low | Migrate |
 | G33 | Match music stops on the summary screen, where 0.28 seems to keep it playing until the main menu (inferred from its GUI scripts, unconfirmed); siege engines train with footsteps, not ram_trained (its sound file isn't in the shared 0.28 data). A fleeing chicken's panic sound (chickens.xml) is in | low | Session UI |
+| G34 | Area D pass 4 leftovers: units from a "{native}" trainer (Kushite camps, Carthaginian embassies, a captured civic centre's civilians) carry their template civ's baked bonuses, not the owner's (a German misses germ_women speed on a captured Briton civic centre's civilian); a promotion that skips ranks applies range auras from before the step | low | D |
 
 Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of woods too tight for them, #1086) and the rows below.
 
@@ -60,7 +61,7 @@ Combat, loot, territory, garrison, capture, rally points, trade and camps agains
 | P8 | Allied builders go idle when your building finishes; 0.28 sends them ConstructionFinished too, so they move on to their own nearby foundations | low | Fixed |
 | P9 | A passive siege engine never flees when hit; 0.28 needs only that it can move | low | Fixed |
 | P10 | Splash, death damage and melee splash never hit animals; 0.28 queries enemies, Gaia included | low | Fixed |
-| P11 | Damage to animals ignores attack auras (0.28 builds one damage for every target) | low | Open |
+| P11 | Damage to animals ignores attack auras (0.28 builds one damage for every target) | low | Fixed |
 | P12 | IdleRegenRate also heals garrisoned units | low | Re-checked, matches: GARRISONING's FinishOrder leaves a garrisoned unit in IDLE, so 0.28 regenerates it too |
 | P13 | Negative RegenRate from templates or modifiers is ignored except for the burning fire ship (no 0.28 tech uses one today) | low | Keep unless a template needs it |
 | P14 | Arrows recompute damage at impact from the shooter's current techs; a stray arrow of a dead shooter uses the aimed target's armour; an arrow aimed at an invulnerable unit doesn't fall to the next one; aim prediction uses current velocity | low | Open |
