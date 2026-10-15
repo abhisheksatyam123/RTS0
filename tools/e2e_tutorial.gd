@@ -70,6 +70,13 @@ func run() -> void:
 				break
 	check(current_scene != null and current_scene.has_method("get_match_summary"), "the match loads")
 	check(text != "", "the tutorial panel shows its first goal: " + text.substr(0, 80))
+	# messages.js updateTutorial: the newest instruction in 255 226 149, a status line, and
+	# Ready while the goal waits on it.
+	var tp: Dictionary = current_scene.debug_tutorial_panel()
+	print("    ", tp)
+	check(str(tp["text"]).contains("[color=#ffe295]"), "the newest instruction is coloured")
+	check(tp["status"] in ["Follow the instructions.", "Click when ready."], "the status line: " + str(tp["status"]))
+	check(not tp["button_visible"] or tp["button"] == "Ready", "the button reads Ready")
 
 	print("4. Game setup")
 	change_scene_to_file("res://scenes/menu/gamesetup.tscn")
