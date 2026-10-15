@@ -17,8 +17,8 @@
 //  6. String pulling checks its shortcuts with 0 A.D.'s CheckLineMovement: no line it accepts, and
 //     no segment of a find_path path, passes through a blocked navcell, not even diagonally between
 //     two blocked navcells that share a corner (plain Bresenham steps through those).
-//  7. A find_path start on a blocked navcell moves to the nearest open navcell, as 0 A.D.'s
-//     FindNearestPassableNavcell does, not to the first one a scan meets.
+//  7. A find_path start or goal on a blocked navcell moves to the nearest open navcell, as 0 A.D.'s
+//     FindNearestPassableNavcell and MakeGoalReachable do, not to the first one a scan meets.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/grid_nav.h"
 
@@ -267,6 +267,13 @@ int main() {
 		const bool ok = nav.find_path(-23.0f, -22.2f, -23.0f, -15.0f, wp, PASS_INFANTRY);
 		if (!ok || wp.count < 1 || wp.zs[0] < -22.0f)
 			fail("a start on a wall snaps to its far side", 0, 20, 20, 20, 24, wp.count, 1);
+		// A walk to the wall's face from above ends above it (MakeGoalReachable takes the nearest
+		// navcell), not round the wall's end below it.
+		const bool ok2 = nav.find_path(-23.0f, -15.0f, -23.0f, -22.2f, wp, PASS_INFANTRY);
+		bool below = false;
+		for (int i = 0; i < wp.count; ++i) below = below || wp.zs[i] < -24.0f;
+		if (!ok2 || wp.count < 1 || below)
+			fail("a goal on a wall snaps to its far side", 0, 20, 24, 20, 20, wp.count, 1);
 	}
 	if (segments_clipping) fail("find_path segments pass through blocked navcells", 0, 0, 0, 0, 0, segments_clipping, 0);
 	if (lines_through_blocked) fail("line_clear accepts lines through blocked navcells", 0, 0, 0, 0, 0, lines_through_blocked, lines);

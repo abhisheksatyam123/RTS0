@@ -910,43 +910,35 @@ inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, Waypoi
     auto [scx, scy] = world_to_cell(sx, sz);
     auto [tcx, tcy] = world_to_cell(tx, tz);
 
-    auto snap_to_passable = [&](int &cx, int &cy, int max_r) {
+    // An end on an impassable navcell moves to the passable navcell nearest its own point, within
+    // 3 navcells: LongPathfinder.cpp:749-754 does so for the start
+    // (HierarchicalPathfinder::FindNearestPassableNavcell) and MakeGoalReachable for the goal
+    // (HierarchicalPathfinder.cpp:715-720). The first navcell a scan meets could lie across a wall:
+    // a unit pressed on it would start its path on the far side, and a walk to its face would end
+    // there. Ring r holds no navcell nearer than r - 0.5; ties keep the scan order.
+    auto snap_to_passable = [&](int &cx, int &cy, float px, float pz) {
         if (is_passable_for(cx, cy, pass)) return;
-        for (int r = 1; r <= max_r; ++r) {
-            for (int dy = -r; dy <= r; ++dy) {
-                for (int dx = -r; dx <= r; ++dx) {
-                    if (std::max(std::abs(dx), std::abs(dy)) != r) continue;
-                    int nx = cx + dx;
-                    int ny = cy + dy;
-                    if (is_passable_for(nx, ny, pass)) { cx = nx; cy = ny; return; }
-                }
-            }
-        }
-    };
-    // LongPathfinder.cpp:749-754: a start on an impassable navcell moves to the nearest passable one
-    // (HierarchicalPathfinder::FindNearestPassableNavcell), not the first a scan meets: a unit pressed
-    // on a wall must not start its path on the far side. Ring r holds no navcell nearer than r - 0.5.
-    if (!is_passable_for(scx, scy, pass)) {
-        const auto [fx, fy] = world_to_navcells(sx, sz);
+        const auto [fx, fy] = world_to_navcells(px, pz);
         float best = -1.0f;
-        int bx = scx, by = scy;
+        int bx = cx, by = cy;
         for (int r = 1; r <= 3; ++r) {
             const float ring = static_cast<float>(r) - 0.5f;
             if (best >= 0.0f && ring * ring >= best) break;
             for (int dy = -r; dy <= r; ++dy) {
                 for (int dx = -r; dx <= r; ++dx) {
                     if (std::max(std::abs(dx), std::abs(dy)) != r) continue;
-                    if (!is_passable_for(scx + dx, scy + dy, pass)) continue;
-                    const float ex = static_cast<float>(scx + dx) + 0.5f - fx;
-                    const float ey = static_cast<float>(scy + dy) + 0.5f - fy;
+                    if (!is_passable_for(cx + dx, cy + dy, pass)) continue;
+                    const float ex = static_cast<float>(cx + dx) + 0.5f - fx;
+                    const float ey = static_cast<float>(cy + dy) + 0.5f - fy;
                     const float d = ex * ex + ey * ey;
-                    if (best < 0.0f || d < best) { best = d; bx = scx + dx; by = scy + dy; }
+                    if (best < 0.0f || d < best) { best = d; bx = cx + dx; by = cy + dy; }
                 }
             }
         }
-        scx = bx;
-        scy = by;
-    }
+        cx = bx;
+        cy = by;
+    };
+    snap_to_passable(scx, scy, sx, sz);
     // MakeGoalReachable: a goal out at sea becomes the nearest navcell the unit can stand
     // on, so a land unit stops at the shore instead of wading into deep water.
     if (!(pass & PASS_SHIP) && cells.inside(tcx, tcy) && cells.at(tcx, tcy) == NAV_WATER) {
@@ -968,7 +960,7 @@ inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, Waypoi
             tz = ((static_cast<float>(tcy) + 0.5f) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
         }
     }
-    snap_to_passable(tcx, tcy, 3);
+    snap_to_passable(tcx, tcy, tx, tz);
     // A goal still on impassable cells (land for a ship) is no reason to fail either:
     // MakeGoalReachable below moves it to the nearest navcell the unit can reach.
     if (!is_passable_for(scx, scy, pass) || (!regions_ready_ && !is_passable_for(tcx, tcy, pass))) {

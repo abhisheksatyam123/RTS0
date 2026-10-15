@@ -611,21 +611,10 @@ _NAV_HARNESS_SRC = r_NAV_HARNESS_SRC = r"""
 
 static uint32_t xs(uint32_t s){ s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
 
-// Mirrors the goal snap at the top of NavGrid::find_path (r <= 3 spiral, first passable cell).
+// Mirrors the endpoint snap at the top of NavGrid::find_path for an end at a navcell centre: the
+// passable navcell nearest it within r <= 3 (FindNearestPassableNavcell), ties in scan order.
 // Leaves the cell unchanged when no passable cell is found.
 static void snap_cell(const rtso::NavGrid &g, int &cx, int &cy, uint8_t pass) {
-    if (g.is_passable_for(cx, cy, pass)) return;
-    for (int r = 1; r <= 3; ++r)
-        for (int dy = -r; dy <= r; ++dy)
-            for (int dx = -r; dx <= r; ++dx) {
-                if (std::max(std::abs(dx), std::abs(dy)) != r) continue;
-                if (g.is_passable_for(cx + dx, cy + dy, pass)) { cx += dx; cy += dy; return; }
-            }
-}
-
-// Mirrors find_path's start snap for a start at a navcell centre: the passable navcell nearest
-// it within r <= 3 (FindNearestPassableNavcell), ties in scan order.
-static void snap_start_cell(const rtso::NavGrid &g, int &cx, int &cy, uint8_t pass) {
     if (g.is_passable_for(cx, cy, pass)) return;
     int best = -1, bx = cx, by = cy;
     for (int r = 1; r <= 3; ++r) {
@@ -681,7 +670,7 @@ int main(int argc, char **argv) {
 
         // Raw cell-level search on the snapped endpoints.
         int scx = sx, scy = sz, tcx = tx, tcy = tz;
-        snap_start_cell(g, scx, scy, pass);
+        snap_cell(g, scx, scy, pass);
         snap_cell(g, tcx, tcy, pass);
         std::vector<std::pair<int,int>> cells;
         bool reached = false;
@@ -738,8 +727,8 @@ def _nav_case(seed, case, res=NAV_RES):
     return (sx, sz), (tx, tz)
 
 
-def _snap_start(cx, cy, passable, res=NAV_RES):
-    """find_path's start snap for a start at a navcell centre: the passable navcell nearest it
+def _snap_to_passable(cx, cy, passable, res=NAV_RES):
+    """find_path's endpoint snap for an end at a navcell centre: the passable navcell nearest it
     within r <= 3 (0 A.D. FindNearestPassableNavcell), ties in scan order."""
     if passable(cx, cy):
         return cx, cy
@@ -755,20 +744,6 @@ def _snap_start(cx, cy, passable, res=NAV_RES):
                 if best < 0 or d < best:
                     best, bx, by = d, cx + dx, cy + dy
     return bx, by
-
-
-def _snap_to_passable(cx, cy, passable, res=NAV_RES):
-    """find_path's goal snap -- spiral out to r<=3 for the first passable cell."""
-    if passable(cx, cy):
-        return cx, cy
-    for r in range(1, 4):
-        for dy in range(-r, r + 1):
-            for dx in range(-r, r + 1):
-                if max(abs(dx), abs(dy)) != r:
-                    continue
-                if passable(cx + dx, cy + dy):
-                    return cx + dx, cy + dy
-    return cx, cy
 
 
 def _line_clear(x0, y0, x1, y1, passable):
@@ -828,7 +803,7 @@ def _dijkstra_optimum(sx, sz, tx, tz, obstacles, res=NAV_RES):
     def passable(x, y):
         return 0 <= x < res and 0 <= y < res and (x, y) not in blocked
 
-    sx, sz = _snap_start(sx, sz, passable, res)
+    sx, sz = _snap_to_passable(sx, sz, passable, res)
     tx, tz = _snap_to_passable(tx, tz, passable, res)
     if not passable(sx, sz) or not passable(tx, tz):
         return None
@@ -1040,7 +1015,7 @@ def check_nav_live(seed=42, n_cases=12, n_obs=60):
         for case in range(n_cases):
             (sx, sz), (tx, tz) = _nav_case(seed, case)
             ref = _dijkstra_optimum(sx, sz, tx, tz, obstacles)
-            ssx, ssz = _snap_start(sx, sz, passable)
+            ssx, ssz = _snap_to_passable(sx, sz, passable)
             stx, stz = _snap_to_passable(tx, tz, passable)
             start_cell, goal_cell = (ssx, ssz), (stx, stz)
 
