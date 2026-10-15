@@ -6463,6 +6463,38 @@
 1.0
 ]
 },
+"buildings/s_romans_siege_wall_gate_tex2": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_siege_wall_long_tex2": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_siege_wall_medium_tex2": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_siege_wall_tower_tex2": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_romans_stable_tex0": {
 "mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
 "tint": [

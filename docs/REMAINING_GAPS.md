@@ -14,7 +14,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G13 | Petra's numberMissingRoom has no 90 s lapse | low | C |
 | G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
 | G18 | Animals never play their feeding animation, and each species wears one coat (template trees now mix up to four of their actor's looks) | low | Animal models |
-| G19 | Siege walls draw the stone wall model (siege_wall.glb is unused) | low | Animal models |
+| G19 | ~~Siege walls draw the stone wall model (siege_wall.glb is unused)~~ Closed 2026-10-15: Rome's siege WallSet draws 0.28's own siege_wall_long, _medium, _short, _tower and _gate actors | low | Animal models |
 | G21 | Hotkeys still unwired: push-front for unit orders, training and research; confirm on multiplayer dialogs; watermark, wireframe, profilers; the tiled big screenshot | low | Session UI |
 | G22 | CJK languages need Source Han Sans shipped | low | Session UI |
 | G23 | The chat window is a corner box with extra buttons (Tab now completes names in the session and setup chats, pass 5 gap 8) | low | B |
