@@ -12833,10 +12833,11 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 
 	// Fruit: berry bushes in clusters of 5 (the scripts' SimpleObject(oFruitBush, 5, 5, 0, 3)),
 	// fruit trees in clusters of 2-4, each kind by its share of the script's fruit.
-	// A script on a generic biome was measured on temperate, whose apples are its tree3
-	// stragglers (plant_flora plants those): its fruit here is the biome's fruitBush alone,
-	// left unnamed for plant_flora, without the apple share.
-	const bool generic = own_terrains(sim, config.map_type) == nullptr;
+	// A script on a generic biome was measured on temperate, whose tree3 is the apple
+	// (rmbiome/generic/temperate.json). On any other generic biome tree3 is a plain tree, so
+	// its fruit here is the biome's fruitBush alone, left unnamed for plant_flora, without
+	// the apple share.
+	const bool generic = own_terrains(sim, config.map_type) == nullptr && sim.current_map_biome() != "temperate";
 	int fruit_want = target(rc->fruit);
 	const ResourceKindShare *bush = &rc->fruit_kinds[0];
 	if (generic) {
