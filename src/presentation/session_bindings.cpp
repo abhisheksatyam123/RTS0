@@ -213,6 +213,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_put_inside", "ids", "holder"), &RtsoMain::debug_put_inside);
 	ClassDB::bind_method(D_METHOD("debug_select_entity", "id"), &RtsoMain::debug_select_entity);
 	ClassDB::bind_method(D_METHOD("debug_select_structures", "ids"), &RtsoMain::debug_select_structures);
+	ClassDB::bind_method(D_METHOD("debug_spawn_relic", "dx", "dz"), &RtsoMain::debug_spawn_relic);
+	ClassDB::bind_method(D_METHOD("debug_capture_relic", "ids", "relic"), &RtsoMain::debug_capture_relic);
 	ClassDB::bind_method(D_METHOD("debug_select_units", "ids"), &RtsoMain::debug_select_units);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_id", "player"), &RtsoMain::debug_civic_centre_id);
 	ClassDB::bind_method(D_METHOD("debug_spawn_building", "type", "dx", "dz", "player"), &RtsoMain::debug_spawn_building, DEFVAL(-1));
