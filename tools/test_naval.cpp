@@ -745,6 +745,7 @@ static void test_petra_navy() {
 	t.set_player_resources(1, 5000, 5000, 5000, 5000);
 	t.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	t.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	for (int k = 0; k < 12; ++k) t.spawn_unit(-40.0f + (float)(k % 6) * 2.0f, 50.0f + (float)(k / 6) * 2.0f, 1, UNIT_VILLAGER); // workers: the ships queue isn't paused
 	for (int k = 0; k < 4; ++k) t.spawn_resource_world(-40.0f + 10.0f * k, 0.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
 	run(t, 90.0f);
 	int fishing = 0;
@@ -763,7 +764,9 @@ static void test_petra_navy() {
 	u.set_player_resources(1, 5000, 5000, 5000, 5000);
 	u.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	u.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	for (int k = 0; k < 12; ++k) u.spawn_unit(-40.0f + (float)(k % 6) * 2.0f, 50.0f + (float)(k / 6) * 2.0f, 1, UNIT_VILLAGER); // workers: the ships queue isn't paused
 	for (int k = 0; k < 2; ++k) u.spawn_resource_world(-40.0f + 10.0f * k, 0.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	run(u, 2.0f); // the first AI turn decides the boats
 	for (size_t r = 0; r < u.resources_.count; ++r)
 		if (u.resources_.subtype[r] == RES_SUB_FISH) u.resources_.amount[r] = 300;
 	run(u, 90.0f);
@@ -1244,6 +1247,45 @@ static void test_petra_small_land_fields() {
 	s.spawn_building_world(8.0f, 0.0f, BLD_MARKET, 1);
 	manage();
 	CHECK(count(BLD_FIELD) == 2);
+}
+
+// startingStrategy.js configFirstBase: a starting land under 25000 m² with under 800 food in
+// stock and in reach needs fish (popForDock 1): its dock goes down at once, not at 16
+// population, and its dock and ships queues stay unpaused. navalManager.js wants two fishing
+// boats on the seas it touches. All of it is decided once and kept through a save (v88).
+static float islet_height(float x, float z) { return x * x + z * z < 16.0f * 16.0f ? 3.0f : -3.0f; }
+
+static void test_petra_need_fish() {
+	static Simulation s;
+	fresh(s, islet_height);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 100, 1000, 0, 0);
+	s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 1);
+	for (int k = 0; k < 4; ++k) s.spawn_unit(-4.0f + 2.0f * (float)k, 8.0f, 1, UNIT_VILLAGER);
+	for (int k = 0; k < 3; ++k) s.spawn_resource_world(-20.0f + 20.0f * (float)k, -24.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	int docks = 0;
+	for (int t = 0; t < 40 && !docks; ++t) {
+		run(s, 1.0f);
+		for (const auto &b : s.buildings()) docks += b.team == 1 && b.type == BLD_DOCK;
+	}
+	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, -24.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	const PetraKept k = s.petra_kept_;
+	std::printf("Petra on a food-poor islet: needFish %s, dock %s at population %d, %d fishing boats wanted on its sea\n",
+	            k.need_fish ? "yes" : "no", docks ? "placed" : "not placed", s.pop_current(1), PetraKept::at(k.wanted_fish, sea));
+	CHECK(k.decided && k.need_fish && !k.need_farm && k.need_corral);
+	CHECK(docks == 1 && s.pop_current(1) < 16);
+	CHECK(PetraKept::at(k.wanted_fish, sea) == 2);
+
+	const char *path = "/tmp/rtso_test_need_fish.sav";
+	CHECK(s.save_state(path));
+	static Simulation t;
+	fresh(t, islet_height);
+	CHECK(t.load_state(path));
+	std::remove(path);
+	const PetraKept &l = t.petra_kept_;
+	CHECK(l.decided && l.need_fish == k.need_fish && l.need_corral == k.need_corral && l.wanted_fish == k.wanted_fish &&
+	      l.wanted_transport == k.wanted_transport && l.target_traders == k.target_traders);
 }
 
 // worker.js startGathering asks navalManager.requireTransport for a supply near one of our
@@ -1771,6 +1813,7 @@ int main() {
 	test_petra_fishing();
 	test_petra_fishing_boat_backs_off();
 	test_petra_small_land_fields();
+	test_petra_need_fish();
 	test_petra_dock_position();
 	test_petra_workers_across_water();
 	test_fire_ship();

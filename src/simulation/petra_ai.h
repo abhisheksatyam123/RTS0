@@ -379,6 +379,24 @@ struct PetraFailedGather {
 	bool recent(uint8_t r, float now) const { return time[r] != 0.0f && now - time[r] < 20.0f; }
 };
 
+// What 0 A.D. decides once and keeps (saved): startingStrategy.js configFirstBase's needFish and
+// needFarm and navalManager.js's wantedFishShips, decided with the first civic centre; the
+// wantedTransportShips that only grow (setMinimalTransportShips, checkLevels); and
+// tradeManager.js targetNumTraders, set by setTradingGoods. Seas by nav region id.
+struct PetraKept {
+	bool decided = false;   // configFirstBase has run
+	bool need_fish = false; // a small starting land short of food: dock at once, a fishing boat goes on
+	bool need_farm = false; // a large one short of food: the first field goes on
+	bool need_corral = false; // a starting land under 25000 m²: the first corral goes on
+	int16_t target_traders = -1; // -1 until setTradingGoods sets it: the config value
+	std::vector<uint8_t> wanted_fish, wanted_transport;
+	static uint8_t at(const std::vector<uint8_t> &v, size_t s) { return s < v.size() ? v[s] : 0; }
+	static void raise(std::vector<uint8_t> &v, size_t s, int n) {
+		if (s >= v.size()) v.resize(s + 1, 0);
+		v[s] = (uint8_t)std::clamp(std::max<int>(v[s], n), 0, 255);
+	}
+};
+
 // emergencyManager.js
 struct PetraEmergency {
 	int ref_pop = 0;
