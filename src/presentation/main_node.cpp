@@ -1081,6 +1081,7 @@ bool RtsoMain::load_game(String path) {
 	if (success) {
 		selected_ids.clear();
 		selected_building_id = 0;
+		restore_saved_gui(path);
 		print_line("[RTS0] Game loaded successfully from " + path);
 		// The game goes on from the save as a new replay that starts from it.
 		if (!loading_replay_start_ && !net_lockstep()) begin_recording_from_save(path);
@@ -3451,7 +3452,13 @@ Dictionary RtsoMain::get_match_settings_info() const {
 	Dictionary d;
 	if (!sim) return d;
 	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings")))
-		for (const char *k : {"map_size", "start_res", "team_placement", "trigger_difficulty"}) d[k] = ms->get(k);
+		for (const char *k : {"map_size", "start_res", "team_placement", "trigger_difficulty", "biome", "rated"}) d[k] = ms->get(k);
+	// gamedescription.js Rated game: rated with two players, else "disabled" in a lobby game.
+	int players = 0;
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) players += sim->player(p).active ? 1 : 0;
+	d["player_count"] = players;
+	Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
+	d["lobby_game"] = net_lockstep() && ls && bool(ls->call("signed_in"));
 	d["map_id"] = String::utf8(sim->current_map_id().c_str());
 	d["map_name"] = String::utf8(sim->current_map_name().c_str());
 	d["victory_mask"] = (int)sim->victory_conditions(); // rtso::VictoryKind bits

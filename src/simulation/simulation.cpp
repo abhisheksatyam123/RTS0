@@ -12173,6 +12173,10 @@ void Simulation::tick_production(float dt) {
 	}
 }
 
+// The widest unit_building_clearance (a trireme's 1.8): how far past a range a unit's centre
+// can be while its obstruction edge is in it, for the grid searches round a range.
+constexpr float UNIT_RANGE_MARGIN = 2.0f;
+
 inline bool in_parabolic_range(float d2, float att_y, float def_y, float base_range) {
 	float height_diff = def_y - att_y; // target_y - attacker_y
 	float max_r2 = base_range * base_range - 2.0f * base_range * height_diff;
@@ -12211,7 +12215,7 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 			const size_t i = (size_t)ui;
 			ok = units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && can_attack(b.team, units_.team[i])
 					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
-					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, 0.0f, unit_height(i));
+					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		} else if (tb != building_id_to_idx_.end()) {
 			const Building &ob = buildings_[tb->second];
 			ok = !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
@@ -12918,8 +12922,10 @@ void Simulation::tick_combat(float dt) {
 		auto unit_ok = [&](int32_t t) {
 			if (!units_.alive[t] || units_.action_state[t] == ACTION_GARRISONED || !can_attack(team, units_.team[t])) return false;
 			if (units_.team[t] == GAIA_PLAYER && units_.attack_damage[t] <= 0.0f) return false;
+			// From obstruction edge to obstruction edge, as the range query measures.
 			const float dx = units_.pos_x[t] - sx, dz = units_.pos_z[t] - sz;
-			if (!in_parabolic_range(dx * dx + dz * dz, sy, unit_height(t), range)) return false;
+			const float gap = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_clearance_at(i) - unit_clearance_at((size_t)t));
+			if (!in_parabolic_range(gap * gap, sy, unit_height(t), range)) return false;
 			return !check_los || los_visible(team, units_.pos_x[t], units_.pos_z[t]);
 		};
 		auto building_ok = [&](const Building &ob) {
@@ -12929,9 +12935,13 @@ void Simulation::tick_combat(float dt) {
 			return !check_los || los_explored(team, ob.x, ob.z);
 		};
 		const bool shoots_gaia = team != GAIA_PLAYER && is_hostile(team, GAIA_PLAYER);
+		// Dangerous Gaia animals, and enemy players' livestock (BuildingAI's enemy query takes
+		// every entity with Resistance), as for structures.
 		auto fauna_ok = [&](int32_t f) {
 			const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
-			return shoots_gaia && in_parabolic_range(dx * dx + dz * dz, sy, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]), range)
+			const uint8_t owner = fauna_owner_[f];
+			const bool foe = owner < MAX_PLAYERS ? team != GAIA_PLAYER && can_attack(team, owner) : shoots_gaia;
+			return foe && in_parabolic_range(dx * dx + dz * dz, sy, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]), range)
 					&& (!check_los || los_visible(team, fauna_.pos_x[f], fauna_.pos_z[f]));
 		};
 		// The UnitAI target first, then the best of the rest.
@@ -12955,16 +12965,19 @@ void Simulation::tick_combat(float dt) {
 					best_pref = pref; best_d2 = d2; best_kind = kind; best_idx = idx;
 				}
 			};
-			if (n) grid.visit_radius(sx, sz, range, [&](int32_t t) {
+			// The flat-ground reach from the tower's Origin/Y, past which no unit's edge is in range.
+			const float reach = std::sqrt(range * range + 2.0f * range * (sy - ground_y)) + UNIT_RANGE_MARGIN + unit_clearance_at(i);
+			if (n) grid.visit_radius(sx, sz, reach, [&](int32_t t) {
 				if (!unit_ok(t)) return;
 				const float dx = units_.pos_x[t] - sx, dz = units_.pos_z[t] - sz;
 				consider(prefers_human && unit_combat_at((size_t)t).classes.has(CC_HUMAN) ? 0 : 49, dx * dx + dz * dz, 0, t);
 			});
-			for (const int32_t f : wild) {
-				if (!fauna_ok(f)) continue;
-				const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
-				consider(49, dx * dx + dz * dz, 1, f);
-			}
+			for (const std::vector<uint16_t> *list : {&wild, &herd})
+				for (const int32_t f : *list) {
+					if (!fauna_ok(f)) continue;
+					const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
+					consider(49, dx * dx + dz * dz, 1, f);
+				}
 			for (size_t o = 0; o < buildings_.size(); ++o) {
 				if (!building_ok(buildings_[o])) continue;
 				const float dx = buildings_[o].x - sx, dz = buildings_[o].z - sz;
@@ -13051,7 +13064,7 @@ void Simulation::tick_combat(float dt) {
 		auto unit_target = [&](int32_t i) {
 			return units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && can_attack(b.team, units_.team[i])
 					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
-					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, 0.0f, unit_height(i));
+					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		};
 		auto building_target = [&](const Building &ob) {
 			return !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
@@ -13067,7 +13080,7 @@ void Simulation::tick_combat(float dt) {
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) { any = any || unit_target(i); });
+			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
 			for (size_t k = 0; k < wild.size() && !any; ++k) any = fauna_target(wild[k]);
 			for (size_t k = 0; k < herd.size() && !any; ++k) any = fauna_target(herd[k]);
 			for (size_t o = 0; o < buildings_.size() && !any; ++o) any = building_target(buildings_[o]);
@@ -13084,7 +13097,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;

@@ -5,6 +5,7 @@
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
+#include <godot_cpp/classes/geometry2d.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <cstring>
 #include <godot_cpp/classes/resource_loader.hpp>
@@ -238,8 +239,33 @@ void RtsoMiniMapView::_draw() {
 	// carry the blurred influence border and the circles keep the crisp edge.
 	// Data path: simulation.h:327 territory_grid() -> ensure_territory_texture()
 	// (minimap_view.cpp) -> RGBA8 overlay; closes REMAINING_GAPS.md:148.
+	// A circular map's minimap shader (minimap.fs CIRCULAR_MINIMAP) discards everything
+	// past the map's circle, so there the layers below are drawn inside the disc only.
+	PackedVector2Array disc;
+	if (round) {
+		const int n = 96;
+		disc.resize(n);
+		const Vector2 c = sz * 0.5f;
+		const float r = std::min(sz.x, sz.y) * 0.5f;
+		for (int i = 0; i < n; ++i) {
+			const float a = 6.2831853f * (float)i / (float)n;
+			disc.set(i, c + Vector2(std::cos(a), std::sin(a)) * r);
+		}
+	}
+	auto in_disc = [&](Vector2 p) {
+		const Vector2 d = p - sz * 0.5f;
+		const float r = std::min(sz.x, sz.y) * 0.5f;
+		return !round || d.length_squared() <= r * r;
+	};
 	if (show_territory && ensure_territory_texture()) {
-		draw_texture_rect(territory_tex_, Rect2(Vector2(0, 0), sz), false, Color(1, 1, 1, 1));
+		if (round) {
+			PackedVector2Array uv;
+			uv.resize(disc.size());
+			for (int i = 0; i < disc.size(); ++i) uv.set(i, Vector2(disc[i].x / sz.x, disc[i].y / sz.y));
+			draw_polygon(disc, PackedColorArray({Color(1, 1, 1, 1)}), uv, territory_tex_);
+		} else {
+			draw_texture_rect(territory_tex_, Rect2(Vector2(0, 0), sz), false, Color(1, 1, 1, 1));
+		}
 	}
 
 	// 1b. Smoothed Territory Influence Outlines (0 A.D. Territory System).
@@ -256,8 +282,31 @@ void RtsoMiniMapView::_draw() {
 				const Color pc = player_color(b.team);
 				const Color territory_fill(pc.r, pc.g, pc.b, 0.14f);
 				const Color territory_edge(pc.r, pc.g, pc.b, 0.60f);
-				draw_circle(pos, r_px, territory_fill);
-				draw_arc(pos, r_px, 0.0f, 6.2831853f, 48, territory_edge, 1.5f);
+				if (!round) {
+					draw_circle(pos, r_px, territory_fill);
+					draw_arc(pos, r_px, 0.0f, 6.2831853f, 48, territory_edge, 1.5f);
+					continue;
+				}
+				PackedVector2Array ring;
+				ring.resize(48);
+				for (int i = 0; i < 48; ++i) {
+					const float a = 6.2831853f * (float)i / 48.0f;
+					ring.set(i, pos + Vector2(std::cos(a), std::sin(a)) * r_px);
+				}
+				TypedArray<PackedVector2Array> inside = Geometry2D::get_singleton()->intersect_polygons(ring, disc);
+				for (int k = 0; k < inside.size(); ++k) draw_colored_polygon(inside[k], territory_fill);
+				// The outline, in runs that stay inside the disc.
+				PackedVector2Array run;
+				for (int i = 0; i <= 48; ++i) {
+					const Vector2 q = ring[i % 48];
+					if (in_disc(q)) {
+						run.push_back(q);
+						continue;
+					}
+					if (run.size() >= 2) draw_polyline(run, territory_edge, 1.5f);
+					run.clear();
+				}
+				if (run.size() >= 2) draw_polyline(run, territory_edge, 1.5f);
 			}
 		}
 	}
