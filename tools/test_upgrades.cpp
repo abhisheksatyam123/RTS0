@@ -211,7 +211,8 @@ int main() {
 		CHECK(apt.to == BLD_APARTMENT && apt.wood_cost == 50 && apt.stone_cost == 50 && apt.time == 55.0f);
 		CHECK(building_upgrade(BLD_HOUSE, CIV_ATHENIANS).to == BLD_TYPE_COUNT);
 		CHECK(!civ_can_build(CIV_PERSIANS, BLD_TACHARA_FOOD) && civ_can_build(CIV_PERSIANS, BLD_TACHARA));
-		CHECK(!civ_can_build(CIV_CARTHAGINIANS, BLD_APARTMENT));
+		// mixins/builder.xml lists {civ}/apartment: Carthage also lays one directly; no one else.
+		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_APARTMENT) && !civ_can_build(CIV_ATHENIANS, BLD_APARTMENT));
 		CHECK(building_type_info(BLD_APARTMENT).pop_bonus == 20);
 		CHECK(building_type_info(BLD_TACHARA_METAL).max_hp == building_type_info(BLD_TACHARA).max_hp);
 

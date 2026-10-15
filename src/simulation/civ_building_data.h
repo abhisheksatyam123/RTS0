@@ -319,7 +319,7 @@ inline float civ_building_vision(uint8_t type) {
 // True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):
 // no civ lays its foundation.
 inline bool civ_building_upgrade_only(uint8_t type) {
-	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT || type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL_GATE || type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
+	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT || type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL_GATE || type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
 }
 
 // 0 A.D. Upgrade choices of the civs' own structures (structures/<civ>/*.xml):
