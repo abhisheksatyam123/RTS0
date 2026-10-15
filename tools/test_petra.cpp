@@ -309,12 +309,13 @@ static void test_ai_slots() {
 		CHECK(count_units(*s, 2, true) > w2 + 4, "AI player 2 trains workers");
 		CHECK(count_buildings(*s, 2) > b2 + 2, "AI player 2 builds");
 	}
-	// No human (0 A.D. observer game): player 0 runs its own Petra like any AI slot.
+	// No human (0 A.D. observer game): player 0 runs its own Petra like any AI slot. The map is
+	// big enough that the two economies don't start inside each other's border skirmishes.
 	{
 		auto s = std::make_unique<Simulation>();
 		s->set_sim_seed(11);
 		s->reset();
-		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 2, 64.0f);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 2, 96.0f);
 		s->set_player_active(0, true, true);
 		s->set_player_active(1, true, true);
 		const int w0 = count_units(*s, 0, true), b0 = count_buildings(*s, 0);
@@ -1352,7 +1353,16 @@ static void test_petra_no_units() {
 	s->triggers_.disabled_buildings[1] |= bld_bit(BLD_TOWN_CENTER);
 	for (int k = 0; k < 8; ++k) s->spawn_unit(x + (float)k, z + 3.0f, 1, UNIT_SPEARMAN);
 	for (int k = 0; k < 8; ++k) s->spawn_unit(x + (float)k, z + 5.0f, 1, UNIT_ARCHER);
-	run_for(*s, 30.0f);
+	// The enemy stands close: a defense army takes some at once, and army.clear walks those it
+	// releases to the ally's land (none of ours), where they wait like any unit with no plan.
+	std::vector<uint32_t> defended;
+	for (int t = 0; t < 60; ++t) {
+		run_for(*s, 0.5f);
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->petra_is_defender(s->units_.id[i]) &&
+			    std::find(defended.begin(), defended.end(), s->units_.id[i]) == defended.end())
+				defended.push_back(s->units_.id[i]);
+	}
 	const PetraKept &kept = s->petra_kept_;
 	int alive = 0, support = 0, in_attack = 0, allied_in_attack = 0, allied_soldiers = 0, defending = 0, idle = 0;
 	bool cc = false;
@@ -1365,7 +1375,9 @@ static void test_petra_no_units() {
 		allied_soldiers += allied && !petra_is_support_unit(s->units_.unit_type[i]);
 		if (s->petra_in_attack_squad(id)) { ++in_attack; allied_in_attack += allied; }
 		else if (!allied && s->petra_is_defender(id)) ++defending; // a defense army's: plan -2, not available
-		else if (!allied && s->units_.order_kind[i] == ORDER_NONE && s->units_.action_state[i] == ACTION_IDLE) ++idle;
+		else if (!allied && s->units_.order_kind[i] == ORDER_NONE && s->units_.action_state[i] == ACTION_IDLE &&
+		         std::find(defended.begin(), defended.end(), id) == defended.end())
+			++idle;
 	}
 	for (const auto &b : s->buildings_) cc |= b.team == 1 && b.hp > 0.0f && is_civic_centre(b.type);
 	std::printf("  no units to build: canBuildUnits %s, %zu sent to the ally (%d soldiers, %d support units of ours), "
@@ -1376,7 +1388,7 @@ static void test_petra_no_units() {
 	CHECK(!cc, "and no first base");
 	CHECK(allied_soldiers == 5 && (int)kept.allied.size() == 5 + support, "5 soldiers and every support unit guard the ally");
 	CHECK(allied_in_attack == 0 && idle == 0 && 2 * in_attack > alive - (int)kept.allied.size(),
-	      "an attack takes the other units at once, and none stands idle");
+	      "an attack takes the other units at once, and none but released defenders stands idle");
 	run_for(*s, 60.0f);
 	std::printf("  then %zu attack(s) under way\n", s->petra_started_attacks_.size());
 	CHECK(!s->petra_started_attacks_.empty(), "and sets off");
@@ -3442,6 +3454,144 @@ static void test_defense_ignores_ships() {
 	CHECK(s->petra_defense_armies().size() == 1, "a swordsman by the civic centre still does");
 }
 
+// defenseManager.js checkEnemyUnits "Keep animals attacking us or our allies": a wolf biting
+// one of Petra's women makes a defense army whose defenders kill it; a wolf merely roaming by
+// the civic centre, or biting an enemy's unit, raises none.
+static void test_defense_animals() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 10; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	const uint32_t idle_wolf = s->spawn_fauna(cx + 9.0f, cz + 8.0f, FAUNA_WOLF);
+	const uint32_t enemy = s->spawn_unit(cx + 9.0f, cz - 9.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t enemy_wolf = s->spawn_fauna(cx + 10.0f, cz - 9.0f, FAUNA_WOLF);
+	auto wolf_idx = [&](uint32_t id) {
+		auto it = s->fauna_id_to_idx_.find(id);
+		return it == s->fauna_id_to_idx_.end() ? SIZE_MAX : it->second;
+	};
+	auto keep_biting = [&](uint32_t wolf, uint32_t target) {
+		const size_t f = wolf_idx(wolf);
+		if (f != SIZE_MAX && s->fauna_.alive[f] && s->fauna_.behavior[f] != FAUNA_ATTACK) s->fauna_start_attack(f, target);
+	};
+	// Each tick, as the wolves would pick Petra's workers by the civic centre on their own.
+	for (int t = 0; t < 3; ++t) {
+		do {
+			const size_t e = wolf_idx(enemy_wolf);
+			if (e != SIZE_MAX) s->fauna_start_attack(e, enemy);
+			const size_t f = wolf_idx(idle_wolf);
+			if (f != SIZE_MAX) { s->fauna_.behavior[f] = FAUNA_IDLE_GRAZE; s->fauna_.target_unit_id[f] = 0; }
+			s->tick(Simulation::FIXED_STEP);
+		} while (!s->petra_turn_due(1));
+		s->tick(Simulation::FIXED_STEP);
+	}
+	std::printf("  animals: a roaming wolf and one biting an enemy make %zu armies\n", s->petra_defense_armies().size());
+	CHECK(s->petra_defense_armies().empty(), "an animal not attacking us or our allies raises no army");
+	const uint32_t woman = s->spawn_unit(cx - 9.0f, cz - 9.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t wolf = s->spawn_fauna(cx - 10.0f, cz - 9.0f, FAUNA_WOLF);
+	bool army = false, hunted = false;
+	for (int t = 0; t < 4 && !(army && hunted); ++t) {
+		keep_biting(wolf, woman);
+		run_ai_turns(*s, 1);
+		for (const auto &a : s->petra_defense_armies()) {
+			if (std::find(a.foe_ids.begin(), a.foe_ids.end(), wolf) == a.foe_ids.end()) continue;
+			army = true;
+			for (uint32_t d : a.defender_ids) {
+				const int32_t i = s->lookup_unit(d);
+				hunted |= i >= 0 && s->units_.action_state[i] == ACTION_ATTACK && s->units_.target_unit_id[i] == wolf;
+			}
+		}
+	}
+	run_for(*s, 20.0f);
+	const size_t f = wolf_idx(wolf);
+	const bool dead = f == SIZE_MAX || !s->fauna_.alive[f] || s->fauna_.behavior[f] == FAUNA_CARCASS;
+	bool still = false;
+	for (const auto &a : s->petra_defense_armies())
+		still |= std::find(a.foe_ids.begin(), a.foe_ids.end(), wolf) != a.foe_ids.end();
+	std::printf("  animals: a wolf biting Petra's woman: army %s, defenders on it %s, killed %s, army gone %s\n",
+	            army ? "yes" : "no", hunted ? "yes" : "no", dead ? "yes" : "no", still ? "no" : "yes");
+	CHECK(army, "a wolf biting one of ours joins a defense army (checkEnemyUnits, checkEvents)");
+	CHECK(hunted, "the army's defenders go for the wolf (assignUnit)");
+	CHECK(dead && !still, "the wolf is killed and leaves the army");
+}
+
+// defenseArmy.js clear: defenders of a disbanded army standing outside our and allied land go
+// back to the nearest allied structure on their land that shoots (with no defender left in our
+// land to rally on), not to the primary base.
+static void test_defense_clear_destination() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr, *foe_cc = nullptr;
+	for (const auto &b : s->buildings_) {
+		if (b.type != BLD_TOWN_CENTER || b.build_progress < 1.0f) continue;
+		if (b.team == 1) cc = &b;
+		if (b.team == 0) foe_cc = &b;
+	}
+	CHECK(cc && foe_cc, "both players have a civic centre");
+	if (!cc || !foe_cc) return;
+	const float cx = cc->x, cz = cc->z;
+	// A neutral spot on our land, sideways of the line between the civic centres.
+	const float ux = foe_cc->z - cz, uz = cx - foe_cc->x, ul = std::hypot(ux, uz);
+	float spot_x = 0.0f, spot_z = 0.0f, edge_x = 0.0f, edge_z = 0.0f;
+	bool found = false;
+	for (float sign : {1.0f, -1.0f}) {
+		for (float d = 4.0f; d < 120.0f && !found; d += 1.0f) {
+			const float x = cx + sign * ux / ul * d, z = cz + sign * uz / ul * d;
+			if (std::fabs(x) > s->map_half_ - 8.0f || std::fabs(z) > s->map_half_ - 8.0f) break;
+			const int o = s->territory_owner_at(x, z);
+			if (o == 1) { edge_x = x; edge_z = z; continue; }
+			if (o < 0 && d > 20.0f && s->petra_land_at(x, z) == s->petra_land_at(cx, cz)) {
+				spot_x = x + sign * ux / ul * 4.0f;
+				spot_z = z + sign * uz / ul * 4.0f;
+				found = s->territory_owner_at(spot_x, spot_z) < 0;
+			}
+		}
+		if (found) break;
+	}
+	CHECK(found, "a neutral spot beside Petra's land");
+	if (!found) return;
+	const float tower_x = cx + (edge_x - cx) * 0.8f, tower_z = cz + (edge_z - cz) * 0.8f;
+	s->spawn_building_world(tower_x, tower_z, BLD_SENTRY_TOWER, 1);
+	std::vector<uint32_t> defenders;
+	for (int k = 0; k < 4; ++k) defenders.push_back(s->spawn_unit(spot_x + (float)k, spot_z + 2.0f, 1, UNIT_SPEARMAN));
+	const uint32_t foe = s->spawn_unit(spot_x, spot_z - 2.0f, 0, UNIT_SWORDSMAN, 1.0e4f);
+	s->petra_defense_armies_.clear();
+	s->petra_defense_armies_.emplace_back();
+	s->petra_defense_armies_.back().foe_ids.push_back(foe);
+	s->petra_defense_armies_.back().defender_ids = defenders;
+	bool gone = false;
+	for (int t = 0; t < 8 && !gone; ++t) {
+		run_ai_turns(*s, 1);
+		gone = !s->petra_is_defender(defenders[0]);
+	}
+	float to_tower = 0.0f, to_cc = 0.0f;
+	int n = 0;
+	for (uint32_t id : defenders) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		to_tower += std::hypot(s->units_.target_x[i] - tower_x, s->units_.target_z[i] - tower_z);
+		to_cc += std::hypot(s->units_.target_x[i] - cx, s->units_.target_z[i] - cz);
+		++n;
+	}
+	if (n) { to_tower /= (float)n; to_cc /= (float)n; }
+	std::printf("  clear: army disbanded %s, defenders head %.1f from the tower, %.1f from the civic centre (tower %.1f from it)\n",
+	            gone ? "yes" : "no", to_tower, to_cc, std::hypot(tower_x - cx, tower_z - cz));
+	CHECK(gone, "the army out of our land disbands");
+	CHECK(n > 0 && to_tower < 4.0f, "its defenders head for the nearest structure that shoots (defenseArmy.js clear)");
+}
+
 // defenseManager.js switchToAttack: an army whose foes are gone, with a defender within
 // 120 m of an enemy structure in our territory, attacks that structure alone and ends
 // once it falls (uniqueTargetId).
@@ -4229,6 +4379,61 @@ static void test_raid_keeps_hunters() {
 	CHECK((int)plan.squad.size() == std::min(4, riders - 2), "a raid leaves two riders home to hunt");
 }
 
+// defenseManager.js targetList / attackPlan.js Raid: an enemy civic centre going up in neutral
+// land within 30000 m² of our structures is a raid target; past half built the raid sets off
+// with its minimum, and it fights on until the target falls (no time limit).
+static void test_raid_cc_foundation() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float ox = cc->x, oz = cc->z;
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (int a = 0; a < 16 && !found; ++a) {
+		for (float d = 10.0f; d < 40.0f && !found; d += 1.0f) {
+			const float x = ox + std::cos(a * 0.3927f) * d, z = oz + std::sin(a * 0.3927f) * d;
+			if (std::fabs(x) > s->map_half_ - 10.0f || std::fabs(z) > s->map_half_ - 10.0f) break;
+			if (s->territory_owner_at(x, z) < 0 && s->petra_land_at(x, z) == s->petra_land_at(ox, oz)) { fx = x; fz = z; found = true; }
+		}
+	}
+	CHECK(found, "neutral land within 43 units of Petra's civic centre");
+	if (!found) return;
+	const uint32_t target = s->spawn_building_world(fx, fz, BLD_TOWN_CENTER, 0, 0.6f);
+	auto it = s->building_id_to_idx_.find(target);
+	CHECK(it != s->building_id_to_idx_.end(), "the foundation stands");
+	if (it == s->building_id_to_idx_.end()) return;
+	CHECK(s->petra_raid_target_ok(target), "an enemy civic centre foundation near our structures is a raid target");
+	auto &plan = s->petra_raid_plan_;
+	// More riders wanted than there are: only the minimum can be met.
+	for (int k = 0; k < 4; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
+	s->petra_scout_unit_id_ = 0;
+	plan = Simulation::AttackPlan();
+	plan.type = Simulation::AttackPlan::PLAN_RAID;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = target;
+	s->petra_attack_mgr_.raid_target = 40;
+	s->petra_attack_mgr_.raid_min = 2;
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const bool set_off = plan.state == Simulation::AttackPlan::WALKING;
+	// Keep the foundation standing a while: the raid must not give up on it.
+	s->buildings_[s->building_id_to_idx_[target]].hp = s->buildings_[s->building_id_to_idx_[target]].max_hp * 50.0f;
+	for (int k = 0; k < 40; ++k) s->petra_manage_raid(1.6f);
+	const bool fighting = plan.state == Simulation::AttackPlan::WALKING || plan.state == Simulation::AttackPlan::ATTACKED;
+	std::printf("  raid on a civic centre foundation at 60%%: set off with %zu of %d %s, still on it after 64 s %s\n",
+	            plan.squad.size(), (int)s->petra_attack_mgr_.raid_target, set_off ? "yes" : "no", fighting ? "yes" : "no");
+	CHECK(set_off, "a raid on a foundation past half built sets off at its minimum (mustStart)");
+	CHECK(fighting && plan.target_building_id == target, "the raid fights on while its target stands");
+}
+
 // The first base's storehouse check (baseManager.js gatherers), added when it has none yet.
 static PetraDropsiteCheck &base_dropsite_check(Simulation &s) {
 	Simulation::PetraBasesMap m;
@@ -4986,6 +5191,8 @@ int main(int argc, char **argv) {
 	RUN(test_defense_by_strength);
 	RUN(test_defense_armies);
 	RUN(test_defense_ignores_ships);
+	RUN(test_defense_animals);
+	RUN(test_defense_clear_destination);
 	RUN(test_defense_switch_to_attack);
 	RUN(test_capturing_armies);
 	RUN(test_defenders_stop_hopeless_capture);
@@ -5008,6 +5215,7 @@ int main(int argc, char **argv) {
 	RUN(test_build_defenses);
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);
+	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);

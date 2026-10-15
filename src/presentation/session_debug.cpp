@@ -36,6 +36,7 @@
 #include "../core/diagnostics/perf_tracker.h"
 #include "../core/job_system.h"
 #include "../graphics/assets/model_library.h"
+#include "../graphics/assets/unit_template_models.h"
 #include <sstream>
 using namespace godot;
 using rtso::sprintf0;
@@ -836,17 +837,34 @@ void RtsoMain::debug_attacked(int64_t target, int64_t attacker_owner) {
 	int64_t u = -1;
 	for (size_t i = 0; i < uv.count && u < 0; ++i)
 		if (uv.alive[i] && uv.id[i] == (uint32_t)target) u = (int64_t)i;
-	if (u < 0) return;
 	rtso::Simulation::AttackedEvent e{};
 	e.target_id = (uint32_t)target;
-	e.target_owner = uv.team[u];
 	e.attacker_owner = (uint8_t)attacker_owner;
-	e.x = uv.pos_x[u];
-	e.z = uv.pos_z[u];
+	if (u >= 0) {
+		e.target_owner = uv.team[u];
+		e.x = uv.pos_x[u];
+		e.z = uv.pos_z[u];
+	} else { // an owned animal (livestock)
+		const auto fv = sim->fauna();
+		size_t f = 0;
+		while (f < fv.count && fv.id[f] != (uint32_t)target) ++f;
+		if (f == fv.count) return;
+		e.target_owner = fv.owner[f];
+		e.x = fv.pos_x[f];
+		e.z = fv.pos_z[f];
+	}
 	detect_attacks({e});
 }
 
 // The GLB a civ's class model for a unit type loads from (ModelLibrary, aliases included).
 String RtsoMain::debug_unit_model_path(int civ, int unit_type) {
 	return rtso::ModelLibrary::get("units", String(rtso::civ_unit_model((uint8_t)civ, (uint8_t)unit_type))).path;
+}
+
+// The GLB a roster template's own model (unit_template_draw_index) loads from; "" when it
+// draws its civ's class model.
+String RtsoMain::debug_template_model_path(const String &template_id) {
+	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
+	const char *own = rtso::unit_template_draw_model(rtso::unit_template_draw_index(t));
+	return own ? rtso::ModelLibrary::get("units", String(own)).path : String();
 }

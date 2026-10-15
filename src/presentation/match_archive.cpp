@@ -752,7 +752,10 @@ bool RtsoMain::save_game_as(String name, String description) {
 		safe += ok ? String::chr(c) : String("_");
 	}
 	if (safe.is_empty()) safe = "savegame_" + timestamp_id();
-	return save_game("user://saves/" + safe + ".rts0sav", description);
+	const String file = "saves/" + safe + ".rts0sav";
+	if (!save_game("user://" + file, description)) return false;
+	log_render("Saved game to '" + file + "'"); // SavedGame.cpp Save: LOGMESSAGERENDER
+	return true;
 }
 
 // A save picked in the load dialog from the main menu (MatchSettings.load_save_path):
