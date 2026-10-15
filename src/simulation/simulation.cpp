@@ -3474,6 +3474,12 @@ std::vector<uint16_t> Simulation::unit_trainables(uint8_t player, uint16_t tmpl,
 	return out;
 }
 
+uint8_t Simulation::unit_trainee_tech(uint16_t trainer_tmpl, uint16_t trainee) {
+	for (const UnitTrainee &t : unit_trainees(trainer_tmpl))
+		if (t.tmpl == trainee) return t.tech;
+	return TECH_NONE;
+}
+
 // Trainer/BatchTimeModifier of the training unit: count ^ modifier.
 float Simulation::unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const {
 	if (count <= 1) return 1.0f;
