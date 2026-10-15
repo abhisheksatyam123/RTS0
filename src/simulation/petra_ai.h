@@ -438,9 +438,7 @@ struct PetraAttackManager {
 	uint8_t attack_number = 0; // Attack/HugeAttack plans so far
 	uint8_t kind = PETRA_ATTACK_ATTACK; // kind of the main plan
 	uint8_t save_resources = 0; // headquarters.js saveResources: little wood at the start
-	// buildManager.js unbuildables for "room": a bit per kind of structure (petra_room_bit) whose
-	// last search found no spot; cleared when one is placed or a new base widens the territory.
-	uint8_t missing_room = 0;
+	uint8_t missing_room = 0; // unused since v94 (Simulation::petra_room_); kept for the saved layout
 	// victoryManager.js tryCaptureGaiaRelicLapseTime: 2 s steps left before an attack may go
 	// for Gaia's relics again (0: it may, tryCaptureGaiaRelic).
 	uint8_t gaia_relic_lapse = 0;

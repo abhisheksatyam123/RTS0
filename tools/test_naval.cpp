@@ -1153,8 +1153,9 @@ static void test_petra_concurrent_transports() {
 	drop_attack_batches();
 	bool both = false, shared = false;
 	std::vector<uint32_t> landed;
-	// The most villagers on the south land at once: once the civic centre stands, Petra may ship a
-	// builder home again for a resource the new base lacks.
+	// The most workers (not the army's soldiers) on the south land at once: once the civic centre
+	// stands, Petra may ship a builder home again for a resource the new base lacks. The crew is
+	// whoever is idle first, the women it trained meanwhile as well as the starting villagers.
 	int villagers_south = 0;
 	for (int k = 0; k < 120; ++k) {
 		if (s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER) drop_attack_batches();
@@ -1173,11 +1174,11 @@ static void test_petra_concurrent_transports() {
 		}
 		int now_south = 0;
 		for (size_t i = 0; i < s.units().count; ++i)
-			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+			if (s.units().alive[i] && s.units().team[i] == 1 && s.petra_is_worker(i) &&
 			    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) ++now_south;
 		villagers_south = std::max(villagers_south, now_south);
 	}
-	std::printf("Petra concurrent transports: both under way at once %s, %zu of 6 spearmen landed, at most %d villagers on the south land at once\n",
+	std::printf("Petra concurrent transports: both under way at once %s, %zu of 6 spearmen landed, at most %d workers on the south land at once\n",
 	            both ? "yes" : "no", landed.size(), villagers_south);
 	CHECK(both && !shared);
 	CHECK(landed.size() >= 4 && villagers_south >= 1);
