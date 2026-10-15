@@ -1642,7 +1642,7 @@ func _apply_settings(ms: Dictionary) -> void:
 	var sbehs: Array = ms.get("slot_behs", [])
 	var scolors: Array = ms.get("slot_colors", [])
 	if not types.is_empty():
-		$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value = clampi(types.size(), 2, 8)
+		$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value = clampi(types.size(), 1, 8)
 		_ensure_slot_rows(int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value))
 		for i in range(mini(types.size(), _slot_rows.size())):
 			_slot_rows[i]["kind"] = clampi(int(types[i]), 0, 2)
@@ -1805,9 +1805,6 @@ func _on_start_pressed() -> void:
 	if int(st["humans"]) < 1 and int(st["ai"]) < 2:
 		_show_error("Watching a game needs at least 2 AI players.")
 		return
-	if int(st["ai"]) < 1:
-		_show_error("Need at least 1 AI opponent.")
-		return
 	if int(st["humans"]) > 0 and int(st["types"][0]) != 0:
 		_show_error("Slot 1 must be Human, or make every slot AI to watch.")
 		return
@@ -1872,7 +1869,7 @@ func _on_start_pressed() -> void:
 	ms.player_count = int(st["slots"])
 	ms.player_civ = int(st["civs"][0])
 	# Legacy back-compat: first AI slot's civ.
-	ms.ai_civ = int(st["civs"][1]) if int(st["types"][1]) == 1 else int(st["civs"][0])
+	ms.ai_civ = int(st["civs"][1]) if (st["types"] as Array).size() > 1 and int(st["types"][1]) == 1 else int(st["civs"][0])
 	print("[GameSetup] Start — %s seed=%d victory=%d diff=%d beh=%d res=%d slots=%s civs=%s teams=%s" % [
 		ms.map_id, ms.seed, ms.victory, ms.ai_difficulty, ms.ai_behavior,
 		ms.start_res, str(st["types"]), str(st["civs"]), str(st["teams"])])
