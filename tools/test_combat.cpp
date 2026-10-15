@@ -323,6 +323,14 @@ static void test_auras() {
 	check(std::fabs(attack_mod(own) - 1.2f) < 1e-4f, "Hannibal: own soldier +20% attack");
 	check(std::fabs(attack_mod(ally) - 1.2f) < 1e-4f, "Hannibal: allied soldier +20% attack");
 	check(attack_mod(enemy) == 0.0f, "Hannibal: enemy soldier unaffected");
+	// "Ally" (Auras.js): the players Hannibal's owner counts as allies, whatever they answer.
+	s.set_diplomacy(0, 3, Simulation::DIPLO_ALLY);
+	s.set_diplomacy(4, 0, Simulation::DIPLO_ALLY);
+	uint32_t courted = s.spawn_unit(2.0f, 2.0f, 3, UNIT_SPEARMAN, 0.0f, cart_spear);
+	uint32_t courting = s.spawn_unit(-2.0f, 2.0f, 4, UNIT_SPEARMAN, 0.0f, cart_spear);
+	s.rebuild_auras();
+	check(std::fabs(attack_mod(courted) - 1.2f) < 1e-4f, "Hannibal: a player his owner allies one-sidedly gets +20%");
+	check(attack_mod(courting) == 0.0f, "Hannibal: a player allying his owner one-sidedly does not");
 
 	Simulation r;
 	setup(r);
@@ -588,6 +596,12 @@ static void test_structure_auras() {
 	check(mod(far, AURA_ATTACK) == 0.0f, "large pyramid: soldier beyond 70 m unaffected");
 	check(mod(foe, AURA_ATTACK) == 0.0f, "large pyramid: enemy soldier unaffected");
 	check(std::fabs(mod(worker, AURA_GATHER) - (1.0f - 1.0f / 1.15f)) < 1e-3f, "small pyramid: own worker gathers 15% faster");
+	// Different auras multiply (ModifiersManager): Viridomarus' global +15% with the pyramid's.
+	const uint32_t viridomarus = s.spawn_unit(-40.0f, 40.0f, 0, UNIT_HERO, 0.0f, template_named("gaul/hero_viridomarus"));
+	s.order_set_stance(&viridomarus, 1, STANCE_STAND_GROUND);
+	s.rebuild_auras();
+	std::printf("      pyramid and Viridomarus: interval cut %.4f\n", mod(worker, AURA_GATHER));
+	check(std::fabs(mod(worker, AURA_GATHER) - (1.0f - 1.0f / (1.15f * 1.15f))) < 1e-3f, "pyramid and Viridomarus: +15% twice, multiplied");
 
 	// Temple of Amun: own heroes -5% health everywhere.
 	const uint16_t amanirenas = template_named("kush/hero_amanirenas");

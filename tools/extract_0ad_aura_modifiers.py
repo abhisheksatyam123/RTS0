@@ -85,7 +85,7 @@ EXTRA_ALIASES = {
 }
 
 # Auras.js affectedPlayers -> AuraPlayers bits (aura_manager.h).
-PLAYERS = {"Player": 1, "Ally": 3, "MutualAlly": 3, "Enemy": 4}
+PLAYERS = {"Player": 1, "Ally": 11, "MutualAlly": 3, "Enemy": 4}  # 8: by the owner's own stance
 
 
 def list_files(src: Source, prefix: str) -> list[str]:
