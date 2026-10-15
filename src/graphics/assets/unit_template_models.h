@@ -10,7 +10,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 397;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 411;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -411,6 +411,20 @@ inline const char *unit_template_draw_model(int k) {
 		"samnite_skirmisher",
 		"samnite_spearman",
 		"viking_longship",
+		"spart_champion_infantry_pike",
+		"pers_hero_xerxes_i_chariot",
+		"pers_kardakes_hoplite",
+		"pers_kardakes_skirmisher",
+		"rome_hero_marcellus_infantry",
+		"rome_hero_maximus_infantry",
+		"rome_infantry_swordsman_slave",
+		"cart_champion_pikeman",
+		"mace_hero_craterus",
+		"mace_hero_philip_ii_pike",
+		"mace_hero_pyrrhus_i",
+		"brit_hero_boudicca_cavalry_javelineer",
+		"brit_hero_cunobelin_infantry",
+		"iber_hero_indibil_infantry",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -882,25 +896,25 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // gaul/support_healer_e
 		-1, // ptol/support_healer_e
 		-1, // han/support_healer_e
-		-1, // athen/infantry_marine_archer_b (no model of its own: its owner civ's archer model)
-		-1, // spart/champion_infantry_pike (no model of its own: its owner civ's spearman model)
-		-1, // pers/hero_xerxes_i_chariot (no model of its own: its owner civ's hero model)
-		-1, // pers/kardakes_hoplite (no model of its own: its owner civ's spearman model)
-		-1, // pers/kardakes_skirmisher (no model of its own: its owner civ's archer model)
-		-1, // rome/hero_marcellus_infantry (no model of its own: its owner civ's hero model)
-		-1, // rome/hero_maximus_infantry (no model of its own: its owner civ's hero model)
-		-1, // rome/hero_scipio_infantry (no model of its own: its owner civ's hero model)
-		-1, // rome/infantry_swordsman_slave (no model of its own: its owner civ's swordsman model)
-		-1, // cart/champion_pikeman (no model of its own: its owner civ's spearman model)
-		-1, // mace/hero_craterus (no model of its own: its owner civ's hero model)
-		-1, // mace/hero_philip_ii_pike (no model of its own: its owner civ's hero model)
-		-1, // mace/hero_pyrrhus_i (no model of its own: its owner civ's hero model)
-		-1, // brit/hero_boudicca_cavalry_javelineer (no model of its own: its owner civ's hero model)
-		-1, // brit/hero_boudicca_sword (no model of its own: its owner civ's hero model)
-		-1, // brit/hero_cunobelin_infantry (no model of its own: its owner civ's hero model)
-		-1, // gaul/hero_vercingetorix_infantry (no model of its own: its owner civ's hero model)
-		-1, // iber/hero_indibil_infantry (no model of its own: its owner civ's hero model)
-		-1, // maur/hero_ashoka_infantry (no model of its own: its owner civ's hero model)
+		7, // athen/infantry_marine_archer_b
+		397, // spart/champion_infantry_pike
+		398, // pers/hero_xerxes_i_chariot
+		399, // pers/kardakes_hoplite
+		400, // pers/kardakes_skirmisher
+		401, // rome/hero_marcellus_infantry
+		402, // rome/hero_maximus_infantry
+		-1, // rome/hero_scipio_infantry
+		403, // rome/infantry_swordsman_slave
+		404, // cart/champion_pikeman
+		405, // mace/hero_craterus
+		406, // mace/hero_philip_ii_pike
+		407, // mace/hero_pyrrhus_i
+		408, // brit/hero_boudicca_cavalry_javelineer
+		-1, // brit/hero_boudicca_sword
+		409, // brit/hero_cunobelin_infantry
+		-1, // gaul/hero_vercingetorix_infantry
+		410, // iber/hero_indibil_infantry
+		-1, // maur/hero_ashoka_infantry
 		388, // maur/hero_bindusara_infantry
 		389, // maur/hero_chandragupta_infantry
 		-1, // kush/hero_amanirenas_infantry
@@ -931,7 +945,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 349;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 363;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -963,8 +977,10 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"brit_cavalry_swordsman_a", "brit_cavalry", nullptr},
 		{"brit_cavalry_swordsman_e", "brit_cavalry", nullptr},
 		{"brit_hero_boudicca", "brit_chariot", nullptr},
+		{"brit_hero_boudicca_cavalry_javelineer", "brit_cavalry", nullptr},
 		{"brit_hero_caratacos", "brit_hero", nullptr},
 		{"brit_hero_cunobelin", "brit_cavalry", "brit_cavalry"},
+		{"brit_hero_cunobelin_infantry", "brit_hero", nullptr},
 		{"brit_infantry_javelineer_a", "brit_archer", nullptr},
 		{"brit_infantry_javelineer_b", "brit_archer", nullptr},
 		{"brit_infantry_javelineer_e", "brit_archer", nullptr},
@@ -989,6 +1005,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"cart_cavalry_swordsman_iber_a", "cart_cavalry", nullptr},
 		{"cart_cavalry_swordsman_iber_b", "cart_cavalry", "cart_cavalry"},
 		{"cart_cavalry_swordsman_iber_e", "cart_cavalry", nullptr},
+		{"cart_champion_pikeman", "cart_spearman", nullptr},
 		{"cart_hero_hamilcar", "cart_cavalry", "cart_cavalry"},
 		{"cart_hero_hannibal", "cart_elephant", nullptr},
 		{"cart_hero_maharbal", "cart_cavalry", "cart_cavalry"},
@@ -1082,6 +1099,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"iber_cavalry_spearman_e", "iber_cavalry", nullptr},
 		{"iber_hero_caros", "iber_hero", nullptr},
 		{"iber_hero_indibil", "iber_cavalry", "iber_cavalry"},
+		{"iber_hero_indibil_infantry", "iber_hero", nullptr},
 		{"iber_infantry_javelineer_a", "iber_archer", nullptr},
 		{"iber_infantry_javelineer_b", "iber_archer", nullptr},
 		{"iber_infantry_javelineer_e", "iber_archer", nullptr},
@@ -1119,8 +1137,11 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"mace_champion_infantry_spearman", "mace_spearman", nullptr},
 		{"mace_champion_infantry_spearman_02", "mace_spearman", nullptr},
 		{"mace_hero_alexander_iii", "mace_cavalry", "mace_cavalry"},
+		{"mace_hero_craterus", "mace_hero", nullptr},
 		{"mace_hero_demetrius_i", "mace_hero", nullptr},
 		{"mace_hero_philip_ii", "mace_cavalry", "mace_cavalry"},
+		{"mace_hero_philip_ii_pike", "mace_hero", nullptr},
+		{"mace_hero_pyrrhus_i", "mace_cavalry", nullptr},
 		{"mace_infantry_archer_a", "mace_archer", nullptr},
 		{"mace_infantry_archer_e", "mace_archer", nullptr},
 		{"mace_infantry_javelineer_a", "mace_archer", nullptr},
@@ -1165,6 +1186,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"pers_champion_infantry", "pers_spearman", "pers_spearman"},
 		{"pers_hero_cyrus_ii", "pers_cavalry", nullptr},
 		{"pers_hero_darius_i", "pers_chariot", nullptr},
+		{"pers_hero_xerxes_i_chariot", "pers_chariot", nullptr},
 		{"pers_infantry_archer_a", "pers_archer", nullptr},
 		{"pers_infantry_archer_b", "pers_archer", nullptr},
 		{"pers_infantry_archer_e", "pers_archer", nullptr},
@@ -1174,6 +1196,8 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"pers_infantry_spearman_a", "pers_spearman", nullptr},
 		{"pers_infantry_spearman_b", "pers_spearman", nullptr},
 		{"pers_infantry_spearman_e", "pers_spearman", nullptr},
+		{"pers_kardakes_hoplite", "pers_spearman", nullptr},
+		{"pers_kardakes_skirmisher", "pers_archer", nullptr},
 		{"pers_ship_ram", "pers_trireme", nullptr},
 		{"pers_ship_scout", "pers_trireme", "pers_trireme"},
 		{"pirates_ship_arrow", "trireme", nullptr},
@@ -1227,7 +1251,9 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"rome_champion_infantry_swordsman_centurion", "rome_swordsman", nullptr},
 		{"rome_champion_infantry_swordsman_first", "rome_swordsman", nullptr},
 		{"rome_hero_marcellus", "rome_cavalry", "rome_cavalry"},
+		{"rome_hero_marcellus_infantry", "rome_hero", nullptr},
 		{"rome_hero_maximus", "rome_cavalry", "rome_cavalry"},
+		{"rome_hero_maximus_infantry", "rome_hero", nullptr},
 		{"rome_hero_scipio", "rome_cavalry", "rome_cavalry"},
 		{"rome_infantry_antesignanus", "rome_archer", nullptr},
 		{"rome_infantry_javelineer_a", "rome_archer", "rome_archer"},
@@ -1239,6 +1265,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"rome_infantry_swordsman_a", "rome_swordsman", nullptr},
 		{"rome_infantry_swordsman_b", "rome_swordsman", nullptr},
 		{"rome_infantry_swordsman_e", "rome_swordsman", nullptr},
+		{"rome_infantry_swordsman_slave", "rome_swordsman", nullptr},
 		{"rome_ship_ram", "rome_trireme", nullptr},
 		{"rome_ship_scout", "rome_trireme", "rome_trireme"},
 		{"rome_ship_siege", "rome_trireme", "rome_trireme"},
@@ -1271,6 +1298,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"spart_cavalry_javelineer_e", "spart_cavalry", nullptr},
 		{"spart_cavalry_spearman_a", "spart_cavalry", nullptr},
 		{"spart_cavalry_spearman_e", "spart_cavalry", nullptr},
+		{"spart_champion_infantry_pike", "spart_spearman", nullptr},
 		{"spart_champion_infantry_spear_olympian", "spart_spearman", nullptr},
 		{"spart_hero_agis", "spart_hero", nullptr},
 		{"spart_hero_brasidas", "spart_hero", nullptr},

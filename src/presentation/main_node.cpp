@@ -67,7 +67,7 @@ void RtsoMain::_notification(int p_what) {
 	if (p_what == NOTIFICATION_EXIT_TREE) {
 		write_replay(); // leaving the match keeps its replay
 		// Menus get the normal arrow back (update_cursor sets action cursors).
-		if (!cursor_name_.empty()) Input::get_singleton()->set_custom_mouse_cursor(Ref<Resource>());
+		if (!cursor_name_.empty()) reset_default_cursor();
 		// The Render Debug Mode is the session's; the menus draw normally.
 		if (render_debug_mode_ && get_viewport()) get_viewport()->set_debug_draw(Viewport::DEBUG_DRAW_DISABLED);
 		if (SceneTree *t = get_tree()) {
@@ -3315,6 +3315,7 @@ String RtsoMain::placement_failure_text(int result, uint8_t btype, float x, floa
 		case S::PLACE_OBSTRUCTED: return named("%(name)s cannot be built on another building or resource");
 		case S::PLACE_TERRAIN: return named("%(name)s cannot be built on invalid terrain");
 		case S::PLACE_SHORE: return named("%(name)s must be built on a valid shoreline");
+		case S::PLACE_UNEXPLORED: return named("%(name)s cannot be built in unexplored area");
 		case S::PLACE_TERRITORY: {
 			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
 			// markForTranslationWithContext("Territory type", ...) and the template's Territory list.

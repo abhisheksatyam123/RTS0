@@ -45,6 +45,13 @@ static Ref<Texture2D> load_tex(const String &path) {
 	return Ref<Texture2D>();
 }
 
+// VideoMode.cpp DEFAULT_CURSOR_NAME "default-arrow" (default-arrow.txt: hotspot 1 1), the
+// arrow every page shows; scenes/menu/user_settings.gd sets it at start-up.
+void RtsoMain::reset_default_cursor() {
+	Input::get_singleton()->set_custom_mouse_cursor(load_tex("res://assets/textures/cursors/default-arrow.png"),
+			Input::CURSOR_ARROW, Vector2(1, 1));
+}
+
 void RtsoMain::update_cursor() {
 	Viewport *vp = get_viewport();
 	if (!sim || !vp) return;
@@ -279,7 +286,7 @@ void RtsoMain::update_cursor() {
 	cursor_name_ = want;
 	Input *in = Input::get_singleton();
 	if (!*want) {
-		in->set_custom_mouse_cursor(Ref<Resource>());
+		reset_default_cursor();
 		return;
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");

@@ -58,6 +58,8 @@ const LANGUAGE_NAMES := {
 	"uk": "Українська", "zh": "中文 (简体)", "zh_TW": "中文 (繁體)",
 }
 
+const DEFAULT_CURSOR := "res://assets/textures/cursors/default-arrow.png"
+
 var cfg := RtsoUserConfig.new()
 var _gen := -1
 var _in_session := false
@@ -83,6 +85,9 @@ func _ready() -> void:
 	_make_overlay()
 	get_tree().node_added.connect(_on_node_added)
 	apply_all()
+	# VideoMode.cpp DEFAULT_CURSOR_NAME: 0 A.D.'s own arrow (default-arrow.txt: hotspot 1 1).
+	if ResourceLoader.exists(DEFAULT_CURSOR):
+		Input.set_custom_mouse_cursor(load(DEFAULT_CURSOR), Input.CURSOR_ARROW, Vector2(1, 1))
 
 ## main.cpp's global hotkeys: togglefullscreen (Alt+Return, CVideoMode::ToggleFullscreen,
 ## not saved) and mousegrabtoggle (F3, the window grab on or off until the next change).

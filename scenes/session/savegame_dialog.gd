@@ -19,6 +19,7 @@ extends CanvasLayer
 # RtsoMain.save_game. Save calls the RtsoMain it is given. Load (from a match
 # or the main menu) starts the match scene with MatchSettings.load_save_path
 # set, and the scene loads it after building the map.
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 const L10n := preload("res://scenes/menu/l10n.gd")
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
 
@@ -395,11 +396,10 @@ func _build() -> void:
 	add_child(bg)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var theme_res = load("res://assets/themes/zeroad_theme.tres")
-	if theme_res:
-		center.theme = theme_res
+	center.theme = MODERN.theme() # 0.28's modern skin
 	add_child(center)
 	var panel := PanelContainer.new() # ModernDialog, 920 x 650
+	panel.theme_type_variation = "ModernDialogContainer"
 	panel.custom_minimum_size = Vector2(920, 620)
 	center.add_child(panel)
 	var outer := VBoxContainer.new()

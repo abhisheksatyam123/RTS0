@@ -13,6 +13,7 @@ extends Control
 ## [min, max] for slider and number, [[label, value], ...] for dropdowns.
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
 const TABS := preload("res://scenes/common/tab_buttons.gd")
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 # options.json tooltip of each SCHEMA category, in order.
 const TAB_TIPS := ["Change general options.", "Set the balance between performance and visual appearance.",
 	"Adjust advanced graphic options.", "Make changes to the sound options.",
@@ -259,6 +260,7 @@ func _build() -> void:
 	# options.xml: ModernFade over the page behind, an 800x748 ModernDialog titled
 	# "Game Options", vertical tab buttons on the left, the options in a box on the
 	# right and Reset, Revert, Save and Close across the bottom.
+	theme = MODERN.theme()
 	var bg := ColorRect.new()
 	bg.color = Color(0, 0, 0, 0.6) if overlay else Color(0.07, 0.08, 0.12, 1.0)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -268,6 +270,7 @@ func _build() -> void:
 	add_child(center)
 	var panel := PanelContainer.new()
 	panel.name = "Dialog"
+	panel.theme_type_variation = "ModernDialogContainer"
 	panel.custom_minimum_size = Vector2(800, minf(748.0, get_viewport_rect().size.y - 24.0))
 	center.add_child(panel)
 	var vb := VBoxContainer.new()
@@ -324,6 +327,7 @@ func _build() -> void:
 		b.text = tr(SCHEMA[i][0])
 		b.toggle_mode = true
 		b.button_group = group
+		b.theme_type_variation = "ModernTabButtonVertical"
 		b.custom_minimum_size = Vector2(215, 30)
 		b.tooltip_text = TABS.tooltip(tr(TAB_TIPS[i]) if i < TAB_TIPS.size() else "", false, keys)
 		_tabs.set_tab_tooltip(i, b.tooltip_text)
