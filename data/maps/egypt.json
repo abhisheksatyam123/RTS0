@@ -51409,6 +51409,54 @@
       "template": "structures/pers/house_a",
       "x": 227.85,
       "z": 102.73
+    },
+    {
+      "type": "forge",
+      "template": "structures/maur/forge",
+      "x": 227.43,
+      "z": -79.94
+    },
+    {
+      "type": "pillar_ashoka",
+      "template": "structures/maur/pillar_ashoka",
+      "x": 207.84,
+      "z": -4.54
+    },
+    {
+      "type": "pillar_ashoka",
+      "template": "structures/maur/pillar_ashoka",
+      "x": 204.69,
+      "z": -5.96
+    },
+    {
+      "type": "pillar_ashoka",
+      "template": "structures/maur/pillar_ashoka",
+      "x": 207.27,
+      "z": -10.58
+    },
+    {
+      "type": "pillar_ashoka",
+      "template": "structures/maur/pillar_ashoka",
+      "x": 210.32,
+      "z": -8.75
+    },
+    {
+      "type": "elephant_stable",
+      "template": "structures/maur/elephant_stable",
+      "x": 236.41,
+      "z": -74.93
+    },
+    {
+      "type": "pyramid_large",
+      "template": "structures/kush/pyramid_large",
+      "x": 52.06,
+      "z": -220.36
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": 55.63,
+      "z": -215.43
     }
   ],
   "gaia_units": [

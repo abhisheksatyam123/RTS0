@@ -609,6 +609,15 @@ int main() {
 		sim.order_garrison(&hero, 1, tc);
 		for (int t = 0; t < 200 && sim.get_garrison_count(tc) == 0; ++t) sim.tick(0.05f);
 		CHECK((sim.get_garrison_count(tc) > 0) == (on != 0));
+		// special/filter/ungarrisonable disables Garrisonable only: Turretable stays, so the
+		// hero mans an outpost's turret point either way.
+		// (An archer stands in as the hero, as the map's random hero may not be Turretable.)
+		const uint32_t post = sim.spawn_building_world(10.0f, 10.0f, BLD_OUTPOST, 0);
+		sim.regicide_hero_[0] = sim.spawn_unit(8.0f, 8.0f, 0, UNIT_ARCHER);
+		const int32_t h = sim.lookup_unit(sim.regicide_hero_[0]);
+		CHECK(h >= 0 && sim.unit_turretable((size_t)h) && sim.unit_garrisonable((size_t)h) == (on != 0));
+		for (const auto &b : sim.buildings_)
+			if (b.id == post) CHECK(sim.structure_accepts_turret(b, (size_t)h) && sim.structure_accepts_garrison(b, (size_t)h));
 	}
 
 	// 19. Regicide.js SpawnRegicideHero: a random hero of the player's civ, stepping out beside
@@ -1089,6 +1098,10 @@ int main() {
 		wipe(*sim, 1, true, false);
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory() && reason(*sim, 1) == Simulation::SessionNotice::END_STRUCTURES_CRITICAL);
+		// Player.js Win: the winners watch on with the map revealed, and the world keeps going.
+		const auto before = sim->ticks_;
+		for (int i = 0; i < 20; ++i) sim->tick(0.05f);
+		CHECK(sim->ticks_ == before + 20 && sim->is_victory());
 		delete sim;
 		// Conquest Civic Centers: a Nomad player wiped out before building one is out
 		// ("lost all civic centers and critical units and structures").

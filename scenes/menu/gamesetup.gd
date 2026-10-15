@@ -2175,7 +2175,9 @@ var _ready_btn: Button
 var _wait_label: Label
 var _rated: CheckBox
 var _setting_warning: Label
-var _rated_was_available := false
+var _saved_label: Label
+## The player count and cheats setting Rated Game was last set from (Rating.js maybeUpdate).
+var _rated_key := ""
 ## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
 ## StayReady); pressing moves to the next state.
 const READY_CAPTIONS := ["I'm ready", "Stay ready", "I'm not ready!"]
@@ -2235,6 +2237,16 @@ func _build_net_controls() -> void:
 	_setting_warning.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	right.add_child(_setting_warning)
 	right.move_child(_setting_warning, _wait_label.get_index())
+	# 0.28 SavedGameLabel: shown while the controller hosts a saved game.
+	_saved_label = Label.new()
+	_saved_label.name = "SavedGameLabel"
+	_saved_label.text = "Saved game"
+	_saved_label.tooltip_text = "The controller loaded a saved game."
+	_saved_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	_saved_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_saved_label.visible = false
+	right.add_child(_saved_label)
+	right.move_child(_saved_label, _wait_label.get_index())
 	_wait_label.visible = _mp_role == "client"
 	_ready_btn.visible = _mp_role == "client"
 	start.visible = _mp_role == "host"
@@ -2253,13 +2265,14 @@ func _build_net_controls() -> void:
 	# 0.28 Rating.js "Rated Game" and Cheats.js, which the host sets in a
 	# networked game (off by default) unless the game is rated.
 	var cheats: CheckBox = %Cheats
-	cheats.button_pressed = false
+	# A saved game keeps its own cheats setting (nothing but the seats changes).
+	cheats.button_pressed = _saved_game() and bool(get_node("/root/MatchSettings").cheats)
 	cheats.disabled = false
 	cheats.toggled.connect(func(_on): _update_rated(); _update_net_controls())
 	_rated = CheckBox.new()
 	_rated.name = "RatedGame"
 	_rated.text = "Rated Game"
-	_rated.tooltip_text = "Toggle 1v1 rated game."
+	_rated.tooltip_text = "Toggle if this game will be rated for the leaderboard."
 	_rated.toggled.connect(func(_on): _update_rated(); _update_net_controls())
 	# GameSettingsLayout.js: Rating closes the Game Type tab.
 	%TeamsRow.add_child(_rated)
@@ -2341,28 +2354,33 @@ func _update_net_chat() -> void:
 	var log: RichTextLabel = %NetChatLog
 	log.text = str(chat.get("text", ""))
 
-## Rating.js: a lobby game of exactly two players may be rated, and is by
-## default when it becomes one; Cheats.js: a rated game has no cheats.
+## Rating.js: a lobby game of exactly two players without cheats may be rated, and is by
+## default whenever the player count or cheats change (maybeUpdate: enabled = available);
+## Cheats.js: a rated game has no cheats.
 func _rated_available() -> bool:
-	return has_node("/root/MatchSettings") and str(get_node("/root/MatchSettings").net_lobby) != "" \
+	# Rating.js: a saved game is never rated.
+	return not _saved_game() and has_node("/root/MatchSettings") and str(get_node("/root/MatchSettings").net_lobby) != "" \
 		and _net_rows().size() == 2
 
 func _update_rated() -> void:
 	if _rated == null or _mp_role != "host":
 		return
-	var avail := _rated_available()
-	if avail and not _rated_was_available:
-		_rated.set_pressed_no_signal(true)
-	_rated_was_available = avail
-	_rated.visible = avail
 	var cheats: CheckBox = %Cheats
+	var avail := _rated_available() and not cheats.button_pressed
+	var key := "%d/%s" % [_net_rows().size(), cheats.button_pressed]
+	if key != _rated_key:
+		_rated_key = key
+		_rated.set_pressed_no_signal(avail)
+	if not avail:
+		_rated.set_pressed_no_signal(false)
+	_rated.visible = avail
 	cheats.disabled = avail and _rated.button_pressed
-	if cheats.disabled:
-		cheats.set_pressed_no_signal(false)
 
 func _update_net_controls() -> void:
 	if _mp_role == "none":
 		return
+	if _saved_label:
+		_saved_label.visible = _saved_game()
 	if _setting_warning:
 		var rated := _rated != null and _rated.visible and _rated.button_pressed
 		_setting_warning.text = "Cheats enabled." if %Cheats.button_pressed and not rated \
@@ -2403,8 +2421,7 @@ func _process(delta: float) -> void:
 	_net_tick = 0.0
 	if _mp_role == "host":
 		_host_write_setup(false)
-	else:
-		_apply_mp_locks() # controls the page rebuilt since
+	_apply_mp_locks() # controls the page rebuilt since
 
 ## The rows that are in the setup (Closed slots are dropped, as at Start):
 ## the setup's slot k is row _net_rows()[k].
@@ -2551,21 +2568,34 @@ func _update_net_observers() -> void:
 	lbl.text = "Observers: " + ", ".join(names) if not names.is_empty() else ""
 	lbl.visible = not names.is_empty()
 
+## GameSettingControlManager with isSavedGame: the controller loaded a saved
+## game, so only its PlayerAssignment stays enabled (EnabledWhenSavedGame).
+func _saved_game() -> bool:
+	return bool(_net_state.get("saved_game", false))
+
 ## Session UI's single lock pass: a client may change only its own slot's civ,
-## team and colour (none on a map that sets them); only adds disables, after
-## the map's own locks.
+## team and colour (none on a map that sets them, or in a saved game); with a
+## saved game the host may change only who plays which slot. Only adds
+## disables, after the map's own locks. Back, the chat and the Ready button
+## stay usable.
 func _apply_mp_locks() -> void:
-	if _mp_role != "client":
+	if _mp_role == "none" or (_mp_role == "host" and not _saved_game()):
 		return
 	var keep := {}
-	if _ready_btn:
-		keep[_ready_btn] = true
-	var k := int(_net_state.get("my_slot", -1))
+	for n in [_ready_btn, $VBox/HBox/Right/Buttons/BtnBack, $VBox/HBox/Right/Buttons/BtnStart, get_node_or_null("%NetChat")]:
+		if n:
+			keep[n] = true
 	var cells := _slots_grid().get_children().filter(func(c): return not c.is_queued_for_deletion())
-	if k >= 0 and not bool(_net_state.get("locked", false)):
-		for col in [2, 3, 5]:
-			if k * SLOT_COLUMNS + col < cells.size():
-				keep[cells[k * SLOT_COLUMNS + col]] = true
+	if _mp_role == "host":
+		for c in cells:
+			if c.has_node("AssignSelect"):
+				keep[c] = true
+	else:
+		var k := int(_net_state.get("my_slot", -1))
+		if k >= 0 and not bool(_net_state.get("locked", false)):
+			for col in [2, 3, 5]:
+				if k * SLOT_COLUMNS + col < cells.size():
+					keep[cells[k * SLOT_COLUMNS + col]] = true
 	_lock_tree($VBox/HBox, keep)
 
 func _lock_tree(n: Node, keep: Dictionary) -> void:

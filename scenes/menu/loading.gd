@@ -150,6 +150,9 @@ func _networked() -> bool:
 ## TitleDisplay.js: "Generating “map”" for random maps, else "Loading “map”".
 func _title() -> String:
 	var ms = get_node_or_null("/root/MatchSettings")
+	# gamesetup_mp.js: a joiner is connecting; the host's map comes later.
+	if overlay_for == null and ms and str(ms.net_mode) == "join":
+		return "Connecting to server..."
 	var map_id := ""
 	var map_name := ""
 	if overlay_for != null:

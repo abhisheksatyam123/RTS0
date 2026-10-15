@@ -26877,6 +26877,12 @@
       "template": "structures/cart/house",
       "x": 113.28,
       "z": -142.36
+    },
+    {
+      "type": "tent_mace",
+      "template": "structures/tent_mace",
+      "x": 52.25,
+      "z": -133.11
     }
   ],
   "gaia_units": [

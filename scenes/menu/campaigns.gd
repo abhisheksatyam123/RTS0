@@ -30,7 +30,9 @@ var entries: Array = []
 var selected := -1
 
 var title: Label
-var list: ItemList
+## Name and Status columns (CampaignMenu.xml levelSelection list_name/list_status); the
+## template and run lists use the first column only.
+var list: Tree
 var info_name: Label
 var info_preview: TextureRect
 var info_desc: RichTextLabel
@@ -62,50 +64,75 @@ func _ready() -> void:
 
 # --- Content ------------------------------------------------------------------------
 
+## A row of the list: its name (and, on the level list, its status).
+func _add_row(text: String, status := "") -> TreeItem:
+	var item := list.create_item(list.get_root())
+	item.set_text(0, text)
+	item.set_text(1, status)
+	return item
+
+## The rows' texts, name and status joined by four spaces when there is a status.
+func row_texts() -> Array:
+	var out := []
+	for item in list.get_root().get_children():
+		out.append(item.get_text(0) + ("    " + item.get_text(1) if item.get_text(1) != "" else ""))
+	return out
+
 func render() -> void:
 	list.clear()
+	list.create_item()
 	entries.clear()
+	var levels := mode != "setup" and mode != "load"
+	list.column_titles_visible = levels
+	list.set_column_expand(1, levels)
+	list.set_column_custom_minimum_width(1, 0)
 	match mode:
 		"setup":
-			title.text = "Campaigns"
+			title.text = tr("Campaigns")
 			for t in templates:
-				list.add_item(str(t.get("Name", t["identifier"])))
+				_add_row(template_text(t, "Name", str(t["identifier"])))
 				entries.append(t)
-			start_button.text = "Start Campaign"
+			start_button.text = tr("Start Campaign")
 		"load":
-			title.text = "Load Campaign"
+			title.text = tr("Load Campaign")
 			for r in runs:
 				var cr: CampaignRun = r["run"]
-				var idx := list.add_item(cr.filename + CampaignRun.EXTENSION + " (file cannot be loaded)" if r["broken"] else cr.label(true))
+				var item := _add_row(cr.filename + CampaignRun.EXTENSION + " " + tr("(file cannot be loaded)") if r["broken"] else cr.label(true))
 				if r["broken"]:
-					list.set_item_custom_fg_color(idx, Color.RED)
+					item.set_custom_color(0, Color.RED)
 				entries.append(r)
-			start_button.text = "Load Campaign"
+			start_button.text = tr("Load Campaign")
 		_:
 			title.text = run.label()
-			# displayLevelsList: ShowUnavailable lists the levels not yet open, greyed out.
+			# displayLevelsList: ShowUnavailable lists the levels not yet open with grey
+			# names; only "Available" is green.
 			for e in run.ordered_levels():
 				var level: Dictionary = e["level"]
 				var open := run.meets_requirements(level)
 				if not open and not run.template.get("ShowUnavailable", false):
 					continue
-				var status := "Completed" if run.is_completed(e["id"]) else ("Available" if open else "")
-				var idx := list.add_item(level_name(level) + ("    " + status if status != "" else ""))
+				var status := tr("Completed", "campaign status") if run.is_completed(e["id"]) \
+					else (tr("Available", "campaign status") if open else "")
+				var item := _add_row(level_name(level), status)
 				if not open:
-					list.set_item_custom_fg_color(idx, GRAY)
-				elif status == "Available":
-					list.set_item_custom_fg_color(idx, GREEN)
+					item.set_custom_color(0, GRAY)
+				elif not run.is_completed(e["id"]):
+					item.set_custom_color(1, GREEN)
 				entries.append(e["id"])
-			start_button.text = "Start Scenario"
+			start_button.text = tr("Start Scenario")
 	# CampaignMenu.xml "Back to Main Menu", LoadModal.xml "Cancel".
-	back_button.text = "Cancel" if mode == "load" else "Back to Main Menu"
+	back_button.text = tr("Cancel") if mode == "load" else tr("Back to Main Menu")
 	empty_text.visible = entries.is_empty()
-	empty_text.text = "No ongoing campaigns." if mode == "load" else "No campaigns." if mode == "setup" else "No levels."
+	empty_text.text = tr("No ongoing campaigns.") if mode == "load" else tr("No campaigns.") if mode == "setup" else tr("No levels.")
 	if selected >= entries.size():
 		selected = -1
 	if selected >= 0:
-		list.select(selected)
+		list.get_root().get_child(selected).select(0)
 	render_details()
+
+## A template's Name or Description, translateWithContext("Campaign Template", …).
+func template_text(t: Dictionary, key: String, fallback := "") -> String:
+	return tr(str(t[key]), "Campaign Template") if t.has(key) else fallback
 
 func render_details() -> void:
 	delete_button.visible = mode == "load"
@@ -118,11 +145,11 @@ func render_details() -> void:
 	match mode:
 		"setup":
 			if selected < 0:
-				info_name.text = "No campaign selected."
+				info_name.text = tr("No campaign selected.")
 			else:
 				var t: Dictionary = entries[selected]
-				info_name.text = str(t.get("Name", ""))
-				info_desc.text = str(t.get("Description", ""))
+				info_name.text = template_text(t, "Name")
+				info_desc.text = template_text(t, "Description")
 				# CampaignSetupPage: the template's Image (RTS0 shows nothing for 0 A.D.'s
 				# "no preview" picture, like Game Setup's map without one).
 				info_preview.texture = _texture(str(t.get("Image", "")))
@@ -134,13 +161,13 @@ func render_details() -> void:
 			info_name.text = (r["run"] as CampaignRun).label()
 		_:
 			if selected < 0:
-				info_name.text = "No scenario selected"
+				info_name.text = tr("No scenario selected")
 				return
 			var level: Dictionary = run.template["Levels"][entries[selected]]
 			info_name.text = level_name(level)
 			# getLevelDescription and getLevelPreview: the level's own, else its map's.
-			info_desc.text = str(level["Description"]) if level.has("Description") \
-				else str(_map_json(CampaignRun.level_map_id(level)).get("desc", ""))
+			info_desc.text = TranslationServer.translate(str(level["Description"]), "Campaign Template") if level.has("Description") \
+				else tr(str(_map_json(CampaignRun.level_map_id(level)).get("desc", "")))
 			info_preview.texture = _level_preview(level)
 			start_button.disabled = not run.meets_requirements(level)
 	info_preview.visible = info_preview.texture != null
@@ -162,11 +189,12 @@ static func _texture(p: String) -> Texture2D:
 		return null
 	return load(p) as Texture2D
 
-## getLevelName: the level's Name, else its map's.
+## getLevelName: the level's Name (translated in the "Campaign Template" context), else
+## its map's.
 static func level_name(level: Dictionary) -> String:
 	if level.has("Name"):
-		return str(level["Name"])
-	return str(_map_json(CampaignRun.level_map_id(level)).get("name", CampaignRun.level_map_id(level)))
+		return TranslationServer.translate(str(level["Name"]), "Campaign Template")
+	return TranslationServer.translate(str(_map_json(CampaignRun.level_map_id(level)).get("name", CampaignRun.level_map_id(level))))
 
 static func _map_json(map_id: String) -> Dictionary:
 	var p := "res://data/maps/%s.json" % map_id
@@ -302,10 +330,18 @@ func _build() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_anchor(title, 0, 0, 1, 0, 20, 8, -20, 40))
 
-	list = ItemList.new()
+	list = Tree.new()
 	list.name = "Selection"
-	list.item_selected.connect(select)
-	list.item_activated.connect(func(i): select(i); start_pressed())
+	list.columns = 2
+	list.hide_root = true
+	list.select_mode = Tree.SELECT_ROW
+	list.set_column_title(0, tr("Name"))
+	list.set_column_title(1, tr("Status"))
+	list.set_column_title_alignment(0, HORIZONTAL_ALIGNMENT_LEFT)
+	list.set_column_title_alignment(1, HORIZONTAL_ALIGNMENT_LEFT)
+	list.set_column_expand_ratio(0, 3)
+	list.item_selected.connect(func(): select(list.get_selected().get_index()))
+	list.item_activated.connect(func(): select(list.get_selected().get_index()); start_pressed())
 	add_child(_anchor(list, 0, 0, 0.45, 1, 20, 50, -10, -60))
 	empty_text = _label("", 14, GRAY)
 	empty_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
