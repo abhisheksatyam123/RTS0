@@ -7683,6 +7683,39 @@ void Simulation::tick_turrets() {
 			units_.has_order[u] = 0; // SetImmobile: shoots what is in range, never walks
 			turret_height_[list[k]] = p.y;
 			if (b.type == BLD_TOWER_DOUBLE) rampart_turrets_.insert(list[k]);
+			// Order.Attack with !AbleToMove, and ShouldChaseTargetedEntity false for an immobile unit:
+			// a target out of reach, a player's too, ends the attack (FinishOrder / FINDINGNEWTARGET),
+			// so the unit shoots what is in range instead.
+			if (units_.order_kind[u] == ORDER_ATTACK || units_.order_kind[u] == ORDER_ATTACK_BUILDING ||
+					units_.action_state[u] == ACTION_ATTACK) {
+				const float reach = attack_reach((size_t)u);
+				const float att_y = unit_height((size_t)u);
+				auto beyond = [&](float d2, float def_y) {
+					const float max_r2 = reach * reach - 2.0f * reach * (def_y - att_y); // in_parabolic_range
+					return !(max_r2 > 0.0f && d2 <= max_r2);
+				};
+				bool out = false;
+				if (units_.target_unit_id[u] != 0) {
+					const int32_t t = lookup_unit(units_.target_unit_id[u]);
+					if (t >= 0 && units_.alive[t]) {
+						const float dx = units_.pos_x[t] - px, dz = units_.pos_z[t] - pz;
+						out = beyond(dx * dx + dz * dz, unit_height((size_t)t));
+					}
+				} else if (units_.target_building_id[u] != 0) {
+					auto tb = building_id_to_idx_.find(units_.target_building_id[u]);
+					if (tb != building_id_to_idx_.end() && !buildings_[tb->second].wrecked) {
+						const Building &t = buildings_[tb->second];
+						const float g = structure_gap(t, px, pz, unit_clearance_at((size_t)u));
+						out = beyond(g * g, get_terrain_height(t.x, t.z));
+					}
+				}
+				if (out) {
+					units_.target_unit_id[u] = units_.target_building_id[u] = 0;
+					units_.action_state[u] = ACTION_IDLE;
+					if (units_.order_kind[u] != ORDER_NONE) set_order(u, ORDER_NONE, 0, 0, px, pz);
+					order_queues_.erase(list[k]);
+				}
+			}
 			++k;
 		}
 	}
