@@ -745,6 +745,21 @@ static void test_petra_navy() {
 	std::printf("Petra navy: %d fishing boats (%d fishing), %d warships\n", count_units(t, 1, UNIT_FISHING_BOAT), fishing, count_units(t, 1, UNIT_TRIREME));
 	CHECK(count_units(t, 1, UNIT_FISHING_BOAT) == 1 && fishing == 1);
 	CHECK(count_units(t, 1, UNIT_TRIREME) == 0);
+
+	// navalManager.js decides at the start: a sea that began with over 1000 fish keeps its
+	// boat after it is fished below 1000, until it is empty.
+	static Simulation u;
+	fresh(u);
+	u.set_player_active(1, true, true);
+	u.set_player_resources(1, 5000, 5000, 5000, 5000);
+	u.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	u.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	for (int k = 0; k < 2; ++k) u.spawn_resource_world(-40.0f + 10.0f * k, 0.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	for (size_t r = 0; r < u.resources_.count; ++r)
+		if (u.resources_.subtype[r] == RES_SUB_FISH) u.resources_.amount[r] = 300;
+	run(u, 90.0f);
+	std::printf("Petra navy: %d fishing boats on a sea fished down to 600\n", count_units(u, 1, UNIT_FISHING_BOAT));
+	CHECK(count_units(u, 1, UNIT_FISHING_BOAT) == 1);
 }
 
 // attackPlan.js overseas: an attack on the other land waits for a transport ship,
