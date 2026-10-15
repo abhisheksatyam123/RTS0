@@ -375,7 +375,7 @@ GAIA_STRUCTURE_CLASSES = [
     ("template_structure_military_dock", "dock"),
     ("template_structure_military_fortress", "fortress"),
     ("template_structure_defensive_tower_sentry", "sentry_tower"),
-    ("template_structure_defensive_tower_outpost", "outpost"),
+    ("template_structure_defensive_outpost", "outpost"),
     ("template_structure_defensive_tower", "tower"),
     ("template_structure_defensive_palisade", "palisade"),
     ("template_structure_defensive_wall_tower", "wall_tower"),
@@ -403,6 +403,11 @@ def gaia_owned(source, tpl, wx, wz, angle=0.0, scale=1.0):
         for cls, name in GAIA_STRUCTURE_CLASSES:
             if any(c.startswith(cls) for c in chain):
                 return "gaia_structures", {"type": name, "template": tpl, "x": wx, "z": wz}
+        # Wonders, pyramids, forges, arsenals, Kushite camps, the Ashoka pillar, ice houses,
+        # lighthouses...: the game resolves these by template (session_setup.cpp
+        # map_building_template) and skips what RTS0 doesn't have.
+        if any(c.startswith("template_structure_") for c in chain):
+            return "gaia_structures", {"type": tpl.rsplit("/", 1)[1], "template": tpl, "x": wx, "z": wz}
         return None
     if tpl.startswith("units/"):
         utype = unit_class(" ".join([tpl.lower()] + chain))
@@ -1108,16 +1113,31 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                             o.update(want)
                             walls += 1
                         continue
-                    if not MAP_ONLY_STRUCTURE.search(e.get("template", "")):
+                    gaia = key == "gaia_structures"
+                    if not e.get("template") or not (gaia or MAP_ONLY_STRUCTURE.search(e["template"])):
                         continue
                     x, z = round(e["x"] * k, 2), round(e["z"] * k, 2)
                     o = next((o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5 and "wallset" not in o
-                              and o.get("player") == e.get("player")), None)
+                              and o.get("player") == e.get("player") and id(o) not in used), None)
+                    if o is None and gaia:
+                        # A Gaia structure an older port laid as a wall piece (gaul/fortress has a WallPiece).
+                        o = next((o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5 and "wallset" in o
+                                  and id(o) not in used), None)
+                        if o is not None:
+                            o.clear()
+                            o.update(dict(e, x=x, z=z))
+                            used.add(id(o))
+                            tagged += 1
+                            continue
                     if o is None:
                         have.append(dict(e, x=x, z=z))
                         added += 1
-                    elif o.get("template") != e["template"]:
+                        continue
+                    used.add(id(o))
+                    if o.get("template") != e["template"] or (gaia and o.get("type") != e["type"]):
                         o["template"] = e["template"]
+                        if gaia:
+                            o["type"] = e["type"]
                         tagged += 1
             if tagged or added or walls:
                 with open(out_path, "w") as f:

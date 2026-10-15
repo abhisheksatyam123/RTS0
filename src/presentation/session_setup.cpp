@@ -98,7 +98,8 @@ static uint8_t map_building_template(const String &tmpl) {
 		{"outpost", rtso::BLD_OUTPOST}, {"sentry_tower", rtso::BLD_SENTRY_TOWER}, {"defense_tower", rtso::BLD_TOWER},
 		{"arsenal", rtso::BLD_ARSENAL}, {"stable", rtso::BLD_STABLE}, {"range", rtso::BLD_RANGE},
 		{"dock", rtso::BLD_DOCK}, {"fortress", rtso::BLD_FORTRESS}, {"wonder", rtso::BLD_WONDER},
-		{"corral", rtso::BLD_CORRAL},
+		{"corral", rtso::BLD_CORRAL}, {"elephant_stable", rtso::BLD_ELEPHANT_STABLE},
+		{"pillar_ashoka", rtso::BLD_PILLAR}, {"apartment", rtso::BLD_APARTMENT},
 	};
 	for (const auto &k : kNames)
 		if (n == k.name) return k.type;
@@ -106,6 +107,16 @@ static uint8_t map_building_template(const String &tmpl) {
 	for (uint8_t t = rtso::BLD_GYMNASIUM; t < rtso::BLD_TYPE_COUNT; ++t)
 		if (n == rtso::building_type_info(t).model_id) return t;
 	return rtso::BLD_TYPE_COUNT;
+}
+
+// The civ of a 0 A.D. structure template by its folder ("structures/kush/forge": the
+// Kushites), as Trainer.js resolves {native}; CIV_COUNT for a civless one.
+static uint8_t map_template_civ(const String &tmpl) {
+	if (tmpl.get_slice_count("/") < 3) return rtso::CIV_COUNT;
+	const String code = tmpl.get_slice("/", tmpl.get_slice_count("/") - 2);
+	for (uint8_t c = 0; c < rtso::CIV_COUNT; ++c)
+		if (c != rtso::CIV_GAIA && code == rtso::civ_info(c).code) return c;
+	return rtso::CIV_COUNT;
 }
 
 // Unit class names in data/maps/*.json "units" and "gaia_units".
@@ -379,12 +390,20 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			gaia_structure_ids[i] = spawn_map_wall(*sim, b, rtso::GAIA_PLAYER);
 			continue;
 		}
-		// structures/shrine_*, trading_post_*, rome/tent...: their own types, keeping the template's civ.
-		const rtso::MapStructureTemplate gt = rtso::map_structure_template(String(b.get("template", "")).utf8().get_data());
-		const uint8_t btype = gt.type < rtso::BLD_TYPE_COUNT ? gt.type : map_building_type(b.get("type", ""));
+		// structures/shrine_*, trading_post_*, rome/tent...: their own types, keeping the template's
+		// civ; then civ structures by template (kush/temple_amun, ptol/military_colony, kush/camp_noba)
+		// with their folder's civ, so a captured one trains its {native} roster; then by name.
+		const String gtmpl = b.get("template", "");
+		const rtso::MapStructureTemplate gt = rtso::map_structure_template(gtmpl.utf8().get_data());
+		uint8_t btype = gt.type, civ = gt.type < rtso::BLD_TYPE_COUNT ? gt.civ : (uint8_t)rtso::CIV_COUNT;
+		if (btype >= rtso::BLD_TYPE_COUNT && !gtmpl.is_empty()) {
+			btype = map_building_template(gtmpl);
+			civ = map_template_civ(gtmpl);
+		}
+		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
-		if (gt.type < rtso::BLD_TYPE_COUNT && gt.civ < rtso::CIV_COUNT) sim->set_building_civ(gaia_structure_ids[i], gt.civ);
+		if (civ < rtso::CIV_COUNT && gaia_structure_ids[i]) sim->set_building_civ(gaia_structure_ids[i], civ);
 	}
 	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
 	Array scenery_arr = d.get("scenery", Array());

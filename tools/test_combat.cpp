@@ -4,7 +4,8 @@
 //  1. Data: template bonuses (spearmen x3 against cavalry), structure armour, classes.
 //  2. Spearmen deal their template bonus to cavalry; swordsmen have none.
 //  3. RestrictedClasses: a ram never attacks units, a dog never attacks structures.
-//  4. Structures take damage through their own template armour.
+//  4. Structures take damage through their own template armour; foundations through
+//     template_structure's Foundation form (1/10/1).
 //  5. Arrows scatter by template spread: close shots nearly always hit, long shots
 //     often miss, and a stray arrow hits the enemy it lands on.
 //  6. No invented mechanics: structures below a third of their health don't burn
@@ -168,7 +169,7 @@ static void test_restricted() {
 	s.units_.alive[idx(s, ram)] = 0;
 	s.order_attack_building(&dog, 1, bar);
 	for (int k = 0; k < 200; ++k) s.tick(DT);
-	check(building(s, bar)->hp == bhp2, "a dog never attacks a structure");
+	check(building(s, bar)->hp >= bhp2, "a dog never attacks a structure"); // Petra's units may repair it meanwhile
 }
 
 static void test_structure_armour() {
@@ -191,6 +192,14 @@ static void test_structure_armour() {
 	std::printf("      swordsman on barracks: %.3f (want %.3f, armour %.0f/%.0f/%.0f)\n", got, want,
 			bc.hack_armor, bc.pierce_armor, bc.crush_armor);
 	check(std::fabs(got - want) < 0.01f, "barracks take damage through their template armour");
+	// Resistance.js: a foundation's Foundation form, Hack 1 Pierce 10 Crush 1 for every structure.
+	const uint32_t fnd = s.spawn_building_world(-20.0f, 20.0f, BLD_FORTRESS, 1, 0.5f);
+	float fr[3], br[3];
+	s.structure_resistance(*building(s, fnd), fr);
+	s.structure_resistance(*building(s, bar), br);
+	std::printf("      fortress foundation resistance %.0f/%.0f/%.0f, finished barracks %.0f/%.0f/%.0f\n",
+			fr[0], fr[1], fr[2], br[0], br[1], br[2]);
+	check(fr[0] == 1.0f && fr[1] == 10.0f && fr[2] == 1.0f, "a foundation takes damage with the Foundation resistance");
 }
 
 static void test_corner_reach() {

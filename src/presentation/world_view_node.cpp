@@ -2805,6 +2805,37 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 	inst->queue_free();
 }
 
+// A unit model's first draw reads its GLB, tens of milliseconds on the frame. Twice a
+// second, the models of units that exist but aren't drawn yet (in the fog, in a
+// structure) and of units in the production queues start loading on a worker.
+void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta) {
+	prefetch_poll_ -= delta;
+	if (prefetch_poll_ > 0.0f) return;
+	prefetch_poll_ = 0.5f;
+	if (prefetched_.size() != (size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT) prefetched_.assign((size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT, false);
+	auto want = [&](uint8_t civ, uint16_t key) {
+		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
+		if (key >= CROWD_KEY_COUNT || crowd_[civ][key]) return;
+		std::vector<bool>::reference done = prefetched_[(size_t)civ * CROWD_KEY_COUNT + key];
+		if (done) return;
+		done = true;
+		rtso::ModelLibrary::prefetch("units", crowd_key_model(civ, key));
+	};
+	for (size_t i = 0; i < uview.count; ++i) {
+		uint8_t t = uview.unit_type[i];
+		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
+		const uint8_t civ = sim->team_civ(uview.team[i]);
+		want(civ, crowd_key_of(civ, drawn_unit_type(t, uview.tmpl[i], uview.id[i]), uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]));
+	}
+	for (const auto &b : sim->buildings()) {
+		for (const rtso::ProductionOrder &o : b.queue) {
+			if (o.is_tech() || o.unit_type >= rtso::UNIT_TYPE_COUNT) continue;
+			const uint8_t civ = sim->team_civ(b.team);
+			want(civ, crowd_key_of(civ, o.unit_type, 0, o.tmpl, 0, 1));
+		}
+	}
+}
+
 void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop) {
 	if (!v.anim || !UtilityFunctions::is_instance_valid(v.anim) || clip == StringName()) return;
 	if (v.clip == clip) return;
@@ -3566,6 +3597,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// 1. Units Presentation: Real 0 A.D. models, 3D animations, and Health Bars
 	// =========================================================================
 	auto uview = sim->units();
+	prefetch_unit_models(sim, uview, delta);
 	auto rview_g = sim->resources();
 	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
 		return rtso::los_sees_unit(*sim, local_player_, x, z, team);

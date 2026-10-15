@@ -549,6 +549,13 @@ void RtsoMain::debug_select_units(const PackedInt32Array &ids) {
 	selected_ids = ids;
 }
 
+void RtsoMain::debug_select_structures(const PackedInt32Array &ids) {
+	selected_ids.clear();
+	std::vector<uint32_t> v;
+	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
+	set_selected_structures(v);
+}
+
 void RtsoMain::debug_select_entity(int64_t id) {
 	if (!sim) return;
 	selected_ids.clear();
@@ -577,14 +584,15 @@ int64_t RtsoMain::debug_civic_centre_id(int player) const {
 }
 
 // Test hook: each player's structures by type name, {player: {name: count}}.
-Dictionary RtsoMain::debug_structure_types() {
+Dictionary RtsoMain::debug_structure_types(bool with_civ) {
 	Dictionary d;
 	if (!sim) return d;
 	for (const auto &b : sim->buildings()) {
 		if (b.hp <= 0.0f || b.wrecked) continue;
 		const int p = b.team;
 		Dictionary per = d.get(p, Dictionary());
-		const String n = String::utf8(rtso::building_type_info(b.type).name);
+		String n = String::utf8(rtso::building_type_info(b.type).name);
+		if (with_civ && b.civ < rtso::CIV_COUNT) n += String("/") + rtso::civ_info(b.civ).code; // "Blemmye Camp/kush"
 		per[n] = (int)per.get(n, 0) + 1;
 		d[p] = per;
 	}
