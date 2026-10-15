@@ -1539,6 +1539,13 @@ void Simulation::rebuild_territory_grids() {
 				if (nav_grid_.cells.inside(cx, cy) && (nav_grid_.cells.at(cx, cy) == NAV_WATER || nav_grid_.is_steep(cx, cy)))
 					territory_cost_.at(x, y) = TERRITORY_IMPASSABLE_COST;
 			}
+	// 255 "off the world": tiles the unrestricted class can't enter, a circular map's edge band
+	// and what lies past it. Territory doesn't spread there, and they don't count as map.
+	if (circular_map())
+		for (int y = 0; y < R; ++y)
+			for (int x = 0; x < R; ++x)
+				if (past_map_edge(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_))
+					territory_cost_.at(x, y) = TERRITORY_OFF_WORLD_COST;
 
 	// CalculateTerritories: each structure's weight floods outwards over the tiles, losing
 	// weight x tile / radius per tile (times the tile's cost, x362/256 diagonally); a player's
@@ -1586,6 +1593,7 @@ void Simulation::rebuild_territory_grids() {
 				for (int d = 0; d < 8; ++d) {
 					const int nx = cx + DX[d], nz = cz + DZ[d];
 					if (nx < 0 || nz < 0 || nx >= R || nz >= R) continue;
+					if (territory_cost_.at(nx, nz) == TERRITORY_OFF_WORLD_COST) continue; // don't expand beyond the world
 					const uint32_t per_tile = falloff_rel * territory_cost_.at(nx, nz);
 					const uint32_t fall = d >= 4 ? per_tile * 362 / 256 : per_tile;
 					const size_t k = (size_t)nz * R + nx;
@@ -28704,6 +28712,7 @@ void Simulation::set_circular_map(bool on) {
 	los_.set_circular(on);
 	rebuild_revealed_fow();
 	if (was != circular_map() && !nav_grid_.cells.blank()) rebuild_nav_grid(); // the edge's navcells
+	if (was != circular_map()) territory_roots_.clear(); // the territory cost grid's edge band
 }
 
 void Simulation::rebuild_revealed_fow() {
