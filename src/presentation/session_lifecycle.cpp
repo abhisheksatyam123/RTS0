@@ -716,6 +716,23 @@ void RtsoMain::_ready() {
 	}
 	ui_layer->add_child(net_status_overlay_);
 
+	// CLogger's on-screen messages (LOGMESSAGERENDER, LOGERROR): top left, mono-stroke-10,
+	// at most 20 lines, each for 10 s; errors red.
+	log_label_ = memnew(RichTextLabel);
+	log_label_->set_name("LogMessages");
+	log_label_->set_use_bbcode(true);
+	log_label_->set_fit_content(true);
+	log_label_->set_scroll_active(false);
+	log_label_->set_position(Vector2(4, 4));
+	log_label_->set_size(Vector2(900, 10));
+	log_label_->add_theme_font_size_override("normal_font_size", 11);
+	log_label_->add_theme_color_override("default_color", Color(1, 1, 1));
+	log_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+	log_label_->add_theme_constant_override("outline_size", 3);
+	log_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	log_label_->set_visible(false);
+	ui_layer->add_child(log_label_);
+
 	// 5/6. Chat overlay + diplomacy/tribute matrix: P4.1 leaf widgets
 	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
 	// handler methods below delegate into them).
@@ -924,6 +941,7 @@ void RtsoMain::_process(double delta) {
 		notice_until_ = 0;
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
 	}
+	update_log_messages();
 	update_pause_overlay();
 	if (hotkey_paused_ && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
