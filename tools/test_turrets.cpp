@@ -262,6 +262,19 @@ int main() {
 		CHECK(down == 1);
 		CHECK(s.turret_holder_of(sp) == 0 && s.units_.alive[s.lookup_unit(sp)]);
 		std::printf("rampart tower: %d archers at 12.5 m, %d at 18 m, %zu inside\n", low, high, b.garrisoned_units.size());
+		// tower_double has a TurretHolder but no Auras: its archers get none of wall_garrisoned's
+		// +3 resistances or +20 m vision (the archer left down stands in for an unaided one).
+		{
+			int32_t ground = -1;
+			for (int k = 0; k < 17; ++k)
+				if (s.turret_holder_of(up[k]) == 0) ground = s.lookup_unit(up[k]);
+			const int32_t top = s.lookup_unit(b.turret_units[0]);
+			float r_top[3], r_ground[3];
+			s.unit_resistance((size_t)top, r_top);
+			s.unit_resistance((size_t)ground, r_ground);
+			CHECK(ground >= 0 && r_top[0] == r_ground[0] && r_top[1] == r_ground[1] && r_top[2] == r_ground[2]);
+			CHECK(s.unit_vision_at((size_t)top) == s.unit_vision_at((size_t)ground));
+		}
 
 		const char *path = "/tmp/rts0_test_turrets_tower.sav";
 		CHECK(s.save_state(path));

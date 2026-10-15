@@ -43,10 +43,6 @@
 				"name": "Place Fortress",
 				"desc": "While placing a structure, switch to the Fortress."
 			},
-			"rts0.build.gate": {
-				"name": "Place Gate",
-				"desc": "While placing a structure, switch to the Gate."
-			},
 			"rts0.build.temple": {
 				"name": "Place Temple",
 				"desc": "While placing a structure, switch to the Temple."
