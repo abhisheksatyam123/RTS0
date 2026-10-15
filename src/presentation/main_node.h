@@ -590,6 +590,7 @@ public:
 	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip, const char **cursor = nullptr);
 	Dictionary debug_trade_route_clicks();
 	Dictionary debug_trade_tip(int64_t market);
+	Dictionary debug_tutorial_panel() const { return tutorial_panel_.debug_state(); }
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
