@@ -223,6 +223,9 @@ class RtsoWorldView : public Node3D {
 	std::map<std::pair<const AmbientParticle *, int>, GPUParticles3D *> world_emitters_;
 	void emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta);
 	void emit_world_fx(const std::vector<std::string> &names, const Vector3 &at, float sc, float delta);
+	void emit_world_fx(const std::string &name, const Vector3 &at, float sc, float delta);
+	HashMap<String, AmbientFxSet> unit_fx_; // particles a unit actor always props
+	void emit_unit_fx(const String &glb_id, const Transform3D &xf, float sc, float delta);
 	// Unit models started loading on a worker before their first draw (per civ and crowd key).
 	std::vector<bool> prefetched_;
 	float prefetch_poll_ = 0.0f;

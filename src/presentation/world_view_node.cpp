@@ -2197,6 +2197,21 @@ void RtsoWorldView::load_ambient_fx() {
 			(t == 0 ? ambient_fx_ : death_fx_)[String(keys[i]).utf8().get_data()] = set;
 		}
 	}
+	Dictionary units = root.get("units", Dictionary());
+	Array unit_keys = units.keys();
+	for (int i = 0; i < unit_keys.size(); ++i) {
+		Dictionary e = units[unit_keys[i]];
+		AmbientFxSet set;
+		set.metre = (float)e.get("metre", 1.0);
+		Array list = e.get("fx", Array());
+		for (int j = 0; j < list.size(); ++j) {
+			Dictionary fx = list[j];
+			Array pos = fx.get("pos", Array());
+			if (pos.size() == 3)
+				set.fx.push_back({ String(fx.get("p", "")).utf8().get_data(), Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
+		}
+		unit_fx_.insert(String(unit_keys[i]), set);
+	}
 	Array stone = Dictionary(root.get("projectiles", Dictionary())).get("stone", Array());
 	for (int j = 0; j < stone.size(); ++j) stone_fx_.push_back(String(stone[j]).utf8().get_data());
 	Dictionary run = root.get("run", Dictionary());
@@ -2305,13 +2320,27 @@ void RtsoWorldView::emit_run_dust(const String &glb_id, const Vector3 &at, float
 	if (const std::vector<std::string> *names = run_fx_.getptr(glb_id)) emit_world_fx(*names, at, sc, delta);
 }
 
+// The fire a unit actor always carries (the Theban fire-raiser's cart, the flaming
+// pig), at its GLB points under the model's transform `xf`.
+void RtsoWorldView::emit_unit_fx(const String &glb_id, const Transform3D &xf, float sc, float delta) {
+	load_ambient_fx();
+	const AmbientFxSet *set = unit_fx_.getptr(glb_id);
+	if (!set) return;
+	for (const AmbientFx &fx : set->fx)
+		emit_world_fx(fx.particle, xf.xform(fx.pos), set->metre * sc, delta);
+}
+
 // Puffs of each named particle at `at` (world space) at the files' rates over `delta`
 // seconds, `sc` world units per metre: one emitter per particle and scale that
 // emit_particle feeds, so a moving source leaves a trail and needs no node of its own.
 void RtsoWorldView::emit_world_fx(const std::vector<std::string> &names, const Vector3 &at, float sc, float delta) {
-	for (const std::string &name : names) {
+	for (const std::string &name : names) emit_world_fx(name, at, sc, delta);
+}
+
+void RtsoWorldView::emit_world_fx(const std::string &name, const Vector3 &at, float sc, float delta) {
+	{
 		const auto pd = ambient_particles_.find(name);
-		if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) continue;
+		if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) return;
 		const AmbientParticle &d = pd->second;
 		GPUParticles3D *&p = world_emitters_[{ &d, (int)std::lround(sc * 1000.0f) }];
 		if (!p) {
@@ -3812,6 +3841,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			apply_unit_death_xform(xf, utype, death_t, x, z, model_b.height * sc, false);
 		}
 		if (want.clip == CLIP_RUN && !dying) emit_run_dust(utype_str, Vector3(x, ground, z), sc, delta);
+		if (!dying) emit_unit_fx(utype_str, xf, sc, delta);
 		const int clip = crowd_slot_scratch_[i];
 		MultiMesh *cmm = crowd_[uciv][ckey] ? crowd_[uciv][ckey]->mm[clip].ptr() : nullptr;
 		if (cmm) {
@@ -4584,6 +4614,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// Fleeing (or moving at a run) on the Run clip: the actor's dust.
 		if (clip == 1 && (fview.behavior[f] == rtso::FAUNA_FLEE || vx * vx + vz * vz > 18.0f))
 			emit_run_dust(String(fid), Vector3(fx, fy, fz), fsc, delta);
+		if (fview.alive[f]) emit_unit_fx(String(fid), xf, fsc, delta);
 		int fslot = f_written[ft][clip]++;
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
