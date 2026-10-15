@@ -19141,6 +19141,30 @@ void Simulation::petra_most_needed(const float want_rate[RES_COUNT], const float
 		for (int y = x; y > 0 && cmp(out[y - 1], out[y]) > 0.0f; --y) std::swap(out[y - 1], out[y]);
 }
 
+void Simulation::petra_wanted_resources(bool out[RES_COUNT]) {
+	if (petra_rates_this_turn()) {
+		for (int r = 0; r < RES_COUNT; ++r) out[r] = petra_want_rate_[r] > 0.0f;
+		return;
+	}
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
+	for (int r = 0; r < RES_COUNT; ++r) out[r] = demand[r] > petra_ps().res[r];
+}
+
+uint8_t Simulation::petra_most_needed_resource() {
+	if (petra_rates_this_turn()) {
+		uint8_t order[RES_COUNT];
+		petra_most_needed(petra_want_rate_, petra_cur_rate_, order);
+		return order[0];
+	}
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
+	uint8_t need = RES_FOOD;
+	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD})
+		if (demand[r] - petra_ps().res[r] > demand[need] - petra_ps().res[need]) need = r;
+	return need;
+}
+
 void Simulation::petra_manage_economy(float dt) {
 	petra_econ_timer_ += dt;
 	petra_econ_timer_ = 0.0f; // baseManager.js update: every AI turn
@@ -28432,16 +28456,14 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			if (get_diplomacy(me, p) == DIPLO_ENEMY) ++enemies;
 			else if (is_ally(me, p) && is_ally(p, me)) ++mutual_allies;
 		}
-		// 0 A.D. counts Gaia among the enemies and us among the mutual allies. With
-		// fewer than two enemies no request can go out, so the timer (and its
-		// random draws) only starts once there are.
-		if (enemies + 1 > 2) {
-			if (sd.sent_lapse < 0.0f) sd.sent_lapse = 120.0f + sim_rng_.range_float(10.0f, 100.0f);
-			if (dip.elapsed > sd.sent_lapse) {
-				sd.sent_lapse = dip.elapsed + 300.0f + sim_rng_.range_float(10.0f, 100.0f);
-				if (mutual_allies + 1 < enemies && sim_rng_.range_float(0.0f, 1.0f) < 0.1f)
-					petra_send_diplomacy_request();
-			}
+		// 0 A.D. counts Gaia among the enemies and us among the mutual allies. The
+		// window re-arms whatever the enemy count; a request only goes out with
+		// at least two real enemies and fewer mutual allies than them.
+		if (sd.sent_lapse < 0.0f) sd.sent_lapse = 120.0f + sim_rng_.range_float(10.0f, 100.0f);
+		if (dip.elapsed > sd.sent_lapse) {
+			sd.sent_lapse = dip.elapsed + 300.0f + sim_rng_.range_float(10.0f, 100.0f);
+			if (enemies + 1 > 2 && mutual_allies + 1 < enemies && sim_rng_.range_float(0.0f, 1.0f) < 0.1f)
+				petra_send_diplomacy_request();
 		}
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 			if (!sd.sent_type[p] || dip.elapsed <= sd.sent_time[p] + 60.0f || pop_current(me) <= 70 ||
@@ -28464,10 +28486,11 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		available[RES_GOLD] -= acc.gold;
 		available[RES_STONE] -= acc.stone;
 	}
-	// pickMostNeededResources(...).wanted > 0: a resource our queues still want
-	// gathered (what their plans cost over what we have); only those are asked for.
-	float demand[RES_COUNT];
-	petra_resource_demand(demand);
+	// pickMostNeededResources(...).wanted > 0: a resource we want gathered (its wanted
+	// gather rate, or what our queues' plans cost over what we have when this turn's
+	// rates are not in); only those are asked for.
+	bool wanted[RES_COUNT];
+	petra_wanted_resources(wanted);
 	const int own_entities = petra_player_entities(me);
 	const int own_pop = pop_current(me);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -28477,7 +28500,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		bool any = false;
 		for (uint8_t r = 0; r < RES_COUNT; ++r) {
 			const float ally = players_[p].res[r];
-			const bool needed = demand[r] > petra_ps().res[r];
+			const bool needed = wanted[r];
 			if (donor && available[r] > 200.0f && ally < 0.2f * available[r]) {
 				amounts[r] = std::max(0, (int)std::floor(0.3f * available[r] - ally));
 				any |= amounts[r] > 0;
@@ -28608,13 +28631,10 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 		petra_say(PETRA_CHAT_ANSWER_ACCEPT, player, player, type);
 		return;
 	}
-	// Accept for a tribute of pickMostNeededResources()[0]: what our queues are
-	// furthest short of.
-	float demand[RES_COUNT];
-	petra_resource_demand(demand);
-	uint8_t need = RES_FOOD;
-	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD})
-		if (demand[r] - petra_ps().res[r] > demand[need] - petra_ps().res[need]) need = r;
+	// Accept for a tribute of pickMostNeededResources()[0]: the resource furthest short
+	// of its wanted gather rate (or, without this turn's rates, what our queues are
+	// furthest short of).
+	const uint8_t need = petra_most_needed_resource();
 	int own_units = 0;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == me) ++own_units;
