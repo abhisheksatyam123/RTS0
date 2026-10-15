@@ -12,7 +12,9 @@ extends SceneTree
 #      a player on Enter, Tab completes names there and in the chat line,
 #      picking a player selects the game they are in, each name has its own
 #      colour and our name is highlighted in others' lines;
-#   5. QuitButton.returnToMainMenu: leaving the lobby for the main menu signs
+#   5. GameDetails: a selected game shows its map's preview and the map
+#      description of any known map, not only random ones;
+#   6. QuitButton.returnToMainMenu: leaving the lobby for the main menu signs
 #      out (StopXmppClient).
 #
 #   godot --headless --path . -s tools/e2e_lobby_session.gd
@@ -171,7 +173,37 @@ func run() -> void:
 	check(lobby._format_chat("bob", "/me waves [b]", "alice") == "* [b][color=#6667ff]bob[/color][/b] waves [lb]b]",
 		"/me lines too, escaped")
 
-	print("5. back to the main menu signs out")
+	print("5. the game details show the map")
+	reg[0] = 0
+	ls.post_json("/rooms", {"token": bob[0], "id": "room-29998", "host_ip": "127.0.0.1", "host_port": 29998,
+		"name": "bay game", "state": "init", "map_id": "acropolis_bay", "map_name": "Acropolis Bay",
+		"map_type": "skirmish", "player_names": [{"name": "bob"}]}, func(c: int, _o) -> void: reg[0] = c)
+	await until(func() -> bool: return reg[0] != 0)
+	lobby._refresh()
+	var find_room := func(id: String) -> TreeItem:
+		if lobby._games.get_root():
+			for it in lobby._games.get_root().get_children():
+				if str(it.get_metadata(0)) == id:
+					return it
+		return null
+	await until(func() -> bool: return find_room.call("room-29998") != null)
+	var bay: TreeItem = find_room.call("room-29998")
+	if bay:
+		bay.select(0)
+	await process_frame
+	# map_preview is null in an unimported headless project; the details show what Game Setup shows.
+	var want: Texture2D = load("res://scenes/menu/gamesetup.gd").map_preview("acropolis_bay")
+	check(lobby._details_preview.texture == want and lobby._details_preview.visible == (want != null),
+		"a skirmish map's game shows Game Setup's preview of it")
+	check(lobby._details.get_parsed_text().contains("Map Description: Each player starts the match atop a large flat plateau"),
+		"and its description")
+	var other: TreeItem = find_room.call("room-29999")
+	if other:
+		other.select(0)
+	await process_frame
+	check(not lobby._details_preview.visible, "a game with no known map shows none")
+
+	print("6. back to the main menu signs out")
 	lobby._on_back_pressed()
 	check(not ls.signed_in(), "leaving the lobby signs alice out")
 	var listed := [null]
