@@ -2032,6 +2032,7 @@ Dictionary RtsoMain::get_match_summary() const {
 	d["map_id"] = String(sim->current_map_id().c_str());
 	d["map_name"] = String(sim->current_map_name().c_str());
 	d["seed"] = (int64_t)sim->sim_seed();
+	d["ended"] = sim->is_victory() || sim->is_game_over();
 	d["victory"] = (int)sim->victory_condition();
 	d["petra_diff"] = (int)sim->petra_difficulty();
 	d["petra_behavior"] = (int)sim->petra_behavior();
