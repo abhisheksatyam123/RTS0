@@ -303,7 +303,8 @@ int main() {
 		fresh(s);
 		s.player(0).civ = CIV_HAN;
 		const uint32_t field = s.spawn_building_world(0.0f, 0.0f, BLD_FIELD, 0, 1.0f);
-		s.spawn_building_world(0.0f, 10.0f, BLD_FARMSTEAD, 0, 1.0f);
+		// The farmstead off the farmers' side: the two turned away walk there to idle (FINDINGNEWTARGET).
+		s.spawn_building_world(0.0f, -16.0f, BLD_FARMSTEAD, 0, 1.0f);
 		run(s, 0.5f);
 		const uint32_t grain = s.field_resource_id(field);
 		std::vector<uint32_t> women;
@@ -383,6 +384,30 @@ int main() {
 		const uint32_t next = s.units_.target_resource_id[s.lookup_unit(woman)];
 		std::printf("  storehouse built: the builder goes to the %s\n", next == mine ? "mine (nearer)" : next == tree ? "tree" : "nothing");
 		CHECK(done && next == mine);
+	}
+
+	// 16. UnitAI FINDINGNEWTARGET: a farmer turned away from a full field takes a free field of any
+	// player's within 64 m (FindNearbyResource), not her own across the map.
+	{
+		static Simulation s;
+		fresh(s);
+		const uint32_t full = s.spawn_building_world(0.0f, 0.0f, BLD_FIELD, 0, 1.0f);
+		const uint32_t theirs = s.spawn_building_world(0.0f, 10.0f, BLD_FIELD, 1, 1.0f);
+		const uint32_t far_own = s.spawn_building_world(0.0f, -70.0f, BLD_FIELD, 0, 1.0f);
+		s.spawn_building_world(-8.0f, 4.0f, BLD_FARMSTEAD, 0, 1.0f);
+		run(s, 0.5f);
+		const uint32_t grain = s.field_resource_id(full), near_grain = s.field_resource_id(theirs), far_grain = s.field_resource_id(far_own);
+		std::vector<uint32_t> women;
+		for (int k = 0; k < 6; ++k) women.push_back(s.spawn_unit(-5.0f + 2.0f * k, -4.0f, 0, UNIT_FEMALE_CITIZEN));
+		s.order_gather(women.data(), (int)women.size(), grain);
+		run(s, 15.0f);
+		int on_full = 0, on_near = 0, on_far = 0;
+		for (uint32_t id : women) {
+			const uint32_t t = s.units_.target_resource_id[s.lookup_unit(id)];
+			on_full += t == grain; on_near += t == near_grain; on_far += t == far_grain;
+		}
+		std::printf("  full field: %d farm it, %d moved to player 1's field 10 away, %d to her own 70 away\n", on_full, on_near, on_far);
+		CHECK(on_full == 5 && on_near == 1 && on_far == 0);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

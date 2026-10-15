@@ -6743,6 +6743,38 @@
 1.0
 ]
 },
+"buildings/scaffold_up_4x4_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/scaffold_up_cart_defense_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/scaffold_up_cart_wall_long_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/scaffold_up_cart_wooden_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/scout_tower_tex0": {
 "mask": "res://assets/textures/player_masks/structural/brit_struct_512x512.png",
 "tint": [

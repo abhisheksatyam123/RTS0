@@ -256,6 +256,7 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.committed = b.committed;
 		f.wrecked = b.wrecked;
 		f.is_burning = b.is_burning;
+		f.upgrading = b.upgrade_to != BLD_TYPE_COUNT;
 		add_building(f, sim.shares_los(viewer, b.team), // an unshared ally's structures mirage like anyone's
 				viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
 	}

@@ -343,6 +343,17 @@ void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
 	}
+	// MiniMap.js onWorldClick: an armed ground action (call to arms, attack-walk, patrol) runs at
+	// the clicked point and stays armed under Shift or Alt; otherwise the camera moves there.
+	if ((attack_move_mode || patrol_mode || call_to_arms_mode) && !selected_ids.is_empty()) {
+		const bool keep = rtso::hotkeys::held("session.queue") || rtso::hotkeys::held("session.orderone");
+		const bool modes[3] = { attack_move_mode, patrol_mode, call_to_arms_mode };
+		if (minimap_unit_order(world_pos)) {
+			attack_move_mode = patrol_mode = call_to_arms_mode = false;
+			if (keep && !selected_ids.is_empty()) attack_move_mode = modes[0], patrol_mode = modes[1], call_to_arms_mode = modes[2];
+			return;
+		}
+	}
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
 	}
