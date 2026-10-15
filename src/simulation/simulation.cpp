@@ -2255,6 +2255,55 @@ void Simulation::gaia_obstacles_near(float x, float z, float reach, std::vector<
 	});
 }
 
+bool Simulation::ship_wreck_steer(size_t i, float x, float z, float ax, float az, nav::Vec2 &out) const {
+	if (gaia_grid_.empty()) return false;
+	const nav::Vec2 pos(x, z), aim(ax, az), dir = aim - pos;
+	const float len = dir.length();
+	if (len < 1e-3f) return false;
+	const nav::Vec2 end = len > SHIP_WRECK_STEER_REACH ? pos + dir * (SHIP_WRECK_STEER_REACH / len) : aim;
+	const float r = unit_clearance_at(i);
+	const SteerObstacle *hit = nullptr;
+	float hit_d2 = 0.0f;
+	const float pad = r * 1.4143f; // a square grown by r reaches r * sqrt(2) further at its corners
+	gaia_grid_.for_each_in_box(std::min(x, end.x) - pad, std::min(z, end.y) - pad, std::max(x, end.x) + pad, std::max(z, end.y) + pad,
+			[&](uint32_t k) {
+		if (gaia_res_idx_[k] != UINT32_MAX) return; // trees and bushes stand on land
+		const SteerObstacle &o = gaia_obstacles_[k];
+		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + r, o.hv + r);
+		// The treasure the ship sails to collect, and one it already overlaps, are not steered round.
+		if (nav::PointIsInSquare(aim - c, u, v, half) || nav::PointIsInSquare(pos - c, u, v, half)) return;
+		if (!nav::TestRaySquare(pos - c, end - c, u, v, half)) return;
+		const float d2 = (c - pos).dot(c - pos);
+		if (!hit || d2 < hit_d2) { hit = &o; hit_d2 = d2; }
+	});
+	if (!hit) return false;
+	// The corner of the wreck's square (grown by the hull) the ship can see that makes the shorter way.
+	const nav::Vec2 c(hit->x, hit->z), u = nav::footprint_u(*hit), v = nav::footprint_v(*hit);
+	const nav::Vec2 half(hit->hu + r, hit->hv + r), wide(half.x + 0.25f, half.y + 0.25f);
+	float best = -1.0f;
+	for (int sx = -1; sx <= 1; sx += 2)
+		for (int sz = -1; sz <= 1; sz += 2) {
+			const nav::Vec2 corner = c + u * ((float)sx * wide.x) + v * ((float)sz * wide.y);
+			if (nav::TestRaySquare(pos - c, corner - c, u, v, half)) continue;
+			const float cost = (corner - pos).length() + (aim - corner).length();
+			if (best < 0.0f || cost < best) { best = cost; out = corner; }
+		}
+	return best >= 0.0f;
+}
+
+bool Simulation::ship_step_into_wreck(size_t i, float x, float z, float nx, float nz, float ax, float az) const {
+	if (gaia_grid_.empty()) return false;
+	const float r = unit_clearance_at(i);
+	const float pad = r * 1.4143f; // a square grown by r reaches r * sqrt(2) further at its corners
+	return gaia_grid_.any_in_box(std::min(x, nx) - pad, std::min(z, nz) - pad, std::max(x, nx) + pad, std::max(z, nz) + pad, [&](uint32_t k) {
+		if (gaia_res_idx_[k] != UINT32_MAX) return false;
+		const SteerObstacle &o = gaia_obstacles_[k];
+		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + r, o.hv + r);
+		return nav::PointIsInSquare(nav::Vec2(nx, nz) - c, u, v, half) && !nav::PointIsInSquare(nav::Vec2(x, z) - c, u, v, half) &&
+				!nav::PointIsInSquare(nav::Vec2(ax, az) - c, u, v, half);
+	});
+}
+
 bool Simulation::gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const {
 	if (gaia_grid_.empty()) return false;
 	const nav::Vec2 pos(x, z), aim(ax, az), dir = aim - pos;
@@ -10369,6 +10418,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// does, whatever way round buildings it is heading for.
 			const float lx = px[i] - last.x, lz = pz[i] - last.z;
 			if (last.key == idle_stuck_key() && lx * lx + lz * lz < 0.25f) memo = last;
+		} else if (!backing_off) {
+			rtso::nav::Vec2 steer;
+			if (ship_wreck_steer((size_t)i, px[i], pz[i], aim_x, aim_z, steer)) {
+				dx = steer.x - px[i];
+				dz = steer.y - pz[i];
+				d2 = dx * dx + dz * dz;
+				steered = true;
+			}
 		}
 
 		float inv = 1.0f / sqrtf(d2);
@@ -10404,7 +10461,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
 					return !nav_grid_.is_passable_for(cx, cy, PASS_SHIP);
 				};
-				return off(x, z) && !off(px[i], pz[i]);
+				return (off(x, z) && !off(px[i], pz[i])) || ship_step_into_wreck((size_t)i, px[i], pz[i], x, z, aim_x, aim_z);
 			};
 			if (barred(npx[i], npz[i])) {
 				// A refused step that reaches a short-path waypoint ends on it and spends the rest heading on
