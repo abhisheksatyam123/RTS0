@@ -86,13 +86,14 @@ func run() -> void:
 	main.debug_train_buttons(11)  # a dock: its Town Phase techs
 	await frames(2)
 	var tips: Array = main.debug_command_row().map(func(e): return TT.plain(str(e["tip"])))
-	var req: String = TranslationServer.translate("Requires %(technology)s").get_slice("%(technology)s", 0)
-	check(req != "Requires " and tips.any(func(t): return t.contains(req)), "\"%s...\" on a tech button" % req)
+	# selection_panels.js: the tech's requirementsTooltip, translated.
+	var req: String = TranslationServer.translate("Unlocked in Town Phase.")
+	check(req != "Unlocked in Town Phase." and tips.any(func(t): return t.contains(req)), "\"%s\" on a tech button" % req)
 	TranslationServer.set_locale("en")
 	TranslationServer.remove_translation(de)
 	main.debug_train_buttons(11)
 	tips = main.debug_command_row().map(func(e): return TT.plain(str(e["tip"])))
-	check(tips.any(func(t): return t.contains("Requires Town Phase")), "\"Requires Town Phase\" in English")
+	check(tips.any(func(t): return t.contains("Unlocked in Town Phase.")), "\"Unlocked in Town Phase.\" in English")
 	main._on_diplo_tribute_pressed(1, 0)  # 100 more wood: 100 left, under Fishing Nets' 200
 	await frames(10)
 	main.debug_train_buttons(11)
