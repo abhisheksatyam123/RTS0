@@ -3092,6 +3092,81 @@ static void test_work_order_queue() {
 	check(s.unit_order(tr).kind == ORDER_TRADE && s.unit_order(tr).target == ma, "the trader resumes its route");
 }
 
+static void test_rally_commands() {
+	std::printf("88. rally commands a target alone doesn't give (RallyPointCommands.js)\n");
+	Simulation s;
+	setup(s);
+	s.set_diplomacy(0, 2, Simulation::DIPLO_ALLY);
+	s.set_diplomacy(2, 0, Simulation::DIPLO_ALLY);
+	const uint32_t brk = s.spawn_building_world(0.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
+	auto bref = [&]() -> const Simulation::Building & { return *bld(s, brk); };
+	auto trained = [&](UnitType t) {
+		const uint32_t u = s.spawn_unit(4.0f, 4.0f, 0, t);
+		s.apply_rally_point(u, bref());
+		return u;
+	};
+	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK);
+	check(s.unit_order(trained(UNIT_SPEARMAN)).kind == ORDER_WALK_AND_FIGHT, "attack-walk (session.attackmove)");
+	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK_UNITS);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));
+		check(o.kind == ORDER_WALK_AND_FIGHT && (o.flags & ORDER_FLAG_UNITS_ONLY), "attack-walk on units only (session.attackmoveUnit)");
+	}
+	uint32_t foe = s.spawn_unit(22.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s.cmd_set_rally_point(0, brk, 22.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK, foe);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));
+		check(o.kind == ORDER_ATTACK && o.target == foe, "attack an enemy unit");
+	}
+	s.cmd_delete(1, &foe, 1);
+	check(s.unit_order(trained(UNIT_SPEARMAN)).kind == ORDER_WALK_AND_FIGHT, "attack-walk there once it is gone");
+	const uint32_t treasure = s.spawn_treasure(-15.0f, 5.0f, 0);
+	s.cmd_set_rally_point(0, brk, -15.0f, 5.0f, 0, 0, false, RALLY_CMD_TREASURE, treasure);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_FEMALE_CITIZEN));
+		check(o.kind == ORDER_COLLECT_TREASURE && o.target == treasure, "collect a treasure");
+	}
+	const uint32_t ally_house = s.spawn_building_world(-10.0f, -12.0f, BLD_HOUSE, 2, 1.0f);
+	s.cmd_set_rally_point(0, brk, -10.0f, -12.0f, 0, ally_house);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_FEMALE_CITIZEN)); // a house takes support units
+		check(o.kind == ORDER_GARRISON && o.target == ally_house, "garrison in a mutual ally's structure");
+	}
+	const uint32_t ally_found = s.spawn_building_world(12.0f, -12.0f, BLD_HOUSE, 2, 0.0f);
+	s.cmd_set_rally_point(0, brk, 12.0f, -12.0f, 0, ally_found);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_FEMALE_CITIZEN));
+		check(o.kind == ORDER_BUILD && o.target == ally_found, "repair an ally's foundation");
+	}
+	const uint32_t ma = s.spawn_building_world(-40, 20, BLD_MARKET, 0, 1.0f);
+	const uint32_t mb = s.spawn_building_world(40, 20, BLD_MARKET, 0, 1.0f);
+	s.cmd_set_rally_point(0, ma, 40.0f, 20.0f, 0, mb, false, RALLY_CMD_TRADE);
+	{
+		const uint32_t tr = s.spawn_unit(-36.0f, 24.0f, 0, UNIT_TRADER);
+		s.apply_rally_point(tr, *bld(s, ma));
+		const UnitOrder o = s.unit_order(tr);
+		check(o.kind == ORDER_TRADE && o.target == ma, "a trader trades from the market that trained it to the rally market");
+		const uint32_t w = s.spawn_unit(-36.0f, 26.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.apply_rally_point(w, *bld(s, ma));
+		check(s.unit_order(w).kind != ORDER_TRADE, "anyone else doesn't trade");
+	}
+	// Shift-added steps keep their commands, through a save.
+	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK);
+	s.cmd_set_rally_point(0, brk, -15.0f, 5.0f, 0, 0, true, RALLY_CMD_TREASURE, treasure);
+	const char *path = "/tmp/rts0_test_rally_commands.sav";
+	check(s.save_state(path), "saved");
+	Simulation t;
+	check(t.load_state(path), "loaded");
+	const Simulation::Building *tb = bld(t, brk);
+	check(tb && tb->rally_cmd == RALLY_CMD_ATTACK_WALK && tb->rally_more.size() == 1 &&
+			tb->rally_more[0].cmd == RALLY_CMD_TREASURE && tb->rally_more[0].ent_id == treasure, "the commands survive a save");
+	const uint32_t u = t.spawn_unit(4.0f, 4.0f, 0, UNIT_FEMALE_CITIZEN);
+	t.apply_rally_point(u, *tb);
+	const std::vector<UnitOrder> *q = t.unit_order_queue(u);
+	check(t.unit_order(u).kind == ORDER_WALK_AND_FIGHT && q && q->size() == 1 && (*q)[0].kind == ORDER_COLLECT_TREASURE,
+			"attack-walk there, then the treasure");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3183,6 +3258,7 @@ int main(int argc, char **argv) {
 	test_unload_self_garrison_rally();
 	test_allied_builders_continue();
 	test_work_order_queue();
+	test_rally_commands();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

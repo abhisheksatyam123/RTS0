@@ -3,6 +3,7 @@
 #include <algorithm>
 #include "network/chat_routing.h"
 #include "main_node.h"
+#include "fog_mirage.h"
 #include "l10n.h"
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
@@ -62,9 +63,16 @@ uint32_t RtsoMain::transport_under(float x, float z) const {
 	return 0;
 }
 
-void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) const {
+void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, uint32_t *ent, uint8_t *cmd) const {
 	res = bld = 0;
+	uint32_t ent_id = 0;
+	uint8_t command = rtso::RALLY_CMD_AUTO;
+	struct Out { uint32_t *e; uint8_t *c; uint32_t &ev; uint8_t &cv; ~Out() { if (e) *e = ev; if (c) *c = cv; } } out{ent, cmd, ent_id, command};
 	if (!sim) return;
+	// unit_actions.js "set-rallypoint": walk, or attack-walk with session.attackmove held
+	// (units only with session.attackmoveUnit); a target below gives its own command.
+	if (rtso::hotkeys::held("session.attackmoveUnit")) command = rtso::RALLY_CMD_ATTACK_WALK_UNITS;
+	else if (rtso::hotkeys::held("session.attackmove")) command = rtso::RALLY_CMD_ATTACK_WALK;
 	float best = 2.0f * 2.0f;
 	auto rv = sim->resources();
 	for (size_t r = 0; r < rv.count; ++r) {
@@ -72,7 +80,26 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) 
 		const float dx = rv.x[r] - at.x, dz = rv.z[r] - at.z, d2 = dx * dx + dz * dz;
 		if (d2 < best) { best = d2; res = rv.id[r]; }
 	}
-	if (res) return;
+	if (res) { command = rtso::RALLY_CMD_AUTO; return; }
+	// A treasure: collect it ("collect-treasure").
+	float best_t = 2.0f * 2.0f;
+	for (const auto &t : sim->treasures()) {
+		const float dx = t.x - at.x, dz = t.z - at.z, d2 = dx * dx + dz * dz;
+		if (d2 < best_t) { best_t = d2; ent_id = t.id; }
+	}
+	if (ent_id) { command = rtso::RALLY_CMD_TREASURE; return; }
+	const uint8_t me = local_player();
+	// An enemy unit in sight: attack it ("attack").
+	auto uv = sim->units();
+	float best_u = 1.2f * 1.2f;
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (!uv.alive[i] || !sim->is_hostile(me, uv.team[i])) continue;
+		const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z, d2 = dx * dx + dz * dz;
+		if (d2 >= best_u || !rtso::los_sees_unit(*sim, view_player(), uv.pos_x[i], uv.pos_z[i], uv.team[i])) continue;
+		best_u = d2;
+		ent_id = uv.id[i];
+	}
+	if (ent_id) { command = rtso::RALLY_CMD_ATTACK; return; }
 	const std::vector<uint32_t> mine = selected_structures();
 	float best_b = 1e9f;
 	for (const auto &b : sim->buildings()) {
@@ -80,6 +107,26 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) 
 		const float dx = b.x - at.x, dz = b.z - at.z, d2 = dx * dx + dz * dz, hit_r = b.half_size + 1.2f;
 		if (d2 <= hit_r * hit_r && d2 < best_b) { best_b = d2; bld = b.id; }
 	}
+	if (!bld) return;
+	const rtso::Simulation::Building *t = nullptr;
+	const rtso::Simulation::Building *from = nullptr;
+	for (const auto &b : sim->buildings()) {
+		if (b.id == bld) t = &b;
+		if (b.id == selected_building_id) from = &b;
+	}
+	if (!t) return;
+	command = rtso::RALLY_CMD_AUTO;
+	const bool friendly = t->team == me || sim->is_ally(me, t->team);
+	// Occupy a turret point of an own or allied wall or tower that has no garrison ("occupy-turret").
+	if (friendly && t->build_progress >= 1.0f && sim->get_garrison_capacity(t->id) <= 0 && sim->turret_holder_points(*t)) {
+		command = rtso::RALLY_CMD_TURRET;
+		return;
+	}
+	// From a market to another that isn't an enemy's: new traders trade between them ("trade").
+	auto market = [](uint8_t type) { return rtso::is_land_market(type) || type == rtso::BLD_DOCK; };
+	if (from && market(from->type) && market(t->type) && t->build_progress >= 1.0f && !sim->is_hostile(me, t->team) &&
+			(from->type == rtso::BLD_DOCK) == (t->type == rtso::BLD_DOCK))
+		command = rtso::RALLY_CMD_TRADE;
 }
 
 bool RtsoMain::selection_can_board(uint32_t holder) const {

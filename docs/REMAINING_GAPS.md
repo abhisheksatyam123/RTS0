@@ -52,7 +52,7 @@ Combat, loot, territory, garrison, capture, rally points, trade and camps agains
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
 | P1 | What a fire ship's death blast kills gives no loot, and a structure it razes keeps its territory and pathfinding block (DeathDamage.js attacks as the dying ship) | medium | Fixed (this pass's first PR) |
-| P2 | Rally points only gather, repair, garrison in one's own structure, attack a structure or walk; 0.28 also attack-walks, patrols, attacks or follows a unit, trades, collects treasure and occupies turrets (RallyPointCommands.js) | medium | Open |
+| P2 | Rally points only gather, repair, garrison in one's own structure, attack a structure or walk; 0.28 also attack-walks, patrols, attacks or follows a unit, trades, collects treasure and occupies turrets (RallyPointCommands.js) | medium | Fixed (save v97): every command 0.28's set-rallypoint offers; patrol and follow are not among them |
 | P3 | Back to Work restores one Gather or Build order; 0.28 keeps the queue from the first Gather/Trade/Repair/ReturnResource order (UpdateWorkOrders), so sheltered traders resume trading | medium | Fixed (save v96) |
 | P4 | A trader whose market is destroyed or captured idles where it stands; 0.28 walks it back to the other market (Trader.RemoveMarket, TradingCanceled) | medium-low | Open (A for trade) |
 | P5 | Unloading with a "garrison back in here" rally still runs the Shift-added rally steps; 0.28 skips all of them | low | Fixed |
