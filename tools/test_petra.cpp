@@ -2034,6 +2034,177 @@ static void test_attack_blocked_by_walls() {
 	CHECK(on_wall >= 3, "blocked soldiers hack at the wall (isBlocked: ent.attack(target))");
 }
 
+// attackPlan.js update maybeUpdate: a slow melee unit chasing a fleeing civilian, and a siege
+// engine aimed at a unit, are given a new target every 5 s (10 s while approaching).
+static void test_attack_maybe_update() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f;
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f);
+	auto passive = [&](uint32_t u) { s->units_.stance[s->lookup_unit(u)] = STANCE_PASSIVE; return u; };
+	const uint32_t woman = passive(s->spawn_unit(hx + 6.0f, hz + 2.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e5f));
+	const uint32_t soldier = passive(s->spawn_unit(hx + 6.0f, hz - 2.0f, 0, UNIT_SPEARMAN, 1.0e5f));
+	const uint32_t spear = passive(s->spawn_unit(hx + 9.0f, hz + 2.0f, 1, UNIT_SPEARMAN, 1.0e5f));
+	const uint32_t cata = passive(s->spawn_unit(hx + 9.0f, hz - 4.0f, 1, UNIT_CATAPULT, 1.0e5f));
+	s->order_attack(&spear, 1, woman);
+	s->order_attack(&cata, 1, soldier);
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.squad = {spear, cata};
+	plan.initial_squad_size = 2;
+	plan.target_player = 0;
+	plan.target_building_id = house;
+	plan.target_x = hx; plan.target_z = hz;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 10.0f; // not the first turn, which re-targets everyone
+	s->petra_started_attacks_.push_back(plan);
+	for (int t = 0; t < 400; ++t) { // 20 s: the woman flees the spearman all along
+		s->tick(Simulation::FIXED_STEP);
+	}
+	const int32_t sp = s->lookup_unit(spear), ca = s->lookup_unit(cata);
+	const auto bit = s->building_id_to_idx_.find(s->units_.target_building_id[ca]);
+	const bool on_structure = bit != s->building_id_to_idx_.end() && s->buildings_[bit->second].team == 0;
+	std::printf("  maybe update: the spearman on the fleeing woman now on %s, the catapult on the soldier now on %s\n",
+	            s->units_.target_unit_id[sp] == woman ? "her" : s->units_.target_unit_id[sp] == soldier ? "the soldier" : "something else",
+	            on_structure ? "a structure" : s->units_.target_unit_id[ca] == soldier ? "the soldier" : "something else");
+	CHECK(s->units_.target_unit_id[sp] == soldier, "a slow melee unit leaves a fleeing civilian for a soldier");
+	CHECK(on_structure, "a siege engine on a unit turns to a structure in reach");
+}
+
+// attackPlan.js UpdateTarget: an attack with nothing left of its enemy on its land helps another
+// started attack on that land (its target) before picking another enemy's nearest structure.
+static void test_attack_helps_other_attack() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(5);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 5, 3, 96.0f);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_player_active(2, true, false);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float c1x = 0.0f, c1z = 0.0f;
+	uint32_t c2 = 0;
+	float c2x = 0.0f, c2z = 0.0f;
+	for (auto &b : s->buildings_) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { c1x = b.x; c1z = b.z; }
+		if (b.team == 2 && b.type == BLD_TOWN_CENTER) { c2 = b.id; c2x = b.x; c2z = b.z; }
+		if (b.team == 0) s->destroy_building(b);
+	}
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	// Player 0's last house halfway to player 2, and player 2's house beside it.
+	const float ax = c1x + (c2x - c1x) * 0.5f, az = c1z + (c2z - c1z) * 0.5f;
+	const uint32_t h0 = s->spawn_building_world(ax, az, BLD_HOUSE, 0, 1.0f);
+	const uint32_t h2 = s->spawn_building_world(ax + 6.0f, az + 6.0f, BLD_HOUSE, 2, 1.0f);
+	auto army = [&](float x, float z, int n) {
+		std::vector<uint32_t> v;
+		for (int k = 0; k < n; ++k) v.push_back(s->spawn_unit(x + (float)k, z, 1, UNIT_SPEARMAN, 1.0e5f));
+		return v;
+	};
+	Simulation::AttackPlan a, b;
+	a.kind = b.kind = PETRA_ATTACK_ATTACK;
+	a.state = b.state = Simulation::AttackPlan::ATTACKED;
+	a.state_timer = b.state_timer = 10.0f;
+	a.squad = army(ax - 4.0f, az - 4.0f, 4);
+	a.target_player = 0; a.target_building_id = h0; a.target_x = ax; a.target_z = az;
+	b.squad = army(c2x - 12.0f, c2z - 12.0f, 2);
+	b.target_player = 2; b.target_building_id = c2; b.target_x = c2x; b.target_z = c2z;
+	a.initial_squad_size = 4; b.initial_squad_size = 2;
+	s->petra_started_attacks_.push_back(a);
+	s->petra_started_attacks_.push_back(b);
+	for (auto &bl : s->buildings_) if (bl.id == h0) s->destroy_building(bl);
+	run_ai_turns(*s, 2);
+	uint32_t now = 0;
+	for (const auto &p : s->petra_started_attacks_)
+		if (!p.squad.empty() && p.squad[0] == a.squad[0]) now = p.target_building_id;
+	std::printf("  helping: the attack whose house fell now targets %s\n",
+	            now == c2 ? "the other attack's civic centre" : now == h2 ? "the nearest house of the other enemy" : "something else");
+	CHECK(now == c2, "an attack with no target left on its land joins another attack's target");
+}
+
+// defenseManager.js checkEvents: an attacked structure in a base with no anchor on its land
+// (or on blinking territory our attacks can't defend) is destroyed while we hold 50-70% of
+// its capture points; while our civic centre stands it is defended instead.
+static void test_scuttle_undefendable() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float cx = 0.0f, cz = 0.0f;
+	uint32_t cc = 0;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; cc = b.id; }
+	const uint32_t bar = s->spawn_building_world(cx + (cx > 0 ? -10.0f : 10.0f), cz, BLD_BARRACKS, 1, 1.0f);
+	run_for(*s, 1.0f);
+	auto idx = [&](uint32_t id) { return s->building_id_to_idx_.at(id); };
+	{
+		const auto &b = s->buildings_[idx(bar)];
+		for (int k = 0; k < 3; ++k) {
+			const uint32_t u = s->spawn_unit(b.x + b.half_size + 1.0f, b.z + (float)k, 0, UNIT_SPEARMAN, 1.0e5f);
+			s->order_attack_building(&u, 1, bar, false, true);
+		}
+	}
+	run_for(*s, 0.5f);
+	auto hold60 = [&] {
+		auto &b = s->buildings_[idx(bar)];
+		b.capture_points_by_team.fill(0.0f);
+		b.capture_points_by_team[1] = 0.6f * b.max_capture_points;
+		b.capture_points_by_team[0] = 0.4f * b.max_capture_points;
+	};
+	auto gone = [&](uint32_t id) { auto it = s->building_id_to_idx_.find(id); return it == s->building_id_to_idx_.end() || s->buildings_[it->second].hp <= 0.0f || s->buildings_[it->second].wrecked; };
+	hold60();
+	run_ai_turns(*s, 1);
+	const bool kept = !gone(bar);
+	for (auto &b : s->buildings_) if (b.id == cc) s->destroy_building(b);
+	hold60();
+	run_ai_turns(*s, 1);
+	std::printf("  scuttle: a barracks being captured is %s by our civic centre, %s once it has fallen\n",
+	            kept ? "kept" : "destroyed", gone(bar) ? "destroyed" : "kept");
+	CHECK(kept, "a structure in an anchored base is defended, not destroyed");
+	CHECK(gone(bar), "with no anchor on its land it is destroyed at 50-70% of its capture points");
+}
+
+// headquarters.js update: buildDefenses runs only above Sandbox.
+static void test_sandbox_builds_no_defenses() {
+	int planned[2] = {};
+	const uint8_t diffs[2] = {PETRA_SANDBOX, PETRA_MEDIUM};
+	for (int k = 0; k < 2; ++k) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		s->set_petra_difficulty(diffs[k]);
+		run_for(*s, 20.0f);
+		s->ticks_ = (uint64_t)(550.0f / Simulation::FIXED_STEP); // past fortStartTime + towerLapseTime
+		for (int t = 0; t < 12 && !planned[k]; ++t) {
+			s->set_player_resources(1, 5000, 5000, 5000, 5000);
+			s->petra_config_.defensive = 0.8f; // a sentry tower even below Medium
+			s->petra_attack_mgr_.save_resources = 0;
+			run_ai_turns(*s, 1);
+			planned[k] = s->petra_defense_build_.pending != 0;
+			for (const auto &b : s->buildings_)
+				planned[k] |= b.team == 1 && building_ai_info(b.type).shoots() && !is_civic_centre(b.type);
+		}
+	}
+	std::printf("  defenses planned: Sandbox %s, Medium %s\n", planned[0] ? "yes" : "no", planned[1] ? "yes" : "no");
+	CHECK(!planned[0] && planned[1], "Sandbox builds no towers, Medium does");
+}
+
 // attackPlan.js "Raid": FastMoving minSize 3 and targetSize 4 vary like any plan's (x0.8-1.2,
 // x0.2 below Easy), and each plan made counts toward the next one's name (totalNumber).
 static void test_raid_sizes_vary() {
@@ -5171,6 +5342,10 @@ int main(int argc, char **argv) {
 	RUN(test_siege_prefers_any_gate);
 	RUN(test_raid_sizes_vary);
 	RUN(test_attack_blocked_by_walls);
+	RUN(test_attack_maybe_update);
+	RUN(test_attack_helps_other_attack);
+	RUN(test_scuttle_undefendable);
+	RUN(test_sandbox_builds_no_defenses);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);

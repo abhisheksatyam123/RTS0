@@ -3133,6 +3133,10 @@ private:
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
+	uint8_t petra_target_owner(uint32_t id) const;
+	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
+	void petra_scuttle_undefendable();
+	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
