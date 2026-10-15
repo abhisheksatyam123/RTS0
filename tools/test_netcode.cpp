@@ -1969,6 +1969,14 @@ int run_legacy_tests() {
         assert(parse_game_start_full(format_game_start("bactria", 99), leg));
         assert(leg.map_id == "bactria" && leg.seed == 99);
         assert(leg.victory == 0 && leg.difficulty == 3 && leg.start_res == 1); // defaults
+        assert(leg.ai_seed == 0 && format_game_start("bactria", 99).find("aiseed") == std::string::npos);
+        // -autostart-aiseed rides along when set.
+        GameSetupParams ais;
+        ais.map_id = "mainland";
+        ais.seed = 7;
+        ais.ai_seed = 4000000000u;
+        GameSetupParams ais_got;
+        assert(parse_game_start_full(format_game_start_full(ais), ais_got) && ais_got.ai_seed == 4000000000u);
         // Bad inputs rejected.
         GameSetupParams junk;
         assert(!parse_game_start_full("map=only_no_seed", junk));

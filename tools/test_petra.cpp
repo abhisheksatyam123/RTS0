@@ -4265,7 +4265,21 @@ static void test_personality_draw() {
 	// setConfig draws no personality on Sandbox: the default 0.5 whatever the behaviour.
 	assert(t.petra_config_for(2).aggressive == 0.5f && t.petra_config_for(2).defensive == 0.5f &&
 	       t.petra_config_for(2).pop_scaling == 0.5f);
-	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
+	// -autostart-aiseed: a set AI seed draws another personality, the same one on every peer
+	// and whatever the match seed; 0 goes back to the match seed's draw.
+	Simulation u;
+	u.set_sim_seed(4242);
+	u.set_petra_behavior(2, PETRA_BEHAVIOR_AGGRESSIVE);
+	u.set_ai_seed(99);
+	const float seeded = u.petra_config_for(2).aggressive;
+	Simulation v;
+	v.set_sim_seed(777);
+	v.set_ai_seed(99);
+	v.set_petra_behavior(2, PETRA_BEHAVIOR_AGGRESSIVE);
+	assert(seeded != a2 && v.petra_config_for(2).aggressive == seeded);
+	u.set_ai_seed(0);
+	assert(u.petra_config_for(2).aggressive == a2);
+	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f, AI seed 99 %.2f\n", a2, a3, d.aggressive, seeded);
 }
 
 // headquarters.js trainEmergencyUnits: citizen infantry from the civic centre nearest the

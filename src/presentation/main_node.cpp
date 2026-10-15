@@ -2198,8 +2198,9 @@ void RtsoMain::refresh_lobby_rooms() {
 	}
 	lobby_room_cache_ = rtso::parse_lobby_rooms(body);
 	for (const auto &r : lobby_room_cache_) {
-		String line = String(r.id.c_str()) + "  " + String(r.host_ip.c_str()) + ":" +
-		              String::num_int64(r.host_port) + "  " + String::num_int64(r.players) +
+		// The lobby's list carries no address since /rooms/connect; older ones did.
+		const String addr = r.host_ip.empty() ? String() : String(r.host_ip.c_str()) + ":" + String::num_int64(r.host_port) + "  ";
+		String line = String(r.id.c_str()) + "  " + addr + String::num_int64(r.players) +
 		              "/" + String::num_int64(r.max_players) + "  " + String(r.map_id.c_str());
 		lobby_rooms->add_item(line);
 	}
@@ -3059,7 +3060,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	PackedInt32Array sel = lobby_rooms->get_selected_items();
 	if (sel.size() > 0) {
 		int idx = sel[0];
-		if (idx >= 0 && (size_t)idx < lobby_room_cache_.size()) {
+		if (idx >= 0 && (size_t)idx < lobby_room_cache_.size() && !lobby_room_cache_[(size_t)idx].host_ip.empty()) {
 			ip = lobby_room_cache_[(size_t)idx].host_ip;
 			port = lobby_room_cache_[(size_t)idx].host_port;
 		}
