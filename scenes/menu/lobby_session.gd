@@ -490,6 +490,9 @@ static var _map_types := {} # map id -> its map type (the map list file, read on
 static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictionary:
 	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
 	var map_id := str(ms.get("map_id"))
+	# A Random map stays Random in the game list until the game starts.
+	if ms.get("net_map_random") == true and started_at <= 0:
+		map_id = "random"
 	var map_name := map_id.replace("_", " ").capitalize()
 	var map_type := ""
 	for r in setup.RMS_MAPS:
