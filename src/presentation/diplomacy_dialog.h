@@ -116,6 +116,7 @@ public:
 		host_ = host;
 		chat_ = chat;
 		panel_ = memnew(Panel);
+		panel_->set_meta("tooltip_style", "session_bold"); // diplomacy rows: sessionToolTipBold
 		panel_->set_anchor(SIDE_LEFT, 0.5f);
 		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_anchor(SIDE_TOP, 0.5f);
