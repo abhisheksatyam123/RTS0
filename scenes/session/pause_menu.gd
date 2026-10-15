@@ -54,6 +54,13 @@ func _close() -> void:
 	if visible:
 		_on_resume_pressed()
 
+## MenuButtons: closeOpenDialogs() before a page opens over the game.
+func _close_dialogs() -> void:
+	_close()
+	var main := get_parent()
+	if main and main.has_method("close_open_dialogs"):
+		main.close_open_dialogs()
+
 func _networked() -> bool:
 	var main := get_parent()
 	return main != null and main.has_method("get_summary_gui") and bool(main.get_summary_gui(false).get("networked", false))
@@ -75,19 +82,19 @@ func _on_chat_pressed():
 
 # MenuButtons Options: the options page over the game (Engine.OpenChildPage).
 func _on_options_pressed():
-	_close()
+	_close_dialogs()
 	var page = load("res://scenes/menu/options.gd").open_overlay(get_parent())
 	_implicit_pause(page, "closed")
 
 # MenuButtons Manual: the game manual (gui/manual).
 func _on_manual_pressed():
-	_close()
+	_close_dialogs()
 	var page = load("res://scenes/reference/manual.gd").open_overlay(get_parent())
 	_implicit_pause(page, "closed")
 
 # MenuButtons Hotkeys: the hotkey editor (gui/hotkeys) over the game.
 func _on_hotkeys_pressed():
-	_close()
+	_close_dialogs()
 	var page = load("res://scenes/menu/hotkeys.gd").open_overlay(get_parent())
 	_implicit_pause(page, "closed")
 
@@ -114,16 +121,14 @@ func rebuild_pause() -> void:
 # 0 A.D. MenuButtons Summary: the summary page over the game ("summary" hotkey).
 func _on_summary_pressed():
 	var main := get_parent()
-	_close()
-	if main.has_method("close_open_dialogs"):
-		main.close_open_dialogs() # Summary.onPress: closeOpenDialogs
+	_close_dialogs()
 	if main.has_method("toggle_summary"):
 		main.toggle_summary()
 
 # MenuButtons Lobby: the multiplayer lobby page over the game, only with a
 # lobby connection.
 func _on_lobby_pressed():
-	_close()
+	_close_dialogs()
 	var main := get_parent()
 	if main.has_method("has_lobby_client") and main.has_lobby_client():
 		main._on_lobby_button_pressed()
@@ -133,7 +138,7 @@ func _on_lobby_pressed():
 const SavegameDialog = preload("res://scenes/session/savegame_dialog.gd")
 
 func _on_save_pressed():
-	_close()
+	_close_dialogs()
 	var d = SavegameDialog.open(get_parent(), "save", get_parent())
 	_implicit_pause(d, "closed")
 
