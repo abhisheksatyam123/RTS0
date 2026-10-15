@@ -19,6 +19,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
 | G30 | Pathfinding grid: 8 m navcells against 0.28's 1 m, no JumpPointCache, float maths | low | Migrate |
 | G33 | Match music stops on the summary screen, where 0.28 seems to keep it playing until the main menu (inferred from its GUI scripts, unconfirmed); siege engines train with footsteps, not ram_trained (its sound file isn't in the shared 0.28 data). A fleeing chicken's panic sound (chickens.xml) is in | low | Session UI |
+| G34 | Area D pass 4 leftovers: units from a "{native}" trainer (Kushite camps, Carthaginian embassies, a captured civic centre's civilians) carry their template civ's baked bonuses, not the owner's (a German misses germ_women speed on a captured Briton civic centre's civilian); a promotion that skips ranks applies range auras from before the step | low | D |
 
 Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of woods too tight for them, #1086) and the rows below.
 
