@@ -35,6 +35,7 @@
 #include "../core/diagnostics/perf_tracker.h"
 #include "../core/job_system.h"
 #include "../graphics/assets/model_library.h"
+#include "../graphics/assets/unit_template_models.h"
 #include <sstream>
 using namespace godot;
 using rtso::sprintf0;
@@ -805,4 +806,12 @@ void RtsoMain::debug_attacked(int64_t target, int64_t attacker_owner) {
 // The GLB a civ's class model for a unit type loads from (ModelLibrary, aliases included).
 String RtsoMain::debug_unit_model_path(int civ, int unit_type) {
 	return rtso::ModelLibrary::get("units", String(rtso::civ_unit_model((uint8_t)civ, (uint8_t)unit_type))).path;
+}
+
+// The GLB a roster template's own model (unit_template_draw_index) loads from; "" when it
+// draws its civ's class model.
+String RtsoMain::debug_template_model_path(const String &template_id) {
+	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
+	const char *own = rtso::unit_template_draw_model(rtso::unit_template_draw_index(t));
+	return own ? rtso::ModelLibrary::get("units", String(own)).path : String();
 }

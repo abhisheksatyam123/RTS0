@@ -2397,7 +2397,8 @@ static float drawn_water_height(const rtso::Simulation *sim) {
 }
 
 // A male 0.28 Civilian draws and animates as its civ's citizen_male actor, the villager
-// model (rtso::civilian_is_male); a female one keeps the female citizen model.
+// model (rtso::civilian_is_male); a female one keeps the female citizen model, or her
+// own citizen_female actor where 0.28 has one (Han, Mauryans: unit_template_draw_index).
 static uint8_t drawn_unit_type(uint8_t utype, uint16_t tmpl, uint32_t id) {
 	return rtso::civilian_is_male(tmpl, id) ? (uint8_t)rtso::UNIT_VILLAGER : utype;
 }
