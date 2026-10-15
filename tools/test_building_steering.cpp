@@ -22,7 +22,8 @@
 //     than an unturned one's sides (nav/footprint.h). A unit walking along that axis must go around
 //     the corners, not the unturned square, and a woman finishes a turned house. A long, thin
 //     footprint (0 A.D.'s long wall, 36 x 5 m) lies along its width, and a quarter turn swaps its
-//     width and depth in every footprint test and in the nav grid.
+//     width and depth in every footprint test and in the nav grid. Turned any way, the wall blocks
+//     every navcell along it, so no long path goes through it.
 //  8. Siege through a gap: a catapult keeps 0 A.D.'s "large" clearance (3 m, unit_building_clearance)
 //     from buildings, so it takes a 2-unit (8 m) gap in a long row of houses instead of going around.
 //  9. Walk into a building: a move to a point inside a town centre ends beside it, as close as the
@@ -371,6 +372,31 @@ static void walk_past_turned_building() {
 		};
 		check(!open(-29.0f, -25.5f) && !open(-29.0f, -32.5f) && open(-26.0f, -29.0f) && open(-29.0f, -22.5f),
 				"the nav grid does not block the quarter-turned wall along z");
+	}
+	// Turned off the axes, the wall covers few navcells whole: every navcell along its centre line
+	// blocks all the same (0.28 closes a wall whole), so no long path goes through it, and none past
+	// its ends does.
+	for (const float a : {0.3f, 0.6f, QUARTER_PI, 1.1f, 2.0f}) {
+		Simulation w;
+		setup(w);
+		const uint32_t seg = w.spawn_building_world(-29.0f, -29.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+		float rot = 0.0f;
+		for (auto &b : w.buildings_)
+			if (b.id == seg) {
+				b.set_extents(4.5f, 0.625f);
+				b.set_rot(Simulation::DEFAULT_BUILDING_ROT + a);
+				rot = b.rot;
+			}
+		w.rebuild_nav_grid();
+		// Along its width, u = (cos a, -sin a) (0 A.D. GetObstructionSquare).
+		auto open = [&](float t) {
+			const auto [cx, cy] = w.nav_grid_.world_to_cell(-29.0f + t * std::cos(rot), -29.0f - t * std::sin(rot));
+			return w.nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY);
+		};
+		bool closed = true;
+		for (float t = -4.5f; t <= 4.5f; t += 0.25f) closed = closed && !open(t);
+		check(closed, "a navcell along a turned wall is open to long paths");
+		check(open(-8.0f) && open(8.0f), "a turned wall blocks navcells past its ends");
 	}
 
 	Simulation s;

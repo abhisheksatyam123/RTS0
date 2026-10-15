@@ -256,7 +256,10 @@ int main() {
 			CHECK(std::fabs(s.units_.pos_x[i]) < 0.6f && std::fabs(s.units_.pos_z[i]) < 0.6f);
 		}
 		CHECK(low == 8 && high == 8);
-		CHECK(s.turret_holder_of(up[16]) == 0 && s.units_.alive[s.lookup_unit(up[16])]);
+		// Whichever archer comes last finds no point free and stays down (arrival order follows the paths).
+		int down = 0;
+		for (int k = 0; k < 17; ++k) down += s.turret_holder_of(up[k]) == 0 && s.units_.alive[s.lookup_unit(up[k])];
+		CHECK(down == 1);
 		CHECK(s.turret_holder_of(sp) == 0 && s.units_.alive[s.lookup_unit(sp)]);
 		std::printf("rampart tower: %d archers at 12.5 m, %d at 18 m, %zu inside\n", low, high, b.garrisoned_units.size());
 
@@ -283,8 +286,8 @@ int main() {
 		CHECK(b.turret_units.empty() && b.garrisoned_units.size() == 2 && s.turret_height_.empty());
 		// Each steps onto its own spawn spot, none two on one.
 		int stacked = 0;
-		for (int p = 0; p < 16; ++p)
-			for (int q = p + 1; q < 16; ++q) {
+		for (int p = 0; p < 17; ++p)
+			for (int q = p + 1; q < 17; ++q) {
 				const int32_t i = s.lookup_unit(up[p]), j = s.lookup_unit(up[q]);
 				const float dx = s.units_.pos_x[i] - s.units_.pos_x[j], dz = s.units_.pos_z[i] - s.units_.pos_z[j];
 				stacked += dx * dx + dz * dz < 0.01f;
