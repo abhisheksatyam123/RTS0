@@ -5,7 +5,10 @@ extends SceneTree
 #   2. in a match Alt+F does the same, and shows the session's timing line with it;
 #   3. screenshot (F2) and bigscreenshot (Shift+F2) are taken on every page (headless
 #      has no image to save, so only the hotkey routing is checked there);
-#   4. copy/paste/cut and text.* hotkeys drive Godot's text editing actions.
+#   4. copy/paste/cut and text.* hotkeys drive Godot's text editing actions;
+#   5. wireframe (Alt+Shift+W) flips the view to wireframe and back; profile.toggle
+#      (F11) shows the profiler table and profile.save (Shift+F11) appends it to
+#      logs/profile.txt.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_global_hotkeys.gd
 # Exit code 0 = pass.
@@ -83,6 +86,21 @@ func run() -> void:
 	hk.reload()
 	us.sync_text_hotkeys()
 	check(has.call("ui_copy", KEY_C, true), "and reloads back")
+
+	print("5. Wireframe and profiler")
+	await press(KEY_W, true, true)
+	check(us.get_viewport().debug_draw == Viewport.DEBUG_DRAW_WIREFRAME, "Alt+Shift+W: wireframe")
+	await press(KEY_W, true, true)
+	check(us.get_viewport().debug_draw == Viewport.DEBUG_DRAW_DISABLED, "again: solid")
+	await press(KEY_F11)
+	var table := us.find_child("profilerTable", true, false) as Label
+	check(table != null and table.visible and table.text.begins_with("Profiling Information for: root"), "F11: the profiler table")
+	var before := FileAccess.get_file_as_string("user://logs/profile.txt").length() if FileAccess.file_exists("user://logs/profile.txt") else 0
+	await press(KEY_F11, false, true)
+	check(FileAccess.get_file_as_string("user://logs/profile.txt").length() > before, "Shift+F11 appends it to logs/profile.txt")
+	await press(KEY_F11)
+	check(not table.visible, "F11 again hides it")
+	check(us.take_big_screenshot() == "", "headless: no big screenshot either")
 
 	for k in keep:
 		cfg.set_value(k, keep[k])

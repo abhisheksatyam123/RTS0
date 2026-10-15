@@ -717,8 +717,9 @@ public:
 	// BuildTime * count^BatchTimeModifier.
 	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type, int count = 1);
 	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
-	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl, int count = 1);
-	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1);
+	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl, int count = 1, bool push_front = false);
+	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1,
+			bool push_front = false);
 	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
 	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
 	// The same for a training unit (a trireme, Cyrus II): its Trainer/BatchTimeModifier.
@@ -1383,7 +1384,10 @@ public:
 	const std::vector<BattleAlert> &pending_alerts() const { return pending_alerts_; }
 	void clear_alerts() { pending_alerts_.clear(); }
 
-	bool cmd_research(uint8_t player, uint32_t building_id, uint8_t tech_id);
+	bool cmd_research(uint8_t player, uint32_t building_id, uint8_t tech_id, bool push_front = false);
+	// The unit orders given while this is set go first (UnitAI PushOrderFront): the current
+	// order and the queue resume after. Set by the command dispatch around one command.
+	void set_push_front_order(bool on) { push_front_order_ = on; }
 	// 0 A.D. Upgrade.js: turn a finished structure into building_upgrade()'s
 	// target in place, keeping its health fraction, capture share and garrison.
 	enum UpgradeCheck : uint8_t {
@@ -3826,6 +3830,7 @@ private:
 	// UnitAI orders (0 A.D. UnitAI.js orderQueue). The current order lives in the unit
 	// SoA; these are the Shift-queued ones after it, by unit id.
 	std::unordered_map<uint32_t, std::vector<UnitOrder>> order_queues_;
+	bool push_front_order_ = false; // transient: set only while one command runs (not saved)
 	// UnitAI isGuardOf by unit id (save v92): the charge a unit took up guarding. Other orders
 	// keep it and the IDLE Timer goes back to guarding; remove-guard, a guard order for
 	// someone else or a charge that is gone or no longer an ally ends it.
