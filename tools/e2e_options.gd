@@ -48,6 +48,11 @@ func run() -> void:
 	await frames(3)
 	var page = current_scene
 	check(page._tabs.get_child_count() == 9, "nine categories, as 0 A.D.'s options.json")
+	var btn_save: Button = page.find_child("BtnSave", true, false)
+	var btn_revert: Button = page.find_child("BtnRevert", true, false)
+	check(btn_save.disabled and btn_revert.disabled, "Save and Revert are off with nothing changed")
+	check(page._labels["shadowquality"].text == "Quality" and page._labels["shadowquality"].get_parent() is MarginContainer,
+		"shadow quality reads \"Quality\", indented under Shadows")
 	var master: HSlider = page._controls["sound.mastergain"][1].get_child(0)
 	check(is_equal_approx(master.value, 0.9), "master volume starts at 0 A.D.'s 0.9")
 	var music_bus := AudioServer.get_bus_index("Music")
@@ -76,11 +81,13 @@ func run() -> void:
 	await frames(2)
 	check(page._confirm == null and is_equal_approx(root.content_scale_factor, 1.25), "Yes keeps 125%")
 	check(page.has_unsaved_changes(), "the page knows about unsaved changes")
+	check(not btn_save.disabled and not btn_revert.disabled, "a change turns Save and Revert on")
 	page._on_close()
 	check(page._confirm != null and page._confirm.message.contains("unsaved changes"), "Close with unsaved changes asks first")
 	page._confirm.find_child("Button1", true, false).pressed.emit() # No
 	check(page._confirm == null and page.is_inside_tree(), "No keeps the page open")
 	page._on_save()
+	check(btn_save.disabled and btn_revert.disabled, "saving turns them off again")
 	var text := cfg_text()
 	check(text.contains("sound.musicgain = \"0.4\"") and text.contains("gui.scale = \"1.25\""), "Save writes the changed values")
 	check(text.contains("hotkey.session.stop"), "Save keeps the hotkey bindings")
@@ -107,6 +114,21 @@ func run() -> void:
 	page._controls["watereffects"][1].button_pressed = false
 	await frames(2)
 	check(fancy.disabled and page._controls["waterrealdepth"][1].disabled, "and greyed out without them")
+	check(page._labels["waterfancyeffects"].modulate.a < 0.6, "their labels grey out too")
+	# options.js control tooltips: the value hints and a list item's own tooltip.
+	page._controls["sound.mastergain"][1].mouse_entered.emit()
+	check(page._description.text.ends_with("\nValue: 0.90 (min: 0.00, max: 2.00)"),
+		"a slider's description gives its value, min and max: " + page._description.text.get_slice("\n", 1))
+	page._controls["gui.session.dragdelta"][1].mouse_entered.emit()
+	check(page._description.text.ends_with("\nMin: 1, Max: 200"), "a number's gives its range")
+	page._controls["gui.session.diplomacycolors.ally"][1].mouse_entered.emit()
+	check(page._description.text.contains("\nDefault: "), "a colour's gives its default")
+	page._controls["antialiasing"][1].mouse_entered.emit()
+	check(page._description.text.contains("\n") and page._description.text.contains("antialiasing"), "a list gives the chosen item's tooltip")
+	var ally_edit: LineEdit = page._controls["gui.session.diplomacycolors.ally"][1].get_child(0)
+	ally_edit.text_changed.emit("300 0 0")
+	check(page._controls["gui.session.diplomacycolors.ally"][1].get_child(1).color == Color(1, 0, 1), "an invalid colour turns the swatch magenta")
+	ally_edit.text_changed.emit(cfg.get_value("gui.session.diplomacycolors.ally"))
 	page._controls["watereffects"][1].button_pressed = true
 	page._controls["waterrefraction"][1].button_pressed = false
 	await frames(2)

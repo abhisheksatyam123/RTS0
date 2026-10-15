@@ -19,7 +19,7 @@ const SCHEMA := [
 		["string", "playername.multiplayer", "Player name (multiplayer)", "How you want to be addressed in multiplayer matches (except lobby)."],
 		["dropdown", "locale", "Language", "Choose the language of the game.", "locales"],
 		["boolean", "pauseonfocusloss", "Background pause", "Pause single-player games when window loses focus."],
-		["boolean", "gui.splashscreen.enable", "Enable welcome screen", "If you disable it, the welcome screen will still appear once, each time a new version is available. You can always launch it from the main menu."],
+		["boolean", "gui.splashscreen.enable", "Enable welcome screen", "If you disable it, the welcome screen will still appear, each time a new version is available. You can always launch it from the main menu."],
 	]],
 	["Graphics (general)", [
 		["boolean", "windowed", "Windowed mode", "Start RTS0 in a window."],
@@ -51,11 +51,11 @@ const SCHEMA := [
 		["slider", "sharpness", "Sharpness factor", "The sharpness of the chosen pass.", [0, 1]],
 		["dropdown", "variant_diversity", "Model appearance randomization", "Randomize the appearance of entities. Disabling gives a small performance improvement.",
 			[["None", "none"], ["Limited", "limited"], ["Normal", "full"]]],
-		["dropdown", "shadowquality", "Shadow quality", "Shadow map resolution. High values can crash the game when using a graphics card with low memory!",
+		["dropdown", "shadowquality", "Quality", "Shadow map resolution. High values can crash the game when using a graphics card with low memory!",
 			[["Low", "-1"], ["Medium", "0"], ["High", "1"], ["Very High", "2"]]],
-		["boolean", "shadowpcf", "Shadow filtering", "Smooth shadows."],
+		["boolean", "shadowpcf", "Filtering", "Smooth shadows."],
 		["boolean", "shadowscovermap", "Cover whole map", "When ON shadows cover the whole map and shadows cutoff distance is ignored. Useful for making screenshots of a whole map."],
-		["slider", "shadowscutoffdistance", "Shadow cutoff distance", "Hides shadows beyond a certain distance from a camera.", [100, 1500]],
+		["slider", "shadowscutoffdistance", "Cutoff distance", "Hides shadows beyond a certain distance from a camera.", [100, 1500]],
 		["boolean", "watereffects", "Water effects", "When OFF, use the lowest settings possible to render water. This makes other settings irrelevant."],
 		["boolean", "waterfancyeffects", "High-quality water effects", "Use higher-quality effects for water, rendering coastal waves, shore foam, and ships trails."],
 		["boolean", "waterreflection", "Water reflections", "Allow water to reflect a mirror image."],
@@ -96,17 +96,17 @@ const SCHEMA := [
 		["boolean", "network.autocatchup", "(Observer) Speed up when lagging.", "When observing a game, automatically speed up if you start lagging, to catch up with the live match."],
 	]],
 	["Chat & Notifications", [
-		["boolean", "chat.timestamp", "Chat timestamp", "Display the time at which a chat message was posted."],
+		["boolean", "chat.timestamp", "Chat timestamp", "Display the time when a chat message was posted."],
 		["boolean", "gui.session.notifications.attack", "Chat notification attack", "Show a chat notification if you are attacked by another player."],
 		["boolean", "gui.session.notifications.tribute", "Chat notification tribute", "Show a chat notification if an ally tributes resources to another team member if teams are locked, and all tributes in observer mode."],
 		["boolean", "gui.session.notifications.barter", "Chat notification barter", "Show a chat notification to observers when a player bartered resources."],
-		["dropdown", "gui.session.notifications.flare", "Chat notification flare", "Show a chat notification if a flare was sent.",
+		["dropdown", "gui.session.notifications.flare", "Chat notification flare", "Show a chat notification when a player sends a flare.",
 			[["Never", "never"], ["Only as observer", "observer"], ["Always", "always"]]],
 		["dropdown", "gui.session.notifications.phase", "Chat notification phase", "Show a chat notification if you or an ally have started, aborted or completed a new phase, and phases of all players in observer mode.",
 			[["Disable", "none"], ["Completed", "completed"], ["All displayed", "all"]]],
 	]],
 	["Display", [
-		["dropdown", "gui.session.howtoshownames", "Naming of entities.", "How to show entity names.",
+		["dropdown", "gui.session.howtoshownames", "Naming of entities", "How to show entity names.",
 			[["Specific names first", "0"], ["Generic names first", "1"], ["Only specific names", "2"], ["Only generic names", "3"]]],
 		["boolean", "gui.session.rankabovestatusbar", "Rank icon above status bar", "Show rank icons above status bars."],
 		["boolean", "gui.session.experiencestatusbar", "Experience status bar", "Show an experience status bar above each selected unit."],
@@ -166,9 +166,64 @@ signal closed
 ## options.json "timeout": a dropdownNumber change that asks to be kept, else reverts.
 const TIMEOUTS := {"gui.scale": 5000}
 
+## options.json list items' tooltips, by option and value (shown with the chosen item).
+const ITEM_TIPS := {
+	"renderer.upscale.technique": {
+		"fsr": "Advanced upscale technique. For better results, use FSR with antialiasing enabled.",
+		"bilinear": "Bilinear upscale technique. Produces a slightly blurry picture depending on the scale.",
+		"pixelated": "Simplest upscale technique. Used mostly for stylized effect.",
+	},
+	"antialiasing": {
+		"disabled": "Do not use antialiasing.",
+		"fxaa": "Fast, but simple antialiasing.",
+		"msaa2": "Slow, but high-quality antialiasing, uses two samples per pixel. Supported for GL3.3+.",
+		"msaa4": "Slow, but high-quality antialiasing, uses four samples per pixel. Supported for GL3.3+.",
+		"msaa8": "Slow, but high-quality antialiasing, uses eight samples per pixel. Supported for GL3.3+.",
+		"msaa16": "Slow, but high-quality antialiasing, uses sixteen samples per pixel. Supported for GL3.3+.",
+	},
+	"sharpening": {
+		"disabled": "Do not use sharpening.",
+		"cas": "Contrast adaptive sharpening, a fast, contrast based sharpening pass.",
+	},
+	"variant_diversity": {
+		"none": "Entities will all look the same.",
+		"limited": "Entities will be less diverse.",
+		"full": "Entities appearance is randomized normally.",
+	},
+	"gui.gamesetup.assignplayers": {
+		"everyone": "Players joining the match will be assigned if there is a free slot.",
+		"buddies": "Players joining the match will only be assigned if they are a buddy of the host and if there is a free slot.",
+		"disabled": "Players only receive a slot when the host assigns them explicitly.",
+	},
+	"gui.session.notifications.flare": {
+		"never": "Disable flare chat notifications.",
+		"observer": "Only show flare chat notifications when you are observer.",
+		"always": "Always show flare chat notifications – as player and as observer.",
+	},
+	"gui.session.howtoshownames": {
+		"0": "Display specific names before generic names.",
+		"1": "Display generic names before specific names.",
+		"2": "Display only specific names for entities.",
+		"3": "Display only generic names for entities.",
+	},
+	"gui.session.snaptoedges": {
+		"disabled": "New structures are aligned with nearby structures while pressing the hotkey.",
+		"enabled": "New structures are aligned with nearby structures unless the hotkey is pressed.",
+	},
+	"gui.session.disjointcontrolgroups": {
+		"true": "When adding a Unit or Structure to a control group, they are removed from other control groups. Use this choice if you want control groups to refer to distinct armies.",
+		"false": "Units and Structures can be part of multiple control groups. This is useful to keep control groups for distinct armies and a control group for the entire army simultaneously.",
+	},
+	"gui.session.formationwalkonly": {
+		"true": "Other orders will disband existing formations.",
+		"false": "Units in formations stay in formations.",
+	},
+}
+
 var overlay := false
 var cfg := RtsoUserConfig.new()
 var _controls := {} # key -> [type, control, extra]
+var _labels := {} # key -> its Label
 var _saved := {} # key -> value at the last save / load
 var _tabs: TabContainer
 var _description: Label
@@ -261,7 +316,16 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 	label.text = opt[2]
 	label.custom_minimum_size = Vector2(320, 0)
 	label.mouse_filter = Control.MOUSE_FILTER_PASS
-	grid.add_child(label)
+	_labels[key] = label
+	if DEPENDENCIES.has(key):
+		# g_DependentLabelIndentation: an option that depends on another sits 25 px in.
+		var indent := MarginContainer.new()
+		indent.add_theme_constant_override("margin_left", 25)
+		label.custom_minimum_size.x -= 25
+		indent.add_child(label)
+		grid.add_child(indent)
+	else:
+		grid.add_child(label)
 	var extra = opt[4] if opt.size() > 4 else null
 	var c: Control
 	match type:
@@ -325,10 +389,34 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			le.text_changed.connect(func(t): _color_edited(key, t, sw))
 			c = row
 	c.name = key.replace(".", "_")
-	label.mouse_entered.connect(func(): _description.text = opt[3])
-	c.mouse_entered.connect(func(): _description.text = opt[3])
+	label.mouse_entered.connect(func(): _description.text = _describe(opt))
+	c.mouse_entered.connect(func(): _description.text = _describe(opt))
 	grid.add_child(c)
 	_controls[key] = [type, c, extra]
+
+## options.js control tooltips: the description, then what the type adds for the current
+## value (slider "Value: (min, max)", number "Min: , Max: ", colour "Default: ") or the
+## chosen list item's own tooltip.
+func _describe(opt: Array) -> String:
+	var key: String = opt[1]
+	var text: String = tr(opt[3])
+	var extra = opt[4] if opt.size() > 4 else null
+	match opt[0]:
+		"slider":
+			text += "
+" + tr("Value: %(val)s (min: %(min)s, max: %(max)s)").replace("%(val)s", "%.2f" % float(cfg.get_value(key))) 				.replace("%(min)s", "%.2f" % float(extra[0])).replace("%(max)s", "%.2f" % float(extra[1]))
+		"number":
+			text += "
+" + tr("Min: %(min)s, Max: %(max)s").replace("%(min)s", str(extra[0])).replace("%(max)s", str(extra[1]))
+		"color":
+			text += "
+" + tr("Default: %(value)s").replace("%(value)s", cfg.get_default(key))
+		"dropdown":
+			var tip: String = ITEM_TIPS.get(key, {}).get(cfg.get_value(key), "")
+			if tip != "":
+				text += "
+" + tr(tip)
+	return text
 
 ## locale: "" follows the system language, then one entry per translation,
 ## each in its own language (0 A.D. gui/locale).
@@ -342,6 +430,7 @@ static func _locale_items() -> Array:
 func _color_edited(key: String, t: String, sw: ColorRect) -> void:
 	var col = _parse_color(t)
 	if col == null:
+		sw.color = Color(1, 0, 1) # g_InsaneColor: the swatch turns magenta, the value stays
 		return
 	sw.color = col
 	_changed(key, t.strip_edges())
@@ -393,6 +482,7 @@ func _snapshot() -> void:
 	_saved.clear()
 	for key in cfg.get_keys():
 		_saved[key] = cfg.get_value(key)
+	_update_buttons()
 
 func has_unsaved_changes() -> bool:
 	for key in _saved:
@@ -421,11 +511,21 @@ func _apply_dependencies() -> void:
 					"==": on = on and v == str(d[2])
 					"!=": on = on and v != str(d[2])
 		var c: Control = _controls[key][1]
+		_labels[key].modulate.a = 1.0 if on else 0.5 # the label greys out with its control
 		match _controls[key][0]:
 			"boolean": c.disabled = not on
 			"dropdown": c.disabled = not on
 			"slider": c.get_child(0).editable = on
 			"number": c.editable = on
+	_update_buttons()
+
+## updateOptionPanel: Revert and Save only while there are unsaved changes.
+func _update_buttons() -> void:
+	var changes := has_unsaved_changes()
+	for b in ["BtnRevert", "BtnSave"]:
+		var btn := find_child(b, true, false) as Button
+		if btn:
+			btn.disabled = not changes
 
 func _on_save() -> void:
 	if not cfg.save():
