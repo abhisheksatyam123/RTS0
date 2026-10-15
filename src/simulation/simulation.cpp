@@ -3699,7 +3699,7 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 
 	// Trainer.js Item.Queue: Math.floor(count * cost) of each resource.
 	float cost[RES_COUNT];
-	unit_train_cost(player_id, tmpl, uinfo, cost);
+	unit_train_cost(player_id, tmpl, uinfo, cost, false);
 	for (int r = 0; r < RES_COUNT; ++r) cost[r] = std::floor(cost[r] * (float)count);
 	if (!ps.pay(cost[RES_FOOD], cost[RES_WOOD], cost[RES_GOLD], cost[RES_STONE]))
 		return false;
@@ -3795,7 +3795,7 @@ bool Simulation::cmd_train_from_unit(uint8_t player, uint32_t unit_id, uint16_t 
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
 	float cost[RES_COUNT];
-	unit_train_cost(player, tmpl, uinfo, cost);
+	unit_train_cost(player, tmpl, uinfo, cost, false);
 	for (int r = 0; r < RES_COUNT; ++r) cost[r] = std::floor(cost[r] * (float)count);
 	if (!players_[player].pay(cost[RES_FOOD], cost[RES_WOOD], cost[RES_GOLD], cost[RES_STONE])) return false;
 
@@ -3916,7 +3916,7 @@ float Simulation::team_bonus_mult(uint8_t pid, uint8_t stat, int8_t res, uint16_
 	return civ_team_bonus_mult(players_[pid].civ, ally_civ_mask(pid), stat, res, tmpl, building);
 }
 
-void Simulation::unit_train_cost(uint8_t pid, uint16_t queued, const UnitTypeInfo &queued_info, float out[RES_COUNT]) const {
+void Simulation::unit_train_cost(uint8_t pid, uint16_t queued, const UnitTypeInfo &queued_info, float out[RES_COUNT], bool rounded) const {
 	uint8_t rank = 1;
 	const uint16_t tmpl = trained_as(pid, queued, rank);
 	const UnitTypeInfo &info = tmpl != queued ? civ_template_unit_info(tmpl, civ_unit_template(tmpl).unit_type) : queued_info;
@@ -3930,10 +3930,12 @@ void Simulation::unit_train_cost(uint8_t pid, uint16_t queued, const UnitTypeInf
 	// Cost/Resources technologies (e.g. Hippocratic Oath's free healers) by the template's own classes.
 	// ModifiersManager: the multipliers, then the additions (Nastasen's -50 wood and metal).
 	const TechMods::Template *tm = tmpl < CIV_UNIT_TEMPLATE_COUNT ? &tech_mods(pid).tmpl[tmpl] : nullptr;
-	for (int r = 0; r < RES_COUNT; ++r)
-		out[r] = std::round(std::max(0.0f, out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
-		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f) +
-		                    civ_team_bonus_cost_add(civ, allies, (int8_t)r, tmpl)));
+	for (int r = 0; r < RES_COUNT; ++r) {
+		out[r] = std::max(0.0f, out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
+		                  (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f) +
+		                  civ_team_bonus_cost_add(civ, allies, (int8_t)r, tmpl));
+		if (rounded) out[r] = std::round(out[r]);
+	}
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
@@ -14615,14 +14617,15 @@ int32_t Simulation::projectile_hit_fauna(const Projectile &p) const {
 	return best;
 }
 
-// The damage of unit i's attack on animal f: Hack, Pierce and Crush (scaled by techs),
-// each reduced by the animal's Resistance as 0.9^armour.
+// The damage of unit i's attack on animal f: Hack, Pierce and Crush (scaled by techs and,
+// as for any target, its attack auras: GetAttackEffectsData), each reduced by the
+// animal's Resistance as 0.9^armour.
 float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 	const auto &uinfo = unit_info_at(i);
 	const FaunaTypeInfo &finfo = fauna_type_info(fauna_.fauna_type[f]);
 	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return units_.attack_damage[i];
 	float d[4];
-	unit_tech_damage(i, d);
+	unit_attack_effects(i, d);
 	return d[0] * powf(0.9f, finfo.hack_armor) + d[1] * powf(0.9f, finfo.pierce_armor) + d[2] * powf(0.9f, finfo.crush_armor) + d[3];
 }
 
@@ -19056,9 +19059,8 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	if (count > 1 && !entity_limit_allows_unit(pid, t.unit_type, tmpl, count)) return false;
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
 	float cost[RES_COUNT];
-	unit_train_cost(pid, tmpl, uinfo, cost);
-	if (count > 1)
-		for (int r = 0; r < RES_COUNT; ++r) cost[r] = std::floor(cost[r] * (float)count);
+	unit_train_cost(pid, tmpl, uinfo, cost, false); // Trainer.js: floor(count * cost)
+	for (int r = 0; r < RES_COUNT; ++r) cost[r] = std::floor(cost[r] * (float)count);
 	if (!petra_try_pay(queue, cost[RES_FOOD], cost[RES_WOOD], cost[RES_GOLD], cost[RES_STONE])) return false;
 	ProductionOrder order;
 	order.unit_type = t.unit_type;
