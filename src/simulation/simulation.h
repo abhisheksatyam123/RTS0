@@ -424,6 +424,13 @@ public:
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// The passability class Clearance of the unit at SoA index i from buildings (unit_building_clearance).
 	float unit_clearance_at(size_t i) const { return unit_building_clearance(units_.tmpl[i], units_.unit_type[i]); }
+	// The long-path class of land unit i: PASS_CAVALRY when mounted, else PASS_INFANTRY, plus
+	// PASS_LARGE for 0 A.D.'s "large" class (unit_is_large).
+	uint8_t unit_land_pass(size_t i) const {
+		const uint8_t t = units_.unit_type[i];
+		const bool mounted = t == UNIT_CAVALRY || t == UNIT_CHARIOT || t == UNIT_CAMEL || t == UNIT_SCYTHED_CHARIOT;
+		return (mounted ? PASS_CAVALRY : PASS_INFANTRY) | (unit_is_large(units_.tmpl[i], t) ? PASS_LARGE : 0);
+	}
 	// Attack MaxRange of the unit at SoA index i with technologies (the developer overlay's range overlay).
 	float unit_attack_range_at(size_t i) const { return i < units_.count ? units_.attack_range[i] : 0.0f; }
 	// The waypoints of its long path it has still to reach, *xs / *zs at the next one (the unit
@@ -3762,14 +3769,17 @@ private:
 	// crosses the first `reach` of that line, kept `radius` off, or holds the walker. Only then does
 	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
 	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
-	// Navcells a wood closes to long paths: 1 where trees and bushes leave no way across the cell
-	// (forest_cell_closed). rebuild_nav_grid marks them obstructed. Recomputed when the Gaia
-	// obstacles change (update_forest_cells), and the nav grid rebuilt when a cell opens or closes.
+	// Navcells a wood closes to long paths: FOREST_CLOSED where trees and bushes leave no way
+	// across the cell (forest_cell_closed), FOREST_CLOSED_LARGE where only the large class's
+	// clearance finds none. rebuild_nav_grid marks the first obstructed and the second
+	// NavGrid::large_closed. Recomputed when the Gaia obstacles change (update_forest_cells), and
+	// the nav grid rebuilt when a cell changes.
+	enum : uint8_t { FOREST_OPEN = 0, FOREST_CLOSED = 1, FOREST_CLOSED_LARGE = 2 };
 	std::vector<uint8_t> forest_cells_;
 	uint64_t forest_sig_ = 0;
 	bool forest_removals_only_ = false; // tick_gather felled trees from up-to-date forest_cells_
 	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
-	bool forest_cell_closed(int cx, int cy) const;
+	bool forest_cell_closed(int cx, int cy, float clr = CLEARANCE_DEFAULT) const;
 	bool update_forest_cells();
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
