@@ -1381,10 +1381,10 @@ void Simulation::rebuild_nav_grid() {
 	for (const auto &b : buildings_) {
 		// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
 		if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
-			for_each_gate_side(b, [&](float x, float z, float hu) {
+			for_each_gate_side(b, [&](float x, float z, float hu, float hv) {
 				rtso::nav::rasterize_rect_with_clearance(
 					rtso::nav::Vec2(x, z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
-					rtso::nav::Vec2(hu, b.hv), 0.0f, nav_cell, nav_origin,
+					rtso::nav::Vec2(hu, hv), 0.0f, nav_cell, nav_origin,
 					nav_grid_.cells.w, nav_grid_.cells.h,
 					[&](int cx, int cy) { nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED; });
 			});
@@ -9737,8 +9737,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (is_gate_type(b.type) && b.build_progress >= 1.0f)
 				closed_gates_.push_back(steer_obstacles_.back());
 		} else if (gate_open_now(b)) {
-			for_each_gate_side(b, [&](float x, float z, float hu) {
-				steer_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, b.hv, b.type));
+			for_each_gate_side(b, [&](float x, float z, float hu, float hv) {
+				steer_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, hv, b.type));
 			});
 		}
 	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
@@ -10727,8 +10727,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		if (!b.wrecked && blocks_movement_now(b))
 			sep_obstacles_.push_back(steer_obstacle(b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type));
 		else if (gate_open_now(b))
-			for_each_gate_side(b, [&](float x, float z, float hu) {
-				sep_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, b.hv, b.type));
+			for_each_gate_side(b, [&](float x, float z, float hu, float hv) {
+				sep_obstacles_.push_back(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, hv, b.type));
 			});
 	}
 	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
@@ -11143,6 +11143,21 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			}
 		}
 		const uint8_t kind = units_.order_kind[i], st = units_.action_state[i];
+		// RETURNRESOURCE.APPROACHING MovementUpdate with likelyFailure: DROPPINGRESOURCES, which drops
+		// the load if the dropsite is within reach and else takes it to the nearest dropsite
+		// (FindNearestDropsite, FinishOrder and PushOrderFront ReturnResource, a new move from where
+		// the unit stands). That is tick_gather's return (ACTION_RETURN_DROPSITE), as when the walk
+		// ends short of the dropsite (tick_unit_ai). Without it the unit would push on for good.
+		if (move_failed && kind == ORDER_RETURN_RESOURCE && st == ACTION_MOVE &&
+				!(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED)) {
+			units_.action_state[i] = ACTION_RETURN_DROPSITE;
+			units_.target_resource_id[i] = 0;
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			units_.waypoint_cur[i] = 0;
+			units_.waypoint_count[i] = 0;
+			if (i < unit_paths_.size()) unit_paths_[i].clear();
+			continue;
+		}
 		const bool walking = (kind == ORDER_WALK && st == ACTION_MOVE) ||
 				(kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
 				(kind == ORDER_PATROL && st == ACTION_PATROL);
@@ -16992,9 +17007,15 @@ void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count
 	for (uint32_t uid : now) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0 || units_.carry[i] <= 0 || !dropsite_accepts((size_t)i, b)) continue;
-		// RETURNRESOURCE.APPROACHING: walk to this dropsite; tick_unit_ai drops the load there.
+		// RETURNRESOURCE.APPROACHING: MoveTo the dropsite with IID_ResourceGatherer, a
+		// MoveToTargetRange (UnitAI.js MoveTo). As order_garrison walks: towards the side of the
+		// structure the unit comes from, as close as it can stand. A walk to its centre would end on
+		// whichever side the centre is pushed out to, a dock's water side or the far side of a wall,
+		// where the unit can't get. tick_unit_ai drops the load once within reach.
+		float sx, sz;
+		stand_outside(b, uid, units_.pos_x[i], units_.pos_z[i], &sx, &sz, unit_clearance_at((size_t)i) + kStandMargin);
 		uint32_t id = uid;
-		cmd_move(&id, 1, b.x, b.z);
+		cmd_move(&id, 1, sx, sz);
 		set_order((size_t)i, ORDER_RETURN_RESOURCE, 0, dropsite_id, b.x, b.z);
 		units_.target_resource_id[i] = 0;
 	}
@@ -21661,10 +21682,10 @@ static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
 
 int Simulation::petra_pop_phase2() const {
 	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
-	int base = petra_config_.pop_phase2;
-	if (petra_attack_mgr_.save_resources) base = base * 3 / 4; // startingStrategy.js: phase sooner to expand
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
-	return std::min(std::max((int)((float)base * scaling), 20), max_pop / 2);
+	const int pop = std::min(std::max((int)((float)petra_config_.pop_phase2 * scaling), 20), max_pop / 2);
+	// startingStrategy.js runs after setConfig: 3/4 of the scaled and clamped value, to phase sooner and expand.
+	return petra_attack_mgr_.save_resources ? pop * 3 / 4 : pop;
 }
 
 int Simulation::petra_target_workers() const {
@@ -33214,17 +33235,22 @@ void Simulation::trigger_unit_motion(int step) {
 void Simulation::trigger_survival_wave() {
 	// StartAnEnemyWave: champions, siege and now and then a hero of one random civ
 	// (LoadAttackerTemplates), more every minute, spawned as Gaia at each living player's
-	// attacker point and sent to attack-walk to its civic centre. RTS0's roster has no
-	// Gaia civ, so the wave is always one of the playable civs.
+	// attacker point and sent to attack-walk to its civic centre. The civ is drawn from
+	// ["gaia", ...civs]: a Gaia wave is the Samnite and mercenary champions maps place.
 	const float minutes = (float)triggers_.time_ms / 60000.0f;
 	const float next_wave = sim_rng_.range_float(0.5f, 1.0f) * kSurvivalMaxWaveTime;
-	const uint8_t civ = playable_civ((uint32_t)sim_rng_.range_int(0, PLAYABLE_CIV_COUNT - 1));
+	const int pick = sim_rng_.range_int(0, PLAYABLE_CIV_COUNT);
+	const uint8_t civ = pick == PLAYABLE_CIV_COUNT ? CIV_GAIA : playable_civ((uint32_t)pick);
 	const int total = (int)std::ceil(std::min(kSurvivalAttackerLimit,
 			kSurvivalInitialAttackers * std::pow(kSurvivalPercentPerMinute, minutes) * next_wave / kSurvivalMaxWaveTime));
 	const float siege_ratio = sim_rng_.range_float(kSurvivalSiegeMin, kSurvivalSiegeMax);
 	// GetTemplateNamesByClasses: "Hero", "Champion+!Elephant", "Siege Champion+Elephant".
 	std::vector<uint16_t> heroes, champions, siege;
-	for (uint16_t t : civ_roster_ids(civ)) {
+	// FindAllTemplates covers the templates only maps place too.
+	std::vector<uint16_t> pool = civ_roster_ids(civ);
+	for (uint16_t t = CIV_ROSTER_PROMOTION_ONLY_FIRST; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (civ_unit_template(t).civ == civ && (civ_unit_template(t).flags & ROSTER_MAP_ONLY)) pool.push_back(t);
+	for (uint16_t t : pool) {
 		const TechClasses c = civ_unit_template(t).tech_classes;
 		if (c & TC_HERO) heroes.push_back(t);
 		else if ((c & TC_SIEGE) || ((c & TC_CHAMPION) && (c & TC_ELEPHANT))) siege.push_back(t);
