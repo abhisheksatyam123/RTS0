@@ -64,6 +64,7 @@ class RtsoWorldView : public Node3D {
 		MeshInstance3D *xp_fg = nullptr;
 		Sprite3D *rank_icon = nullptr;   // StatusBars AddRankIcon
 		uint8_t rank_shown = 0;
+		float anim_debt = 0.0f; // seconds of clip skipped while out of view
 		uint32_t sim_id = 0;
 		// The entity and model the body skin variant (variant_u) was set for.
 		uint32_t variant_id = 0;
@@ -81,6 +82,24 @@ class RtsoWorldView : public Node3D {
 		int64_t silhouette_rgba = -1; // silhouette colour last pushed (-1: none yet, -2: silhouettes off)
 	};
 
+	// What a structure's decals or particles were made for: its GLB id, scale and
+	// seat, compared as numbers (a formatted String key per structure per frame
+	// was ~4% of a late-game frame) to the rounding the old key kept.
+	struct FxKey {
+		String glb;
+		float k = 0.0f, x = 0.0f, z = 0.0f;
+		bool made = false;
+		bool same(const String &g, float nk, float nx, float nz) const {
+			return made && g == glb && (g.is_empty() || (std::fabs(nk - k) < 5e-5f && std::fabs(nx - x) < 5e-4f && std::fabs(nz - z) < 5e-4f));
+		}
+		void set(const String &g, float nk, float nx, float nz) {
+			glb = g;
+			k = nk;
+			x = nx;
+			z = nz;
+			made = true;
+		}
+	};
 	struct BuildingVis {
 		Node3D *root = nullptr;
 		Node *model = nullptr;
@@ -118,17 +137,17 @@ class RtsoWorldView : public Node3D {
 		float site_dust_poll = 0.0f; // seconds until the builders are counted again
 		// 0 A.D.'s ground decals (props/structures/decals/*.xml) under the model or foundation drawn.
 		std::vector<Decal *> decals;
-		String decal_key; // the GLB id, scale and position the decals were laid for
+		FxKey decal_key; // the GLB id, scale and position the decals were laid for
 		String foundation_glb; // the foundation GLB set_building_site_visible drew
 		// The particles 0 A.D.'s structure or rubble actor always props (chimney smoke,
 		// temple fires, burning rubble), with their GLB positions for re-seating.
 		std::vector<GPUParticles3D *> ambient_fx;
 		std::vector<Vector3> ambient_pos;
-		String ambient_key; // the GLB id and scale they were made for
+		FxKey ambient_key; // the GLB id and scale they were made for
 		// The dust and smoke of the actor's "death" variant, raised when it collapses.
 		std::vector<GPUParticles3D *> death_fx;
 		std::vector<Vector3> death_pos;
-		String death_key;
+		FxKey death_key;
 	};
 
 	std::vector<UnitVis> unit_pool;
