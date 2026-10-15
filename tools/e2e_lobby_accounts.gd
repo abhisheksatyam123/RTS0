@@ -107,7 +107,22 @@ func run() -> void:
 	check(ls.signed_in(), "Remember password signs in again with nothing typed")
 
 	lobby._on_sign_pressed()
+	# credentials.js toggleRememberPassword: unticking a remembered password asks first.
 	lobby._remember.button_pressed = false
+	var forget: ConfirmationDialog = lobby.get_node_or_null("ForgetPasswordDialog")
+	check(forget != null and forget.title == "Confirmation"
+		and forget.dialog_text == "Are you sure you want to delete the password after connecting?"
+		and forget.ok_button_text == "Yes" and forget.cancel_button_text == "No", "unticking Remember password asks first")
+	if forget != null:
+		forget.canceled.emit()
+	await process_frame
+	check(lobby._remember.button_pressed and lobby.get_node_or_null("ForgetPasswordDialog") == null, "No keeps it ticked")
+	lobby._remember.button_pressed = false
+	forget = lobby.get_node_or_null("ForgetPasswordDialog")
+	if forget != null:
+		forget.confirmed.emit()
+	await process_frame
+	check(not lobby._remember.button_pressed and lobby.get_node_or_null("ForgetPasswordDialog") == null, "Yes unticks it")
 	lobby._password.text = "wrong"
 	lobby._on_sign_pressed()
 	await until(func() -> bool: return lobby._status.text.begins_with("Sign in refused"))
