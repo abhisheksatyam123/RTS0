@@ -163,12 +163,13 @@ int main() {
 		CHECK(d1 > 0.0f);
 		CHECK(d5 > d1 * 4.0f && d5 < d1 * 6.0f);
 		// Attack/Ranged/Origin/Y 10 m: the parabolic range is measured from the top, so on flat
-		// ground it reaches sqrt(55^2 + 2*55*10) = 63.8 m, not 55.
+		// ground it reaches sqrt(55^2 + 2*55*10) = 63.8 m, not 55, between obstruction edges
+		// (the tower's 3 m clearance and the spearman's 0.8 m add about 7%).
 		fresh(s);
 		const uint32_t probe = s.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, st_t);
 		const float range = s.unit_attack_range_at((size_t)idx_of(s, probe));
-		const float d_top = tower_damage(5, 12.0f, range * 1.1f), d_past = tower_damage(5, 12.0f, range * 1.2f);
-		std::printf("siege tower arrows in 12 s at 1.1x range %.0f, at 1.2x %.0f\n", d_top, d_past);
+		const float d_top = tower_damage(5, 12.0f, range * 1.1f), d_past = tower_damage(5, 12.0f, range * 1.3f);
+		std::printf("siege tower arrows in 12 s at 1.1x range %.0f, at 1.3x %.0f\n", d_top, d_past);
 		CHECK(d_top > 0.0f && d_past == 0.0f);
 	}
 
