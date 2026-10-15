@@ -1078,11 +1078,35 @@ void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 
 void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
 	if (!stream.is_valid()) return;
-	AudioStreamPlayer3D *player = spatial_players[next_spatial_idx];
-	next_spatial_idx = (next_spatial_idx + 1) % SPATIAL_AUDIO_POOL_SIZE;
+	// 0.28 SoundManager: a fixed set of voices. Take a free player from the pool; with
+	// kMaxSpatialVoices already sounding, the new sound is dropped rather than cutting
+	// one off (a stop and restart costs as much as a play).
+	// A voice is busy until its sound's length has passed (the audio thread updates
+	// is_playing() on its own time).
+	const uint64_t now = Time::get_singleton()->get_ticks_msec();
+	AudioStreamPlayer3D *player = nullptr;
+	size_t slot = 0;
+	int playing = 0;
+	for (size_t k = 0; k < SPATIAL_AUDIO_POOL_SIZE; ++k) {
+		const size_t i = (next_spatial_idx + k) % SPATIAL_AUDIO_POOL_SIZE;
+		if (!spatial_players[i]) continue;
+		if (now < spatial_end_ms_[i]) {
+			++playing;
+		} else if (!player) {
+			player = spatial_players[i];
+			slot = i;
+		}
+	}
+	if (playing >= kMaxSpatialVoices) {
+		++spatial_dropped_;
+		return;
+	}
 	if (player) {
 		player->set_position(pos);
-		player->set_stream(stream);
+		next_spatial_idx = (slot + 1) % SPATIAL_AUDIO_POOL_SIZE;
+		const double len = stream->get_length();
+		spatial_end_ms_[slot] = now + (uint64_t)(1000.0 * (len > 0.0 ? len / std::max(0.05f, pitch_scale) : 1.0));
+		if (player->get_stream() != stream) player->set_stream(stream);
 		player->set_volume_db(volume_db);
 		player->set_max_distance(max_dist);
 		player->set_pitch_scale(pitch_scale);
@@ -1799,6 +1823,13 @@ String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_s
 		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
 	// Palisade WallSet pieces (WALLSET_PALISADE) draw 0 A.D.'s palisades_short, _medium,
 	// _long, _tower and _gate; a one-cell palisade from a map keeps its model.
+	// Rome's siege WallSet (rome/wallset_siege) draws its own siege_wall_long, _medium,
+	// _short, _tower and _gate actors; segments are 36, 24 and 12 m like the stone walls'.
+	if (type == rtso::BLD_SIEGE_WALL_GATE) return "siege_wall_gate";
+	if (type == rtso::BLD_SIEGE_WALL) {
+		if (rtso::is_siege_wall_tower(type, half_size)) return "siege_wall_tower";
+		return half_size >= 3.75f ? "siege_wall_long" : half_size >= 2.25f ? "siege_wall_medium" : "siege_wall_short";
+	}
 	if (type == rtso::BLD_PALISADE_GATE) return "palisade_gate";
 	if (type == rtso::BLD_PALISADE && rtso::is_wallset_piece(type, half_size)) {
 		if (rtso::is_palisade_tower(type, half_size)) return "palisade_tower";
@@ -2197,6 +2228,21 @@ void RtsoWorldView::load_ambient_fx() {
 			(t == 0 ? ambient_fx_ : death_fx_)[String(keys[i]).utf8().get_data()] = set;
 		}
 	}
+	Dictionary units = root.get("units", Dictionary());
+	Array unit_keys = units.keys();
+	for (int i = 0; i < unit_keys.size(); ++i) {
+		Dictionary e = units[unit_keys[i]];
+		AmbientFxSet set;
+		set.metre = (float)e.get("metre", 1.0);
+		Array list = e.get("fx", Array());
+		for (int j = 0; j < list.size(); ++j) {
+			Dictionary fx = list[j];
+			Array pos = fx.get("pos", Array());
+			if (pos.size() == 3)
+				set.fx.push_back({ String(fx.get("p", "")).utf8().get_data(), Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
+		}
+		unit_fx_.insert(String(unit_keys[i]), set);
+	}
 	Array stone = Dictionary(root.get("projectiles", Dictionary())).get("stone", Array());
 	for (int j = 0; j < stone.size(); ++j) stone_fx_.push_back(String(stone[j]).utf8().get_data());
 	Dictionary run = root.get("run", Dictionary());
@@ -2305,13 +2351,27 @@ void RtsoWorldView::emit_run_dust(const String &glb_id, const Vector3 &at, float
 	if (const std::vector<std::string> *names = run_fx_.getptr(glb_id)) emit_world_fx(*names, at, sc, delta);
 }
 
+// The fire a unit actor always carries (the Theban fire-raiser's cart, the flaming
+// pig), at its GLB points under the model's transform `xf`.
+void RtsoWorldView::emit_unit_fx(const String &glb_id, const Transform3D &xf, float sc, float delta) {
+	load_ambient_fx();
+	const AmbientFxSet *set = unit_fx_.getptr(glb_id);
+	if (!set) return;
+	for (const AmbientFx &fx : set->fx)
+		emit_world_fx(fx.particle, xf.xform(fx.pos), set->metre * sc, delta);
+}
+
 // Puffs of each named particle at `at` (world space) at the files' rates over `delta`
 // seconds, `sc` world units per metre: one emitter per particle and scale that
 // emit_particle feeds, so a moving source leaves a trail and needs no node of its own.
 void RtsoWorldView::emit_world_fx(const std::vector<std::string> &names, const Vector3 &at, float sc, float delta) {
-	for (const std::string &name : names) {
+	for (const std::string &name : names) emit_world_fx(name, at, sc, delta);
+}
+
+void RtsoWorldView::emit_world_fx(const std::string &name, const Vector3 &at, float sc, float delta) {
+	{
 		const auto pd = ambient_particles_.find(name);
-		if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) continue;
+		if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) return;
 		const AmbientParticle &d = pd->second;
 		GPUParticles3D *&p = world_emitters_[{ &d, (int)std::lround(sc * 1000.0f) }];
 		if (!p) {
@@ -2655,7 +2715,7 @@ bool RtsoWorldView::crowd_bake_over_budget() {
 }
 
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, uint64_t death_slots, bool female, bool budgeted) {
+		const bool *needed, int count, uint64_t death_slots, bool female) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -2663,10 +2723,6 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	}
 	for (int c = 0; c < count; ++c) {
 		if (!needed[c] || done[c]) continue;
-		if (budgeted) {
-			if (crowd_bake_over_budget()) break;
-			crowd_baked_this_frame_ = true;
-		}
 		done[c] = true;
 		ensure_form_clip(ap, (ClipId)want[c]);
 		ClipId play = resolve_clip_fallback(ap, (ClipId)want[c]);
@@ -2745,41 +2801,151 @@ static Node *instantiate_for_bake(Node3D *bake_root, const Ref<PackedScene> &sce
 	return inst;
 }
 
+struct RtsoWorldView::CrowdBakeJob {
+	Node *inst = nullptr;
+	AnimationPlayer *ap = nullptr;
+	uint32_t batch = 0;	 // civ << 16 | key
+	bool female = false;
+	int clip = -1;		 // crowd clip slot mid-bake, -1 between clips
+	int frame = 0, valid = 0;
+	double len = 0.0;
+	Node3D *prop = nullptr;
+	rtso::ModelLibrary::CrowdSkin skin;
+	Ref<ArrayMesh> poses[CROWD_FRAMES_PER_CLIP];
+};
+
+// Readies clip slot c of the job's batch for posing, as bake_puppet_clips does per clip.
+void RtsoWorldView::crowd_job_begin_clip(CrowdBatch &b, int c) {
+	CrowdBakeJob &j = *crowd_job_;
+	crowd_baked_this_frame_ = true;
+	b.clip_baked[c] = true;
+	b.puppet[c].baked_count = 0;
+	b.puppet[c].last_frame = -1;
+	AnimationPlayer *ap = j.ap;
+	const ClipId want = (ClipId)crowd_clips()[c];
+	ensure_form_clip(ap, want);
+	const ClipId play = resolve_clip_fallback(ap, want);
+	if (!ap || play == CLIP_NONE) return;
+	const StringName &name = clip_name(play);
+	// Show the clip's tool (axe, pick, hammer...) before capturing, as
+	// capture skips hidden props.
+	apply_unit_tools(j.inst, name);
+	// The carry shuttle bakes into the clip's frames, riding its bone.
+	j.prop = is_carry_variant(play) ? attach_carry_prop(j.inst, play, j.female) : nullptr;
+	j.skin = rtso::ModelLibrary::CrowdSkin();
+	if (!rtso::ModelLibrary::capture_crowd_skin(j.inst, j.skin)) {
+		if (j.prop) detach_carry_props(find_skeleton3d(j.inst));
+		j.prop = nullptr;
+		return;
+	}
+	j.len = 0.0;
+	Ref<Animation> a = ap->get_animation(name);
+	if (a.is_valid()) j.len = a->get_length();
+	ap->play(name);
+	j.clip = c;
+	j.frame = 0;
+	j.valid = 0;
+}
+
+// Bakes the job's clip pose by pose until it completes (then shows it) or the frame's
+// budget runs out (it resumes next frame, the units drawn in the rest pose meanwhile).
+void RtsoWorldView::crowd_job_bake_poses() {
+	CrowdBakeJob &j = *crowd_job_;
+	if (j.clip < 0) return;
+	const int c = j.clip;
+	const int n = CROWD_FRAMES_PER_CLIP;
+	while (j.frame < n) {
+		if (crowd_bake_over_budget()) return;
+		crowd_baked_this_frame_ = true;
+		const int f = j.frame++;
+		double t = 0.0;
+		if (j.len > 0.0) {
+			if (CROWD_DEATH_SLOTS & (1ull << c)) {
+				t = (n > 1) ? j.len * (double)f / (double)(n - 1) : 0.0;
+			} else {
+				t = j.len * (double)f / (double)n;
+			}
+		}
+		j.ap->seek(t, true);
+		j.ap->advance(0.0);
+		Ref<ArrayMesh> baked = rtso::ModelLibrary::bake_crowd_skin(j.skin);
+		if (baked.is_valid()) j.poses[j.valid++] = baked;
+	}
+	if (j.prop) detach_carry_props(find_skeleton3d(j.inst));
+	j.prop = nullptr;
+	j.skin = rtso::ModelLibrary::CrowdSkin();
+	CrowdBatch &b = crowd_batch((uint8_t)(j.batch >> 16), (uint16_t)(j.batch & 0xFFFF));
+	CrowdPuppet &row = b.puppet[c];
+	for (int f = 0; f < j.valid; ++f) row.posed_frames[f] = j.poses[f];
+	for (int f = 0; f < n; ++f) j.poses[f].unref();
+	row.baked_count = j.valid;
+	row.last_frame = -1;
+	if (b.mm[c].is_valid() && row.posed_frames[0].is_valid()) b.mm[c]->set_mesh(row.posed_frames[0]);
+	j.clip = -1;
+}
+
+// Frees the job's model instance (between clips only).
+void RtsoWorldView::crowd_job_release() {
+	CrowdBakeJob &j = *crowd_job_;
+	if (!j.inst) return;
+	if (j.ap) j.ap->stop();
+	crowd_bake_root->remove_child(j.inst);
+	j.inst->queue_free();
+	j.inst = nullptr;
+	j.ap = nullptr;
+}
+
 void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts) {
 	static_assert(CROWD_CLIP_COUNT == CROWD_FORM_SLOT + (CLIP_COUNT - CLIP_FORM_FIRST),
 			"CROWD_CLIP_COUNT must cover the formation clips (crowd_clips)");
 	CrowdBatch &b = crowd_batch(civ, key);
 	const uint8_t utype = crowd_key_utype_[key < CROWD_KEY_COUNT ? key : 0];
 	if (b.no_scene) return;
-	bool needed[CROWD_CLIP_COUNT] = {};
 	bool any = false;
-	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-		needed[c] = counts[c] > 0 && !b.clip_baked[c];
-		any = any || needed[c];
-	}
+	for (int c = 0; c < CROWD_CLIP_COUNT && !any; ++c) any = counts[c] > 0 && !b.clip_baked[c];
 	if (!any || crowd_bake_over_budget()) return;
-
-	auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
-	if (!entry.scene.is_valid()) {
-		b.no_scene = true;
-		return;
+	if (!crowd_job_) crowd_job_ = std::make_unique<CrowdBakeJob>();
+	CrowdBakeJob &j = *crowd_job_;
+	// A clip mid-bake finishes first (sync resumes it before the batches).
+	if (j.clip >= 0) return;
+	const uint32_t id = (uint32_t)civ << 16 | key;
+	if (j.inst && j.batch != id) crowd_job_release();
+	// A fresh instance starts its first clip whatever the budget, so batches cannot take
+	// the instance from each other frame after frame without baking.
+	bool fresh = false;
+	if (!j.inst) {
+		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
+		if (!entry.scene.is_valid()) {
+			b.no_scene = true;
+			return;
+		}
+		if (!crowd_bake_root) {
+			crowd_bake_root = memnew(Node3D);
+			crowd_bake_root->set_visible(false);
+			add_child(crowd_bake_root);
+		}
+		Node *inst = instantiate_for_bake(crowd_bake_root, entry.scene);
+		if (!inst) return;
+		j.inst = inst;
+		j.batch = id;
+		j.female = unit_is_female(utype);
+		j.ap = find_anim_player(inst);
+		ensure_runtime_clips(j.ap, j.female);
+		if (j.ap) {
+			j.ap->set_active(true);
+			j.ap->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
+		}
+		fresh = true;
 	}
-	if (!crowd_bake_root) {
-		crowd_bake_root = memnew(Node3D);
-		crowd_bake_root->set_visible(false);
-		add_child(crowd_bake_root);
-	}
-	Node *inst = instantiate_for_bake(crowd_bake_root, entry.scene);
-	if (!inst) return;
-	const bool female = unit_is_female(utype);
-	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female, true);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-		if (needed[c] && b.clip_baked[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
-			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
+		if (counts[c] <= 0 || b.clip_baked[c]) continue;
+		if (!fresh && crowd_bake_over_budget()) return;
+		fresh = false;
+		crowd_job_begin_clip(b, c);
+		crowd_job_bake_poses();
+		if (j.clip >= 0) return;
 	}
-	crowd_bake_root->remove_child(inst);
-	inst->queue_free();
+	crowd_job_release();
 }
 
 void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
@@ -3684,6 +3850,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
 	crowd_bake_deadline_us_ = bake_now_us() + CROWD_BAKE_BUDGET_US;
 	crowd_baked_this_frame_ = false;
+	if (crowd_job_ && crowd_job_->clip >= 0) {
+		crowd_job_bake_poses();
+		if (crowd_job_->clip < 0) crowd_job_release();
+	}
 	// Per batch and clip: units drawn (counts) and placed so far (written). Only the rows of
 	// batches with units this frame are cleared and read; the rest count none.
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
@@ -3822,6 +3992,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			apply_unit_death_xform(xf, utype, death_t, x, z, model_b.height * sc, false);
 		}
 		if (want.clip == CLIP_RUN && !dying) emit_run_dust(utype_str, Vector3(x, ground, z), sc, delta);
+		if (!dying) emit_unit_fx(utype_str, xf, sc, delta);
 		const int clip = crowd_slot_scratch_[i];
 		MultiMesh *cmm = crowd_[uciv][ckey] ? crowd_[uciv][ckey]->mm[clip].ptr() : nullptr;
 		if (cmm) {
@@ -4603,6 +4774,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// Fleeing (or moving at a run) on the Run clip: the actor's dust.
 		if (clip == 1 && (fview.behavior[f] == rtso::FAUNA_FLEE || vx * vx + vz * vz > 18.0f))
 			emit_run_dust(String(fid), Vector3(fx, fy, fz), fsc, delta);
+		if (fview.alive[f]) emit_unit_fx(String(fid), xf, fsc, delta);
 		int fslot = f_written[ft][clip]++;
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);

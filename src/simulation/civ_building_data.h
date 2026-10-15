@@ -69,6 +69,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Fortress", "han_fortress_old", "fortress", 5200.0f, 2, 0, 300, 0, 600, 0, 20, 112.5f, 4000.0f, 45.0f, 1.0f, 40.0f}, /* structures/han/fortress_old */ \
 		{"LaoziGate", "laozi_gate", "temple", 1200.0f, 2, 0, 200, 0, 100, 0, 0, 30.0f, 0.0f, 5.0f, 1.0f, 0.0f}, /* structures/han/laozigate */ \
 		{"Temple of Isis", "temple", "temple", 3000.0f, 2, 0, 0, 0, 450, 0, 30, 75.0f, 500.0f, 15.0f, 1.0f, 20.0f}, /* structures/ptol/temple_2 */ \
+		{"Rotary Mill", "farmstead", "farmstead", 1000.0f, 2, 0, 100, 0, 0, 0, 0, 11.25f, 500.0f, 0.0f, 3.0f, 0.0f}, /* structures/mill_greek */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -133,6 +134,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 60, 120, 0}, /* structures/han/fortress_old */ \
 		{0, 0, 0, 20, 20}, /* structures/han/laozigate */ \
 		{0, 0, 0, 90, 0}, /* structures/ptol/temple_2 */ \
+		{0, 0, 20, 0, 0}, /* structures/mill_greek */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -206,6 +208,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_FORTRESS_OLD: return 0x0000; // 
 		case BLD_LAOZI_GATE: return 0x0000; // 
 		case BLD_TEMPLE_ISIS: return 0x0800; // ptol
+		case BLD_MILL: return 0x0000; // 
 		default: return 0xFFFF;
 	}
 }
@@ -273,6 +276,7 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_FORTRESS_OLD: return 3;
 		case BLD_LAOZI_GATE: return 2;
 		case BLD_TEMPLE_ISIS: return 3;
+		case BLD_MILL: return 1;
 		default: return 0;
 	}
 }

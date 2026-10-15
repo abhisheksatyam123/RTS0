@@ -140,6 +140,10 @@ int main() {
 		CHECK(!s.cmd_breed_livestock(1, c, FAUNA_GOAT_TRAINABLE)); // not the owner
 		s.complete_research(0, TECH_GATHER_ANIMALS_STOCKBREEDING);
 		CHECK(near(s.livestock_train_time(0, FAUNA_CATTLE_COW_TRAINABLE), 45.0f));
+		// Petra's config.js Cheat: an Easy AI trains animals slower too, like any unit.
+		s.set_player_active(1, true, true);
+		s.set_petra_difficulty(PETRA_EASY);
+		CHECK(s.ai_time_mult(1) > 1.0f && near(s.livestock_train_time(1, FAUNA_CATTLE_COW_TRAINABLE), 60.0f * s.ai_time_mult(1)));
 		CHECK(s.cmd_breed_livestock(0, c, FAUNA_DEER)); // not on the list: the civ's sheep
 		CHECK(q.size() == 2 && q[1].tmpl == FAUNA_SHEEP_TRAINABLE && near(q[1].duration, 30.0f));
 		CHECK(near(s.players_[0].res[RES_FOOD], 800.0f));

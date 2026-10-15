@@ -1,8 +1,9 @@
 extends SceneTree
 # The command row as 0 A.D. 0.28 gui/session/unit_actions.js g_EntityCommands
 # builds it:
-#   1. soldiers and citizens get Delete, Call to Arms, Garrison, Repair, Guard
-#      and Patrol; civilians alone get no Call to Arms, Guard or Patrol;
+#   1. soldiers and citizens get Delete, Call to Arms, Garrison, Occupy Turret, Repair
+#      and Guard, the row's six (Patrol has no room); civilians alone get no Call to
+#      Arms, Guard or Patrol;
 #   2. Abort shows while units have orders and stops them;
 #   3. Delete asks first (DeleteSelectionConfirmation), Yes destroys, and
 #      holding Shift (session.noconfirmation) skips the question;
@@ -75,8 +76,11 @@ func run() -> void:
 	await frames(2)
 	var t := texts()
 	print("  everyone: ", t)
-	for want in ["Delete", "Call to Arms", "Garrison", "Repair", "Guard", "Patrol"]:
+	for want in ["Delete", "Call to Arms", "Garrison", "Occupy Turret", "Repair", "Guard"]:
 		check(t.has(want), want + " shows for the starting units")
+	# selection_panels.js Command getMaxNumberOfItems: six, in g_EntityCommands order, so
+	# Patrol (seventh here) has no room.
+	check(not t.has("Patrol"), "the row stops at six: no room for Patrol")
 	check(not t.has("Abort"), "no Abort while everyone is idle")
 	check(not t.has("Abort Guard"), "no Abort Guard while nobody guards")
 	# The first group icon is the villagers (e2e_command_panel narrows to them).

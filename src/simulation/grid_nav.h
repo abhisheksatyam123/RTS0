@@ -103,6 +103,12 @@ static constexpr float LAND_MAX_WATER_DEPTH = 2.0f * HEIGHT_PER_METRE;
 //                 with a land or structure navcell among its eight neighbours (the next ring is 16 m
 //                 off). Only long paths use it (NavGrid::find_path): steps, pushes and regions stay
 //                 on PASS_SHIP, so a warship beside a dock or a beach can always sail off.
+// PASS_LARGE    : a bit added to PASS_INFANTRY or PASS_CAVALRY for 0 A.D.'s "large" class (siege,
+//                 elephants, chariots, wagons, catafalques), Clearance 3 m. Trees grown by that
+//                 clearance close more of a wood (Simulation::forest_cell_closed), and those
+//                 navcells (large_closed) block it too. Like PASS_SHIP_CLEARANCE, only long paths
+//                 use it, falling back to the default class when it finds no way; regions stay
+//                 the default class's.
 //
 // 0 A.D. slope references:
 // - source/simulation2/helpers/Pathfinding.h (PathfinderPassability::IsPassable: steepness < m_MaxSlope)
@@ -116,6 +122,7 @@ static constexpr uint8_t PASS_CAVALRY  = 2;
 static constexpr uint8_t PASS_SHIP     = 4;
 static constexpr uint8_t PASS_SHIP_CLEARANCE = 8;
 static constexpr uint8_t PASS_WARSHIP  = PASS_SHIP | PASS_SHIP_CLEARANCE;
+static constexpr uint8_t PASS_LARGE    = 16;
 
 // 0 A.D. slopes are metres of rise per metre. An RTS0 unit is a 4 m tile and heights are
 // HEIGHT_PER_METRE units a metre, so a slope in RTS0 units is 0 A.D.'s x 4 x HEIGHT_PER_METRE
@@ -180,6 +187,8 @@ struct NavGrid {
     float map_half = 64.f;
 
     Grid<uint8_t> cells; // NavCell per navcell
+    // 1 where a wood is closed to PASS_LARGE but not to the default class; empty, or as many as cells.
+    std::vector<uint8_t> large_closed;
     Grid<uint8_t> dirty; // 0=clean, 1=needs hierarchical rebuild
 
     // Phase 8A: Hierarchical chunk region data.
@@ -280,6 +289,8 @@ struct NavGrid {
         }
         if (c != NAV_PASSABLE && c != NAV_SHALLOW) return false;
         if (is_steep(cx, cy)) return false;
+        if ((pass & PASS_LARGE) && large_closed.size() == cells.data.size() &&
+                large_closed[static_cast<size_t>(cy) * cells.w + cx]) return false;
         return true;
     }
 
@@ -897,6 +908,8 @@ struct WaypointPath {
 // NavGrid::find_path — snap, MakeGoalReachable, JPS, string pull
 // ---------------------------------------------------------------------------
 inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
+    if (pass & PASS_LARGE)
+        return find_path_on(sx, sz, tx, tz, out, pass) || find_path_on(sx, sz, tx, tz, out, pass & ~PASS_LARGE);
     if (!(pass & PASS_SHIP_CLEARANCE)) return find_path_on(sx, sz, tx, tz, out, pass);
     return find_path_on(sx, sz, tx, tz, out, pass) || find_path_on(sx, sz, tx, tz, out, PASS_SHIP);
 }

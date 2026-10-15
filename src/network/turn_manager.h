@@ -131,14 +131,23 @@ public:
 	// match until it catches up (0 A.D. network.observermaxlag). -1, the
 	// default, never waits on observers; like 0 A.D., above 10000 is -1 too.
 	void set_observer_max_lag(int turns) { observer_max_lag_ = turns < 0 || turns > 10000 ? -1 : turns; }
-	// Observer: while more than CATCH_UP_TURNS of the turns it already holds
-	// are still to run, run one every tick instead of one per turn length, so
-	// a late joiner reaches the players (0 A.D. network.autocatchup).
+	// 0 A.D. NetworkDelayOverlay.CheckDelay with network.autocatchup: an
+	// observer more than OBSERVER_MAX_LIVE_DELAY turns behind runs at
+	// OBSERVER_CATCH_UP_RATE times the turn rate, and at the normal rate
+	// again once within OBSERVER_NORMAL_DELAY. A rejoiner (a late observer
+	// too) first runs the turns queued while it loaded one per tick, until
+	// within CATCH_UP_TURNS of them (CNetClient::LoadFinished's fast-forward).
 	void set_auto_catch_up(bool on) { auto_catch_up_ = on; }
 	static constexpr uint32_t CATCH_UP_TURNS = 4;
+	static constexpr uint32_t OBSERVER_MAX_LIVE_DELAY = 6, OBSERVER_NORMAL_DELAY = 3;
+	static constexpr float OBSERVER_CATCH_UP_RATE = 1.1f;
+	bool observer_catching_up() const { return observer_fast_; }
 	// Turns after the current one whose every batch is already here (capped
 	// at 64): how far this peer is behind the host.
 	uint32_t turns_behind();
+	// Turns past the current one with any batch in hand, ready or not (a lost
+	// batch may still be on its way): a rejoiner fast-forwards until these run out.
+	uint32_t turns_in_hand() const;
 	// Host: at most this many observers in a running match (0 A.D.
 	// network.observerlimit, 8); one more is refused with reason 7.
 	void set_observer_limit(int limit) { observer_limit_ = limit < 0 ? 0 : limit; }
@@ -464,6 +473,8 @@ private:
 	int observer_limit_ = 8;
 	int observer_max_lag_ = -1;
 	bool auto_catch_up_ = true;
+	bool observer_fast_ = false;     // running at OBSERVER_CATCH_UP_RATE
+	bool rejoin_fast_forward_ = false; // still running the turns queued while loading
 	std::map<uint32_t, uint32_t> observer_turn_; // host: each observer's newest sync-check turn
 	bool lagging_observer(uint32_t client) const;
 	// Host: the client list last sent as NMT_PLAYER_ASSIGNMENT, and every

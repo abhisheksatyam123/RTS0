@@ -111,6 +111,8 @@ inline const std::vector<const char *> &voice_stems(const std::string &action) {
 		{"build", {"build"}},
 		{"repair", {"repair", "build"}},
 		{"gather", {"gather", "work_land", "gather_together", "wood", "mine"}},
+		// 0.28 collect_treasure: greek male As_you_wish, greek female and latin gather_together, persian/kushite gather.
+		{"collect_treasure", {"Asyouwish", "gather_together", "gather"}},
 		{"farm", {"work_land", "gather"}},
 		{"fish", {"fish", "gather"}},
 		{"hunt", {"hunt", "gather"}},
@@ -404,6 +406,12 @@ public:
 		primed_combat_ = true;
 	}
 	int combat_sounds_played() const { return combat_sounds_; }
+	int combat_sounds_culled() const { return combat_culled_; }
+	// Tests: a melee hit's sound at (x, z) as tick_combat would play it.
+	bool debug_combat_sound(const Simulation *sim, uint8_t me, float x, float z) {
+		combat_in_window_ = 0;
+		return play_combat(sim, me, unit_attack_sounds(civ_unit_template_by_id("athen/infantry_spearman_b"), UNIT_SPEARMAN).a, x, 1.0f, z, me);
+	}
 
 	// Where the camera looks; work sounds play only near it.
 	void set_listener(float x, float z) {
@@ -584,20 +592,29 @@ private:
 
 	// A combat sound heard at (x, y, z) when `me` sees that spot, at most
 	// kMaxCombatPerWindow every quarter second so a battle doesn't drown the rest.
-	void play_combat(const Simulation *sim, uint8_t me, uint8_t g, float x, float y, float z, uint8_t team) {
+	// 0.28 SoundGroup::PlayNext: a sound beyond the group's distance from the camera is
+	// culled before it is played (AudioStreamPlayer3D::play is the costly part).
+	static constexpr float kCombatHear = 75.0f; // the spatial players' max distance
+	bool play_combat(const Simulation *sim, uint8_t me, uint8_t g, float x, float y, float z, uint8_t team) {
 		static constexpr int kMaxCombatPerWindow = 6;
-		if (g == ATTACK_SOUND_NONE || combat_in_window_ >= kMaxCombatPerWindow) return;
-		if (!sim->is_entity_visible_to_viewer(x, z, team, me)) return;
+		if (g == ATTACK_SOUND_NONE || combat_in_window_ >= kMaxCombatPerWindow) return false;
+		const float dx = x - listener_x_, dz = z - listener_z_;
+		if (dx * dx + dz * dz > kCombatHear * kCombatHear) {
+			++combat_culled_;
+			return false;
+		}
+		if (!sim->is_entity_visible_to_viewer(x, z, team, me)) return false;
 		float pitch = 1.0f;
 		const godot::String path = pick_attack_sound(g, rng_, &pitch);
-		if (path.is_empty()) return;
+		if (path.is_empty()) return false;
 		godot::Ref<godot::AudioStream> s = stream(path);
-		if (s.is_null()) return;
+		if (s.is_null()) return false;
 		const float gain = attack_sound_group(g).gain;
 		spatial_(s, godot::Vector3(x, y, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
 		++combat_in_window_;
 		++combat_sounds_;
 		last_played_ = path;
+		return true;
 	}
 
 	struct Flight {
@@ -611,6 +628,7 @@ private:
 	double combat_window_start_ = 0.0;
 	int combat_in_window_ = 0;
 	int combat_sounds_ = 0;
+	int combat_culled_ = 0;
 	bool primed_combat_ = false;
 
 	struct Seen {

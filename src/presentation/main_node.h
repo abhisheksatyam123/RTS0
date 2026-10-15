@@ -169,6 +169,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	void update_net_connect_overlay();
 	Node *net_connect_overlay_ = nullptr; // scenes/menu/net_connecting.gd
 	CanvasLayer *net_connect_layer_ = nullptr;
+	// The network warnings over the setup page and the Connecting box before Start.
+	CanvasLayer *net_warnings_layer_ = nullptr;
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -417,7 +419,6 @@ public:
 	void _on_barter_sell_selected(int resource);
 	void _on_pack_cancel_pressed(int pack);
 	Array debug_barter_panel();
-	uint32_t selected_garrison_holder() const;
 	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
@@ -566,6 +567,8 @@ public:
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
+	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
+	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
 	// Tests: the training roster's rows (name, disabled).
 	Array debug_roster() {
@@ -615,6 +618,8 @@ public:
 	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
 	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
 	void _on_chat_text_submitted(const String &text);
+	void _on_chat_input_gui(const Ref<InputEvent> &event);
+	std::vector<String> chat_autocomplete_names() override;
 	void _on_chat_channel_btn_pressed(int channel_idx);
 
 	void toggle_diplomacy();
@@ -807,8 +812,15 @@ public:
 	String chat_open_hotkey_tooltip() const;
 	// input.js: session.flare held arms a flare, never in a replay (!g_IsReplay).
 	bool flare_held() const;
+	bool selected_building_shoots() const; // own, with BuildingAI arrows (try_focus_fire)
 	void refresh_chat_tooltips();
-	Dictionary debug_chat_tooltips() const { Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip(); return d; }
+	Dictionary debug_chat_tooltips() {
+		Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip();
+		PackedStringArray names;
+		for (const String &n : chat_autocomplete_names()) names.push_back(n);
+		d["names"] = names;
+		return d;
+	}
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -860,6 +872,7 @@ private:
 	std::vector<uint32_t> extra_structures_;
 	uint32_t extras_primary_ = 0; // the selected_building_id the extras belong to
 	std::vector<uint32_t> selected_structures() const;
+	std::vector<uint32_t> selected_garrison_holders() const; // the selection's holders with units inside
 	std::vector<uint32_t> selected_structures_like_primary() const;
 	void set_selected_structures(const std::vector<uint32_t> &ids);
 	void prune_structure_selection();
@@ -920,6 +933,7 @@ private:
 	void play_civ_voice(const char *action);
 	void update_music_state();
 	Dictionary get_audio_state() const;
+	bool debug_combat_sound(float x, float z) { return sim && session_audio_.debug_combat_sound(sim, local_player(), x, z); }
 	rtso::RtsoMusic music_;
 	rtso::RtsoSessionAudio session_audio_;
 	uint8_t music_civ_ = 0xFF;
@@ -991,6 +1005,9 @@ private:
 	CheckBox *observer_follow_box_ = nullptr;
 	CheckBox *replay_follow_box_ = nullptr;
 	CheckBox *new_follow_player_box();
+	// PlayerViewControl.xml and FollowPlayer.xml: the picker, "Observer Mode" and Follow Player
+	// placed in the top panel's frame; returns the row holding them.
+	Control *new_player_view_row(OptionButton *picker, Label *observer_label, CheckBox *follow) const;
 	int followed_view() const;
 	void set_follow_player(bool on);
 	bool is_follow_player() const { return follow_player_; }
@@ -1029,6 +1046,10 @@ private:
 	// a rejoin loads, and "disconnected": the host is gone, so the match stops
 	// here. Exit leaves for the summary (endGame(true)).
 	Control *net_status_overlay_ = nullptr;
+	Label *net_status_title_ = nullptr;
+	Button *net_status_exit_ = nullptr;
+	Button *net_status_faq_ = nullptr;
+	void _on_open_faq_pressed();
 	Label *net_status_label_ = nullptr;
 	RichTextLabel *net_loading_clients_ = nullptr; // loadingClientsText
 	bool net_disconnected_ = false; // session.js g_Disconnected

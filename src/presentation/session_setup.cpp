@@ -46,7 +46,8 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "stable") return rtso::BLD_STABLE;
 	if (n == "range") return rtso::BLD_RANGE;
 	if (n == "storehouse" || n == "forge") return rtso::BLD_STOREHOUSE;
-	if (n == "farmstead" || n == "field" || n == "mill" || n == "rotarymill") return rtso::BLD_FARMSTEAD;
+	if (n == "farmstead" || n == "field") return rtso::BLD_FARMSTEAD;
+	if (n == "mill" || n == "rotarymill") return rtso::BLD_MILL;
 	if (n == "market") return rtso::BLD_MARKET;
 	if (n == "tower" || n == "defense_tower") return rtso::BLD_TOWER;
 	if (n == "sentry_tower") return rtso::BLD_SENTRY_TOWER;
@@ -500,6 +501,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		rtso::CinemaPath path;
 		const CharString name = String(cp.get("name", "")).utf8();
 		std::strncpy(path.info.name, name.get_data(), sizeof(path.info.name) - 1);
+		// 0 A.D. takes names up to 128 characters; RTS0 saves 31 (CinemaPathInfo), so a
+		// longer one could not be queued by its full name.
+		if (name.length() >= (int)sizeof(path.info.name))
+			UtilityFunctions::push_warning(vformat("[Cinema] Path name '%s' is longer than %d bytes and is cut short.", String(cp.get("name", "")), (int)sizeof(path.info.name) - 1));
 		path.info.timescale = (float)(double)cp.get("timescale", 1.0);
 		path.info.mode = rtso::cinema_mode_from_name(String(cp.get("mode", "ease_inout")).utf8().get_data());
 		path.info.style = rtso::cinema_style_from_name(String(cp.get("style", "default")).utf8().get_data());
@@ -549,7 +554,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	}
 
 	apply_map_player_overrides();
-	UtilityFunctions::print("[RtsoMain] Loaded 0 A.D. map '", name, "' (", world_size, "m, ", sim->resource_count(), " resources, ", sim->building_count(), " structures, ", sim->unit_count(), " units)");
+	UtilityFunctions::print("[RtsoMain] Loaded 0 A.D. map '", name, "' (", world_size, "m, ", (int64_t)sim->resource_count(), " resources, ", (int64_t)sim->building_count(), " structures, ", (int64_t)sim->unit_count(), " units)");
 	return true;
 }
 

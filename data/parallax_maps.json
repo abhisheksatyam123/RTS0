@@ -2587,6 +2587,26 @@
 "height": "res://assets/textures/height_maps/structural/rome_struct_2_norm_512x512.png",
 "scale": 0.0075
 },
+"buildings/s_romans_siege_wall_gate_tex0": {
+"height": "res://assets/textures/height_maps/structural/siege_walls_wood_norm_512x512.png",
+"scale": 0.0075
+},
+"buildings/s_romans_siege_wall_long_tex0": {
+"height": "res://assets/textures/height_maps/structural/siege_walls_wood_norm_512x512.png",
+"scale": 0.0075
+},
+"buildings/s_romans_siege_wall_medium_tex0": {
+"height": "res://assets/textures/height_maps/structural/siege_walls_wood_norm_512x512.png",
+"scale": 0.0075
+},
+"buildings/s_romans_siege_wall_short_tex0": {
+"height": "res://assets/textures/height_maps/structural/siege_walls_wood_norm_512x512.png",
+"scale": 0.0075
+},
+"buildings/s_romans_siege_wall_tower_tex0": {
+"height": "res://assets/textures/height_maps/structural/siege_walls_wood_norm_512x512.png",
+"scale": 0.0075
+},
 "buildings/s_romans_stable_tex0": {
 "height": "res://assets/textures/height_maps/structural/rome_struct_2_norm_512x512.png",
 "scale": 0.0075

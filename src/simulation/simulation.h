@@ -171,7 +171,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 90; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 92; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_GUARD_OF = 92; // each unit's isGuardOf, kept through other orders
+	static constexpr uint32_t SAVE_VERSION_PETRA_MOVE_TO_GATHERER = 91; // when each Petra mobile dropsite next looks for a gatherer
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
 	static constexpr uint32_t SAVE_VERSION_PETRA_NO_UNITS = 90; // Petra's canBuildUnits and the units it sent to allies (dispatchUnits)
@@ -423,6 +425,13 @@ public:
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// The passability class Clearance of the unit at SoA index i from buildings (unit_building_clearance).
 	float unit_clearance_at(size_t i) const { return unit_building_clearance(units_.tmpl[i], units_.unit_type[i]); }
+	// The long-path class of land unit i: PASS_CAVALRY when mounted, else PASS_INFANTRY, plus
+	// PASS_LARGE for 0 A.D.'s "large" class (unit_is_large).
+	uint8_t unit_land_pass(size_t i) const {
+		const uint8_t t = units_.unit_type[i];
+		const bool mounted = t == UNIT_CAVALRY || t == UNIT_CHARIOT || t == UNIT_CAMEL || t == UNIT_SCYTHED_CHARIOT;
+		return (mounted ? PASS_CAVALRY : PASS_INFANTRY) | (unit_is_large(units_.tmpl[i], t) ? PASS_LARGE : 0);
+	}
 	// Attack MaxRange of the unit at SoA index i with technologies (the developer overlay's range overlay).
 	float unit_attack_range_at(size_t i) const { return i < units_.count ? units_.attack_range[i] : 0.0f; }
 	// The waypoints of its long path it has still to reach, *xs / *zs at the next one (the unit
@@ -951,7 +960,7 @@ public:
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
 	static bool is_dropsite_type(uint8_t type) {
-		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || is_food_dropsite(type) ||
 			civ_building_is_dropsite(type);
 	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
@@ -1783,8 +1792,9 @@ public:
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	// UnitAI.IsGuardOf: the unit's current order is to guard someone (remove-guard button).
-	bool unit_is_guarding(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx >= 0 && (size_t)idx < units_.count && units_.order_kind[idx] == ORDER_GUARD; }
-	// UnitAI.isGuarding: the entity the unit guards (a unit or structure id), or 0.
+	// Also true while it does something else and will go back to guarding (isGuardOf is kept).
+	bool unit_is_guarding(uint32_t uid) const { return unit_guard_target(uid) != 0; }
+	// UnitAI.isGuardOf: the entity the unit guards (a unit or structure id), or 0.
 	uint32_t unit_guard_target(uint32_t uid) const;
 	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
@@ -3141,6 +3151,7 @@ private:
 	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
+	float petra_starting_wood(float x, float z) const;
 	void petra_plan_sizes(uint8_t kind);
 	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
 	// attackPlan.js unitStat: a plan's classes with their priority, minSize, targetSize,
@@ -3152,8 +3163,10 @@ private:
 		int min, target, batch;
 		float strength, siege_strength, stone, metal; // interests; 1 = no costsResource penalty
 		int count = 0;
+		uint8_t index = 0; // its place in the plan's full list (PetraAttackManager::dropped_classes)
 	};
-	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind);
+	// The plan's unitStat classes, less those whose bit is set in `dropped`.
+	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind, uint16_t dropped = 0);
 	// Whether a building of ours trains some roster template of the class now (trainMoreUnits
 	// drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
@@ -3197,6 +3210,10 @@ private:
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
 	std::vector<PetraHuntSearch> petra_hunt_search_;
+	// worker.js nextMoveToGatherer: when (petra_timer_) each mobile dropsite next looks for a
+	// gatherer to walk to; one with no entry looks from 5 s on.
+	struct PetraNextMove { uint32_t id; float time; };
+	std::vector<PetraNextMove> petra_move_to_gatherer_;
 	// worker.js isInaccessibleSupply: each gatherer's or hunter's approach (approachingTarget, the
 	// petra_timer_ time and spot it was last seen moving from, time < 0 none yet, carriedBefore,
 	// alreadyTried), and the supplies it flagged (inaccessibleTime: skipped until `until`).
@@ -3304,6 +3321,8 @@ private:
 	bool petra_phasing() const;
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
+	bool petra_minor_tech_waiting() const;
+	void petra_queue_special_tech(uint8_t t);
 	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
@@ -3506,7 +3525,7 @@ private:
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;
 	bool petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, float ship_z, float dest_x, float dest_z,
-	                        bool avoid_enemy, float &out_x, float &out_z) const;
+	                        bool avoid_enemy, float &out_x, float &out_z, const float *skip_near = nullptr) const;
 	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea,
 	                           uint8_t owner);
 	void petra_step_transport(PetraTransportPlan &tp, float dt);
@@ -3548,7 +3567,9 @@ private:
 	// VisionSharing.AddSpy: a bribed unit sees for the briber (its allies sharing that LOS)
 	// while the spy lasts. Rebuilt from spies_ each LOS update and on load, never saved.
 	std::vector<LosSource> los_spy_src_;
+	std::vector<LosSource> los_garrison_src_; // VisionSharing of garrisoned allies, rebuilt each tick
 	void update_spy_los();
+	void update_garrison_los();
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
@@ -3563,7 +3584,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_)
+	X(petra_kept_) X(petra_move_to_gatherer_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -3756,14 +3777,25 @@ private:
 	// crosses the first `reach` of that line, kept `radius` off, or holds the walker. Only then does
 	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
 	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
-	// Navcells a wood closes to long paths: 1 where trees and bushes leave no way across the cell
-	// (forest_cell_closed). rebuild_nav_grid marks them obstructed. Recomputed when the Gaia
-	// obstacles change (update_forest_cells), and the nav grid rebuilt when a cell opens or closes.
+	// Ships keep off floating treasures (template_gaia_treasure shipwrecks: Obstruction/Static,
+	// BlockMovement): when the first SHIP_WRECK_STEER_REACH of ship i's line from (x, z) to (ax, az)
+	// crosses one, grown by its hull, `out` is the nearer way round, a corner of that square.
+	static constexpr float SHIP_WRECK_STEER_REACH = 12.0f;
+	bool ship_wreck_steer(size_t i, float x, float z, float ax, float az, nav::Vec2 &out) const;
+	// Whether ship i's step from (x, z) to (nx, nz) enters a floating treasure's square grown by its
+	// hull (not the one it sails to at (ax, az)): move_units refuses it, and the ship slides along.
+	bool ship_step_into_wreck(size_t i, float x, float z, float nx, float nz, float ax, float az) const;
+	// Navcells a wood closes to long paths: FOREST_CLOSED where trees and bushes leave no way
+	// across the cell (forest_cell_closed), FOREST_CLOSED_LARGE where only the large class's
+	// clearance finds none. rebuild_nav_grid marks the first obstructed and the second
+	// NavGrid::large_closed. Recomputed when the Gaia obstacles change (update_forest_cells), and
+	// the nav grid rebuilt when a cell changes.
+	enum : uint8_t { FOREST_OPEN = 0, FOREST_CLOSED = 1, FOREST_CLOSED_LARGE = 2 };
 	std::vector<uint8_t> forest_cells_;
 	uint64_t forest_sig_ = 0;
 	bool forest_removals_only_ = false; // tick_gather felled trees from up-to-date forest_cells_
 	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
-	bool forest_cell_closed(int cx, int cy) const;
+	bool forest_cell_closed(int cx, int cy, float clr = CLEARANCE_DEFAULT) const;
 	bool update_forest_cells();
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
@@ -3790,6 +3822,11 @@ private:
 	// UnitAI orders (0 A.D. UnitAI.js orderQueue). The current order lives in the unit
 	// SoA; these are the Shift-queued ones after it, by unit id.
 	std::unordered_map<uint32_t, std::vector<UnitOrder>> order_queues_;
+	// UnitAI isGuardOf by unit id (save v92): the charge a unit took up guarding. Other orders
+	// keep it and the IDLE Timer goes back to guarding; remove-guard, a guard order for
+	// someone else or a charge that is gone or no longer an ally ends it.
+	std::unordered_map<uint32_t, uint32_t> guard_of_;
+	bool guard_charge_ok(size_t i, uint32_t charge) const;
 	bool applying_queued_ = false; // set while an order from a queue is applied: keep the rest
 	UnitOrder current_order(size_t i) const;
 	void set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z);
@@ -3810,6 +3847,8 @@ private:
 	void finish_order(size_t i, bool find_new_target = false);
 	void resume_order(size_t i);
 	bool guard_keeps_target(size_t i, size_t t) const;
+	// UnitAI IDLE Timer with isGuardOf: guard the charge again; false when there is none.
+	bool resume_guard(size_t i);
 	void guard_answer(size_t i, size_t g, uint32_t attacker);
 	void walk_to_held_position(size_t i);
 	void walk_back_if_drifted(size_t i);
