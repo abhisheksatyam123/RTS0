@@ -204,43 +204,11 @@ void RtsoMain::_ready() {
 	debug_overlay->set_visible(false); // shown with overlay.fps (refresh_user_options)
 	ui_layer->add_child(debug_overlay);
 
+	minimap_panel_.build_background(ui_layer, [](const String &path) { return rtso::load_ui_texture(path); });
 	minimap_view = memnew(RtsoMiniMapView);
 	minimap_view->connect("minimap_clicked", Callable(this, "_on_minimap_clicked"));
 	minimap_view->connect("minimap_order", Callable(this, "_on_minimap_order"));
 	ui_layer->add_child(minimap_view);
-
-	// Minimap layer toggles (methods were ClassDB-bound but had no UI driver).
-	// Row sits directly above the 190px minimap (see minimap ctor offsets).
-	{
-		HBoxContainer *mm_btns = memnew(HBoxContainer);
-		mm_btns->set_anchor(SIDE_LEFT, Control::ANCHOR_BEGIN);
-		mm_btns->set_anchor(SIDE_RIGHT, Control::ANCHOR_BEGIN);
-		mm_btns->set_anchor(SIDE_TOP, Control::ANCHOR_END);
-		mm_btns->set_anchor(SIDE_BOTTOM, Control::ANCHOR_END);
-		mm_btns->set_offset(SIDE_LEFT, 14.0f);
-		mm_btns->set_offset(SIDE_RIGHT, 204.0f);
-		mm_btns->set_offset(SIDE_TOP, -230.0f);
-		mm_btns->set_offset(SIDE_BOTTOM, -206.0f);
-		mm_btns->add_theme_constant_override("separation", 4);
-		struct MmBtn { const char *label; const char *method; };
-		const MmBtn mm_btn_defs[3] = {
-			// 3-state shroud cycle (RtsoMiniMapView::cycle_shroud, minimap_view.h ShroudMode):
-			// On -> terrain-only -> off -> On. 0AD MiniMapPanel.js:8-11 panel buttons.
-			{"Shroud", "cycle_shroud"},
-			{"Terr", "toggle_territory"},
-			{"Res", "toggle_resources"},
-		};
-		for (const MmBtn &d : mm_btn_defs) {
-			Button *b = memnew(Button);
-			b->set_text(d.label);
-			b->set_custom_minimum_size(Vector2(44, 22));
-			b->set_focus_mode(Control::FOCUS_NONE);
-			b->add_theme_font_size_override("font_size", 9);
-			b->connect("pressed", Callable(minimap_view, d.method));
-			mm_btns->add_child(b);
-		}
-		ui_layer->add_child(mm_btns);
-	}
 	minimap_panel_.build(ui_layer, this, [](const String &path) { return rtso::load_ui_texture(path); });
 
 	// =========================================================================

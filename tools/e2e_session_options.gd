@@ -146,6 +146,11 @@ func run() -> void:
 	var list := roster()
 	check(list != null, "the Civic Centre lists its trainable units")
 	if list:
+		# getTrainingStatus: a batch is added only while Shift is held.
+		check(not list.get_item_tooltip(0).contains("to train"), "no batch line without Shift")
+		await modifier(KEY_SHIFT, true)
+		await frames(2)
+		list = roster()
 		check(list.get_item_tooltip(0).contains("train 5."), "batch 5 to start: " + list.get_item_tooltip(0).get_slice("\n", list.get_item_tooltip(0).get_slice_count("\n") - 1))
 		cfg.set_value("gui.session.scrollbatchratio", "2")
 		await modifier(KEY_SHIFT, true)
@@ -155,10 +160,10 @@ func run() -> void:
 			mb.pressed = true
 			mb.shift_pressed = true
 			list.gui_input.emit(mb)
-		await modifier(KEY_SHIFT, false)
 		await frames(3)
 		list = roster()
 		check(list.get_item_tooltip(0).contains("train 7."), "three notches at ratio 2 make 6.5, trains 7: " + list.get_item_tooltip(0).get_slice("\n", list.get_item_tooltip(0).get_slice_count("\n") - 1))
+		await modifier(KEY_SHIFT, false)
 
 		print("4. Detailed tooltips")
 		cfg.set_value("showdetailedtooltips", "false")

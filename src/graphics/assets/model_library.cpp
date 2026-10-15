@@ -637,6 +637,21 @@ static void push_tangent(PackedFloat32Array &out, const Basis &b, const PackedFl
 	out.push_back(w);
 }
 
+// push_tangent() into out[0..3] (src: src_n floats), for arrays sized up front: a
+// Packed*Array push_back is a call into the engine per element.
+static void put_tangent(float *out, const Basis &b, const float *src, int64_t src_n, int v) {
+	Vector3 t(1, 0, 0);
+	float w = 1.0f;
+	if (v * 4 + 3 < src_n) {
+		t = b.xform(Vector3(src[v * 4], src[v * 4 + 1], src[v * 4 + 2])).normalized();
+		w = src[v * 4 + 3];
+	}
+	out[0] = t.x;
+	out[1] = t.y;
+	out[2] = t.z;
+	out[3] = w;
+}
+
 static void append_surface(SurfBucket &b, const Transform3D &xf, const Array &arrays) {
 	PackedVector3Array verts = arrays[Mesh::ARRAY_VERTEX];
 	if (verts.size() == 0) return;
@@ -744,17 +759,40 @@ static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 	SurfBucket all;
 	all.mat = buckets[0].mat;
 	const bool tan = tangents_wanted(all.mat);
-	for (SurfBucket &b : buckets) {
-		const int base = all.verts.size();
-		for (int i = 0; i < b.verts.size(); ++i) {
-			all.verts.push_back(b.verts[i]);
-			all.norms.push_back(i < b.norms.size() ? b.norms[i] : Vector3(0, 1, 0));
-			all.uvs.push_back(i < b.uvs.size() ? b.uvs[i] : Vector2());
-			all.colors.push_back(i < b.colors.size() ? b.colors[i] : Color(1, 1, 1, 1));
-			if (tan) push_tangent(all.tangents, Basis(), b.tangents, i);
+	int64_t nv = 0, ni = 0;
+	for (const SurfBucket &b : buckets) {
+		nv += b.verts.size();
+		ni += b.indices.size();
+	}
+	all.verts.resize(nv);
+	all.norms.resize(nv);
+	all.uvs.resize(nv);
+	all.colors.resize(nv);
+	all.indices.resize(ni);
+	if (tan) all.tangents.resize(nv * 4);
+	Vector3 *ov = all.verts.ptrw();
+	Vector3 *on = all.norms.ptrw();
+	Vector2 *ouv = all.uvs.ptrw();
+	Color *oc = all.colors.ptrw();
+	int32_t *oi = all.indices.ptrw();
+	float *ot = tan ? all.tangents.ptrw() : nullptr;
+	int64_t base = 0, k_out = 0;
+	for (const SurfBucket &b : buckets) {
+		const int64_t n = b.verts.size(), nn = b.norms.size(), nu = b.uvs.size(), nc = b.colors.size();
+		const Vector3 *bv = b.verts.ptr();
+		const Vector3 *bn = b.norms.ptr();
+		const Vector2 *bu = b.uvs.ptr();
+		const Color *bc = b.colors.ptr();
+		for (int64_t i = 0; i < n; ++i) {
+			ov[base + i] = bv[i];
+			on[base + i] = i < nn ? bn[i] : Vector3(0, 1, 0);
+			ouv[base + i] = i < nu ? bu[i] : Vector2();
+			oc[base + i] = i < nc ? bc[i] : Color(1, 1, 1, 1);
+			if (tan) put_tangent(ot + (base + i) * 4, Basis(), b.tangents.ptr(), b.tangents.size(), (int)i);
 		}
-		for (int k = 0; k < b.indices.size(); ++k)
-			all.indices.push_back(b.indices[k] + base);
+		const int32_t *bi = b.indices.ptr();
+		for (int64_t k = 0; k < b.indices.size(); ++k) oi[k_out++] = bi[k] + (int32_t)base;
+		base += n;
 	}
 	std::vector<SurfBucket> one;
 	one.push_back(std::move(all));
@@ -999,6 +1037,17 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 		const bool skinned = surf.rig_i >= 0 && surf.rig_i < (int)palettes.size() && !palettes[surf.rig_i].empty();
 		const Transform3D xf = skinned ? skin.rigs[surf.rig_i].xf : surf.rigid_xf;
 		const std::vector<Transform3D> *pal = skinned ? &palettes[surf.rig_i] : nullptr;
+		b.verts.resize(base + n);
+		b.norms.resize(base + n);
+		b.uvs.resize(base + n);
+		b.colors.resize(base + n);
+		const int64_t tbase = b.tangents.size();
+		if (want_t) b.tangents.resize(tbase + 4 * (int64_t)n);
+		Vector3 *ov = b.verts.ptrw() + base;
+		Vector3 *on = b.norms.ptrw() + base;
+		Vector2 *ouv = b.uvs.ptrw() + base;
+		Color *oc = b.colors.ptrw() + base;
+		float *ot = want_t ? b.tangents.ptrw() + tbase : nullptr;
 		for (int v = 0; v < n; ++v) {
 			Vector3 p = surf.rest_v[v];
 			Vector3 nrm = surf.rest_n[v];
@@ -1035,22 +1084,26 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 				nrm = sn;
 				tg = st;
 			}
-			b.verts.push_back(xf.xform(p));
-			b.norms.push_back(xf.basis.xform(nrm).normalized());
-			b.uvs.push_back(v < (int)surf.uv.size() ? surf.uv[v] : Vector2());
-			b.colors.push_back(v < (int)surf.col.size() ? surf.col[v] : Color(1, 1, 1, 1));
+			ov[v] = xf.xform(p);
+			on[v] = xf.basis.xform(nrm).normalized();
+			ouv[v] = v < (int)surf.uv.size() ? surf.uv[v] : Vector2();
+			oc[v] = v < (int)surf.col.size() ? surf.col[v] : Color(1, 1, 1, 1);
 			if (want_t) {
 				const Vector3 t = xf.basis.xform(tg).normalized();
-				b.tangents.push_back(t.x);
-				b.tangents.push_back(t.y);
-				b.tangents.push_back(t.z);
-				b.tangents.push_back(has_t ? surf.rest_t[v * 4 + 3] : 1.0f);
+				ot[v * 4] = t.x;
+				ot[v * 4 + 1] = t.y;
+				ot[v * 4 + 2] = t.z;
+				ot[v * 4 + 3] = has_t ? surf.rest_t[v * 4 + 3] : 1.0f;
 			}
 		}
+		const int64_t ibase = b.indices.size();
+		const int64_t nidx = surf.idx.empty() ? n : (int64_t)surf.idx.size();
+		b.indices.resize(ibase + nidx);
+		int32_t *oi = b.indices.ptrw() + ibase;
 		if (!surf.idx.empty()) {
-			for (int32_t ix : surf.idx) b.indices.push_back(ix + base);
+			for (int64_t k = 0; k < nidx; ++k) oi[k] = surf.idx[k] + base;
 		} else {
-			for (int v = 0; v < n; ++v) b.indices.push_back(base + v);
+			for (int v = 0; v < n; ++v) oi[v] = base + v;
 		}
 	}
 	if (buckets.empty()) return Ref<ArrayMesh>();

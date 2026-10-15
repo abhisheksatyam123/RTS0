@@ -119,6 +119,7 @@ const Default kDefaults[] = {
 	{"gui.session.disjointcontrolgroups", "true"},
 	{"showdetailedtooltips", "false"},
 	{"gui.gamesetup.enabletips", "true"},
+	{"gui.gamesetup.settingsslide", "true"},
 	{"gui.session.flarelifetime", "6"},
 	{"gui.session.camerajump.threshold", "40"},
 	{"gui.session.woundedunithotkeythreshold", "33"},

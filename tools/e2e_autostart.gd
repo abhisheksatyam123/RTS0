@@ -7,7 +7,8 @@ extends SceneTree
 #   4. -autostart-player=-1 watches: every seat is played, a Sandbox AI where
 #      none was named;
 #   5. an unknown map type or map is refused;
-#   6. the main menu started with the command line below goes straight to the match.
+#   6. the main menu started with the command line below goes straight to the match
+#      (without it the test supplies the same options).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_autostart.gd -- \
 #     -autostart=random/mainland -autostart-ai=2:petra -autostart-civ=2:brit -autostart-seed=7
@@ -88,6 +89,11 @@ func run() -> void:
 	d.free()
 	d = Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-nonvisual"])))
 	check(d != null and d.nonvisual and not d.host and not d.client and ms.net_mode == "", "nonvisual, offline")
+	# NonVisualTrigger.js: each player's statistics as JSON once the match is over.
+	var lines: Array = d.statistics_lines({"players": [{"id": 1, "name": "A", "civ_name": "Gauls", "stats": {"unitsTrained": 5}}]})
+	var parsed = JSON.parse_string(lines[0].trim_prefix("[Autostart] statistics ")) if lines.size() == 1 else null
+	check(parsed is Dictionary and int(parsed["playerID"]) == 1 and parsed["civ"] == "Gauls" and int(parsed["statistics"]["unitsTrained"]) == 5,
+		"a non-visual match prints each player's statistics: " + str(lines))
 	d.free()
 	check(Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-aiseed=12"]))) == null
 		and ms.ai_seed == 12, "-autostart-aiseed=12 seeds the AIs")
@@ -97,6 +103,10 @@ func run() -> void:
 		and ms.record_replay and ms.net_mode == "", "a plain autostart needs no driver")
 
 	print("6. Main menu")
+	# Run without the command line above, the test supplies it.
+	if not Autostart.parse(OS.get_cmdline_user_args()).has("autostart"):
+		Autostart.args_override = PackedStringArray(["-autostart=random/mainland", "-autostart-ai=2:petra",
+			"-autostart-civ=2:brit", "-autostart-seed=7"])
 	var menu = load("res://scenes/menu/main_menu.tscn").instantiate()
 	root.add_child(menu)
 	current_scene = menu

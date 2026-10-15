@@ -850,6 +850,7 @@ Dictionary RtsoMain::debug_minimap_panel() const {
 		d[names[i]] = e;
 	}
 	d["idle_count"] = minimap_panel_.idle_count_text();
+	d["civ_background"] = minimap_panel_.civ_background();
 	d["flare_armed"] = flare_armed_;
 	d["pings"] = minimap_view ? (int64_t)minimap_view->entity_ping_count() : (int64_t)0;
 	return d;

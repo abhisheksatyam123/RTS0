@@ -29,6 +29,16 @@ fauna actors: dust_cav), which 0 A.D. shows while the unit runs:
 
   "run": {"<unit GLB id>": ["<name>", ...]}
 
+"projectiles" lists the particles on the flaming stones the stone throwers fling
+(props/units/weapons/rock_flaming.xml, siege_artillery/stone_projectile_*_flaming.xml):
+
+  "projectiles": {"stone": ["<name>", ...]}
+
+"units" holds the particles a unit actor always props (the Theban fire-raiser's
+fire, the flaming pig's), placed like "structures" in the unit GLB's units:
+
+  "units": {"<unit GLB id>": {"metre": m, "fx": [{"p": "<name>", "pos": [x, y, z]}]}}
+
 `pos` is in the GLB's units (the GLB is centred on its actor's bounds and
 grounded, as tools/extract_foundations.py frames say) and `metre` is GLB units
 per 0 A.D. metre; the particle values are the files' metres and seconds. The
@@ -60,6 +70,9 @@ MANIFEST = os.path.join(REPO, "assets", "models", "manifest.json")
 OUT_JSON = os.path.join(REPO, "data", "ambient_fx.json")
 TEX_DIR = os.path.join(REPO, "assets", "textures", "particles")
 SKIP = {"construction_dust"}
+FLAMING_STONES = ("art/actors/props/units/weapons/rock_flaming.xml",
+                  "art/actors/props/units/siege_artillery/stone_projectile_med_flaming.xml",
+                  "art/actors/props/units/siege_artillery/stone_projectile_large_flaming.xml")
 MAX_DEPTH = 3
 BURIED = -5.0  # metres: a part lying wholly this far below ground is not in the GLB
 
@@ -113,12 +126,13 @@ def particle_def(vfs, name):
 
 
 def actor_particles(vfs, actor_path, cache, depth=0):
-    """Particle props under the actor, in its space: (name, x, y, z)."""
+    """Particle props under the actor, in its space: (name, x, y, z). A unit's
+    "projectile" prop is the actor of what it shoots, not drawn on it."""
     if depth > MAX_DEPTH:
         return []
     out, parts = [], None
     for ref, ap in picked_props(vfs, actor_path, cache):
-        if "/decals/" in ref:
+        if "/decals/" in ref or ap == "projectile":
             continue
         if ap == "root":
             at = (0.0, 0.0, 0.0)
@@ -198,6 +212,35 @@ def build(vfs, models):
                             "fx": [{"p": n, "pos": [round((x - cx) * r, 4), round((y - base) * r, 4), round((z - cz) * r, 4)]}
                                    for n, x, y, z in lst]}
             used.update(n for n, *_ in lst)
+    units = {}
+    for gid in sorted(models):
+        m = models[gid]
+        if not m.get("file", "").startswith("models/units/") or "size_meters" not in m:
+            continue
+        actors = [s[len("actor:"):] for s in m.get("sources", [])
+                  if s.startswith(("actor:art/actors/units/", "actor:art/actors/fauna/"))]
+        if not actors:
+            continue
+        # The unit's own actor, not one of its riders or crew.
+        actor = next((a for a in actors if os.path.splitext(os.path.basename(a))[0] in gid), None)
+        fx = actor_particles(vfs, actor, cache) if actor else []
+        if not fx:
+            actor = next((a for a in actors if actor_particles(vfs, a, cache)), None)
+            fx = actor_particles(vfs, actor, cache) if actor else []
+        if not fx:
+            continue
+        b = bounds(actor)
+        if not b:
+            continue
+        dim = (b[1] - b[0], b[3] - b[2], b[5] - b[4])
+        size = m["size_meters"]
+        r = sorted(size[i] / dim[i] for i in range(3) if dim[i] > 1e-6)
+        r = r[len(r) // 2]
+        cx, cz, base = (b[0] + b[1]) / 2, (b[4] + b[5]) / 2, ground(vfs, actor)
+        units[gid] = {"metre": round(r, 5),
+                      "fx": [{"p": n, "pos": [round((x - cx) * r, 4), round((y - base) * r, 4), round((z - cz) * r, 4)]}
+                             for n, x, y, z in fx]}
+        used.update(n for n, *_ in fx)
     run = {}
     for gid in sorted(models):
         m = models[gid]
@@ -212,7 +255,16 @@ def build(vfs, models):
         if names:
             run[gid] = names
             used.update(names)
-    return table, death, run, {n: particle_def(vfs, n) for n in sorted(used)}
+    # The flaming stones 0.28's stone throwers fling (the "projectile" prop of every one
+    # but the Han mangonel, whose rock.xml has none) carry their emitters on the root.
+    stone = []
+    for actor in FLAMING_STONES:
+        for n, *_ in actor_particles(vfs, actor, cache):
+            if n not in stone:
+                stone.append(n)
+    used.update(stone)
+    projectiles = {"stone": stone} if stone else {}
+    return table, death, run, projectiles, units, {n: particle_def(vfs, n) for n in sorted(used)}
 
 
 def copy_textures(zf, particles, check):
@@ -240,18 +292,18 @@ def main():
     with open(MANIFEST) as f:
         models = json.load(f)["models"]
     with zipfile.ZipFile(args.zip) as zf:
-        table, death, run, particles = build(Vfs(zf), models)
+        table, death, run, projectiles, units, particles = build(Vfs(zf), models)
         stale = copy_textures(zf, particles, args.check)
-    text = json.dumps({"particles": particles, "structures": table, "death": death, "run": run}, indent=1, sort_keys=True) + "\n"
+    text = json.dumps({"particles": particles, "structures": table, "death": death, "run": run, "projectiles": projectiles, "units": units}, indent=1, sort_keys=True) + "\n"
     if args.check:
         with open(OUT_JSON) as f:
             if f.read() != text or stale:
                 raise SystemExit("data/ambient_fx.json or its textures are stale: rerun tools/extract_ambient_fx.py")
-        print(f"{len(table)} building GLBs ({len(death)} with death dust), {len(run)} running unit GLBs, {len(particles)} particle files: up to date")
+        print(f"{len(table)} building GLBs ({len(death)} with death dust), {len(run)} running unit GLBs, {len(units)} unit GLBs with fire, {len(particles)} particle files: up to date")
         return
     with open(OUT_JSON, "w") as f:
         f.write(text)
-    print(f"{len(table)} building GLBs ({len(death)} with death dust), {len(run)} running unit GLBs, {len(particles)} particle files -> {os.path.relpath(OUT_JSON, REPO)}")
+    print(f"{len(table)} building GLBs ({len(death)} with death dust), {len(run)} running unit GLBs, {len(units)} unit GLBs with fire, {len(particles)} particle files -> {os.path.relpath(OUT_JSON, REPO)}")
 
 
 if __name__ == "__main__":
