@@ -1684,10 +1684,14 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 				sim.cmd_unload(pl, c.target_id, c.entity_ids.data(), c.entity_ids.size());
 			}
 		} else if (c.cmd_type == 14) { // Rally (entity_ids carry target ids, not units)
+			// entity_ids: resource, structure, then the unit or treasure and the RallyCommand.
 			uint32_t res = c.entity_ids.size() > 0 ? c.entity_ids[0] : 0;
 			uint32_t bld = c.entity_ids.size() > 1 ? c.entity_ids[1] : 0;
+			uint32_t ent = c.entity_ids.size() > 2 ? c.entity_ids[2] : 0;
+			uint32_t rcmd = c.entity_ids.size() > 3 ? c.entity_ids[3] : 0;
 			if ((c.param & ~NET_PARAM_QUEUED) == 1) sim.cmd_unset_rally_point(pl, c.target_id);
-			else sim.cmd_set_rally_point(pl, c.target_id, c.target_x, c.target_z, res, bld, queued);
+			else sim.cmd_set_rally_point(pl, c.target_id, c.target_x, c.target_z, res, bld, queued,
+					rcmd < RALLY_CMD_COUNT ? (uint8_t)rcmd : (uint8_t)RALLY_CMD_AUTO, ent);
 		} else if (c.cmd_type == 15) { // Attack building
 			sim.order_attack_building(ids, n, c.target_id, queued, capture); // right-click captures, Ctrl attacks
 		} else if (c.cmd_type == 16) { // Build / repair

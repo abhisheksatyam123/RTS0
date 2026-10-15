@@ -782,6 +782,20 @@ enum UnitStance : uint8_t {
 	STANCE_PASSIVE = 4      // never attack, flee when attacked (respondFlee)
 };
 
+// RallyPoint data.command (gui/session/unit_actions.js "set-rallypoint") where the target
+// alone doesn't say it; RALLY_CMD_AUTO picks gather, repair, garrison, attack or walk from
+// the target as before. Sent as lockstep command 14's fourth entity id.
+enum RallyCommand : uint8_t {
+	RALLY_CMD_AUTO = 0,
+	RALLY_CMD_ATTACK_WALK = 1,       // session.attackmove held
+	RALLY_CMD_ATTACK_WALK_UNITS = 2, // session.attackmoveUnit held: units only
+	RALLY_CMD_ATTACK = 3,            // an enemy unit (ent_id); attack-walk once it is gone
+	RALLY_CMD_TRADE = 4,             // a trader trades between the structure and bld_id
+	RALLY_CMD_TREASURE = 5,          // collect treasure ent_id, else the nearest near the spot
+	RALLY_CMD_TURRET = 6,            // occupy a turret point of bld_id
+	RALLY_CMD_COUNT
+};
+
 // The order a unit is carrying out (0 A.D. UnitAI order types). action_state says
 // what the unit is doing this tick; when an automatic fight or a flight ends the
 // unit goes back to this order, and when the order is done it takes the next one

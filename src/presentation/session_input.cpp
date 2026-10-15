@@ -758,20 +758,23 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// actions are checked before "set-rallypoint").
 			if (selected_building_id != 0 && selected_ids.is_empty()) {
 				if (try_focus_fire(click_pos)) return;
-				uint32_t target_res = 0, target_bld = 0;
-				rally_target_at(click_pos, target_res, target_bld);
-				if (auto_rally) target_bld = selected_building_id;
+				uint32_t target_res = 0, target_bld = 0, target_ent = 0;
+				uint8_t rally_cmd = rtso::RALLY_CMD_AUTO;
+				rally_target_at(click_pos, target_res, target_bld, &target_ent, &rally_cmd);
+				if (auto_rally) target_bld = selected_building_id, rally_cmd = rtso::RALLY_CMD_AUTO;
 				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
 				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				// unit_actions.js "set-rallypoint": every selected structure with a RallyPoint.
 				for (uint32_t sb : selected_structures()) {
 					if (sb != selected_building_id && !building_trains_units(sb)) continue;
+					// A trade route starts at each structure itself: only a market sets one up.
+					const uint8_t cmd_here = rally_cmd == rtso::RALLY_CMD_TRADE && sb != selected_building_id ? (uint8_t)rtso::RALLY_CMD_AUTO : rally_cmd;
 					if (turn_cmds()) {
-						uint32_t extra[2] = {target_res, auto_rally ? sb : target_bld};
-						post_lockstep(14, extra, 2, click_pos.x, click_pos.z, sb, rally_queued ? rtso::NET_PARAM_QUEUED : 0);
+						uint32_t extra[4] = {target_res, auto_rally ? sb : target_bld, target_ent, cmd_here};
+						post_lockstep(14, extra, 4, click_pos.x, click_pos.z, sb, rally_queued ? rtso::NET_PARAM_QUEUED : 0);
 					} else {
 						sim->cmd_set_rally_point(local_player(), sb, click_pos.x, click_pos.z, target_res, auto_rally ? sb : target_bld,
-								rally_queued);
+								rally_queued, cmd_here, target_ent);
 					}
 				}
 				play_civ_voice("select");

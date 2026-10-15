@@ -171,7 +171,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 96; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 97; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
 	static constexpr uint32_t SAVE_VERSION_PETRA_SUPPLY_ROOM = 94; // each Petra gatherer's supply; structures with no room, for 90 s; the AIs' own random stream
 	static constexpr uint32_t SAVE_VERSION_PETRA_STUCK = 93; // each Petra attack plan's position 5 turns ago (siege stuck check)
@@ -323,11 +324,17 @@ public:
 		// target, so a trained unit gathers near the spot once the target is gone
 		// (gather-near-position). 0xFF: no resource target.
 		uint8_t rally_res_type = 0xFF, rally_res_sub = 0xFF;
+		// RallyPoint data.command where the target alone doesn't say it (RallyCommand), and the
+		// unit or treasure it names (attack, collect-treasure).
+		uint8_t rally_cmd = 0;
+		uint32_t rally_target_ent_id = 0;
 		// Shift-added positions after the first (RallyPoint.AddPosition), in order.
 		struct RallyStep {
 			float x, z;
 			uint32_t res_id, bld_id;
 			uint8_t res_type, res_sub;
+			uint8_t cmd = 0;
+			uint32_t ent_id = 0;
 		};
 		std::vector<RallyStep> rally_more;
 
@@ -766,8 +773,10 @@ public:
 		return it == unit_queues_.end() ? nullptr : &it->second.orders;
 	}
 	// queued (Shift) adds a position after the ones already set (RallyPoint.AddPosition).
+	// cmd (RallyCommand) and ent_id: the commands a target alone doesn't give (attack-walk,
+	// attack a unit, trade, collect a treasure, occupy a turret).
 	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0,
-			bool queued = false);
+			bool queued = false, uint8_t cmd = 0, uint32_t ent_id = 0);
 	// 0 A.D. "unset-rallypoint": the structure forgets every rally position.
 	void cmd_unset_rally_point(uint8_t player, uint32_t building_id);
 
