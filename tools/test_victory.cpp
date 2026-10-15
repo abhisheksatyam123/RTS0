@@ -188,6 +188,28 @@ int main() {
 		}
 		CHECK(out && won);
 		delete sim;
+		// Regicide.js picks from every Hero template of the civ, those only maps place too
+		// (Han: Liu Bang, Han Xin, Wei Qing on foot as well as mounted).
+		{
+			bool map_only = false, trained = false;
+			for (uint32_t seed = 1; seed <= 40 && !(map_only && trained); ++seed) {
+				auto *hs = new Simulation();
+				hs->set_sim_seed(seed);
+				hs->set_team_civ(0, CIV_HAN);
+				hs->set_victory_condition(VICTORY_REGICIDE);
+				hs->set_waves_enabled(false);
+				hs->spawn_initial();
+				run(*hs, 0.05f);
+				const int32_t u = hs->lookup_unit(hs->regicide_hero(0));
+				if (u >= 0) {
+					const uint16_t t = hs->units_.tmpl[u];
+					CHECK(t < CIV_UNIT_TEMPLATE_COUNT && civ_unit_template(t).civ == CIV_HAN && (civ_unit_template(t).flags & ROSTER_HERO));
+					if (t < CIV_UNIT_TEMPLATE_COUNT) (civ_unit_template(t).flags & ROSTER_MAP_ONLY ? map_only : trained) = true;
+				}
+				delete hs;
+			}
+			CHECK(map_only && trained);
+		}
 		sim = fresh(VICTORY_REGICIDE);
 		run(*sim, 0.05f);
 		(void)sim->take_session_notices();
