@@ -1928,36 +1928,46 @@ void RtsoMain::select_group(int key, bool drop) {
 
 // The garrison panel's holder: the selected structure, or a lone selected ship, ram or
 // siege tower.
-uint32_t RtsoMain::selected_garrison_holder() const {
-	if (selected_building_id != 0) return selected_building_id;
-	if (sim && selected_ids.size() == 1 && sim->is_transport((uint32_t)selected_ids[0])) return (uint32_t)selected_ids[0];
-	return 0;
+// unloadTemplate's garrisonHolders: the selected structures and units that hold units.
+std::vector<uint32_t> RtsoMain::selected_garrison_holders() const {
+	std::vector<uint32_t> out;
+	if (!sim) return out;
+	for (uint32_t id : selected_structures())
+		if (!sim->holder_contents(id).empty()) out.push_back(id);
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t id = (uint32_t)selected_ids[s];
+		if (sim->is_transport(id) && !sim->holder_contents(id).empty()) out.push_back(id);
+	}
+	return out;
 }
 
-// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): unload
-// one unit of the group (template and owner), or all of them with session.unloadtype (Shift).
+bool RtsoMain::ui_garrison_panel_shown() const { return !selected_garrison_holders().empty(); }
+
+// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): every selected
+// holder (Commands.js "unload-template" -> GarrisonHolder.UnloadTemplate) unloads one unit of the
+// group (template and owner), or all of them with session.unloadtype (Shift).
 void RtsoMain::_on_garrison_group_clicked(int key) {
-	const uint32_t holder = selected_garrison_holder();
-	if (!sim || holder == 0) return;
-	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
-	if (mine.empty()) return;
+	if (!sim) return;
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
-	std::vector<uint32_t> out;
-	for (uint32_t gid : mine) {
-		for (size_t i = 0; i < uview.count; ++i) {
-			if (uview.id[i] != gid) continue;
-			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-			if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
-			break;
+	for (uint32_t holder : selected_garrison_holders()) {
+		const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
+		std::vector<uint32_t> out;
+		for (uint32_t gid : mine) {
+			for (size_t i = 0; i < uview.count; ++i) {
+				if (uview.id[i] != gid) continue;
+				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
+				break;
+			}
+			if (!all && !out.empty()) break;
 		}
-		if (!all && !out.empty()) break;
+		if (out.empty()) continue;
+		if (turn_cmds())
+			post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
+		else
+			sim->cmd_unload(local_player(), holder, out.data(), out.size());
 	}
-	if (out.empty()) return;
-	if (turn_cmds())
-		post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
-	else
-		sim->cmd_unload(local_player(), holder, out.data(), out.size());
 }
 
 void RtsoMain::update_command_panel() { command_panel_.update(); }

@@ -67,6 +67,8 @@ public:
 	// (`holder` among them).
 	virtual int ui_trainer_count(uint16_t tmpl, uint32_t holder) const { return 1; }
 	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
+	// The Garrison panel shows (a selected holder has units inside): it wins over Formation.
+	virtual bool ui_garrison_panel_shown() const { return false; }
 	// g_IsObserver: an observer, a defeated player or a replay viewer.
 	virtual bool ui_observing() const { return false; }
 };
@@ -799,7 +801,8 @@ public:
 					for (uint8_t f = 1; f < rtso::FORMATION_COUNT && !any_can_form; ++f)
 						any_can_form = sim->unit_can_use_formation(sel_ids[i], f);
 				}
-				const uint32_t available = any_can_form ? sim->player_formation_mask(local_player()) : 0u;
+				// g_SelectionPanels.Formation conflictsWith Garrison.
+				const uint32_t available = any_can_form && !host_->ui_garrison_panel_shown() ? sim->player_formation_mask(local_player()) : 0u;
 				const uint8_t default_f = default_formation();
 				for (uint8_t f = 0; f < rtso::FORMATION_COUNT; ++f) {
 					if (!((available >> f) & 1u)) continue;

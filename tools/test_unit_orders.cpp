@@ -2172,6 +2172,8 @@ static void test_hero_global_auras() {
 	check(near1(s.tech_mods(0).bld_tech_cost[BLD_BARRACKS][RES_FOOD], 0.9f) && near1(s.tech_mods(0).bld_research_time[BLD_BARRACKS], 0.5f),
 			"Pericles, garrisoned: technologies -10% cost, research time halved");
 	check(near1(s.tech_mods(0).bld_cost[BLD_WALL_SEGMENT][RES_STONE], 0.5f), "Themistocles: walls half the stone");
+	check(near1(s.tech_mods(0).bld_cost[BLD_PALISADE][RES_WOOD], 0.5f) && near1(s.tech_mods(0).bld_build_time[BLD_PALISADE], 0.8f),
+			"and palisades half the wood, built 20% faster (affects Wall or Palisade)");
 	check(s.aura_mgr_.has(AURA_SPEED), "his own ships' speed aura stays a range effect");
 	// A dead hero's auras end with him.
 	s.units_.hp[idx_of(s, ind)] = 0.0f;
