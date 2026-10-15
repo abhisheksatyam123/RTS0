@@ -57,6 +57,8 @@
 
 using namespace godot;
 
+static float drawn_water_height(const rtso::Simulation *sim);
+
 // 0 A.D. 0.28 template_unit*.xml StatusBars, in metres: BarWidth, BarHeight, HeightOffset.
 static rtso::StatusBarsSize unit_status_bars(uint8_t type, uint16_t tmpl) {
 	rtso::TechClasses c = rtso::unit_tech_classes(type);
@@ -986,7 +988,7 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	if (!border_mi_) {
 		Ref<Shader> sh;
 		sh.instantiate();
-		// Player-coloured stripe on the outer edge fading inward; darkened by LOS
+		// A player-coloured line (0 A.D. territory_border.png is not in RTS0's assets); darkened by LOS
 		// and hidden in unexplored land like 0 A.D.'s textured overlay lines.
 		sh->set_code(
 				"shader_type spatial;\n"
@@ -996,9 +998,9 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 				"varying vec3 wpos;\n"
 				"void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }\n"
 				"void fragment() {\n"
-				"  float v = UV.y;\n"
-				"  float core = smoothstep(0.0, 0.10, v) * (1.0 - smoothstep(0.28, 0.40, v));\n"
-				"  float glow = (1.0 - smoothstep(0.28, 1.0, v)) * 0.40;\n"
+				// Across the line (UV.y 0..1, centred on the path): solid with soft edges.
+				"  float d = abs(UV.y - 0.5) * 2.0;\n"
+				"  float core = 1.0 - smoothstep(0.6, 1.0, d);\n"
 				"  float dash = 0.8 + 0.2 * step(0.5, fract(UV.x));\n"
 				"  float los = 1.0;\n"
 				"  if (los_map_half > 0.0) los = texture(los_tex, (wpos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r;\n"
@@ -1006,7 +1008,7 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 				// CCmpTerritoryManager::Interpolate: a region cut off from its owner's
 				// civic centres (COLOR.a 0) blinks, alpha * (0.2 + 0.8 |cos(t pi)|).
 				"  float blink = mix(0.2 + 0.8 * abs(cos(TIME * PI)), 1.0, COLOR.a);\n"
-				"  ALPHA = max(core, glow) * smoothstep(0.02, 0.25, los) * blink;\n"
+				"  ALPHA = core * smoothstep(0.02, 0.25, los) * blink;\n"
 				"}\n");
 		border_mat_.instantiate();
 		border_mat_->set_shader(sh);
@@ -1019,8 +1021,12 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 
 	// RTS0 maps are a quarter of 0 A.D.'s scale (Tiny: 128 m against 512 m).
 	const float kScale = 0.25f;
-	const float thickness = 3.5f * kScale;  // BorderThickness
-	const float separation = 0.5f * kScale; // BorderSeparation
+	// mods/mod/simulation/data/territorymanager.xml.
+	const float thickness = 0.75f * kScale;  // BorderThickness
+	const float separation = 0.85f * kScale; // BorderSeparation
+	// CTexturedLineRData: points on water float on its surface.
+	const float water = sim->water_height() > -0.5f ? drawn_water_height(sim) : -1e9f;
+	auto line_y = [&](float x, float z) { return std::max(sim->get_terrain_height(x, z), water) + 0.12f; };
 	const float cell = (border_half_ * 2.0f) / (float)grid.w;
 
 	PackedVector3Array verts;
@@ -1057,15 +1063,17 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 			float tx = pn.x - pp.x, tz = pn.y - pp.y;
 			const float tl = Math::sqrt(tx * tx + tz * tz);
 			if (tl > 1e-5f) { tx /= tl; tz /= tl; }
+			// CTexturedLineRData: the line is centred on the path, `thickness` to each side.
 			// Owner's land is on the left of the walk: (-t.z, t.x) points inward.
+			const float ox = wx + tz * thickness, oz = wz - tx * thickness;
 			const float ix = wx - tz * thickness, iz = wz + tx * thickness;
 			if (k > 0) {
 				const rtso::BoundaryPoint &q = b.points[(k - 1) % n];
 				const float dx = (p.x - q.x) * cell, dz = (p.y - q.y) * cell;
 				run += Math::sqrt(dx * dx + dz * dz);
 			}
-			verts.push_back(Vector3(wx, sim->get_terrain_height(wx, wz) + 0.12f, wz));
-			verts.push_back(Vector3(ix, sim->get_terrain_height(ix, iz) + 0.12f, iz));
+			verts.push_back(Vector3(ox, line_y(ox, oz), oz));
+			verts.push_back(Vector3(ix, line_y(ix, iz), iz));
 			uvs.push_back(Vector2(run / 1.5f, 0.0f));
 			uvs.push_back(Vector2(run / 1.5f, 1.0f));
 			cols.push_back(col);
