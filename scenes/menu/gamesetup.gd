@@ -12,10 +12,12 @@ extends Control
 ## - Petra only drives team 1, RMS spawns team-per-spawn-index -> slots > 4
 ##   still spawn (base+units) but have no AI economy; teams beyond 2 share
 ##   teams 0/1 via diplomacy defaults. Slot cap is 8 like 0 A.D.
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
 const MapBrowser = preload("res://scenes/menu/map_browser.gd")
 const L10n = preload("res://scenes/menu/l10n.gd")
+const TAB_BUTTONS_JS := preload("res://scenes/common/tab_buttons.gd")
 const MAP_BROWSER_HOTKEY := "gamesetup.mapbrowser.open"
 # Loaded at run time: game_description.gd preloads this page.
 var GameDescription = load("res://scenes/session/game_description.gd")
@@ -333,6 +335,12 @@ var _hotkeys := RtsoHotkeyConfig.new()
 var _rebuilding_slots := false
 
 func _ready() -> void:
+	# 0.28's modern skin over the stone theme's panels and popups.
+	var skin: Theme = theme.duplicate() if theme else Theme.new()
+	skin.merge_with(MODERN.theme())
+	theme = skin
+	for b in TAB_BUTTONS:
+		get_node("%" + b).theme_type_variation = "ModernTabButtonHorizontal"
 	_build_description()
 	_load_maps()
 	_build_map_type()
@@ -358,9 +366,17 @@ const TAB_BUTTONS := ["TabMap", "TabPlayer", "TabGameType"]
 var _tab := -1
 
 func _build_tabs() -> void:
+	var keys: Dictionary = _hotkeys.get_hotkey_map()
 	for i in TAB_BUTTONS.size():
 		var b: Button = get_node("%" + TAB_BUTTONS[i])
 		b.pressed.connect(func(): select_tab(-1 if _tab == i else i))
+		# tab_buttons.js placeTabButtons: the toggle line, then the scroll lines.
+		b.tooltip_text = TAB_BUTTONS_JS.tooltip(b.tooltip_text, false, keys)
+		b.gui_input.connect(func(ev: InputEvent):
+			var d: int = TAB_BUTTONS_JS.wheel(ev)
+			if d != 0:
+				select_tab(TAB_BUTTONS_JS.next_index(_tab, d, TAB_BUTTONS.size()))
+				b.accept_event())
 	select_tab(-1 if _mp_role == "client" else 0)
 
 func select_tab(i: int) -> void:
@@ -640,6 +656,11 @@ func _build_map_filter() -> void:
 static func available_filters(maps: Array, map_type: String) -> Array:
 	return MAP_FILTERS.filter(func(flt): return maps.any(func(m): return m["type"] == map_type and matches_class_list(m["keywords"], flt[3])))
 
+## A text field has the keys (the chat input's Tab completes names).
+func _focus_is_text() -> bool:
+	var f := get_viewport().gui_get_focus_owner()
+	return f is LineEdit or f is TextEdit
+
 ## MapFilters.getFilteredMaps: the maps of the type the filter matches, by name,
 ## after the Random entry for random maps.
 static func filtered_maps(maps: Array, map_type: String, filter_name: String) -> Array:
@@ -754,6 +775,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif "cancel" in fired and _tab >= 0:
 		get_viewport().set_input_as_handled()
 		select_tab(-1)
+	elif ("tab.next" in fired or "tab.prev" in fired) and not _focus_is_text():
+		get_viewport().set_input_as_handled()
+		select_tab(TAB_BUTTONS_JS.next_index(_tab, 1 if "tab.next" in fired else -1, TAB_BUTTONS.size()))
 
 ## MapFilters.getFilteredMaps: the maps of the type the filter matches, by
 ## name, after the Random entry for random maps; keeps the selected map if listed.

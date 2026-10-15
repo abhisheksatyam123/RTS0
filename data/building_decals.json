@@ -3404,6 +3404,116 @@
     "tex": "decal_destruct_large"
    }
   ],
+  "rubble_3x3": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0538,
+     -0.121
+    ],
+    "size": [
+     4.6204,
+     4.6204
+    ],
+    "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_brit_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0973,
+     -0.0124
+    ],
+    "size": [
+     9.2399,
+     9.2399
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_celt_dock": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0351,
+     0.0546
+    ],
+    "size": [
+     7.979,
+     3.1496
+    ],
+    "tex": "decal_destruct_long_big"
+   }
+  ],
+  "rubble_gaul_civic_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0983,
+     0.2042
+    ],
+    "size": [
+     4.6201,
+     4.6201
+    ],
+    "tex": "decal_destruct_medium"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0983,
+     0.2042
+    ],
+    "size": [
+     7.9802,
+     7.9802
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_hele_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1147
+    ],
+    "size": [
+     9.2401,
+     9.2401
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_iber_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0428,
+     0.1317
+    ],
+    "size": [
+     9.2395,
+     9.2395
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_kart_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1147
+    ],
+    "size": [
+     9.2399,
+     9.2399
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
   "rubble_large": [
    {
     "angle": 0.0,
@@ -3414,6 +3524,90 @@
     "size": [
      8.6636,
      8.6636
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_maur_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1147
+    ],
+    "size": [
+     9.2399,
+     9.2399
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_pers_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1148
+    ],
+    "size": [
+     9.2407,
+     9.2407
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_pers_dock": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1373,
+     0.3913
+    ],
+    "size": [
+     4.6202,
+     4.6202
+    ],
+    "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_rome_camp_palisade": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.1151,
+     -0.1277
+    ],
+    "size": [
+     9.2404,
+     9.2404
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_rome_cc": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0341,
+     0.0564
+    ],
+    "size": [
+     9.2395,
+     9.2395
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_rome_dock": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.1659,
+     -0.5366
+    ],
+    "size": [
+     9.2402,
+     9.2402
     ],
     "tex": "decal_destruct_large"
    }
@@ -3430,6 +3624,146 @@
      2.6826
     ],
     "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_stone_2x2": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0266,
+     0.0055
+    ],
+    "size": [
+     3.1498,
+     3.1498
+    ],
+    "tex": "decal_destruct_small"
+   }
+  ],
+  "rubble_stone_3x3": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0717,
+     -0.0286
+    ],
+    "size": [
+     4.6201,
+     4.6201
+    ],
+    "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_stone_4x2": [
+   {
+    "angle": 180.0,
+    "pos": [
+     0.0,
+     -0.0213
+    ],
+    "size": [
+     5.8802,
+     3.5701
+    ],
+    "tex": "decal_destruct_llong"
+   }
+  ],
+  "rubble_stone_4x4": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0303,
+     0.0934
+    ],
+    "size": [
+     6.2999,
+     6.2999
+    ],
+    "tex": "decal_destruct_medium"
+   }
+  ],
+  "rubble_stone_4x6": [
+   {
+    "angle": 90.0,
+    "pos": [
+     -0.0352,
+     0.0
+    ],
+    "size": [
+     8.3998,
+     5.4599
+    ],
+    "tex": "decal_destruct_llong"
+   }
+  ],
+  "rubble_stone_5x5": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0376,
+     0.1157
+    ],
+    "size": [
+     7.9801,
+     7.9801
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_stone_6x4": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0054,
+     0.1662
+    ],
+    "size": [
+     8.6095,
+     -6.7196
+    ],
+    "tex": "decal_destruct_long_big"
+   }
+  ],
+  "rubble_stone_6x6": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0373,
+     0.1147
+    ],
+    "size": [
+     9.2399,
+     9.2399
+    ],
+    "tex": "decal_destruct_large"
+   }
+  ],
+  "rubble_stone_wall_long": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0022,
+     0.0476
+    ],
+    "size": [
+     7.9804,
+     2.3101
+    ],
+    "tex": "decal_destruct_long_big"
+   }
+  ],
+  "rubble_stone_wall_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0266,
+     0.0055
+    ],
+    "size": [
+     3.1498,
+     3.1498
+    ],
+    "tex": "decal_destruct_small"
    }
   ],
   "s_britons_blacksmith": [

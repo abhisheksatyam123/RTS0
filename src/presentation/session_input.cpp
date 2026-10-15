@@ -76,7 +76,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				{"rts0.build.barracks", rtso::BLD_BARRACKS}, {"rts0.build.storehouse", rtso::BLD_STOREHOUSE},
 				{"rts0.build.defensetower", rtso::BLD_TOWER}, {"rts0.build.farmstead", rtso::BLD_FARMSTEAD},
 				{"rts0.build.market", rtso::BLD_MARKET}, {"rts0.build.fortress", rtso::BLD_FORTRESS},
-				{"rts0.build.gate", rtso::BLD_GATE}, {"rts0.build.temple", rtso::BLD_TEMPLE},
+				{"rts0.build.temple", rtso::BLD_TEMPLE},
 				{"rts0.build.wonder", rtso::BLD_WONDER}, {"rts0.build.dock", rtso::BLD_DOCK},
 				{"rts0.build.wall", rtso::BLD_WALL_SEGMENT}, {"rts0.build.corral", rtso::BLD_CORRAL},
 			};
@@ -241,6 +241,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (cam_rig) cam_rig->toggle_birds_eye();
 			return;
 		}
+		static const char *kSpeedKinds[3] = { "scroll", "rotate", "zoom" };
+		for (int s = 0; s < 3; ++s)
+			for (int inc = 0; inc < 2; ++inc)
+				if (fired((std::string("camera.") + kSpeedKinds[s] + (inc ? ".speed.increase" : ".speed.decrease")).c_str())) {
+					if (cam_rig) cam_rig->change_speed(s, inc != 0);
+					return;
+				}
 		if (fired("camera.follow")) { // setCameraFollow: a unit is followed, a structure looked at
 			const uint32_t first = !selected_ids.is_empty() ? (uint32_t)selected_ids[0] : selected_building_id;
 			if (cam_rig) cam_rig->set_follow_id(0);
@@ -354,28 +361,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("timeelapsedcounter.toggle")) { toggle_overlay("gui.session.timeelapsedcounter"); return; }
 		if (fired("ceasefirecounter.toggle")) { toggle_overlay("gui.session.ceasefirecounter"); return; }
 
-		if (fired("fps.toggle")) {
-			if (debug_overlay) debug_overlay->set_visible(!debug_overlay->is_visible());
-			return;
-		}
-
-		if (fired("screenshot")) {
-			Viewport *vp = get_viewport();
-			if (vp) {
-				Ref<ViewportTexture> tex = vp->get_texture();
-				if (tex.is_valid()) {
-					Ref<Image> img = tex->get_image();
-					if (img.is_valid()) {
-						DirAccess::make_dir_recursive_absolute("user://screenshots");
-						const String path = "user://screenshots/screenshot" +
-								String::num_int64((int64_t)Time::get_singleton()->get_unix_time_from_system()) + ".png";
-						img->save_png(path);
-						print_line("[RTS0] Saved screenshot to " + path);
-					}
-				}
-			}
-			return;
-		}
+		// fps.toggle, realtime.toggle, screenshot and bigscreenshot are global
+		// (scenes/menu/user_settings.gd), as in 0.28.
 	}
 
 	Ref<InputEventMouseButton> mb = event;

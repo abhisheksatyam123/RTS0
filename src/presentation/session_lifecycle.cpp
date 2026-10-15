@@ -34,7 +34,6 @@
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/viewport_texture.hpp>
 #include <godot_cpp/classes/image.hpp>
-#include <godot_cpp/classes/cylinder_mesh.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
 #include "../core/diagnostics/logger.h"
@@ -197,7 +196,7 @@ void RtsoMain::_ready() {
 	ui_layer->add_child(sel_rect);
 
 	debug_overlay = memnew(RtsoDebugOverlay);
-	debug_overlay->set_visible(false); // fps.toggle (Alt+F) shows it, as 0 A.D.'s FPS counter
+	debug_overlay->set_visible(false); // shown with overlay.fps (refresh_user_options)
 	ui_layer->add_child(debug_overlay);
 
 	minimap_view = memnew(RtsoMiniMapView);
@@ -833,21 +832,8 @@ void RtsoMain::_ready() {
 	add_child(ghost_mesh);
 	update_ghost_mesh();
 
-	// 3D Rally Flag Marker
-	rally_flag = memnew(MeshInstance3D);
-	Ref<CylinderMesh> flag_c;
-	flag_c.instantiate();
-	flag_c->set_top_radius(0.08f);
-	flag_c->set_bottom_radius(0.08f);
-	flag_c->set_height(1.6f);
-	rally_flag->set_mesh(flag_c);
-	Ref<StandardMaterial3D> flag_mat;
-	flag_mat.instantiate();
-	flag_mat->set_albedo(Color(0.2f, 0.8f, 1.0f));
-	rally_flag->set_material_override(flag_mat);
-	rally_flag->set_visible(false);
-	add_child(rally_flag);
 	range_overlays_.build(this);
+	rally_points_.build(this);
 	debug_overlays_.build(this);
 
 	// (Unit selection now happens in apply_match_settings, after the map
@@ -1445,10 +1431,16 @@ void RtsoMain::_process(double delta) {
 		}
 	}
 
-	// Update 3D Rally Point Marker
-	rtso::update_rally_marker(rally_flag, sim, selected_building_id, local_player());
+	// GuiInterface.DisplayRallyPoint: the rally points of the whole selection.
+	rally_points_.update(sim, local_player(), sim->cinema_playing() || spectating() ? std::vector<uint32_t>() : selected_structures(),
+			player_flare_color(local_player()));
 	range_overlays_.tick((float)delta);
-	range_overlays_.update(sim, local_player(), selected_building_id, selected_ids.ptr(), selected_ids.size());
+	{
+		std::vector<uint32_t> ranged = selected_structures();
+		for (int i = 0; i < selected_ids.size(); ++i) ranged.push_back((uint32_t)selected_ids[i]);
+		for (int i = 0; i < highlight_ids_.size(); ++i) ranged.push_back((uint32_t)highlight_ids_[i]);
+		range_overlays_.update(sim, spectating() ? (uint8_t)0xFF : local_player(), ranged); // observers: everyone's
+	}
 	debug_overlays_.update(sim, view);
 
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {

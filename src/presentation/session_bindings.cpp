@@ -113,6 +113,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_placement_tip"), &RtsoMain::debug_placement_tip);
 	ClassDB::bind_method(D_METHOD("debug_cursor_tip"), &RtsoMain::debug_cursor_tip);
 	ClassDB::bind_method(D_METHOD("debug_ui_clicks"), &RtsoMain::debug_ui_clicks);
+	ClassDB::bind_method(D_METHOD("debug_overlay_visible"), &RtsoMain::debug_overlay_visible);
 	ClassDB::bind_method(D_METHOD("debug_voices"), &RtsoMain::debug_voices);
 	ClassDB::bind_method(D_METHOD("menu_button_rect"), &RtsoMain::menu_button_rect);
 	ClassDB::bind_method(D_METHOD("chat_open_hotkey_tooltip"), &RtsoMain::chat_open_hotkey_tooltip);
@@ -184,6 +185,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_placing"), &RtsoMain::debug_placing);
 	ClassDB::bind_method(D_METHOD("debug_highlight"), &RtsoMain::debug_highlight);
 	ClassDB::bind_method(D_METHOD("debug_selected_structures"), &RtsoMain::debug_selected_structures);
+	ClassDB::bind_method(D_METHOD("debug_rally_flags"), &RtsoMain::debug_rally_flags);
+	ClassDB::bind_method(D_METHOD("debug_status_sprites"), &RtsoMain::debug_status_sprites);
 	ClassDB::bind_method(D_METHOD("debug_building_queue", "id"), &RtsoMain::debug_building_queue);
 	ClassDB::bind_method(D_METHOD("debug_structure_outlined", "id"), &RtsoMain::debug_structure_outlined);
 	ClassDB::bind_method(D_METHOD("debug_guard_target", "unit_id"), &RtsoMain::debug_guard_target);

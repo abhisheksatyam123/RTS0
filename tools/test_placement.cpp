@@ -39,6 +39,7 @@ static void fresh(Simulation &s) {
 		s.set_player_resources(p, 5000, 5000, 5000, 5000);
 		s.players_[p].phase = 3;
 	}
+	s.set_explore_map(true); // the seated players test placement rules, not the shroud
 }
 
 // The cell a building of `type` centred on (x, z) is placed at.

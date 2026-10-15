@@ -15954,6 +15954,78 @@
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
+  "brit_hero_boudicca_cavalry_javelineer": {
+   "animated": true,
+   "animations": [
+    "Attack",
+    "Slaughter",
+    "Idle",
+    "Death",
+    "GatherMeat",
+    "Run",
+    "Walk",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 49,
+   "file": "models/units/brit_hero_boudicca_cavalry_javelineer.glb",
+   "origin": "ground-center",
+   "parts": 18,
+   "size_meters": [
+    0.646,
+    1.9,
+    2.405
+   ],
+   "skeleton": "horse",
+   "sources": [
+    "actor:art/actors/props/horse/cav_blanket_celt.xml",
+    "actor:art/actors/props/horse/cav_rein_leather.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/units/capes/rider/cape_long_boudicca.xml",
+    "actor:art/actors/props/units/heads/new/head_celt_boudicca.xml",
+    "actor:art/actors/props/units/shields/brit_battersea.xml",
+    "actor:art/actors/props/units/shields/brit_battersea_b.xml",
+    "actor:art/actors/props/units/weapons/blades/jav_blade.xml",
+    "actor:art/actors/props/units/weapons/gladius.xml",
+    "actor:art/actors/props/units/weapons/jav.xml",
+    "actor:art/actors/props/units/weapons/jav_ammo.xml",
+    "actor:art/actors/props/units/weapons/sheath_celt_iron.xml",
+    "actor:art/actors/units/britons/hero_cavalry_javelinist_boudicca_m.xml",
+    "actor:art/actors/units/britons/hero_cavalry_javelinist_boudicca_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
+    "mesh:props/horse/blanket_short.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:props/horse/rein_01.dae",
+    "mesh:props/jav_blade.dae",
+    "mesh:props/new/capes/f_cape_long.dae",
+    "mesh:props/new/head_boudicca.dae",
+    "mesh:props/shield/brit_battersea.dae",
+    "mesh:props/shield/brit_battersea_b.dae",
+    "mesh:props/weap_javelin_shaft_a.dae",
+    "mesh:props/weap_javelin_shaft_quiver.dae",
+    "mesh:props/weapons/gladius_03.dae",
+    "mesh:props/weapons/sheath_celt_a.dae",
+    "mesh:skeletal/horse_celtic.dae",
+    "mesh:skeletal/new/f_armor_dress.dae",
+    "skin:props/cape_celt_boudicca.dds",
+    "skin:props/head/celt_fem_boudicca_1.dds",
+    "skin:props/horse/blanket_celt.png",
+    "skin:props/horse/hair_brown.png",
+    "skin:props/horse/head_straps.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/sheaths/celt_scabbard_iron.png",
+    "skin:props/shield/brit_battersea.png",
+    "skin:props/shield/celt_oval1_back.dds",
+    "skin:skeletal/brit/dress_female_boudicca_02.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
   "brit_hero_caratacos": {
    "animated": true,
    "animations": [
@@ -16087,6 +16159,79 @@
     "skin:skeletal/horse_brown.png"
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "brit_hero_cunobelin_infantry": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death",
+    "Heal",
+    "Carry",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/brit_hero_cunobelin_infantry.glb",
+   "origin": "ground-center",
+   "parts": 11,
+   "size_meters": [
+    0.905,
+    1.85,
+    1.122
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/capes/cape_long_player.xml",
+    "actor:art/actors/props/units/heads/celt_hood_priest.xml",
+    "actor:art/actors/props/units/heads/new/head_celt.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_oval_a_03.xml",
+    "actor:art/actors/props/units/shields/props/brit_shield_boss_03.xml",
+    "actor:art/actors/props/units/shields/props/brit_shield_boss_03_b.xml",
+    "actor:art/actors/props/units/shields/props/celt_manipula.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_a_b.xml",
+    "actor:art/actors/props/units/weapons/csword.xml",
+    "actor:art/actors/props/units/weapons/sheath_celt_iron_e.xml",
+    "actor:art/actors/units/britons/hero_infantry_swordsman_cunobelin.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/swordsman/idle_ready_shield_02.dae",
+    "mesh:props/helmet/celt_hood.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/head_longhair.dae",
+    "mesh:props/shield/oval_01.dae",
+    "mesh:props/shield/oval_01_b.dae",
+    "mesh:props/shield/props/celt_boss_03.dae",
+    "mesh:props/shield/props/celt_boss_03_b.dae",
+    "mesh:props/shield/props/celt_manipula_a.dae",
+    "mesh:props/weap_csword_a.dae",
+    "mesh:props/weapons/sheath_celt_a.dae",
+    "mesh:skeletal/new/m_armor_pants_tunic_long.dae",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/celt_a.dds",
+    "skin:props/helmet/old/celt_hood_1.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/sheaths/celt_scabbard_iron.png",
+    "skin:props/shield/celt_shield_01.png",
+    "skin:props/shield/celt_shield_boss_03.png",
+    "skin:props/shield/celt_shield_boss_04.png",
+    "skin:props/shield/oval_01_border.png",
+    "skin:props/shield/shield_props_01.png",
+    "skin:skeletal/celt/druid_02.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "brit_house": {
    "file": "models/buildings/brit_house.glb",
@@ -18753,6 +18898,58 @@
     "skin:skeletal/iber/linothorax_02_01.png"
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "cart_champion_pikeman": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/cart_champion_pikeman.glb",
+   "origin": "ground-center",
+   "parts": 6,
+   "size_meters": [
+    0.799,
+    1.8,
+    3.275
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_02_white_l.xml",
+    "actor:art/actors/props/units/armor/greave_02_white_r.xml",
+    "actor:art/actors/props/units/heads/new/head_pers_a.xml",
+    "actor:art/actors/props/units/helmets/cart_helmet_a.xml",
+    "actor:art/actors/props/units/shields/pelte_cart_c.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_03.xml",
+    "actor:art/actors/props/units/shields/props/pelte_back_bronze_01.xml",
+    "actor:art/actors/props/units/weapons/sarissa.xml",
+    "actor:art/actors/units/carthaginians/infantry_pikeman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/pikeman/idle_relax_04.dae",
+    "mesh:props/helmet/cart_helmet_a.dae",
+    "mesh:props/new/head_beard_large.dae",
+    "mesh:props/sarissa_a.dae",
+    "mesh:props/shield/pelte_01_back.dae",
+    "mesh:props/shield/pelte_01_front.dae",
+    "mesh:skeletal/new/m_armor_tunic_long.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "skin:props/head/pers_face_a.png",
+    "skin:props/helmet/cart_helmet_01_bronze.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/aspis_back_bronze.png",
+    "skin:props/shield/aspis_cart_22.png",
+    "skin:skeletal/cart/scale_01_02.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "cart_corral": {
    "file": "models/buildings/cart_corral.glb",
@@ -33126,6 +33323,70 @@
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
   },
+  "han_cavalry_crossbowman_b": {
+   "animated": true,
+   "animations": [
+    "Slaughter",
+    "Idle",
+    "Attack",
+    "Death",
+    "GatherMeat",
+    "Run",
+    "Walk"
+   ],
+   "bones": 49,
+   "file": "models/units/han_cavalry_crossbowman_b.glb",
+   "origin": "ground-center",
+   "parts": 19,
+   "size_meters": [
+    0.625,
+    1.9,
+    2.417
+   ],
+   "skeleton": "horse",
+   "sources": [
+    "actor:art/actors/props/horse/cav_blanket_kush.xml",
+    "actor:art/actors/props/horse/cav_rein_leather.xml",
+    "actor:art/actors/props/horse/chest_colorband_01.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/units/heads/head_china.xml",
+    "actor:art/actors/props/units/helmets/han_cap.xml",
+    "actor:art/actors/props/units/quivers/han_bolt_quiver.xml",
+    "actor:art/actors/props/units/weapons/arrow_back.xml",
+    "actor:art/actors/props/units/weapons/arrow_front.xml",
+    "actor:art/actors/props/units/weapons/crossbow/han_nu.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
+    "actor:art/actors/units/han/cavalry_crossbowman_b_m.xml",
+    "actor:art/actors/units/han/cavalry_crossbowman_b_r.xml",
+    "mesh:props/helmet/han_cap.dae",
+    "mesh:props/horse/blanket_kush.dae",
+    "mesh:props/horse/chest_colorband_01.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:props/horse/rein_01.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/quivers/han_crossbow_quiver.dae",
+    "mesh:props/weap_arrow_back.dae",
+    "mesh:props/weap_arrow_front.dae",
+    "mesh:props/weapons/crossbow/weap_han_nu.dae",
+    "mesh:props/weapons/dagger_01.dae",
+    "mesh:skeletal/horse_barb.dae",
+    "mesh:skeletal/new/m_tunic_long.dae",
+    "skin:props/head/han_b.png",
+    "skin:props/head/han_cap_a.png",
+    "skin:props/horse/blanket_fur_02.png",
+    "skin:props/horse/hair_brown.png",
+    "skin:props/horse/head_straps.png",
+    "skin:props/horse/peytral_bronze.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/quivers/han_quiver.png",
+    "skin:skeletal/han/tunic_01_01.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/rome_ballista.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
   "han_cavalry_spearman": {
    "animated": true,
    "animations": [
@@ -34196,6 +34457,61 @@
     "skin:props/head/han_old_b.png",
     "skin:skeletal/han/robes_healer_01.png",
     "skin:structural/celt_struct_1.dds"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "han_hero": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death",
+    "Heal",
+    "Carry",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather"
+   ],
+   "bones": 46,
+   "file": "models/units/han_hero.glb",
+   "origin": "ground-center",
+   "parts": 8,
+   "size_meters": [
+    1.004,
+    1.85,
+    2.961
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/capes/cape_long_player.xml",
+    "actor:art/actors/props/units/heads/head_han_xin.xml",
+    "actor:art/actors/props/units/helmets/han_hairbun.xml",
+    "actor:art/actors/props/units/shields/han_shield_03.xml",
+    "actor:art/actors/props/units/weapons/spear/han_halb.xml",
+    "actor:art/actors/props/units/weapons/sword/han_sword_han_xin.xml",
+    "actor:art/actors/units/han/hero_infantry_han_xin.xml",
+    "mesh:props/helmet/han_hairbun.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/han_02.dae",
+    "mesh:props/weapons/spear/weap_han_halb.dae",
+    "mesh:props/weapons/sword/weap_han_sword_han_xin.dae",
+    "mesh:skeletal/new/m_armor_pants_tunic_long.dae",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/han_b.png",
+    "skin:props/head/han_xin.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/han_02.dds",
+    "skin:props/weapon/prop_swords_han.png",
+    "skin:skeletal/han/uniform_e_05.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
@@ -37926,6 +38242,76 @@
     "skin:skeletal/iber/hero_indibil_linothorax_01_01.png"
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "iber_hero_indibil_infantry": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/iber_hero_indibil_infantry.glb",
+   "origin": "ground-center",
+   "parts": 14,
+   "size_meters": [
+    0.805,
+    1.85,
+    2.028
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_04_bronze_l.xml",
+    "actor:art/actors/props/units/armor/greave_04_bronze_r.xml",
+    "actor:art/actors/props/units/heads/new/head_iber_su1.xml",
+    "actor:art/actors/props/units/helmets/hele_chalcidean_a6.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_hispano_chalcidean_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_hispano_chalcidean_ornament_b1.xml",
+    "actor:art/actors/props/units/shields/iber_shield_spear_oval_c_02.xml",
+    "actor:art/actors/props/units/shields/props/celt_manipula.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_a_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_c_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_a_03.xml",
+    "actor:art/actors/props/units/weapons/blades/spear_blade.xml",
+    "actor:art/actors/props/units/weapons/spear.xml",
+    "actor:art/actors/units/iberians/hero_infantry_spearman_indibil.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/spearman/idle_relax_shield_04.dae",
+    "mesh:props/helmet/hele_chalcidean_f1.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "mesh:props/helmet/props/hele_hispano_chalcidean_mask_a.dae",
+    "mesh:props/helmet/props/hele_hispano_chalcidean_ornament_a.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/oval_03.dae",
+    "mesh:props/shield/oval_03_b.dae",
+    "mesh:props/shield/props/boss_a_1.dae",
+    "mesh:props/shield/props/celt_manipula_a.dae",
+    "mesh:props/shield/props/spina_a.dae",
+    "mesh:props/spear_blade_a.dae",
+    "mesh:props/weap_shaft_wood_a.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "skin:props/head/iber_adv_a.dds",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_chalcidean_06_bronze.png",
+    "skin:props/helmet/hispano_chalcidean_ornament_01_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/iber_shield_01.png",
+    "skin:props/shield/oval_03_border.png",
+    "skin:props/shield/shield_props_01.png",
+    "skin:skeletal/iber/hero_indibil_linothorax_01_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "iber_house": {
    "file": "models/buildings/iber_house.glb",
@@ -44832,6 +45218,82 @@
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
   },
+  "mace_hero_craterus": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death",
+    "Heal",
+    "Carry",
+    "Slaughter",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/mace_hero_craterus.glb",
+   "origin": "ground-center",
+   "parts": 11,
+   "size_meters": [
+    0.813,
+    1.85,
+    1.026
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_02_bronze_l.xml",
+    "actor:art/actors/props/units/armor/greave_02_bronze_r.xml",
+    "actor:art/actors/props/units/capes/cape_long_player.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_a.xml",
+    "actor:art/actors/props/units/helmets/hele_thracian_s2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_phrygian_mask_silver.xml",
+    "actor:art/actors/props/units/shields/aspis_mace_h_02.xml",
+    "actor:art/actors/props/units/shields/props/aspis_back_silver_red_01.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_silver_02.xml",
+    "actor:art/actors/props/units/weapons/falcata.xml",
+    "actor:art/actors/props/units/weapons/sheath_falcata_e.xml",
+    "actor:art/actors/units/macedonians/hero_infantry_swordsman_craterus.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/swordsman/idle_ready_shieldarm_02.dae",
+    "mesh:props/helmet/hele_thracian_b.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "mesh:props/helmet/props/hele_thracian_romanized_mask_b.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/head_beard_small.dae",
+    "mesh:props/shield/aspis_01_back.dae",
+    "mesh:props/shield/aspis_01_front.dae",
+    "mesh:props/weap_falcata_a.dae",
+    "mesh:props/weapons/sheath_falcata.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/hele_c.dds",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_thracian_02_silver.png",
+    "skin:props/helmet/hele_thracian_romanized_02_silver_01.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/sheaths/falcata_red.png",
+    "skin:props/shield/aspis_mace_h_02_silver.png",
+    "skin:props/shield/aspis_silver_back_red.png",
+    "skin:skeletal/mace/compound_linothorax_02_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "mace_hero_demetrius_i": {
    "animated": true,
    "animations": [
@@ -44949,6 +45411,120 @@
     "skin:props/prop_weap.dds",
     "skin:skeletal/horse_white.png",
     "skin:skeletal/mace/cuirass_vergina_01_05.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "mace_hero_philip_ii_pike": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Build",
+    "Death",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/mace_hero_philip_ii_pike.glb",
+   "origin": "ground-center",
+   "parts": 9,
+   "size_meters": [
+    0.815,
+    1.85,
+    3.339
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_02_silver_l.xml",
+    "actor:art/actors/props/units/armor/greave_02_silver_r.xml",
+    "actor:art/actors/props/units/heads/new/head_philip.xml",
+    "actor:art/actors/props/units/helmets/hele_phrygian_s7.xml",
+    "actor:art/actors/props/units/helmets/props/hele_phrygian_mask_scale_silver.xml",
+    "actor:art/actors/props/units/shields/pelte_mace_e.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_03.xml",
+    "actor:art/actors/props/units/shields/props/pelte_back_bronze_01.xml",
+    "actor:art/actors/props/units/tools/mallet.xml",
+    "actor:art/actors/props/units/weapons/sarissa.xml",
+    "actor:art/actors/units/macedonians/hero_infantry_pikeman_philip.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/pikeman/idle_relax_04.dae",
+    "mesh:props/helmet/hele_phrygian_g.dae",
+    "mesh:props/helmet/props/hele_phrygian_mask_e.dae",
+    "mesh:props/new/head_philip.dae",
+    "mesh:props/prop_mallet.dae",
+    "mesh:props/sarissa_a.dae",
+    "mesh:props/shield/pelte_01_back.dae",
+    "mesh:props/shield/pelte_01_front.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "skin:props/head/philip.dds",
+    "skin:props/helmet/hele_phrygian_07_silver.png",
+    "skin:props/helmet/hele_phrygian_mask_05_silver.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/aspis_back_bronze.png",
+    "skin:props/shield/aspis_mace_01_bronze_player.png",
+    "skin:skeletal/mace/cuirass_vergina_01_05.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "mace_hero_pyrrhus_i": {
+   "animated": true,
+   "animations": [
+    "Slaughter",
+    "Attack",
+    "Idle",
+    "Death",
+    "GatherMeat",
+    "Run",
+    "Walk",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 49,
+   "file": "models/units/mace_hero_pyrrhus_i.glb",
+   "origin": "ground-center",
+   "parts": 9,
+   "size_meters": [
+    0.685,
+    1.9,
+    2.398
+   ],
+   "skeleton": "horse",
+   "sources": [
+    "actor:art/actors/props/horse/cav_blanket_mace_hero.xml",
+    "actor:art/actors/props/horse/cav_rein_leather.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/helmets/pyrrhus_helmet.xml",
+    "actor:art/actors/props/units/weapons/spear_lance_cavalry_reverse.xml",
+    "actor:art/actors/units/macedonians/hero_cavalry_spearman_pyrrhus_m.xml",
+    "actor:art/actors/units/macedonians/hero_cavalry_spearman_pyrrhus_r.xml",
+    "anim:biped/rider/cavalry/generic/death_02.dae",
+    "anim:biped/rider/cavalry/spearman/idle_relax_shoulder_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
+    "mesh:props/helmet/hero_pyrrhus.dae",
+    "mesh:props/horse/blanket_mace.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:props/horse/rein_01.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/spear_lance_cavalry_reverse.dae",
+    "mesh:skeletal/horse_tessalian.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "skin:props/head/hele_a.dds",
+    "skin:props/helmet/hero_pyrrhus.png",
+    "skin:props/horse/blanket_mace_01.png",
+    "skin:props/horse/hair_brown.png",
+    "skin:props/horse/head_straps.png",
+    "skin:props/prop_weap.dds",
+    "skin:skeletal/epir/linothorax_scale_pyrrhus.png",
+    "skin:skeletal/horse_bay_02.png"
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
   },
@@ -51233,6 +51809,22 @@
    ],
    "upstream_material": "rock_norm_spec_ao.xml"
   },
+  "noldor_warship": {
+   "file": "models/units/noldor_warship.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.354,
+    4.724,
+    7.0
+   ],
+   "sources": [
+    "actor:art/actors/structures/elven_bireme.xml",
+    "mesh:structural/elven_transport.dae",
+    "skin:structural/elven_ship.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "oak": {
    "file": "models/vegetation/oak.glb",
    "origin": "ground-center",
@@ -53372,6 +53964,87 @@
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
+  "pers_hero_xerxes_i_chariot": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death",
+    "Attack"
+   ],
+   "bones": 15,
+   "file": "models/units/pers_hero_xerxes_i_chariot.glb",
+   "origin": "ground-center",
+   "parts": 34,
+   "size_meters": [
+    2.502,
+    1.494,
+    2.8
+   ],
+   "skeleton": "chariot",
+   "sources": [
+    "actor:art/actors/props/horse/cav_blanket_back_pers.xml",
+    "actor:art/actors/props/horse/cav_peytral_pers_bronze.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/units/heads/new/head_pers_a.xml",
+    "actor:art/actors/props/units/heads/new/head_pers_xerxes.xml",
+    "actor:art/actors/props/units/heads/pers_hair_xerxes.xml",
+    "actor:art/actors/props/units/helmets/pers_crown.xml",
+    "actor:art/actors/props/units/helmets/pers_kidaris_loose_yellow.xml",
+    "actor:art/actors/props/units/pers_chariot_hero_emblem.xml",
+    "actor:art/actors/props/units/pers_quiver_xerxes.xml",
+    "actor:art/actors/props/units/shields/pers_pelta_e_back_reverse.xml",
+    "actor:art/actors/props/units/shields/pers_pelta_e_reverse.xml",
+    "actor:art/actors/props/units/weapons/arrow_back.xml",
+    "actor:art/actors/props/units/weapons/bow_recurve.xml",
+    "actor:art/actors/units/persians/chariot_archer_e_h1.xml",
+    "actor:art/actors/units/persians/chariot_archer_e_h2.xml",
+    "actor:art/actors/units/persians/chariot_archer_e_h3.xml",
+    "actor:art/actors/units/persians/chariot_archer_e_h4.xml",
+    "actor:art/actors/units/persians/hero_chariot_archer_xerxes_d.xml",
+    "actor:art/actors/units/persians/hero_chariot_archer_xerxes_m.xml",
+    "actor:art/actors/units/persians/hero_chariot_archer_xerxes_r.xml",
+    "mesh:props/helmet/old/pers_crown.dae",
+    "mesh:props/helmet/pers_hair.dae",
+    "mesh:props/helmet/pers_kidaris_loose.dae",
+    "mesh:props/horse/blanket_full_back.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:props/horse/peytral_02.dae",
+    "mesh:props/new/head_beard_large.dae",
+    "mesh:props/new/head_beard_wide.dae",
+    "mesh:props/pers_chariot_hero_emblem.dae",
+    "mesh:props/pers_quiver_back.dae",
+    "mesh:props/shield/pelta_pers_back_b_b.dae",
+    "mesh:props/shield/pelta_pers_back_b_f.dae",
+    "mesh:props/weap_arrow_back.dae",
+    "mesh:props/weapons/bow_recurve_pers.dae",
+    "mesh:skeletal/horse_persian.dae",
+    "mesh:skeletal/new/m_dress_sleeves.dae",
+    "mesh:skeletal/new/m_pants_tunic_long.dae",
+    "mesh:structural/pers_chariot_e.dae",
+    "skin:props/head/pers_face_a.png",
+    "skin:props/head/xerxes.png",
+    "skin:props/helmet/old/pers_crown.png",
+    "skin:props/helmet/pers_kidaris_3.png",
+    "skin:props/horse/back_blanket.png",
+    "skin:props/horse/hair_brown.png",
+    "skin:props/horse/peytral_pers_01_bronze.png",
+    "skin:props/pers_symbol.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/quiver_xerxes.png",
+    "skin:props/shield/hele_pelta_i.dds",
+    "skin:props/shield/pers_pelta_c.dds",
+    "skin:props/spart_sail_a.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:skeletal/pers/robes_royal_01.png",
+    "skin:skeletal/pers/tunic_basic_03_02.png",
+    "skin:structural/pers_chariot_xerxes.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "pers_house": {
    "file": "models/buildings/pers_house.glb",
    "origin": "ground-center",
@@ -54032,6 +54705,119 @@
     "skin:props/shield/pers_rect_a.dds",
     "skin:props/shield/pers_rect_f.dds",
     "skin:skeletal/pers/scale_02_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "pers_kardakes_hoplite": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/pers_kardakes_hoplite.glb",
+   "origin": "ground-center",
+   "parts": 6,
+   "size_meters": [
+    0.87,
+    1.8,
+    2.458
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_pers_a.xml",
+    "actor:art/actors/props/units/helmets/pers_kidaris_loose_all.xml",
+    "actor:art/actors/props/units/shields/aspis_pers_kardakes.xml",
+    "actor:art/actors/props/units/shields/props/aspis_back_bronze_purple_01.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_01.xml",
+    "actor:art/actors/props/units/weapons/spear_hoplite.xml",
+    "actor:art/actors/units/persians/infantry_spearman_c3.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/hoplite/idle_relax_04.dae",
+    "mesh:props/helmet/pers_kidaris_loose.dae",
+    "mesh:props/new/head_beard_large.dae",
+    "mesh:props/shield/aspis_01_back.dae",
+    "mesh:props/shield/aspis_01_front.dae",
+    "mesh:props/spear_hoplite.dae",
+    "mesh:skeletal/new/m_armor_pants_tunic_short.dae",
+    "skin:props/head/pers_face_a.png",
+    "skin:props/helmet/pers_kidaris_1.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/aspis_bronze_back_purple.png",
+    "skin:props/shield/aspis_pers_kardakes_01.png",
+    "skin:skeletal/pers/scale_kardakes_01_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "pers_kardakes_skirmisher": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death",
+    "Carry",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather",
+    "Capture",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/pers_kardakes_skirmisher.glb",
+   "origin": "ground-center",
+   "parts": 14,
+   "size_meters": [
+    0.82,
+    1.8,
+    1.315
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/capes/cape_long_player_skirmisher.xml",
+    "actor:art/actors/props/units/heads/new/head_pers_elite.xml",
+    "actor:art/actors/props/units/helmets/pers_kidaris_loose_yellow.xml",
+    "actor:art/actors/props/units/shields/pers_taka_e.xml",
+    "actor:art/actors/props/units/shields/taka_a_back.xml",
+    "actor:art/actors/props/units/weapons/blades/jav_blade.xml",
+    "actor:art/actors/props/units/weapons/jav.xml",
+    "actor:art/actors/props/units/weapons/jav_ammo.xml",
+    "actor:art/actors/props/units/weapons/jav_loaded.xml",
+    "actor:art/actors/units/persians/infantry_javelinist_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "mesh:props/helmet/pers_kidaris_loose.dae",
+    "mesh:props/jav_blade.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/head_beard.dae",
+    "mesh:props/shield/taka_back.dae",
+    "mesh:props/shield/taka_front.dae",
+    "mesh:props/weap_javelin_shaft_a.dae",
+    "mesh:props/weap_javelin_shaft_loaded_a.dae",
+    "mesh:props/weap_javelin_shaft_quiver.dae",
+    "mesh:skeletal/new/m_pants_tunic_short.dae",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/xerxes.png",
+    "skin:props/helmet/pers_kidaris_3.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/hele_pelta_i.dds",
+    "skin:props/shield/pers_pelta_b.dds",
+    "skin:skeletal/pers/scale_kardakes_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
@@ -54732,6 +55518,104 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml",
    "variant_of": "pine"
+  },
+  "pirates_ship_arrow": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 41,
+   "file": "models/units/pirates_ship_arrow.glb",
+   "origin": "ground-center",
+   "parts": 253,
+   "size_meters": [
+    2.189,
+    3.134,
+    7.0
+   ],
+   "skeleton": "ship_sail",
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_down_left.xml",
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_down_right.xml",
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_left.xml",
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_right.xml",
+    "actor:art/actors/props/structures/pirates/trireme_fore_sail.xml",
+    "actor:art/actors/props/structures/pirates/trireme_main_sail.xml",
+    "actor:art/actors/props/units/shields/kart_leather_large_e.xml",
+    "actor:art/actors/props/units/shields/round_noboss_back_wicker.xml",
+    "actor:art/actors/structures/pirates/trireme.xml",
+    "mesh:props/kart_trireme_fore_sail.dae",
+    "mesh:props/kart_trireme_main_sail.dae",
+    "mesh:props/shield/round_noboss_b.dae",
+    "mesh:props/shield/round_noboss_f.dae",
+    "mesh:props/ship_oar_b.dae",
+    "mesh:structural/kart_ship_trireme.dae",
+    "skin:props/sail_pirate_trident_01.png",
+    "skin:props/shield/hele_oval_a.dds",
+    "skin:props/shield/kart_leather_a.dds",
+    "skin:structural/ao/kart_trireme.png",
+    "skin:structural/hele_trireme.png",
+    "skin:structural/kart_trireme.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "pirates_ship_merchant": {
+   "file": "models/units/pirates_ship_merchant.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    3.126,
+    3.896,
+    5.5
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/merchantship_cargo.xml",
+    "actor:art/actors/props/structures/hellenes/merchantship_shield.xml",
+    "actor:art/actors/props/structures/pirates/merchantship_sail_black.xml",
+    "actor:art/actors/structures/pirates/merchant.xml",
+    "mesh:props/kyrenia_cargo.dae",
+    "mesh:props/kyrenia_sail.dae",
+    "mesh:props/kyrenia_shield.dae",
+    "mesh:structural/hele_kyrenia.dae",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_props_b.dds",
+    "skin:props/sail_stripes_1_black.png",
+    "skin:structural/kyrenia.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "pirates_ship_scout": {
+   "animated": true,
+   "animations": [],
+   "bones": 41,
+   "clips_from": "trireme",
+   "file": "models/units/pirates_ship_scout.glb",
+   "origin": "ground-center",
+   "parts": 51,
+   "size_meters": [
+    2.75,
+    2.93,
+    7.0
+   ],
+   "skeleton": "ship_sail",
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_middle_left.xml",
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_middle_right.xml",
+    "actor:art/actors/props/structures/pirates/bireme_main_sail.xml",
+    "actor:art/actors/structures/pirates/bireme.xml",
+    "mesh:props/pers_bireme_sail.dae",
+    "mesh:props/ship_oar_b.dae",
+    "mesh:structural/pers_ship_bireme.dae",
+    "skin:props/sail_pirate_trident_01.png",
+    "skin:structural/ao/pers_bireme.png",
+    "skin:structural/hele_trireme.png",
+    "skin:structural/pers_bireme.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
   "poplar": {
    "file": "models/vegetation/poplar.glb",
@@ -60607,6 +61491,85 @@
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
   },
+  "rome_hero_marcellus_infantry": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death",
+    "Heal",
+    "Carry",
+    "Slaughter",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/rome_hero_marcellus_infantry.glb",
+   "origin": "ground-center",
+   "parts": 13,
+   "size_meters": [
+    0.783,
+    1.85,
+    0.837
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_02_silver_l.xml",
+    "actor:art/actors/props/units/armor/greave_02_silver_r.xml",
+    "actor:art/actors/props/units/capes/cape_long_player.xml",
+    "actor:art/actors/props/units/heads/new/head_rome_hero_maximus.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_03.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/props/rome_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/rome_apulo_itallic_e1_hero.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_back_01.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_boss_01_iron.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_handgrip_01.xml",
+    "actor:art/actors/props/units/shields/scutum_rome_isp_10.xml",
+    "actor:art/actors/props/units/weapons/gladius.xml",
+    "actor:art/actors/props/units/weapons/sheath_gladius_e.xml",
+    "actor:art/actors/units/romans/hero_infantry_swordsman_marcellus.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/swordsman/idle_relax_shield_celt_04.dae",
+    "mesh:props/helmet/props/hele_crest_d.dae",
+    "mesh:props/helmet/props/hele_crest_hair_g.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_apulo_a.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/props/scutum_01_b.dae",
+    "mesh:props/shield/props/scutum_boss_a.dae",
+    "mesh:props/shield/scutum_01_f.dae",
+    "mesh:props/weapons/gladius_03.dae",
+    "mesh:props/weapons/sheath_gladius_01.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/rome_veteran.dds",
+    "skin:props/helmet/crest_05_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_apulo_itallic_01_bronze.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/sheaths/gladius_red.png",
+    "skin:props/shield/scutum_a_wooden_back_01.png",
+    "skin:props/shield/scutum_rome_21.png",
+    "skin:props/shield/scutum_rome_boss_01_iron.png",
+    "skin:skeletal/sele/cuirass_06.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "rome_hero_maximus": {
    "animated": true,
    "animations": [],
@@ -60679,6 +61642,88 @@
     "skin:skeletal/rome/cuirass_hero_03.dds"
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "rome_hero_maximus_infantry": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death",
+    "Heal",
+    "Carry",
+    "Slaughter",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/rome_hero_maximus_infantry.glb",
+   "origin": "ground-center",
+   "parts": 15,
+   "size_meters": [
+    0.778,
+    1.85,
+    0.928
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_13_bronze_l.xml",
+    "actor:art/actors/props/units/armor/greave_13_bronze_r.xml",
+    "actor:art/actors/props/units/capes/cape_long_player.xml",
+    "actor:art/actors/props/units/heads/new/rome_head_hero_scipio.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_03.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/props/rome_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/rome_apulo_corinthian_e1_hero.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_back_01.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_boss_02_iron.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_handgrip_01.xml",
+    "actor:art/actors/props/units/shields/scutum_rome_isw_10.xml",
+    "actor:art/actors/props/units/weapons/sheath_gladius_e.xml",
+    "actor:art/actors/props/units/weapons/xiphos.xml",
+    "actor:art/actors/units/romans/hero_infantry_swordsman_maximus.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/swordsman/idle_relax_shield_celt_04.dae",
+    "mesh:props/armor/greave_13_l.dae",
+    "mesh:props/armor/greave_13_r.dae",
+    "mesh:props/helmet/props/hele_crest_d.dae",
+    "mesh:props/helmet/props/hele_crest_hair_g.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_apulo_b.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/props/scutum_01_b.dae",
+    "mesh:props/shield/props/scutum_boss_b.dae",
+    "mesh:props/shield/scutum_01_f.dae",
+    "mesh:props/weap_xiphos_a.dae",
+    "mesh:props/weapons/sheath_gladius_01.dae",
+    "mesh:skeletal/new/m_armor_tunic_long.dae",
+    "skin:props/armor/greaves_13_bronze.png",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/rome_hero_scipio.dds",
+    "skin:props/helmet/crest_05_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_apulo_corinthian_01_bronze.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/sheaths/gladius_red.png",
+    "skin:props/shield/scutum_a_wooden_back_01.png",
+    "skin:props/shield/scutum_rome_11.png",
+    "skin:props/shield/scutum_rome_boss_01_iron.png",
+    "skin:skeletal/rome/cuirass_hero_03.dds"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "rome_hero_scipio": {
    "animated": true,
@@ -61466,6 +62511,77 @@
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
+  "rome_infantry_swordsman_slave": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Carry",
+    "Slaughter",
+    "Death",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/rome_infantry_swordsman_slave.glb",
+   "origin": "ground-center",
+   "parts": 16,
+   "size_meters": [
+    1.067,
+    1.8,
+    1.367
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_06_bronze_l.xml",
+    "actor:art/actors/props/units/heads/head_kush_meroitic.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_back_01.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_handgrip_01.xml",
+    "actor:art/actors/props/units/shields/scutum_rome_03.xml",
+    "actor:art/actors/props/units/tools/axe.xml",
+    "actor:art/actors/props/units/tools/hoe.xml",
+    "actor:art/actors/props/units/tools/mallet.xml",
+    "actor:art/actors/props/units/tools/pick.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
+    "actor:art/actors/props/units/weapons/gladius.xml",
+    "actor:art/actors/props/units/weapons/sheath_gladius_e.xml",
+    "actor:art/actors/units/romans/infantry_swordsman_servus.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/swordsman/idle_relax_shield_04.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/prop_mallet.dae",
+    "mesh:props/shield/props/scutum_01_b.dae",
+    "mesh:props/shield/scutum_01_f.dae",
+    "mesh:props/tool_axe.dae",
+    "mesh:props/tool_hoe.dae",
+    "mesh:props/tool_pick.dae",
+    "mesh:props/weapons/dagger_01.dae",
+    "mesh:props/weapons/gladius_03.dae",
+    "mesh:props/weapons/sheath_gladius_01.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/african_meroitic_a.png",
+    "skin:props/head/hele_a.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/sheaths/gladius_red.png",
+    "skin:props/shield/scutum_a_wooden_back_01.png",
+    "skin:props/shield/scutum_rome_03.png",
+    "skin:skeletal/rome/cardiopylax_servus_01_african.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "rome_market": {
    "file": "models/buildings/rome_market.glb",
    "origin": "ground-center",
@@ -62235,6 +63351,239 @@
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
+  "rubble_3x3": {
+   "file": "models/buildings/rubble_3x3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.716,
+    1.693,
+    4.221
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_3x3.xml",
+    "mesh:props/rubble_wood_3x3.dae",
+    "skin:props/wood_burned.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "rubble_brit_cc": {
+   "file": "models/buildings/rubble_brit_cc.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    6.342,
+    2.907,
+    6.645
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_brit_cc.xml",
+    "actor:art/actors/structures/destruct_celt_pieces.xml",
+    "mesh:props/celt_cc_pieces.dae",
+    "mesh:props/celt_cc_rubble.dae",
+    "skin:props/ao/celt_cc_rubble.png",
+    "skin:props/rubble_stone.png",
+    "skin:structural/destroyed/brit_struct_1.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_celt_dock": {
+   "file": "models/buildings/rubble_celt_dock.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    3.369,
+    2.362,
+    5.683
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrels_floating.xml",
+    "actor:art/actors/structures/destruct_celt_dock_rubble.xml",
+    "actor:art/actors/structures/destruct_celt_dock_struct.xml",
+    "mesh:props/celt_dock_rubble.dae",
+    "mesh:props/celt_dock_rubble_struct.dae",
+    "mesh:props/special/floating_barrels.dae",
+    "skin:props/ao/celt_dock_rubble_ao.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/rubble_stone.png",
+    "skin:structural/destroyed/celt_struct_1.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_gaul_civic_center": {
+   "file": "models/buildings/rubble_gaul_civic_center.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    5.177,
+    2.701,
+    5.144
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_gaul_civic_center.xml",
+    "actor:art/actors/structures/destruct_stone_3x3.xml",
+    "mesh:props/rubble_stone_3x3.dae",
+    "mesh:structural/gaul_civic_centre_destroyed.dae",
+    "skin:props/ao/rubble_stone_3x3_AO.png",
+    "skin:props/rubble_stone.png",
+    "skin:structural/destroyed/celt_struct_1.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "rubble_hele_cc": {
+   "file": "models/buildings/rubble_hele_cc.glb",
+   "origin": "ground-center",
+   "parts": 5,
+   "size_meters": [
+    6.613,
+    2.3,
+    6.525
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_hele_cc.xml",
+    "actor:art/actors/structures/destruct_hele_props.xml",
+    "actor:art/actors/structures/destruct_hele_struct.xml",
+    "actor:art/actors/structures/destruct_hele_struct_b.xml",
+    "actor:art/actors/structures/destruct_hele_tile_b.xml",
+    "mesh:props/hele_cc_rubble.dae",
+    "mesh:props/hele_cc_rubble_props.dae",
+    "mesh:props/hele_cc_rubble_struct.dae",
+    "mesh:props/hele_cc_rubble_struct_b.dae",
+    "mesh:props/hele_cc_rubble_tile_b.dae",
+    "skin:props/ao/hele_cc_rubble.png",
+    "skin:props/ao/rome_cc_rubble.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_b.dds",
+    "skin:props/rubble_stone.png",
+    "skin:structural/hele_struct.dds",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_hele_dock": {
+   "file": "models/buildings/rubble_hele_dock.glb",
+   "origin": "ground-center",
+   "parts": 6,
+   "size_meters": [
+    6.537,
+    4.372,
+    7.159
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrels_floating.xml",
+    "actor:art/actors/structures/destruct_hele_dock_props.xml",
+    "actor:art/actors/structures/destruct_hele_dock_rubble.xml",
+    "actor:art/actors/structures/destruct_hele_dock_struct.xml",
+    "actor:art/actors/structures/destruct_hele_dock_struct_b.xml",
+    "actor:art/actors/structures/destruct_hele_dock_tiles.xml",
+    "mesh:props/hele_dock_rubble.dae",
+    "mesh:props/hele_dock_rubble_props.dae",
+    "mesh:props/hele_dock_rubble_struct.dae",
+    "mesh:props/hele_dock_rubble_struct_b.dae",
+    "mesh:props/hele_dock_rubble_tile_c.dae",
+    "mesh:props/special/floating_barrels.dae",
+    "skin:props/ao/hele_dock_rubble_ao.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_c.dds",
+    "skin:props/rubble_stone.png",
+    "skin:structural/hele_struct.dds",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_iber_cc": {
+   "file": "models/buildings/rubble_iber_cc.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    7.591,
+    2.861,
+    7.49
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_iber_cc.xml",
+    "actor:art/actors/structures/destruct_iber_pieces.xml",
+    "mesh:props/iber_cc_pieces.dae",
+    "mesh:props/iber_cc_rubble.dae",
+    "skin:props/ao/iber_cc_rubble.png",
+    "skin:props/rubble_stone.png",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_iber_dock": {
+   "file": "models/buildings/rubble_iber_dock.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    4.369,
+    2.745,
+    6.137
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrels_floating.xml",
+    "actor:art/actors/structures/destruct_iber_dock_boat.xml",
+    "actor:art/actors/structures/destruct_iber_dock_rubble.xml",
+    "actor:art/actors/structures/destruct_iber_dock_struct.xml",
+    "mesh:props/iber_dock_rubble.dae",
+    "mesh:props/iber_dock_rubble_boat.dae",
+    "mesh:props/iber_dock_rubble_struct.dae",
+    "mesh:props/special/floating_barrels.dae",
+    "skin:props/ao/hele_dock_rubble_ao.png",
+    "skin:props/ao/iber_dock_rubble_ao.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/rubble_stone.png",
+    "skin:structural/iber_ship.dds",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_kart_cc": {
+   "file": "models/buildings/rubble_kart_cc.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    6.613,
+    2.298,
+    6.525
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_kart_cc.xml",
+    "actor:art/actors/structures/destruct_kart_pieces.xml",
+    "mesh:props/kart_cc_pieces.dae",
+    "mesh:props/kart_cc_rubble.dae",
+    "skin:props/ao/kart_cc_rubble.png",
+    "skin:props/rubble_stone.png",
+    "skin:structural/kart_struct_damaged_heavy.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_kart_dock": {
+   "file": "models/buildings/rubble_kart_dock.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    7.116,
+    5.029,
+    5.306
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrels_floating.xml",
+    "actor:art/actors/structures/destruct_kart_dock_props.xml",
+    "actor:art/actors/structures/destruct_kart_dock_rubble.xml",
+    "actor:art/actors/structures/destruct_kart_dock_struct.xml",
+    "mesh:props/kart_dock_rubble.dae",
+    "mesh:props/kart_dock_rubble_props.dae",
+    "mesh:props/kart_dock_rubble_struct.dae",
+    "mesh:props/special/floating_barrels.dae",
+    "skin:props/ao/kart_dock_rubble_ao.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/rubble_stone.png",
+    "skin:structural/celt_struct.dds",
+    "skin:structural/kart_struct_damaged_heavy.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
   "rubble_large": {
    "file": "models/buildings/rubble_large.glb",
    "origin": "ground-center",
@@ -62252,6 +63601,141 @@
    ],
    "upstream_material": "no_trans_ao_norm_spec.xml"
   },
+  "rubble_maur_cc": {
+   "file": "models/buildings/rubble_maur_cc.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    6.613,
+    2.632,
+    6.525
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_maur_cc.xml",
+    "actor:art/actors/structures/destruct_maur_pieces.xml",
+    "mesh:props/maur_cc_pieces.dae",
+    "mesh:props/maur_cc_rubble.dae",
+    "skin:props/ao/maur_cc_rubble.png",
+    "skin:props/rubble_stone.png",
+    "skin:structural/maur_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_pers_cc": {
+   "file": "models/buildings/rubble_pers_cc.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    6.613,
+    2.568,
+    6.525
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_pers_cc.xml",
+    "actor:art/actors/structures/destruct_pers_pieces.xml",
+    "mesh:props/pers_cc_pieces.dae",
+    "mesh:props/pers_cc_rubble.dae",
+    "skin:props/ao/pers_cc_rubble.png",
+    "skin:props/rubble_stone.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_pers_dock": {
+   "file": "models/buildings/rubble_pers_dock.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    5.253,
+    4.285,
+    4.4
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrels_floating.xml",
+    "actor:art/actors/structures/destruct_pers_dock_rubble.xml",
+    "actor:art/actors/structures/destruct_pers_dock_struct.xml",
+    "mesh:props/pers_dock_rubble.dae",
+    "mesh:props/pers_dock_rubble_struct.dae",
+    "mesh:props/special/floating_barrels.dae",
+    "skin:props/ao/pers_dock_rubble_ao.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/rubble_stone.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_rome_camp_palisade": {
+   "file": "models/buildings/rubble_rome_camp_palisade.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    7.828,
+    3.515,
+    8.263
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_rome_camp_palisade.xml",
+    "actor:art/actors/structures/destruct_rome_camp_struct2.xml",
+    "actor:art/actors/structures/destruct_rome_camp_tents.xml",
+    "actor:art/actors/structures/destruct_rome_camp_turf.xml",
+    "mesh:props/rome_sb_rubble_palisade.dae",
+    "mesh:props/rome_sb_rubble_struct_2.dae",
+    "mesh:props/rome_sb_rubble_tents.dae",
+    "mesh:props/rome_sb_rubble_turf.dae",
+    "skin:props/palisade_main.png",
+    "skin:props/rome_sb_tent.png",
+    "skin:props/rome_sb_turf.png",
+    "skin:structural/ao/rome_sb_rubble_ao.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "rubble_rome_cc": {
+   "file": "models/buildings/rubble_rome_cc.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    7.422,
+    2.736,
+    6.628
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_rome_cc.xml",
+    "actor:art/actors/structures/destruct_rome_pieces.xml",
+    "actor:art/actors/structures/destruct_rome_statues.xml",
+    "mesh:props/rome_cc_pieces.dae",
+    "mesh:props/rome_cc_rubble.dae",
+    "mesh:props/rome_cc_rubble_statues.dae",
+    "skin:props/ao/rome_cc_rubble.png",
+    "skin:props/rome_cc_statues.png",
+    "skin:props/rubble_stone.png",
+    "skin:structural/rome_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "rubble_rome_dock": {
+   "file": "models/buildings/rubble_rome_dock.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    6.613,
+    5.183,
+    7.988
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrels_floating.xml",
+    "actor:art/actors/structures/destruct_rome_dock_rubble.xml",
+    "actor:art/actors/structures/destruct_rome_dock_struct2.xml",
+    "mesh:props/rome_dock_rubble.dae",
+    "mesh:props/rome_dock_rubble_struct2.dae",
+    "mesh:props/special/floating_barrels.dae",
+    "skin:props/ao/rome_dock_rubble_ao.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/rubble_stone.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
   "rubble_small": {
    "file": "models/buildings/rubble_small.glb",
    "origin": "ground-center",
@@ -62265,6 +63749,176 @@
     "actor:art/actors/structures/destruct_stone_3x3.xml",
     "mesh:props/rubble_stone_3x3.dae",
     "skin:props/ao/rubble_stone_3x3_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_2x2": {
+   "file": "models/buildings/rubble_stone_2x2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.759,
+    0.813,
+    1.845
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_2x2.xml",
+    "mesh:props/rubble_stone_2x2.dae",
+    "skin:props/ao/rubble_stone_wall_tower_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_3x3": {
+   "file": "models/buildings/rubble_stone_3x3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.079,
+    2.028,
+    4.133
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_3x3.xml",
+    "mesh:props/rubble_stone_3x3.dae",
+    "skin:props/ao/rubble_stone_3x3_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_4x2": {
+   "file": "models/buildings/rubble_stone_4x2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.327,
+    1.832,
+    3.112
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_4x2.xml",
+    "mesh:props/rubble_stone_4x2.dae",
+    "skin:props/ao/rubble_stone_4x2_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_4x4": {
+   "file": "models/buildings/rubble_stone_4x4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.382,
+    2.736,
+    5.31
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_4x4.xml",
+    "mesh:props/rubble_stone_4x4.dae",
+    "skin:props/ao/rubble_stone_4x4_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_4x6": {
+   "file": "models/buildings/rubble_stone_4x6.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.15,
+    2.728,
+    7.964
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_4x6.xml",
+    "mesh:props/rubble_stone_4x6.dae",
+    "skin:props/ao/rubble_stone_4x6_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_5x5": {
+   "file": "models/buildings/rubble_stone_5x5.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.666,
+    2.564,
+    6.578
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_5x5.xml",
+    "mesh:props/rubble_stone_5x5.dae",
+    "skin:props/ao/rubble_stone_5x5_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_6x4": {
+   "file": "models/buildings/rubble_stone_6x4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    7.953,
+    2.685,
+    5.477
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_6x4.xml",
+    "mesh:props/rubble_stone_6x4.dae",
+    "skin:props/ao/rubble_stone_6x4_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_6x6": {
+   "file": "models/buildings/rubble_stone_6x6.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.613,
+    2.716,
+    6.525
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_6x6.xml",
+    "mesh:props/rubble_stone_6x6.dae",
+    "skin:props/ao/rubble_stone_6x6_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_wall_long": {
+   "file": "models/buildings/rubble_stone_wall_long.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.037,
+    1.133,
+    1.573
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_wall_long.xml",
+    "mesh:props/rubble_stone_wall_long.dae",
+    "skin:props/ao/rubble_stone_wall_long_AO.png",
+    "skin:props/rubble_stone.png"
+   ],
+   "upstream_material": "no_trans_ao_norm_spec.xml"
+  },
+  "rubble_stone_wall_tower": {
+   "file": "models/buildings/rubble_stone_wall_tower.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.759,
+    0.813,
+    1.845
+   ],
+   "sources": [
+    "actor:art/actors/structures/destruct_stone_wall_tower.xml",
+    "mesh:props/rubble_stone_wall_tower.dae",
+    "skin:props/ao/rubble_stone_wall_tower_AO.png",
     "skin:props/rubble_stone.png"
    ],
    "upstream_material": "no_trans_ao_norm_spec.xml"
@@ -66639,6 +68293,121 @@
     "skin:props/dockprops.png"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "samnite_skirmisher": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death"
+   ],
+   "bones": 46,
+   "file": "models/units/samnite_skirmisher.glb",
+   "origin": "ground-center",
+   "parts": 18,
+   "size_meters": [
+    0.816,
+    1.8,
+    1.222
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/helmets/hele_attic_a1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/shields/samn_scutum_back.xml",
+    "actor:art/actors/props/units/shields/samn_scutum_basic.xml",
+    "actor:art/actors/props/units/weapons/blades/jav_blade.xml",
+    "actor:art/actors/props/units/weapons/jav.xml",
+    "actor:art/actors/props/units/weapons/jav_ammo.xml",
+    "actor:art/actors/props/units/weapons/jav_loaded.xml",
+    "actor:art/actors/units/carthaginians/infantry_javelinist_c_samnite.xml",
+    "mesh:props/helmet/hele_attic_a.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/jav_blade.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/samn_scutum_back.dae",
+    "mesh:props/shield/samn_scutum_front.dae",
+    "mesh:props/weap_javelin_shaft_a.dae",
+    "mesh:props/weap_javelin_shaft_loaded_a.dae",
+    "mesh:props/weap_javelin_shaft_quiver.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/hele_a.dds",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/rome_imp_scutum_back.dds",
+    "skin:props/shield/samnite_a.dds",
+    "skin:skeletal/ital/tunic_pattern_03_sleeveless_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "samnite_spearman": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death",
+    "Heal",
+    "Carry",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather"
+   ],
+   "bones": 46,
+   "file": "models/units/samnite_spearman.glb",
+   "origin": "ground-center",
+   "parts": 12,
+   "size_meters": [
+    0.809,
+    1.8,
+    2.285
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_06_bronze_l.xml",
+    "actor:art/actors/props/units/capes/cape_long_player.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/helmets/hele_attic_a1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/shields/aspis_kart_a.xml",
+    "actor:art/actors/props/units/shields/props/aspis_back_bronze_01.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_01.xml",
+    "actor:art/actors/props/units/weapons/spear_hoplite.xml",
+    "actor:art/actors/units/carthaginians/infantry_spearman_c_samnite.xml",
+    "mesh:props/helmet/hele_attic_a.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/aspis_01_back.dae",
+    "mesh:props/shield/aspis_01_front.dae",
+    "mesh:props/spear_hoplite.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/hele_a.dds",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/aspis_back_bronze.png",
+    "skin:props/shield/aspis_cart_03.png",
+    "skin:skeletal/ital/linothorax_01_03.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "scaffold_large": {
    "file": "models/buildings/scaffold_large.glb",
@@ -71371,6 +73140,77 @@
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
   },
+  "spart_champion_infantry_pike": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Build",
+    "Death",
+    "Heal",
+    "Carry",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Gather",
+    "Capture",
+    "Idle2",
+    "Death2"
+   ],
+   "bones": 46,
+   "file": "models/units/spart_champion_infantry_pike.glb",
+   "origin": "ground-center",
+   "parts": 11,
+   "size_meters": [
+    0.815,
+    1.8,
+    3.341
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_07_bronze_l.xml",
+    "actor:art/actors/props/units/armor/greave_07_bronze_r.xml",
+    "actor:art/actors/props/units/capes/cape_long_player.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
+    "actor:art/actors/props/units/helmets/hele_pilos.xml",
+    "actor:art/actors/props/units/shields/aspis_spart_p_04.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_03.xml",
+    "actor:art/actors/props/units/shields/props/pelte_back_bronze_01.xml",
+    "actor:art/actors/props/units/tools/mallet.xml",
+    "actor:art/actors/props/units/weapons/sarissa.xml",
+    "actor:art/actors/props/units/weapons/sheath_xiphos.xml",
+    "actor:art/actors/props/units/weapons/xiphos.xml",
+    "actor:art/actors/units/spartans/infantry_pikeman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
+    "anim:biped/infantry/death_b.dae",
+    "anim:biped/infantry/pikeman/idle_relax_04.dae",
+    "mesh:props/helmet/hele_pilos_a1.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/head_beard_small.dae",
+    "mesh:props/prop_mallet.dae",
+    "mesh:props/sarissa_a.dae",
+    "mesh:props/shield/pelte_01_back.dae",
+    "mesh:props/shield/pelte_01_front.dae",
+    "mesh:props/weap_xiphos_a.dae",
+    "mesh:props/weapons/sheath_xiphos.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/hele_e.dds",
+    "skin:props/helmet/hele_pilos_01_bronze.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/sheaths/xiphos_red.png",
+    "skin:props/shield/aspis_back_bronze.png",
+    "skin:props/shield/aspis_spart_lambda_04.png",
+    "skin:skeletal/sele/cuirass_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "spart_champion_infantry_spear_olympian": {
    "animated": true,
    "animations": [
@@ -74536,6 +76376,28 @@
    ],
    "upstream_material": "basic_trans_norm_spec.xml",
    "variant_of": "tropic_palm"
+  },
+  "viking_longship": {
+   "file": "models/units/viking_longship.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.066,
+    3.164,
+    7.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/viking/longship_sail.xml",
+    "actor:art/actors/props/units/weapons/bolt_tower.xml",
+    "actor:art/actors/structures/viking/longship.xml",
+    "mesh:props/bolt_tower_projectile.dae",
+    "mesh:props/viking_longship_sail.dae",
+    "mesh:structural/viking_longship.dae",
+    "skin:props/kart_merchant_sail_a.png",
+    "skin:structural/rome_struct.png",
+    "skin:structural/viking_longship.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "villager": {
    "animated": true,

@@ -14,6 +14,7 @@ extends Control
 ## turns) and metadata.json (setup, players, summary), written by RtsoMain; a
 ## game continued from a save also keeps the save it started from
 ## (start.rts0sav).
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 const REPLAY_ROOT := "user://replays"
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
@@ -607,6 +608,7 @@ func _info_row(parent: VBoxContainer, caption: String, key: String) -> void:
 	_info_labels[key] = val
 
 func _build() -> void:
+	theme = MODERN.theme() # 0.28's modern skin
 	var title := _label("Replay Games", 20, GOLD)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_anchor(title, 0.5, 0, 0.5, 0, -128, 4, 128, 32))
