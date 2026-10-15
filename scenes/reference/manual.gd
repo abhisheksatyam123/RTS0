@@ -80,7 +80,7 @@ static func open_overlay(parent: Node) -> Control:
 	return page
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE: # hotkey="cancel"
+	if event is InputEventKey and event.pressed and "cancel" in RtsoHotkeyConfig.new().fired(event):
 		get_viewport().set_input_as_handled()
 		close_page()
 

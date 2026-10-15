@@ -331,10 +331,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		// read where the order is given; a press arms nothing.
 		if (fired("session.attackmoveunit")) return;
 
-		// Training: Z X C V B N M , queue the selected building's 1st-8th
-		// trainee; Shift trains a batch of 5 (gui.session.batchtrainingsize).
+		// Training: Z X C V B N M queue the selected building's 1st-7th trainee;
+		// Shift trains a batch of 5 (gui.session.batchtrainingsize). training.xml
+		// wires only queueunit.1-7, so Comma (queueunit.8) does nothing, as in 0.28.
 		if (selected_building_id != 0 && command_panel_.roster_list()) {
-			for (int q = 1; q <= 8; ++q) {
+			for (int q = 1; q <= 7; ++q) {
 				if (!fired(("session.queueunit." + std::to_string(q)).c_str())) continue;
 				if (q - 1 < command_panel_.roster_list()->get_item_count() && !command_panel_.roster_list()->is_item_disabled(q - 1)) {
 					const uint16_t tmpl = (uint16_t)(int)command_panel_.roster_list()->get_item_metadata(q - 1);
@@ -368,9 +369,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.toggleattackrange")) { toggle_overlay("gui.session.attackrange"); return; }
 		if (fired("session.toggleaurasrange")) { toggle_overlay("gui.session.aurasrange"); return; }
 		if (fired("session.togglehealrange")) { toggle_overlay("gui.session.healrange"); return; }
-		// 0 A.D. hotkeys/misc.xml "silhouettes": Renderer_SetSilhouettesEnabled, for this run only.
-		if (fired("silhouettes")) {
-			rtso::user_config::set("silhouettes", rtso::user_config::get_bool("silhouettes") ? "false" : "true");
+		// 0 A.D. hotkeys/misc.xml "silhouettes": toggleConfigBool saves it to user.cfg (session.js:840).
+		if (fired("silhouettes")) { toggle_overlay("silhouettes"); return; }
+		// MenuButtons.js Lobby (hotkey "lobby"): the lobby over the game when a lobby client exists.
+		if (fired("lobby")) {
+			if (has_lobby_client()) {
+				close_open_dialogs();
+				_on_lobby_button_pressed();
+			}
 			return;
 		}
 		// OverlayCounterElapsedTime / RemainingCeasefire Hotkey: the top-right counters.

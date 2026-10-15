@@ -1231,7 +1231,7 @@ func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if _fired(event, "summary") or (gui.get("isInGame", false) and event is InputEventKey and event.pressed
-			and event.keycode == KEY_ESCAPE):
+			and "cancel" in RtsoHotkeyConfig.new().fired(event)):
 		get_viewport().set_input_as_handled()
 		continue_pressed()
 	elif _fired(event, "lobby") and not gui.get("isInGame", false) and _lobby_signed_in():
