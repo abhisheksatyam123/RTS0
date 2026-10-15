@@ -98,6 +98,15 @@ void RtsoMain::update_cursor() {
 					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
 					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
 						want = "action-heal";
+					// unit_actions "garrison": an own or allied ship, ram or siege tower a selected unit may board.
+					else if (const uint32_t holder = uv.id[i]; sim->is_ally(me, uv.team[i]) && !selected_ids.has((int32_t)holder) &&
+							selection_can_board(holder)) {
+						want = "action-garrison";
+						const int occupied = sim->get_transport_occupied(holder), capacity = sim->get_transport_capacity(holder);
+						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
+								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					}
 				}
 			}
 			if (!*want) {

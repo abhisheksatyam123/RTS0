@@ -733,6 +733,8 @@ private:
 	void clear_selection();
 	bool selection_can_garrison(uint32_t building_id) const;
 	bool selection_can_occupy_turret(uint32_t building_id) const;
+	uint32_t transport_under(float x, float z) const;
+	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();
 	void prune_selection();

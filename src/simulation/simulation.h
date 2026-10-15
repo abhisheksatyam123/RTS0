@@ -1028,6 +1028,12 @@ public:
 	};
 	UnitDetails unit_details(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
+	// GarrisonHolder.OccupiedSlots of a ship or siege engine, and IsAllowedToGarrison for one unit.
+	int get_transport_occupied(uint32_t transport_id) const {
+		auto it = transport_passengers_.find(transport_id);
+		return it == transport_passengers_.end() ? 0 : occupied_slots(it->second);
+	}
+	bool can_board_unit(uint32_t transport_id, uint32_t unit_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
