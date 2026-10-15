@@ -252,5 +252,22 @@ func run() -> void:
 	await frames(2)
 	check(moved > 2.0 and selected() == [int(a["id"])], "walked %.1f away and still selected: %s" % [moved, str(selected())])
 
+	print("7. Hovering a supply")
+	main.debug_select_units(PackedInt32Array([int(a["id"])]))
+	await frames(2)
+	st = state()
+	main.clear_selection()
+	await frames(2)
+	if st.has("nearest_resource_screen"):
+		var rpos: Vector2 = st["nearest_resource_screen"]
+		move(rpos)
+		await frames(4)
+		var hl: PackedInt32Array = main.debug_highlight()
+		check(hl.has(int(st["nearest_resource"])), "the tree or mine under the mouse is highlighted: %s" % str(hl))
+		# StatusBars.js: its ResourceSupply bar (background and foreground).
+		check(main.debug_status_sprites() >= 2, "it shows its supply bar (%d sprites)" % main.debug_status_sprites())
+	else:
+		check(false, "a supply near the unit")
+
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
