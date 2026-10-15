@@ -29,6 +29,11 @@ fauna actors: dust_cav), which 0 A.D. shows while the unit runs:
 
   "run": {"<unit GLB id>": ["<name>", ...]}
 
+"projectiles" lists the particles on the flaming stones the stone throwers fling
+(props/units/weapons/rock_flaming.xml, siege_artillery/stone_projectile_*_flaming.xml):
+
+  "projectiles": {"stone": ["<name>", ...]}
+
 `pos` is in the GLB's units (the GLB is centred on its actor's bounds and
 grounded, as tools/extract_foundations.py frames say) and `metre` is GLB units
 per 0 A.D. metre; the particle values are the files' metres and seconds. The
@@ -60,6 +65,9 @@ MANIFEST = os.path.join(REPO, "assets", "models", "manifest.json")
 OUT_JSON = os.path.join(REPO, "data", "ambient_fx.json")
 TEX_DIR = os.path.join(REPO, "assets", "textures", "particles")
 SKIP = {"construction_dust"}
+FLAMING_STONES = ("art/actors/props/units/weapons/rock_flaming.xml",
+                  "art/actors/props/units/siege_artillery/stone_projectile_med_flaming.xml",
+                  "art/actors/props/units/siege_artillery/stone_projectile_large_flaming.xml")
 MAX_DEPTH = 3
 BURIED = -5.0  # metres: a part lying wholly this far below ground is not in the GLB
 
@@ -212,7 +220,16 @@ def build(vfs, models):
         if names:
             run[gid] = names
             used.update(names)
-    return table, death, run, {n: particle_def(vfs, n) for n in sorted(used)}
+    # The flaming stones 0.28's stone throwers fling (the "projectile" prop of every one
+    # but the Han mangonel, whose rock.xml has none) carry their emitters on the root.
+    stone = []
+    for actor in FLAMING_STONES:
+        for n, *_ in actor_particles(vfs, actor, cache):
+            if n not in stone:
+                stone.append(n)
+    used.update(stone)
+    projectiles = {"stone": stone} if stone else {}
+    return table, death, run, projectiles, {n: particle_def(vfs, n) for n in sorted(used)}
 
 
 def copy_textures(zf, particles, check):
@@ -240,9 +257,9 @@ def main():
     with open(MANIFEST) as f:
         models = json.load(f)["models"]
     with zipfile.ZipFile(args.zip) as zf:
-        table, death, run, particles = build(Vfs(zf), models)
+        table, death, run, projectiles, particles = build(Vfs(zf), models)
         stale = copy_textures(zf, particles, args.check)
-    text = json.dumps({"particles": particles, "structures": table, "death": death, "run": run}, indent=1, sort_keys=True) + "\n"
+    text = json.dumps({"particles": particles, "structures": table, "death": death, "run": run, "projectiles": projectiles}, indent=1, sort_keys=True) + "\n"
     if args.check:
         with open(OUT_JSON) as f:
             if f.read() != text or stale:

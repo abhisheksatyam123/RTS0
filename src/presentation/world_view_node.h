@@ -25,6 +25,8 @@
 #include <godot_cpp/classes/environment.hpp>
 #include <godot_cpp/classes/sky.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
+#include <map>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -214,11 +216,13 @@ class RtsoWorldView : public Node3D {
 	void load_ambient_fx();
 	GPUParticles3D *make_ambient_emitter(const AmbientParticle &d, float m);
 	// The dust 0 A.D.'s "Run" variant props (dust_cav) under running cavalry, camels,
-	// elephants and animals: per unit GLB its particles, and one world-space
-	// emitter per particle and scale that emit_particle feeds.
-	std::unordered_map<std::string, std::vector<std::string>> run_fx_;
-	std::unordered_map<std::string, GPUParticles3D *> run_emitters_;
+	// elephants and animals (per unit GLB its particles), the flaming stones' trail,
+	// and one world-space emitter per particle and scale that emit_particle feeds.
+	HashMap<String, std::vector<std::string>> run_fx_;
+	std::vector<std::string> stone_fx_; // the flaming stones' flame and smoke
+	std::map<std::pair<const AmbientParticle *, int>, GPUParticles3D *> world_emitters_;
 	void emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta);
+	void emit_world_fx(const std::vector<std::string> &names, const Vector3 &at, float sc, float delta);
 	// Unit models started loading on a worker before their first draw (per civ and crowd key).
 	std::vector<bool> prefetched_;
 	float prefetch_poll_ = 0.0f;
