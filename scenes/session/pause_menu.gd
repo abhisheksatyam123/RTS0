@@ -147,9 +147,9 @@ func rebuild_pause() -> void:
 		return
 	btn.text = L10n.t("Resume") if main.is_game_paused() else L10n.t("Pause")
 	btn.disabled = main.has_method("can_pause") and not main.can_pause()
-	var keys: Array = _hotkeys.get_hotkey_map().get("pause", [])
+	var keys: String = _hotkeys.display("pause")
 	btn.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to pause or resume the game."),
-		{"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")})
+		{"hotkey": keys if keys != "" else L10n.t("Unassigned")})
 
 # 0 A.D. MenuButtons Summary: the summary page over the game ("summary" hotkey).
 func _on_summary_pressed():
@@ -208,15 +208,15 @@ func toggle():
 	# MenuButtons.js Summary: the current "summary" hotkey.
 	var summary: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnSummary")
 	if summary:
-		var skeys: Array = _hotkeys.get_hotkey_map().get("summary", [])
+		var skeys: String = _hotkeys.display("summary")
 		summary.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to open the summary screen."),
-			{"hotkey": ", ".join(PackedStringArray(skeys)) if not skeys.is_empty() else L10n.t("Unassigned")})
+			{"hotkey": skeys if skeys != "" else L10n.t("Unassigned")})
 	var lobby: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnLobby")
 	if lobby:
 		lobby.disabled = not (get_parent().has_method("has_lobby_client") and get_parent().has_lobby_client())
-		var keys: Array = _hotkeys.get_hotkey_map().get("lobby", [])
+		var keys: String = _hotkeys.display("lobby")
 		lobby.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to open the multiplayer lobby page without leaving the game."),
-			{"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")})
+			{"hotkey": keys if keys != "" else L10n.t("Unassigned")})
 	var resign_btn := get_node_or_null("CenterContainer/Panel/VBox/BtnResign")
 	if resign_btn and visible and get_parent().has_method("get_summary_gui"):
 		resign_btn.disabled = get_parent().get_summary_gui(false).get("isObserver", true)

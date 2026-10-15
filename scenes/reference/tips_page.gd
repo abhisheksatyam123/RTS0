@@ -53,9 +53,9 @@ func _ready() -> void:
 	close.text = tr("Close")
 	close.position = Vector2(976 - 216, 510 - 56)
 	close.size = Vector2(192, 32)
-	var keys: Array = _hotkeys.get_hotkey_map().get("cancel", [])
+	var keys: String = _hotkeys.display("cancel")
 	close.tooltip_text = L10n.sprintf(tr("%(hotkey)s: Close Tips and Tricks."),
-		{"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else tr("Unassigned")})
+		{"hotkey": keys if keys != "" else tr("Unassigned")})
 	close.pressed.connect(close_page)
 	panel.add_child(close)
 

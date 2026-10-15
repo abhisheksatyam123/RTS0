@@ -7,7 +7,7 @@ extends SceneTree
 # player view dropdown, and picking a player or Observer re-seats this client;
 # Enable time warp snapshots the game every 10 turns and rewinds to the last one;
 # the pathfinder, hierarchical pathfinder, obstruction, unit motion, range and
-# bounding box overlays draw while ticked; Activate Rejoin Test rejoins a copy of
+# bounding box overlays draw while ticked; Activate Rejoin Test (not on random maps) rejoins a copy of
 # the game and replays every turn onto it, an Out of Sync box naming any turn
 # where the two part.
 #
@@ -172,6 +172,12 @@ func run() -> void:
 	check(not main.find_child("DebugOverlays", true, false).visible and int(main.debug_dev_overlay()["obstruction_drawn"]) == 0,
 		"cleared, they are gone")
 
+	# DeveloperOverlayControlCheckboxes.js: enabled() needs g_InitAttributes.mapType != "random".
+	await frames(2)
+	check(box("Activate Rejoin Test").disabled, "Activate Rejoin Test is disabled on a random map")
+	main.load_map("arcadia")
+	await frames(10)
+	check(not box("Activate Rejoin Test").disabled, "and enabled on a skirmish map")
 	press("Activate Rejoin Test")
 	await frames(2)
 	var rj: Node = _box("Rejoin Test")

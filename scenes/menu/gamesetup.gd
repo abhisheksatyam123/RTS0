@@ -785,9 +785,9 @@ func _build_map_list() -> void:
 	var browse := Button.new()
 	browse.name = "BrowseMaps"
 	browse.text = tr("Browse Maps")
-	var keys: Array = _hotkeys.get_hotkey_map().get(MAP_BROWSER_HOTKEY, [])
+	var keys: String = _hotkeys.display(MAP_BROWSER_HOTKEY)
 	browse.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to view the list of available maps."),
-		{"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")})
+		{"hotkey": keys if keys != "" else L10n.t("Unassigned")})
 	browse.pressed.connect(_open_map_browser)
 	list.get_parent().add_child(browse)
 	list.get_parent().move_child(browse, list.get_index() + 1)
@@ -1254,11 +1254,11 @@ func _build_slot_headings() -> void:
 	info.add_theme_color_override("font_hover_color", Color.WHITE)
 	info.custom_minimum_size = Vector2(16, 16)
 	info.size = Vector2(16, 16)
-	var ck: Array = _hotkeys.get_hotkey_map().get("civinfo", [])
-	var sk: Array = _hotkeys.get_hotkey_map().get("structree", [])
+	var ck: String = _hotkeys.display("civinfo")
+	var sk: String = _hotkeys.display("structree")
 	info.tooltip_text = L10n.sprintf(L10n.t("%(hotkey_civinfo)s / %(hotkey_structree)s: View Civilization Overview / Structure Tree\nLast opened will be reopened on click."),
-		{"hotkey_civinfo": ", ".join(PackedStringArray(ck)) if not ck.is_empty() else L10n.t("Unassigned"),
-		"hotkey_structree": ", ".join(PackedStringArray(sk)) if not sk.is_empty() else L10n.t("Unassigned")})
+		{"hotkey_civinfo": ck if ck != "" else L10n.t("Unassigned"),
+		"hotkey_structree": sk if sk != "" else L10n.t("Unassigned")})
 	info.pressed.connect(func(): open_civ_reference(_civ_ref_tab))
 	header.add_child(info)
 	var grid := _slots_grid()
