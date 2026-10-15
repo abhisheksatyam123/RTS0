@@ -671,6 +671,11 @@ public:
 		return attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode;
 	}
 	bool armed_target_ok(const Vector3 &at) const;
+	// unit_actions.js "guard" target under the cursor: an own or allied unit (not a selected
+	// one) or structure; 0 when none.
+	uint32_t guard_target_at(const Vector3 &at) const;
+	// unit_actions.js "remove-guard": some selected unit is guarding.
+	bool selection_guarding() const;
 	bool run_armed_click(const Ref<InputEventMouseButton> &press);
 	bool minimap_unit_order(Vector2 world_pos);
 	Dictionary debug_right_line() const {

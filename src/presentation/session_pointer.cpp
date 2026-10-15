@@ -114,7 +114,9 @@ void RtsoMain::update_cursor() {
 					rtso::hotkeys::held("session.attackmoveUnit") || rtso::hotkeys::held("session.calltoarms"))
 				want = "action-attack-move";
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
-			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
+			else if (guard_mode) want = "action-guard";
+			else if (rtso::hotkeys::held("session.guard"))
+				want = guard_target_at(at) ? "action-guard" : selection_guarding() ? "action-remove-guard" : "";
 			else if (garrison_mode) want = "action-garrison";
 			else if (turret_mode) want = "action-occupy-turret";
 			else if (repair_mode) want = "action-repair";
