@@ -256,7 +256,7 @@ public:
 			c->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 
 		// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
-		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 10, 36.0f);
+		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 8, 36.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
 		garrison_grid_.build(panel_, Vector2(102, 148), Vector2(404, 34), owner, "_on_garrison_group_clicked", 12, 30.0f);
 		// garrison_panel.xml healthGarrison: the garrisoned units' total health, a vertical
@@ -627,8 +627,9 @@ public:
 	}
 
 	// The player's own selected livestock (0 A.D. livestock are units): one animal's details,
-	// or a count for several. False when the selection holds anything else.
-	bool fill_livestock_details() {
+	// or displayMultiple for several (count, summed health, a group per kind). False when
+	// the selection holds anything else.
+	bool fill_livestock_details(bool &show_grid) {
 		rtso::Simulation *sim = host_->ui_sim();
 		const PackedInt32Array &selected_ids = host_->ui_selected_ids();
 		if (!sim || selected_ids.is_empty()) return false;
@@ -641,8 +642,52 @@ public:
 		const bool ok = fill_inspected_details();
 		kind_ = keep_kind;
 		id_ = keep_id;
-		if (ok && selected_ids.size() > 1) title_->set_text(String::num_int64(selected_ids.size()) + " animals selected");
-		return ok;
+		if (!ok || selected_ids.size() < 2) return ok;
+		auto fv = sim->fauna();
+		std::vector<RtsoSelectionGrid::Group> groups;
+		for (int s = 0; s < selected_ids.size(); ++s)
+			for (size_t f = 0; f < fv.count; ++f) {
+				if (fv.id[f] != (uint32_t)selected_ids[s]) continue;
+				const int key = RtsoSelectionGrid::fauna_key(fv.fauna_type[f]);
+				RtsoSelectionGrid::Group *g = nullptr;
+				for (auto &e : groups)
+					if (e.key == key) g = &e;
+				if (!g) {
+					groups.emplace_back();
+					g = &groups.back();
+					g->key = key;
+					g->icon = rtso::portraits::fauna(fv.fauna_type[f]);
+					g->name = String::utf8(rtso::fauna_type_info(fv.fauna_type[f]).name);
+					g->player = fv.owner ? fv.owner[f] : rtso::GAIA_PLAYER;
+				}
+				++g->count;
+				g->hp += fv.hp[f];
+				g->max_hp += fv.max_hp[f];
+				break;
+			}
+		float hp = 0.0f, max_hp = 0.0f;
+		for (auto &g : groups) {
+			hp += g.hp;
+			max_hp += g.max_hp;
+			g.tip = rtso::entity_names(RtsoSelectionGrid::group_name(g), String()) + "\n" +
+					rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+		}
+		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
+		title_->set_text(String::num_int64(selected_ids.size()) + " units selected");
+		title_->set_tooltip_text("");
+		portrait_->set_tooltip_text("");
+		clear_owner();
+		class_->set_text(String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
+		hp_bar_->set_max(max_hp > 0.0f ? max_hp : 1.0f);
+		hp_bar_->set_value(hp);
+		hp_label_->set_text(rtso::seldet::health(hp, max_hp));
+		for (int i = 0; i < kStatusIcons; ++i) status_icons_[i]->set_visible(false);
+		stats_->set_text("");
+		stats_->set_tooltip_text("");
+		extra_->set_text("");
+		selection_grid_.update(groups, "");
+		show_grid = true;
+		return true;
 	}
 
 	void update() {
@@ -786,7 +831,7 @@ public:
 			panel_->set_visible(kind_ != INSPECT_NONE);
 			return;
 		}
-		if (fill_livestock_details()) {
+		if (fill_livestock_details(show_selection_grid)) {
 			ungarrison_btn_->set_visible(false);
 			panel_->set_visible(true);
 			return;
@@ -903,7 +948,8 @@ public:
 					for (; i < uview.count; ++i)
 						if (uview.id[i] == (uint32_t)selected_ids[s]) break;
 					if (i == uview.count || !uview.alive[i]) continue;
-					if (!rtso::unit_is_ship(uview.unit_type[i])) ++garrison_size;
+					// Garrisonable.size (ships have none) plus a holder's GarrisonHolder.occupiedSlots.
+					garrison_size += (rtso::unit_is_ship(uview.unit_type[i]) ? 0 : 1) + (int64_t)sim->get_transport_passenger_count(uview.id[i]);
 					const rtso::LootInfo l = sim->unit_details(i).loot;
 					loot.res[rtso::RES_FOOD] += l.food;
 					loot.res[rtso::RES_WOOD] += l.wood;
@@ -1094,15 +1140,22 @@ private:
 	}
 	// displaySingle for a unit: the attack and resistance lines, the detailed tooltip
 	// (getAttackTooltip, getHealerTooltip, getResistanceTooltip, getGatherTooltip,
-	// getSpeedTooltip, getLootTooltip) and the portrait's (name, then getAurasTooltip).
+	// getSpeedTooltip, getGarrisonTooltip, getPopulationBonusTooltip, getLootTooltip) and the portrait's (name, then getAurasTooltip).
 	void fill_unit_details(const rtso::Simulation &sim, size_t u, const String &name) {
 		using namespace rtso::seldet;
 		const rtso::Simulation::UnitDetails d = sim.unit_details(u);
 		auto uv0 = sim.units();
 		const godot::Dictionary viewer = rtso::portraits::unit_entry(uv0.tmpl ? uv0.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE).get("viewer", godot::Dictionary());
-		// GuiInterface elevationAdaptedRange: the Ranged reach where the unit stands, averaged round it.
-		const float elevated = d.ranged ? sim.average_elevation_range(uv0.pos_x[u], uv0.pos_z[u], sim.unit_attack_range_at(u), 0.0f) /
-				rtso::COMBAT_DISTANCE_SCALE : 0.0f;
+		// GuiInterface elevationAdaptedRange: for a unit (UnitAI) the Ranged reach in front of it,
+		// angle 0, not averaged round it as for a structure.
+		float elevated = 0.0f;
+		if (d.ranged) {
+			float hx = uv0.heading_x ? uv0.heading_x[u] : 0.0f, hz = uv0.heading_z ? uv0.heading_z[u] : 1.0f;
+			const float len = std::sqrt(hx * hx + hz * hz);
+			if (len > 1e-4f) { hx /= len; hz /= len; } else { hx = 0.0f; hz = 1.0f; }
+			elevated = sim.elevation_range_toward(uv0.pos_x[u], uv0.pos_z[u], hx, hz, sim.unit_attack_range_at(u), 0.0f) /
+					rtso::COMBAT_DISTANCE_SCALE;
+		}
 		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array()), elevated), resistance = resistance_tooltip(d.resistance);
 		stats_->set_text(join_lines({body_lines(attack), body_lines(resistance)}));
 		auto uv = sim.units();
@@ -1113,7 +1166,15 @@ private:
 		loot.res[rtso::RES_GOLD] = d.loot.metal;
 		loot.xp = d.loot.xp;
 		if (uv.carry[u] > 0 && uv.res_type_carried[u] < rtso::RES_COUNT) loot.res[uv.res_type_carried[u]] += uv.carry[u];
-		stats_->set_tooltip_text(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d), loot_tooltip(loot)}));
+		// getGarrisonTooltip for a ship, ram or siege tower (its Garrison Limit; a ship is not
+		// Garrisonable) and getPopulationBonusTooltip.
+		const int passengers = (int)sim.get_transport_passenger_count(uv.id[u]);
+		const String garrison = join_lines({garrison_limit_tooltip(sim.get_transport_capacity(uv.id[u])),
+				rtso::unit_is_ship(uv.unit_type[u]) ? String() : garrison_size_tooltip(1, passengers)});
+		const uint16_t pop_tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
+		const int pop_bonus = pop_tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::unit_pop_bonus(pop_tmpl) : 0;
+		stats_->set_tooltip_text(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d),
+				garrison, population_bonus_tooltip(pop_bonus), loot_tooltip(loot)}));
 		String auras;
 		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE)
@@ -1304,6 +1365,7 @@ private:
 		stats_->set_text("");
 		extra_->set_text("");
 		ungarrison_btn_->set_visible(false);
+		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
 		selection_grid_.update(groups, "");
 	}
 
@@ -1356,6 +1418,7 @@ private:
 			}
 			g.tip += "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
 		}
+		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
 		return groups;
 	}
 

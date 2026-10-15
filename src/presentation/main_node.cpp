@@ -1679,13 +1679,22 @@ void RtsoMain::select_group(int key, bool drop) {
 		return;
 	}
 	auto uview = sim->units();
+	auto fv = sim->fauna();
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s) {
+		bool found = false;
 		for (size_t i = 0; i < uview.count; ++i) {
 			if (uview.id[i] != (uint32_t)selected_ids[s]) continue;
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key;
 			if (in_group != drop) kept.push_back(selected_ids[s]);
+			found = true;
+			break;
+		}
+		// The player's own livestock, grouped by kind.
+		for (size_t f = 0; !found && f < fv.count; ++f) {
+			if (fv.id[f] != (uint32_t)selected_ids[s]) continue;
+			if ((RtsoSelectionGrid::fauna_key(fv.fauna_type[f]) == key) != drop) kept.push_back(selected_ids[s]);
 			break;
 		}
 	}
