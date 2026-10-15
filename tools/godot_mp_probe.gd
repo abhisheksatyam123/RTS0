@@ -49,6 +49,10 @@ func _run() -> void:
 	if args.has("stun"):
 		# The playtest's own STUN responder (tools/lobby_server.py serve_stun).
 		RtsoUserConfig.new().set_value("lobby.stun.port", args["stun"])
+	if role == "host":
+		# The setup set here, not the last scenario's host page that
+		# gamesetup.gd persists in matchsettings.mp.json.
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://config/matchsettings.mp.json"))
 	if role == "host" or role == "make_save":
 		# Two human slots: the joiner takes the second.
 		ms.slot_types = [0, 0]
@@ -181,7 +185,16 @@ func _run() -> void:
 							pick.select(idx)
 							pick.item_selected.emit(idx)
 					_say("unassigned slot 2")
-				await _wait(3.0)
+				# playtest_godot_mp.py freezes bob now: SetupWindow.js netwarn shows
+				# "bob losing connection" over the setup page, not under it.
+				var warned := false
+				for i in 60:
+					await _wait(0.1)
+					var w: Dictionary = main.get_lobby_state()
+					if not warned and str(w.get("net_warnings", "")) != "":
+						warned = true
+						_say("setup_net_warning=%s layer=%d" % [str(w.get("net_warnings", "")).split("\n")[0],
+								int(w.get("net_warnings_layer", -1))])
 				_say("leaving the setup")
 				main.leave_net_game()
 				await _wait(1.5)
@@ -215,7 +228,8 @@ func _run() -> void:
 				var teams: Array = ms.slot_teams
 				var cols: Array = ms.slot_colors
 				var got: bool = slot < civs.size() and int(civs[slot]) == 15 and int(teams[slot]) == 2 and int(cols[slot]) == 5
-				if got and refusals.size() and int(ns.get("settings_version", 0)) != ready_for:
+				# A saved game's setup refuses every pick (only the seats change).
+				if (got or bool(ns.get("saved_game", false))) and refusals.size() and int(ns.get("settings_version", 0)) != ready_for:
 					_say("refused=%s" % refusals[0])
 					ready_for = int(ns.get("settings_version", 0))
 					main.set_net_ready(1)

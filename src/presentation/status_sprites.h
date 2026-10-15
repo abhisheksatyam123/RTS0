@@ -69,6 +69,8 @@ public:
 		return (int)icon_tex_.size() - 1;
 	}
 
+	String icon_path(int idx) const { return idx >= 0 && idx < (int)icon_names_.size() ? icon_names_[idx] : String(); }
+
 	void begin_frame(const Camera3D *cam) {
 		if (cam) {
 			const Basis b = cam->get_global_transform().basis;

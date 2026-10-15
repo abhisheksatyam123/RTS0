@@ -35,8 +35,7 @@ func single_labels(menu) -> Array:
 
 func level_texts(page) -> Array:
 	var out: Array = []
-	for i in page.list.item_count:
-		out.append(page.list.get_item_text(i))
+	out.append_array(page.row_texts())
 	return out
 
 func run() -> void:
@@ -73,6 +72,26 @@ func run() -> void:
 	check(texts.size() == 2 and texts[0].begins_with("Introductory Tutorial") and texts[0].ends_with("Available"),
 		"the Introductory Tutorial comes first, available: " + str(texts))
 	check(texts.size() == 2 and texts[1] == "Economy Walkthrough", "the walkthrough is listed without a status: " + str(texts))
+	# CampaignMenu displayLevelsList: Name and Status columns, only "Available" in green,
+	# a locked level's name grey.
+	var rows: Array = page.list.get_root().get_children()
+	check(page.list.columns == 2 and page.list.column_titles_visible and rows[0].get_text(1) == "Available"
+		and rows[0].get_custom_color(1) == page.GREEN and rows[0].get_custom_color(0) != page.GREEN
+		and rows[1].get_custom_color(0) == page.GRAY,
+		"the status is its own column, green when available; the locked name is grey")
+	# translateWithContext: the names and statuses follow the language (German here).
+	var locale_before := TranslationServer.get_locale()
+	var de: Translation = load("res://assets/l10n/de.po")
+	de.locale = "de"
+	TranslationServer.add_translation(de)
+	TranslationServer.set_locale("de")
+	page.render()
+	rows = page.list.get_root().get_children()
+	check(rows[0].get_text(0) == "Interaktive Einführung" and rows[0].get_text(1) == "Verfügbar",
+		"the level name and status are translated: %s / %s" % [rows[0].get_text(0), rows[0].get_text(1)])
+	TranslationServer.set_locale(locale_before)
+	TranslationServer.remove_translation(de)
+	page.render()
 	page.select(1)
 	check(page.start_button.disabled, "the walkthrough cannot start before the tutorial is done")
 	page.select(0)

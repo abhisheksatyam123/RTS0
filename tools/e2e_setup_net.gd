@@ -10,7 +10,15 @@ extends SceneTree
 #      team and colour (asked of the host), presses Ready ("I'm ready",
 #      "Stay ready", "I'm not ready!") and waits for the host, with no
 #      Start button; a refused request says why, and Back leaves the game;
-#   3. outside a networked game the page is the single-player one.
+#   2b. with a saved game (0.28 isSavedGame) the page shows "Saved game", the
+#      host may change only who plays which slot (no AI slot takes a player),
+#      the save keeps its cheats and is never rated, and a client changes
+#      nothing but its Ready;
+#   3. outside a networked game the page is the single-player one;
+#   4. with "Persist match settings" on, the host's Start and Back keep its page in
+#      matchsettings.mp.json (PersistentMatchSettings(isNetworked)), apart from
+#      the single-player file; its next setup starts from it, a client's never,
+#      and a saved game's is not kept.
 # The host's slot names are 0.28's PlayerAssignment dropdowns: the clients and
 # Unassigned, which makes the slot's player an observer.
 # A lobby game of two players is a Rated Game by default (0.28 Rating.js),
@@ -48,6 +56,10 @@ class StubMain extends Node:
 		assigns.append([client, slot])
 	func _on_lobby_start_pressed() -> void:
 		started += 1
+	func get_setup_chat() -> Dictionary:
+		return {"rev": 1, "text": ""}
+	func send_setup_chat(_text: String) -> void:
+		pass
 
 var failures := 0
 var cfg := RtsoUserConfig.new()
@@ -132,9 +144,11 @@ func run() -> void:
 	cheats.button_pressed = true
 	await create_timer(0.4).timeout
 	check(not cheats.disabled and not ms.rated and ms.cheats, "unrated, the host may allow cheats")
-	rated.button_pressed = true
+	check(not rated.visible, "with cheats on there is no Rated Game (Rating.js available)")
+	cheats.button_pressed = false
 	await create_timer(0.4).timeout
-	check(ms.rated and not ms.cheats and not cheats.button_pressed, "rated again: no cheats")
+	check(rated.visible and rated.button_pressed and ms.rated and not ms.cheats and cheats.disabled,
+		"cheats off: rated again by default (maybeUpdate enabled = available)")
 	page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value = 3
 	page._on_slot_kind(1, 2)
 	await create_timer(0.4).timeout
@@ -217,12 +231,60 @@ func run() -> void:
 	check(not picker(page, 1, 2).disabled and picker(page, 0, 2).disabled, "the locks hold after the update")
 	client.net_setup_refused.emit("That colour is taken.")
 	check(page.get_node("VBox/HBox/Right/ErrorLabel").text == "That colour is taken.", "a refused request says why")
+	check(not page.get_node("VBox/HBox/Right/Buttons/BtnBack").disabled and page.get_node("%NetChatInput").editable
+		and not page.get_node("%NetChatSend").disabled, "a client may still go Back and chat")
 	page._on_back_pressed()
 	check(client.left == 1, "Back leaves the networked game")
 	client.state["locked"] = true
 	client.net_setup_changed.emit()
 	await frames(3)
 	check(picker(page, 1, 2).disabled, "a map that sets the players locks ours too")
+	page.queue_free()
+	client.queue_free()
+	await frames(2)
+
+	print("2b. a saved game")
+	ms.net_lobby = "127.0.0.1:1"
+	ms.slot_types = [0, 1, 0]
+	ms.slot_civs = [1, 3, 5]
+	ms.slot_teams = [0, 0, 0]
+	ms.slot_colors = [0, 1, 2]
+	ms.seed = 4242
+	ms.cheats = true
+	ms.rated = false
+	host = StubMain.new()
+	root.add_child(host)
+	host.state = {"controller": true, "my_client": 0, "my_slot": 0, "can_start": true, "all_ready": true, "saved_game": true,
+		"slots": [{"client": 0, "name": "alice", "ready": 2}, {"client": -1}, {"client": 1, "name": "bob", "ready": 1}],
+		"observers": [], "locked": true, "version": 1, "settings_version": 1}
+	page = await open_page(host)
+	await create_timer(0.4).timeout
+	start = page.get_node("VBox/HBox/Right/Buttons/BtnStart")
+	check(page.get_node("VBox/HBox/Right/SavedGameLabel").visible
+		and page.get_node("VBox/HBox/Right/SavedGameLabel").tooltip_text == "The controller loaded a saved game.",
+		"the host's page says Saved game")
+	check(not page.get_node("%SpinSeed").editable and page.get_node("%MapList").mouse_filter == Control.MOUSE_FILTER_IGNORE
+		and page.get_node("%Waves").disabled and picker(page, 0, 2).disabled and picker(page, 2, 3).disabled
+		and picker(page, 1, 1).disabled and picker(page, 2, 5).disabled, "every setting of the save is locked")
+	check(not cells(page)[0].get_node("AssignSelect").disabled and not cells(page)[12].get_node("AssignSelect").disabled
+		and cells(page)[6].get_node_or_null("AssignSelect") == null, "the host may still seat players, not on the AI's slot")
+	check(not start.disabled and not page.get_node("VBox/HBox/Right/Buttons/BtnBack").disabled
+		and page.get_node("%NetChatInput").editable, "Start, Back and the chat stay")
+	check(ms.cheats and not ms.rated and not page.get_node("%RatedGame").visible and ms.seed == 4242
+		and ms.slot_types == [0, 1, 0], "the save keeps its own settings (cheats on, never rated)")
+	page.queue_free()
+	host.queue_free()
+	await frames(2)
+	client = StubMain.new()
+	root.add_child(client)
+	client.state = {"controller": false, "my_client": 1, "my_slot": 2, "can_start": false, "all_ready": false, "saved_game": true,
+		"slots": [{"client": 0, "name": "alice", "ready": 2}, {"client": -1}, {"client": 1, "name": "bob", "ready": 0}],
+		"observers": [], "locked": true, "version": 1, "settings_version": 1}
+	page = await open_page(client)
+	ready_btn = page.get_node("VBox/HBox/Right/Buttons/BtnReady")
+	check(page.get_node("VBox/HBox/Right/SavedGameLabel").visible, "the client's page says Saved game")
+	check(picker(page, 2, 2).disabled and picker(page, 2, 3).disabled and picker(page, 2, 5).disabled
+		and not ready_btn.disabled, "a client changes nothing of a saved game but its Ready")
 	page.queue_free()
 	client.queue_free()
 	await frames(2)
@@ -237,6 +299,70 @@ func run() -> void:
 		and page.get_node("%Cheats").disabled,
 		"the single-player page")
 	page.queue_free()
+	await frames(2)
+
+	print("4. the host's persisted settings")
+	var Setup = load("res://scenes/menu/gamesetup.gd")
+	cfg.set_value("persistmatchsettings", "true")
+	for f in [Setup.PERSIST_FILE, Setup.PERSIST_FILE_MP]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	ms.net_lobby = "127.0.0.1:1"
+	ms.slot_types = [0, 0]
+	ms.slot_civs = [1, 3]
+	ms.slot_teams = [0, 0]
+	ms.slot_colors = [0, 1]
+	ms.seed = 5
+	var host_state := {"controller": true, "my_client": 0, "my_slot": 0, "can_start": true, "all_ready": true,
+		"slots": [{"client": 0, "name": "alice", "ready": 2}, {"client": 1, "name": "bob", "ready": 1}],
+		"observers": [], "locked": false, "version": 1, "settings_version": 1}
+	host = StubMain.new()
+	root.add_child(host)
+	host.state = host_state.duplicate(true)
+	page = await open_page(host)
+	page.get_node("%SpinSeed").value = 31337
+	page._on_start_pressed()
+	check(host.started == 1 and Setup.load_persisted(true).get("seed") == 31337 and not FileAccess.file_exists(Setup.PERSIST_FILE),
+		"the host's Start keeps its page in matchsettings.mp.json, not the single-player file")
+	page.queue_free()
+	host.queue_free()
+	await frames(2)
+	ms.seed = 6
+	host = StubMain.new()
+	root.add_child(host)
+	host.state = host_state.duplicate(true)
+	page = await open_page(host)
+	check(page.get_node("%SpinSeed").value == 31337, "the host's next setup starts from it")
+	page.get_node("%SpinSeed").value = 4040
+	page._on_back_pressed()
+	check(host.left == 1 and Setup.load_persisted(true).get("seed") == 4040, "Back keeps it too")
+	page.queue_free()
+	host.queue_free()
+	await frames(2)
+	ms.seed = 7
+	client = StubMain.new()
+	root.add_child(client)
+	client.state = {"controller": false, "my_client": 1, "my_slot": 1, "can_start": false, "all_ready": false,
+		"slots": host_state["slots"], "observers": [], "locked": false, "version": 1, "settings_version": 1}
+	page = await open_page(client)
+	check(page.get_node("%SpinSeed").value == 7, "a client shows the host's setup, not a persisted one")
+	page._on_back_pressed()
+	check(Setup.load_persisted(true).get("seed") == 4040, "and keeps nothing")
+	page.queue_free()
+	client.queue_free()
+	await frames(2)
+	host = StubMain.new()
+	root.add_child(host)
+	host.state = host_state.duplicate(true)
+	host.state["saved_game"] = true
+	page = await open_page(host)
+	check(page.get_node("%SpinSeed").value == 7, "a saved game shows the save, not the persisted settings")
+	page._on_start_pressed()
+	check(Setup.load_persisted(true).get("seed") == 4040, "and keeps nothing at Start")
+	page.queue_free()
+	host.queue_free()
+	await frames(2)
+	for f in [Setup.PERSIST_FILE, Setup.PERSIST_FILE_MP]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	cfg.set_value("persistmatchsettings", saved_persist)
 	print("RESULT: " + ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

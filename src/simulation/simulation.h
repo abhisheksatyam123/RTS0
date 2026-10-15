@@ -171,7 +171,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 90; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 91; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_MOVE_TO_GATHERER = 91; // when each Petra mobile dropsite next looks for a gatherer
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
 	static constexpr uint32_t SAVE_VERSION_PETRA_NO_UNITS = 90; // Petra's canBuildUnits and the units it sent to allies (dispatchUnits)
@@ -951,7 +952,7 @@ public:
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
 	static bool is_dropsite_type(uint8_t type) {
-		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || is_food_dropsite(type) ||
 			civ_building_is_dropsite(type);
 	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
@@ -3141,6 +3142,7 @@ private:
 	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
+	float petra_starting_wood(float x, float z) const;
 	void petra_plan_sizes(uint8_t kind);
 	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
 	// attackPlan.js unitStat: a plan's classes with their priority, minSize, targetSize,
@@ -3197,6 +3199,10 @@ private:
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
 	std::vector<PetraHuntSearch> petra_hunt_search_;
+	// worker.js nextMoveToGatherer: when (petra_timer_) each mobile dropsite next looks for a
+	// gatherer to walk to; one with no entry looks from 5 s on.
+	struct PetraNextMove { uint32_t id; float time; };
+	std::vector<PetraNextMove> petra_move_to_gatherer_;
 	// worker.js isInaccessibleSupply: each gatherer's or hunter's approach (approachingTarget, the
 	// petra_timer_ time and spot it was last seen moving from, time < 0 none yet, carriedBefore,
 	// alreadyTried), and the supplies it flagged (inaccessibleTime: skipped until `until`).
@@ -3219,6 +3225,10 @@ private:
 	bool petra_rates_this_turn() const { return petra_rates_stamp_ == petra_rates_key(); }
 	// headquarters.js pickMostNeededResources over those rates.
 	static void petra_most_needed(const float want_rate[RES_COUNT], const float cur_rate[RES_COUNT], uint8_t out[RES_COUNT]);
+	// pickMostNeededResources for diplomacy: wanted > 0 per resource, and the most needed one;
+	// from this turn's gather rates when in, else from what our queues are short of.
+	void petra_wanted_resources(bool out[RES_COUNT]);
+	uint8_t petra_most_needed_resource();
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
 	float petra_scout_timer_ = 0.0f;
@@ -3559,7 +3569,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_)
+	X(petra_kept_) X(petra_move_to_gatherer_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

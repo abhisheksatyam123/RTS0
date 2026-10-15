@@ -818,6 +818,10 @@ void RtsoMain::update_net_warnings() {
 		bool gone = it->first != "server";
 		for (const auto &e : net_host_.playerAssignment())
 			if (rtso::peer_guid(e.client) == it->first && e.status != rtso::PlayerAssignmentMsg::LEFT) gone = false;
+		// Before Start there is no player assignment yet: the connected clients.
+		if (is_net_pregame())
+			for (const auto &p : net_host_.getPeers())
+				if (p.connected && rtso::peer_guid(p.id) == it->first) gone = false;
 		if (!on || now > it->second.first + rtso::NETWORK_WARNING_SHOW_MS || gone) {
 			it = net_warnings_.erase(it);
 			continue;
@@ -829,6 +833,23 @@ void RtsoMain::update_net_warnings() {
 		if (w.first != "server") text += String(text.is_empty() ? "" : "\n") + w.second.second;
 	net_warnings_label_->set_text("[right]" + text + "[/right]");
 	net_warnings_label_->set_visible(!text.is_empty());
+	// SetupWindow.js registers netwarn too: before Start the warnings go over
+	// the (opaque) setup page and the Connecting box, then back on the session UI.
+	Node *home = ui_layer;
+	if (is_net_pregame()) {
+		if (!net_warnings_layer_) {
+			net_warnings_layer_ = memnew(CanvasLayer);
+			net_warnings_layer_->set_name("NetWarnings");
+			net_warnings_layer_->set_layer(22); // the setup page is 20, the Connecting box 21
+			add_child(net_warnings_layer_);
+		}
+		home = net_warnings_layer_;
+	}
+	if (home && net_warnings_label_->get_parent() != home) net_warnings_label_->reparent(home, false);
+	if (!is_net_pregame() && net_warnings_layer_ && net_warnings_label_->get_parent() != net_warnings_layer_) {
+		net_warnings_layer_->queue_free();
+		net_warnings_layer_ = nullptr;
+	}
 }
 
 void RtsoMain::update_net_status_overlay() {
@@ -1257,20 +1278,15 @@ void RtsoMain::update_observer_view_picker() {
 		return;
 	}
 	if (!observer_view_picker_) {
-		HBoxContainer *row = memnew(HBoxContainer);
-		row->set_position(Vector2(16.0f, 64.0f));
 		observer_view_picker_ = new_player_view_picker();
 		observer_view_picker_->connect("item_selected", Callable(this, "_on_observer_view_selected"));
-		row->add_child(observer_view_picker_);
 		observer_mode_label_ = memnew(Label);
 		observer_mode_label_->set_text("Observer Mode");
-		row->add_child(observer_mode_label_);
 		observer_follow_box_ = new_follow_player_box();
-		row->add_child(observer_follow_box_);
 		CanvasLayer *layer = memnew(CanvasLayer);
 		layer->set_layer(5);
 		add_child(layer);
-		layer->add_child(row);
+		layer->add_child(new_player_view_row(observer_view_picker_, observer_mode_label_, observer_follow_box_));
 		const uint8_t seat = seat_player();
 		if (!spectating()) {
 			sync_observer_view_picker(); // Change perspective: the player's own seat
@@ -2489,6 +2505,8 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
 	d["net_warnings"] = net_warnings_label_ && net_warnings_label_->is_visible() ? net_warnings_label_->get_parsed_text() : String();
+	if (net_warnings_label_)
+		if (CanvasLayer *l = Object::cast_to<CanvasLayer>(net_warnings_label_->get_parent())) d["net_warnings_layer"] = (int)l->get_layer();
 	return d;
 }
 
@@ -2578,11 +2596,21 @@ void RtsoMain::refresh_lobby_seats() {
 			buddy = !c.name.empty() && list.find("," + c.name + ",") != std::string::npos;
 		}
 		if (opt == "disabled" || (opt == "buddies" && !buddy)) { seat_choice_[c.id] = SEAT_OBSERVER; continue; }
+		if (c.watches) continue;
+		auto held = [&](int slot) {
+			bool h = false;
+			for (const auto &o : clients) h |= o.id != c.id && eff[o.id] == slot;
+			return h;
+		};
 		auto last = seat_last_.find(c.name);
-		if (c.watches || last == seat_last_.end() || last->second >= slots.size() || slots[last->second].type == 'x') continue;
-		bool held = false;
-		for (const auto &o : clients) held |= o.id != c.id && eff[o.id] == last->second;
-		if (!held) seat_choice_[c.id] = last->second;
+		if (last != seat_last_.end() && last->second < slots.size() && slots[last->second].type != 'x' && !held(last->second)) {
+			seat_choice_[c.id] = last->second;
+			continue;
+		}
+		// findAssignmentSlot: else the slot the saved game has for that name.
+		const String saved = "@" + String::utf8(c.name.c_str()).to_lower();
+		for (int i = 0; net_saved_setup() && i < (int)net_saved_seats_.size() && i < (int)slots.size(); ++i)
+			if (net_saved_seats_[i] == saved && slots[i].type == 'h' && !held(i)) { seat_choice_[c.id] = i; break; }
 	}
 	lobby_effective_seats(eff);
 	for (const auto &c : clients) seat_last_[c.name] = eff[c.id];
@@ -2676,8 +2704,19 @@ void RtsoMain::prepare_lobby_seats(rtso::GameSetupParams &setup, bool commit) {
 		if (e.second == SEAT_OBSERVER) { setup.observers |= bit; continue; }
 		setup.observers &= (uint8_t)~bit;
 		if (e.second < 0 || e.second >= setup.slot_count || setup.slot_types[e.second] == 'x') continue;
+		// PlayerAssignment.rebuildList: a saved game's AI can't be replaced.
+		if (net_saved_setup() && setup.slot_types[e.second] != 'h') continue;
 		setup.seats[e.first] = (uint8_t)e.second;
 		setup.slot_types[e.second] = 'h';
+	}
+	if (net_saved_setup()) {
+		// Only the save's human seats take players; the rest watch.
+		for (uint8_t i = 0; i < setup.slot_count; ++i)
+			if (setup.slot_types[i] == 'h' && (i >= net_saved_seats_.size() || net_saved_seats_[i].is_empty())) setup.slot_types[i] = 'x';
+		if (commit)
+			for (const auto &p : net_host_.getPeers())
+				if (p.connected && p.id != 0 && p.id < 8) net_host_.setPeerObserver(p.id, (setup.observers >> p.id) & 1);
+		return;
 	}
 	int need = (setup.observers & 1) ? 0 : 1;
 	for (const auto &p : net_host_.getPeers()) {
@@ -2730,6 +2769,7 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		if (const char *why = apply_net_setup_request(r.client, r.request)) net_host_.sendSetupRefusal(r.client, why);
 	rtso::NetSetupState n;
 	match_settings_setup(n.setup);
+	if (net_saved_setup()) n.setup.saved_game = 1; // the clients lock their page too
 	uint8_t eff[8];
 	{
 		rtso::GameSetupParams seated = n.setup;
@@ -2856,6 +2896,7 @@ const char *RtsoMain::apply_net_setup_request(uint32_t client, const std::string
 	const size_t eq = request.find('=');
 	if (!ms || eq == std::string::npos) return "Unknown request";
 	if (slot < 0) return "You have no player slot";
+	if (net_saved_setup()) return "The controller loaded a saved game";
 	if ((bool)ms->get("map_locks_players")) return "This map sets every player's civilization, team and color";
 	const std::string key = request.substr(0, eq);
 	const String sv = String(request.substr(eq + 1).c_str());
@@ -2948,7 +2989,9 @@ Dictionary RtsoMain::get_net_setup_state() const {
 	d["all_ready"] = net_setup_.all_ready();
 	d["can_start"] = host && !net_game_started_ && net_setup_.all_ready();
 	d["ready"] = host ? 2 : (int)net_ready_;
-	d["locked"] = net_setup_.setup.lock_players != 0;
+	// SavedGameLabel and GameSettingControl EnabledWhenSavedGame.
+	d["saved_game"] = net_setup_.setup.saved_game != 0;
+	d["locked"] = net_setup_.setup.lock_players != 0 || net_setup_.setup.saved_game != 0;
 	d["version"] = (int64_t)net_setup_.seq;
 	d["settings_version"] = (int64_t)net_setup_.settings_version;
 	return d;
