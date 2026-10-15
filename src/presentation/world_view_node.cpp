@@ -2709,7 +2709,7 @@ bool RtsoWorldView::crowd_bake_over_budget() {
 }
 
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, uint64_t death_slots, bool female, bool budgeted) {
+		const bool *needed, int count, uint64_t death_slots, bool female) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -2717,10 +2717,6 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	}
 	for (int c = 0; c < count; ++c) {
 		if (!needed[c] || done[c]) continue;
-		if (budgeted) {
-			if (crowd_bake_over_budget()) break;
-			crowd_baked_this_frame_ = true;
-		}
 		done[c] = true;
 		ensure_form_clip(ap, (ClipId)want[c]);
 		ClipId play = resolve_clip_fallback(ap, (ClipId)want[c]);
@@ -2799,41 +2795,151 @@ static Node *instantiate_for_bake(Node3D *bake_root, const Ref<PackedScene> &sce
 	return inst;
 }
 
+struct RtsoWorldView::CrowdBakeJob {
+	Node *inst = nullptr;
+	AnimationPlayer *ap = nullptr;
+	uint32_t batch = 0;	 // civ << 16 | key
+	bool female = false;
+	int clip = -1;		 // crowd clip slot mid-bake, -1 between clips
+	int frame = 0, valid = 0;
+	double len = 0.0;
+	Node3D *prop = nullptr;
+	rtso::ModelLibrary::CrowdSkin skin;
+	Ref<ArrayMesh> poses[CROWD_FRAMES_PER_CLIP];
+};
+
+// Readies clip slot c of the job's batch for posing, as bake_puppet_clips does per clip.
+void RtsoWorldView::crowd_job_begin_clip(CrowdBatch &b, int c) {
+	CrowdBakeJob &j = *crowd_job_;
+	crowd_baked_this_frame_ = true;
+	b.clip_baked[c] = true;
+	b.puppet[c].baked_count = 0;
+	b.puppet[c].last_frame = -1;
+	AnimationPlayer *ap = j.ap;
+	const ClipId want = (ClipId)crowd_clips()[c];
+	ensure_form_clip(ap, want);
+	const ClipId play = resolve_clip_fallback(ap, want);
+	if (!ap || play == CLIP_NONE) return;
+	const StringName &name = clip_name(play);
+	// Show the clip's tool (axe, pick, hammer...) before capturing, as
+	// capture skips hidden props.
+	apply_unit_tools(j.inst, name);
+	// The carry shuttle bakes into the clip's frames, riding its bone.
+	j.prop = is_carry_variant(play) ? attach_carry_prop(j.inst, play, j.female) : nullptr;
+	j.skin = rtso::ModelLibrary::CrowdSkin();
+	if (!rtso::ModelLibrary::capture_crowd_skin(j.inst, j.skin)) {
+		if (j.prop) detach_carry_props(find_skeleton3d(j.inst));
+		j.prop = nullptr;
+		return;
+	}
+	j.len = 0.0;
+	Ref<Animation> a = ap->get_animation(name);
+	if (a.is_valid()) j.len = a->get_length();
+	ap->play(name);
+	j.clip = c;
+	j.frame = 0;
+	j.valid = 0;
+}
+
+// Bakes the job's clip pose by pose until it completes (then shows it) or the frame's
+// budget runs out (it resumes next frame, the units drawn in the rest pose meanwhile).
+void RtsoWorldView::crowd_job_bake_poses() {
+	CrowdBakeJob &j = *crowd_job_;
+	if (j.clip < 0) return;
+	const int c = j.clip;
+	const int n = CROWD_FRAMES_PER_CLIP;
+	while (j.frame < n) {
+		if (crowd_bake_over_budget()) return;
+		crowd_baked_this_frame_ = true;
+		const int f = j.frame++;
+		double t = 0.0;
+		if (j.len > 0.0) {
+			if (CROWD_DEATH_SLOTS & (1ull << c)) {
+				t = (n > 1) ? j.len * (double)f / (double)(n - 1) : 0.0;
+			} else {
+				t = j.len * (double)f / (double)n;
+			}
+		}
+		j.ap->seek(t, true);
+		j.ap->advance(0.0);
+		Ref<ArrayMesh> baked = rtso::ModelLibrary::bake_crowd_skin(j.skin);
+		if (baked.is_valid()) j.poses[j.valid++] = baked;
+	}
+	if (j.prop) detach_carry_props(find_skeleton3d(j.inst));
+	j.prop = nullptr;
+	j.skin = rtso::ModelLibrary::CrowdSkin();
+	CrowdBatch &b = crowd_batch((uint8_t)(j.batch >> 16), (uint16_t)(j.batch & 0xFFFF));
+	CrowdPuppet &row = b.puppet[c];
+	for (int f = 0; f < j.valid; ++f) row.posed_frames[f] = j.poses[f];
+	for (int f = 0; f < n; ++f) j.poses[f].unref();
+	row.baked_count = j.valid;
+	row.last_frame = -1;
+	if (b.mm[c].is_valid() && row.posed_frames[0].is_valid()) b.mm[c]->set_mesh(row.posed_frames[0]);
+	j.clip = -1;
+}
+
+// Frees the job's model instance (between clips only).
+void RtsoWorldView::crowd_job_release() {
+	CrowdBakeJob &j = *crowd_job_;
+	if (!j.inst) return;
+	if (j.ap) j.ap->stop();
+	crowd_bake_root->remove_child(j.inst);
+	j.inst->queue_free();
+	j.inst = nullptr;
+	j.ap = nullptr;
+}
+
 void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts) {
 	static_assert(CROWD_CLIP_COUNT == CROWD_FORM_SLOT + (CLIP_COUNT - CLIP_FORM_FIRST),
 			"CROWD_CLIP_COUNT must cover the formation clips (crowd_clips)");
 	CrowdBatch &b = crowd_batch(civ, key);
 	const uint8_t utype = crowd_key_utype_[key < CROWD_KEY_COUNT ? key : 0];
 	if (b.no_scene) return;
-	bool needed[CROWD_CLIP_COUNT] = {};
 	bool any = false;
-	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-		needed[c] = counts[c] > 0 && !b.clip_baked[c];
-		any = any || needed[c];
-	}
+	for (int c = 0; c < CROWD_CLIP_COUNT && !any; ++c) any = counts[c] > 0 && !b.clip_baked[c];
 	if (!any || crowd_bake_over_budget()) return;
-
-	auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
-	if (!entry.scene.is_valid()) {
-		b.no_scene = true;
-		return;
+	if (!crowd_job_) crowd_job_ = std::make_unique<CrowdBakeJob>();
+	CrowdBakeJob &j = *crowd_job_;
+	// A clip mid-bake finishes first (sync resumes it before the batches).
+	if (j.clip >= 0) return;
+	const uint32_t id = (uint32_t)civ << 16 | key;
+	if (j.inst && j.batch != id) crowd_job_release();
+	// A fresh instance starts its first clip whatever the budget, so batches cannot take
+	// the instance from each other frame after frame without baking.
+	bool fresh = false;
+	if (!j.inst) {
+		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
+		if (!entry.scene.is_valid()) {
+			b.no_scene = true;
+			return;
+		}
+		if (!crowd_bake_root) {
+			crowd_bake_root = memnew(Node3D);
+			crowd_bake_root->set_visible(false);
+			add_child(crowd_bake_root);
+		}
+		Node *inst = instantiate_for_bake(crowd_bake_root, entry.scene);
+		if (!inst) return;
+		j.inst = inst;
+		j.batch = id;
+		j.female = unit_is_female(utype);
+		j.ap = find_anim_player(inst);
+		ensure_runtime_clips(j.ap, j.female);
+		if (j.ap) {
+			j.ap->set_active(true);
+			j.ap->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
+		}
+		fresh = true;
 	}
-	if (!crowd_bake_root) {
-		crowd_bake_root = memnew(Node3D);
-		crowd_bake_root->set_visible(false);
-		add_child(crowd_bake_root);
-	}
-	Node *inst = instantiate_for_bake(crowd_bake_root, entry.scene);
-	if (!inst) return;
-	const bool female = unit_is_female(utype);
-	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female, true);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-		if (needed[c] && b.clip_baked[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
-			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
+		if (counts[c] <= 0 || b.clip_baked[c]) continue;
+		if (!fresh && crowd_bake_over_budget()) return;
+		fresh = false;
+		crowd_job_begin_clip(b, c);
+		crowd_job_bake_poses();
+		if (j.clip >= 0) return;
 	}
-	crowd_bake_root->remove_child(inst);
-	inst->queue_free();
+	crowd_job_release();
 }
 
 void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
@@ -3729,6 +3835,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
 	crowd_bake_deadline_us_ = bake_now_us() + CROWD_BAKE_BUDGET_US;
 	crowd_baked_this_frame_ = false;
+	if (crowd_job_ && crowd_job_->clip >= 0) {
+		crowd_job_bake_poses();
+		if (crowd_job_->clip < 0) crowd_job_release();
+	}
 	// Per batch and clip: units drawn (counts) and placed so far (written). Only the rows of
 	// batches with units this frame are cleared and read; the rest count none.
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];

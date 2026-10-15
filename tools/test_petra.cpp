@@ -5747,6 +5747,42 @@ static void test_corral_by_owner() {
 	CHECK(corrals() == 2, "a second corral in the town phase past 30 population");
 }
 
+
+// common-api entity.js: Petra scores its templates with the player's technologies applied.
+// After Archery Tradition (+10 m range) a Kushite's best citizen infantry per cost, by
+// strength, is the archer, as in 0.28; on base stats it was the spearman.
+static void test_strength_with_techs() {
+	std::printf("strength with technologies\n");
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->set_team_civ(1, CIV_KUSHITES);
+	s->reset();
+	s->petra_pid_ = 1;
+	auto best = [&]() {
+		uint16_t pick = CIV_UNIT_TEMPLATE_NONE;
+		float best_value = 0.0f;
+		for (uint16_t tmpl : civ_roster_ids(CIV_KUSHITES)) {
+			const CivUnitTemplate &t = civ_unit_template(tmpl);
+			const TechClasses c = civ_unit_template(tmpl).tech_classes;
+			if (t.phase > 1 || !t.trainers || (c & (TC_CITIZENSOLDIER | TC_INFANTRY)) != (TC_CITIZENSOLDIER | TC_INFANTRY)) continue;
+			const UnitTypeInfo &ui = civ_template_unit_info(tmpl, t.unit_type);
+			float cost[RES_COUNT];
+			s->unit_train_cost(1, tmpl, ui, cost);
+			const float v = (0.1f + s->petra_template_strength(ui, tmpl, t.unit_type)) /
+				(1.0f + cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE]);
+			if (pick == CIV_UNIT_TEMPLATE_NONE || v > best_value) { pick = tmpl; best_value = v; }
+		}
+		return pick;
+	};
+	const uint16_t before = best();
+	CHECK(before != CIV_UNIT_TEMPLATE_NONE && !(civ_unit_template(before).tech_classes & TC_RANGED), "base stats: a melee unit");
+	s->complete_research(1, TECH_ARCHERY_TRADITION);
+	const uint16_t after = best();
+	std::printf("  %s -> %s\n", before != CIV_UNIT_TEMPLATE_NONE ? civ_unit_template(before).id : "-",
+		after != CIV_UNIT_TEMPLATE_NONE ? civ_unit_template(after).id : "-");
+	CHECK(after != CIV_UNIT_TEMPLATE_NONE && (civ_unit_template(after).tech_classes & TC_RANGED), "Archery Tradition: the archer");
+}
+
 int main(int argc, char **argv) {
 	// Optional test names on the command line run just those.
 	auto want = [&](const char *name) {
@@ -5757,6 +5793,7 @@ int main(int argc, char **argv) {
 #define RUN(t) if (want(#t)) t()
 	std::printf("test_petra\n");
 	RUN(test_no_early_rush);
+	RUN(test_strength_with_techs);
 	RUN(test_phase_up);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);

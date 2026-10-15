@@ -13835,6 +13835,31 @@ void Simulation::tick_combat(float dt) {
 		float rate = m.regen[t] + (inside || units_.action_state[u] == ACTION_IDLE ? m.idle_regen[t] : 0.0f);
 		if (rate > 0.0f) units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * rate);
 	}
+	// Liu Bang's Confucian Reforms (han_hero_liu_bang_1: global, own Walls Health/RegenRate +10):
+	// while either Liu Bang template lives, garrisoned included, the owner's finished stone walls,
+	// gates and wall towers regenerate 10 hp/s (Health.js regenerates structures too).
+	static const int16_t liu_bang_walls = [] {
+		for (uint16_t a = 0; a < CIV_HERO_AURA_COUNT; ++a)
+			if (std::strcmp(civ_hero_aura(a).id, "han_hero_liu_bang_1") == 0) return (int16_t)a;
+		return (int16_t)-1;
+	}();
+	if (liu_bang_walls >= 0) {
+		uint16_t regen_players = 0;
+		for (size_t u = 0; u < n; ++u) {
+			if (units_.hp[u] <= 0.0f || units_.team[u] >= MAX_PLAYERS) continue;
+			if (!units_.alive[u] && units_.action_state[u] != ACTION_GARRISONED) continue;
+			const uint16_t tmpl = units_.tmpl[u];
+			if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) continue;
+			for (int16_t a : civ_unit_template(tmpl).auras)
+				if (a == liu_bang_walls) regen_players |= (uint16_t)(1u << units_.team[u]);
+		}
+		const float rate = civ_hero_aura(liu_bang_walls).value;
+		if (regen_players)
+			for (Building &b : buildings_)
+				if (b.team < MAX_PLAYERS && (regen_players >> b.team & 1u) && !b.wrecked && b.hp > 0.0f &&
+						b.build_progress >= 1.0f && b.hp < b.max_hp && (building_tech_classes(b.type) & TC_WALL))
+					b.hp = std::min(b.max_hp, b.hp + dt * rate);
+	}
 	// A negative template RegenRate (fire ships) wears the unit down, even at full health.
 	for (size_t u = 0; u < n; ++u) {
 		if (!units_.alive[u] || units_.hp[u] <= 0.0f) continue;
@@ -18361,9 +18386,9 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 	auto classes_of = [](uint16_t tmpl, uint8_t type) {
 		return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	};
+	// A building of ours that trains `tmpl` at all (findTrainableUnits ignores queue lengths).
 	auto trainer_for = [&](uint16_t tmpl) -> uint32_t {
-		const CivUnitTemplate &t = civ_unit_template(tmpl);
-		return petra_best_trainer(tmpl, t.unit_type, (t.flags & ROSTER_HERO) ? PRODUCTION_QUEUE_MAX : 4);
+		return petra_best_trainer(tmpl, civ_unit_template(tmpl).unit_type, PRODUCTION_QUEUE_MAX);
 	};
 	// attackPlan.js constructor unitStat: {classes, priority, minSize, targetSize, batchSize,
 	// strength, costsResource stone, costsResource metal}.
@@ -18463,11 +18488,13 @@ void Simulation::petra_manage_military_production(float dt) {
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_)) return;
 	const uint8_t phase = petra_ps().phase;
 
-	// The building of ours that trains roster unit `tmpl` soonest (TrainingPlan.getBestTrainers).
-	// A hero, wanted once, is not kept off a civic centre busy with worker batches.
+	// The building of ours that trains roster unit `tmpl` soonest (TrainingPlan.getBestTrainers):
+	// one with under 4 batches queued, else any. findBestTrainableUnit picks the unit first
+	// without looking at queues, so busy buildings don't change what is trained.
 	auto trainer_for = [&](uint16_t tmpl) -> uint32_t {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
-		return petra_best_trainer(tmpl, t.unit_type, (t.flags & ROSTER_HERO) ? PRODUCTION_QUEUE_MAX : 4);
+		const uint32_t free = (t.flags & ROSTER_HERO) ? 0 : petra_best_trainer(tmpl, t.unit_type, 4);
+		return free ? free : petra_best_trainer(tmpl, t.unit_type, PRODUCTION_QUEUE_MAX);
 	};
 
 	// attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
@@ -18980,7 +19007,7 @@ int Simulation::petra_train_more_workers() {
 			float cost[RES_COUNT];
 			unit_train_cost(petra_pid_, tmpl, ui, cost);
 			float value = 0.1f;
-			if (total < 45) value += ui.speed / FORMATION_METRE * 0.5f; // walkSpeed in m/s
+			if (total < 45) value += ui.speed * unit_tech_mods(petra_pid_, t.unit_type, tmpl).speed / FORMATION_METRE * 0.5f; // walkSpeed in m/s
 			else value += petra_template_strength(ui, tmpl, t.unit_type);
 			for (int r = 0; r < RES_COUNT; ++r)
 				if (cost[r] > 0.0f) value *= penalty[r];
@@ -19007,20 +19034,28 @@ int Simulation::petra_train_more_workers() {
 // getMaxStrength's Capture attack: MaxRange 4 m x 0.0125 + RepeatTime 1000 / 1e5.
 static constexpr float PETRA_CAPTURE_STRENGTH = 4.0f * 0.0125f + 1000.0f / 100000.0f;
 
-// PETRA.getMaxStrength for a template at its base stats (petra_unit_strength reads a unit),
-// its damage times `attack_mult` (getMultiplierAgainst for a class it is measured against).
+// PETRA.getMaxStrength for a template (petra_unit_strength reads a unit), its damage times
+// `attack_mult` (getMultiplierAgainst for a class it is measured against). Petra's templates
+// carry the player's technology modifications (common-api entity.js get), so the stats are
+// the ones a unit of ours trained now would have.
 float Simulation::petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult) const {
+	const UnitTechMods m = unit_tech_mods(petra_pid_, type, tmpl);
 	float s = 0.0f;
 	if (ui.attack_damage > 0.0f) {
-		s += (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage) * attack_mult / 4.0f;
+		const float hack = ui.hack_damage * m.atk_mul[0] + m.atk_add[0];
+		const float pierce = ui.pierce_damage * m.atk_mul[1] + m.atk_add[1];
+		const float crush = ui.crush_damage * m.atk_mul[2] + m.atk_add[2];
+		s += (0.075f * hack + 0.085f * pierce + 0.045f * crush) * attack_mult / 4.0f;
 		const bool ranged = (unit_classes(tmpl, type) & TC_RANGED) != 0;
-		s += ui.attack_range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
+		const float range = ui.attack_range * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
+		s += range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
 		s += ui.attack_cooldown * 1000.0f / 100000.0f;
 	}
 	// attackTypes() lists Capture too: no attackStrengths, but its MaxRange 4 and RepeatTime 1000.
 	if (unit_capture_attack(tmpl, type) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
-	s += (0.075f * ui.hack_armor + 0.085f * ui.pierce_armor + 0.045f * ui.crush_armor) / 4.0f;
-	return s * ui.hp / 100.0f;
+	s += (0.075f * (ui.hack_armor + m.armor[0]) + 0.085f * (ui.pierce_armor + m.armor[1]) +
+	      0.045f * (ui.crush_armor + m.armor[2])) / 4.0f;
+	return s * ui.hp * m.health / 100.0f;
 }
 
 // Sends up to `max` of `workers` to build foundation `bid`. On a naval map only
