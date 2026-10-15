@@ -2637,7 +2637,7 @@ private:
 	void award_structure_damage_xp(uint32_t attacker_id, const Building &b, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-			bool target_is_building, float damage, bool melee = false);
+			bool target_is_building, float damage, bool melee = false, bool capture = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
 	std::vector<TriggerEventData> pending_attack_alerts_; // OnAttackDetected, raised at the end of the tick that detected them
@@ -3116,6 +3116,20 @@ private:
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
 	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
+	// attackPlan.js unitStat: a plan's classes with their priority, minSize, targetSize,
+	// batchSize and interests (the sizes petra_plan_sizes drew), siege engines included
+	// (addSiegeUnits); count is left for the caller.
+	struct PetraUnitStat {
+		TechClasses classes;
+		float priority;
+		int min, target, batch;
+		float strength, siege_strength, stone, metal; // interests; 1 = no costsResource penalty
+		int count = 0;
+	};
+	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind);
+	// Whether a building of ours trains some roster template of the class now (trainMoreUnits
+	// drops a class without one from the plan).
+	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);

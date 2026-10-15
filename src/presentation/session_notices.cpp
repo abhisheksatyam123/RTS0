@@ -38,7 +38,7 @@ using namespace godot;
 using rtso::sprintf0;
 
 void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices) {
-	if (notices.empty() || !sim || !chat_window_.is_ready() || turn_mgr_.is_replaying()) return;
+	if (notices.empty() || !sim || !chat_window_.is_ready()) return; // replays too (session.js handleNotifications)
 	using N = rtso::Simulation::SessionNotice;
 	const uint8_t me = local_player();
 	const bool observer = me >= rtso::MAX_PLAYERS || sim->is_defeated(me);

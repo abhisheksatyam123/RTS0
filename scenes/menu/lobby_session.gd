@@ -8,6 +8,9 @@ extends Node
 
 ## 0 A.D. KickStrings Local: a moderator kicked or banned us, with the reason.
 signal kicked(text: String)
+## The lobby no longer knows our session (it expired, or the server restarted):
+## 0.28 ConnectionHandler askReconnect.
+signal disconnected
 
 const HEARTBEAT_S := 10.0
 const REPORT_CHECK_S := 1.0
@@ -22,6 +25,13 @@ var token := ""
 var player_name := ""
 # The game this player hosts, as registered with the lobby; empty when not hosting.
 var room := {}
+
+# XmppClient keeps the session's lobby chat: every lobby page replays the
+# messages after this id (-1: no page has read the chat since signing in).
+var chat_from := -1
+# The session was lost (disconnected) and not signed in again since.
+var lost := false
+var _last_login := {} # address, name and encrypted password of the last sign-in, to reconnect
 
 var _timer: Timer
 var _report_timer: Timer
@@ -57,6 +67,11 @@ func _ready() -> void:
 	_nat_timer.autostart = true
 	_nat_timer.timeout.connect(_nat_tick)
 	add_child(_nat_timer)
+	_room_timer = Timer.new()
+	_room_timer.wait_time = ROOM_CHECK_S
+	_room_timer.autostart = true
+	_room_timer.timeout.connect(_room_tick)
+	add_child(_room_timer)
 
 
 ## NetServer SetupUPnP: a host asks the router (an UPnP IGD) to forward its
@@ -134,12 +149,17 @@ func _send(path: String, method: int, body: String, cb: Callable) -> void:
 		req.queue_free()
 		var ok := result == HTTPRequest.RESULT_SUCCESS
 		var obj = JSON.parse_string(data.get_string_from_utf8()) if ok else null
-		if ok and code == 401 and obj is Dictionary and obj.has("kicked") and sent_token != "" and sent_token == token:
+		if ok and code == 401 and obj is Dictionary and sent_token != "" and sent_token == token:
 			token = ""
 			room = {}
 			join_room = ""
 			moderator = false
-			kicked.emit(str(obj["kicked"]))
+			chat_from = -1
+			if obj.has("kicked"):
+				kicked.emit(str(obj["kicked"]))
+			else:
+				lost = true
+				disconnected.emit()
 		if cb.is_valid():
 			cb.call(code if ok else 0, obj))
 	var headers := PackedStringArray(["Content-Type: application/json"])
@@ -174,18 +194,30 @@ static func encrypt_password(password: String, username: String) -> String:
 	return out.hex_encode().to_upper()
 
 
-## 0 A.D. prelobby checkUsername / checkPassword for a new account.
+## 0 A.D. prelobby checkUsername / checkPassword / checkPasswordConfirmation
+## for a new account (credentials.js; lobby/password.js minimumPasswordLength).
+const MIN_PASSWORD_LENGTH := 8
+
 static func register_problem(who: String, password: String, confirm: String) -> String:
 	if who == "":
 		return "Please enter your username"
-	var re := RegEx.create_from_string("^[A-Za-z0-9._-]{1,20}$")
-	if re.search(who) == null:
+	if not valid_name(who):
 		return "Invalid username"
 	if password == "":
 		return "Please enter your password"
+	if password.length() < MIN_PASSWORD_LENGTH:
+		return "Please choose a longer password"
+	if confirm == "":
+		return "Please enter your password again"
 	if password != confirm:
 		return "Passwords do not match"
 	return ""
+
+
+## credentials.js: 3 to 20 of a-z, 0-9, ".", "_" and "-", with at least one
+## letter, in any case (tools/lobby_server.py ACCOUNT_NAME).
+static func valid_name(who: String) -> bool:
+	return RegEx.create_from_string("^(?=.*[a-zA-Z])[a-zA-Z0-9._-]{3,20}$").search(who) != null
 
 
 # 0 A.D. prelobby Register: an account the lobby keeps (tools/lobby_server.py --accounts).
@@ -213,7 +245,18 @@ func sign_in(addr: String, name: String, cb: Callable, encrypted: String = "") -
 		if code == 200 and obj is Dictionary:
 			token = str(obj.get("token", ""))
 			player_name = str(obj.get("name", name))
+			lost = false
+			chat_from = -1
+			_last_login = {"address": addr, "name": name, "encrypted": encrypted}
 		cb.call(code, obj))
+
+
+## ConnectionHandler askReconnect "Yes": sign in again as before.
+func reconnect(cb: Callable) -> void:
+	if _last_login.is_empty():
+		cb.call(0, null)
+		return
+	sign_in(str(_last_login["address"]), str(_last_login["name"]), cb, str(_last_login["encrypted"]))
 
 
 func sign_out() -> void:
@@ -228,6 +271,9 @@ func sign_out() -> void:
 	token = ""
 	room = {}
 	join_room = ""
+	chat_from = -1
+	lost = false
+	_last_login = {}
 
 
 # A game post carries the host's token: the lobby keys a game by its host
@@ -241,6 +287,7 @@ func _signed(body: Dictionary) -> Dictionary:
 # The host's game: registered now and refreshed on every heartbeat.
 func host_game(game: Dictionary) -> void:
 	room = game.duplicate()
+	_room_posted = room.duplicate(true)
 	join_room = ""
 	_room_in_match = false
 	_room_started_at = 0
@@ -389,13 +436,26 @@ func _beat() -> void:
 		return
 	var main := _match_node()
 	post_json("/presence", {"token": token, "status": "playing" if main != null else ("away" if away else "available")})
-	if room.is_empty():
+	_room_tick(true)
+
+
+# LobbyGameRegistration.js: the host re-registers its game soon after any
+# change to it (500 ms, sendImmediately on Start) and unregisters once it
+# leaves; the heartbeat posts it anyway to keep it listed.
+const ROOM_CHECK_S := 0.5
+var _room_timer: Timer
+var _room_posted := {}
+
+func _room_tick(always := false) -> void:
+	if token == "" or room.is_empty():
 		return
+	var main := _match_node()
 	if main == null:
 		if _room_in_match:
 			# Back from the match: the game is gone.
 			post_json("/rooms/unregister", {"token": token, "id": room.get("id", "")})
 			room = {}
+			_room_posted = {}
 		return
 	_room_in_match = true
 	var st: Dictionary = main.get_lobby_state()
@@ -407,13 +467,17 @@ func _beat() -> void:
 		_room_started_at = int(Time.get_unix_time_from_system())
 	room.merge(room_details(get_node("/root/MatchSettings"),
 		main.get_net_setup_state() if main.has_method("get_net_setup_state") else {}, _room_started_at), true)
-	post_json("/rooms", _signed(room))
+	if always or room != _room_posted:
+		_room_posted = room.duplicate(true)
+		post_json("/rooms", _signed(room))
 
 
 # The game's details 0 A.D.'s host sends the lobby with its game (Game.js
 # stanza: mapName, mapType, mapSize, victoryConditions, startTime, players),
 # from the host's Game Setup (MatchSettings) and its seats
 # (get_net_setup_state). Older lobby servers ignore the extra fields.
+static var _map_types := {} # map id -> its map type (the map list file, read once per map)
+
 static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictionary:
 	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
 	var map_id := str(ms.get("map_id"))
@@ -424,8 +488,10 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 			map_name = str(r[1]).trim_suffix(" (RMS)")
 			map_type = "random"
 	if map_type == "":
-		var known: Dictionary = setup._map_types_data().get("maps", {})
-		map_type = str((known.get(map_id, {}) as Dictionary).get("type", "skirmish"))
+		if not _map_types.has(map_id):
+			var known: Dictionary = setup._map_types_data().get("maps", {})
+			_map_types[map_id] = str((known.get(map_id, {}) as Dictionary).get("type", "skirmish"))
+		map_type = _map_types[map_id]
 	# Game.js translateMapSize: the size's name for a random map, "Default" otherwise.
 	var map_size := "Default"
 	if map_type == "random":
@@ -469,7 +535,9 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 		players.append(p)
 	for o in net.get("observers", []):
 		players.append({"name": str(o.get("name", "")), "team": -1, "observer": true})
+	# LobbyGameRegistration.js maxnbp: the map's player count.
 	return {"map_id": map_id, "map_name": map_name, "map_type": map_type, "map_size": map_size,
+		"max_players": maxi(count, 1),
 		"victory": ",".join(victory), "start_time": started_at, "player_names": players}
 
 
