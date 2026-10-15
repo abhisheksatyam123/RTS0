@@ -95,6 +95,22 @@ inline godot::String label_details(const godot::String &label, const godot::Stri
 // inline, hotkeys in 255 251 131 (color.js g_HotkeyTags).
 inline godot::String objection_font(const godot::String &text) { return "[color=red][b]" + text + "[/b][/color]"; }
 inline godot::String header_font(const godot::String &text) { return "[b]" + text + "[/b]"; }
+// namePrimaryBig / namePrimarySmall / nameSecondary: sans-bold-16, sans-bold-12, sans-bold-16.
+inline godot::String name_big(const godot::String &text) { return "[font_size=16][b]" + text + "[/b][/font_size]"; }
+// The primary name in small caps: its first letter big, the rest upper case and small.
+inline godot::String name_small_caps(const godot::String &name) {
+	if (name.is_empty()) return name;
+	return name_big(name.substr(0, 1)) + "[font_size=12][b]" + name.substr(1).to_upper() + "[/b][/font_size]";
+}
+// tooltips.js getEntityNamesFormatted: the Construction, Training and Research tooltips' first line.
+inline godot::String entity_names_formatted(const godot::String &generic, const godot::String &specific) {
+	if (specific.is_empty()) return name_big(tr0(generic));
+	godot::String primary, secondary;
+	entity_name_parts(generic, specific, primary, secondary);
+	if (secondary.is_empty()) return sprintf0(tr0("%(primaryName)s"), {{"primaryName", name_small_caps(primary)}});
+	return sprintf0(tr0("%(primaryName)s (%(secondaryName)s)"),
+			{{"primaryName", name_small_caps(primary)}, {"secondaryName", name_big(secondary)}});
+}
 inline godot::String resource_icon(const char *code) {
 	return godot::String("[img=16x16]res://assets/textures/ui/archive/icons/resources/") + code + "_small.png[/img]";
 }
