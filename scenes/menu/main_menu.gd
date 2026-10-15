@@ -42,8 +42,6 @@ var mouse_pos_norm: Vector2 = Vector2.ZERO
 @onready var submenu_panel: Control = $SubmenuPanel
 @onready var submenu_title: Label = $SubmenuPanel/SubmenuContent/SubmenuTitle
 @onready var submenu_buttons_box: VBoxContainer = $SubmenuPanel/SubmenuContent/SubmenuButtons
-@onready var click_sfx: AudioStreamPlayer = $ClickSFX
-@onready var music_player: AudioStreamPlayer = $MusicPlayer
 
 var active_menu_id: String = ""
 
@@ -115,13 +113,15 @@ const MENU_HOTKEYS := {"structree": "open_tech_tree", "civinfo": "open_encyclope
 var _hotkeys := RtsoHotkeyConfig.new()
 
 func _ready() -> void:
+	# menupanel.xml tooltip_style="pgToolTip": the fixed top-right panel, at once.
+	main_panel.set_meta("tooltip_style", "pg")
+	submenu_panel.set_meta("tooltip_style", "pg")
 	# Randomize starting civ background or default to hellenes
 	current_bg_index = randi() % BG_KEYS.size()
 	_setup_background(BG_KEYS[current_bg_index])
 
-	# Start 0 A.D. Honor Bound music if not already playing
-	if music_player and not music_player.playing:
-		music_player.play()
+	# MainMenuPage.js initMusic: the menu playlist, kept playing through the other pages.
+	MenuAudio.play_menu_music()
 
 	submenu_panel.visible = false
 	# Back at the main menu, nothing played next belongs to a campaign until one is started.
@@ -191,7 +191,6 @@ func _setup_background(civ_name: String) -> void:
 		civ_lbl.text = "CIVILIZATION: " + civ_name.to_upper()
 
 func _cycle_background() -> void:
-	play_click()
 	current_bg_index = (current_bg_index + 1) % BG_KEYS.size()
 	_setup_background(BG_KEYS[current_bg_index])
 
@@ -228,7 +227,6 @@ func _input(event: InputEvent) -> void:
 				_close_submenu()
 
 func _toggle_submenu(menu_id: String, anchor_button: Button) -> void:
-	play_click()
 	if active_menu_id == menu_id and submenu_panel.visible:
 		_close_submenu()
 		return
@@ -281,13 +279,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
 	for hk in _hotkeys.fired(event):
+		if hk == "cancel" and submenu_panel.visible: # menupanel.xml closeMenuButton
+			get_viewport().set_input_as_handled()
+			_close_submenu()
+			return
 		if MENU_HOTKEYS.has(hk):
 			get_viewport().set_input_as_handled()
 			_execute_action(MENU_HOTKEYS[hk])
 			return
 
 func _execute_action(action: String) -> void:
-	play_click()
 	match action:
 		"open_setup":
 			_go_to_scene("res://scenes/menu/gamesetup.tscn")
@@ -326,8 +327,9 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/replay_browser.tscn")
 		"open_lobby":
 			_go_to_scene("res://scenes/menu/lobby.tscn")
-		"open_options":
-			_go_to_scene("res://scenes/menu/options.tscn")
+		"open_options": # MainMenuItems.js: Engine.PushGuiPage("page_options.xml") over the menu
+			_close_submenu()
+			load("res://scenes/menu/options.gd").open_overlay(self)
 		"open_locale":
 			_close_submenu()
 			load("res://scenes/menu/locale_page.gd").open(self)
@@ -351,27 +353,20 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/campaigns.tscn")
 
 func _on_editor_pressed() -> void:
-	play_click()
 	_go_to_scene("res://scenes/tools/asset_viewer.tscn")
 
 # 0 A.D. pushes page_credits.xml over the main menu.
 func _on_credits_pressed() -> void:
-	play_click()
 	_close_submenu()
 	load("res://scenes/reference/credits_page.gd").open(self)
 
 # MainMenuItems.js Exit: "Are you sure you want to quit 0 A.D.?" No / Yes.
 func _on_exit_pressed() -> void:
-	play_click()
 	_close_submenu()
 	var box = load("res://scenes/common/msgbox.gd").open(self, 400, 200, tr("Are you sure you want to quit 0 A.D.?"), tr("Confirmation"), [tr("No"), tr("Yes")])
 	box.answered.connect(func(i):
 		if i == 1:
 			get_tree().quit())
-
-func play_click() -> void:
-	if click_sfx:
-		click_sfx.play()
 
 func _play_hover() -> void:
 	# Subtle hover feedback

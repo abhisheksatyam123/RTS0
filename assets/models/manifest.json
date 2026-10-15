@@ -33126,6 +33126,70 @@
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
   },
+  "han_cavalry_crossbowman_b": {
+   "animated": true,
+   "animations": [
+    "Slaughter",
+    "Idle",
+    "Attack",
+    "Death",
+    "GatherMeat",
+    "Run",
+    "Walk"
+   ],
+   "bones": 49,
+   "file": "models/units/han_cavalry_crossbowman_b.glb",
+   "origin": "ground-center",
+   "parts": 19,
+   "size_meters": [
+    0.625,
+    1.9,
+    2.417
+   ],
+   "skeleton": "horse",
+   "sources": [
+    "actor:art/actors/props/horse/cav_blanket_kush.xml",
+    "actor:art/actors/props/horse/cav_rein_leather.xml",
+    "actor:art/actors/props/horse/chest_colorband_01.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/units/heads/head_china.xml",
+    "actor:art/actors/props/units/helmets/han_cap.xml",
+    "actor:art/actors/props/units/quivers/han_bolt_quiver.xml",
+    "actor:art/actors/props/units/weapons/arrow_back.xml",
+    "actor:art/actors/props/units/weapons/arrow_front.xml",
+    "actor:art/actors/props/units/weapons/crossbow/han_nu.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
+    "actor:art/actors/units/han/cavalry_crossbowman_b_m.xml",
+    "actor:art/actors/units/han/cavalry_crossbowman_b_r.xml",
+    "mesh:props/helmet/han_cap.dae",
+    "mesh:props/horse/blanket_kush.dae",
+    "mesh:props/horse/chest_colorband_01.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:props/horse/rein_01.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/quivers/han_crossbow_quiver.dae",
+    "mesh:props/weap_arrow_back.dae",
+    "mesh:props/weap_arrow_front.dae",
+    "mesh:props/weapons/crossbow/weap_han_nu.dae",
+    "mesh:props/weapons/dagger_01.dae",
+    "mesh:skeletal/horse_barb.dae",
+    "mesh:skeletal/new/m_tunic_long.dae",
+    "skin:props/head/han_b.png",
+    "skin:props/head/han_cap_a.png",
+    "skin:props/horse/blanket_fur_02.png",
+    "skin:props/horse/hair_brown.png",
+    "skin:props/horse/head_straps.png",
+    "skin:props/horse/peytral_bronze.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/quivers/han_quiver.png",
+    "skin:skeletal/han/tunic_01_01.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/rome_ballista.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
   "han_cavalry_spearman": {
    "animated": true,
    "animations": [
@@ -34196,6 +34260,61 @@
     "skin:props/head/han_old_b.png",
     "skin:skeletal/han/robes_healer_01.png",
     "skin:structural/celt_struct_1.dds"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "han_hero": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death",
+    "Heal",
+    "Carry",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather"
+   ],
+   "bones": 46,
+   "file": "models/units/han_hero.glb",
+   "origin": "ground-center",
+   "parts": 8,
+   "size_meters": [
+    1.004,
+    1.85,
+    2.961
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/capes/cape_long_player.xml",
+    "actor:art/actors/props/units/heads/head_han_xin.xml",
+    "actor:art/actors/props/units/helmets/han_hairbun.xml",
+    "actor:art/actors/props/units/shields/han_shield_03.xml",
+    "actor:art/actors/props/units/weapons/spear/han_halb.xml",
+    "actor:art/actors/props/units/weapons/sword/han_sword_han_xin.xml",
+    "actor:art/actors/units/han/hero_infantry_han_xin.xml",
+    "mesh:props/helmet/han_hairbun.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/han_02.dae",
+    "mesh:props/weapons/spear/weap_han_halb.dae",
+    "mesh:props/weapons/sword/weap_han_sword_han_xin.dae",
+    "mesh:skeletal/new/m_armor_pants_tunic_long.dae",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/han_b.png",
+    "skin:props/head/han_xin.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/han_02.dds",
+    "skin:props/weapon/prop_swords_han.png",
+    "skin:skeletal/han/uniform_e_05.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
@@ -51233,6 +51352,22 @@
    ],
    "upstream_material": "rock_norm_spec_ao.xml"
   },
+  "noldor_warship": {
+   "file": "models/units/noldor_warship.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.354,
+    4.724,
+    7.0
+   ],
+   "sources": [
+    "actor:art/actors/structures/elven_bireme.xml",
+    "mesh:structural/elven_transport.dae",
+    "skin:structural/elven_ship.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "oak": {
    "file": "models/vegetation/oak.glb",
    "origin": "ground-center",
@@ -54732,6 +54867,104 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml",
    "variant_of": "pine"
+  },
+  "pirates_ship_arrow": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 41,
+   "file": "models/units/pirates_ship_arrow.glb",
+   "origin": "ground-center",
+   "parts": 253,
+   "size_meters": [
+    2.189,
+    3.134,
+    7.0
+   ],
+   "skeleton": "ship_sail",
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_down_left.xml",
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_down_right.xml",
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_left.xml",
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_right.xml",
+    "actor:art/actors/props/structures/pirates/trireme_fore_sail.xml",
+    "actor:art/actors/props/structures/pirates/trireme_main_sail.xml",
+    "actor:art/actors/props/units/shields/kart_leather_large_e.xml",
+    "actor:art/actors/props/units/shields/round_noboss_back_wicker.xml",
+    "actor:art/actors/structures/pirates/trireme.xml",
+    "mesh:props/kart_trireme_fore_sail.dae",
+    "mesh:props/kart_trireme_main_sail.dae",
+    "mesh:props/shield/round_noboss_b.dae",
+    "mesh:props/shield/round_noboss_f.dae",
+    "mesh:props/ship_oar_b.dae",
+    "mesh:structural/kart_ship_trireme.dae",
+    "skin:props/sail_pirate_trident_01.png",
+    "skin:props/shield/hele_oval_a.dds",
+    "skin:props/shield/kart_leather_a.dds",
+    "skin:structural/ao/kart_trireme.png",
+    "skin:structural/hele_trireme.png",
+    "skin:structural/kart_trireme.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "pirates_ship_merchant": {
+   "file": "models/units/pirates_ship_merchant.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    3.126,
+    3.896,
+    5.5
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/merchantship_cargo.xml",
+    "actor:art/actors/props/structures/hellenes/merchantship_shield.xml",
+    "actor:art/actors/props/structures/pirates/merchantship_sail_black.xml",
+    "actor:art/actors/structures/pirates/merchant.xml",
+    "mesh:props/kyrenia_cargo.dae",
+    "mesh:props/kyrenia_sail.dae",
+    "mesh:props/kyrenia_shield.dae",
+    "mesh:structural/hele_kyrenia.dae",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_props_b.dds",
+    "skin:props/sail_stripes_1_black.png",
+    "skin:structural/kyrenia.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "pirates_ship_scout": {
+   "animated": true,
+   "animations": [],
+   "bones": 41,
+   "clips_from": "trireme",
+   "file": "models/units/pirates_ship_scout.glb",
+   "origin": "ground-center",
+   "parts": 51,
+   "size_meters": [
+    2.75,
+    2.93,
+    7.0
+   ],
+   "skeleton": "ship_sail",
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_middle_left.xml",
+    "actor:art/actors/props/structures/hellenes/ship_oar_short_middle_right.xml",
+    "actor:art/actors/props/structures/pirates/bireme_main_sail.xml",
+    "actor:art/actors/structures/pirates/bireme.xml",
+    "mesh:props/pers_bireme_sail.dae",
+    "mesh:props/ship_oar_b.dae",
+    "mesh:structural/pers_ship_bireme.dae",
+    "skin:props/sail_pirate_trident_01.png",
+    "skin:structural/ao/pers_bireme.png",
+    "skin:structural/hele_trireme.png",
+    "skin:structural/pers_bireme.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
   "poplar": {
    "file": "models/vegetation/poplar.glb",
@@ -66640,6 +66873,121 @@
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   },
+  "samnite_skirmisher": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death"
+   ],
+   "bones": 46,
+   "file": "models/units/samnite_skirmisher.glb",
+   "origin": "ground-center",
+   "parts": 18,
+   "size_meters": [
+    0.816,
+    1.8,
+    1.222
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/helmets/hele_attic_a1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/shields/samn_scutum_back.xml",
+    "actor:art/actors/props/units/shields/samn_scutum_basic.xml",
+    "actor:art/actors/props/units/weapons/blades/jav_blade.xml",
+    "actor:art/actors/props/units/weapons/jav.xml",
+    "actor:art/actors/props/units/weapons/jav_ammo.xml",
+    "actor:art/actors/props/units/weapons/jav_loaded.xml",
+    "actor:art/actors/units/carthaginians/infantry_javelinist_c_samnite.xml",
+    "mesh:props/helmet/hele_attic_a.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/jav_blade.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/samn_scutum_back.dae",
+    "mesh:props/shield/samn_scutum_front.dae",
+    "mesh:props/weap_javelin_shaft_a.dae",
+    "mesh:props/weap_javelin_shaft_loaded_a.dae",
+    "mesh:props/weap_javelin_shaft_quiver.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/hele_a.dds",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/rome_imp_scutum_back.dds",
+    "skin:props/shield/samnite_a.dds",
+    "skin:skeletal/ital/tunic_pattern_03_sleeveless_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "samnite_spearman": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Slaughter",
+    "Death",
+    "Heal",
+    "Carry",
+    "GatherTree",
+    "GatherGrain",
+    "GatherFruit",
+    "GatherMeat",
+    "GatherRock",
+    "GatherOre",
+    "Build",
+    "Gather"
+   ],
+   "bones": 46,
+   "file": "models/units/samnite_spearman.glb",
+   "origin": "ground-center",
+   "parts": 12,
+   "size_meters": [
+    0.809,
+    1.8,
+    2.285
+   ],
+   "skeleton": "biped",
+   "sources": [
+    "actor:art/actors/props/units/armor/greave_06_bronze_l.xml",
+    "actor:art/actors/props/units/capes/cape_long_player.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/helmets/hele_attic_a1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/shields/aspis_kart_a.xml",
+    "actor:art/actors/props/units/shields/props/aspis_back_bronze_01.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_01.xml",
+    "actor:art/actors/props/units/weapons/spear_hoplite.xml",
+    "actor:art/actors/units/carthaginians/infantry_spearman_c_samnite.xml",
+    "mesh:props/helmet/hele_attic_a.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/new/capes/cape_hd_hoplite.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/aspis_01_back.dae",
+    "mesh:props/shield/aspis_01_front.dae",
+    "mesh:props/spear_hoplite.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "skin:props/cape_hd.dds",
+    "skin:props/head/hele_a.dds",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/aspis_back_bronze.png",
+    "skin:props/shield/aspis_cart_03.png",
+    "skin:skeletal/ital/linothorax_01_03.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
   "scaffold_large": {
    "file": "models/buildings/scaffold_large.glb",
    "origin": "ground-center",
@@ -74536,6 +74884,28 @@
    ],
    "upstream_material": "basic_trans_norm_spec.xml",
    "variant_of": "tropic_palm"
+  },
+  "viking_longship": {
+   "file": "models/units/viking_longship.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.066,
+    3.164,
+    7.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/viking/longship_sail.xml",
+    "actor:art/actors/props/units/weapons/bolt_tower.xml",
+    "actor:art/actors/structures/viking/longship.xml",
+    "mesh:props/bolt_tower_projectile.dae",
+    "mesh:props/viking_longship_sail.dae",
+    "mesh:structural/viking_longship.dae",
+    "skin:props/kart_merchant_sail_a.png",
+    "skin:structural/rome_struct.png",
+    "skin:structural/viking_longship.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
   },
   "villager": {
    "animated": true,

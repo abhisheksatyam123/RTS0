@@ -113,6 +113,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_placement_tip"), &RtsoMain::debug_placement_tip);
 	ClassDB::bind_method(D_METHOD("debug_cursor_tip"), &RtsoMain::debug_cursor_tip);
 	ClassDB::bind_method(D_METHOD("debug_ui_clicks"), &RtsoMain::debug_ui_clicks);
+	ClassDB::bind_method(D_METHOD("debug_overlay_visible"), &RtsoMain::debug_overlay_visible);
 	ClassDB::bind_method(D_METHOD("debug_voices"), &RtsoMain::debug_voices);
 	ClassDB::bind_method(D_METHOD("menu_button_rect"), &RtsoMain::menu_button_rect);
 	ClassDB::bind_method(D_METHOD("chat_open_hotkey_tooltip"), &RtsoMain::chat_open_hotkey_tooltip);
@@ -157,6 +158,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_queue_slot_cancel", "slot_idx"), &RtsoMain::_on_queue_slot_cancel);
 	ClassDB::bind_method(D_METHOD("toggle_chat"), &RtsoMain::toggle_chat);
 	ClassDB::bind_method(D_METHOD("_on_chat_send_pressed"), &RtsoMain::_on_chat_send_pressed);
+	ClassDB::bind_method(D_METHOD("_on_chat_filter_selected", "index"), &RtsoMain::_on_chat_filter_selected);
+	ClassDB::bind_method(D_METHOD("_on_chat_history_toggled", "on"), &RtsoMain::_on_chat_history_toggled);
 	ClassDB::bind_method(D_METHOD("_on_chat_text_submitted", "text"), &RtsoMain::_on_chat_text_submitted);
 	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);

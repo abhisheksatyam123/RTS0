@@ -180,16 +180,18 @@ func _build_ui() -> void:
 	vb.add_child(bottom)
 	var reset_btn := Button.new()
 	reset_btn.text = "Reset"
-	reset_btn.tooltip_text = "Reset all hotkeys to their default values."
+	reset_btn.tooltip_text = "Resets user settings to their game default"
 	reset_btn.pressed.connect(_on_reset_all)
 	bottom.add_child(reset_btn)
 	save_btn = Button.new()
 	save_btn.text = "Save"
 	save_btn.disabled = true
+	save_btn.tooltip_text = "Saves changes"
 	save_btn.pressed.connect(_on_save)
 	bottom.add_child(save_btn)
 	var close_btn := Button.new()
 	close_btn.text = "Close"
+	close_btn.tooltip_text = "Unsaved changes will be lost"
 	close_btn.pressed.connect(_on_close)
 	bottom.add_child(close_btn)
 	_build_picker()
@@ -281,10 +283,13 @@ func _build_picker() -> void:
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_END
 	vb.add_child(buttons)
-	for spec in [["Reset", _on_picker_reset], ["Cancel", func(): _close_picker(false)], ["Save", func(): _close_picker(true)]]:
+	for spec in [["Reset", "Resets user settings to their game default", _on_picker_reset],
+			["Accept", "Change the hotkeys and close", func(): _close_picker(true)],
+			["Cancel", "The hotkeys will not be modified", func(): _close_picker(false)]]:
 		var b := Button.new()
 		b.text = spec[0]
-		b.pressed.connect(spec[1])
+		b.tooltip_text = spec[1]
+		b.pressed.connect(spec[2])
 		buttons.add_child(b)
 		picker_buttons.append(b)
 
@@ -322,6 +327,19 @@ func _render_picker() -> void:
 		slot_conflicts[i].visible = conflicts.size() > 0
 	for b in picker_buttons:
 		b.disabled = entering != -1
+
+## hotkey="cancel" (Escape) on the picker's Cancel and the page's Close button;
+## while a combination is being entered every key belongs to it.
+func _unhandled_input(event: InputEvent) -> void:
+	if entering >= 0 or not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	if not "cancel" in cfg.fired(event):
+		return
+	get_viewport().set_input_as_handled()
+	if picker.visible:
+		_close_picker(false)
+	else:
+		_on_close()
 
 func _input(event: InputEvent) -> void:
 	if not picker.visible or entering < 0:
@@ -394,7 +412,15 @@ func _on_save() -> void:
 	dirty = false
 	save_btn.disabled = true
 
+## HotkeysPage.js resetUserHotkeys: only after the question.
 func _on_reset_all() -> void:
+	var box = load("res://scenes/common/msgbox.gd").open(self, 400, 200,
+			"Reset all hotkeys to default values?\nWARNING: this cannot be reversed.", "Confirmation", ["No", "Yes"])
+	box.answered.connect(func(i: int):
+		if i == 1:
+			_reset_all())
+
+func _reset_all() -> void:
 	cfg.reset_user()
 	dirty = false
 	save_btn.disabled = true

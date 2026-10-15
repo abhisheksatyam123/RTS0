@@ -197,7 +197,7 @@ void RtsoMain::_ready() {
 	ui_layer->add_child(sel_rect);
 
 	debug_overlay = memnew(RtsoDebugOverlay);
-	debug_overlay->set_visible(false); // fps.toggle (Alt+F) shows it, as 0 A.D.'s FPS counter
+	debug_overlay->set_visible(false); // shown with overlay.fps (refresh_user_options)
 	ui_layer->add_child(debug_overlay);
 
 	minimap_view = memnew(RtsoMiniMapView);
@@ -1202,11 +1202,12 @@ void RtsoMain::_process(double delta) {
 			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
 				return std::string(player_display_name(pid).utf8().get_data());
 			});
-			// 0 A.D. marks "/allies" lines "(to allies)" and "/msg" lines "(privately)".
-			const bool ai = line.kind != rtso::PETRA_CHAT_ATTACK_REQUESTED || sim->player(line.from).is_ai;
-			const String audience = line.to == rtso::PETRA_CHAT_ALLIES ? " (to allies)" : line.to < rtso::MAX_PLAYERS ? " (privately)" : "";
-			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + (ai ? " (AI)" : "") + audience + ":[/color] " +
-			                         String::utf8(text.c_str()) + "\n");
+			// messages.js aichat: a "message" from the player, formatted as a player's chat
+			// (ChatMessageFormatPlayer): "(Ally) <name> text" for /allies, "(Private)" for /msg.
+			const bool allies = line.to == rtso::PETRA_CHAT_ALLIES, priv = !allies && line.to < rtso::MAX_PLAYERS;
+			const String ctx = allies ? "(" + tr("Ally") + ") " : priv ? "(" + tr("Private") + ") " : String();
+			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()).replace("[", "[lb]") + "\n",
+					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", true));
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
@@ -1532,6 +1533,14 @@ void RtsoMain::chat_open_page() {
 	close_open_dialogs();
 	refresh_chat_tooltips();
 	chat_window_.open_page();
+}
+
+void RtsoMain::_on_chat_filter_selected(int index) { chat_window_.set_filter(index); }
+
+void RtsoMain::_on_chat_history_toggled(bool on) {
+	chat_window_.set_extended(on);
+	rtso::user_config::set("chat.session.extended", on ? "true" : "false");
+	rtso::user_config::save();
 }
 
 // ChatInput.getOpenHotkeyTooltip: the chat, teamchat (observer chat for an observer) and
