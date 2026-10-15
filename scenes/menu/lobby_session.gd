@@ -57,6 +57,11 @@ func _ready() -> void:
 	_nat_timer.autostart = true
 	_nat_timer.timeout.connect(_nat_tick)
 	add_child(_nat_timer)
+	_room_timer = Timer.new()
+	_room_timer.wait_time = ROOM_CHECK_S
+	_room_timer.autostart = true
+	_room_timer.timeout.connect(_room_tick)
+	add_child(_room_timer)
 
 
 ## NetServer SetupUPnP: a host asks the router (an UPnP IGD) to forward its
@@ -241,6 +246,7 @@ func _signed(body: Dictionary) -> Dictionary:
 # The host's game: registered now and refreshed on every heartbeat.
 func host_game(game: Dictionary) -> void:
 	room = game.duplicate()
+	_room_posted = room.duplicate(true)
 	join_room = ""
 	_room_in_match = false
 	_room_started_at = 0
@@ -389,13 +395,26 @@ func _beat() -> void:
 		return
 	var main := _match_node()
 	post_json("/presence", {"token": token, "status": "playing" if main != null else ("away" if away else "available")})
-	if room.is_empty():
+	_room_tick(true)
+
+
+# LobbyGameRegistration.js: the host re-registers its game soon after any
+# change to it (500 ms, sendImmediately on Start) and unregisters once it
+# leaves; the heartbeat posts it anyway to keep it listed.
+const ROOM_CHECK_S := 0.5
+var _room_timer: Timer
+var _room_posted := {}
+
+func _room_tick(always := false) -> void:
+	if token == "" or room.is_empty():
 		return
+	var main := _match_node()
 	if main == null:
 		if _room_in_match:
 			# Back from the match: the game is gone.
 			post_json("/rooms/unregister", {"token": token, "id": room.get("id", "")})
 			room = {}
+			_room_posted = {}
 		return
 	_room_in_match = true
 	var st: Dictionary = main.get_lobby_state()
@@ -407,13 +426,17 @@ func _beat() -> void:
 		_room_started_at = int(Time.get_unix_time_from_system())
 	room.merge(room_details(get_node("/root/MatchSettings"),
 		main.get_net_setup_state() if main.has_method("get_net_setup_state") else {}, _room_started_at), true)
-	post_json("/rooms", _signed(room))
+	if always or room != _room_posted:
+		_room_posted = room.duplicate(true)
+		post_json("/rooms", _signed(room))
 
 
 # The game's details 0 A.D.'s host sends the lobby with its game (Game.js
 # stanza: mapName, mapType, mapSize, victoryConditions, startTime, players),
 # from the host's Game Setup (MatchSettings) and its seats
 # (get_net_setup_state). Older lobby servers ignore the extra fields.
+static var _map_types := {} # map id -> its map type (the map list file, read once per map)
+
 static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictionary:
 	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
 	var map_id := str(ms.get("map_id"))
@@ -424,8 +447,10 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 			map_name = str(r[1]).trim_suffix(" (RMS)")
 			map_type = "random"
 	if map_type == "":
-		var known: Dictionary = setup._map_types_data().get("maps", {})
-		map_type = str((known.get(map_id, {}) as Dictionary).get("type", "skirmish"))
+		if not _map_types.has(map_id):
+			var known: Dictionary = setup._map_types_data().get("maps", {})
+			_map_types[map_id] = str((known.get(map_id, {}) as Dictionary).get("type", "skirmish"))
+		map_type = _map_types[map_id]
 	# Game.js translateMapSize: the size's name for a random map, "Default" otherwise.
 	var map_size := "Default"
 	if map_type == "random":
@@ -469,7 +494,9 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 		players.append(p)
 	for o in net.get("observers", []):
 		players.append({"name": str(o.get("name", "")), "team": -1, "observer": true})
+	# LobbyGameRegistration.js maxnbp: the map's player count.
 	return {"map_id": map_id, "map_name": map_name, "map_type": map_type, "map_size": map_size,
+		"max_players": maxi(count, 1),
 		"victory": ",".join(victory), "start_time": started_at, "player_names": players}
 
 

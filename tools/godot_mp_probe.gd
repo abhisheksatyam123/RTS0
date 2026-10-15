@@ -210,7 +210,10 @@ func _run() -> void:
 					_say("ready for settings version %d" % ready_for)
 					# 0.28 gamesetup ChatPanel: a line typed in the setup.
 					main.send_setup_chat("hello from bob")
-			if role == "host" and not started and int(st.get("players", 0)) >= 2:
+			# Once the joiner is seated: before its slot is given it needs no
+			# ready (0.28 ReadyController), so Start would not be refused yet.
+			if role == "host" and not started and int(st.get("players", 0)) >= 2 \
+					and Array(ns.get("slots", [])).any(func(e): return str(e.get("name", "")) == "bob"):
 				if not bool(ns.get("can_start", false)):
 					if not refused:
 						refused = true

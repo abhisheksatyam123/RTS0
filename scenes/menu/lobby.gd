@@ -970,7 +970,7 @@ func _on_host_pressed(saved := false) -> void:
 			"host_name": who,
 			"map_id": MatchSettings.map_id,
 			"map_name": MatchSettings.map_id.replace("_", " ").capitalize(),
-			"max_players": 8,
+			"max_players": MatchSettings.player_count,
 			"players": 1,
 			"password": _host_pwd.text != "",
 			"state": "init",
