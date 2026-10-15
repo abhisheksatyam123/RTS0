@@ -3141,6 +3141,7 @@ private:
 	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
+	float petra_starting_wood(float x, float z) const;
 	void petra_plan_sizes(uint8_t kind);
 	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
 	// attackPlan.js unitStat: a plan's classes with their priority, minSize, targetSize,
