@@ -2,9 +2,9 @@
 # Usage: powershell -File tools\build.ps1 -Target windows
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("windows", "linux", "android", "ios", "all")]
+    [ValidateSet("windows", "linux", "android", "macos", "ios", "all")]
     [string]$Target = "windows"
 )
-$dir = Split-Path -Parent $PSScriptRoot
-& python "$dir/build.py" $Target
+
+& python "$PSScriptRoot/build.py" $Target
 exit $LASTEXITCODE

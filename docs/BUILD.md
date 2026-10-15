@@ -1,6 +1,6 @@
 # Build & Release Guide
 
-Targets: **Windows, Linux, Android** (automated), **iOS** (macOS-only).
+Targets: **Linux, Windows, Android, macOS** (all buildable from one Linux host), **iOS** (macOS host with Xcode).
 
 ## Version pinning (critical)
 Everything must match:
@@ -40,14 +40,45 @@ A fresh Linux container has no Godot, so the GDScript checks (`tools/e2e_*.gd`) 
 
 ## Local builds
 
+`tools/build.py` builds the GDExtension for each target, imports the assets once, and exports
+with the matching preset in `export_presets.cfg`. `--package` also writes one file per platform
+to `build/dist/`.
+
 ```bash
 # Windows (PowerShell)
 powershell -File tools\build.ps1 windows      # -> build/windows/RTS0.exe
 
-# Linux / macOS (bash); 'all' = windows + linux
+# Linux / macOS (bash)
 GODOT=/path/to/Godot ./tools/build.sh linux   # -> build/linux/RTS0.x86_64
-GODOT=/path/to/Godot ./tools/build.sh android # -> build/android/RTS0.apk
+./tools/build.sh linux windows android macos --package   # every device build from one Linux host
+./tools/build.sh ios                          # macOS + Xcode only -> build/ios/RTS0.xcodeproj
 ```
+
+What each target needs on the host, beyond Godot 4.3-stable, its export templates, scons and `godot-cpp/`:
+
+| Target | Host tools | Output |
+|---|---|---|
+| linux | gcc or clang | `RTS0.x86_64` + `librtso.linux…so` |
+| windows | MSVC on Windows; `mingw-w64` on Linux/macOS | `RTS0.exe` (pck embedded) + `librtso.windows…dll` |
+| android | `ANDROID_HOME` with `ndk/<version>` (godot-cpp defaults to 23.2.8568313; set `ANDROID_NDK_VERSION` for another) plus `build-tools` and `platform-tools`, and a JDK | `RTS0.apk`, arm64, no Gradle |
+| macos | Xcode tools on macOS; on Linux `zig` (`pip install ziglang`) and `llvm-lipo` | `RTS0.zip` with a universal, ad-hoc signed `RTS0.app` |
+| ios | macOS with Xcode | Xcode project to sign and run from Xcode |
+
+- **Android signing.** The APK is signed with `build/android-keystore/rts0.keystore`, made on the first
+  run and never committed, so it sideloads. Updating an installed APK needs the same keystore; set
+  `GODOT_ANDROID_KEYSTORE_RELEASE_PATH`, `_USER` and `_PASSWORD` to use your own.
+- **macOS on Linux.** There is no macOS SDK on Linux, so `tools/zig-osxcross/` stands in for osxcross:
+  zig ships the libSystem headers and stubs (so macOS 11+), the extension is built once per arch and joined with
+  `llvm-lipo`. Godot's built-in signer ad-hoc signs the app. It is not notarized, so the first launch
+  needs right-click → Open (or `xattr -dr com.apple.quarantine RTS0.app`).
+- **iOS.** `build.py ios` builds the extension as `bin/librtso.ios.template_release.xcframework`
+  (extension + godot-cpp in one static library) and exports the Xcode project. Open it in Xcode, pick
+  your team under Signing & Capabilities, and run on a connected device. A free Apple ID works for
+  7-day device installs.
+- **Touch.** On Android and iOS, `scenes/common/touch_input.gd` turns touches into mouse input:
+  tap = left click (double tap = double click), drag = box select, hold still = right click (orders),
+  two fingers = pan, pinch = zoom. The session's touch bar (`scenes/session/touch_controls.tscn`)
+  stands in for hotkeys.
 
 ## CI (GitHub Actions)
 `.github/workflows/ci.yml`:
