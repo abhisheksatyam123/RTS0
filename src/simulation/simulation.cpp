@@ -12057,6 +12057,17 @@ float Simulation::structure_build_time_for(uint8_t player, uint8_t type) const {
 	return structure_build_time(b);
 }
 
+float Simulation::wall_piece_price(uint8_t player, uint8_t type, float half_w, float out[RES_COUNT]) const {
+	const uint8_t civ = civ_of(player);
+	structure_cost(player, type, wallset_piece_value(type, half_w, 1, civ), out);
+	Building b{};
+	b.type = type;
+	b.team = player;
+	b.civ = civ;
+	b.half_size = half_w;
+	return structure_build_time(b);
+}
+
 float Simulation::structure_build_time(const Building &b) const {
 	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
 	// A WallSet piece takes its own BuildTime (wall_long/medium/short, palisades_*).
