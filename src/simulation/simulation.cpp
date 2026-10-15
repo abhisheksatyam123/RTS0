@@ -20698,13 +20698,17 @@ void Simulation::petra_manage_buildings(float dt) {
 			for (const auto &b : buildings_) {
 				if (b.team != petra_pid_ || b.build_progress >= 1.0f) continue;
 				free_slots += structure_pop_bonus(b.type, petra_pid_);
-				if (b.type == BLD_HOUSE) ++planned;
+				if (b.type == BLD_HOUSE || b.type == BLD_APARTMENT) ++planned;
 			}
+			// buildMoreHouses: structures/{civ}/apartment once it may be built (Carthage from
+			// the Town phase), else the house.
+			const uint8_t house = civ_can_build(petra_ps().civ, BLD_APARTMENT) &&
+			                      building_required_phase(BLD_APARTMENT, petra_ps().civ) <= petra_ps().phase ? BLD_APARTMENT : BLD_HOUSE;
 			// When the population limit is tight, houses go at twice their priority.
 			petra_queues_.priority[PETRA_Q_HOUSE] = free_slots < 5 ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
 			const int needed_at = saving || pop <= 30 ? 10 : pop > 55 ? 21 : 15;
 			if (free_slots <= needed_at && planned < (pop > 80 ? 5 : 3)) {
-				if (!petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) && petra_place_no_room_ && free_slots < 5)
+				if (!petra_place_generic(house, PETRA_Q_HOUSE) && petra_place_no_room_ && free_slots < 5)
 					petra_research_population_bonus();
 			}
 		}
