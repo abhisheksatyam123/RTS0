@@ -166,6 +166,21 @@ def get_rating_adjustment(rating, opponent_rating, games_played, opponent_games_
 MAX_ROOM_PLAYERS = 24
 
 
+MAX_ROOM_MODS = 32
+
+
+def _mods(value):
+    """Sanitizes a room's mod list (LobbyGameRegistration.js mods, the host's
+    Engine.GetEngineInfo().mods): {name, version, ignoreInCompatibilityChecks}
+    per entry, in load order. Anything else becomes an empty list."""
+    out = []
+    for m in value if isinstance(value, list) else []:
+        if isinstance(m, dict) and str(m.get("name") or "").strip():
+            out.append({"name": str(m["name"]).strip()[:64], "version": str(m.get("version") or "")[:32],
+                        "ignoreInCompatibilityChecks": bool(m.get("ignoreInCompatibilityChecks"))})
+    return out[:MAX_ROOM_MODS]
+
+
 def _player_names(value):
     """Sanitizes a room's optional player list: {name, team, civ, ai,
     ai_difficulty, ai_behavior, observer} per entry, team -1 for none. Anything that isn't a list of
@@ -599,6 +614,7 @@ class Lobby:
             "start_time": field("start_time", 0, int),
             "player_names": _player_names(data["player_names"]) if "player_names" in data
             else old.get("player_names", []),
+            "mods": _mods(data["mods"]) if "mods" in data else old.get("mods"),
             "local_ip": field("local_ip", "", str)[:64],
             "local_port": field("local_port", 0, int),
             "punch": old.get("punch", []),
@@ -608,6 +624,8 @@ class Lobby:
         }
         if room["state"] not in ROOM_STATES:
             room["state"] = "init"
+        if room["mods"] is None:
+            del room["mods"]  # a host that sends no mods (an older RTS0)
         public = {k: v for k, v in room.items() if k not in PRIVATE_ROOM_KEYS}
         if old:
             self.rooms[self.rooms.index(old)] = room
