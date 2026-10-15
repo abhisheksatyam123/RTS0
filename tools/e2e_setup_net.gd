@@ -109,6 +109,7 @@ func run() -> void:
 	ms.slot_behs = [2, 2, 2]
 	ms.slot_colors = [0, 1, 2]
 	ms.net_lobby = "127.0.0.1:1"
+	ms.lock_teams = false
 
 	print("1. the host")
 	var host := StubMain.new()
@@ -125,6 +126,8 @@ func run() -> void:
 	check(ms.slot_types == [0, 0] and ms.slot_civs == [1, -1] and ms.player_count == 2,
 		"the setup drops the Closed slot and keeps Random (%s %s)" % [str(ms.slot_types), str(ms.slot_civs)])
 	check(host.pushes > 0 and not ms.cheats, "the host sends its setup, cheats off")
+	# LockedTeams.onLoad: DefaultValue = Engine.HasNetClient(), so a networked setup opens locked.
+	check(page.get_node("%LockTeams").button_pressed and ms.lock_teams, "a networked setup opens with Teams Locked on")
 	check(slot_text(cells(page)[0]) == "alice (You)" and slot_text(cells(page)[6]) == "bob", "slots show their players")
 	var assign = cells(page)[6].get_node_or_null("AssignSelect")
 	var items: Array = []
