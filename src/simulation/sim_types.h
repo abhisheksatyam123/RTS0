@@ -1465,6 +1465,34 @@ inline const WallCivGeometry &wall_civ_geometry(uint8_t civ) {
 	return kCivs[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
 }
 
+// The share of a gate's length its Door takes: 0.28 gates are an obstruction cluster of Left, Door
+// and Right, and Gate.js only switches the Door's BlockMovement and BlockPathfinding (shape 0, the
+// first by name), so the sides keep blocking while the gate is open. Door / (Left + Door + Right)
+// widths from structures/{civ}/wall_gate.xml, palisades_gate.xml and rome/siege_wall_gate.xml.
+inline float gate_door_fraction(uint8_t type, uint8_t civ) {
+	if (type == BLD_PALISADE_GATE) return 10.0f / 14.0f;
+	if (type == BLD_SIEGE_WALL_GATE) return 13.0f / 36.0f;
+	static const float kDoor[CIV_COUNT] = {
+		15.0f / 36.0f, // athen
+		16.0f / 36.0f, // spart
+		16.0f / 36.0f, // pers
+		12.0f / 36.0f, // rome
+		19.0f / 36.0f, // cart
+		15.0f / 36.0f, // mace
+		13.0f / 36.0f, // brit
+		15.0f / 37.0f, // gaul
+		19.0f / 36.0f, // iber
+		14.0f / 36.0f, // maur
+		16.0f / 36.0f, // kush
+		15.0f / 39.0f, // ptol
+		14.0f / 34.0f, // sele
+		8.0f / 36.0f,  // han
+		15.0f / 36.0f, // Gaia: athen
+		13.0f / 37.0f, // germ
+	};
+	return kDoor[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
+}
+
 // The `kind` WallSet of `civ` (CIV_COUNT: the generic one, the Athenian stone set). Only stone
 // walls differ by civ, and Han palisades reach further into their towers (han/wallset_palisade.xml
 // MaxTowerOverlap 0.95).
