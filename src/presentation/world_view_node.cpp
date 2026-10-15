@@ -1191,6 +1191,7 @@ enum ClipId : uint8_t {
 	CLIP_CAPTURE,
 	CLIP_IDLE2,
 	CLIP_DEATH2,
+	CLIP_FEEDING, // 0.28 UnitAI animal IDLE.LINGERING (add_0ad_feeding_clips.py)
 	// Formation variant clips (kFormClips), loaded from their PSA on first use.
 	CLIP_FORM_FIRST,
 	CLIP_COUNT = CLIP_FORM_FIRST + 36
@@ -1267,7 +1268,7 @@ static const StringName &clip_name(ClipId id) {
 		StringName("Slaughter"), StringName("Promotion"),
 		StringName("CarryFood"), StringName("CarryMeat"), StringName("CarryWood"),
 		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture"),
-		StringName("Idle2"), StringName("Death2")
+		StringName("Idle2"), StringName("Death2"), StringName("Feeding")
 		};
 		// ModelLibrary::apply_clip_tools: "Form" clips show the weapon, "FormBare" none.
 		for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i)
@@ -1482,6 +1483,7 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_CAPTURE:   alt = CLIP_ATTACK; break;
 		case CLIP_IDLE2:     alt = CLIP_IDLE; break;
 		case CLIP_DEATH2:    alt = CLIP_DEATH; break;
+		case CLIP_FEEDING:   alt = CLIP_IDLE; break;
 		default:
 			if (is_form_clip(want)) {
 				const char *psa = kFormClips[want - CLIP_FORM_FIRST].psa;
@@ -2967,11 +2969,12 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 	if (!inst) return;
 	// Animals flee at a run when they have one.
 	AnimationPlayer *ap = find_anim_player(inst);
-	uint8_t want[FAUNA_CLIP_COUNT] = { CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_IDLE2, CLIP_DEATH2 };
+	uint8_t want[FAUNA_CLIP_COUNT] = { CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_IDLE2, CLIP_DEATH2, CLIP_FEEDING };
 	if (ap && ap->has_animation(clip_name(CLIP_RUN))) want[1] = CLIP_RUN;
-	// The second idle and death only when the model has them (with_fauna_variant).
+	// The second idle and death, and feeding, only when the model has them (with_fauna_variant).
 	const bool needed[FAUNA_CLIP_COUNT] = { true, true, true, true,
-			ap && ap->has_animation(clip_name(CLIP_IDLE2)), ap && ap->has_animation(clip_name(CLIP_DEATH2)) };
+			ap && ap->has_animation(clip_name(CLIP_IDLE2)), ap && ap->has_animation(clip_name(CLIP_DEATH2)),
+			ap && ap->has_animation(clip_name(CLIP_FEEDING)) };
 	bool done[FAUNA_CLIP_COUNT] = {};
 	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
 	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
@@ -4718,13 +4721,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (behavior == rtso::FAUNA_ATTACK) return 2;
 		if (behavior == rtso::FAUNA_FLEE) return 1;
 		if (speed2 > 0.001f) return 1;
+		// 0.28 UnitAI animal IDLE.LINGERING: SelectAnimation("feeding").
+		if (behavior == rtso::FAUNA_IDLE_GRAZE) return 6;
 		return 0;
 	};
 	// 0 A.D. plays one of an actor's same-named clips at random; as with units
 	// (with_variant), each animal keeps one by its id: half fall with the second
 	// death and a quarter stand with the second idle, when the model has them.
+	// An actor without a feeding clip lingers on its idle, as CModel falls back.
 	auto with_fauna_variant = [this](int clip, uint8_t ft, uint32_t id) -> int {
 		const uint32_t h = id * 2654435761u;
+		if (clip == 6) {
+			if (fauna_puppet[ft][6].baked_count > 0) return 6;
+			clip = 0;
+		}
 		if (clip == 3 && (h & 0x80000000u) && fauna_puppet[ft][5].baked_count > 0) return 5;
 		if (clip == 0 && (h >> 29) == 3u && fauna_puppet[ft][4].baked_count > 0) return 4;
 		return clip;
