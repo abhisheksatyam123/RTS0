@@ -73,6 +73,14 @@ def test_object():
     check(lb.register({"id": "g1", "players": 3})[1]["player_names"][0]["name"] == "alice",
           "player names left out keep their value")
     check(lb.register({"id": "g1", "player_names": "bad"})[1]["player_names"] == [], "a bad player list is empty")
+    check("mods" not in room, "a host that sends no mods lists none")
+    mods = [{"name": "0ad", "version": "0.28.0"}, {"name": "fx", "version": "1", "ignoreInCompatibilityChecks": 1},
+            {"version": "2"}, "junk"]
+    room = lb.register({"id": "g1", "mods": mods})[1]
+    check(room["mods"] == [{"name": "0ad", "version": "0.28.0", "ignoreInCompatibilityChecks": False},
+                           {"name": "fx", "version": "1", "ignoreInCompatibilityChecks": True}],
+          "a host's mods are kept, sanitized, in order")
+    check(lb.register({"id": "g1", "players": 2})[1]["mods"] == room["mods"], "mods left out keep their value")
     check(lb.register({"id": "g3"}, "10.0.0.7")[1]["host_ip"] == "10.0.0.7", "without host_ip, the sender's address")
     check(lb.register({"id": "g2", "state": "bogus"})[1]["state"] == "init", "an unknown state reads as init")
     check(len(lb.room_list()[1]["rooms"]) == 3 and "seen" not in lb.room_list()[1]["rooms"][0],
@@ -376,6 +384,16 @@ def test_accounts():
     strict = lobby_server.Lobby(accounts_path=path, accounts_only=True)
     check(strict.login("carol")[0] == 401, "with --accounts-only a name with no account is refused")
     check(strict.login("ALICE", pw)[0] == 200, "accounts load from the file")
+    tok = next(t for t, p in lb.players.items() if p["name"] == "Alice")  # signed in above
+    pw2 = lobby_server.encrypt_password("correct horse", "Alice")
+    check(lb.change_password("nobody", pw2)[0] == 401, "a password change needs a session")
+    check(lb.change_password(tok, "")[0] == 400, "and a new password")
+    guest = lb.login("guest2")[1]["token"]
+    check(lb.change_password(guest, pw2)[0] == 403, "a guest has no password to change")
+    check(lb.change_password(tok, pw2)[0] == 200, "the account's password changes")
+    lb.logout(tok)
+    check(lb.login("alice", pw)[0] == 401 and lb.login("alice", pw2)[0] == 200, "the old one no longer signs in, the new one does")
+    check(lobby_server.Lobby(accounts_path=path).login("alice", pw2)[0] == 200, "and it is saved")
 
 
 if __name__ == "__main__":

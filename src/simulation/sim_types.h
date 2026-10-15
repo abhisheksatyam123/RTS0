@@ -23,14 +23,18 @@ struct RecentDeath {
 	uint8_t type = 0;
 	bool is_building = false;
 	bool death_damage_applied = false;
-	bool death_damage = false; // the dead unit has DeathDamage (fire ships); was the unused loot_applied byte
+	// The dead unit's DeathDamage: 1 + its row in Simulation's death damage table, 0 none.
+	// Row 0 is the ignited fire ship, so older saves' bool (1 = a fire ship) reads the same.
+	// It was the unused loot_applied byte.
+	uint8_t death_damage = 0;
 };
 // DeathDamage.js: Circular splash when the entity dies (Range in RTS0 units, Damage summed).
 struct DeathDamageInfo {
 	float range;
-	float damage; // Damage/Crush, against the target's crush Resistance
+	float damage; // Damage/Crush against the target's crush Resistance, or Damage/Fire (fire)
 	bool friendly_fire;
 	float ship_building_mult; // Bonuses: Classes "Ship Building" Multiplier
+	bool fire = false; // Damage/Fire: no 0.28 template resists Fire
 };
 enum BiomeType : uint8_t {
 	BIOME_AEGEAN = 0,
@@ -923,7 +927,8 @@ enum UnitFormation : uint8_t {
 	FORMATION_SYNTAGMA = 14,     // syntagma (pikemen; kush, mace, ptol, sele)
 	FORMATION_TESTUDO = 15,      // testudo (melee infantry; rome)
 	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (han and roman spearmen; han, rome)
-	FORMATION_COUNT = 17,
+	FORMATION_SHIELD_WALL = 17,  // shield_wall (germ spearmen; germ)
+	FORMATION_COUNT = 18,
 	FORMATION_SCATTER = FORMATION_SKIRMISH // old name
 };
 
@@ -2493,12 +2498,15 @@ inline float unit_heal_range_base(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_RANGE;
 	return 12.0f;
 }
-// unit_min_range_ratio for the unit's template: siege towers have no MinRange, the onager 20 of 60.
+// unit_min_range_ratio for the unit's template: siege towers have no MinRange, the onager 20 of 60,
+// the fire-raiser 10 of 15.
 inline float unit_min_range_ratio(uint8_t type, uint16_t tmpl) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (t.flags & ROSTER_SIEGE_TOWER) return 0.0f;
 		if (type == UNIT_CATAPULT && std::strstr(t.id, "onager")) return 20.0f / 60.0f;
+		// template_unit_siege_flamethrower.xml (the Theban fire-raiser): MinRange 10 of MaxRange 15.
+		if (type == UNIT_BOLT_SHOOTER && std::strstr(t.id, "fireraiser")) return 10.0f / 15.0f;
 	}
 	return unit_min_range_ratio(type);
 }

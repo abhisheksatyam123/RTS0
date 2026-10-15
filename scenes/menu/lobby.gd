@@ -26,6 +26,9 @@ var _password2: LineEdit # prelobby Register's passwordRepeat
 var _remember: CheckBox
 var _register_btn: Button
 var _games: Tree
+var _setup: GDScript = load("res://scenes/menu/gamesetup.gd")
+var game_sort_column := "Name"
+var game_sort_order := 1
 var _players: Tree
 var _players_filter: LineEdit
 var _profile: VBoxContainer
@@ -81,8 +84,17 @@ var _buddy_btn: Button
 const BUDDY_SYMBOL := "•"
 const MAX_PLAYERS := 8
 
-const GAME_COLUMNS := ["Name", "Host", "Map", "Players", "Status"]
-const RATING_COL := 3 # where the Rating column goes when shown
+# GameList.xml gamesBox: the columns, and the key each one sorts on.
+const GAME_COLUMNS := ["Name", "Map Name", "Size", "Type", "Players"]
+const RATING_COL := 5 # where the Rating column goes when shown
+const GAME_SORT_KEYS := {"Name": "gameName", "Map Name": "mapName", "Size": "mapSize", "Type": "mapType",
+	"Players": "maxnbp", "Rating": "gameRating"}
+# Game.js GameStatusOrder and StateTags: setups first, in green; running red.
+const GAME_STATES := ["init", "waiting", "running"]
+const STATE_COLORS := {"init": Color8(0, 219, 0), "waiting": Color8(255, 127, 0), "running": Color8(219, 0, 0)}
+# GameList.xml textcolor of the other columns.
+const GAME_COLUMN_COLORS := {"Map Name": Color8(128, 128, 128), "Size": Color8(128, 128, 128),
+	"Type": Color8(0, 160, 160), "Players": Color8(0, 128, 128), "Rating": Color8(0, 160, 160)}
 # GameListFilters/Rating.js RatingFilters, after "Any".
 const RATING_FILTERS := ["", ">1500", ">1400", ">1300", ">1200", "<1200", "<1100", "<1000"]
 
@@ -131,6 +143,8 @@ func _build() -> void:
 	header.add_child(title)
 	header.add_child(_button("Leaderboard", _on_leaderboard_pressed))
 	header.add_child(_button("Player Profile Lookup", _on_lookup_pressed))
+	# LobbyPage.xml: "Account settings" (AccountSettingsPage).
+	header.add_child(_button("Account settings", _on_account_pressed))
 	header.add_child(_button("Back" if dialog else "Main Menu", _on_back_pressed))
 
 	var login := HBoxContainer.new()
@@ -211,6 +225,9 @@ func _build() -> void:
 	_games.set_column_expand_ratio(2, 2)
 	_games.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_games.item_selected.connect(_on_game_selected)
+	# gamesBox sortable: a click on a heading sorts on it, again reverses.
+	_games.column_title_clicked.connect(func(c: int, _b: int) -> void: sort_games_by(game_columns(_rating_column)[c]))
+	_update_game_titles()
 	if not dialog:
 		_games.item_activated.connect(_on_join_pressed.bind(false))
 	left.add_child(_games)
@@ -418,6 +435,72 @@ func _build_lookup() -> AcceptDialog:
 		_lookup_values[r[0]] = _label(NOT_AVAILABLE)
 		_lookup_grid.add_child(_lookup_values[r[0]])
 	return dlg
+
+
+## AccountSettingsPage.xml: the new password twice, the request's result, and
+## Close / Change password.
+func _on_account_pressed() -> void:
+	if not LobbySession.signed_in():
+		_say("Sign in to change your account settings.")
+		return
+	var dlg := AcceptDialog.new()
+	dlg.name = "AccountSettings"
+	dlg.title = "Account settings"
+	dlg.ok_button_text = "Close"
+	dlg.min_size = Vector2i(460, 280)
+	var box := VBoxContainer.new()
+	dlg.add_child(box)
+	box.add_child(_label("New password:"))
+	var pw := _line("", 0)
+	pw.name = "Password"
+	pw.secret = true
+	box.add_child(pw)
+	box.add_child(_label("Confirm new password:"))
+	var pw2 := _line("", 0)
+	pw2.name = "PasswordConfirm"
+	pw2.secret = true
+	box.add_child(pw2)
+	var result := _label("")
+	result.name = "RequestResult"
+	box.add_child(result)
+	var change := dlg.add_button("Change password", true, "change")
+	dlg.custom_action.connect(func(_a: StringName) -> void: _change_password(pw.text, pw2.text, result, change))
+	dlg.confirmed.connect(dlg.queue_free)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+	pw.grab_focus()
+
+
+## AccountSettingsPage._changePassword: check the length and the confirmation,
+## ask the lobby, then keep lobby.password only when it is remembered.
+func _change_password(new_pass: String, confirm: String, result: Label, button: Button) -> void:
+	var fail := func(text: String) -> void:
+		result.add_theme_color_override("font_color", Color.RED)
+		result.text = text
+	result.add_theme_color_override("font_color", Color.WHITE)
+	result.text = "Changing password…"
+	if new_pass.length() < LobbySession.MIN_PASSWORD_LENGTH:
+		fail.call("Please choose a longer password")
+		return
+	if confirm != new_pass:
+		fail.call("Passwords do not match")
+		return
+	var encrypted: String = LobbySession.encrypt_password(new_pass, LobbySession.player_name)
+	button.disabled = true
+	LobbySession.change_password(encrypted, func(code: int, obj) -> void:
+		if not is_instance_valid(result):
+			return
+		button.disabled = false
+		if code == 0:
+			fail.call("Request timed out.")
+		elif code != 200:
+			fail.call(str(obj.get("error", "Error")) if obj is Dictionary else "Error")
+		else:
+			result.text = "Password changed successfully."
+			var cfg := RtsoUserConfig.new()
+			cfg.set_value("lobby.password", encrypted if cfg.get_bool("lobby.rememberpassword") else "")
+			cfg.save())
 
 
 func _on_lookup_pressed() -> void:
@@ -706,6 +789,54 @@ static func rating_passes(filter: String, rating: int) -> bool:
 	return rating >= n if filter.begins_with(">") else rating < n
 
 
+func sort_games_by(column: String) -> void:
+	if column == game_sort_column:
+		game_sort_order = -game_sort_order
+	else:
+		game_sort_column = column
+		game_sort_order = 1
+	_update_game_titles()
+	_show_rooms()
+
+
+func _update_game_titles() -> void:
+	var titles := game_columns(_rating_column)
+	for i in titles.size():
+		_games.set_column_title(i, titles[i] + (("  ▲" if game_sort_order > 0 else "  ▼") if titles[i] == game_sort_column else ""))
+
+
+## Game.js sortValues: Name sorts setups, then running games, by name; the
+## others on the stanza's value.
+func _game_sort_value(r: Dictionary, column: String) -> Variant:
+	match GAME_SORT_KEYS.get(column, "gameName"):
+		"mapName":
+			return game_map_title(r).to_lower()
+		"mapSize":
+			return _setup.MAP_SIZES.map(func(z) -> String: return str(z[1])).find(str(r.get("map_size", "")))
+		"mapType":
+			return str(r.get("map_type", ""))
+		"maxnbp":
+			return int(r.get("max_players", MAX_PLAYERS))
+		"gameRating":
+			return _room_rating(r)
+	# compatibility + state + name, as Game.js sortValues.gameName.
+	return "%s%d%s" % [str(LobbySession.game_compatible(r)), GAME_STATES.find(str(r.get("state", "init"))), game_title(r).to_lower()]
+
+
+static func game_title(r: Dictionary) -> String:
+	return str(r.get("name", "")) if str(r.get("name", "")) != "" else str(r.get("id", ""))
+
+
+static func game_map_title(r: Dictionary) -> String:
+	return str(r.get("map_name", "")) if str(r.get("map_name", "")) != "" else str(r.get("map_id", ""))
+
+
+## Game.js getTranslatedPlayerCount: "current/max", "+observers" when watched.
+static func game_player_count(r: Dictionary) -> String:
+	var watching := (r.get("player_names", []) as Array).filter(func(p) -> bool: return p.get("observer", false)).size()
+	return "%d/%d" % [int(r.get("players", 1)), int(r.get("max_players", MAX_PLAYERS))] + (" +%d" % watching if watching else "")
+
+
 func _room_rating(r: Dictionary) -> int:
 	return LobbySession.game_rating(r.get("player_names", []), _ratings)
 
@@ -719,6 +850,15 @@ func _show_rooms() -> void:
 	var f := _filters()
 	_shown_rooms = _rooms.filter(func(r) -> bool:
 		return rating_passes(filter, _room_rating(r)) and room_passes(r, f))
+	var keys := {}
+	for r in _shown_rooms:
+		keys[str(r.get("id", ""))] = _game_sort_value(r, game_sort_column)
+	_shown_rooms.sort_custom(func(a, b) -> bool:
+		var ka = keys[str(a.get("id", ""))]
+		var kb = keys[str(b.get("id", ""))]
+		if ka == kb:
+			return str(a.get("id", "")) < str(b.get("id", ""))
+		return ka < kb if game_sort_order > 0 else ka > kb)
 	var buddy_list := buddies()
 	var col := func(name: String) -> int: return game_columns(_rating_column).find(name)
 	_games.clear()
@@ -726,15 +866,24 @@ func _show_rooms() -> void:
 	var reselected := false
 	for r in _shown_rooms:
 		var it := _games.create_item(top)
-		var title := str(r.get("name", "")) if str(r.get("name", "")) != "" else str(r.get("id", ""))
-		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + title
+		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + game_title(r)
 			+ (" (password)" if int(r.get("password", 0)) else ""))
-		it.set_text(1, str(r.get("host_name", "")))
-		it.set_text(2, str(r.get("map_name", "")) if str(r.get("map_name", "")) != "" else str(r.get("map_id", "")))
+		# Game.js IncompatibleTags: a game needing other mods is grey.
+		it.set_custom_color(0, STATE_COLORS.get(str(r.get("state", "init")), STATE_COLORS["init"])
+			if LobbySession.game_compatible(r) else Color8(128, 128, 128))
+		it.set_text(col.call("Map Name"), game_map_title(r))
+		it.set_text(col.call("Size"), str(r.get("map_size", "")))
+		var type_title := ""
+		for t in _setup.MAP_TYPES:
+			if t[0] == str(r.get("map_type", "")):
+				type_title = t[1]
+		it.set_text(col.call("Type"), type_title)
 		if _rating_column:
 			it.set_text(col.call("Rating"), str(_room_rating(r)))
-		it.set_text(col.call("Players"), "%d/%d" % [int(r.get("players", 1)), int(r.get("max_players", 8))])
-		it.set_text(col.call("Status"), "Running" if r.get("state", "init") == "running" else "Waiting")
+		it.set_text(col.call("Players"), game_player_count(r))
+		for c in GAME_COLUMN_COLORS:
+			if col.call(c) >= 0:
+				it.set_custom_color(col.call(c), GAME_COLUMN_COLORS[c])
 		it.set_metadata(0, str(r.get("id", "")))
 		if str(r.get("id", "")) == keep:
 			it.select(0)
@@ -1225,6 +1374,30 @@ func _on_host_saved_pressed() -> void:
 	_on_host_pressed(true)
 
 
+func _ask_mods(r: Dictionary) -> void:
+	var modlib: GDScript = load("res://scenes/menu/mods.gd")
+	var ask := ConfirmationDialog.new()
+	ask.name = "IncompatibleModsDialog"
+	ask.title = "Incompatible mods"
+	ask.dialog_text = "Your active mods do not match the mods of this game.\n\n" \
+		+ modlib.compared_mods_string(r.get("mods", []) if r.get("mods") is Array else [], modlib.engine_mods()) \
+		+ "\n\nDo you want to switch to the mod selection page?"
+	ask.ok_button_text = "Yes"
+	ask.cancel_button_text = "No"
+	add_child(ask)
+	ask.canceled.connect(ask.queue_free)
+	ask.confirmed.connect(func() -> void:
+		ask.queue_free()
+		# Engine.StopXmppClient, then the mod selection; closing it leaves for the main menu.
+		LobbySession.sign_out()
+		_update_signed_in()
+		var page: Node = load("res://scenes/menu/modmod.gd").open(self)
+		page.tree_exited.connect(func() -> void:
+			if is_inside_tree():
+				MatchSettings.go("res://scenes/menu/main_menu.tscn")))
+	ask.popup_centered()
+
+
 func _on_join_pressed(confirmed := false) -> void:
 	var r := _selected_room()
 	if _join_ip.text.strip_edges() == "" and not r.is_empty():
@@ -1232,6 +1405,10 @@ func _on_join_pressed(confirmed := false) -> void:
 		# signed-in player (0 A.D. XmppClient SendIqGetConnectionData).
 		if not LobbySession.signed_in():
 			_say("Sign in to join a listed game, or type the host's address.")
+			return
+		# JoinButton.js: a game with other mods offers the mod selection instead.
+		if not LobbySession.game_compatible(r):
+			_ask_mods(r)
 			return
 		# JoinButton.js: a running game we are not in is joined only to watch, if we say so.
 		if not confirmed and str(r.get("state", "init")) != "init" and not (r.get("player_names", []) as Array).any(
