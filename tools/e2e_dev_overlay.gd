@@ -84,7 +84,8 @@ func run() -> void:
 	press("Display selection state")
 	await frames(2)
 	d = main.debug_dev_overlay()
-	check(d["state_shown"] and str(d["state"]).contains("entity: {") and str(d["state"]).contains("hitpoints:"),
+	check(d["state_shown"] and str(d["state"]).contains("entity: {") and str(d["state"]).contains("hitpoints:")
+		and str(d["state"]).contains("velocity:") and str(d["state"]).contains("template: {name:"),
 		"Display selection state shows the selected entity")
 
 	press("Reveal map")

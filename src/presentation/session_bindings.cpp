@@ -52,7 +52,6 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
 	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
 	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
-	ClassDB::bind_method(D_METHOD("_on_replay_speed_selected", "index"), &RtsoMain::_on_replay_speed_selected);
 	ClassDB::bind_method(D_METHOD("is_game_paused"), &RtsoMain::is_game_paused);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
 	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);

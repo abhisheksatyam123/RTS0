@@ -432,7 +432,7 @@ void RtsoMain::begin_recording_from_save(const String &save_path) {
 void RtsoMain::write_replay(bool ended) {
 	if (!replay_recording_ || replay_dir_.is_empty() || !sim) return;
 	const uint32_t turns = (uint32_t)turn_mgr_.turn_history().size();
-	if (turns < 25) return; // under five seconds: nothing worth keeping (0 A.D. drops empty replays too)
+	if (turns < 15) return; // VisualReplay lists no replay shorter than 3 s (minimumReplayDuration)
 	const String cmd_path = ProjectSettings::get_singleton()->globalize_path(replay_dir_ + "commands.rts0rec");
 	if (!turn_mgr_.save_replay(cmd_path.utf8().get_data())) {
 		UtilityFunctions::printerr("[RTS0] Replay write failed: ", cmd_path);
@@ -643,32 +643,7 @@ void RtsoMain::build_replay_view_picker() {
 	row->add_child(replay_observer_label_);
 	replay_follow_box_ = new_follow_player_box();
 	row->add_child(replay_follow_box_);
-	// Game speed and pause, as the session menu offers them in a 0 A.D. replay.
-	Label *speed_caption = memnew(Label);
-	speed_caption->set_text("  Speed:");
-	row->add_child(speed_caption);
-	replay_speed_picker_ = memnew(OptionButton);
-	const Array speeds = speed_choices(true);
-	for (int i = 0; i < speeds.size(); ++i) {
-		replay_speed_picker_->add_item(speed_title((float)speeds[i]), i);
-		replay_speed_picker_->set_item_metadata(i, speeds[i]);
-		if ((float)speeds[i] == game_speed) replay_speed_picker_->select(i);
-	}
-	replay_speed_picker_->set_tooltip_text("Choose game speed");
-	replay_speed_picker_->set_focus_mode(Control::FOCUS_NONE);
-	replay_speed_picker_->connect("item_selected", Callable(this, "_on_replay_speed_selected"));
-	row->add_child(replay_speed_picker_);
-	replay_pause_btn_ = memnew(Button);
-	replay_pause_btn_->set_text(is_game_paused() ? "Resume" : "Pause");
-	replay_pause_btn_->set_focus_mode(Control::FOCUS_NONE);
-	replay_pause_btn_->connect("pressed", Callable(this, "toggle_pause"));
-	row->add_child(replay_pause_btn_);
 	replay_label_->get_parent()->add_child(row);
-}
-
-void RtsoMain::_on_replay_speed_selected(int index) {
-	if (replay_speed_picker_ && index >= 0 && index < replay_speed_picker_->get_item_count())
-		set_game_speed((float)replay_speed_picker_->get_item_metadata(index));
 }
 
 void RtsoMain::_on_replay_view_selected(int index) {

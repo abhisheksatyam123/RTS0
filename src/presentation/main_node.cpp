@@ -641,9 +641,6 @@ void RtsoMain::set_game_speed(float speed) {
 	const Array speeds = speed_choices(fast_forward_allowed());
 	game_speed = std::clamp(speed, (float)speeds[0], (float)speeds[speeds.size() - 1]);
 	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
-	if (replay_speed_picker_)
-		for (int i = 0; i < replay_speed_picker_->get_item_count(); ++i)
-			if ((float)replay_speed_picker_->get_item_metadata(i) == game_speed) replay_speed_picker_->select(i);
 }
 
 // The pause hotkey and the replay's Pause button. Networked, the pause holds
@@ -682,7 +679,6 @@ void RtsoMain::toggle_pause() {
 	if (!can_pause()) return;
 	hotkey_paused_ = !hotkey_paused_;
 	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_);
-	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
 	update_pause_overlay();
 }
 
@@ -1295,8 +1291,8 @@ void RtsoMain::update_hud() {
 		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
 				turn_mgr_.is_replaying());
 	}
-	// GameSpeedButton is hidden in networked games; a replay's own row has the speed list.
-	if (speed_btn) speed_btn->set_visible(!net_lockstep() && !turn_mgr_.is_replaying());
+	// GameSpeedButton: hidden in networked games (g_IsNetworked), shown in replays with Fast Forward.
+	if (speed_btn) speed_btn->set_visible(!net_lockstep());
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
@@ -1538,6 +1534,8 @@ void RtsoMain::activate_rejoin_test() {
 	if (rejoin_test_ || !sim || turn_mgr_.is_replaying()) return;
 	rejoin_test_ = true;
 	refresh_dev_overlay();
+	// 0.28 Engine.ActivateRejoinTest: LOGMESSAGERENDER("Rejoin test will activate in %i turns"); the copy joins after the next turn.
+	show_notice(String("Rejoin test will activate in %d turns").replace("%d", "1"));
 }
 
 // After each turn: the first takes the snapshot and rejoins the copy from it (a fresh
@@ -1669,8 +1667,27 @@ void RtsoMain::refresh_dev_overlay() {
 			text += vformat("  unitType:%d\n  actionState:%d\n  stance:%d\n  rank:%d\n  xp:%d\n  kills:%d\n",
 					(int64_t)uv.unit_type[i], (int64_t)uv.action_state[i], (int64_t)uv.stance[i], (int64_t)uv.rank[i],
 					(int64_t)(uv.xp ? uv.xp[i] : 0), (int64_t)(uv.kills ? uv.kills[i] : 0));
-			text += vformat("  carrying:{type:%d, amount:%d}\n  formation:%d\n}", (int64_t)uv.res_type_carried[i],
+			text += vformat("  carrying:{type:%d, amount:%d}\n  formation:%d\n", (int64_t)uv.res_type_carried[i],
 					(int64_t)uv.carry[i], (int64_t)uv.formation[i]);
+			// The rest of the entity's live state (0.28 lists every GetEntityState key).
+			text += vformat("  alive:%d\n  velocity:{x:%.2f, z:%.2f}\n  target:{x:%.2f, z:%.2f}\n  targetResource:%d\n",
+					(int64_t)uv.alive[i], uv.vel_x[i], uv.vel_z[i], uv.target_x[i], uv.target_z[i], (int64_t)uv.target_resource_id[i]);
+			text += vformat("  deathTimer:%.2f\n  statusEffects:%d\n  packState:%d\n  packElapsed:%.2f\n}",
+					uv.death_timer ? uv.death_timer[i] : 0.0f, (int64_t)(uv.status_effects ? uv.status_effects[i] : 0),
+					(int64_t)(uv.pack_state ? uv.pack_state[i] : 0), uv.pack_elapsed ? uv.pack_elapsed[i] : 0.0f);
+			if (tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT) {
+				// template: GetTemplateData of the entity's template.
+				const rtso::CivUnitTemplate &t = rtso::civ_unit_template(tmpl);
+				text += vformat("\n\ntemplate: {name:{generic:\"%s\", specific:\"%s\"}, civ:%d, phase:%d, ",
+						String::utf8(t.name ? t.name : ""), String::utf8(t.specific_name ? t.specific_name : ""), (int64_t)t.civ, (int64_t)t.phase);
+				text += vformat("cost:{food:%d, wood:%d, stone:%d, metal:%d, population:%d, time:%.1f}, ", (int64_t)t.food_cost,
+						(int64_t)t.wood_cost, (int64_t)t.stone_cost, (int64_t)t.gold_cost, (int64_t)t.pop_cost, t.train_time);
+				text += vformat("maxHitpoints:%.1f, speed:%.2f, vision:%.2f, ", t.hp, t.speed, t.vision);
+				text += vformat("attack:{hack:%.1f, pierce:%.1f, crush:%.1f, range:%.2f, repeatTime:%.2f}, ", t.hack_damage,
+						t.pierce_damage, t.crush_damage, t.attack_range, t.attack_cooldown);
+				text += vformat("resistance:{hack:%.1f, pierce:%.1f, crush:%.1f}, carryCapacity:%d}", t.hack_armor, t.pierce_armor,
+						t.crush_armor, (int64_t)t.carry_capacity);
+			}
 			break;
 		}
 	} else if (selected_building_id) {
