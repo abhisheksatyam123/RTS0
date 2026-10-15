@@ -20,6 +20,7 @@ MatchSettings="*res://scenes/menu/match_settings.gd"
 UserSettings="*res://scenes/menu/user_settings.gd"
 LobbySession="*res://scenes/menu/lobby_session.gd"
 Tooltips="*res://scenes/common/tooltips.gd"
+MenuAudio="*res://scenes/common/menu_audio.gd"
 
 [gui]
 

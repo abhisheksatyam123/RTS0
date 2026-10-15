@@ -103,7 +103,7 @@ func run() -> void:
 	await frames(1)
 	check(shown.call() == ["GameTypeTab"] and page.get_node("%VictorySlot").is_visible_in_tree() and page.get_node("%LockTeams").is_visible_in_tree()
 		and page.get_node("%SpeedSlot").is_visible_in_tree(), "Game Type shows victory, speed, ceasefire and teams")
-	check(page.get_node("%TabGameType").tooltip_text == "Click to toggle the Game Type settings tab.", "with 0.28's tooltip")
+	check(page.get_node("%TabGameType").tooltip_text.begins_with("Click to toggle the Game Type settings tab.\nScroll down or use "), "with 0.28's tooltip")
 	page.get_node("%TabGameType").pressed.emit()
 	await frames(1)
 	check(shown.call().is_empty() and not page.get_node("%TabGameType").button_pressed, "pressing the open tab closes it")

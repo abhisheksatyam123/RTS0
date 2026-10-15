@@ -12,6 +12,8 @@ extends SceneTree
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_session_options.gd
 # Exit code 0 = pass.
 
+const TT = preload("res://scenes/common/tooltips.gd")
+
 var main
 var failures := 0
 var cfg := RtsoUserConfig.new()
@@ -167,7 +169,8 @@ func run() -> void:
 		await frames(3)
 		tip = roster().get_item_tooltip(0)
 		check(tip.contains("Health:") and tip.contains("Resistance:") and tip.contains("Speed:"), "on: health, resistance and speed")
-		check(not tip.contains("[b]") and not tip.contains("[img"), "as plain text")
+		# g_TooltipTextFormats: bold headers and resource icons, drawn by the Tooltips layer.
+		check(tip.contains("[img") and TT.plain(tip).contains("Health:"), "in 0.28's tooltip formats")
 		print(tip)
 
 	for k in KEYS:
