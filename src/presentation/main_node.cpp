@@ -416,6 +416,7 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target) {
 	has_last_attack_ = true;
 	last_attack_pos_ = pos;
+	last_attack_unit_ = structure ? 0 : target;
 	if (minimap_view) minimap_view->add_ping(Vector2(pos.x, pos.z), Color(1.0f, 0.15f, 0.1f));
 	const bool gaia = attacker == rtso::GAIA_PLAYER;
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);

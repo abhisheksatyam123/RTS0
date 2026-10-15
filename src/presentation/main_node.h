@@ -298,12 +298,15 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 		bool set = false;
 		Vector3 pos;
 	};
-	CameraBookmark camera_bookmarks_[4];
+	CameraBookmark camera_bookmarks_[10]; // camera.jump.1-10
+	// g_JumpCameraLast: where the camera was before the last jump, for the jump back.
+	CameraBookmark camera_jump_last_;
 	// Single-player pause from the pause hotkey (Pause, Shift+Space).
 	bool hotkey_paused_ = false;
 	// Where the local player was last attacked (camera.lastattackfocus = Space).
 	bool has_last_attack_ = false;
 	Vector3 last_attack_pos_;
+	uint32_t last_attack_unit_ = 0; // the attacked unit, which camera.lastattackfocus follows
 	// Under-attack alerts (0 A.D. AttackDetection.js + messages.js "attack"):
 	// last seen health of each local entity, to spot damage between frames.
 	rtso::AttackDetection attack_detection_;
