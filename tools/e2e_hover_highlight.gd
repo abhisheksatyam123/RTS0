@@ -5,6 +5,8 @@ extends SceneTree
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_hover_highlight.gd
 # Exit code 0 = pass.
 
+const BLD_HOUSE := 1
+
 var main
 var failures := 0
 
@@ -145,5 +147,18 @@ func run() -> void:
 	hl = main.debug_highlight()
 	print("    structure hover ", hl, " cc ", cc)
 	check(hl.has(cc), "hovering the Civic Center highlights it")
+	# input.js picks any entity the player sees: an enemy structure in sight is highlighted too.
+	var foe: int = main.debug_spawn_building(BLD_HOUSE, 14.0, 0.0, 1)
+	check(foe != 0, "an enemy house beside the Civic Center")
+	await frames(10)
+	main.debug_select_entity(foe)
+	await frames(4)
+	var foe_at: Vector2 = main.debug_selected_building().get("screen", Vector2.ZERO)
+	main.debug_select_units(PackedInt32Array())
+	await frames(2)
+	await move(foe_at)
+	hl = main.debug_highlight()
+	print("    enemy hover ", hl, " house ", foe, " at ", foe_at)
+	check(hl.has(foe), "hovering an enemy structure highlights it")
 	print("FAILURES: ", failures)
 	quit(1 if failures > 0 else 0)

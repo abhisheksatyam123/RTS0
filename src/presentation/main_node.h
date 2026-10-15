@@ -485,6 +485,11 @@ public:
 	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
 	// (AI slots get one from their civ's AINames), else "Player N".
 	String player_display_name(uint8_t pid) const override;
+	bool player_offline(uint8_t pid) const override;
+	bool controls_player(uint8_t pid) const override {
+		return pid < rtso::MAX_PLAYERS && !turn_mgr_.is_replaying() && !spectating() && pid == seat_player();
+	}
+	String ai_settings_text(uint8_t pid) const override;
 	bool mass_tribute_held() const override { return rtso::hotkeys::held("session.masstribute"); }
 	String player_names_[rtso::MAX_PLAYERS];
 	void apply_player_names(const Array &names);
@@ -494,6 +499,8 @@ public:
 	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
 	String chat_user(const String &sender_guid) override;
+	// network.js getMismatchMessage("engine", ...) when the host's version is known.
+	String mismatch_detail() const;
 	// NMT_CHAT (the chat commands are chat_network_command).
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
@@ -611,13 +618,15 @@ public:
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
 	int64_t debug_civic_centre_id(int player) const;
-	int64_t debug_spawn_building(int type, float dx, float dz);
+	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
+	Dictionary debug_diplomacy() const { return diplo_dialog_.debug_state(); } // tests: the diplomacy dialog's rows
+	void debug_set_observer_view(int player) { set_observer_view(player); } // tests: an observer follows a player (-1: none)
 	Dictionary debug_dialogs();
-	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
+	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr, bool any_player = false) const;
 	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
 	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
 	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line
@@ -717,6 +726,7 @@ private:
 	std::vector<uint32_t> extra_structures_;
 	uint32_t extras_primary_ = 0; // the selected_building_id the extras belong to
 	std::vector<uint32_t> selected_structures() const;
+	std::vector<uint32_t> selected_structures_like_primary() const;
 	void set_selected_structures(const std::vector<uint32_t> &ids);
 	void prune_structure_selection();
 	// getBuildingsWhichCanTrainEntity: the selected structures that train `tmpl` now.

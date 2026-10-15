@@ -90,21 +90,19 @@ inline String resistance_tooltip(const float r[3]) {
 	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", tr0("Resistance:")}, {"details", "  " + damage}});
 }
 
-// rangeDetails: "Range: 72 meters", "Range: 26 to 85 meters", and with the elevation-adapted
-// range's difference `relative` (metres): "Range: 72 (+6) meters", "Range: 2 to 10 (-1) meters".
-inline String range_details(float min_range, float max_range, float relative = 0.0f) {
+// rangeDetails: "Range: 72 meters", "Range: 26 to 85 meters", and with the range the ground
+// there gives (elevationAdaptedRange, 0 = none) "Range: 72 (+6) meters".
+inline String range_details(float min_range, float max_range, float elevated_range = 0.0f) {
 	const int64_t lo = (int64_t)std::lround(min_range), hi = (int64_t)std::lround(max_range);
 	if (hi <= 0) return String();
-	const int64_t rel = (int64_t)std::lround(relative);
+	const int64_t rel = elevated_range > 0.0f ? (int64_t)std::lround(elevated_range - (float)hi) : 0;
 	const String unit = tr0(lo || rel ? "meters" : (hi == 1 ? "meter" : "meters"));
-	if (rel) {
-		const String r = rel > 0 ? sprintf0(tr0("+%(number)s"), {{"number", num(rel)}}) : num(rel);
-		if (lo)
-			return sprintf0(tr0("%(rangeLabel)s %(minRange)s to %(maxRange)s (%(relativeRange)s) %(rangeUnit)s"),
-					{{"rangeLabel", tr0("Range:")}, {"minRange", num(lo)}, {"maxRange", num(hi)}, {"relativeRange", r}, {"rangeUnit", unit}});
-		return sprintf0(tr0("%(rangeLabel)s %(maxRange)s (%(relativeRange)s) %(rangeUnit)s"),
-				{{"rangeLabel", tr0("Range:")}, {"maxRange", num(hi)}, {"relativeRange", r}, {"rangeUnit", unit}});
-	}
+	const String relative = rel > 0 ? sprintf0(tr0("+%(number)s"), {{"number", num(rel)}}) : num(rel);
+	if (rel)
+		return lo ? sprintf0(tr0("%(rangeLabel)s %(minRange)s to %(maxRange)s (%(relativeRange)s) %(rangeUnit)s"),
+						{{"rangeLabel", tr0("Range:")}, {"minRange", num(lo)}, {"maxRange", num(hi)}, {"relativeRange", relative}, {"rangeUnit", unit}})
+				  : sprintf0(tr0("%(rangeLabel)s %(maxRange)s (%(relativeRange)s) %(rangeUnit)s"),
+						{{"rangeLabel", tr0("Range:")}, {"maxRange", num(hi)}, {"relativeRange", relative}, {"rangeUnit", unit}});
 	if (lo)
 		return sprintf0(tr0("%(rangeLabel)s %(minRange)s to %(maxRange)s %(rangeUnit)s"),
 				{{"rangeLabel", tr0("Range:")}, {"minRange", num(lo)}, {"maxRange", num(hi)}, {"rangeUnit", unit}});
@@ -157,7 +155,8 @@ inline String speed_tooltip(const Simulation::UnitDetails &d) {
 // getGarrisonTooltip for a holder: "Garrison Limit: 20".
 // getAttackTooltip for a structure's BuildingAI: "Bow: 12.0 Pierce, Range: 60 meters, Rate: 3
 // arrows / 2 seconds", or "Garrison to fire arrows" while it has none (attackRateDetails).
-inline String structure_attack_tooltip(const float damage[3], float min_m, float max_m, float repeat_s, int projectiles, float relative_m = 0.0f) {
+inline String structure_attack_tooltip(const float damage[3], float min_m, float max_m, float repeat_s, int projectiles,
+		float elevated_m = 0.0f) {
 	String effects;
 	for (int k = 0; k < 3; ++k) {
 		if (damage[k] <= 0.0f) continue;
@@ -180,7 +179,7 @@ inline String structure_attack_tooltip(const float damage[3], float min_m, float
 			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", secs}});
 	}
 	const String line = sprintf0(tr0("%(attackLabel)s: %(effects)s, %(range)s, %(rate)s%(statusEffects)s%(splash)s"),
-			{{"attackLabel", tr0("Bow")}, {"effects", effects}, {"range", range_details(min_m, max_m, relative_m)}, {"rate", rate},
+			{{"attackLabel", tr0("Bow")}, {"effects", effects}, {"range", range_details(min_m, max_m, elevated_m)}, {"rate", rate},
 			 {"statusEffects", ""}, {"splash", ""}});
 	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", tr0("Attack:")}, {"details", "  " + line}});
 }
@@ -384,15 +383,15 @@ inline String applied_status_tooltip(const String &code, const godot::Dictionary
 // attackEffectsDetails' "gives Poisoned", each applied status and the splash on lines below.
 // `attacks` is the template's templates.json viewer.attacks; the damage, range and interval
 // come from the simulation (technologies applied). Without a template, one Melee or Ranged
-// line and the Capture line. `relative_m` is the Ranged attack's elevation-adapted range less
-// its range, in metres.
-inline String attack_tooltip(const Simulation::UnitDetails &d, const godot::Array &attacks = godot::Array(), float relative_m = 0.0f) {
+// line and the Capture line. `elevated_m`: the Ranged attack's range where the unit stands
+// (GuiInterface elevationAdaptedRange), in metres, 0 for none.
+inline String attack_tooltip(const Simulation::UnitDetails &d, const godot::Array &attacks = godot::Array(), float elevated_m = 0.0f) {
 	const String indent2 = "    "; // the details are indented two spaces, these lines four
 	std::vector<String> lines;
-	auto attack_line = [&](const String &name, const String &effects, float lo, float hi, float interval, const String &statuses, const String &splash,
-			float rel = 0.0f) {
+	auto attack_line = [&](const String &name, const String &effects, float lo, float hi, float interval, const String &statuses,
+							   const String &splash, float elevated = 0.0f) {
 		lines.push_back(sprintf0(tr0("%(attackLabel)s: %(effects)s, %(range)s, %(rate)s%(statusEffects)s%(splash)s"),
-				{{"attackLabel", tr0(name)}, {"effects", effects}, {"range", range_details(lo, hi, rel)}, {"rate", interval_details(interval)},
+				{{"attackLabel", tr0(name)}, {"effects", effects}, {"range", range_details(lo, hi, elevated)}, {"rate", interval_details(interval)},
 				 {"statusEffects", statuses}, {"splash", splash}}));
 	};
 	String damage;
@@ -440,10 +439,10 @@ inline String attack_tooltip(const Simulation::UnitDetails &d, const godot::Arra
 			if ((bool)sp.get("friendly_fire", false))
 				splash += comma() + sprintf0(tr0("Friendly Fire: %(enabled)s"), {{"enabled", tr0("Yes")}});
 		}
-		attack_line(name, effects, d.min_range, d.max_range, d.interval, statuses, splash, type == "Ranged" ? relative_m : 0.0f);
+		attack_line(name, effects, d.min_range, d.max_range, d.interval, statuses, splash, d.ranged ? elevated_m : 0.0f);
 	}
 	if (!damage.is_empty() && !listed_damage)
-		attack_line(d.ranged ? "Ranged" : "Melee", damage, d.min_range, d.max_range, d.interval, String(), String(), d.ranged ? relative_m : 0.0f);
+		attack_line(d.ranged ? "Ranged" : "Melee", damage, d.min_range, d.max_range, d.interval, String(), String(), d.ranged ? elevated_m : 0.0f);
 	if (!capture.is_empty() && !listed_capture) attack_line("Capture", capture, 0.0f, 4.0f, 1.0f, String(), String());
 	if (lines.empty()) return String();
 	String details;
