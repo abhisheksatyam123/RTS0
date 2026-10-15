@@ -781,6 +781,7 @@ bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	for (const auto &scm : batches) receive_remote_turn_batch(scm.turn, scm.client_id, scm.commands);
 	note_game_start_applied(&sim);
 	rejoined_ = true;
+	rejoin_fast_forward_ = true;
 	rejoin_turn_ = T;
 	if (seat < MAX_PLAYERS) {
 		// 0 A.D. NMT_LOADED_GAME: the host now lets the lockstep wait on us.
@@ -829,6 +830,8 @@ void TurnManager::reset() {
 	client_player_.clear();
 	current_turn_ = 0;
 	turn_timer_ = 0.0f;
+	observer_fast_ = false;
+	rejoin_fast_forward_ = false;
 	pending_local_cmds_.clear();
 	pending_remote_cmds_.clear();
 	turn_remote_cmds_.clear();
@@ -1428,13 +1431,23 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		turn_timer_ = std::min(turn_timer_, TURN_DURATION);
 		return false;
 	}
-	turn_timer_ += dt;
+	const bool net_client = net_game_started() && lockstep_net_active() && net_host_ && !net_host_->isHost();
+	if (rejoin_fast_forward_ && (!net_client || turns_behind() <= CATCH_UP_TURNS)) rejoin_fast_forward_ = false;
+	float rate = 1.0f;
+	if (auto_catch_up_ && net_client && is_observer() && !rejoin_fast_forward_) {
+		// NetworkDelayOverlay.CheckDelay: 10% faster while too far behind.
+		const uint32_t behind = turns_behind();
+		if (behind > OBSERVER_MAX_LIVE_DELAY) observer_fast_ = true;
+		else if (behind <= OBSERVER_NORMAL_DELAY) observer_fast_ = false;
+		if (observer_fast_) rate = OBSERVER_CATCH_UP_RATE;
+	} else {
+		observer_fast_ = false;
+	}
+	turn_timer_ += dt * rate;
 	if (turn_timer_ < TURN_DURATION) {
-		// 0 A.D. network.autocatchup: an observer behind the host runs the
-		// turns it holds without waiting out each turn length.
-		if (!(auto_catch_up_ && net_game_started() && lockstep_net_active() && !net_host_->isHost() &&
-				(is_observer() || rejoined_) && turns_behind() > CATCH_UP_TURNS))
-			return false;
+		// A rejoiner runs the turns it got while loading without waiting out
+		// each turn length (CNetClient::LoadFinished fast-forwards them).
+		if (!rejoin_fast_forward_) return false;
 		turn_timer_ = TURN_DURATION;
 	}
 

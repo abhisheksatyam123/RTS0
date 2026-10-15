@@ -26549,7 +26549,7 @@ bool Simulation::petra_find_beach(float land_x, float land_z, float toward_x, fl
 // enemy territory only if there is no other, and not within 70 m (30 m for a foundation)
 // of an allied dock. False when that land has no shore on that sea.
 bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, float ship_z, float dest_x, float dest_z,
-                                    bool avoid_enemy, float &out_x, float &out_z) const {
+                                    bool avoid_enemy, float &out_x, float &out_z, const float *skip_near) const {
 	if (!land || !sea || nav_grid_.cells.blank()) return false;
 	const int w = nav_grid_.cells.w, h = nav_grid_.cells.h;
 	const float cell = 2.0f * nav_grid_.map_half / (float)nav_grid_.res;
@@ -26568,6 +26568,8 @@ bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, f
 				    nav_grid_.global_region_at(x + d[0], y + d[1], PASS_SHIP) == sea) { shore = true; break; }
 			if (!shore) continue;
 			const float px = ((float)x + 0.5f) * cell - nav_grid_.map_half, pz = ((float)y + 0.5f) * cell - nav_grid_.map_half;
+			// A landing point the ship could not unload at: try another.
+			if (skip_near && (px - skip_near[0]) * (px - skip_near[0]) + (pz - skip_near[1]) * (pz - skip_near[1]) < 64.0f) continue;
 			double dist = 4.0 * (std::hypot(px - ship_x, pz - ship_z) + std::hypot(dest_x - px, dest_z - pz)); // metres
 			if (avoid_enemy) {
 				const int owner = territory_owner_at(px, pz);
@@ -26656,6 +26658,27 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 
 void Simulation::petra_manage_transport(float dt) {
 	for (auto &tp : petra_transports_) petra_step_transport(tp, dt);
+	// A unit that boarded after its plan gave up (a lingering board order) would ride for good:
+	// transportPlan.js never leaves units aboard. An idle ship of ours in no plan sets them down
+	// where it lies, else sails for the nearest shore of our home land.
+	std::vector<uint32_t> laden;
+	for (const auto &[sid, pax] : transport_passengers_)
+		if (!pax.empty()) laden.push_back(sid);
+	std::sort(laden.begin(), laden.end()); // map order is not the same on every peer after a load
+	uint16_t home = 0;
+	for (uint32_t sid : laden) {
+		const int32_t si = lookup_unit(sid);
+		if (si < 0 || !units_.alive[si] || units_.team[si] != petra_pid_ || !petra_is_transport_ship((size_t)si)) continue;
+		if (units_.action_state[si] != ACTION_IDLE || petra_ship_in_plan(sid)) continue;
+		const float sx = units_.pos_x[si], sz = units_.pos_z[si];
+		order_disembark(sid, sx, sz);
+		if (get_transport_passenger_count(sid) == 0) continue;
+		if (!home) petra_classified_topo(home);
+		float lx, lz, wx, wz;
+		if (!home || !petra_boarding_pos(home, petra_ship_sea((size_t)si), sx, sz, sx, sz, false, lx, lz)) continue;
+		if (!nearest_water_for_ship((size_t)si, lx, lz, wx, wz)) { wx = lx; wz = lz; }
+		if ((wx - sx) * (wx - sx) + (wz - sz) * (wz - sz) > 4.0f) order_walk(&sid, 1, wx, wz, false);
+	}
 	// A finished or failed plan frees its owner and ship.
 	petra_transports_.erase(std::remove_if(petra_transports_.begin(), petra_transports_.end(), [](const PetraTransportPlan &tp) {
 		return tp.state == PetraTransportPlan::IDLE || tp.state == PetraTransportPlan::FAILED;
@@ -26728,7 +26751,28 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		float dx = units_.pos_x[sidx] - tp.pickup_x;
 		float dz = units_.pos_z[sidx] - tp.pickup_z;
 		bool ship_ready = (dx * dx + dz * dz) <= 36.0f;
-		if (!ship_ready && units_.action_state[sidx] == ACTION_MOVE) tp.state_timer = 0.0f;
+		// Ordered onto the beach itself, a ship that has come within reach can keep circling for
+		// the land point; it waits there instead.
+		if (ship_ready && units_.action_state[sidx] == ACTION_MOVE) cmd_stop(&tp.ship_id, 1);
+		// While the ship sails up the clock runs below zero. transportPlan.js onBoarding: a ship that
+		// does not reach its boarding point (nTry) tries another, here after 120 s: the shore of
+		// that land nearest this one, so the passengers still walk to it.
+		if (!ship_ready && units_.action_state[sidx] == ACTION_MOVE) {
+			tp.state_timer = std::min(tp.state_timer - dt, 0.0f) - dt; // this step's += dt undone
+			if (tp.state_timer <= -120.0f) {
+				const float skip[2] = {tp.pickup_x, tp.pickup_z};
+				float nx, nz;
+				if (petra_boarding_pos(petra_land_at(tp.pickup_x, tp.pickup_z), tp.sea, units_.pos_x[sidx], units_.pos_z[sidx],
+				                       tp.pickup_x, tp.pickup_z, false, nx, nz, skip)) {
+					tp.pickup_x = nx;
+					tp.pickup_z = nz;
+					order_walk(&tp.ship_id, 1, nx, nz, false);
+				}
+				tp.state_timer = 0.0f;
+			}
+		} else if (tp.state_timer < 0.0f) {
+			tp.state_timer = 0.0f;
+		}
 		if (tp.state_timer > 28.0f) {
 			if (aboard == 0) {
 				tp.state = PetraTransportPlan::FAILED;
@@ -26784,8 +26828,24 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 			tp.state = PetraTransportPlan::IDLE;
 			tp.passenger_ids.clear();
 		} else if (tp.state_timer >= 20.0f) {
-			tp.state = PetraTransportPlan::FAILED; // no shore to unload onto: they stay aboard
-			tp.failed = true;
+			// transportPlan.js onSailing never leaves units aboard: a ship that can't unload where
+			// it lies sails for another landing point on that land (getBoardingPos, nTry), here
+			// the nearest shore to the ship other than this one.
+			const float skip[2] = {tp.drop_x, tp.drop_z};
+			const float sx = units_.pos_x[sidx], sz = units_.pos_z[sidx];
+			float nx, nz;
+			if (petra_boarding_pos(petra_land_at(tp.drop_x, tp.drop_z), tp.sea, sx, sz, sx, sz, true, nx, nz, skip)) {
+				tp.drop_x = nx;
+				tp.drop_z = nz;
+				float x, z;
+				sail_point(x, z);
+				order_walk(&tp.ship_id, 1, x, z, false);
+				tp.state = PetraTransportPlan::SAILING;
+				tp.state_timer = 0.0f;
+			} else {
+				tp.state = PetraTransportPlan::FAILED; // that land has no other shore on this sea
+				tp.failed = true;
+			}
 		} else if (std::fmod(tp.state_timer, 3.0f) < dt) {
 			order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
 		}
