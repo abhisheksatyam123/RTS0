@@ -23074,6 +23074,14 @@ bool Simulation::petra_phasing() const {
 	// renews it every turn; only phases go in that queue).
 	if (planned(PETRA_Q_MAJOR_TECH)) return true;
 	if (planned(PETRA_Q_CIVIL_CENTRE) || planned(PETRA_Q_WONDER)) return false;
+	// checkPhase: only with a finished structure of ours that researches the phase
+	// (gameState.hasResearchers(nextPhaseName, true)).
+	const uint8_t next = phase == 1 ? TECH_PHASE_TOWN : TECH_PHASE_CITY;
+	bool researcher = false;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f &&
+		    building_researches_tech(b.type, next, petra_ps().civ)) { researcher = true; break; }
+	if (!researcher) return false;
 	// RTS0, not 0.28: short of wood for houses (petra_wood_starved), the town phase at the
 	// population our houses hold.
 	if (phase == 1) return petra_accounted_population() >= petra_pop_phase2() || (petra_wood_starved() && petra_pop_room() <= 0);
@@ -23302,8 +23310,16 @@ void Simulation::petra_manage_research(float dt) {
 		return;
 	}
 
-	// headquarters.js:2295: researchManager.update every 5th AI turn.
+	// headquarters.js:2295: researchManager.update every 5th AI turn, with an active base (a
+	// finished civic centre of ours, hasActiveBase).
 	if (!petra_turn_mod(5, 1)) return;
+	bool active_base = false;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f && petra_base_anchor_type(b.type)) {
+			active_base = true;
+			break;
+		}
+	if (!active_base) return;
 	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
 	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
 	std::vector<uint8_t> techs;

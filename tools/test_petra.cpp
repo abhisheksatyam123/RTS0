@@ -1308,6 +1308,29 @@ static void test_pop_phase2_save_resources() {
 	CHECK(s->petra_pop_phase2() == 112, "the 3/4 cut outlives saveResources");
 }
 
+// researchManager.js checkPhase: Petra plans the next phase only with a finished structure that
+// researches it (hasResearchers); with its civic centre gone it doesn't count as phasing, so
+// its minor research and expansion aren't held for a phase it can't research.
+static void test_petra_phasing_needs_researcher() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	s->pop_cap_ = 50;
+	float x = 0.0f, z = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { x = b.x; z = b.z; }
+	for (int k = 0; k < 30; ++k) s->spawn_unit(x + 6.0f + (float)(k % 6), z + 6.0f + (float)(k / 6), 0, UNIT_FEMALE_CITIZEN);
+	std::printf("accounted %d, popPhase2 %d\n", s->petra_accounted_population(), s->petra_pop_phase2());
+	CHECK(s->petra_phasing(), "phasing at popPhase2 with a civic centre");
+	for (auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) s->destroy_building(b);
+	CHECK(!s->petra_phasing(), "no phasing without a structure researching the town phase");
+}
+
 // config.js setConfig: Config.popScaling takes sqrt(maxPop/300) under 300, and every helper
 // built on it (transport ships, checkPausedQueues' workersMin) uses it. maxPop is
 // getPopulationMax at the first turn, with the civ's population bonus.
@@ -5017,6 +5040,7 @@ int main(int argc, char **argv) {
 	RUN(test_pop_phase2_save_resources);
 	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_islands_wood_reserve);
+	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_dock_route);
