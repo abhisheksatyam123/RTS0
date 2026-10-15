@@ -1,6 +1,7 @@
 #include "model_library.h"
 #include "procedural.h"
 #include "../../core/diagnostics/logger.h"
+#include "../../presentation/user_config.h"
 #include "../../simulation/sim_types.h"
 #include "packed_siege_models.h"
 #include "unit_template_models.h"
@@ -14,6 +15,8 @@
 #include <godot_cpp/classes/material.hpp>
 #include <godot_cpp/classes/base_material3d.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/texture2d_array.hpp>
+#include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/animation_library.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/json.hpp>
@@ -216,6 +219,63 @@ HashMap<String, ParallaxMap> &parallax_maps() {
 	return m;
 }
 Ref<Texture2D> specular_map_for(const Ref<Texture2D> &albedo) { return table_texture_for(specular_maps(), albedo); }
+// data/unit_variants.json (tools/extract_unit_variants.py): a unit body's 0 A.D.
+// skins (texture-only variant group) and their frequencies, by baked image.
+struct UnitVariants {
+	PackedStringArray layers;
+	std::vector<float> freq;
+};
+HashMap<String, UnitVariants> &unit_variants() {
+	static auto &m = *new HashMap<String, UnitVariants>();
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/unit_variants.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Dictionary e = root[keys[i]];
+				Array layers = e.get("layers", Array()), freq = e.get("freq", Array());
+				UnitVariants uv;
+				for (int j = 0; j < layers.size() && j < freq.size() && j < 8; ++j) {
+					uv.layers.push_back(layers[j]);
+					uv.freq.push_back((float)(double)freq[j]);
+				}
+				if (uv.layers.size() > 1) m.insert(keys[i], uv);
+			}
+		}
+	}
+	return m;
+}
+// The skins as one array texture (RGBA8, the body image's size), shared by
+// every body that names the same skins.
+Ref<Texture2DArray> unit_variant_array(const UnitVariants &uv) {
+	static auto &cache = *new HashMap<String, Ref<Texture2DArray>>();
+	const String key = String("|").join(uv.layers);
+	if (Ref<Texture2DArray> *hit = cache.getptr(key)) return *hit;
+	Ref<Texture2DArray> arr;
+	TypedArray<Image> images;
+	for (int i = 0; i < uv.layers.size(); ++i) {
+		if (!ResourceLoader::get_singleton()->exists(uv.layers[i])) break;
+		Ref<Texture2D> t = ResourceLoader::get_singleton()->load(uv.layers[i]);
+		Ref<Image> img = t.is_valid() ? t->get_image() : Ref<Image>();
+		if (img.is_null()) break;
+		if (img->is_compressed()) img->decompress();
+		img->convert(Image::FORMAT_RGBA8);
+		if (!images.is_empty()) {
+			Ref<Image> first = images[0];
+			if (img->get_size() != first->get_size()) img->resize(first->get_width(), first->get_height());
+		}
+		images.push_back(img);
+	}
+	if (images.size() == uv.layers.size()) {
+		arr.instantiate();
+		if (arr->create_from_images(images) != OK) arr.unref();
+	}
+	cache.insert(key, arr);
+	return arr;
+}
 Ref<Shader> &player_color_shader() {
 	static Ref<Shader> &sh = *new Ref<Shader>();
 	return sh;
@@ -224,6 +284,17 @@ HashMap<uint64_t, Ref<ShaderMaterial>> &player_color_mats() {
 	static auto &m = *new HashMap<uint64_t, Ref<ShaderMaterial>>();
 	return m;
 }
+
+// 0 A.D. MaterialManager: materialmgr.quality (Options "Shader effects", 0-10,
+// read once: "REQUIRES GAME RESTART") picks a material's <alternative> when its
+// quality attribute is above the setting. art/materials/*_parallax_spec.xml fall
+// back to *_norm_spec.xml at quality="8", and those to the plain material at "3".
+static float material_quality() {
+	static const float q = CLAMP((float)rtso::user_config::get_number("materialmgr.quality"), 0.0f, 10.0f);
+	return q;
+}
+static bool quality_normal_maps() { return material_quality() >= 3.0f; }
+static bool quality_parallax() { return material_quality() >= 8.0f; }
 
 // Opaque skins with a specular map or a parallax height map also take the shader
 // without a mask, as BaseMaterial3D has no per-pixel specular nor 0 A.D.'s parallax.
@@ -237,10 +308,10 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 		Ref<Texture2D> mask = pm && ResourceLoader::get_singleton()->exists(pm->mask)
 				? Ref<Texture2D>(ResourceLoader::get_singleton()->load(pm->mask))
 				: Ref<Texture2D>();
-		Ref<Texture2D> spec = specular_map_for(tex);
+		Ref<Texture2D> spec = quality_normal_maps() ? specular_map_for(tex) : Ref<Texture2D>();
 		const bool opaque = bm->get_transparency() == BaseMaterial3D::TRANSPARENCY_DISABLED;
 		const ParallaxMap *px = parallax_maps().getptr(image_key(tex));
-		Ref<Texture2D> height = px && px->scale > 0.0f && ResourceLoader::get_singleton()->exists(px->height)
+		Ref<Texture2D> height = quality_parallax() && px && px->scale > 0.0f && ResourceLoader::get_singleton()->exists(px->height)
 				? Ref<Texture2D>(ResourceLoader::get_singleton()->load(px->height))
 				: Ref<Texture2D>();
 		Ref<Shader> &sh = player_color_shader();
@@ -258,7 +329,7 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 			out->set_shader_parameter("roughness", bm->get_roughness());
 			out->set_shader_parameter("metallic", bm->get_metallic());
 			out->set_shader_parameter("specular", bm->get_specular());
-			Ref<Texture2D> nm = normal_map_for(tex);
+			Ref<Texture2D> nm = quality_normal_maps() ? normal_map_for(tex) : Ref<Texture2D>();
 			out->set_shader_parameter("use_normal_map", nm.is_valid());
 			if (nm.is_valid()) out->set_shader_parameter("normal_tex", nm);
 			out->set_shader_parameter("use_specular_map", spec.is_valid());
@@ -269,6 +340,26 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 			if (parallax) {
 				out->set_shader_parameter("height_tex", height);
 				out->set_shader_parameter("parallax_scale", px->scale);
+			}
+			// A unit body whose actor swaps skins by variant: each entity draws one.
+			if (const UnitVariants *uv = mask.is_valid() ? unit_variants().getptr(image_key(tex)) : nullptr) {
+				Ref<Texture2DArray> arr = unit_variant_array(*uv);
+				if (arr.is_valid()) {
+					float total = 0.0f;
+					for (float f : uv->freq) total += f;
+					float cut[8] = { 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f };
+					float run = 0.0f;
+					for (size_t i = 0; i + 1 < uv->freq.size() && total > 0.0f; ++i) {
+						run += uv->freq[i];
+						cut[i] = run / total;
+					}
+					out->set_shader_parameter("use_variants", true);
+					out->set_shader_parameter("variant_tex", arr);
+					Array cuts;
+					cuts.push_back(Vector4(cut[0], cut[1], cut[2], cut[3]));
+					cuts.push_back(Vector4(cut[4], cut[5], cut[6], cut[7]));
+					out->set_shader_parameter("variant_cut", cuts);
+				}
 			}
 		}
 	}
@@ -314,6 +405,30 @@ void ModelLibrary::set_player_color(Node *n, const Color &c) {
 	for (int i = 0; i < n->get_child_count(); ++i) set_player_color(n->get_child(i), c);
 }
 
+void ModelLibrary::set_variant(Node *n, float u) {
+	if (!n) return;
+	if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n)) {
+		const int count = mi->get_mesh().is_valid() ? mi->get_mesh()->get_surface_count() : 0;
+		for (int s = 0; s < count; ++s) {
+			if (is_player_color_material(mi->get_active_material(s))) {
+				mi->set_instance_shader_parameter("variant_u", u);
+				break;
+			}
+		}
+	}
+	for (int i = 0; i < n->get_child_count(); ++i) set_variant(n->get_child(i), u);
+}
+
+// 0 A.D. seeds each unit's variant choice at random; RTS0 draws it from the id
+// so a unit keeps its skin and every client draws the same.
+float ModelLibrary::variant_draw(uint32_t entity_id) {
+	uint32_t h = entity_id * 2654435761u;
+	h ^= h >> 15;
+	h *= 2246822519u;
+	h ^= h >> 13;
+	return (float)(h >> 8) / 16777216.0f;
+}
+
 void ModelLibrary::apply_imported_material_fixups(Node *n) {
 	if (!n) return;
 	MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n);
@@ -342,7 +457,7 @@ void ModelLibrary::apply_imported_material_fixups(Node *n) {
 			Ref<ShaderMaterial> pc = player_color_material(bm);
 			if (pc.is_valid()) {
 				mi->set_surface_override_material(s, pc);
-			} else if (!bm->get_feature(BaseMaterial3D::FEATURE_NORMAL_MAPPING)) {
+			} else if (quality_normal_maps() && !bm->get_feature(BaseMaterial3D::FEATURE_NORMAL_MAPPING)) {
 				Ref<Texture2D> nm = normal_map_for(bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO));
 				if (nm.is_valid()) {
 					bm->set_feature(BaseMaterial3D::FEATURE_NORMAL_MAPPING, true);

@@ -1,0 +1,3324 @@
+{
+ "units/archer_maiden_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/female_03_01_256x256.png"
+  ]
+ },
+ "units/archer_tex0": {
+  "freq": [
+   3,
+   2,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_psiloi_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_psiloi_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_psiloi_02_256x256.png"
+  ]
+ },
+ "units/athen_archer_tex0": {
+  "freq": [
+   3,
+   2,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_psiloi_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_psiloi_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_psiloi_02_256x256.png"
+  ]
+ },
+ "units/athen_champion_infantry_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_08_256x256.png"
+  ]
+ },
+ "units/athen_infantry_archer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_08_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_09_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/padded_psiloi_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/padded_psiloi_01_03_256x256.png"
+  ]
+ },
+ "units/athen_infantry_javelineer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_basic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_basic_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_basic_03_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_basic_04_02_256x256.png"
+  ]
+ },
+ "units/athen_infantry_javelineer_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_basic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_basic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_basic_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_basic_04_01_256x256.png"
+  ]
+ },
+ "units/athen_infantry_javelineer_e_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_elite_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_elite_01_02_256x256.png"
+  ]
+ },
+ "units/athen_infantry_slinger_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_03_256x256.png"
+  ]
+ },
+ "units/athen_infantry_slinger_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/padded_psiloi_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/padded_psiloi_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/padded_psiloi_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/padded_psiloi_01_04_256x256.png"
+  ]
+ },
+ "units/athen_infantry_spearman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_06_256x256.png"
+  ]
+ },
+ "units/athen_infantry_spearman_e_tex0": {
+  "freq": [
+   3,
+   3,
+   3,
+   3,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/lamellar_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/scale_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/scale_05_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/scale_06_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_01_256x256.png"
+  ]
+ },
+ "units/athen_spearman_tex0": {
+  "freq": [
+   3,
+   3,
+   2,
+   2,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_02_256x256.png"
+  ]
+ },
+ "units/brit_chariot_tex4": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_02_256x256.png"
+  ]
+ },
+ "units/brit_female_citizen_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_02_03_256x256.png"
+  ]
+ },
+ "units/brit_healer_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/celt/druid_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/druid_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/druid_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/druid_04_256x256.png"
+  ]
+ },
+ "units/brit_hero_boudicca_tex4": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_02_256x256.png"
+  ]
+ },
+ "units/brit_infantry_javelineer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_05_256x256.png"
+  ]
+ },
+ "units/brit_infantry_javelineer_e_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_02_256x256.png"
+  ]
+ },
+ "units/brit_infantry_slinger_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_05_256x256.png"
+  ]
+ },
+ "units/brit_infantry_slinger_e_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_02_256x256.png"
+  ]
+ },
+ "units/brit_infantry_spearman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_05_256x256.png"
+  ]
+ },
+ "units/brit_infantry_spearman_e_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_02_256x256.png"
+  ]
+ },
+ "units/brit_scythed_chariot_tex4": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_02_256x256.png"
+  ]
+ },
+ "units/brit_support_female_citizen_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/celt/dress_female_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/dress_female_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/dress_female_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/dress_female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/dress_female_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/dress_female_02_03_256x256.png"
+  ]
+ },
+ "units/brit_swordsman_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/chainmail_04_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/chainmail_04_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/chainmail_04_03_256x256.png"
+  ]
+ },
+ "units/brit_villager_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_03_256x256.png"
+  ]
+ },
+ "units/brit_war_dog_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/mastiff_a_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/mastiff_a_02_256x256.png"
+  ]
+ },
+ "units/brit_war_dog_war_dog_mastiff_b_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/mastiff_b_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/mastiff_b_02_256x256.png"
+  ]
+ },
+ "units/cart_bolt_shooter_tex1": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/cart/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_03_256x256.png"
+  ]
+ },
+ "units/cart_catapult_tex1": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/cart/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_03_256x256.png"
+  ]
+ },
+ "units/cart_infantry_javelineer_iber_a_tex0": {
+  "freq": [
+   3,
+   3,
+   2,
+   2,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/padded_leather_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/vest_strap_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_leather_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/vest_strap_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_leather_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_quilted_slinger_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_quilted_slinger_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_quilted_slinger_01_03_256x256.png"
+  ]
+ },
+ "units/cart_infantry_javelineer_iber_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_05_256x256.png"
+  ]
+ },
+ "units/cart_infantry_javelineer_iber_e_tex0": {
+  "freq": [
+   3,
+   3,
+   3,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_03_256x256.png"
+  ]
+ },
+ "units/cart_infantry_slinger_iber_a_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_slinger_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_slinger_01_02_256x256.png"
+  ]
+ },
+ "units/cart_infantry_spearman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/cart/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/linothorax_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_03_256x256.png"
+  ]
+ },
+ "units/cart_infantry_spearman_ital_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ital/cardiopylax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cardiopylax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cardiopylax_01_03_256x256.png"
+  ]
+ },
+ "units/cart_infantry_spearman_ital_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ital/tunic_pattern_06_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/tunic_pattern_06_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/tunic_pattern_06_03_256x256.png"
+  ]
+ },
+ "units/cart_infantry_spearman_ital_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ital/cuirass_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cuirass_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cuirass_01_03_256x256.png"
+  ]
+ },
+ "units/cart_infantry_swordsman_gaul_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_04_256x256.png"
+  ]
+ },
+ "units/cart_infantry_swordsman_ital_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ital/cardiopylax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cardiopylax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cardiopylax_01_03_256x256.png"
+  ]
+ },
+ "units/cart_infantry_swordsman_ital_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ital/cuirass_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cuirass_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cuirass_01_03_256x256.png"
+  ]
+ },
+ "units/cart_swordsman_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ital/tunic_pattern_06_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/tunic_pattern_06_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/tunic_pattern_06_03_256x256.png"
+  ]
+ },
+ "units/cart_villager_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/cart/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/tunic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/tunic_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/tunic_sleeveless_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/tunic_sleeveless_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/tunic_sleeveless_01_03_256x256.png"
+  ]
+ },
+ "units/catapult_tex1": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/cart/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/cart/padded_01_03_256x256.png"
+  ]
+ },
+ "units/chariot_han_tex1": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/chariot_tex13": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/padded_01_02_256x256.png"
+  ]
+ },
+ "units/gaul_female_citizen_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_02_03_256x256.png"
+  ]
+ },
+ "units/gaul_healer_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/celt/druid_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/druid_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/druid_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/druid_04_256x256.png"
+  ]
+ },
+ "units/gaul_hero_brennus_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_hero_brennus_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_hero_brennus_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_hero_brennus_01_03_256x256.png"
+  ]
+ },
+ "units/gaul_hero_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/celt/chainmail_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/chainmail_03_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/chainmail_03_03_256x256.png"
+  ]
+ },
+ "units/gaul_hero_viridomarus_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/gaul/padded_hero_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/padded_hero_01_03_256x256.png"
+  ]
+ },
+ "units/gaul_infantry_javelineer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_05_256x256.png"
+  ]
+ },
+ "units/gaul_infantry_slinger_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_05_256x256.png"
+  ]
+ },
+ "units/gaul_infantry_slinger_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_01_05_256x256.png"
+  ]
+ },
+ "units/gaul_swordsman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_02_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_02_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_02_06_256x256.png"
+  ]
+ },
+ "units/gaul_villager_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_03_256x256.png"
+  ]
+ },
+ "units/germ_champion_infantry_axeman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/furs_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/furs_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/furs_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/furs_02_01_256x256.png"
+  ]
+ },
+ "units/germ_champion_infantry_maceman_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/pants_basic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/pants_basic_01_02_256x256.png"
+  ]
+ },
+ "units/germ_female_citizen_tex0": {
+  "freq": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/dress_female_01_05_256x256.png"
+  ]
+ },
+ "units/germ_fishing_boat_tex3": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_03_256x256.png"
+  ]
+ },
+ "units/germ_infantry_javelineer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_03_256x256.png"
+  ]
+ },
+ "units/germ_infantry_javelineer_b_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/furs_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/furs_01_02_256x256.png"
+  ]
+ },
+ "units/germ_infantry_javelineer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_02_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/celt/tunic_02_05_256x256.png"
+  ]
+ },
+ "units/germ_infantry_slinger_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_03_256x256.png"
+  ]
+ },
+ "units/germ_infantry_slinger_e_tex0": {
+  "freq": [
+   2,
+   2,
+   2
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_legwraps_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_legwraps_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_legwraps_01_03_256x256.png"
+  ]
+ },
+ "units/germ_infantry_spearman_a_tex0": {
+  "freq": [
+   3,
+   3,
+   3
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/padded_legwraps_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_legwraps_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_legwraps_02_03_256x256.png"
+  ]
+ },
+ "units/germ_infantry_spearman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/padded_aristocrat_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_aristocrat_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_color_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_color_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_color_03_02_256x256.png"
+  ]
+ },
+ "units/germ_infantry_swordsman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/padded_legwraps_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_legwraps_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_legwraps_01_03_256x256.png"
+  ]
+ },
+ "units/germ_infantry_swordsman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/padded_chain_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_chain_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_chain_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_chain_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_chain_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/padded_chain_02_03_256x256.png"
+  ]
+ },
+ "units/germ_spearman_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_01_03_256x256.png"
+  ]
+ },
+ "units/germ_swordsman_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/germ/shirt2c_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/germ/tunic_pants_02_02_256x256.png"
+  ]
+ },
+ "units/han_archer_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_02_iron_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_02_iron_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_02_iron_03_256x256.png"
+  ]
+ },
+ "units/han_champion_chariot_academy_tex1": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_chariot_archer_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_citizen_female_tex0": {
+  "freq": [
+   50,
+   50
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/dress_female_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/dress_female_02_256x256.png"
+  ]
+ },
+ "units/han_crossbowman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/officer_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_06_256x256.png"
+  ]
+ },
+ "units/han_fisherman_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_03_256x256.png"
+  ]
+ },
+ "units/han_halberdman_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_03_256x256.png"
+  ]
+ },
+ "units/han_hero_chariot_han_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_hero_wei_qing_chariot_tex1": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_archer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_archer_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_archer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_crossbowman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_crossbowman_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_crossbowman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_02_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_02_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_02_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_pikeman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_pikeman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/scale_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_spearman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_01_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_spearman_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_03_256x256.png"
+  ]
+ },
+ "units/han_infantry_spearman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_02_lacquered_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_02_lacquered_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/lamellar_02_lacquered_03_256x256.png"
+  ]
+ },
+ "units/han_merchant_ship_tex1": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/tunic_01_03_256x256.png"
+  ]
+ },
+ "units/han_spearman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/officer_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_06_256x256.png"
+  ]
+ },
+ "units/han_swordsman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/officer_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/officer_06_256x256.png"
+  ]
+ },
+ "units/han_villager_female_tex0": {
+  "freq": [
+   50,
+   50
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/dress_female_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/dress_female_02_256x256.png"
+  ]
+ },
+ "units/han_villager_male_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/uniform_b_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/uniform_b_03_256x256.png"
+  ]
+ },
+ "units/han_villager_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/han/uniform_b_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/han/uniform_b_03_256x256.png"
+  ]
+ },
+ "units/iber_archer_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_sleeveless_slinger_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_sleeveless_slinger_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_sleeveless_slinger_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_sleeveless_slinger_01_04_256x256.png"
+  ]
+ },
+ "units/iber_female_citizen_tex0": {
+  "freq": [
+   3,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/dress_female_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/dress_female_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/dress_female_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/dress_female_01_03_256x256.png"
+  ]
+ },
+ "units/iber_infantry_javelineer_a_tex0": {
+  "freq": [
+   3,
+   3,
+   2,
+   2,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/padded_leather_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/vest_strap_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_leather_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/vest_strap_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_leather_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_quilted_slinger_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_quilted_slinger_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_quilted_slinger_01_03_256x256.png"
+  ]
+ },
+ "units/iber_infantry_javelineer_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_05_256x256.png"
+  ]
+ },
+ "units/iber_infantry_javelineer_e_tex0": {
+  "freq": [
+   3,
+   3,
+   3,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_03_256x256.png"
+  ]
+ },
+ "units/iber_infantry_spearman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_01_03_256x256.png"
+  ]
+ },
+ "units/iber_infantry_spearman_e_tex0": {
+  "freq": [
+   3,
+   3,
+   3,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_02_256x256.png"
+  ]
+ },
+ "units/iber_infantry_swordsman_a_tex0": {
+  "freq": [
+   3,
+   2,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/vest_strap_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/vest_strap_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/vest_strap_01_03_256x256.png"
+  ]
+ },
+ "units/iber_infantry_swordsman_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_05_256x256.png"
+  ]
+ },
+ "units/iber_swordsman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_02_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/linothorax_02_03_256x256.png"
+  ]
+ },
+ "units/iber_villager_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/tunic_01_05_256x256.png"
+  ]
+ },
+ "units/kush_archer_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_06_256x256.png"
+  ]
+ },
+ "units/kush_infantry_javelineer_merc_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_03_256x256.png"
+  ]
+ },
+ "units/kush_infantry_javelineer_merc_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_03_256x256.png"
+  ]
+ },
+ "units/kush_infantry_maceman_merc_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_02_01_256x256.png"
+  ]
+ },
+ "units/kush_infantry_maceman_merc_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_02_01_256x256.png"
+  ]
+ },
+ "units/kush_javelinist_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_03_256x256.png"
+  ]
+ },
+ "units/kush_javelinist_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_03_256x256.png"
+  ]
+ },
+ "units/kush_maceman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_02_01_256x256.png"
+  ]
+ },
+ "units/kush_maceman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/painted_02_01_256x256.png"
+  ]
+ },
+ "units/kush_spearman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/kush/skirt_basic_01_06_256x256.png"
+  ]
+ },
+ "units/mace_archer_maiden_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_03_256x256.png"
+  ]
+ },
+ "units/mace_archer_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_03_256x256.png"
+  ]
+ },
+ "units/mace_champion_infantry_crossbowman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_08_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_10_256x256.png"
+  ]
+ },
+ "units/mace_champion_infantry_spearman_02_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_08_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/scale_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/scale_03_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_06_256x256.png"
+  ]
+ },
+ "units/mace_champion_infantry_spearman_tex0": {
+  "freq": [
+   2,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/lamellar_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_06_256x256.png"
+  ]
+ },
+ "units/mace_infantry_archer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_01_03_256x256.png"
+  ]
+ },
+ "units/mace_infantry_archer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_07_256x256.png"
+  ]
+ },
+ "units/mace_infantry_javelineer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_advanced_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_advanced_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_advanced_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_advanced_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_advanced_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_advanced_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_advanced_03_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_advanced_04_01_256x256.png"
+  ]
+ },
+ "units/mace_infantry_javelineer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/illy/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_08_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_09_256x256.png"
+  ]
+ },
+ "units/mace_infantry_pikeman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_07_256x256.png"
+  ]
+ },
+ "units/mace_infantry_pikeman_e_tex0": {
+  "freq": [
+   3,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/lamellar_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/scale_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/scale_03_01_256x256.png"
+  ]
+ },
+ "units/mace_infantry_slinger_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/athen/tunic_marine_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/tunic_marine_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/tunic_marine_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_basic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_basic_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_basic_02_03_256x256.png"
+  ]
+ },
+ "units/mace_infantry_slinger_b_tex0": {
+  "freq": [
+   3,
+   3,
+   3,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_basic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_basic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_basic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_03_256x256.png"
+  ]
+ },
+ "units/mace_infantry_slinger_e_tex0": {
+  "freq": [
+   2,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/athen/padded_marine_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/linothorax_01_03_256x256.png"
+  ]
+ },
+ "units/mace_spearman_tex0": {
+  "freq": [
+   3,
+   3,
+   2,
+   2,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_02_256x256.png"
+  ]
+ },
+ "units/maur_archer_fire_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/female_03_01_256x256.png"
+  ]
+ },
+ "units/maur_archer_maiden_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/female_03_01_256x256.png"
+  ]
+ },
+ "units/maur_archer_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/female_03_01_256x256.png"
+  ]
+ },
+ "units/maur_champion_elephant_tex1": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_02_256x256.png"
+  ]
+ },
+ "units/maur_elephantry_c_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_02_256x256.png"
+  ]
+ },
+ "units/maur_hero_ashoka_hero_chariot_archer_ashoka_m_tex12": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/female_03_01_256x256.png"
+  ]
+ },
+ "units/maur_hero_chariot_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/female_03_01_256x256.png"
+  ]
+ },
+ "units/maur_hero_elephant_tex6": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_02_256x256.png"
+  ]
+ },
+ "units/maur_mace_inf_tex0": {
+  "freq": [
+   3,
+   2
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/scale_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/scale_01_02_256x256.png"
+  ]
+ },
+ "units/maur_swordsman_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/female_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/female_03_01_256x256.png"
+  ]
+ },
+ "units/pers_archer_maiden_tex0": {
+  "freq": [
+   3,
+   3,
+   3,
+   3,
+   2,
+   2,
+   2,
+   2
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_07_256x256.png"
+  ]
+ },
+ "units/pers_archer_tex0": {
+  "freq": [
+   3,
+   3,
+   3,
+   3,
+   2,
+   2,
+   2,
+   2
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_07_256x256.png"
+  ]
+ },
+ "units/pers_cavalry_javelineer_e_tex5": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/padded_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_02_03_256x256.png"
+  ]
+ },
+ "units/pers_champion_chariot_tex6": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_07_256x256.png"
+  ]
+ },
+ "units/pers_champion_infantry_tex0": {
+  "freq": [
+   3,
+   3,
+   3,
+   3,
+   2,
+   2,
+   2,
+   2
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_01_07_256x256.png"
+  ]
+ },
+ "units/pers_elephant_tex9": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_02_256x256.png"
+  ]
+ },
+ "units/pers_fishing_boat_tex2": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_08_256x256.png"
+  ]
+ },
+ "units/pers_hero_darius_i_tex6": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_07_256x256.png"
+  ]
+ },
+ "units/pers_infantry_archer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_advanced_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_advanced_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_advanced_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_advanced_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_advanced_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_advanced_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_advanced_01_07_256x256.png"
+  ]
+ },
+ "units/pers_infantry_archer_b_tex0": {
+  "freq": [
+   3,
+   3,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_08_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/scyth/tunic_coat_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/scyth/tunic_coat_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/scyth/tunic_coat_01_03_256x256.png"
+  ]
+ },
+ "units/pers_infantry_archer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_06_256x256.png"
+  ]
+ },
+ "units/pers_infantry_javelineer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_coat_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_coat_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_coat_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_coat_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_coat_01_05_256x256.png"
+  ]
+ },
+ "units/pers_infantry_javelineer_b_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_08_256x256.png"
+  ]
+ },
+ "units/pers_infantry_javelineer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_08_256x256.png"
+  ]
+ },
+ "units/pers_infantry_spearman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_02_256x256.png"
+  ]
+ },
+ "units/pers_infantry_spearman_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_08_256x256.png"
+  ]
+ },
+ "units/pers_infantry_spearman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/scale_02_07_256x256.png"
+  ]
+ },
+ "units/pers_scythed_chariot_tex5": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_02_256x256.png"
+  ]
+ },
+ "units/pers_villager_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_08_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_archer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_sleeveless_boots_01_02_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_archer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_agema_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_agema_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_agema_03_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_javelineer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_sleeveless_boots_01_02_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_javelineer_e_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_thureophoroi_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_thureophoroi_02_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_pikeman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_machimoi_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_machimoi_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_machimoi_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_machimoi_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_machimoi_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_machimoi_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_machimoi_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_machimoi_08_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_pikeman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ptol/linothorax_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/linothorax_machimoi_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/linothorax_machimoi_02_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_slinger_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/jude/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/padded_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/padded_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/padded_01_04_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_slinger_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/jude/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/tunic_03_01_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_slinger_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/jude/scale_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/scale_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/scale_01_03_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_spearman_merc_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_sleeveless_boots_01_02_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_spearman_merc_e_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_thureophoroi_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/padded_thureophoroi_02_256x256.png"
+  ]
+ },
+ "units/ptol_infantry_swordsman_merc_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/linothorax_01_04_256x256.png"
+  ]
+ },
+ "units/ptol_spearman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/ptol/linothorax_agema_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/linothorax_agema_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/linothorax_agema_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/linothorax_agema_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/scale_agema_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ptol/scale_agema_02_256x256.png"
+  ]
+ },
+ "units/ptol_swordsman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/gaul/tunic_sleeveless_01_04_256x256.png"
+  ]
+ },
+ "units/rome_bolt_shooter_tex1": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_03_01_256x256.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_centurion_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/compound_cardiopylax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/compound_cardiopylax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/compound_cardiopylax_01_03_256x256.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_first_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_05_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_05_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_06_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_06_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_07_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_07_padded_01_256x256.png"
+  ]
+ },
+ "units/rome_infantry_antesignanus_tex0": {
+  "freq": [
+   3,
+   2,
+   2,
+   2,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/cardiopylax_padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/tunic_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/cardiopylax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/cardiopylax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/cardiopylax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_01_01_256x256.png"
+  ]
+ },
+ "units/rome_infantry_legionary_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_05_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_05_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_06_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_06_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_07_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_07_padded_01_256x256.png"
+  ]
+ },
+ "units/rome_infantry_spearman_conscript_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/chainmail_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/padded_leather_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/iber/vest_strap_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_04_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_04_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_04_03_256x256.png"
+  ]
+ },
+ "units/rome_infantry_spearman_e_tex0": {
+  "freq": [
+   2,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_04_padded_01_white_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_04_padded_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/compound_cardiopylax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/compound_cardiopylax_01_03_256x256.png"
+  ]
+ },
+ "units/rome_infantry_swordsman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_03_256x256.png"
+  ]
+ },
+ "units/rome_infantry_swordsman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_03_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_03_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_04_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_04_02_256x256.png"
+  ]
+ },
+ "units/rome_spearman_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_03_256x256.png"
+  ]
+ },
+ "units/rome_swordsman_tex0": {
+  "freq": [
+   3,
+   3,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/cardiopylax_02_champion_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/cardiopylax_02_champion_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/lamellar_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/linothorax_lamellar_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/linothorax_lamellar_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/scale_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cuirass_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/ital/cuirass_01_02_256x256.png"
+  ]
+ },
+ "units/scythed_chariot_tex13": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/linothorax_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/pers/padded_01_02_256x256.png"
+  ]
+ },
+ "units/sele_chariot_tex5": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_04_256x256.png"
+  ]
+ },
+ "units/sele_elephant_tex9": {
+  "freq": [
+   2,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/maur/skirt_leather_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/maur/tunic_leather_01_02_256x256.png"
+  ]
+ },
+ "units/sele_hero_seleucus_i_tex14": {
+  "freq": [
+   3,
+   3,
+   2,
+   2,
+   2,
+   2,
+   2,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/compound_linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/compound_linothorax_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/compound_linothorax_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_10_256x256.png"
+  ]
+ },
+ "units/sele_infantry_archer_merc_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_sleeveless_boots_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_sleeveless_boots_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_sleeveless_boots_01_03_256x256.png"
+  ]
+ },
+ "units/sele_infantry_archer_merc_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_07_256x256.png"
+  ]
+ },
+ "units/sele_infantry_javelineer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/jude/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/tunic_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/jude/tunic_03_01_256x256.png"
+  ]
+ },
+ "units/sele_infantry_javelineer_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/arab/robes_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/arab/robes_03_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/arab/robes_03_03_256x256.png"
+  ]
+ },
+ "units/sele_infantry_javelineer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/arab/padded_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/arab/padded_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/arab/padded_01_03_256x256.png"
+  ]
+ },
+ "units/sele_infantry_pikeman_b_tex0": {
+  "freq": [
+   2,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_04_256x256.png"
+  ]
+ },
+ "units/sele_infantry_pikeman_e_tex0": {
+  "freq": [
+   3,
+   3,
+   2,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/compound_linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/compound_linothorax_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/compound_linothorax_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_10_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/splint_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_03_256x256.png"
+  ]
+ },
+ "units/sele_infantry_spearman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_04_256x256.png"
+  ]
+ },
+ "units/sele_infantry_spearman_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_b_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_b_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_b_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_b_01_04_256x256.png"
+  ]
+ },
+ "units/sele_infantry_spearman_e_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/sele/padded_thureophoroi_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/padded_thureophoroi_02_256x256.png"
+  ]
+ },
+ "units/sele_infantry_swordsman_merc_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_advanced_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/tunic_advanced_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_advanced_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_advanced_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_advanced_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_advanced_04_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_advanced_04_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/thrac/tunic_basic_01_01_256x256.png"
+  ]
+ },
+ "units/sele_infantry_swordsman_merc_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/illy/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/illy/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_08_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_09_256x256.png"
+  ]
+ },
+ "units/sele_scythed_chariot_tex5": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_04_256x256.png"
+  ]
+ },
+ "units/sele_spearman_tex0": {
+  "freq": [
+   2,
+   2,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_06_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/cuirass_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_gorgon_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_vergina_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_vergina_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_vergina_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/cuirass_vergina_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_08_256x256.png"
+  ]
+ },
+ "units/sele_swordsman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/scale_03_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/chainmail_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/chainmail_03_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/sele/chainmail_03_03_256x256.png"
+  ]
+ },
+ "units/sele_villager_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/mace/tunic_hellenistic_e_04_256x256.png"
+  ]
+ },
+ "units/siege_ballista_med_tex1": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_03_01_256x256.png"
+  ]
+ },
+ "units/siege_ballista_tex1": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_03_01_256x256.png"
+  ]
+ },
+ "units/siege_scorpio_tex1": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/rome/subarmalis_03_01_256x256.png"
+  ]
+ },
+ "units/spart_archer_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_03_256x256.png"
+  ]
+ },
+ "units/spart_champion_infantry_spear_olympian_tex0": {
+  "freq": [
+   3,
+   3,
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_05_256x256.png"
+  ]
+ },
+ "units/spart_hero_brasidas_tex0": {
+  "freq": [
+   3,
+   2
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/spart/padded_brasidas_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/spart/padded_brasidas_02_256x256.png"
+  ]
+ },
+ "units/spart_infantry_javelineer_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_03_256x256.png"
+  ]
+ },
+ "units/spart_infantry_javelineer_b_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_03_256x256.png"
+  ]
+ },
+ "units/spart_infantry_javelineer_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_03_256x256.png"
+  ]
+ },
+ "units/spart_infantry_spearman_a_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/linothorax_01_06_256x256.png"
+  ]
+ },
+ "units/spart_infantry_spearman_b_tex0": {
+  "freq": [
+   3,
+   2,
+   2
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_01_256x256.png"
+  ]
+ },
+ "units/spart_infantry_spearman_e_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_05_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/lamellar_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/linothorax_lamellar_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/linothorax_lamellar_01_02_256x256.png"
+  ]
+ },
+ "units/spart_infantry_spearman_neodamodes_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_fur_01_03_256x256.png"
+  ]
+ },
+ "units/spart_spearman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_04_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_05_256x256.png"
+  ]
+ },
+ "units/spart_swordsman_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_07_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_08_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_09_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_10_256x256.png"
+  ]
+ },
+ "units/spart_villager_tex0": {
+  "freq": [
+   2,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_02_256x256.png"
+  ]
+ },
+ "units/spearman_tex0": {
+  "freq": [
+   3,
+   3,
+   2,
+   2,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_03_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_02_02_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_02_256x256.png"
+  ]
+ },
+ "units/war_dog_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/mastiff_a_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/mastiff_a_02_256x256.png"
+  ]
+ }
+}

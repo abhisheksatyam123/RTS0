@@ -171,8 +171,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 88; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 90; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
+	static constexpr uint32_t SAVE_VERSION_PETRA_NO_UNITS = 90; // Petra's canBuildUnits and the units it sent to allies (dispatchUnits)
 	static constexpr uint32_t SAVE_VERSION_PETRA_RALLY = 87; // each Petra plan's completing step, march waypoints and last position
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
@@ -342,6 +344,9 @@ public:
 		float capture_regen_rate;
 		float capture_garrison_regen_rate;
 		float territory_decay_rate;
+		// A map piece whose template has <TerritoryDecay disable=""/> (palisades_spike_*, the
+		// Roman siege walls): territory_decay_rate stays 0 whatever its type's.
+		bool decay_disabled = false;
 
 		// 0 A.D. Upgrade.js: the structure this one is turning into
 		// (BLD_TYPE_COUNT = not upgrading) and the resources paid for it.
@@ -709,6 +714,8 @@ public:
 	// Roster templates the unit `tmpl` trains for `player` now (Trainer/Entities with their
 	// requirements met), and every one it could train (`all`).
 	std::vector<uint16_t> unit_trainables(uint8_t player, uint16_t tmpl, bool all = false) const;
+	// The technology a training unit's Trainer list entry requires (unit_trainer_data.h), or TECH_NONE.
+	static uint8_t unit_trainee_tech(uint16_t trainer_tmpl, uint16_t trainee);
 	static bool unit_is_trainer(uint16_t tmpl); // trains or researches (Trainer or Researcher)
 	// 0 A.D. Researcher on a unit (Athenian triremes: Iphicratean Reforms): the technologies the
 	// roster unit `tmpl` researches, and queueing one (research_check's rules, without a structure).
@@ -1660,6 +1667,9 @@ public:
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
+	// A WallSet piece of half length `half_w` (its civ's set): the price and build time `player`
+	// pays, as cmd_build_wall charges it and the foundation takes.
+	float wall_piece_price(uint8_t player, uint8_t type, float half_w, float out[RES_COUNT]) const;
 	// What cmd_build_wall pays for a planned WallSet piece (its length's own cost).
 	void wall_piece_cost(uint8_t player, const WallPiece &p, float out[RES_COUNT]) const {
 		structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), out);
@@ -2083,6 +2093,13 @@ public:
 	static uint16_t resolve_map_template(const char *template_id, int *rank);
 	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
 	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
+	// A map piece whose template disables TerritoryDecay (palisades_spike_*): it never decays.
+	void set_structure_no_decay(uint32_t building_id) {
+		auto it = building_id_to_idx_.find(building_id);
+		if (it == building_id_to_idx_.end()) return;
+		buildings_[it->second].decay_disabled = true;
+		buildings_[it->second].territory_decay_rate = 0.0f;
+	}
 	// An "uncapturable|" template (elephantine.js's Kushite towers): no capture points at all.
 	void set_structure_uncapturable(uint32_t building_id) {
 		auto it = building_id_to_idx_.find(building_id);
@@ -3122,7 +3139,12 @@ private:
 	float petra_timer_  = 0.0f;
 	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
 	PetraKept petra_kept_; // decided once or only raised (configFirstBase, navalManager.js, targetNumTraders)
-	void petra_config_first_base(); // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
+	void petra_config_first_base();
+	void petra_check_can_build_units(); // startingStrategy.js gameStart canBuildUnits
+	void petra_dispatch_units();        // startingStrategy.js dispatchUnits
+	bool petra_dispatched_to_ally(uint32_t uid) const; // metadata "allied"
+	bool petra_can_build_units() const { return !petra_kept_.no_units; }
+	void petra_attack_home(float &x, float &z) const; // the base an attack starts from, else one of our units // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
 	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };

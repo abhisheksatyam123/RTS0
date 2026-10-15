@@ -1862,10 +1862,13 @@ float RtsoMain::placement_angle_at(uint8_t btype, float x, float z) const {
 	return placement_angle;
 }
 
-void RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y) {
-	if (!sim || btype == rtso::BLD_DOCK) return;
+bool RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y, bool hover) {
+	// A dock faces the sea (dock_angle): the simulation turns it so whatever the command says.
+	if (!sim || btype == rtso::BLD_DOCK) return false;
 	// isSnapToEdgesEnabled: the hotkey turns it on, or off when the option is "enabled".
-	if (rtso::hotkeys::held("session.snaptoedges") == (rtso::user_config::get("gui.session.snaptoedges") == "enabled")) return;
+	if (!debug_force_snap_ && rtso::hotkeys::held("session.snaptoedges") == (rtso::user_config::get("gui.session.snaptoedges") == "enabled")) return false;
+	// input.js: the hover resets the angle first, to snap to the edge nearest the default facing.
+	if (hover) placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 	const float GRID = rtso::Simulation::GRID;
 	const int fp = rtso::building_type_info(btype).footprint;
 	const float half = fp * GRID * 0.5f;
@@ -1878,9 +1881,17 @@ void RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y) 
 		if (!sim->los_explored(local_player(), b.x, b.z)) continue;
 		rects.push_back({b.x, b.z, b.half_size, b.half_d, b.rot});
 	}
+	// Mines and ruins have static obstructions too (template_gaia_ore, _rock, _ruins).
+	auto rv = sim->resources();
+	for (size_t i = 0; i < rv.count; ++i) {
+		if (!rv.alive[i] || std::fabs(rv.x[i] - x) > reach || std::fabs(rv.z[i] - z) > reach) continue;
+		rtso::nav::Footprint f;
+		if (!sim->mine_footprint(i, f) || !sim->los_explored(local_player(), f.x, f.z)) continue;
+		rects.push_back({f.x, f.z, f.hu, f.hv, std::atan2(-f.uz, f.ux)}); // snap::rotate turns (1, 0) to (cos, -sin)
+	}
 	const std::vector<rtso::snap::Edge> edges = rtso::snap::edges_near(rects, x, z);
 	rtso::snap::Result r;
-	if (!rtso::snap::snap_position(edges, half, rtso::building_half_depth(btype, half), x, z, placement_angle, r)) return;
+	if (!rtso::snap::snap_position(edges, half, rtso::building_half_depth(btype, half), x, z, placement_angle, r)) return false;
 	placement_angle = r.angle;
 	// RTS0 places on GRID cells: the cell nearest the flush centre that can be built, else the nearest.
 	const float fx = r.x / GRID - fp * 0.5f, fz = r.z / GRID - fp * 0.5f;
@@ -1897,6 +1908,7 @@ void RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y) 
 		}
 	cell_x = best_x;
 	cell_y = best_y;
+	return true;
 }
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {

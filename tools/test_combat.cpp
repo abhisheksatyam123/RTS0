@@ -323,6 +323,14 @@ static void test_auras() {
 	check(std::fabs(attack_mod(own) - 1.2f) < 1e-4f, "Hannibal: own soldier +20% attack");
 	check(std::fabs(attack_mod(ally) - 1.2f) < 1e-4f, "Hannibal: allied soldier +20% attack");
 	check(attack_mod(enemy) == 0.0f, "Hannibal: enemy soldier unaffected");
+	// "Ally" (Auras.js): the players Hannibal's owner counts as allies, whatever they answer.
+	s.set_diplomacy(0, 3, Simulation::DIPLO_ALLY);
+	s.set_diplomacy(4, 0, Simulation::DIPLO_ALLY);
+	uint32_t courted = s.spawn_unit(2.0f, 2.0f, 3, UNIT_SPEARMAN, 0.0f, cart_spear);
+	uint32_t courting = s.spawn_unit(-2.0f, 2.0f, 4, UNIT_SPEARMAN, 0.0f, cart_spear);
+	s.rebuild_auras();
+	check(std::fabs(attack_mod(courted) - 1.2f) < 1e-4f, "Hannibal: a player his owner allies one-sidedly gets +20%");
+	check(attack_mod(courting) == 0.0f, "Hannibal: a player allying his owner one-sidedly does not");
 
 	Simulation r;
 	setup(r);
@@ -384,6 +392,30 @@ static void test_auras() {
 	check(heal(far_u) == 0.0f, "temple: own soldier beyond 40 m not healed");
 	check(heal(foe) == 0.0f, "temple: enemy soldier not healed");
 	check(heal(ram) == 0.0f, "temple: siege (not Human) not healed");
+	// Auras.js: one aura applies once, however many sources project it; the Temple of Isis
+	// projects the same temple_heal.
+	t.spawn_building_world(4.0f, -4.0f, BLD_TEMPLE, 0, 1.0f);
+	t.spawn_building_world(-4.0f, 4.0f, BLD_TEMPLE_ISIS, 0, 1.0f);
+	t.rebuild_auras();
+	std::printf("      two temples and an Isis temple heal %.2f hp/s\n", heal(near_u));
+	check(std::fabs(heal(near_u) - 1.0f) < 1e-4f, "temple: overlapping temples heal +1 hp/s, not +1 each");
+	// A global hero aura holds while its hero is garrisoned (Darius: own units +15% speed).
+	Simulation g;
+	setup(g);
+	const uint32_t darius = g.spawn_unit(0.0f, 0.0f, 0, UNIT_HERO, 0.0f, template_named("pers/hero_darius_i"));
+	const uint32_t walker = g.spawn_unit(30.0f, 30.0f, 0, UNIT_SWORDSMAN, 50.0f);
+	auto speed = [&]() {
+		int i = idx(g, walker);
+		return g.aura_mgr_.query_modifier(g.units_.pos_x[i], g.units_.pos_z[i], g.units_.team[i], AURA_SPEED,
+			g.units_.tmpl[i], &g.unit_combat_at(i).classes);
+	};
+	g.rebuild_auras();
+	const float out = speed();
+	const uint32_t bk = g.spawn_building_world(0.0f, 8.0f, BLD_FORTRESS, 0, 1.0f);
+	check(g.garrison_unit_now(darius, bk), "Darius garrisoned in the fortress");
+	g.rebuild_auras();
+	std::printf("      Darius' speed aura: %.3f outside, %.3f garrisoned\n", out, speed());
+	check(std::fabs(out - 1.15f) < 1e-4f && std::fabs(speed() - out) < 1e-4f, "a garrisoned hero's global aura still applies");
 }
 
 static void test_regen() {
@@ -564,6 +596,12 @@ static void test_structure_auras() {
 	check(mod(far, AURA_ATTACK) == 0.0f, "large pyramid: soldier beyond 70 m unaffected");
 	check(mod(foe, AURA_ATTACK) == 0.0f, "large pyramid: enemy soldier unaffected");
 	check(std::fabs(mod(worker, AURA_GATHER) - (1.0f - 1.0f / 1.15f)) < 1e-3f, "small pyramid: own worker gathers 15% faster");
+	// Different auras multiply (ModifiersManager): Viridomarus' global +15% with the pyramid's.
+	const uint32_t viridomarus = s.spawn_unit(-40.0f, 40.0f, 0, UNIT_HERO, 0.0f, template_named("gaul/hero_viridomarus"));
+	s.order_set_stance(&viridomarus, 1, STANCE_STAND_GROUND);
+	s.rebuild_auras();
+	std::printf("      pyramid and Viridomarus: interval cut %.4f\n", mod(worker, AURA_GATHER));
+	check(std::fabs(mod(worker, AURA_GATHER) - (1.0f - 1.0f / (1.15f * 1.15f))) < 1e-3f, "pyramid and Viridomarus: +15% twice, multiplied");
 
 	// Temple of Amun: own heroes -5% health everywhere.
 	const uint16_t amanirenas = template_named("kush/hero_amanirenas");

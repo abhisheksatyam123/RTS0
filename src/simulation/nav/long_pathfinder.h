@@ -70,6 +70,20 @@ inline bool jps_on_the_way(int i, int j, int di, int dj, int iGoal, int jGoal) {
 	return true;
 }
 
+// The per-tile arrays of a search, kept per thread between searches: allocated afresh each time
+// they cost more than many searches (a Giant map's 256 x 256 navcells are 0.6 MB, mapped and
+// faulted in again on every call).
+struct JpsScratch {
+	std::vector<uint8_t> status;
+	std::unique_ptr<uint32_t[]> cost;
+	std::unique_ptr<int[]> pred;
+	size_t capacity = 0;
+};
+inline JpsScratch &jps_scratch() {
+	thread_local JpsScratch s;
+	return s;
+}
+
 template <typename PassFn>
 class LongPathfinder {
 public:
@@ -214,12 +228,19 @@ private:
 
 	void reset_tiles() {
 		const size_t n = static_cast<size_t>(w_) * static_cast<size_t>(h_);
-		status_.assign(n, STATUS_UNEXPLORED);
+		JpsScratch &sc = jps_scratch();
+		sc.status.assign(n, STATUS_UNEXPLORED);
 		// cost_ and pred_ are only read for tiles whose status was set during this
 		// search (the start tile, or a tile that process_neighbour opened), so they
-		// need no zero fill. Uninitialised storage keeps every result identical.
-		cost_.reset(new uint32_t[n]);
-		pred_.reset(new int[n]);
+		// need no zero fill: what an earlier search left there is never read.
+		if (sc.capacity < n) {
+			sc.cost.reset(new uint32_t[n]);
+			sc.pred.reset(new int[n]);
+			sc.capacity = n;
+		}
+		status_ = sc.status.data();
+		cost_ = sc.cost.get();
+		pred_ = sc.pred.get();
 	}
 
 	// LongPathfinder::ProcessNeighbour (LongPathfinder.cpp:409).
@@ -340,9 +361,9 @@ private:
 	uint32_t hBest_ = 0;
 	uint32_t steps_ = 0;
 	uint32_t pushes_ = 0;
-	std::vector<uint8_t> status_;
-	std::unique_ptr<uint32_t[]> cost_;
-	std::unique_ptr<int[]> pred_;
+	uint8_t *status_ = nullptr; // jps_scratch()'s arrays, set by reset_tiles()
+	uint32_t *cost_ = nullptr;
+	int *pred_ = nullptr;
 	OpenList open_;
 };
 

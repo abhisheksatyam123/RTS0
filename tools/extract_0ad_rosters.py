@@ -1008,7 +1008,7 @@ GLOBAL_AURA_RANGE = 1000.0
 # 0 A.D. Auras.js affectedPlayers -> AuraPlayers bits in sim_types.h: 1 = the
 # owner, 2 = the owner's other allies, 4 = enemies (GetAllies() includes the
 # owner itself; ExclusiveMutualAlly does not).
-AURA_PLAYER_BITS = {"Player": 1, "Ally": 3, "MutualAlly": 3, "ExclusiveMutualAlly": 2, "Enemy": 4}
+AURA_PLAYER_BITS = {"Player": 1, "Ally": 11, "MutualAlly": 3, "ExclusiveMutualAlly": 2, "Enemy": 4}  # 8: by the owner's own stance
 
 
 def aura_players_mask(a):
@@ -1130,6 +1130,9 @@ MAP_ROWS = (
     "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",
     "units/samnite_skirmisher", "units/samnite_spearman", "units/samnite_swordsman",
     "units/viking_longship",
+    # Survival of the Fittest's Gaia champions (Survival's champion pool), placed by its trigger.
+    "units/merc_thorakites", "units/merc_thureophoros", "units/theb_sacred_band", "units/theb_siege_fireraiser",
+    "units/thesp_melanochitones",
 )
 
 

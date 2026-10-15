@@ -88,6 +88,25 @@ func run() -> void:
 	Input.parse_input_event(esc)
 	await frames(2)
 	check(open_names().is_empty(), "Esc closes it: " + str(open_names()))
+	# MenuButtons and SessionMessageBox: closeOpenDialogs before a page or question.
+	var pm: Node = main.get_node("PauseMenu")
+	for b in [["Hotkeys", "_on_hotkeys_pressed"], ["Options", "_on_options_pressed"], ["Manual", "_on_manual_pressed"]]:
+		main.toggle_diplomacy()
+		await frames(2)
+		var before: int = main.get_child_count()
+		pm.call(b[1])
+		await frames(2)
+		check(open_names().is_empty(), b[0] + " closes Diplomacy: " + str(open_names()))
+		for i in range(main.get_child_count() - 1, before - 1, -1):
+			main.get_child(i).queue_free()
+		await frames(2)
+	main.toggle_chat()
+	await frames(2)
+	var q: Node = load("res://scenes/session/quit_confirmation.gd").resign(main)
+	await frames(2)
+	check(open_names().is_empty(), "the Resign question closes Chat: " + str(open_names()))
+	q.queue_free()
+	await frames(2)
 
 	print("3. Chat lines")
 	var log0: String = dlg()["chat_log"]

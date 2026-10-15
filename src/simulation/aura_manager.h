@@ -39,7 +39,10 @@ enum AuraPlayers : uint8_t {
     AURA_PLAYERS_OWNER = 1,
     AURA_PLAYERS_ALLIES = 2, // the owner's allies other than itself
     AURA_PLAYERS_ENEMIES = 4,
-    AURA_PLAYERS_ALLY = AURA_PLAYERS_OWNER | AURA_PLAYERS_ALLIES // "Ally" / "MutualAlly"
+    // With AURA_PLAYERS_ALLIES: the owner's allies by its own stance alone ("Ally"); without,
+    // only mutual allies ("MutualAlly"), as Auras.js GetAffectedPlayers.
+    AURA_PLAYERS_ONE_SIDED = 8,
+    AURA_PLAYERS_ALLY = AURA_PLAYERS_OWNER | AURA_PLAYERS_ALLIES // "MutualAlly" ("Ally" adds AURA_PLAYERS_ONE_SIDED)
 };
 
 // Bit of player p in AuraSource::affected; Gaia and other ids past the slots share bit 8.
@@ -169,7 +172,8 @@ public:
     // Combined modifier on a unit of player qowner at (qx, qz). qtmpl is its roster
     // template (hero auras skip units their 0 A.D. "affects" classes exclude) and
     // qclasses its 0 A.D. classes.
-    //   AURA_HEAL: sum of hp/s. AURA_GATHER: strongest bonus plus strongest penalty.
+    //   AURA_HEAL: sum of hp/s. AURA_GATHER: the interval cut of every aura reaching the unit,
+    //     multiplied (two +15% auras give 1/(0.87*0.87) = +32%).
     //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION / AURA_REQUIRED_XP / AURA_ATTACK_RATE: the
     //     product of every aura reaching the unit (0 when none does).
     //   AURA_ARMOR / AURA_HEAL_AMOUNT / AURA_VISION_ADD: the sum of every aura reaching it.
@@ -186,7 +190,7 @@ public:
         if (type >= AURA_COUNT || of_type_[type].empty()) return 0.0f;
         const uint16_t qbit = aura_player_bit(qowner);
         bool any = false;
-        float sum = 0.0f, up = 0.0f, down = 0.0f, product = 1.0f;
+        float sum = 0.0f, product = 1.0f, keep = 1.0f; // keep: the interval left after the gather auras
         int16_t once[16]; // auras already counted (non-stackable AURA_BUILD ones for AURA_BUILD)
         int once_n = 0;
         const bool mul = type == AURA_ATTACK || type == AURA_SPEED || type == AURA_HEALTH || type == AURA_VISION
@@ -206,6 +210,12 @@ public:
             if (dx * dx + dz * dz > s.range * s.range) continue;
             any = true;
             if (type == AURA_HEAL) {
+                // Non-stackable, like every aura here: each aura once, however many sources.
+                const int16_t key = s.aura >= 0 ? s.aura : (int16_t)(-1 - (int16_t)s.need_class);
+                bool seen = false;
+                for (int k = 0; k < once_n; ++k) seen |= once[k] == key;
+                if (seen) continue;
+                if (once_n < 16) once[once_n++] = key;
                 sum += s.value;
             } else if (type == AURA_BUILD) {
                 const int row = builder_rate_aura_index(s.aura);
@@ -217,8 +227,13 @@ public:
                 }
                 product *= s.value;
             } else if (type == AURA_GATHER) {
-                if (s.value > up) up = s.value;
-                if (s.value < down) down = s.value;
+                // Different auras multiply BaseSpeed (ModifiersManager); each counts once.
+                const int16_t key = s.aura >= 0 ? s.aura : (int16_t)(-1 - (int16_t)s.need_class);
+                bool seen = false;
+                for (int k = 0; k < once_n; ++k) seen |= once[k] == key;
+                if (seen) continue;
+                if (once_n < 16) once[once_n++] = key;
+                keep *= 1.0f - s.value;
             } else {
                 // A roster aura by its index; an unlisted one (the carnyx) by its class filter.
                 const int16_t key = s.aura >= 0 ? s.aura : (int16_t)(-1 - (int16_t)s.need_class);
@@ -233,7 +248,7 @@ public:
         if (!any) return 0.0f;
         if (type == AURA_HEAL) return sum;
         if (type == AURA_BUILD || mul) return product;
-        if (type == AURA_GATHER) return up + down;
+        if (type == AURA_GATHER) return 1.0f - keep;
         return sum;
     }
 

@@ -169,6 +169,8 @@ static func _open(m: Node, t: String, text: String, b: Array, size := Vector2.ZE
 	var pause_menu := m.get_node_or_null("PauseMenu")
 	if pause_menu and pause_menu.visible and pause_menu.has_method("_on_resume_pressed"):
 		pause_menu._on_resume_pressed()
+	if m.has_method("close_open_dialogs"):
+		m.close_open_dialogs() # SessionMessageBox.display: closeOpenDialogs
 	var q = load("res://scenes/session/quit_confirmation.gd").new()
 	q.main = m
 	q.title = t

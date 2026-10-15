@@ -75,8 +75,12 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 	const uint8_t kind = ws == "palisade" ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
 	const uint8_t p = piece == "tower" ? rtso::Simulation::MAP_WALL_TOWER
 			: piece == "gate" ? rtso::Simulation::MAP_WALL_GATE : rtso::Simulation::MAP_WALL_SEGMENT;
-	return sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0), (float)b.get("angle", 0.0),
-			(float)b.get("length", 9.0));
+	const uint32_t id = sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0),
+			(float)b.get("angle", 0.0), (float)b.get("length", 9.0));
+	// palisades_spike_* (<TerritoryDecay disable=""/>), palisades_fort (<Capturable disable=""/>).
+	if (id && (bool)b.get("no_decay", false)) sim.set_structure_no_decay(id);
+	if (id && (bool)b.get("no_capture", false)) sim.set_structure_uncapturable(id);
+	return id;
 }
 
 // A player structure's 0 A.D. template ("athen/field", "spart/gerousia"; port_0ad_maps.py),
@@ -533,6 +537,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	// Every peer generates the same map: the size rides in NMT_GAME_START.
 	random_map_size = (setup.map_size >= 128 && setup.map_size <= 512) ? setup.map_size : 128;
 	match_seed_ = setup.seed;
+	turn_mgr_.set_offline_seat(0); // the lockstep seating places every client
 	random_map_players = 2;
 	for (uint8_t i = 0; i < setup.slot_count && i < rtso::MAX_PLAYERS; ++i)
 		if (setup.slot_types[i] != 'x') random_map_players = std::max(random_map_players, (int)i + 1);
@@ -696,9 +701,18 @@ void RtsoMain::apply_match_settings() {
 	for (int i = 0; i < slot_types.size() && i < rtso::MAX_PLAYERS; ++i)
 		if ((int)slot_types[i] != 2) seats = i + 1;
 	random_map_players = std::max(2, seats);
+	// 0.28 PlayerAssignment: Game Setup seats you in local_slot (-1 watches); older
+	// setups (-2) seat you in slot 1 and watch only when no slot is Human.
+	const int local_slot = String(ms->get("net_mode")).is_empty() ? (int)ms->get("local_slot") : -2;
+	const bool legacy_seat = local_slot < -1;
 	local_observer_ = seats > 0;
-	for (int i = 0; i < seats; ++i)
-		if ((int)slot_types[i] == 0) local_observer_ = false;
+	if (legacy_seat) {
+		for (int i = 0; i < seats; ++i)
+			if ((int)slot_types[i] == 0) local_observer_ = false;
+	} else if (local_slot >= 0 && local_slot < seats && local_slot < slot_types.size() && (int)slot_types[local_slot] == 0) {
+		local_observer_ = false;
+	}
+	turn_mgr_.set_offline_seat(!legacy_seat && !local_observer_ ? (uint8_t)local_slot : (uint8_t)0);
 	{
 		Array slot_teams_arr = ms->get("slot_teams");
 		for (int i = 0; i < rtso::MAX_PLAYERS; ++i) {
@@ -795,14 +809,15 @@ void RtsoMain::apply_match_settings() {
 	if (seats > 0) {
 		for (int t = 0; t < rtso::MAX_PLAYERS; ++t) {
 			const int ty = t < slot_types.size() ? (int)slot_types[t] : 2;
-			// Slot 1 is you unless every slot is AI (local_observer_); then Petra plays it too.
-			const bool seated = t < seats && ty != 2 && (t > 0 || ty == 0 || local_observer_);
-			sim->set_player_active((uint8_t)t, seated || t == 0, (t > 0 || local_observer_) && seated && ty == 1);
+			// Older setups: slot 1 is you unless every slot is AI (local_observer_); then
+			// Petra plays it too. With player assignment any slot may be AI.
+			const bool seated = t < seats && ty != 2 && (!legacy_seat || t > 0 || ty == 0 || local_observer_);
+			sim->set_player_active((uint8_t)t, seated || t == 0, (!legacy_seat || t > 0 || local_observer_) && seated && ty == 1);
 		}
 	}
 	apply_player_names(ms->get("slot_names")); // after seating: the diplomacy labels read civ and AI
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
-			" civ ", rtso::civ_info(sim->player_civ()).name,
+			" civ ", rtso::civ_info(sim->player_civ(local_player() < rtso::MAX_PLAYERS ? local_player() : 0)).name,
 			" vs ", rtso::civ_info(sim->team_civ(1)).name);
 	// Map just (re)spawned - select the human player's units like the old
 	// _ready tail did (it ran before any map existed, so it selected nothing).

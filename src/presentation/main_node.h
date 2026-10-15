@@ -473,11 +473,11 @@ public:
 		if (observer_view_ < rtso::MAX_PLAYERS && spectating()) return observer_view_;
 		return seat_player();
 	}
-	// The seat this client plays: its lockstep slot in multiplayer, player 0
-	// offline; 0xFF for an observer (multiplayer, or every slot AI).
+	// The seat this client plays: its lockstep slot in multiplayer, Game Setup's
+	// assigned slot offline (player 0 by default); 0xFF for an observer.
 	uint8_t seat_player() const {
 		if (net_lockstep() || turn_mgr_.perspective_changed()) return turn_mgr_.local_player();
-		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0;
+		return local_observer_ ? (uint8_t)0xFF : turn_mgr_.offline_seat();
 	}
 	// This client only watches: an observer, or a player who was defeated
 	// (0 A.D. g_IsObserver). Not in a replay, which has its own picker.
@@ -662,6 +662,8 @@ public:
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
+	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
+	Dictionary debug_snap_placement(int btype, float x, float z, bool hover, float stale_angle);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
@@ -834,7 +836,8 @@ private:
 	// 0 A.D. input.js snap to edges: with isSnapToEdgesEnabled, turns placement_angle to the
 	// nearest structure's sides (ObstructionSnap.getPosition) and moves (cell_x, cell_y) to the
 	// building cell nearest the flush position.
-	void snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y);
+	bool snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y, bool hover = false);
+	bool debug_force_snap_ = false; // debug_snap_placement: snapping on whatever the option and hotkey say
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
 	void try_train_unit(rtso::UnitType utype);
