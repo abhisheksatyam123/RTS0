@@ -280,7 +280,7 @@ public:
 			const String wire_tag = tag.is_empty() ? String() : tag + " ";
 			const String line = format_line(context, host_->chat_user(""), text);
 			add_log(stamp() + line + "\n");
-			post_overlay(stamp() + line);
+			post_overlay(line);
 			input_->clear();
 			host_->play_sfx("res://assets/sounds/ui/chat.ogg");
 			// Network: 0 A.D. NMT_CHAT broadcast (NetHost::sendChat net_host.cpp:327).
@@ -328,8 +328,9 @@ public:
 			}
 		}
 		if (!tag.is_empty() && host_ && !host_->chat_is_addressee(sender_guid, tag)) return false;
-		const String line = stamp() + format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
-		add_log(line + String("\n"));
+		// chat.timestamp stamps the history only (ChatHistory.js); the overlay shows the bare text.
+		const String line = format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
+		add_log(stamp() + line + String("\n"));
 		post_overlay(line);
 		return true;
 	}
@@ -347,9 +348,8 @@ public:
 	// Raw bbcode line (Petra log, diplomacy/tribute feedback). With an action, the overlay
 	// line is clickable (ChatOverlay.js onPress): the owner's _on_chat_line_input gets it.
 	void append_line(const String &bbcode, const String &action = String(), const String &tooltip = String()) {
-		const String line = bbcode.is_empty() ? bbcode : stamp() + bbcode;
-		if (log_) add_log(line);
-		post_overlay(line.strip_edges(false, true), action, tooltip);
+		if (log_) add_log(bbcode.is_empty() ? bbcode : stamp() + bbcode);
+		post_overlay(bbcode.strip_edges(false, true), action, tooltip);
 	}
 
 	// 0 A.D. clearChatMessages (/clear): empties the history and the overlay.

@@ -169,7 +169,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 86; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 87; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_RALLY = 87; // each Petra plan's completing step, march waypoints and last position
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
 	static constexpr uint32_t SAVE_VERSION_ATTACK_DETECTION = 86; // each player's suppressed attacks (OnAttackDetected)
@@ -1439,6 +1440,16 @@ public:
 		leg = lit == trader_leg_.end() ? 0 : lit->second;
 		return true;
 	}
+	// Trader.js goods.amount: the gains of the goods a trader carries, worked out when they were
+	// loaded. False while it carries none.
+	bool trader_goods(uint32_t unit_id, TradeGain &out) const {
+		auto it = trader_goods_.find(unit_id);
+		if (it == trader_goods_.end()) return false;
+		const int32_t u = lookup_unit(unit_id);
+		if (u < 0 || units_.carry[u] <= 0) return false;
+		out = it->second;
+		return true;
+	}
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
 	float get_market_sell_price(ResourceType t) const { return market_sell_price(t); }
 	int get_market_history(ResourceType t) const { return market_trade_history_[t]; }
@@ -1867,6 +1878,14 @@ public:
 		uint8_t target_player = 0xFF; // attackPlan.js targetPlayer (0xFF until a target is chosen)
 		bool forced = false;    // forceStart: march with what it has, take any target
 		bool requested = false; // started at an ally's request: asks no one to join
+		// attackPlan.js "completing": the army walks to its rally point (staging_x/z, at our
+		// border) and sets off once none of it has a forced order left, or after
+		// completing_time seconds (maxCompletingTime).
+		bool completing = false;
+		float completing_time = 0.0f;
+		// attackPlan.js path: the march's waypoints still ahead, the next one first.
+		std::vector<float> path_x, path_z;
+		float last_x = 0.0f, last_z = 0.0f; // lastPosition: the army's centre on the last turn
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
@@ -2703,7 +2722,7 @@ private:
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
 	std::vector<Scenery> scenery_; // saved
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
-	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0, uint8_t team = 0xFF) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	// Every standing building's footprint cells (can_place): FULL where a footprint covers the cell,
@@ -3023,6 +3042,16 @@ private:
 	float petra_diplo_timer_ = 0.0f;
 	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
+	// headquarters.js isDangerousLocation: near an army invading us or within `radius` of an
+	// enemy shooting structure's range.
+	bool petra_dangerous_location(float x, float z, float radius) const;
+	// attackPlan.js getPathToTarget and setRallyPoint: the plan's march path from (rx, rz) to
+	// its target, and its rally point where that path leaves our territory.
+	void petra_plan_path(AttackPlan &plan, float rx, float rz);
+	// attackPlan.js StartAttack: the army sets off along its path.
+	void petra_start_march(AttackPlan &plan);
+	// Whether some unit of the army still walks under a forced order (hasForceOrder).
+	bool petra_plan_has_force_order(const AttackPlan &plan) const;
 	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr) const;
 	uint8_t petra_enemy_player(uint8_t kind) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;

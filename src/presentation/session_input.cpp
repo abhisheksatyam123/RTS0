@@ -209,14 +209,26 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 
 		// Camera (0 A.D. [hotkey.camera], gui/session/hotkeys/camera.xml).
-		for (int j = 1; j <= 4; ++j) {
+		for (int j = 1; j <= 10; ++j) {
 			const std::string n = std::to_string(j);
 			if (fired(("camera.jump.set." + n).c_str())) {
 				if (cam_rig) camera_bookmarks_[j - 1] = {true, cam_rig->get_target_pos()};
 				return;
 			}
 			if (fired(("camera.jump." + n).c_str())) {
-				if (cam_rig && camera_bookmarks_[j - 1].set) cam_rig->set_target_pos(camera_bookmarks_[j - 1].pos);
+				// jumpCamera: already within gui.session.camerajump.threshold (metres) of the
+				// bookmark, jump back to where the camera was before the last jump.
+				if (cam_rig && camera_bookmarks_[j - 1].set) {
+					const Vector3 pos = camera_bookmarks_[j - 1].pos, pivot = cam_rig->get_target_pos();
+					const float threshold = (float)std::atof(rtso::user_config::get("gui.session.camerajump.threshold").c_str()) / 4.0f; // 1 unit = 4 m
+					cam_rig->set_follow_id(0);
+					if (camera_jump_last_.set && std::fabs(pivot.x - pos.x) < threshold && std::fabs(pivot.z - pos.z) < threshold) {
+						cam_rig->set_target_pos(camera_jump_last_.pos);
+					} else {
+						camera_jump_last_ = {true, pivot};
+						cam_rig->set_target_pos(pos);
+					}
+				}
 				return;
 			}
 		}
@@ -228,8 +240,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (cam_rig) cam_rig->toggle_birds_eye();
 			return;
 		}
-		if (fired("camera.follow")) {
-			if (cam_rig) cam_rig->set_follow_id(selected_ids.is_empty() ? 0 : (uint32_t)selected_ids[0]);
+		if (fired("camera.follow")) { // setCameraFollow: a unit is followed, a structure looked at
+			const uint32_t first = !selected_ids.is_empty() ? (uint32_t)selected_ids[0] : selected_building_id;
+			if (cam_rig) cam_rig->set_follow_id(0);
+			follow_focus(first, false);
 			return;
 		}
 		if (fired("camera.rallypointfocus")) { // unit_actions.js "focus-rally"
@@ -237,7 +251,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("camera.lastattackfocus")) {
-			if (cam_rig && has_last_attack_) cam_rig->set_target_pos(last_attack_pos_);
+			// focusAttack: follow the attacked unit while it lives, else look at the spot.
+			if (cam_rig && has_last_attack_) {
+				cam_rig->set_follow_id(0);
+				follow_focus(last_attack_unit_, false);
+				if (cam_rig->follow_id() == 0) cam_rig->set_target_pos(last_attack_pos_);
+			}
 			return;
 		}
 
@@ -250,8 +269,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			_on_entity_command("stop");
 			return;
 		}
-		if (fired("session.unload")) {
-			_on_ungarrison_pressed();
+		// misc.xml: U both unloads the selected holders and takes units off their turret points.
+		const bool unload = fired("session.unload"), leave_turret = fired("session.leaveturret");
+		if (unload || leave_turret) {
+			if (unload) _on_ungarrison_pressed();
+			if (leave_turret) _on_entity_command("leave-turret");
 			return;
 		}
 		if (fired("session.unloadturrets")) { // unit_actions "unload-all-turrets"
@@ -955,25 +977,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			auto uview = sim->units();
 
-			// 0. Right click with Loaded Transport on Shore/Land (Disembark)
-			bool has_loaded_transport = false;
-			uint32_t transport_sel_id = 0;
-			for (int s = 0; s < selected_ids.size(); ++s) {
-				if (sim->is_transport((uint32_t)selected_ids[s]) && sim->get_transport_passenger_count((uint32_t)selected_ids[s]) > 0) {
-					has_loaded_transport = true;
-					transport_sel_id = (uint32_t)selected_ids[s];
-					break;
-				}
-			}
-			if (has_loaded_transport && sim->get_terrain_height(click_pos.x, click_pos.z) >= sim->water_height() + 0.1f) {
-				if (one_id != 0) one_id = transport_sel_id;
-				if (turn_cmds())
-					post_lockstep(19, &transport_sel_id, 1, click_pos.x, click_pos.z);
-				else
-					sim->order_disembark(transport_sel_id, click_pos.x, click_pos.z);
-				play_civ_voice("move");
-				return;
-			}
+			// A loaded ship right-clicked on land just moves (unit_actions.js has no unload-on-click
+			// action): passengers leave through Unload All, the garrison icons or session.unload.
 
 			// 1. Right click on an own or allied ship, ram or siege tower (board it).
 			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.

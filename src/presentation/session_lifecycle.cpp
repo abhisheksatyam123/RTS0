@@ -1206,6 +1206,7 @@ void RtsoMain::_process(double delta) {
 	research_progress_.refresh(*sim, view_player());
 	refresh_dev_overlay();
 	control_groups_.refresh(*sim, local_player(), selected_groups);
+	diplo_dialog_.poll_spies();
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while

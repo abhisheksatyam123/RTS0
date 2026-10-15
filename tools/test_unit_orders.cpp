@@ -417,6 +417,7 @@ static void test_builders_after_dropsite() {
 	std::printf("9. builders gather after a storehouse\n");
 	Simulation s;
 	setup(s);
+	s.set_explore_map(true); // FindNearbyResource takes only supplies the player has seen
 	const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 0.9f);
 	const uint32_t tree = s.spawn_resource_world(10, 0, RES_WOOD, 500);
 	uint32_t w[2] = {s.spawn_unit(-4, 0, 0, UNIT_FEMALE_CITIZEN), s.spawn_unit(-4, 2, 0, UNIT_FEMALE_CITIZEN)};
@@ -844,6 +845,7 @@ static void test_repair_follow_up() {
 	std::printf("22. repairers move on\n");
 	Simulation s;
 	setup(s);
+	s.set_explore_map(true); // FindNearbyResource takes only supplies the player has seen
 	const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
 	const uint32_t tree = s.spawn_resource_world(10, 0, RES_WOOD, 500);
 	uint32_t e[6];
@@ -864,6 +866,7 @@ static void test_same_kind_next() {
 	std::printf("23. the next resource is of the same kind\n");
 	Simulation s;
 	setup(s);
+	s.set_explore_map(true); // FindNearbyResource takes only supplies the player has seen
 	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
 	s.spawn_building_world(-20, 12, BLD_FARMSTEAD, 0, 1.0f);
 	const uint32_t bush = s.spawn_resource_world(0, 0, RES_FOOD, 4);
@@ -1684,6 +1687,7 @@ static void test_rally_positions() {
 	std::printf("42. Shift rally positions, unset-rallypoint, gather near a gone target\n");
 	Simulation s;
 	setup(s);
+	s.set_explore_map(true); // FindNearbyResource takes only supplies the player has seen
 	const uint32_t brk = s.spawn_building_world(-20, -20, BLD_BARRACKS, 0, 1.0f);
 	const uint32_t tree = s.spawn_resource_world(10, -10, RES_WOOD, 500);
 	const uint32_t tree2 = s.spawn_resource_world(12, -12, RES_WOOD, 500);
@@ -1788,6 +1792,7 @@ static void test_autoharvest() {
 	std::printf("44. only the player's own builders farm the field or gather by the dropsite they finish\n");
 	Simulation s;
 	setup(s);
+	s.set_explore_map(true); // FindNearbyResource takes only supplies the player has seen
 	const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 0.9f);
 	s.spawn_resource_world(10, 0, RES_WOOD, 500);
 	uint32_t mine = s.spawn_unit(-4, 0, 0, UNIT_FEMALE_CITIZEN);
