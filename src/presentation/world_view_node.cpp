@@ -3652,6 +3652,9 @@ void apply_terrain_tiles(const Ref<ShaderMaterial> &mat, const rtso::Simulation 
 
 } // namespace
 
+// The minimap's terrain colours read the same layers (minimap_view.cpp).
+Ref<Image> rtso_terrain_layer_image(const String &name) { return terrain_layer_image(name); }
+
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	if (!sim || !terrain) return;
 	float half = sim->map_half();

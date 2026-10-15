@@ -9,6 +9,8 @@
 #include <godot_cpp/classes/geometry2d.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <cstring>
+#include <algorithm>
+#include <cmath>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include "user_config.h"
 
@@ -144,6 +146,93 @@ void RtsoMiniMapView::toggle_diplomacy() {
 	queue_redraw();
 }
 
+Ref<Image> rtso_terrain_layer_image(const String &name); // world_view_node.cpp
+
+bool RtsoMiniMapView::ensure_terrain_texture(bool round) {
+	if (!sim) return false;
+	const auto &heights = sim->terrain_heights();
+	const int hres = sim->terrain_res();
+	if (heights.empty() || hres <= 1) return false;
+	// 0 A.D. rebuilds the texture when the terrain is marked dirty; RTS0 hashes the
+	// heights and tiles at most twice a second (the minimap's own update rate).
+	const uint64_t now = Time::get_singleton()->get_ticks_msec();
+	if (terrain_tex_.is_valid() && now - terrain_checked_ms_ < 500) return true;
+	terrain_checked_ms_ = now;
+	const auto &tt = sim->terrain_tiles();
+	uint64_t key = 1469598103934665603ull;
+	auto mix = [&](const void *p, size_t n) {
+		const uint8_t *b = (const uint8_t *)p;
+		for (size_t i = 0; i < n; ++i) key = (key ^ b[i]) * 1099511628211ull;
+	};
+	for (size_t i = 0; i < heights.size(); i += 7) mix(&heights[i], sizeof(float)); // a sample keeps the check cheap
+	mix(tt.tiles.data(), tt.tiles.size());
+	const float water = sim->water_height();
+	mix(&water, sizeof(water));
+	mix(&round, sizeof(round));
+	if (terrain_tex_.is_valid() && key == terrain_key_) return true;
+	terrain_key_ = key;
+
+	// CTerrainTextureEntry::GetBaseColor: the texture's smallest mip level.
+	std::vector<Color> base(tt.names.size(), Color(0.46f, 0.42f, 0.33f));
+	for (size_t k = 0; k < tt.names.size(); ++k) {
+		Ref<Image> img = rtso_terrain_layer_image(String::utf8(tt.names[k].c_str()));
+		if (img.is_null() || img->get_format() != Image::FORMAT_RGBA8) continue;
+		const int last = img->get_mipmap_count();
+		const PackedByteArray d = img->get_data();
+		const int64_t off = img->get_mipmap_offset(last);
+		if (off + 3 < d.size()) base[k] = Color(d[off] / 255.0f, d[off + 1] / 255.0f, d[off + 2] / 255.0f);
+	}
+	const float half = sim->map_half();
+	const int n = tt.empty() ? hres - 1 : tt.res;
+	const float step = (half * 2.0f) / (float)(hres - 1);
+	auto height_at = [&](float x, float z) {
+		const float fx = Math::clamp((x + half) / step, 0.0f, (float)(hres - 1));
+		const float fz = Math::clamp((z + half) / step, 0.0f, (float)(hres - 1));
+		const int x0 = std::min((int)fx, hres - 2), z0 = std::min((int)fz, hres - 2);
+		const float tx = fx - x0, tz = fz - z0;
+		const float a = heights[z0 * hres + x0] * (1 - tx) + heights[z0 * hres + x0 + 1] * tx;
+		const float b = heights[(z0 + 1) * hres + x0] * (1 - tx) + heights[(z0 + 1) * hres + x0 + 1] * tx;
+		return a * (1 - tz) + b * tz;
+	};
+	// pathfinder.xml default MaxWaterDepth (2 m; 1 m = 0.25 height units, grid_nav.h).
+	const float shallow = 2.0f * 0.25f;
+	const bool has_water = water > -0.5f;
+	const float tile = (half * 2.0f) / (float)n;
+	PackedByteArray px;
+	px.resize((int64_t)n * n * 4);
+	uint8_t *out = px.ptrw();
+	for (int j = 0; j < n; ++j) {
+		for (int i = 0; i < n; ++i) {
+			const float x0 = -half + i * tile, z0 = -half + j * tile;
+			uint8_t *o = out + ((size_t)j * n + i) * 4;
+			if (round && sim->off_world(x0 + 0.5f * tile, z0 + 0.5f * tile)) {
+				o[0] = o[1] = o[2] = o[3] = 0;
+				continue;
+			}
+			const float avg = 0.25f * (height_at(x0, z0) + height_at(x0 + tile, z0) + height_at(x0, z0 + tile) + height_at(x0 + tile, z0 + tile));
+			Color c;
+			if (has_water && avg < water && avg > water - shallow) c = Color(112 / 255.0f, 152 / 255.0f, 192 / 255.0f); // shallow water
+			else if (has_water && avg < water) c = Color(80 / 255.0f, 120 / 255.0f, 160 / 255.0f); // a constant colour on every map
+			else {
+				// val = (heightmap >> 8) / 3 + 170, the heightmap at 92 units per metre.
+				const float metres = std::max(0.0f, height_at(x0, z0) / 0.25f);
+				const float val = std::min(255.0f, std::floor(std::floor(metres * 92.0f / 256.0f) / 3.0f) + 170.0f);
+				c = tt.empty() ? Color(0.46f, 0.42f, 0.33f) : base[tt.at(i, j) < base.size() ? tt.at(i, j) : 0];
+				c = Color(c.r * val / 255.0f, c.g * val / 255.0f, c.b * val / 255.0f);
+			}
+			o[0] = (uint8_t)(c.r * 255.0f + 0.5f);
+			o[1] = (uint8_t)(c.g * 255.0f + 0.5f);
+			o[2] = (uint8_t)(c.b * 255.0f + 0.5f);
+			o[3] = 255;
+		}
+	}
+	Ref<Image> img = Image::create_from_data(n, n, false, Image::FORMAT_RGBA8, px);
+	if (img.is_null()) return terrain_tex_.is_valid();
+	if (terrain_tex_.is_valid() && terrain_tex_->get_width() == n) terrain_tex_->set_image(img);
+	else terrain_tex_ = ImageTexture::create_from_image(img);
+	return true;
+}
+
 bool RtsoMiniMapView::ensure_territory_texture() {
 	if (!sim) return false;
 	const auto &grid = sim->territory_grid();
@@ -194,12 +283,10 @@ void RtsoMiniMapView::_draw() {
 	// corners off the world stay empty.
 	const bool round = sim && sim->circular_map();
 	const Color panel(0.08f, 0.09f, 0.12f, 0.96f), rim(0.90f, 0.75f, 0.31f, 1.0f);
-	if (round) {
-		draw_circle(sz * 0.5f, std::min(sz.x, sz.y) * 0.5f, panel);
-	} else {
-		draw_rect(Rect2(Vector2(0, 0), sz), panel, true);
-		draw_rect(Rect2(Vector2(0, 0), sz), rim, false, 2.0f);
-	}
+	if (round) draw_circle(sz * 0.5f, std::min(sz.x, sz.y) * 0.5f, panel);
+	else draw_rect(Rect2(Vector2(0, 0), sz), panel, true);
+	if (sim && ensure_terrain_texture(round)) draw_texture_rect(terrain_tex_, Rect2(Vector2(0, 0), sz), false);
+	if (!round) draw_rect(Rect2(Vector2(0, 0), sz), rim, false, 2.0f);
 
 	if (!sim) return;
 
