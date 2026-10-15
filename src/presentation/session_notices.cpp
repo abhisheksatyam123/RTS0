@@ -33,6 +33,7 @@
 #include "../core/diagnostics/perf_tracker.h"
 #include "../core/job_system.h"
 #include "../graphics/assets/model_library.h"
+#include <cmath>
 #include <sstream>
 using namespace godot;
 using rtso::sprintf0;
@@ -67,6 +68,25 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 				{{"previousAmounts", String(tr(", ")).join(parts)}, {"lastAmount", last}});
 	};
 	for (const N &n : notices) {
+		if (n.kind == N::TEXT) {
+			// GuiInterface AddTimeNotification: 10 s in the centre, for the player it names.
+			static const char *kText[] = {"The production queue is full.", "Entity is being upgraded. Cannot start production.",
+					"Could not auto-queue unit, de-activating.", "Can't find free space to spawn trained units.",
+					"Entity is producing. Cannot start upgrading.", "Unable to unload unit(s).",
+					"Some unit(s) can't go back to work", "There are no bribable units"};
+			if (n.player != me || n.tech >= sizeof(kText) / sizeof(kText[0])) continue;
+			const uint32_t now = (uint32_t)std::lround(sim->game_time() * 1000.0f);
+			if (n.tech == N::TEXT_SPAWN_BLOCKED) {
+				// Trainer.js spawnNotified: once until the batch spawns. The sim retries each
+				// turn, so a building heard from within the last 2 s is the same blockage.
+				auto it = spawn_notified_.find((uint32_t)n.amounts[0]);
+				const bool repeat = it != spawn_notified_.end() && now - it->second <= 2000;
+				spawn_notified_[(uint32_t)n.amounts[0]] = now;
+				if (repeat) continue;
+			}
+			text_notices_.push_back({tr(kText[n.tech]), now + 10000});
+			continue;
+		}
 		String line;
 		if (n.kind == N::TRIBUTE) {
 			// GetTributableCodes order: food, wood, stone, metal.

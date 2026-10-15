@@ -191,6 +191,9 @@ public:
 	// `me` is the local player whose economy the panel shows.
 	// observer: g_IsObserver (an observer, a replay viewer, or a player who won or lost),
 	// whose tooltips list every player even while following one.
+	// The next update() refreshes everything, not only the clock (a click changed the order).
+	void invalidate() { last_refresh_ms_ = 0; }
+
 	void update(rtso::Simulation *sim, uint8_t me, double match_elapsed_time, bool observer = false) {
 		observer_ = observer;
 		using namespace godot;

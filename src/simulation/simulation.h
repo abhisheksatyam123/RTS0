@@ -514,7 +514,19 @@ public:
 		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5,
 			DEFEATED = 6,   // player is out; tech: the EndReason
 			WON = 7,        // other: the winners' mask; tech: the EndReason
-			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
+			LOST = 8,       // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
+			TEXT = 9 };     // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
+		// The "text" time notifications (10 s, centre top) the sim pushes for `player`.
+		enum TextMessage : uint8_t {
+			TEXT_QUEUE_FULL = 0,       // ProductionQueue.js AddItem: "The production queue is full."
+			TEXT_UPGRADING,            // AddItem: "Entity is being upgraded. Cannot start production."
+			TEXT_AUTOQUEUE_OFF,        // ProductionQueue.js: "Could not auto-queue unit, de-activating."
+			TEXT_SPAWN_BLOCKED,        // Trainer.js: "Can't find free space to spawn trained units."
+			TEXT_PRODUCING,            // Upgrade.js: "Entity is producing. Cannot start upgrading."
+			TEXT_UNLOAD_FAILED,        // Commands.js notifyUnloadFailure: "Unable to unload unit(s)."
+			TEXT_BACK_TO_WORK_FAILED,  // notifyBackToWorkFailure: "Some unit(s) can't go back to work"
+			TEXT_NO_BRIBABLE,          // Commands.js spy-request: "There are no bribable units"
+		};
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
@@ -2645,6 +2657,11 @@ private:
 	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
 	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
+	void note_text(uint8_t player, uint8_t message, uint32_t entity = 0) {
+		SessionNotice n{SessionNotice::TEXT, player, 0, message, {}};
+		n.amounts[0] = (int32_t)entity;
+		note_session(n);
+	}
 	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
 		if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) note_session({kind, player, 0, tech, {}});
 	}
