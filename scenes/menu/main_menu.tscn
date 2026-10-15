@@ -75,6 +75,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 texture = ExtResource("5_stone")
+expand_mode = 1
 stretch_mode = 1
 
 [node name="ShadingOverlay" type="TextureRect" parent="MainPanel"]

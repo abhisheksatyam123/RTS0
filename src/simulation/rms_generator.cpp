@@ -3708,7 +3708,8 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 		const float base = (float)scale_by_map_size(15, 25, half) + 15.0f;
 		for (int tries = 0; tries < 20000; ++tries) {
 			const float x = rng.range_float(-half * 0.95f, half * 0.95f), z = rng.range_float(-half * 0.95f, half * 0.95f);
-			bool ok = hm.compute_slope_world(x, z) <= 0.6f;
+			// A circular map (g_Map.randomCoordinate): the corners outside the circle are off the map.
+			bool ok = std::hypot(x, z) <= half * 0.95f && hm.compute_slope_world(x, z) <= 0.6f;
 			for (int k = 0; ok && k < 9; ++k) {
 				const float a = 0.7853982f * (float)k, r = k == 8 ? 0.0f : 2.0f;
 				ok = hm.sample_world(x + std::cos(a) * r, z + std::sin(a) * r) > water_h;

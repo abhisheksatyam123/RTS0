@@ -123,6 +123,7 @@ func _format(combos) -> String:
 	return ", ".join(parts)
 
 func _build_ui() -> void:
+	theme = preload("res://scenes/common/modern_theme.gd").theme()
 	var bg := ColorRect.new()
 	bg.color = Color(0.08, 0.07, 0.06)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -199,8 +200,10 @@ func _build_ui() -> void:
 func _setup_filters() -> void:
 	filter_select.clear()
 	filter_select.add_item("All Hotkeys")
+	filter_select.set_item_tooltip(0, tr("All available hotkeys.")) # HotkeysPage.onFilterHover
 	for c in category_keys:
 		filter_select.add_item(categories[c]["name"])
+		filter_select.set_item_tooltip(filter_select.get_item_count() - 1, tr(str(categories[c].get("desc", ""))))
 	filter_select.select(0)
 
 func _visible_hotkeys() -> Array:

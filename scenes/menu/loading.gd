@@ -44,6 +44,8 @@ var _bar_right: TextureRect
 var _bar_text: Label
 var _bar_width := 400.0
 
+const WAIT_CURSOR := "res://assets/textures/cursors/cursor-wait.png"
+
 func _ready() -> void:
 	layer = 100
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -51,7 +53,9 @@ func _ready() -> void:
 	var data := _read_json(DATA)
 	_pick(data)
 	_build()
-	# loading.js: Engine.SetCursor("cursor-wait").
+	# loading.js: Engine.SetCursor("cursor-wait"), 0.28's art (cursor-wait.txt: hotspot 16 16).
+	if ResourceLoader.exists(WAIT_CURSOR):
+		Input.set_custom_mouse_cursor(load(WAIT_CURSOR), Input.CURSOR_WAIT, Vector2(16, 16))
 	Input.set_default_cursor_shape(Input.CURSOR_WAIT)
 	if overlay_for != null:
 		last_stages = []

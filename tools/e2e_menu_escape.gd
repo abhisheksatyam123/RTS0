@@ -5,7 +5,8 @@ extends SceneTree
 #      unsaved changes (options.xml closeButton, shouldClosePage);
 #   3. Hotkeys: Reset asks "Reset all hotkeys to default values?" before
 #      clearing anything (resetUserHotkeys); Escape cancels the hotkey picker
-#      and then closes the page; 0.28's button tooltips.
+#      and then closes the page; 0.28's button tooltips and the category
+#      dropdown's per-category hover tooltips.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_menu_escape.gd
 # Exit code 0 = pass.
@@ -95,6 +96,9 @@ func run() -> void:
 	print("    ", tips)
 	check(tips.get("Close", "") == "Unsaved changes will be lost" and tips.get("Save", "") == "Saves changes"
 			and tips.get("Accept", "") == "Change the hotkeys and close", "0.28's button tooltips")
+	var fs = hk.filter_select
+	print("    ", fs.get_item_text(1), ": ", fs.get_item_tooltip(1))
+	check(fs.get_item_tooltip(0) == "All available hotkeys." and fs.get_item_tooltip(1) != "", "the category list's hover tooltips (onFilterHover)")
 	var name: String = hk.hotkeys.keys()[0]
 	hk.cfg.set_hotkey(name, PackedStringArray(["Ctrl+Shift+F11"]))
 	hk._on_reset_all()
