@@ -530,7 +530,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	}
 
 	apply_map_player_overrides();
-	UtilityFunctions::print("[RtsoMain] Loaded 0 A.D. map '", name, "' (", world_size, "m, ", sim->resource_count(), " resources, ", sim->building_count(), " structures, ", sim->unit_count(), " units)");
+	UtilityFunctions::print("[RtsoMain] Loaded 0 A.D. map '", name, "' (", world_size, "m, ", (int64_t)sim->resource_count(), " resources, ", (int64_t)sim->building_count(), " structures, ", (int64_t)sim->unit_count(), " units)");
 	return true;
 }
 

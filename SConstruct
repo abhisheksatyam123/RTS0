@@ -12,6 +12,12 @@ env.Append(CPPFLAGS=["-std=c++20"])
 if env["platform"] == "linux" or env["platform"] == "linuxbsd":
 	env.Append(CCFLAGS=["-pthread"])
 	env.Append(LINKFLAGS=["-pthread"])
+if env["platform"] == "android":
+	# The APK carries no libc++_shared.so, so link the C++ runtime in.
+	env.Append(LINKFLAGS=["-static-libstdc++"])
+if env["platform"] == "windows":
+	# src/network sockets (MSVC also reads a #pragma comment, MinGW only this).
+	env.Append(LIBS=["ws2_32"])
 
 if env["target"] == "template_release":
     env.Append(CCFLAGS=["-O3", "-DNDEBUG"])
