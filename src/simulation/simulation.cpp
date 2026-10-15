@@ -1539,6 +1539,13 @@ void Simulation::rebuild_territory_grids() {
 				if (nav_grid_.cells.inside(cx, cy) && (nav_grid_.cells.at(cx, cy) == NAV_WATER || nav_grid_.is_steep(cx, cy)))
 					territory_cost_.at(x, y) = TERRITORY_IMPASSABLE_COST;
 			}
+	// 255 "off the world": tiles the unrestricted class can't enter, a circular map's edge band
+	// and what lies past it. Territory doesn't spread there, and they don't count as map.
+	if (circular_map())
+		for (int y = 0; y < R; ++y)
+			for (int x = 0; x < R; ++x)
+				if (past_map_edge(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_))
+					territory_cost_.at(x, y) = TERRITORY_OFF_WORLD_COST;
 
 	// CalculateTerritories: each structure's weight floods outwards over the tiles, losing
 	// weight x tile / radius per tile (times the tile's cost, x362/256 diagonally); a player's
@@ -1586,6 +1593,7 @@ void Simulation::rebuild_territory_grids() {
 				for (int d = 0; d < 8; ++d) {
 					const int nx = cx + DX[d], nz = cz + DZ[d];
 					if (nx < 0 || nz < 0 || nx >= R || nz >= R) continue;
+					if (territory_cost_.at(nx, nz) == TERRITORY_OFF_WORLD_COST) continue; // don't expand beyond the world
 					const uint32_t per_tile = falloff_rel * territory_cost_.at(nx, nz);
 					const uint32_t fall = d >= 4 ? per_tile * 362 / 256 : per_tile;
 					const size_t k = (size_t)nz * R + nx;
@@ -11928,7 +11936,6 @@ void Simulation::tick_combat(float dt) {
 	float *bld_x = nb ? arena.alloc_array<float>(nb) : nullptr;
 	float *bld_z = nb ? arena.alloc_array<float>(nb) : nullptr;
 	uint8_t *bld_live = nb ? arena.alloc_array<uint8_t>(nb) : nullptr;
-	float bld_half_max = 0.0f;
 	UnitGrid bgrid;
 	bool have_bgrid = false;
 	if (nb && bld_x && bld_z && bld_live) {
@@ -11937,7 +11944,6 @@ void Simulation::tick_combat(float dt) {
 			bld_x[bi] = b.x;
 			bld_z[bi] = b.z;
 			bld_live[bi] = !b.wrecked && b.hp > 0.0f && b.team < MAX_PLAYERS;
-			if (bld_live[bi]) bld_half_max = std::max(bld_half_max, nav::footprint_extent(b));
 		}
 		have_bgrid = bgrid.build(arena, nb, bld_x, bld_z, bld_live, map_half_);
 	}
@@ -11983,6 +11989,14 @@ void Simulation::tick_combat(float dt) {
 			const float dx = units_.pos_x[t] - units_.pos_x[i], dz = units_.pos_z[t] - units_.pos_z[i];
 			const float d2 = dx * dx + dz * dz;
 			const float minr = attack_reach(i) * unit_min_range_ratio(units_.unit_type[i]);
+			if (units_.alive[t] && can_attack(units_.team[i], units_.team[t]) && unit_can_target(i, (size_t)t) &&
+					guard_keeps_target(i, (size_t)t)) {
+				units_.has_order[i] = 1; // a guard chases while the target can hit its charge
+				units_.target_x[i] = units_.pos_x[t];
+				units_.target_z[i] = units_.pos_z[t];
+				target_idx[i] = t;
+				return;
+			}
 			if (units_.alive[t] && can_attack(units_.team[i], units_.team[t]) && unit_can_target(i, (size_t)t) &&
 					((in_parabolic_range(d2, unit_height(i), unit_height(t), attack_reach(i)) && d2 >= minr * minr) ||
 					 attack_under_way(i))) {
@@ -12037,6 +12051,7 @@ void Simulation::tick_combat(float dt) {
 		};
 
 		int32_t found = -1;
+		bool guard_keep = false; // ShouldAbandonChase / ShouldChaseTargetedEntity: isGuardOf
 		// A. Existing unit target
 		if (!guarding && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
@@ -12046,9 +12061,10 @@ void Simulation::tick_combat(float dt) {
 				return; // ... and attacking scenery (tick_scenery_attackers)
 			// Capturing a relic (tick_relics drives it).
 			if (is_relic_unit(tidx) && units_.order_kind[i] == ORDER_CAPTURE_RELIC) return;
+			guard_keep = tidx >= 0 && guard_keeps_target(i, (size_t)tidx);
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
 					unit_can_target(i, (size_t)tidx) &&
-					(explicit_target || within_stance(tidx) || attack_under_way(i))) { // Attack.js hits before its range check
+					(explicit_target || guard_keep || within_stance(tidx) || attack_under_way(i))) { // Attack.js hits before its range check
 				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
 				// A target it picked itself that came too close is dropped; a player's
 				// target stays and move_units backs away from it.
@@ -12098,7 +12114,7 @@ void Simulation::tick_combat(float dt) {
 			if (have_bgrid && !(walk_and_fight && (units_.order_flags[i] & ORDER_FLAG_UNITS_ONLY))) {
 				const bool capture = walk_and_fight && (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
 						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f;
-				bgrid.visit_radius(pxi, pzi, scan_range + bld_half_max, [&](int32_t bi) {
+				bgrid.visit_radius(pxi, pzi, scan_range, [&](int32_t bi) {
 					if (!bld_live[bi]) return;
 					const Building &b = buildings_[bi];
 					// Only enemies' structures (FindWalkAndFightTargets): none of ours to recapture.
@@ -12106,8 +12122,10 @@ void Simulation::tick_combat(float dt) {
 					if (!can_attack(my_team, b.team) && !(capture && !friendly && can_capture_building(my_team, b))) return;
 					if (!capture && !unit_can_target_building(i, b.type)) return;
 					if (units_.order_kind[i] == ORDER_WALK_AND_FIGHT && attack_move_avoids(units_.order_flags[i], b.type)) return;
-					const nav::Vec2 gap = nav::footprint_gap(b, pxi, pzi);
-					const float d2 = gap.x * gap.x + gap.y * gap.y;
+					// SetupAttackRangeQuery: "Do not compensate for entity sizes", so a structure
+					// is in the query, and ranked, by its centre.
+					const float cx = b.x - pxi, cz = b.z - pzi;
+					const float d2 = cx * cx + cz * cz;
 					if (d2 > scan_range * scan_range || d2 < minr * minr) return;
 					if (stance == STANCE_DEFENSIVE) { // CheckTargetDistanceFromHeldPosition: to its centre
 						const float hx = b.x - anc_x, hz = b.z - anc_z;
@@ -12178,11 +12196,13 @@ void Simulation::tick_combat(float dt) {
 			}
 			units_.action_state[i] = ACTION_ATTACK;
 		} else if (found >= 0) {
-			if (units_.target_unit_id[i] != units_.id[found] && !explicit_target)
+			// A new pick is an automatic fight, also once a player's target is gone: AttackVisibleEntity
+			// pushes an unforced Attack, so it answers attackers as any automatic fight does.
+			if (units_.target_unit_id[i] != units_.id[found])
 				units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED; // go back to the order afterwards
 			units_.target_unit_id[i] = units_.id[found];
 			// Stand ground holds still, except for a player's attack (ShouldChaseTargetedEntity force).
-			const bool chase = stance != STANCE_STAND_GROUND || explicit_target;
+			const bool chase = stance != STANCE_STAND_GROUND || explicit_target || (guard_keep && found == lookup_unit(prev_unit));
 			units_.has_order[i] = chase;
 			if (chase) {
 				units_.target_x[i] = units_.pos_x[found];
@@ -15221,6 +15241,67 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 	}
 }
 
+// UnitAI ShouldAbandonChase / ShouldChaseTargetedEntity, isGuardOf: a guard keeps after its
+// target, in any stance, while that target can hit the unit it guards.
+bool Simulation::guard_keeps_target(size_t i, size_t t) const {
+	if (units_.order_kind[i] != ORDER_GUARD || !(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED)) return false;
+	if (!units_.alive[t] || units_.attack_damage[t] <= 0.0f || unit_walk_speed(i) <= 0.0f) return false; // AbleToMove
+	const int32_t g = lookup_unit(units_.order_target[i]);
+	if (g < 0 || !units_.alive[g]) return false;
+	const float dx = units_.pos_x[g] - units_.pos_x[t], dz = units_.pos_z[g] - units_.pos_z[t];
+	return in_parabolic_range(dx * dx + dz * dz, unit_height(t), unit_height((size_t)g), attack_reach(t));
+}
+
+// Guard.js OnAttacked -> UnitAI GuardedAttacked: guard i answers whoever hit the unit g it
+// guards (a unit, a structure's arrows or an animal), in any stance (an unforced Attack).
+void Simulation::guard_answer(size_t i, size_t g, uint32_t attacker) {
+	auto attack = [&](uint32_t unit, uint32_t bld, float x, float z) {
+		// GUARDING enter: SetHeldPositionOnEntity(this.entity).
+		units_.anchor_x[i] = units_.pos_x[i];
+		units_.anchor_z[i] = units_.pos_z[i];
+		units_.target_unit_id[i] = unit;
+		units_.target_building_id[i] = bld;
+		units_.action_state[i] = ACTION_ATTACK;
+		units_.has_order[i] = 1;
+		units_.target_x[i] = x;
+		units_.target_z[i] = z;
+		units_.waypoint_count[i] = 0;
+		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
+	};
+	// Order.Attack: an unforced attack out of range ends at once for a unit standing its ground.
+	const bool stand = units_.stance[i] == STANCE_STAND_GROUND || unit_walk_speed(i) <= 0.0f;
+	const float reach = attack_reach(i);
+	if (const int32_t a = lookup_unit(attacker); a >= 0) {
+		const float dx = units_.pos_x[a] - units_.pos_x[i], dz = units_.pos_z[a] - units_.pos_z[i];
+		if (units_.attack_damage[i] > 0.0f && units_.alive[a] && can_attack(units_.team[i], units_.team[a]) &&
+				(!stand || in_parabolic_range(dx * dx + dz * dz, unit_height(i), unit_height((size_t)a), reach)))
+			attack(attacker, 0, units_.pos_x[a], units_.pos_z[a]);
+		return;
+	}
+	if (auto bit = building_id_to_idx_.find(attacker); bit != building_id_to_idx_.end()) {
+		// A BuildingAI attacker: a builder repairs a charge it can repair (a siege engine, a ship).
+		if (can_repair_unit(i, (int32_t)g)) {
+			auto &q = order_queues_[units_.id[i]];
+			q.insert(q.begin(), current_order(i));
+			start_repair_unit(i, units_.id[g], 0);
+			return;
+		}
+		const Building &b = buildings_[bit->second];
+		if (units_.attack_damage[i] > 0.0f && !b.wrecked && b.hp > 0.0f && is_hostile(units_.team[i], b.team) &&
+				unit_can_target_building(i, b.type) &&
+				(!stand || structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i)) <= reach))
+			attack(0, b.id, b.x, b.z);
+		return;
+	}
+	if (auto fit = fauna_id_to_idx_.find(attacker); fit != fauna_id_to_idx_.end()) {
+		const size_t f = fit->second; // tick_hunters fights it
+		const float dx = fauna_.pos_x[f] - units_.pos_x[i], dz = fauna_.pos_z[f] - units_.pos_z[i];
+		if (units_.attack_damage[i] > 0.0f && fauna_.alive[f] && fauna_.hp[f] > 0.0f &&
+				(!stand || dx * dx + dz * dz <= (units_.attack_range[i] + 1.0f) * (units_.attack_range[i] + 1.0f)))
+			attack(attacker, 0, fauna_.pos_x[f], fauna_.pos_z[f]);
+	}
+}
+
 // Back to the order an automatic fight or a flight interrupted.
 void Simulation::resume_order(size_t i) {
 	units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_INTERRUPTED;
@@ -15234,7 +15315,10 @@ void Simulation::resume_order(size_t i) {
 		return;
 	}
 	if (order_still_valid(i, o)) apply_order(units_.id[i], o);
-	else finish_order(i);
+	else {
+		finish_order(i);
+		find_targets_then_walk_back(i);
+	}
 }
 
 // COMBAT.FINDINGNEWTARGET after a player's attack, with nothing queued: FindNewTargets, else a
@@ -15645,9 +15729,11 @@ void Simulation::tick_unit_ai(float dt) {
 				finish_order(i);
 				continue;
 			}
-			if (units_.attack_damage[i] > 0.0f && units_.stance[i] != STANCE_PASSIVE && (i + ticks_) % 4 == 0) {
+			if (units_.attack_damage[i] > 0.0f && (i + ticks_) % 4 == 0) {
 				const int32_t a = structure_attacker(units_.order_target[i], units_.team[i]);
 				if (a >= 0) {
+					units_.anchor_x[i] = units_.pos_x[i];
+					units_.anchor_z[i] = units_.pos_z[i];
 					units_.target_unit_id[i] = units_.id[a];
 					units_.action_state[i] = ACTION_ATTACK;
 					units_.has_order[i] = 1;
@@ -15695,18 +15781,7 @@ void Simulation::tick_unit_ai(float dt) {
 				tick_heal(i);
 				continue;
 			}
-			if (g >= 0 && units_.alive[g] && units_.attacked_by[g] != 0 && units_.attack_damage[i] > 0.0f &&
-					units_.stance[i] != STANCE_PASSIVE) {
-				const int32_t a = lookup_unit(units_.attacked_by[g]);
-				if (a >= 0 && units_.alive[a] && can_attack(units_.team[i], units_.team[a])) {
-					units_.target_unit_id[i] = units_.id[a];
-					units_.action_state[i] = ACTION_ATTACK;
-					units_.has_order[i] = 1;
-					units_.target_x[i] = units_.pos_x[a];
-					units_.target_z[i] = units_.pos_z[a];
-					units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
-				}
-			}
+			if (g >= 0 && units_.alive[g] && units_.attacked_by[g] != 0) guard_answer(i, (size_t)g, units_.attacked_by[g]);
 		}
 		const uint8_t now = units_.action_state[i];
 		const bool interrupted = (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) != 0;
@@ -16225,7 +16300,13 @@ uint32_t Simulation::find_heal_target(size_t h) const {
 		if (!can_heal(h, (int32_t)t)) continue;
 		const float dx = units_.pos_x[t] - units_.pos_x[h], dz = units_.pos_z[t] - units_.pos_z[h];
 		const float d2 = dx * dx + dz * dz;
-		if (d2 <= best_d2) { best_d2 = d2; best = units_.id[t]; }
+		if (d2 > best_d2) continue;
+		if (units_.stance[h] == STANCE_DEFENSIVE) { // APPROACHING would give it up at once
+			const float hx = units_.pos_x[t] - units_.anchor_x[h], hz = units_.pos_z[t] - units_.anchor_z[h];
+			if (hx * hx + hz * hz > (range + vision * 0.5f) * (range + vision * 0.5f)) continue;
+		}
+		best_d2 = d2;
+		best = units_.id[t];
 	}
 	return best;
 }
@@ -16350,6 +16431,19 @@ void Simulation::tick_heal(size_t h) {
 		d2 = dx * dx + dz * dz;
 		// ShouldAbandonChase: an automatic target that wanders out of sight is dropped.
 		if (!forced && d2 > vision * vision) keep = false;
+		// HEALING OutOfRange / APPROACHING: a healer standing its ground doesn't follow (Order.Heal),
+		// a defensive one only as far as its held position allows (CheckTargetDistanceFromHeldPosition).
+		// A guard keeps healing the unit it guards.
+		auto q = order_queues_.find(units_.id[h]);
+		const bool charge = q != order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_GUARD &&
+				q->second.front().target == units_.id[t];
+		const float range = healer_range_of(h);
+		if (!forced && !charge && units_.stance[h] == STANCE_STAND_GROUND && d2 > range * range) keep = false;
+		if (!forced && !charge && units_.stance[h] == STANCE_DEFENSIVE) {
+			const float hx = units_.pos_x[t] - units_.anchor_x[h], hz = units_.pos_z[t] - units_.anchor_z[h];
+			const float lim = range + vision * 0.5f;
+			if (hx * hx + hz * hz > lim * lim) keep = false;
+		}
 	}
 	if (!keep) { // FINDINGNEWTARGET
 		units_.target_unit_id[h] = 0;
@@ -16359,7 +16453,10 @@ void Simulation::tick_heal(size_t h) {
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(h); return; }
 		const uint32_t next = find_heal_target(h);
 		if (next != 0) start_heal(h, next, 0);
-		else set_order(h, ORDER_NONE, 0, 0, units_.pos_x[h], units_.pos_z[h]);
+		else {
+			set_order(h, ORDER_NONE, 0, 0, units_.pos_x[h], units_.pos_z[h]);
+			walk_to_held_position(h);
+		}
 		return;
 	}
 	units_.order_x[h] = units_.pos_x[t];
@@ -28716,6 +28813,7 @@ void Simulation::set_circular_map(bool on) {
 	los_.set_circular(on);
 	rebuild_revealed_fow();
 	if (was != circular_map() && !nav_grid_.cells.blank()) rebuild_nav_grid(); // the edge's navcells
+	if (was != circular_map()) territory_roots_.clear(); // the territory cost grid's edge band
 }
 
 void Simulation::rebuild_revealed_fow() {
@@ -29150,6 +29248,11 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	// The victim's UnitAI "Attacked", as for any attacker: soldiers turn on the animal
 	// (tick_hunters fights it), women and other passive units flee.
 	respond_to_attacker(u, fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], true);
+	// Guard.js OnAttacked: its guards go for the animal too.
+	for (size_t k = 0; k < units_.count; ++k)
+		if (units_.alive[k] && units_.order_kind[k] == ORDER_GUARD && units_.action_state[k] == ACTION_GUARD &&
+				units_.order_target[k] == units_.id[u])
+			guard_answer(k, u, fauna_.id[f]);
 }
 
 // An animal's Attack/Melee lands on a player's livestock, against the livestock's resistance.

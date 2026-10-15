@@ -3423,6 +3423,7 @@ private:
 	// rebuild_territory_grids() scratch: CalculateCostGrid's tile costs and CalculateTerritories'
 	// per-structure, per-player and best weights, flood queue and the tiles one structure reached.
 	static constexpr uint8_t TERRITORY_IMPASSABLE_COST = 4; // territorymanager.xml ImpassableCost
+	static constexpr uint8_t TERRITORY_OFF_WORLD_COST = 255; // CCmpTerritoryManager: past the map edge
 	Grid<uint8_t> territory_cost_;
 	std::vector<uint32_t> territory_entity_w_, territory_player_w_, territory_best_w_, territory_open_, territory_touched_;
 	int territory_roots_res_ = 0;
@@ -3529,6 +3530,8 @@ private:
 	void deposit_carry(size_t i);
 	void finish_order(size_t i, bool find_new_target = false);
 	void resume_order(size_t i);
+	bool guard_keeps_target(size_t i, size_t t) const;
+	void guard_answer(size_t i, size_t g, uint32_t attacker);
 	void walk_to_held_position(size_t i);
 	void find_targets_then_walk_back(size_t i);
 	void respond_to_attack(size_t i);

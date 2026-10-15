@@ -2711,6 +2711,21 @@ void RtsoMain::_on_selection_group_clicked(int key) {
 // makePrimarySelectionGroup (keep only the group) or removeFromSelectionGroup (drop it).
 void RtsoMain::select_group(int key, bool drop) {
 	if (!sim) return;
+	// Structure groups (civ and type) keep or drop those structures; keeping one group drops
+	// everything else, units included.
+	std::vector<uint32_t> structs = selected_structures(), kept_structs;
+	for (uint32_t id : structs)
+		for (const auto &b : sim->buildings())
+			if (b.id == id) {
+				const bool in_group = RtsoSelectionGrid::structure_key(b.civ, b.type) == key;
+				if (in_group != drop) kept_structs.push_back(id);
+				break;
+			}
+	if (kept_structs != structs) set_selected_structures(kept_structs);
+	if (RtsoSelectionGrid::is_structure_key(key)) {
+		if (!drop) selected_ids.clear();
+		return;
+	}
 	auto uview = sim->units();
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s) {
