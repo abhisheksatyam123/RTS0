@@ -970,6 +970,9 @@ public:
 	// circle): the parabolic reach of `range` fired from y_origin above the ground at (x, z),
 	// averaged over 16 directions of the terrain around it.
 	float average_elevation_range(float x, float z, float range, float y_origin) const;
+	// The same reach along one direction (ux, uz), as a unit's GetElevationAdaptedRange at
+	// angle 0 takes the range in front of it.
+	float elevation_range_toward(float x, float z, float ux, float uz, float range, float y_origin) const;
 	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
 	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
 	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
@@ -1032,6 +1035,12 @@ public:
 	};
 	UnitDetails unit_details(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
+	// GarrisonHolder.OccupiedSlots of a ship or siege engine, and IsAllowedToGarrison for one unit.
+	int get_transport_occupied(uint32_t transport_id) const {
+		auto it = transport_passengers_.find(transport_id);
+		return it == transport_passengers_.end() ? 0 : occupied_slots(it->second);
+	}
+	bool can_board_unit(uint32_t transport_id, uint32_t unit_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
@@ -1434,6 +1443,16 @@ public:
 		market_b = it->second.second;
 		auto lit = trader_leg_.find(unit_id);
 		leg = lit == trader_leg_.end() ? 0 : lit->second;
+		return true;
+	}
+	// Trader.js goods.amount: the gains of the goods a trader carries, worked out when they were
+	// loaded. False while it carries none.
+	bool trader_goods(uint32_t unit_id, TradeGain &out) const {
+		auto it = trader_goods_.find(unit_id);
+		if (it == trader_goods_.end()) return false;
+		const int32_t u = lookup_unit(unit_id);
+		if (u < 0 || units_.carry[u] <= 0) return false;
+		out = it->second;
 		return true;
 	}
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
@@ -2292,7 +2311,6 @@ private:
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
 	}
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
-	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
 	void tick_pack(float dt);
 	// Formation.js port (formation.h): controllers walk, members follow their slots.
@@ -3036,6 +3054,15 @@ private:
 	struct PetraBaseDropsiteCheck { uint32_t anchor_id; PetraDropsiteCheck check; };
 	std::vector<PetraBaseDropsiteCheck> petra_base_dropsite_checks_;
 	float petra_econ_timer_ = 0.0f;
+	// GetCurrentGatherRates and queueManager wantedGatherRates as petra_manage_economy found them
+	// this AI turn, for the trade manager (setTradingGoods, performBarter) later in the same turn.
+	// Not saved: the economy recomputes them before every use (petra_rates_this_turn).
+	float petra_cur_rate_[RES_COUNT] = {}, petra_want_rate_[RES_COUNT] = {};
+	uint32_t petra_rates_stamp_ = 0;
+	uint32_t petra_rates_key() const { return (petra_played_turn() << 4) | (uint32_t)(petra_pid_ + 1); }
+	bool petra_rates_this_turn() const { return petra_rates_stamp_ == petra_rates_key(); }
+	// headquarters.js pickMostNeededResources over those rates.
+	static void petra_most_needed(const float want_rate[RES_COUNT], const float cur_rate[RES_COUNT], uint8_t out[RES_COUNT]);
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
 	float petra_scout_timer_ = 0.0f;

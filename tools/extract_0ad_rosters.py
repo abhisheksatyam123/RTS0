@@ -279,7 +279,8 @@ ONE_CELL = {"BLD_SIEGE_WALL", "BLD_SIEGE_WALL_GATE"}
 # Civ structures named by Identity/SpecificName rather than a GenericName they share.
 SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC", "BLD_INN", "BLD_WAREHOUSE"}
 # Structures no Builder list names: only an Upgrade reaches them.
-UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
+# (Carthage lays its apartment directly too: mixins/builder.xml lists {civ}/apartment.)
+UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL",
                 "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE", "BLD_SIEGE_WALL_GATE",
                 "BLD_WAGON_ENCAMPMENT_FORTIFIED"}
 # Generic structures (structures/<stem>.xml) in UNIQUE_BUILDINGS -> the generic BuildingType
