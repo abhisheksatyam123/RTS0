@@ -940,6 +940,8 @@ void RtsoMain::_process(double delta) {
 		if (auth == rtso::ARC_PASSWORD_INVALID) lobby_status->set_text("Wrong password");
 		else if (auth == rtso::ARC_BANNED) lobby_status->set_text("You have been banned from this game");
 		else if (net_host_.disconnectReason() == rtso::NDR_SERVER_FULL) lobby_status->set_text(tr("Server full."));
+		else if (net_host_.disconnectReason() == rtso::NDR_LOBBY_AUTH_FAILED)
+			lobby_status->set_text(tr("Secure lobby authentication failed. Join via lobby."));
 		else if (net_host_.disconnectReason() == rtso::NDR_PLAYERNAME_IN_USE)
 			lobby_status->set_text(tr("Player name in use. If you were disconnected, retry in few seconds."));
 		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_PROTOCOL_VERSION)

@@ -30,11 +30,16 @@ behind a small JSON API:
   POST /subject   {token, subject}       a moderator sets the room subject
   GET  /rooms                            -> {rooms: [...]}, without host_ip and host_port: as in
                                          0 A.D.'s game list, nobody learns a host's address from it
-  POST /rooms/connect {token, id}        -> {host_ip, host_port}: the address a signed-in joiner
-                                         connects to (0 A.D. sends a joiner the connection data
-                                         on request, XmppClient SendIqGetConnectionData); one
+  POST /rooms/connect {token, id}        -> {host_ip, host_port, ticket}: the address a signed-in
+                                         joiner connects to (0 A.D. sends a joiner the connection
+                                         data on request, XmppClient SendIqGetConnectionData); one
                                          behind the host's public address learns the LAN one
-                                         from /rooms/punch
+                                         from /rooms/punch. ticket goes to the host with the
+                                         joiner's authentication
+  POST /rooms/ticket {token, id, ticket} -> {name}: the host redeems a joiner's ticket (once, within
+                                         60 s) for the joiner's lobby name, as 0 A.D.'s host learns
+                                         it from the lobby (LobbyAuth iq, NetServer OnLobbyAuth);
+                                         404 for a ticket the lobby never gave for that game
   POST /rooms     {id, host_ip, host_port, players, max_players, map_id,
                    name, host_name, map_name, victory, state, password,
                    map_type, map_size, start_time, player_names}
@@ -108,7 +113,9 @@ STATUSES = ("available", "away", "playing")
 ROOM_STATES = ("init", "running")
 PUNCH_KEEP = 16         # joiner endpoints kept per game
 PUNCH_TIMEOUT = 30.0    # seconds a joiner endpoint stays listed
-PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port", "base", "owner", "poster_ip")
+PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port", "base", "owner", "poster_ip",
+                     "tickets")
+TICKET_TIMEOUT = 60.0   # seconds a joiner's lobby ticket stays redeemable
 LISTED_HIDDEN_KEYS = PRIVATE_ROOM_KEYS + ("host_ip", "host_port")
 STUN_MAGIC_COOKIE = 0x2112A442
 
@@ -523,12 +530,29 @@ class Lobby:
         """A game's address, only for a signed-in joiner (0 A.D. XmppClient
         SendIqGetConnectionData; the host's own checks, the password and its
         bans, stay at the game socket)."""
-        if not self.player(data.get("token")):
+        p = self.player(data.get("token"))
+        if not p:
             return 401, {"error": "not signed in"}
         room = next((r for r in self.rooms if r["id"] == str(data.get("id"))), None)
         if not room:
             return 404, {"error": "no such game"}
-        return 200, {"host_ip": room["host_ip"], "host_port": room["host_port"]}
+        now = self.clock()
+        tickets = {t: v for t, v in room["tickets"].items() if now - v["time"] <= TICKET_TIMEOUT}
+        ticket = secrets.token_hex(16)
+        tickets[ticket] = {"name": p["name"], "time": now}
+        room["tickets"] = dict(list(tickets.items())[-64:])
+        return 200, {"host_ip": room["host_ip"], "host_port": room["host_port"], "ticket": ticket}
+
+    def redeem_ticket(self, data, peer_ip="127.0.0.1"):
+        """The joiner a ticket was given to, for the host of its game only;
+        a ticket counts once."""
+        room = self._own_room(str(data.get("id")), self._owner(data.get("token")), peer_ip)
+        if not room:
+            return 404, {"error": "no such game"}
+        t = room["tickets"].pop(str(data.get("ticket") or ""), None)
+        if not t or self.clock() - t["time"] > TICKET_TIMEOUT:
+            return 404, {"error": "unknown ticket"}
+        return 200, {"name": t["name"]}
 
     def register(self, data, peer_ip="127.0.0.1"):
         """Registers a game, or updates the fields a host sends again (a field
@@ -570,6 +594,7 @@ class Lobby:
             "local_ip": field("local_ip", "", str)[:64],
             "local_port": field("local_port", 0, int),
             "punch": old.get("punch", []),
+            "tickets": old.get("tickets", {}),
             "next_punch": old.get("next_punch", 1),
             "seen": self.clock(),
         }
@@ -681,6 +706,8 @@ class LobbyHandler(BaseHTTPRequestHandler):
                     code, obj = LOBBY.add_punch(data)
                 elif path == "/rooms/connect":
                     code, obj = LOBBY.connect(data)
+                elif path == "/rooms/ticket":
+                    code, obj = LOBBY.redeem_ticket(data, self.client_address[0])
                 elif path == "/rooms/unregister":
                     code, obj = LOBBY.unregister(data.get("id"), data.get("token"), self.client_address[0])
                 elif path == "/login":

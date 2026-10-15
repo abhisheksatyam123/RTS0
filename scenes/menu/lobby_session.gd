@@ -248,6 +248,26 @@ func host_game(game: Dictionary) -> void:
 	post_json("/rooms", _signed(room))
 
 
+## 0 A.D. lobby authentication (XmppClient LobbyAuth, NetServer
+## OnLobbyAuth): the host asks the lobby whose ticket a joiner sent, and the
+## match checks that name against the one the joiner gave. An unknown ticket,
+## or an unreachable lobby, answers "".
+func verify_join(peer: int, ticket: String) -> void:
+	var answer := func(name: String) -> void:
+		var m := _match_node()
+		if m != null and m.has_method("net_lobby_auth_result"):
+			m.net_lobby_auth_result(peer, ticket, name)
+	if ticket == "" or token == "":
+		answer.call("")
+		return
+	# A saved game hosted from the lobby is listed by the match itself, as
+	# room-<port> (main_node _on_lobby_host_pressed).
+	var rid := str(room.get("id", "room-%d" % int(get_node("/root/MatchSettings").net_port)))
+	post_json("/rooms/ticket", {"token": token, "id": rid, "ticket": ticket},
+		func(code: int, obj) -> void:
+			answer.call(str(obj.get("name", "")) if code == 200 and obj is Dictionary else ""))
+
+
 # The game this player joins from the list ("" for a typed address, which
 # 0 A.D. joins directly, with no STUN).
 func join_game(room_id: String) -> void:

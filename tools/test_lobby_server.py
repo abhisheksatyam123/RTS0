@@ -110,7 +110,10 @@ def test_http():
     check(call("/chat?since=0")[1]["messages"][-1]["text"] == "gg", "HTTP chat history")
     check(call("/rooms", {"id": "r", "host_port": 20601, "name": "Test"})[0] == 201, "HTTP register")
     check(call("/rooms/")[1]["rooms"][0]["name"] == "Test", "HTTP game list")
-    check(call("/rooms/connect", {"token": me["token"], "id": "r"})[1].get("host_port") == 20601, "HTTP connect")
+    code, conn = call("/rooms/connect", {"token": me["token"], "id": "r"})
+    check(conn.get("host_port") == 20601, "HTTP connect")
+    check(call("/rooms/ticket", {"id": "r", "ticket": conn.get("ticket")}) == (200, {"name": "carol"}),
+          "HTTP ticket redeemed by the game's host")
     check(call("/players")[1]["players"] == [{"name": "carol", "status": "available"}], "HTTP players")
     check(call("/rooms/punch", {"token": me["token"], "id": "r", "ip": "127.0.0.1", "port": 40000})[0] == 200, "HTTP punch")
     check(call("/rooms/punch?id=r&since=0")[1]["endpoints"][0]["port"] == 40000, "HTTP punch list")
@@ -220,6 +223,38 @@ def test_room_owners():
           [r["id"] for r in lb.room_list()[1]["rooms"]] == ["room-20595"], "a host removes its own game")
 
 
+def test_tickets():
+    """0 A.D. lobby authentication: the host learns a joiner's lobby name from
+    the lobby (LobbyAuth iq), here by redeeming the ticket /rooms/connect gave."""
+    now = [1000.0]
+    lb = lobby_server.Lobby(timeout=600.0, clock=lambda: now[0])
+    host = lb.login("host")[1]["token"]
+    lb.register({"token": host, "id": "room-20595", "host_port": 20595}, "198.51.100.1")
+    bob = lb.login("Bob")[1]["token"]
+    t1 = lb.connect({"token": bob, "id": "room-20595"})[1]["ticket"]
+    t2 = lb.connect({"token": bob, "id": "room-20595"})[1]["ticket"]
+    check(t1 != t2, "every ask gets a new ticket")
+    check("tickets" not in lb.room_list()[1]["rooms"][0], "tickets stay out of the game list")
+    mallory = lb.login("mallory")[1]["token"]
+    check(lb.redeem_ticket({"token": mallory, "id": "room-20595", "ticket": t1}, "192.0.2.66")[0] == 404,
+          "only the game's host redeems its tickets")
+    check(lb.redeem_ticket({"token": host, "id": "room-20595", "ticket": t1}, "198.51.100.1") == (200, {"name": "Bob"}),
+          "the host learns the ticket's lobby name")
+    check(lb.redeem_ticket({"token": host, "id": "room-20595", "ticket": t1}, "198.51.100.1")[0] == 404,
+          "a ticket counts once")
+    check(lb.redeem_ticket({"token": host, "id": "room-20595", "ticket": "made-up"}, "198.51.100.1")[0] == 404,
+          "a ticket the lobby never gave is unknown")
+    lb.register({"token": host, "id": "room-20595", "players": 2}, "198.51.100.1")
+    now[0] += lobby_server.TICKET_TIMEOUT + 1
+    check(lb.redeem_ticket({"token": host, "id": "room-20595", "ticket": t2}, "198.51.100.1")[0] == 404,
+          "a heartbeat keeps tickets, but they expire")
+    lb.register({"id": "room-20600", "host_port": 20600}, "203.0.113.5")  # a saved game's own post, no token
+    t3 = lb.connect({"token": bob, "id": "room-20600"})[1]["ticket"]
+    other = lb.login("other")[1]["token"]
+    check(lb.redeem_ticket({"token": other, "id": "room-20600", "ticket": t3}, "203.0.113.5") == (200, {"name": "Bob"}),
+          "a game posted without a token is the host's at its address")
+
+
 def test_player_states():
     """LobbyGamelistReporter: a running game's players carry State and Offline."""
     out = lobby_server._player_names([{"name": "alice", "state": "won"}, {"name": "bob", "state": "defeated", "offline": 1},
@@ -267,8 +302,9 @@ def test_punch():
     check("host_ip" not in room and "host_port" not in room, "so does its public address")
     check(lb.connect({"id": "g"})[0] == 401, "only a signed-in player is told a game's address")
     check(lb.connect({"token": tok, "id": "nope"})[0] == 404, "an unknown game has no address")
-    check(lb.connect({"token": tok, "id": "g"}) == (200, {"host_ip": "198.51.100.4", "host_port": 40001}),
-          "a signed-in joiner is told the game's address")
+    code, obj = lb.connect({"token": tok, "id": "g"})
+    check(code == 200 and (obj["host_ip"], obj["host_port"]) == ("198.51.100.4", 40001) and len(obj["ticket"]) == 32,
+          "a signed-in joiner is told the game's address, with a ticket")
     check(lb.add_punch({"token": tok, "id": "nope", "ip": "203.0.113.9", "port": 5})[0] == 404, "a punch needs a game")
     check(lb.add_punch({"token": tok, "id": "g", "ip": "", "port": 5})[0] == 400, "a punch needs an endpoint")
     check(lb.add_punch({"token": tok, "id": "g", "ip": "203.0.113.9", "port": 51000}) == (200, {}),
@@ -337,6 +373,7 @@ if __name__ == "__main__":
     test_accounts()
     test_object()
     test_room_owners()
+    test_tickets()
     test_moderation()
     test_player_states()
     test_punch()
