@@ -113,6 +113,9 @@ const MENU_HOTKEYS := {"structree": "open_tech_tree", "civinfo": "open_encyclope
 var _hotkeys := RtsoHotkeyConfig.new()
 
 func _ready() -> void:
+	# menupanel.xml tooltip_style="pgToolTip": the fixed top-right panel, at once.
+	main_panel.set_meta("tooltip_style", "pg")
+	submenu_panel.set_meta("tooltip_style", "pg")
 	# Randomize starting civ background or default to hellenes
 	current_bg_index = randi() % BG_KEYS.size()
 	_setup_background(BG_KEYS[current_bg_index])
