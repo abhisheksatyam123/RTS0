@@ -617,6 +617,8 @@ public:
 	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
 	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
 	void _on_chat_text_submitted(const String &text);
+	void _on_chat_input_gui(const Ref<InputEvent> &event);
+	std::vector<String> chat_autocomplete_names() override;
 	void _on_chat_channel_btn_pressed(int channel_idx);
 
 	void toggle_diplomacy();
@@ -810,7 +812,13 @@ public:
 	// input.js: session.flare held arms a flare, never in a replay (!g_IsReplay).
 	bool flare_held() const;
 	void refresh_chat_tooltips();
-	Dictionary debug_chat_tooltips() const { Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip(); return d; }
+	Dictionary debug_chat_tooltips() {
+		Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip();
+		PackedStringArray names;
+		for (const String &n : chat_autocomplete_names()) names.push_back(n);
+		d["names"] = names;
+		return d;
+	}
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -922,6 +930,7 @@ private:
 	void play_civ_voice(const char *action);
 	void update_music_state();
 	Dictionary get_audio_state() const;
+	bool debug_combat_sound(float x, float z) { return sim && session_audio_.debug_combat_sound(sim, local_player(), x, z); }
 	rtso::RtsoMusic music_;
 	rtso::RtsoSessionAudio session_audio_;
 	uint8_t music_civ_ = 0xFF;

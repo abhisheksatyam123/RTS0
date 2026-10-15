@@ -9,6 +9,8 @@
 #include "sim_types.h"
 #include <charconv>
 #include <cmath>
+#include <cstdlib>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -146,7 +148,14 @@ inline WallElementName wall_element_name(std::string_view s) {
 		}
 	auto number = [](std::string_view v) {
 		double d = 0.0;
+#if defined(_LIBCPP_VERSION) && !defined(__cpp_lib_to_chars)
+		// Older libc++ (Android NDK, Apple) has no floating from_chars; strtod is
+		// correctly rounded too, and native code runs in the "C" locale.
+		std::string z(v);
+		d = std::strtod(z.c_str(), nullptr);
+#else
 		std::from_chars(v.data(), v.data() + v.size(), d);
+#endif
 		return d;
 	};
 	if (s.starts_with("gap_")) {
