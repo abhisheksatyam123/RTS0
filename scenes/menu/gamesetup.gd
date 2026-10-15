@@ -25,6 +25,7 @@ const AIConfig = preload("res://scenes/menu/ai_config.gd")
 # The slot grid: name, kind, civ, team, AI gear, colour.
 const SLOT_COLUMNS := 6
 
+const RefCommon := preload("res://scenes/reference/reference_common.gd")
 const CIVS := [
 	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
 	{"id": 1, "code": "spart", "name": "Spartans", "emblem": "res://assets/textures/ui/emblems/spartans.png", "blurb": "Agoge: +35% HP and +25% melee for citizen-soldiers and champions."},
@@ -247,6 +248,14 @@ const START_RES_AMOUNTS := [100, 300, 500, 1000, 3000, 50000]
 const DEFAULT_MAP_SIZE := 2
 const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Normal (256 m)"],
 	[320, "Medium (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
+# map_sizes.json Tooltip, index == MAP_SIZES.
+const MAP_SIZE_TIPS := ["This map size has barely any room for even the most basic resources.",
+	"Small maps are suitable for 1v1 matches, as players can reach the enemy quickly while still having some room to expand.",
+	"This map size provides plenty of space for two players, but even eight players fit.",
+	"This is the ideal mapsize for 4 to 8 players, because there is plenty of space to expand while the neighbors are quickly reachable.",
+	"The large mapsize is recommended when great portions of the map are covered with water or inaccessible mountains.",
+	"Very large maps are not recommended as it takes very long to reach the enemy and the game performance can be reduced.",
+	"Giant maps are not recommended as it takes very long to reach the enemy and the game performance can be reduced."]
 
 # Index == rtso::VictoryCondition id (sim_types.h).
 const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
@@ -633,6 +642,7 @@ func _build_map_type() -> void:
 	var t := _make_option(%MapTypeSlot)
 	for mt in MAP_TYPES:
 		t.add_item(mt[1])
+		t.set_item_tooltip(t.get_item_count() - 1, tr(mt[2])) # MapType: g_MapTypes.Description
 	t.select(0)
 	_update_map_type_tooltip()
 	t.item_selected.connect(_on_map_type_selected)
@@ -686,6 +696,7 @@ func _rebuild_map_filter() -> void:
 	for flt in available_filters(_maps, _map_type):
 		_filter_names.append(flt[0])
 		f.add_item(flt[1])
+		f.set_item_tooltip(f.get_item_count() - 1, tr(flt[2])) # MapFilter: Description
 	if not _filter_names.has(_map_filter_name):
 		_map_filter_name = _filter_names[0] if not _filter_names.is_empty() else "default"
 	var shown := not _filter_names.is_empty()
@@ -1236,11 +1247,13 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var civ := _make_option(civ_slot)
 	# 0.28 PlayerCiv.getItems: Random first, then the civs by name.
 	civ.add_item("Random")
+	civ.set_item_tooltip(0, tr("Picks one civilization at random when the game starts."))
 	for ci in _civ_order():
 		var c: Dictionary = CIVS[ci]
 		var emblem: Texture2D = load(c["emblem"])
 		if emblem: civ.add_icon_item(emblem, c["name"])
 		else: civ.add_item(c["name"])
+		civ.set_item_tooltip(civ.get_item_count() - 1, RefCommon.civ_history(int(c["id"]))) # PlayerCiv: g_CivData History
 	var civ_pos := _civ_pos(int(row["civ"]))
 	civ.select(_civ_order().find(civ_pos) + 1 if civ_pos >= 0 else 0)
 	civ.disabled = _map_civ(_map_player(i)) >= 0
@@ -1413,10 +1426,12 @@ func _build_options() -> void:
 	var msz := _make_option(%MapSizeSlot)
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
+		msz.set_item_tooltip(msz.get_item_count() - 1, tr(MAP_SIZE_TIPS[msz.get_item_count() - 1]))
 	msz.select(DEFAULT_MAP_SIZE)
 	var popt := _make_option(%PopCapTypeSlot)
 	for t in POP_CAP_TYPES:
 		popt.add_item(tr(t[1]))
+		popt.set_item_tooltip(popt.get_item_count() - 1, tr(t[2])) # PopulationCapType: Tooltip
 	popt.select(POP_TYPE_PLAYER)
 	popt.tooltip_text = tr("Select a population capacity type.")
 	popt.item_selected.connect(_on_pop_type_selected)
@@ -1468,6 +1483,8 @@ func _build_options() -> void:
 	var res := _make_option(%ResSlot)
 	for r in START_RES:
 		res.add_item(r)
+		# StartingResources.HoverTooltip
+		res.set_item_tooltip(res.get_item_count() - 1, tr("Initial amount of each resource: %(resources)s.").replace("%(resources)s", str(START_RES_AMOUNTS[res.get_item_count() - 1])))
 	res.select(1)
 	var bio := _make_option(%BiomeSlot)
 	bio.add_item(BIOMES[0], 0)
