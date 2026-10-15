@@ -2136,17 +2136,20 @@ void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id,
 // and `base` place the GLB's units under the root, as the decals'. Emitters with
 // world-space velocities are turned back to the world's axes; use_relative_velocity
 // ones turn with the structure.
-void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base) {
+void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, bool death) {
 	if (!v.root) return;
+	std::vector<GPUParticles3D *> &emitters = death ? v.death_fx : v.ambient_fx;
+	std::vector<Vector3> &emitter_pos = death ? v.death_pos : v.ambient_pos;
+	String &vkey = death ? v.death_key : v.ambient_key;
 	const String key = glb_id.is_empty() ? String() : glb_id + String("|") + String::num(k, 4);
-	if (key != v.ambient_key) {
-		for (GPUParticles3D *p : v.ambient_fx) {
+	if (key != vkey) {
+		for (GPUParticles3D *p : emitters) {
 			if (p->get_parent()) p->get_parent()->remove_child(p);
 			p->queue_free();
 		}
-		v.ambient_fx.clear();
-		v.ambient_pos.clear();
-		v.ambient_key = key;
+		emitters.clear();
+		emitter_pos.clear();
+		vkey = key;
 		if (key.is_empty()) return;
 		if (!ambient_fx_loaded_) {
 			ambient_fx_loaded_ = true;
@@ -2180,24 +2183,27 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 				if (force.size() == 3) d.force = Vector3((float)force[0], (float)force[1], (float)force[2]);
 				ambient_particles_[String(names[i]).utf8().get_data()] = d;
 			}
-			Dictionary structures = root.get("structures", Dictionary());
-			Array keys = structures.keys();
-			for (int i = 0; i < keys.size(); ++i) {
-				Dictionary e = structures[keys[i]];
-				AmbientFxSet set;
-				set.metre = (float)e.get("metre", 0.25);
-				Array list = e.get("fx", Array());
-				for (int j = 0; j < list.size(); ++j) {
-					Dictionary fx = list[j];
-					Array pos = fx.get("pos", Array());
-					if (pos.size() != 3) continue;
-					set.fx.push_back({ String(fx.get("p", "")).utf8().get_data(), Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
+			for (int t = 0; t < 2; ++t) {
+				Dictionary structures = root.get(t == 0 ? "structures" : "death", Dictionary());
+				Array keys = structures.keys();
+				for (int i = 0; i < keys.size(); ++i) {
+					Dictionary e = structures[keys[i]];
+					AmbientFxSet set;
+					set.metre = (float)e.get("metre", 0.25);
+					Array list = e.get("fx", Array());
+					for (int j = 0; j < list.size(); ++j) {
+						Dictionary fx = list[j];
+						Array pos = fx.get("pos", Array());
+						if (pos.size() != 3) continue;
+						set.fx.push_back({ String(fx.get("p", "")).utf8().get_data(), Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
+					}
+					(t == 0 ? ambient_fx_ : death_fx_)[String(keys[i]).utf8().get_data()] = set;
 				}
-				ambient_fx_[String(keys[i]).utf8().get_data()] = set;
 			}
 		}
-		const auto it = ambient_fx_.find(building_table_key(glb_id));
-		if (it == ambient_fx_.end()) return;
+		const auto &table = death ? death_fx_ : ambient_fx_;
+		const auto it = table.find(building_table_key(glb_id));
+		if (it == table.end()) return;
 		const AmbientFxSet &set = it->second;
 		const float m = set.metre * k; // world units per 0 A.D. metre
 		for (const AmbientFx &fx : set.fx) {
@@ -2288,14 +2294,14 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 			}
 			p->set_meta("relative", d.relative);
 			v.root->add_child(p);
-			v.ambient_fx.push_back(p);
-			v.ambient_pos.push_back(fx.pos + Vector3(mid(d.pos[0]), mid(d.pos[1]), mid(d.pos[2])) * set.metre);
+			emitters.push_back(p);
+			emitter_pos.push_back(fx.pos + Vector3(mid(d.pos[0]), mid(d.pos[1]), mid(d.pos[2])) * set.metre);
 		}
 	}
 	const Basis unturn = v.root->get_transform().basis.inverse();
-	for (size_t i = 0; i < v.ambient_fx.size(); ++i) {
-		GPUParticles3D *p = v.ambient_fx[i];
-		const Transform3D t(bool(p->get_meta("relative")) ? Basis() : unturn, base + v.ambient_pos[i] * k);
+	for (size_t i = 0; i < emitters.size(); ++i) {
+		GPUParticles3D *p = emitters[i];
+		const Transform3D t(bool(p->get_meta("relative")) ? Basis() : unturn, base + emitter_pos[i] * k);
 		if (p->get_transform() != t) p->set_transform(t);
 	}
 }
@@ -3982,6 +3988,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				update_ambient_fx(v, visual_id, rubble_k, Object::cast_to<Node3D>(v.model) ? Object::cast_to<Node3D>(v.model)->get_position() : rubble_pos);
 			else
 				update_ambient_fx(v, String(), 1.0f, Vector3());
+			// The "death" variant's dust and smoke (destruction_{small,medium,large}.xml)
+			// rise while the corpse sinks: template_structure.xml Decay sinks it at
+			// 3 m/s plus 9.8 m/s², about 2 s for a structure 15-30 m tall; the
+			// puffs then live out their lifetimes (up to 15 s).
+			static constexpr float DEATH_EMIT = 2.0f, DEATH_END = DEATH_EMIT + 15.0f;
+			if ((v.phase == 3 || v.phase == 4) && v.phase_t < DEATH_END) {
+				const auto &own = rtso::ModelLibrary::get(cat_b, mid);
+				update_ambient_fx(v, mid, own.scale > 0.05f ? own.scale : 1.0f, Vector3(0.0f, own.y_offset, 0.0f), true);
+				if (v.phase_t >= DEATH_EMIT)
+					for (GPUParticles3D *p : v.death_fx)
+						if (p->is_emitting()) p->set_emitting(false);
+			} else {
+				update_ambient_fx(v, String(), 1.0f, Vector3(), true);
+			}
 		}
 
 		{
@@ -4106,6 +4126,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].ambient_fx.clear();
 			building_pool[s].ambient_pos.clear();
 			building_pool[s].ambient_key = String();
+			building_pool[s].death_fx.clear();
+			building_pool[s].death_pos.clear();
+			building_pool[s].death_key = String();
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}
@@ -4165,7 +4188,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	const auto &fres = mirages_.resources();
 	size_t n_tree = 0, fd = 0, nru = 0, fish_n = 0, n_mine[MINE_KINDS] = {};
 	if (sim->current_map_biome() != mine_biome_) pick_mine_models(sim->current_map_biome());
-	if (sim->game_time() < mine_large_time_ || sim->current_map_id() != mine_large_map_) mine_large_.clear();
+	if (sim->game_time() < mine_large_time_ || sim->current_map_id() != mine_large_map_) {
+		mine_large_.clear();
+		supply_max_.clear();
+		auto rv = sim->resources();
+		for (size_t r = 0; r < rv.count; ++r)
+			if (rv.alive[r]) supply_max_.emplace(rv.id[r], rv.amount[r]);
+	}
 	mine_large_time_ = sim->game_time();
 	mine_large_map_ = sim->current_map_id();
 	auto mine_of = [&](const rtso::FoggedResource &r) -> int {
@@ -4419,6 +4448,46 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				st.health_color = fview.owner[f] == local_player_ ? Color(0.2f, 0.95f, 0.3f, 0.95f) : Color(0.95f, 0.25f, 0.2f, 0.95f);
 			}
 			draw_status_stack(sim, Vector3(fx, fy + fent.y_offset + fent.aabb.size.y * fsc + 0.3f, fz), 0.9f, 0.08f, st);
+		}
+	}
+	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and
+	// StatusBars.js ResourceSupply bar.
+	if (!highlight_set_.empty()) {
+		for (const auto &r : mirages_.resources()) {
+			if (r.subtype == rtso::RES_SUB_GRAIN || !highlight_set_.count((int32_t)r.id)) continue;
+			const float ry = r.subtype == rtso::RES_SUB_FISH ? std::max(sim->get_terrain_height(r.x, r.z), drawn_water_height(sim))
+			                                                : sim->get_terrain_height(r.x, r.z);
+			// The StatusBars of template_gaia (2 m wide, 0.333 m tall, 5 m up), _tree,
+			// _fruit, _fish and _ore/_rock_large, at 4 m a unit.
+			const bool mine = (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) && r.subtype != rtso::RES_SUB_RUINS;
+			float radius = 0.7f, bar_w = 2.0f, bar_h = 0.333f, offset = 5.0f;
+			if (mine) {
+				auto it = mine_large_.find(r.id);
+				const bool large = it != mine_large_.end() && it->second;
+				radius = large ? 2.2f : 1.3f;
+				if (large) bar_w = 5.0f, bar_h = 0.5f;
+			} else if (r.type == rtso::RES_WOOD) {
+				bar_w = 3.0f, bar_h = 0.5f, offset = 10.0f;
+			} else if (r.subtype == rtso::RES_SUB_FISH) {
+				radius = 1.0f, bar_w = 4.0f, bar_h = 0.666f;
+			} else if (r.type == rtso::RES_FOOD) {
+				bar_w = 3.0f, bar_h = 0.5f, offset = 4.0f;
+			}
+			if (rings_used == fauna_rings_.size()) {
+				MeshInstance3D *m = memnew(MeshInstance3D);
+				m->set_mesh(ring_mesh);
+				add_child(m);
+				fauna_rings_.push_back(m);
+			}
+			MeshInstance3D *ring = fauna_rings_[rings_used++];
+			if (ring->get_material_override() != ring_hl_mat) ring->set_material_override(ring_hl_mat);
+			const float rs = 2.0f * radius;
+			ring->set_transform(Transform3D(Basis().scaled(Vector3(rs, 0.12f, rs)), Vector3(r.x, ry + 0.04f, r.z)));
+			ring->set_visible(true);
+			const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
+			StatusStack st;
+			st.supply = max > 0 ? (float)r.amount / (float)max : 1.0f;
+			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, st);
 		}
 	}
 	for (size_t k = rings_used; k < fauna_rings_.size(); ++k) fauna_rings_[k]->set_visible(false);

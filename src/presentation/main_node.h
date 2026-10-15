@@ -363,6 +363,16 @@ public:
 	void quicksave();
 	void quickload();
 	void show_notice(const String &text);
+	// CLogger's rendered messages (CLogger.cpp RENDER_TIMEOUT 10 s, RENDER_LIMIT 20).
+	struct LogLine {
+		String text;
+		bool error;
+		uint64_t until_ms;
+	};
+	std::vector<LogLine> log_lines_;
+	RichTextLabel *log_label_ = nullptr;
+	void log_render(const String &text, bool error = false);
+	void update_log_messages(bool changed = false);
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
 	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
