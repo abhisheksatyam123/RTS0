@@ -2474,12 +2474,33 @@ static uint8_t drawn_unit_type(uint8_t utype, uint16_t tmpl, uint32_t id) {
 	return rtso::civilian_is_male(tmpl, id) ? (uint8_t)rtso::UNIT_VILLAGER : utype;
 }
 
+// The unit_template_draw_model of the wagon a template's own model packs into
+// (packed_siege_models.h), or -1.
+static int packed_draw_index(int own) {
+	static const auto table = [] {
+		std::array<int16_t, rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT> t;
+		t.fill(-1);
+		for (int k = 0; k < rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT; ++k) {
+			const char *packed = rtso::packed_siege_model(rtso::unit_template_draw_model(k));
+			for (int j = 0; packed && j < rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT; ++j)
+				if (std::strcmp(rtso::unit_template_draw_model(j), packed) == 0) t[k] = (int16_t)j;
+		}
+		return t;
+	}();
+	return own >= 0 && own < rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT ? table[own] : -1;
+}
+
 // An advanced or elite unit draws its _a or _e template's actor (0 A.D. Promotion
 // changes the template; RTS0 keeps the roster row and raises the rank).
 static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl, uint32_t id, uint8_t rank) {
 	if (rtso::civilian_is_male(tmpl, id)) return rtso::UNIT_VILLAGER;
-	if (shows_packed(pack_state) && rtso::packed_siege_model(rtso::civ_unit_model(civ, utype)))
-		return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
+	if (shows_packed(pack_state)) {
+		// A siege engine with its own 0.28 actor packs into that actor's wagon (Roman
+		// scorpio, ballista and onager, the Han mangonel); the rest into their class model's.
+		const int own_packed = packed_draw_index(rtso::unit_template_draw_index(tmpl));
+		if (own_packed >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + own_packed);
+		if (rtso::packed_siege_model(rtso::civ_unit_model(civ, utype))) return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
+	}
 	const int ranked = rtso::unit_template_rank_draw_index(tmpl, rank);
 	if (ranked >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + ranked);
 	if (ranked == rtso::UNIT_TEMPLATE_RANK_CLASS_MODEL) return utype;
