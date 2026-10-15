@@ -568,6 +568,8 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["chat_log"] = chat_window_.log_text();
 	d["chat_overlay"] = (int64_t)chat_window_.overlay_count();
 	d["chat_addressee"] = chat_window_.addressee_label();
+	d["chat_extended"] = chat_window_.extended();
+	d["chat_filters"] = (int64_t)chat_window_.filter_count();
 	return d;
 }
 

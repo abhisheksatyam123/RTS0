@@ -166,5 +166,28 @@ func run() -> void:
 	check(overlay_before > 0 and dlg()["chat_overlay"] == 0, "/clear empties the overlay")
 	check(dlg()["chat_log"].contains("hello there"), "and keeps the history")
 
+	print("6. History filter and the History toggle")
+	main.toggle_chat()
+	await frames(2)
+	le.text = "/allies hold the line"
+	main._on_chat_send_pressed()
+	await frames(2)
+	check(dlg()["chat_filters"] == 8, "eight filters offline, no Network notifications: %d" % dlg()["chat_filters"])
+	main._on_chat_filter_selected(1) # Chat messages
+	log = dlg()["chat_log"]
+	check(log.contains("hello there") and log.contains("hold the line") and not log.contains("Offline game!"), "Chat messages leaves the notices out")
+	main._on_chat_filter_selected(3) # Ally chat
+	log = dlg()["chat_log"]
+	check(log.contains("(Ally)") and log.contains("hold the line") and not log.contains("hello there"), "Ally chat shows only ally lines")
+	main._on_chat_filter_selected(7) # Game notifications
+	log = dlg()["chat_log"]
+	check(log.contains("Offline game!") and not log.contains("hello there"), "Game notifications shows only the notices")
+	main._on_chat_filter_selected(0)
+	check(dlg()["chat_log"].contains("hello there") and dlg()["chat_log"].contains("Offline game!"), "Chat and notifications shows everything")
+	check(dlg()["chat_extended"], "the history shows by default (chat.session.extended)")
+	main._on_chat_history_toggled(false)
+	check(not dlg()["chat_extended"], "unticking History hides it")
+	main._on_chat_history_toggled(true)
+
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

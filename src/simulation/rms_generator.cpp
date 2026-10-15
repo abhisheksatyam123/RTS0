@@ -1179,20 +1179,6 @@ void RmsGenerator::synth_gulf_of_bothnia(HeightmapGrid &hm, RmsRng &rng, float &
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
-void RmsGenerator::synth_ardennes_forest(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// ardennes_forest.js: hilly forest; distribute_neutral_resources adds
-	// extra groves for this map.
-	water_h = 0.0f;
-	hm.init(hm.res, hm.map_half, 3.0f);
-	const float half = hm.map_half;
-	hm.apply_fbm(rng, 5, 0.026f, 0.55f, 2.0f, 6.0f);
-	// No water: 0.28's script has none, and the brook RTS0 carved here cut bases
-	// off from each other once Team Placement put them on both sides of it.
-	hm.blur(1, 0.4f);
-	place_team_spawns(hm, rng, spawns, num_players, half * 0.60f, rng.range_float(0.0f, 6.2831853f), water_h + 1.5f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
-}
-
 void RmsGenerator::synth_nearestern_badlands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// neareastern_badlands.js: eroded desert with canyons and small oases.
 	water_h = 0.0f;
@@ -8554,6 +8540,119 @@ bool place_on_heightmap(HeightmapGrid &hm, RmsRng &rng, std::vector<RmsGenerator
 
 } // namespace misc_maps
 } // namespace
+
+void RmsGenerator::synth_ardennes_forest(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// ardennes_forest.js: the map starts at heightHill (50 m) and a central dip of 30 m
+	// (ClumpPlacer(diskArea(0.44 of the map)), blend 3) leaves a high rim, roughened by Noise2D(20)
+	// (+-20 m above 40 m). Players by pattern at f = 0.35. Then for clump sizes scaleByMapSize(50, 800),
+	// (50, 400), (10, 30), (10, 30): hills set to 50 m (avoiding players 8 and other hills 5), the
+	// big ones topped by +10 m clumps, and ravines set to 2 m (avoiding players 6), the biggest with
+	// 2 m and 40 m clumps inside. Last, +-5 m of the same noise, none within 13 tiles of a base.
+	using misc_maps::Noise2D;
+	water_h = -10.0f;
+	const float half = hm.map_half, size = 2.0f * half, k = kMetre;
+	const float h_valley = 2.0f * k, h_land = 30.0f * k, h_ravine_hill = 40.0f * k, h_hill = 50.0f * k, h_offset = 10.0f * k;
+	hm.init(hm.res, hm.map_half, h_hill);
+	const size_t nv = (size_t)hm.res * (size_t)hm.res;
+	const auto anywhere = [](int) { return true; };
+	auto disk = [](float r) { return kSeasPi * r * r; };
+	paint_mask_elevation(hm, seas_clump(hm, rng, disk(0.44f * size), 0.94f, 0.05f, 0.1f, 0.0f, 0.0f, anywhere), h_land, 3.0f);
+	const Noise2D noise0(rng, 20.0f);
+	auto frac = [&](int i, float &fx, float &fz) {
+		float wx, wz;
+		seas_world(hm, i, wx, wz);
+		fx = (wx + half) / (size + 1.0f);
+		fz = (wz + half) / (size + 1.0f);
+	};
+	std::vector<uint8_t> cl_hill(nv, 0);
+	for (size_t i = 0; i < nv; ++i)
+		if (hm.data[i] > h_ravine_hill) {
+			cl_hill[i] = 1;
+			float fx, fz;
+			frac((int)i, fx, fz);
+			hm.data[i] += (noise0.get(fx, fz) - 0.5f) * h_ravine_hill;
+		}
+	place_team_spawns(hm, rng, spawns, num_players, 0.35f * size, rng.range_float(0.0f, 2.0f * kSeasPi), h_land);
+	std::vector<std::pair<float, float>> locs;
+	for (const auto &s : spawns) locs.emplace_back(s.x, s.z);
+	// clPlayer is ClumpPlacer(250) round each base; the base mines sit 16 out (clBaseResource 2).
+	const auto d_player = seas_dist_to_players(hm, locs, std::sqrt(250.0f / kSeasPi));
+	const auto d_base_res = seas_dist_to_players(hm, locs, 16.0f);
+	// createAreasInAreas: centres on a random vertex of a random area.
+	auto in_areas = [&](const std::vector<std::vector<uint8_t>> &areas, float amount, int retry, const auto &place) {
+		std::vector<std::vector<int>> pts;
+		for (const auto &a : areas) {
+			pts.emplace_back();
+			for (size_t i = 0; i < a.size(); ++i) if (a[i]) pts.back().push_back((int)i);
+		}
+		int placed = 0;
+		for (int tries = 0; (float)placed < amount && (float)tries < amount * (float)retry; ++tries) {
+			const auto &p = pts[(size_t)rng.range_int(0, (int)pts.size() - 1)];
+			if (p.empty()) continue;
+			float wx, wz;
+			seas_world(hm, p[(size_t)rng.range_int(0, (int)p.size() - 1)], wx, wz);
+			if (place(wx, wz)) ++placed;
+		}
+	};
+	for (const float area : {seas_scale(50, 800, half), seas_scale(50, 400, half), seas_scale(10, 30, half), seas_scale(10, 30, half)}) {
+		auto make = [&](float h, float blend, float avoid_player, float amount) {
+			std::vector<std::vector<uint8_t>> made;
+			seas_create_areas(hm, rng, amount, 10, [&](float x, float z) {
+				const auto d_hill = seas_dist_inside(hm, cl_hill);
+				auto m = seas_clump(hm, rng, area, 0.1f, 0.2f, 0.1f, x, z, [&](int i) {
+					return d_player[(size_t)i] > avoid_player && d_base_res[(size_t)i] > 2.0f && d_hill[(size_t)i] > 5.0f;
+				});
+				if (!seas_any(m)) return false;
+				paint_mask_elevation(hm, m, h, blend);
+				seas_add(cl_hill, m);
+				made.push_back(std::move(m));
+				return true;
+			});
+			return made;
+		};
+		const auto mountains = make(h_hill, area < 50.0f ? 2.0f : 4.0f, 8.0f, seas_scale(1, 4, half));
+		if (area > 100.0f && !mountains.empty()) {
+			const auto inside = seas_dist_outside(hm, cl_hill);
+			in_areas(mountains, (float)mountains.size() * 2.0f, 20, [&](float x, float z) {
+				const auto m = seas_clump(hm, rng, area * 0.3f, 0.94f, 0.05f, 0.1f, x, z, [&](int i) { return inside[(size_t)i] > 4.0f; });
+				if (!seas_any(m)) return false;
+				seas_paint_modify(hm, m, h_offset, 3.0f);
+				return true;
+			});
+		}
+		const auto ravines = make(h_valley, 2.0f, 6.0f, seas_scale(1, 3, half));
+		if (area > 150.0f && !ravines.empty()) {
+			// The huts are actors; their clHillDeco gaps are left out.
+			in_areas(ravines, (float)ravines.size() * 2.0f, 20, [&](float x, float z) {
+				const auto m = seas_clump(hm, rng, area * 0.3f, 0.94f, 0.05f, 0.1f, x, z, [&](int i) { return cl_hill[(size_t)i] != 0; });
+				if (!seas_any(m)) return false;
+				paint_mask_elevation(hm, m, h_valley, 2.0f);
+				return true;
+			});
+			// borderClasses(clHill, 15, 1): within 15 inside or 1 outside the hills' edge.
+			in_areas(ravines, (float)ravines.size() * 2.0f, 50, [&](float x, float z) {
+				const auto in_d = seas_dist_outside(hm, cl_hill), out_d = seas_dist_inside(hm, cl_hill);
+				const auto m = seas_clump(hm, rng, area * 0.1f, 0.3f, 0.05f, 0.1f, x, z, [&](int i) {
+					return cl_hill[(size_t)i] ? in_d[(size_t)i] <= 15.0f : out_d[(size_t)i] <= 1.0f;
+				});
+				if (!seas_any(m)) return false;
+				paint_mask_elevation(hm, m, h_ravine_hill, 2.0f);
+				seas_add(cl_hill, m);
+				return true;
+			});
+		}
+	}
+	// playerNearness: 0 within 13 tiles of a base, rising to 1 at 19.
+	for (size_t i = 0; i < nv; ++i) {
+		float fx, fz, wx, wz;
+		frac((int)i, fx, fz);
+		seas_world(hm, (int)i, wx, wz);
+		float d = 1e9f;
+		for (const auto &l : locs) d = std::min(d, std::hypot(wx - l.first, wz - l.second));
+		const float pn = d < 13.0f ? 0.0f : (d < 19.0f ? (d - 13.0f) / 6.0f : 1.0f);
+		hm.data[i] += (noise0.get(fx, fz) - 0.5f) * 10.0f * k * pn;
+	}
+}
 
 void RmsGenerator::synth_mediterranean_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
 		const uint8_t *teams) {

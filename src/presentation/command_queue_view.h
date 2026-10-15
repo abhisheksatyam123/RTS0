@@ -357,14 +357,18 @@ public:
 					bool reqs_failed = false;
 					switch (rc) {
 						case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; reqs_failed = true; break;
+						// selection_panels.js: the tech's own requirementsTooltip ("Unlocked in Town
+						// Phase.", "Unlocked in City Phase. Requires “Shipwrights.”").
 						case rtso::Simulation::TECH_ERR_PHASE:
-							why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase");
+							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = String::utf8(req);
+							else why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase");
 							reqs_failed = true;
 							break;
 						case rtso::Simulation::TECH_ERR_PREREQUISITE: {
 							const uint8_t sup = rtso::tech_supersedes((uint8_t)t);
 							const bool need_prev = sup != rtso::TECH_NONE && !sim->player(local_player()).has_tech(sup);
-							why = requires_text(String::utf8(rtso::tech_info(need_prev ? sup : ti.prerequisite).name));
+							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = String::utf8(req);
+							else why = requires_text(String::utf8(rtso::tech_info(need_prev ? sup : ti.prerequisite).name));
 							reqs_failed = true;
 							break;
 						}
