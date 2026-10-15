@@ -17662,7 +17662,10 @@ void Simulation::update_petra_bases(float dt) {
 			const uint8_t diff = petra_difficulty();
 			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
 			// handleNewBase: a further base should end a resource shortage, so stop saving.
-			if (!petra_bases_.empty()) petra_attack_mgr_.save_resources = 0;
+			if (!petra_bases_.empty() && petra_attack_mgr_.save_resources) {
+				petra_attack_mgr_.save_resources = 0;
+				petra_attack_mgr_.phase2_cut_kept = 1;
+			}
 			// The territory grows: there may be room again (resetMissingRoom).
 			petra_attack_mgr_.missing_room = 0;
 			petra_bases_.push_back(new_base);
@@ -18504,11 +18507,11 @@ void Simulation::petra_assign_repairs() {
 	if (damaged.empty()) return;
 
 	const float ratio = petra_builder_ratio();
+	const std::unordered_set<uint32_t> launched = petra_launched_units();
 	int workers = 0, builders = 0;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-		const uint8_t ut = units_.unit_type[i];
-		if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN) continue;
+		if (!petra_builder_worker(i, launched)) continue;
 		++workers;
 		if (units_.action_state[i] == ACTION_BUILD) ++builders;
 	}
@@ -18539,8 +18542,7 @@ void Simulation::petra_assign_repairs() {
 		std::vector<std::pair<float, uint32_t>> near;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-			const uint8_t ut = units_.unit_type[i];
-			if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN) continue;
+			if (!petra_builder_worker(i, launched)) continue;
 			const uint8_t st = units_.action_state[i];
 			if (st != ACTION_IDLE && st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) continue;
 			if (std::find(taken.begin(), taken.end(), units_.id[i]) != taken.end()) continue;
@@ -18602,14 +18604,23 @@ void Simulation::petra_staff_foundations() {
 		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4;
 		else if (b.type == BLD_HOUSE || b.type == BLD_STOREHOUSE) want = 3;
+		// checkPhaseRequirements' phaseUp plans (7, as a fortress): the town phase's first
+		// market, temple or forge, laid while none of its kind stands.
+		const uint8_t kind = building_research_base(b.type);
+		if (petra_ps().phase == 2 && (kind == BLD_MARKET || kind == BLD_TEMPLE || kind == BLD_FORGE)) {
+			bool stands = false;
+			for (const Building &o : buildings_)
+				if (o.team == petra_pid_ && building_research_base(o.type) == kind && o.build_progress >= 1.0f && o.hp > 0.0f && !o.wrecked) { stands = true; break; }
+			if (!stands) want = 7;
+		}
 		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0});
 	}
 
+	const std::unordered_set<uint32_t> launched = petra_launched_units();
 	int workers = 0, building = 0;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-		uint8_t ut = units_.unit_type[i];
-		if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN) continue;
+		if (!petra_builder_worker(i, launched)) continue;
 		++workers;
 		if (units_.action_state[i] != ACTION_BUILD) continue;
 		for (auto &n : needs) {
@@ -18662,8 +18673,7 @@ void Simulation::petra_staff_foundations() {
 		float best_d2 = 1e18f;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-			uint8_t ut = units_.unit_type[i];
-			if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN) continue;
+			if (!petra_builder_worker(i, launched)) continue;
 			uint8_t st = units_.action_state[i];
 			if (st != ACTION_IDLE && st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) continue;
 			const auto &ban = n.watch->banned;
@@ -18718,7 +18728,7 @@ void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
 	float demand_food = 200.0f;
 	float demand_wood = 200.0f;
 	float demand_gold = 100.0f;
-	float demand_stone = (petra_ps().phase >= 2) ? 100.0f : 50.0f;
+	float demand_stone = 100.0f; // "default": 100 in every phase
 
 	// Tech & Phase Priorities: the phase is the majorTech plan once checkPhase wants it.
 	if (!petra_phasing()) {
@@ -18744,10 +18754,7 @@ void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
 		demand_food += w.food; demand_wood += w.wood; demand_gold += w.gold; demand_stone += w.stone;
 	}
 
-	// Housing and Building Needs:
-	if (pop_current(petra_pid_) >= pop_max(petra_pid_) - 4) {
-		demand_wood += 150.0f;
-	}
+	// Houses ask through the house queue's want, as queueManager.js counts the plans.
 	out[RES_FOOD] = demand_food;
 	out[RES_WOOD] = demand_wood;
 	out[RES_GOLD] = demand_gold;
@@ -21776,18 +21783,17 @@ void Simulation::petra_manage_buildings(float dt) {
 
 	// 3. headquarters.js buildMoreHouses (every 4th played turn) with queueplanBuilding.js
 	// houseNeeded: a house goes up once the free slots, counting the houses already laid down,
-	// fall to 10 (15 above 30 pop, 21 above 55); up to 3 at once (5 above 80 pop), none once the
-	// population limit is reached. Under 5 free slots with no room for a house, a population
+	// fall to 10 (15 above 30 pop, 21 above 55), none once the population limit
+	// is reached. Under 5 free slots with no room for a house, a population
 	// technology instead.
 	if (petra_turn_mod(4, 1)) {
 		const int limit = pop_limit(petra_pid_);
 		const int pop = pop_current(petra_pid_);
 		if (limit <= 0 || pop_max_uncapped(petra_pid_) < limit) {
-			int free_slots = pop_max(petra_pid_) - pop, planned = 0;
+			int free_slots = pop_max(petra_pid_) - pop;
 			for (const auto &b : buildings_) {
 				if (b.team != petra_pid_ || b.build_progress >= 1.0f) continue;
 				free_slots += structure_pop_bonus(b.type, petra_pid_);
-				if (b.type == BLD_HOUSE || b.type == BLD_APARTMENT) ++planned;
 			}
 			// buildMoreHouses: structures/{civ}/apartment once it may be built (Carthage from
 			// the Town phase), else the house.
@@ -21798,7 +21804,9 @@ void Simulation::petra_manage_buildings(float dt) {
 			const int accounted_free = free_slots - (petra_accounted_population() - pop);
 			petra_queues_.priority[PETRA_Q_HOUSE] = accounted_free < 5 ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
 			const int needed_at = saving || pop <= 30 ? 10 : pop > 55 ? 21 : 15;
-			if (free_slots <= needed_at && planned < (pop > 80 ? 5 : 3)) {
+			// The 3 (5 above 80 pop) caps plans waiting in the house queue, which RTS0 pays as it
+			// places them (one at most waits), not foundations.
+			if (free_slots <= needed_at) {
 				uint32_t bid = petra_place_generic(house, PETRA_Q_HOUSE);
 				// canBuild(apartment) fails while there is no room for one: a house instead.
 				if (!bid && petra_place_no_room_ && house == BLD_APARTMENT) bid = petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
@@ -22028,12 +22036,17 @@ static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
 	return max_pop < 300 ? pop_scaling * std::sqrt((float)max_pop / 300.0f) : pop_scaling;
 }
 
-int Simulation::petra_pop_phase2() const {
+// setConfig's popPhase2, scaled and clamped, before startingStrategy.js cuts it.
+int Simulation::petra_config_pop_phase2() const {
 	const int max_pop = petra_config_max_pop();
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
-	const int pop = std::min(std::max((int)((float)petra_config_.pop_phase2 * scaling), 20), max_pop / 2);
+	return std::min(std::max((int)((float)petra_config_.pop_phase2 * scaling), 20), max_pop / 2);
+}
+
+int Simulation::petra_pop_phase2() const {
+	const int pop = petra_config_pop_phase2();
 	// startingStrategy.js runs after setConfig: 3/4 of the scaled and clamped value, to phase sooner and expand.
-	return petra_attack_mgr_.save_resources ? pop * 3 / 4 : pop;
+	return petra_attack_mgr_.save_resources || petra_attack_mgr_.phase2_cut_kept ? pop * 3 / 4 : pop;
 }
 
 int Simulation::petra_target_workers() const {
@@ -22041,7 +22054,8 @@ int Simulation::petra_target_workers() const {
 	const uint8_t d = petra_config_.difficulty;
 	int target = d < PETRA_EASY ? std::min(40, max_pop) : d < PETRA_MEDIUM ? std::min(60, max_pop / 2)
 	                                                                        : std::min(120, max_pop / 3);
-	return std::max({1, target, petra_pop_phase2()});
+	// setConfig raises targetNumWorkers to popPhase2 before startingStrategy.js cuts that.
+	return std::max({1, target, petra_config_pop_phase2()});
 }
 
 int Simulation::petra_work_phase3() const {
@@ -22908,6 +22922,10 @@ bool Simulation::petra_phasing() const {
 		const PetraQueueAccount &w = petra_queues_.wants[q];
 		return w.food + w.wood + w.gold + w.stone > 0.0f;
 	};
+	// HQ.phasing, once set, holds until the research starts (queueplanResearch.js onStart): the
+	// major-tech queue's want is the phase research waiting to be paid (petra_start_research
+	// renews it every turn; only phases go in that queue).
+	if (planned(PETRA_Q_MAJOR_TECH)) return true;
 	if (planned(PETRA_Q_CIVIL_CENTRE) || planned(PETRA_Q_WONDER)) return false;
 	if (phase == 1) return petra_accounted_population() >= petra_pop_phase2();
 	return petra_accounted_workers() > petra_work_phase3();
@@ -25032,6 +25050,26 @@ void Simulation::petra_leave_mustering(uint32_t uid) {
 		if ((p->state == AttackPlan::UNEXECUTED || p->state == AttackPlan::MUSTER) && !p->completing)
 			p->squad.erase(std::remove(p->squad.begin(), p->squad.end(), uid), p->squad.end());
 	petra_strike_force_.unit_ids = petra_attack_plan_.squad;
+}
+
+// The units an attack or raid has taken out of the economy: those of a plan past mustering
+// (or completing) and of the started attacks (role "attack").
+std::unordered_set<uint32_t> Simulation::petra_launched_units() const {
+	std::unordered_set<uint32_t> out;
+	for (const AttackPlan *p : {&petra_attack_plan_, &petra_raid_plan_})
+		if (p->state != AttackPlan::MUSTER || p->completing) out.insert(p->squad.begin(), p->squad.end());
+	for (const AttackPlan &p : petra_started_attacks_) out.insert(p.squad.begin(), p.squad.end());
+	return out;
+}
+
+// baseManager.js workers.filter(isBuilder): a unit with the worker role that can build, women
+// and citizen infantry alike (template_unit_infantry's Builder), not the scout, a defender or
+// one an attack has taken.
+bool Simulation::petra_builder_worker(size_t i, const std::unordered_set<uint32_t> &launched) const {
+	const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+	if ((g != GATHER_INFANTRY && g != GATHER_SUPPORT) || !unit_builds(i)) return false;
+	const uint32_t uid = units_.id[i];
+	return uid != petra_scout_unit_id_ && !launched.count(uid) && !petra_is_defender(uid);
 }
 
 bool Simulation::petra_unit_reserved(uint32_t uid) const {

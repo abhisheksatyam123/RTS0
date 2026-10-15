@@ -1749,6 +1749,7 @@ public:
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
 	int petra_pop_phase2() const; // config.js Economy.popPhase2 after setConfig's population scaling
+	int petra_config_pop_phase2() const; // the same before startingStrategy.js's saveResources cut
 	int petra_accounted_population() const;
 	int petra_pop_for_barracks1() const;
 	int petra_pop_for_barracks2() const;
@@ -3119,6 +3120,8 @@ private:
 	// attackPlan.js isBlocked: the plan's target is a wall piece that blocked its path.
 	bool petra_plan_blocked(const AttackPlan &plan) const;
 	bool petra_unit_reserved(uint32_t uid) const;
+	std::unordered_set<uint32_t> petra_launched_units() const;
+	bool petra_builder_worker(size_t unit_idx, const std::unordered_set<uint32_t> &launched) const;
 	bool petra_mustering(uint32_t uid) const;
 	void petra_leave_mustering(uint32_t uid);
 
