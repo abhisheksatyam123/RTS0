@@ -7,6 +7,7 @@ extends RefCounted
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
 const ReplayPage = preload("res://scenes/menu/replay_browser.gd")
 const SummaryPage = preload("res://scenes/session/summary_screen.gd")
+const L10n := preload("res://scenes/menu/l10n.gd")
 
 const HIGHLIGHT := "orange" # g_DescriptionHighlight
 
@@ -38,8 +39,9 @@ const UNLIMITED_POP := 10000
 ## 0.28 messages.js g_PlayerStateMessages, for the dialog's player-state line.
 const PLAYER_STATE_MESSAGES := {"won": "You have won!", "defeated": "You have been defeated!"}
 
+## translatePlural("Wonder (%(min)s minute)", "Wonder (%(min)s minutes)", n).
 static func _minutes(n: int, what: String) -> String:
-	return "%s (%d %s)" % [what, n, "minute" if n == 1 else "minutes"]
+	return L10n.sprintf(L10n.t(what + (" (%(min)s minute)" if n == 1 else " (%(min)s minutes)")), {"min": n})
 
 ## The 0.28 map type ("random", "skirmish" or "scenario") and its title.
 static func map_type(map_id: String) -> String:
@@ -104,7 +106,7 @@ static func titles(info: Dictionary) -> Array:
 	var ceasefire := int(info.get("ceasefire_min", 0))
 	out.append(["Ceasefire", "disabled" if ceasefire == 0
 		else "For the first minute, other players will stay neutral." if ceasefire == 1
-		else "For the first %d minutes, other players will stay neutral." % ceasefire])
+		else L10n.sprintf(L10n.t("For the first %(min)s minutes, other players will stay neutral."), {"min": ceasefire})])
 
 	var map_id := str(info.get("map_id", ""))
 	var type := map_type(map_id)
@@ -147,13 +149,17 @@ static func titles(info: Dictionary) -> Array:
 	out.append(["Cheats", bool(info.get("cheats", false))])
 	return out
 
-## The dialog text: "label details" lines, a true value reading "enabled" and
-## a false or empty one "disabled".
+## The dialog text: translated "%(label)s %(details)s" lines, a true value
+## reading "enabled" and a false or empty one "disabled". Titles, descriptions
+## and map names are translated as 0.28 translates them; formatted ones
+## (_minutes, the ceasefire line) already are, and translating them again
+## returns them unchanged.
 static func describe(info: Dictionary) -> String:
 	var lines: PackedStringArray = []
+	var fmt := L10n.t("%(label)s %(details)s")
 	for t in titles(info):
 		var v: Variant = t[1]
-		var details: String = "enabled" if v is bool and v else \
-			"disabled" if (v is bool and not v) or str(v) == "" else str(v)
-		lines.append("[color=%s]%s[/color] %s" % [HIGHLIGHT, t[0], details])
+		var details: String = L10n.t("enabled") if v is bool and v else \
+			L10n.t("disabled") if (v is bool and not v) or str(v) == "" else L10n.t(str(v))
+		lines.append(L10n.sprintf(fmt, {"label": "[color=%s]%s[/color]" % [HIGHLIGHT, L10n.t(str(t[0]))], "details": details}))
 	return "\n".join(lines)

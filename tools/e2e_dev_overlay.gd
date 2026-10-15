@@ -7,7 +7,9 @@ extends SceneTree
 # player view dropdown, and picking a player or Observer re-seats this client;
 # Enable time warp snapshots the game every 10 turns and rewinds to the last one;
 # the pathfinder, hierarchical pathfinder, obstruction, unit motion, range and
-# bounding box overlays draw while ticked.
+# bounding box overlays draw while ticked; Activate Rejoin Test rejoins a copy of
+# the game and replays every turn onto it, an Out of Sync box naming any turn
+# where the two part.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_dev_overlay.gd
 # Exit code 0 = pass.
@@ -42,6 +44,15 @@ func press(label: String) -> void:
 	var b := box(label)
 	b.set_pressed_no_signal(not b.button_pressed) # what a click does: toggle, then "pressed"
 	b.pressed.emit()
+
+## The open message box titled `title`, or null.
+func _box(title: String) -> Node:
+	for q in main.get_children():
+		if q.has_method("press") and q.has_method("button_texts") and not q.is_queued_for_deletion():
+			var t = q.find_child("Title", true, false)
+			if t and t.text == title:
+				return q
+	return null
 
 ## Pick a player view dropdown item by id (0 Observer, N player N) and wait for the turn.
 func pick(id: int) -> void:
@@ -160,6 +171,39 @@ func run() -> void:
 	await frames(2)
 	check(not main.find_child("DebugOverlays", true, false).visible and int(main.debug_dev_overlay()["obstruction_drawn"]) == 0,
 		"cleared, they are gone")
+
+	press("Activate Rejoin Test")
+	await frames(2)
+	var rj: Node = _box("Rejoin Test")
+	check(rj != null, "Activate Rejoin Test warns first")
+	if rj:
+		rj.press(0) # Cancel
+	await frames(2)
+	check(not main.get_rejoin_test()["active"] and not box("Activate Rejoin Test").button_pressed, "Cancel leaves it off")
+	press("Activate Rejoin Test")
+	await frames(2)
+	rj = _box("Rejoin Test")
+	if rj:
+		rj.press(1) # OK
+	var rw := 0
+	while int(main.get_rejoin_test()["turns"]) < 20 and rw < 2000:
+		await process_frame
+		rw += 1
+	var r: Dictionary = main.get_rejoin_test()
+	check(r["active"] and int(r["rejoined_at"]) > 0 and int(r["turns"]) >= 20,
+		"OK rejoins a copy at turn %d and replays %d turns onto it" % [int(r["rejoined_at"]), int(r["turns"])])
+	check(int(r["out_of_sync_turn"]) == 0 and _box("Out of Sync") == null, "and the copy stays in sync")
+	check(box("Activate Rejoin Test").button_pressed and box("Activate Rejoin Test").disabled, "it can't be turned off")
+	main.debug_set_resource(0, 98765.0) # only the game changes: the copy must part from it
+	rw = 0
+	while int(main.get_rejoin_test()["out_of_sync_turn"]) == 0 and rw < 200:
+		await process_frame
+		rw += 1
+	var oos: Node = _box("Out of Sync")
+	check(int(main.get_rejoin_test()["out_of_sync_turn"]) > 0 and oos != null, "a change the copy didn't get shows as Out of Sync (turn %d)" % int(main.get_rejoin_test()["out_of_sync_turn"]))
+	if oos:
+		oos.press(0)
+	await frames(2)
 
 	var rdm = main.find_child("RenderDebugMode", true, false)
 	check(rdm != null and rdm.get_item_count() == 4 and rdm.get_item_text(0) == "Render Debug Mode Disabled"
