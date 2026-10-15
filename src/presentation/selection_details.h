@@ -227,6 +227,14 @@ inline String trickle_tooltip(const float rate[RES_COUNT], float interval_s) {
 			{"details", sprintf0(tr0("%(resources)s / %(time)s"), {{"resources", res}, {"time", secs}})}});
 }
 
+// getGarrisonTooltip's Garrisonable part: "Garrison Size: 1 + 3" when the unit is larger than
+// one slot or itself carries units (GarrisonHolder.occupiedSlots).
+inline String garrison_size_tooltip(int size, int extra) {
+	if (size <= 1 && extra <= 0) return String();
+	return sprintf0(tr0("%(label)s: %(garrisonSize)s %(extraSize)s"), {{"label", tr0("Garrison Size")},
+			{"garrisonSize", num(size)}, {"extraSize", extra > 0 ? tr0("+ ") + num(extra) : String()}}).strip_edges();
+}
+
 inline String garrison_limit_tooltip(int capacity) {
 	if (capacity <= 0) return String();
 	return sprintf0(tr0("%(label)s: %(garrisonLimit)s"), {{"label", tr0("Garrison Limit")}, {"garrisonLimit", num(capacity)}});
