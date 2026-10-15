@@ -131,7 +131,7 @@ void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
 }
 
 Dictionary RtsoMain::get_audio_state() const {
-	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat"};
+	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat", "custom"};
 	Dictionary d;
 	d["music_state"] = kStates[music_.state()];
 	d["track"] = music_.current_track();
@@ -218,7 +218,9 @@ void RtsoMain::_on_flare_requested(Vector2 world_pos) {
 // Player numbers typed after "wololo" and "exodia" are 0 A.D.'s (0 = Gaia, 1 = the first player).
 bool RtsoMain::chat_try_cheat(const String &text) {
 	using S = rtso::Simulation;
+	// resource: the resource for CHEAT_ADD_RESOURCE, the unit list for CHEAT_CREATE_UNITS (1 heroes).
 	struct CheatCode { const char *name; uint8_t action; int resource; const char *def; bool numeric; };
+	constexpr uint8_t kPlayRetro = 0xFF; // retroMe.json "playRetro": the player's own music
 	static const CheatCode kCheats[] = {
 		{"i want pizza", S::CHEAT_ADD_RESOURCE, rtso::RES_FOOD, "1000", true},
 		{"bring me my axe", S::CHEAT_ADD_RESOURCE, rtso::RES_WOOD, "1000", true},
@@ -229,6 +231,8 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		{"black death", S::CHEAT_KILL_UNITS, 0, "", false},
 		{"exodia", S::CHEAT_DEFEAT_PLAYER, 0, "2", true},
 		{"salad bowl", S::CHEAT_CREATE_UNITS, 0, "13", true},
+		{"iwanttopwnthem", S::CHEAT_CREATE_UNITS, 1, "1", true}, // createHeros.json
+		{"retro me", kPlayRetro, 0, "0_8Bit_Bonus_Track.ogg", false},
 		{"back to the future", S::CHEAT_CHANGE_PHASE, 0, "", false},
 		{"brainiac", S::CHEAT_RESEARCH, 0, "", false},
 		{"gift from the gods", S::CHEAT_META, 0, "100000", true},
@@ -245,8 +249,18 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 	String parameter = text.substr(String(cheat->name).length() + 1).strip_edges();
 	if (parameter.is_empty()) parameter = cheat->def;
 	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_int()) {
-		chat_window_.append_line("[color=#eebb22]This cheat requires a numeric parameter.[/color]\n");
+		// Cheats.js NoNumericMessage: a chat message from the player, shown only here.
+		chat_window_.append_kind(String("<") + colored_player_name(me) + "> " + tr("This cheat requires a numeric parameter.") + "\n",
+				RtsoChatWindow::message_bits("", true));
 		return false;
+	}
+	if (cheat->action == kPlayRetro) {
+		// Cheat.js playRetro: "play-tracks" with the typed tracks, locked; "off" unlocks.
+		std::vector<std::string> tracks;
+		if (parameter.to_lower() != "off")
+			for (const String &t : parameter.split(" ", false)) tracks.push_back(t.utf8().get_data());
+		music_.play_custom(tracks);
+		return true;
 	}
 	int64_t number = cheat->numeric && !parameter.is_empty() ? parameter.to_int() : 0;
 	uint32_t extra = (uint32_t)std::max(cheat->resource, 0);
@@ -276,7 +290,8 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		}
 	}
 	if (cheat->action == S::CHEAT_CREATE_UNITS && !selected_building_id) {
-		chat_window_.append_line("[color=#eebb22]You need to select a building that trains units.[/color]\n");
+		// Cheat.js createunits: a centre text notice.
+		text_notices_.push_back({tr("You need to select a building that trains units."), (uint32_t)std::lround(sim->game_time() * 1000.0f) + 10000});
 		return true;
 	}
 	if (turn_cmds()) post_lockstep(39, ids.data(), ids.size(), (float)extra, 0.0f, (uint32_t)(int32_t)number, cheat->action);
@@ -406,7 +421,14 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 		if (a.target_owner != me || a.attacker_owner == me) continue;
 		// AttackDetection.OnGlobalAttacked: every hit entity pings the minimap, before suppression.
 		if (minimap_view) minimap_view->ping_entity(a.target_id);
-		if (attack_detection_.report(a.x, a.z, match_elapsed_time)) {
+		// AttackDetection.js: an attack on livestock is a low-priority event (targetIsDomesticAnimal).
+		bool livestock = false;
+		if (!a.target_is_building) {
+			const auto fv = sim->fauna();
+			for (size_t f = 0; f < fv.count; ++f)
+				if (fv.id[f] == a.target_id) { livestock = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic(); break; }
+		}
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time, livestock)) {
 			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0, a.target_id);
 			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
 			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
@@ -925,7 +947,9 @@ void RtsoMain::post_network_chat() {
 	for (; rejoined_chatted_ < rejoined.size(); ++rejoined_chatted_)
 		for (const auto &e : now)
 			if (e.client == rejoined[rejoined_chatted_] && e.status != rtso::PlayerAssignmentMsg::LEFT) {
-				chat_window_.append_kind(sprintf0(tr("%(player)s has rejoined the game."), {{"player", who(e)}}) + "\n", CHAT_FILTER_NETWORK);
+				// ChatMessageFormatNetwork.rejoined: an observer "has joined the game.".
+				chat_window_.append_kind(sprintf0(e.player < rtso::MAX_PLAYERS ? tr("%(player)s has rejoined the game.") : tr("%(player)s has joined the game."),
+						{{"player", who(e)}}) + "\n", CHAT_FILTER_NETWORK);
 				break;
 			}
 }
