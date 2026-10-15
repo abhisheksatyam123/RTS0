@@ -512,6 +512,34 @@ int main() {
 		std::printf("  map wall piece at 0.6 rad: runs along (%.2f, %.2f)\n", w ? w->ux : 0.0f, w ? w->uz : 0.0f);
 	}
 
+	// 13b. palisades_spike_* have <TerritoryDecay disable=""/>, palisades_fort <Capturable
+	// disable=""/> (port_0ad_maps.py no_decay, no_capture): out of territory a plain palisade
+	// decays to Gaia, a spike stays its owner's, through save/load too.
+	{
+		setup(s, 0.0f);
+		const float far = s.map_half() * 0.7f;
+		const uint32_t plain = s.spawn_map_wall_piece(0, WALLSET_PALISADE, Simulation::MAP_WALL_SEGMENT, far, far, 0.0f, 3.0f);
+		const uint32_t spike = s.spawn_map_wall_piece(0, WALLSET_PALISADE, Simulation::MAP_WALL_SEGMENT, -far, far, 0.0f, 3.0f);
+		const uint32_t fort = s.spawn_map_wall_piece(0, WALLSET_PALISADE, Simulation::MAP_WALL_TOWER, far, -far, 0.0f, 2.5f);
+		s.set_structure_no_decay(spike);
+		s.set_structure_uncapturable(fort);
+		for (int i = 0; i < 20 * 60; ++i) s.tick(Simulation::FIXED_STEP);
+		const auto *p = find_bld(s, plain), *k = find_bld(s, spike), *f = find_bld(s, fort);
+		CHECK(p && p->team == GAIA_PLAYER);
+		CHECK(k && k->team == 0 && k->decay_disabled && k->territory_decay_rate == 0.0f);
+		CHECK(f && f->team == 0 && f->max_capture_points == 0.0f && !s.can_capture_building(1, *f));
+		const char *path = "/tmp/rtso_test_walls_decay.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		std::remove(path);
+		const auto *lk = find_bld(l, spike), *lp = find_bld(l, plain);
+		CHECK(lk && lk->decay_disabled && lk->territory_decay_rate == 0.0f);
+		CHECK(lp && !lp->decay_disabled && lp->territory_decay_rate > 0.0f);
+		std::printf("  out of territory for 60 s: plain palisade owner %u, spike owner %u, fort capture points %.0f\n",
+		            p ? p->team : 255, k ? k->team : 255, f ? f->max_capture_points : -1.0f);
+	}
+
 	// 14. A wall piece tests its own rectangle against each tree's 1.5 m obstruction (0 A.D.
 	// CheckFoundation), not the 8 m cells it touches: a tree beside the wall leaves it free, one on
 	// it blocks it, and so does a turned wall's segment only where it really crosses the tree.

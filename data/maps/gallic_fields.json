@@ -20650,13 +20650,14 @@
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -69.4,
       "z": -42.59,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 1
     },
     {
       "type": "palisade",
@@ -20669,52 +20670,67 @@
       "length": 2.5
     },
     {
-      "type": "wall_segment",
-      "player": 1,
+      "type": "palisade",
       "x": -68.63,
-      "z": -47.42
+      "z": -47.42,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 2.812,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -70.83,
       "z": -43.4,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 3.0118,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -69.28,
       "z": -40.61,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.1505,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -71.43,
       "z": -43.14,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -3.023,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
-      "type": "wall_segment",
-      "player": 1,
+      "type": "palisade",
       "x": -68.09,
-      "z": -41.35
+      "z": -41.35,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.4637,
+      "length": 2.812,
+      "player": 1
     },
     {
-      "type": "wall_segment",
-      "player": 1,
+      "type": "palisade",
       "x": -54.16,
-      "z": -40.98
+      "z": -40.98,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 4.0249,
+      "length": 2.812,
+      "player": 1
     },
     {
       "type": "palisade",
@@ -20737,10 +20753,14 @@
       "length": 0.25
     },
     {
-      "type": "wall_segment",
-      "player": 1,
+      "type": "palisade",
       "x": -64.01,
-      "z": -52.37
+      "z": -52.37,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 0.7123,
+      "length": 2.812,
+      "player": 1
     },
     {
       "type": "palisade",
@@ -20754,13 +20774,14 @@
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -59.41,
       "z": -53.26,
       "wallset": "palisade",
       "piece": "tower",
       "angle": -0.8059,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 1
     },
     {
       "type": "palisade",
@@ -20774,13 +20795,14 @@
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -52.49,
       "z": -42.08,
       "wallset": "palisade",
       "piece": "tower",
       "angle": -2.3117,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 1
     },
     {
       "type": "palisade",
@@ -20793,36 +20815,46 @@
       "length": 2.5
     },
     {
-      "type": "wall_segment",
-      "player": 1,
+      "type": "palisade",
       "x": -53.27,
-      "z": -46.57
-    },
-    {
-      "type": "wall_segment",
-      "player": 1,
-      "x": -58.26,
-      "z": -51.42
+      "z": -46.57,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -0.7153,
+      "length": 2.812,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
+      "x": -58.26,
+      "z": -51.42,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3514,
+      "length": 2.812,
+      "player": 1
+    },
+    {
+      "type": "palisade",
       "x": -60.89,
       "z": -54.47,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.4669,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -57.67,
       "z": -52.23,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.656,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
@@ -20846,113 +20878,124 @@
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -69.67,
       "z": -47.63,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -64.17,
       "z": -53.21,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.84,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -53.37,
       "z": -40.1,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.9907,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -50.88,
       "z": -43.53,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.0866,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -52.21,
       "z": -47.16,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.8448,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -57.37,
       "z": -52.8,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.5451,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -57.76,
       "z": -34.23,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -59.53,
       "z": -32.35,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -61.02,
       "z": -32.79,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.8262,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -63.4,
       "z": -34.2,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.3981,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -51.37,
       "z": -40.98,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
@@ -20985,26 +21028,35 @@
       "length": 2.5
     },
     {
-      "type": "wall_segment",
-      "player": 2,
+      "type": "palisade",
       "x": 46.21,
-      "z": -60.81
-    },
-    {
-      "type": "wall_segment",
-      "player": 2,
-      "x": 51.08,
-      "z": -65.44
+      "z": -60.81,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 2.812,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
+      "x": 51.08,
+      "z": -65.44,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 2.812,
+      "player": 2
+    },
+    {
+      "type": "palisade",
       "x": 45.11,
       "z": -55.57,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 2
     },
     {
       "type": "palisade",
@@ -21028,19 +21080,24 @@
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 56.63,
       "z": -66.58,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 2
     },
     {
-      "type": "wall_segment",
-      "player": 2,
+      "type": "palisade",
       "x": 57.82,
-      "z": -64.75
+      "z": -64.75,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -0.7499,
+      "length": 2.812,
+      "player": 2
     },
     {
       "type": "palisade",
@@ -21053,10 +21110,14 @@
       "length": 0.25
     },
     {
-      "type": "wall_segment",
-      "player": 2,
+      "type": "palisade",
       "x": 63.38,
-      "z": -59.64
+      "z": -59.64,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -0.7587,
+      "length": 2.812,
+      "player": 2
     },
     {
       "type": "palisade",
@@ -21070,25 +21131,34 @@
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 64.3,
       "z": -55.15,
       "wallset": "palisade",
       "piece": "tower",
       "angle": -2.2956,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 2
     },
     {
-      "type": "wall_segment",
-      "player": 2,
+      "type": "palisade",
       "x": 62.63,
-      "z": -53.99
+      "z": -53.99,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 2.812,
+      "player": 2
     },
     {
-      "type": "wall_segment",
-      "player": 2,
+      "type": "palisade",
       "x": 47.18,
-      "z": -54.31
+      "z": -54.31,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -0.8272,
+      "length": 2.812,
+      "player": 2
     },
     {
       "type": "palisade",
@@ -21102,203 +21172,223 @@
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 44.1,
       "z": -61.79,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 60.11,
       "z": -67.13,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.1482,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 59.29,
       "z": -66.09,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.4423,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 56.59,
       "z": -68.76,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.0371,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 53.26,
       "z": -69.04,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.8888,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 50.58,
       "z": -67.28,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 44.71,
       "z": -61.55,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 43.63,
       "z": -58.54,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 3.0738,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 46.07,
       "z": -52.99,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.1011,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 57.86,
       "z": -48.22,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 63.3,
       "z": -52.39,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.3511,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 65.6,
       "z": -55.58,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.1369,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 64.47,
       "z": -60.27,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.479,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 65.67,
       "z": -59.83,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.5578,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 50.25,
       "z": -67.47,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.1332,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 43.51,
       "z": -56.43,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.338,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 59.18,
       "z": -48.16,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.7964,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 56.05,
       "z": -46.51,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 53.97,
       "z": -46.03,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.3205,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 51.84,
       "z": -48.4,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.7171,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
@@ -21332,41 +21422,55 @@
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -5.71,
       "z": 75.87,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 5.92,
       "z": 64.82,
       "wallset": "palisade",
       "piece": "tower",
       "angle": -0.7974,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 3
     },
     {
-      "type": "wall_segment",
-      "player": 3,
+      "type": "palisade",
       "x": -4.52,
-      "z": 70.91
+      "z": 70.91,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 2.812,
+      "player": 3
     },
     {
-      "type": "wall_segment",
-      "player": 3,
+      "type": "palisade",
       "x": 0.95,
-      "z": 65.44
+      "z": 65.44,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 2.812,
+      "player": 3
     },
     {
-      "type": "wall_segment",
-      "player": 3,
+      "type": "palisade",
       "x": -3.71,
-      "z": 77.34
+      "z": 77.34,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3607,
+      "length": 2.812,
+      "player": 3
     },
     {
       "type": "palisade",
@@ -21389,32 +21493,45 @@
       "length": 0.25
     },
     {
-      "type": "wall_segment",
-      "player": 3,
+      "type": "palisade",
       "x": 7.34,
-      "z": 66.72
-    },
-    {
-      "type": "wall_segment",
-      "player": 3,
-      "x": 12.26,
-      "z": 71.48
-    },
-    {
-      "type": "wall_segment",
-      "player": 3,
-      "x": 11.71,
-      "z": 77.66
+      "z": 66.72,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -0.8295,
+      "length": 2.812,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
+      "x": 12.26,
+      "z": 71.48,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3595,
+      "length": 2.812,
+      "player": 3
+    },
+    {
+      "type": "palisade",
+      "x": 11.71,
+      "z": 77.66,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 2.812,
+      "player": 3
+    },
+    {
+      "type": "palisade",
       "x": 13.37,
       "z": 76.77,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 0.7337,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 3
     },
     {
       "type": "palisade",
@@ -21458,1303 +21575,1433 @@
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 5.56,
       "z": 85.2,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 7.45,
       "z": 83.44,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 3.93,
       "z": 85.54,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.2511,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 1.68,
       "z": 83.65,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.2997,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -4.81,
       "z": 78.07,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.3148,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -7.24,
       "z": 75.33,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.2087,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -6.53,
       "z": 71.86,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.53,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -5.19,
       "z": 70.15,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 0.05,
       "z": 64.7,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 2.54,
       "z": 62.86,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.7101,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 5.31,
       "z": 62.67,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.4199,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 8.03,
       "z": 65.36,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.7709,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 13.75,
       "z": 70.95,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.2433,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 14.76,
       "z": 74.95,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 3.0322,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 13.07,
       "z": 78.89,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.0213,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -0.58,
       "z": 64.09,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -6.87,
       "z": 70.99,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.5822,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 9.06,
       "z": 66.72,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -3.0276,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 7.96,
       "z": 84.45,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.1707,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 15.12,
       "z": 73.23,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.7676,
-      "length": 3.438
+      "length": 3.438,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -70.72,
       "z": -48.12,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.7011,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -71.38,
       "z": -46.23,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.0769,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -68.89,
       "z": -48.78,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.8854,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -56.55,
       "z": -51.15,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.1604,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -64.1,
       "z": -54.26,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.9739,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -65.57,
       "z": -51.89,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.8774,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -68.25,
       "z": -49.0,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.6924,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -62.47,
       "z": -55.24,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.378,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -60.2,
       "z": -55.14,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.7012,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -57.25,
       "z": -53.24,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -3.0762,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -58.6,
       "z": -54.77,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.9743,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -64.97,
       "z": -54.06,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.0301,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -57.69,
       "z": -54.08,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.1587,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -51.36,
       "z": -47.7,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.4399,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -49.86,
       "z": -44.89,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.9156,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -49.66,
       "z": -41.71,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.7672,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -71.47,
       "z": -41.51,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.4038,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -68.9,
       "z": -39.07,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.4601,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -70.45,
       "z": -39.87,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.6836,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -71.39,
       "z": -43.28,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.4212,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -71.5,
       "z": -44.57,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.0101,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -50.76,
       "z": -40.01,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -53.02,
       "z": -39.1,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -56.68,
       "z": -33.56,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.4694,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -57.69,
       "z": -31.35,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -59.64,
       "z": -30.87,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -61.19,
       "z": -31.69,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.9078,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -62.76,
       "z": -32.32,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.8985,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -63.47,
       "z": -33.13,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.3971,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -64.46,
       "z": -33.96,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.1644,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 1
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 43.27,
       "z": -60.04,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.004,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 43.99,
       "z": -62.12,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.9495,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 45.22,
       "z": -61.71,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.9518,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 46.21,
       "z": -62.49,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.9698,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 46.25,
       "z": -63.27,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.1515,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 49.2,
       "z": -66.02,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.7644,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 50.09,
       "z": -68.02,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.1818,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 52.26,
       "z": -68.8,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.2017,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 51.7,
       "z": -67.77,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.0089,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 53.63,
       "z": -69.97,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.4216,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 54.9,
       "z": -68.51,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.7582,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 56.55,
       "z": -69.89,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.5645,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 58.1,
       "z": -69.09,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.3991,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 58.49,
       "z": -65.82,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.1755,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 60.04,
       "z": -66.07,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.4522,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 63.23,
       "z": -61.01,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.8002,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 63.98,
       "z": -60.5,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.1821,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 65.42,
       "z": -60.66,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.3264,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 65.81,
       "z": -58.44,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 3.0475,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 67.08,
       "z": -55.89,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 3.009,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 65.99,
       "z": -57.26,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.7471,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 67.63,
       "z": -54.49,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.8686,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 66.89,
       "z": -53.24,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 66.2,
       "z": -52.48,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 64.98,
       "z": -51.26,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 59.2,
       "z": -49.31,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 3.0069,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 59.3,
       "z": -48.13,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 58.18,
       "z": -47.06,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3508,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 57.42,
       "z": -46.23,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 56.03,
       "z": -45.18,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.0158,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 54.06,
       "z": -45.18,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.4229,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 52.2,
       "z": -46.56,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.3751,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 51.35,
       "z": -47.19,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.683,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 46.48,
       "z": -51.91,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.6904,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 50.92,
       "z": -48.5,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.5557,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 44.69,
       "z": -53.57,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.947,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 43.55,
       "z": -54.96,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.4655,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 43.04,
       "z": -56.11,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.2528,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 42.79,
       "z": -57.38,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.016,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 43.44,
       "z": -58.69,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.0611,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 2
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -7.74,
       "z": 74.09,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.007,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -7.63,
       "z": 71.52,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.5071,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -5.85,
       "z": 69.46,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.679,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -7.02,
       "z": 70.73,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.863,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -4.89,
       "z": 68.74,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.1654,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -0.84,
       "z": 65.12,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.8765,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 0.29,
       "z": 63.47,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.8225,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 1.25,
       "z": 62.55,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.2761,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 2.74,
       "z": 61.97,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.3719,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 3.67,
       "z": 61.82,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.576,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 4.78,
       "z": 61.8,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.7696,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 6.01,
       "z": 62.79,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.7418,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 7.37,
       "z": 63.4,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.1721,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 8.52,
       "z": 65.13,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.3216,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 9.34,
       "z": 67.0,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.3857,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 12.63,
       "z": 69.87,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.306,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 14.63,
       "z": 70.83,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.5185,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 15.29,
       "z": 72.73,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -2.7452,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 16.17,
       "z": 75.29,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 3.0573,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 15.25,
       "z": 79.79,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 16.51,
       "z": 76.97,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.8183,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 16.2,
       "z": 79.16,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 14.22,
       "z": 79.76,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 12.53,
       "z": 80.07,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 13.39,
       "z": 80.85,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 8.66,
       "z": 84.48,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 7.49,
       "z": 85.52,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 7.09,
       "z": 86.4,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 5.64,
       "z": 86.74,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 4.82,
       "z": 87.04,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 4.06,
       "z": 86.31,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.5272,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 2.6,
       "z": 86.28,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 1.2452,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 1.51,
       "z": 85.69,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.8375,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 1.08,
       "z": 84.36,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.5667,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 0.23,
       "z": 82.95,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.3211,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -5.34,
       "z": 78.85,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.7227,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -6.37,
       "z": 77.6,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.8981,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -7.67,
       "z": 75.34,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.076,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -7.49,
       "z": 76.8,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.7441,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": -7.89,
       "z": 72.83,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -0.1629,
-      "length": 0.938
+      "length": 0.938,
+      "no_decay": true,
+      "player": 3
     },
     {
       "type": "town_center",
@@ -22776,13 +23023,14 @@
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -60.73,
       "z": -34.64,
       "wallset": "palisade",
       "piece": "tower",
       "angle": -2.3735,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 1
     },
     {
       "type": "palisade",
@@ -22826,13 +23074,14 @@
     },
     {
       "type": "palisade",
-      "player": 3,
       "x": 4.05,
       "z": 83.66,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 3
     },
     {
       "type": "palisade",
@@ -22876,13 +23125,14 @@
     },
     {
       "type": "palisade",
-      "player": 2,
       "x": 54.47,
       "z": -47.69,
       "wallset": "palisade",
       "piece": "tower",
       "angle": -2.3427,
-      "length": 2.5
+      "length": 2.5,
+      "no_capture": true,
+      "player": 2
     },
     {
       "type": "palisade",

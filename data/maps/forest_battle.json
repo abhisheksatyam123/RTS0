@@ -14423,27 +14423,43 @@
   "gaia_structures": [
     {
       "type": "palisade",
-      "template": "structures/palisades_outpost",
       "x": -5.5,
-      "z": -32.27
+      "z": -32.27,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.345,
+      "length": 1.5,
+      "template": "structures/palisades_outpost"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_outpost",
       "x": -8.62,
-      "z": -28.43
+      "z": -28.43,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3632,
+      "length": 1.5,
+      "template": "structures/palisades_outpost"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_outpost",
       "x": -7.05,
-      "z": -10.02
+      "z": -10.02,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -0.8706,
+      "length": 1.5,
+      "template": "structures/palisades_outpost"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_outpost",
       "x": -4.28,
-      "z": -5.81
+      "z": -5.81,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -0.8089,
+      "length": 1.5,
+      "template": "structures/palisades_outpost"
     },
     {
       "type": "palisade",
@@ -14457,23 +14473,25 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_fort",
       "x": -9.56,
       "z": -7.36,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.0
+      "length": 2.0,
+      "no_capture": true,
+      "template": "structures/palisades_fort"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_fort",
       "x": -6.46,
       "z": -3.75,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.0
+      "length": 2.0,
+      "no_capture": true,
+      "template": "structures/palisades_fort"
     },
     {
       "type": "palisade_gate",
@@ -14547,23 +14565,25 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_fort",
       "x": -10.94,
       "z": -31.99,
       "wallset": "palisade",
       "piece": "tower",
       "angle": -2.749,
-      "length": 2.0
+      "length": 2.0,
+      "no_capture": true,
+      "template": "structures/palisades_fort"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_fort",
       "x": -7.94,
       "z": -34.38,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 0.7343,
-      "length": 2.0
+      "length": 2.0,
+      "no_capture": true,
+      "template": "structures/palisades_fort"
     },
     {
       "type": "palisade",
@@ -14587,27 +14607,43 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_outpost",
       "x": 8.01,
-      "z": -5.63
+      "z": -5.63,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 1.5,
+      "template": "structures/palisades_outpost"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_outpost",
       "x": 11.87,
-      "z": -9.74
+      "z": -9.74,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 1.5,
+      "template": "structures/palisades_outpost"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_outpost",
       "x": 10.31,
-      "z": -27.01
+      "z": -27.01,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 1.5,
+      "template": "structures/palisades_outpost"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_outpost",
       "x": 6.11,
-      "z": -31.12
+      "z": -31.12,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 1.5,
+      "template": "structures/palisades_outpost"
     },
     {
       "type": "palisade",
@@ -14741,13 +14777,14 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_fort",
       "x": 14.84,
       "z": -7.0,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 0.9702,
-      "length": 2.0
+      "length": 2.0,
+      "no_capture": true,
+      "template": "structures/palisades_fort"
     },
     {
       "type": "palisade",
@@ -14801,23 +14838,25 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_fort",
       "x": 12.35,
       "z": -28.63,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 2.0137,
-      "length": 2.0
+      "length": 2.0,
+      "no_capture": true,
+      "template": "structures/palisades_fort"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_fort",
       "x": 10.02,
       "z": -31.93,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 2.0
+      "length": 2.0,
+      "no_capture": true,
+      "template": "structures/palisades_fort"
     },
     {
       "type": "palisade",
