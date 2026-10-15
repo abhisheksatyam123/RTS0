@@ -716,6 +716,13 @@ public:
 	// input.js setHighlightList: the entity under the cursor, or what the band box would pick.
 	void update_highlight();
 	PackedInt32Array highlight_ids_;
+	// The hover pick (PickEntityAtPoint) is redone when the mouse or camera moves, or
+	// every kHoverRepickMs while they stand still (units walk under the cursor).
+	PackedInt32Array hover_pick_;
+	Vector2 hover_mouse_ = Vector2(-1e9f, -1e9f);
+	Transform3D hover_cam_;
+	uint64_t hover_at_ms_ = 0;
+	static constexpr uint64_t kHoverRepickMs = 200;
 	struct BatchTraining {
 		bool active = false;
 		bool from_unit = false; // trained by a unit (Trainer on a unit), else a structure

@@ -355,7 +355,7 @@ public:
 					// Names (getEntityNamesFormatted: the civ's specificName first), tooltip, cost,
 					// right-click, requirements, needed resources.
 					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
-					String tip = rtso::entity_names(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
+					String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
 					if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
@@ -679,7 +679,7 @@ public:
 				static const char *const kFormationIcons[rtso::FORMATION_COUNT] = {
 					"null", "line_closed", "box", "column", "phalanx", "wedge", "skirmish", "line_open",
 					"column_open", "flank", "battle_line", "ship_line", "ship_column", "flank", "syntagma",
-					"testudo", "testudo"};
+					"testudo", "testudo", "phalanx"};
 				const uint32_t *sel_ids = (const uint32_t *)selected_ids.ptr();
 				const size_t sel_n = (size_t)selected_ids.size();
 				uint32_t in_use = 0;       // formations a selected unit is in (bit 0: a unit in none)
@@ -1060,7 +1060,7 @@ public:
 						const Dictionary text = structure_template_text(my_civ, bt);
 						const String generic = text.get("generic_name", String::utf8(bi.name));
 						const String specific = text.get("specific_name", String());
-						String tip = rtso::entity_names(generic, specific);
+						String tip = rtso::entity_names_formatted(generic, specific);
 						auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 						add_line(classes_tooltip(text));
 						add_line(structure_auras_tooltip(text));
@@ -1227,7 +1227,7 @@ private:
 				const Dictionary text = gaia.get(String("gaia/") + rtso::fauna_type_info(f).template_name, Dictionary());
 				const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
 				String tip = (hotkey.empty() ? String() : rtso::hotkey_tag(String(hotkey.c_str())) + " ") +
-						rtso::entity_names(String(text.get("generic_name", String::utf8(rtso::fauna_type_info(f).name))),
+						rtso::entity_names_formatted(String(text.get("generic_name", String::utf8(rtso::fauna_type_info(f).name))),
 								String(text.get("specific_name", String())));
 				auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 				add_line(identity_tooltip(text));
@@ -1342,7 +1342,7 @@ private:
 					(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 			// The Research tooltip: names, tooltip, cost, right-click, requirements, needed resources.
 			const char *tech_specific = rtso::tech_specific_name(t, sim->player_civ(pid));
-			String tip = rtso::entity_names(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
+			String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
 			if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 			const String cost_line = rtso::cost_tooltip(tech_cost, true);
 			if (!cost_line.is_empty()) tip += "\n" + cost_line;
@@ -1506,7 +1506,7 @@ private:
 		// and attack, then the batch line; callers add requirements.
 		const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
 		tip = (hotkey.empty() ? String() : rtso::hotkey_tag(String(hotkey.c_str())) + " ") +
-				rtso::entity_names(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
+				rtso::entity_names_formatted(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
 		auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 		const Dictionary text = unit_template_text(u.id);
 		add_line(classes_tooltip(text));

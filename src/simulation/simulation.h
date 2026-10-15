@@ -518,7 +518,7 @@ public:
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
-			END_TREASURE };
+			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -2615,6 +2615,8 @@ private:
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
 	void record_unit_death(size_t i, uint8_t killer_team); // record_death for unit i, noting its DeathDamage
 	const DeathDamageInfo *unit_death_damage(size_t i) const;
+	static uint8_t unit_death_damage_row(uint16_t tmpl); // 1 + its death damage table row, 0 none
+	static const DeathDamageInfo *death_damage_info(uint8_t row); // that row's DeathDamage, or nullptr
 	float unit_template_regen(size_t i) const;
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
 	// (out of range or the victim's own owner credits nobody).

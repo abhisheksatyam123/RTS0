@@ -27107,6 +27107,44 @@
      "acceleration": 35
     }
    }
+  },
+  "theb_siege_fireraiser": {
+   "generic_name": "Fire Raiser",
+   "specific_name": "Pyrobolos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Siege"
+   ],
+   "icon": "units/theb/siege_fireraiser.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Ranged",
+      "name": "Fire",
+      "min_range": 10,
+      "max_range": 15,
+      "y_origin": 0,
+      "repeat_time": 2,
+      "damage": {
+       "Fire": 100
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 9,
+     "acceleration": 5.25
+    },
+    "status_resistance": {
+     "Poisoned": {
+      "block": 1,
+      "duration": 0
+     }
+    }
+   }
   }
  },
  "structures": {

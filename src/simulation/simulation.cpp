@@ -9156,13 +9156,13 @@ void Simulation::mark_building_wreck(Building &b, uint8_t killer) {
 
 void Simulation::record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building) {
 	size_t idx = recent_death_head_ % MAX_RECENT_DEATHS;
-	recent_deaths_[idx] = { x, z, team, killer_team, type, is_building, false, false };
+	recent_deaths_[idx] = { x, z, team, killer_team, type, is_building, false, 0 };
 	recent_death_head_++;
 }
 
 void Simulation::record_unit_death(size_t i, uint8_t killer_team) {
 	record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], killer_team, units_.unit_type[i], false);
-	recent_deaths_[(recent_death_head_ - 1) % MAX_RECENT_DEATHS].death_damage = unit_death_damage(i) != nullptr;
+	recent_deaths_[(recent_death_head_ - 1) % MAX_RECENT_DEATHS].death_damage = unit_death_damage_row(units_.tmpl[i]);
 }
 
 // --- 0 A.D. StatisticsTracker.js ---------------------------------------------
@@ -9548,7 +9548,7 @@ void Simulation::tick(float dt) {
 	tick_capture(dt);        // 0 A.D. Capturable.js: multi-team structure capture & regeneration
 	tick_status_effects(dt);
 	tick_projectiles(dt);
-	tick_death_damage(dt);   // 0 A.D. DeathDamage.js: fire ships explode on death
+	tick_death_damage(dt);   // 0 A.D. DeathDamage.js: fire ships and the fire-raiser explode on death
 
 	// 4. Infrastructure & Production
 	tick_construction(dt);   // 0 A.D. Foundation.js / Builder.js: building construction
@@ -14659,6 +14659,7 @@ void Simulation::check_victory_conditions(float dt) {
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
 	int critical_count[MAX_TEAMS] = {}; // ConquestCritical+!Foundation (Conquest.js)
+	int critical_units[MAX_TEAMS] = {}; // ConquestCritical Unit
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
 	bool wonder[MAX_TEAMS] = {};
@@ -14676,7 +14677,7 @@ void Simulation::check_victory_conditions(float dt) {
 		uint8_t t = units_.team[u];
 		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
 		unit_count[t]++; // ConquestUnits.js "Unit+!Animal": every unit, catafalques and traders too
-		if (is_conquest_critical_unit(units_.unit_type[u])) critical_count[t]++;
+		if (is_conquest_critical_unit(units_.unit_type[u])) { critical_count[t]++; critical_units[t]++; }
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
@@ -14736,14 +14737,21 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 
 	// Each active condition defeats on its own (every Conquest*.js query and Regicide.js
-	// call SetState("defeated") independently). A partial conquest's second query
-	// ("ConquestCritical Unit+!Animal" and the like: critical OR its own class) can only
-	// empty after its first, so the first decides.
+	// call SetState("defeated") independently). A query only fires when the last entity in
+	// its list leaves the player (ConquestCommon.js), so a list that starts empty (a Nomad
+	// player's structures or civic centres) never does, and the partial conquests' second
+	// query ("ConquestCritical Structure", "ConquestCritical CivilCentre+!Foundation":
+	// critical OR its own class) decides then.
 	const uint8_t vk = victory_conditions();
 	using SN = SessionNotice;
 	auto defeated = [&](int t) -> int { // the reason, or -1 while the player holds on
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
+		// A Nomad player's structures list starts empty: it fills with what they build or
+		// capture.
+		const PlayerStatistics &st = stats_[t];
+		const bool had_structure = !nomad_ || st.buildings_constructed[STAT_BLD_TOTAL] + st.buildings_captured[STAT_BLD_TOTAL]
+				+ st.buildings_lost[STAT_BLD_TOTAL] > 0;
 		// A query whose list starts empty never fires, so a nomad who has not built a civic
 		// centre yet is not out until one is lost.
 		bool no_ccs = built_cc_count[t] == 0 && stats_[t].buildings_lost[STAT_BLD_CIV_CENTRE] > 0;
@@ -14753,8 +14761,11 @@ void Simulation::check_victory_conditions(float dt) {
 		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
 		if ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) return SN::END_CONQUEST;
 		if ((vk & VK_CONQUEST_UNITS) && no_units) return SN::END_UNITS;
-		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures) return SN::END_STRUCTURES;
+		const bool gone = lost_any || (no_units && no_structures);
+		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && had_structure) return SN::END_STRUCTURES;
+		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && critical_units[t] == 0 && gone) return SN::END_STRUCTURES_CRITICAL;
 		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) return SN::END_CIVIC_CENTRES;
+		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && built_cc_count[t] == 0 && critical_count[t] == 0 && gone) return SN::END_CIVIC_CENTRES_CRITICAL;
 		if ((vk & VK_REGICIDE) && regicide_hero_lost(t)) return SN::END_HERO;
 		return -1;
 	};
@@ -15279,14 +15290,6 @@ void Simulation::eject_corral_animals(const Building &b, bool unallied_only) {
 	}
 }
 
-// 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
-// they die. Of the trained ones that is mixins/fireship.xml, on the ignited fire ships
-// (brit, gaul and iber ship_fire_fire, which ship_fire turns into by its Ignition
-// upgrade): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
-// has one too but no civ trains it.
-// 0.28 mixins/fireship.xml DeathDamage: Crush 500 in 22 m, no FriendlyFire, x3 vs Ship and Building.
-static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {22.0f * AREA_DAMAGE_SCALE, 500.0f, false, 3.0f};
-
 static bool template_is(uint16_t tmpl, const char *name) {
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
 	const char *id = civ_unit_template(tmpl).id;
@@ -15311,8 +15314,44 @@ static bool is_fire_ship(uint16_t tmpl) {
 	return template_is(tmpl, "ship_fire") || is_ignited_fire_ship(tmpl);
 }
 
+// 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
+// they die, each with its own Range, Damage, FriendlyFire and Bonuses. Ranges are area
+// ranges (x AREA_DAMAGE_SCALE, as splash). Row 0 must stay the fire ship: RecentDeath's
+// death_damage byte stores 1 + the row, and older saves stored 1 for a fire ship.
+struct TemplateDeathDamage {
+	const char *stem; // the template id after its civ folder
+	DeathDamageInfo dd;
+};
+static const TemplateDeathDamage kTemplateDeathDamage[] = {
+	// 0.28 mixins/fireship.xml, on the ignited fire ships (brit, gaul, iber and germ
+	// ship_fire_fire, which ship_fire turns into by its Ignition upgrade): Crush 500 in
+	// 22 m, no FriendlyFire, x3 vs Ship and Building.
+	{"ship_fire_fire", {22.0f * AREA_DAMAGE_SCALE, 500.0f, false, 3.0f, false}},
+	// 0.28 template_unit_siege_flamethrower.xml (units/theb_siege_fireraiser, which only
+	// Survival of the Fittest's Gaia waves field): Fire 600 in 20 m, FriendlyFire, so it
+	// burns every owner's units and structures, its own side's included. No Bonuses.
+	{"theb_siege_fireraiser", {20.0f * AREA_DAMAGE_SCALE, 600.0f, true, 1.0f, true}},
+};
+static constexpr uint8_t kTemplateDeathDamageRows = sizeof kTemplateDeathDamage / sizeof kTemplateDeathDamage[0];
+
+// 1 + the template's kTemplateDeathDamage row, 0 = no DeathDamage, looked up once.
+uint8_t Simulation::unit_death_damage_row(uint16_t tmpl) {
+	static const auto table = [] {
+		std::array<uint8_t, CIV_UNIT_TEMPLATE_COUNT> t{};
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k)
+			for (uint8_t r = 0; r < kTemplateDeathDamageRows; ++r)
+				if (template_is(k, kTemplateDeathDamage[r].stem)) t[k] = (uint8_t)(r + 1);
+		return t;
+	}();
+	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? table[tmpl] : 0;
+}
+
+const DeathDamageInfo *Simulation::death_damage_info(uint8_t row) {
+	return row >= 1 && row <= kTemplateDeathDamageRows ? &kTemplateDeathDamage[row - 1].dd : nullptr;
+}
+
 const DeathDamageInfo *Simulation::unit_death_damage(size_t i) const {
-	return is_ignited_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
+	return death_damage_info(unit_death_damage_row(units_.tmpl[i]));
 }
 
 // Health RegenRate from the template; tech modifiers (TSTAT_REGEN) add to it.
@@ -15322,7 +15361,8 @@ float Simulation::unit_template_regen(size_t i) const {
 
 // DeathDamage.CauseDeathDamage -> AttackHelper.CauseDamageOverArea: every entity of the
 // players it may hurt within Range takes the damage times 1 - d^2 / Range^2, d measured
-// from its obstruction. Nothing resists Fire (no template has a Fire resistance).
+// from its obstruction. Crush is reduced by the target's crush Resistance; nothing resists
+// Fire (no template has a Fire resistance).
 void Simulation::tick_death_damage(float dt) {
 	(void)dt;
 	const size_t start = (recent_death_head_ > MAX_RECENT_DEATHS) ? (recent_death_head_ - MAX_RECENT_DEATHS) : 0;
@@ -15332,8 +15372,9 @@ void Simulation::tick_death_damage(float dt) {
 		RecentDeath &death = recent_deaths_[k % MAX_RECENT_DEATHS];
 		if (death.death_damage_applied) continue;
 		death.death_damage_applied = true;
-		if (!death.death_damage || death.is_building) continue;
-		const DeathDamageInfo &dd = FIRESHIP_DEATH_DAMAGE;
+		const DeathDamageInfo *info = death_damage_info(death.death_damage);
+		if (!info || death.is_building) continue;
+		const DeathDamageInfo &dd = *info;
 		const float ox = death.x, oz = death.z, r = dd.range, r2 = r * r;
 		const uint8_t owner = death.team;
 		auto hurts = [&](uint8_t team) { return dd.friendly_fire || is_hostile(owner, team); };
@@ -15345,8 +15386,8 @@ void Simulation::tick_death_damage(float dt) {
 			if (d >= r || invulnerable(units_.id[i])) continue;
 			float res[3];
 			unit_resistance(i, res);
-			const float dmg = dd.damage * powf(0.9f, res[2]) * (unit_is_ship(units_.unit_type[i]) ? dd.ship_building_mult : 1.0f) *
-					(1.0f - d * d / r2);
+			const float dmg = dd.damage * (dd.fire ? 1.0f : powf(0.9f, res[2])) *
+					(unit_is_ship(units_.unit_type[i]) ? dd.ship_building_mult : 1.0f) * (1.0f - d * d / r2);
 			note_attacked(0, owner, units_.id[i], units_.team[i], false, dmg);
 			units_.hp[i] -= dmg;
 			if (units_.hp[i] > 0.0f) continue;
@@ -15366,7 +15407,7 @@ void Simulation::tick_death_damage(float dt) {
 			if (d2 >= r2) continue;
 			float res[3];
 			structure_resistance(b, res);
-			const float dmg = dd.damage * powf(0.9f, res[2]) * dd.ship_building_mult * (1.0f - d2 / r2);
+			const float dmg = dd.damage * (dd.fire ? 1.0f : powf(0.9f, res[2])) * dd.ship_building_mult * (1.0f - d2 / r2);
 			note_attacked(0, owner, b.id, b.team, true, dmg);
 			b.hp -= dmg;
 			if (b.hp <= 0.0f) mark_building_wreck(b, owner);
