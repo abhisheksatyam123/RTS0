@@ -469,8 +469,8 @@ public:
 				// while it upgrades.
 				if (found_b->team == local_player()) {
 					const bool upgrading = found_b->upgrade_to != rtso::BLD_TYPE_COUNT;
-					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, pciv); ++choice) {
-						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv, choice);
+					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, sim->structure_upgrade_civ(*found_b)); ++choice) {
+						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, sim->structure_upgrade_civ(*found_b), choice);
 						const rtso::Simulation::UpgradeCheck check = sim->upgrade_check(local_player(), found_b->id, choice);
 						// Not this piece's (only wall_long and palisades_long become gates).
 						if (check == rtso::Simulation::UPGRADE_ERR_NONE && !upgrading) continue;

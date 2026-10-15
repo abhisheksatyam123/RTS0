@@ -3718,7 +3718,7 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	if (bit == building_id_to_idx_.end() || player_id >= MAX_PLAYERS) return UPGRADE_ERR_NONE;
 	const Building &b = buildings_[bit->second];
 	if (b.team != player_id) return UPGRADE_ERR_OWNER;
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
+	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
 	if (up.to >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) return UPGRADE_ERR_NONE;
 	// Of the WallSet segments only wall_long has an Upgrade (to the gate).
 	if (b.type == BLD_WALL_SEGMENT && is_wallset_piece(b.type, b.half_size) &&
@@ -3754,7 +3754,7 @@ uint32_t Simulation::unit_guard_target(uint32_t uid) const {
 bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice) {
 	if (upgrade_check(player_id, building_id, choice) != UPGRADE_OK) return false;
 	Building &b = buildings_[building_id_to_idx_[building_id]];
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
+	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
 	players_[player_id].pay((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_paid[RES_FOOD] = (float)up.food_cost;
@@ -6654,6 +6654,12 @@ float Simulation::unit_height(size_t i) const {
 	const float ground = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
 	if (!unit_is_ship(units_.unit_type[i]) || terrain_water_height_ < -0.5f) return ground + unit_height_offset(i);
 	return std::max(ground, terrain_water_height_);
+}
+
+// Attack/Ranged/Origin/Y above the unit's position (the parabolic range's height): 10 m for
+// template_unit_siege_tower, none for other units.
+float Simulation::unit_attack_origin_y(size_t i) const {
+	return is_siege_tower_at(i) ? 10.0f * COMBAT_DISTANCE_SCALE : 0.0f;
 }
 
 bool Simulation::is_siege_tower_at(size_t i) const {
@@ -9597,7 +9603,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 				float reach = capture ? CAPTURE_RANGE : attack_reach(i);
 				if (!capture && reach > 3.0f) { // Ranged: the elevation-adapted range, as for a unit target
-					const float h = get_terrain_height(b.x, b.z) - unit_height(i);
+					const float h = get_terrain_height(b.x, b.z) - unit_height(i) - unit_attack_origin_y(i);
 					const float eff = std::sqrt(std::max(0.0f, reach * reach - 2.0f * reach * h));
 					reach = eff > reach ? 0.5f * (reach + eff) : eff;
 				}
@@ -9639,7 +9645,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				if (units_.target_unit_id[i] != 0) {
 					const int32_t t = lookup_unit(units_.target_unit_id[i]);
 					if (t >= 0) {
-						const float h = unit_height((size_t)t) - unit_height(i);
+						const float h = unit_height((size_t)t) - unit_height(i) - unit_attack_origin_y(i);
 						const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
 						r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
 					}
@@ -12595,7 +12601,9 @@ void Simulation::tick_combat(float dt) {
 		const int volley = siege_tower_arrows(i);
 		if (volley <= 0) continue;
 		const uint8_t team = units_.team[i];
-		const float sx = units_.pos_x[i], sz = units_.pos_z[i], sy = unit_height(i);
+		// template_unit_siege_tower Attack/Ranged/Origin/Y: its range is measured from 10 m up.
+		const float ground_y = unit_height(i);
+		const float sx = units_.pos_x[i], sz = units_.pos_z[i], sy = ground_y + unit_attack_origin_y(i);
 		const float range = units_.attack_range[i];
 		const bool check_los = team < MAX_PLAYERS && los_.cells() != 0;
 		auto unit_ok = [&](int32_t t) {
@@ -12661,7 +12669,7 @@ void Simulation::tick_combat(float dt) {
 		if (!have) continue;
 		const float tech_spread = team < MAX_PLAYERS ? unit_tech_mods(team, units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
 		const float spread = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread;
-		const float launch_y = sy + 1.4f;
+		const float launch_y = ground_y + 1.4f;
 		const uint8_t splash = unit_splash(units_.tmpl[i], units_.unit_type[i]);
 		if (tf >= 0) {
 			for (int v = 0; v < volley; ++v) fire_at_fauna(i, (size_t)tf);
@@ -13672,11 +13680,15 @@ float Simulation::unit_damage_to_structure(size_t i, const Building &b) const {
 }
 
 // A structure's arrow (BuildingAI) against resistance `res`: its Attack/Ranged Damage,
-// pierce scaled by its owner's technologies.
+// pierce scaled by its owner's technologies, times the attack auras reaching structures
+// (Alexander's Undefeated: enemy Structures -10% attack damage).
 float Simulation::structure_arrow_damage(const Building &shooter, const float res[3]) const {
 	const BuildingAIInfo &ai = building_ai_info(shooter.type);
 	const float pierce = ai.pierce * (shooter.team < MAX_PLAYERS ? tech_mods(shooter.team).bld_attack[shooter.type] : 1.0f);
-	return ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
+	const float aura = aura_mgr_.query_modifier(shooter.x, shooter.z, shooter.team, AURA_ATTACK,
+		CIV_UNIT_TEMPLATE_NONE, nullptr, true);
+	const float dmg = ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
+	return aura > 0.0f ? dmg * aura : dmg; // 0 = none in range
 }
 
 // DelayedDamage.js Hit -> Attacking.HandleAttackEffects: the projectile's effects meet
