@@ -18467,6 +18467,78 @@ void Simulation::petra_end_emergency_rallies() {
 		if (b.queue.empty() && petra_emergency_rally(b)) cmd_unset_rally_point(petra_pid_, b.id);
 }
 
+// RTS0, not 0.28: with saveResources, one civic centre and no wood left to cut near it
+// (Islands: 5 trees and 14 wood treasures per island), the wood in stock is all Petra has for
+// the town phase (500), the civic centre on other land it needs then (300) and a ship to take
+// the builders there. 0.28's Petra spends it on citizen infantry and houses and stalls in the
+// village phase for good. Here, while stock and the trees left on its civic centre's land are
+// under 1550, its worker batches are support units (no wood), only petra_wood_kept_for's queues
+// spend the 1150 kept (650 once in the town phase), and the town phase starts once the houses
+// are full.
+bool Simulation::petra_wood_starved() const {
+	// saveResources, or kept past the new base's foundation (phase2_cut_kept) until it stands.
+	if (petra_ps().phase > 2 || !(petra_attack_mgr_.save_resources || petra_attack_mgr_.phase2_cut_kept)) return false;
+	float wood = petra_ps().res[RES_WOOD];
+	std::vector<std::pair<const Building *, uint16_t>> ccs;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && is_civic_centre(b.type) && b.build_progress >= 1.0f)
+			ccs.push_back({&b, petra_access_at(b.x, b.z)});
+	if (ccs.size() != 1) return false;
+	// Trees our workers found nothing to gather from in the last minute (lastFailedGather)
+	// are out of reach.
+	const float failed = petra_failed_gather_.time[RES_WOOD];
+	if (failed > 0.0f && petra_timer_ - failed < 60.0f) return wood < 1550.0f;
+	for (size_t r = 0; r < resources_.count && wood < 1550.0f; ++r) {
+		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD || resources_.amount[r] <= 0) continue;
+		for (const auto &cc : ccs) {
+			const float dx = resources_.x[r] - cc.first->x, dz = resources_.z[r] - cc.first->z;
+			if (dx * dx + dz * dz < 90.0f * 90.0f && petra_access_at(resources_.x[r], resources_.z[r]) == cc.second) {
+				wood += (float)resources_.amount[r];
+				break;
+			}
+		}
+	}
+	return wood < 1550.0f;
+}
+
+// RTS0, not 0.28: a batch that has waited 10 s past its training time for a free spot to
+// step out on (idle workers crowd a civic centre on a small island once nothing is left to
+// gather) has our idle units around the trainer walk 8 m away from it. 0.28's Petra leaves
+// them standing, and the queue behind the batch, the town phase included, never moves.
+void Simulation::petra_clear_blocked_spawns() {
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.queue.empty() || b.hp <= 0.0f) continue;
+		const ProductionOrder &o = b.queue.front();
+		if (o.is_tech() || !o.started || o.timer < o.duration + 10.0f) continue;
+		const float reach = std::max(b.hu, b.hv) * 1.42f + 4.0f; // the corner, then 16 m
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_IDLE ||
+			    unit_is_ship(units_.unit_type[i]))
+				continue;
+			float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+			const float d = std::sqrt(dx * dx + dz * dz);
+			if (d > reach) continue;
+			if (d < 1e-3f) { dx = 1.0f; dz = 0.0f; } else { dx /= d; dz /= d; }
+			const uint32_t id = units_.id[i];
+			cmd_move(&id, 1, units_.pos_x[i] + dx * 2.0f, units_.pos_z[i] + dz * 2.0f);
+		}
+	}
+}
+
+// What the wood petra_wood_starved keeps is for: the town phase, the civic centre on other
+// land, the ship that takes its builders there and, in the town phase with the houses full,
+// the house that ship needs room for; and the first dock of a Petra that needs fish
+// (startingStrategy.js needFish).
+bool Simulation::petra_wood_kept_for(int queue) const {
+	if (queue == PETRA_Q_DOCK && petra_kept_.need_fish) {
+		for (const Building &b : buildings_)
+			if (b.team == petra_pid_ && (b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK) && b.hp > 0.0f && !b.wrecked) return false;
+		return true;
+	}
+	return queue == PETRA_Q_MAJOR_TECH || queue == PETRA_Q_CIVIL_CENTRE || queue == PETRA_Q_SHIPS ||
+	       (queue == PETRA_Q_HOUSE && petra_ps().phase >= 2 && petra_pop_room() <= 0);
+}
+
 // headquarters.js trainMoreWorkers: workers (support units and citizen infantry not in a
 // plan, queued ones included) up to Economy.targetNumWorkers, in batches of
 // min(5, workers / 10). Support units make up supportRatio of targetNumWorkers at full
@@ -18546,7 +18618,7 @@ int Simulation::petra_train_more_workers() {
 		if (civilian == CIV_UNIT_TEMPLATE_NONE || sum < civilian_cost) { civilian = tmpl; civilian_cost = sum; }
 	}
 	// No civilian to train (map-disabled): soldiers instead, as 0.28's !templateDef.
-	if (civilian == CIV_UNIT_TEMPLATE_NONE || (float)(supports + queued_supports) > support_num) {
+	if (civilian == CIV_UNIT_TEMPLATE_NONE || ((float)(supports + queued_supports) > support_num && !petra_wood_starved())) {
 		// findBestTrainableUnit over CitizenSoldier+Infantry, plus one of Ranged, Melee or
 		// any (pickRandom), so at least a third of each.
 		// The template's own classes (mercenaries are CitizenSoldier too in 0.28), no hero or
@@ -18972,6 +19044,7 @@ void Simulation::petra_manage_economy(float dt) {
 
 	// headquarters.js update: trainMoreWorkers (it trains every 4th AI turn; the shortfall counts every turn).
 	petra_end_emergency_rallies();
+	petra_clear_blocked_spawns();
 	const int worker_shortfall = petra_train_more_workers();
 
 	// 2. headquarters.js GetCurrentGatherRates (basesManager.addGatherRates): every gatherer
@@ -20127,6 +20200,7 @@ void Simulation::petra_manage_fields() {
 	};
 	struct BaseFood {
 		std::vector<std::pair<float, float>> drops;
+		std::vector<uint16_t> drop_access; // assignResourceToDropsite: supplies on the dropsite's land only
 		// Where its fields are laid: its first farmstead, else its first civic centre. Kept as a
 		// position, not the structure, as a foundation placed below grows buildings_.
 		float by_x = 0.0f, by_z = 0.0f;
@@ -20155,6 +20229,7 @@ void Simulation::petra_manage_fields() {
 			if (k <= 0 || k > (int)bases.size()) continue; // outside our territory: no base's
 			BaseFood &bf = bases[k - 1];
 			bf.drops.push_back({b.x, b.z});
+			bf.drop_access.push_back(petra_access_at(b.x, b.z));
 			const bool fs = b.type == BLD_FARMSTEAD;
 			if (fs ? !bf.by_farmstead : !bf.by) { bf.by_x = b.x; bf.by_z = b.z; bf.by = true; bf.by_farmstead = fs; }
 		}
@@ -20172,10 +20247,17 @@ void Simulation::petra_manage_fields() {
 		// field: a farmstead pushed toward a close neighbour would otherwise count its berries.
 		const int terr = territory_owner_at(resources_.x[r], resources_.z[r]);
 		if (terr >= 0 && terr < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)terr)) continue;
+		uint16_t access = 0;
+		bool access_known = false;
 		for (BaseFood &bf : bases)
-			for (const auto &d : bf.drops) {
+			for (size_t k = 0; k < bf.drops.size(); ++k) {
+				const auto &d = bf.drops[k];
 				const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
-				if (dx * dx + dz * dz < reach * reach) { bf.count += (float)resources_.amount[r]; break; }
+				if (dx * dx + dz * dz >= reach * reach) continue;
+				if (!access_known) { access = petra_access_at(resources_.x[r], resources_.z[r]); access_known = true; }
+				if (access != bf.drop_access[k]) continue;
+				bf.count += (float)resources_.amount[r];
+				break;
 			}
 	}
 
@@ -23101,7 +23183,17 @@ bool Simulation::petra_phasing() const {
 	// renews it every turn; only phases go in that queue).
 	if (planned(PETRA_Q_MAJOR_TECH)) return true;
 	if (planned(PETRA_Q_CIVIL_CENTRE) || planned(PETRA_Q_WONDER)) return false;
-	if (phase == 1) return petra_accounted_population() >= petra_pop_phase2();
+	// checkPhase: only with a finished structure of ours that researches the phase
+	// (gameState.hasResearchers(nextPhaseName, true)).
+	const uint8_t next = phase == 1 ? TECH_PHASE_TOWN : TECH_PHASE_CITY;
+	bool researcher = false;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f &&
+		    building_researches_tech(b.type, next, petra_ps().civ)) { researcher = true; break; }
+	if (!researcher) return false;
+	// RTS0, not 0.28: short of wood for houses (petra_wood_starved), the town phase at the
+	// population our houses hold.
+	if (phase == 1) return petra_accounted_population() >= petra_pop_phase2() || (petra_wood_starved() && petra_pop_room() <= 0);
 	return petra_accounted_workers() > petra_work_phase3();
 }
 
@@ -23337,8 +23429,16 @@ void Simulation::petra_manage_research(float dt) {
 		return;
 	}
 
-	// headquarters.js:2295: researchManager.update every 5th AI turn.
+	// headquarters.js:2295: researchManager.update every 5th AI turn, with an active base (a
+	// finished civic centre of ours, hasActiveBase).
 	if (!petra_turn_mod(5, 1)) return;
+	bool active_base = false;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f && petra_base_anchor_type(b.type)) {
+			active_base = true;
+			break;
+		}
+	if (!active_base) return;
 	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
 	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
 	std::vector<uint8_t> techs;
@@ -25718,8 +25818,15 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		return w.food + w.wood + w.gold + w.stone > 0.0f;
 	};
 
+	const bool wood_starved = petra_wood_starved();
 	// distributeResources, one resource at a time.
 	auto distribute = [&](float PetraQueueAccount::*field, float total) {
+		// petra_wood_starved (RTS0): the wood goes to what petra_wood_kept_for names only.
+		auto kept_out = [&](int j) {
+			return wood_starved && field == &PetraQueueAccount::wood && !petra_wood_kept_for(j);
+		};
+		for (int j = 0; j < PETRA_Q_COUNT; ++j)
+			if (kept_out(j)) qm.accounts[j].*field = 0.0f;
 		float available = total;
 		for (int j = 0; j < PETRA_Q_COUNT; ++j) available -= qm.accounts[j].*field;
 		if (available < 0.0f) {
@@ -25735,7 +25842,7 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 			// switchResource: a queue a lower-priority queue's account would complete takes what
 			// it is missing from it; each lower queue is drawn on once until it starts an item.
 			for (int j = 0; j < PETRA_Q_COUNT; ++j) {
-				if (!has_plan(j) || qm.paused[j]) continue;
+				if (!has_plan(j) || qm.paused[j] || kept_out(j)) continue;
 				const float cost = qm.wants[j].*field;
 				if (qm.accounts[j].*field >= cost) continue;
 				for (int i = 0; i < PETRA_Q_COUNT; ++i) {
@@ -25756,8 +25863,8 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		int temp_prio[PETRA_Q_COUNT] = {};
 		float max_need[PETRA_Q_COUNT] = {};
 		for (int j = 0; j < PETRA_Q_COUNT; ++j) {
-			const float cost = qm.paused[j] ? 0.0f : qm.wants[j].*field;
-			if (has_plan(j) && !qm.paused[j] && qm.accounts[j].*field < cost) {
+			const float cost = qm.paused[j] || kept_out(j) ? 0.0f : qm.wants[j].*field;
+			if (has_plan(j) && !qm.paused[j] && !kept_out(j) && qm.accounts[j].*field < cost) {
 				temp_prio[j] = prio[j];
 				max_need[j] = cost - qm.accounts[j].*field;
 				total_prio += temp_prio[j];
@@ -25841,8 +25948,11 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	PetraQueueManager &qm = petra_queues_;
 	PetraQueueAccount &a = qm.accounts[queue];
 	PetraQueueAccount &w = qm.wants[queue];
+	// petra_wood_starved: the wood kept for petra_wood_kept_for's queues.
+	const float reserve = wood > 0.0f && !petra_wood_kept_for(queue) && petra_wood_starved()
+	                      ? (petra_ps().phase == 1 ? 1150.0f : 650.0f) : 0.0f;
 	if (qm.paused[queue] || a.food < food || a.wood < wood || a.gold < gold || a.stone < stone ||
-	    petra_ps().food() < food || petra_ps().wood() < wood || petra_ps().gold() < gold || petra_ps().stone() < stone) {
+	    petra_ps().food() < food || petra_ps().wood() < wood + reserve || petra_ps().gold() < gold || petra_ps().stone() < stone) {
 		// The plan stays queued: the next refresh funds this queue (unless it is paused).
 		w.food = std::max(w.food, food); w.wood = std::max(w.wood, wood);
 		w.gold = std::max(w.gold, gold); w.stone = std::max(w.stone, stone);
