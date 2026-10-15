@@ -169,6 +169,17 @@ static void test_britons() {
 	b = res_of(s, 0);
 	print_gain(a, b);
 	check(gained(a, b, 5, 0, 0, 0), "Briton cavalry (not infantry) get no bonus");
+	// Boudicca and Cunobelin are Cavalry heroes: their own classes, not UNIT_HERO's, decide.
+	s.cmd_delete(0, &cav, 1);
+	const uint16_t boud = civ_unit_template_by_id("brit/hero_boudicca");
+	check(boud < CIV_UNIT_TEMPLATE_COUNT, "roster has Boudicca");
+	uint32_t hero = s.spawn_unit(0, 6.0f, 0, (UnitType)civ_unit_template(boud).unit_type, 0.0f, boud);
+	uint32_t fem3 = s.spawn_unit(1.0f, 6.0f, 1, UNIT_FEMALE_CITIZEN, 1.0f);
+	a = res_of(s, 0);
+	melee_kill(s, hero, fem3);
+	b = res_of(s, 0);
+	print_gain(a, b);
+	check(gained(a, b, 5, 0, 0, 0), "nor does Boudicca, a cavalry hero");
 }
 
 static void test_damage_xp() {

@@ -9024,7 +9024,7 @@ bool Simulation::looter_present(uint32_t looter_id, bool *infantry) const {
 	int32_t u = lookup_unit(looter_id);
 	if (u >= 0) {
 		if (!units_.alive[u]) return false;
-		*infantry = (unit_tech_classes(units_.unit_type[u]) & TC_INFANTRY) != 0;
+		*infantry = (unit_classes(units_.tmpl[u], units_.unit_type[u]) & TC_INFANTRY) != 0; // the row's own classes: Boudicca rides
 		return true;
 	}
 	auto bit = building_id_to_idx_.find(looter_id);
