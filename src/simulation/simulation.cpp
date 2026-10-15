@@ -26783,11 +26783,32 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 	int32_t sidx = tp.ship_id ? lookup_unit(tp.ship_id) : -1;
 	if (sidx < 0 || !units_.alive[sidx] || (units_.unit_type[sidx] != UNIT_TRIREME && units_.unit_type[sidx] != UNIT_MERCHANT_SHIP)) {
 		// navalManager.checkEvents: a ship lost while boarding leaves the plan
-		// waiting for another (assignShipsToPlans); at sea the plan ends.
+		// waiting for another (assignShipsToPlans). Lost at sea, its survivors (those it set
+		// down on a shore as it sank, and any left behind at the beach) not yet on the
+		// destination's land ask for another transport there (requireTransport); here the
+		// plan goes back to boarding with them, from the shore of the first one's land.
 		if (tp.state != PetraTransportPlan::BOARDING) {
-			tp.state = PetraTransportPlan::FAILED;
-			tp.failed = true;
-			return;
+			if (sidx >= 0 && get_transport_passenger_count(tp.ship_id) > 0) return; // not set down yet
+			const uint16_t end_land = petra_land_at(tp.drop_x, tp.drop_z);
+			std::vector<uint32_t> stranded;
+			uint16_t from_land = 0;
+			for (uint32_t uid : tp.passenger_ids) {
+				const int32_t i = lookup_unit(uid);
+				if (i < 0 || !units_.alive[i]) continue;
+				const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
+				if (!land || land == end_land) continue;
+				if (!from_land) from_land = land;
+				if (land == from_land) stranded.push_back(uid);
+			}
+			if (stranded.empty() || !end_land) {
+				tp.state = PetraTransportPlan::FAILED;
+				tp.failed = true;
+				return;
+			}
+			const int32_t f = lookup_unit(stranded[0]);
+			petra_find_beach(units_.pos_x[f], units_.pos_z[f], tp.drop_x, tp.drop_z, tp.pickup_x, tp.pickup_z);
+			tp.passenger_ids = std::move(stranded);
+			tp.state = PetraTransportPlan::BOARDING;
 		}
 		if (tp.ship_id) { tp.ship_id = 0; tp.state_timer = 0.0f; }
 		const uint32_t ship = petra_free_transport_ship(tp.sea, tp.pickup_x, tp.pickup_z);
@@ -26817,6 +26838,39 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 			const float step = 22.5f / 4.0f;
 			order_walk(&uid, 1, units_.pos_x[i] + ux / d * step, units_.pos_z[i] + uz / d * step, false);
 		}
+	};
+	// transportPlan.js onSailing: a unit set down on another land than the destination (the ship
+	// lay off another shore) is garrisoned again at once, and the ship sails for another landing
+	// point on the destination's land (getBoardingPos). 0.28 destroys a unit that then fails to
+	// re-board; RTS0 leaves it where it stands.
+	auto unload = [&]() -> bool {
+		std::vector<uint32_t> before;
+		if (const auto *p = get_transport_passengers(tp.ship_id)) before = *p;
+		order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
+		const uint16_t end_land = petra_land_at(tp.drop_x, tp.drop_z);
+		if (!end_land) return false;
+		std::vector<uint32_t> wrong;
+		for (uint32_t uid : before) {
+			const int32_t i = lookup_unit(uid);
+			if (i < 0 || !units_.alive[i]) continue; // still aboard
+			const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
+			if (land && land != end_land) wrong.push_back(uid);
+		}
+		if (wrong.empty()) return false;
+		order_board_transport(wrong.data(), wrong.size(), tp.ship_id);
+		if (get_transport_passenger_count(tp.ship_id) == 0) return false;
+		const float skip[2] = {tp.drop_x, tp.drop_z};
+		const float sx = units_.pos_x[sidx], sz = units_.pos_z[sidx];
+		float nx, nz;
+		if (!petra_boarding_pos(end_land, tp.sea, sx, sz, tp.drop_x, tp.drop_z, true, nx, nz, skip)) return false;
+		tp.drop_x = nx;
+		tp.drop_z = nz;
+		float x, z;
+		sail_point(x, z);
+		order_walk(&tp.ship_id, 1, x, z, false);
+		tp.state = PetraTransportPlan::SAILING;
+		tp.state_timer = 0.0f;
+		return true;
 	};
 	auto sail = [&]() {
 		// Those not aboard stay behind; their boarding order would pull the ship back.
@@ -26909,7 +26963,7 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		const float dx = units_.pos_x[sidx] - x, dz = units_.pos_z[sidx] - z;
 		const bool stopped = units_.action_state[sidx] == ACTION_IDLE && tp.state_timer > 2.0f;
 		if (dx * dx + dz * dz <= 9.0f || stopped || tp.state_timer > 90.0f) {
-			order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
+			if (unload()) return;
 			make_room();
 			tp.state = PetraTransportPlan::UNLOADING;
 			tp.state_timer = 0.0f;
@@ -26939,7 +26993,7 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 				tp.failed = true;
 			}
 		} else if (std::fmod(tp.state_timer, 3.0f) < dt) {
-			order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
+			unload();
 		}
 	}
 }
