@@ -801,3 +801,8 @@ void RtsoMain::debug_attacked(int64_t target, int64_t attacker_owner) {
 	e.z = uv.pos_z[u];
 	detect_attacks({e});
 }
+
+// The GLB a civ's class model for a unit type loads from (ModelLibrary, aliases included).
+String RtsoMain::debug_unit_model_path(int civ, int unit_type) {
+	return rtso::ModelLibrary::get("units", String(rtso::civ_unit_model((uint8_t)civ, (uint8_t)unit_type))).path;
+}
