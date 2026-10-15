@@ -20682,6 +20682,66 @@
       "template": "structures/brit/corral",
       "x": -90.18,
       "z": -120.44
+    },
+    {
+      "type": "outpost",
+      "template": "structures/brit/outpost",
+      "x": -73.43,
+      "z": -129.93
+    },
+    {
+      "type": "outpost",
+      "template": "structures/brit/outpost",
+      "x": 32.37,
+      "z": -115.44
+    },
+    {
+      "type": "outpost",
+      "template": "structures/brit/outpost",
+      "x": 140.55,
+      "z": -84.86
+    },
+    {
+      "type": "outpost",
+      "template": "structures/brit/outpost",
+      "x": 57.29,
+      "z": -42.22
+    },
+    {
+      "type": "outpost",
+      "template": "structures/brit/outpost",
+      "x": -20.09,
+      "z": -68.02
+    },
+    {
+      "type": "outpost",
+      "template": "structures/brit/outpost",
+      "x": 80.82,
+      "z": 159.96
+    },
+    {
+      "type": "outpost",
+      "template": "structures/brit/outpost",
+      "x": 69.73,
+      "z": 100.7
+    },
+    {
+      "type": "outpost",
+      "template": "structures/brit/outpost",
+      "x": -112.56,
+      "z": 132.95
+    },
+    {
+      "type": "uffington_horse",
+      "template": "structures/uffington_horse",
+      "x": -91.67,
+      "z": -53.21
+    },
+    {
+      "type": "stonehenge",
+      "template": "structures/stonehenge",
+      "x": 40.41,
+      "z": -36.64
     }
   ],
   "gaia_units": [],

@@ -3820,6 +3820,8 @@ void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGr
 	auto spawn = [&](float x, float z, uint8_t type, std::vector<Placed> &into) {
 		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
 		if (!id) return 0u;
+		// structures/kush/* and structures/ptol/wonder: their template's civ.
+		sim.set_building_civ(id, type == BLD_WONDER ? CIV_PTOLEMIES : CIV_KUSHITES);
 		for (const auto &b : sim.buildings())
 			if (b.id == id) { into.push_back({b.x, b.z, b.half_size}); break; }
 		return id;
@@ -4010,6 +4012,7 @@ void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &
 				!clear(x, z, 6.0f, kRock | kMetal)) continue;
 		const uint32_t id = sim.spawn_building_world(x, z, BLD_PYRAMID_LARGE, GAIA_PLAYER, 1.0f);
 		if (!id) continue;
+		sim.set_building_civ(id, CIV_KUSHITES); // structures/kush/pyramid_large
 		for (const auto &b : sim.buildings())
 			if (b.id == id) { mark(b.x, b.z, b.half_size, kPyramid); break; }
 		break;
@@ -4184,15 +4187,18 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			sim.spawn_resource_world(bx, bz, RES_FOOD, 200);
 		}
 
-		// 5. Primary Forest: Dense Woodline (10 spots of two 200-wood trees)
+		// 5. Primary Forest: Dense Woodline (10 spots of two 200-wood trees). islands.js asks
+		// placePlayerBases for "Trees": {count: 5}: one group of 5 trees, 0-5 apart, 11-13
+		// from the civic centre.
 		float forest_cx = px - fx * 10.5f + rx * 3.5f;
 		float forest_cz = pz - fz * 10.5f + rz * 3.5f;
 		dry(px, pz, forest_cx, forest_cz, 5.0f);
-		for (int t = 0; t < 10; ++t) {
-			float ta = -1.2f + (2.4f * t) / 9.0f;
-			float tx = forest_cx + std::cos(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
-			float tz = forest_cz + std::sin(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
-			spawn_trees(sim, hm, tx, tz, dry_h);
+		const bool five_trees = mt == MAP_ISLANDS;
+		for (int t = 0; t < (five_trees ? 5 : 10); ++t) {
+			float ta = five_trees ? -1.2f + (2.4f * t) / 4.0f : -1.2f + (2.4f * t) / 9.0f;
+			float tx = forest_cx + std::cos(ta) * (five_trees ? 2.0f : 4.0f) + rng.range_float(-0.4f, 0.4f);
+			float tz = forest_cz + std::sin(ta) * (five_trees ? 2.0f : 4.0f) + rng.range_float(-0.4f, 0.4f);
+			spawn_trees(sim, hm, tx, tz, dry_h, five_trees ? 1 : 2);
 		}
 
 		// 6-7. rmgen placePlayerBaseMines: one large metal mine and one large
@@ -4360,6 +4366,17 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		}
 	}
 
+	auto on_player_island = [&](float x, float z) {
+		for (const auto &sp : spawns) {
+			const float dx = x - sp.x, dz = z - sp.z, d = std::sqrt(dx * dx + dz * dz);
+			if (d > 40.0f) continue;
+			bool dry_line = true;
+			for (float f = 0.0f; f <= d && dry_line; f += 0.5f)
+				dry_line = hm.sample_world(sp.x + dx * f / std::max(d, 1e-3f), sp.z + dz * f / std::max(d, 1e-3f)) > water_h;
+			if (dry_line) return true;
+		}
+		return false;
+	};
 	// 1. Organic Forest Clumps
 	for (int g = 0; g < num_groves; ++g) {
 		float gx = rng.range_float(-half * 0.82f, half * 0.82f);
@@ -4385,7 +4402,11 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 			float r = std::sqrt(rng.next_float()) * grove_r;
 			float tx = gx + std::cos(a) * r;
 			float tz = gz + std::sin(a) * r;
-			if (hm.sample_world(tx, tz) > water_h + 0.2f) spawn_trees(sim, hm, tx, tz, water_h + 0.2f);
+			if (hm.sample_world(tx, tz) <= water_h + 0.2f) continue;
+			// islands.js: forests avoidClasses(clPlayer, 0), so none on a player's island
+			// (the straight line from its civic centre stays on land).
+			if (config.map_type == MAP_ISLANDS && on_player_island(tx, tz)) continue;
+			spawn_trees(sim, hm, tx, tz, water_h + 0.2f);
 		}
 	}
 
@@ -5338,6 +5359,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 	auto building = [&](float x, float z, uint8_t type, bool capturable) {
 		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
 		if (!id) return id;
+		sim.set_building_civ(id, CIV_GAULS); // structures/gaul/*: a captured CC trains Gallic women
 		if (!capturable) sim.set_structure_uncapturable(id);
 		for (const auto &b : sim.buildings())
 			if (b.id == id) sim.clear_resources_near(x, z, b.half_size + 1.0f);
@@ -9424,6 +9446,8 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 	};
 	auto building = [&](float x, float z, uint8_t type, bool capturable) {
 		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
+		// structures/kush/* and structures/ptol/wonder: a captured camp trains its {native} mercenaries.
+		if (id) sim.set_building_civ(id, type == BLD_WONDER ? CIV_PTOLEMIES : CIV_KUSHITES);
 		if (id && !capturable) sim.set_structure_uncapturable(id);
 		return id;
 	};

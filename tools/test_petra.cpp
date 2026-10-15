@@ -1309,6 +1309,29 @@ static void test_pop_phase2_save_resources() {
 	CHECK(s->petra_pop_phase2() == 112, "the 3/4 cut outlives saveResources");
 }
 
+// researchManager.js checkPhase: Petra plans the next phase only with a finished structure that
+// researches it (hasResearchers); with its civic centre gone it doesn't count as phasing, so
+// its minor research and expansion aren't held for a phase it can't research.
+static void test_petra_phasing_needs_researcher() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	s->pop_cap_ = 50;
+	float x = 0.0f, z = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { x = b.x; z = b.z; }
+	for (int k = 0; k < 30; ++k) s->spawn_unit(x + 6.0f + (float)(k % 6), z + 6.0f + (float)(k / 6), 0, UNIT_FEMALE_CITIZEN);
+	std::printf("accounted %d, popPhase2 %d\n", s->petra_accounted_population(), s->petra_pop_phase2());
+	CHECK(s->petra_phasing(), "phasing at popPhase2 with a civic centre");
+	for (auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) s->destroy_building(b);
+	CHECK(!s->petra_phasing(), "no phasing without a structure researching the town phase");
+}
+
 // config.js setConfig: Config.popScaling takes sqrt(maxPop/300) under 300, and every helper
 // built on it (transport ships, checkPausedQueues' workersMin) uses it. maxPop is
 // getPopulationMax at the first turn, with the civ's population bonus.
@@ -1329,6 +1352,71 @@ static void test_petra_config_pop_scaling() {
 	s->pop_cap_ = 200;
 	std::printf("Persian maxPop at a 200 cap: %d (0.28 220)\n", s->petra_config_max_pop());
 	CHECK(s->petra_config_max_pop() == 220, "pers_population raises getPopulationMax by 10%");
+}
+
+// Islands: islands.js gives a player's island 5 trees (and 14 wood treasures). With that wood
+// cut, Petra (RTS0, not 0.28) keeps its stock for the town phase, the civic centre on other
+// land and its ship: the house queue gets no wood, the phase does. Its idle units step aside
+// from a civic centre whose trained batch has nowhere to come out.
+static void test_petra_islands_wood_reserve() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->set_waves_enabled(false);
+	s->generate_random_map(MAP_ISLANDS, 7, 2, 128.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "player 1 has a civic centre");
+	if (!cc) return;
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	const uint16_t land = s->petra_access_at(cc->x, cc->z);
+	int trees = 0;
+	std::vector<size_t> home_trees;
+	for (size_t r = 0; r < s->resources_.count; ++r) {
+		if (!s->resources_.alive[r] || s->resources_.type[r] != RES_WOOD) continue;
+		const float dx = s->resources_.x[r] - cc->x, dz = s->resources_.z[r] - cc->z;
+		if (dx * dx + dz * dz < 90.0f * 90.0f && s->petra_access_at(s->resources_.x[r], s->resources_.z[r]) == land) {
+			++trees;
+			home_trees.push_back(r);
+		}
+	}
+	std::printf("trees on the home island: %d (islands.js 5)\n", trees);
+	CHECK(trees == 5, "five trees on a player's island");
+
+	s->petra_attack_mgr_.save_resources = 1;
+	s->players_[0].res[RES_WOOD] = 600.0f;
+	CHECK(!s->petra_wood_starved(), "not short while the trees stand");
+	for (size_t r : home_trees) s->resources_.amount[r] = 0;
+	CHECK(s->petra_wood_starved(), "short once they are cut");
+	CHECK(!s->petra_try_pay(PETRA_Q_HOUSE, 0.0f, 150.0f, 0.0f, 0.0f), "a house waits");
+	CHECK(!s->petra_try_pay(PETRA_Q_MAJOR_TECH, 500.0f, 500.0f, 0.0f, 0.0f), "the phase waits for its account");
+	s->players_[0].res[RES_FOOD] = 600.0f;
+	s->petra_refresh_queue_accounts(0.1f);
+	std::printf("wood accounts: house %.0f, phase %.0f\n", s->petra_queues_.accounts[PETRA_Q_HOUSE].wood,
+	            s->petra_queues_.accounts[PETRA_Q_MAJOR_TECH].wood);
+	CHECK(s->petra_queues_.accounts[PETRA_Q_HOUSE].wood == 0.0f, "no wood for the house");
+	CHECK(s->petra_queues_.accounts[PETRA_Q_MAJOR_TECH].wood >= 500.0f, "the phase's wood");
+	CHECK(s->petra_try_pay(PETRA_Q_MAJOR_TECH, 500.0f, 500.0f, 0.0f, 0.0f), "the phase is paid");
+
+	// A started batch long past its time, an idle woman beside the civic centre.
+	auto &ccb = s->buildings_[s->building_id_to_idx_.at(cc->id)];
+	ProductionOrder o;
+	o.unit_type = UNIT_FEMALE_CITIZEN;
+	o.duration = 10.0f;
+	o.timer = 30.0f;
+	o.started = true;
+	ccb.queue.insert(ccb.queue.begin(), o);
+	const uint32_t uid = s->spawn_unit(ccb.x + ccb.hu + 1.0f, ccb.z, 0, UNIT_FEMALE_CITIZEN);
+	const size_t ui = (size_t)s->lookup_unit(uid);
+	const float x0 = s->units_.pos_x[ui];
+	s->petra_clear_blocked_spawns();
+	s->petra_swap_slot(0);
+	for (int k = 0; k < 40; ++k) s->tick(Simulation::FIXED_STEP);
+	std::printf("idle woman moved %.2f away from the civic centre\n", s->units_.pos_x[ui] - x0);
+	CHECK(s->units_.pos_x[ui] - x0 > 0.5f, "the idle woman steps aside");
 }
 
 // startingStrategy.js gameStart: no civic centre and none to build (Death Canyon's invasion
@@ -5214,6 +5302,8 @@ int main(int argc, char **argv) {
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
 	RUN(test_petra_config_pop_scaling);
+	RUN(test_petra_islands_wood_reserve);
+	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_dock_route);

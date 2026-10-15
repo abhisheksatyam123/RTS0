@@ -11193,7 +11193,20 @@
   ],
   "treasures": [],
   "ruins": [],
-  "gaia_structures": [],
+  "gaia_structures": [
+    {
+      "type": "camp_noba",
+      "template": "structures/kush/camp_noba",
+      "x": -92.39,
+      "z": -22.31
+    },
+    {
+      "type": "camp_noba",
+      "template": "structures/kush/camp_noba",
+      "x": 22.2,
+      "z": -26.49
+    }
+  ],
   "gaia_units": [],
   "scenery": [],
   "structures": [

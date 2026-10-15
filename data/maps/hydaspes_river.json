@@ -41437,6 +41437,18 @@
       "template": "structures/maur/temple",
       "x": -175.55,
       "z": 24.02
+    },
+    {
+      "type": "pillar_ashoka",
+      "template": "structures/maur/pillar_ashoka",
+      "x": -168.4,
+      "z": 17.11
+    },
+    {
+      "type": "pillar_ashoka",
+      "template": "structures/maur/pillar_ashoka",
+      "x": 38.74,
+      "z": -25.77
     }
   ],
   "gaia_units": [],
