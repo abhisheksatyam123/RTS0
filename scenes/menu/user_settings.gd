@@ -71,6 +71,10 @@ var _cas_material: ShaderMaterial
 var _overlay_label: Label
 var _overlay_timer := 0.0
 var _message: Label # take_screenshot's on-screen line
+var _profiler: Label # profile.toggle's table (F11)
+var _profiler_left := 0.0
+var _wireframe := false # the wireframe hotkey's mode
+var _big_shot_busy := false
 var _message_left := 0.0
 var _hotkeys: RtsoHotkeyConfig
 var last_mouse_grab := false # what mousegrabtoggle last asked for
@@ -113,9 +117,21 @@ func _input(event: InputEvent) -> void:
 		var key := "overlay.fps" if "fps.toggle" in fired else "overlay.realtime"
 		cfg.set_value(key, "false" if cfg.get_bool(key) else "true")
 		cfg.save()
-	elif "bigscreenshot" in fired or "screenshot" in fired:
+	elif "bigscreenshot" in fired:
+		get_viewport().set_input_as_handled()
+		take_big_screenshot()
+	elif "screenshot" in fired:
 		get_viewport().set_input_as_handled()
 		take_screenshot()
+	elif "wireframe" in fired:
+		get_viewport().set_input_as_handled()
+		toggle_wireframe()
+	elif "profile.save" in fired:
+		get_viewport().set_input_as_handled()
+		save_profile()
+	elif "profile.toggle" in fired:
+		get_viewport().set_input_as_handled()
+		toggle_profiler()
 
 ## The engine's text-box hotkeys (copy, paste, cut, text.delete/move.left/right) drive
 ## Godot's text editing actions, so rebinding them in the Hotkeys page applies.
@@ -173,6 +189,121 @@ func take_screenshot() -> String:
 	show_message(tr("Screenshot written to '%s'") % ProjectSettings.globalize_path(path))
 	return path
 
+## main.cpp bigscreenshot (Shift+F2): WriteBigScreenshot renders the game view alone in
+## 4 x 4 tiles of 640 x 480 (CCamera SetPerspectiveTile) and joins them into one
+## 2560 x 1920 picture (a PNG here: Godot writes no BMP). Without a match it is a plain
+## screenshot, as 0.28's WriteScreenshot fallback. Returns the path, "" when nothing was
+## captured (headless, or one already being taken).
+const BIG_TILES := 4
+const BIG_TILE := Vector2i(640, 480)
+
+func take_big_screenshot() -> String:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or is_headless():
+		return take_screenshot()
+	if _big_shot_busy:
+		return ""
+	_big_shot_busy = true
+	var sv := SubViewport.new()
+	sv.size = BIG_TILE
+	sv.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	sv.world_3d = cam.get_world_3d()
+	var tile_cam := Camera3D.new()
+	sv.add_child(tile_cam)
+	add_child(sv)
+	tile_cam.global_transform = cam.global_transform
+	tile_cam.near = cam.near
+	tile_cam.far = cam.far
+	tile_cam.cull_mask = cam.cull_mask
+	tile_cam.environment = cam.environment
+	tile_cam.attributes = cam.attributes
+	tile_cam.current = true
+	# The whole picture's near plane: half height h, half width h x aspect.
+	var h := cam.near * tan(deg_to_rad(cam.fov) * 0.5)
+	var aspect := float(BIG_TILE.x) / float(BIG_TILE.y)
+	var img := Image.create(BIG_TILE.x * BIG_TILES, BIG_TILE.y * BIG_TILES, false, Image.FORMAT_RGB8)
+	for ty in BIG_TILES:
+		for tx in BIG_TILES:
+			var offset := Vector2(-h * aspect + (tx + 0.5) * 2.0 * h * aspect / BIG_TILES,
+					h - (ty + 0.5) * 2.0 * h / BIG_TILES)
+			tile_cam.set_frustum(2.0 * h / BIG_TILES, offset, cam.near, cam.far)
+			sv.render_target_update_mode = SubViewport.UPDATE_ONCE
+			await RenderingServer.frame_post_draw
+			var tile := sv.get_texture().get_image()
+			if tile and not tile.is_empty():
+				tile.convert(Image.FORMAT_RGB8)
+				img.blit_rect(tile, Rect2i(Vector2i.ZERO, BIG_TILE), Vector2i(tx * BIG_TILE.x, ty * BIG_TILE.y))
+	sv.queue_free()
+	_big_shot_busy = false
+	DirAccess.make_dir_recursive_absolute("user://screenshots")
+	var n := 1
+	while FileAccess.file_exists("user://screenshots/screenshot%04d.png" % n):
+		n += 1
+	var path := "user://screenshots/screenshot%04d.png" % n
+	if img.save_png(path) != OK:
+		return ""
+	show_message(tr("Screenshot written to '%s'") % ProjectSettings.globalize_path(path))
+	return path
+
+## main.cpp wireframe (Alt+Shift+W): solid, then wireframe, then solid again. 0.28 has an
+## edged-faces step between them that Godot can't draw. Wireframes are generated only for
+## meshes made after the first press, so the cost is paid only by those who use it.
+func toggle_wireframe() -> bool:
+	if not _wireframe:
+		RenderingServer.set_debug_generate_wireframes(true)
+	_wireframe = not _wireframe
+	get_viewport().debug_draw = Viewport.DEBUG_DRAW_WIREFRAME if _wireframe else Viewport.DEBUG_DRAW_DISABLED
+	return _wireframe
+
+## profile.toggle (F11): the real-time profiler's table over the screen, refreshed
+## twice a second; profile.save (Shift+F11) appends it to logs/profile.txt.
+func toggle_profiler() -> bool:
+	if _profiler == null:
+		_profiler = Label.new()
+		_profiler.name = "profilerTable"
+		_profiler.position = Vector2(8, 40)
+		_profiler.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_profiler.add_theme_font_size_override("font_size", 12)
+		_profiler.add_theme_color_override("font_outline_color", Color.BLACK)
+		_profiler.add_theme_constant_override("outline_size", 3)
+		_profiler.visible = false
+		_overlay.add_child(_profiler)
+	_profiler.visible = not _profiler.visible
+	_profiler_left = 0.0
+	if _profiler.visible:
+		_profiler.text = profile_table()
+	return _profiler.visible
+
+func profile_table() -> String:
+	var rows := [
+		["frame", 1000.0 / maxf(Engine.get_frames_per_second(), 1.0), "msec/frame"],
+		["process", Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, "msec/frame"],
+		["physics", Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, "msec/frame"],
+		["navigation", Performance.get_monitor(Performance.TIME_NAVIGATION_PROCESS) * 1000.0, "msec/frame"],
+		["draw calls", Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), "/frame"],
+		["primitives", Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME), "/frame"],
+		["objects", Performance.get_monitor(Performance.OBJECT_COUNT), ""],
+		["nodes", Performance.get_monitor(Performance.OBJECT_NODE_COUNT), ""],
+		["memory", Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, "MiB"],
+		["video memory", Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0, "MiB"],
+	]
+	var out := "Profiling Information for: root (Time in node: %.3f msec/frame)\n" % rows[0][1]
+	for r in rows:
+		out += "%-14s %10.3f %s\n" % [r[0], r[1], r[2]]
+	return out
+
+func save_profile() -> String:
+	DirAccess.make_dir_recursive_absolute("user://logs")
+	var path := "user://logs/profile.txt"
+	var f := FileAccess.open(path, FileAccess.READ_WRITE if FileAccess.file_exists(path) else FileAccess.WRITE)
+	if f == null:
+		return ""
+	f.seek_end()
+	f.store_string("================================================================\n\n" + Time.get_datetime_string_from_system(false, true) + "\n" + profile_table() + "\n")
+	f.close()
+	show_message(tr("Profiler snapshot saved to '%s'") % ProjectSettings.globalize_path(path))
+	return path
+
 ## LOGMESSAGERENDER: a line in the top-left corner for a few seconds.
 func show_message(text: String) -> void:
 	if _message == null:
@@ -212,6 +343,11 @@ func _process(delta: float) -> void:
 	if _message != null and _message.visible:
 		_message_left -= delta
 		_message.visible = _message_left > 0.0
+	if _profiler != null and _profiler.visible:
+		_profiler_left -= delta
+		if _profiler_left <= 0.0:
+			_profiler_left = 0.5
+			_profiler.text = profile_table()
 	_overlay_timer -= delta
 	if _overlay_timer <= 0.0:
 		_overlay_timer = 0.25
