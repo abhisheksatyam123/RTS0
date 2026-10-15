@@ -46,7 +46,7 @@ const char *const kSetupKeys[] = {
 	// a setting changed in the Game Setup since it was recorded.
 	"biome", "landscape", "team_placement", "water_level", "sea_level_rise_min", "trigger_difficulty", "map_daytime",
 	"nomad", "regicide_garrison", "cheats", "disable_spies", "disable_treasures",
-	"slot_diffs", "slot_behs", "slot_colors", "slot_names",
+	"slot_diffs", "slot_behs", "slot_colors", "slot_names", "ai_seed",
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
@@ -380,6 +380,11 @@ void RtsoMain::begin_match_recording(const rtso::GameSetupParams *mp_setup) {
 	if (!mp_setup) turn_mgr_.reset(); // offline: turn 1 is the first turn of this match
 	replay_finished_ = false;
 	replay_written_turn_ = 0;
+	// 0 A.D. -autostart-disable-replay: no replay is written for this run.
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings")); ms && !(bool)ms->get("record_replay")) {
+		replay_recording_ = false;
+		return;
+	}
 	Ref<DirAccess> dir = DirAccess::open("user://");
 	if (dir.is_null()) { replay_recording_ = false; return; }
 	String id = timestamp_id();

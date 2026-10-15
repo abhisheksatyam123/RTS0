@@ -335,6 +335,8 @@ public:
 		for (uint32_t id : ids) sel_buildings_.insert((int32_t)id);
 	}
 	bool structure_outlined(uint32_t id) const { return sel_buildings_.count((int32_t)id) > 0; }
+	// The structures the viewer sees, live or as mirages (what the world draws).
+	const std::vector<rtso::FoggedBuilding> &seen_buildings() const { return mirages_.buildings(); }
 	void set_highlight_ids(const PackedInt32Array &ids) {
 		highlight_set_.clear();
 		for (int i = 0; i < ids.size(); ++i) highlight_set_.insert(ids[i]);

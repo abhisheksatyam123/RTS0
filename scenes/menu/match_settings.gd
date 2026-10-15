@@ -10,6 +10,8 @@ var player_count: int = 2
 # RtsoMain.get_available_maps(), 0 = randomize at start.
 var map_id: String = "random_continental"
 var seed: int = 0
+# 0 A.D. -autostart-aiseed: the AIs' personality seed, 0 = the match seed.
+var ai_seed: int = 0
 # Victory: rtso::VictoryCondition id. 0 conquest, 1 wonder, 2 relic, 3 endless,
 # 4 conquest units, 5 conquest structures, 6 regicide; 0x80 | VictoryKind mask for any other
 # combination of Game Setup's victory conditions.
@@ -101,6 +103,8 @@ var net_saved_game: bool = false
 # 0 A.D. campaignData: the campaign run (its file name under user://saves/campaigns/)
 # and the level being played; empty outside a campaign. Saves and replays keep them.
 var campaign_run: String = ""
+# 0 A.D. -autostart-disable-replay: false, and matches this run write no replay.
+var record_replay: bool = true
 var campaign_level: String = ""
 
 func strip_engine_popups(n: Node) -> void:

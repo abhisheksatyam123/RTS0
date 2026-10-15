@@ -580,6 +580,23 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 						break;
 					}
 				if (inside) continue;
+				// A corner into a gap between trees that others close behind is a dead end the next
+				// search would turn back from: the way on from it must be open too.
+				{
+					const Vec2 on = aim - w;
+					const float on_len = on.length();
+					const Vec2 on_end = on_len > small_range ? w + on * (small_range / on_len) : aim;
+					bool closed = false;
+					for (const T& o : small) {
+						if (o.id == first->id || !detail::is_steering_obstacle(o, w, aim, radius, ignore_building_id, small_range)) continue;
+						const Vec2 oc(o.x, o.z);
+						if (TestRaySquare(w - oc, on_end - oc, footprint_u(o), footprint_v(o), Vec2(o.hu + radius, o.hv + radius))) {
+							closed = true;
+							break;
+						}
+					}
+					if (closed) continue;
+				}
 				found = true;
 				best = cost;
 				out = w;

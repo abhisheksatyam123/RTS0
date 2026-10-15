@@ -265,8 +265,13 @@ int main() {
 		c.set_player_resources(0, 5000, 5000, 5000, 5000);
 		CHECK(civ_can_build(CIV_SPARTANS, BLD_SYSSITON) && !civ_can_build(CIV_ATHENIANS, BLD_SYSSITON));
 		CHECK(civ_can_build(CIV_ATHENIANS, BLD_HOUSE) && civ_can_build(CIV_HAN, BLD_MINISTRY));
-		CHECK(civ_can_build(CIV_PTOLEMIES, BLD_LIBRARY) && civ_can_build(CIV_SELEUCIDS, BLD_LIBRARY) &&
-			civ_can_build(CIV_MACEDONIANS, BLD_LIBRARY) && !civ_can_build(CIV_ROMANS, BLD_LIBRARY));
+		// 0.28's Builder lists name only ptol/library; the mace and sele libraries, the ptol
+		// mercenary camp, rome's amphitheater and temple of Mars and the germ totem are map-only.
+		CHECK(civ_can_build(CIV_PTOLEMIES, BLD_LIBRARY) && !civ_can_build(CIV_SELEUCIDS, BLD_LIBRARY) &&
+			!civ_can_build(CIV_MACEDONIANS, BLD_LIBRARY) && !civ_can_build(CIV_ROMANS, BLD_LIBRARY));
+		CHECK(!civ_can_build(CIV_PTOLEMIES, BLD_MERCENARY_CAMP) && !civ_can_build(CIV_ROMANS, BLD_AMPHITHEATER) &&
+			!civ_can_build(CIV_ROMANS, BLD_TEMPLE_MARS) && !civ_can_build(CIV_GERMANS, BLD_MONUMENT) &&
+			civ_can_build(CIV_IBERIANS, BLD_MONUMENT) && civ_can_build(CIV_ROMANS, BLD_SIEGE_WALL));
 		// A cell in player 0's territory where a Syssiton-sized structure fits.
 		int px = 0, py = 0;
 		bool found = false;
