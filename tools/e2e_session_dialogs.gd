@@ -3,7 +3,8 @@ extends SceneTree
 #   1. PauseOverlay: pausing shows "Game Paused" and "Click to Resume Game",
 #      and a click on it resumes;
 #   2. closeOpenDialogs: opening chat, diplomacy, Barter & Trade or match
-#      settings closes the others, and Esc closes them all at once;
+#      settings closes the others, and Esc closes them all at once and clears the
+#      selection; held keys repeat only 0.28's on="KeyDown" actions;
 #   3. ChatMessageFormatPlayer: your line reads "<name> text", "(Ally) <name>
 #      text" to allies and "* name text" with /me; no placeholder line;
 #   4. g_NetworkCommands in single player: /kick and /kickspecs say there is
@@ -36,6 +37,21 @@ func dlg() -> Dictionary:
 func open_names() -> Array:
 	var d := dlg()
 	return ["chat", "diplomacy", "objectives", "barter"].filter(func(k): return d[k])
+
+func key(code: Key, ctrl := false, echo := false) -> void:
+	var e := InputEventKey.new()
+	e.keycode = code
+	e.physical_keycode = code
+	e.ctrl_pressed = ctrl
+	e.echo = echo
+	e.pressed = true
+	Input.parse_input_event(e)
+	await frames(1)
+	e = e.duplicate()
+	e.pressed = false
+	e.echo = false
+	Input.parse_input_event(e)
+	await frames(2)
 
 func chat_input() -> LineEdit:
 	for le in main.find_children("*", "LineEdit", true, false):
@@ -88,6 +104,23 @@ func run() -> void:
 	Input.parse_input_event(esc)
 	await frames(2)
 	check(open_names().is_empty(), "Esc closes it: " + str(open_names()))
+	# misc.xml: Escape is cancel (closeOpenDialogs) and selection.cancel (clearSelection),
+	# both on one press; a held Escape repeats selection.cancel (on="KeyDown").
+	main.select_first_own(false)
+	main.toggle_diplomacy()
+	await frames(2)
+	await key(KEY_ESCAPE)
+	check(open_names().is_empty() and (main.debug_selection_state()["selected"] as Array).is_empty(),
+		"one Esc closes Diplomacy and clears the selection")
+	main.select_first_own(false)
+	await key(KEY_ESCAPE, false, true)
+	check((main.debug_selection_state()["selected"] as Array).is_empty(), "a held Esc's repeat clears the selection too")
+	await key(KEY_H, true, true)
+	check(open_names().is_empty(), "a held Ctrl+H's repeat doesn't toggle Diplomacy (on=Press)")
+	await key(KEY_H, true)
+	check(open_names() == ["diplomacy"], "pressing Ctrl+H does")
+	main.toggle_diplomacy()
+	await frames(2)
 	# MenuButtons and SessionMessageBox: closeOpenDialogs before a page or question.
 	var pm: Node = main.get_node("PauseMenu")
 	for b in [["Hotkeys", "_on_hotkeys_pressed"], ["Options", "_on_options_pressed"], ["Manual", "_on_manual_pressed"]]:

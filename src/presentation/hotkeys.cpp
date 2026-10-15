@@ -177,7 +177,7 @@ int HotkeyTable::load_cfg(const std::string &text) {
 }
 
 void HotkeyTable::set(const std::string &name, const std::vector<Combo> &combos) {
-	bindings_[name] = combos;
+	bindings_[lower(name)] = combos;
 	rebuild_index();
 }
 
@@ -189,7 +189,9 @@ void HotkeyTable::rebuild_index() {
 }
 
 const std::vector<Combo> *HotkeyTable::get(const std::string &name) const {
+	// Names load lower-cased; callers may spell them as default.cfg does (session.attackmoveUnit).
 	auto it = bindings_.find(name);
+	if (it == bindings_.end()) it = bindings_.find(lower(name));
 	return it == bindings_.end() ? nullptr : &it->second;
 }
 
