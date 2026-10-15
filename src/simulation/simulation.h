@@ -171,7 +171,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 91; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 92; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_GUARD_OF = 92; // each unit's isGuardOf, kept through other orders
 	static constexpr uint32_t SAVE_VERSION_PETRA_MOVE_TO_GATHERER = 91; // when each Petra mobile dropsite next looks for a gatherer
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
@@ -1791,8 +1792,9 @@ public:
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	// UnitAI.IsGuardOf: the unit's current order is to guard someone (remove-guard button).
-	bool unit_is_guarding(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx >= 0 && (size_t)idx < units_.count && units_.order_kind[idx] == ORDER_GUARD; }
-	// UnitAI.isGuarding: the entity the unit guards (a unit or structure id), or 0.
+	// Also true while it does something else and will go back to guarding (isGuardOf is kept).
+	bool unit_is_guarding(uint32_t uid) const { return unit_guard_target(uid) != 0; }
+	// UnitAI.isGuardOf: the entity the unit guards (a unit or structure id), or 0.
 	uint32_t unit_guard_target(uint32_t uid) const;
 	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
@@ -3161,8 +3163,10 @@ private:
 		int min, target, batch;
 		float strength, siege_strength, stone, metal; // interests; 1 = no costsResource penalty
 		int count = 0;
+		uint8_t index = 0; // its place in the plan's full list (PetraAttackManager::dropped_classes)
 	};
-	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind);
+	// The plan's unitStat classes, less those whose bit is set in `dropped`.
+	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind, uint16_t dropped = 0);
 	// Whether a building of ours trains some roster template of the class now (trainMoreUnits
 	// drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
@@ -3317,6 +3321,8 @@ private:
 	bool petra_phasing() const;
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
+	bool petra_minor_tech_waiting() const;
+	void petra_queue_special_tech(uint8_t t);
 	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
@@ -3561,7 +3567,9 @@ private:
 	// VisionSharing.AddSpy: a bribed unit sees for the briber (its allies sharing that LOS)
 	// while the spy lasts. Rebuilt from spies_ each LOS update and on load, never saved.
 	std::vector<LosSource> los_spy_src_;
+	std::vector<LosSource> los_garrison_src_; // VisionSharing of garrisoned allies, rebuilt each tick
 	void update_spy_los();
+	void update_garrison_los();
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
@@ -3814,6 +3822,11 @@ private:
 	// UnitAI orders (0 A.D. UnitAI.js orderQueue). The current order lives in the unit
 	// SoA; these are the Shift-queued ones after it, by unit id.
 	std::unordered_map<uint32_t, std::vector<UnitOrder>> order_queues_;
+	// UnitAI isGuardOf by unit id (save v92): the charge a unit took up guarding. Other orders
+	// keep it and the IDLE Timer goes back to guarding; remove-guard, a guard order for
+	// someone else or a charge that is gone or no longer an ally ends it.
+	std::unordered_map<uint32_t, uint32_t> guard_of_;
+	bool guard_charge_ok(size_t i, uint32_t charge) const;
 	bool applying_queued_ = false; // set while an order from a queue is applied: keep the rest
 	UnitOrder current_order(size_t i) const;
 	void set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z);
@@ -3834,6 +3847,8 @@ private:
 	void finish_order(size_t i, bool find_new_target = false);
 	void resume_order(size_t i);
 	bool guard_keeps_target(size_t i, size_t t) const;
+	// UnitAI IDLE Timer with isGuardOf: guard the charge again; false when there is none.
+	bool resume_guard(size_t i);
 	void guard_answer(size_t i, size_t g, uint32_t attacker);
 	void walk_to_held_position(size_t i);
 	void walk_back_if_drifted(size_t i);

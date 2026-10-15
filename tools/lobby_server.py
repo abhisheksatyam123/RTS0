@@ -675,6 +675,24 @@ class Lobby:
 
 LOBBY = Lobby()
 
+# 0 A.D. prelobby/common/terms: the Terms of Service, Terms of Use and Privacy
+# Policy a player reads and accepts before signing in or registering. This
+# server serves its operator's texts (--terms-dir); with none, it has no terms.
+TERMS_PAGES = (("Service", "Terms of Service", "Terms_of_Service.txt"),
+               ("Use", "Terms of Use", "Terms_of_Use.txt"),
+               ("Privacy", "Privacy Policy", "Privacy_Policy.txt"))
+TERMS = []
+
+
+def load_terms(directory):
+    pages = []
+    for page, title, name in TERMS_PAGES:
+        path = os.path.join(directory, name)
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                pages.append({"page": page, "title": title, "text": f.read()})
+    return pages
+
 
 class LobbyHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
@@ -708,6 +726,8 @@ class LobbyHandler(BaseHTTPRequestHandler):
                 code, obj = LOBBY.player_list()
             elif path == "/leaderboard":
                 code, obj = LOBBY.leaderboard()
+            elif path == "/terms":
+                code, obj = 200, {"pages": TERMS}
             elif path == "/profile":
                 code, obj = LOBBY.profile(parse_qs(url.query).get("name", [""])[0])
             elif path == "/chat":
@@ -850,13 +870,18 @@ def main():
     parser.add_argument("--moderators", default="",
                         help="comma-separated names that may /kick and /ban (0 A.D. lobby moderators)")
     parser.add_argument("--subject", default="", help="the lobby room's subject")
+    parser.add_argument("--terms-dir",
+                        help="folder with Terms_of_Service.txt, Terms_of_Use.txt and Privacy_Policy.txt, "
+                             "which players must accept before signing in (tools/lobby_terms has templates)")
     parser.add_argument("--exit-with-parent", action="store_true",
                         help="stop when the process that started this one ends (for test scripts, so a "
                              "crashed or killed test leaves no server holding its port and its players)")
     args = parser.parse_args()
     if args.exit_with_parent:
         watch_parent()
-    global LOBBY
+    global LOBBY, TERMS
+    if args.terms_dir:
+        TERMS = load_terms(args.terms_dir)
     LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings, accounts_path=args.accounts,
                   accounts_only=args.accounts_only, moderators=args.moderators.split(","),
                   subject=args.subject)

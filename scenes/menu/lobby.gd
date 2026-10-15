@@ -173,11 +173,20 @@ func _build() -> void:
 	_remember = CheckBox.new()
 	_remember.text = "Remember password"
 	_remember.button_pressed = cfg.get_bool("lobby.rememberpassword")
+	_remember.toggled.connect(_on_remember_toggled)
 	login.add_child(_remember)
 	_sign_btn = _button("Sign In", _on_sign_pressed)
 	login.add_child(_sign_btn)
 	_register_btn = _button("Register", _on_register_pressed)
 	login.add_child(_register_btn)
+	# termslobby.js: the three terms buttons under the sign-in row.
+	_terms_row = HBoxContainer.new()
+	_terms_row.visible = not dialog
+	root.add_child(_terms_row)
+	for t in TERMS:
+		var b := _button(t["title"], func() -> void: open_terms(t["page"]))
+		b.name = "Terms" + t["page"]
+		_terms_row.add_child(b)
 
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -649,6 +658,31 @@ func _on_disconnected() -> void:
 	_ask_reconnect()
 
 
+## credentials.js toggleRememberPassword: unticking a remembered password asks first;
+## No ticks it again.
+var _forget_dlg: ConfirmationDialog
+
+func _on_remember_toggled(on: bool) -> void:
+	var cfg := RtsoUserConfig.new()
+	if on or not cfg.get_bool("lobby.rememberpassword") or cfg.get_value("lobby.password") == "" or _forget_dlg != null:
+		return
+	_forget_dlg = ConfirmationDialog.new()
+	_forget_dlg.name = "ForgetPasswordDialog"
+	_forget_dlg.title = "Confirmation"
+	_forget_dlg.dialog_text = "Are you sure you want to delete the password after connecting?"
+	_forget_dlg.ok_button_text = "Yes"
+	_forget_dlg.cancel_button_text = "No"
+	add_child(_forget_dlg)
+	var done := func(keep: bool) -> void:
+		_forget_dlg.queue_free()
+		_forget_dlg = null
+		if keep:
+			_remember.set_pressed_no_signal(true)
+	_forget_dlg.confirmed.connect(func() -> void: done.call(false))
+	_forget_dlg.canceled.connect(func() -> void: done.call(true))
+	_forget_dlg.popup_centered()
+
+
 func _ask_reconnect() -> void:
 	if _reconnect_dlg != null or LobbySession.signed_in():
 		return
@@ -690,6 +724,85 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_back_pressed()
 
 
+## termslobby.js initLobbyTerms: each page's title, instruction and config key.
+const TERMS := [
+	{"page": "Service", "title": "Terms of Service", "instruction": "Please read and accept the Terms of Service.",
+		"config": "lobby.terms_of_service"},
+	{"page": "Use", "title": "Terms of Use", "instruction": "Please read and accept the Terms of Use.",
+		"config": "lobby.terms_of_use"},
+	{"page": "Privacy", "title": "Privacy Policy", "instruction": "Please read and accept the Privacy Policy.",
+		"config": "lobby.privacy_policy"},
+]
+var _terms_row: HBoxContainer
+var _terms_dlg: ConfirmationDialog
+
+func _terms_entry(page: String) -> Dictionary:
+	for t in TERMS:
+		if t["page"] == page:
+			return t
+	return {}
+
+## checkTerms: the instruction of the first page this name has not accepted in
+## its current version, or "" when all are (or the server has none).
+func _terms_problem(who: String, pages: Array) -> String:
+	var cfg := RtsoUserConfig.new()
+	for p in pages:
+		var t := _terms_entry(str(p.get("page", "")))
+		if not t.is_empty() and cfg.get_value(t["config"]) != LobbySession.terms_hash(who, str(p.get("text", ""))):
+			return t["instruction"]
+	return ""
+
+## Connect and Register wait until every page is accepted.
+func _with_terms(who: String, then: Callable) -> void:
+	LobbySession.fetch_terms(_server.text.strip_edges(), func(pages: Array) -> void:
+		if not is_inside_tree():
+			return
+		var problem := _terms_problem(who, pages)
+		if problem != "":
+			_say(problem)
+		else:
+			then.call())
+
+## openTerms / termsdialog: the page's text, Decline or Accept; the accepted
+## version (salted with the player name) goes to the user config.
+func open_terms(page: String) -> void:
+	var t := _terms_entry(page)
+	if t.is_empty() or _terms_dlg != null:
+		return
+	var who := _name.text.strip_edges()
+	LobbySession.fetch_terms(_server.text.strip_edges(), func(pages: Array) -> void:
+		if not is_inside_tree() or _terms_dlg != null:
+			return
+		var text := ""
+		var found := false
+		for p in pages:
+			if str(p.get("page", "")) == page:
+				text = str(p.get("text", ""))
+				found = true
+		if not found:
+			_say("The lobby server at %s has no %s." % [_server.text, t["title"]])
+			return
+		_terms_dlg = ConfirmationDialog.new()
+		_terms_dlg.name = "TermsDialog"
+		_terms_dlg.title = t["title"]
+		_terms_dlg.ok_button_text = "Accept"
+		_terms_dlg.cancel_button_text = "Decline"
+		var body := RichTextLabel.new()
+		body.name = "TermsText"
+		body.text = text
+		body.custom_minimum_size = Vector2(560, 360)
+		_terms_dlg.add_child(body)
+		add_child(_terms_dlg)
+		var done := func(accepted: bool) -> void:
+			var cfg := RtsoUserConfig.new()
+			cfg.set_value(t["config"], LobbySession.terms_hash(who, text) if accepted else "0")
+			cfg.save()
+			_terms_dlg.queue_free()
+			_terms_dlg = null
+		_terms_dlg.confirmed.connect(func() -> void: done.call(true))
+		_terms_dlg.canceled.connect(func() -> void: done.call(false))
+		_terms_dlg.popup_centered())
+
 func _on_sign_pressed() -> void:
 	if LobbySession.signed_in():
 		LobbySession.sign_out()
@@ -699,7 +812,7 @@ func _on_sign_pressed() -> void:
 	if who == "":
 		_say("Type a player name first.")
 		return
-	_sign_in(who)
+	_with_terms(who, func() -> void: _sign_in(who))
 
 
 # The password typed now, else the one lobby.password remembers for this name.
@@ -746,6 +859,10 @@ func _on_register_pressed() -> void:
 	if problem != "":
 		_say(problem)
 		return
+	_with_terms(who, func() -> void: _register(who))
+
+
+func _register(who: String) -> void:
 	_register_btn.disabled = true
 	_say("Registering...")
 	LobbySession.register(_server.text.strip_edges(), who, _password.text, func(code: int, obj) -> void:

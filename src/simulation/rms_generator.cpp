@@ -11488,6 +11488,149 @@ static void place_wall_demo(Simulation &sim, float map_half, RmsRng &rng) {
 		}
 }
 
+// =========================================================================
+// 0 A.D. maps/random/caledonian_meadows.js (0.28): the resource spots. getPointsByHeight picks
+// vertices between the middles of heighLimits 3-4 and 5-6 (shore and low ground, player height
+// and high ground), 30 tiles from the players and 20 from each other and the border, in
+// 2 x mapSize tries; spot i is (i % 5, or % 4 under Nomad) a stone mine, a metal mine, a fenced
+// Gaia farmstead with sheep, a grove and a camp of treasures and Gaia soldiers. The decorations
+// (geology and flora actors, the campfire, eyecandy props), the grove and path terrains and
+// the paths the spots avoid are left out.
+// =========================================================================
+static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, float water_h,
+		const std::vector<RmsGenerator::PlayerSpawn> &spawns, uint32_t seed) {
+	RmsRng rng(seed ^ 0x43414C45u); // 'CALE': a stream of its own, so the map's other placements stay
+	constexpr double pi = kWallPi<double>;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float top = *std::max_element(hm.data.begin(), hm.data.end());
+	auto limit = [&](float r) { return water_h + r * (top - water_h); }; // heighLimits above the sea
+	const float lo = 0.5f * (limit(1.0f / 8.0f) + limit(2.0f / 8.0f)), hi = 0.5f * (limit(3.0f / 8.0f) + limit(4.0f / 8.0f));
+	const int min_d = 20, verts = (int)std::lround(size) + 1;
+	std::vector<std::pair<float, float>> valid;
+	for (int x = min_d; x < verts - min_d; ++x)
+		for (int z = min_d; z < verts - min_d; ++z) {
+			const float wx = (float)x - half, wz = (float)z - half, h = hm.sample_world(wx, wz);
+			if (h > lo && h < hi && (!sim.circular_map() || half - std::hypot(wx, wz) >= (float)min_d)) valid.push_back({wx, wz});
+		}
+	struct Taken { float x, z, d; };
+	std::vector<Taken> taken;
+	for (const auto &sp : spawns) taken.push_back({sp.x, sp.z, 30.0f});
+	// One spot in five (four under Nomad) is a large stone mine, and 0.28 averages
+	// resource_counts_data.h's large stone mines; RTS0's diamond-square land puts more of the
+	// map in the band than 0.28's eroded and rescaled one, so the spots stop at that many.
+	const int kinds = sim.nomad() ? 4 : 5;
+	const MapResourceCounts *rc = map_resource_counts("caledonian_meadows");
+	const size_t most = rc ? (size_t)(kinds * std::max(1, map_resource_count(rc->stone_large, size, (int)spawns.size()))) : SIZE_MAX;
+	std::vector<std::pair<float, float>> spots;
+	for (int t = 0; t < 2 * (int)size && !valid.empty() && spots.size() < most; ++t) {
+		const auto p = valid[rng.next_u32() % (uint32_t)valid.size()];
+		bool ok = true;
+		for (const Taken &q : taken)
+			if (!(std::hypot(q.x - p.first, q.z - p.second) > std::max((float)min_d, q.d))) { ok = false; break; }
+		if (!ok) continue;
+		spots.push_back(p);
+		taken.push_back({p.first, p.second, (float)min_d});
+	}
+
+	// g_WallStyles.other: fence_long and fence_short as readyWallElement reads them (WallPiece
+	// Length 12 and 6 m, Orientation 0.5), the script's bench, sheep, foodBin and farmstead,
+	// and turn_x, a zero-length bend of x pi. The fences, each also reversed (flatMap):
+	// D food bin, H farmstead, B bench, S sheep, F fence, f short fence, t/T/u turn 0.25/0.5/-0.5.
+	static const char *const kFences[5] = {"DHBtStFtStFtStF", "DHFtStFtStBSFtStF", "DHTBuftStFtStFtStfSF",
+			"DHTfuBtStFtStFtStfSF", "DHFtStBSFtStfSFtStfSF"};
+	auto element = [&](char c) {
+		WallElement e;
+		switch (c) {
+			case 'F': e.angle = 0.5 * pi; e.length = 3.0; break;
+			case 'f': e.angle = 0.5 * pi; e.length = 1.5; break;
+			case 'B': case 'D': e.angle = 0.5 * pi; e.length = 1.5; break;
+			case 'S': e.indent = 0.75; break;
+			case 'H': e.angle = pi; e.indent = -3.0; break;
+			case 't': e.bend = 0.25 * pi; break;
+			case 'T': e.bend = 0.5 * pi; break;
+			case 'u': e.bend = -0.5 * pi; break;
+			default: break;
+		}
+		return e;
+	};
+	const uint8_t fence_long = scenery_type_by_name("fence_long"), fence_short = scenery_type_by_name("fence_short");
+	const uint8_t bench = scenery_type_by_name("bench");
+	auto place_fence = [&](float x, float z) {
+		const int pick = rng.range_int(0, 9); // pickRandom of the ten
+		std::string wall = kFences[pick / 2];
+		if (pick & 1) std::reverse(wall.begin(), wall.end());
+		const double o = rng.range_float(0.0f, 6.2831853f); // randomAngle
+		std::vector<WallElement> elements;
+		for (char c : wall) elements.push_back(element(c));
+		// placeCustomFortress: getCenterToFirstElement of the wall laid from the origin.
+		double cx = 0.0, cz = 0.0;
+		const auto origin = wall_alignment<double>(0.0, 0.0, elements, 0.0, 0.0);
+		for (const auto &a : origin) { cx -= a.x / (double)origin.size(); cz -= a.y / (double)origin.size(); }
+		const double sx = x + cx * std::cos(o) - cz * std::sin(o), sz = z + cx * std::sin(o) + cz * std::cos(o);
+		const auto al = wall_alignment<double>(sx, sz, elements, 0.0, o);
+		for (size_t i = 0; i < al.size(); ++i) {
+			const float px = (float)al[i].x, pz = (float)al[i].y;
+			const float rot = (float)(pi / 2.0 - al[i].angle); // exportEntityList's Position angle
+			if (!sim.wall_builder_passable(px, pz)) continue;
+			switch (wall[i]) {
+				case 'F': sim.spawn_scenery(px, pz, fence_long, rot, 0.25f); break;
+				case 'f': sim.spawn_scenery(px, pz, fence_short, rot, 0.25f); break;
+				case 'B': sim.spawn_scenery(px, pz, bench, rot, 0.25f); break;
+				case 'S': sim.spawn_fauna(px, pz, FAUNA_SHEEP); break;
+				case 'D': sim.spawn_treasure(px, pz, TREASURE_FOOD_BIN); break;
+				case 'H': sim.set_building_civ(sim.spawn_building_world(px, pz, BLD_FARMSTEAD, GAIA_PLAYER, 1.0f, rot), CIV_BRITONS); break;
+				default: break;
+			}
+		}
+	};
+	// placeGrove: a Gaia Gaulish outpost or an oak, then 20-30 objects 2-5 out, every third an
+	// actor (moss rocks, bushes, ferns) and the rest bush_temperate or euro_beech trees.
+	auto place_grove = [&](float x, float z) {
+		if (rng.range_int(0, 1) == 0)
+			sim.set_building_civ(sim.spawn_building_world(x, z, BLD_OUTPOST, GAIA_PLAYER, 1.0f, rng.range_float(0.0f, 6.2831853f)), CIV_GAULS);
+		else
+			sim.spawn_resource_world(x, z, RES_WOOD, TREE_WOOD_SUPPLY);
+		const int n = rng.range_int(20, 30);
+		for (int i = 0; i < n; ++i) {
+			const float a = 6.2831853f / (float)n * rng.range_float((float)i, (float)(i + 1)), d = rng.range_float(2.0f, 5.0f);
+			const float px = x + std::cos(a) * d, pz = z + std::sin(a) * d;
+			if (i % 3 != 0 && sim.wall_builder_passable(px, pz)) sim.spawn_resource_world(px, pz, RES_WOOD, TREE_WOOD_SUPPLY);
+		}
+	};
+	// placeCamp: 5-11 objects 1-3 out, each one of 16: a metal or a standing-stone treasure,
+	// a Gaia slinger or javelineer (Briton or Gaul) or a Naked Fanatic, or one of nine props.
+	static const char *const kCampUnits[5] = {"brit/infantry_slinger_b", "brit/infantry_javelineer_b",
+			"gaul/infantry_slinger_b", "gaul/infantry_javelineer_b", "gaul/champion_fanatic"};
+	auto place_camp = [&](float x, float z) {
+		const int n = rng.range_int(5, 11);
+		for (int i = 0; i < n; ++i) {
+			const float a = 6.2831853f / (float)n * rng.range_float((float)i, (float)(i + 1)), d = rng.range_float(1.0f, 3.0f);
+			const float px = x + std::cos(a) * d, pz = z + std::sin(a) * d;
+			const int k = rng.range_int(0, 15);
+			if (k >= 7 || !sim.wall_builder_passable(px, pz)) continue;
+			if (k < 2) {
+				sim.spawn_treasure(px, pz, k == 0 ? TREASURE_METAL : TREASURE_STONE);
+			} else {
+				const uint16_t t = civ_unit_template_by_id(kCampUnits[k - 2]);
+				if (t != CIV_UNIT_TEMPLATE_NONE) sim.spawn_gaia_unit(px, pz, (UnitType)civ_unit_template(t).unit_type, kCampUnits[k - 2]);
+			}
+		}
+	};
+
+	sim.begin_bulk_spawn();
+	for (size_t i = 0; i < spots.size(); ++i) {
+		const float x = spots[i].first, z = spots[i].second;
+		switch ((int)(i % (size_t)kinds)) {
+			case 0: sim.spawn_resource_world(x, z, RES_STONE, LARGE_MINE_SUPPLY); break; // gaia/rock/temperate_large_02
+			case 1: sim.spawn_resource_world(x, z, RES_GOLD, LARGE_MINE_SUPPLY); break;  // gaia/ore/temperate_large
+			case 2: place_fence(x, z); break;
+			case 3: place_grove(x, z); break;
+			case 4: place_camp(x, z); break;
+		}
+	}
+	sim.end_bulk_spawn();
+}
+
 bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	sim.reset();
 
@@ -11869,6 +12012,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// Distribute neutral resources, groves, and quarries
 	distribute_neutral_resources(sim, hm, water_h, spawns, rng, config);
 	if (config.map_type == MAP_NGORONGORO) place_ngorongoro_entities(sim, hm, spawns, rng, config);
+	if (config.map_type == MAP_CALEDONIAN_MEADOWS) place_caledonian_spots(sim, hm, water_h, spawns, config.seed);
 
 	// Distribute roaming wildlife packs
 	distribute_wildlife(sim, hm, water_h, spawns, rng, config);

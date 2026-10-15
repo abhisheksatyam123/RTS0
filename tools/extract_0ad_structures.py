@@ -145,6 +145,10 @@ ZIP_ALIASES = {
     # The Germans' Cerannus totem is their Revered Monument; their wallset is wooden.
     "germ_monument": "s_germans_cult_statue",
     "germ_gate": "s_germans_wooden_wall_gate", "germ_wall_segment": "s_germans_wooden_wall_long",
+    # Rome's siege WallSet pieces (BLD_SIEGE_WALL by half_size, BLD_SIEGE_WALL_GATE).
+    "siege_wall_long": "s_romans_siege_wall_long", "siege_wall_medium": "s_romans_siege_wall_medium",
+    "siege_wall_short": "s_romans_siege_wall_short", "siege_wall_tower": "s_romans_siege_wall_tower",
+    "siege_wall_gate": "s_romans_siege_wall_gate",
 }
 
 # Generic models with no GLB yet: model id -> template under structures/.

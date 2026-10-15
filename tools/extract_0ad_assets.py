@@ -992,6 +992,13 @@ ZIP_STRUCTURES = {
     "s_germans_wooden_wall_medium": ("art/actors/structures/germans/wooden_wall_medium.xml", "scale", 0.25, None),
     "s_germans_wooden_wall_long":   ("art/actors/structures/germans/wooden_wall_long.xml",   "scale", 0.25, None),
     "s_germans_wooden_wall_gate":   ("art/actors/structures/germans/wooden_wall_gate.xml",   "scale", 0.25, None),
+    # Rome's siege WallSet (rome/wallset_siege): its own long, medium and short
+    # segments, tower and gate, at the stone walls' 1 unit = 4 m.
+    "s_romans_siege_wall_long":   ("art/actors/structures/romans/siege_wall_long.xml",   "scale", 0.25, None),
+    "s_romans_siege_wall_medium": ("art/actors/structures/romans/siege_wall_medium.xml", "scale", 0.25, None),
+    "s_romans_siege_wall_short":  ("art/actors/structures/romans/siege_wall_short.xml",  "scale", 0.25, None),
+    "s_romans_siege_wall_tower":  ("art/actors/structures/romans/siege_wall_tower.xml",  "scale", 0.25, None),
+    "s_romans_siege_wall_gate":   ("art/actors/structures/romans/siege_wall_gate.xml",   "scale", 0.25, None),
     # Carthage's three 0.28 embassies (the generic `embassy` is the older
     # shared actor) and the apartment its houses upgrade to, sized like the
     # embassy and the Carthaginian house they stood in for.
@@ -1175,6 +1182,9 @@ ZIP_PROPS = {
 
 # Trees and fruit with no family model: one per 0 A.D. template (tools/extract_0ad_flora.py,
 # flora_data.h), in 0 A.D.'s metres like tools/fetch_0ad_trees.py.
+# Looks per flora actor: RtsoWorldView::TREE_VARIANTS.
+FLORA_LOOKS = 4
+
 ZIP_FLORA = {
     "flora_fruit_apple": ("art/actors/flora/trees/apple_bloom.xml", "scale", 1.0, None),
     "flora_fruit_banana": ("art/actors/flora/trees/banana.xml", "scale", 1.0, None),
@@ -2461,19 +2471,48 @@ def _variant_children(vfs, var):
     return mesh, props, texs, mat
 
 
-def _pick_variant(group):
+def _variant_freq(v):
+    try:
+        return int(v.get("frequency", "1"))
+    except ValueError:
+        return 1
+
+
+def _pick_variant(group, shift=0):
+    """The group's most frequent variant (ties -> first); with `shift`, the
+    variant `shift` places after it among those 0 A.D. can pick (frequency > 0),
+    wrapping, so an actor's other looks can be exported as `<id>_vN`."""
     vars_ = group.findall("variant")
     if not vars_:
         return None
     best, best_freq = None, -1
     for v in vars_:
-        try:
-            freq = int(v.get("frequency", "1"))
-        except ValueError:
-            freq = 1
+        freq = _variant_freq(v)
         if freq > best_freq:
             best, best_freq = v, freq
+    if shift:
+        live = [v for v in vars_ if _variant_freq(v) > 0]
+        if best in live:
+            return live[(live.index(best) + shift) % len(live)]
     return best
+
+
+def _looks_group(group):
+    """Variants of this group differ in mesh or textures (not just props or
+    particles, as cherry blossom's falling leaves)."""
+    live = [v for v in group.findall("variant") if _variant_freq(v) > 0]
+    return len(live) > 1 and any(v.find("mesh") is not None or v.find("textures") is not None for v in live)
+
+
+def actor_look_count(vfs, actor_path):
+    """How many looks an actor's own groups offer: its largest mesh/texture group."""
+    if not vfs.exists(actor_path):
+        return 1
+    root = ET.fromstring(vfs.read(actor_path))
+    if root.tag == "qualitylevels" and root.find("inline") is not None:
+        root = root.find("inline")
+    return max([1] + [len([v for v in g.findall("variant") if _variant_freq(v) > 0])
+                      for g in root.findall("group") if _looks_group(g)])
 
 
 def _resolve_variant_file(vfs, file_ref, cache):
@@ -2530,7 +2569,7 @@ def _actor_path(ref):
     return r if r.startswith("art/") else f"art/actors/{r}"
 
 
-def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors=None):
+def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors=None, look=0):
     """Compose an actor into a list of Parts.
 
     Deterministic picks: highest-frequency variant per group (ties -> first).
@@ -2589,7 +2628,8 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
         return part
 
     for g in root.findall("group"):
-        var = _pick_variant(g)
+        # `look` shifts every mesh/texture group of the top actor together (props follow).
+        var = _pick_variant(g, look if depth == 0 and _looks_group(g) else 0)
         if var is None:
             continue
         file_ref = (var.get("file") or "").strip()
@@ -3634,12 +3674,17 @@ class GlbBuilder:
 
 # ----------------------------------------------------------- model compile --
 
-def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=None):
-    print(f"[{asset_id}] {actor_ref}")
+def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=None,
+                  look=0, origin=None, want_origin=False):
+    """`look` exports the actor's look-th variant set (see _pick_variant). With
+    `want_origin` the record carries the model's centre and ground under
+    "_origin"; a later look passes it as `origin` so its trunk stands where the
+    first look's does."""
+    print(f"[{asset_id}] {actor_ref}" + (f" look {look}" if look else ""))
     sources = set()
     riders = resolve_riders(vfs, asset_id, actor_ref)
     skip_actors = _rider_skip_actors(asset_id, riders)
-    parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources, skip_actors)
+    parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources, skip_actors, look)
     if not parts:
         raise RuntimeError(f"no parts composed for {asset_id}")
     body = None
@@ -3707,6 +3752,8 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=
     cx, cz = (minx+maxx)/2, (minz+maxz)/2
     # Props keep the actor's origin height, so a wreck floats as deep as in 0 A.D.
     base_y = 0.0 if asset_id in ZIP_PROPS else miny
+    if origin is not None:
+        cx, base_y, cz = origin
     # rewrite primitive positions in place
     for pi, prim in enumerate(glb.primitives):
         pos, nrm, uv, idx, mi = prim[0], prim[1], prim[2], prim[3], prim[4]
@@ -3733,7 +3780,7 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=
     final_dim = (dim[0]*scale, dim[1]*scale, dim[2]*scale)
     print(f"  -> {out_path} ({os.path.getsize(out_path)//1024}KB, "
           f"{len(parts)} parts, dim {final_dim[0]:.2f}x{final_dim[1]:.2f}x{final_dim[2]:.2f})")
-    return {
+    rec = {
         "file": os.path.relpath(out_path, out_dir).replace(os.sep, "/"),
         "parts": len(parts),
         "size_meters": [round(final_dim[0], 3), round(final_dim[1], 3), round(final_dim[2], 3)],
@@ -3741,6 +3788,9 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=
         "sources": sorted(f"{kind}:{ref}" for kind, ref in sources),
         "upstream_material": material_name,
     }
+    if want_origin:
+        rec["_origin"] = (cx, base_y, cz)
+    return rec
 
 
 def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
@@ -4922,6 +4972,19 @@ def main():
                     # Static hull + sit-baked crew (0 A.D. left the hull unskinned).
                     manifest["models"][asset_id] = compile_unit_animated(
                         vfs, asset_id, actor_ref, fit, target, tint, out_dir, "", {})
+                elif asset_id in ZIP_FLORA:
+                    # 0.28 picks one look per tree; the actor's others go out as <id>_v2.._v4,
+                    # which the 3D view mixes per tree.
+                    rec = compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
+                                        want_origin=True)
+                    origin = rec.pop("_origin")
+                    manifest["models"][asset_id] = rec
+                    for look in range(1, min(FLORA_LOOKS, actor_look_count(vfs, actor_ref))):
+                        vid = f"{asset_id}_v{look + 1}"
+                        vrec = compile_asset(vfs, vid, actor_ref, fit, target, tint, out_dir,
+                                             rel_dir="models/vegetation", look=look,
+                                             origin=origin)
+                        manifest["models"][vid] = vrec
                 else:
                     manifest["models"][asset_id] = compile_asset(
                         vfs, asset_id, actor_ref, fit, target, tint, out_dir)

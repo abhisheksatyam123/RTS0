@@ -566,6 +566,15 @@
   "scaffold": "scaffold_up_cart_wooden_tower",
   "scale": 1.4027
  },
+ "s_romans_siege_wall_long": {
+  "offset": [
+   -0.2246,
+   0.3502,
+   0.0
+  ],
+  "scaffold": "scaffold_up_9x3_wall",
+  "scale": 1.1904
+ },
  "s_romans_wall_long": {
   "offset": [
    -0.2383,

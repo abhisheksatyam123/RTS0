@@ -29,10 +29,9 @@ grow_vertical = 2
 theme = ExtResource("2_theme")
 
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(520, 420)
+custom_minimum_size = Vector2(432, 388)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]
+[node name="Body" type="Control" parent="CenterContainer/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 10

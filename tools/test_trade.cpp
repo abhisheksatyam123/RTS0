@@ -236,9 +236,17 @@ static void test_trader_route() {
 	// Trader.js goods.amount: none until it loads goods at a market.
 	Simulation::TradeGain carried;
 	CHECK(!s.trader_goods(trader, carried));
-	// The idle trader finds the route by itself and walks it.
-	run(s, 240.0f);
-	run(c, 240.0f);
+	// UnitAI.js: a player's trader trades only when ordered; left idle it stays put.
+	run(s, 5.0f);
+	run(c, 5.0f);
+	{
+		auto u = s.units();
+		for (size_t i = 0; i < u.count; ++i)
+			if (u.id[i] == trader) CHECK(u.action_state[i] == ACTION_IDLE && std::fabs(u.pos_x[i] + 74.0f) < 0.5f);
+	}
+	s.order_trade(&trader, 1, m0, m1);
+	run(s, 235.0f);
+	run(c, 235.0f);
 	const int p0_gain = total(s, 0) - total(c, 0), p1_gain = total(s, 1) - total(c, 1);
 	std::printf("  trader: +%d for player 0, +%d for player 1 (per leg %d/%d/%d)\n",
 	            p0_gain, p1_gain, g.trader, g.market1, g.market2);
@@ -300,7 +308,10 @@ static void test_trading_goods() {
 	c.spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
 	root_markets(c);
 	c.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
-	s.spawn_unit(-74.0f, 4.0f, 0, UNIT_TRADER);
+	{
+		const uint32_t t = s.spawn_unit(-74.0f, 4.0f, 0, UNIT_TRADER);
+		s.order_trade(&t, 1, s.buildings()[0].id, s.buildings()[1].id);
+	}
 	run(s, 240.0f);
 	run(c, 240.0f);
 	const int stone = s.player_resource(0, RES_STONE) - c.player_resource(0, RES_STONE);
@@ -351,6 +362,7 @@ static void test_trader_goods() {
 	}
 	const uint32_t m0 = s.buildings()[0].id, m1 = s.buildings()[1].id;
 	const uint32_t trader = s.spawn_unit(-74.0f, 4.0f, 0, UNIT_TRADER);
+	s.order_trade(&trader, 1, m0, m1);
 	auto carry = [&]() {
 		const int32_t i = s.lookup_unit(trader);
 		return i < 0 ? -1 : s.units_.carry[i];
@@ -431,7 +443,26 @@ static void test_garrisoned_trader_gain() {
 	s.transport_passengers_.clear();
 }
 
+// UnitAI.js TRADE: a leg whose trader gain rounds to 0 finishes the order.
+static void test_zero_gain_route() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t a = s.spawn_building_world(-10.0f, 0.0f, BLD_MARKET, 0, 1.0f);
+	const uint32_t b = s.spawn_building_world(10.0f, 0.0f, BLD_MARKET, 0, 1.0f);
+	root_markets(s);
+	const Simulation::TradeGain g = s.calculate_trade_gain(*find_bld(s, a), *find_bld(s, b), 0);
+	std::printf("  markets 20 units apart: trader gain %d\n", g.trader);
+	CHECK(g.trader == 0);
+	const uint32_t t = s.spawn_unit(-4.0f, 4.0f, 0, UNIT_TRADER);
+	s.order_trade(&t, 1, a, b);
+	CHECK(s.trader_routes_.count(t)); // the order is taken; arriving with nothing to load ends it
+	run(s, 30.0f);
+	const int32_t i = s.lookup_unit(t);
+	CHECK(i >= 0 && s.units_.action_state[i] == ACTION_IDLE && !s.trader_routes_.count(t));
+}
+
 int main() {
+	test_zero_gain_route();
 	test_tribute();
 	test_trading_goods();
 	test_barter();
