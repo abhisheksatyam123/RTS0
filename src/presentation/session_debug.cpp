@@ -453,6 +453,37 @@ PackedInt32Array RtsoMain::debug_spawn_fauna(int fauna_type, int count, bool own
 	return out;
 }
 
+// Test hooks: a stone mine (template_gaia_rock: 7 x 7 m, 13 x 13 m with 24 gatherers) at
+// (x, z) from the player's civic centre; snap_placement_to_edges for a structure centred near
+// (x, z) from it with snapping on, after a stale placement angle.
+static godot::Vector2 local_cc_pos(const rtso::Simulation &sim, uint8_t player) {
+	for (const auto &b : sim.buildings())
+		if (b.team == player && rtso::is_civic_centre(b.type)) return godot::Vector2(b.x, b.z);
+	return godot::Vector2();
+}
+
+int64_t RtsoMain::debug_spawn_mine(float x, float z, int max_gatherers) {
+	if (!sim) return 0;
+	const Vector2 cc = local_cc_pos(*sim, local_player());
+	return sim->spawn_resource_world(cc.x + x, cc.y + z, rtso::RES_STONE, 5000, 0, (uint8_t)max_gatherers);
+}
+
+Dictionary RtsoMain::debug_snap_placement(int btype, float x, float z, bool hover, float stale_angle) {
+	Dictionary d;
+	if (!sim) return d;
+	const float GRID = rtso::Simulation::GRID;
+	const int fp = rtso::building_type_info((uint8_t)btype).footprint;
+	const Vector2 cc = local_cc_pos(*sim, local_player());
+	int cx = (int)std::lround((cc.x + x) / GRID - fp * 0.5f), cy = (int)std::lround((cc.y + z) / GRID - fp * 0.5f);
+	placement_angle = stale_angle;
+	debug_force_snap_ = true;
+	d["snapped"] = snap_placement_to_edges((uint8_t)btype, cx, cy, hover);
+	debug_force_snap_ = false;
+	d["cell"] = Vector2i(cx, cy);
+	d["angle"] = placement_angle;
+	return d;
+}
+
 // Test hooks: put units in a structure at once (a map's <Garrison>) or send them aboard a
 // ship, ram or siege tower; select one entity by id.
 int RtsoMain::debug_put_inside(const PackedInt32Array &ids, int64_t holder) {
