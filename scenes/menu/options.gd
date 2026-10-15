@@ -58,6 +58,7 @@ const SCHEMA := [
 		["slider", "sharpness", "Sharpness factor", "The sharpness of the chosen pass.", [0, 1]],
 		["dropdown", "variant_diversity", "Model appearance randomization", "Randomize the appearance of entities. Disabling gives a small performance improvement.",
 			[["None", "none"], ["Limited", "limited"], ["Normal", "full"]]],
+		["slider", "materialmgr.quality", "Shader effects", "Number of shader effects. REQUIRES GAME RESTART", [0, 10]],
 		["dropdown", "shadowquality", "Quality", "Shadow map resolution. High values can crash the game when using a graphics card with low memory!",
 			[["Low", "-1"], ["Medium", "0"], ["High", "1"], ["Very High", "2"]]],
 		["boolean", "shadowpcf", "Filtering", "Smooth shadows."],

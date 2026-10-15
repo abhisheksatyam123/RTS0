@@ -84,9 +84,9 @@ func _ready() -> void:
 		_diff.add_item(tr(d))
 	_diff.item_selected.connect(func(i): setup._on_slot_diff(i, slot); setup._render_ai_button(slot))
 	_beh = _row(dialog, 2, tr("AI Behavior"))
-	for b in setup.BEHAVIORS:
-		_beh.add_item(tr(b))
-	_beh.item_selected.connect(func(i): setup._on_slot_beh(i, slot); setup._render_ai_button(slot))
+	for b in setup.BEHAVIOR_ORDER:
+		_beh.add_item(tr(setup.BEHAVIORS[b]), b)
+	_beh.item_selected.connect(func(i): setup._on_slot_beh(_beh.get_item_id(i), slot); setup._render_ai_button(slot))
 	_desc = Label.new()
 	_desc.name = "Description"
 	_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -145,7 +145,7 @@ func render() -> void:
 	var has_ai := int(row["kind"]) == 1
 	_ai.select(1 if has_ai else 0)
 	_diff.select(clampi(int(row["diff"]), 0, _diff.item_count - 1))
-	_beh.select(clampi(int(row["beh"]), 0, _beh.item_count - 1))
+	_beh.select(maxi(_beh.get_item_index(int(row["beh"])), 0))
 	for c in [_diff, _beh]:
 		c.visible = has_ai
 		c.get_parent().get_child(c.get_index() - 1).visible = has_ai

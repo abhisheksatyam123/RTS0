@@ -1,6 +1,7 @@
 #include "model_library.h"
 #include "procedural.h"
 #include "../../core/diagnostics/logger.h"
+#include "../../presentation/user_config.h"
 #include "../../simulation/sim_types.h"
 #include "packed_siege_models.h"
 #include "unit_template_models.h"
@@ -284,6 +285,17 @@ HashMap<uint64_t, Ref<ShaderMaterial>> &player_color_mats() {
 	return m;
 }
 
+// 0 A.D. MaterialManager: materialmgr.quality (Options "Shader effects", 0-10,
+// read once: "REQUIRES GAME RESTART") picks a material's <alternative> when its
+// quality attribute is above the setting. art/materials/*_parallax_spec.xml fall
+// back to *_norm_spec.xml at quality="8", and those to the plain material at "3".
+static float material_quality() {
+	static const float q = CLAMP((float)rtso::user_config::get_number("materialmgr.quality"), 0.0f, 10.0f);
+	return q;
+}
+static bool quality_normal_maps() { return material_quality() >= 3.0f; }
+static bool quality_parallax() { return material_quality() >= 8.0f; }
+
 // Opaque skins with a specular map or a parallax height map also take the shader
 // without a mask, as BaseMaterial3D has no per-pixel specular nor 0 A.D.'s parallax.
 Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
@@ -296,10 +308,10 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 		Ref<Texture2D> mask = pm && ResourceLoader::get_singleton()->exists(pm->mask)
 				? Ref<Texture2D>(ResourceLoader::get_singleton()->load(pm->mask))
 				: Ref<Texture2D>();
-		Ref<Texture2D> spec = specular_map_for(tex);
+		Ref<Texture2D> spec = quality_normal_maps() ? specular_map_for(tex) : Ref<Texture2D>();
 		const bool opaque = bm->get_transparency() == BaseMaterial3D::TRANSPARENCY_DISABLED;
 		const ParallaxMap *px = parallax_maps().getptr(image_key(tex));
-		Ref<Texture2D> height = px && px->scale > 0.0f && ResourceLoader::get_singleton()->exists(px->height)
+		Ref<Texture2D> height = quality_parallax() && px && px->scale > 0.0f && ResourceLoader::get_singleton()->exists(px->height)
 				? Ref<Texture2D>(ResourceLoader::get_singleton()->load(px->height))
 				: Ref<Texture2D>();
 		Ref<Shader> &sh = player_color_shader();
@@ -317,7 +329,7 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 			out->set_shader_parameter("roughness", bm->get_roughness());
 			out->set_shader_parameter("metallic", bm->get_metallic());
 			out->set_shader_parameter("specular", bm->get_specular());
-			Ref<Texture2D> nm = normal_map_for(tex);
+			Ref<Texture2D> nm = quality_normal_maps() ? normal_map_for(tex) : Ref<Texture2D>();
 			out->set_shader_parameter("use_normal_map", nm.is_valid());
 			if (nm.is_valid()) out->set_shader_parameter("normal_tex", nm);
 			out->set_shader_parameter("use_specular_map", spec.is_valid());
@@ -445,7 +457,7 @@ void ModelLibrary::apply_imported_material_fixups(Node *n) {
 			Ref<ShaderMaterial> pc = player_color_material(bm);
 			if (pc.is_valid()) {
 				mi->set_surface_override_material(s, pc);
-			} else if (!bm->get_feature(BaseMaterial3D::FEATURE_NORMAL_MAPPING)) {
+			} else if (quality_normal_maps() && !bm->get_feature(BaseMaterial3D::FEATURE_NORMAL_MAPPING)) {
 				Ref<Texture2D> nm = normal_map_for(bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO));
 				if (nm.is_valid()) {
 					bm->set_feature(BaseMaterial3D::FEATURE_NORMAL_MAPPING, true);

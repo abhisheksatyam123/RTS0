@@ -25,6 +25,7 @@ const AIConfig = preload("res://scenes/menu/ai_config.gd")
 # The slot grid: name, kind, civ, team, AI gear, colour.
 const SLOT_COLUMNS := 6
 
+const RefCommon := preload("res://scenes/reference/reference_common.gd")
 const CIVS := [
 	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
 	{"id": 1, "code": "spart", "name": "Spartans", "emblem": "res://assets/textures/ui/emblems/spartans.png", "blurb": "Agoge: +35% HP and +25% melee for citizen-soldiers and champions."},
@@ -161,10 +162,11 @@ const POP_TYPE_PLAYER := 0
 const POP_TYPE_TEAM := 1
 const POP_TYPE_WORLD := 2
 const POP_UNLIMITED := 10000
-const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
-# 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
-const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
-const RELIC_COUNTS := [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
+# 0.28 Sliders/Ceasefire.js (0-45 min), WonderDuration.js and RelicDuration.js (0-60 min,
+# default 20) and RelicCount.js (1 to the number of civs, default 2), one entry a step.
+static var CEASEFIRES: Array = range(0, 46)
+static var VICTORY_TIMES: Array = range(0, 61)
+static var RELIC_COUNTS: Array = range(1, CIVS.size() + 1)
 # 0 A.D. map trigger options: Flood's WaterLevel and Extinct Volcano's SeaLevelRiseTime.
 const WATER_LEVELS := ["Rising water", "Shallow water", "Deep water"]
 const SEA_RISE_TIMES := [0, 5, 10, 15, 20, 25, 30, 40, 50, 60]
@@ -245,8 +247,16 @@ const START_RES_AMOUNTS := [100, 300, 500, 1000, 3000, 50000]
 
 # 0.28 settings/map_sizes.json (width in meters) for random maps; Normal is the default.
 const DEFAULT_MAP_SIZE := 2
-const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Normal (256 m)"],
-	[320, "Medium (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
+const MAP_SIZES := [[128, "Tiny"], [192, "Small"], [256, "Normal"],
+	[320, "Medium"], [384, "Large"], [448, "Very Large"], [512, "Giant"]]
+# map_sizes.json Tooltip, index == MAP_SIZES.
+const MAP_SIZE_TIPS := ["This map size has barely any room for even the most basic resources.",
+	"Small maps are suitable for 1v1 matches, as players can reach the enemy quickly while still having some room to expand.",
+	"This map size provides plenty of space for two players, but even eight players fit.",
+	"This is the ideal mapsize for 4 to 8 players, because there is plenty of space to expand while the neighbors are quickly reachable.",
+	"The large mapsize is recommended when great portions of the map are covered with water or inaccessible mountains.",
+	"Very large maps are not recommended as it takes very long to reach the enemy and the game performance can be reduced.",
+	"Giant maps are not recommended as it takes very long to reach the enemy and the game performance can be reduced."]
 
 # Index == rtso::VictoryCondition id (sim_types.h).
 const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
@@ -257,14 +267,22 @@ const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 # Options-page aibehavior values -> RTS0 PetraBehavior (petra_ai.h).
 const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
+## The AI Behavior list order (0.28 settings.js loadAIBehaviors); entries are BEHAVIORS values.
+const BEHAVIOR_ORDER := [0, 2, 1, 3]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
+const RANDOM_BIOME := 99 # the Biome dropdown's Random entry (its item id too); resolved at Start
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India", "Autumn", "Nubia"]
 ## 0.28 rmbiome ids -> BIOMES index, as tools/extract_0ad_map_types.py RTS0_BIOMES maps
 ## them to BiomeType for the sim (map_biomes_data.h); 0.28 biomes RTS0 lacks are left out.
 const RMBIOME_INDEX := {"generic/aegean": 1, "generic/alpine": 3, "generic/sahara": 4, "generic/temperate": 5,
 	"generic/steppe": 6, "generic/savanna": 7, "generic/arctic": 8, "generic/india": 9,
 	"generic/autumn": 10, "generic/nubia": 11}
-const SPEEDS := [[0.5, "0.5x"], [0.75, "0.75x"], [1.0, "1x"], [1.25, "1.25x"], [1.5, "1.5x"], [2.0, "2x"]]
+# 0.28 simulation/data/settings/game_speeds.json: [speed, title, fast forward].
+const SPEEDS := [[0.1, "Turtle (0.1×)", false], [0.25, "Slow (0.25×)", false], [0.5, "Leisurely (0.5×)", false],
+	[0.75, "Relaxed (0.75×)", false], [1.0, "Normal (1×)", false], [1.25, "Fast (1.25×)", false],
+	[1.5, "Very Fast (1.5×)", false], [2.0, "Insane (2×)", false], [5.0, "Fast Forward (5×)", true],
+	[10.0, "Fast Forward (10×)", true], [20.0, "Fast Forward (20×)", true]]
+const DEFAULT_SPEED := 4 # Normal (1×)
 const SLOT_KINDS := ["Human", "AI", "Closed"]
 # rtso::PLAYER_COLORS: 0 A.D. player_defaults.json (each player's default), then PlayerColor.js DefaultColors.
 const PLAYER_COLORS := [Color8(21, 55, 149), Color8(150, 20, 20), Color8(86, 180, 31), Color8(231, 200, 5),
@@ -321,7 +339,7 @@ var _sel_map: int = 0
 # The Player Placement picked (rtso::TeamPlacement), kept while maps change.
 var _pop_type := POP_TYPE_PLAYER
 var _team_placement := 0
-var _biome := 0 # the Biome pick (BIOMES index), kept across maps that offer it
+var _biome := RANDOM_BIOME # the Biome pick (BIOMES index or RANDOM_BIOME), kept across maps that offer it
 var _map_type := "skirmish"
 var _map_filter_name := "default"
 var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
@@ -447,18 +465,20 @@ static func rms_script(map_id: String) -> String:
 	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
 	return "neareastern_badlands" if s == "nearestern_badlands" else s
 
-## 0.28 gamesetup Biome: only the map's SupportedBiomes, hidden on a map with none;
-## "Map default" first (the map's own biome); the pick stays when the new map offers it.
+## 0.28 Dropdowns/Biome.js: Random (the default), then only the map's SupportedBiomes,
+## hidden on a map with none; the pick stays when the new map offers it, else Random.
 func _rebuild_biomes(values: Array) -> void:
 	var slot := get_node_or_null("%BiomeSlot")
 	if slot == null or slot.get_child_count() == 0:
 		return
 	var bio: RtsoSafeSelect = slot.get_child(0)
 	bio.clear()
-	bio.add_item(BIOMES[0], 0)
+	bio.add_item(tr("Random"), RANDOM_BIOME)
+	bio.set_item_tooltip(0, tr("Pick a biome at random."))
 	for v in values:
 		bio.add_item(BIOMES[v], v)
-	bio.select(maxi(([0] + values).find(_biome), 0))
+		bio.set_item_tooltip(bio.get_item_count() - 1, GameDescription.BIOME_TEXT.get(v, ["", ""])[1])
+	bio.select(maxi(([RANDOM_BIOME] + values).find(_biome), 0))
 	slot.visible = not values.is_empty()
 	%BiomeLabel.visible = not values.is_empty()
 
@@ -467,7 +487,7 @@ func _selected_biome() -> int:
 	if slot == null or slot.get_child_count() == 0 or not slot.visible:
 		return 0
 	var bio: RtsoSafeSelect = slot.get_child(0)
-	return maxi(bio.get_item_id(bio.get_selected()), 0) if bio.get_selected() >= 0 else 0
+	return bio.get_item_id(bio.get_selected()) if bio.get_selected() >= 0 else RANDOM_BIOME
 
 func _on_biome_selected(_index: int) -> void:
 	_biome = _selected_biome()
@@ -614,6 +634,7 @@ func _update_lock_teams_for_pop() -> void:
 		lock.disabled = true
 	else:
 		lock.disabled = _is_scenario()
+	_render_mode_checks()
 
 func _make_option(slot: Control) -> RtsoSafeSelect:
 	for c in slot.get_children():
@@ -628,6 +649,7 @@ func _build_map_type() -> void:
 	var t := _make_option(%MapTypeSlot)
 	for mt in MAP_TYPES:
 		t.add_item(mt[1])
+		t.set_item_tooltip(t.get_item_count() - 1, tr(mt[2])) # MapType: g_MapTypes.Description
 	t.select(0)
 	_update_map_type_tooltip()
 	t.item_selected.connect(_on_map_type_selected)
@@ -681,6 +703,7 @@ func _rebuild_map_filter() -> void:
 	for flt in available_filters(_maps, _map_type):
 		_filter_names.append(flt[0])
 		f.add_item(flt[1])
+		f.set_item_tooltip(f.get_item_count() - 1, tr(flt[2])) # MapFilter: Description
 	if not _filter_names.has(_map_filter_name):
 		_map_filter_name = _filter_names[0] if not _filter_names.is_empty() else "default"
 	var shown := not _filter_names.is_empty()
@@ -855,6 +878,7 @@ func _apply_map_locks() -> void:
 		cb.disabled = scen
 		if scen:
 			cb.button_pressed = bool(s.get(checks[path], false))
+	_render_mode_checks()
 	var pop: RtsoSafeSelect = %PopCapSlot.get_child(0)
 	var res: RtsoSafeSelect = %ResSlot.get_child(0)
 	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
@@ -1180,6 +1204,31 @@ func refresh_slots() -> void:
 		_add_slot_row(grid, i)
 	_rebuilding_slots = false
 	_apply_mp_locks()
+	_render_speeds()
+
+## GameSpeed.render: the Fast Forward speeds only while nobody holds a player
+## slot (every slot AI or unassigned); a speed no longer listed goes back to Normal.
+func _render_speeds() -> void:
+	var spd: RtsoSafeSelect = %SpeedSlot.get_child(0) if %SpeedSlot.get_child_count() else null
+	if spd == null:
+		return
+	var n := int(_slot_count_node().value)
+	var ff := true
+	for i in mini(n, _slot_rows.size()):
+		if int(_slot_rows[i]["kind"]) == 0:
+			ff = false
+	var listed := 0
+	for sp in SPEEDS:
+		if ff or not sp[2]:
+			listed += 1
+	if spd.get_item_count() == listed:
+		return
+	var current: int = spd.get_item_id(spd.get_selected()) if spd.get_selected() >= 0 else DEFAULT_SPEED
+	spd.clear()
+	for i in SPEEDS.size():
+		if ff or not SPEEDS[i][2]:
+			spd.add_item(SPEEDS[i][1], i)
+	spd.select(spd.get_item_index(current) if spd.get_item_index(current) >= 0 else spd.get_item_index(DEFAULT_SPEED))
 
 func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var row: Dictionary = _slot_rows[i]
@@ -1206,11 +1255,13 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var civ := _make_option(civ_slot)
 	# 0.28 PlayerCiv.getItems: Random first, then the civs by name.
 	civ.add_item("Random")
+	civ.set_item_tooltip(0, tr("Picks one civilization at random when the game starts."))
 	for ci in _civ_order():
 		var c: Dictionary = CIVS[ci]
 		var emblem: Texture2D = load(c["emblem"])
 		if emblem: civ.add_icon_item(emblem, c["name"])
 		else: civ.add_item(c["name"])
+		civ.set_item_tooltip(civ.get_item_count() - 1, RefCommon.civ_history(int(c["id"]))) # PlayerCiv: g_CivData History
 	var civ_pos := _civ_pos(int(row["civ"]))
 	civ.select(_civ_order().find(civ_pos) + 1 if civ_pos >= 0 else 0)
 	civ.disabled = _map_civ(_map_player(i)) >= 0
@@ -1257,6 +1308,7 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["kind"] = idx
+	_render_speeds()
 	if slot == 0:
 		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
 	_render_ai_button(slot)
@@ -1379,13 +1431,17 @@ func _build_options() -> void:
 		%VictorySlot.add_child(cb)
 		_victory_checks[int(k[0])] = cb
 	_set_victory_mask(1)
+	%LockTeams.toggled.connect(func(_on): _render_mode_checks())
 	var msz := _make_option(%MapSizeSlot)
 	for s in MAP_SIZES:
-		msz.add_item(s[1], s[0])
+		msz.add_item(tr(s[1]), s[0])
+		msz.set_item_tooltip(msz.get_item_count() - 1, tr(MAP_SIZE_TIPS[msz.get_item_count() - 1]))
 	msz.select(DEFAULT_MAP_SIZE)
+	msz.tooltip_text = tr("Select map size. (Larger sizes may reduce performance.)")
 	var popt := _make_option(%PopCapTypeSlot)
 	for t in POP_CAP_TYPES:
 		popt.add_item(tr(t[1]))
+		popt.set_item_tooltip(popt.get_item_count() - 1, tr(t[2])) # PopulationCapType: Tooltip
 	popt.select(POP_TYPE_PLAYER)
 	popt.tooltip_text = tr("Select a population capacity type.")
 	popt.item_selected.connect(_on_pop_type_selected)
@@ -1393,27 +1449,33 @@ func _build_options() -> void:
 	_select_pop(300, false) # 0 A.D. default: 300 per player
 	var cf := _make_option(%CeasefireSlot)
 	for c in CEASEFIRES:
-		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
+		cf.add_item(tr("No ceasefire") if c == 0 else _minutes(c))
 	cf.select(0)
+	cf.tooltip_text = tr("Set time where no attacks are possible.")
 	var wt := _make_option(%WonderTimeSlot)
 	var rt := _make_option(%RelicTimeSlot)
 	for t in VICTORY_TIMES:
-		wt.add_item("%d min" % t)
-		rt.add_item("hold %d min" % t)
+		wt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
+		rt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
 	wt.select(VICTORY_TIMES.find(20))
 	rt.select(VICTORY_TIMES.find(20))
+	wt.tooltip_text = tr("Minutes until the player has achieved Wonder Victory")
+	rt.tooltip_text = tr("Minutes until the player has achieved Relic Victory.")
 	var rc := _make_option(%RelicCountSlot)
 	for c in RELIC_COUNTS:
-		rc.add_item(str(c))
+		rc.add_item(tr("%d relic") % c if c == 1 else tr("%d relics") % c)
 	rc.select(RELIC_COUNTS.find(2))
+	rc.tooltip_text = tr("Total number of relics spawned on the map. Relic victory is most realistic with only one or two relics. With greater numbers, the relics are important to capture to receive aura bonuses.")
 	var wl := _make_option(%WaterLevelSlot)
 	for w in WATER_LEVELS:
 		wl.add_item(w)
 	wl.select(0)
+	wl.tooltip_text = tr("Select the water level of this map.")
 	var sr := _make_option(%SeaRiseSlot)
 	for t in SEA_RISE_TIMES:
-		sr.add_item("rise at %d min" % t)
+		sr.add_item(_minutes(t))
 	sr.select(SEA_RISE_TIMES.find(25))
+	sr.tooltip_text = tr("Set the time when the water will start to rise.")
 	var tpl := _make_option(%TeamPlacementSlot)
 	tpl.item_selected.connect(_on_team_placement_selected)
 	_rebuild_team_placement([])
@@ -1436,16 +1498,17 @@ func _build_options() -> void:
 	dsel.select(0)
 	var res := _make_option(%ResSlot)
 	for r in START_RES:
-		res.add_item(r)
+		res.add_item(tr(r.get_slice(" (", 0))) # starting_resources.json Title
+		# StartingResources.HoverTooltip
+		res.set_item_tooltip(res.get_item_count() - 1, tr("Initial amount of each resource: %(resources)s.").replace("%(resources)s", str(START_RES_AMOUNTS[res.get_item_count() - 1])))
 	res.select(1)
+	res.tooltip_text = tr("Select the game's starting resources.")
 	var bio := _make_option(%BiomeSlot)
 	bio.add_item(BIOMES[0], 0)
 	bio.select(0)
 	bio.item_selected.connect(_on_biome_selected)
-	var spd := _make_option(%SpeedSlot)
-	for sp in SPEEDS:
-		spd.add_item(sp[1])
-	spd.select(2)
+	_make_option(%SpeedSlot)
+	_render_speeds()
 	_mute_spin(%SpinSeed)
 	_mute_spin($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots)
 	$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value_changed.connect(
@@ -1482,6 +1545,16 @@ func _set_victory_mask(mask: int) -> void:
 	for bit in _victory_checks:
 		_victory_checks[bit].disabled = (disabled & int(bit)) != 0
 	_refresh_victory_times(mask)
+	_render_mode_checks()
+
+## 0.28 Checkboxes: Last Man Standing is always shown but needs unlocked teams (its
+## setting's "available") and no scenario; Nomad shows only on random maps; Hero
+## Garrison only while Regicide is checked, and never on a scenario.
+func _render_mode_checks() -> void:
+	var scen := _is_scenario()
+	%LastManStanding.disabled = scen or %LockTeams.button_pressed
+	%Nomad.visible = str(_selected_map().get("kind", "")) == "Random"
+	%RegicideGarrison.visible = not scen and (_victory_mask() & VK_REGICIDE) != 0
 
 ## 0.28 WonderDuration / RelicCount / RelicDuration: shown only while their condition
 ## is checked, and fixed (disabled) on a scenario.
@@ -1626,11 +1699,13 @@ func _apply_settings(ms: Dictionary) -> void:
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
 	res.select(clampi(int(ms.get("start_res")), 0, START_RES.size() - 1))
-	_biome = clampi(int(ms.get("biome")), 0, BIOMES.size() - 1)
+	_biome = int(ms.get("biome"))
+	if _biome != RANDOM_BIOME:
+		_biome = clampi(_biome, 0, BIOMES.size() - 1)
 	_rebuild_biomes(_selected_map().get("biomes", []))
 	for i in range(SPEEDS.size()):
-		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
-			spd.select(i)
+		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))) and spd.get_item_index(i) >= 0:
+			spd.select(spd.get_item_index(i))
 	%SpinSeed.value = int(ms.get("seed"))
 	# Restore map selection by id, with its map type.
 	_select_map_id(str(ms.get("map_id")))
@@ -1642,7 +1717,7 @@ func _apply_settings(ms: Dictionary) -> void:
 	var sbehs: Array = ms.get("slot_behs", [])
 	var scolors: Array = ms.get("slot_colors", [])
 	if not types.is_empty():
-		$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value = clampi(types.size(), 2, 8)
+		$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value = clampi(types.size(), 1, 8)
 		_ensure_slot_rows(int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value))
 		for i in range(mini(types.size(), _slot_rows.size())):
 			_slot_rows[i]["kind"] = clampi(int(types[i]), 0, 2)
@@ -1727,7 +1802,8 @@ func _collect_setup() -> Dictionary:
 			break
 	return {"map": m, "seed": seed, "victory": victory_code(vmask),
 		"waves": %Waves.button_pressed,
-		"lms": %LastManStanding.button_pressed,
+		# 0.28 LastManStanding is only sent while teams are unlocked.
+		"lms": %LastManStanding.button_pressed and (_is_scenario() or not %LockTeams.button_pressed),
 		"pop_cap": _pop_cap_setting(),
 		"team_pop": _pop_type == POP_TYPE_TEAM,
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
@@ -1747,7 +1823,7 @@ func _collect_setup() -> Dictionary:
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": _selected_biome(),
-		"speed": float(SPEEDS[maxi(spd.get_selected(), 0)][0]),
+		"speed": float(SPEEDS[spd.get_item_id(spd.get_selected()) if spd.get_selected() >= 0 else DEFAULT_SPEED][0]),
 		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors, "names": names,
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
 		"nomad": %Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
@@ -1804,9 +1880,6 @@ func _on_start_pressed() -> void:
 		return
 	if int(st["humans"]) < 1 and int(st["ai"]) < 2:
 		_show_error("Watching a game needs at least 2 AI players.")
-		return
-	if int(st["ai"]) < 1:
-		_show_error("Need at least 1 AI opponent.")
 		return
 	if int(st["humans"]) > 0 and int(st["types"][0]) != 0:
 		_show_error("Slot 1 must be Human, or make every slot AI to watch.")
@@ -1868,17 +1941,24 @@ func _on_start_pressed() -> void:
 	ms.disable_spies = bool(st["disable_spies"])
 	ms.disable_treasures = bool(st["disable_treasures"])
 	ms.biome = int(st["biome"])
+	var offered: Array = m.get("biomes", [])
+	if ms.biome == RANDOM_BIOME: # 0.28 picks the random biome at launch
+		ms.biome = int(offered[randi() % offered.size()]) if not offered.is_empty() else 0
 	ms.game_speed = float(st["speed"])
 	ms.player_count = int(st["slots"])
 	ms.player_civ = int(st["civs"][0])
 	# Legacy back-compat: first AI slot's civ.
-	ms.ai_civ = int(st["civs"][1]) if int(st["types"][1]) == 1 else int(st["civs"][0])
+	ms.ai_civ = int(st["civs"][1]) if (st["types"] as Array).size() > 1 and int(st["types"][1]) == 1 else int(st["civs"][0])
 	print("[GameSetup] Start — %s seed=%d victory=%d diff=%d beh=%d res=%d slots=%s civs=%s teams=%s" % [
 		ms.map_id, ms.seed, ms.victory, ms.ai_difficulty, ms.ai_behavior,
 		ms.start_res, str(st["types"]), str(st["civs"]), str(st["teams"])])
 	var err := MatchSettings.go("res://scenes/main.tscn")
 	if err != OK:
 		_show_error("Could not load match scene.")
+
+## translatePlural("%(min)s minute", "%(min)s minutes").
+func _minutes(n: int) -> String:
+	return (tr("%d minute") if n == 1 else tr("%d minutes")) % n
 
 func _show_error(msg: String) -> void:
 	var lbl := $VBox/HBox/Right/BtnStart as Button

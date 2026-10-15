@@ -1130,6 +1130,9 @@ MAP_ROWS = (
     "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",
     "units/samnite_skirmisher", "units/samnite_spearman", "units/samnite_swordsman",
     "units/viking_longship",
+    # Survival of the Fittest's Gaia champions (Survival's champion pool), placed by its trigger.
+    "units/merc_thorakites", "units/merc_thureophoros", "units/theb_sacred_band", "units/theb_siege_fireraiser",
+    "units/thesp_melanochitones",
 )
 
 
