@@ -3322,6 +3322,8 @@ private:
 	bool petra_phasing() const;
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
+	bool petra_minor_tech_waiting() const;
+	void petra_queue_special_tech(uint8_t t);
 	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);

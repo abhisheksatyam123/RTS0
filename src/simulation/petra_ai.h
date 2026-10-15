@@ -192,7 +192,10 @@ struct PetraQueueManager {
 	uint8_t paused[QUEUE_COUNT] = {};    // checkPausedQueues
 	uint8_t switched[QUEUE_COUNT] = {};  // switchResource: drawn on once until it starts an item
 	uint8_t reset_on_start[QUEUE_COUNT] = {}; // queueToReset: 1 + the queue whose priority resets when this one starts its item
-	uint8_t pad[3] = {};
+	// researchTradeBonus / researchPopulationBonus: the technology they queued in minorTech,
+	// waiting to be paid for (0: none); every other minor technology waits behind it.
+	uint8_t special_tech = 0;
+	uint8_t pad[2] = {};
 	void reset() {
 		for (int i = 0; i < QUEUE_COUNT; ++i) {
 			accounts[i] = PetraQueueAccount{};
@@ -201,6 +204,7 @@ struct PetraQueueManager {
 			priority[i] = 0;
 			paused[i] = switched[i] = reset_on_start[i] = 0;
 		}
+		special_tech = 0;
 	}
 };
 static_assert(sizeof(PetraQueueManager) == 864, "no hidden padding: saved raw");
