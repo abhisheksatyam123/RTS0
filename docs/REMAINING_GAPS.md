@@ -12,7 +12,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G11 | ~~Ptolemaic and Seleucid walls give 3 stone of loot; a bribe's spy ignores vision techs~~ (fixed in #1101); garrisoned traders can't be bribed | low | A |
 | G12 | Petra: ~~starting cavalry joins attacks instead of hunting; rushes take no siege~~ (fixed: citizen cavalry hunters follow assignUnits' worker rule, rushes add siege like other plans); raids take no siege; ~~far-off gatherers aren't sent back~~ (fixed: a gatherer that drifts off its base's nearby or medium supplies, or onto a crowded one, is stopped and reassigned, worker.js) | low | D (raid siege) |
 | G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
-| G18 | Each animal species wears one coat; the horses, pony, hippo, peacock, arctic fox and zebra don't play 0.28's feeding animation yet (cattle, wildebeest and the red fox graze with it; template trees mix up to four of their actor's looks) | low | Animal models |
+| G18 | The horses, pony, hippo, peacock, arctic fox and zebra don't play 0.28's feeding animation yet (cattle, wildebeest and the red fox graze with it; animals wear 0.28's coat variants; template trees mix up to four of their actor's looks) | low | Animal models |
 | G19 | ~~Siege walls draw the stone wall model (siege_wall.glb is unused)~~ Closed 2026-10-15: Rome's siege WallSet draws 0.28's own siege_wall_long, _medium, _short, _tower and _gate actors | low | Animal models |
 | G24 | Circular maps show an extra 8 m ring past 0.28's edge; square maps have no 12 m edge frame | low | A |
 | G28 | The developer overlay lacks Control all units and the culling boxes | low | Stats |
@@ -59,7 +59,7 @@ Combat, loot, territory, garrison, capture, rally points, trade and camps agains
 | P7 | A gatherer far from its exhausted patch with nothing near goes to a dropsite; 0.28 walks back to where it started and searches again first (UnitAI.js:2640) | low | Open |
 | P8 | Allied builders go idle when your building finishes; 0.28 sends them ConstructionFinished too, so they move on to their own nearby foundations | low | Fixed |
 | P9 | A passive siege engine never flees when hit; 0.28 needs only that it can move | low | Fixed |
-| P10 | Splash, death damage and melee splash never hit animals; 0.28 queries enemies, Gaia included | low | Open |
+| P10 | Splash, death damage and melee splash never hit animals; 0.28 queries enemies, Gaia included | low | Fixed |
 | P11 | Damage to animals ignores attack auras (0.28 builds one damage for every target) | low | Open |
 | P12 | IdleRegenRate also heals garrisoned units | low | Re-checked, matches: GARRISONING's FinishOrder leaves a garrisoned unit in IDLE, so 0.28 regenerates it too |
 | P13 | Negative RegenRate from templates or modifiers is ignored except for the burning fire ship (no 0.28 tech uses one today) | low | Keep unless a template needs it |

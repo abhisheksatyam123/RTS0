@@ -3953,6 +3953,40 @@
    "res://assets/textures/unit_variants/props/shield/celt_shield_02_256x512.png"
   ]
  },
+ "units/chicken_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_chicken_64x64_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_chicken_b_64x64_plain.png"
+  ]
+ },
+ "units/cow_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_cattle_beige_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_cattle_black_and_white_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_white_and_brown_512x512_plain.png"
+  ]
+ },
+ "units/deer_tex0": {
+  "freq": [
+   100,
+   100,
+   100
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_deer_01_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_deer_02_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_deer_03_128x128_plain.png"
+  ]
+ },
  "units/elephant_tex0": {
   "freq": [
    1,
@@ -4003,6 +4037,108 @@
    "res://assets/textures/unit_variants/props/shield/kart_leather_d_128x128_plain.png",
    "res://assets/textures/unit_variants/props/shield/kart_leather_e_128x128_plain.png",
    "res://assets/textures/unit_variants/props/shield/pelte_round_leather_128x128_plain.png"
+  ]
+ },
+ "units/fauna_camel_tex0": {
+  "freq": [
+   3,
+   3,
+   3
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_camel_a_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_camel_b_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_camel_c_512x512_plain.png"
+  ]
+ },
+ "units/fauna_giraffe_baby_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_giraffe_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_giraffeb_512x512_plain.png"
+  ]
+ },
+ "units/fauna_hippopotamus_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/fauna_hippopotamus_01_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/fauna_hippopotamus_02_512x512_plain.png"
+  ]
+ },
+ "units/fauna_pig_flaming_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_pig_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_pig_b_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_pig_c_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_pig_d_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_pig_e_256x256_plain.png"
+  ]
+ },
+ "units/fauna_piglet_tex0": {
+  "freq": [
+   100,
+   100,
+   100
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_pig_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_pig_02_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_pig_03_256x256_plain.png"
+  ]
+ },
+ "units/fauna_sanga_cattle_tex0": {
+  "freq": [
+   5,
+   5,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_brown_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_white_and_brown_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_white_512x512_plain.png"
+  ]
+ },
+ "units/fauna_shark_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_shark_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_sharkdark_128x128_plain.png"
+  ]
+ },
+ "units/fauna_zebu_wild_tex0": {
+  "freq": [
+   100,
+   100,
+   100,
+   100,
+   100
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_brown_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_white_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_brown_512x512_plain.png"
   ]
  },
  "units/fishing_boat_tex2": {
@@ -6339,6 +6475,30 @@
    "res://assets/textures/unit_variants/props/head/hele_g_64x64_plain.png"
   ]
  },
+ "units/giraffe_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_giraffe_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_giraffeb_512x512_plain.png"
+  ]
+ },
+ "units/goat_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_goat_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_goat_black_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_goat_grey_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_goat_white_256x256_plain.png"
+  ]
+ },
  "units/han_archer_tex0": {
   "freq": [
    1,
@@ -7513,6 +7673,38 @@
    "res://assets/textures/unit_variants/props/head/han_minister_02_128x128_plain.png"
   ]
  },
+ "units/han_siege_mangonel_packed_tex2": {
+  "freq": [
+   100,
+   100,
+   100,
+   100,
+   100
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_brown_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_white_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_brown_512x512_plain.png"
+  ]
+ },
+ "units/han_siege_mangonel_pivot_packed_tex6": {
+  "freq": [
+   100,
+   100,
+   100,
+   100,
+   100
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_brown_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_white_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_brown_512x512_plain.png"
+  ]
+ },
  "units/han_siege_mangonel_pivot_packed_tex7": {
   "freq": [
    2,
@@ -7547,6 +7739,22 @@
    "res://assets/textures/unit_variants/props/head/han_a_128x128_plain.png",
    "res://assets/textures/unit_variants/props/head/han_f_128x128_plain.png",
    "res://assets/textures/unit_variants/props/head/han_old_b_128x128_plain.png"
+  ]
+ },
+ "units/han_siege_mangonel_pivot_tex8": {
+  "freq": [
+   100,
+   100,
+   100,
+   100,
+   100
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_brown_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_white_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_brown_512x512_plain.png"
   ]
  },
  "units/han_spearman_tex0": {
@@ -7709,6 +7917,16 @@
    "res://assets/textures/unit_variants/props/head/han_a_128x128_plain.png",
    "res://assets/textures/unit_variants/props/head/han_f_128x128_plain.png",
    "res://assets/textures/unit_variants/props/head/han_old_b_128x128_plain.png"
+  ]
+ },
+ "units/hawk_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_hawk_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_hawk2_128x128_plain.png"
   ]
  },
  "units/healer_tex1": {
@@ -10965,6 +11183,16 @@
    "res://assets/textures/unit_variants/props/head/celt_fem_a_3_64x64_plain.png"
   ]
  },
+ "units/mastiff_gaia_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/brit/mastiff_b_01_256x256.png",
+   "res://assets/textures/unit_variants/skeletal/brit/mastiff_b_02_256x256.png"
+  ]
+ },
  "units/maur_archer_a_tex1": {
   "freq": [
    1,
@@ -11359,6 +11587,22 @@
   "layers": [
    "res://assets/textures/unit_variants/props/shield/maur_shield_tall_round_a_256x256.png",
    "res://assets/textures/unit_variants/props/shield/maur_shield_tall_round_b_256x256.png"
+  ]
+ },
+ "units/maur_trader_tex5": {
+  "freq": [
+   100,
+   100,
+   100,
+   100,
+   100
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_brown_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_black_and_white_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_brown_512x512_plain.png"
   ]
  },
  "units/maur_villager_tex2": {
@@ -12511,6 +12755,18 @@
    "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_06_256x256.png",
    "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_07_256x256.png",
    "res://assets/textures/unit_variants/skeletal/pers/tunic_basic_01_08_256x256.png"
+  ]
+ },
+ "units/pig_tex0": {
+  "freq": [
+   100,
+   100,
+   100
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_pig_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_pig_02_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_pig_03_256x256_plain.png"
   ]
  },
  "units/ptol_archer_maiden_tex0": {
@@ -13953,6 +14209,22 @@
   "layers": [
    "res://assets/textures/unit_variants/props/head/egypt_01_64x64_plain.png",
    "res://assets/textures/unit_variants/props/head/egypt_02_64x64_plain.png"
+  ]
+ },
+ "units/rabbit_tex0": {
+  "freq": [
+   100,
+   100,
+   100,
+   100,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_01_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_02_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_03_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_04_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_05_128x128_plain.png"
   ]
  },
  "units/ram_tex3": {
@@ -18275,6 +18547,22 @@
    "res://assets/textures/unit_variants/props/helmet/crest_04_bronze_512x128_plain.png"
   ]
  },
+ "units/theb_siege_fireraiser_tex2": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/generic_a_64x64_plain.png",
+   "res://assets/textures/unit_variants/props/head/hele_a_64x64_plain.png",
+   "res://assets/textures/unit_variants/props/head/hele_b_64x64_plain.png",
+   "res://assets/textures/unit_variants/props/head/hele_h_64x64_plain.png",
+   "res://assets/textures/unit_variants/props/head/hele_i_64x64_plain.png"
+  ]
+ },
  "units/trader_tex7": {
   "freq": [
    1,
@@ -18295,6 +18583,16 @@
   "layers": [
    "res://assets/textures/unit_variants/skeletal/brit/mastiff_a_01_256x256.png",
    "res://assets/textures/unit_variants/skeletal/brit/mastiff_a_02_256x256.png"
+  ]
+ },
+ "units/wolf_tex0": {
+  "freq": [
+   4,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_wolf_grey_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_wolf_256x256_plain.png"
   ]
  }
 }

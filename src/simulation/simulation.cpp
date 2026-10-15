@@ -15730,6 +15730,18 @@ void Simulation::tick_death_damage(float dt) {
 			// a Looter like every unit, so its owner takes the loot.
 			collect_unit_loot(0, owner, i);
 		}
+		// Animals too (Gaia's or a livestock owner's); what dies leaves its carcass in tick_fauna.
+		for (size_t f = 0; f < fauna_.count; ++f) {
+			if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CORRALLED ||
+					!hurts(fauna_owner_[f]))
+				continue;
+			const float dx = fauna_.pos_x[f] - ox, dz = fauna_.pos_z[f] - oz;
+			if (std::fabs(dx) > r + 4.0f || std::fabs(dz) > r + 4.0f) continue;
+			const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
+			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - fi.footprint * COMBAT_DISTANCE_SCALE);
+			if (d >= r) continue;
+			fauna_.hp[f] -= dd.damage * (dd.fire ? 1.0f : powf(0.9f, fi.crush_armor)) * (1.0f - d * d / r2);
+		}
 		bool nav_changed = false, territory_changed = false;
 		for (Building &b : buildings_) {
 			if (b.wrecked || b.hp <= 0.0f || !structure_has_health(b.type) || (b.team < MAX_PLAYERS && !hurts(b.team))) continue;
@@ -15892,6 +15904,28 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		if (units_.team[u] == 0) record_.units_lost++;
 		else record_.enemies_killed++;
 		collect_unit_loot(attacker_id, attacker_team, u);
+	}
+	// Animals are entities of Gaia or of a livestock owner like any other: the query takes
+	// them too. One a unit kills is its kill; any other leaves its carcass in tick_fauna.
+	const int32_t killer = lookup_unit(attacker_id);
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CORRALLED ||
+				!hurts(fauna_owner_[f]))
+			continue;
+		const float px = fauna_.pos_x[f] - ox, pz = fauna_.pos_z[f] - oz;
+		if (std::fabs(px) > r + 4.0f || std::fabs(pz) > r + 4.0f) continue;
+		const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
+		const float d = std::max(0.0f, std::sqrt(px * px + pz * pz) - fi.footprint * COMBAT_DISTANCE_SCALE);
+		if (d >= r) continue;
+		const float m = falloff(d, px, pz);
+		if (m <= 0.0f) continue;
+		const float dmg = m * (sp.hack * powf(0.9f, fi.hack_armor) + sp.pierce * powf(0.9f, fi.pierce_armor) +
+				sp.crush * powf(0.9f, fi.crush_armor));
+		if (dmg <= 0.0f) continue;
+		if (killer >= 0) award_fauna_xp((size_t)killer, f, dmg);
+		fauna_.hp[f] -= dmg;
+		fauna_attacked(f, attacker_id, melee);
+		if (fauna_.hp[f] <= 0.0f && killer >= 0 && units_.alive[killer]) fauna_killed(f, (size_t)killer);
 	}
 	bool nav_changed = false, territory_changed = false;
 	for (Building &b : buildings_) {
