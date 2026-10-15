@@ -27,7 +27,7 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
-	run.call_deferred()
+	preload("res://tools/lobby_test_clock.gd").run_in_wall_time(self, "res://tools/e2e_lobby_ratings.gd", run)
 
 func frames(n: int) -> void:
 	for i in n:
