@@ -18,6 +18,15 @@ if env["platform"] == "android":
 if env["platform"] == "windows":
 	# src/network sockets (MSVC also reads a #pragma comment, MinGW only this).
 	env.Append(LIBS=["ws2_32"])
+# Lockstep needs every build to compute the same bits. Clang fuses a*b+c into one FMA by
+# default on arm64 (Apple Silicon, iOS, Android) and x86-64 builds never do, so multiplayer
+# between them desyncs on turn 1. Keep contraction off everywhere, at link time too for LTO.
+# Never add -ffast-math, -Ofast or /fp:fast (tools/test_cross_compiler.py checks).
+if env.get("is_msvc", False):
+	env.Append(CCFLAGS=["/fp:precise"])
+else:
+	env.Append(CCFLAGS=["-ffp-contract=off"])
+	env.Append(LINKFLAGS=["-ffp-contract=off"])
 
 if env["target"] == "template_release":
     env.Append(CCFLAGS=["-O3", "-DNDEBUG"])
