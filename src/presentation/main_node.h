@@ -614,7 +614,7 @@ public:
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
 	int64_t debug_civic_centre_id(int player) const;
-	int64_t debug_spawn_building(int type, float dx, float dz);
+	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
@@ -622,7 +622,7 @@ public:
 	Dictionary debug_diplomacy() const { return diplo_dialog_.debug_state(); } // tests: the diplomacy dialog's rows
 	void debug_set_observer_view(int player) { set_observer_view(player); } // tests: an observer follows a player (-1: none)
 	Dictionary debug_dialogs();
-	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
+	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr, bool any_player = false) const;
 	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
 	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
 	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line
