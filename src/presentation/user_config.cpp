@@ -132,6 +132,7 @@ const Default kDefaults[] = {
 	{"gui.session.diplomacycolors.neutral", "231 200 5"},
 	{"gui.session.diplomacycolors.enemy", "150 20 20"},
 	{"chat.timestamp", "true"},
+	{"chat.session.extended", "true"}, // ChatWindow "History"
 	{"gui.loadingscreen.progressdescription", "false"},
 	// gamesetup_mp.js: the last address and port joined directly, and the last port hosted on.
 	{"multiplayerserver", "127.0.0.1"},
