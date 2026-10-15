@@ -25401,8 +25401,12 @@ void Simulation::petra_manage_defense(float dt) {
 			const Building &b = buildings_[building_id_to_idx_.at(bid)];
 			for (uint32_t uid : army.defender_ids) {
 				const int32_t idx = lookup_unit(uid);
-				if (idx < 0 || (units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid)) continue;
+				if (idx < 0) continue;
+				const bool on_it = units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid;
+				// defenseArmy.js update: one capturing what allowCapture no longer allows damages it.
+				if (on_it && !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
 				const bool capture = petra_allow_capture(army.defender_ids, uid, b);
+				if (on_it && capture) continue;
 				if (!capture && b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) continue;
 				order_attack_building(&uid, 1, bid, false, capture);
 			}

@@ -3194,6 +3194,41 @@ static void test_capturing_armies() {
 	CHECK(taken, "Petra captures a Gaia structure in its land");
 }
 
+// defenseArmy.js update: a defender capturing a structure allowCapture no longer allows
+// (its regeneration outruns the army) damages it instead.
+static void test_defenders_stop_hopeless_capture() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	if (!cc) { CHECK(false, "Petra has a civic centre"); return; }
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 10; ++k) s->spawn_unit(cx - 2.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	const uint32_t tower = s->spawn_building_world(cx + 14.0f, cz - 12.0f, BLD_SENTRY_TOWER, MAX_PLAYERS, 1.0f);
+	auto on_tower = [&](bool capturing) {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.target_building_id[i] == tower &&
+			    ((s->units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) != 0) == capturing) ++n;
+		return n;
+	};
+	int capturing = 0;
+	for (int t = 0; t < 60 && capturing == 0; ++t) { run_for(*s, 0.5f); capturing = on_tower(true); }
+	// Now the tower regenerates far faster than the army captures.
+	for (auto &b : s->buildings_)
+		if (b.id == tower) b.capture_regen_rate = 1.0e6f;
+	run_for(*s, 4.0f);
+	const int still = on_tower(true), hitting = on_tower(false);
+	std::printf("  hopeless capture: %d capturing first, then %d still capturing, %d damaging\n", capturing, still, hitting);
+	CHECK(capturing > 0, "the defenders first capture the Gaia tower");
+	CHECK(still == 0 && hitting > 0, "they damage it once capturing is hopeless");
+}
+
 // attackManager.js assignBombers: an idle stone thrower shells an enemy structure it can
 // reach from our land, and leaves alone those deep in enemy land.
 static void test_assign_bombers() {
@@ -4554,6 +4589,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_ignores_ships);
 	RUN(test_defense_switch_to_attack);
 	RUN(test_capturing_armies);
+	RUN(test_defenders_stop_hopeless_capture);
 	RUN(test_assign_bombers);
 	RUN(test_cancel_attacks_on_peace);
 	RUN(test_builders_per_foundation);
