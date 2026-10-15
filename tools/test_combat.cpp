@@ -1363,6 +1363,24 @@ static void test_arrow_square_range() {
 	check(side > 1.0f && fortress_aims_at(diag, diag), "a fortress aims at a unit just inside its reach past a corner");
 }
 
+static void test_aura_vs_animals() {
+	std::printf("26. attack auras count against animals too\n");
+	Simulation s;
+	setup(s);
+	const uint16_t hannibal = template_named("hero_hannibal");
+	const uint16_t cart_spear = template_named("cart/infantry_spearman_b");
+	const uint32_t spear = s.spawn_unit(2.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, cart_spear);
+	const uint32_t boar = s.spawn_fauna(4.0f, 0.0f, FAUNA_BOAR);
+	const size_t f = s.fauna_id_to_idx_.at(boar);
+	s.rebuild_auras();
+	const float plain = s.unit_damage_to_fauna((size_t)idx(s, spear), f);
+	s.spawn_unit(0.0f, 0.0f, 0, UNIT_HERO, 0.0f, hannibal);
+	s.rebuild_auras();
+	const float led = s.unit_damage_to_fauna((size_t)idx(s, spear), f);
+	std::printf("      spearman vs boar: %.2f alone, %.2f by Hannibal\n", plain, led);
+	check(plain > 0.0f && std::fabs(led - plain * 1.2f) < 1e-3f, "Hannibal's +20% attack applies to a spearman's hit on a boar");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -1389,6 +1407,7 @@ int main() {
 	test_uphill_archer();
 	test_status_inside();
 	test_arrow_square_range();
+	test_aura_vs_animals();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
