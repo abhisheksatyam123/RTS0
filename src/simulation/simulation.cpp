@@ -23702,13 +23702,24 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_
 	return 0;
 }
 
-// defenseManager.js targetList: an enemy structure standing in our territory
-// is a raid target until it falls or the territory changes hands.
+// defenseManager.js targetList: an enemy structure in our territory, or an enemy civic centre
+// going up within 30000 m² of one of our finished structures (isDangerous), is a raid target
+// until it falls or no longer qualifies.
+bool Simulation::petra_defense_target(const Building &b) const {
+	if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
+	if (territory_owner_at(b.x, b.z) == petra_pid_) return true;
+	if (!is_civic_centre(b.type) || b.build_progress >= 1.0f) return false;
+	for (const Building &o : buildings_) {
+		if (o.team != petra_pid_ || o.build_progress < 1.0f || o.wrecked || o.hp <= 0.0f) continue;
+		const float dx = o.x - b.x, dz = o.z - b.z;
+		if (dx * dx + dz * dz <= 30000.0f / 16.0f) return true; // m² to RTS0 units² (4 m each)
+	}
+	return false;
+}
+
 bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
 	auto it = building_id_to_idx_.find(bld_id);
-	if (it == building_id_to_idx_.end()) return false;
-	const Building &b = buildings_[it->second];
-	return petra_foe(b.team) && b.hp > 0 && territory_owner_at(b.x, b.z) == (int)petra_pid_;
+	return it != building_id_to_idx_.end() && petra_defense_target(buildings_[it->second]);
 }
 
 // entityExtend.js allowCapture: capture a structure only when the squad's
@@ -24901,12 +24912,12 @@ bool Simulation::petra_unit_reserved(uint32_t uid) const {
 uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
-	// defenseManager.js targetList: the enemy structures in our territory,
-	// nearest to the base first (attackManager.js raids them with cavalry).
+	// defenseManager.js targetList (petra_defense_target), nearest to the base first
+	// (attackManager.js raids them with cavalry).
 	uint32_t best = 0;
 	float best_d = 1e18f;
 	for (const auto &b : buildings_) {
-		if (!petra_foe(b.team) || b.hp <= 0 || territory_owner_at(b.x, b.z) != (int)petra_pid_) continue;
+		if (!petra_defense_target(b)) continue;
 		const float dsq = (b.x - bx) * (b.x - bx) + (b.z - bz) * (b.z - bz);
 		if (dsq < best_d) {
 			best_d = dsq;
@@ -24960,18 +24971,15 @@ void Simulation::petra_manage_raid(float dt) {
 	}
 
 	if (plan.state == AttackPlan::MUSTER) {
-		// The target fell or the land changed hands: drop the plan.
-		const bool naval = !petra_raid_target_ok(plan.target_building_id);
-		bool target_alive = false;
-		for (const auto &b : buildings_)
-			if (b.id == plan.target_building_id && petra_foe(b.team) && b.hp > 0) { target_alive = true; break; }
-		if (!target_alive || plan.state_timer > 150.0f) {
+		// The target fell or is no longer one (PREPARATION_FAILED once chooseTarget finds none).
+		if (!petra_raid_target_ok(plan.target_building_id)) {
 			plan.squad.clear();
 			plan.target_building_id = 0;
 			plan.state = AttackPlan::UNEXECUTED;
 			plan.state_timer = 0.0f;
 			return;
 		}
+		const bool naval = petra_plan_overseas(base_x, base_z, plan.target_building_id) != 0;
 		// Cavalry citizen soldiers; a raid over water takes any land soldier. As attackPlan.js
 		// addUnits does for a raid, the first two free riders stay home to hunt.
 		int hunters_kept = 0;
@@ -25009,7 +25017,11 @@ void Simulation::petra_manage_raid(float dt) {
 				return std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end();
 			}), main.end());
 		}
-		const bool ready = plan.forced || plan.squad.size() >= raid_target || (plan.squad.size() >= raid_min && plan.state_timer >= 30.0f);
+		// mustStart: every rider it wants, or its minimum once the target is a foundation past
+		// half built (attackPlan.js: Raids start early against a nearly finished base).
+		const Building &tb = buildings_[building_id_to_idx_.at(plan.target_building_id)];
+		const bool ready = plan.forced || plan.squad.size() >= raid_target ||
+		                   (plan.squad.size() >= raid_min && tb.build_progress > 0.5f && tb.build_progress < 1.0f);
 		if (!ready) return;
 		const float tx = plan.target_x, tz = plan.target_z;
 		// A raid overseas waits for a transport ship there, and for its last crossing to end.
@@ -25042,9 +25054,11 @@ void Simulation::petra_manage_raid(float dt) {
 				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			return;
 		}
+		// UpdateTarget: a raid fights on until its target falls, then takes the next of the
+		// targetList (raidTargetFinder), and goes home with none left.
 		bool target_ok = false;
 		for (const auto &b : buildings_) {
-			if (b.id == plan.target_building_id && petra_foe(b.team) && b.hp > 0) {
+			if (b.id == plan.target_building_id && petra_foe(b.team) && b.hp > 0 && !b.wrecked) {
 				target_ok = true;
 				break;
 			}
@@ -25065,16 +25079,18 @@ void Simulation::petra_manage_raid(float dt) {
 				if (!plan.squad.empty())
 					petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			}
-		} else if (plan.state_timer > 36.0f) {
-			plan.state = AttackPlan::REGROUP;
-			plan.retreat_x = base_x;
-			plan.retreat_z = base_z;
-			plan.state_timer = 0.0f;
-			if (!plan.squad.empty())
-				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 		} else {
 			plan.state = AttackPlan::ATTACKED;
 			petra_answer_attackers(plan.squad, plan.target_x, plan.target_z, petra_attack_avoid(plan, false));
+			// Riders standing idle at the target take it on: captured where allowCapture says so.
+			const Building &b = buildings_[building_id_to_idx_.at(plan.target_building_id)];
+			for (uint32_t uid : plan.squad) {
+				const int32_t i = lookup_unit(uid);
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] != ACTION_IDLE) continue;
+				const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+				if (dx * dx + dz * dz > 100.0f) continue;
+				order_attack_building(&uid, 1, b.id, false, petra_allow_capture(plan.squad, uid, b));
+			}
 			petra_check_captures(plan.squad, plan.target_x, plan.target_z);
 		}
 		return;
@@ -26699,17 +26715,7 @@ void Simulation::petra_manage_defense(float dt) {
 	const PetraBase *home = get_primary_petra_base();
 	// defenseManager.js targetList: an enemy structure in our territory, or an enemy civic
 	// centre going up within 30000 m² of one of our finished structures.
-	auto defense_target = [&](const Building &b) {
-		if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
-		if (territory_owner_at(b.x, b.z) == petra_pid_) return true;
-		if (!is_civic_centre(b.type) || b.build_progress >= 1.0f) return false;
-		for (const Building *o : own_structures) {
-			if (o->build_progress < 1.0f) continue;
-			const float dx = o->x - b.x, dz = o->z - b.z;
-			if (dx * dx + dz * dz <= 30000.0f / 16.0f) return true; // m² to RTS0 units² (4 m each)
-		}
-		return false;
-	};
+	auto defense_target = [&](const Building &b) { return petra_defense_target(b); };
 	// switchToAttack: a disbanding army with a defender on the same land within 120 m of a
 	// target turns into an attack on that target alone (attackManager.js
 	// switchDefenseToAttack with uniqueTarget), starting where the army stands.

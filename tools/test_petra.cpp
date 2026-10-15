@@ -4310,6 +4310,61 @@ static void test_raid_keeps_hunters() {
 	CHECK((int)plan.squad.size() == std::min(4, riders - 2), "a raid leaves two riders home to hunt");
 }
 
+// defenseManager.js targetList / attackPlan.js Raid: an enemy civic centre going up in neutral
+// land within 30000 m² of our structures is a raid target; past half built the raid sets off
+// with its minimum, and it fights on until the target falls (no time limit).
+static void test_raid_cc_foundation() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float ox = cc->x, oz = cc->z;
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (int a = 0; a < 16 && !found; ++a) {
+		for (float d = 10.0f; d < 40.0f && !found; d += 1.0f) {
+			const float x = ox + std::cos(a * 0.3927f) * d, z = oz + std::sin(a * 0.3927f) * d;
+			if (std::fabs(x) > s->map_half_ - 10.0f || std::fabs(z) > s->map_half_ - 10.0f) break;
+			if (s->territory_owner_at(x, z) < 0 && s->petra_land_at(x, z) == s->petra_land_at(ox, oz)) { fx = x; fz = z; found = true; }
+		}
+	}
+	CHECK(found, "neutral land within 43 units of Petra's civic centre");
+	if (!found) return;
+	const uint32_t target = s->spawn_building_world(fx, fz, BLD_TOWN_CENTER, 0, 0.6f);
+	auto it = s->building_id_to_idx_.find(target);
+	CHECK(it != s->building_id_to_idx_.end(), "the foundation stands");
+	if (it == s->building_id_to_idx_.end()) return;
+	CHECK(s->petra_raid_target_ok(target), "an enemy civic centre foundation near our structures is a raid target");
+	auto &plan = s->petra_raid_plan_;
+	// More riders wanted than there are: only the minimum can be met.
+	for (int k = 0; k < 4; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
+	s->petra_scout_unit_id_ = 0;
+	plan = Simulation::AttackPlan();
+	plan.type = Simulation::AttackPlan::PLAN_RAID;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = target;
+	s->petra_attack_mgr_.raid_target = 40;
+	s->petra_attack_mgr_.raid_min = 2;
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const bool set_off = plan.state == Simulation::AttackPlan::WALKING;
+	// Keep the foundation standing a while: the raid must not give up on it.
+	s->buildings_[s->building_id_to_idx_[target]].hp = s->buildings_[s->building_id_to_idx_[target]].max_hp * 50.0f;
+	for (int k = 0; k < 40; ++k) s->petra_manage_raid(1.6f);
+	const bool fighting = plan.state == Simulation::AttackPlan::WALKING || plan.state == Simulation::AttackPlan::ATTACKED;
+	std::printf("  raid on a civic centre foundation at 60%%: set off with %zu of %d %s, still on it after 64 s %s\n",
+	            plan.squad.size(), (int)s->petra_attack_mgr_.raid_target, set_off ? "yes" : "no", fighting ? "yes" : "no");
+	CHECK(set_off, "a raid on a foundation past half built sets off at its minimum (mustStart)");
+	CHECK(fighting && plan.target_building_id == target, "the raid fights on while its target stands");
+}
+
 // The first base's storehouse check (baseManager.js gatherers), added when it has none yet.
 static PetraDropsiteCheck &base_dropsite_check(Simulation &s) {
 	Simulation::PetraBasesMap m;
@@ -5090,6 +5145,7 @@ int main(int argc, char **argv) {
 	RUN(test_build_defenses);
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);
+	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);
