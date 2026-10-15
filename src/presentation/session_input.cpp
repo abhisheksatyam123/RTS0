@@ -287,7 +287,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (!fired(("session.queueunit." + std::to_string(q)).c_str())) continue;
 				if (q - 1 < command_panel_.roster_list()->get_item_count() && !command_panel_.roster_list()->is_item_disabled(q - 1)) {
 					const uint16_t tmpl = (uint16_t)(int)command_panel_.roster_list()->get_item_metadata(q - 1);
-					try_train_template(selected_building_id, tmpl, train_batch());
+					add_training(false, selected_building_id, tmpl);
 				}
 				return;
 			}
