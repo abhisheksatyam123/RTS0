@@ -103,6 +103,7 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_UNIT_PUSHING = 42,              // scenarios/unit_pushing_test.js: arg 0 init, 1 Setup, 2 EndGame
 	TRIGGER_ACTION_UNIT_MOTION = 43,               // scenarios/unit_motion_integration_test.js: arg 0 init, 1 SetupUnits, 2 enclosed_timeout
 	TRIGGER_ACTION_CINEMA_DEMO = 44,               // scenarios/cinema_demo.js: arg 0 init, 1 CounterMessage, 2 StartCutscene
+	TRIGGER_ACTION_WALL_DEMO_INIT = 45,            // random/wall_demo_triggers.js: SetLosRevealAll(-1, true)
 	TRIGGER_ACTION_COUNT
 };
 
