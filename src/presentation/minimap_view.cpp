@@ -283,28 +283,50 @@ bool RtsoMiniMapView::ensure_territory_texture() {
 	if (territory_tex_cache_.size() != n || territory_colors_ != colors ||
 			std::memcmp(territory_tex_cache_.data(), grid.data.data(), n) != 0) {
 		territory_colors_ = colors;
-		// 0 A.D. TerritoryTexture: each player's land in its Game Setup colour;
-		// alpha carries the blurred edge.
-		Color tint[rtso::MAX_PLAYERS];
-		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
-			tint[p] = player_color(p);
-			tint[p].a = 0.32f;
-		}
+		// CTerritoryTexture::GenerateBitmap: each player's colour, opaque only in a
+		// fringe inside its borders. Border cells (and unclaimed ones) take alphaMax,
+		// a cheap blur spreads it inward losing alphaFalloff a tile, then the
+		// alphaMax cells are cleared, leaving a gap on the border line itself.
+		// 0 A.D.'s territory tiles are 8 m; RTS0's cells fall off in proportion.
+		const int alpha_max = 0xC0;
+		const float cell_m = sim->map_half() * 2.0f * 4.0f / (float)grid.w;
+		const int falloff = std::max(1, (int)std::lround(0x20 * cell_m / 8.0f));
+		const int w = grid.w, h = grid.h;
+		auto owner_at = [&](int i, int j) { return grid.data[(size_t)j * w + i]; };
 		PackedByteArray px;
 		px.resize((int64_t)n * 4);
 		uint8_t *out = px.ptrw();
-		for (size_t i = 0; i < n; ++i) {
-			const uint8_t owner = grid.data[i]; // 0 = none, else team+1
-			if (owner == 0) {
-				out[i * 4 + 0] = 0; out[i * 4 + 1] = 0; out[i * 4 + 2] = 0; out[i * 4 + 3] = 0;
-				continue;
+		for (int j = 0; j < h; ++j) {
+			for (int i = 0; i < w; ++i) {
+				const uint8_t v = owner_at(i, j); // 0 = none, else team+1
+				const Color c = v ? player_color((uint8_t)((v - 1) % rtso::MAX_PLAYERS)) : Color(1, 1, 1);
+				uint8_t *o = out + ((size_t)j * w + i) * 4;
+				o[0] = (uint8_t)(c.r * 255.0f);
+				o[1] = (uint8_t)(c.g * 255.0f);
+				o[2] = (uint8_t)(c.b * 255.0f);
+				const bool edge = v == 0 || (i > 0 && owner_at(i - 1, j) != v) || (i < w - 1 && owner_at(i + 1, j) != v) ||
+						(j > 0 && owner_at(i, j - 1) != v) || (j < h - 1 && owner_at(i, j + 1) != v);
+				o[3] = edge ? alpha_max : 0;
 			}
-			const Color &c = tint[(owner - 1) % rtso::MAX_PLAYERS];
-			out[i * 4 + 0] = (uint8_t)(c.r * 255.0f + 0.5f);
-			out[i * 4 + 1] = (uint8_t)(c.g * 255.0f + 0.5f);
-			out[i * 4 + 2] = (uint8_t)(c.b * 255.0f + 0.5f);
-			out[i * 4 + 3] = (uint8_t)(c.a * 255.0f + 0.5f);
 		}
+		auto blur = [&](int start, int step, int count) {
+			int a = 0;
+			for (int k = 0; k < count; ++k) {
+				uint8_t &al = out[(size_t)(start + k * step) * 4 + 3];
+				a = std::max(a - falloff, (int)al);
+				al = (uint8_t)a;
+			}
+		};
+		for (int j = 0; j < h; ++j) {
+			blur(j * w, 1, w);
+			blur(j * w + w - 1, -1, w);
+		}
+		for (int i = 0; i < w; ++i) {
+			blur(i, w, h);
+			blur((h - 1) * w + i, -w, h);
+		}
+		for (size_t k = 0; k < n; ++k)
+			if (out[k * 4 + 3] == alpha_max) out[k * 4 + 3] = 0;
 		Ref<Image> img = Image::create_from_data(grid.w, grid.h, false, Image::FORMAT_RGBA8, px);
 		if (img.is_null()) return territory_tex_.is_valid();
 		if (territory_tex_.is_valid()) territory_tex_->set_image(img);
@@ -399,11 +421,6 @@ void RtsoMiniMapView::_draw() {
 			disc.set(i, c + Vector2(std::cos(a), std::sin(a)) * r);
 		}
 	}
-	auto in_disc = [&](Vector2 p) {
-		const Vector2 d = p - sz * 0.5f;
-		const float r = std::min(sz.x, sz.y) * 0.5f;
-		return !round || d.length_squared() <= r * r;
-	};
 	if (show_territory && ensure_territory_texture()) {
 		if (round) {
 			PackedVector2Array uv;
@@ -412,49 +429,6 @@ void RtsoMiniMapView::_draw() {
 			draw_polygon(disc, PackedColorArray({Color(1, 1, 1, 1)}), uv, territory_tex_);
 		} else {
 			draw_texture_rect(territory_tex_, Rect2(Vector2(0, 0), sz), false, Color(1, 1, 1, 1));
-		}
-	}
-
-	// 1b. Smoothed Territory Influence Outlines (0 A.D. Territory System).
-	// A circle at each territory root's TerritoryInfluence radius (territory_data.h, before
-	// techs): an outline over the texture above, which draws the sim's claimed tiles.
-	if (show_territory) {
-		for (const auto &b : mirages_.buildings()) {
-			if (b.build_progress < 1.0f) continue;
-			Vector2 pos = map_to_mini(b.x, b.z);
-			const float radius_m = rtso::is_territory_root(b.type) ? rtso::territory_influence_info(b.type).radius : 0.0f;
-
-			if (radius_m > 0.0f) {
-				float r_px = (radius_m / (half_map * 2.0f)) * sz.x;
-				const Color pc = player_color(b.team);
-				const Color territory_fill(pc.r, pc.g, pc.b, 0.14f);
-				const Color territory_edge(pc.r, pc.g, pc.b, 0.60f);
-				if (!round) {
-					draw_circle(pos, r_px, territory_fill);
-					draw_arc(pos, r_px, 0.0f, 6.2831853f, 48, territory_edge, 1.5f);
-					continue;
-				}
-				PackedVector2Array ring;
-				ring.resize(48);
-				for (int i = 0; i < 48; ++i) {
-					const float a = 6.2831853f * (float)i / 48.0f;
-					ring.set(i, pos + Vector2(std::cos(a), std::sin(a)) * r_px);
-				}
-				TypedArray<PackedVector2Array> inside = Geometry2D::get_singleton()->intersect_polygons(ring, disc);
-				for (int k = 0; k < inside.size(); ++k) draw_colored_polygon(inside[k], territory_fill);
-				// The outline, in runs that stay inside the disc.
-				PackedVector2Array run;
-				for (int i = 0; i <= 48; ++i) {
-					const Vector2 q = ring[i % 48];
-					if (in_disc(q)) {
-						run.push_back(q);
-						continue;
-					}
-					if (run.size() >= 2) draw_polyline(run, territory_edge, 1.5f);
-					run.clear();
-				}
-				if (run.size() >= 2) draw_polyline(run, territory_edge, 1.5f);
-			}
 		}
 	}
 
