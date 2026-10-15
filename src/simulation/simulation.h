@@ -2499,6 +2499,7 @@ private:
 	bool petra_steers_ship(uint32_t ship_id) const;
 	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
 	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
+	void drop_from_holder(uint32_t unit_id); // GarrisonHolder OnGlobalOwnershipChanged for one destroyed inside
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
 	int occupied_slots(const std::vector<uint32_t> &ids) const;  // GarrisonHolder.OccupiedSlots
 	bool garrison_room(const Building &b, size_t unit) const;
@@ -2737,6 +2738,10 @@ private:
 	static constexpr uint32_t MAX_STATUSES = 1u << 16;
 	std::vector<StatusInstance> statuses_;
 	bool status_tick(const StatusInstance &st); // one ExecuteEffect; false once its target is gone
+	// A status keeps its own timer while its unit is garrisoned or aboard (StatusEffectsReceiver).
+	bool status_holds_unit(size_t i) const {
+		return units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED;
+	}
 	std::vector<Relic> relics_;
 	std::vector<Treasure> treasures_;
 	void tick_treasures(float dt);
