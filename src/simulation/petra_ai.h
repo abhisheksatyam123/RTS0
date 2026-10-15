@@ -463,8 +463,14 @@ struct PetraAttackManager {
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total
 	int32_t launched[PETRA_ATTACK_KINDS] = {}; // plans of each kind that marched
+	// The raid plan's name (totalNumber when it was made) and its addSiegeUnits state: 0 not
+	// tested, 1-3 the siege class added (SIEGE_ADDED), 0xFF no trainer yet (SIEGE_NO_TRAINER).
+	// (Save v95; the raid had no siege before.)
+	uint8_t raid_name = 0;
+	uint8_t raid_siege = 0;
+	uint8_t raid_pad[2] = {};
 };
-static_assert(sizeof(PetraAttackManager) == 52, "PetraAttackManager is saved raw; keep it padding-free");
+static_assert(sizeof(PetraAttackManager) == 56, "PetraAttackManager is saved raw; keep it padding-free");
 
 // navalManager.js:58 seaWarShips — per-sea fleet accounting registry
 struct Petra {
