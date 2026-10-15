@@ -364,12 +364,16 @@ void RtsoMain::_on_build_btn_pressed(int btype) {
 }
 
 void RtsoMain::_on_tech_pressed(int tech_id) {
-	if (selected_building_id != 0) {
-		if (turn_cmds())
-			post_lockstep(9, nullptr, 0, 0, 0, selected_building_id, (uint8_t)tech_id);
-		else
-			sim->cmd_research(local_player(), selected_building_id, (uint8_t)tech_id);
-	}
+	if (selected_building_id != 0) _on_tech_pressed_at(tech_id, selected_building_id);
+}
+
+// A Research button researches at its own researchFacilityId (Research.getItems).
+void RtsoMain::_on_tech_pressed_at(int tech_id, int64_t building_id) {
+	if (building_id == 0) return;
+	if (turn_cmds())
+		post_lockstep(9, nullptr, 0, 0, 0, (uint32_t)building_id, (uint8_t)tech_id);
+	else
+		sim->cmd_research(local_player(), (uint32_t)building_id, (uint8_t)tech_id);
 }
 
 // The selected structures of the primary one's type, primary first: 0.28's selection

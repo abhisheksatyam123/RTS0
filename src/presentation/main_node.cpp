@@ -665,9 +665,6 @@ void RtsoMain::set_game_speed(float speed) {
 	const Array speeds = speed_choices(fast_forward_allowed());
 	game_speed = std::clamp(speed, (float)speeds[0], (float)speeds[speeds.size() - 1]);
 	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
-	if (replay_speed_picker_)
-		for (int i = 0; i < replay_speed_picker_->get_item_count(); ++i)
-			if ((float)replay_speed_picker_->get_item_metadata(i) == game_speed) replay_speed_picker_->select(i);
 }
 
 // The pause hotkey and the replay's Pause button. Networked, the pause holds
@@ -733,7 +730,6 @@ void RtsoMain::toggle_pause() {
 	if (!can_pause()) return;
 	hotkey_paused_ = !hotkey_paused_;
 	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_);
-	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
 	update_pause_overlay();
 }
 
@@ -1348,8 +1344,8 @@ void RtsoMain::update_hud() {
 		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
 				turn_mgr_.is_replaying());
 	}
-	// GameSpeedButton is hidden in networked games; a replay's own row has the speed list.
-	if (speed_btn) speed_btn->set_visible(!net_lockstep() && !turn_mgr_.is_replaying());
+	// GameSpeedButton: hidden in networked games (g_IsNetworked), shown in replays with Fast Forward.
+	if (speed_btn) speed_btn->set_visible(!net_lockstep());
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
@@ -1600,6 +1596,8 @@ void RtsoMain::activate_rejoin_test() {
 	if (rejoin_test_ || !sim || turn_mgr_.is_replaying()) return;
 	rejoin_test_ = true;
 	refresh_dev_overlay();
+	// 0.28 Engine.ActivateRejoinTest: LOGMESSAGERENDER("Rejoin test will activate in %i turns"); the copy joins after the next turn.
+	show_notice(String("Rejoin test will activate in %d turns").replace("%d", "1"));
 }
 
 // After each turn: the first takes the snapshot and rejoins the copy from it (a fresh
@@ -1731,8 +1729,27 @@ void RtsoMain::refresh_dev_overlay() {
 			text += vformat("  unitType:%d\n  actionState:%d\n  stance:%d\n  rank:%d\n  xp:%d\n  kills:%d\n",
 					(int64_t)uv.unit_type[i], (int64_t)uv.action_state[i], (int64_t)uv.stance[i], (int64_t)uv.rank[i],
 					(int64_t)(uv.xp ? uv.xp[i] : 0), (int64_t)(uv.kills ? uv.kills[i] : 0));
-			text += vformat("  carrying:{type:%d, amount:%d}\n  formation:%d\n}", (int64_t)uv.res_type_carried[i],
+			text += vformat("  carrying:{type:%d, amount:%d}\n  formation:%d\n", (int64_t)uv.res_type_carried[i],
 					(int64_t)uv.carry[i], (int64_t)uv.formation[i]);
+			// The rest of the entity's live state (0.28 lists every GetEntityState key).
+			text += vformat("  alive:%d\n  velocity:{x:%.2f, z:%.2f}\n  target:{x:%.2f, z:%.2f}\n  targetResource:%d\n",
+					(int64_t)uv.alive[i], uv.vel_x[i], uv.vel_z[i], uv.target_x[i], uv.target_z[i], (int64_t)uv.target_resource_id[i]);
+			text += vformat("  deathTimer:%.2f\n  statusEffects:%d\n  packState:%d\n  packElapsed:%.2f\n}",
+					uv.death_timer ? uv.death_timer[i] : 0.0f, (int64_t)(uv.status_effects ? uv.status_effects[i] : 0),
+					(int64_t)(uv.pack_state ? uv.pack_state[i] : 0), uv.pack_elapsed ? uv.pack_elapsed[i] : 0.0f);
+			if (tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT) {
+				// template: GetTemplateData of the entity's template.
+				const rtso::CivUnitTemplate &t = rtso::civ_unit_template(tmpl);
+				text += vformat("\n\ntemplate: {name:{generic:\"%s\", specific:\"%s\"}, civ:%d, phase:%d, ",
+						String::utf8(t.name ? t.name : ""), String::utf8(t.specific_name ? t.specific_name : ""), (int64_t)t.civ, (int64_t)t.phase);
+				text += vformat("cost:{food:%d, wood:%d, stone:%d, metal:%d, population:%d, time:%.1f}, ", (int64_t)t.food_cost,
+						(int64_t)t.wood_cost, (int64_t)t.stone_cost, (int64_t)t.gold_cost, (int64_t)t.pop_cost, t.train_time);
+				text += vformat("maxHitpoints:%.1f, speed:%.2f, vision:%.2f, ", t.hp, t.speed, t.vision);
+				text += vformat("attack:{hack:%.1f, pierce:%.1f, crush:%.1f, range:%.2f, repeatTime:%.2f}, ", t.hack_damage,
+						t.pierce_damage, t.crush_damage, t.attack_range, t.attack_cooldown);
+				text += vformat("resistance:{hack:%.1f, pierce:%.1f, crush:%.1f}, carryCapacity:%d}", t.hack_armor, t.pierce_armor,
+						t.crush_armor, (int64_t)t.carry_capacity);
+			}
 			break;
 		}
 	} else if (selected_building_id) {
@@ -2423,7 +2440,9 @@ void RtsoMain::_start_menu_net() {
 	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
-	if (lobby_panel) lobby_panel->set_visible(true);
+	// A joiner sees the Connecting box, then the setup page; the developer
+	// lobby panel stays behind its button.
+	if (lobby_panel) lobby_panel->set_visible(mode == "host");
 	if (lobby_btn) lobby_btn->set_visible(true);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
@@ -2968,6 +2987,40 @@ void RtsoMain::update_net_setup_overlay() {
 	const bool shown = net_setup_overlay_ != nullptr;
 	if (lobby_seats) lobby_seats->set_visible(!shown);
 	if (lobby_start_btn_) lobby_start_btn_->set_visible(!shown);
+}
+
+void RtsoMain::update_net_connect_overlay() {
+	const bool client = net_host_.getRole() == rtso::NetRole::Client;
+	const bool want = client && !net_game_started_ && !net_disconnected_ && !net_host_.connectionLost() &&
+			(net_host_.authResult() < 0 || turn_mgr_.rejoin_syncing());
+	if (want && !net_connect_overlay_) {
+		Ref<Script> script = ResourceLoader::get_singleton()->load("res://scenes/menu/net_connecting.gd");
+		if (script.is_null()) return;
+		Control *page = memnew(Control);
+		page->set_script(script);
+		page->set("net_main", this);
+		net_connect_layer_ = memnew(CanvasLayer);
+		net_connect_layer_->set_layer(21); // over the setup page (20)
+		add_child(net_connect_layer_);
+		net_connect_layer_->add_child(page);
+		net_connect_overlay_ = page;
+	} else if (!want && net_connect_overlay_) {
+		net_connect_layer_->queue_free();
+		net_connect_layer_ = nullptr;
+		net_connect_overlay_ = nullptr;
+	}
+	if (!net_connect_overlay_) return;
+	// gamesetup_mp.js: "Connecting to server..." until the host's handshake,
+	// "Registering with server..." until it lets us in; a rejoin then loads
+	// the running game (handleAuthenticated).
+	const uint8_t why = turn_mgr_.rejoin_reject_reason();
+	const char *text = why == 6 ? "This game does not let observers join after it started."
+			: why == 7 ? "This game is full: it has as many observers as it allows."
+			: why == 3 || why == 4 || why == 5 ? "Could not load the host's game."
+			: turn_mgr_.rejoin_syncing() ? "Game has already started, rejoining..."
+			: net_host_.hostSoftwareVersion().empty() ? "Connecting to server..."
+			: "Registering with server...";
+	if (String(net_connect_overlay_->get("text")) != text) net_connect_overlay_->set("text", String(text));
 }
 
 // Game Setup's Back in a networked game: leave it for the lobby.

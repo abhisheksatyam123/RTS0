@@ -681,6 +681,7 @@ public:
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
+		terrain_lowest_known_ = false;
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -3134,6 +3135,10 @@ private:
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
+	uint8_t petra_target_owner(uint32_t id) const;
+	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
+	void petra_scuttle_undefendable();
+	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
@@ -3771,6 +3776,9 @@ private:
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
 	std::vector<CaptureReach> capture_cell_buildings_;
+	// What capture_cell_* were built from (map half-size, then each building's x, z): the grid
+	// is rebuilt only when these change.
+	std::vector<float> capture_cell_key_;
 	// Capture points each player's capture attacks took from each building this tick
 	// (tick_combat fills it, tick_capture spends it). Indexed like buildings_.
 	std::vector<std::array<float, MAX_PLAYERS>> capture_attack_;
@@ -3853,6 +3861,10 @@ private:
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;
 	std::vector<float> terrain_heights_;
+	// The lowest terrain height (0 on a flat map), found once per heightmap (structure arrows' reach).
+	mutable float terrain_lowest_ = 0.0f;
+	mutable bool terrain_lowest_known_ = false;
+	float lowest_terrain_height() const;
 	TerrainTiles terrain_tiles_; // saved v49, after the heightmap
 	float terrain_water_height_ = -1.0f;
 	std::string current_map_id_ = "default";

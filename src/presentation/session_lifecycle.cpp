@@ -23,6 +23,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
+#include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/classes/base_button.hpp>
 #include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
@@ -905,6 +906,7 @@ void RtsoMain::_process(double delta) {
 		if (net_host_.isHost()) host_net_setup_tick(false);
 		else client_net_setup_tick();
 		update_net_setup_overlay();
+		update_net_connect_overlay();
 		// A host that turned us away mid-match says why (0 A.D. disconnect reasons).
 		if (!net_host_.isHost() && !net_game_started_ && lobby_status) {
 			const uint8_t why = turn_mgr_.rejoin_reject_reason();
@@ -918,6 +920,9 @@ void RtsoMain::_process(double delta) {
 		}
 		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
+			// VisualReplay skips a rejoined client's replay ("Don't process files of rejoined
+			// clients"): its commands start mid-match, so it is not recorded at all.
+			replay_recording_ = false;
 			start_net_speed(net_setup_.seq ? net_setup_.setup.speed : 100);
 			selected_ids.clear();
 			selected_building_id = 0;
@@ -1175,22 +1180,15 @@ void RtsoMain::_process(double delta) {
 		// player (the wonder's owner, its allies or everyone else).
 		{
 			const uint8_t me = local_player();
-			auto mutual = [&](uint8_t a, uint8_t b) {
-				return !sim->last_man_standing() && sim->is_ally(a, b) && sim->is_ally(b, a);
-			};
-			auto allies_of = [&](uint8_t p) {
-				uint8_t m = 0;
-				for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q)
-					if (q != p && ((sim->participant_mask() >> q) & 1) && !sim->is_defeated(q) && mutual(p, q)) m |= (uint8_t)(1u << q);
-				return m;
-			};
 			auto clock = [&](float s) { return time_to_string((int64_t)(s * 1000.0f)); };
 			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
+			// One set of lines per wonder, for the allies it started with (defeated ones too).
 			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
-				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
-					if (sim->wonder_hold(p) <= 0.0f || sim->is_defeated(p)) continue;
-					const String left = clock(sim->wonder_duration() - sim->wonder_hold(p));
-					const uint8_t allies = allies_of(p);
+				for (const auto &w : sim->buildings()) {
+					const uint8_t p = w.wonder_owner;
+					if (w.type != rtso::BLD_WONDER || p >= rtso::MAX_PLAYERS || w.wonder_hold <= 0.0f || sim->is_defeated(p)) continue;
+					const String left = clock(sim->wonder_duration() - w.wonder_hold);
+					const uint8_t allies = w.wonder_allies;
 					const String who = colored_player_name(p);
 					if (p == me) add(rtso::sprintf0(rtso::tr0(allies ? "You own a Wonder and you and your allies will win in %(time)s."
 							: "You own a Wonder and will win in %(time)s."), {{"time", left}}));
@@ -1244,14 +1242,17 @@ void RtsoMain::_process(double delta) {
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
 			if (!sim->petra_chat_reaches(line, local_player())) continue; // addressed to someone else
+			// messages.js: the line translated, its player names in their colours.
 			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
-				return std::string(player_display_name(pid).utf8().get_data());
+				return std::string(colored_player_name(pid).utf8().get_data());
+			}, [](const char *msgid) {
+				return std::string(rtso::tr0(String::utf8(msgid)).replace("[", "[lb]").utf8().get_data());
 			});
 			// messages.js aichat: a "message" from the player, formatted as a player's chat
 			// (ChatMessageFormatPlayer): "(Ally) <name> text" for /allies, "(Private)" for /msg.
 			const bool allies = line.to == rtso::PETRA_CHAT_ALLIES, priv = !allies && line.to < rtso::MAX_PLAYERS;
 			const String ctx = allies ? "(" + tr("Ally") + ") " : priv ? "(" + tr("Private") + ") " : String();
-			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()).replace("[", "[lb]") + "\n",
+			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()) + "\n",
 					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", true));
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
@@ -1517,6 +1518,14 @@ void RtsoMain::_process(double delta) {
 		campaign_win_noted_ = true;
 		Ref<Script> summary = ResourceLoader::get_singleton()->load("res://scenes/session/summary_screen.gd");
 		if (summary.is_valid()) summary->call("mark_campaign_won");
+	}
+	// LobbyRatingReporter.onPlayersFinished: the report goes out the moment this seat has won
+	// or lost, not on LobbySession's next poll, so leaving at once still rates the game.
+	if (!lobby_report_noted_ && !turn_mgr_.is_replaying() &&
+			(sim->is_victory_for(seat_player()) || sim->is_defeated(seat_player()))) {
+		lobby_report_noted_ = true;
+		if (Node *lobby = get_tree() ? get_tree()->get_root()->get_node_or_null(NodePath("LobbySession")) : nullptr)
+			lobby->call("_check_report");
 	}
 }
 

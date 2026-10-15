@@ -327,22 +327,65 @@ public:
 				// Technologies researched here (0 A.D. ProductionQueue "technologies"):
 				// one button per tech whose researcher is this building type, greyed
 				// out with the reason research_check() gives.
-				std::vector<std::pair<uint8_t, Button *>> tech_buttons;
-				for (int t = 1; t < rtso::TECH_COUNT; ++t) {
-					const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-					if (!rtso::building_researches_tech(found_b->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
-					// Researcher.js GetTechnologiesList: a chain shows one slot, its next step; a technology
-					// whose superseded one is offered here waits until that one is researched or in progress.
-					if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
-							&& rtso::building_researches_tech(found_b->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
-						const rtso::Simulation::ResearchCheck sc = sim->research_check(local_player(), sup, 0);
-						if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
+				// Research.getItems: one researcher lists its technologies; several selected merge
+				// theirs, the ones not upgrading and with the shortest queue first, dropping a
+				// technology already listed at the same price, a structure's whole list skipped when
+				// it would pass 10 slots. Each button researches at its own structure.
+				std::vector<const rtso::Simulation::Building *> researchers;
+				for (uint32_t id : structs.size() > 1 ? structs : std::vector<uint32_t>{found_b->id})
+					for (const auto &b : bldgs)
+						if (b.id == id && b.team == local_player() && b.build_progress >= 1.0f) researchers.push_back(&b);
+				if (researchers.size() > 1)
+					std::stable_sort(researchers.begin(), researchers.end(), [](const auto *a, const auto *b) {
+						const bool ua = a->upgrade_to != rtso::BLD_TYPE_COUNT, ub = b->upgrade_to != rtso::BLD_TYPE_COUNT;
+						if (ua != ub) return !ua;
+						return a->queue.size() < b->queue.size();
+					});
+				struct TechItem { uint8_t tech; const rtso::Simulation::Building *at; rtso::Simulation::ResearchCheck rc; };
+				std::vector<TechItem> tech_items;
+				auto same_price = [&](uint8_t t, const rtso::Simulation::Building *a, const rtso::Simulation::Building *b) {
+					if (a->type == b->type) return true;
+					float pa[rtso::RES_COUNT], pb[rtso::RES_COUNT], ta = 0.0f, tb = 0.0f;
+					sim->tech_price(local_player(), t, a->type, pa, ta);
+					sim->tech_price(local_player(), t, b->type, pb, tb);
+					return ta == tb && std::equal(pa, pa + rtso::RES_COUNT, pb);
+				};
+				size_t slots = 0;
+				for (const rtso::Simulation::Building *rb : researchers) {
+					std::vector<TechItem> mine;
+					size_t pairs = 0;
+					for (int t = 1; t < rtso::TECH_COUNT; ++t) {
+						if (!rtso::building_researches_tech(rb->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+						// Researcher.js GetTechnologiesList: a chain shows one slot, its next step; a technology
+						// whose superseded one is offered here waits until that one is researched or in progress.
+						if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
+								&& rtso::building_researches_tech(rb->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+							const rtso::Simulation::ResearchCheck sc = sim->research_check(local_player(), sup, 0);
+							if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
+						}
+						const rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, rb->id);
+						// Researcher.js GetTechnologiesList: a researched or in-progress tech leaves its slot
+						// to its successor.
+						if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_IN_PROGRESS || rc == rtso::Simulation::TECH_ERR_CIV
+								|| rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
+						if (std::any_of(tech_items.begin(), tech_items.end(),
+									[&](const TechItem &it) { return it.tech == t && same_price((uint8_t)t, it.at, rb); })) continue;
+						mine.push_back({(uint8_t)t, rb, rc});
 					}
-					rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
-					// Researcher.js GetTechnologiesList: a researched or in-progress tech leaves its slot
-					// to its successor.
-					if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_IN_PROGRESS || rc == rtso::Simulation::TECH_ERR_CIV
-					    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
+					for (const TechItem &a : mine)
+						if (const uint8_t partner = rtso::tech_pair_partner(a.tech); partner != rtso::TECH_NONE && a.tech < partner &&
+								std::any_of(mine.begin(), mine.end(), [&](const TechItem &b) { return b.tech == partner; })) ++pairs;
+					const size_t add = mine.size() - pairs; // a pair is one slot
+					if (researchers.size() > 1 && slots + add > 10) continue;
+					slots += add;
+					tech_items.insert(tech_items.end(), mine.begin(), mine.end());
+				}
+				std::vector<std::pair<uint8_t, Button *>> tech_buttons;
+				for (const TechItem &item : tech_items) {
+					const int t = item.tech;
+					const rtso::Simulation::Building *rb = item.at;
+					const rtso::Simulation::ResearchCheck rc = item.rc;
+					const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
 					// 0.28 Research panel (g_SelectionPanels.Research): an icon button per technology.
 					Button *btn = memnew(Button);
 					btn->set_meta("label", String::utf8(ti.name));
@@ -360,7 +403,7 @@ public:
 					// Researcher.js GetTechnologyData: the price after this researcher's TechCostMultiplier,
 					// team bonuses and the Library of Alexandria, as cmd_research charges it.
 					float paid[rtso::RES_COUNT], rtime = 0.0f;
-					sim->tech_price(local_player(), (uint8_t)t, found_b->type, paid, rtime);
+					sim->tech_price(local_player(), (uint8_t)t, rb->type, paid, rtime);
 					// Names (getEntityNamesFormatted: the civ's specificName first), tooltip, cost,
 					// right-click, requirements, needed resources.
 					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
@@ -432,14 +475,14 @@ public:
 					}
 					btn->set_disabled(rc != rtso::Simulation::TECH_OK);
 					// "Cannot research while upgrading."
-					if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT) {
+					if (rb->upgrade_to != rtso::BLD_TYPE_COUNT) {
 						btn->set_disabled(true);
 						icon->set_material(grayscale_material());
 						icon->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
 						tip += "\n" + rtso::objection_font(rtso::tr0("Cannot research while upgrading."));
 					}
 					btn->set_tooltip_text(tip);
-					btn->connect("pressed", Callable(owner_, "_on_tech_pressed").bind(t));
+					btn->connect("pressed", Callable(owner_, "_on_tech_pressed_at").bind(t, (int64_t)rb->id));
 					tech_buttons.push_back({(uint8_t)t, btn});
 				}
 				// Pairs (pair_*.json) side by side, top then bottom, with 0.28's pair connector;
@@ -629,7 +672,9 @@ public:
 			}
 			// The structure's command row (unit_actions.js g_EntityCommands).
 			if (found_b && found_b->team == local_player()) {
-				const int inside = (int)found_b->garrisoned_units.size();
+				// A corral's penned animals are its garrison too (GarrisonHolder List Animal).
+				const int inside = (int)found_b->garrisoned_units.size() +
+						(found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0);
 				if (inside > 0)
 					add_entity_command("unload-all", "Unload All", "session.unload",
 							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
