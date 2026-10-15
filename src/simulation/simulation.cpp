@@ -18516,8 +18516,14 @@ void Simulation::petra_clear_blocked_spawns() {
 
 // What the wood petra_wood_starved keeps is for: the town phase, the civic centre on other
 // land, the ship that takes its builders there and, in the town phase with the houses full,
-// the house that ship needs room for.
+// the house that ship needs room for; and the first dock of a Petra that needs fish
+// (startingStrategy.js needFish).
 bool Simulation::petra_wood_kept_for(int queue) const {
+	if (queue == PETRA_Q_DOCK && petra_kept_.need_fish) {
+		for (const Building &b : buildings_)
+			if (b.team == petra_pid_ && (b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK) && b.hp > 0.0f && !b.wrecked) return false;
+		return true;
+	}
 	return queue == PETRA_Q_MAJOR_TECH || queue == PETRA_Q_CIVIL_CENTRE || queue == PETRA_Q_SHIPS ||
 	       (queue == PETRA_Q_HOUSE && petra_ps().phase >= 2 && petra_pop_room() <= 0);
 }
