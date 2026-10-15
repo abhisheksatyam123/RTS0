@@ -650,6 +650,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		_tabs.current_tab = TABS.next_index(_tabs.current_tab, d, _tabs.get_tab_count())
 		return
 	# closeButton hotkey="cancel", over a match or opened from the main menu.
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE and _confirm == null:
+	if event is InputEventKey and event.pressed and not event.echo and "cancel" in RtsoHotkeyConfig.new().fired(event) and _confirm == null:
 		_on_close()
 		get_viewport().set_input_as_handled()

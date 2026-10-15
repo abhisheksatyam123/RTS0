@@ -446,6 +446,8 @@ public:
 	void net_query_stun(const String &server, int port);
 	void net_hole_punch(const String &ip, int port);
 	void net_retarget_host(const String &ip, int port);
+	// LobbySession.verify_join's answer: the lobby name the ticket belongs to ("" unknown).
+	void net_lobby_auth_result(int peer, const String &ticket, const String &name);
 	// Networked Game Setup for scenes/menu/gamesetup.gd: see net_setup_.
 	bool is_net_pregame() const;
 	Dictionary get_net_setup_state() const;
@@ -473,11 +475,11 @@ public:
 		if (observer_view_ < rtso::MAX_PLAYERS && spectating()) return observer_view_;
 		return seat_player();
 	}
-	// The seat this client plays: its lockstep slot in multiplayer, player 0
-	// offline; 0xFF for an observer (multiplayer, or every slot AI).
+	// The seat this client plays: its lockstep slot in multiplayer, Game Setup's
+	// assigned slot offline (player 0 by default); 0xFF for an observer.
 	uint8_t seat_player() const {
 		if (net_lockstep() || turn_mgr_.perspective_changed()) return turn_mgr_.local_player();
-		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0;
+		return local_observer_ ? (uint8_t)0xFF : turn_mgr_.offline_seat();
 	}
 	// This client only watches: an observer, or a player who was defeated
 	// (0 A.D. g_IsObserver). Not in a replay, which has its own picker.

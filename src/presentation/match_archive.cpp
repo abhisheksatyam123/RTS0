@@ -46,7 +46,7 @@ const char *const kSetupKeys[] = {
 	// a setting changed in the Game Setup since it was recorded.
 	"biome", "landscape", "team_placement", "water_level", "sea_level_rise_min", "trigger_difficulty", "map_daytime",
 	"nomad", "regicide_garrison", "cheats", "disable_spies", "disable_treasures",
-	"slot_diffs", "slot_behs", "slot_colors", "slot_names", "ai_seed",
+	"slot_diffs", "slot_behs", "slot_colors", "slot_names", "ai_seed", "local_slot",
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)

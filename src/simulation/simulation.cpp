@@ -7099,6 +7099,24 @@ void Simulation::kill_passengers_of(size_t holder) {
 	}
 }
 
+// GarrisonHolder OnGlobalOwnershipChanged (to INVALID_PLAYER): a unit destroyed while
+// garrisoned or aboard leaves its holder's list.
+void Simulation::drop_from_holder(uint32_t unit_id) {
+	for (Building &b : buildings_) {
+		auto it = std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), unit_id);
+		if (it != b.garrisoned_units.end()) { b.garrisoned_units.erase(it); return; }
+	}
+	for (size_t t = 0; t < units_.count; ++t) {
+		auto pit = transport_passengers_.find(units_.id[t]);
+		if (pit == transport_passengers_.end()) continue;
+		auto it = std::find(pit->second.begin(), pit->second.end(), unit_id);
+		if (it == pit->second.end()) continue;
+		pit->second.erase(it);
+		if (pit->second.empty()) transport_passengers_.erase(pit);
+		return;
+	}
+}
+
 // GarrisonHolder OnDiplomacyChanged / OnGlobalOwnershipChanged: a passenger whose owner is no
 // longer the holder's owner or its mutual ally gets off; with no spot to land (a ship out at
 // sea) EjectOrKill kills it.
@@ -11899,7 +11917,7 @@ void Simulation::tick_gather(float dt) {
 							rate *= 2.0f;
 					}
 					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
-					// pyramid, catafalques, Han ministers): the strongest one in reach.
+					// pyramid, catafalques, Han ministers): each one in reach, multiplied.
 					if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
 							units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
 						rate /= 1.0f - g;
@@ -12054,6 +12072,17 @@ float Simulation::structure_build_time_for(uint8_t player, uint8_t type) const {
 	b.type = type < BLD_TYPE_COUNT ? type : 0;
 	b.team = player;
 	b.half_size = 1.0f; // a structure's own row, not a WallSet piece
+	return structure_build_time(b);
+}
+
+float Simulation::wall_piece_price(uint8_t player, uint8_t type, float half_w, float out[RES_COUNT]) const {
+	const uint8_t civ = civ_of(player);
+	structure_cost(player, type, wallset_piece_value(type, half_w, 1, civ), out);
+	Building b{};
+	b.type = type;
+	b.team = player;
+	b.civ = civ;
+	b.half_size = half_w;
 	return structure_build_time(b);
 }
 
@@ -14461,7 +14490,7 @@ void Simulation::tick_status_effects(float dt) {
 		if (gone) continue;
 		if (st.target_kind == STATUS_ON_UNIT) {
 			const int32_t u = lookup_unit(st.target);
-			if (u < 0 || !units_.alive[u]) continue;
+			if (u < 0 || !status_holds_unit((size_t)u)) continue;
 			on[(size_t)u] |= status_effect_bit(st.kind);
 		}
 		statuses_[keep++] = st;
@@ -14494,9 +14523,10 @@ bool Simulation::status_tick(const StatusInstance &st) {
 	const float dmg = st.damage;
 	if (st.target_kind == STATUS_ON_UNIT) {
 		const int32_t u = lookup_unit(st.target);
-		if (u < 0 || !units_.alive[u]) return false;
+		if (u < 0 || !status_holds_unit((size_t)u)) return false;
 		const size_t i = (size_t)u;
 		if (invulnerable(units_.id[i])) return true;
+		const bool inside = !units_.alive[i];
 		// helpers/Attack.js HandleAttackEffects returns before Promotion.IncreaseXp for a
 		// StatusEffect's damage: the kill and the loot still go to `src`, the xp doesn't.
 		units_.hp[i] -= dmg;
@@ -14510,6 +14540,13 @@ bool Simulation::status_tick(const StatusInstance &st) {
 		if (units_.team[i] == 0) record_.units_lost++;
 		else record_.enemies_killed++;
 		collect_unit_loot(st.src, st.src_owner, i);
+		if (inside) {
+			// Killed inside a structure, ship or siege engine: out of the world, so no corpse
+			// (Health.Kill), and its holder lets go of it; a loaded ram's passengers die with it.
+			units_.death_timer[i] = unit_death_duration(units_.unit_type[i]);
+			drop_from_holder(units_.id[i]);
+			kill_passengers_of(i);
+		}
 		return false;
 	}
 	if (st.target_kind == STATUS_ON_STRUCTURE) {
@@ -31792,8 +31829,11 @@ uint16_t Simulation::aura_affected_players(uint8_t owner, uint8_t players) const
 	uint16_t mask = 0;
 	for (uint8_t p = 0; p <= MAX_PLAYERS; ++p) {
 		uint8_t pid = p < MAX_PLAYERS ? p : GAIA_PLAYER;
+		const bool ally = (players & AURA_PLAYERS_ONE_SIDED) && owner < MAX_PLAYERS && pid < MAX_PLAYERS
+			? players_[owner].team == players_[pid].team || diplomacy_[owner][pid] == DIPLO_ALLY // Player.IsAlly
+			: is_ally(owner, pid);
 		uint8_t rel = pid == owner ? AURA_PLAYERS_OWNER
-			: is_ally(owner, pid) ? AURA_PLAYERS_ALLIES
+			: ally ? AURA_PLAYERS_ALLIES
 			: is_hostile(owner, pid) ? AURA_PLAYERS_ENEMIES : 0;
 		if (players & rel) mask |= aura_player_bit(pid);
 	}
