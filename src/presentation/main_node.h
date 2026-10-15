@@ -991,6 +991,9 @@ private:
 	CheckBox *observer_follow_box_ = nullptr;
 	CheckBox *replay_follow_box_ = nullptr;
 	CheckBox *new_follow_player_box();
+	// PlayerViewControl.xml and FollowPlayer.xml: the picker, "Observer Mode" and Follow Player
+	// placed in the top panel's frame; returns the row holding them.
+	Control *new_player_view_row(OptionButton *picker, Label *observer_label, CheckBox *follow) const;
 	int followed_view() const;
 	void set_follow_player(bool on);
 	bool is_follow_player() const { return follow_player_; }

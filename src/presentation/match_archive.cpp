@@ -627,23 +627,66 @@ OptionButton *RtsoMain::new_player_view_picker() const {
 	return picker;
 }
 
+Control *RtsoMain::new_player_view_row(OptionButton *picker, Label *observer_label, CheckBox *follow) const {
+	// The top panel's frame (12 8, 100%-12 54).
+	Control *row = memnew(Control);
+	row->set_name("PlayerViewControl");
+	row->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	row->set_anchor(SIDE_RIGHT, 1.0f);
+	row->set_offset(SIDE_LEFT, 12.0f);
+	row->set_offset(SIDE_RIGHT, -12.0f);
+	row->set_offset(SIDE_TOP, 8.0f);
+	row->set_offset(SIDE_BOTTOM, 54.0f);
+	auto place = [&](Control *c, float al, float l, float ar, float r, float t, float ab, float b) {
+		row->add_child(c);
+		c->set_anchor(SIDE_LEFT, al);
+		c->set_anchor(SIDE_RIGHT, ar);
+		c->set_anchor(SIDE_TOP, 0.0f);
+		c->set_anchor(SIDE_BOTTOM, ab);
+		c->set_offset(SIDE_LEFT, l);
+		c->set_offset(SIDE_RIGHT, r);
+		c->set_offset(SIDE_TOP, t);
+		c->set_offset(SIDE_BOTTOM, b);
+	};
+	// viewPlayer "85%-282 5 100%-290 31", inside RTS0's taller panel.
+	picker->add_theme_font_size_override("font_size", 13);
+	picker->set_clip_text(true);
+	picker->set_fit_to_longest_item(false);
+	// ModernDropDown: a dark box with a thin border, no taller than the panel row.
+	for (const char *state : {"normal", "hover", "pressed", "focus", "disabled"}) {
+		Ref<StyleBoxFlat> sb;
+		sb.instantiate();
+		sb->set_bg_color(Color(0.05f, 0.05f, 0.05f, 0.9f));
+		sb->set_border_color(Color(0.55f, 0.5f, 0.35f));
+		sb->set_border_width_all(1);
+		sb->set_content_margin(SIDE_LEFT, 6.0f);
+		sb->set_content_margin(SIDE_RIGHT, 6.0f);
+		sb->set_content_margin(SIDE_TOP, 2.0f);
+		sb->set_content_margin(SIDE_BOTTOM, 2.0f);
+		picker->add_theme_stylebox_override(state, sb);
+	}
+	place(picker, 0.85f, -282.0f, 1.0f, -290.0f, 2.0f, 1.0f, -2.0f);
+	// observerText "24 2 200 100%-2" over the counters it replaces.
+	observer_label->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+	observer_label->add_theme_font_size_override("font_size", 16);
+	place(observer_label, 0.0f, 24.0f, 0.0f, 200.0f, 2.0f, 1.0f, -2.0f);
+	// optionFollowPlayer "50%+54 4 50%+256 100%".
+	place(follow, 0.5f, 54.0f, 0.5f, 256.0f, 4.0f, 1.0f, 0.0f);
+	return row;
+}
+
 // 0 A.D. replay "Player view" (PlayerViewControl): Observer (everything revealed),
 // then every player, Gaia first, as "■ name" with the square in the player's colour;
 // "Observer Mode" shows while the view is Observer or Gaia. Presentation only, so the
 // replay's hashes are unaffected.
 void RtsoMain::build_replay_view_picker() {
 	if (replay_view_picker_ || !replay_label_) return;
-	HBoxContainer *row = memnew(HBoxContainer);
-	row->set_position(Vector2(16.0f, 92.0f));
 	replay_view_picker_ = new_player_view_picker();
 	replay_view_picker_->connect("item_selected", Callable(this, "_on_replay_view_selected"));
-	row->add_child(replay_view_picker_);
 	replay_observer_label_ = memnew(Label);
 	replay_observer_label_->set_text("Observer Mode");
-	row->add_child(replay_observer_label_);
 	replay_follow_box_ = new_follow_player_box();
-	row->add_child(replay_follow_box_);
-	replay_label_->get_parent()->add_child(row);
+	replay_label_->get_parent()->add_child(new_player_view_row(replay_view_picker_, replay_observer_label_, replay_follow_box_));
 }
 
 void RtsoMain::_on_replay_view_selected(int index) {
