@@ -1877,6 +1877,7 @@ var _net_tick := 0.0
 var _ready_btn: Button
 var _wait_label: Label
 var _rated: CheckBox
+var _setting_warning: Label
 var _rated_was_available := false
 ## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
 ## StayReady); pressing moves to the next state.
@@ -1928,6 +1929,14 @@ func _build_net_controls() -> void:
 	_ready_btn.pressed.connect(_on_ready_pressed)
 	right.add_child(_ready_btn)
 	right.move_child(_ready_btn, start.get_index())
+	# 0.28 GameSettingWarning: "Cheats enabled." or "Rated game." on every
+	# networked setup page.
+	_setting_warning = Label.new()
+	_setting_warning.name = "GameSettingWarning"
+	_setting_warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_setting_warning.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	right.add_child(_setting_warning)
+	right.move_child(_setting_warning, _wait_label.get_index())
 	_wait_label.visible = _mp_role == "client"
 	_ready_btn.visible = _mp_role == "client"
 	start.visible = _mp_role == "host"
@@ -1947,12 +1956,12 @@ func _build_net_controls() -> void:
 	var cheats: CheckBox = %Cheats
 	cheats.button_pressed = false
 	cheats.disabled = false
-	cheats.toggled.connect(func(_on): _update_rated())
+	cheats.toggled.connect(func(_on): _update_rated(); _update_net_controls())
 	_rated = CheckBox.new()
 	_rated.name = "RatedGame"
 	_rated.text = "Rated Game"
 	_rated.tooltip_text = "Toggle 1v1 rated game."
-	_rated.toggled.connect(func(_on): _update_rated())
+	_rated.toggled.connect(func(_on): _update_rated(); _update_net_controls())
 	# GameSettingsLayout.js: Rating closes the Game Type tab.
 	%TeamsRow.add_child(_rated)
 	_rated.owner = self
@@ -2055,6 +2064,11 @@ func _update_rated() -> void:
 func _update_net_controls() -> void:
 	if _mp_role == "none":
 		return
+	if _setting_warning:
+		var rated := _rated != null and _rated.visible and _rated.button_pressed
+		_setting_warning.text = "Cheats enabled." if %Cheats.button_pressed and not rated \
+				else "Rated game." if rated else ""
+		_setting_warning.visible = _setting_warning.text != ""
 	var start := $VBox/HBox/Right/BtnStart as Button
 	if _mp_role == "host":
 		var ok := bool(_net_state.get("can_start", false))

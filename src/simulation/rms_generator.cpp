@@ -3497,12 +3497,12 @@ int skirmish_replace(uint8_t civ, const char *map_template, uint16_t &out_tmpl) 
 }
 
 static void place_start_entities(Simulation &sim, const HeightmapGrid &hm, uint8_t team, float cx, float cz,
-                                 bool infantry_only = false) {
-	constexpr float kDist = 6.0f, kSpace = 2.0f, kOrientation = -0.25f * 3.14159265f;
+                                 bool infantry_only = false, float kDist = 6.0f, int j = 0) {
+	// `j` counts the entries placed before the first unit (the civic centre is entry 0).
+	constexpr float kSpace = 2.0f, kOrientation = -0.25f * 3.14159265f;
 	const uint8_t civ = sim.team_civ(team);
 	const float dry_h = sim.water_height() + 0.6f;
 	const StartEntity *table = start_entity_table();
-	int j = 0;
 	for (int e = 0; e < START_ENTITY_COUNT; ++e) {
 		const StartEntity &se = table[e];
 		if (se.civ != civ || (infantry_only && !std::strstr(se.tmpl, "infantry"))) continue;
@@ -3522,6 +3522,80 @@ static void place_start_entities(Simulation &sim, const HeightmapGrid &hm, uint8
 				z = cz + (z - cz) * 0.9f;
 			}
 			sim.spawn_unit(x, z, team, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+		}
+	}
+}
+
+// rmgen-common placePlayersNomad (player.js:435-488): each player's StartEntities units as
+// one group 1-3 tiles round a random dry, gentle spot clear of resources and structures, the
+// groups kept scaleByMapSize(60, 240) tiles apart, relaxed to 1/2, 1/4 and then 0, in a
+// shuffled player order (200 tries each). spawn_nomad_treasures adds the treasures by them.
+static void place_nomad_units(Simulation &sim, const HeightmapGrid &hm, const std::vector<RmsGenerator::PlayerSpawn> &spawns, RmsRng &rng) {
+	const float half = hm.map_half, lim = half - 6.0f; // MAP_BORDER_WIDTH 3 tiles and a margin
+	const float dry_h = sim.water_height() + 0.6f, max_slope = 0.5f * LAND_MAX_TERRAIN_SLOPE;
+	const float distance = 60.0f + 180.0f * std::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f);
+	const bool circle = sim.circular_map();
+	// Tiles next to a resource or a structure (avoidClasses of the map's own constraints).
+	const int side = (int)std::ceil(2.0f * half) + 1;
+	std::vector<uint8_t> blocked((size_t)side * (size_t)side, 0);
+	auto mark = [&](float x, float z, int r) {
+		const int cx = (int)std::floor(x + half), cz = (int)std::floor(z + half);
+		for (int dz = -r; dz <= r; ++dz)
+			for (int dx = -r; dx <= r; ++dx) {
+				const int tx = cx + dx, tz = cz + dz;
+				if (tx >= 0 && tz >= 0 && tx < side && tz < side) blocked[(size_t)tz * (size_t)side + (size_t)tx] = 1;
+			}
+	};
+	const auto rv = sim.resources();
+	for (size_t r = 0; r < rv.count; ++r) mark(rv.x[r], rv.z[r], 1);
+	for (const Simulation::Building &b : sim.buildings()) mark(b.x, b.z, 6);
+	auto ok = [&](float x, float z) {
+		if (circle ? x * x + z * z > lim * lim : (std::abs(x) > lim || std::abs(z) > lim)) return false;
+		const int tx = (int)std::floor(x + half), tz = (int)std::floor(z + half);
+		if (tx < 0 || tz < 0 || tx >= side || tz >= side || blocked[(size_t)tz * (size_t)side + (size_t)tx]) return false;
+		if (hm.sample_world(x, z) < dry_h) return false;
+		return std::abs(hm.sample_world(x + 0.5f, z) - hm.sample_world(x - 0.5f, z)) <= max_slope &&
+		       std::abs(hm.sample_world(x, z + 0.5f) - hm.sample_world(x, z - 0.5f)) <= max_slope;
+	};
+	std::vector<size_t> order(spawns.size());
+	for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+	for (size_t i = order.size(); i > 1; --i) std::swap(order[i - 1], order[(size_t)rng.range_int(0, (int)i - 1)]);
+	std::vector<std::pair<float, float>> placed;
+	const StartEntity *table = start_entity_table();
+	for (size_t o : order) {
+		const uint8_t team = spawns[o].team, civ = sim.team_civ(team);
+		float gx = spawns[o].x, gz = spawns[o].z; // no spot at all: the planned base
+		bool found = false;
+		for (float factor : {1.0f, 0.5f, 0.25f, 0.0f}) {
+			const float d2 = distance * factor * distance * factor;
+			for (int t = 0; t < 200 && !found; ++t) {
+				const float x = rng.range_float(-lim, lim), z = rng.range_float(-lim, lim);
+				if (!ok(x, z)) continue;
+				bool near = false;
+				for (const auto &p : placed) near |= (p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < d2;
+				if (near) continue;
+				gx = x;
+				gz = z;
+				found = true;
+			}
+			if (found) break;
+		}
+		placed.push_back({gx, gz});
+		for (int e = 0; e < START_ENTITY_COUNT; ++e) {
+			if (table[e].civ != civ) continue;
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+			for (uint16_t t : civ_roster_ids(civ))
+				if (std::strcmp(civ_unit_template(t).id, table[e].tmpl) == 0) { tmpl = t; break; }
+			if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
+			for (int num = 0; num < table[e].count; ++num) {
+				float x = gx, z = gz; // SimpleObject(template, n, n, 1, 3)
+				for (int t = 0; t < 20; ++t) {
+					const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(1.0f, 3.0f);
+					const float ux = gx + std::cos(a) * r, uz = gz + std::sin(a) * r;
+					if (ok(ux, uz)) { x = ux; z = uz; break; }
+				}
+				sim.spawn_unit(x, z, team, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+			}
 		}
 	}
 }
@@ -3998,6 +4072,9 @@ void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &
 }
 
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
+	// placePlayerBase returns at once for Nomad (player.js:152-153): no civic centre, walls,
+	// mines, trees, berries, hunt or treasures. place_nomad_units scatters the units later.
+	if (sim.nomad()) return;
 	const bool fortress = config.map_type == MAP_FORTRESS;
 	// 0 A.D.'s base placers (rmgen's placePlayerBase*) keep every starting
 	// resource on land and away from water (avoidClasses(clWater, ...)).
@@ -4074,9 +4151,11 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 2. The civ's StartEntities units (placeCivDefaultStartingEntities).
 		place_start_entities(sim, hm, team, px, pz);
 
-		// fortress.js gives no starting mines, trees or berries, only
-		// treasures (which RTS0 has no entity for yet).
+		// fortress.js gives no starting mines, trees or berries, only treasures; its
+		// `for (const dist of [6, 8])` places the infantry a second time at 8 tiles, from a
+		// list without the civic centre (fortress.js:79-90).
 		if (fortress) {
+			place_start_entities(sim, hm, team, px, pz, true, 8.0f, -1);
 			place_fortress_walls(sim, spawns, (size_t)(&sp - spawns.data()));
 			continue;
 		}
@@ -4469,6 +4548,7 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 	};
 	// placePlayerBaseTreasures: the base's treasures on a ring round the civic centre.
 	auto base_ring = [&](uint8_t type, int n) {
+		if (sim.nomad()) return; // placePlayerBase places nothing for Nomad
 		for (const auto &sp : spawns)
 			for (int k = 0; k < n; ++k) {
 				const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(10.0f, 13.0f);
@@ -4583,6 +4663,7 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 			break;
 		case MAP_WILD_LAKE:          // wild_lake.js and caledonian_meadows.js: a food bin
 		case MAP_CALEDONIAN_MEADOWS: // beside each civic centre
+			if (!sim.nomad())
 			for (const auto &sp : spawns) {
 				const float tx = sp.x + sp.forward_dir_x * 6.0f, tz = sp.z + sp.forward_dir_z * 6.0f;
 				if (dry(tx, tz)) sim.spawn_treasure(tx, tz, TREASURE_FOOD_BIN);
@@ -11595,6 +11676,8 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 	// The rest of the mines, fruit and hunt the map's 0 A.D. script places
 	top_up_resources(sim, hm, water_h, spawns, config, base_resources, base_fauna);
+
+	if (sim.nomad()) place_nomad_units(sim, hm, spawns, rng);
 
 	// The Iberians' Starting Walls (player.js placeStartingWalls), last so the trees and bushes
 	// under them go (template_gaia_flora's DeleteUponConstruction).

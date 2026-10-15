@@ -788,7 +788,9 @@ enum UnitOrderFlag : uint8_t {
 	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
 	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
 	// or gathers near the new dropsite.
-	ORDER_FLAG_AUTOHARVEST = 32
+	ORDER_FLAG_AUTOHARVEST = 32,
+	// ORDER_GARRISON only: occupy a turret point of the holder (Commands.js "occupy-turret").
+	ORDER_FLAG_TURRET = 32
 };
 // A gather order keeps its resource's subtype (ResourceSubtype) in flag bits 5-7, so the
 // unit can look for the same kind once the resource is gone (UnitAI GATHER FINDINGNEWTARGET).
@@ -1463,6 +1465,34 @@ inline const WallCivGeometry &wall_civ_geometry(uint8_t civ) {
 	return kCivs[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
 }
 
+// The share of a gate's length its Door takes: 0.28 gates are an obstruction cluster of Left, Door
+// and Right, and Gate.js only switches the Door's BlockMovement and BlockPathfinding (shape 0, the
+// first by name), so the sides keep blocking while the gate is open. Door / (Left + Door + Right)
+// widths from structures/{civ}/wall_gate.xml, palisades_gate.xml and rome/siege_wall_gate.xml.
+inline float gate_door_fraction(uint8_t type, uint8_t civ) {
+	if (type == BLD_PALISADE_GATE) return 10.0f / 14.0f;
+	if (type == BLD_SIEGE_WALL_GATE) return 13.0f / 36.0f;
+	static const float kDoor[CIV_COUNT] = {
+		15.0f / 36.0f, // athen
+		16.0f / 36.0f, // spart
+		16.0f / 36.0f, // pers
+		12.0f / 36.0f, // rome
+		19.0f / 36.0f, // cart
+		15.0f / 36.0f, // mace
+		13.0f / 36.0f, // brit
+		15.0f / 37.0f, // gaul
+		19.0f / 36.0f, // iber
+		14.0f / 36.0f, // maur
+		16.0f / 36.0f, // kush
+		15.0f / 39.0f, // ptol
+		14.0f / 34.0f, // sele
+		8.0f / 36.0f,  // han
+		15.0f / 36.0f, // Gaia: athen
+		13.0f / 37.0f, // germ
+	};
+	return kDoor[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
+}
+
 // The `kind` WallSet of `civ` (CIV_COUNT: the generic one, the Athenian stone set). Only stone
 // walls differ by civ, and Han palisades reach further into their towers (han/wallset_palisade.xml
 // MaxTowerOverlap 0.95).
@@ -1806,10 +1836,12 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	if (tech_id == TECH_AGOGE) return false;
 	if (tech_id == TECH_CELTIC_AUXILIARIES) return type == BLD_EMBASSY;
 	if (tech_id == TECH_UNLOCK_SHARED_LOS && building_research_base(type) == BLD_MARKET) return true;
-	if (tech_id == TECH_TOWER_MURDERHOLES && type == BLD_FORTRESS) return true;
+	if (tech_id == TECH_TOWER_MURDERHOLES && (type == BLD_FORTRESS || type == BLD_FORTRESS_OLD)) return true;
 	if (tech_id == TECH_TOWER_WATCH && type == BLD_SENTRY_TOWER) return true;
 	if (tech_id == TECH_IPHICRATEAN_REFORMS && type == BLD_GYMNASIUM) return true;
-	if ((type == BLD_TEMPLE_VESTA || type == BLD_TEMPLE_AMUN) && r == BLD_TEMPLE) return true;
+	if ((type == BLD_TEMPLE_VESTA || type == BLD_TEMPLE_AMUN || type == BLD_TEMPLE_MARS) && r == BLD_TEMPLE) return true;
+	// ptol/mercenary_camp keeps template_structure_military_barracks' Researcher list.
+	if (type == BLD_MERCENARY_CAMP && r == BLD_BARRACKS) return true;
 	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
 	if (civ == CIV_HAN) {
 		if (spies) return type == BLD_MINISTRY;
@@ -1838,7 +1870,8 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	// fortified Upgrade keeps the list.
 	case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED:
 		return r == BLD_WAGON_ENCAMPMENT || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
-		                                     && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
+		                                     && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS
+		                                     && tech_id != TECH_RESETTLEMENT); // germ/civil_centre's own
 	// mixins/shrine.xml: Researcher disable="". mixins/trading_post.xml drops the market's trade
 	// technologies (trader_health, trade_gain_01/02, trade_commercial_treaty).
 	case BLD_SHRINE: return false;
@@ -1953,9 +1986,11 @@ inline constexpr float SIEGE_EJECT_HEALTH = 0.1f;
 inline TechClasses building_tech_classes(uint8_t type) {
 	const TechClasses c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
-		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC;
+		// The Crannog and the military colony are template_structure_civic_civil_centre too.
+		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
-		case BLD_BARRACKS: return c | TC_BARRACKS;
+		// han/academy and ptol/mercenary_camp are template_structure_military_barracks.
+		case BLD_BARRACKS: case BLD_ACADEMY: case BLD_MERCENARY_CAMP: return c | TC_BARRACKS;
 		case BLD_STOREHOUSE: return c | TC_STOREHOUSE;
 		case BLD_TOWER: case BLD_TOWER_GREAT: case BLD_TOWER_DOUBLE: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
 		case BLD_SENTRY_TOWER: return c | TC_TOWER | TC_SENTRYTOWER | TC_DEFENSIVE;
@@ -1968,26 +2003,40 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_CORRAL: return c | TC_CORRAL;
 		case BLD_MARKET: case BLD_TRADING_POST: return c | TC_MARKET;
 		case BLD_FORTRESS: case BLD_FORTRESS_OLD: return c | TC_FORTRESS | TC_DEFENSIVE;
-		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE:
+		case BLD_GATE: case BLD_WALL_SEGMENT:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
+		// template_structure_defensive_palisade: Defensive Palisade, no Wall.
+		case BLD_PALISADE: case BLD_PALISADE_GATE: return c | TC_DEFENSIVE;
 		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS: return c | TC_TEMPLE | TC_CIVIC;
+		// Other template_structure_civic children. The Kushite temple's TempleOfApedemak
+		// auras reach RTS0 as Temple, so the Temple of Amun stays out of that class.
+		case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA: case BLD_TEMPLE_MARS:
+		case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: case BLD_MINISTRY: return c | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
-		case BLD_STABLE: case BLD_ELEPHANT_STABLE: return c | TC_STABLE;
+		case BLD_STABLE: return c | TC_STABLE;
+		case BLD_ELEPHANT_STABLE: return c; // template_structure_military_elephant_stable: ElephantStable, no Stable
 		case BLD_FORGE: return c | TC_FORGE;
 		case BLD_ARSENAL: return c | TC_ARSENAL;
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
-		case BLD_MILITARY_COLONY: return c | TC_COLONY;
+		case BLD_MILITARY_COLONY: return c | TC_CIVCENTRE | TC_CIVIC | TC_COLONY;
 		// germ/encampment: VisibleClasses Civic Defensive Colony Encampment (no CivCentre).
 		case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED: return c | TC_CIVIC | TC_DEFENSIVE | TC_COLONY;
 		default: return c;
 	}
 }
 
+// Stone walls and palisades alike: the pieces an attack-move steers clear of and Petra
+// finds in its way (0.28's palisades have no Wall class, so technologies skip them).
+inline bool is_wall_piece(uint8_t type) {
+	return (building_tech_classes(type) & TC_WALL) || type == BLD_PALISADE || type == BLD_PALISADE_GATE;
+}
+
 // Whether an attack-move with these avoid bits skips a structure of `type`.
 inline bool attack_move_avoids(uint8_t flags, uint8_t type) {
-	const TechClasses c = building_tech_classes(type);
+	TechClasses c = building_tech_classes(type);
+	if (is_wall_piece(type)) c |= TC_WALL;
 	if ((flags & ORDER_AVOID_ECONOMY) && (c & (TC_HOUSE | TC_STOREHOUSE | TC_FARMSTEAD | TC_FIELD | TC_FORGE))) return true;
 	switch ((flags & ORDER_AVOID_MASK) >> ORDER_AVOID_SHIFT) {
 		case ORDER_AVOID_WALLS_FORTRESS: return (c & (TC_WALL | TC_FORTRESS)) != 0;
@@ -3006,6 +3055,18 @@ inline bool civ_can_build(uint8_t civ, uint8_t type) {
 inline bool building_trains_native(uint8_t type) {
 	return type == BLD_SHRINE || type == BLD_CAMP_NOBA || type == BLD_CAMP_BLEMMYE ||
 	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
+}
+
+// The civ whose roster `t` must come from to train at a `type` structure built by `bld_civ`
+// and held by a `owner_civ` player. Civic centres (the CC, crannog, Han court, Seleucid
+// military colony and German encampments) list units/{native}/support_civilian, so a
+// captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
+inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
+	if (building_trains_native(type)) return bld_civ;
+	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
+	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
+	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
+	return civic && (t.flags & ROSTER_CIVILIAN) && (t.trainers & bld_bit(type)) ? bld_civ : owner_civ;
 }
 
 // BuildingAI and Attack/Ranged of a civ's structure: the generic row plus 0.28's one civ

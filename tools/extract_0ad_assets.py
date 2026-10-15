@@ -1250,12 +1250,13 @@ def register_template_assets(assets, zf):
     import unit_template_models as utm
     names = set(zf.namelist())
     per_row, new = utm.plan(names, zf.read, assets)
+    ranks = utm.rank_plan(names, zf.read, assets, per_row, new)
     for mid, (code, kind, actor) in sorted(new.items()):
         if _register_civ_unit(assets, names, code, kind, actor, aid=mid):
             TEMPLATE_BASE[mid] = kind
             donor = f"{code}_{kind}"
             TEMPLATE_DONOR[mid] = donor if donor in assets else kind
-    return per_row, new
+    return per_row, new, ranks
 
 
 def _same_rig(donor, out_dir, nodes, skins):
@@ -5078,13 +5079,16 @@ def main():
                    else None for m in template_plan[0]]
         repo_assets = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets"))
         hdr = utm.HEADER if os.path.normpath(out_dir) == repo_assets else os.path.join(out_dir, "unit_template_models.h")
+        have = lambda m: m and (m in manifest.get("models", {}) or os.path.exists(os.path.join(units_dir, m + ".glb")))
+        ranks = {t: tuple(m if have(m) else None for m in pair) for t, pair in template_plan[2].items()}
+        ranks = {t: pair for t, pair in ranks.items() if any(pair)}
         models = {}
-        for m in per_row:
+        for m in per_row + [m for pair in ranks.values() for m in pair]:
             if m and m in TEMPLATE_BASE:
                 rec = manifest.get("models", {}).get(m, {})
                 code = m.split("_", 1)[0]
                 models[m] = (f"{code}_{TEMPLATE_BASE[m]}", rec.get("clips_from"))
-        utm.write_header(per_row, models, hdr)
+        utm.write_header(per_row, models, hdr, ranks)
         print(f"[templates] {sum(1 for m in per_row if m)} of {len(per_row)} templates have a model -> {hdr}")
     # also write skeleton/animation verification summary
     print(f"extracted {len(manifest.get('animations',{}))} animations + {len(manifest.get('skeletons',{}))} skeletons")

@@ -265,8 +265,13 @@ int main() {
 		c.set_player_resources(0, 5000, 5000, 5000, 5000);
 		CHECK(civ_can_build(CIV_SPARTANS, BLD_SYSSITON) && !civ_can_build(CIV_ATHENIANS, BLD_SYSSITON));
 		CHECK(civ_can_build(CIV_ATHENIANS, BLD_HOUSE) && civ_can_build(CIV_HAN, BLD_MINISTRY));
-		CHECK(civ_can_build(CIV_PTOLEMIES, BLD_LIBRARY) && civ_can_build(CIV_SELEUCIDS, BLD_LIBRARY) &&
-			civ_can_build(CIV_MACEDONIANS, BLD_LIBRARY) && !civ_can_build(CIV_ROMANS, BLD_LIBRARY));
+		// 0.28's Builder lists name only ptol/library; the mace and sele libraries, the ptol
+		// mercenary camp, rome's amphitheater and temple of Mars and the germ totem are map-only.
+		CHECK(civ_can_build(CIV_PTOLEMIES, BLD_LIBRARY) && !civ_can_build(CIV_SELEUCIDS, BLD_LIBRARY) &&
+			!civ_can_build(CIV_MACEDONIANS, BLD_LIBRARY) && !civ_can_build(CIV_ROMANS, BLD_LIBRARY));
+		CHECK(!civ_can_build(CIV_PTOLEMIES, BLD_MERCENARY_CAMP) && !civ_can_build(CIV_ROMANS, BLD_AMPHITHEATER) &&
+			!civ_can_build(CIV_ROMANS, BLD_TEMPLE_MARS) && !civ_can_build(CIV_GERMANS, BLD_MONUMENT) &&
+			civ_can_build(CIV_IBERIANS, BLD_MONUMENT) && civ_can_build(CIV_ROMANS, BLD_SIEGE_WALL));
 		// A cell in player 0's territory where a Syssiton-sized structure fits.
 		int px = 0, py = 0;
 		bool found = false;
@@ -534,6 +539,12 @@ int main() {
 		const uint32_t ashoka = e.spawn_unit(60.0f, 0.0f, 3, UNIT_HERO, 0.0f, roster_id("maur/hero_ashoka"));
 		CHECK(e.entity_limit(3, LIMIT_PILLAR) == 5 && e.entity_limit_allows_building(3, BLD_PILLAR));
 		CHECK(ashoka != 0);
+		// A garrisoned entity still counts (EntityLimits counts owned entities, garrisoned or not):
+		// Ashoka inside a civic centre keeps the Pillar bonus and the Hero slot.
+		const uint32_t cc3 = e.spawn_building_world(64.0f, 0.0f, BLD_TOWN_CENTER, 3, 1.0f);
+		CHECK(e.garrison_unit_now(ashoka, cc3));
+		CHECK(e.entity_limit(3, LIMIT_PILLAR) == 5);
+		CHECK(!e.entity_limit_allows_unit(3, UNIT_HERO, roster_id("maur/hero_chandragupta")));
 		// Romans: Centurion 8.
 		const uint16_t centurion = roster_id("rome/champion_infantry_swordsman_centurion");
 		CHECK(e.entity_limit_allows_unit(4, UNIT_SWORDSMAN, centurion, 8));

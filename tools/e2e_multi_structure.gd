@@ -92,6 +92,11 @@ func run() -> void:
 	check(structs() == [b1, b2], "both barracks are selected")
 	check(main.debug_structure_outlined(b1) and main.debug_structure_outlined(b2), "both are outlined")
 
+	var grid: Dictionary = main.debug_selection_grid(false)
+	var icons: Array = grid["icons"]
+	print("    grid ", icons.map(func(e): return str(e["tip"]).get_slice("\n", 0)))
+	check(icons.size() == 1 and str(icons[0]["tip"]).contains("Barracks"), "the details show one Barracks group")
+
 	print("2. Training spreads over them")
 	var rl: ItemList = null
 	for n in main.find_children("*", "ItemList", true, false):
@@ -113,6 +118,42 @@ func run() -> void:
 	await frames(6)
 	print("    queues ", main.debug_building_queue(b1), " ", main.debug_building_queue(b2))
 	check(main.debug_building_queue(b1) == 6 and main.debug_building_queue(b2) == 6, "a batch of 5 goes to each")
+	var producers := []
+	for i in 6:
+		var slot: Dictionary = main.debug_queue_slot(i)
+		if slot.get("visible", false) and not slot.get("ghost", false):
+			producers.append(int(slot["producer"]))
+	print("    merged queue producers ", producers)
+	check(producers == [b1, b2, b1, b2], "the queue panel merges both queues, first items first")
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	main._on_queue_slot_gui_input(ev, 1)
+	for i in 40:
+		await frames(1)
+		if main.debug_building_queue(b2) == 5:
+			break
+	print("    after cancelling slot 2: ", main.debug_building_queue(b1), " ", main.debug_building_queue(b2))
+	check(main.debug_building_queue(b1) == 6 and main.debug_building_queue(b2) == 5, "a click on the second slot cancels the second barracks' item")
+	var roster_one := rl.item_count
+	var cc: int = main.debug_civic_centre_id(0)
+	main.debug_select_entity(cc)
+	await frames(2)
+	var roster_cc := rl.item_count
+	OS.delay_msec(600)
+	await key(KEY_SHIFT, true)
+	await click(s1 + Vector2(0, -12))
+	await key(KEY_SHIFT, false)
+	await frames(4)
+	print("    roster: barracks ", roster_one, ", civic centre ", roster_cc, ", both ", rl.item_count, " structs ", structs())
+	check(structs() == [cc, b1] and rl.item_count > roster_cc and rl.item_count > roster_one,
+			"the roster lists what either structure trains")
+	main.debug_select_entity(b1)
+	await frames(2)
+	await key(KEY_SHIFT, true)
+	await click(s2 + Vector2(0, -12))
+	await key(KEY_SHIFT, false)
+	await frames(2)
 
 	print("3. Ctrl+click drops one, a plain click selects one alone")
 	await key(KEY_CTRL, true)
@@ -141,5 +182,58 @@ func run() -> void:
 	await frames(2)
 	print("    ", structs(), " units ", main.debug_selection_grid(false)["selected"])
 	check(structs().has(b1) and structs().has(b2), "the box selected both barracks")
+
+	print("6. With units too, the group icon keeps only the structures")
+	var men: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 2)
+	main.debug_select_units(men)
+	await frames(2)
+	OS.delay_msec(600)
+	await key(KEY_SHIFT, true)
+	await click(s1 + Vector2(0, -12))
+	await key(KEY_SHIFT, false)
+	await frames(2)
+	icons = main.debug_selection_grid(false)["icons"]
+	print("    grid ", icons.map(func(e): return str(e["tip"]).get_slice("\n", 0)), " structs ", structs())
+	check(icons.size() == 2, "a unit group and a Barracks group")
+	var bar_icon = null
+	for e in icons:
+		if str(e["tip"]).contains("Barracks"):
+			bar_icon = instance_from_id(int(e["id"]))
+	if bar_icon:
+		bar_icon.emit_signal("pressed")
+	await frames(2)
+	check(main.debug_selection_grid(false)["selected"] == 0 and structs() == [b1], "pressing it keeps only the Barracks")
+
+	print("7. Commands act on every selected structure")
+	OS.delay_msec(600)
+	await key(KEY_SHIFT, true)
+	await click(s2 + Vector2(0, -12))
+	await key(KEY_SHIFT, false)
+	await frames(2)
+	check(structs() == [b1, b2], "both barracks again")
+	main._on_entity_command("autoqueue-on")
+	await frames(10)
+	var aq := []
+	for id in [b1, b2]:
+		main.debug_select_entity(id)
+		await frames(2)
+		aq.append(bool(main.debug_selected_building()["autoqueue"]))
+	print("    autoqueue ", aq)
+	check(aq == [true, true], "autoqueue turns on in both")
+	main.debug_select_entity(b1)
+	await frames(2)
+	OS.delay_msec(600)
+	await key(KEY_SHIFT, true)
+	await click(s2 + Vector2(0, -12))
+	await key(KEY_SHIFT, false)
+	await frames(2)
+	print("    selected ", structs())
+	var before := int(main.debug_structure_types().get(0, {}).get("Barracks", 0))
+	main._on_entity_command("delete")
+	main._on_delete_confirmed()
+	await frames(20)
+	var after := int(main.debug_structure_types().get(0, {}).get("Barracks", 0))
+	print("    barracks ", before, " -> ", after)
+	check(before - after == 2, "delete destroys both")
 	print("FAILURES: ", failures)
 	quit(1 if failures > 0 else 0)
