@@ -11583,6 +11583,42 @@
       "template": "structures/trading_post_desert",
       "x": 41.26,
       "z": -78.27
+    },
+    {
+      "type": "tent_desert",
+      "template": "structures/tent_desert",
+      "x": 48.69,
+      "z": -77.74
+    },
+    {
+      "type": "tent_desert",
+      "template": "structures/tent_desert",
+      "x": 53.64,
+      "z": -73.77
+    },
+    {
+      "type": "tent_desert",
+      "template": "structures/tent_desert",
+      "x": -45.51,
+      "z": 72.83
+    },
+    {
+      "type": "tent_desert",
+      "template": "structures/tent_desert",
+      "x": -39.71,
+      "z": 65.98
+    },
+    {
+      "type": "tent_bedouin",
+      "template": "structures/tent_bedouin",
+      "x": 41.93,
+      "z": 90.7
+    },
+    {
+      "type": "tent_desert",
+      "template": "structures/tent_desert",
+      "x": -9.17,
+      "z": -104.66
     }
   ],
   "gaia_units": [

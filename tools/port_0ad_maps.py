@@ -375,7 +375,7 @@ GAIA_STRUCTURE_CLASSES = [
     ("template_structure_military_dock", "dock"),
     ("template_structure_military_fortress", "fortress"),
     ("template_structure_defensive_tower_sentry", "sentry_tower"),
-    ("template_structure_defensive_tower_outpost", "outpost"),
+    ("template_structure_defensive_outpost", "outpost"),
     ("template_structure_defensive_tower", "tower"),
     ("template_structure_defensive_palisade", "palisade"),
     ("template_structure_defensive_wall_tower", "wall_tower"),
@@ -403,6 +403,11 @@ def gaia_owned(source, tpl, wx, wz, angle=0.0, scale=1.0):
         for cls, name in GAIA_STRUCTURE_CLASSES:
             if any(c.startswith(cls) for c in chain):
                 return "gaia_structures", {"type": name, "template": tpl, "x": wx, "z": wz}
+        # Wonders, pyramids, forges, arsenals, Kushite camps, the Ashoka pillar, ice houses,
+        # lighthouses...: the game resolves these by template (session_setup.cpp
+        # map_building_template) and skips what RTS0 doesn't have.
+        if any(c.startswith("template_structure_") for c in chain):
+            return "gaia_structures", {"type": tpl.rsplit("/", 1)[1], "template": tpl, "x": wx, "z": wz}
         return None
     if tpl.startswith("units/"):
         utype = unit_class(" ".join([tpl.lower()] + chain))
@@ -658,7 +663,7 @@ def units_demo_entities(z):
     return out
 
 
-def apply_player_data(players, settings):
+def apply_player_data(players, settings, scenario=False):
     """ScriptSettings PlayerData: a scenario's fixed civs, starting resources, locked teams and
     population limits, onto the map's player entries (by id). Its first entry is player 1, or
     an empty Gaia placeholder in older maps. Returns the PopulationLimit every player shares, if any."""
@@ -672,8 +677,10 @@ def apply_player_data(players, settings):
             p["civ"] = CIV_CODES.index(pd["Civ"])
         if isinstance(pd.get("Resources"), dict):
             p["resources"] = {k: int(v) for k, v in pd["Resources"].items()}
-        # Locked teams (LockTeams) are the map's own; otherwise Game Setup picks them.
-        if settings.get("LockTeams") and isinstance(pd.get("Team"), int):
+        # 0.28 PlayerTeam.js onMapChange: a scenario's PlayerData teams are the map's own (locked in
+        # Game Setup); a skirmish map's are ignored, its players starting without a team, LockTeams
+        # or not. (-1, no team, is the porter's default: a team of one.)
+        if scenario and isinstance(pd.get("Team"), int) and pd["Team"] >= 0:
             p["team"] = pd["Team"]
         if isinstance(pd.get("PopulationLimit"), int):
             p["pop_limit"] = pd["PopulationLimit"]
@@ -717,7 +724,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 return
             with open(out_path) as f:
                 old = json.load(f)
-            limit = apply_player_data(old["players"], settings)
+            # Teams back to the porter's default (a team of one) before PlayerData sets a scenario's.
+            for p in old["players"]:
+                p["team"] = p["id"] - 1
+            limit = apply_player_data(old["players"], settings, xml_rel.startswith("maps/scenarios/"))
             old.pop("pop_limit", None)
             if limit is not None:
                 old["pop_limit"] = limit
@@ -1033,7 +1043,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             if not has_tc and not army_only:
                 structures.append({"type": "town_center", "player": p["id"], "x": p["start_x"], "z": p["start_z"]})
 
-        pop_limit = apply_player_data(list(players.values()), settings)
+        pop_limit = apply_player_data(list(players.values()), settings, xml_rel.startswith("maps/scenarios/"))
 
         map_data = {
             "id": map_id,
@@ -1103,16 +1113,31 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                             o.update(want)
                             walls += 1
                         continue
-                    if not MAP_ONLY_STRUCTURE.search(e.get("template", "")):
+                    gaia = key == "gaia_structures"
+                    if not e.get("template") or not (gaia or MAP_ONLY_STRUCTURE.search(e["template"])):
                         continue
                     x, z = round(e["x"] * k, 2), round(e["z"] * k, 2)
                     o = next((o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5 and "wallset" not in o
-                              and o.get("player") == e.get("player")), None)
+                              and o.get("player") == e.get("player") and id(o) not in used), None)
+                    if o is None and gaia:
+                        # A Gaia structure an older port laid as a wall piece (gaul/fortress has a WallPiece).
+                        o = next((o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5 and "wallset" in o
+                                  and id(o) not in used), None)
+                        if o is not None:
+                            o.clear()
+                            o.update(dict(e, x=x, z=z))
+                            used.add(id(o))
+                            tagged += 1
+                            continue
                     if o is None:
                         have.append(dict(e, x=x, z=z))
                         added += 1
-                    elif o.get("template") != e["template"]:
+                        continue
+                    used.add(id(o))
+                    if o.get("template") != e["template"] or (gaia and o.get("type") != e["type"]):
                         o["template"] = e["template"]
+                        if gaia:
+                            o["type"] = e["type"]
                         tagged += 1
             if tagged or added or walls:
                 with open(out_path, "w") as f:

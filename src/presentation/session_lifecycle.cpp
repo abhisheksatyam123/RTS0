@@ -8,6 +8,8 @@
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <cmath>
 #include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/classes/font_variation.hpp>
+#include <godot_cpp/classes/theme_db.hpp>
 #include <godot_cpp/classes/crypto.hpp>
 #include <godot_cpp/classes/hashing_context.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
@@ -21,6 +23,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
+#include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/classes/base_button.hpp>
 #include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
@@ -122,10 +125,12 @@ void RtsoMain::_ready() {
 				// "never", "observer" (only while observing) or "always".
 				const std::string when = rtso::user_config::get("gui.session.notifications.flare");
 				const uint8_t from = chat_player_of(guid);
-				if (from < rtso::MAX_PLAYERS && (when == "always" || (when == "observer" && chat_local_observer())))
+				// colorizePlayernameByGUID: an observer's name in white.
+				const String name = from < rtso::MAX_PLAYERS ? colored_player_name(from) : chat_user(guid).replace("[color=#b3b3b3]", "[color=#ffffff]");
+				if (when == "always" || (when == "observer" && chat_local_observer()))
 					chat_window_.append_line(sprintf0(tr("%(icon)s%(player)s has sent a flare."),
 							{{"icon", "[img=16x16]res://assets/textures/ui/archive/icons/focus-flare.png[/img]"},
-									{"player", colored_player_name(from)}}) + "\n",
+									{"player", name}}) + "\n",
 							"flare:" + String::num(fx) + "," + String::num(fz), tr("Click to focus on the flare's location."));
 			}
 			return;
@@ -199,43 +204,11 @@ void RtsoMain::_ready() {
 	debug_overlay->set_visible(false); // shown with overlay.fps (refresh_user_options)
 	ui_layer->add_child(debug_overlay);
 
+	minimap_panel_.build_background(ui_layer, [](const String &path) { return rtso::load_ui_texture(path); });
 	minimap_view = memnew(RtsoMiniMapView);
 	minimap_view->connect("minimap_clicked", Callable(this, "_on_minimap_clicked"));
 	minimap_view->connect("minimap_order", Callable(this, "_on_minimap_order"));
 	ui_layer->add_child(minimap_view);
-
-	// Minimap layer toggles (methods were ClassDB-bound but had no UI driver).
-	// Row sits directly above the 190px minimap (see minimap ctor offsets).
-	{
-		HBoxContainer *mm_btns = memnew(HBoxContainer);
-		mm_btns->set_anchor(SIDE_LEFT, Control::ANCHOR_BEGIN);
-		mm_btns->set_anchor(SIDE_RIGHT, Control::ANCHOR_BEGIN);
-		mm_btns->set_anchor(SIDE_TOP, Control::ANCHOR_END);
-		mm_btns->set_anchor(SIDE_BOTTOM, Control::ANCHOR_END);
-		mm_btns->set_offset(SIDE_LEFT, 14.0f);
-		mm_btns->set_offset(SIDE_RIGHT, 204.0f);
-		mm_btns->set_offset(SIDE_TOP, -230.0f);
-		mm_btns->set_offset(SIDE_BOTTOM, -206.0f);
-		mm_btns->add_theme_constant_override("separation", 4);
-		struct MmBtn { const char *label; const char *method; };
-		const MmBtn mm_btn_defs[3] = {
-			// 3-state shroud cycle (RtsoMiniMapView::cycle_shroud, minimap_view.h ShroudMode):
-			// On -> terrain-only -> off -> On. 0AD MiniMapPanel.js:8-11 panel buttons.
-			{"Shroud", "cycle_shroud"},
-			{"Terr", "toggle_territory"},
-			{"Res", "toggle_resources"},
-		};
-		for (const MmBtn &d : mm_btn_defs) {
-			Button *b = memnew(Button);
-			b->set_text(d.label);
-			b->set_custom_minimum_size(Vector2(44, 22));
-			b->set_focus_mode(Control::FOCUS_NONE);
-			b->add_theme_font_size_override("font_size", 9);
-			b->connect("pressed", Callable(minimap_view, d.method));
-			mm_btns->add_child(b);
-		}
-		ui_layer->add_child(mm_btns);
-	}
 	minimap_panel_.build(ui_layer, this, [](const String &path) { return rtso::load_ui_texture(path); });
 
 	// =========================================================================
@@ -293,15 +266,19 @@ void RtsoMain::_ready() {
 	time_notification_label_->set_use_bbcode(true);
 	time_notification_label_->set_fit_content(true);
 	time_notification_label_->set_scroll_active(false);
-	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
-	time_notification_label_->set_anchor(SIDE_RIGHT, 1.0f);
+	// TimeNotificationOverlay.xml: 50%-300 60 50%+300 120, white sans-bold-stroke-14.
+	time_notification_label_->set_anchor(SIDE_LEFT, 0.5f);
+	time_notification_label_->set_anchor(SIDE_RIGHT, 0.5f);
 	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
 	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
-	time_notification_label_->set_offset(SIDE_TOP, 62.0f);
-	time_notification_label_->set_offset(SIDE_BOTTOM, 140.0f);
+	time_notification_label_->set_offset(SIDE_LEFT, -300.0f);
+	time_notification_label_->set_offset(SIDE_RIGHT, 300.0f);
+	time_notification_label_->set_offset(SIDE_TOP, 60.0f);
+	time_notification_label_->set_offset(SIDE_BOTTOM, 120.0f);
 	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	time_notification_label_->add_theme_font_size_override("normal_font_size", 16);
-	time_notification_label_->add_theme_color_override("default_color", Color(1.0f, 0.92f, 0.6f));
+	time_notification_label_->add_theme_font_size_override("normal_font_size", 14);
+	time_notification_label_->add_theme_font_size_override("bold_font_size", 14);
+	time_notification_label_->add_theme_color_override("default_color", Color(1, 1, 1));
 	time_notification_label_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
 	time_notification_label_->add_theme_constant_override("outline_size", 4);
 	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -611,9 +588,13 @@ void RtsoMain::_ready() {
 	{
 		ColorRect *dim = memnew(ColorRect);
 		dim->set_anchors_preset(Control::PRESET_FULL_RECT);
-		dim->set_color(Color(0, 0, 0, 0.45f));
+		dim->set_color(Color(0, 0, 0, 185.0f / 255.0f)); // sprites.xml: 0 0 0 185
 		dim->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		pause_overlay_->add_child(dim);
+		Ref<FontVariation> bold;
+		bold.instantiate();
+		bold->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
+		bold->set_variation_embolden(0.7f);
 		auto caption = [&](const String &text, float top, int size) {
 			Label *l = memnew(Label);
 			l->set_text(text);
@@ -626,14 +607,16 @@ void RtsoMain::_ready() {
 			l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 			l->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 			l->add_theme_font_size_override("font_size", size);
+			l->add_theme_font_override("font", bold); // styles.xml: sans-bold-*
 			l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
 			l->add_theme_constant_override("outline_size", 4);
 			l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 			pause_overlay_->add_child(l);
 			return l;
 		};
-		caption(tr("Game Paused"), -20.0f, 28);
-		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
+		// PauseOverlay.xml: "Game Paused" sans-bold-24, "Click to Resume Game" sans-bold-12.
+		caption(tr("Game Paused"), -20.0f, 24);
+		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 12);
 		// "Paused by" names each client in its player's colour, so it is bbcode.
 		pause_by_label_ = memnew(RichTextLabel);
 		pause_by_label_->set_use_bbcode(true);
@@ -645,7 +628,8 @@ void RtsoMain::_ready() {
 		pause_by_label_->set_anchor(SIDE_BOTTOM, 0.4f);
 		pause_by_label_->set_offset(SIDE_TOP, 50.0f);
 		pause_by_label_->set_offset(SIDE_BOTTOM, 72.0f);
-		pause_by_label_->add_theme_font_size_override("normal_font_size", 14);
+		pause_by_label_->add_theme_font_size_override("normal_font_size", 16); // netStatusPlayersText: sans-bold-16
+		pause_by_label_->add_theme_font_override("normal_font", bold);
 		pause_by_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
 		pause_by_label_->add_theme_constant_override("outline_size", 4);
 		pause_by_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -890,6 +874,7 @@ void RtsoMain::_process(double delta) {
 		if (net_host_.isHost()) host_net_setup_tick(false);
 		else client_net_setup_tick();
 		update_net_setup_overlay();
+		update_net_connect_overlay();
 		// A host that turned us away mid-match says why (0 A.D. disconnect reasons).
 		if (!net_host_.isHost() && !net_game_started_ && lobby_status) {
 			const uint8_t why = turn_mgr_.rejoin_reject_reason();
@@ -903,6 +888,9 @@ void RtsoMain::_process(double delta) {
 		}
 		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
+			// VisualReplay skips a rejoined client's replay ("Don't process files of rejoined
+			// clients"): its commands start mid-match, so it is not recorded at all.
+			replay_recording_ = false;
 			start_net_speed(net_setup_.seq ? net_setup_.setup.speed : 100);
 			selected_ids.clear();
 			selected_building_id = 0;
@@ -1160,22 +1148,15 @@ void RtsoMain::_process(double delta) {
 		// player (the wonder's owner, its allies or everyone else).
 		{
 			const uint8_t me = local_player();
-			auto mutual = [&](uint8_t a, uint8_t b) {
-				return !sim->last_man_standing() && sim->is_ally(a, b) && sim->is_ally(b, a);
-			};
-			auto allies_of = [&](uint8_t p) {
-				uint8_t m = 0;
-				for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q)
-					if (q != p && ((sim->participant_mask() >> q) & 1) && !sim->is_defeated(q) && mutual(p, q)) m |= (uint8_t)(1u << q);
-				return m;
-			};
 			auto clock = [&](float s) { return time_to_string((int64_t)(s * 1000.0f)); };
 			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
+			// One set of lines per wonder, for the allies it started with (defeated ones too).
 			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
-				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
-					if (sim->wonder_hold(p) <= 0.0f || sim->is_defeated(p)) continue;
-					const String left = clock(sim->wonder_duration() - sim->wonder_hold(p));
-					const uint8_t allies = allies_of(p);
+				for (const auto &w : sim->buildings()) {
+					const uint8_t p = w.wonder_owner;
+					if (w.type != rtso::BLD_WONDER || p >= rtso::MAX_PLAYERS || w.wonder_hold <= 0.0f || sim->is_defeated(p)) continue;
+					const String left = clock(sim->wonder_duration() - w.wonder_hold);
+					const uint8_t allies = w.wonder_allies;
 					const String who = colored_player_name(p);
 					if (p == me) add(rtso::sprintf0(rtso::tr0(allies ? "You own a Wonder and you and your allies will win in %(time)s."
 							: "You own a Wonder and will win in %(time)s."), {{"time", left}}));
@@ -1223,20 +1204,23 @@ void RtsoMain::_process(double delta) {
 			else if (left <= 0.0f && left > -5.0f) line = rtso::tr0("You can attack now!");
 			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
-		if (!txt.is_empty()) txt = "[center]" + txt + "[/center]";
+		if (!txt.is_empty()) txt = "[center][b]" + txt + "[/b][/center]";
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
 			if (!sim->petra_chat_reaches(line, local_player())) continue; // addressed to someone else
+			// messages.js: the line translated, its player names in their colours.
 			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
-				return std::string(player_display_name(pid).utf8().get_data());
+				return std::string(colored_player_name(pid).utf8().get_data());
+			}, [](const char *msgid) {
+				return std::string(rtso::tr0(String::utf8(msgid)).replace("[", "[lb]").utf8().get_data());
 			});
 			// messages.js aichat: a "message" from the player, formatted as a player's chat
 			// (ChatMessageFormatPlayer): "(Ally) <name> text" for /allies, "(Private)" for /msg.
 			const bool allies = line.to == rtso::PETRA_CHAT_ALLIES, priv = !allies && line.to < rtso::MAX_PLAYERS;
 			const String ctx = allies ? "(" + tr("Ally") + ") " : priv ? "(" + tr("Private") + ") " : String();
-			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()).replace("[", "[lb]") + "\n",
+			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()) + "\n",
 					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", true));
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
@@ -1502,6 +1486,14 @@ void RtsoMain::_process(double delta) {
 		campaign_win_noted_ = true;
 		Ref<Script> summary = ResourceLoader::get_singleton()->load("res://scenes/session/summary_screen.gd");
 		if (summary.is_valid()) summary->call("mark_campaign_won");
+	}
+	// LobbyRatingReporter.onPlayersFinished: the report goes out the moment this seat has won
+	// or lost, not on LobbySession's next poll, so leaving at once still rates the game.
+	if (!lobby_report_noted_ && !turn_mgr_.is_replaying() &&
+			(sim->is_victory_for(seat_player()) || sim->is_defeated(seat_player()))) {
+		lobby_report_noted_ = true;
+		if (Node *lobby = get_tree() ? get_tree()->get_root()->get_node_or_null(NodePath("LobbySession")) : nullptr)
+			lobby->call("_check_report");
 	}
 }
 

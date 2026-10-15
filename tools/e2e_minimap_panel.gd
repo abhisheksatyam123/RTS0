@@ -83,5 +83,16 @@ func run() -> void:
 		var sz := m.get_size()
 		var share := float(m.get_true_bit_count()) / (sz.x * sz.y)
 		check(share > 0.05 and share < 0.8, "%s takes clicks only on its drawn part (%d%%)" % [b.name, int(share * 100)])
+	print("5. Background (MiniMapPanel.setCivBackgroundTexture)")
+	var bg := str(main.debug_minimap_panel()["civ_background"])
+	print("    ", bg)
+	check(bg.contains("/icons/bkg/background_circle_") and not bg.ends_with("_gaia.png"), "the viewed player's civ background")
+	var circle := main.find_child("minimapCircle", true, false) as TextureRect
+	check(circle != null and circle.texture != null and circle.texture.resource_path.ends_with("minimap_circle_modern.png"), "under minimap_circle_modern.png")
+	var layer_buttons := 0
+	for b in main.find_children("*", "Button", true, false):
+		if b.text in ["Shroud", "Terr", "Res"]:
+			layer_buttons += 1
+	check(layer_buttons == 0, "no RTS0-only Shroud/Terr/Res buttons")
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

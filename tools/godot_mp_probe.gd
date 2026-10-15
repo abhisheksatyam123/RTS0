@@ -118,6 +118,7 @@ func _run() -> void:
 	var main = null
 	var started := false
 	var saw_wait := false
+	var saw_box := false
 	var saw_net_warning := false
 	var asked := false
 	var refused := false
@@ -139,6 +140,17 @@ func _run() -> void:
 			continue
 		var st: Dictionary = main.get_lobby_state()
 		if args.has("join_addr"):
+			# gamesetup_mp.js pageConnecting: the box over the screen while connecting.
+			var box = root.find_child("NetConnecting", true, false)
+			if box and not saw_box:
+				saw_box = true
+				_say("connecting_box=%s" % box.text)
+				if args.get("join_cancel", "") == "1":
+					await _wait(0.5)
+					box.find_child("Cancel", true, false).pressed.emit()
+					await _wait(1.0)
+					_say("connect_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
+					break
 			# 0.28 reportConnectionRequestTimeOut.
 			if st.get("disconnected", false):
 				_say("connect_status=%s reason=%d" % [str(st.get("net_status", "")).replace("\n", " | "),
@@ -203,7 +215,8 @@ func _run() -> void:
 				var teams: Array = ms.slot_teams
 				var cols: Array = ms.slot_colors
 				var got: bool = slot < civs.size() and int(civs[slot]) == 15 and int(teams[slot]) == 2 and int(cols[slot]) == 5
-				if got and refusals.size() and int(ns.get("settings_version", 0)) != ready_for:
+				# A saved game's setup refuses every pick (only the seats change).
+				if (got or bool(ns.get("saved_game", false))) and refusals.size() and int(ns.get("settings_version", 0)) != ready_for:
 					_say("refused=%s" % refusals[0])
 					ready_for = int(ns.get("settings_version", 0))
 					main.set_net_ready(1)

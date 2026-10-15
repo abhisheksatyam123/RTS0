@@ -9163,6 +9163,18 @@
       "template": "structures/mill_desert",
       "x": -6.46,
       "z": -41.47
+    },
+    {
+      "type": "tent_desert",
+      "template": "structures/tent_desert",
+      "x": 94.12,
+      "z": 34.92
+    },
+    {
+      "type": "tent_desert",
+      "template": "structures/tent_desert",
+      "x": -105.24,
+      "z": -30.75
     }
   ],
   "gaia_units": [],

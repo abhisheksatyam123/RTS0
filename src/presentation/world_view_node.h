@@ -211,6 +211,18 @@ class RtsoWorldView : public Node3D {
 	bool ambient_fx_loaded_ = false;
 	// death: the "death" variant's emitters (v.death_fx) instead of the always-on ones.
 	void update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, bool death = false);
+	void load_ambient_fx();
+	GPUParticles3D *make_ambient_emitter(const AmbientParticle &d, float m);
+	// The dust 0 A.D.'s "Run" variant props (dust_cav) under running cavalry, camels,
+	// elephants and animals: per unit GLB its particles, and one world-space
+	// emitter per particle and scale that emit_particle feeds.
+	std::unordered_map<std::string, std::vector<std::string>> run_fx_;
+	std::unordered_map<std::string, GPUParticles3D *> run_emitters_;
+	void emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta);
+	// Unit models started loading on a worker before their first draw (per civ and crowd key).
+	std::vector<bool> prefetched_;
+	float prefetch_poll_ = 0.0f;
+	void prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
@@ -338,6 +350,9 @@ class RtsoWorldView : public Node3D {
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
+		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
+		String model_id;
+		float y_offset = 0.0f, scale = 1.0f, height = 0.0f;
 		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
 	// Crowd keys: a unit type, UNIT_TYPE_COUNT + type for a siege engine
@@ -347,7 +362,20 @@ class RtsoWorldView : public Node3D {
 	static constexpr int CROWD_KEY_COUNT = 2 * rtso::UNIT_TYPE_COUNT + rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT;
 	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][CROWD_KEY_COUNT];
 	uint8_t crowd_key_utype_[CROWD_KEY_COUNT] = {}; // a unit type drawn by each key
+	// The (civ << 16 | key) of every crowd batch made, ascending, and of those drawing units
+	// this frame (crowd_seen_ marks them), so a frame visits those batches only.
+	std::vector<uint32_t> crowd_made_;
+	std::vector<uint32_t> crowd_seen_list_;
+	uint8_t crowd_seen_[rtso::CIV_COUNT][CROWD_KEY_COUNT] = {};
 	Node3D *crowd_bake_root = nullptr;
+	// Crowd clip baking is spread over frames: past this frame's deadline (set in sync)
+	// a clip waits for a later frame, drawn in the rest pose meanwhile; one clip always
+	// bakes per frame, so new clips keep arriving. A late-game army's first new clips
+	// otherwise froze the client for 0.2-0.8 s.
+	static constexpr uint64_t CROWD_BAKE_BUDGET_US = 4000;
+	uint64_t crowd_bake_deadline_us_ = 0;
+	bool crowd_baked_this_frame_ = false;
+	bool crowd_bake_over_budget();
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 	// Formation.js GetFormationAnimationVariant per formation member this frame, and which
 	// variants each crowd key's 0 A.D. actor lists (bit 31: looked up).
@@ -524,9 +552,10 @@ private:
 	void hide_unit_vis(UnitVis &v);
 	CrowdBatch &crowd_batch(uint8_t civ, uint16_t key);
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
-	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
+	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks;
+	// with `budgeted`, stops once crowd_bake_over_budget() (the rest bake on later frames).
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-			const bool *needed, int count, uint64_t death_slots, bool female = false);
+			const bool *needed, int count, uint64_t death_slots, bool female = false, bool budgeted = false);
 	// Adds the 0 A.D. clips the unit GLBs lack (per-resource carry, promotion)
 	// to a biped's animation library from assets/animations/*.psa.
 	void ensure_runtime_clips(AnimationPlayer *ap, bool female);

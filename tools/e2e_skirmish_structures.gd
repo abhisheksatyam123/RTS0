@@ -3,7 +3,10 @@ extends SceneTree
 # the civ's own X (SkirmishReplacer.js): sentry towers, outposts and fields keep
 # their type, each civ keeps only the default house of its own size (Han
 # neither), the Spartans drop the default walls, and only Iberians keep the
-# iber_wall_* starting walls.
+# iber_wall_* starting walls. Gaia structures load by template with their template's civ
+# (a captured camp or CC trains its {native} roster): Kushite camps and outposts on Nubian
+# Frontier, the Ashoka pillars and the Ptolemaic military colony on Egypt, the Gallic fortress
+# on Alpine Mountains.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_skirmish_structures.gd
 # Exit code 0 = pass.
@@ -25,7 +28,7 @@ func frames(n: int) -> void:
 		await process_frame
 
 # Loads a map with the given slot civs; {player: {structure name: count}}.
-func structures(id: String, civs: Array) -> Dictionary:
+func structures(id: String, civs: Array, with_civ := false) -> Dictionary:
 	var ms = root.get_node("MatchSettings")
 	ms.map_id = id
 	ms.seed = 1234
@@ -45,7 +48,7 @@ func structures(id: String, civs: Array) -> Dictionary:
 	if m == null or not m.has_method("debug_structure_types"):
 		check(false, "%s: the match scene starts" % id)
 		return {}
-	return m.debug_structure_types()
+	return m.debug_structure_types(with_civ)
 
 func n(d: Dictionary, p: int, name: String) -> int:
 	return int(d.get(p, {}).get(name, 0))
@@ -86,6 +89,17 @@ func run() -> void:
 		return c
 	check(walls_of.call(ab, 0) > 0 and walls_of.call(ab, 1) == 0 and walls_of.call(ab2, 0) == 0 and walls_of.call(ab2, 1) > 0,
 			"acropolis_bay: only the Iberian keeps the starting walls (%s / %s)" % [str(ab), str(ab2)])
+	# Gaia (player 254) structures by template, "name/civ".
+	var nf := await structures("nubian_frontier", [0, 0], true)
+	print("  nubian_frontier gaia ", nf.get(254, {}))
+	check(n(nf, 254, "Blemmye Camp/kush") == 5 and n(nf, 254, "Noba Village/kush") == 2 and n(nf, 254, "Outpost/kush") == 10,
+			"nubian_frontier: 5 Blemmye and 2 Noba camps, 10 outposts, all Kushite")
+	var eg := await structures("egypt", [0, 0, 0, 0, 0, 0], true)
+	print("  egypt gaia ", eg.get(254, {}))
+	check(n(eg, 254, "Edict Pillar of Ashoka/maur") == 4 and n(eg, 254, "Military Colony/ptol") >= 1,
+			"egypt: 4 Ashoka pillars and the Ptolemaic military colony (not a civic center)")
+	var am := await structures("alpine_mountains", [0, 0, 0], true)
+	check(n(am, 254, "Fortress/gaul") == 1, "alpine_mountains: the Gaia Gallic fortress (%s)" % str(am.get(254, {})))
 	change_scene_to_file("res://scenes/menu/main_menu.tscn")
 	await frames(3)
 	print("e2e_skirmish_structures: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)

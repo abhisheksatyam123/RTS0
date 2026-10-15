@@ -23,6 +23,12 @@ turns into GPUParticles3D on the structure or its rubble:
 and smoke on the root), which 0 A.D. shows while a destroyed structure's corpse
 sinks (template_structure.xml Decay).
 
+"run" lists, for each unit GLB, the particles its actors' "Run" variant props on
+the root (art/variants/quadraped/base_{horse,camel,elephant}_run.xml and the
+fauna actors: dust_cav), which 0 A.D. shows while the unit runs:
+
+  "run": {"<unit GLB id>": ["<name>", ...]}
+
 `pos` is in the GLB's units (the GLB is centred on its actor's bounds and
 grounded, as tools/extract_foundations.py frames say) and `metre` is GLB units
 per 0 A.D. metre; the particle values are the files' metres and seconds. The
@@ -132,8 +138,8 @@ def actor_particles(vfs, actor_path, cache, depth=0):
     return out
 
 
-def death_particles(vfs, actor_path, cache):
-    """Particle props of the actor's "death" variant, in its space: (name, x, y, z)."""
+def variant_particles(vfs, actor_path, cache, name="death"):
+    """Particle props of the actor's variant `name` ("death", "run"), in its space: (name, x, y, z)."""
     try:
         root = ET.fromstring(vfs.read(actor_path))
     except (KeyError, ET.ParseError):
@@ -143,7 +149,7 @@ def death_particles(vfs, actor_path, cache):
     out, parts = [], None
     for var in root.iter("variant"):
         r = resolve_variant_chain(vfs, var, cache)
-        if r is None or (r.get("name") or var.get("name") or "").lower() != "death":
+        if r is None or (r.get("name") or var.get("name") or "").lower() != name:
             continue
         for ref, ap, _sel in _variant_children(vfs, r)[1]:
             ref, ap = ref.replace("\\", "/"), ap.lower()
@@ -175,7 +181,7 @@ def build(vfs, models):
             continue
         actor = next((a for a in actors if os.path.splitext(os.path.basename(a))[0] in gid), actors[0])
         fx = actor_particles(vfs, actor, cache)
-        dfx = death_particles(vfs, actor, cache)
+        dfx = variant_particles(vfs, actor, cache)
         if not fx and not dfx:
             continue
         b = bounds(actor)
@@ -192,7 +198,21 @@ def build(vfs, models):
                             "fx": [{"p": n, "pos": [round((x - cx) * r, 4), round((y - base) * r, 4), round((z - cz) * r, 4)]}
                                    for n, x, y, z in lst]}
             used.update(n for n, *_ in lst)
-    return table, death, {n: particle_def(vfs, n) for n in sorted(used)}
+    run = {}
+    for gid in sorted(models):
+        m = models[gid]
+        if not m.get("file", "").startswith("models/units/"):
+            continue
+        names = []
+        for src in m.get("sources", []):
+            if src.startswith(("actor:art/actors/units/", "actor:art/actors/fauna/")):
+                for n, *_ in variant_particles(vfs, src[len("actor:"):], cache, "run"):
+                    if n not in names:
+                        names.append(n)
+        if names:
+            run[gid] = names
+            used.update(names)
+    return table, death, run, {n: particle_def(vfs, n) for n in sorted(used)}
 
 
 def copy_textures(zf, particles, check):
@@ -220,18 +240,18 @@ def main():
     with open(MANIFEST) as f:
         models = json.load(f)["models"]
     with zipfile.ZipFile(args.zip) as zf:
-        table, death, particles = build(Vfs(zf), models)
+        table, death, run, particles = build(Vfs(zf), models)
         stale = copy_textures(zf, particles, args.check)
-    text = json.dumps({"particles": particles, "structures": table, "death": death}, indent=1, sort_keys=True) + "\n"
+    text = json.dumps({"particles": particles, "structures": table, "death": death, "run": run}, indent=1, sort_keys=True) + "\n"
     if args.check:
         with open(OUT_JSON) as f:
             if f.read() != text or stale:
                 raise SystemExit("data/ambient_fx.json or its textures are stale: rerun tools/extract_ambient_fx.py")
-        print(f"{len(table)} building GLBs ({len(death)} with death dust), {len(particles)} particle files: up to date")
+        print(f"{len(table)} building GLBs ({len(death)} with death dust), {len(run)} running unit GLBs, {len(particles)} particle files: up to date")
         return
     with open(OUT_JSON, "w") as f:
         f.write(text)
-    print(f"{len(table)} building GLBs ({len(death)} with death dust), {len(particles)} particle files -> {os.path.relpath(OUT_JSON, REPO)}")
+    print(f"{len(table)} building GLBs ({len(death)} with death dust), {len(run)} running unit GLBs, {len(particles)} particle files -> {os.path.relpath(OUT_JSON, REPO)}")
 
 
 if __name__ == "__main__":

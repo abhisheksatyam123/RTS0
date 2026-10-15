@@ -88,6 +88,11 @@ func run() -> void:
 	d.free()
 	d = Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-nonvisual"])))
 	check(d != null and d.nonvisual and not d.host and not d.client and ms.net_mode == "", "nonvisual, offline")
+	# NonVisualTrigger.js: each player's statistics as JSON once the match is over.
+	var lines: Array = d.statistics_lines({"players": [{"id": 1, "name": "A", "civ_name": "Gauls", "stats": {"unitsTrained": 5}}]})
+	var parsed = JSON.parse_string(lines[0].trim_prefix("[Autostart] statistics ")) if lines.size() == 1 else null
+	check(parsed is Dictionary and int(parsed["playerID"]) == 1 and parsed["civ"] == "Gauls" and int(parsed["statistics"]["unitsTrained"]) == 5,
+		"a non-visual match prints each player's statistics: " + str(lines))
 	d.free()
 	check(Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-aiseed=12"]))) == null
 		and ms.ai_seed == 12, "-autostart-aiseed=12 seeds the AIs")

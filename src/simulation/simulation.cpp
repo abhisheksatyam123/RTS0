@@ -548,6 +548,7 @@ void Simulation::reset() {
 	// A new game brings its own terrain (set_terrain_data or load_state); the
 	// previous map's heights would otherwise move projectiles and water.
 	terrain_heights_.clear();
+	terrain_lowest_known_ = false;
 	terrain_res_ = 64;
 	terrain_tiles_ = TerrainTiles();
 	terrain_water_height_ = -1.0f;
@@ -3709,7 +3710,8 @@ bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_
 	// ProductionQueue.js RemoveItem: Trainer/Researcher refund what the item cost.
 	const ProductionOrder &item = b.queue[queue_idx];
 	if (item.is_tech() || item.paid[RES_FOOD] + item.paid[RES_WOOD] + item.paid[RES_GOLD] + item.paid[RES_STONE] > 0.0f) {
-		if (item.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
+		// StoppedResearch: "aborted" only for research that had started.
+		if (item.is_tech() && item.timer > 0.0f) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
 		ps.refund(item.paid[RES_FOOD], item.paid[RES_WOOD], item.paid[RES_GOLD], item.paid[RES_STONE]);
 		b.queue.erase(b.queue.begin() + queue_idx);
 		return true;
@@ -3922,7 +3924,6 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	tech_price(player_id, tech_id, b.type, order.paid.data(), order.duration);
 	players_[player_id].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]);
 	b.queue.push_back(order);
-	note_phase(SessionNotice::PHASE_STARTED, player_id, tech_id);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnResearchQueued
 		TriggerEventData ev;
 		ev.entity = building_id;
@@ -7394,10 +7395,11 @@ const TurretPointSet *Simulation::turret_holder_points(const Building &b) const 
 }
 
 // TurretHolder.CanOccupy for "occupy-turret": a Turretable unit of the holder's owner or a
-// mutual ally, at a finished, standing holder.
+// mutual ally, at a finished, standing holder. A Regicide hero without RegicideGarrison
+// (special/filter/ungarrisonable: Garrisonable disabled, Turretable kept) still mans turrets.
 bool Simulation::structure_accepts_turret(const Building &b, size_t i) const {
 	return turret_holder_points(b) && !b.wrecked && b.build_progress >= 1.0f && is_ally(units_.team[i], b.team) &&
-			unit_garrisonable(i) && unit_turretable(i);
+			unit_turretable(i);
 }
 
 bool Simulation::turret_room(const Building &b) const {
@@ -7459,8 +7461,9 @@ void Simulation::set_team_civ(uint8_t team, uint8_t civ) {
 }
 
 bool Simulation::structure_accepts_garrison(const Building &b, size_t i) const {
-	if (!is_ally(units_.team[i], b.team) || !unit_garrisonable(i)) return false;
+	if (!is_ally(units_.team[i], b.team)) return false;
 	if (turret_points_of(b)) return unit_turretable(i); // TurretHolder.CanOccupy (mutual ally too)
+	if (!unit_garrisonable(i)) return false;
 	return structure_accepts_classes(b, garrison_classes(units_.tmpl[i], units_.unit_type[i]));
 }
 
@@ -8495,9 +8498,15 @@ std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t holder_
 	return out;
 }
 
-static bool alert_filter(uint8_t unit_type, bool traders) {
+// AlertRaiser/List: the civic centre's and farmstead's "Civilian" is 0.28's support_civilian
+// (ROSTER_CIVILIAN), which RTS0's villager plays; the legacy Female Citizens 0.28 maps still
+// place are not Civilians and ignore it. Units without a roster row go by their class.
+static bool alert_filter(uint16_t tmpl, uint8_t unit_type, bool traders) {
 	const TechClasses c = unit_tech_classes(unit_type);
-	return traders ? (c & TC_TRADER) && !(c & TC_SHIP) : (c & TC_FEMALECITIZEN) != 0;
+	if (traders) return (c & TC_TRADER) && !(c & TC_SHIP);
+	if (unit_type == UNIT_VILLAGER) return true;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return (civ_unit_template(tmpl).flags & ROSTER_CIVILIAN) != 0;
+	return (c & TC_FEMALECITIZEN) != 0;
 }
 
 bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
@@ -8511,7 +8520,7 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 	// Free slots per holder, so units don't all head for one that will be full.
 	std::unordered_map<uint32_t, int> reserved;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.unit_type[i], info.traders)) continue;
+		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) continue;
 		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
 		if (info.raise_range >= 0.0f && edge_distance(raiser, ux, uz) > info.raise_range) continue;
 		// The nearest structure of ours that can take it (queries sort by distance).
@@ -8555,7 +8564,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 	auto in_range = [&](float x, float z) { return info.end_range < 0.0f || edge_distance(raiser, x, z) <= info.end_range; };
 	// Units outside: back to work if idle or still heading for shelter, else they stop.
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.unit_type[i], info.traders)) continue;
+		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) continue;
 		if (!in_range(units_.pos_x[i], units_.pos_z[i])) continue;
 		const uint8_t k = units_.order_kind[i];
 		if (k != ORDER_NONE && k != ORDER_GARRISON) continue; // ShouldRespondToEndOfAlert
@@ -8571,7 +8580,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 		if (b.id != raiser.id && info.end_range >= 0.0f && gap > info.end_range) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t i = lookup_unit(uid);
-			if (i >= 0 && units_.team[i] == player && alert_filter(units_.unit_type[i], info.traders)) out.push_back({b.id, uid});
+			if (i >= 0 && units_.team[i] == player && alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) out.push_back({b.id, uid});
 		}
 	}
 	for (auto [bid, uid] : out) {
@@ -9055,7 +9064,7 @@ bool Simulation::looter_present(uint32_t looter_id, bool *infantry) const {
 	int32_t u = lookup_unit(looter_id);
 	if (u >= 0) {
 		if (!units_.alive[u]) return false;
-		*infantry = (unit_tech_classes(units_.unit_type[u]) & TC_INFANTRY) != 0;
+		*infantry = (unit_classes(units_.tmpl[u], units_.unit_type[u]) & TC_INFANTRY) != 0; // the row's own classes: Boudicca rides
 		return true;
 	}
 	auto bit = building_id_to_idx_.find(looter_id);
@@ -9541,7 +9550,8 @@ void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, fl
 }
 
 void Simulation::tick(float dt) {
-	if (game_over_ || victory_) return;
+	// The world keeps running once the match is decided: 0.28's winners see the whole map
+	// and play on (Player.js Win), and nothing in the simulation stops.
 	auto t0 = std::chrono::high_resolution_clock::now();
 	Arena &arena = frame_arena_.current();
 	arena.reset();
@@ -9593,7 +9603,7 @@ void Simulation::tick(float dt) {
 	tick_trickle(dt);        // Passive / trickle income
 
 	// 6. Waves, AI, and World simulation
-	if (waves_enabled_) tick_waves(dt);
+	if (waves_enabled_ && !game_over_) tick_waves(dt); // wave defense ends with the match
 	// The map's treasures as the match starts, before Petra's first turn looks for them (0 A.D.
 	// places them with the map; startingStrategy.js buildFirstBase counts on a Nomad start's).
 	if (ticks_ == 0 && ally_view())
@@ -10265,6 +10275,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		float stop_d2 = d2;
 		if (chase_path && using_path && units_.target_building_id[i] == 0) {
 			const float cdx = chase_x - px[i], cdz = chase_z - pz[i];
+			stop_d2 = cdx * cdx + cdz * cdz;
+		} else if (closing_in && using_path && units_.target_unit_id[i] != 0 && units_.target_building_id[i] == 0) {
+			// A hunt's path (tick_hunters keeps (tx, tz) on the animal): the hunter stops for the
+			// animal too. Its slaughter range measured to a waypoint left it standing short of one.
+			const float cdx = tx[i] - px[i], cdz = tz[i] - pz[i];
 			stop_d2 = cdx * cdx + cdz * cdz;
 		}
 		if (!backing_off && stop_d2 <= stop_dist * stop_dist) {
@@ -11333,6 +11348,16 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			if (i < unit_paths_.size()) unit_paths_[i].clear();
 			continue;
 		}
+		// The same likelyFailure in tick_gather's own return (GATHER.RETURNINGRESOURCE.APPROACHING):
+		// DROPPINGRESOURCES is out of range, so RETURNINGRESOURCE again: the nearest dropsite, and
+		// a new move to it from where the unit stands.
+		if (move_failed && st == ACTION_RETURN_DROPSITE) {
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			units_.waypoint_cur[i] = 0;
+			units_.waypoint_count[i] = 0;
+			if (i < unit_paths_.size()) unit_paths_[i].clear();
+			continue;
+		}
 		const bool walking = (kind == ORDER_WALK && st == ACTION_MOVE) ||
 				(kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
 				(kind == ORDER_PATROL && st == ACTION_PATROL);
@@ -11794,6 +11819,26 @@ void Simulation::tick_gather(float dt) {
 					units_.target_z[i] = drop_z;
 					units_.has_order[i] = 1;
 					units_.action_state[i] = ACTION_RETURN_DROPSITE;
+				}
+			} else {
+				// RETURNINGRESOURCE enter with no dropsite (FindNearestDropsite null): FinishOrder,
+				// the next queued order, else "the player expects the unit to move upon failure":
+				// it walks to the supply it was gathering, still carrying, and Petra can task it.
+				const uint32_t former = units_.target_resource_id[i];
+				auto qit = order_queues_.find(units_.id[i]);
+				if (qit != order_queues_.end() && !qit->second.empty()) {
+					finish_order(i);
+				} else {
+					auto rit = former ? res_id_to_idx_.find(former) : res_id_to_idx_.end();
+					units_.target_resource_id[i] = 0;
+					units_.action_state[i] = ACTION_IDLE;
+					units_.has_order[i] = 0;
+					set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+					if (rit != res_id_to_idx_.end()) {
+						uint32_t id = units_.id[i];
+						cmd_move(&id, 1, resources_.x[rit->second], resources_.z[rit->second]);
+						set_order(i, ORDER_WALK, 0, 0, resources_.x[rit->second], resources_.z[rit->second]);
+					}
 				}
 			}
 			continue;
@@ -12420,6 +12465,8 @@ void Simulation::tick_production(float dt) {
 			if (bteam < MAX_PLAYERS && pop_current(bteam) + order_pop(order, bteam) > pop_max(bteam)) continue;
 			order.started = true;
 		}
+		// TechnologyManager.js StartedResearch: "X is advancing to the Y." on the first work done.
+		if (order.is_tech() && order.timer == 0.0f) note_phase(SessionNotice::PHASE_STARTED, bteam, order.tech);
 		order.timer += dt;
 		if (order.timer < order.duration) continue;
 		const ProductionOrder done = order;
@@ -12556,8 +12603,10 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 		const float tech_min = tech_mods(b.team).bld_min_range[b.type];
 		const float min_r = tech_min >= 0.0f ? tech_min : ai.min_range;
 		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
+		// IsInTargetParabolicRange: from the structure's square obstruction, not a circle in it.
 		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
-			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
+			const nav::Vec2 gap = nav::footprint_gap(b, b.x + dx, b.z + dz);
+			const float eff_d = std::max(0.0f, std::sqrt(gap.x * gap.x + gap.y * gap.y) - other_half);
 			return eff_d >= min_r && in_parabolic_range(eff_d * eff_d, b_y, def_y, max_r);
 		};
 		bool ok = false;
@@ -12656,6 +12705,17 @@ void Simulation::tick_pack(float dt) {
 		}
 		units_.pack_state[i] = ps;
 	}
+}
+
+float Simulation::lowest_terrain_height() const {
+	if (!terrain_lowest_known_) {
+		float lo = std::numeric_limits<float>::infinity();
+		for (const float h : terrain_heights_) lo = std::min(lo, h);
+		if (terrain_heights_.empty() || terrain_res_ <= 1) lo = 0.0f; // get_terrain_height's flat map
+		terrain_lowest_ = lo;
+		terrain_lowest_known_ = true;
+	}
+	return terrain_lowest_;
 }
 
 void Simulation::tick_combat(float dt) {
@@ -13392,8 +13452,31 @@ void Simulation::tick_combat(float dt) {
 	enum : uint8_t { ARROW_UNIT, ARROW_FAUNA, ARROW_BUILDING };
 	struct ArrowTarget { int32_t idx; uint8_t kind; uint8_t pref; float d2; };
 	std::vector<ArrowTarget> arrow_targets;
-	bool lowest_ground_known = false;
-	float lowest_ground = std::numeric_limits<float>::infinity(); // the lowest terrain height, once needed
+	// Structure-arrow targets among structures and animals by cell: a structure's scan visits
+	// only those within its ground reach on either axis (the others fail `beyond`), and the
+	// targets are sorted with a total order afterwards, so the walk's order does not matter.
+	uint8_t *arrow_bld_live = nb ? arena.alloc_array<uint8_t>(nb) : nullptr;
+	UnitGrid arrow_bgrid;
+	bool have_arrow_bgrid = false;
+	float arrow_bld_half_max = 0.0f;
+	if (nb && bld_x && bld_z && arrow_bld_live) {
+		for (size_t bi = 0; bi < nb; ++bi) {
+			const Building &ob = buildings_[bi];
+			arrow_bld_live[bi] = !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER;
+			if (arrow_bld_live[bi]) arrow_bld_half_max = std::max(arrow_bld_half_max, ob.half_size);
+		}
+		have_arrow_bgrid = arrow_bgrid.build(arena, nb, bld_x, bld_z, arrow_bld_live, map_half_);
+	}
+	const size_t nf = fauna_.count;
+	uint8_t *arrow_fauna_live = nf ? arena.alloc_array<uint8_t>(nf) : nullptr;
+	UnitGrid arrow_fgrid;
+	bool have_arrow_fgrid = false;
+	if (nf && arrow_fauna_live) {
+		std::memset(arrow_fauna_live, 0, nf);
+		for (const uint16_t f : wild) arrow_fauna_live[f] = 1;
+		for (const uint16_t f : herd) arrow_fauna_live[f] = 1;
+		have_arrow_fgrid = arrow_fgrid.build(arena, nf, fauna_.pos_x, fauna_.pos_z, arrow_fauna_live, map_half_);
+	}
 	// Of Gaia, only what can attack is shot: Gaia units and the dangerous animals in `wild`
 	// (SetupGaiaRangeQuery, OnRangeUpdate's IsDangerousAnimal filter). Gaia structures have
 	// no UnitAI, so they are not shot.
@@ -13411,21 +13494,20 @@ void Simulation::tick_combat(float dt) {
 		const float tech_min = b.team < MAX_PLAYERS ? tech_mods(b.team).bld_min_range[b.type] : -1.0f;
 		const float min_r = tech_min >= 0.0f ? tech_min : ai.min_range; // Murder Holes
 		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
+		// IsInTargetParabolicRange: from the structure's square obstruction, not a circle in it.
 		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
-			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
+			const nav::Vec2 gap = nav::footprint_gap(b, b.x + dx, b.z + dz);
+			const float eff_d = std::max(0.0f, std::sqrt(gap.x * gap.x + gap.y * gap.y) - other_half);
 			return eff_d >= min_r && in_parabolic_range(eff_d * eff_d, b_y, def_y, max_r);
 		};
 		// No target on the ground stands lower than the map's lowest point, so none further than
 		// the parabolic range from there is in range: structures and animals beyond it on either
 		// axis are passed over before their ground height is looked up. The metre of margin keeps
 		// float rounding on the side of testing.
-		if (!lowest_ground_known) {
-			lowest_ground_known = true;
-			for (const float h : terrain_heights_) lowest_ground = std::min(lowest_ground, h);
-			if (terrain_heights_.empty() || terrain_res_ <= 1) lowest_ground = 0.0f; // get_terrain_height's flat map
-		}
+		const float lowest_ground = lowest_terrain_height();
 		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
-		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + b.half_size + 1.0f : -1.0f;
+		const float corner = std::hypot(b.hu, b.hv); // the footprint's farthest reach from its centre
+		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + corner + 1.0f : -1.0f;
 		auto beyond = [&](float dx, float dz, float other_half) {
 			return ground_reach >= 0.0f && (std::fabs(dx) > ground_reach + other_half || std::fabs(dz) > ground_reach + other_half);
 		};
@@ -13444,16 +13526,34 @@ void Simulation::tick_combat(float dt) {
 		auto fauna_target = [&](int32_t f) {
 			const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
 			const uint8_t owner = fauna_owner_[f];
-			const bool foe = owner < MAX_PLAYERS ? b.team != GAIA_PLAYER && can_attack(b.team, owner) : shoots_gaia;
+			// A Gaia structure's enemy query covers every player, their livestock too (BuildingAI.js).
+			const bool foe = owner < MAX_PLAYERS ? can_attack(b.team, owner) : shoots_gaia;
 			return foe && !beyond(fx - b.x, fz - b.z, 0.0f) && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
+		};
+		// Every structure and animal that could pass building_target / fauna_target (a superset).
+		auto each_building = [&](auto &&fn) {
+			if (have_arrow_bgrid && ground_reach >= 0.0f) {
+				const float r = ground_reach + arrow_bld_half_max + 1.0f;
+				arrow_bgrid.visit_radius_within(b.x, b.z, r, r, [&](int32_t o) { fn((size_t)o); });
+			} else {
+				for (size_t o = 0; o < buildings_.size(); ++o) fn(o);
+			}
+		};
+		auto each_fauna = [&](auto &&fn) {
+			if (have_arrow_fgrid && ground_reach >= 0.0f) {
+				const float r = ground_reach + 1.0f;
+				arrow_fgrid.visit_radius_within(b.x, b.z, r, r, [&](int32_t f) { fn(f); });
+			} else {
+				for (const std::vector<uint16_t> *list : {&wild, &herd})
+					for (const int32_t f : *list) fn(f);
+			}
 		};
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
-			for (size_t k = 0; k < wild.size() && !any; ++k) any = fauna_target(wild[k]);
-			for (size_t k = 0; k < herd.size() && !any; ++k) any = fauna_target(herd[k]);
-			for (size_t o = 0; o < buildings_.size() && !any; ++o) any = building_target(buildings_[o]);
+			if (n) grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
+			if (!any) each_fauna([&](int32_t f) { any = any || fauna_target(f); });
+			if (!any) each_building([&](size_t o) { any = any || building_target(buildings_[o]); });
 			if (!any) continue;
 			b.arrow_timer_on = true;
 			b.attack_timer = ai.prepare_time;
@@ -13467,7 +13567,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
@@ -13477,21 +13577,20 @@ void Simulation::tick_combat(float dt) {
 				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(preferred ? 0 : 49), dx * dx + dz * dz});
 			});
 		}
-		for (const std::vector<uint16_t> *list : {&wild, &herd})
-			for (const int32_t f : *list) {
-				if (!fauna_target(f)) continue;
-				in_reach = true;
-				const float dx = fauna_.pos_x[f] - b.x, dz = fauna_.pos_z[f] - b.z;
-				if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 49, dx * dx + dz * dz});
-			}
+		each_fauna([&](int32_t f) {
+			if (!fauna_target(f)) return;
+			in_reach = true;
+			const float dx = fauna_.pos_x[f] - b.x, dz = fauna_.pos_z[f] - b.z;
+			if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 49, dx * dx + dz * dz});
+		});
 		// Structures have Resistance and Health too, so enemy buildings in range draw arrows.
-		for (size_t o = 0; o < buildings_.size(); ++o) {
-			if (!building_target(buildings_[o])) continue;
+		each_building([&](size_t o) {
+			if (!building_target(buildings_[o])) return;
 			in_reach = true;
 			const float dx = buildings_[o].x - b.x, dz = buildings_[o].z - b.z;
 			if (seen_structure(buildings_[o].x, buildings_[o].z))
 				arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, (uint8_t)(ai.prefers_inorganic ? 0 : 49), dx * dx + dz * dz});
-		}
+		});
 		if (!in_reach) { // FireArrows with no targets cancels the timer
 			b.arrow_timer_on = false;
 			b.attack_timer = 0.0f;
@@ -13898,8 +13997,21 @@ void Simulation::tick_capture(float dt) {
 			const float f = (v + half) / CELL;
 			return f >= 0.0f ? (f < (float)W ? (int)f : W - 1) : 0;
 		};
-		capture_cell_start_.assign((size_t)W * W + 1, 0);
-		for (int pass = 0; pass < 2; ++pass) {
+		// The grid depends only on the map and where the buildings stand, which rarely change.
+		bool same = capture_cell_key_.size() == 1 + 2 * buildings_.size() && !capture_cell_key_.empty()
+				&& capture_cell_key_[0] == half && capture_cell_start_.size() == (size_t)W * W + 1;
+		for (size_t i = 0; same && i < buildings_.size(); ++i)
+			same = capture_cell_key_[1 + 2 * i] == buildings_[i].x && capture_cell_key_[2 + 2 * i] == buildings_[i].z;
+		if (!same) {
+			capture_cell_key_.resize(1 + 2 * buildings_.size());
+			capture_cell_key_[0] = half;
+			for (size_t i = 0; i < buildings_.size(); ++i) {
+				capture_cell_key_[1 + 2 * i] = buildings_[i].x;
+				capture_cell_key_[2 + 2 * i] = buildings_[i].z;
+			}
+		}
+		if (!same) capture_cell_start_.assign((size_t)W * W + 1, 0);
+		for (int pass = 0; !same && pass < 2; ++pass) {
 			for (uint32_t i = 0; i < (uint32_t)buildings_.size(); ++i) {
 				const Building &b = buildings_[i];
 				const int x0 = cell_of(b.x - REACH), x1 = cell_of(b.x + REACH);
@@ -15448,6 +15560,12 @@ void Simulation::tick_death_damage(float dt) {
 // A structure's Resistance levels: its template's, plus armour auras that name Structure
 // (Maximus' Shield of Rome: his player's structures +1 everywhere).
 void Simulation::structure_resistance(const Building &b, float out[3]) const {
+	// Resistance.js GetEffectiveResistanceAgainst: a foundation takes damage with the Foundation
+	// form (template_structure.xml: Hack 1, Pierce 10, Crush 1), which no tech or aura modifies.
+	if (b.build_progress < 1.0f) {
+		out[0] = 1.0f; out[1] = 10.0f; out[2] = 1.0f;
+		return;
+	}
 	structure_armour(b.type, b.civ, out);
 	const float aura = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_ARMOR, CIV_UNIT_TEMPLATE_NONE, nullptr, true);
 	for (int k = 0; k < 3; ++k) out[k] += aura;
@@ -16207,6 +16325,19 @@ void Simulation::find_targets_then_walk_back(size_t i) {
 		units_.action_state[i] = ACTION_ATTACK;
 }
 
+// UnitAI IDLE Timer, on entering IDLE (!isIdle) with nothing left to do: a defensive unit, not a
+// formation member, more than 10 m from its held position walks back to it. Checked every tick an
+// idle unit has no order: an idle unit doesn't drift that far, so this is the check on entering.
+void Simulation::walk_back_if_drifted(size_t i) {
+	if (units_.stance[i] != STANCE_DEFENSIVE || units_.action_state[i] != ACTION_IDLE ||
+			units_.order_kind[i] != ORDER_NONE || order_queues_.count(units_.id[i]) ||
+			(!formations_.empty() && formation_group_[i] != 0))
+		return;
+	const float dx = units_.pos_x[i] - units_.anchor_x[i], dz = units_.pos_z[i] - units_.anchor_z[i];
+	constexpr float DRIFT = 10.0f * COMBAT_DISTANCE_SCALE;
+	if (dx * dx + dz * dz > DRIFT * DRIFT) walk_to_held_position(i);
+}
+
 // UnitAI WalkToHeldPosition (FINDINGNEWTARGET, respondHoldGround): a defensive unit with
 // nothing left to do walks back where it stood, an unforced walk.
 void Simulation::walk_to_held_position(size_t i) {
@@ -16789,11 +16920,14 @@ void Simulation::tick_unit_ai(float dt) {
 				const bool attack = units_.order_kind[i] == ORDER_ATTACK_BUILDING;
 				finish_order(i);
 				if (attack) find_targets_then_walk_back(i);
-			}
-			else if (unit_heals(i) && (i + ticks_) % 4 == 0) {
-				// IDLE LosHealRangeUpdate -> RespondToHealableEntities.
-				const uint32_t t = find_heal_target(i);
-				if (t != 0) start_heal(i, t, 0);
+			} else {
+				if (unit_heals(i) && (i + ticks_) % 4 == 0) {
+					// IDLE LosHealRangeUpdate -> RespondToHealableEntities.
+					const uint32_t t = find_heal_target(i);
+					if (t != 0) start_heal(i, t, 0);
+				}
+				// IDLE Timer: tick_combat has had its look for targets (FindNewTargets) by now.
+				walk_back_if_drifted(i);
 			}
 		}
 	}
@@ -16876,9 +17010,11 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		set_reveal_map(true);
 		return true;
 	case CHEAT_DEV_REVEAL_MAP: // Commands.js "reveal-map": SetLosRevealAll(-1, cmd.enable)
+		note_session({SessionNotice::CHEAT, player, 0, 0, {}}); // "(Cheat - reveal map)", for everyone to see
 		set_reveal_map(parameter != 0);
 		return true;
 	case CHEAT_DEV_PROMOTE: // Commands.js "promote": each own unit gains the xp its next rank needs (IncreaseXp)
+		note_session({SessionNotice::CHEAT, player, 0, 1, {}}); // "(Cheat - promoted units)"
 		for (size_t k = 0; k < count; ++k) {
 			const int32_t i = lookup_unit(selected[k]);
 			if (i < 0 || !units_.alive[i] || units_.team[i] != player) continue;
@@ -16918,19 +17054,26 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		mark_players_defeated(bit);
 		return true;
 	}
-	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer
+	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer;
+		// extra 1, "iwanttopwnthem" (createHeros.json): its nine heroes in turn.
 		static const char *const kSaladBowl[] = {"athen/infantry_spearman_b", "brit/infantry_spearman_b",
 			"cart/infantry_spearman_b", "gaul/infantry_spearman_b", "iber/infantry_spearman_b",
 			"kush/infantry_spearman_b", "mace/infantry_pikeman_b", "maur/infantry_spearman_b",
 			"pers/infantry_spearman_b", "ptol/infantry_pikeman_b", "rome/infantry_spearman_b",
 			"sele/infantry_spearman_b", "spart/infantry_spearman_b"};
-		static const std::vector<uint16_t> templates = [] {
+		static const char *const kHeroes[] = {"cart/hero_hamilcar", "cart/hero_hannibal", "cart/hero_maharbal",
+			"pers/hero_cyrus_ii", "pers/hero_darius_i", "pers/hero_xerxes_i", "rome/hero_marcellus",
+			"rome/hero_maximus", "rome/hero_scipio"};
+		auto lookup = [](const char *const *names, size_t n) {
 			std::vector<uint16_t> out;
-			for (const char *name : kSaladBowl)
+			for (size_t k = 0; k < n; ++k)
 				for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
-					if (std::strcmp(civ_unit_template(t).id, name) == 0) { out.push_back(t); break; }
+					if (std::strcmp(civ_unit_template(t).id, names[k]) == 0) { out.push_back(t); break; }
 			return out;
-		}();
+		};
+		static const std::vector<uint16_t> salad = lookup(kSaladBowl, std::size(kSaladBowl));
+		static const std::vector<uint16_t> heroes = lookup(kHeroes, std::size(kHeroes));
+		const std::vector<uint16_t> &templates = extra == 1 ? heroes : salad;
 		if (!count || templates.empty()) return false;
 		auto it = building_id_to_idx_.find(selected[0]);
 		if (it == building_id_to_idx_.end()) return false;
@@ -18456,6 +18599,78 @@ void Simulation::petra_end_emergency_rallies() {
 		if (b.queue.empty() && petra_emergency_rally(b)) cmd_unset_rally_point(petra_pid_, b.id);
 }
 
+// RTS0, not 0.28: with saveResources, one civic centre and no wood left to cut near it
+// (Islands: 5 trees and 14 wood treasures per island), the wood in stock is all Petra has for
+// the town phase (500), the civic centre on other land it needs then (300) and a ship to take
+// the builders there. 0.28's Petra spends it on citizen infantry and houses and stalls in the
+// village phase for good. Here, while stock and the trees left on its civic centre's land are
+// under 1550, its worker batches are support units (no wood), only petra_wood_kept_for's queues
+// spend the 1150 kept (650 once in the town phase), and the town phase starts once the houses
+// are full.
+bool Simulation::petra_wood_starved() const {
+	// saveResources, or kept past the new base's foundation (phase2_cut_kept) until it stands.
+	if (petra_ps().phase > 2 || !(petra_attack_mgr_.save_resources || petra_attack_mgr_.phase2_cut_kept)) return false;
+	float wood = petra_ps().res[RES_WOOD];
+	std::vector<std::pair<const Building *, uint16_t>> ccs;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && is_civic_centre(b.type) && b.build_progress >= 1.0f)
+			ccs.push_back({&b, petra_access_at(b.x, b.z)});
+	if (ccs.size() != 1) return false;
+	// Trees our workers found nothing to gather from in the last minute (lastFailedGather)
+	// are out of reach.
+	const float failed = petra_failed_gather_.time[RES_WOOD];
+	if (failed > 0.0f && petra_timer_ - failed < 60.0f) return wood < 1550.0f;
+	for (size_t r = 0; r < resources_.count && wood < 1550.0f; ++r) {
+		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD || resources_.amount[r] <= 0) continue;
+		for (const auto &cc : ccs) {
+			const float dx = resources_.x[r] - cc.first->x, dz = resources_.z[r] - cc.first->z;
+			if (dx * dx + dz * dz < 90.0f * 90.0f && petra_access_at(resources_.x[r], resources_.z[r]) == cc.second) {
+				wood += (float)resources_.amount[r];
+				break;
+			}
+		}
+	}
+	return wood < 1550.0f;
+}
+
+// RTS0, not 0.28: a batch that has waited 10 s past its training time for a free spot to
+// step out on (idle workers crowd a civic centre on a small island once nothing is left to
+// gather) has our idle units around the trainer walk 8 m away from it. 0.28's Petra leaves
+// them standing, and the queue behind the batch, the town phase included, never moves.
+void Simulation::petra_clear_blocked_spawns() {
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.queue.empty() || b.hp <= 0.0f) continue;
+		const ProductionOrder &o = b.queue.front();
+		if (o.is_tech() || !o.started || o.timer < o.duration + 10.0f) continue;
+		const float reach = std::max(b.hu, b.hv) * 1.42f + 4.0f; // the corner, then 16 m
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_IDLE ||
+			    unit_is_ship(units_.unit_type[i]))
+				continue;
+			float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+			const float d = std::sqrt(dx * dx + dz * dz);
+			if (d > reach) continue;
+			if (d < 1e-3f) { dx = 1.0f; dz = 0.0f; } else { dx /= d; dz /= d; }
+			const uint32_t id = units_.id[i];
+			cmd_move(&id, 1, units_.pos_x[i] + dx * 2.0f, units_.pos_z[i] + dz * 2.0f);
+		}
+	}
+}
+
+// What the wood petra_wood_starved keeps is for: the town phase, the civic centre on other
+// land, the ship that takes its builders there and, in the town phase with the houses full,
+// the house that ship needs room for; and the first dock of a Petra that needs fish
+// (startingStrategy.js needFish).
+bool Simulation::petra_wood_kept_for(int queue) const {
+	if (queue == PETRA_Q_DOCK && petra_kept_.need_fish) {
+		for (const Building &b : buildings_)
+			if (b.team == petra_pid_ && (b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK) && b.hp > 0.0f && !b.wrecked) return false;
+		return true;
+	}
+	return queue == PETRA_Q_MAJOR_TECH || queue == PETRA_Q_CIVIL_CENTRE || queue == PETRA_Q_SHIPS ||
+	       (queue == PETRA_Q_HOUSE && petra_ps().phase >= 2 && petra_pop_room() <= 0);
+}
+
 // headquarters.js trainMoreWorkers: workers (support units and citizen infantry not in a
 // plan, queued ones included) up to Economy.targetNumWorkers, in batches of
 // min(5, workers / 10). Support units make up supportRatio of targetNumWorkers at full
@@ -18535,7 +18750,7 @@ int Simulation::petra_train_more_workers() {
 		if (civilian == CIV_UNIT_TEMPLATE_NONE || sum < civilian_cost) { civilian = tmpl; civilian_cost = sum; }
 	}
 	// No civilian to train (map-disabled): soldiers instead, as 0.28's !templateDef.
-	if (civilian == CIV_UNIT_TEMPLATE_NONE || (float)(supports + queued_supports) > support_num) {
+	if (civilian == CIV_UNIT_TEMPLATE_NONE || ((float)(supports + queued_supports) > support_num && !petra_wood_starved())) {
 		// findBestTrainableUnit over CitizenSoldier+Infantry, plus one of Ranged, Melee or
 		// any (pickRandom), so at least a third of each.
 		// The template's own classes (mercenaries are CitizenSoldier too in 0.28), no hero or
@@ -18948,6 +19163,30 @@ void Simulation::petra_most_needed(const float want_rate[RES_COUNT], const float
 		for (int y = x; y > 0 && cmp(out[y - 1], out[y]) > 0.0f; --y) std::swap(out[y - 1], out[y]);
 }
 
+void Simulation::petra_wanted_resources(bool out[RES_COUNT]) {
+	if (petra_rates_this_turn()) {
+		for (int r = 0; r < RES_COUNT; ++r) out[r] = petra_want_rate_[r] > 0.0f;
+		return;
+	}
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
+	for (int r = 0; r < RES_COUNT; ++r) out[r] = demand[r] > petra_ps().res[r];
+}
+
+uint8_t Simulation::petra_most_needed_resource() {
+	if (petra_rates_this_turn()) {
+		uint8_t order[RES_COUNT];
+		petra_most_needed(petra_want_rate_, petra_cur_rate_, order);
+		return order[0];
+	}
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
+	uint8_t need = RES_FOOD;
+	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD})
+		if (demand[r] - petra_ps().res[r] > demand[need] - petra_ps().res[need]) need = r;
+	return need;
+}
+
 void Simulation::petra_manage_economy(float dt) {
 	petra_econ_timer_ += dt;
 	petra_econ_timer_ = 0.0f; // baseManager.js update: every AI turn
@@ -18961,6 +19200,7 @@ void Simulation::petra_manage_economy(float dt) {
 
 	// headquarters.js update: trainMoreWorkers (it trains every 4th AI turn; the shortfall counts every turn).
 	petra_end_emergency_rallies();
+	petra_clear_blocked_spawns();
 	const int worker_shortfall = petra_train_more_workers();
 
 	// 2. headquarters.js GetCurrentGatherRates (basesManager.addGatherRates): every gatherer
@@ -20116,6 +20356,7 @@ void Simulation::petra_manage_fields() {
 	};
 	struct BaseFood {
 		std::vector<std::pair<float, float>> drops;
+		std::vector<uint16_t> drop_access; // assignResourceToDropsite: supplies on the dropsite's land only
 		// Where its fields are laid: its first farmstead, else its first civic centre. Kept as a
 		// position, not the structure, as a foundation placed below grows buildings_.
 		float by_x = 0.0f, by_z = 0.0f;
@@ -20144,6 +20385,7 @@ void Simulation::petra_manage_fields() {
 			if (k <= 0 || k > (int)bases.size()) continue; // outside our territory: no base's
 			BaseFood &bf = bases[k - 1];
 			bf.drops.push_back({b.x, b.z});
+			bf.drop_access.push_back(petra_access_at(b.x, b.z));
 			const bool fs = b.type == BLD_FARMSTEAD;
 			if (fs ? !bf.by_farmstead : !bf.by) { bf.by_x = b.x; bf.by_z = b.z; bf.by = true; bf.by_farmstead = fs; }
 		}
@@ -20161,10 +20403,17 @@ void Simulation::petra_manage_fields() {
 		// field: a farmstead pushed toward a close neighbour would otherwise count its berries.
 		const int terr = territory_owner_at(resources_.x[r], resources_.z[r]);
 		if (terr >= 0 && terr < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)terr)) continue;
+		uint16_t access = 0;
+		bool access_known = false;
 		for (BaseFood &bf : bases)
-			for (const auto &d : bf.drops) {
+			for (size_t k = 0; k < bf.drops.size(); ++k) {
+				const auto &d = bf.drops[k];
 				const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
-				if (dx * dx + dz * dz < reach * reach) { bf.count += (float)resources_.amount[r]; break; }
+				if (dx * dx + dz * dz >= reach * reach) continue;
+				if (!access_known) { access = petra_access_at(resources_.x[r], resources_.z[r]); access_known = true; }
+				if (access != bf.drop_access[k]) continue;
+				bf.count += (float)resources_.amount[r];
+				break;
 			}
 	}
 
@@ -20948,7 +21197,7 @@ uint16_t Simulation::petra_overseas(const PetraNavalTopo &t, float from_x, float
 	return from == to ? 0 : t.sea_between(from, to);
 }
 
-uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const {
+uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t target_id, bool any_base) const {
 	// Cheap first: a land touching both our first base and the target means no sea
 	// to cross, and needs no map scan (attack plans ask on every AI tick).
 	auto it = building_id_to_idx_.find(target_id);
@@ -20970,6 +21219,19 @@ uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t ta
 	for (uint16_t h : home)
 		for (uint16_t t : there)
 			if (h && h == t) return 0;
+	// attackPlan.js chooseTarget: with any base of ours on the target's land, the plan rallies
+	// there and needs no ship (its units elsewhere are ferried to the rally point).
+	if (any_base) {
+		for (const PetraBase &ob : petra_bases_) {
+			auto oit = building_id_to_idx_.find(ob.anchor_building_id);
+			if (oit == building_id_to_idx_.end() || (pb && ob.anchor_building_id == pb->anchor_building_id)) continue;
+			uint16_t lands[8] = {};
+			lands_around(buildings_[oit->second], lands);
+			for (uint16_t h : lands)
+				for (uint16_t t : there)
+					if (h && h == t) return 0;
+		}
+	}
 	const PetraNavalTopo &topo = petra_topo();
 	return petra_overseas(topo, base_x, base_z, target_id);
 }
@@ -22017,7 +22279,7 @@ void Simulation::petra_manage_buildings(float dt) {
 	// 5. headquarters.js buildDefenses: fortresses from the city phase (or while researching it),
 	// sentry towers in the village phase, stone towers from the town phase, each kind spaced by
 	// its lapse time and capped by bases and population. Every 3rd played turn (headquarters.js:2326).
-	if (petra_turn_mod(3)) petra_build_defenses();
+	if (petra_turn_mod(3) && petra_config_.difficulty > PETRA_SANDBOX) petra_build_defenses(); // headquarters.js: not at Sandbox
 
 	// 6. headquarters.js constructTrainingBuildings, city phase: an elephant
 	// stable and an arsenal, then (from 80 pop) the civ's own advanced
@@ -22671,7 +22933,7 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			delta = std::sqrt(d1) - favoured;
 			val += delta * delta;
 			if (d2 >= 0.0f) { delta = std::sqrt(d2) - favoured; val += delta * delta; }
-			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) val += 10000.0f / 16.0f;
+			if (near_map_border(x, z, border)) val += 10000.0f / 16.0f; // the circular borderMap too
 			if (found && val > best) continue;
 			// The land last of the tests a tile can fail: its search costs the most.
 			const uint16_t l = petra_land_at(x, z);
@@ -22771,7 +23033,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 					if (c.ally && d < ally_dis) norm_max *= 0.5f;
 				}
 				if (near) continue;
-				if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm_max *= 0.5f;
+				if (near_map_border(x, z, border)) norm_max *= 0.5f;
 				float val_max = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
 				val_max *= norm_max;
 				if (!dps.empty()) val_max = std::max(val_max, cut + 0.1f);
@@ -22803,7 +23065,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 				}
 				if (norm == 0.0f) continue;
 			}
-			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm *= 0.5f;
+			if (near_map_border(x, z, border)) norm *= 0.5f; // the circular borderMap too
 			float val = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
 			val *= norm;
 			if (oversea) val = std::max(val, cut + 0.1f);
@@ -23077,7 +23339,17 @@ bool Simulation::petra_phasing() const {
 	// renews it every turn; only phases go in that queue).
 	if (planned(PETRA_Q_MAJOR_TECH)) return true;
 	if (planned(PETRA_Q_CIVIL_CENTRE) || planned(PETRA_Q_WONDER)) return false;
-	if (phase == 1) return petra_accounted_population() >= petra_pop_phase2();
+	// checkPhase: only with a finished structure of ours that researches the phase
+	// (gameState.hasResearchers(nextPhaseName, true)).
+	const uint8_t next = phase == 1 ? TECH_PHASE_TOWN : TECH_PHASE_CITY;
+	bool researcher = false;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f &&
+		    building_researches_tech(b.type, next, petra_ps().civ)) { researcher = true; break; }
+	if (!researcher) return false;
+	// RTS0, not 0.28: short of wood for houses (petra_wood_starved), the town phase at the
+	// population our houses hold.
+	if (phase == 1) return petra_accounted_population() >= petra_pop_phase2() || (petra_wood_starved() && petra_pop_room() <= 0);
 	return petra_accounted_workers() > petra_work_phase3();
 }
 
@@ -23154,6 +23426,9 @@ void Simulation::petra_research_population_bonus() {
 	petra_available_techs(techs);
 	for (uint8_t t : techs) {
 		const TechInfo &ti = tech_info(t);
+		// modifications[0] must be Population/Bonus: Wagon Trains lists Promotion/RequiredXp first
+		// (its XP part lives in promotion_data.h).
+		if (t == TECH_WAGON_TRAINS) continue;
 		if (ti.effect_count && tech_effects_table()[ti.effect_begin].stat == TSTAT_POP_BONUS) {
 			petra_start_research(t);
 			return;
@@ -23272,7 +23547,14 @@ void Simulation::petra_manage_research(float dt) {
 		}
 		// buildTemple (not while saving resources): one temple, after a market, from the city
 		// phase (the town phase in regicide, for healer guards); Rome's is the Temple of Vesta.
-		if (!saving && have_building(BLD_MARKET) && !have_building(BLD_TEMPLE) && !have_building(BLD_TEMPLE_VESTA) &&
+		// The Temple class: template_structure_civic_temple's children (shrines, the Temples of
+		// Amun, Isis, Mars and Vesta), foundations included.
+		bool have_temple = false;
+		for (const auto &b : buildings_)
+			have_temple |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked &&
+			               ((building_tech_classes(b.type) & TC_TEMPLE) || b.type == BLD_TEMPLE_AMUN ||
+			                b.type == BLD_TEMPLE_VESTA || b.type == BLD_TEMPLE_MARS);
+		if (!saving && have_building(BLD_MARKET) && !have_temple &&
 		    (petra_ps().phase >= 3 || has_victory(VK_REGICIDE))) {
 			if (can_build(BLD_TEMPLE_VESTA)) petra_place_generic(BLD_TEMPLE_VESTA, PETRA_Q_ECONOMIC_BUILDING);
 			else if (can_build(BLD_TEMPLE)) petra_place_generic(BLD_TEMPLE, PETRA_Q_ECONOMIC_BUILDING);
@@ -23303,8 +23585,16 @@ void Simulation::petra_manage_research(float dt) {
 		return;
 	}
 
-	// headquarters.js:2295: researchManager.update every 5th AI turn.
+	// headquarters.js:2295: researchManager.update every 5th AI turn, with an active base (a
+	// finished civic centre of ours, hasActiveBase).
 	if (!petra_turn_mod(5, 1)) return;
+	bool active_base = false;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f && petra_base_anchor_type(b.type)) {
+			active_base = true;
+			break;
+		}
+	if (!active_base) return;
 	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
 	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
 	std::vector<uint8_t> techs;
@@ -23364,7 +23654,12 @@ void Simulation::petra_manage_research(float dt) {
 			// The Seleucid army reform, either one at random, likewise ahead of the rest.
 			uint8_t choice = t;
 			const uint8_t other = t == TECH_TRADITIONAL_ARMY_SELE ? TECH_REFORMED_ARMY_SELE : TECH_TRADITIONAL_ARMY_SELE;
-			if (std::find(techs.begin(), techs.end(), other) != techs.end() && sim_rng_.range_int(0, 1) == 1) choice = other;
+			// Drawn once and kept while it waits (researchManager.js:90): a hash of what Petra has
+			// researched, as the City-phase pick below, not a fresh draw each pass.
+			uint64_t h = 0xD6E8FEB86659FD93ull * (petra_pid_ + 1);
+			for (uint64_t w : petra_ps().techs.words) h = (h ^ w) * 0xBF58476D1CE4E5B9ull;
+			h ^= h >> 31;
+			if (std::find(techs.begin(), techs.end(), other) != techs.end() && (h & 1)) choice = other;
 			petra_change_priority(PETRA_Q_MINOR_TECH, 2 * petra_queue_base_priority(PETRA_Q_MINOR_TECH), PETRA_Q_MINOR_TECH);
 			pick(choice);
 			return;
@@ -23420,8 +23715,8 @@ void Simulation::petra_invading_army_centres(std::vector<std::array<float, 2>> &
 		float cx = 0.0f, cz = 0.0f;
 		int n = 0;
 		for (uint32_t f : a.foe_ids) {
-			const int32_t k = lookup_unit(f);
-			if (k >= 0 && units_.alive[k]) { cx += units_.pos_x[k]; cz += units_.pos_z[k]; ++n; }
+			float fx, fz;
+			if (petra_army_foe_pos(f, fx, fz)) { cx += fx; cz += fz; ++n; }
 		}
 		if (n) out.push_back({cx / n, cz / n});
 	}
@@ -24006,13 +24301,24 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_
 	return 0;
 }
 
-// defenseManager.js targetList: an enemy structure standing in our territory
-// is a raid target until it falls or the territory changes hands.
+// defenseManager.js targetList: an enemy structure in our territory, or an enemy civic centre
+// going up within 30000 m² of one of our finished structures (isDangerous), is a raid target
+// until it falls or no longer qualifies.
+bool Simulation::petra_defense_target(const Building &b) const {
+	if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
+	if (territory_owner_at(b.x, b.z) == petra_pid_) return true;
+	if (!is_civic_centre(b.type) || b.build_progress >= 1.0f) return false;
+	for (const Building &o : buildings_) {
+		if (o.team != petra_pid_ || o.build_progress < 1.0f || o.wrecked || o.hp <= 0.0f) continue;
+		const float dx = o.x - b.x, dz = o.z - b.z;
+		if (dx * dx + dz * dz <= 30000.0f / 16.0f) return true; // m² to RTS0 units² (4 m each)
+	}
+	return false;
+}
+
 bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
 	auto it = building_id_to_idx_.find(bld_id);
-	if (it == building_id_to_idx_.end()) return false;
-	const Building &b = buildings_[it->second];
-	return petra_foe(b.team) && b.hp > 0 && territory_owner_at(b.x, b.z) == (int)petra_pid_;
+	return it != building_id_to_idx_.end() && petra_defense_target(buildings_[it->second]);
 }
 
 // entityExtend.js allowCapture: capture a structure only when the squad's
@@ -24222,21 +24528,46 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		order_attack_building(&uid, 1, buildings_[bi].id, false, petra_allow_capture(squad, uid, buildings_[bi]));
 	};
 
+	// Members a structure shot at this turn (attackedByStructure: the attacker is no Unit).
+	std::unordered_set<uint32_t> shot_by_structure;
+	for (const auto &e : petra_turn_attacks_)
+		if (building_id_to_idx_.count(e.second)) shot_by_structure.insert(e.first);
 	const bool starting = plan.state_timer <= petra_turn_dt_ + 1e-3f; // the attack's first turn
 	const size_t stride = starting || members.size() < 15 ? 1 : (members.size() + 9) / 10;
 	for (size_t k = 0; k < members.size(); ++k) {
 		if (stride > 1 && (k + (size_t)petra_played_turn()) % stride != 0) continue;
 		const int32_t i = members[k];
 		if (reacted.count(i)) continue;
-		bool needs = units_.action_state[i] == ACTION_IDLE;
+		const TechClasses c = cls(i);
+		bool needs = units_.action_state[i] == ACTION_IDLE, maybe = false;
 		if (!needs && units_.target_unit_id[i]) {
 			const int32_t t = lookup_unit(units_.target_unit_id[i]);
 			auto it = drawn.find(units_.target_unit_id[i]);
 			if (t < 0 || !units_.alive[t] || !is_hostile(petra_pid_, units_.team[t])) needs = true;
 			else if (it != drawn.end() && it->second > 0) { needs = true; --it->second; }
+			// maybeUpdate: a siege engine on a unit, anyone on a ship, and a slow melee unit
+			// on a fleeing civilian.
+			else if (siege(i) || unit_is_ship(units_.unit_type[t])) maybe = true;
+			else if (!(c & (TC_CAVALRY | TC_RANGED)) && (cls(t) & TC_FEMALECITIZEN) && units_.action_state[t] == ACTION_FLEE) maybe = true;
+		} else if (!needs && units_.target_building_id[i] && !siege(i) && shot_by_structure.count(units_.id[i])) {
+			const auto it = building_id_to_idx_.find(units_.target_building_id[i]);
+			maybe = it != building_id_to_idx_.end() && buildings_[it->second].type == BLD_FIELD; // a field under fire
 		}
-		if (!needs) continue;
-		const TechClasses c = cls(i);
+		if (!needs && !maybe) continue;
+		// Not too soon when not needed: lastAttackPlanUpdateTime 10 s while approaching, else
+		// 5 s, here every 6th or 3rd AI turn (1.6 s) by unit id.
+		if (!needs) {
+			float tx = 0.0f, tz = 0.0f, pad = 0.0f;
+			if (const int32_t t = units_.target_unit_id[i] ? lookup_unit(units_.target_unit_id[i]) : -1; t >= 0) {
+				tx = units_.pos_x[t]; tz = units_.pos_z[t];
+			} else if (const auto it = building_id_to_idx_.find(units_.target_building_id[i]); it != building_id_to_idx_.end()) {
+				const Building &b = buildings_[it->second];
+				tx = b.x; tz = b.z; pad = std::max(b.half_size, b.half_d);
+			}
+			const bool approaching = std::hypot(tx - units_.pos_x[i], tz - units_.pos_z[i]) > units_.attack_range[i] + pad + 1.0f;
+			const uint32_t every = approaching ? 6u : 3u;
+			if ((petra_played_turn() + units_.id[i]) % every != 0) continue;
+		}
 		float range = 60.0f * M;
 		if (blocked) range = units_.attack_range[i] > 0.0f ? units_.attack_range[i] : 10.0f * M; // its own attack range
 		else if (c & TC_RANGED) range = 30.0f * M + units_.attack_range[i];
@@ -24277,7 +24608,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true, petra_attack_avoid(plan, false));
 		} else if (const int32_t bi = best_structure(i, range2, false); bi >= 0) {
 			attack_structure(i, (size_t)bi);
-		} else {
+		} else if (needs) {
 			// Nothing in reach: help the nearest of the army that is fighting.
 			float best = 1e18f;
 			uint32_t foe = 0;
@@ -24440,6 +24771,39 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 // A rush keeps to undefended structures (attackPlan.js rushTargetFinder); other plans
 // keep to the current target's owner (attackPlan.js getNearestTarget), and the finder
 // sets the plan's type.
+// The owner of an attack target (a structure, or a unit such as a relic or hero), 0xFF if gone.
+uint8_t Simulation::petra_target_owner(uint32_t id) const {
+	if (auto it = building_id_to_idx_.find(id); it != building_id_to_idx_.end()) return buildings_[it->second].team;
+	const int32_t u = lookup_unit(id);
+	return u >= 0 && units_.alive[u] ? units_.team[u] : 0xFF;
+}
+
+// attackPlan.js UpdateTarget "Check if we could help any current attack": the target of another
+// started attack on land `land`, still an enemy's and not a resigned player's (Gaia's while
+// that plan targets Gaia).
+uint32_t Simulation::petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const {
+	for (const AttackPlan &other : petra_started_attacks_) {
+		if (&other == &plan || other.target_building_id == 0 || other.target_building_id == plan.target_building_id) continue;
+		float x = 0.0f, z = 0.0f;
+		uint8_t owner = 0xFF;
+		if (auto it = building_id_to_idx_.find(other.target_building_id); it != building_id_to_idx_.end()) {
+			const Building &b = buildings_[it->second];
+			if (b.hp <= 0.0f || b.wrecked || petra_building_land(b) != land) continue;
+			owner = b.team; x = b.x; z = b.z;
+		} else if (const int32_t u = lookup_unit(other.target_building_id); petra_unit_target_ok(u)) {
+			if (petra_land_at(units_.pos_x[u], units_.pos_z[u]) != land) continue;
+			owner = units_.team[u]; x = units_.pos_x[u]; z = units_.pos_z[u];
+		} else {
+			continue;
+		}
+		const bool gaia = owner == GAIA_PLAYER && other.target_player == GAIA_PLAYER; // a Gaia relic plan
+		if (!gaia && (!petra_foe(owner) || !petra_foe(other.target_player))) continue;
+		tx = x; tz = z;
+		return other.target_building_id;
+	}
+	return 0;
+}
+
 uint32_t Simulation::petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land) {
 	// attackPlan.js UpdateWalking keeps its target; it picks another only once that one is
 	// destroyed or captured.
@@ -24558,6 +24922,8 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					plan.path_z.clear();
 					break;
 				}
+				// waitingForTransport: units still being ferried to the rally point hold it.
+				if (petra_transport_for(PETRA_TRANSPORT_ATTACK)) break;
 				if (plan.state_timer < plan.completing_time && petra_plan_has_force_order(plan)) break;
 				petra_start_march(plan);
 				break;
@@ -24691,13 +25057,13 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				plan.target_z = tz;
 				// attackPlan.js updatePreparation: an army bound overseas waits for a
 				// transport ship on that sea (navalManager trains it meanwhile).
-				const uint16_t overseas = petra_plan_overseas(base_x, base_z, target_id);
+				const uint16_t overseas = petra_plan_overseas(base_x, base_z, target_id, true);
 				if (overseas && petra_transport_ships_on(overseas) == 0) return;
 				// The attack's transport serves one army overseas at a time.
 				if (overseas) {
 					if (petra_transport_for(PETRA_TRANSPORT_ATTACK)) return;
 					for (const AttackPlan &p : petra_started_attacks_)
-						if (petra_plan_overseas(base_x, base_z, p.target_building_id)) return;
+						if (p.path_x.empty() && petra_plan_overseas(base_x, base_z, p.target_building_id)) return;
 				}
 
 				if (!overseas) {
@@ -24705,19 +25071,53 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					// target's land nearest the target; getPathToTarget then moves it to where
 					// the path leaves our territory, and the army gathers there ("completing").
 					float rx = base_x, rz = base_z;
+					const PetraBase *rally_base = get_primary_petra_base();
 					const uint16_t there = petra_access_at(tx, tz);
 					if (petra_access_at(rx, rz) != there) {
 						float best = 1e30f;
 						for (const PetraBase &pb : petra_bases_) {
 							if (petra_access_at(pb.x, pb.z) != there) continue;
 							const float d = (pb.x - tx) * (pb.x - tx) + (pb.z - tz) * (pb.z - tz);
-							if (d < best) { best = d; rx = pb.x; rz = pb.z; }
+							if (d < best) { best = d; rx = pb.x; rz = pb.z; rally_base = &pb; }
 						}
+					}
+					// updatePreparation: units on another land than the rally point's need a
+					// transport there (requireTransport), and the plan waits for a ship and for
+					// the crossing. Those the ship can't take leave the plan.
+					std::vector<uint32_t> here, away;
+					for (uint32_t uid : squad) {
+						const int32_t k = lookup_unit(uid);
+						if (k < 0 || !units_.alive[k]) continue;
+						const uint16_t at = petra_access_at(units_.pos_x[k], units_.pos_z[k]);
+						(at == there || !at || !there ? here : away).push_back(uid);
+					}
+					uint16_t ferry_sea = 0;
+					float ax = 0.0f, az = 0.0f;
+					if (!away.empty()) {
+						for (uint32_t uid : away) { const int32_t k = lookup_unit(uid); ax += units_.pos_x[k]; az += units_.pos_z[k]; }
+						ax /= (float)away.size();
+						az /= (float)away.size();
+						const PetraNavalTopo &topo = petra_topo();
+						const int32_t k0 = lookup_unit(away[0]);
+						const uint16_t from_land = petra_land_at(units_.pos_x[k0], units_.pos_z[k0]);
+						auto rit = rally_base ? building_id_to_idx_.find(rally_base->anchor_building_id) : building_id_to_idx_.end();
+						const uint16_t rally_land = rit != building_id_to_idx_.end() ? petra_building_land(buildings_[rit->second], &topo)
+						                                                              : petra_land_at(rx, rz);
+						ferry_sea = topo.sea_between(from_land, rally_land);
+						if (ferry_sea && (petra_transport_ships_on(ferry_sea) == 0 || petra_transport_for(PETRA_TRANSPORT_ATTACK))) return;
 					}
 					petra_plan_path(plan, rx, rz);
 					petra_strike_force_.staging_x = plan.staging_x;
 					petra_strike_force_.staging_z = plan.staging_z;
-					order_walk(squad.data(), squad.size(), plan.staging_x, plan.staging_z, false);
+					if (!away.empty()) {
+						std::vector<uint32_t> ferried;
+						if (ferry_sea && petra_start_transport(away, ax, az, plan.staging_x, plan.staging_z, ferry_sea, PETRA_TRANSPORT_ATTACK))
+							ferried = petra_transport_for(PETRA_TRANSPORT_ATTACK)->passenger_ids;
+						for (uint32_t uid : away)
+							if (std::find(ferried.begin(), ferried.end(), uid) == ferried.end())
+								squad.erase(std::remove(squad.begin(), squad.end(), uid), squad.end());
+					}
+					order_walk(here.data(), here.size(), plan.staging_x, plan.staging_z, false);
 					plan.completing = true;
 					plan.completing_time = plan.state_timer + (mgr.kind == PETRA_ATTACK_RUSH || plan.forced ? 40.0f : 60.0f);
 					// attackPlan.js updatePreparation: warn our allies so that they can help.
@@ -24757,11 +25157,14 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 		case AttackPlan::WALKING: {
 			petra_strike_force_.state = PetraStrikeForce::MARCH;
-			if (petra_transport_for(PETRA_TRANSPORT_ATTACK) && petra_plan_overseas(base_x, base_z, plan.target_building_id))
+			// A plan with a path walks from a rally point on the target's land; only one without
+			// sails there.
+			const bool sailed = plan.path_x.empty();
+			if (sailed && petra_transport_for(PETRA_TRANSPORT_ATTACK) && petra_plan_overseas(base_x, base_z, plan.target_building_id))
 				return; // still at sea
 			// navalManager.js requireTransport: the ship comes back for those still on
 			// our land (a failed transport leaves them, as a plan without ships does).
-			if (petra_plan_overseas(base_x, base_z, plan.target_building_id)) {
+			if (sailed && petra_plan_overseas(base_x, base_z, plan.target_building_id)) {
 				const PetraNavalTopo &topo = petra_topo();
 				const uint32_t target_id = plan.target_building_id;
 				const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
@@ -24968,7 +25371,12 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					if (k >= 0 && units_.alive[k] && !unit_is_ship(units_.unit_type[k])) { army_land = petra_land_at(units_.pos_x[k], units_.pos_z[k]); break; }
 				}
 				float tx = 0.0f, tz = 0.0f;
+				const uint8_t was_enemy = plan.target_player;
 				uint32_t next_id = petra_plan_next_target(plan, tx, tz, army_land);
+				// UpdateTarget: with nothing left of this enemy on our land, help another started
+				// attack whose target is on it before turning to another enemy.
+				if (plan.kind != PETRA_ATTACK_UNIQUE && (next_id == 0 || petra_target_owner(next_id) != was_enemy))
+					if (const uint32_t help = petra_help_attack_target(plan, army_land, tx, tz)) next_id = help;
 				if (next_id != 0) {
 					plan.target_building_id = next_id;
 					plan.target_x = tx;
@@ -24996,13 +25404,8 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					}
 					plan.state_timer = 0.0f;
 				} else {
-					plan.state = AttackPlan::REGROUP;
-					plan.retreat_x = base_x;
-					plan.retreat_z = base_z;
+					plan.state = AttackPlan::ABORT; // Abort: home to the nearest base on its land
 					plan.state_timer = 0.0f;
-					if (!squad.empty()) {
-						petra_go_home(squad, base_x, base_z, PETRA_TRANSPORT_ATTACK, true);
-					}
 				}
 			}
 			break;
@@ -25225,12 +25628,12 @@ bool Simulation::petra_unit_reserved(uint32_t uid) const {
 uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
-	// defenseManager.js targetList: the enemy structures in our territory,
-	// nearest to the base first (attackManager.js raids them with cavalry).
+	// defenseManager.js targetList (petra_defense_target), nearest to the base first
+	// (attackManager.js raids them with cavalry).
 	uint32_t best = 0;
 	float best_d = 1e18f;
 	for (const auto &b : buildings_) {
-		if (!petra_foe(b.team) || b.hp <= 0 || territory_owner_at(b.x, b.z) != (int)petra_pid_) continue;
+		if (!petra_defense_target(b)) continue;
 		const float dsq = (b.x - bx) * (b.x - bx) + (b.z - bz) * (b.z - bz);
 		if (dsq < best_d) {
 			best_d = dsq;
@@ -25284,18 +25687,15 @@ void Simulation::petra_manage_raid(float dt) {
 	}
 
 	if (plan.state == AttackPlan::MUSTER) {
-		// The target fell or the land changed hands: drop the plan.
-		const bool naval = !petra_raid_target_ok(plan.target_building_id);
-		bool target_alive = false;
-		for (const auto &b : buildings_)
-			if (b.id == plan.target_building_id && petra_foe(b.team) && b.hp > 0) { target_alive = true; break; }
-		if (!target_alive || plan.state_timer > 150.0f) {
+		// The target fell or is no longer one (PREPARATION_FAILED once chooseTarget finds none).
+		if (!petra_raid_target_ok(plan.target_building_id)) {
 			plan.squad.clear();
 			plan.target_building_id = 0;
 			plan.state = AttackPlan::UNEXECUTED;
 			plan.state_timer = 0.0f;
 			return;
 		}
+		const bool naval = petra_plan_overseas(base_x, base_z, plan.target_building_id) != 0;
 		// Cavalry citizen soldiers; a raid over water takes any land soldier. As attackPlan.js
 		// addUnits does for a raid, the first two free riders stay home to hunt.
 		int hunters_kept = 0;
@@ -25333,7 +25733,11 @@ void Simulation::petra_manage_raid(float dt) {
 				return std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end();
 			}), main.end());
 		}
-		const bool ready = plan.forced || plan.squad.size() >= raid_target || (plan.squad.size() >= raid_min && plan.state_timer >= 30.0f);
+		// mustStart: every rider it wants, or its minimum once the target is a foundation past
+		// half built (attackPlan.js: Raids start early against a nearly finished base).
+		const Building &tb = buildings_[building_id_to_idx_.at(plan.target_building_id)];
+		const bool ready = plan.forced || plan.squad.size() >= raid_target ||
+		                   (plan.squad.size() >= raid_min && tb.build_progress > 0.5f && tb.build_progress < 1.0f);
 		if (!ready) return;
 		const float tx = plan.target_x, tz = plan.target_z;
 		// A raid overseas waits for a transport ship there, and for its last crossing to end.
@@ -25366,9 +25770,11 @@ void Simulation::petra_manage_raid(float dt) {
 				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			return;
 		}
+		// UpdateTarget: a raid fights on until its target falls, then takes the next of the
+		// targetList (raidTargetFinder), and goes home with none left.
 		bool target_ok = false;
 		for (const auto &b : buildings_) {
-			if (b.id == plan.target_building_id && petra_foe(b.team) && b.hp > 0) {
+			if (b.id == plan.target_building_id && petra_foe(b.team) && b.hp > 0 && !b.wrecked) {
 				target_ok = true;
 				break;
 			}
@@ -25389,16 +25795,18 @@ void Simulation::petra_manage_raid(float dt) {
 				if (!plan.squad.empty())
 					petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			}
-		} else if (plan.state_timer > 36.0f) {
-			plan.state = AttackPlan::REGROUP;
-			plan.retreat_x = base_x;
-			plan.retreat_z = base_z;
-			plan.state_timer = 0.0f;
-			if (!plan.squad.empty())
-				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 		} else {
 			plan.state = AttackPlan::ATTACKED;
 			petra_answer_attackers(plan.squad, plan.target_x, plan.target_z, petra_attack_avoid(plan, false));
+			// Riders standing idle at the target take it on: captured where allowCapture says so.
+			const Building &b = buildings_[building_id_to_idx_.at(plan.target_building_id)];
+			for (uint32_t uid : plan.squad) {
+				const int32_t i = lookup_unit(uid);
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] != ACTION_IDLE) continue;
+				const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+				if (dx * dx + dz * dz > 100.0f) continue;
+				order_attack_building(&uid, 1, b.id, false, petra_allow_capture(plan.squad, uid, b));
+			}
 			petra_check_captures(plan.squad, plan.target_x, plan.target_z);
 		}
 		return;
@@ -25624,8 +26032,15 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		return w.food + w.wood + w.gold + w.stone > 0.0f;
 	};
 
+	const bool wood_starved = petra_wood_starved();
 	// distributeResources, one resource at a time.
 	auto distribute = [&](float PetraQueueAccount::*field, float total) {
+		// petra_wood_starved (RTS0): the wood goes to what petra_wood_kept_for names only.
+		auto kept_out = [&](int j) {
+			return wood_starved && field == &PetraQueueAccount::wood && !petra_wood_kept_for(j);
+		};
+		for (int j = 0; j < PETRA_Q_COUNT; ++j)
+			if (kept_out(j)) qm.accounts[j].*field = 0.0f;
 		float available = total;
 		for (int j = 0; j < PETRA_Q_COUNT; ++j) available -= qm.accounts[j].*field;
 		if (available < 0.0f) {
@@ -25641,7 +26056,7 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 			// switchResource: a queue a lower-priority queue's account would complete takes what
 			// it is missing from it; each lower queue is drawn on once until it starts an item.
 			for (int j = 0; j < PETRA_Q_COUNT; ++j) {
-				if (!has_plan(j) || qm.paused[j]) continue;
+				if (!has_plan(j) || qm.paused[j] || kept_out(j)) continue;
 				const float cost = qm.wants[j].*field;
 				if (qm.accounts[j].*field >= cost) continue;
 				for (int i = 0; i < PETRA_Q_COUNT; ++i) {
@@ -25662,8 +26077,8 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		int temp_prio[PETRA_Q_COUNT] = {};
 		float max_need[PETRA_Q_COUNT] = {};
 		for (int j = 0; j < PETRA_Q_COUNT; ++j) {
-			const float cost = qm.paused[j] ? 0.0f : qm.wants[j].*field;
-			if (has_plan(j) && !qm.paused[j] && qm.accounts[j].*field < cost) {
+			const float cost = qm.paused[j] || kept_out(j) ? 0.0f : qm.wants[j].*field;
+			if (has_plan(j) && !qm.paused[j] && !kept_out(j) && qm.accounts[j].*field < cost) {
 				temp_prio[j] = prio[j];
 				max_need[j] = cost - qm.accounts[j].*field;
 				total_prio += temp_prio[j];
@@ -25747,8 +26162,11 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	PetraQueueManager &qm = petra_queues_;
 	PetraQueueAccount &a = qm.accounts[queue];
 	PetraQueueAccount &w = qm.wants[queue];
+	// petra_wood_starved: the wood kept for petra_wood_kept_for's queues.
+	const float reserve = wood > 0.0f && !petra_wood_kept_for(queue) && petra_wood_starved()
+	                      ? (petra_ps().phase == 1 ? 1150.0f : 650.0f) : 0.0f;
 	if (qm.paused[queue] || a.food < food || a.wood < wood || a.gold < gold || a.stone < stone ||
-	    petra_ps().food() < food || petra_ps().wood() < wood || petra_ps().gold() < gold || petra_ps().stone() < stone) {
+	    petra_ps().food() < food || petra_ps().wood() < wood + reserve || petra_ps().gold() < gold || petra_ps().stone() < stone) {
 		// The plan stays queued: the next refresh funds this queue (unless it is paused).
 		w.food = std::max(w.food, food); w.wood = std::max(w.wood, wood);
 		w.gold = std::max(w.gold, gold); w.stone = std::max(w.stone, stone);
@@ -26172,7 +26590,7 @@ static inline bool petra_military_structure(uint8_t t) {
 	switch (building_research_base(t)) {
 		case BLD_BARRACKS: case BLD_FORTRESS: case BLD_DOCK: case BLD_STABLE: case BLD_RANGE: case BLD_FORGE:
 		case BLD_ARSENAL: case BLD_ELEPHANT_STABLE: case BLD_EMBASSY: case BLD_ARMY_CAMP: case BLD_MERCENARY_CAMP:
-		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA:
+		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_KENNEL: case BLD_ACADEMY:
 			return true;
 		default:
 			return false;
@@ -26745,6 +27163,52 @@ void Simulation::petra_check_decaying_structures() {
 	}
 }
 
+// headquarters.js isDefendable: more than 8 units of our started attacks (attackManager.js
+// numAttackingUnitsAround, by each army's position) within 130 m.
+bool Simulation::petra_defendable(float x, float z) const {
+	size_t n = 0;
+	for (const AttackPlan &p : petra_started_attacks_) {
+		float cx = 0.0f, cz = 0.0f;
+		int k = 0;
+		for (uint32_t uid : p.squad) {
+			const int32_t i = lookup_unit(uid);
+			if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) continue;
+			cx += units_.pos_x[i]; cz += units_.pos_z[i]; ++k;
+		}
+		if (!k) continue; // inside a transport
+		cx /= (float)k; cz /= (float)k;
+		const float r = 130.0f / 4.0f;
+		if ((cx - x) * (cx - x) + (cz - z) * (cz - z) < r * r) n += p.squad.size();
+	}
+	return n > 8;
+}
+
+// defenseManager.js checkEvents: an attacked structure of ours on blinking territory that
+// isn't defendable, or with no base anchor of ours on its land, is destroyed while we hold
+// 50-70% of its capture points, rather than left to the enemy capturing it.
+void Simulation::petra_scuttle_undefendable() {
+	std::vector<uint32_t> scuttle;
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
+		if (structure_attacker(b.id, petra_pid_) < 0) continue; // the Attacked event
+		bool anchored = false;
+		const uint16_t land = petra_building_land(b);
+		for (const PetraBase &pb : petra_bases_) {
+			auto it = building_id_to_idx_.find(pb.anchor_building_id);
+			if (it == building_id_to_idx_.end()) continue;
+			const Building &a = buildings_[it->second];
+			if (a.team == petra_pid_ && a.hp > 0.0f && !a.wrecked && petra_building_land(a) == land) { anchored = true; break; }
+		}
+		if (anchored && (territory_connected_at(b.x, b.z) || petra_defendable(b.x, b.z))) continue;
+		float total = 0.0f;
+		for (float cp : b.capture_points_by_team) total += cp;
+		if (total <= 0.0f) continue;
+		const float ratio = b.capture_points_by_team[petra_pid_] / total;
+		if (ratio > 0.5f && ratio < 0.7f) scuttle.push_back(b.id);
+	}
+	if (!scuttle.empty()) cmd_delete(petra_pid_, scuttle.data(), scuttle.size());
+}
+
 void Simulation::petra_manage_garrisons() {
 	std::vector<int> incoming = petra_garrison_incoming();
 	// garrisonManager.js update: unload whoever no longer needs the shelter, then
@@ -26822,6 +27286,38 @@ float Simulation::petra_unit_strength(size_t i) const {
 	return s * units_.max_hp[i] / 100.0f;
 }
 
+float Simulation::petra_fauna_strength(size_t f) const {
+	const FaunaTypeInfo &info = fauna_type_info(fauna_.fauna_type[f]);
+	float s = 0.0f;
+	if (info.attack_damage() > 0.0f) {
+		s += (0.075f * info.hack_damage + 0.085f * info.pierce_damage + 0.045f * info.crush_damage) / 4.0f;
+		s += info.attack_range / 0.6f * 0.0125f; // back to 0 A.D. metres, as for a unit's melee
+		s += info.attack_cooldown * 1000.0f / 100000.0f;
+	}
+	s += (0.075f * info.hack_armor + 0.085f * info.pierce_armor + 0.045f * info.crush_armor) / 4.0f;
+	s *= fauna_.max_hp[f] / 100.0f;
+	// "TODO adapt the getMaxStrength function for animals": elephants get three times theirs.
+	if (std::strstr(info.template_name, "elephant")) s *= 3.0f;
+	return s;
+}
+
+bool Simulation::petra_army_foe_pos(uint32_t fid, float &x, float &z) const {
+	const int32_t fi = lookup_unit(fid);
+	if (fi >= 0) {
+		if (!units_.alive[fi]) return false;
+		x = units_.pos_x[fi];
+		z = units_.pos_z[fi];
+		return true;
+	}
+	const auto it = fauna_id_to_idx_.find(fid);
+	if (it == fauna_id_to_idx_.end()) return false;
+	const size_t f = it->second;
+	if (!fauna_.alive[f] || fauna_.behavior[f] == FAUNA_CARCASS || fauna_.behavior[f] == FAUNA_CORRALLED) return false;
+	x = fauna_.pos_x[f];
+	z = fauna_.pos_z[f];
+	return true;
+}
+
 bool Simulation::petra_is_defender(uint32_t uid) const {
 	for (const PetraDefenseArmy &a : petra_defense_armies_)
 		if (std::find(a.defender_ids.begin(), a.defender_ids.end(), uid) != a.defender_ids.end()) return true;
@@ -26863,10 +27359,10 @@ bool Simulation::petra_army_position(const PetraDefenseArmy &army, float &x, flo
 		return true;
 	}
 	for (uint32_t fid : army.foe_ids) {
-		const int32_t fi = lookup_unit(fid);
-		if (fi < 0 || !units_.alive[fi]) continue;
-		x += units_.pos_x[fi];
-		z += units_.pos_z[fi];
+		float fx, fz;
+		if (!petra_army_foe_pos(fid, fx, fz)) continue;
+		x += fx;
+		z += fz;
 		++n;
 	}
 	if (n == 0) return false;
@@ -26908,9 +27404,13 @@ void Simulation::petra_manage_defense(float dt) {
 	// within its range + 30 m. The base radius only stands in for territory while a base
 	// has no anchor building: a 32 m radius reaches into a close neighbour's land and
 	// starts border fights.
+	// A structure on blinking territory counts only while our attacks can defend it
+	// (isBlinking, isDefendable); a civic centre always does.
 	std::vector<const Building *> own_structures;
 	for (const auto &b : buildings_)
-		if (b.team == petra_pid_ && b.build_progress > 0.0f && !b.wrecked && b.hp > 0.0f) own_structures.push_back(&b);
+		if (b.team == petra_pid_ && b.build_progress > 0.0f && !b.wrecked && b.hp > 0.0f &&
+		    (is_civic_centre(b.type) || territory_connected_at(b.x, b.z) || petra_defendable(b.x, b.z)))
+			own_structures.push_back(&b);
 	auto danger_reach2 = [&](size_t i) {
 		float reach = 6000.0f / 16.0f; // m² to RTS0 units² (4 m each)
 		if (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) {
@@ -26919,14 +27419,14 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 		return reach;
 	};
-	auto near_own_structure = [&](size_t i) {
-		const float reach = danger_reach2(i);
+	auto near_own_structure_at = [&](float x, float z, float reach) {
 		for (const Building *b : own_structures) {
-			const float dx = units_.pos_x[i] - b->x, dz = units_.pos_z[i] - b->z;
+			const float dx = x - b->x, dz = z - b->z;
 			if (dx * dx + dz * dz <= reach) return true;
 		}
 		return false;
 	};
+	auto near_own_structure = [&](size_t i) { return near_own_structure_at(units_.pos_x[i], units_.pos_z[i], danger_reach2(i)); };
 	// defenseManager.js update: how many enemies attack each ally (attackedAllies), from
 	// enemy players with 8 or more units inside that ally's territory (attackingUnits).
 	int ally_units[MAX_PLAYERS][MAX_PLAYERS] = {};
@@ -26946,15 +27446,14 @@ void Simulation::petra_manage_defense(float dt) {
 	// isDangerous outside our own land: a fighter in neutral or allied land close to one
 	// of our structures, to a cooperative ally's civic centre, or (an ally attacked by
 	// several enemies) to that ally's structures. Enemy land is never ours to defend.
-	auto dangerous_outside = [&](size_t i, int owner) {
+	auto dangerous_outside_at = [&](float x, float z, float reach, int owner) {
 		if (owner == petra_pid_ || (owner >= 0 && !is_ally(petra_pid_, (uint8_t)owner))) return false;
-		if (near_own_structure(i)) return true;
-		const float reach = danger_reach2(i);
+		if (near_own_structure_at(x, z, reach)) return true;
 		const bool help_ally = owner >= 0 && attacked_allies[owner] > 1 && cooperation((uint8_t)owner) > 0.7f;
 		for (const auto &b : buildings_) {
 			if (b.hp <= 0.0f || b.wrecked || b.build_progress <= 0.0f || b.team >= MAX_PLAYERS) continue;
 			if (b.team == petra_pid_ || !is_ally(petra_pid_, b.team)) continue;
-			const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+			const float dx = x - b.x, dz = z - b.z;
 			if (dx * dx + dz * dz > reach) continue;
 			const float coop = cooperation(b.team);
 			if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && coop >= 0.3f &&
@@ -26963,6 +27462,9 @@ void Simulation::petra_manage_defense(float dt) {
 			if (help_ally && b.team == owner) return true;
 		}
 		return false;
+	};
+	auto dangerous_outside = [&](size_t i, int owner) {
+		return dangerous_outside_at(units_.pos_x[i], units_.pos_z[i], danger_reach2(i), owner);
 	};
 	auto army_of_foe = [&](uint32_t fid) {
 		for (size_t a = 0; a < armies.size(); ++a)
@@ -26973,12 +27475,12 @@ void Simulation::petra_manage_defense(float dt) {
 	// it starts an army of its own.
 	const float compact2 = petra_config_.army_compact_sq / 16.0f; // m² to RTS0 units² (4 m each)
 	auto make_into_army = [&](uint32_t fid) {
-		const int32_t fi = lookup_unit(fid);
-		if (fi < 0 || army_of_foe(fid) >= 0) return;
+		float fx, fz;
+		if (!petra_army_foe_pos(fid, fx, fz) || army_of_foe(fid) >= 0) return;
 		for (PetraDefenseArmy &a : armies) {
 			float ax, az;
 			if (petra_army_capturing(a) || !petra_army_position(a, ax, az)) continue;
-			const float dx = units_.pos_x[fi] - ax, dz = units_.pos_z[fi] - az;
+			const float dx = fx - ax, dz = fz - az;
 			if (dx * dx + dz * dz > compact2) continue;
 			a.foe_ids.push_back(fid);
 			return;
@@ -26989,17 +27491,7 @@ void Simulation::petra_manage_defense(float dt) {
 	const PetraBase *home = get_primary_petra_base();
 	// defenseManager.js targetList: an enemy structure in our territory, or an enemy civic
 	// centre going up within 30000 m² of one of our finished structures.
-	auto defense_target = [&](const Building &b) {
-		if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
-		if (territory_owner_at(b.x, b.z) == petra_pid_) return true;
-		if (!is_civic_centre(b.type) || b.build_progress >= 1.0f) return false;
-		for (const Building *o : own_structures) {
-			if (o->build_progress < 1.0f) continue;
-			const float dx = o->x - b.x, dz = o->z - b.z;
-			if (dx * dx + dz * dz <= 30000.0f / 16.0f) return true; // m² to RTS0 units² (4 m each)
-		}
-		return false;
-	};
+	auto defense_target = [&](const Building &b) { return petra_defense_target(b); };
 	// switchToAttack: a disbanding army with a defender on the same land within 120 m of a
 	// target turns into an attack on that target alone (attackManager.js
 	// switchDefenseToAttack with uniqueTarget), starting where the army stands.
@@ -27040,18 +27532,63 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 	};
 	// defenseArmy.js clear: a defender below low health goes to heal in the nearest healing
-	// structure; the others come home instead of chasing foes out of territory.
+	// structure. The others stop where they stand in our or a mutual ally's land; those outside
+	// go back to the centre of the defenders standing in our land (else in allied land), or with
+	// none there to the nearest allied structure in allied land on their land, one that shoots
+	// first.
+	auto mutual_land = [&](float x, float z) {
+		const int o = territory_owner_at(x, z);
+		return o == petra_pid_ || (o >= 0 && o < MAX_PLAYERS && is_ally(petra_pid_, (uint8_t)o) && is_ally((uint8_t)o, petra_pid_));
+	};
 	auto clear_army = [&](PetraDefenseArmy &a) {
+		float sum[3][2] = {};
+		int n[3] = {};
+		for (uint32_t uid : a.defender_ids) {
+			const int32_t idx = lookup_unit(uid);
+			if (idx < 0 || !units_.alive[idx] || units_.action_state[idx] == ACTION_GARRISONED) continue;
+			const float x = units_.pos_x[idx], z = units_.pos_z[idx];
+			const int k = territory_owner_at(x, z) == petra_pid_ ? 0 : mutual_land(x, z) ? 1 : 2;
+			sum[k][0] += x;
+			sum[k][1] += z;
+			++n[k];
+		}
+		bool has_dest = false;
+		float dest_x = 0.0f, dest_z = 0.0f;
+		if (n[0] > 0 || n[1] > 0) {
+			const int k = n[0] > 0 ? 0 : 1;
+			dest_x = sum[k][0] / (float)n[k];
+			dest_z = sum[k][1] / (float)n[k];
+			has_dest = true;
+		} else if (n[2] > 0) {
+			const float ox = sum[2][0] / (float)n[2], oz = sum[2][1] / (float)n[2];
+			const uint16_t land = petra_land_at(ox, oz);
+			bool defensive_found = false;
+			float dist_min = 0.0f;
+			for (const Building &b : buildings_) {
+				if (b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS || (b.team != petra_pid_ && !is_ally(petra_pid_, b.team))) continue;
+				if (!mutual_land(b.x, b.z) || petra_land_at(b.x, b.z) != land) continue;
+				const bool defensive = building_ai_info(b.type).shoots();
+				if (defensive_found && !defensive) continue;
+				const float d = (b.x - ox) * (b.x - ox) + (b.z - oz) * (b.z - oz);
+				if (has_dest && d > dist_min && (defensive_found || !defensive)) continue;
+				defensive_found |= defensive;
+				dist_min = d;
+				dest_x = b.x;
+				dest_z = b.z;
+				has_dest = true;
+			}
+		}
 		std::vector<int> incoming;
 		for (uint32_t uid : a.defender_ids) {
 			int32_t idx = lookup_unit(uid);
-			if (idx < 0) continue;
+			if (idx < 0 || !units_.alive[idx] || units_.action_state[idx] == ACTION_GARRISONED || petra_passenger(uid)) continue;
 			const float hp_ratio = units_.max_hp[idx] > 0.0f ? units_.hp[idx] / units_.max_hp[idx] : 1.0f;
 			if (hp_ratio < petra_config_.garrison_hp_low) {
 				if (incoming.empty()) incoming = petra_garrison_incoming();
 				if (petra_garrison_attacked_unit((size_t)idx, false, incoming)) continue;
 			}
-			if (home && units_.action_state[idx] == ACTION_ATTACK) order_walk(&uid, 1, home->x, home->z, false);
+			if (has_dest && !mutual_land(units_.pos_x[idx], units_.pos_z[idx])) order_walk(&uid, 1, dest_x, dest_z, false);
+			else if (units_.action_state[idx] == ACTION_ATTACK) cmd_stop(&uid, 1); // stopMoving
 		}
 		a.defender_ids.clear();
 		a.foe_ids.clear();
@@ -27063,7 +27600,12 @@ void Simulation::petra_manage_defense(float dt) {
 		if (!petra_army_capturing(a)) // a capturing army's structure is checked below
 			a.foe_ids.erase(std::remove_if(a.foe_ids.begin(), a.foe_ids.end(), [&](uint32_t fid) {
 				const int32_t fi = lookup_unit(fid);
-				return fi < 0 || !units_.alive[fi] || !petra_foe(units_.team[fi]) || units_.action_state[fi] == ACTION_GARRISONED;
+				if (fi < 0) {
+					float fx, fz;
+					const auto it = fauna_id_to_idx_.find(fid);
+					return !petra_army_foe_pos(fid, fx, fz) || !is_hostile(petra_pid_, fauna_owner_[it->second]);
+				}
+				return !units_.alive[fi] || !petra_foe(units_.team[fi]) || units_.action_state[fi] == ACTION_GARRISONED;
 			}), a.foe_ids.end());
 		a.defender_ids.erase(std::remove_if(a.defender_ids.begin(), a.defender_ids.end(), [&](uint32_t uid) {
 			const int32_t idx = lookup_unit(uid);
@@ -27110,6 +27652,30 @@ void Simulation::petra_manage_defense(float dt) {
 			if (t >= 0 && units_.team[t] == petra_pid_ && !in_attack_squad(units_.id[t])) add_attacker((int32_t)i);
 		}
 	}
+	// checkEnemyUnits "Keep animals attacking us or our allies": an enemy's or Gaia's animal in
+	// COMBAT whose target is ours or an ally's counts as a foe. One biting ours is answered
+	// from neutral or allied land as any attacker is (checkEvents); one biting an ally's only
+	// where isDangerous says so (close to our structures, a cooperative ally's civic centre).
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_ATTACK || !is_hostile(petra_pid_, fauna_owner_[f])) continue;
+		if (army_of_foe(fauna_.id[f]) >= 0) continue;
+		const uint32_t tid = fauna_.target_unit_id[f];
+		int target_owner = -1;
+		if (const int32_t t = lookup_unit(tid); t >= 0) {
+			if (units_.alive[t]) target_owner = units_.team[t];
+			if (target_owner == petra_pid_ && in_attack_squad(tid)) continue;
+		} else if (const auto it = fauna_id_to_idx_.find(tid); it != fauna_id_to_idx_.end()) {
+			target_owner = fauna_owner_[it->second];
+		}
+		if (target_owner < 0 || target_owner >= MAX_PLAYERS || (target_owner != petra_pid_ && !is_ally(petra_pid_, (uint8_t)target_owner))) continue;
+		const float x = fauna_.pos_x[f], z = fauna_.pos_z[f];
+		const int terr = territory_owner_at(x, z);
+		if (terr >= 0 && (terr >= MAX_PLAYERS || !is_ally(petra_pid_, (uint8_t)terr))) continue; // enemy land
+		const float reach = 6000.0f / 16.0f; // a melee attacker's dist2Min, m² to RTS0 units²
+		const bool dangerous = target_owner == petra_pid_ || (terr == petra_pid_ && near_own_structure_at(x, z, reach)) ||
+		                       dangerous_outside_at(x, z, reach, terr);
+		if (dangerous) make_into_army(fauna_.id[f]);
+	}
 
 	// defenseArmy.js update for a capturing army: it disbands once no enemy holds points on
 	// its structure (or the structure is gone), and defenseManager.js checkEvents aborts it
@@ -27139,8 +27705,9 @@ void Simulation::petra_manage_defense(float dt) {
 			float ax, az;
 			if (petra_army_capturing(a) || !petra_army_position(a, ax, az)) continue;
 			a.foe_ids.erase(std::remove_if(a.foe_ids.begin(), a.foe_ids.end(), [&](uint32_t fid) {
-				const int32_t fi = lookup_unit(fid);
-				const float dx = units_.pos_x[fi] - ax, dz = units_.pos_z[fi] - az;
+				float fx = ax, fz = az;
+				petra_army_foe_pos(fid, fx, fz);
+				const float dx = fx - ax, dz = fz - az;
 				if (dx * dx + dz * dz <= PETRA_ARMY_BREAKAWAY_SQ / 16.0f) return false;
 				breakaways.push_back(fid);
 				return true;
@@ -27301,9 +27868,11 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 		for (uint32_t fid : armies[a].foe_ids) {
 			const int32_t fi = lookup_unit(fid);
-			if (fi < 0) continue;
-			foe_strength += petra_unit_strength((size_t)fi);
-			if (!n.land) n.land = petra_land_at(units_.pos_x[fi], units_.pos_z[fi]);
+			float fx, fz;
+			if (fi >= 0) foe_strength += petra_unit_strength((size_t)fi);
+			else if (const auto it = fauna_id_to_idx_.find(fid); it != fauna_id_to_idx_.end()) foe_strength += petra_fauna_strength(it->second);
+			else continue;
+			if (!n.land && petra_army_foe_pos(fid, fx, fz)) n.land = petra_land_at(fx, fz);
 		}
 		for (uint32_t uid : armies[a].defender_ids)
 			if (const int32_t idx = lookup_unit(uid); idx >= 0) own_strength += petra_unit_strength((size_t)idx);
@@ -27429,14 +27998,17 @@ void Simulation::petra_manage_defense(float dt) {
 			uint32_t best_foe = 0, best_any = 0;
 			float best_d2 = 1e18f, best_any_d2 = 1e18f;
 			for (uint32_t fid : army.foe_ids) {
-				int32_t fi = lookup_unit(fid);
-				if (fi < 0 || !units_.alive[fi]) continue;
-				if (units_.target_unit_id[fi] == uid) { best_foe = fid; break; } // being attacked: fight back
+				float fx, fz;
+				if (!petra_army_foe_pos(fid, fx, fz)) continue;
+				const int32_t fi = lookup_unit(fid);
+				const auto fit = fi < 0 ? fauna_id_to_idx_.find(fid) : fauna_id_to_idx_.end();
+				const uint32_t foe_target = fi >= 0 ? units_.target_unit_id[fi] : fauna_.target_unit_id[fit->second];
+				if (foe_target == uid) { best_foe = fid; break; } // being attacked: fight back
 				const int n = against.count(fid) ? against[fid] : 0;
-				const bool big = units_.unit_type[fi] == UNIT_HERO || unit_is_siege_engine(units_.unit_type[fi]);
+				const bool big = fi >= 0 && (units_.unit_type[fi] == UNIT_HERO || unit_is_siege_engine(units_.unit_type[fi]));
 				if (n > 8 || (n > 5 && !big)) continue;
-				float dx = units_.pos_x[idx] - units_.pos_x[fi];
-				float dz = units_.pos_z[idx] - units_.pos_z[fi];
+				float dx = units_.pos_x[idx] - fx;
+				float dz = units_.pos_z[idx] - fz;
 				float d2 = dx * dx + dz * dz;
 				if (d2 < best_any_d2) { best_any_d2 = d2; best_any = fid; }
 				if (n <= 2 && d2 < best_d2) { best_d2 = d2; best_foe = fid; }
@@ -27444,7 +28016,8 @@ void Simulation::petra_manage_defense(float dt) {
 			if (!best_foe) best_foe = best_any;
 			if (best_foe != 0) {
 				++against[best_foe];
-				order_attack(&uid, 1, best_foe);
+				if (lookup_unit(best_foe) >= 0) order_attack(&uid, 1, best_foe);
+				else order_hunt(&uid, 1, best_foe);
 			} else if (home && units_.action_state[idx] == ACTION_ATTACK) {
 				order_walk(&uid, 1, home->x, home->z, false);
 			}
@@ -28013,16 +28586,14 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			if (get_diplomacy(me, p) == DIPLO_ENEMY) ++enemies;
 			else if (is_ally(me, p) && is_ally(p, me)) ++mutual_allies;
 		}
-		// 0 A.D. counts Gaia among the enemies and us among the mutual allies. With
-		// fewer than two enemies no request can go out, so the timer (and its
-		// random draws) only starts once there are.
-		if (enemies + 1 > 2) {
-			if (sd.sent_lapse < 0.0f) sd.sent_lapse = 120.0f + sim_rng_.range_float(10.0f, 100.0f);
-			if (dip.elapsed > sd.sent_lapse) {
-				sd.sent_lapse = dip.elapsed + 300.0f + sim_rng_.range_float(10.0f, 100.0f);
-				if (mutual_allies + 1 < enemies && sim_rng_.range_float(0.0f, 1.0f) < 0.1f)
-					petra_send_diplomacy_request();
-			}
+		// 0 A.D. counts Gaia among the enemies and us among the mutual allies. The
+		// window re-arms whatever the enemy count; a request only goes out with
+		// at least two real enemies and fewer mutual allies than them.
+		if (sd.sent_lapse < 0.0f) sd.sent_lapse = 120.0f + sim_rng_.range_float(10.0f, 100.0f);
+		if (dip.elapsed > sd.sent_lapse) {
+			sd.sent_lapse = dip.elapsed + 300.0f + sim_rng_.range_float(10.0f, 100.0f);
+			if (enemies + 1 > 2 && mutual_allies + 1 < enemies && sim_rng_.range_float(0.0f, 1.0f) < 0.1f)
+				petra_send_diplomacy_request();
 		}
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 			if (!sd.sent_type[p] || dip.elapsed <= sd.sent_time[p] + 60.0f || pop_current(me) <= 70 ||
@@ -28045,10 +28616,11 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		available[RES_GOLD] -= acc.gold;
 		available[RES_STONE] -= acc.stone;
 	}
-	// pickMostNeededResources(...).wanted > 0: a resource our queues still want
-	// gathered (what their plans cost over what we have); only those are asked for.
-	float demand[RES_COUNT];
-	petra_resource_demand(demand);
+	// pickMostNeededResources(...).wanted > 0: a resource we want gathered (its wanted
+	// gather rate, or what our queues' plans cost over what we have when this turn's
+	// rates are not in); only those are asked for.
+	bool wanted[RES_COUNT];
+	petra_wanted_resources(wanted);
 	const int own_entities = petra_player_entities(me);
 	const int own_pop = pop_current(me);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -28058,7 +28630,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		bool any = false;
 		for (uint8_t r = 0; r < RES_COUNT; ++r) {
 			const float ally = players_[p].res[r];
-			const bool needed = demand[r] > petra_ps().res[r];
+			const bool needed = wanted[r];
 			if (donor && available[r] > 200.0f && ally < 0.2f * available[r]) {
 				amounts[r] = std::max(0, (int)std::floor(0.3f * available[r] - ally));
 				any |= amounts[r] > 0;
@@ -28189,13 +28761,10 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 		petra_say(PETRA_CHAT_ANSWER_ACCEPT, player, player, type);
 		return;
 	}
-	// Accept for a tribute of pickMostNeededResources()[0]: what our queues are
-	// furthest short of.
-	float demand[RES_COUNT];
-	petra_resource_demand(demand);
-	uint8_t need = RES_FOOD;
-	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD})
-		if (demand[r] - petra_ps().res[r] > demand[need] - petra_ps().res[need]) need = r;
+	// Accept for a tribute of pickMostNeededResources()[0]: the resource furthest short
+	// of its wanted gather rate (or, without this turn's rates, what our queues are
+	// furthest short of).
+	const uint8_t need = petra_most_needed_resource();
 	int own_units = 0;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == me) ++own_units;
@@ -28533,6 +29102,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 
 	// 6b. Structures captured or decaying this tick (headquarters.js checkEvents)
 	petra_check_decaying_structures();
+	petra_scuttle_undefendable();
 
 	// 7. AI Trading & Caravan Management (tradeManager.js)
 	petra_manage_trading(dt);
@@ -31862,7 +32432,7 @@ float Simulation::treasure_reach(size_t i) const {
 			const char *slash = std::strrchr(id, '/');
 			const char *name = slash ? slash + 1 : id;
 			if (std::strcmp(name, "ship_scout") == 0) m = 7.0f;
-			else if (std::strcmp(name, "ship_siege") == 0) m = 24.0f;
+			else if (std::strcmp(name, "ship_siege") == 0 || std::strcmp(name, "champion_juggernaut") == 0) m = 24.0f; // juggernaut: template_unit_ship_warship_siege
 		}
 	}
 	return m * 0.6f + 1.0f;

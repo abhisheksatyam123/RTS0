@@ -7,11 +7,13 @@
 #include "formation_variants.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
+#include <chrono>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
 #include <godot_cpp/variant/basis.hpp>
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/core/math.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_mixer.hpp>
 #include <godot_cpp/classes/animation_library.hpp>
@@ -1617,13 +1619,21 @@ Node *RtsoWorldView::instantiate_building_id(const String &id) {
 
 // The building GLB ModelLibrary::load draws for `id` (its alias, its own GLB, or
 // its base model after the civ code), as the key of the tables written per GLB.
-static std::string building_table_key(const String &id) {
+static std::string building_table_key_uncached(const String &id) {
 	const String glb = rtso::ModelLibrary::building_glb_id(id);
 	if (glb != id || rtso::Assets::res_exists("res://assets/models/buildings/" + id + ".glb"))
 		return glb.utf8().get_data();
 	const int us = id.find("_");
 	if (us <= 0 || us >= id.length() - 1) return glb.utf8().get_data();
 	return rtso::ModelLibrary::building_glb_id(id.substr(us + 1)).utf8().get_data();
+}
+
+// The key of a building model in the per-model tables, asked for every building every frame: kept
+// per id, as the answer depends only on the id and the packed files.
+static const std::string &building_table_key(const String &id) {
+	static HashMap<String, std::string> keys;
+	if (const std::string *k = keys.getptr(id)) return *k;
+	return keys.insert(id, building_table_key_uncached(id))->value;
 }
 
 void RtsoWorldView::load_foundations() {
@@ -2136,6 +2146,190 @@ void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id,
 // and `base` place the GLB's units under the root, as the decals'. Emitters with
 // world-space velocities are turned back to the world's axes; use_relative_velocity
 // ones turn with the structure.
+// data/ambient_fx.json (tools/extract_ambient_fx.py), read once.
+void RtsoWorldView::load_ambient_fx() {
+	if (ambient_fx_loaded_) return;
+	ambient_fx_loaded_ = true;
+	Ref<FileAccess> f = FileAccess::open("res://data/ambient_fx.json", FileAccess::READ);
+	Dictionary root = f.is_valid() ? Dictionary(JSON::parse_string(f->get_as_text())) : Dictionary();
+	auto pair = [](const Variant &a) {
+		Array r = a;
+		return r.size() == 2 ? Vector2((float)r[0], (float)r[1]) : Vector2();
+	};
+	Dictionary parts = root.get("particles", Dictionary());
+	Array names = parts.keys();
+	for (int i = 0; i < names.size(); ++i) {
+		Dictionary e = parts[names[i]];
+		AmbientParticle d;
+		d.tex = e.get("tex", "");
+		d.add = e.get("add", false);
+		d.start_full = e.get("start_full", false);
+		d.relative = e.get("relative", false);
+		d.rate = (float)e.get("rate", 0.0);
+		d.growth = (float)e.get("growth", 0.0);
+		d.life = pair(e.get("life", Array()));
+		d.size = pair(e.get("size", Array()));
+		d.color = pair(e.get("color", Array()));
+		d.angle = pair(e.get("angle", Array()));
+		d.spin = pair(e.get("spin", Array()));
+		Array pos = e.get("pos", Array()), vel = e.get("vel", Array()), force = e.get("force", Array());
+		for (int a = 0; a < 3; ++a) {
+			d.pos[a] = pos.size() == 3 ? pair(pos[a]) : Vector2();
+			d.vel[a] = vel.size() == 3 ? pair(vel[a]) : Vector2();
+		}
+		if (force.size() == 3) d.force = Vector3((float)force[0], (float)force[1], (float)force[2]);
+		ambient_particles_[String(names[i]).utf8().get_data()] = d;
+	}
+	for (int t = 0; t < 2; ++t) {
+		Dictionary structures = root.get(t == 0 ? "structures" : "death", Dictionary());
+		Array keys = structures.keys();
+		for (int i = 0; i < keys.size(); ++i) {
+			Dictionary e = structures[keys[i]];
+			AmbientFxSet set;
+			set.metre = (float)e.get("metre", 0.25);
+			Array list = e.get("fx", Array());
+			for (int j = 0; j < list.size(); ++j) {
+				Dictionary fx = list[j];
+				Array pos = fx.get("pos", Array());
+				if (pos.size() != 3) continue;
+				set.fx.push_back({ String(fx.get("p", "")).utf8().get_data(), Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
+			}
+			(t == 0 ? ambient_fx_ : death_fx_)[String(keys[i]).utf8().get_data()] = set;
+		}
+	}
+	Dictionary run = root.get("run", Dictionary());
+	Array run_keys = run.keys();
+	for (int i = 0; i < run_keys.size(); ++i) {
+		Array names = run[run_keys[i]];
+		std::vector<std::string> &list = run_fx_[String(run_keys[i]).utf8().get_data()];
+		for (int j = 0; j < names.size(); ++j) list.push_back(String(names[j]).utf8().get_data());
+	}
+}
+
+// One 0 A.D. particle file as a GPUParticles3D, `m` world units per metre.
+GPUParticles3D *RtsoWorldView::make_ambient_emitter(const AmbientParticle &d, float m) {
+	Ref<QuadMesh> &quad = ambient_quads_[d.tex.utf8().get_data()];
+	if (quad.is_null()) {
+		Ref<StandardMaterial3D> mat;
+		mat.instantiate();
+		mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		mat->set_billboard_mode(BaseMaterial3D::BILLBOARD_PARTICLES);
+		mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		if (d.add) mat->set_blend_mode(BaseMaterial3D::BLEND_MODE_ADD);
+		mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+		mat->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+		const String path = "res://assets/textures/particles/" + d.tex;
+		if (rtso::Assets::res_exists(path)) {
+			Ref<Texture2D> t = ResourceLoader::get_singleton()->load(path);
+			if (t.is_valid()) mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, t);
+		}
+		quad.instantiate();
+		quad->set_size(Vector2(1.0f, 1.0f));
+		quad->set_material(mat);
+	}
+	auto mid = [](const Vector2 &r) { return 0.5f * (r.x + r.y); };
+	auto half = [](const Vector2 &r) { return 0.5f * std::abs(r.y - r.x); };
+	const Vector3 vmean(mid(d.vel[0]), mid(d.vel[1]), mid(d.vel[2]));
+	const float speed = vmean.length();
+	// The velocity box's widest axis across the mean direction sets the spread.
+	const int along = std::abs(vmean.z) > std::abs(vmean.y) ? 2 : 1;
+	const float along_half = half(d.vel[along]);
+	const float across = std::max(half(d.vel[0]), along == 1 ? half(d.vel[2]) : half(d.vel[1]));
+	Ref<ParticleProcessMaterial> pm;
+	pm.instantiate();
+	pm->set_direction(speed > 1e-4f ? vmean / speed : Vector3(0, 1, 0));
+	pm->set_spread(speed > 1e-4f ? Math::rad_to_deg(Math::atan2(across, speed)) : 180.0f);
+	pm->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, std::max(0.0f, speed - along_half) * m);
+	pm->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, (speed + along_half) * m);
+	pm->set_gravity(d.force * m);
+	pm->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
+	pm->set_emission_box_extents(Vector3(half(d.pos[0]), half(d.pos[1]), half(d.pos[2])) * m);
+	pm->set_param_min(ParticleProcessMaterial::PARAM_SCALE, d.size.x * m);
+	pm->set_param_max(ParticleProcessMaterial::PARAM_SCALE, d.size.y * m);
+	if (d.growth > 0.0f && mid(d.size) > 0.0f) {
+		// size.growthRate metres a second over the particle's life.
+		const float g = 1.0f + d.growth * mid(d.life) / mid(d.size);
+		Ref<Curve> grow;
+		grow.instantiate();
+		grow->set_max_value(g);
+		grow->add_point(Vector2(0.0f, 1.0f));
+		grow->add_point(Vector2(1.0f, g));
+		Ref<CurveTexture> ct;
+		ct.instantiate();
+		ct->set_curve(grow);
+		pm->set_param_texture(ParticleProcessMaterial::PARAM_SCALE, ct);
+	}
+	pm->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, Math::rad_to_deg(d.angle.x));
+	pm->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, Math::rad_to_deg(d.angle.y));
+	pm->set_param_min(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin.x));
+	pm->set_param_max(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin.y));
+	const float c = mid(d.color);
+	pm->set_color(Color(c, c, c, 1.0f));
+	{
+		Ref<Gradient> gr;
+		gr.instantiate();
+		gr->set_offsets(PackedFloat32Array({ 0.0f, 0.15f, 1.0f }));
+		gr->set_colors(PackedColorArray({ Color(1, 1, 1, 0), Color(1, 1, 1, 1), Color(1, 1, 1, 0) }));
+		Ref<GradientTexture1D> gt;
+		gt.instantiate();
+		gt->set_gradient(gr);
+		pm->set_color_ramp(gt);
+	}
+	GPUParticles3D *p = memnew(GPUParticles3D);
+	p->set_process_material(pm);
+	p->set_draw_pass_mesh(0, quad);
+	p->set_amount(std::max(1, (int)std::ceil(d.rate * d.life.y)));
+	p->set_lifetime(d.life.y);
+	p->set_randomness_ratio(Math::clamp(1.0f - d.life.x / d.life.y, 0.0f, 1.0f));
+	if (d.start_full) p->set_pre_process_time(d.life.y);
+	p->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+	{
+		const float t = d.life.y;
+		const float rise = ((speed + along_half) * t + 0.5f * std::abs(d.force.y) * t * t) * m + d.size.y * m * (1.0f + d.growth * t);
+		const float wide = std::min(40.0f, (across + 0.5f * Vector2(d.force.x, d.force.z).length() * t) * t * m + d.size.y * m * (1.0f + d.growth * t));
+		const float h = std::min(60.0f, rise);
+		p->set_visibility_aabb(AABB(Vector3(-wide - 1.0f, -1.0f, -wide - 1.0f), Vector3(2.0f * wide + 2.0f, h + 2.0f, 2.0f * wide + 2.0f)));
+	}
+	return p;
+}
+
+// 0 A.D. art/variants/quadraped/base_{horse,camel,elephant}_run.xml and the fauna
+// actors' "Run" variant prop dust_cav on the root while the unit runs. A world-space
+// emitter per particle and scale takes emit_particle at each runner's feet, at the
+// particle file's rate.
+void RtsoWorldView::emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta) {
+	load_ambient_fx();
+	const auto it = run_fx_.find(glb_id.utf8().get_data());
+	if (it == run_fx_.end()) return;
+	for (const std::string &name : it->second) {
+		const auto pd = ambient_particles_.find(name);
+		if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) continue;
+		const AmbientParticle &d = pd->second;
+		// Unit GLBs are in 0 A.D. metres: the model's scale is world units per metre.
+		const std::string key = name + "|" + std::to_string((int)std::lround(sc * 1000.0f));
+		GPUParticles3D *&p = run_emitters_[key];
+		if (!p) {
+			p = make_ambient_emitter(d, sc);
+			p->set_amount(4096);
+			p->set_use_local_coordinates(false);
+			p->set_emitting(false); // only emit_particle adds particles
+			p->set_visibility_aabb(AABB(Vector3(-4096, -64, -4096), Vector3(8192, 256, 8192)));
+			add_child(p);
+		}
+		float n = d.rate * std::min(delta, 0.25f);
+		int count = (int)n;
+		if (UtilityFunctions::randf() < n - (float)count) ++count;
+		const auto mid = [](const Vector2 &r) { return 0.5f * (r.x + r.y); };
+		const auto half = [](const Vector2 &r) { return 0.5f * std::abs(r.y - r.x); };
+		for (int k = 0; k < count; ++k) {
+			const Vector3 off(mid(d.pos[0]) + half(d.pos[0]) * (float)UtilityFunctions::randf_range(-1.0, 1.0),
+					mid(d.pos[1]), mid(d.pos[2]) + half(d.pos[2]) * (float)UtilityFunctions::randf_range(-1.0, 1.0));
+			p->emit_particle(Transform3D(Basis(), at + off * sc), Vector3(), Color(1, 1, 1, 1), Color(),
+					GPUParticles3D::EMIT_FLAG_POSITION);
+		}
+	}
+}
+
 void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, bool death) {
 	if (!v.root) return;
 	std::vector<GPUParticles3D *> &emitters = death ? v.death_fx : v.ambient_fx;
@@ -2151,56 +2345,7 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 		emitter_pos.clear();
 		vkey = key;
 		if (key.is_empty()) return;
-		if (!ambient_fx_loaded_) {
-			ambient_fx_loaded_ = true;
-			Ref<FileAccess> f = FileAccess::open("res://data/ambient_fx.json", FileAccess::READ);
-			Dictionary root = f.is_valid() ? Dictionary(JSON::parse_string(f->get_as_text())) : Dictionary();
-			auto pair = [](const Variant &a) {
-				Array r = a;
-				return r.size() == 2 ? Vector2((float)r[0], (float)r[1]) : Vector2();
-			};
-			Dictionary parts = root.get("particles", Dictionary());
-			Array names = parts.keys();
-			for (int i = 0; i < names.size(); ++i) {
-				Dictionary e = parts[names[i]];
-				AmbientParticle d;
-				d.tex = e.get("tex", "");
-				d.add = e.get("add", false);
-				d.start_full = e.get("start_full", false);
-				d.relative = e.get("relative", false);
-				d.rate = (float)e.get("rate", 0.0);
-				d.growth = (float)e.get("growth", 0.0);
-				d.life = pair(e.get("life", Array()));
-				d.size = pair(e.get("size", Array()));
-				d.color = pair(e.get("color", Array()));
-				d.angle = pair(e.get("angle", Array()));
-				d.spin = pair(e.get("spin", Array()));
-				Array pos = e.get("pos", Array()), vel = e.get("vel", Array()), force = e.get("force", Array());
-				for (int a = 0; a < 3; ++a) {
-					d.pos[a] = pos.size() == 3 ? pair(pos[a]) : Vector2();
-					d.vel[a] = vel.size() == 3 ? pair(vel[a]) : Vector2();
-				}
-				if (force.size() == 3) d.force = Vector3((float)force[0], (float)force[1], (float)force[2]);
-				ambient_particles_[String(names[i]).utf8().get_data()] = d;
-			}
-			for (int t = 0; t < 2; ++t) {
-				Dictionary structures = root.get(t == 0 ? "structures" : "death", Dictionary());
-				Array keys = structures.keys();
-				for (int i = 0; i < keys.size(); ++i) {
-					Dictionary e = structures[keys[i]];
-					AmbientFxSet set;
-					set.metre = (float)e.get("metre", 0.25);
-					Array list = e.get("fx", Array());
-					for (int j = 0; j < list.size(); ++j) {
-						Dictionary fx = list[j];
-						Array pos = fx.get("pos", Array());
-						if (pos.size() != 3) continue;
-						set.fx.push_back({ String(fx.get("p", "")).utf8().get_data(), Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
-					}
-					(t == 0 ? ambient_fx_ : death_fx_)[String(keys[i]).utf8().get_data()] = set;
-				}
-			}
-		}
+		load_ambient_fx();
 		const auto &table = death ? death_fx_ : ambient_fx_;
 		const auto it = table.find(building_table_key(glb_id));
 		if (it == table.end()) return;
@@ -2210,88 +2355,8 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 			const auto pd = ambient_particles_.find(fx.particle);
 			if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) continue;
 			const AmbientParticle &d = pd->second;
-			Ref<QuadMesh> &quad = ambient_quads_[d.tex.utf8().get_data()];
-			if (quad.is_null()) {
-				Ref<StandardMaterial3D> mat;
-				mat.instantiate();
-				mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-				mat->set_billboard_mode(BaseMaterial3D::BILLBOARD_PARTICLES);
-				mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
-				if (d.add) mat->set_blend_mode(BaseMaterial3D::BLEND_MODE_ADD);
-				mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
-				mat->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
-				const String path = "res://assets/textures/particles/" + d.tex;
-				if (rtso::Assets::res_exists(path)) {
-					Ref<Texture2D> t = ResourceLoader::get_singleton()->load(path);
-					if (t.is_valid()) mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, t);
-				}
-				quad.instantiate();
-				quad->set_size(Vector2(1.0f, 1.0f));
-				quad->set_material(mat);
-			}
-			auto mid = [](const Vector2 &r) { return 0.5f * (r.x + r.y); };
-			auto half = [](const Vector2 &r) { return 0.5f * std::abs(r.y - r.x); };
-			const Vector3 vmean(mid(d.vel[0]), mid(d.vel[1]), mid(d.vel[2]));
-			const float speed = vmean.length();
-			// The velocity box's widest axis across the mean direction sets the spread.
-			const int along = std::abs(vmean.z) > std::abs(vmean.y) ? 2 : 1;
-			const float along_half = half(d.vel[along]);
-			const float across = std::max(half(d.vel[0]), along == 1 ? half(d.vel[2]) : half(d.vel[1]));
-			Ref<ParticleProcessMaterial> pm;
-			pm.instantiate();
-			pm->set_direction(speed > 1e-4f ? vmean / speed : Vector3(0, 1, 0));
-			pm->set_spread(speed > 1e-4f ? Math::rad_to_deg(Math::atan2(across, speed)) : 180.0f);
-			pm->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, std::max(0.0f, speed - along_half) * m);
-			pm->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, (speed + along_half) * m);
-			pm->set_gravity(d.force * m);
-			pm->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
-			pm->set_emission_box_extents(Vector3(half(d.pos[0]), half(d.pos[1]), half(d.pos[2])) * m);
-			pm->set_param_min(ParticleProcessMaterial::PARAM_SCALE, d.size.x * m);
-			pm->set_param_max(ParticleProcessMaterial::PARAM_SCALE, d.size.y * m);
-			if (d.growth > 0.0f && mid(d.size) > 0.0f) {
-				// size.growthRate metres a second over the particle's life.
-				const float g = 1.0f + d.growth * mid(d.life) / mid(d.size);
-				Ref<Curve> grow;
-				grow.instantiate();
-				grow->set_max_value(g);
-				grow->add_point(Vector2(0.0f, 1.0f));
-				grow->add_point(Vector2(1.0f, g));
-				Ref<CurveTexture> ct;
-				ct.instantiate();
-				ct->set_curve(grow);
-				pm->set_param_texture(ParticleProcessMaterial::PARAM_SCALE, ct);
-			}
-			pm->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, Math::rad_to_deg(d.angle.x));
-			pm->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, Math::rad_to_deg(d.angle.y));
-			pm->set_param_min(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin.x));
-			pm->set_param_max(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin.y));
-			const float c = mid(d.color);
-			pm->set_color(Color(c, c, c, 1.0f));
-			{
-				Ref<Gradient> gr;
-				gr.instantiate();
-				gr->set_offsets(PackedFloat32Array({ 0.0f, 0.15f, 1.0f }));
-				gr->set_colors(PackedColorArray({ Color(1, 1, 1, 0), Color(1, 1, 1, 1), Color(1, 1, 1, 0) }));
-				Ref<GradientTexture1D> gt;
-				gt.instantiate();
-				gt->set_gradient(gr);
-				pm->set_color_ramp(gt);
-			}
-			GPUParticles3D *p = memnew(GPUParticles3D);
-			p->set_process_material(pm);
-			p->set_draw_pass_mesh(0, quad);
-			p->set_amount(std::max(1, (int)std::ceil(d.rate * d.life.y)));
-			p->set_lifetime(d.life.y);
-			p->set_randomness_ratio(Math::clamp(1.0f - d.life.x / d.life.y, 0.0f, 1.0f));
-			if (d.start_full) p->set_pre_process_time(d.life.y);
-			p->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
-			{
-				const float t = d.life.y;
-				const float rise = ((speed + along_half) * t + 0.5f * std::abs(d.force.y) * t * t) * m + d.size.y * m * (1.0f + d.growth * t);
-				const float wide = std::min(40.0f, (across + 0.5f * Vector2(d.force.x, d.force.z).length() * t) * t * m + d.size.y * m * (1.0f + d.growth * t));
-				const float h = std::min(60.0f, rise);
-				p->set_visibility_aabb(AABB(Vector3(-wide - 1.0f, -1.0f, -wide - 1.0f), Vector3(2.0f * wide + 2.0f, h + 2.0f, 2.0f * wide + 2.0f)));
-			}
+			const auto mid = [](const Vector2 &r) { return 0.5f * (r.x + r.y); };
+			GPUParticles3D *p = make_ambient_emitter(d, m);
 			p->set_meta("relative", d.relative);
 			v.root->add_child(p);
 			emitters.push_back(p);
@@ -2403,17 +2468,39 @@ static float drawn_water_height(const rtso::Simulation *sim) {
 }
 
 // A male 0.28 Civilian draws and animates as its civ's citizen_male actor, the villager
-// model (rtso::civilian_is_male); a female one keeps the female citizen model.
+// model (rtso::civilian_is_male); a female one keeps the female citizen model, or her
+// own citizen_female actor where 0.28 has one (Han, Mauryans: unit_template_draw_index).
 static uint8_t drawn_unit_type(uint8_t utype, uint16_t tmpl, uint32_t id) {
 	return rtso::civilian_is_male(tmpl, id) ? (uint8_t)rtso::UNIT_VILLAGER : utype;
+}
+
+// The unit_template_draw_model of the wagon a template's own model packs into
+// (packed_siege_models.h), or -1.
+static int packed_draw_index(int own) {
+	static const auto table = [] {
+		std::array<int16_t, rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT> t;
+		t.fill(-1);
+		for (int k = 0; k < rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT; ++k) {
+			const char *packed = rtso::packed_siege_model(rtso::unit_template_draw_model(k));
+			for (int j = 0; packed && j < rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT; ++j)
+				if (std::strcmp(rtso::unit_template_draw_model(j), packed) == 0) t[k] = (int16_t)j;
+		}
+		return t;
+	}();
+	return own >= 0 && own < rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT ? table[own] : -1;
 }
 
 // An advanced or elite unit draws its _a or _e template's actor (0 A.D. Promotion
 // changes the template; RTS0 keeps the roster row and raises the rank).
 static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl, uint32_t id, uint8_t rank) {
 	if (rtso::civilian_is_male(tmpl, id)) return rtso::UNIT_VILLAGER;
-	if (shows_packed(pack_state) && rtso::packed_siege_model(rtso::civ_unit_model(civ, utype)))
-		return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
+	if (shows_packed(pack_state)) {
+		// A siege engine with its own 0.28 actor packs into that actor's wagon (Roman
+		// scorpio, ballista and onager, the Han mangonel); the rest into their class model's.
+		const int own_packed = packed_draw_index(rtso::unit_template_draw_index(tmpl));
+		if (own_packed >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + own_packed);
+		if (rtso::packed_siege_model(rtso::civ_unit_model(civ, utype))) return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
+	}
 	const int ranked = rtso::unit_template_rank_draw_index(tmpl, rank);
 	if (ranked >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + ranked);
 	if (ranked == rtso::UNIT_TEMPLATE_RANK_CLASS_MODEL) return utype;
@@ -2427,8 +2514,14 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 	if (key >= CROWD_KEY_COUNT) key = rtso::UNIT_VILLAGER;
 	std::unique_ptr<CrowdBatch> &slot = crowd_[civ][key];
 	if (!slot) {
+		const uint32_t ck = (uint32_t)civ << 16 | key;
+		crowd_made_.insert(std::lower_bound(crowd_made_.begin(), crowd_made_.end(), ck), ck);
 		slot = std::make_unique<CrowdBatch>();
-		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
+		slot->model_id = crowd_key_model(civ, key);
+		auto entry = rtso::ModelLibrary::get("units", slot->model_id);
+		slot->y_offset = entry.y_offset;
+		slot->scale = entry.scale;
+		slot->height = entry.aabb.size.y;
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
 		// Owner-coloured: a player_color.gdshader surface with a mask (the shader also
@@ -2546,8 +2639,17 @@ uint32_t RtsoWorldView::crowd_form_mask(uint8_t civ, uint16_t key) {
 	return m;
 }
 
+static uint64_t bake_now_us() {
+	return (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+bool RtsoWorldView::crowd_bake_over_budget() {
+	return crowd_baked_this_frame_ && bake_now_us() >= crowd_bake_deadline_us_;
+}
+
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, uint64_t death_slots, bool female) {
+		const bool *needed, int count, uint64_t death_slots, bool female, bool budgeted) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -2555,6 +2657,10 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	}
 	for (int c = 0; c < count; ++c) {
 		if (!needed[c] || done[c]) continue;
+		if (budgeted) {
+			if (crowd_bake_over_budget()) break;
+			crowd_baked_this_frame_ = true;
+		}
 		done[c] = true;
 		ensure_form_clip(ap, (ClipId)want[c]);
 		ClipId play = resolve_clip_fallback(ap, (ClipId)want[c]);
@@ -2645,7 +2751,7 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *co
 		needed[c] = counts[c] > 0 && !b.clip_baked[c];
 		any = any || needed[c];
 	}
-	if (!any) return;
+	if (!any || crowd_bake_over_budget()) return;
 
 	auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
 	if (!entry.scene.is_valid()) {
@@ -2661,9 +2767,9 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *co
 	if (!inst) return;
 	const bool female = unit_is_female(utype);
 	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female, true);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
+		if (needed[c] && b.clip_baked[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
 			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
 	}
 	crowd_bake_root->remove_child(inst);
@@ -2703,6 +2809,37 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 	}
 	crowd_bake_root->remove_child(inst);
 	inst->queue_free();
+}
+
+// A unit model's first draw reads its GLB, tens of milliseconds on the frame. Twice a
+// second, the models of units that exist but aren't drawn yet (in the fog, in a
+// structure) and of units in the production queues start loading on a worker.
+void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta) {
+	prefetch_poll_ -= delta;
+	if (prefetch_poll_ > 0.0f) return;
+	prefetch_poll_ = 0.5f;
+	if (prefetched_.size() != (size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT) prefetched_.assign((size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT, false);
+	auto want = [&](uint8_t civ, uint16_t key) {
+		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
+		if (key >= CROWD_KEY_COUNT || crowd_[civ][key]) return;
+		std::vector<bool>::reference done = prefetched_[(size_t)civ * CROWD_KEY_COUNT + key];
+		if (done) return;
+		done = true;
+		rtso::ModelLibrary::prefetch("units", crowd_key_model(civ, key));
+	};
+	for (size_t i = 0; i < uview.count; ++i) {
+		uint8_t t = uview.unit_type[i];
+		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
+		const uint8_t civ = sim->team_civ(uview.team[i]);
+		want(civ, crowd_key_of(civ, drawn_unit_type(t, uview.tmpl[i], uview.id[i]), uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]));
+	}
+	for (const auto &b : sim->buildings()) {
+		for (const rtso::ProductionOrder &o : b.queue) {
+			if (o.is_tech() || o.unit_type >= rtso::UNIT_TYPE_COUNT) continue;
+			const uint8_t civ = sim->team_civ(b.team);
+			want(civ, crowd_key_of(civ, o.unit_type, 0, o.tmpl, 0, 1));
+		}
+	}
 }
 
 void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop) {
@@ -3468,6 +3605,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// 1. Units Presentation: Real 0 A.D. models, 3D animations, and Health Bars
 	// =========================================================================
 	auto uview = sim->units();
+	prefetch_unit_models(sim, uview, delta);
 	auto rview_g = sim->resources();
 	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
 		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
@@ -3529,8 +3667,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const auto &fc : sim->formations())
 		rtso::formvar::for_each_member_variant(fc, [this](uint32_t ent, uint8_t v) { form_variant_[ent] = v; });
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
+	crowd_bake_deadline_us_ = bake_now_us() + CROWD_BAKE_BUDGET_US;
+	crowd_baked_this_frame_ = false;
+	// Per batch and clip: units drawn (counts) and placed so far (written). Only the rows of
+	// batches with units this frame are cleared and read; the rest count none.
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
-	std::memset(counts, 0, sizeof(counts));
+	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
+	static const int no_units[CROWD_CLIP_COUNT] = {};
+	for (const uint32_t ck : crowd_seen_list_) crowd_seen_[ck >> 16][ck & 0xFFFF] = 0;
+	crowd_seen_list_.clear();
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint8_t t = uview.unit_type[i];
@@ -3542,27 +3687,30 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		crowd_slot_scratch_[i] = (uint8_t)slot;
 		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
 		crowd_key_utype_[key] = t;
+		if (!crowd_seen_[civ][key]) {
+			crowd_seen_[civ][key] = 1;
+			crowd_seen_list_.push_back((uint32_t)civ << 16 | key);
+			std::memset(counts[civ][key], 0, sizeof(counts[civ][key]));
+			std::memset(written[civ][key], 0, sizeof(written[civ][key]));
+		}
 		counts[civ][key][slot]++;
 	}
-	for (int civ = 0; civ < rtso::CIV_COUNT; ++civ) {
-		for (int t = 0; t < CROWD_KEY_COUNT; ++t) {
-			int any = 0;
-			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += counts[civ][t][c];
-			if (any == 0 && !crowd_[civ][t]) continue;
-			if (any > 0) {
-				CrowdBatch &cb = crowd_batch((uint8_t)civ, (uint16_t)t);
-				ensure_crowd_frames((uint8_t)civ, (uint16_t)t, counts[civ][t]);
-				for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
-					if (counts[civ][t][c] > 0) crowd_mm(cb, c);
-			}
-			CrowdBatch &cb = *crowd_[civ][t];
-			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
+	// Every batch with units this frame exists before the walk, which goes civ by civ, key by key.
+	for (const uint32_t ck : crowd_seen_list_) crowd_batch((uint8_t)(ck >> 16), (uint16_t)(ck & 0xFFFF));
+	for (const uint32_t ck : crowd_made_) {
+		const int civ = (int)(ck >> 16), t = (int)(ck & 0xFFFF);
+		const bool any = crowd_seen_[civ][t] != 0;
+		const int *row = any ? counts[civ][t] : no_units;
+		CrowdBatch &cb = *crowd_[civ][t];
+		if (any) {
+			ensure_crowd_frames((uint8_t)civ, (uint16_t)t, row);
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
-				if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(counts[civ][t][c]);
+				if (row[c] > 0) crowd_mm(cb, c);
 		}
+		cycle_puppet_meshes(cb.puppet, cb.mm, row, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
+		for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
+			if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(row[c]);
 	}
-	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
-	std::memset(written, 0, sizeof(written));
 
 	const Color col_player(0.55f, 0.72f, 1.0f);
 	const Color col_enemy(1.0f, 0.52f, 0.42f);
@@ -3639,15 +3787,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
 		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
-		String utype_str = crowd_key_model(uciv, ckey);
-		String cat_units3 = "units";
-		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
+		// The batch holds the model's entry values (every unit drawn this frame has one).
+		const CrowdBatch &model_b = crowd_batch(uciv, ckey);
+		const String &utype_str = model_b.model_id;
 		const float turret_h = sim->unit_height_offset(i); // turret points stand on walls
 		float ground = sim->get_terrain_height(x, z);
 		// 0 A.D. ships are Position Floating: they ride the water surface, not the seabed.
 		if (rtso::unit_is_ship(utype) && sim->water_height() > -0.5f) ground = std::max(ground, drawn_water_height(sim));
-		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + entry.y_offset;
-		float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
+		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + model_b.y_offset;
+		float sc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
 		const float death_t = dying ? uview.death_timer[i] : 0.0f;
@@ -3656,8 +3804,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			apply_ship_wave_xform(xf, id, anim_time, speed2);
 		}
 		if (dying) {
-			apply_unit_death_xform(xf, utype, death_t, x, z, entry.aabb.size.y * sc, false);
+			apply_unit_death_xform(xf, utype, death_t, x, z, model_b.height * sc, false);
 		}
+		if (want.clip == CLIP_RUN && !dying) emit_run_dust(utype_str, Vector3(x, ground, z), sc, delta);
 		const int clip = crowd_slot_scratch_[i];
 		MultiMesh *cmm = crowd_[uciv][ckey] ? crowd_[uciv][ckey]->mm[clip].ptr() : nullptr;
 		if (cmm) {
@@ -3714,7 +3863,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (!aura_icon_sources_.empty())
 				status_aura_icons(x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
 			if (bars || st.n_icons > 0)
-				draw_status_stack(sim, Vector3(x, y + entry.aabb.size.y * sc + 0.3f, z), 0.9f, 0.08f, st);
+				draw_status_stack(sim, Vector3(x, y + model_b.height * sc + 0.3f, z), 0.9f, 0.08f, st);
 		}
 
 		if (detailed.count(id) == 0) continue;
@@ -3766,14 +3915,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 
-		float dsc = entry.scale > 0.05f ? entry.scale : 1.0f;
+		float dsc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
 		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw).scaled(Vector3(dsc, dsc, dsc)),
 		               Vector3(x, y, z));
 		if (ship_wave) {
 			apply_ship_wave_xform(dxf, id, anim_time, speed2);
 		}
 		if (dying) {
-			apply_unit_death_xform(dxf, utype, death_t, x, z, entry.aabb.size.y * dsc, has_death_clip);
+			apply_unit_death_xform(dxf, utype, death_t, x, z, model_b.height * dsc, has_death_clip);
 		}
 		v.root->set_transform(dxf);
 		if (ship_wave) {
@@ -4421,6 +4570,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float fsc = fent.scale > 0.05f ? fent.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), frot).scaled(Vector3(fsc, fsc, fsc)),
 		               Vector3(fx, fy + fent.y_offset, fz));
+		// Fleeing (or moving at a run) on the Run clip: the actor's dust.
+		if (clip == 1 && (fview.behavior[f] == rtso::FAUNA_FLEE || vx * vx + vz * vz > 18.0f))
+			emit_run_dust(String(fid), Vector3(fx, fy, fz), fsc, delta);
 		int fslot = f_written[ft][clip]++;
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
