@@ -3015,6 +3015,23 @@ static void test_unload_self_garrison_rally() {
 	check(i >= 0 && s.units_.pos_x[i] < 20.0f, "after unloading it stays by the tower instead of walking to the Shift-added point");
 }
 
+static void test_allied_builders_continue() {
+	std::printf("86. an ally's builders move on to a foundation of their own when your structure finishes (Foundation.GetBuilders)\n");
+	Simulation s;
+	setup(s);
+	s.set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+	s.set_diplomacy(1, 0, Simulation::DIPLO_ALLY);
+	const uint32_t house = s.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 0.9f);
+	const uint32_t theirs = s.spawn_building_world(8.0f, 0.0f, BLD_HOUSE, 1, 0.0f);
+	s.spawn_building_world(-8.0f, 0.0f, BLD_HOUSE, 0, 0.0f); // player 0's: not for the ally
+	uint32_t a = s.spawn_unit(3.0f, 2.0f, 1, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&a, 1, house);
+	const bool done = run_until(s, 30.0f, [&] { return bld(s, house)->build_progress >= 1.0f; });
+	run(s, 0.5f);
+	check(done && s.unit_order(a).kind == ORDER_BUILD && s.unit_order(a).target == theirs,
+			"the allied builder goes on to its own player's foundation nearby");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3104,6 +3121,7 @@ int main(int argc, char **argv) {
 	test_guard_memory(save.c_str());
 	test_passive_siege_flees();
 	test_unload_self_garrison_rally();
+	test_allied_builders_continue();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

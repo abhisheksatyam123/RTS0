@@ -16851,7 +16851,7 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 	const size_t n = units_.count;
 	std::vector<uint32_t> builders;
 	for (size_t k = 0; k < n; ++k)
-		if (units_.alive[k] && units_.team[k] == b.team &&
+		if (units_.alive[k] && (units_.team[k] == b.team || is_ally(b.team, units_.team[k])) &&
 				(k == builder || (units_.action_state[k] == ACTION_BUILD && units_.target_building_id[k] == b.id)))
 			builders.push_back(units_.id[k]);
 	const bool food = b.type == BLD_FARMSTEAD;
@@ -16893,8 +16893,11 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		// not for those UnitAI sent over from a finished structure or a guard. Petra's builders
 		// keep gathering by what they built: RTS0's Petra counts on it (0 A.D.'s Petra sends
 		// autocontinue false and reassigns them itself).
-		const bool harvest = petra_runs_for(units_.team[k]) || (units_.order_kind[k] == ORDER_BUILD &&
-				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0);
+		// An ally's builders (Foundation.GetBuilders holds them too) can't farm or drop at
+		// someone else's structure here; they only look for a foundation of their own.
+		const bool own = units_.team[k] == b.team;
+		const bool harvest = own && (petra_runs_for(units_.team[k]) || (units_.order_kind[k] == ORDER_BUILD &&
+				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0));
 		auto q = order_queues_.find(uid);
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(k); return; }
 		if (harvest && b.type == BLD_FIELD) {
@@ -16929,7 +16932,8 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 			}
 			if (r != 0) { order_gather(&uid, 1, r, false, false); return; }
 		}
-		const uint32_t f = find_nearby_foundation(b.x, b.z, b.team);
+		// FindNearbyFoundation: the builder's own player's foundations.
+		const uint32_t f = find_nearby_foundation(b.x, b.z, units_.team[k]);
 		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
 		set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
 		units_.has_order[k] = 0; // FinishOrder: it stays where it built from, in range
