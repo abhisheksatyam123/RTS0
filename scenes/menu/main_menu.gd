@@ -276,6 +276,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
 	for hk in _hotkeys.fired(event):
+		if hk == "cancel" and submenu_panel.visible: # menupanel.xml closeMenuButton
+			get_viewport().set_input_as_handled()
+			_close_submenu()
+			return
 		if MENU_HOTKEYS.has(hk):
 			get_viewport().set_input_as_handled()
 			_execute_action(MENU_HOTKEYS[hk])

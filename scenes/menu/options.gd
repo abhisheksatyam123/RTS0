@@ -585,6 +585,7 @@ func _on_hotkeys_pressed() -> void:
 	MatchSettings.go("res://scenes/menu/hotkeys.tscn")
 
 func _unhandled_input(event: InputEvent) -> void:
-	if overlay and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+	# closeButton hotkey="cancel", over a match or opened from the main menu.
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE and _confirm == null:
 		_on_close()
 		get_viewport().set_input_as_handled()
