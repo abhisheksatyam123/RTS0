@@ -1561,83 +1561,193 @@ void Simulation::rebuild_territory_grids() {
 	territory_regions_dirty_ = true;
 
 	// CCmpTerritoryManager::CalculateCostGrid: 1 a tile, ImpassableCost (4) where a land unit
-	// can't stand (default-terrain-only: deep water or a slope over MaxTerrainSlope).
+	// can't stand (default-terrain-only: deep water or a slope over MaxTerrainSlope). Worked out
+	// again only when its inputs may have changed.
 	const float cell = map_half_ * 2.0f / (float)R;
-	territory_cost_.resize(R, R, 1);
-	territory_cost_.fill(1);
-	if (!nav_grid_.cells.blank())
-		for (int y = 0; y < R; ++y)
-			for (int x = 0; x < R; ++x) {
-				auto [cx, cy] = nav_grid_.world_to_cell(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_);
-				if (nav_grid_.cells.inside(cx, cy) && (nav_grid_.cells.at(cx, cy) == NAV_WATER || nav_grid_.is_steep(cx, cy)))
-					territory_cost_.at(x, y) = TERRITORY_IMPASSABLE_COST;
-			}
-	// 255 "off the world": tiles the unrestricted class can't enter, a circular map's edge band
-	// and what lies past it. Territory doesn't spread there, and they don't count as map.
-	if (circular_map())
-		for (int y = 0; y < R; ++y)
-			for (int x = 0; x < R; ++x)
-				if (past_map_edge(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_))
-					territory_cost_.at(x, y) = TERRITORY_OFF_WORLD_COST;
+	const size_t N = (size_t)R * R;
+	if (territory_cost_stamp_ != nav_terrain_stamp_ || territory_cost_res_ != R || territory_cost_half_ != map_half_ ||
+			territory_cost_circular_ != circular_map() || territory_cost_.w != R || territory_cost_.h != R) {
+		if (territory_cost_res_ != R || territory_cost_half_ != map_half_) territory_teams_valid_ = false; // tiles moved
+		territory_cost_stamp_ = nav_terrain_stamp_;
+		territory_cost_res_ = R;
+		territory_cost_half_ = map_half_;
+		territory_cost_circular_ = circular_map();
+		std::vector<uint8_t> before;
+		before.swap(territory_cost_.data);
+		territory_cost_.resize(R, R, 1);
+		territory_cost_.fill(1);
+		if (!nav_grid_.cells.blank())
+			for (int y = 0; y < R; ++y)
+				for (int x = 0; x < R; ++x) {
+					auto [cx, cy] = nav_grid_.world_to_cell(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_);
+					if (nav_grid_.cells.inside(cx, cy) && (nav_grid_.cells.at(cx, cy) == NAV_WATER || nav_grid_.is_steep(cx, cy)))
+						territory_cost_.at(x, y) = TERRITORY_IMPASSABLE_COST;
+				}
+		// 255 "off the world": tiles the unrestricted class can't enter, a circular map's edge band
+		// and what lies past it. Territory doesn't spread there, and they don't count as map.
+		if (circular_map())
+			for (int y = 0; y < R; ++y)
+				for (int x = 0; x < R; ++x)
+					if (past_map_edge(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_))
+						territory_cost_.at(x, y) = TERRITORY_OFF_WORLD_COST;
+		if (before != territory_cost_.data) territory_teams_valid_ = false; // every flood runs over it
+	}
 
 	// CalculateTerritories: each structure's weight floods outwards over the tiles, losing
 	// weight x tile / radius per tile (times the tile's cost, x362/256 diagonally); a player's
-	// weights add up and each tile goes to the player with the most.
-	const size_t N = (size_t)R * R;
-	auto &entity = territory_entity_w_, &player = territory_player_w_, &best = territory_best_w_;
-	entity.assign(N, 0);
-	player.assign(N, 0);
-	best.assign(N, 0);
-	influence_grid_.resize(R, R, 0);
-	influence_grid_.fill(0);
+	// weights add up and each tile goes to the player with the most. The players are taken in
+	// order, and a tile changes hands only to a strictly higher weight than any before.
+	auto &entity = territory_entity_w_;
 	auto &open = territory_open_;
 	auto &touched = territory_touched_;
+	if (entity.size() != N) entity.assign(N, 0); // all 0 between floods
 	static constexpr int DX[8] = {1, -1, 0, 0, 1, -1, 1, -1};
 	static constexpr int DZ[8] = {0, 0, 1, -1, 1, -1, -1, 1};
-	for (uint8_t team = 0; team < MAX_PLAYERS; ++team) {
-		bool any = false;
-		for (const TerritoryRoot &r : territory_roots_) any |= r.team == team;
-		if (!any) continue;
-		std::fill(player.begin(), player.end(), 0u);
-		for (const TerritoryRoot &r : territory_roots_) {
-			if (r.team != team || r.radius <= 0.0f) continue;
-			const uint32_t falloff_rel = (uint32_t)((float)r.weight * cell / r.radius);
-			const int ox = std::clamp((int)((r.x + map_half_) / cell), 0, R - 1);
-			const int oz = std::clamp((int)((r.z + map_half_) / cell), 0, R - 1);
-			// The origin tile takes the structure's weight alone (its decider has no predecessor).
-			auto claim = [&](int x, int z, uint32_t w, bool origin) {
-				const size_t k = (size_t)z * R + x;
-				const uint32_t total = origin ? w : w + player[k] - entity[k];
-				player[k] = total;
-				if (entity[k] == 0) touched.push_back((uint32_t)k);
-				entity[k] = w;
-				if (total > best[k]) {
-					best[k] = total;
-					influence_grid_.data[k] = (uint8_t)(team + 1);
-				}
-			};
-			open.clear();
-			touched.clear();
-			claim(ox, oz, r.weight, true);
-			open.push_back((uint32_t)(oz * R + ox));
-			for (size_t head = 0; head < open.size(); ++head) {
-				const int cx = (int)(open[head] % (uint32_t)R), cz = (int)(open[head] / (uint32_t)R);
-				const uint32_t here = entity[(size_t)cz * R + cx];
-				for (int d = 0; d < 8; ++d) {
-					const int nx = cx + DX[d], nz = cz + DZ[d];
-					if (nx < 0 || nz < 0 || nx >= R || nz >= R) continue;
-					if (territory_cost_.at(nx, nz) == TERRITORY_OFF_WORLD_COST) continue; // don't expand beyond the world
-					const uint32_t per_tile = falloff_rel * territory_cost_.at(nx, nz);
-					const uint32_t fall = d >= 4 ? per_tile * 362 / 256 : per_tile;
-					const size_t k = (size_t)nz * R + nx;
-					if (here <= entity[k] + fall) continue; // no better than what it has
-					claim(nx, nz, here - fall, false);
-					open.push_back((uint32_t)k);
-				}
+	auto flood = [&](const TerritoryRoot &r) {
+		TerritoryFlood f;
+		f.root = r;
+		if (r.radius <= 0.0f) return f;
+		const uint32_t falloff_rel = (uint32_t)((float)r.weight * cell / r.radius);
+		const int ox = std::clamp((int)((r.x + map_half_) / cell), 0, R - 1);
+		const int oz = std::clamp((int)((r.z + map_half_) / cell), 0, R - 1);
+		auto claim = [&](size_t k, uint32_t w) {
+			if (entity[k] == 0) touched.push_back((uint32_t)k);
+			entity[k] = w;
+		};
+		open.clear();
+		touched.clear();
+		f.origin = oz * R + ox;
+		claim((size_t)f.origin, r.weight);
+		open.push_back((uint32_t)f.origin);
+		for (size_t head = 0; head < open.size(); ++head) {
+			const int cx = (int)(open[head] % (uint32_t)R), cz = (int)(open[head] / (uint32_t)R);
+			const uint32_t here = entity[(size_t)cz * R + cx];
+			for (int d = 0; d < 8; ++d) {
+				const int nx = cx + DX[d], nz = cz + DZ[d];
+				if (nx < 0 || nz < 0 || nx >= R || nz >= R) continue;
+				if (territory_cost_.at(nx, nz) == TERRITORY_OFF_WORLD_COST) continue; // don't expand beyond the world
+				const uint32_t per_tile = falloff_rel * territory_cost_.at(nx, nz);
+				const uint32_t fall = d >= 4 ? per_tile * 362 / 256 : per_tile;
+				const size_t k = (size_t)nz * R + nx;
+				if (here <= entity[k] + fall) continue; // no better than what it has
+				claim(k, here - fall);
+				open.push_back((uint32_t)k);
 			}
-			for (uint32_t k : touched) entity[k] = 0;
 		}
+		int x0 = R, z0 = R, x1 = -1, z1 = -1;
+		for (uint32_t k : touched) {
+			const int x = (int)(k % (uint32_t)R), z = (int)(k / (uint32_t)R);
+			x0 = std::min(x0, x); x1 = std::max(x1, x);
+			z0 = std::min(z0, z); z1 = std::max(z1, z);
+		}
+		f.x0 = x0; f.z0 = z0; f.w = x1 - x0 + 1; f.h = z1 - z0 + 1;
+		f.v.assign((size_t)f.w * f.h, 0);
+		for (uint32_t k : touched) {
+			f.v[(size_t)((int)(k / (uint32_t)R) - z0) * f.w + ((int)(k % (uint32_t)R) - x0)] = entity[k];
+			entity[k] = 0;
+		}
+		return f;
+	};
+	// The tiles whose weights changed, as rectangles and single tiles, to hand out again below.
+	struct Rect { int x0, z0, x1, z1; };
+	std::vector<Rect> changed;
+	const bool full = !territory_teams_valid_ || influence_grid_.w != R || influence_grid_.h != R ||
+			territory_last_influence_ != influence_grid_.data;
+	if (full) {
+		for (TerritoryTeam &t : territory_teams_) t = TerritoryTeam{};
+		changed.push_back({0, 0, R - 1, R - 1});
 	}
+	territory_teams_valid_ = true;
+	std::vector<TerritoryRoot> &team_roots = territory_roots_scratch_; // the old roots, no longer needed
+	for (uint8_t team = 0; team < MAX_PLAYERS; ++team) {
+		TerritoryTeam &tt = territory_teams_[team];
+		team_roots.clear();
+		for (const TerritoryRoot &r : territory_roots_)
+			if (r.team == team) team_roots.push_back(r);
+		bool same = team_roots.size() == tt.floods.size();
+		for (size_t k = 0; same && k < team_roots.size(); ++k) same = team_roots[k] == tt.floods[k].root;
+		if (same && !full) continue;
+		if (team_roots.empty() && tt.floods.empty()) continue; // claims nothing (max_w stays empty)
+		if (tt.sum.size() != N) tt.sum.assign(N, 0);
+		if (tt.max_w.size() != N) tt.max_w.assign(N, 0);
+		// Keep the floods of structures still there (any order), flood the new ones, and take the
+		// floods of the ones gone off the sums.
+		std::vector<TerritoryFlood> old;
+		old.swap(tt.floods);
+		std::vector<uint8_t> kept(old.size(), 0);
+		std::vector<int> origins; // the old structures' tiles and the new ones'
+		for (const TerritoryFlood &f : old)
+			if (f.origin >= 0) origins.push_back(f.origin);
+		std::vector<Rect> mine; // the tiles where this player's floods changed
+		auto add = [&](const TerritoryFlood &f, int sign) {
+			if (f.origin < 0) return;
+			for (int z = 0; z < f.h; ++z) {
+				uint32_t *row = &tt.sum[(size_t)(f.z0 + z) * R + f.x0];
+				const uint32_t *v = &f.v[(size_t)z * f.w];
+				if (sign > 0) for (int x = 0; x < f.w; ++x) row[x] += v[x];
+				else for (int x = 0; x < f.w; ++x) row[x] -= v[x];
+			}
+			mine.push_back({f.x0, f.z0, f.x0 + f.w - 1, f.z0 + f.h - 1});
+		};
+		tt.floods.reserve(team_roots.size());
+		for (const TerritoryRoot &r : team_roots) {
+			size_t j = 0;
+			while (j < old.size() && (kept[j] || !(old[j].root == r))) ++j;
+			if (j < old.size()) {
+				kept[j] = 1;
+				tt.floods.push_back(std::move(old[j]));
+			} else {
+				tt.floods.push_back(flood(r));
+				add(tt.floods.back(), +1);
+			}
+		}
+		for (size_t j = 0; j < old.size(); ++j)
+			if (!kept[j]) add(old[j], -1);
+		// Off the structures' own tiles a player's weight only grows as its floods run, so the most
+		// it reaches is the sum.
+		if (full) mine.assign(1, Rect{0, 0, R - 1, R - 1});
+		for (const Rect &q : mine)
+			for (int z = q.z0; z <= q.z1; ++z)
+				std::copy(&tt.sum[(size_t)z * R + q.x0], &tt.sum[(size_t)z * R + q.x1] + 1, &tt.max_w[(size_t)z * R + q.x0]);
+		for (int k : origins) tt.max_w[(size_t)k] = tt.sum[(size_t)k];
+		// On a structure's own tile its flood starts the player's weight afresh, dropping the weights
+		// of the structures before it: replay the floods there in order.
+		for (const TerritoryFlood &f : tt.floods) {
+			if (f.origin < 0) continue;
+			const int kx = f.origin % R, kz = f.origin / R;
+			uint32_t total = 0, most = 0;
+			for (const TerritoryFlood &g : tt.floods) {
+				if (g.origin < 0) continue;
+				if (g.origin == f.origin) total = g.root.weight;
+				else if (const uint32_t w = g.at(kx, kz)) total += w;
+				else continue;
+				most = std::max(most, total);
+			}
+			tt.max_w[(size_t)f.origin] = most;
+			origins.push_back(f.origin);
+		}
+		if (full) continue; // every tile is handed out below
+		changed.insert(changed.end(), mine.begin(), mine.end());
+		for (int k : origins) changed.push_back({k % R, k / R, k % R, k / R});
+	}
+	// Hand the changed tiles out again: to the first player whose weight there is the highest.
+	if (full) influence_grid_.resize(R, R, 0);
+	for (const Rect &q : changed)
+		for (int z = q.z0; z <= q.z1; ++z)
+			for (int x = q.x0; x <= q.x1; ++x) {
+				const size_t k = (size_t)z * R + x;
+				uint32_t best = 0;
+				uint8_t owner = 0;
+				for (uint8_t team = 0; team < MAX_PLAYERS; ++team) {
+					const std::vector<uint32_t> &m = territory_teams_[team].max_w;
+					if (m.size() == N && m[k] > best) {
+						best = m[k];
+						owner = (uint8_t)(team + 1);
+					}
+				}
+				influence_grid_.data[k] = owner;
+			}
+	territory_last_influence_ = influence_grid_.data;
 	territory_grid_ = influence_grid_;
 }
 
@@ -9212,10 +9322,16 @@ void Simulation::tick_statistics() {
 	if (tick % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0) {
 		// StatisticsTracker.OnTerritoriesChanged / OnGlobalPlayerDefeated: the peaks follow
 		// the territory as it changes, not only the 30 s rows.
+		// One territory count for every player (percent_map_controlled and its team sum each count it).
+		const std::array<uint8_t, MAX_PLAYERS> pc = territory_percentages();
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 			if (!players_[p].active) continue;
-			stats_[p].peak_percent_map_controlled = std::max(stats_[p].peak_percent_map_controlled, percent_map_controlled(p));
-			stats_[p].team_peak_percent_map_controlled = std::max(stats_[p].team_peak_percent_map_controlled, team_percent_map_controlled(p));
+			const uint8_t team = stat_team_mask(p);
+			int team_sum = 0;
+			for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
+				if (team & (1u << q)) team_sum += pc[q];
+			stats_[p].peak_percent_map_controlled = std::max(stats_[p].peak_percent_map_controlled, (float)pc[p]);
+			stats_[p].team_peak_percent_map_controlled = std::max(stats_[p].team_peak_percent_map_controlled, (float)team_sum);
 		}
 	}
 	// StatisticsTracker.UpdateSequences: a Timer interval that starts at 0, so the first
@@ -11434,6 +11550,10 @@ void Simulation::tick_gather(float dt) {
 			supply_slot[i] = 1;
 		}
 	}
+	// The structures a returning worker may pick, listed when the first one needs them: no
+	// structure is placed, finished or removed during this loop.
+	bool drop_listed = false;
+	std::vector<uint32_t> drop_candidates;
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i]) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
@@ -11455,7 +11575,18 @@ void Simulation::tick_gather(float dt) {
 			bool drop_same_land = false; // the pick is on the worker's land
 			int in_pocket = -1; // stands_in_pocket(i), worked out when first needed
 
-			for (const auto &b : buildings_) {
+			if (!drop_listed) { // the finished structures that take some load, in buildings_ order
+				drop_listed = true;
+				for (size_t k = 0; k < buildings_.size(); ++k) {
+					const Building &b = buildings_[k];
+					if (b.build_progress >= 1.0f && (is_naval_dropsite(b.type) || is_civic_centre(b.type) ||
+							civ_building_is_dropsite(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD ||
+							b.type == BLD_DOCK))
+						drop_candidates.push_back((uint32_t)k);
+				}
+			}
+			for (const uint32_t bk : drop_candidates) {
+				const Building &b = buildings_[bk];
 				if (b.build_progress < 1.0f || !dropsite_usable_by(uteam, b)) continue;
 				bool valid_drop = false;
 				if (units_.unit_type[i] == UNIT_FISHING_BOAT) valid_drop = is_naval_dropsite(b.type); // boats can only reach docks
@@ -13101,6 +13232,8 @@ void Simulation::tick_combat(float dt) {
 	enum : uint8_t { ARROW_UNIT, ARROW_FAUNA, ARROW_BUILDING };
 	struct ArrowTarget { int32_t idx; uint8_t kind; uint8_t pref; float d2; };
 	std::vector<ArrowTarget> arrow_targets;
+	bool lowest_ground_known = false;
+	float lowest_ground = std::numeric_limits<float>::infinity(); // the lowest terrain height, once needed
 	// Of Gaia, only what can attack is shot: Gaia units and the dangerous animals in `wild`
 	// (SetupGaiaRangeQuery, OnRangeUpdate's IsDangerousAnimal filter). Gaia structures have
 	// no UnitAI, so they are not shot.
@@ -13122,6 +13255,20 @@ void Simulation::tick_combat(float dt) {
 			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
 			return eff_d >= min_r && in_parabolic_range(eff_d * eff_d, b_y, def_y, max_r);
 		};
+		// No target on the ground stands lower than the map's lowest point, so none further than
+		// the parabolic range from there is in range: structures and animals beyond it on either
+		// axis are passed over before their ground height is looked up. The metre of margin keeps
+		// float rounding on the side of testing.
+		if (!lowest_ground_known) {
+			lowest_ground_known = true;
+			for (const float h : terrain_heights_) lowest_ground = std::min(lowest_ground, h);
+			if (terrain_heights_.empty() || terrain_res_ <= 1) lowest_ground = 0.0f; // get_terrain_height's flat map
+		}
+		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
+		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + b.half_size + 1.0f : -1.0f;
+		auto beyond = [&](float dx, float dz, float other_half) {
+			return ground_reach >= 0.0f && (std::fabs(dx) > ground_reach + other_half || std::fabs(dz) > ground_reach + other_half);
+		};
 		// Gaia is shot only where it can fight back (SetupGaiaRangeQuery asks for IID_Attack).
 		auto unit_target = [&](int32_t i) {
 			return units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && can_attack(b.team, units_.team[i])
@@ -13130,6 +13277,7 @@ void Simulation::tick_combat(float dt) {
 		};
 		auto building_target = [&](const Building &ob) {
 			return !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
+					&& !beyond(ob.x - b.x, ob.z - b.z, ob.half_size)
 					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
 		};
 		const bool shoots_gaia = b.team != GAIA_PLAYER && is_hostile(b.team, GAIA_PLAYER);
@@ -13137,7 +13285,7 @@ void Simulation::tick_combat(float dt) {
 			const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
 			const uint8_t owner = fauna_owner_[f];
 			const bool foe = owner < MAX_PLAYERS ? b.team != GAIA_PLAYER && can_attack(b.team, owner) : shoots_gaia;
-			return foe && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
+			return foe && !beyond(fx - b.x, fz - b.z, 0.0f) && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
 		};
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
@@ -21993,8 +22141,6 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
 			const int owner = territory_owner_at(x, z);
 			if (owner >= 0 && owner < MAX_PLAYERS) continue; // neutral or Gaia's only
-			const uint16_t l = petra_land_at(x, z);
-			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			float min_d = 1e30f, d0 = -1.0f, d1 = -1.0f, d2 = -1.0f;
 			for (const Cc &c : ccs) {
 				const float d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z);
@@ -22012,6 +22158,9 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			if (d2 >= 0.0f) { delta = std::sqrt(d2) - favoured; val += delta * delta; }
 			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) val += 10000.0f / 16.0f;
 			if (found && val > best) continue;
+			// The land last of the tests a tile can fail: its search costs the most.
+			const uint16_t l = petra_land_at(x, z);
+			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			if (!petra_cc_tile_ok(btype, x, z)) continue;
 			found = true;
 			best = val;
@@ -22093,6 +22242,26 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
 			const int owner = territory_owner_at(x, z);
 			if (owner >= 0 && owner < MAX_PLAYERS) continue; // neutral or Gaia's only
+			// The tests below that don't need the tile's land go first, as its search costs the
+			// most: a civic centre too near, and a value that can't reach the cut or the best so
+			// far whatever the land (norm only shrinks from these halvings; across the sea by a
+			// dock it is at most just over the cut).
+			const size_t j = (size_t)iz * w + ix;
+			{
+				float norm_max = 0.5f;
+				bool near = false;
+				for (const Cc &c : ccs) {
+					const float d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z);
+					if (d < near_rej || (c.ally && d < ally_rej)) { near = true; break; }
+					if (c.ally && d < ally_dis) norm_max *= 0.5f;
+				}
+				if (near) continue;
+				if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm_max *= 0.5f;
+				float val_max = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
+				val_max *= norm_max;
+				if (!dps.empty()) val_max = std::max(val_max, cut + 0.1f);
+				if (val_max < cut || (found && val_max < best)) continue;
+			}
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			float norm = 0.5f, min_d = 1e30f;
@@ -22120,7 +22289,6 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 				if (norm == 0.0f) continue;
 			}
 			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm *= 0.5f;
-			const size_t j = (size_t)iz * w + ix;
 			float val = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
 			val *= norm;
 			if (oversea) val = std::max(val, cut + 0.1f);
@@ -25460,10 +25628,21 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 	m.base.clear();
 	if (m.anchors.empty()) return;
 	auto centre = [&](int i) { return ((float)i + 0.5f) * GRID - map_half_; };
+	// territory_owner_at(centre(ix), centre(iz)), with each column's and row's territory tile
+	// worked out once (by its own expression, so to the same tile) instead of on every call.
+	if (territory_grid_.blank()) return;
+	std::vector<int> &tile = petra_bases_tile_scratch_;
+	tile.resize((size_t)m.w * 2);
+	for (int i = 0; i < m.w; ++i) {
+		tile[i] = std::clamp(static_cast<int>((centre(i) + map_half_) / (map_half_ * 2.0f) * static_cast<float>(territory_grid_.w)), 0, territory_grid_.w - 1);
+		tile[m.w + i] = std::clamp(static_cast<int>((centre(i) + map_half_) / (map_half_ * 2.0f) * static_cast<float>(territory_grid_.h)), 0, territory_grid_.h - 1);
+	}
+	const uint8_t mine = (uint8_t)(petra_pid_ + 1); // territory_grid_ holds owner + 1
+	auto ours = [&](int ix, int iz) { return territory_grid_.at(tile[ix], tile[m.w + iz]) == mine; };
 	int x0 = m.w, z0 = m.w, x1 = -1, z1 = -1;
 	for (int iz = 0; iz < m.w; ++iz)
 		for (int ix = 0; ix < m.w; ++ix)
-			if (territory_owner_at(centre(ix), centre(iz)) == (int)petra_pid_) {
+			if (ours(ix, iz)) {
 				x0 = std::min(x0, ix); x1 = std::max(x1, ix);
 				z0 = std::min(z0, iz); z1 = std::max(z1, iz);
 			}
@@ -25474,7 +25653,7 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 	for (int iz = z0; iz <= z1; ++iz)
 		for (int ix = x0; ix <= x1; ++ix) {
 			const float x = centre(ix), z = centre(iz);
-			if (territory_owner_at(x, z) != (int)petra_pid_) continue;
+			if (!ours(ix, iz)) continue;
 			// The tile's land (getLandAccess): a tile under a structure takes the land around it.
 			const uint16_t land = petra_access_at(x, z);
 			if (!land) continue;
