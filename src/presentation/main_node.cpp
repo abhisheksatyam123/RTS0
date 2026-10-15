@@ -1081,6 +1081,7 @@ bool RtsoMain::load_game(String path) {
 	if (success) {
 		selected_ids.clear();
 		selected_building_id = 0;
+		restore_saved_gui(path);
 		print_line("[RTS0] Game loaded successfully from " + path);
 		// The game goes on from the save as a new replay that starts from it.
 		if (!loading_replay_start_ && !net_lockstep()) begin_recording_from_save(path);

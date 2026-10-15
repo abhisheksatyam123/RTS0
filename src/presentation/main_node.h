@@ -717,6 +717,16 @@ public:
 	void _on_ui_click();
 	void _on_ui_click_item(int) { _on_ui_click(); }
 	int debug_ui_clicks() const { return ui_clicks_; }
+	// Tests: the control groups and camera as a save stores them, and setting the camera.
+	Dictionary debug_saved_gui() const {
+		Dictionary d;
+		Array groups;
+		for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
+		d["groups"] = groups;
+		if (cam_rig) d["camera"] = cam_rig->camera_data();
+		return d;
+	}
+	void debug_set_camera_data(const Dictionary &c) { if (cam_rig) cam_rig->set_camera_data(c); }
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -977,6 +987,7 @@ private:
 	void quit_confirmation(const String &kind, bool won = false, bool ask_exit = true);
 	void tick_quit_confirmation();
 	bool write_save_metadata(const String &path, const String &description) const;
+	void restore_saved_gui(const String &path);
 	void write_save_thumbnail(const String &path);
 };
 
