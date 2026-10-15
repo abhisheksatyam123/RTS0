@@ -515,7 +515,8 @@ public:
 			DEFEATED = 6,   // player is out; tech: the EndReason
 			WON = 7,        // other: the winners' mask; tech: the EndReason
 			LOST = 8,       // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
-			TEXT = 9 };     // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
+			TEXT = 9,       // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
+			CHEAT = 10 };   // Commands.js "aichat" from `player`: tech 0 "(Cheat - reveal map)", 1 "(Cheat - promoted units)"
 		// The "text" time notifications (10 s, centre top) the sim pushes for `player`.
 		enum TextMessage : uint8_t {
 			TEXT_QUEUE_FULL = 0,       // ProductionQueue.js AddItem: "The production queue is full."
