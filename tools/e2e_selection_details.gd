@@ -123,6 +123,10 @@ func run() -> void:
 	print("ram: ", String(rt["stats_tooltip"]).replace("\n", " | "))
 	check("\nGarrison Limit: " in String(rt["stats_tooltip"]), "a ram's tooltip gives its Garrison Limit (getGarrisonTooltip)")
 	check("\nGarrison Size: 1 + 2" in String(rt["stats_tooltip"]), "and its Garrison Size with what it carries")
+	var tower: PackedInt32Array = main.debug_spawn_units("mace/siege_tower", 1)
+	await frames(2)
+	var tw: Dictionary = main.debug_inspector(str(tower[0]))
+	check("\nProjectile Limit: 10, Default: 0, Per Unit: 1" in String(tw["stats_tooltip"]), "a siege tower's tooltip gives its projectiles (getProjectilesTooltip)")
 
 	main.debug_spawn_fauna(2, 2, true) # FAUNA_SHEEP
 	main.debug_spawn_fauna(31, 1, true) # FAUNA_GOAT
