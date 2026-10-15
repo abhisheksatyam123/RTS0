@@ -187,7 +187,8 @@ public:
 	// from then on. False if there is no such admitted client.
 	// Host: close a client's link once the answer just sent reaches it, with
 	// no kick notice (0 A.D. NetServer Disconnect(NDR_SERVER_FULL)).
-	void refusePeer(uint32_t peer_id);
+	// reason: the NDR_* the closing packet names (0.28 NetServer refusals).
+	void refusePeer(uint32_t peer_id, uint8_t reason = 0);
 	bool kickPeer(uint32_t peer_id, bool ban);
 	// Host: the admitted client with this name (0 if none).
 	uint32_t peerByName(const std::string &name) const;

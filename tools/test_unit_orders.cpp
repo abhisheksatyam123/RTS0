@@ -2470,6 +2470,168 @@ static void test_stance_held_position() {
 	check(s.units_.anchor_x[idx_of(s, d)] == hx && s.units_.anchor_z[idx_of(s, d)] == hz, "its held position stays");
 }
 
+static void test_defensive_walks_back() {
+	std::printf("71. a defensive unit walks back to its held position after a player's attack, an aggressive one stays (COMBAT.FINDINGNEWTARGET WalkToHeldPosition)\n");
+	auto run_case = [](uint8_t stance, bool structure) {
+		Simulation s;
+		setup(s);
+		uint32_t d = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&d, 1, stance); // held at (0, 0)
+		if (structure) {
+			const uint32_t h = s.spawn_building_world(16.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+			for (Simulation::Building &b : s.buildings_)
+				if (b.id == h) b.hp = 1.0f;
+			s.order_attack_building(&d, 1, h, false);
+			check(run_until(s, 30.0f, [&] { const auto *b = bld(s, h); return !b || b->wrecked || b->hp <= 0.0f; }),
+					"the spearman razes the house");
+		} else {
+			const uint32_t e = post(s, 16.0f, 0.0f, UNIT_SPEARMAN, 2.0f);
+			run_until(s, 0.5f, [] { return false; }); // the player sees it first
+			s.order_attack(&d, 1, e);
+			check(run_until(s, 30.0f, [&] { return !s.units().alive[idx_of(s, e)]; }), "the spearman kills its target");
+		}
+		const float far = dist(s, d, 0, 0);
+		check(far > 8.0f, "the target was well away from the held position");
+		run_until(s, 30.0f, [&] { return dist(s, d, 0, 0) < 1.5f && act_of(s, d) == ACTION_IDLE; });
+		return dist(s, d, 0, 0);
+	};
+	check(run_case(STANCE_DEFENSIVE, false) < 1.5f, "a defensive unit walks back after killing a unit (after its cheer)");
+	check(run_case(STANCE_DEFENSIVE, true) < 1.5f, "... and after razing a structure");
+	check(run_case(STANCE_AGGRESSIVE, false) > 8.0f, "an aggressive unit stays where the fight ended");
+}
+
+static void test_guard_stances() {
+	std::printf("72. guards answer their charge's attacker in any stance and keep after it while it can hit the charge (GuardedAttacked, ShouldAbandonChase isGuardOf)\n");
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+		uint32_t w = s.spawn_unit(-2, 0, 0, UNIT_FEMALE_CITIZEN);
+		check(s.units_.stance[idx_of(s, w)] == STANCE_PASSIVE, "a woman is passive");
+		s.order_guard(&w, 1, vip);
+		run(s, 1.0f);
+		uint32_t e = s.spawn_unit(4, 0, 1, UNIT_SPEARMAN, 5000.0f);
+		run(s, 0.5f);
+		s.order_attack(&e, 1, vip);
+		check(run_until(s, 15.0f, [&] { return target_of(s, w) == e && act_of(s, w) == ACTION_ATTACK; }),
+				"a passive guard fights the unit attacking her charge");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+		s.order_set_stance(&vip, 1, STANCE_STAND_GROUND); // it doesn't run the archer down itself
+		uint32_t g = s.spawn_unit(-2, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&g, 1, STANCE_DEFENSIVE);
+		s.order_guard(&g, 1, vip);
+		run(s, 1.0f);
+		uint32_t a = post(s, 12.0f, 0.0f, UNIT_ARCHER, 5000.0f);
+		run(s, 0.5f);
+		s.order_attack(&a, 1, vip);
+		check(run_until(s, 10.0f, [&] { return hp_of(s, vip) < 5000.0f; }), "an archer shoots the charge");
+		check(run_until(s, 5.0f, [&] { return target_of(s, g) == a; }), "the defensive guard answers");
+		s.units_.anchor_x[idx_of(s, g)] = -60.0f; // the archer is now far beyond its leash from the held position
+		bool kept = true;
+		const float hp0 = hp_of(s, a);
+		const bool hit = run_until(s, 20.0f, [&] {
+			kept = kept && target_of(s, g) == a;
+			return hp_of(s, a) < hp0;
+		});
+		check(hit && kept, "but keeps after it while it can hit the charge");
+	}
+}
+
+static void test_guard_towers_and_animals() {
+	std::printf("73. guards go for a tower shooting their charge and an animal biting it (Guard.js OnAttacked, GuardedAttacked)\n");
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+		s.order_set_stance(&vip, 1, STANCE_STAND_GROUND); // it doesn't go for the tower itself
+		uint32_t g = s.spawn_unit(-6, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&g, 1, STANCE_DEFENSIVE); // the tower is beyond what it would pick itself
+		s.order_guard(&g, 1, vip);
+		run(s, 1.0f);
+		const uint32_t tower = s.spawn_building_world(14.0f, 0.0f, BLD_SENTRY_TOWER, 1, 1.0f);
+		check(run_until(s, 15.0f, [&] { return hp_of(s, vip) < 5000.0f; }), "the tower shoots the charge");
+		check(run_until(s, 5.0f, [&] { return s.units_.target_building_id[idx_of(s, g)] == tower; }),
+				"its guard goes for the tower");
+		s.order_set_stance(&g, 1, STANCE_STAND_GROUND);
+		s.order_guard(&g, 1, vip);
+		run(s, 3.0f);
+		check(s.units_.target_building_id[idx_of(s, g)] == 0, "a guard standing its ground doesn't go for one out of its reach");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+		s.order_set_stance(&vip, 1, STANCE_STAND_GROUND);
+		uint32_t g = s.spawn_unit(-3, 0, 0, UNIT_FEMALE_CITIZEN); // passive: she picks no animal herself
+		s.order_guard(&g, 1, vip);
+		run(s, 1.0f);
+		const uint32_t wolf = s.spawn_fauna(2.5f, 0.0f, FAUNA_WOLF_ARCTIC_VIOLENT);
+		bool went = false;
+		check(run_until(s, 15.0f, [&] {
+			went = went || target_of(s, g) == wolf;
+			return hp_of(s, vip) < 5000.0f && went;
+		}), "a wolf bites the charge, and its guard goes for the wolf");
+	}
+}
+
+static void test_structure_scan_by_centre() {
+	std::printf("74. an idle soldier picks an enemy structure by its centre, not its nearest edge (SetupAttackRangeQuery)\n");
+	auto picks = [](float off) {
+		Simulation s;
+		setup(s); // player 1's Civic Centre stands at (56, 56)
+		const uint32_t probe = s.spawn_unit(-40.0f, 40.0f, 0, UNIT_SPEARMAN);
+		const float vision = s.unit_vision_at(idx_of(s, probe));
+		const uint32_t d = s.spawn_unit(56.0f - vision - off, 56.0f, 0, UNIT_SPEARMAN);
+		s.set_reveal_map(true);
+		return run_until(s, 3.0f, [&] { return s.units_.target_building_id[idx_of(s, d)] != 0; });
+	};
+	check(!picks(1.0f), "a Civic Centre whose edge, not centre, is within vision is left alone");
+	check(picks(-1.0f), "one whose centre is within vision is attacked");
+}
+
+static void test_healer_stances() {
+	std::printf("75. a healer standing its ground or defensive doesn't follow a wounded unit out of its leash (HEALING OutOfRange, WalkToHeldPosition)\n");
+	auto run_case = [](uint8_t stance) {
+		Simulation s;
+		setup(s);
+		uint32_t h = s.spawn_unit(0, 0, 0, UNIT_HEALER);
+		s.order_set_stance(&h, 1, stance);
+		uint32_t w = s.spawn_unit(1.5f, 0, 0, UNIT_SPEARMAN);
+		s.units_.hp[idx_of(s, w)] = 10.0f;
+		check(run_until(s, 5.0f, [&] { return act_of(s, h) == ACTION_HEAL && hp_of(s, w) > 10.0f; }), "the healer heals a wounded unit next to it");
+		s.order_walk(&w, 1, 16.0f, 0.0f);
+		float farthest = 0.0f;
+		run_until(s, 15.0f, [&] { farthest = std::max(farthest, dist(s, h, 0, 0)); return false; });
+		return std::make_pair(farthest, dist(s, h, 0, 0));
+	};
+	const auto [sg_far, sg_end] = run_case(STANCE_STAND_GROUND);
+	check(sg_far < 1.0f, "standing its ground, it stays put");
+	const auto [df_far, df_end] = run_case(STANCE_DEFENSIVE);
+	check(df_far < 12.0f && df_end < 1.5f, "defensive, it follows only so far and walks back to where it stood");
+	const auto [ag_far, ag_end] = run_case(STANCE_AGGRESSIVE);
+	check(ag_end > 10.0f, "aggressive, it follows the unit");
+}
+
+static void test_forced_flag_not_inherited() {
+	std::printf("76. the target a unit picks itself after a player's target dies is an unforced fight: it turns on a melee attacker (AttackVisibleEntity force false)\n");
+	Simulation s;
+	setup(s);
+	uint32_t d = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+	const uint32_t e1 = post(s, 3.0f, 0.0f, UNIT_SPEARMAN, 2.0f);
+	const uint32_t e2 = post(s, 10.0f, 6.0f, UNIT_SPEARMAN, 5000.0f);
+	run(s, 0.5f);
+	s.order_attack(&d, 1, e1);
+	check(run_until(s, 15.0f, [&] { return !s.units().alive[idx_of(s, e1)]; }), "the spearman kills its target");
+	check(run_until(s, 5.0f, [&] { return target_of(s, d) == e2; }), "and picks the next enemy itself");
+	const uint32_t e3 = s.spawn_unit(x_of(s, d) - 1.5f, z_of(s, d), 1, UNIT_SWORDSMAN, 5000.0f);
+	s.order_attack(&e3, 1, d);
+	check(run_until(s, 10.0f, [&] { return target_of(s, d) == e3; }), "it turns on the swordsman hitting it");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2667,6 +2829,12 @@ int main(int argc, char **argv) {
 	test_unarmed_aggressive_stays();
 	test_passive_mid_fight();
 	test_stance_held_position();
+	test_defensive_walks_back();
+	test_guard_stances();
+	test_guard_towers_and_animals();
+	test_structure_scan_by_centre();
+	test_healer_stances();
+	test_forced_flag_not_inherited();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
