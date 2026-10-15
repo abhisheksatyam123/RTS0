@@ -76,7 +76,7 @@ func run() -> void:
 	check(parts.size() == 1 and float(parts[0]["width"]) > 300.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")
 
 	main.debug_inspector("field")
-	await frames(10)
+	await frames(40) # a few turns: the field's supply comes with the next tick_gather
 	var fd: Dictionary = main.debug_inspector("field")
 	print("field: ", fd)
 	check(String(fd["stats"]).ends_with("Food: ∞\n0 / 5") or String(fd["stats"]).contains("Food: ∞\n0 / "), "a field shows \"Food: ∞\" and its gatherers, current / max")
