@@ -126,6 +126,7 @@ void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
 	RtsoTopPanel::cycle_order();
+	top_panel_.invalidate();
 	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
 }
 
@@ -403,6 +404,8 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 	for (const auto &a : attacks) {
 		// Attacks against other players, or dealt by myself, are not registered.
 		if (a.target_owner != me || a.attacker_owner == me) continue;
+		// AttackDetection.OnGlobalAttacked: every hit entity pings the minimap, before suppression.
+		if (minimap_view) minimap_view->ping_entity(a.target_id);
 		if (attack_detection_.report(a.x, a.z, match_elapsed_time)) {
 			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0, a.target_id);
 			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
@@ -412,13 +415,12 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 }
 
 // 0 A.D. messages.js "attack" notification: remember the spot for
-// camera.lastattackfocus, ping the minimap, play the "attacked" sound group
+// camera.lastattackfocus, play the "attacked" sound group
 // (alarm_attackplayer, or alarm_attacked_gaia for Gaia) and add a chat line.
 void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target) {
 	has_last_attack_ = true;
 	last_attack_pos_ = pos;
 	last_attack_unit_ = structure ? 0 : target;
-	if (minimap_view) minimap_view->add_ping(Vector2(pos.x, pos.z), Color(1.0f, 0.15f, 0.1f));
 	const bool gaia = attacker == rtso::GAIA_PLAYER;
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
 	if (!chat_window_.is_ready() || !user_opts_.attack_notice) return;

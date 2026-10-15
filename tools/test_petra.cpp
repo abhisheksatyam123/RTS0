@@ -1305,6 +1305,36 @@ static void test_pop_phase2_save_resources() {
 	const int low = s->petra_pop_phase2();
 	std::printf("popPhase2 at 50 population, saving resources: %d (0.28 18)\n", low);
 	CHECK(low == 18, "3/4 of the clamped value under a low population cap");
+	// setConfig raised targetNumWorkers (and capped workPhase3) with the uncut popPhase2.
+	s->pop_cap_ = 300;
+	CHECK(s->petra_target_workers() == 150, "targetNumWorkers: max(100, popPhase2 150), before the cut");
+	CHECK(s->petra_work_phase3() == 150, "workPhase3: min(180, targetNumWorkers 150)");
+	// handleNewBase stops saving, but popPhase2 stays cut.
+	s->petra_attack_mgr_.save_resources = 0;
+	s->petra_attack_mgr_.phase2_cut_kept = 1;
+	CHECK(s->petra_pop_phase2() == 112, "the 3/4 cut outlives saveResources");
+}
+
+// config.js setConfig: Config.popScaling takes sqrt(maxPop/300) under 300, and every helper
+// built on it (transport ships, checkPausedQueues' workersMin) uses it. maxPop is
+// getPopulationMax at the first turn, with the civ's population bonus.
+static void test_petra_config_pop_scaling() {
+	auto s = std::make_unique<Simulation>();
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->petra_pid_ = 1;
+	s->players_[1].civ = CIV_ATHENIANS;
+	s->pop_cap_ = 300;
+	CHECK(std::fabs(s->petra_config_pop_scaling() - 1.0f) < 1e-4f, "no scaling at 300 population");
+	s->pop_cap_ = 75;
+	const float half = s->petra_config_pop_scaling();
+	std::printf("popScaling at 75 population: %.3f (0.28 0.500)\n", half);
+	CHECK(std::fabs(half - 0.5f) < 1e-3f, "sqrt(75/300) at 75 population");
+	CHECK(std::fabs(s->petra_plan_pop_scaling() - half) < 1e-4f, "attack plans use the same scaling");
+	s->players_[1].civ = CIV_PERSIANS;
+	s->pop_cap_ = 200;
+	std::printf("Persian maxPop at a 200 cap: %d (0.28 220)\n", s->petra_config_max_pop());
+	CHECK(s->petra_config_max_pop() == 220, "pers_population raises getPopulationMax by 10%");
 }
 
 // startingStrategy.js gameStart: no civic centre and none to build (Death Canyon's invasion
@@ -4927,6 +4957,7 @@ int main(int argc, char **argv) {
 	RUN(test_barter);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
+	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_dock_route);

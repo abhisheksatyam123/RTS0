@@ -654,6 +654,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // merc_thureophoros
 	{LIMIT_NONE, 0}, // theb_sacred_band
 	{LIMIT_NONE, 0}, // thesp_melanochitones
+	{LIMIT_NONE, 0}, // theb_siege_fireraiser
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");

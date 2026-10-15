@@ -27085,6 +27085,49 @@
     "range": 1.7999999999999998,
     "carry": 0
    }
+  },
+  {
+   "id": "theb_siege_fireraiser",
+   "civ": "gaia",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Fire Raiser",
+   "specific_name": "Pyrobolos",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Siege",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 300.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 25.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 300,
+    "gold": 150,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 3,
+    "speed": 3.2039999999999997,
+    "vision": 16.8,
+    "damage": 100.0,
+    "range": 4.2,
+    "carry": 0
+   }
   }
  ],
  "auras": [

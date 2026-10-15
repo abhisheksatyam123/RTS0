@@ -35,6 +35,7 @@ public:
 		float y_offset = 0.0f; // add to instance Y so the model base sits on ground
 		bool valid = false;
 		bool animated = false;
+		godot::String path; // the GLB it was loaded from (empty for a procedural stand-in)
 	};
 
 	struct CrowdSkin {

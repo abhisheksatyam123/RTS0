@@ -94,6 +94,12 @@ func run() -> void:
 		check(cc != null and cc.tooltip_text.contains("Dropsite for:") and cc.tooltip_text.contains("Garrison Limit"),
 				"the Civic Center's dropsite and garrison lines")
 		check(cc != null and cc.tooltip_text.contains("Current Count:"), "and its EntityLimits line")
+		var temple: Button = null
+		for b in buttons(main, []):
+			if b.tooltip_text.contains("\nMedical Treatment: "):
+				temple = b
+		check(temple != null and temple.tooltip_text.contains("Humans +1 health regeneration rate. Range: 40 meters"),
+				"a temple's aura line (getAurasTooltip)")
 		# getEntityCostTooltip for a wallset: the pieces' range and the tower's cost.
 		var pal: Button = null
 		for b in buttons(main, []):

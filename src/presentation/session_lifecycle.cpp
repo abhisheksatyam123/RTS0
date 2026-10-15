@@ -1127,6 +1127,17 @@ void RtsoMain::_process(double delta) {
 			}
 			txt += line.replace("[", "[lb]"); // a map's text, not markup
 		}
+		{
+			// GetTimeNotifications sorts by end time, latest first.
+			const uint32_t now = (uint32_t)std::lround(sim->game_time() * 1000.0f);
+			text_notices_.erase(std::remove_if(text_notices_.begin(), text_notices_.end(),
+					[now](const TextNotice &t) { return t.end_ms <= now || t.end_ms > now + 10000; }), text_notices_.end());
+			for (auto it = text_notices_.rbegin(); it != text_notices_.rend(); ++it) {
+				if (!txt.is_empty()) txt += "\n";
+				txt += it->text;
+			}
+			if (spawn_notified_.size() > 64) spawn_notified_.clear();
+		}
 		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
 		// player (the wonder's owner, its allies or everyone else).
 		{
@@ -1155,6 +1166,19 @@ void RtsoMain::_process(double delta) {
 					else add(rtso::sprintf0(rtso::tr0(allies ? "%(_player_)s owns a Wonder and %(_player_)s and their allies will win in %(time)s."
 							: "%(_player_)s owns a Wonder and will win in %(time)s."), {{"_player_", who}, {"time", left}}));
 				}
+			// EndGameManager.AlliedVictoryCheck: under Last Man Standing, once only mutual
+			// allies are left, "Last remaining player wins." (a 12-hour time notification).
+			if (sim->last_man_standing() && sim->victory_conditions() && !sim->is_game_over()) {
+				int left = 0;
+				bool allied = true;
+				for (uint8_t a = 0; a < rtso::MAX_PLAYERS; ++a) {
+					if (!((sim->participant_mask() >> a) & 1) || sim->is_defeated(a)) continue;
+					++left;
+					for (uint8_t b = a + 1; b < rtso::MAX_PLAYERS; ++b)
+						if (((sim->participant_mask() >> b) & 1) && !sim->is_defeated(b) && !(sim->is_ally(a, b) && sim->is_ally(b, a))) allied = false;
+				}
+				if (left > 1 && allied) add(rtso::tr0("Last remaining player wins."));
+			}
 			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
 				// StartCaptureTheRelicCountdown: named after the first relic's owner, "and their
 				// allies" when more than one player would win.
@@ -1452,44 +1476,14 @@ void RtsoMain::_process(double delta) {
 	tick_quit_confirmation();
 
 	update_observer_view_picker();
-	// Check Victory / Defeat Condition, from the local player's seat
-	if (sim->is_victory_for(seat_player())) {
-		if (!campaign_win_noted_ && !turn_mgr_.is_replaying()) {
-			// CampaignSession.onFinish: a campaign level is completed as soon as it is won.
-			campaign_win_noted_ = true;
-			Ref<Script> summary = ResourceLoader::get_singleton()->load("res://scenes/session/summary_screen.gd");
-			if (summary.is_valid()) summary->call("mark_campaign_won");
-		}
-		banner_panel->set_visible(true);
-		banner_label->set_text("VICTORY!\nYour side has prevailed.");
-		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));
-	} else if ((sim->is_victory() || sim->is_game_over()) && seat_player() >= rtso::MAX_PLAYERS) {
-		// An observer has no side: name the winners instead (0 A.D. summary "Winner").
-		String winners;
-		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
-			if ((sim->winner_mask() >> p) & 1) winners += (winners.is_empty() ? "" : ", ") + player_display_name(p);
-		banner_panel->set_visible(true);
-		banner_label->set_text("MATCH OVER\n" + (winners.is_empty() ? String("No one prevailed.") : winners + String(" prevailed.")));
-		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
-	} else if (sim->is_victory() || sim->is_game_over()) {
-		banner_panel->set_visible(true);
-		banner_label->set_text("DEFEAT!\nYour side has been defeated.");
-		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
-	} else if (sim->is_defeated(seat_player())) {
-		// 0 A.D.: a defeated player watches the rest of the match with the map revealed.
-		// The notice shows for a few seconds, then gets out of the way.
-		static double defeated_at = -1.0;
-		if (defeated_at < 0.0 || match_elapsed_time < defeated_at) defeated_at = match_elapsed_time;
-		banner_panel->set_visible(match_elapsed_time - defeated_at < 6.0);
-		banner_label->set_text("DEFEATED\nYou are now observing. The match goes on.");
-		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.75f, 0.3f));
-	} else if ((local_observer_ || (net_lockstep() && seat_player() >= rtso::MAX_PLAYERS)) && !turn_mgr_.is_replaying()) {
-		// Every Game Setup slot was AI, or this client joined to watch: say so
-		// for the first few seconds.
-		banner_panel->set_visible(match_elapsed_time < 6.0);
-		banner_label->set_text(local_observer_ ? "OBSERVING\nEvery player is an AI. The map is revealed."
-				: "OBSERVING\nYou are watching this match. The map is revealed.");
-		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
+	// session.js handlePlayerState: the end of the match is the playerstate chat line and
+	// the "You have won!" / "You have been defeated!" question (quit_confirmation.gd);
+	// nothing is drawn across the screen.
+	if (sim->is_victory_for(seat_player()) && !campaign_win_noted_ && !turn_mgr_.is_replaying()) {
+		// CampaignSession.onFinish: a campaign level is completed as soon as it is won.
+		campaign_win_noted_ = true;
+		Ref<Script> summary = ResourceLoader::get_singleton()->load("res://scenes/session/summary_screen.gd");
+		if (summary.is_valid()) summary->call("mark_campaign_won");
 	}
 }
 
