@@ -838,7 +838,7 @@ static bool run_oos_rearm(const char *ph) {
 	ta.receive_sync_check(t1, 1, 0xDEADBEEF);
 	if (!check(ta.has_out_of_sync() && ta.oos_turn() == t1, "client 1's wrong hash is reported", ph)) return false;
 	ta.drop_client(1);
-	CHECK(!ta.has_out_of_sync() && ta.oos_peers().empty(), "once it has left, the host checks again", ph);
+	CHECK(ta.has_out_of_sync() && ta.oos_turn() == t1, "the report stays readable after it left", ph);
 	for (int t = 0; t < 2; ++t) {
 		ta.receive_remote_turn_batch(ta.current_turn() + 1, 2, {});
 		ta.tick(TurnManager::TURN_DURATION, sa);

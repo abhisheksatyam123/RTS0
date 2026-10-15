@@ -182,15 +182,11 @@ void TurnManager::apply_peer_left(uint32_t client_id, uint32_t last_turn) {
 	left_clients_.insert(client_id);
 	// NetServerTurnManager::UninitialiseClient: once every out-of-sync client
 	// has left, the host checks hashes again, so a later divergence (say, after
-	// the player rejoined) is reported to everyone anew.
+	// the player rejoined) is reported to everyone anew. The last report stays
+	// readable until then.
 	if (net_host_ && net_host_->isHost() && oos_reported_ && !oos_peers_.empty() &&
-			std::all_of(oos_peers_.begin(), oos_peers_.end(), [&](uint32_t p) { return left_clients_.count(p) != 0; })) {
-		oos_detected_ = false;
-		oos_reported_ = false;
-		oos_turn_ = 0;
-		oos_peers_.clear();
-		oos_players_.clear();
-	}
+			std::all_of(oos_peers_.begin(), oos_peers_.end(), [&](uint32_t p) { return left_clients_.count(p) != 0; }))
+		oos_rearmed_ = true;
 	for (auto &t : peer_hashes_)
 		if (t.first > current_turn_) t.second.erase(client_id);
 	for (auto &t : turn_remote_cmds_) {
@@ -857,6 +853,7 @@ void TurnManager::reset() {
 	oos_turn_ = 0;
 	oos_players_.clear();
 	oos_reported_ = false;
+	oos_rearmed_ = false;
 	oos_from_host_ = false;
 	oos_dump_pending_ = false;
 	oos_dump_written_.clear();
@@ -1819,6 +1816,12 @@ uint32_t TurnManager::local_hash_at(uint32_t turn) const {
 }
 
 void TurnManager::note_out_of_sync(uint32_t turn, uint32_t local_hash, uint32_t peer_hash, uint32_t peer_id) {
+	if (oos_rearmed_) {
+		oos_rearmed_ = false;
+		oos_detected_ = false;
+		oos_reported_ = false;
+		oos_peers_.clear();
+	}
 	const bool earlier = !oos_detected_ || turn < oos_turn_;
 	if (earlier) {
 		oos_turn_ = turn;
