@@ -14509,12 +14509,14 @@
     {
       "type": "mercenary_camp",
       "x": -112.93,
-      "z": 88.44
+      "z": 88.44,
+      "template": "structures/merc_camp_egyptian"
     },
     {
       "type": "mercenary_camp",
       "x": 112.35,
-      "z": -65.72
+      "z": -65.72,
+      "template": "structures/merc_camp_egyptian"
     }
   ],
   "gaia_units": [],
