@@ -12524,9 +12524,10 @@ bool Simulation::try_commit_foundation(Building &b) {
 	}
 	if (blocked) return false;
 	b.committed = true;
-	// Foundation.js Commit: GetEntitiesDeletedUponConstruction, the fish under a dock's footprint.
+	// Foundation.js Commit: GetEntitiesDeletedUponConstruction, the fish under a dock's footprint
+	// and any carcass under the site (special/filter/resource.xml: DeleteUponConstruction).
 	for (size_t r = 0; building_blocks_movement(b.type) && r < resources_.count; ++r) {
-		if (!resources_.alive[r] || resources_.subtype[r] != RES_SUB_FISH) continue;
+		if (!resources_.alive[r] || (resources_.subtype[r] != RES_SUB_FISH && resources_.subtype[r] != RES_SUB_MEAT)) continue;
 		if (!nav::footprint_contains(b, resources_.x[r], resources_.z[r], resource_block_half(r))) continue;
 		resources_.alive[r] = 0;
 		resources_.amount[r] = 0;

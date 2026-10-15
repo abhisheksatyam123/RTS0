@@ -849,10 +849,15 @@ int main() {
 			const auto fv = s.fauna();
 			for (size_t i = 0; i < fv.count; ++i) hunt += fauna_type_info(fv.fauna_type[i]).food_amount > 0;
 			auto want = [&](const uint16_t (&g)[4][3]) { return map_resource_count(g, 256.0f, 2); };
+			// The counts were measured on temperate, whose tree3 is the apple; another biome has no apples.
+			int want_fruit = want(rc.fruit);
+			if (s.current_map_biome() != "temperate")
+				for (const ResourceKindShare &k : rc.fruit_kinds)
+					if (k.name && !std::strcmp(k.name, "apple")) want_fruit = want_fruit * (100 - k.percent) / 100;
 			const int want_metal = want(rc.metal_large) + want(rc.metal_small), want_stone = want(rc.stone_large) + want(rc.stone_small);
-			CHECK(metal * 4 >= want_metal * 3 && stone * 4 >= want_stone * 3 && fruit * 4 >= want(rc.fruit) * 3 && hunt * 4 >= want(rc.hunt) * 3,
+			CHECK(metal * 4 >= want_metal * 3 && stone * 4 >= want_stone * 3 && fruit * 4 >= want_fruit * 3 && hunt * 4 >= want(rc.hunt) * 3,
 			      "%s: %d metal, %d stone, %d fruit, %d hunt; its 0.28 script places %d, %d, %d, %d outside the bases", rc.map_id,
-			      metal, stone, fruit, hunt, want_metal, want_stone, want(rc.fruit), want(rc.hunt));
+			      metal, stone, fruit, hunt, want_metal, want_stone, want_fruit, want(rc.hunt));
 		}
 	}
 	{
