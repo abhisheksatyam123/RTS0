@@ -58,12 +58,53 @@ void RtsoMain::update_cursor() {
 		if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
 			want = "action-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
-			if (over_own_rally_structure(get_ground_click_pos(mouse)) &&
+			const Vector3 at = get_ground_click_pos(mouse);
+			if (over_own_rally_structure(at) &&
 					!(rtso::hotkeys::held("session.autorallypoint") && selected_building_trains_units())) {
 				want = "action-unset-rally";
 			} else {
+				// unit_actions.js "set-rallypoint" getActionInfo: the cursor of what the trained
+				// units will do there (RallyPoint orders: gather, repair, garrison, attack).
 				want = "cursor-rally";
 				hot = Vector2(5, 31);
+				uint32_t res = 0, bld = 0;
+				rally_target_at(at, res, bld);
+				const uint8_t me = local_player();
+				if (res) {
+					auto rv = sim->resources();
+					for (size_t r = 0; r < rv.count; ++r) {
+						if (rv.id[r] != res) continue;
+						switch (rv.type[r]) {
+							case rtso::RES_WOOD: want = "action-gather-tree"; break;
+							case rtso::RES_GOLD: want = "action-gather-ore"; break;
+							case rtso::RES_STONE: want = "action-gather-rock"; break;
+							default:
+								want = rv.subtype[r] == rtso::RES_SUB_MEAT ? "action-gather-meat"
+										: rv.subtype[r] == rtso::RES_SUB_GRAIN ? "action-gather-grain"
+										: rv.subtype[r] == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
+						}
+						break;
+					}
+				} else if (bld) {
+					for (const auto &b : sim->buildings()) {
+						if (b.id != bld) continue;
+						if (b.team == me) {
+							if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) {
+								want = "action-repair";
+							} else if (const int capacity = sim->get_garrison_capacity(b.id); capacity > 0) {
+								want = "action-garrison";
+								const int occupied = sim->get_garrison_occupied(b.id);
+								tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
+										{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+								tip_orange = occupied >= capacity;
+							}
+						} else if (sim->is_hostile(me, b.team)) {
+							want = b.max_capture_points > 0.0f ? "action-capture" : "action-attack";
+						}
+						break;
+					}
+				}
+				if (std::string(want) != "cursor-rally") hot = Vector2(1, 1);
 			}
 		} else if (!selected_ids.is_empty()) {
 			const Vector3 at = get_ground_click_pos(mouse);
@@ -77,6 +118,11 @@ void RtsoMain::update_cursor() {
 			else if (garrison_mode) want = "action-garrison";
 			else if (turret_mode) want = "action-occupy-turret";
 			else if (repair_mode) want = "action-repair";
+			// An armed action over a target it can't take: its -disabled cursor (unit_actions.js
+			// preSelectedActionCheck, "cursor": "action-garrison-disabled" and so on).
+			if ((guard_mode || garrison_mode || turret_mode || repair_mode) && !armed_target_ok(at))
+				want = guard_mode ? "action-guard-disabled" : garrison_mode ? "action-garrison-disabled"
+						: turret_mode ? "action-occupy-turret-disabled" : "action-repair-disabled";
 			if (!*want) {
 				auto uv = sim->units();
 				bool healer = false, builder = false;
@@ -159,13 +205,33 @@ void RtsoMain::update_cursor() {
 			if (!*want) {
 				for (const auto &b : sim->buildings()) {
 					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
-					if (trade_route_click(b, false, false, &tip)) {
-						want = "action-setup-trade-route";
+					if (const char *tc = nullptr; trade_route_click(b, false, false, &tip, &tc)) {
+						want = tc;
 						break;
 					}
 					// 0 A.D. "capture" is the default on enemy structures; session.attack
 					// (or attack-move's Ctrl) attacks instead.
 					// unit_actions "gather" (specificness 1): any player's finished field.
+					// unit_actions.js "returnresource": a carrier over a dropsite that takes its load.
+					{
+						auto cv = sim->units();
+						for (int s = 0; s < selected_ids.size() && !*want; ++s) {
+							const uint32_t uid = (uint32_t)(int64_t)selected_ids[s];
+							if (!sim->can_return_resource(uid, b.id)) continue;
+							for (size_t i = 0; i < cv.count; ++i)
+								if (cv.id[i] == uid) {
+									switch (cv.res_type_carried[i]) {
+										case rtso::RES_FOOD: want = "action-return-food"; break;
+										case rtso::RES_WOOD: want = "action-return-wood"; break;
+										case rtso::RES_STONE: want = "action-return-stone"; break;
+										case rtso::RES_GOLD: want = "action-return-metal"; break;
+										default: break;
+									}
+									break;
+								}
+						}
+						if (*want) break;
+					}
 					const uint32_t grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
 					if (grain && sim->any_can_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), grain))
 						want = "action-gather-grain";
@@ -215,6 +281,11 @@ void RtsoMain::update_cursor() {
 		return;
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
+	if (tex.is_null()) {
+		// Cursors not ported yet (-disabled variants, cancel-setup-trade-route) use the base one.
+		String base = String(want).trim_suffix("-disabled").replace("action-cancel-", "action-");
+		tex = load_tex(String("res://assets/textures/cursors/") + base + ".png");
+	}
 	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
 }
 
@@ -459,7 +530,7 @@ bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
 	return true;
 }
 
-bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip) {
+bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip, const char **cursor) {
 	if (!sim || selected_ids.is_empty() || b.wrecked || b.build_progress < 1.0f) return false;
 	const uint8_t me = local_player();
 	auto uv = sim->units();
@@ -481,43 +552,70 @@ bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execu
 	if (traders.empty()) return false;
 	std::sort(traders.begin(), traders.end());
 
-	const rtso::Simulation::Building *origin = nullptr;
-	if (trade_origin_market_ && trade_origin_traders_ == traders)
+	auto building = [&](uint32_t id) -> const rtso::Simulation::Building * {
 		for (const auto &o : sim->buildings())
-			if (o.id == trade_origin_market_ && !o.wrecked && sim->can_trade_at(me, o, kind)) origin = &o;
-
+			if (o.id == id && !o.wrecked && sim->can_trade_at(me, o, kind)) return &o;
+		return nullptr;
+	};
 	auto gain_text = [&](const rtso::Simulation::Building &from, const rtso::Simulation::Building &to) {
 		const auto g = sim->calculate_trade_gain(from, to, me, kind);
 		String t = String::num_int64(g.trader);
 		if (g.market1 || g.market2) t += " (+" + String::num_int64(g.market1 + g.market2) + " to the markets' owners)";
 		return t;
 	};
-
-	if (!origin || origin->id == b.id) {
-		// "set first" / "is first" (Trader.js SetTargetMarket with no first market yet).
-		if (tooltip) *tooltip = origin ? String("Origin trade market.") : String("Right-click to set as origin trade market");
+	if (cursor) *cursor = "action-setup-trade-route";
+	auto set_first = [&]() {
+		if (tooltip) *tooltip = tr("Right-click to set as origin trade market");
 		if (execute) {
 			trade_origin_market_ = b.id;
 			trade_origin_traders_ = traders;
-			chat_window_.append_line("Origin trade market set. Right-click another market to start trading.");
 			play_civ_voice("trade");
+		}
+		return true;
+	};
+
+	// GetTradingDetails reads the first trader's own route: over its markets, "is first" /
+	// "is second" with the route's gain. A click there starts a new route from that market
+	// (Trader.SetTargetMarket with both markets set).
+	uint32_t ma = 0, mb = 0;
+	int leg = 0;
+	if (sim->trader_route(traders.front(), ma, mb, leg) && ma && mb) {
+		const rtso::Simulation::Building *a = building(ma), *d = building(mb);
+		if (a && d && (b.id == ma || b.id == mb)) {
+			if (tooltip)
+				*tooltip = tr(b.id == ma ? "Origin trade market." : "Destination trade market.") + "\n" +
+						sprintf0(tr("Gain: %(gain)s"), {{"gain", gain_text(*a, *d)}});
+			if (execute) set_first();
+			return true;
+		}
+	}
+	const rtso::Simulation::Building *origin = nullptr;
+	if (trade_origin_market_ && trade_origin_traders_ == traders) origin = building(trade_origin_market_);
+	if (!origin) return set_first();
+	if (origin->id == b.id) {
+		// "cancel-setup-trade-route": the picked origin, before a destination.
+		if (cursor) *cursor = "action-cancel-setup-trade-route";
+		if (tooltip) *tooltip = tr("This is the origin trade market.\nRight-click to cancel trade route.");
+		if (execute) {
+			trade_origin_market_ = 0;
+			trade_origin_traders_.clear();
 		}
 		return true;
 	}
 	const auto g = sim->calculate_trade_gain(*origin, b, me, kind);
 	if (g.trader == 0) {
-		if (tooltip) *tooltip = "This market is too close to the origin market.";
-		if (execute) chat_window_.append_line("This market is too close to the origin market.");
+		if (cursor) *cursor = "action-setup-trade-route-disabled";
+		if (tooltip) *tooltip = tr("This market is too close to the origin market.");
 		return true;
 	}
-	if (tooltip) *tooltip = "Right-click to set as destination trade market.\nGain: " + gain_text(*origin, b);
+	if (tooltip)
+		*tooltip = tr("Right-click to set as destination trade market.") + "\n" + sprintf0(tr("Gain: %(gain)s"), {{"gain", gain_text(*origin, b)}});
 	if (execute) {
 		if (turn_cmds())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SETUP_TRADE_ROUTE, traders.data(), traders.size(),
 					(float)b.id, 0, origin->id, queued ? rtso::NET_PARAM_QUEUED : 0);
 		else
 			sim->order_trade(traders.data(), traders.size(), origin->id, b.id, queued);
-		chat_window_.append_line("Trade route set. Gain: " + gain_text(*origin, b));
 		play_civ_voice("trade");
 		trade_origin_market_ = 0;
 		trade_origin_traders_.clear();

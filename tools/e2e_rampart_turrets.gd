@@ -3,7 +3,7 @@ extends SceneTree
 # garrison and 16 turret points:
 #   1. selected archers show g_EntityCommands "occupy-turret" (Occupy Turret);
 #   2. the button arms ACTION_OCCUPY_TURRET: the cursor over the tower is
-#      action-occupy-turret, and a right-click sends the archers onto its points, not inside;
+#      action-occupy-turret, and the next left click (INPUT_PRESELECTEDACTION) sends the archers onto its points, not inside;
 #   3. the tower then shows "unload-all-turrets" (Unload Turrets) with their count, and a
 #      click brings them down.
 #
@@ -82,7 +82,7 @@ func run() -> void:
 	check(t["cursor"] == "action-occupy-turret", "the occupy-turret cursor: " + str(t["cursor"]))
 	for down in [true, false]:
 		var mb := InputEventMouseButton.new()
-		mb.button_index = MOUSE_BUTTON_RIGHT
+		mb.button_index = MOUSE_BUTTON_LEFT
 		mb.pressed = down
 		mb.position = at
 		mb.global_position = at

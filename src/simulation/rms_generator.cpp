@@ -11321,6 +11321,100 @@ void ease_routes_between_bases(HeightmapGrid &hm, const std::vector<RmsGenerator
 // Main RmsGenerator Entry Point
 // =========================================================================
 
+// =========================================================================
+// 0 A.D. maps/random/wall_demo.js (0.28): RandomMap(0, "grass1") and Gaia's
+// walls in rmgen-common wall_builder.js's every placer, one row of each
+// across the map for each of g_WallStyles' styles (wall_builder.h): placeWall,
+// placeFortress("tiny"), placeGenericFortress, placeCircularWall,
+// placePolygonalWall, placeIrregularPolygonalWall and placeLinearWall, an
+// obelisk at the centre of each of the middle five. No player entities.
+// =========================================================================
+static void place_wall_demo(Simulation &sim, float map_half, RmsRng &rng) {
+	const double size = 2.0 * map_half; // g_Map.getSize()
+	const double border = 5.0, other = 10.0; // distToMapBorder, distToOtherWalls
+	const double buildable = size - 2.0 * border;
+	const int n = WALL_STYLE_COUNT; // wallStyleList.length
+	const double pi = kWallPi<double>;
+	double py = border; // position.y (position.x stays distToMapBorder)
+	// rmgen tile coordinates to RTS0 world coordinates.
+	auto wx = [&](double x) { return x - map_half; };
+	const uint8_t gaia = GAIA_PLAYER; // playerID 0
+	const uint8_t obelisk = scenery_type_by_name("obelisk");
+	auto place_obelisk = [&](double x, double y, double angle) { // placeEntityPassable("structures/obelisk", ...)
+		if (sim.wall_builder_passable(wx(x), wx(y))) sim.spawn_scenery((float)wx(x), (float)wx(y), obelisk, (float)(pi / 2.0 - angle), 0.25f);
+	};
+	auto column = [&](int style) { return border + style * buildable / n; };
+
+	// Custom wall placement (placeWall), bending elements and structures included.
+	const std::vector<WallElementName> custom = wall_element_names({"start", "long", "tower", "tower", "tower", "medium",
+			"outpost", "medium", "cornerOut", "medium", "cornerIn", "medium", "house", "end", "entryTower", "start", "short",
+			"barracks", "gate", "tower", "medium", "fort", "medium", "end"});
+	for (int s = 0; s < n; ++s)
+		sim.place_wall(wx(column(s)), wx(py), custom, (uint8_t)s, gaia, pi / 16.0 * std::sin(s * pi / 4.0));
+	py += 80.0 + other;
+
+	// Default fortress placement (placeFortress "tiny"), centred on an obelisk.
+	const double fortress_r = 15.0;
+	for (int s = 0; s < n; ++s) {
+		const double o = s * pi / 32.0, x = column(s) + fortress_r, y = py + fortress_r;
+		place_obelisk(x, y, o);
+		sim.place_fortress(wx(x), wx(y), "tiny", (uint8_t)s, gaia, o);
+	}
+	py += 2.0 * fortress_r + other;
+
+	// 'Generic' fortress placement (placeGenericFortress, the Iberian wall circuit).
+	double radius = std::min((size - py - other) / 3.0, (buildable / n - other) / 2.0);
+	for (int s = 0; s < n; ++s) {
+		const double x = column(s) + radius, y = py + radius;
+		place_obelisk(x, y, 0.0);
+		sim.place_generic_fortress(gaia, (float)wx(x), (float)wx(y), (float)radius, rng.next_u32(), 0.5f, 3, 100, (uint8_t)s);
+	}
+	py += 2.0 * radius + other;
+
+	// Circular wall placement: full circles and arcs of a half and three quarters.
+	radius = std::min((size - py - other) / 3.0, (buildable / n - other) / 2.0);
+	const std::vector<WallElementName> circle_part = wall_element_names({"tower", "medium", "house"});
+	for (int s = 0; s < n; ++s) {
+		const double x = column(s) + radius, y = py + radius, o = s * pi / 16.0;
+		const double max_angle = pi / 2.0 * (s % 3 + 2);
+		place_obelisk(x, y, o);
+		sim.place_circular_wall(wx(x), wx(y), radius, circle_part, (uint8_t)s, gaia, o, max_angle);
+	}
+	py += 2.0 * radius + other;
+
+	// Regular polygonal wall placement, 3 to 8 corners, the first side left open.
+	radius = std::min((size - py - other) / 2.0, (buildable / n - other) / 2.0);
+	const std::vector<WallElementName> polygon_part = wall_element_names({"medium", "tower"});
+	const WallElementName corner = wall_element_name("tower");
+	for (int s = 0; s < n; ++s) {
+		const double x = column(s) + radius, y = py + radius, o = s * pi / 16.0;
+		place_obelisk(x, y, o);
+		sim.place_polygonal_wall(wx(x), wx(y), radius, polygon_part, corner, (uint8_t)s, gaia, o, s % 6 + 3, true);
+	}
+	py += 2.0 * radius + other;
+
+	// Irregular polygonal wall placement (irregularity 0.5), the first side left open.
+	radius = std::min((size - py - other) / 2.0, (buildable / n - other) / 2.0);
+	for (int s = 0; s < n; ++s) {
+		const double x = column(s) + radius, y = py + radius, o = s * pi / 16.0;
+		place_obelisk(x, y, o);
+		sim.place_irregular_polygonal_wall(wx(x), wx(y), radius, corner, (uint8_t)s, gaia, o, s % 6 + 3, 0.5,
+				true, rng.next_u32());
+	}
+	py += 2.0 * radius + other;
+
+	// Linear wall placement: numWallsPerStyle straight walls a style, each longer than the last.
+	const double max_length = size - py - border - other;
+	const int per_style = (int)std::floor(buildable / other / n);
+	const std::vector<WallElementName> line_part = wall_element_names({"tower", "medium"});
+	for (int s = 0; s < n; ++s)
+		for (int w = 0; w < per_style; ++w) {
+			const double x = border + (s * per_style + w) * buildable / n / per_style;
+			const double y1 = py + (w + 1) * max_length / per_style;
+			sim.place_linear_wall(wx(x), wx(py), wx(x), wx(y1), line_part, (uint8_t)s, gaia);
+		}
+}
+
 bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	sim.reset();
 
@@ -11630,6 +11724,12 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 		case MAP_RIVER_ARCHIPELAGO:
 			synth_river_archipelago(hm, rng, water_h, spawns, config.num_players, config.teams, river_archipelago);
 			break;
+		case MAP_WALL_DEMO:
+			// RandomMap(0, "grass1"): flat land, 0.28's water 0.1 m below it. RTS0 keeps the
+			// water a metre down so its plane can't show through the grass.
+			water_h = 1.0f;
+			hm.init(hm.res, hm.map_half, metres(water_h, 1.0f));
+			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
 		default:
@@ -11638,7 +11738,8 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	}
 
 	// Survival of the Fittest's cliffs are meant to keep the bases apart; the waves come over them.
-	if (config.map_type != MAP_SURVIVAL_OF_THE_FITTEST) ease_routes_between_bases(hm, spawns, water_h);
+	if (config.map_type != MAP_SURVIVAL_OF_THE_FITTEST && config.map_type != MAP_WALL_DEMO)
+		ease_routes_between_bases(hm, spawns, water_h);
 
 	// Transfer heightmap to simulation
 	sim.set_terrain_data(hm.data, hm.res, water_h);
@@ -11647,6 +11748,11 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// treasure seekers, trigger points and the central forests (no mines, hunt or relics).
 	if (config.map_type == MAP_SURVIVAL_OF_THE_FITTEST) {
 		place_survival_entities(sim, hm, spawns, rng, config);
+		return true;
+	}
+	// Wall Demo places its walls alone: no player bases, resources or animals.
+	if (config.map_type == MAP_WALL_DEMO) {
+		place_wall_demo(sim, hm.map_half, rng);
 		return true;
 	}
 
@@ -11980,6 +12086,11 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	Simulation::TerrainTiles t;
 	t.res = res;
 	t.tiles.assign((size_t)res * (size_t)res, 0);
+	if (type == MAP_WALL_DEMO) { // wall_demo.js: RandomMap(0, "grass1") and nothing painted on it
+		t.names = {"grass1"};
+		sim.set_terrain_tiles(std::move(t));
+		return;
+	}
 	auto index_of = [&](const char *name) -> uint8_t {
 		for (size_t i = 0; i < t.names.size(); ++i)
 			if (t.names[i] == name) return (uint8_t)i;

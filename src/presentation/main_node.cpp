@@ -403,7 +403,7 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 		// Attacks against other players, or dealt by myself, are not registered.
 		if (a.target_owner != me || a.attacker_owner == me) continue;
 		if (attack_detection_.report(a.x, a.z, match_elapsed_time)) {
-			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0);
+			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0, a.target_id);
 			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
 			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
 		}
@@ -413,17 +413,52 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 // 0 A.D. messages.js "attack" notification: remember the spot for
 // camera.lastattackfocus, ping the minimap, play the "attacked" sound group
 // (alarm_attackplayer, or alarm_attacked_gaia for Gaia) and add a chat line.
-void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
+void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target) {
 	has_last_attack_ = true;
 	last_attack_pos_ = pos;
+	last_attack_unit_ = structure ? 0 : target;
 	if (minimap_view) minimap_view->add_ping(Vector2(pos.x, pos.z), Color(1.0f, 0.15f, 0.1f));
 	const bool gaia = attacker == rtso::GAIA_PLAYER;
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
 	if (!chat_window_.is_ready() || !user_opts_.attack_notice) return;
-	// ChatMessageFormatSimulation.attack: the attacker's name in its colour.
-	(void)structure; // 0 A.D. words unit and structure attacks the same way
-	chat_window_.append_line(sprintf0(tr("%(icon)sYou have been attacked by %(attacker)s!"),
-			{{"icon", ""}, {"attacker", colored_player_name(attacker)}}) + "\n");
+	// ChatMessageFormatSimulation.attack: the attacker's name in its colour, livestock worded
+	// apart (targetIsDomesticAnimal); a click runs focusAttack, following an attacked unit.
+	bool livestock = false;
+	if (!structure && sim) {
+		auto fv = sim->fauna();
+		for (size_t f = 0; f < fv.count; ++f)
+			if (fv.id[f] == target) { livestock = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic(); break; }
+	}
+	const String msg = livestock ? tr("%(icon)sYour livestock has been attacked by %(attacker)s!")
+								 : tr("%(icon)sYou have been attacked by %(attacker)s!");
+	chat_window_.append_line(sprintf0(msg, {{"icon", "[img=16x16]res://assets/textures/ui/archive/icons/focus-attacked.png[/img]"},
+											 {"attacker", colored_player_name(attacker)}}) + "\n",
+			"attack:" + String::num_int64(structure ? 0 : target) + ":" + String::num(pos.x) + "," + String::num(pos.z),
+			tr("Click to focus on the attacked unit."));
+}
+
+// ChatOverlay.js onPress: an attack line runs focusAttack (follow the attacked unit, else look
+// at the spot); a flare line moves the camera to the flare.
+void RtsoMain::_on_chat_line_input(const Ref<InputEvent> &event, const String &action) {
+	Ref<InputEventMouseButton> mb = event;
+	if (!mb.is_valid() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT || !cam_rig) return;
+	const PackedStringArray parts = action.split(":");
+	if (parts.size() < 2) return;
+	const PackedStringArray xz = parts[parts.size() - 1].split(",");
+	if (xz.size() != 2) return;
+	if (parts[0] == "attack" && parts.size() == 3 && sim) {
+		const uint32_t id = (uint32_t)parts[1].to_int();
+		auto uv = sim->units();
+		for (size_t i = 0; id && i < uv.count; ++i)
+			if (uv.id[i] == id && uv.alive[i]) {
+				cam_rig->set_follow_id(id); // setCameraFollow
+				get_viewport()->set_input_as_handled();
+				return;
+			}
+	}
+	cam_rig->set_follow_id(0);
+	cam_rig->set_target_pos(Vector3(xz[0].to_float(), 0.0f, xz[1].to_float()));
+	get_viewport()->set_input_as_handled();
 }
 
 // colorizePlayernameByID: the name in the player's displayed colour.
@@ -1456,6 +1491,9 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_RESTRICT_CAMERA: // RestrictCamera: GameView_SetConstrainCameraEnabled
 			if (cam_rig) cam_rig->set_constrain_camera(on);
 			break;
+		case D::DEV_REJOIN_TEST: // ActivateRejoinTest: its SessionMessageBox, OK starting it
+			if (on && !rejoin_test_) quit_confirmation("rejoin_test");
+			break;
 		case D::DEV_TIME_WARP: // EnableTimeWarp: TimeWarp.setEnabled
 			set_time_warp(on);
 			break;
@@ -1483,6 +1521,51 @@ void RtsoMain::_on_render_debug_mode(int index) {
 	};
 	if (Viewport *vp = get_viewport()) vp->set_debug_draw(kDraw[index]);
 	refresh_dev_overlay();
+}
+
+void RtsoMain::activate_rejoin_test() {
+	if (rejoin_test_ || !sim || turn_mgr_.is_replaying()) return;
+	rejoin_test_ = true;
+	refresh_dev_overlay();
+}
+
+// After each turn: the first takes the snapshot and rejoins the copy from it (a fresh
+// Simulation loading the save, as a rejoining client loads the host's state); each later
+// one replays that turn's commands onto the copy, whose turn manager checks the copy's
+// hash against the turn's.
+void RtsoMain::rejoin_test_turn() {
+	if (!rejoin_test_ || !sim || turn_mgr_.is_replaying() || turn_mgr_.turn_history().empty()) return;
+	if (!rejoin_sim_) {
+		const String path = ProjectSettings::get_singleton()->globalize_path("user://rejoin_test.rts0sav");
+		const std::string p = path.utf8().get_data();
+		auto copy = std::make_unique<rtso::Simulation>();
+		if (!sim->save_state(p.c_str()) || !copy->load_state(p.c_str())) {
+			DirAccess::remove_absolute(path);
+			return;
+		}
+		DirAccess::remove_absolute(path);
+		rejoin_sim_ = std::move(copy);
+		rejoin_tm_ = std::make_unique<rtso::TurnManager>();
+		rejoin_tm_->begin_shadow_replay(turn_mgr_);
+		rejoin_from_turn_ = turn_mgr_.current_turn();
+		return;
+	}
+	rejoin_tm_->push_shadow_frame(turn_mgr_.turn_history().back());
+	if (!rejoin_tm_->tick(rtso::TurnManager::TURN_DURATION, *rejoin_sim_)) return;
+	++rejoin_turns_;
+	if (rejoin_tm_->replay_out_of_sync() && !rejoin_oos_turn_) {
+		rejoin_oos_turn_ = rejoin_tm_->replay_out_of_sync_turn();
+		quit_confirmation("out_of_sync_rejoin_test");
+	}
+}
+
+Dictionary RtsoMain::get_rejoin_test() const {
+	Dictionary d;
+	d["active"] = rejoin_test_;
+	d["rejoined_at"] = rejoin_from_turn_;
+	d["turns"] = rejoin_turns_;
+	d["out_of_sync_turn"] = rejoin_oos_turn_;
+	return d;
 }
 
 // TimeWarp.setEnabled: not in networked games (nor replays); turning it on shows
@@ -1547,6 +1630,8 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
+		dev_overlay_.set_checked(D::DEV_REJOIN_TEST, rejoin_test_); // checked(): this.disabled
+		dev_overlay_.set_enabled(D::DEV_REJOIN_TEST, !rejoin_test_ && !turn_mgr_.is_replaying());
 		using O = rtso::RtsoDebugOverlays;
 		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
 		dev_overlay_.set_checked(D::DEV_HIER_PATHFINDER_OVERLAY, debug_overlays_.on(O::HIER_PATHFINDER));

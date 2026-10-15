@@ -264,6 +264,7 @@ static uint32_t gather_target(const Simulation &s, uint32_t uid) {
 static void test_fishing() {
 	static Simulation s;
 	fresh(s);
+	s.set_explore_map(true); // boats only move on to fish their player has seen
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0);
 	// A Town Center nearer the fish than the dock: a boat can't reach it, so it must not unload there.
 	s.spawn_building_world(-30.0f, 24.0f, BLD_TOWN_CENTER, 0);
@@ -319,6 +320,7 @@ static void test_fishing() {
 	// A boat whose fish runs out moves on to the nearest fish on its sea.
 	static Simulation t;
 	fresh(t);
+	t.set_explore_map(true);
 	t.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0);
 	const uint32_t small = t.spawn_resource_world(-36.0f, 6.0f, RES_FOOD, 16, RES_SUB_FISH);
 	const uint32_t next = t.spawn_resource_world(-20.0f, 4.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
@@ -1056,6 +1058,74 @@ static void test_petra_ship_treasure() {
 	CHECK(o.kind == ORDER_COLLECT_TREASURE && o.target == wreck);
 }
 
+// Ships drop off at any Naval dropsite (ResourceGatherer.js): the Briton crannog, a civic
+// centre on the shore, takes a fishing boat's catch as a dock does.
+static void test_crannog_takes_fish() {
+	static Simulation s;
+	fresh(s);
+	s.set_team_civ(0, CIV_BRITONS);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_CRANNOG, 0);
+	const uint32_t fish = s.spawn_resource_world(-36.0f, 6.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t boat = s.spawn_unit(-44.0f, 10.0f, 0, UNIT_FISHING_BOAT);
+	s.order_gather(&boat, 1, fish);
+	run(s, 90.0f);
+	const int food = s.player_resource(0, RES_FOOD);
+	std::printf("crannog: %d food landed by a fishing boat in 90 s\n", food);
+	CHECK(food > 0 && gather_target(s, boat) == fish);
+}
+
+// UnitAI FindNearbyResource: a boat whose fish runs out looks for the next one within 64 m
+// (17.9 units) and goes idle rather than sail to one farther off, or to one in unexplored
+// water (CheckTargetVisible).
+static void test_next_fish_range() {
+	static Simulation s;
+	fresh(s);
+	s.set_explore_map(true);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0);
+	const uint32_t small = s.spawn_resource_world(-36.0f, 6.0f, RES_FOOD, 16, RES_SUB_FISH);
+	const uint32_t far = s.spawn_resource_world(-12.0f, 4.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t boat = s.spawn_unit(-40.0f, 8.0f, 0, UNIT_FISHING_BOAT);
+	s.order_gather(&boat, 1, small);
+	run(s, 40.0f);
+	std::printf("next fish: fish 24 units off taken: %d\n", (int)(gather_target(s, boat) == far));
+	CHECK(subtype_of(s, small) == nullptr && gather_target(s, boat) == 0);
+
+	// A fish 16 units off is in range, but nobody has seen its water (a fishing boat sees 30 m).
+	for (bool explored : {false, true}) {
+		static Simulation t;
+		fresh(t);
+		t.set_explore_map(explored);
+		t.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0);
+		const uint32_t first = t.spawn_resource_world(-36.0f, 6.0f, RES_FOOD, 16, RES_SUB_FISH);
+		const uint32_t hidden = t.spawn_resource_world(-25.0f, -5.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+		const uint32_t b = t.spawn_unit(-40.0f, 8.0f, 0, UNIT_FISHING_BOAT);
+		t.order_gather(&b, 1, first);
+		run(t, 40.0f);
+		std::printf("next fish: explored %d, boat moved on to the fish 16 units off: %d\n", (int)explored, (int)(gather_target(t, b) == hidden));
+		CHECK((gather_target(t, b) == hidden) == explored);
+	}
+}
+
+// entityExtend.js gatherTreasure: a land collector only takes treasures on its own land
+// (getLandAccess), so a wreck out at sea is left to ships.
+static void test_petra_land_skips_wreck() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.petra_pid_ = 1;
+	const uint32_t worker = s.spawn_unit(0.0f, 22.0f, 1, UNIT_VILLAGER);
+	s.spawn_treasure(0.0f, 4.0f, TREASURE_SHIPWRECK);
+	Simulation::PetraHuntScan scan = s.petra_hunt_scan();
+	const int32_t wi = s.lookup_unit(worker);
+	CHECK(!s.petra_gather_treasure((size_t)wi, scan));
+	const uint32_t barrel = s.spawn_treasure(14.0f, 26.0f, TREASURE_FOOD_BARREL);
+	scan = s.petra_hunt_scan();
+	CHECK(s.petra_gather_treasure((size_t)s.lookup_unit(worker), scan));
+	const auto o = s.unit_order(worker);
+	std::printf("Petra land treasure: order %d target %u (barrel %u)\n", (int)o.kind, o.target, barrel);
+	CHECK(o.kind == ORDER_COLLECT_TREASURE && o.target == barrel);
+}
+
 // worker.js startFishing: Petra's idle boat takes the fish nearest its dock, not the one
 // nearest itself; with no fish left on its sea the boat is deleted.
 static void test_petra_fishing() {
@@ -1673,6 +1743,9 @@ int main() {
 	test_petra_cothon();
 	test_ship_treasure();
 	test_petra_ship_treasure();
+	test_crannog_takes_fish();
+	test_next_fish_range();
+	test_petra_land_skips_wreck();
 	test_petra_fishing();
 	test_petra_fishing_boat_backs_off();
 	test_petra_small_land_fields();

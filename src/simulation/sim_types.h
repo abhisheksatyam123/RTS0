@@ -185,7 +185,8 @@ enum MapType : uint8_t {
 	MAP_CONTINENT = 90,
 	MAP_FOOTHILLS = 91,
 	MAP_COAST_RANGE = 92,
-	MAP_TYPE_COUNT = 93
+	MAP_WALL_DEMO = 93, // 0.28's demo of rmgen-common wall_builder.js (keyword "demo")
+	MAP_TYPE_COUNT = 94
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -236,11 +237,11 @@ inline bool map_has_team_placement(uint8_t type) { return map_team_placements(ty
 
 // 0 A.D. CircularMap: the map is the circle inside the square (LOS and passability end at
 // it). Every 0.28 random map is circular except the ones whose JSON says CircularMap false
-// (corsica, phoenician_levant, latium); RTS0's own maps (0-10) fill the square.
+// (corsica, phoenician_levant, latium, wall_demo); RTS0's own maps (0-10) fill the square.
 inline bool map_circular(uint8_t type) {
 	if (type <= MAP_RANDOM_MEDITERRANEAN || type >= MAP_TYPE_COUNT) return false;
 	switch (type) {
-		case MAP_CORSICA: case MAP_PHOENICIAN_LEVANT: case MAP_LATIUM: return false;
+		case MAP_CORSICA: case MAP_PHOENICIAN_LEVANT: case MAP_LATIUM: case MAP_WALL_DEMO: return false;
 		default: return true;
 	}
 }
@@ -339,7 +340,8 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."},
 		{MAP_CONTINENT, "continent", "Continent (RMS)", "temperate", true, "All players starts on a continent surrounded by water."},
 		{MAP_FOOTHILLS, "foothills", "Foothills (RMS)", "temperate", true, "A land map with rolling hills and no obstructions."},
-		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."}
+		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."},
+		{MAP_WALL_DEMO, "wall_demo", "Wall Demo (RMS)", "temperate", true, "A demonstration of wall placement methods/code in random maps. Giant map size is recommended!"}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
