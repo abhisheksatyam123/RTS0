@@ -923,7 +923,30 @@ inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, Waypoi
             }
         }
     };
-    snap_to_passable(scx, scy, 3);
+    // LongPathfinder.cpp:749-754: a start on an impassable navcell moves to the nearest passable one
+    // (HierarchicalPathfinder::FindNearestPassableNavcell), not the first a scan meets: a unit pressed
+    // on a wall must not start its path on the far side. Ring r holds no navcell nearer than r - 0.5.
+    if (!is_passable_for(scx, scy, pass)) {
+        const auto [fx, fy] = world_to_navcells(sx, sz);
+        float best = -1.0f;
+        int bx = scx, by = scy;
+        for (int r = 1; r <= 3; ++r) {
+            const float ring = static_cast<float>(r) - 0.5f;
+            if (best >= 0.0f && ring * ring >= best) break;
+            for (int dy = -r; dy <= r; ++dy) {
+                for (int dx = -r; dx <= r; ++dx) {
+                    if (std::max(std::abs(dx), std::abs(dy)) != r) continue;
+                    if (!is_passable_for(scx + dx, scy + dy, pass)) continue;
+                    const float ex = static_cast<float>(scx + dx) + 0.5f - fx;
+                    const float ey = static_cast<float>(scy + dy) + 0.5f - fy;
+                    const float d = ex * ex + ey * ey;
+                    if (best < 0.0f || d < best) { best = d; bx = scx + dx; by = scy + dy; }
+                }
+            }
+        }
+        scx = bx;
+        scy = by;
+    }
     // MakeGoalReachable: a goal out at sea becomes the nearest navcell the unit can stand
     // on, so a land unit stops at the shore instead of wading into deep water.
     if (!(pass & PASS_SHIP) && cells.inside(tcx, tcy) && cells.at(tcx, tcy) == NAV_WATER) {

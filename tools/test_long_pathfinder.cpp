@@ -17,6 +17,8 @@
 //  6. String pulling checks its shortcuts with 0 A.D.'s CheckLineMovement: no line it accepts, and
 //     no segment of a find_path path, passes through a blocked navcell, not even diagonally between
 //     two blocked navcells that share a corner (plain Bresenham steps through those).
+//  7. A find_path start on a blocked navcell moves to the nearest open navcell, as 0 A.D.'s
+//     FindNearestPassableNavcell does, not to the first one a scan meets.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/grid_nav.h"
 
@@ -252,6 +254,19 @@ int main() {
 		// From a blocked navcell a line may leave, but not cross another.
 		if (!nav.line_clear(11, 10, 15, 10, PASS_INFANTRY) || nav.line_clear(9, 11, 12, 11, PASS_INFANTRY))
 			fail("leaving a blocked navcell", 0, 11, 10, 15, 10, 0, 1);
+	}
+	// A start on a blocked navcell (a unit pressed on a wall) moves to the nearest open one, as
+	// LongPathfinder's FindNearestPassableNavcell does: the row above the wall it stands at, not the
+	// first open navcell of a scan from below, which would start its path on the wall's far side.
+	{
+		NavGrid nav;
+		nav.init(64.f, RES);
+		for (int x = 4; x <= 40; ++x) nav.cells.at(x, 20) = NAV_OBSTRUCTED;
+		WaypointPath wp;
+		// Navcell (20, 20) spans z -24 to -22; the unit stands near its upper edge.
+		const bool ok = nav.find_path(-23.0f, -22.2f, -23.0f, -15.0f, wp, PASS_INFANTRY);
+		if (!ok || wp.count < 1 || wp.zs[0] < -22.0f)
+			fail("a start on a wall snaps to its far side", 0, 20, 20, 20, 24, wp.count, 1);
 	}
 	if (segments_clipping) fail("find_path segments pass through blocked navcells", 0, 0, 0, 0, 0, segments_clipping, 0);
 	if (lines_through_blocked) fail("line_clear accepts lines through blocked navcells", 0, 0, 0, 0, 0, lines_through_blocked, lines);
