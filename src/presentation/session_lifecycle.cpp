@@ -886,6 +886,9 @@ void RtsoMain::_process(double delta) {
 		}
 		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
+			// VisualReplay skips a rejoined client's replay ("Don't process files of rejoined
+			// clients"): its commands start mid-match, so it is not recorded at all.
+			replay_recording_ = false;
 			start_net_speed(net_setup_.seq ? net_setup_.setup.speed : 100);
 			selected_ids.clear();
 			selected_building_id = 0;
