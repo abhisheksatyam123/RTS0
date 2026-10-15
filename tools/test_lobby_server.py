@@ -130,6 +130,10 @@ def test_http():
     check(call("/register", {"name": "dave", "password": "ABC"})[0] == 200, "HTTP account registration")
     check(call("/login", {"name": "dave", "password": "XYZ"})[0] == 401, "HTTP sign in with the wrong password")
     check(call("/login", {"name": "dave", "password": "ABC"})[0] == 200, "HTTP sign in with the password")
+    check(call("/terms") == (200, {"pages": []}), "a server started without --terms-dir has no terms")
+    pages = lobby_server.load_terms(os.path.join(os.path.dirname(os.path.abspath(__file__)), "lobby_terms"))
+    check([p["title"] for p in pages] == ["Terms of Service", "Terms of Use", "Privacy Policy"]
+          and all(p["text"] for p in pages), "the template terms load in 0.28's order")
     check(call("/nope")[0] == 404, "unknown path is 404")
     req = urllib.request.Request(base + "/login", data=b"[1]", headers={"Content-Type": "application/json"})
     try:
