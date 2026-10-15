@@ -100,6 +100,17 @@ static func out_of_sync_replay(m: Node) -> Node:
 static func time_warp(m: Node) -> Node:
 	return _open(m, "Time warp mode", "Note: time warp mode is a developer option, and not intended for use over long periods of time. Using it incorrectly may cause the game to run out of memory or crash.", [], Vector2(500, 250))
 
+## The developer overlay's Activate Rejoin Test (its SessionMessageBox): OK starts it.
+static func rejoin_test(m: Node) -> Node:
+	var q := _open(m, "Rejoin Test", "Warning: the rejoin test can't be de-activated and is quite slow. Its only purpose is to check for OOS.", ["Cancel", "OK"])
+	q.pressed.connect(func(i): if i == 1: m.activate_rejoin_test())
+	return q
+
+## The rejoin test found the rejoined copy's state differs from the game's.
+static func out_of_sync_rejoin_test(m: Node) -> Node:
+	var s: Dictionary = m.get_rejoin_test()
+	return _open(m, TITLE_OOS, "Out-Of-Sync on turn %d\nThe rejoin test's copy, rejoined at turn %d, differs from the game." % [int(s.get("out_of_sync_turn", 0)), int(s.get("rejoined_at", 0))], [])
+
 ## OutOfSyncNetwork: the host found a peer whose state differs (NMT_SYNC_ERROR).
 ## The match runs on behind the box; OK closes it.
 static func out_of_sync_network(m: Node) -> Node:

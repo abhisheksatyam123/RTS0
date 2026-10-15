@@ -127,6 +127,16 @@ func run() -> void:
 	check(has_line(scen, "Population Cap Type", "Team Population") and has_line(scen, "Team Population Cap", "250"), "Team Population")
 	info["victory_mask"] = 0
 	check(has_line(GameDescription.describe(info), "Endless Game", "No winner will be determined, even if everyone is defeated."), "no condition is an Endless Game")
+	# gamedescription.js translates each line: labels, values, enabled/disabled and the plural minutes.
+	info["victory_mask"] = GameDescription.VK_WONDER
+	info["wonder_min"] = 2
+	info["ally_view"] = true
+	TranslationServer.add_translation(load("res://assets/l10n/de.po"))
+	TranslationServer.set_locale("de")
+	var de: String = GameDescription.describe(info)
+	TranslationServer.set_locale("en")
+	check(de.contains("[color=orange]Wunder (2 Minuten)[/color] ") and has_line(de, "Kartenname", "Lakonien") and has_line(de, "Sicht von Verbündeten", "aktiviert"),
+		"German Match Settings are translated: " + de.substr(0, 160))
 
 	print("4. Player state")
 	main.resign()

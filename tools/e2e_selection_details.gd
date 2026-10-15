@@ -76,6 +76,7 @@ func run() -> void:
 	print("    range ", rng_m.get_string(0) if rng_m else "none")
 	check(rng_m != null and (rng_m.get_string(3) == "" or int(rng_m.get_string(3)) != 0), "its range, with what the ground there adds")
 	check("\nResistance:\n" in String(b["stats_tooltip"]), "then its resistance")
+	check("\n  Status Effects: Blocks Poisoned" in String(b["stats_tooltip"]), "which blocks Poisoned, as every 0.28 structure's does")
 	check("Projectile Limit: " in String(b["stats_tooltip"]) and ", Per Unit: " in String(b["stats_tooltip"]), "its projectile limit, default and per unit")
 	check("Population Bonus: " in String(b["stats_tooltip"]) and "\nLoot: " in String(b["stats_tooltip"]), "its population bonus and loot")
 	check("Garrison Limit: " in String(b["stats_tooltip"]), "and its garrison limit")
@@ -122,6 +123,10 @@ func run() -> void:
 	print("ram: ", String(rt["stats_tooltip"]).replace("\n", " | "))
 	check("\nGarrison Limit: " in String(rt["stats_tooltip"]), "a ram's tooltip gives its Garrison Limit (getGarrisonTooltip)")
 	check("\nGarrison Size: 1 + 2" in String(rt["stats_tooltip"]), "and its Garrison Size with what it carries")
+	var tower: PackedInt32Array = main.debug_spawn_units("mace/siege_tower", 1)
+	await frames(2)
+	var tw: Dictionary = main.debug_inspector(str(tower[0]))
+	check("\nProjectile Limit: 10, Default: 0, Per Unit: 1" in String(tw["stats_tooltip"]), "a siege tower's tooltip gives its projectiles (getProjectilesTooltip)")
 
 	main.debug_spawn_fauna(2, 2, true) # FAUNA_SHEEP
 	main.debug_spawn_fauna(31, 1, true) # FAUNA_GOAT
