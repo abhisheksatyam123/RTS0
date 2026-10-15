@@ -776,6 +776,8 @@ std::vector<uint32_t> Simulation::petra_idle_builders() const {
 	return idle;
 }
 
+// The headless tests' fixed arena (and the last resort when even Mainland fails to
+// generate); it is not a 0.28 start, so matches start on a map with StartEntities.
 void Simulation::spawn_initial() {
 	reset();
 
@@ -3122,6 +3124,9 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 		if (b.build_progress < 1.0f || b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
 		return cmd_breed_livestock(player_id, building_id, FAUNA_SHEEP_TRAINABLE, count);
 	}
+	// RTS0's own villager is in no 0.28 Trainer list: the worker class trains the
+	// civ's support_civilian (the civic centre's units/{native}/support_civilian).
+	if (u_type == UNIT_VILLAGER) u_type = UNIT_FEMALE_CITIZEN;
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
 	// The civ's unit of this class that this building trains (0 A.D. Trainer

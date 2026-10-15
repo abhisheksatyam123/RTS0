@@ -2594,7 +2594,7 @@ private:
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
 	bool waves_enabled_ = false;
 	bool last_man_standing_ = false;
-	int pop_cap_ = 200;
+	int pop_cap_ = 300; // 0.28 population_capacities.json default
 	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;

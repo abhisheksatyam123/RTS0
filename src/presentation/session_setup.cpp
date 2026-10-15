@@ -181,17 +181,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		return true;
 	}
 
-	if (map_id == "default" || map_id == "arena") {
-		sim->set_sim_seed(seed);
-		sim->spawn_initial();
-		view->rebuild_terrain(sim);
-		if (cam_rig) {
-			cam_rig->set_map_bounds_half(sim->map_half());
-			cam_rig->set_target_pos(Vector3(0, 0, 0));
-		}
-		UtilityFunctions::print("[RtsoMain] Loaded default arena map.");
-		return true;
-	}
+	// RTS0's old "default"/"arena" start (a TC, barracks, houses and RTS0 villagers) is not a
+	// 0.28 start: 0.28's default map, Mainland, gives each player its civ's StartEntities.
+	if (map_id == "default" || map_id == "arena") return load_map_seeded("random_mainland", seed);
 
 	String path = "res://data/maps/" + map_id + ".json";
 	if (!FileAccess::file_exists(path)) {
@@ -673,7 +665,7 @@ void RtsoMain::apply_match_settings() {
 	if (!sim) return;
 	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
 	if (!ms) {
-		sim->spawn_initial();
+		load_map_seeded("random_mainland", (uint32_t)Time::get_singleton()->get_ticks_msec());
 		return;
 	}
 	String map_id = (String)ms->get("map_id");
@@ -729,10 +721,10 @@ void RtsoMain::apply_match_settings() {
 	}
 	sim->set_nomad((bool)ms->get("nomad")); // random maps only (generate_random_map)
 	if (!load_map_seeded(map_id, seed)) {
-		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
+		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - Mainland.");
 		if (rtso::is_playable_civ(civ)) sim->set_player_civ((uint8_t)civ);
 		if (rtso::is_playable_civ(ai)) sim->set_team_civ(1, (uint8_t)ai);
-		sim->spawn_initial();
+		if (!load_map_seeded("random_mainland", seed)) sim->spawn_initial();
 		return;
 	}
 	if (victory >= 0 && victory < 256 && rtso::valid_victory_code((uint8_t)victory)) sim->set_victory_condition((uint8_t)victory);
