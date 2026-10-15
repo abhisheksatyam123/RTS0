@@ -98,7 +98,9 @@ public:
 	// Low-level API, used by update() and by tests with a hand-made LOS grid.
 	// los is res*res cells of Simulation::FOW_* states over [-map_half, map_half]^2.
 	void begin(const uint8_t *los, int res, float map_half);
-	void add_building(const FoggedBuilding &live, bool allied);
+	// seen_before: the sim's Fogging seen bit (Building::seen_mask) for a structure this cache has
+	// no copy of, after a load, a rejoin or a new viewer: its mirage starts from how it stands now.
+	void add_building(const FoggedBuilding &live, bool allied, bool seen_before = false);
 	void add_resource(const FoggedResource &live);
 	void add_treasure(const FoggedTreasure &live);
 	void end();
