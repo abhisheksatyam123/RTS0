@@ -1133,6 +1133,33 @@ static void test_hunters_028() {
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a full carcass is skipped (isSupplyFull)");
 	full.on_carcass[meat] = 0;
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) == meat, "the same carcass with room is picked");
+	// isHuntable: "Do not hunt retaliating animals" (a boar fights back), only their carcasses; a
+	// player's sheep in its ally's territory is that ally's to keep (worker.js startHunting).
+	{
+		Simulation::PetraHuntScan busy = s->petra_hunt_scan();
+		busy.on_carcass[meat] = 1;
+		const uint32_t boar = s->spawn_fauna(px + 8.5f, pz - 8.0f, FAUNA_BOAR);
+		bool l = false;
+		CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, busy, l) != boar, "a live boar is not hunted (isHuntable)");
+		const uint32_t deer2 = s->spawn_fauna(px + 8.2f, pz - 8.0f, FAUNA_DEER);
+		CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, busy, l) == deer2 && l, "a deer beside it is");
+		s->set_player_active(3, true, false);
+		s->set_diplomacy(1, 3, Simulation::DIPLO_ALLY);
+		s->set_diplomacy(3, 1, Simulation::DIPLO_ALLY);
+		s->spawn_building_world(px + 8.0f, pz - 22.0f, BLD_TOWN_CENTER, 3);
+		run_for(*s, 0.5f);
+		busy = s->petra_hunt_scan();
+		busy.on_carcass[meat] = 1;
+		const uint32_t sheep = s->spawn_fauna(px + 8.0f, pz - 21.0f, FAUNA_SHEEP, 3);
+		const uint32_t own = s->spawn_fauna(px + 8.0f, pz - 20.0f, FAUNA_SHEEP); // a little farther
+		const uint32_t pick = s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 21.0f, busy, l);
+		std::printf("  ally's sheep %u, Gaia sheep %u: Petra picks %u\n", sheep, own, pick);
+		CHECK(pick != sheep, "an ally's sheep in its territory is left alone");
+		for (uint32_t id : {boar, deer2, sheep, own})
+			if (auto it = s->fauna_id_to_idx_.find(id); it != s->fauna_id_to_idx_.end()) s->fauna_.alive[it->second] = 0;
+		s->set_diplomacy(1, 3, Simulation::DIPLO_ENEMY);
+		s->set_diplomacy(3, 1, Simulation::DIPLO_ENEMY);
+	}
 	// One walled in by blocked cells (deep in a circular map's edge) has no cell to be gathered from.
 	{
 		auto &g = s->nav_grid_;
@@ -1271,6 +1298,36 @@ static void test_pop_phase2_save_resources() {
 	const int low = s->petra_pop_phase2();
 	std::printf("popPhase2 at 50 population, saving resources: %d (0.28 18)\n", low);
 	CHECK(low == 18, "3/4 of the clamped value under a low population cap");
+	// setConfig raised targetNumWorkers (and capped workPhase3) with the uncut popPhase2.
+	s->pop_cap_ = 300;
+	CHECK(s->petra_target_workers() == 150, "targetNumWorkers: max(100, popPhase2 150), before the cut");
+	CHECK(s->petra_work_phase3() == 150, "workPhase3: min(180, targetNumWorkers 150)");
+	// handleNewBase stops saving, but popPhase2 stays cut.
+	s->petra_attack_mgr_.save_resources = 0;
+	s->petra_attack_mgr_.phase2_cut_kept = 1;
+	CHECK(s->petra_pop_phase2() == 112, "the 3/4 cut outlives saveResources");
+}
+
+// config.js setConfig: Config.popScaling takes sqrt(maxPop/300) under 300, and every helper
+// built on it (transport ships, checkPausedQueues' workersMin) uses it. maxPop is
+// getPopulationMax at the first turn, with the civ's population bonus.
+static void test_petra_config_pop_scaling() {
+	auto s = std::make_unique<Simulation>();
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->petra_pid_ = 1;
+	s->players_[1].civ = CIV_ATHENIANS;
+	s->pop_cap_ = 300;
+	CHECK(std::fabs(s->petra_config_pop_scaling() - 1.0f) < 1e-4f, "no scaling at 300 population");
+	s->pop_cap_ = 75;
+	const float half = s->petra_config_pop_scaling();
+	std::printf("popScaling at 75 population: %.3f (0.28 0.500)\n", half);
+	CHECK(std::fabs(half - 0.5f) < 1e-3f, "sqrt(75/300) at 75 population");
+	CHECK(std::fabs(s->petra_plan_pop_scaling() - half) < 1e-4f, "attack plans use the same scaling");
+	s->players_[1].civ = CIV_PERSIANS;
+	s->pop_cap_ = 200;
+	std::printf("Persian maxPop at a 200 cap: %d (0.28 220)\n", s->petra_config_max_pop());
+	CHECK(s->petra_config_max_pop() == 220, "pers_population raises getPopulationMax by 10%");
 }
 
 // startingStrategy.js gameStart: no civic centre and none to build (Death Canyon's invasion
@@ -5097,6 +5154,7 @@ int main(int argc, char **argv) {
 	RUN(test_barter);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
+	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_dock_route);

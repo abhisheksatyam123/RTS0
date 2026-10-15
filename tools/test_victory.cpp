@@ -1058,6 +1058,37 @@ int main() {
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());
 		delete sim;
+		// Nomad (ConquestCommon.js: a query fires only when its last entity leaves): with no
+		// structures to start, Conquest Structures keeps the players in on their units, and
+		// "ConquestCritical Structure" defeats once the critical units are gone too.
+		auto nomad = [&](uint8_t mask) {
+			Simulation *n = combined(mask);
+			n->set_nomad(true);
+			std::erase_if(n->buildings_, [](const auto &b) { return b.team < MAX_PLAYERS; });
+			return n;
+		};
+		auto reason = [](Simulation &n, uint8_t player) {
+			int why = -1;
+			for (const auto &note : n.take_session_notices())
+				if (note.kind == Simulation::SessionNotice::DEFEATED && note.player == player) why = note.tech;
+			return why;
+		};
+		sim = nomad(VK_CONQUEST_STRUCTURES);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over() && sim->defeated_mask() == 0);
+		wipe(*sim, 1, true, false);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory() && reason(*sim, 1) == Simulation::SessionNotice::END_STRUCTURES_CRITICAL);
+		delete sim;
+		// Conquest Civic Centers: a Nomad player wiped out before building one is out
+		// ("lost all civic centers and critical units and structures").
+		sim = nomad(VK_CONQUEST_CIVIC_CENTRES);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over());
+		wipe(*sim, 1, true, false);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory() && reason(*sim, 1) == Simulation::SessionNotice::END_CIVIC_CENTRES_CRITICAL);
+		delete sim;
 		GameSetupParams gp, back;
 		gp.victory = VICTORY_COMBINED | VK_CONQUEST | VK_WONDER | VK_RELIC;
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.victory == gp.victory);

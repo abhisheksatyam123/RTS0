@@ -8,6 +8,9 @@ extends Node
 
 ## 0 A.D. KickStrings Local: a moderator kicked or banned us, with the reason.
 signal kicked(text: String)
+## The lobby no longer knows our session (it expired, or the server restarted):
+## 0.28 ConnectionHandler askReconnect.
+signal disconnected
 
 const HEARTBEAT_S := 10.0
 const REPORT_CHECK_S := 1.0
@@ -22,6 +25,13 @@ var token := ""
 var player_name := ""
 # The game this player hosts, as registered with the lobby; empty when not hosting.
 var room := {}
+
+# XmppClient keeps the session's lobby chat: every lobby page replays the
+# messages after this id (-1: no page has read the chat since signing in).
+var chat_from := -1
+# The session was lost (disconnected) and not signed in again since.
+var lost := false
+var _last_login := {} # address, name and encrypted password of the last sign-in, to reconnect
 
 var _timer: Timer
 var _report_timer: Timer
@@ -139,12 +149,17 @@ func _send(path: String, method: int, body: String, cb: Callable) -> void:
 		req.queue_free()
 		var ok := result == HTTPRequest.RESULT_SUCCESS
 		var obj = JSON.parse_string(data.get_string_from_utf8()) if ok else null
-		if ok and code == 401 and obj is Dictionary and obj.has("kicked") and sent_token != "" and sent_token == token:
+		if ok and code == 401 and obj is Dictionary and sent_token != "" and sent_token == token:
 			token = ""
 			room = {}
 			join_room = ""
 			moderator = false
-			kicked.emit(str(obj["kicked"]))
+			chat_from = -1
+			if obj.has("kicked"):
+				kicked.emit(str(obj["kicked"]))
+			else:
+				lost = true
+				disconnected.emit()
 		if cb.is_valid():
 			cb.call(code if ok else 0, obj))
 	var headers := PackedStringArray(["Content-Type: application/json"])
@@ -179,18 +194,30 @@ static func encrypt_password(password: String, username: String) -> String:
 	return out.hex_encode().to_upper()
 
 
-## 0 A.D. prelobby checkUsername / checkPassword for a new account.
+## 0 A.D. prelobby checkUsername / checkPassword / checkPasswordConfirmation
+## for a new account (credentials.js; lobby/password.js minimumPasswordLength).
+const MIN_PASSWORD_LENGTH := 8
+
 static func register_problem(who: String, password: String, confirm: String) -> String:
 	if who == "":
 		return "Please enter your username"
-	var re := RegEx.create_from_string("^[A-Za-z0-9._-]{1,20}$")
-	if re.search(who) == null:
+	if not valid_name(who):
 		return "Invalid username"
 	if password == "":
 		return "Please enter your password"
+	if password.length() < MIN_PASSWORD_LENGTH:
+		return "Please choose a longer password"
+	if confirm == "":
+		return "Please enter your password again"
 	if password != confirm:
 		return "Passwords do not match"
 	return ""
+
+
+## credentials.js: 3 to 20 of a-z, 0-9, ".", "_" and "-", with at least one
+## letter, in any case (tools/lobby_server.py ACCOUNT_NAME).
+static func valid_name(who: String) -> bool:
+	return RegEx.create_from_string("^(?=.*[a-zA-Z])[a-zA-Z0-9._-]{3,20}$").search(who) != null
 
 
 # 0 A.D. prelobby Register: an account the lobby keeps (tools/lobby_server.py --accounts).
@@ -218,7 +245,18 @@ func sign_in(addr: String, name: String, cb: Callable, encrypted: String = "") -
 		if code == 200 and obj is Dictionary:
 			token = str(obj.get("token", ""))
 			player_name = str(obj.get("name", name))
+			lost = false
+			chat_from = -1
+			_last_login = {"address": addr, "name": name, "encrypted": encrypted}
 		cb.call(code, obj))
+
+
+## ConnectionHandler askReconnect "Yes": sign in again as before.
+func reconnect(cb: Callable) -> void:
+	if _last_login.is_empty():
+		cb.call(0, null)
+		return
+	sign_in(str(_last_login["address"]), str(_last_login["name"]), cb, str(_last_login["encrypted"]))
 
 
 func sign_out() -> void:
@@ -233,6 +271,9 @@ func sign_out() -> void:
 	token = ""
 	room = {}
 	join_room = ""
+	chat_from = -1
+	lost = false
+	_last_login = {}
 
 
 # A game post carries the host's token: the lobby keys a game by its host
@@ -531,9 +572,8 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 	for t in setup.MAP_TYPES:
 		if t[0] == type_title:
 			type_title = t[1]
-	for r in setup.RMS_MAPS:
-		if r[0] == str(room.get("map_id", "")):
-			desc = r[6]
+	# Game.js: the description of any map this install knows, random or not.
+	desc = str(load("res://scenes/menu/replay_browser.gd").map_info(str(room.get("map_id", ""))).get("desc", ""))
 	var victory := str(room.get("victory", ""))
 	var lines := PackedStringArray(["[b]%s[/b]" % esc.call(map_title),
 		"[b]Victory Conditions:[/b] " + (esc.call(victory.replace(",", ", ")) if victory != "" else "Endless Game")])

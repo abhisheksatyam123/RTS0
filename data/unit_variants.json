@@ -5607,6 +5607,30 @@
    "res://assets/textures/unit_variants/props/head/hele_g_64x64_plain.png"
   ]
  },
+ "units/germ_forger_tex1": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/celt_j_64x64_plain.png",
+   "res://assets/textures/unit_variants/props/head/hele_e_64x64_plain.png",
+   "res://assets/textures/unit_variants/props/head/hele_f_64x64_plain.png",
+   "res://assets/textures/unit_variants/props/head/hele_g_64x64_plain.png"
+  ]
+ },
+ "units/germ_forger_tex3": {
+  "freq": [
+   2,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/weapon/germ_sword_silver_128x128_plain.png",
+   "res://assets/textures/unit_variants/props/weapon/germ_sword_128x128_plain.png"
+  ]
+ },
  "units/germ_hero_boiorix_tex10": {
   "freq": [
    1,

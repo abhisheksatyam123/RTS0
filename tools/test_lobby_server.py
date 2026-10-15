@@ -30,6 +30,8 @@ def test_object():
     check(code == 200 and alice["name"] == "alice" and alice["token"], "sign in trims the name and returns a token")
     check(lb.login("Alice")[0] == 409, "a name in use (any case) is refused")
     check(lb.login("")[0] == 400, "an empty name is refused")
+    for bad in ("bob, carol", "@mod", "eve (1800)", "x"):
+        check(lb.login(bad)[0] == 400, f"a guest named {bad!r} is refused: it would pass for something else")
     _, bob = lb.login("bob")
     check([p["name"] for p in lb.player_list()[1]["players"]] == ["alice", "bob"], "players are listed by name")
     check(lb.presence(bob["token"], "playing")[0] == 200, "presence can change")
@@ -277,6 +279,11 @@ def test_moderation():
     check(lb.kick(bob, "carol")[0] == 403 and carol in lb.players, "a player who is no moderator cannot kick")
     check(lb.set_subject(bob, "x")[0] == 403 and lb.set_subject(mod, " Be nice ")[1]["subject"] == "Be nice",
           "only a moderator sets the subject")
+    check(lb.chat[-1]["text"] == "mod changed the lobby subject to:\nBe nice" and lb.chat[-1]["from"] == "",
+          "the room hears of the new subject")
+    lb.set_subject(mod, "")
+    check(lb.chat[-1]["text"] == "mod deleted the lobby subject.", "and of its removal")
+    lb.set_subject(mod, "Be nice")
     check(lb.kick(mod, "nobody")[0] == 404, "kicking someone not in the lobby is refused")
     check(lb.kick(mod, "Bob", "spam")[0] == 200 and bob not in lb.players, "a moderator kicks bob")
     check(lb.chat[-1]["text"] == "bob has been kicked from the lobby. Reason: spam", "the lobby is told why")
@@ -356,6 +363,8 @@ def test_accounts():
     check(lb.register_account("alice", pw)[0] == 409, "the name, in any case, can be registered once")
     check(lb.register_account("bad name!", pw)[0] == 400, "a name outside a-z 0-9 . _ - is refused")
     check(lb.register_account("x" * 21, pw)[0] == 400, "a name over 20 characters is refused")
+    check(lb.register_account("ab", pw)[0] == 400 and lb.register_account("123", pw)[0] == 400,
+          "as credentials.js: at least 3 characters, one of them a letter")
     check("hunter22" not in open(path).read() and pw not in open(path).read(),
           "the accounts file keeps neither the password nor what the client sent")
     check(lb.login("alice", "wrong")[0] == 401, "the wrong password is refused")
