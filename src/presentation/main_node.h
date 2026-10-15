@@ -565,6 +565,9 @@ public:
 
 	void toggle_chat();
 	void _on_chat_send_pressed();
+	void _on_chat_filter_selected(int index); // ChatHistory.onSelectionChange
+	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
+	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
 	void _on_chat_text_submitted(const String &text);
 	void _on_chat_channel_btn_pressed(int channel_idx);
 
