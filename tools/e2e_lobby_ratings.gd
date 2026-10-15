@@ -122,6 +122,25 @@ func run() -> void:
 		for it in lobby._board.get_root().get_children():
 			board.append([it.get_text(0), it.get_text(1), it.get_text(2)])
 	check(board == [["1", "alice", "1265"], ["2", "bob", "1135"]], "the Leaderboard, best first")
+	lobby._board.clear()
+	lobby._leaderboard.custom_action.emit(&"update")
+	await until(func() -> bool: return lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2)
+	check(lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2, "Update asks the lobby again")
+	lobby._leaderboard.hide()
+	check(lobby._profile_role.text == "Player", "the profile names bob's role: Player")
+	# ProfilePage: any player, by name.
+	lobby._on_lookup_pressed()
+	lobby._lookup_input.text = "ALICE"
+	lobby._on_lookup_view()
+	await until(func() -> bool: return lobby._lookup_grid.visible)
+	check(lobby._lookup_grid.visible and lobby._lookup_values["name"].text == "alice (1265)"
+		and lobby._lookup_values["rank"].text == "1", "Player Profile Lookup finds alice by name")
+	lobby._lookup_input.text = "nobody"
+	lobby._on_lookup_view()
+	await until(func() -> bool: return lobby._lookup_error.visible)
+	check(lobby._lookup_error.visible and lobby._lookup_error.text == 'Player "nobody" not found.' and not lobby._lookup_grid.visible,
+		"and says when a player is not found")
+	lobby._lookup.hide()
 
 	print("3. game details")
 	var ms: Node = root.get_node("/root/MatchSettings")

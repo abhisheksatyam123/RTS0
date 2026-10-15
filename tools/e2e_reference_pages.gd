@@ -6,6 +6,7 @@ extends SceneTree
 #   2. the Template Viewer for every roster unit, every structure of every
 #      civ and every technology: a name, the stats the game plays with, 0 A.D.
 #      tooltip text, and links that open other pages;
+#   1b. Escape, Alt+Shift+T and Alt+Shift+H on the menu's pages, with their tooltips;
 #   3. in a match: the structree and civinfo hotkeys' dialog and the "i"
 #      button of the selection details.
 #
@@ -30,6 +31,20 @@ func _initialize() -> void:
 func frames(n: int) -> void:
 	for i in n:
 		await process_frame
+
+func key(code: Key, alt_shift := false) -> void:
+	var e := InputEventKey.new()
+	e.keycode = code
+	e.physical_keycode = code
+	e.alt_pressed = alt_shift
+	e.shift_pressed = alt_shift
+	e.pressed = true
+	Input.parse_input_event(e)
+	await frames(1)
+	e = e.duplicate()
+	e.pressed = false
+	Input.parse_input_event(e)
+	await frames(1)
 
 func run() -> void:
 	print("1. Civilization Overview and Structure Tree")
@@ -194,6 +209,20 @@ func run() -> void:
 	v.close_viewer()
 	await frames(2)
 	check(page.get_node_or_null("TemplateViewer") == null, "Close removes the viewer")
+
+	print("1b. Page hotkeys (StructreePage.js / CivInfoPage.js)")
+	tabs.current_tab = 1
+	await frames(1)
+	check(page.get_node("Center/Panel/VBox/Header/BtnBack").tooltip_text == "Escape: Close Structure Tree."
+		and tabs.get_tab_bar().get_tab_tooltip(0) == "Alt+Shift+H: Switch to Civilization Overview.",
+		"the close and switch tooltips: " + page.get_node("Center/Panel/VBox/Header/BtnBack").tooltip_text)
+	await key(KEY_H, true)
+	check(tabs.current_tab == 0, "Alt+Shift+H switches to the Civilization Overview")
+	await key(KEY_T, true)
+	check(tabs.current_tab == 1, "Alt+Shift+T switches back to the Structure Tree")
+	await key(KEY_ESCAPE)
+	await frames(3)
+	check(current_scene != page and str(current_scene.scene_file_path).ends_with("main_menu.tscn"), "Escape closes the page")
 
 	print("3. In a match")
 	var ms = root.get_node("MatchSettings")

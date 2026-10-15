@@ -4564,93 +4564,102 @@
     },
     {
       "type": "gate",
-      "player": 1,
       "x": 1.65,
       "z": -17.03,
       "wallset": "stone",
       "piece": "gate",
       "angle": 3.1313,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "han/wall_gate"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -3.65,
       "z": -17.2,
       "wallset": "stone",
       "piece": "tower",
       "angle": -0.0236,
-      "length": 2.5
+      "length": 2.5,
+      "player": 1,
+      "template": "han/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": 7.34,
       "z": -17.29,
       "wallset": "stone",
       "piece": "tower",
       "angle": 0.1044,
-      "length": 2.5
+      "length": 2.5,
+      "player": 1,
+      "template": "han/wall_tower"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -9.05,
       "z": -17.49,
       "wallset": "stone",
       "piece": "wall",
       "angle": 3.0777,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "han/wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": 12.61,
       "z": -17.94,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.977,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "han/wall_long"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -14.4,
       "z": -17.96,
       "wallset": "stone",
       "piece": "tower",
       "angle": 3.0259,
-      "length": 2.5
+      "length": 2.5,
+      "player": 1,
+      "template": "han/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": 17.92,
       "z": -18.82,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.8615,
-      "length": 2.5
+      "length": 2.5,
+      "player": 1,
+      "template": "han/wall_tower"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": 22.51,
       "z": -21.0,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.6429,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "han/wall_long"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -19.83,
       "z": -18.17,
       "wallset": "stone",
       "piece": "wall",
       "angle": 3.0777,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "han/wall_long"
     },
     {
       "type": "storehouse",
@@ -4760,133 +4769,146 @@
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -4.53,
       "z": -65.22,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 3.0224,
-      "length": 2.0
+      "length": 2.0,
+      "player": 1,
+      "template": "han/palisades_curve"
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -5.19,
       "z": -64.22,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 3.1642,
-      "length": 0.75
+      "length": 0.75,
+      "player": 1,
+      "template": "han/palisades_tower"
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -3.44,
       "z": -65.62,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 3.1286,
-      "length": 0.75
+      "length": 0.75,
+      "player": 1,
+      "template": "han/palisades_tower"
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -5.17,
       "z": -62.53,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -1.5628,
-      "length": 3.5
+      "length": 3.5,
+      "player": 1,
+      "template": "han/palisades_long"
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -1.4,
       "z": -65.61,
       "wallset": "palisade",
       "piece": "wall",
       "angle": -3.137,
-      "length": 3.5
+      "length": 3.5,
+      "player": 1,
+      "template": "han/palisades_long"
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": 0.67,
       "z": -65.68,
       "wallset": "palisade",
       "piece": "tower",
       "angle": -3.1221,
-      "length": 0.75
+      "length": 0.75,
+      "player": 1,
+      "template": "han/palisades_tower"
     },
     {
       "type": "palisade_gate",
-      "player": 1,
       "x": 2.87,
       "z": -65.7,
       "wallset": "palisade",
       "piece": "gate",
       "angle": -0.0025,
-      "length": 3.5
+      "length": 3.5,
+      "player": 1,
+      "template": "han/palisades_gate"
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": 4.99,
       "z": -65.75,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 3.13,
-      "length": 0.75
+      "length": 0.75,
+      "player": 1,
+      "template": "han/palisades_tower"
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": 7.04,
       "z": -65.86,
       "wallset": "palisade",
       "piece": "wall",
       "angle": 0.0401,
-      "length": 3.5
+      "length": 3.5,
+      "player": 1,
+      "template": "han/palisades_long"
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": 9.08,
       "z": -65.94,
       "wallset": "palisade",
       "piece": "tower",
       "angle": 0.0696,
-      "length": 0.75
+      "length": 0.75,
+      "player": 1,
+      "template": "han/palisades_tower"
     },
     {
       "type": "palisade",
-      "player": 1,
       "x": -5.16,
       "z": -60.53,
       "wallset": "palisade",
       "piece": "tower",
       "angle": -1.5873,
-      "length": 0.75
+      "length": 0.75,
+      "player": 1,
+      "template": "han/palisades_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -25.33,
       "z": -18.51,
       "wallset": "stone",
       "piece": "tower",
       "angle": 3.0878,
-      "length": 2.5
+      "length": 2.5,
+      "player": 1,
+      "template": "han/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": 27.23,
       "z": -23.57,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.6217,
-      "length": 2.5
+      "length": 2.5,
+      "player": 1,
+      "template": "han/wall_tower"
     },
     {
       "type": "wonder",

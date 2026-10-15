@@ -6941,233 +6941,256 @@
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -73.99,
       "z": -7.09,
       "wallset": "stone",
       "piece": "wall",
       "angle": -1.8333,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -71.7,
       "z": -13.44,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.0225,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -68.79,
       "z": -19.6,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.0247,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "gate",
-      "player": 1,
       "x": -66.22,
       "z": -26.32,
       "wallset": "stone",
       "piece": "gate",
       "angle": -1.8899,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "athen/wall_gate"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -63.7,
       "z": -32.94,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.0058,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -60.95,
       "z": -39.13,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.045,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -57.49,
       "z": -45.22,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.1709,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "gate",
-      "player": 1,
       "x": -53.37,
       "z": -51.29,
       "wallset": "stone",
       "piece": "gate",
       "angle": -2.1914,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "athen/wall_gate"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -48.63,
       "z": -56.9,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.3815,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -43.48,
       "z": -61.43,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.4728,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -38.06,
       "z": -65.52,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.5597,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "gate",
-      "player": 1,
       "x": -31.41,
       "z": -68.62,
       "wallset": "stone",
       "piece": "gate",
       "angle": -2.7935,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "athen/wall_gate"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -24.36,
       "z": -70.77,
       "wallset": "stone",
       "piece": "wall",
       "angle": -2.9003,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -21.74,
       "z": -71.41,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.984,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "athen/wall_tower"
     },
     {
       "type": "gate",
-      "player": 1,
       "x": -75.94,
       "z": -0.68,
       "wallset": "stone",
       "piece": "gate",
       "angle": -1.8601,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "athen/wall_gate"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -78.13,
       "z": 6.27,
       "wallset": "stone",
       "piece": "wall",
       "angle": -1.8352,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "athen/wall_medium"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -79.12,
       "z": 9.76,
       "wallset": "stone",
       "piece": "tower",
       "angle": -1.798,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "athen/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -41.0,
       "z": -63.52,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.4651,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "athen/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -46.33,
       "z": -59.24,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.3941,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "athen/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -59.5,
       "z": -42.4,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.1046,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "athen/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -62.71,
       "z": -35.87,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.0134,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "athen/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -70.48,
       "z": -16.24,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.0135,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "athen/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -73.3,
       "z": -10.3,
       "wallset": "stone",
       "piece": "tower",
       "angle": -1.9716,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "athen/wall_tower"
     },
     {
       "type": "temple",

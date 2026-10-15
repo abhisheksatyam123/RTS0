@@ -726,6 +726,9 @@ static void test_attack_plans() {
 		s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
 		s->spawn_building_world(20.0f, 12.0f, BLD_FORTRESS, 0, 1.0f);
 		s->spawn_building_world(6.0f, 22.0f, BLD_FORTRESS, 0, 1.0f);
+		// Murder Holes: soldiers hacking at a fortress from under its arrows (MinRange) would
+		// hold both attack slots for the rest of the match.
+		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
@@ -1130,6 +1133,33 @@ static void test_hunters_028() {
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a full carcass is skipped (isSupplyFull)");
 	full.on_carcass[meat] = 0;
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) == meat, "the same carcass with room is picked");
+	// isHuntable: "Do not hunt retaliating animals" (a boar fights back), only their carcasses; a
+	// player's sheep in its ally's territory is that ally's to keep (worker.js startHunting).
+	{
+		Simulation::PetraHuntScan busy = s->petra_hunt_scan();
+		busy.on_carcass[meat] = 1;
+		const uint32_t boar = s->spawn_fauna(px + 8.5f, pz - 8.0f, FAUNA_BOAR);
+		bool l = false;
+		CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, busy, l) != boar, "a live boar is not hunted (isHuntable)");
+		const uint32_t deer2 = s->spawn_fauna(px + 8.2f, pz - 8.0f, FAUNA_DEER);
+		CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, busy, l) == deer2 && l, "a deer beside it is");
+		s->set_player_active(3, true, false);
+		s->set_diplomacy(1, 3, Simulation::DIPLO_ALLY);
+		s->set_diplomacy(3, 1, Simulation::DIPLO_ALLY);
+		s->spawn_building_world(px + 8.0f, pz - 22.0f, BLD_TOWN_CENTER, 3);
+		run_for(*s, 0.5f);
+		busy = s->petra_hunt_scan();
+		busy.on_carcass[meat] = 1;
+		const uint32_t sheep = s->spawn_fauna(px + 8.0f, pz - 21.0f, FAUNA_SHEEP, 3);
+		const uint32_t own = s->spawn_fauna(px + 8.0f, pz - 20.0f, FAUNA_SHEEP); // a little farther
+		const uint32_t pick = s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 21.0f, busy, l);
+		std::printf("  ally's sheep %u, Gaia sheep %u: Petra picks %u\n", sheep, own, pick);
+		CHECK(pick != sheep, "an ally's sheep in its territory is left alone");
+		for (uint32_t id : {boar, deer2, sheep, own})
+			if (auto it = s->fauna_id_to_idx_.find(id); it != s->fauna_id_to_idx_.end()) s->fauna_.alive[it->second] = 0;
+		s->set_diplomacy(1, 3, Simulation::DIPLO_ENEMY);
+		s->set_diplomacy(3, 1, Simulation::DIPLO_ENEMY);
+	}
 	// One walled in by blocked cells (deep in a circular map's edge) has no cell to be gathered from.
 	{
 		auto &g = s->nav_grid_;
@@ -1268,6 +1298,97 @@ static void test_pop_phase2_save_resources() {
 	const int low = s->petra_pop_phase2();
 	std::printf("popPhase2 at 50 population, saving resources: %d (0.28 18)\n", low);
 	CHECK(low == 18, "3/4 of the clamped value under a low population cap");
+	// setConfig raised targetNumWorkers (and capped workPhase3) with the uncut popPhase2.
+	s->pop_cap_ = 300;
+	CHECK(s->petra_target_workers() == 150, "targetNumWorkers: max(100, popPhase2 150), before the cut");
+	CHECK(s->petra_work_phase3() == 150, "workPhase3: min(180, targetNumWorkers 150)");
+	// handleNewBase stops saving, but popPhase2 stays cut.
+	s->petra_attack_mgr_.save_resources = 0;
+	s->petra_attack_mgr_.phase2_cut_kept = 1;
+	CHECK(s->petra_pop_phase2() == 112, "the 3/4 cut outlives saveResources");
+}
+
+// config.js setConfig: Config.popScaling takes sqrt(maxPop/300) under 300, and every helper
+// built on it (transport ships, checkPausedQueues' workersMin) uses it. maxPop is
+// getPopulationMax at the first turn, with the civ's population bonus.
+static void test_petra_config_pop_scaling() {
+	auto s = std::make_unique<Simulation>();
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->petra_pid_ = 1;
+	s->players_[1].civ = CIV_ATHENIANS;
+	s->pop_cap_ = 300;
+	CHECK(std::fabs(s->petra_config_pop_scaling() - 1.0f) < 1e-4f, "no scaling at 300 population");
+	s->pop_cap_ = 75;
+	const float half = s->petra_config_pop_scaling();
+	std::printf("popScaling at 75 population: %.3f (0.28 0.500)\n", half);
+	CHECK(std::fabs(half - 0.5f) < 1e-3f, "sqrt(75/300) at 75 population");
+	CHECK(std::fabs(s->petra_plan_pop_scaling() - half) < 1e-4f, "attack plans use the same scaling");
+	s->players_[1].civ = CIV_PERSIANS;
+	s->pop_cap_ = 200;
+	std::printf("Persian maxPop at a 200 cap: %d (0.28 220)\n", s->petra_config_max_pop());
+	CHECK(s->petra_config_max_pop() == 220, "pers_population raises getPopulationMax by 10%");
+}
+
+// startingStrategy.js gameStart: no civic centre and none to build (Death Canyon's invasion
+// force): canBuildUnits is false, so no first base; dispatchUnits sends 5 units (half ranged,
+// half melee infantry) and every support unit to the ally's civic centre, and attackManager
+// starts an Attack at once with every other unit (assignUnits, mustStart).
+static void test_petra_no_units() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 3, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	for (int a = 0; a < 3; ++a)
+		for (int b = 0; b < 3; ++b)
+			if (a != b) s->set_diplomacy(a, b, a == 0 || b == 0 ? Simulation::DIPLO_ENEMY : Simulation::DIPLO_ALLY);
+	float x = 0.0f, z = 0.0f;
+	for (auto &b : s->buildings_)
+		if (b.team == 1) {
+			if (b.type == BLD_TOWN_CENTER) { x = b.x; z = b.z; }
+			s->destroy_building(b);
+		}
+	s->triggers_.disabled_buildings[1] |= bld_bit(BLD_TOWN_CENTER);
+	for (int k = 0; k < 8; ++k) s->spawn_unit(x + (float)k, z + 3.0f, 1, UNIT_SPEARMAN);
+	for (int k = 0; k < 8; ++k) s->spawn_unit(x + (float)k, z + 5.0f, 1, UNIT_ARCHER);
+	run_for(*s, 30.0f);
+	const PetraKept &kept = s->petra_kept_;
+	int alive = 0, support = 0, in_attack = 0, allied_in_attack = 0, allied_soldiers = 0, defending = 0, idle = 0;
+	bool cc = false;
+	for (size_t i = 0; i < s->units_.count; ++i) {
+		if (!s->units_.alive[i] || s->units_.team[i] != 1 || unit_is_ship(s->units_.unit_type[i])) continue;
+		++alive;
+		const uint32_t id = s->units_.id[i];
+		const bool allied = s->petra_dispatched_to_ally(id);
+		support += petra_is_support_unit(s->units_.unit_type[i]);
+		allied_soldiers += allied && !petra_is_support_unit(s->units_.unit_type[i]);
+		if (s->petra_in_attack_squad(id)) { ++in_attack; allied_in_attack += allied; }
+		else if (!allied && s->petra_is_defender(id)) ++defending; // a defense army's: plan -2, not available
+		else if (!allied && s->units_.order_kind[i] == ORDER_NONE && s->units_.action_state[i] == ACTION_IDLE) ++idle;
+	}
+	for (const auto &b : s->buildings_) cc |= b.team == 1 && b.hp > 0.0f && is_civic_centre(b.type);
+	std::printf("  no units to build: canBuildUnits %s, %zu sent to the ally (%d soldiers, %d support units of ours), "
+	            "%d of %d in an attack (%d defending, %d idle), civic centre laid out %s\n",
+	            kept.no_units ? "false" : "true", kept.allied.size(), allied_soldiers, support, in_attack, alive,
+	            defending, idle, cc ? "yes" : "no");
+	CHECK(kept.no_units, "no civic centre and none to build: canBuildUnits false");
+	CHECK(!cc, "and no first base");
+	CHECK(allied_soldiers == 5 && (int)kept.allied.size() == 5 + support, "5 soldiers and every support unit guard the ally");
+	CHECK(allied_in_attack == 0 && idle == 0 && 2 * in_attack > alive - (int)kept.allied.size(),
+	      "an attack takes the other units at once, and none stands idle");
+	run_for(*s, 60.0f);
+	std::printf("  then %zu attack(s) under way\n", s->petra_started_attacks_.size());
+	CHECK(!s->petra_started_attacks_.empty(), "and sets off");
+
+	// The choice is saved.
+	const std::string path = "/tmp/rtso_petra_no_units.sav";
+	CHECK(s->save_state(path.c_str()), "save");
+	auto t = std::make_unique<Simulation>();
+	CHECK(t->load_state(path.c_str()), "load");
+	std::remove(path.c_str());
+	CHECK(t->petra_kept_.units_checked && t->petra_kept_.no_units && t->petra_kept_.allied == kept.allied,
+	      "canBuildUnits and the allied units survive a save");
 }
 
 static void test_first_market_border() {
@@ -2009,6 +2130,7 @@ static void test_attack_request() {
 	plan.state = Simulation::AttackPlan::MUSTER;
 	plan.squad.clear();
 	for (int k = 0; k < 14; ++k) plan.squad.push_back(s->spawn_unit(bx + 6.0f + (float)(k % 5), bz + 6.0f + (float)(k / 5), 2, UNIT_SPEARMAN));
+	s->cheat_mods_[2].pop_bonus = 200; // room to grow: a plan at the population cap starts at once (attackPlan.js lengthMin)
 	slot.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
 	slot.petra_attack_mgr_.target_size = 60;
 	slot.petra_attack_mgr_.min_size = 30;
@@ -2129,6 +2251,62 @@ static void test_attack_rally_point() {
 	CHECK(n > 0 && together * 4 >= n * 3, "the army arrives together");
 }
 
+// attackPlan.js mustStart: an Attack starts once every class of its unitStat reaches its
+// targetSize, not when its total does: a squad of spearmen alone waits for its archers and
+// cavalry.
+static void test_attack_waits_for_each_class() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+	s->set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
+	run_for(*s, 5.0f);
+	float bx = 0.0f, bz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { bx = b.x; bz = b.z; }
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &mgr = s->petra_attack_mgr_;
+	mgr.rushes_set = 1;
+	mgr.max_rushes = 0;
+	mgr.kind = PETRA_ATTACK_ATTACK;
+	mgr.target_size = (int)std::ceil(38.0f * s->petra_plan_pop_scaling());
+	auto stats = s->petra_plan_unit_stats(PETRA_ATTACK_ATTACK);
+	int total = 0;
+	for (const auto &st : stats) total += st.target;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	int k = 0;
+	auto add = [&](UnitType type, int n) {
+		for (int j = 0; j < n; ++j, ++k) plan.squad.push_back(s->spawn_unit(bx + 6.0f + (float)(k % 8), bz + 6.0f + (float)(k / 8), 1, type));
+	};
+	add(UNIT_SPEARMAN, total);
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f; // it trains nothing meanwhile
+	run_ai_turns(*s, 4);
+	const bool early = s->petra_attack_plan_.completing || s->petra_attack_plan_.state != Simulation::AttackPlan::MUSTER;
+	int ranged = 0, cavalry = 0;
+	for (const auto &st : stats) {
+		if ((st.classes & TC_RANGED).any() && (st.classes & TC_INFANTRY).any()) ranged = st.target;
+		if ((st.classes & TC_CAVALRY).any()) cavalry = st.target;
+	}
+	add(UNIT_ARCHER, ranged);
+	add(UNIT_CAVALRY, cavalry);
+	bool started = false;
+	for (int turn = 0; turn < 6 && !started; ++turn) {
+		run_ai_turns(*s, 1);
+		started = s->petra_attack_plan_.completing || s->petra_attack_plan_.state != Simulation::AttackPlan::MUSTER;
+	}
+	std::printf("  class sizes: %d spearmen (the plan's total) start it %s; with %d archers and %d riders %s\n",
+	            total, early ? "yes" : "no", ranged, cavalry, started ? "yes" : "no");
+	CHECK(!early, "a plan whose total is full but whose classes are not keeps mustering");
+	CHECK(started, "the plan starts once every class is full");
+}
+
 // attackManager.js checkEvents AttackRequest counts every upcoming plan, the raid
 // mustering included, and force-starts each one of 3 units or more.
 static void test_attack_request_counts_raid() {
@@ -2155,6 +2333,7 @@ static void test_attack_request_counts_raid() {
 	plan.state = Simulation::AttackPlan::MUSTER;
 	plan.squad.clear();
 	for (int k = 0; k < 10; ++k) plan.squad.push_back(s->spawn_unit(bx + 6.0f + (float)(k % 5), bz + 6.0f + (float)(k / 5), 2, UNIT_SPEARMAN));
+	s->cheat_mods_[2].pop_bonus = 200; // room to grow: a plan at the population cap starts at once (attackPlan.js lengthMin)
 	slot.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
 	slot.petra_attack_mgr_.target_size = 60;
 	slot.petra_attack_mgr_.min_size = 30;
@@ -3729,8 +3908,14 @@ static void test_fasten_end_game() {
 		if (siege) plan.squad.push_back(s->spawn_unit(tx - 16.0f, tz - 20.0f, 1, UNIT_CATAPULT));
 		mgr.kind = PETRA_ATTACK_HUGE;
 		mgr.target_size = mgr.min_size = 500;
-		run_ai_turns(*s, 5); // "Fasten the end game" every 5th AI turn
-		const bool marched = s->petra_attack_plan_.state != Simulation::AttackPlan::MUSTER || s->petra_attack_plan_.completing;
+		s->cheat_mods_[1].pop_bonus = 200; // room to grow: a plan at the population cap starts at once (attackPlan.js lengthMin)
+		// "Fasten the end game" every 5th AI turn; a forced plan still waits for the batches it
+		// has in training (countOwnQueuedEntitiesWithMetadata).
+		bool marched = false;
+		for (int turn = 0; turn < 40 && !marched; ++turn) {
+			run_ai_turns(*s, 1);
+			marched = s->petra_attack_plan_.state != Simulation::AttackPlan::MUSTER || s->petra_attack_plan_.completing;
+		}
 		std::printf("  end game: %zu soldiers%s against %zu enemy units, marches %s\n", n, siege ? " and a catapult" : "", enemies, marched ? "yes" : "no");
 		if (siege) CHECK(marched, "a plan with siege engines that far outnumbers the enemy starts (forceStart)");
 		else CHECK(!marched, "without siege engines it keeps mustering to its size");
@@ -4753,6 +4938,7 @@ int main(int argc, char **argv) {
 	RUN(test_ai_slots);
 	RUN(test_attack_plans);
 	RUN(test_attack_rally_point);
+	RUN(test_attack_waits_for_each_class);
 	RUN(test_slot_config);
 	RUN(test_allow_capture);
 	RUN(test_garrisons);
@@ -4764,6 +4950,8 @@ int main(int argc, char **argv) {
 	RUN(test_barter);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
+	RUN(test_petra_config_pop_scaling);
+	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_dock_route);
 	RUN(test_civ_structures);

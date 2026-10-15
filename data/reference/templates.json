@@ -20356,6 +20356,56 @@
     }
    }
   },
+  "rome/cavalry_auxiliary_b": {
+   "generic_name": "Auxiliary Cavalry",
+   "specific_name": "Eques Alaris",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Citizen",
+    "Soldier",
+    "Cavalry",
+    "Ranged",
+    "Javelineer",
+    "Auxiliary"
+   ],
+   "icon": "units/rome/cavalry_javelinist_auxiliary.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 1.75
+     },
+     {
+      "type": "Ranged",
+      "name": "Javelin",
+      "min_range": 0,
+      "max_range": 30,
+      "y_origin": 0,
+      "repeat_time": 1.25,
+      "damage": {
+       "Pierce": 18
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 16.2,
+     "run": 22.68,
+     "acceleration": 31.5
+    },
+    "gather": {
+     "food.meat": 5
+    },
+    "rank": "Basic"
+   }
+  },
   "rome/infantry_antesignanus": {
    "generic_name": "Legionary Skirmisher",
    "specific_name": "Antesignānus",
@@ -27153,7 +27203,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -27323,7 +27380,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -27348,7 +27412,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -27381,7 +27452,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -27432,7 +27510,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -27507,7 +27592,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -27582,7 +27674,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -27641,7 +27740,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -27710,7 +27816,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -27734,7 +27847,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -27807,7 +27927,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Officer Accommodation",
+      "description": "Garrisoned Heroes +6 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "60": {
     "generic_name": "Palisade Gate",
@@ -27847,7 +27974,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -28079,7 +28213,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -28249,7 +28390,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -28274,7 +28422,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -28307,7 +28462,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -28358,7 +28520,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -28433,7 +28602,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -28508,7 +28684,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -28567,7 +28750,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -28636,7 +28826,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -28660,7 +28857,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -28773,7 +28977,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -28966,7 +29177,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -29136,7 +29354,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -29161,7 +29386,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -29194,7 +29426,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -29245,7 +29484,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -29320,7 +29566,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -29395,7 +29648,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -29454,7 +29714,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -29523,7 +29790,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -29547,7 +29821,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -29596,7 +29877,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Satrapy Tribute",
+      "description": "Upgrade the Winter Palace to receive a free trickle of a desired resource.",
+      "radius": 0
+     }
+    ]
    },
    "51": {
     "generic_name": "Ice House",
@@ -29652,7 +29940,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Satrapy Tribute",
+      "description": "Upgrade the Winter Palace to receive a free trickle of a desired resource.",
+      "radius": 0
+     }
+    ]
    },
    "54": {
     "generic_name": "Winter Palace",
@@ -29682,7 +29977,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Satrapy Tribute",
+      "description": "Upgrade the Winter Palace to receive a free trickle of a desired resource.",
+      "radius": 0
+     }
+    ]
    },
    "55": {
     "generic_name": "Winter Palace",
@@ -29712,7 +30014,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Satrapy Tribute",
+      "description": "Upgrade the Winter Palace to receive a free trickle of a desired resource.",
+      "radius": 0
+     }
+    ]
    },
    "56": {
     "generic_name": "Winter Palace",
@@ -29742,7 +30051,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Satrapy Tribute",
+      "description": "Upgrade the Winter Palace to receive a free trickle of a desired resource.",
+      "radius": 0
+     }
+    ]
    },
    "60": {
     "generic_name": "Palisade Gate",
@@ -29782,7 +30098,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -29986,7 +30309,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -30156,7 +30486,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -30181,7 +30518,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -30214,7 +30558,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -30265,7 +30616,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -30340,7 +30698,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -30415,7 +30780,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -30474,7 +30846,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -30543,7 +30922,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -30567,7 +30953,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -30679,7 +31072,19 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     },
+     {
+      "name": "Eternal Fire",
+      "description": "Structures +50% capture points.",
+      "radius": 75
+     }
+    ]
    },
    "50": {
     "generic_name": "Temple of Mars",
@@ -30705,7 +31110,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "60": {
     "generic_name": "Palisade Gate",
@@ -30748,7 +31160,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "64": {
     "generic_name": "Siege Wall Gate",
@@ -30771,7 +31190,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "69": {
     "generic_name": "Shrine",
@@ -30790,7 +31216,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -31041,7 +31474,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -31211,7 +31651,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -31236,7 +31683,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -31269,7 +31723,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Commercial Port",
@@ -31320,7 +31781,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -31395,7 +31863,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -31470,7 +31945,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -31529,7 +32011,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -31598,7 +32087,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -31622,7 +32118,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -31672,7 +32175,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Dockyard Repairs",
+      "description": "Garrisoned Ships +10 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "57": {
     "generic_name": "Apartment Building",
@@ -31787,7 +32297,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -31994,7 +32511,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -32164,7 +32688,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -32189,7 +32720,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -32222,7 +32760,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -32273,7 +32818,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -32348,7 +32900,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -32423,7 +32982,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -32482,7 +33048,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -32551,7 +33124,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -32575,7 +33155,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -32624,7 +33211,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Center of Scholarship",
+      "description": "Structures −15% technology resource costs and research time.",
+      "radius": 0
+     }
+    ]
    },
    "60": {
     "generic_name": "Palisade Gate",
@@ -32664,7 +33258,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -32896,7 +33497,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -33066,7 +33674,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -33091,7 +33706,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -33124,7 +33746,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -33175,7 +33804,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -33250,7 +33886,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -33325,7 +33968,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -33384,7 +34034,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -33453,7 +34110,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -33477,7 +34141,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -33612,7 +34283,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -33742,7 +34420,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -33912,7 +34597,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -33937,7 +34629,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Sanctuary of Corent",
@@ -33970,7 +34669,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -34021,7 +34727,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -34096,7 +34809,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -34171,7 +34891,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -34230,7 +34957,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -34299,7 +35033,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -34323,7 +35064,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -34412,7 +35160,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -34567,7 +35322,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -34737,7 +35499,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -34762,7 +35531,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -34795,7 +35571,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -34846,7 +35629,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -34921,7 +35711,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -34996,7 +35793,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -35055,7 +35859,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -35124,7 +35935,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -35148,7 +35966,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -35193,7 +36018,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Religious Fervor",
+      "description": "Soldiers +20% melee and ranged attack damage.",
+      "radius": 50
+     }
+    ]
    },
    "60": {
     "generic_name": "Palisade Gate",
@@ -35233,7 +36065,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -35363,7 +36202,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -35533,7 +36379,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -35558,7 +36411,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -35591,7 +36451,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -35642,7 +36509,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -35717,7 +36591,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -35792,7 +36673,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -35851,7 +36739,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -35920,7 +36815,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -35944,7 +36846,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -36013,7 +36922,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Edict of Ashoka",
+      "description": "Traders +20% movement speed.",
+      "radius": 75
+     }
+    ]
    },
    "60": {
     "generic_name": "Palisade Gate",
@@ -36053,7 +36969,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -36222,7 +37145,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -36392,7 +37322,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple of Apedemak",
@@ -36418,7 +37355,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -36451,7 +37395,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -36502,7 +37453,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -36577,7 +37535,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -36652,7 +37617,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -36711,7 +37683,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -36780,7 +37759,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -36804,7 +37790,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -36850,7 +37843,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Exhortative Presence",
+      "description": "Soldiers +1 crush, hack, pierce resistance and +10% melee and ranged attack damage.",
+      "radius": 100
+     }
+    ]
    },
    "40": {
     "generic_name": "Small Pyramid",
@@ -36871,7 +37871,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Patriotism",
+      "description": "Workers +15% gather speed.",
+      "radius": 50
+     }
+    ]
    },
    "46": {
     "generic_name": "Blemmye Camp",
@@ -36947,7 +37954,19 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Powerful Priesthood",
+      "description": "Heroes −5% health.",
+      "radius": 0
+     },
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 70
+     }
+    ]
    },
    "60": {
     "generic_name": "Palisade Gate",
@@ -36987,7 +38006,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -37046,7 +38072,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    }
   },
   "ptol": {
@@ -37142,7 +38175,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -37312,7 +38352,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -37337,7 +38384,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -37370,7 +38424,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -37421,7 +38482,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -37496,7 +38564,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -37571,7 +38646,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -37630,7 +38712,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -37699,7 +38788,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -37723,7 +38819,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -37772,7 +38875,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Center of Scholarship",
+      "description": "Structures −15% technology resource costs and research time.",
+      "radius": 0
+     }
+    ]
    },
    "41": {
     "generic_name": "Mercenary Camp",
@@ -37797,7 +38907,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "42": {
     "generic_name": "Lighthouse",
@@ -37906,7 +39023,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -38043,7 +39167,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    }
   },
   "sele": {
@@ -38139,7 +39270,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -38309,7 +39447,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -38334,7 +39479,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -38367,7 +39519,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -38418,7 +39577,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -38493,7 +39659,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -38568,7 +39741,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -38627,7 +39807,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -38696,7 +39883,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -38720,7 +39914,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -38769,7 +39970,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Center of Scholarship",
+      "description": "Structures −15% technology resource costs and research time.",
+      "radius": 0
+     }
+    ]
    },
    "43": {
     "generic_name": "Military Colony",
@@ -38854,7 +40062,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -39023,7 +40238,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -39201,7 +40423,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -39226,7 +40455,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Wonder",
@@ -39259,7 +40495,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -39310,7 +40553,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -39385,7 +40635,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -39460,7 +40717,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -39519,7 +40783,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Bamboo Stockade",
@@ -39588,7 +40859,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -39612,7 +40890,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -39663,7 +40948,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "45": {
     "generic_name": "Imperial Ministry",
@@ -39813,7 +41105,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",
@@ -40001,7 +41300,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "3": {
     "generic_name": "Storehouse",
@@ -40171,7 +41477,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "9": {
     "generic_name": "Temple",
@@ -40196,7 +41509,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "10": {
     "generic_name": "Germania Triumphant",
@@ -40229,7 +41549,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Glorious Expansion",
+      "description": "+20% maximum population limit (requires the “Glorious Expansion” technology).",
+      "radius": 0
+     }
+    ]
    },
    "11": {
     "generic_name": "Dock",
@@ -40280,7 +41607,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "13": {
     "generic_name": "Corral",
@@ -40355,7 +41689,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "16": {
     "generic_name": "Practice Range",
@@ -40430,7 +41771,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Arsenal Repairs",
+      "description": "Garrisoned Siege Engines +3 health regeneration rate.",
+      "radius": 0
+     }
+    ]
    },
    "19": {
     "generic_name": "Sentry Tower",
@@ -40489,7 +41837,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Wall Protection",
+      "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
+      "radius": 0
+     }
+    ]
    },
    "21": {
     "generic_name": "Palisade",
@@ -40558,7 +41913,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Rigorous Training",
+      "description": "Units gain experience while garrisoned inside the building.",
+      "radius": 0
+     }
+    ]
    },
    "24": {
     "generic_name": "Theater",
@@ -40582,7 +41944,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Hellenization",
+      "description": "Structures +20% territory influence radius.",
+      "radius": 0
+     }
+    ]
    },
    "25": {
     "generic_name": "Embassy",
@@ -40627,7 +41996,14 @@
        "duration": 0
       }
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Religious Fervor",
+      "description": "Soldiers +20% melee and ranged attack damage.",
+      "radius": 50
+     }
+    ]
    },
    "60": {
     "generic_name": "Palisade Gate",
@@ -40755,7 +42131,14 @@
       "capacity": 20,
       "buff_heal": 3
      }
-    }
+    },
+    "auras": [
+     {
+      "name": "Medical Treatment",
+      "description": "Humans +1 health regeneration rate.",
+      "radius": 40
+     }
+    ]
    },
    "70": {
     "generic_name": "Trading Post",

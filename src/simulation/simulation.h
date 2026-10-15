@@ -171,9 +171,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 89; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 90; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
+	static constexpr uint32_t SAVE_VERSION_PETRA_NO_UNITS = 90; // Petra's canBuildUnits and the units it sent to allies (dispatchUnits)
 	static constexpr uint32_t SAVE_VERSION_PETRA_RALLY = 87; // each Petra plan's completing step, march waypoints and last position
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
@@ -1666,6 +1667,9 @@ public:
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
+	// A WallSet piece of half length `half_w` (its civ's set): the price and build time `player`
+	// pays, as cmd_build_wall charges it and the foundation takes.
+	float wall_piece_price(uint8_t player, uint8_t type, float half_w, float out[RES_COUNT]) const;
 	// What cmd_build_wall pays for a planned WallSet piece (its length's own cost).
 	void wall_piece_cost(uint8_t player, const WallPiece &p, float out[RES_COUNT]) const {
 		structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), out);
@@ -1748,6 +1752,7 @@ public:
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
 	int petra_pop_phase2() const; // config.js Economy.popPhase2 after setConfig's population scaling
+	int petra_config_pop_phase2() const; // the same before startingStrategy.js's saveResources cut
 	int petra_accounted_population() const;
 	int petra_pop_for_barracks1() const;
 	int petra_pop_for_barracks2() const;
@@ -2495,6 +2500,7 @@ private:
 	bool petra_steers_ship(uint32_t ship_id) const;
 	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
 	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
+	void drop_from_holder(uint32_t unit_id); // GarrisonHolder OnGlobalOwnershipChanged for one destroyed inside
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
 	int occupied_slots(const std::vector<uint32_t> &ids) const;  // GarrisonHolder.OccupiedSlots
 	bool garrison_room(const Building &b, size_t unit) const;
@@ -2632,7 +2638,7 @@ private:
 	void award_structure_damage_xp(uint32_t attacker_id, const Building &b, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-			bool target_is_building, float damage, bool melee = false);
+			bool target_is_building, float damage, bool melee = false, bool capture = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
 	std::vector<TriggerEventData> pending_attack_alerts_; // OnAttackDetected, raised at the end of the tick that detected them
@@ -2733,6 +2739,10 @@ private:
 	static constexpr uint32_t MAX_STATUSES = 1u << 16;
 	std::vector<StatusInstance> statuses_;
 	bool status_tick(const StatusInstance &st); // one ExecuteEffect; false once its target is gone
+	// A status keeps its own timer while its unit is garrisoned or aboard (StatusEffectsReceiver).
+	bool status_holds_unit(size_t i) const {
+		return units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED;
+	}
 	std::vector<Relic> relics_;
 	std::vector<Treasure> treasures_;
 	void tick_treasures(float dt);
@@ -3107,6 +3117,20 @@ private:
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
 	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
+	// attackPlan.js unitStat: a plan's classes with their priority, minSize, targetSize,
+	// batchSize and interests (the sizes petra_plan_sizes drew), siege engines included
+	// (addSiegeUnits); count is left for the caller.
+	struct PetraUnitStat {
+		TechClasses classes;
+		float priority;
+		int min, target, batch;
+		float strength, siege_strength, stone, metal; // interests; 1 = no costsResource penalty
+		int count = 0;
+	};
+	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind);
+	// Whether a building of ours trains some roster template of the class now (trainMoreUnits
+	// drops a class without one from the plan).
+	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
@@ -3118,6 +3142,8 @@ private:
 	// attackPlan.js isBlocked: the plan's target is a wall piece that blocked its path.
 	bool petra_plan_blocked(const AttackPlan &plan) const;
 	bool petra_unit_reserved(uint32_t uid) const;
+	std::unordered_set<uint32_t> petra_launched_units() const;
+	bool petra_builder_worker(size_t unit_idx, const std::unordered_set<uint32_t> &launched) const;
 	bool petra_mustering(uint32_t uid) const;
 	void petra_leave_mustering(uint32_t uid);
 
@@ -3135,7 +3161,12 @@ private:
 	float petra_timer_  = 0.0f;
 	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
 	PetraKept petra_kept_; // decided once or only raised (configFirstBase, navalManager.js, targetNumTraders)
-	void petra_config_first_base(); // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
+	void petra_config_first_base();
+	void petra_check_can_build_units(); // startingStrategy.js gameStart canBuildUnits
+	void petra_dispatch_units();        // startingStrategy.js dispatchUnits
+	bool petra_dispatched_to_ally(uint32_t uid) const; // metadata "allied"
+	bool petra_can_build_units() const { return !petra_kept_.no_units; }
+	void petra_attack_home(float &x, float &z) const; // the base an attack starts from, else one of our units // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
 	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
@@ -3360,7 +3391,17 @@ private:
 	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
-	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const;
+	// findDockPosition's other searches, over the whole map: buildOverseaDock's (on any of
+	// `lands`, by land id, facing any sea) and buildFirstBase's (nearest to (px, pz)).
+	struct PetraDockSearch {
+		const std::vector<uint8_t> *lands = nullptr; // oversea
+		bool proximity = false;
+		float px = 0.0f, pz = 0.0f;
+	};
+	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz,
+	                              const PetraDockSearch *search = nullptr) const;
+	bool petra_build_oversea_dock();
+	void petra_transport_garrisons_to(uint32_t foundation_id);
 	void petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, float x1, float z0, float z1) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
@@ -3391,6 +3432,8 @@ private:
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
+	int petra_config_max_pop(int unlimited = 300) const; // config.js setConfig's getPopulationMax
+	float petra_config_pop_scaling() const; // Config.popScaling: pop_scaling times sqrt(maxPop/300) under 300
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2

@@ -352,8 +352,10 @@ public:
 					// team bonuses and the Library of Alexandria, as cmd_research charges it.
 					float paid[rtso::RES_COUNT], rtime = 0.0f;
 					sim->tech_price(local_player(), (uint8_t)t, found_b->type, paid, rtime);
-					// Names, tooltip, cost, right-click, requirements, needed resources.
-					String tip = String::utf8(ti.name);
+					// Names (getEntityNamesFormatted: the civ's specificName first), tooltip, cost,
+					// right-click, requirements, needed resources.
+					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
+					String tip = rtso::entity_names(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
 					if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
@@ -552,19 +554,18 @@ public:
 							icon->set_material(grayscale_material());
 							icon->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
 						} else {
-							const String hint = String::utf8(up.tooltip ? up.tooltip : "");
-							const bool two = !specific.is_empty() && specific != generic;
-							const String primary = two ? specific : generic;
-							tip = two ? rtso::sprintf0(rtso::tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s (%(secondaryName)s)."
-														: "Upgrade to a %(primaryName)s (%(secondaryName)s). %(tooltip)s"),
-											{{"primaryName", primary}, {"secondaryName", generic}, {"tooltip", rtso::tr0(hint)}})
-									: rtso::sprintf0(rtso::tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s." : "Upgrade to a %(primaryName)s. %(tooltip)s"),
-											{{"primaryName", primary}, {"tooltip", rtso::tr0(hint)}});
+							// Names, cost, the target's limit, requirements, needed resources, right-click.
+							tip = rtso::upgrade_to_text(generic, specific, String::utf8(up.tooltip ? up.tooltip : ""));
 							const rtso::CostTip up_cost{up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost, 0, (int64_t)std::ceil(up.time)};
 							const String cost_tip = rtso::cost_tooltip(up_cost, true);
 							if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
+							const String limit_tip = limit_tooltip(local_player(), rtso::BUILDING_LIMIT_CATEGORY[up.to]);
+							if (!limit_tip.is_empty()) tip += "\n" + limit_tip;
 							if (check == rtso::Simulation::UPGRADE_ERR_PHASE) tip += "\n" + requires_text(up.required_phase >= 3 ? "City Phase" : "Town Phase");
-							else if (check == rtso::Simulation::UPGRADE_ERR_LIMIT) tip += "\n" + owner_->tr("Limit reached");
+							const auto &stock = sim->player(local_player());
+							const String up_need = rtso::needed_resources_tooltip(up_cost, stock.res[rtso::RES_FOOD], stock.res[rtso::RES_WOOD],
+									stock.res[rtso::RES_STONE], stock.res[rtso::RES_GOLD], true);
+							if (!up_need.is_empty()) tip += "\n" + up_need;
 							else if (check == rtso::Simulation::UPGRADE_ERR_COST) tip += "\n" + needed_text(up_cost);
 							tip += "\n" + right_click_tooltip();
 							if (check == rtso::Simulation::UPGRADE_ERR_PHASE || check == rtso::Simulation::UPGRADE_ERR_LIMIT) {
@@ -876,18 +877,17 @@ public:
 						if (upgrading == 0 && upgradable > 0) {
 							// "Upgrade to a <specific> (<generic>).", the cost for the whole selection,
 							// requirements, the resources the upgradable ones lack, the right-click line.
-							const String specific = String::utf8(tt.specific_name ? tt.specific_name : "");
-							tip = specific.is_empty()
-									? rtso::sprintf0(rtso::tr0("Upgrade to a %(primaryName)s."), {{"primaryName", String::utf8(tt.name)}})
-									: rtso::sprintf0(rtso::tr0("Upgrade to a %(primaryName)s (%(secondaryName)s)."),
-											{{"primaryName", specific}, {"secondaryName", String::utf8(tt.name)}});
+							tip = rtso::upgrade_to_text(String::utf8(tt.name), String::utf8(tt.specific_name ? tt.specific_name : ""), String());
 							const int n_all = (int)own.size();
 							const rtso::CostTip all_cost{(int64_t)row->food_cost * n_all, (int64_t)row->wood_cost * n_all,
 									(int64_t)row->stone_cost * n_all, (int64_t)row->gold_cost * n_all, 0, (int64_t)std::ceil(row->time)};
 							const String cost_tip = rtso::cost_tooltip(all_cost, true);
 							if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
+							if (to < rtso::CIV_UNIT_TEMPLATE_COUNT) {
+								const String limit_tip = limit_tooltip(local_player(), rtso::UNIT_LIMITS[to].category);
+								if (!limit_tip.is_empty()) tip += "\n" + limit_tip;
+							}
 							if (check == rtso::Simulation::UPGRADE_ERR_PHASE) tip += "\n" + requires_text("City Phase");
-							else if (check == rtso::Simulation::UPGRADE_ERR_LIMIT) tip += "\n" + owner_->tr("Limit reached");
 							const rtso::CostTip need_cost{(int64_t)row->food_cost * upgradable, (int64_t)row->wood_cost * upgradable,
 									(int64_t)row->stone_cost * upgradable, (int64_t)row->gold_cost * upgradable, 0, 0};
 							const String need = rtso::needed_resources_tooltip(need_cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
@@ -1060,24 +1060,32 @@ public:
 						const Dictionary text = structure_template_text(my_civ, bt);
 						const String generic = text.get("generic_name", String::utf8(bi.name));
 						const String specific = text.get("specific_name", String());
-						String tip = specific.is_empty() || specific == generic ? generic : specific + String(" (") + generic + String(")");
+						String tip = rtso::entity_names(generic, specific);
 						auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 						add_line(classes_tooltip(text));
+						add_line(structure_auras_tooltip(text));
 						add_line(identity_tooltip(text));
 						const rtso::CostTip b_cost{(int64_t)price[rtso::RES_FOOD], (int64_t)price[rtso::RES_WOOD],
 								(int64_t)price[rtso::RES_STONE], (int64_t)price[rtso::RES_GOLD], 0,
-								(int64_t)std::round(sim->structure_build_time_for(local_player(), (uint8_t)bt))};
-						add_line(rtso::cost_tooltip(b_cost, true));
+								(int64_t)std::ceil(sim->structure_build_time_for(local_player(), (uint8_t)bt))};
+						if (const rtso::WallSetInfo ws = rtso::wallset_info(rtso::wallset_kind_of((uint8_t)bt), my_civ); ws.segment == bt)
+							add_line(wallset_cost_tooltip(ws));
+						else
+							add_line(rtso::cost_tooltip(b_cost, true));
 						add_line(dropsite_tooltip(text));
 						const int garrison = rtso::structure_garrison_max((uint8_t)bt, my_civ);
 						if (garrison > 0)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s: %(garrisonLimit)s"),
-									{{"label", rtso::tr0("Garrison Limit")}, {"garrisonLimit", String::num_int64(garrison)}});
+									{{"label", rtso::header_font(rtso::tr0("Garrison Limit"))}, {"garrisonLimit", String::num_int64(garrison)}});
+						if (const float heal = rtso::building_garrison_heal((uint8_t)bt); garrison > 0 && heal > 0.0f)
+							tip += "\n" + rtso::sprintf0(rtso::tr0("%(healRateLabel)s %(value)s %(health)s / %(second)s"),
+									{{"healRateLabel", rtso::header_font(rtso::tr0("Heal:"))}, {"value", String::num_int64(std::lround(heal))},
+											{"health", rtso::tr0("Health")}, {"second", rtso::tr0("second")}});
 						add_line(turrets_tooltip(text));
 						const int pop_bonus = sim->structure_pop_bonus((uint8_t)bt, local_player());
 						if (pop_bonus > 0)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s %(bonus)s"),
-									{{"label", rtso::tr0("Population Bonus:")}, {"bonus", String::num_int64(pop_bonus)}});
+									{{"label", rtso::header_font(rtso::tr0("Population Bonus:"))}, {"bonus", String::num_int64(pop_bonus)}});
 						add_line(right_click_tooltip());
 						on_right_click_details(bb, "structure", bt, my_civ);
 						add_line(limit_tooltip(local_player(), rtso::BUILDING_LIMIT_CATEGORY[bt]));
@@ -1333,7 +1341,8 @@ private:
 			const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 					(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 			// The Research tooltip: names, tooltip, cost, right-click, requirements, needed resources.
-			String tip = String::utf8(ti.name);
+			const char *tech_specific = rtso::tech_specific_name(t, sim->player_civ(pid));
+			String tip = rtso::entity_names(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
 			if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 			const String cost_line = rtso::cost_tooltip(tech_cost, true);
 			if (!cost_line.is_empty()) tip += "\n" + cost_line;
@@ -1508,7 +1517,8 @@ private:
 		if (i < rtso::CIV_UNIT_TEMPLATE_COUNT) {
 			add_line(limit_tooltip(pid, rtso::UNIT_LIMITS[i].category));
 			if (rtso::UNIT_LIMITS[i].match_limit == 1)
-				add_line(rtso::tr0(host_->ui_sim()->match_limit_allows(pid, i) ? "Can be trained only once." : "Could only be trained once."));
+				add_line(host_->ui_sim()->match_limit_allows(pid, i) ? rtso::tr0("Can be trained only once.")
+						: rtso::objection_font(rtso::tr0("Could only be trained once.")));
 		}
 		// Options' Detailed tooltips (showdetailedtooltips, off by default): health, attack,
 		// healer, resistance, garrison, turrets, projectiles, speed and dropsite, from the
@@ -1531,6 +1541,45 @@ private:
 	godot::String requires_text(const godot::String &what) const {
 		using namespace godot;
 		return rtso::objection_font(rtso::sprintf0(owner_->tr("Requires %(technology)s"), {{"technology", owner_->tr(what)}}));
+	}
+
+	// getEntityCostTooltip for a wallset (structures/{civ}/wallset_*): getWallPieceTooltip's
+	// "Walls:  [stone] 14 to [stone] 36  [time] 4 to [time] 10" over the short, medium and long
+	// pieces, then "Towers:  [stone] 45  [time] 15".
+	godot::String wallset_cost_tooltip(const rtso::WallSetInfo &ws) const {
+		using namespace godot;
+		rtso::Simulation *sim = host_->ui_sim();
+		const uint8_t pid = local_player();
+		static const struct { int res; const char *icon; } kRes[] = {
+				{rtso::RES_FOOD, "food"}, {rtso::RES_WOOD, "wood"}, {rtso::RES_STONE, "stone"}, {rtso::RES_GOLD, "metal"}};
+		int64_t lo[5], hi[5];
+		for (int k = 0; k < 5; ++k) lo[k] = INT64_MAX, hi[k] = 0;
+		bool has[5] = {}, same = true;
+		for (int piece = 2; piece >= 0; --piece) { // short, medium, long
+			float price[rtso::RES_COUNT];
+			const int64_t t = (int64_t)std::ceil(sim->wall_piece_price(pid, ws.segment, 0.5f * ws.lengths[piece], price));
+			for (int k = 0; k < 5; ++k) {
+				const int64_t v = k < 4 ? (int64_t)price[kRes[k].res] : t;
+				if (piece == 2) has[k] = v > 0;
+				else if ((v > 0) != has[k]) same = false;
+				lo[k] = std::min(lo[k], v);
+				hi[k] = std::max(hi[k], v);
+			}
+		}
+		String walls;
+		for (int k = 0; k < 5 && same; ++k) {
+			if (!has[k]) continue;
+			const String icon = rtso::resource_icon(k < 4 ? kRes[k].icon : "time");
+			if (!walls.is_empty()) walls += "  ";
+			walls += rtso::sprintf0(rtso::tr0("%(resourceIcon)s %(minimum)s to %(resourceIcon)s %(maximum)s"),
+					{{"resourceIcon", icon}, {"minimum", String::num_int64(lo[k])}, {"maximum", String::num_int64(hi[k])}});
+		}
+		float tower[rtso::RES_COUNT];
+		const int64_t tower_time = (int64_t)std::ceil(sim->wall_piece_price(pid, ws.tower, ws.tower_half, tower));
+		const rtso::CostTip tower_cost{(int64_t)tower[rtso::RES_FOOD], (int64_t)tower[rtso::RES_WOOD], (int64_t)tower[rtso::RES_STONE],
+				(int64_t)tower[rtso::RES_GOLD], 0, tower_time};
+		return rtso::sprintf0(rtso::tr0("Walls:  %(costs)s"), {{"costs", walls}}) + "\n" +
+				rtso::sprintf0(rtso::tr0("Towers:  %(costs)s"), {{"costs", rtso::cost_components(tower_cost, "  ", true)}});
 	}
 
 	// getNeededResourcesTooltip for the local player's stock, called once the sim
@@ -1729,21 +1778,41 @@ private:
 	}
 
 	// getAurasTooltip: "Name: description Range: 30 meters" per aura of a roster unit.
+	// getAurasTooltip's line for one aura: "Name: description", then its range.
+	static godot::String aura_line(const godot::String &name, const godot::String &description, float radius) {
+		using namespace godot;
+		String line = rtso::sprintf0(rtso::tr0("%(auralabel)s %(aurainfo)s"),
+				{{"auralabel", rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(name)}})},
+				 {"aurainfo", rtso::tr0(description)}});
+		if (radius > 0.0f) {
+			const int64_t r = (int64_t)std::lround(radius);
+			line += " " + rtso::sprintf0(rtso::tr0("%(label)s %(val)s %(unit)s"),
+					{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
+		}
+		return line;
+	}
+
 	static godot::String auras_tooltip(const rtso::CivUnitTemplate &u) {
 		using namespace godot;
 		String out;
 		for (int16_t a : u.auras) {
 			if (a < 0) continue;
 			const auto &aura = rtso::civ_hero_aura(a);
-			String line = rtso::sprintf0(rtso::tr0("%(auralabel)s %(aurainfo)s"),
-					{{"auralabel", rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(String::utf8(aura.name))}})},
-					 {"aurainfo", rtso::tr0(String::utf8(aura.description ? aura.description : ""))}});
-			if (aura.radius > 0.0f) {
-				const int64_t r = (int64_t)std::lround(aura.radius);
-				line += " " + rtso::sprintf0(rtso::tr0("%(label)s %(val)s %(unit)s"),
-						{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
-			}
+			const String line = aura_line(String::utf8(aura.name), String::utf8(aura.description ? aura.description : ""), aura.radius);
 			out += (out.is_empty() ? String() : String("\n")) + line;
+		}
+		return out;
+	}
+
+	// The same for a structure, from its 0.28 template's Auras (templates.json).
+	static godot::String structure_auras_tooltip(const godot::Dictionary &text) {
+		using namespace godot;
+		const Array auras = text.get("auras", Array());
+		String out;
+		for (int k = 0; k < auras.size(); ++k) {
+			const Dictionary a = auras[k];
+			out += (out.is_empty() ? String() : String("\n")) +
+					aura_line(String(a.get("name", "")), String(a.get("description", "")), (float)a.get("radius", 0.0f));
 		}
 		return out;
 	}

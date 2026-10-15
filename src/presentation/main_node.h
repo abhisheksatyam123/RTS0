@@ -446,6 +446,8 @@ public:
 	void net_query_stun(const String &server, int port);
 	void net_hole_punch(const String &ip, int port);
 	void net_retarget_host(const String &ip, int port);
+	// LobbySession.verify_join's answer: the lobby name the ticket belongs to ("" unknown).
+	void net_lobby_auth_result(int peer, const String &ticket, const String &name);
 	// Networked Game Setup for scenes/menu/gamesetup.gd: see net_setup_.
 	bool is_net_pregame() const;
 	Dictionary get_net_setup_state() const;
@@ -473,11 +475,11 @@ public:
 		if (observer_view_ < rtso::MAX_PLAYERS && spectating()) return observer_view_;
 		return seat_player();
 	}
-	// The seat this client plays: its lockstep slot in multiplayer, player 0
-	// offline; 0xFF for an observer (multiplayer, or every slot AI).
+	// The seat this client plays: its lockstep slot in multiplayer, Game Setup's
+	// assigned slot offline (player 0 by default); 0xFF for an observer.
 	uint8_t seat_player() const {
 		if (net_lockstep() || turn_mgr_.perspective_changed()) return turn_mgr_.local_player();
-		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0;
+		return local_observer_ ? (uint8_t)0xFF : turn_mgr_.offline_seat();
 	}
 	// This client only watches: an observer, or a player who was defeated
 	// (0 A.D. g_IsObserver). Not in a replay, which has its own picker.
@@ -922,7 +924,6 @@ private:
 	// session.timewarp.fastforward runs the game at 20x while held.
 	bool time_warp_ = false;
 	bool time_warp_ff_ = false;
-	float time_warp_speed_ = 1.0f; // the speed to go back to when fast forward is let go
 	uint32_t time_warp_turn_ = UINT32_MAX;
 	uint32_t time_warp_serial_ = 0;
 	std::vector<String> time_warp_snapshots_;
@@ -939,6 +940,7 @@ public:
 	Dictionary get_rejoin_test() const;
 private:
 	bool rejoin_test_ = false;
+	bool random_map_ = false; // the match's map was generated (0.28 mapType "random")
 	std::unique_ptr<rtso::Simulation> rejoin_sim_;
 	std::unique_ptr<rtso::TurnManager> rejoin_tm_;
 	uint32_t rejoin_from_turn_ = 0, rejoin_turns_ = 0, rejoin_oos_turn_ = 0;
@@ -982,6 +984,8 @@ private:
 	Dictionary debug_selected_building() const;
 	Dictionary debug_queue_slot(int i);
 	Dictionary debug_minimap_panel() const;
+	// An Attacked message on `target` (a unit) from `attacker_owner`, through the session's AttackDetection.
+	void debug_attacked(int64_t target, int64_t attacker_owner);
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while
@@ -1015,8 +1019,8 @@ private:
 	void apply_settings_snapshot(const Dictionary &settings);
 	Array player_list() const;
 	void begin_match_recording(const rtso::GameSetupParams *mp_setup);
-	void write_replay();
-	void stop_replay_recording();
+	void write_replay(bool ended = false); // ended: leaving the match (0.28 endGame), which adds the summary
+	void stop_replay_recording(bool ended = false);
 	bool start_pending_replay();
 	bool load_pending_save();
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start

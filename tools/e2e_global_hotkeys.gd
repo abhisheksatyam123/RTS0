@@ -4,7 +4,8 @@ extends SceneTree
 #      and overlay.realtime from the main menu;
 #   2. in a match Alt+F does the same, and shows the session's timing line with it;
 #   3. screenshot (F2) and bigscreenshot (Shift+F2) are taken on every page (headless
-#      has no image to save, so only the hotkey routing is checked there).
+#      has no image to save, so only the hotkey routing is checked there);
+#   4. copy/paste/cut and text.* hotkeys drive Godot's text editing actions.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_global_hotkeys.gd
 # Exit code 0 = pass.
@@ -69,6 +70,19 @@ func run() -> void:
 	print("3. Screenshots")
 	check(us.has_method("take_screenshot"), "screenshot is global")
 	check(us.take_screenshot() == "", "headless: nothing to capture, no file")
+
+	print("4. Text-box hotkeys")
+	var has := func(action: String, code: Key, ctrl: bool) -> bool:
+		return InputMap.action_get_events(action).any(func(e): return e is InputEventKey and e.keycode == code and e.ctrl_pressed == ctrl)
+	check(has.call("ui_copy", KEY_C, true) and has.call("ui_text_caret_word_left", KEY_LEFT, true)
+		and has.call("ui_text_delete_word", KEY_DELETE, true), "copy, text.move.left and text.delete.right drive Godot's text actions")
+	var hk := RtsoHotkeyConfig.new()
+	hk.set_hotkey("copy", PackedStringArray(["Ctrl+K"]))
+	us.sync_text_hotkeys()
+	check(has.call("ui_copy", KEY_K, true) and not has.call("ui_copy", KEY_C, true), "rebinding copy to Ctrl+K applies to text boxes")
+	hk.reload()
+	us.sync_text_hotkeys()
+	check(has.call("ui_copy", KEY_C, true), "and reloads back")
 
 	for k in keep:
 		cfg.set_value(k, keep[k])
