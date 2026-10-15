@@ -36,6 +36,9 @@ class RtsoCameraRig : public Node3D {
 	uint32_t follow_id_ = 0;
 	// A cinema path flies the camera (cinema_view.h): the rig leaves it alone and ignores input.
 	bool cinema_view_ = false;
+	// 0 A.D. camera.{scroll,rotate,zoom}.speed.{increase,decrease}: the keyboard
+	// (and edge) scroll, rotate and zoom speeds, as factors of RTS0's defaults.
+	Vector3 speed_mul_ = Vector3(1, 1, 1);
 
 protected:
 	static void _bind_methods();
@@ -87,6 +90,10 @@ public:
 		follow_id_ = 0;
 		set_target_pos(Vector3((float)(double)d.get("x", target_pos.x), target_pos.y, (float)(double)d.get("z", target_pos.z)));
 	}
+	enum SpeedKind { SPEED_SCROLL = 0, SPEED_ROTATE = 1, SPEED_ZOOM = 2 };
+	// CCameraController: multiplies (or divides) by view.<kind>.speed.modifier.
+	void change_speed(int kind, bool increase);
+	Vector3 get_speed_multipliers() const { return speed_mul_; }
 };
 
 #endif

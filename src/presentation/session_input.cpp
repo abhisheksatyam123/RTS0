@@ -241,6 +241,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (cam_rig) cam_rig->toggle_birds_eye();
 			return;
 		}
+		static const char *kSpeedKinds[3] = { "scroll", "rotate", "zoom" };
+		for (int s = 0; s < 3; ++s)
+			for (int inc = 0; inc < 2; ++inc)
+				if (fired((std::string("camera.") + kSpeedKinds[s] + (inc ? ".speed.increase" : ".speed.decrease")).c_str())) {
+					if (cam_rig) cam_rig->change_speed(s, inc != 0);
+					return;
+				}
 		if (fired("camera.follow")) { // setCameraFollow: a unit is followed, a structure looked at
 			const uint32_t first = !selected_ids.is_empty() ? (uint32_t)selected_ids[0] : selected_building_id;
 			if (cam_rig) cam_rig->set_follow_id(0);

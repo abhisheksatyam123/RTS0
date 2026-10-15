@@ -2,7 +2,9 @@ extends SceneTree
 # 0.28's bird's eye view (camera.togglebirdseyeview, Shift+Tab): the camera
 # looks straight down, the pitch keys leave it there, Shift+Tab again goes back
 # to the pitch before, and camera.reset (R) leaves it too. F3 (mousegrabtoggle)
-# confines the mouse to the window and frees it again.
+# confines the mouse to the window and frees it again. The camera speed
+# hotkeys (Ctrl+Shift+S / Ctrl+Alt+S scroll, R rotate, Z zoom) scale each speed
+# by view.*.speed.modifier (1.05).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_birds_eye.gd
 # Exit code 0 = pass.
@@ -24,12 +26,14 @@ func frames(n: int) -> void:
 	for i in n:
 		await process_frame
 
-func key(code: Key, shift := false) -> void:
+func key(code: Key, shift := false, ctrl := false, alt := false) -> void:
 	for down in [true, false]:
 		var k := InputEventKey.new()
 		k.keycode = code
 		k.physical_keycode = code
 		k.shift_pressed = shift
+		k.ctrl_pressed = ctrl
+		k.alt_pressed = alt
 		k.pressed = down
 		Input.parse_input_event(k)
 		await frames(2)
@@ -57,5 +61,15 @@ func run() -> void:
 	var first: bool = us.last_mouse_grab
 	await key(KEY_F3)
 	check(us.last_mouse_grab != first, "F3 toggles the mouse grab (mousegrabtoggle)")
+	var codes := [KEY_S, KEY_R, KEY_Z]
+	var names := ["scroll", "rotate", "zoom"]
+	for i in 3:
+		await key(codes[i], true, true)
+		var up: Vector3 = rig.get_speed_multipliers()
+		check(is_equal_approx(up[i], 1.05), "Ctrl+Shift+%s raises the %s speed: %s" % [OS.get_keycode_string(codes[i]), names[i], up])
+		await key(codes[i], false, true, true)
+		await key(codes[i], false, true, true)
+		var down: Vector3 = rig.get_speed_multipliers()
+		check(is_equal_approx(down[i], 1.0 / 1.05), "Ctrl+Alt+%s lowers it: %s" % [OS.get_keycode_string(codes[i]), down])
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
