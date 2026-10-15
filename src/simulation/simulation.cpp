@@ -12603,8 +12603,10 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 		const float tech_min = tech_mods(b.team).bld_min_range[b.type];
 		const float min_r = tech_min >= 0.0f ? tech_min : ai.min_range;
 		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
+		// IsInTargetParabolicRange: from the structure's square obstruction, not a circle in it.
 		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
-			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
+			const nav::Vec2 gap = nav::footprint_gap(b, b.x + dx, b.z + dz);
+			const float eff_d = std::max(0.0f, std::sqrt(gap.x * gap.x + gap.y * gap.y) - other_half);
 			return eff_d >= min_r && in_parabolic_range(eff_d * eff_d, b_y, def_y, max_r);
 		};
 		bool ok = false;
@@ -13492,8 +13494,10 @@ void Simulation::tick_combat(float dt) {
 		const float tech_min = b.team < MAX_PLAYERS ? tech_mods(b.team).bld_min_range[b.type] : -1.0f;
 		const float min_r = tech_min >= 0.0f ? tech_min : ai.min_range; // Murder Holes
 		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
+		// IsInTargetParabolicRange: from the structure's square obstruction, not a circle in it.
 		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
-			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
+			const nav::Vec2 gap = nav::footprint_gap(b, b.x + dx, b.z + dz);
+			const float eff_d = std::max(0.0f, std::sqrt(gap.x * gap.x + gap.y * gap.y) - other_half);
 			return eff_d >= min_r && in_parabolic_range(eff_d * eff_d, b_y, def_y, max_r);
 		};
 		// No target on the ground stands lower than the map's lowest point, so none further than
@@ -13502,7 +13506,8 @@ void Simulation::tick_combat(float dt) {
 		// float rounding on the side of testing.
 		const float lowest_ground = lowest_terrain_height();
 		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
-		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + b.half_size + 1.0f : -1.0f;
+		const float corner = std::hypot(b.hu, b.hv); // the footprint's farthest reach from its centre
+		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + corner + 1.0f : -1.0f;
 		auto beyond = [&](float dx, float dz, float other_half) {
 			return ground_reach >= 0.0f && (std::fabs(dx) > ground_reach + other_half || std::fabs(dz) > ground_reach + other_half);
 		};
@@ -13521,7 +13526,8 @@ void Simulation::tick_combat(float dt) {
 		auto fauna_target = [&](int32_t f) {
 			const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
 			const uint8_t owner = fauna_owner_[f];
-			const bool foe = owner < MAX_PLAYERS ? b.team != GAIA_PLAYER && can_attack(b.team, owner) : shoots_gaia;
+			// A Gaia structure's enemy query covers every player, their livestock too (BuildingAI.js).
+			const bool foe = owner < MAX_PLAYERS ? can_attack(b.team, owner) : shoots_gaia;
 			return foe && !beyond(fx - b.x, fz - b.z, 0.0f) && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
 		};
 		// Every structure and animal that could pass building_target / fauna_target (a superset).
@@ -13545,7 +13551,7 @@ void Simulation::tick_combat(float dt) {
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
+			if (n) grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
 			if (!any) each_fauna([&](int32_t f) { any = any || fauna_target(f); });
 			if (!any) each_building([&](size_t o) { any = any || building_target(buildings_[o]); });
 			if (!any) continue;
@@ -13561,7 +13567,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
