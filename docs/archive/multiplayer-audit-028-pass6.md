@@ -31,3 +31,8 @@ None of these touches simulation state or the save format.
 - **Lobby.** Game-list sorting, buddy marks and the double-click buddy toggle (`lb:243`, `:333`). Rating reports wait for every player of the match and drop reports that disagree, as EcheLOn does (`srv:472-501`). The lobby's mod mismatch box and the observe question (`lb:1585-1640`).
 - **Options page.** Every 0.28 Networking / Lobby, Chat & Notifications, Sound and Game Setup key is present (`scenes/menu/options.gd`), except `lobby.tls`. That one is already noted in pass 5 as not player-visible.
 - **Peer timeout.** I did not compare RTS0's 10 s silence drop (`nh:1178`) with 0.28's ENet default. 0.28 never calls `enet_peer_timeout` (grep in `src/0ad/network/`), and ENet's defaults scale with the round-trip time, so neither side is clearly stricter. Not listed.
+
+## Fix log
+
+- 2026-10-15 #1143 pass 6 gap 1 (Teams Locked on by default in networked setups) merged.
+- 2026-10-15 #PR pass 6 gap 3 (lobby password page before a listed join, Host row 1024-65535 port check) merged.
