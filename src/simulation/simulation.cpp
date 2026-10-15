@@ -1511,9 +1511,15 @@ void Simulation::rebuild_nav_grid() {
 	}
 	// Woods too thick to cross (forest_cell_closed).
 	update_forest_cells();
-	if (forest_cells_.size() == nav_grid_.cells.data.size())
-		for (size_t i = 0; i < forest_cells_.size(); ++i)
-			if (forest_cells_[i] && nav_grid_.cells.data[i] != NAV_WATER) nav_grid_.cells.data[i] = NAV_OBSTRUCTED;
+	nav_grid_.large_closed.clear();
+	if (forest_cells_.size() == nav_grid_.cells.data.size()) {
+		nav_grid_.large_closed.assign(forest_cells_.size(), 0);
+		for (size_t i = 0; i < forest_cells_.size(); ++i) {
+			if (nav_grid_.cells.data[i] == NAV_WATER) continue;
+			if (forest_cells_[i] == FOREST_CLOSED) nav_grid_.cells.data[i] = NAV_OBSTRUCTED;
+			else if (forest_cells_[i] == FOREST_CLOSED_LARGE) nav_grid_.large_closed[i] = 1;
+		}
+	}
 	// Gaia mines block pathfinding (template_gaia BlockPathfinding): the navcells their turned square
 	// (mine_footprint), grown by the default class clearance, covers whole. 0 A.D.'s navcells are 1 m,
 	// RTS0's 8 m, as wide as a small mine: a navcell a mine only partly covers stays open to long paths,
@@ -2268,14 +2274,14 @@ bool Simulation::gaia_in_the_way(float x, float z, float ax, float az, float rea
 // navcells (a navcell is blocked when its centre lies inside), so a wood of trees closer than
 // twice the clearance is a wall to long paths, and a sparse one is not. RTS0's navcells are
 // wider (2 world units, 8 m, on a Tiny map): each is split into cells of about 1 m (at most 8 x 8),
-// rasterized the same way with the default class clearance, and closed when no 4-connected run of
+// rasterized the same way with the class clearance `clr`, and closed when no 4-connected run of
 // open cells joins two of its sides.
-bool Simulation::forest_cell_closed(int cx, int cy) const {
+bool Simulation::forest_cell_closed(int cx, int cy, float clr) const {
 	const float cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
 	const int N = std::clamp((int)std::lround(cell / 0.25f), 1, 8);
 	const float s = cell / (float)N;
 	const float x0 = -nav_grid_.map_half + (float)cx * cell, z0 = -nav_grid_.map_half + (float)cy * cell;
-	const float x1 = x0 + cell, z1 = z0 + cell, clr = CLEARANCE_DEFAULT;
+	const float x1 = x0 + cell, z1 = z0 + cell;
 	uint64_t blocked = 0;
 	gaia_grid_.for_each_in_box(x0 - clr, z0 - clr, x1 + clr, z1 + clr, [&](uint32_t k) {
 		if (gaia_res_idx_[k] == UINT32_MAX || !gaia_obstacle_live(k)) return; // treasures don't close a wood
@@ -2323,19 +2329,26 @@ bool Simulation::update_forest_cells() {
 	forest_removals_only_ = false;
 	if (sig == forest_sig_ && forest_cells_.size() == cells) return false;
 	forest_sig_ = sig;
+	// What a wood leaves of navcell (cx, cy): closed to every land class, only to the large class
+	// (its 3 m clearance closes gaps the default 0.8 m leaves), or open.
+	auto state = [&](int cx, int cy) -> uint8_t {
+		if (forest_cell_closed(cx, cy, CLEARANCE_DEFAULT)) return FOREST_CLOSED;
+		return forest_cell_closed(cx, cy, CLEARANCE_LARGE) ? FOREST_CLOSED_LARGE : FOREST_OPEN;
+	};
 	if (removals_only) {
 		bool changed = false;
 		for (size_t c = 0; c < cells; ++c)
-			if (forest_cells_[c] && !forest_cell_closed((int)(c % nav_grid_.res), (int)(c / nav_grid_.res))) {
-				forest_cells_[c] = 0;
-				changed = true;
+			if (forest_cells_[c] != FOREST_OPEN) {
+				const uint8_t now = state((int)(c % nav_grid_.res), (int)(c / nav_grid_.res));
+				changed = changed || now != forest_cells_[c];
+				forest_cells_[c] = now;
 			}
 		return changed;
 	}
 	thread_local std::vector<uint8_t> next;
-	next.assign(cells, 0);
-	const float clr = CLEARANCE_DEFAULT;
-	// Every navcell a tree or bush reaches into, once (2 marks it tested).
+	const float clr = CLEARANCE_LARGE;
+	// Every navcell a tree or bush reaches into, once (0xFF marks it untested).
+	next.assign(cells, 0xFF);
 	for (size_t k = 0; k < gaia_obstacles_.size(); ++k) {
 		if (gaia_res_idx_[k] == UINT32_MAX || !gaia_obstacle_live(k)) continue;
 		const SteerObstacle &o = gaia_obstacles_[k];
@@ -2345,10 +2358,10 @@ bool Simulation::update_forest_cells() {
 		for (int cy = cb; cy <= cd; ++cy)
 			for (int cx = ca; cx <= cc; ++cx) {
 				uint8_t &f = next[(size_t)cy * nav_grid_.res + cx];
-				if (f == 0) f = forest_cell_closed(cx, cy) ? 1 : 2;
+				if (f == 0xFF) f = state(cx, cy);
 			}
 	}
-	for (uint8_t &f : next) f = f == 1;
+	for (uint8_t &f : next) if (f == 0xFF) f = FOREST_OPEN;
 	if (next == forest_cells_) return false;
 	forest_cells_.swap(next);
 	return true;
@@ -5263,9 +5276,8 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 		const uint8_t ut = units_.unit_type[idx];
 		if (unit_is_ship(ut))
 			w.pass = unit_ship_pass(ut);
-		else if (ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL ||
-		         ut == UNIT_SCYTHED_CHARIOT)
-			w.pass = PASS_CAVALRY;
+		else
+			w.pass = unit_land_pass((size_t)idx);
 		walks.push_back(w);
 	}
 	{
@@ -5808,7 +5820,7 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 	const FormationTemplate &t = formation_template(fc.tmpl);
 	std::vector<FormationMember> active;
 	float ax = 0.0f, az = 0.0f;
-	bool mounted = false;
+	bool mounted = false, large = false;
 	for (uint32_t id : fc.members) {
 		const int32_t idx = lookup_unit(id);
 		if (idx < 0 || !units_.alive[idx]) continue;
@@ -5818,9 +5830,11 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 		ax += units_.pos_x[idx];
 		az += units_.pos_z[idx];
 		mounted = mounted || formation_unit_mounted(units_.unit_type[idx]);
+		large = large || unit_is_large(units_.tmpl[idx], units_.unit_type[idx]);
 	}
 	if (active.empty()) return;
-	fc.pass = mounted ? PASS_CAVALRY : PASS_INFANTRY; // ComputeMotionParameters: the widest member's class
+	// ComputeMotionParameters: the widest member's class.
+	fc.pass = (mounted ? PASS_CAVALRY : PASS_INFANTRY) | (large ? PASS_LARGE : 0);
 	if (move_center) {
 		ax /= active.size();
 		az /= active.size();
@@ -5890,7 +5904,7 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 			continue;
 		}
 		find_path(units_.pos_x[idx], units_.pos_z[idx], wx, wz, wp,
-				formation_unit_mounted(units_.unit_type[idx]) ? PASS_CAVALRY : PASS_INFANTRY);
+				unit_land_pass((size_t)idx));
 		wp.has_goal = true;
 		wp.goal_x = wx;
 		wp.goal_z = wz;
@@ -6659,7 +6673,7 @@ void Simulation::tick_formations(float dt) {
 			const bool stale = !wp.has_goal || wp.count == 0 || gdx * gdx + gdz * gdz > 4.0f * 4.0f;
 			if (arrived || (stale && (ticks_ + s.ent) % 10 == 0)) {
 				find_path(units_.pos_x[idx], units_.pos_z[idx], wx, wz, wp,
-						formation_unit_mounted(units_.unit_type[idx]) ? PASS_CAVALRY : PASS_INFANTRY);
+						unit_land_pass((size_t)idx));
 				wp.has_goal = true;
 				wp.goal_x = wx;
 				wp.goal_z = wz;
@@ -10040,9 +10054,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (!task_path && ((!closing_in && !ship && steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]),
 					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_clearance_at(i), units_.target_building_id[i])) ||
 					line_crosses_impassable(px[i], pz[i], tx[i], tz[i], ship ? unit_ship_pass(units_.unit_type[i]) : 0))) {
-				const uint8_t ut = units_.unit_type[i];
-				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
-				find_path(px[i], pz[i], tx[i], tz[i], wp, ship ? unit_ship_pass(ut) : mounted ? PASS_CAVALRY : PASS_INFANTRY);
+				find_path(px[i], pz[i], tx[i], tz[i], wp, ship ? unit_ship_pass(units_.unit_type[i]) : unit_land_pass((size_t)i));
 				wp.has_goal = true;
 				wp.goal_x = tx[i];
 				wp.goal_z = tz[i];
@@ -11467,9 +11479,8 @@ void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
 	}
 	if (failed != 3) return; // ALTERNATE_PATH_TYPE_DELAY
 	const uint8_t ut = units_.unit_type[i];
-	const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
 	const bool has_goal = wp.has_goal;
-	find_path(x, z, goal_x, goal_z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : mounted ? PASS_CAVALRY : PASS_INFANTRY);
+	find_path(x, z, goal_x, goal_z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : unit_land_pass(i));
 	wp.has_goal = has_goal;
 	wp.goal_x = goal_x;
 	wp.goal_z = goal_z;
