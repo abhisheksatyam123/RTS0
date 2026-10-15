@@ -2514,8 +2514,14 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 	if (key >= CROWD_KEY_COUNT) key = rtso::UNIT_VILLAGER;
 	std::unique_ptr<CrowdBatch> &slot = crowd_[civ][key];
 	if (!slot) {
+		const uint32_t ck = (uint32_t)civ << 16 | key;
+		crowd_made_.insert(std::lower_bound(crowd_made_.begin(), crowd_made_.end(), ck), ck);
 		slot = std::make_unique<CrowdBatch>();
-		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
+		slot->model_id = crowd_key_model(civ, key);
+		auto entry = rtso::ModelLibrary::get("units", slot->model_id);
+		slot->y_offset = entry.y_offset;
+		slot->scale = entry.scale;
+		slot->height = entry.aabb.size.y;
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
 		// Owner-coloured: a player_color.gdshader surface with a mask (the shader also
@@ -3661,8 +3667,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
 	crowd_bake_deadline_us_ = bake_now_us() + CROWD_BAKE_BUDGET_US;
 	crowd_baked_this_frame_ = false;
+	// Per batch and clip: units drawn (counts) and placed so far (written). Only the rows of
+	// batches with units this frame are cleared and read; the rest count none.
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
-	std::memset(counts, 0, sizeof(counts));
+	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
+	static const int no_units[CROWD_CLIP_COUNT] = {};
+	for (const uint32_t ck : crowd_seen_list_) crowd_seen_[ck >> 16][ck & 0xFFFF] = 0;
+	crowd_seen_list_.clear();
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint8_t t = uview.unit_type[i];
@@ -3674,27 +3685,30 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		crowd_slot_scratch_[i] = (uint8_t)slot;
 		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
 		crowd_key_utype_[key] = t;
+		if (!crowd_seen_[civ][key]) {
+			crowd_seen_[civ][key] = 1;
+			crowd_seen_list_.push_back((uint32_t)civ << 16 | key);
+			std::memset(counts[civ][key], 0, sizeof(counts[civ][key]));
+			std::memset(written[civ][key], 0, sizeof(written[civ][key]));
+		}
 		counts[civ][key][slot]++;
 	}
-	for (int civ = 0; civ < rtso::CIV_COUNT; ++civ) {
-		for (int t = 0; t < CROWD_KEY_COUNT; ++t) {
-			int any = 0;
-			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += counts[civ][t][c];
-			if (any == 0 && !crowd_[civ][t]) continue;
-			if (any > 0) {
-				CrowdBatch &cb = crowd_batch((uint8_t)civ, (uint16_t)t);
-				ensure_crowd_frames((uint8_t)civ, (uint16_t)t, counts[civ][t]);
-				for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
-					if (counts[civ][t][c] > 0) crowd_mm(cb, c);
-			}
-			CrowdBatch &cb = *crowd_[civ][t];
-			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
+	// Every batch with units this frame exists before the walk, which goes civ by civ, key by key.
+	for (const uint32_t ck : crowd_seen_list_) crowd_batch((uint8_t)(ck >> 16), (uint16_t)(ck & 0xFFFF));
+	for (const uint32_t ck : crowd_made_) {
+		const int civ = (int)(ck >> 16), t = (int)(ck & 0xFFFF);
+		const bool any = crowd_seen_[civ][t] != 0;
+		const int *row = any ? counts[civ][t] : no_units;
+		CrowdBatch &cb = *crowd_[civ][t];
+		if (any) {
+			ensure_crowd_frames((uint8_t)civ, (uint16_t)t, row);
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
-				if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(counts[civ][t][c]);
+				if (row[c] > 0) crowd_mm(cb, c);
 		}
+		cycle_puppet_meshes(cb.puppet, cb.mm, row, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
+		for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
+			if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(row[c]);
 	}
-	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
-	std::memset(written, 0, sizeof(written));
 
 	const Color col_player(0.55f, 0.72f, 1.0f);
 	const Color col_enemy(1.0f, 0.52f, 0.42f);
@@ -3771,15 +3785,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
 		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
-		String utype_str = crowd_key_model(uciv, ckey);
-		String cat_units3 = "units";
-		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
+		// The batch holds the model's entry values (every unit drawn this frame has one).
+		const CrowdBatch &model_b = crowd_batch(uciv, ckey);
+		const String &utype_str = model_b.model_id;
 		const float turret_h = sim->unit_height_offset(i); // turret points stand on walls
 		float ground = sim->get_terrain_height(x, z);
 		// 0 A.D. ships are Position Floating: they ride the water surface, not the seabed.
 		if (rtso::unit_is_ship(utype) && sim->water_height() > -0.5f) ground = std::max(ground, drawn_water_height(sim));
-		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + entry.y_offset;
-		float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
+		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + model_b.y_offset;
+		float sc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
 		const float death_t = dying ? uview.death_timer[i] : 0.0f;
@@ -3788,7 +3802,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			apply_ship_wave_xform(xf, id, anim_time, speed2);
 		}
 		if (dying) {
-			apply_unit_death_xform(xf, utype, death_t, x, z, entry.aabb.size.y * sc, false);
+			apply_unit_death_xform(xf, utype, death_t, x, z, model_b.height * sc, false);
 		}
 		if (want.clip == CLIP_RUN && !dying) emit_run_dust(utype_str, Vector3(x, ground, z), sc, delta);
 		const int clip = crowd_slot_scratch_[i];
@@ -3847,7 +3861,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (!aura_icon_sources_.empty())
 				status_aura_icons(x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
 			if (bars || st.n_icons > 0)
-				draw_status_stack(sim, Vector3(x, y + entry.aabb.size.y * sc + 0.3f, z), 0.9f, 0.08f, st);
+				draw_status_stack(sim, Vector3(x, y + model_b.height * sc + 0.3f, z), 0.9f, 0.08f, st);
 		}
 
 		if (detailed.count(id) == 0) continue;
@@ -3899,14 +3913,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 
-		float dsc = entry.scale > 0.05f ? entry.scale : 1.0f;
+		float dsc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
 		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw).scaled(Vector3(dsc, dsc, dsc)),
 		               Vector3(x, y, z));
 		if (ship_wave) {
 			apply_ship_wave_xform(dxf, id, anim_time, speed2);
 		}
 		if (dying) {
-			apply_unit_death_xform(dxf, utype, death_t, x, z, entry.aabb.size.y * dsc, has_death_clip);
+			apply_unit_death_xform(dxf, utype, death_t, x, z, model_b.height * dsc, has_death_clip);
 		}
 		v.root->set_transform(dxf);
 		if (ship_wave) {
