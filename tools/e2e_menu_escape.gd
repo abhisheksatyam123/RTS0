@@ -110,6 +110,49 @@ func run() -> void:
 	await frames(2)
 	check(Array(hk.cfg.get_hotkey_map().get(name, [])).has("Ctrl+Shift+F11"), "No keeps the binding")
 	hk.cfg.reload()
+	# hotkeys.xml: a 700×688 dialog with Category: / Filter: and Name / Mapping columns;
+	# mappings as 0.28 names the keys; a row with no description says so.
+	var labels: Array = hk.find_children("*", "Label", true, false).map(func(l): return l.text)
+	check(labels.has("Category:") and labels.has("Filter:") and hk.tree.get_column_title(0) == "Name"
+		and hk.tree.get_column_title(1) == "Mapping", "Category:, Filter:, Name and Mapping")
+	check(hk.dialog.size.x <= 700.0 and hk.dialog.size.y <= 688.0, "a 700×688 dialog (%s)" % hk.dialog.size)
+	var rows := {}
+	for it in hk.tree.get_root().get_children():
+		rows[it.get_metadata(0)] = it
+	check(rows.has("item.next") and rows["item.next"].get_text(1) == "→", "arrow keys show as 0.28's glyphs: " + (rows["item.next"].get_text(1) if rows.has("item.next") else ""))
+	check(rows.has("pause") and rows["pause"].get_text(1) == "Pause, Shift+Space", "every mapping, shortest first")
+	var undescribed := rows.keys().filter(func(h): return not hk.meta_hotkeys.has(h))
+	check(undescribed.is_empty() or rows[undescribed[0]].get_tooltip_text(0) == "No tooltip available.", "No tooltip available.")
+	hk.open_picker("pause")
+	await frames(2)
+	check(hk.picker_hint.text == "Click on any mapping to modify it.\n You may have up to 4 different hotkeys."
+		and hk.slot_labels[0].tooltip_text == "Click to set the hotkey" and hk.slot_delete[0].tooltip_text == "Click to delete the hotkey"
+		and hk.slot_labels[2].text == "(unused)", "the picker's instructions and slot tooltips")
+	hk._close_picker(false)
+	# HotkeyPicker Reset removes the user value and saves at once; other pending edits stay unsaved.
+	var cfg_path := "user://config/user.cfg"
+	var saved := FileAccess.get_file_as_string(cfg_path) if FileAccess.file_exists(cfg_path) else ""
+	hk.cfg.set_hotkey("camera.zoom.in", PackedStringArray(["Ctrl+Shift+F10"]))
+	hk.cfg.save_user()
+	hk.cfg.reload()
+	hk._setup_data()
+	hk.open_picker("summary")
+	hk.picker_combos[0] = "Ctrl+Shift+F9"
+	hk._close_picker(true)
+	hk.open_picker("camera.zoom.in")
+	hk._on_picker_reset()
+	var after := FileAccess.get_file_as_string(cfg_path)
+	check(not after.contains("Ctrl+Shift+F10") and not after.contains("Ctrl+Shift+F9")
+		and Array(hk.cfg.get_hotkey_map()["summary"]).has("Ctrl+Shift+F9"), "Reset saves that hotkey's default straight away, and only it")
+	hk._close_picker(false)
+	hk.cfg.reload()
+	var f := FileAccess.open(cfg_path, FileAccess.WRITE)
+	f.store_string(saved)
+	f.close()
+	hk.cfg.reload()
+	hk._setup_data()
+	hk.dirty = false
+	hk.pending.clear()
 	hk.open_picker(name)
 	await frames(2)
 	check(hk.picker.visible, "the picker opens")

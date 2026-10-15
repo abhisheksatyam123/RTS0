@@ -448,7 +448,11 @@ struct PetraAttackManager {
 	// The raid plan's unitStat FastMoving sizes (3 and 4 before variation and popScaling).
 	uint8_t raid_target = 4;
 	uint8_t raid_min = 3;
-	uint8_t spare[3] = {};
+	// startingStrategy.js cuts Config.Economy.popPhase2 to 3/4 for good with saveResources; set when
+	// handleNewBase clears saveResources, so the cut outlives it (0 in older saves, which kept
+	// the cut only while saving).
+	uint8_t phase2_cut_kept = 0;
+	uint8_t spare[2] = {};
 	int32_t rush_size[3] = {};
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total

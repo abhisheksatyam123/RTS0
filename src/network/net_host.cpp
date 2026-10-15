@@ -5,6 +5,7 @@
 #include <iostream>
 #include <cstring>
 #include <algorithm>
+#include <cctype>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -140,6 +141,7 @@ bool NetHost::startHost(const NetConfig &c) {
 	banned_names_.clear();
 	banned_addresses_.clear();
 	failed_passwords_.clear();
+	lobby_auth_pending_.clear();
 	kicks_.clear();
 	next_seq_ = 1;
 	peers_.clear();
@@ -529,6 +531,7 @@ void NetHost::sendAuthenticate(const std::string &name, const std::string &passw
 	AuthenticateMsg am;
 	am.name = name;
 	am.password = password.empty() || !password_hasher_ ? password : password_hasher_(password, name);
+	am.lobby_ticket = lobby_ticket_;
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_authenticate(am);
 	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_AUTHENTICATE, 0, payload);
 	broadcastCommand(msg.data(), msg.size());
@@ -697,6 +700,7 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 					id = next_peer_id_++;
 				}
 				next_peer_id_ = std::max(next_peer_id_, id + 1);
+				lobby_auth_pending_.erase(id); // a check for the id's last holder
 				np.id = id;
 				np.address = from_ip;
 				np.port = from_port;
@@ -1009,50 +1013,18 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 		if (NetPacketSerializer::parse_authenticate(msg.payload.data(), msg.payload.size(), auth)) {
 			NetPeer *p = getPeer(peerId);
 			if (isHost() && p && !p->is_authenticated && !p->kick_disconnect_ms) {
-				const std::string sent_name = auth.name; // the password's salt, before any dedupe
-				// 0 A.D. NetServer::OnAuthenticate: a name already in the game is
-				// refused, or with network.duplicateplayernames made unique
-				// (DeduplicatePlayerName); unnamed (test) clients are left alone.
-				if (!auth.name.empty() && name_taken(auth.name, p)) {
-					if (!duplicate_names_) {
-						std::cout << "[NetHost] Refused peer " << p->id << ": the name " << auth.name << " is in use\n";
-						refuse_with(*p, NDR_PLAYERNAME_IN_USE);
-						return;
-					}
-					std::string name;
-					for (int i = 2; name_taken(name = auth.name + " (" + std::to_string(i) + ")", p); ++i) {}
-					auth.name = name;
-				}
-				// A banned name or address, or the wrong password, is refused and
-				// the link closed.
-				AuthenticateResultMsg res;
-				res.host_id = static_cast<uint16_t>(peerId);
-				res.is_controller = 0;
-				int &failed = failed_passwords_[auth.name.empty() ? p->address : auth.name];
-				if (banned_names_.count(auth.name) || banned_addresses_.count(p->address) ||
-						failed >= FAILED_PASSWORD_TRIES_BEFORE_BAN) {
-					res.code = ARC_BANNED;
-					res.message = "You have been banned from this game";
-				} else if (!password_.empty() &&
-						auth.password != (password_hasher_ ? password_hasher_(password_, sent_name) : password_)) {
-					++failed;
-					res.code = ARC_PASSWORD_INVALID;
-					res.message = "Wrong password";
-				} else {
-					failed = 0;
-					res.code = ARC_OK;
-					res.message = "Welcome " + auth.name;
-				}
-				std::vector<uint8_t> payload = NetPacketSerializer::frame_authenticate_result(res);
-				std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_AUTHENTICATE_RESULT, 0, payload);
-				sendCommand(peerId, pkt.data(), pkt.size());
-				if (res.code == ARC_OK) {
-					p->player_name = auth.name;
-					p->is_authenticated = true;
-					if (peer_connected_cb_) peer_connected_cb_(p->id);
-				} else {
-					std::cout << "[NetHost] Refused peer " << p->id << " (" << auth.name << "): " << res.message << "\n";
-					p->kick_disconnect_ms = get_now_ms() + 2000; // the answer gets there first
+				const std::string sent = auth.name;
+				auth.name = sanitise_player_name(auth.name);
+				auth.sent_name = sent; // the password's salt
+				// 0 A.D. NSS_LOBBY_AUTHENTICATE: a lobby host first asks the
+				// lobby whose ticket this is (one check per joiner at a time).
+				if (!lobby_auth_) {
+					authenticate_peer(*p, std::move(auth));
+				} else if (!lobby_auth_pending_.count(p->id)) {
+					const uint32_t id = p->id;
+					const std::string ticket = auth.lobby_ticket;
+					lobby_auth_pending_[id] = std::move(auth);
+					lobby_auth_(id, ticket);
 				}
 			}
 		}
@@ -1090,7 +1062,7 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 			} else if (p && !p->kick_disconnect_ms) {
 				ServerHandshakeResponseMsg srm;
 				srm.use_protocol_version = PS_PROTOCOL_VERSION;
-				srm.flags = 0;
+				srm.flags = lobby_auth_ ? PS_NETWORK_FLAG_REQUIRE_LOBBYAUTH : 0;
 				srm.guid = "peer-" + std::to_string(peerId);
 				std::vector<uint8_t> payload = NetPacketSerializer::frame_server_handshake_response(srm);
 				std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_SERVER_HANDSHAKE_RESPONSE, 0, payload);
@@ -1111,6 +1083,17 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 			if (!peers_.empty()) peers_[0].connected = true;
 			NetPeer *p = getPeer(peerId);
 			if (p) p->connected = true;
+			// 0 A.D. NetClient OnHandshakeResponse: a host that checks names
+			// with the lobby needs this join to come through the lobby.
+			ServerHandshakeResponseMsg srm;
+			if (lobby_ticket_.empty() && auth_result_ < 0 &&
+					NetPacketSerializer::parse_server_handshake_response(msg.payload.data(), msg.payload.size(), srm) &&
+					(srm.flags & PS_NETWORK_FLAG_REQUIRE_LOBBYAUTH)) {
+				std::cout << "[NetHost] The host wants a lobby join; no lobby ticket\n";
+				lose_host(NDR_LOBBY_AUTH_FAILED);
+				send_wire_packet(server_ip_, server_port_, 0, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);
+				return;
+			}
 			sendAuthenticate(local_player_name_, password_);
 		}
 	}
@@ -1369,6 +1352,106 @@ void NetHost::retargetHost(const std::string &ip, uint16_t port) {
 	peers_[0].address = ip;
 	peers_[0].port = port;
 	std::cout << "[NetHost] Client connecting to " << ip << ":" << port << " instead\n";
+}
+
+// 0 A.D. CNetServerWorker::OnAuthenticate, past the lobby check.
+void NetHost::authenticate_peer(NetPeer &peer, AuthenticateMsg auth) {
+	NetPeer *p = &peer;
+	const uint32_t peerId = p->id;
+	const std::string sent_name = auth.sent_name.empty() ? auth.name : auth.sent_name; // the password's salt, as sent
+	// 0 A.D. NetServer::OnAuthenticate: a name already in the game is
+	// refused, or with network.duplicateplayernames made unique
+	// (DeduplicatePlayerName); unnamed (test) clients are left alone.
+	if (!auth.name.empty() && name_taken(auth.name, p)) {
+		if (!duplicate_names_) {
+			std::cout << "[NetHost] Refused peer " << p->id << ": the name " << auth.name << " is in use\n";
+			refuse_with(*p, NDR_PLAYERNAME_IN_USE);
+			return;
+		}
+		std::string name;
+		for (int i = 2; name_taken(name = auth.name + " (" + std::to_string(i) + ")", p); ++i) {}
+		auth.name = name;
+	}
+	// A banned name or address, or the wrong password, is refused and
+	// the link closed.
+	AuthenticateResultMsg res;
+	res.host_id = static_cast<uint16_t>(peerId);
+	res.is_controller = 0;
+	int &failed = failed_passwords_[auth.name.empty() ? p->address : auth.name];
+	if (banned_names_.count(auth.name) || banned_addresses_.count(p->address) ||
+			failed >= FAILED_PASSWORD_TRIES_BEFORE_BAN) {
+		res.code = ARC_BANNED;
+		res.message = "You have been banned from this game";
+	} else if (!password_.empty() &&
+			auth.password != (password_hasher_ ? password_hasher_(password_, sent_name) : password_)) {
+		++failed;
+		res.code = ARC_PASSWORD_INVALID;
+		res.message = "Wrong password";
+	} else {
+		failed = 0;
+		res.code = ARC_OK;
+		res.message = "Welcome " + auth.name;
+	}
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_authenticate_result(res);
+	std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_AUTHENTICATE_RESULT, 0, payload);
+	sendCommand(peerId, pkt.data(), pkt.size());
+	if (res.code == ARC_OK) {
+		p->player_name = auth.name;
+		p->is_authenticated = true;
+		if (peer_connected_cb_) peer_connected_cb_(p->id);
+	} else {
+		std::cout << "[NetHost] Refused peer " << p->id << " (" << auth.name << "): " << res.message << "\n";
+		p->kick_disconnect_ms = get_now_ms() + 2000; // the answer gets there first
+	}
+}
+
+// 0 A.D. CNetServerWorker::SanitisePlayerName: no GUI tags ("[" and "]" become
+// "{" and "}"), at most 32 characters, no surrounding white space, and
+// "Anonymous" for a name of only white space. RTS0's unnamed test clients
+// (an empty name) stay unnamed.
+std::string NetHost::sanitise_player_name(const std::string &original) {
+	if (original.empty()) return original;
+	std::string name = original;
+	for (char &c : name) {
+		if (c == '[') c = '{';
+		else if (c == ']') c = '}';
+	}
+	size_t chars = 0, cut = name.size();
+	for (size_t i = 0; i < name.size(); ++i) {
+		if ((static_cast<unsigned char>(name[i]) & 0xC0) == 0x80) continue; // inside a character
+		if (chars++ == 32) { cut = i; break; }
+	}
+	name.resize(cut);
+	const auto space = [](char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; };
+	while (!name.empty() && space(name.back())) name.pop_back();
+	size_t lead = 0;
+	while (lead < name.size() && space(name[lead])) ++lead;
+	name.erase(0, lead);
+	return name.empty() ? "Anonymous" : name;
+}
+
+bool NetHost::finishLobbyAuth(uint32_t peer_id, const std::string &ticket, const std::string &lobby_name) {
+	auto it = lobby_auth_pending_.find(peer_id);
+	if (it == lobby_auth_pending_.end() || it->second.lobby_ticket != ticket) return false;
+	AuthenticateMsg auth = std::move(it->second);
+	lobby_auth_pending_.erase(it);
+	NetPeer *p = isHost() ? getPeer(peer_id) : nullptr;
+	if (!p || p->is_authenticated || p->kick_disconnect_ms) return true;
+	// "[...] comparisons will be made in case-normalized canonical form."
+	// (XEP-0029), on the name without its lobby rating.
+	auto lower = [](std::string v) {
+		for (char &c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+		return v;
+	};
+	const std::string sent = auth.name.substr(0, auth.name.find(" ("));
+	if (lobby_name.empty() || lower(sent) != lower(lobby_name)) {
+		std::cout << "[NetHost] Lobby auth: " << (lobby_name.empty() ? "an unknown ticket" : lobby_name)
+				  << " tried joining as " << sent << "\n";
+		refuse_with(*p, NDR_LOBBY_AUTH_FAILED);
+		return true;
+	}
+	authenticate_peer(*p, std::move(auth));
+	return true;
 }
 
 void NetHost::lose_host(int reason) {

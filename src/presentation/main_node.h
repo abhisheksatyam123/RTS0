@@ -198,6 +198,13 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Label *banner_label = nullptr;
 	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
 	RichTextLabel *time_notification_label_ = nullptr; // notificationText: player names in their colours
+	// The sim's "text" notices (SessionNotice::TEXT) shown under it until end_ms (match time).
+	struct TextNotice {
+		String text;
+		uint32_t end_ms;
+	};
+	std::vector<TextNotice> text_notices_;
+	std::unordered_map<uint32_t, uint32_t> spawn_notified_; // building -> match ms of its last blocked-spawn notice
 	// 0.28 NetworkDelayOverlay: "Delay to live stream" while this peer holds more
 	// than MAX_LIVE_DELAY turns it hasn't run yet; checked once a second.
 	Label *net_delay_label_ = nullptr;
@@ -446,6 +453,8 @@ public:
 	void net_query_stun(const String &server, int port);
 	void net_hole_punch(const String &ip, int port);
 	void net_retarget_host(const String &ip, int port);
+	// LobbySession.verify_join's answer: the lobby name the ticket belongs to ("" unknown).
+	void net_lobby_auth_result(int peer, const String &ticket, const String &name);
 	// Networked Game Setup for scenes/menu/gamesetup.gd: see net_setup_.
 	bool is_net_pregame() const;
 	Dictionary get_net_setup_state() const;
@@ -664,6 +673,7 @@ public:
 	Vector2 debug_spawn_offset(const String &template_id, int count, int player = -1) const;
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
+	String debug_unit_model_path(int civ, int unit_type);
 	Dictionary debug_snap_placement(int btype, float x, float z, bool hover, float stale_angle);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
@@ -715,6 +725,13 @@ public:
 	// input.js setHighlightList: the entity under the cursor, or what the band box would pick.
 	void update_highlight();
 	PackedInt32Array highlight_ids_;
+	// The hover pick (PickEntityAtPoint) is redone when the mouse or camera moves, or
+	// every kHoverRepickMs while they stand still (units walk under the cursor).
+	PackedInt32Array hover_pick_;
+	Vector2 hover_mouse_ = Vector2(-1e9f, -1e9f);
+	Transform3D hover_cam_;
+	uint64_t hover_at_ms_ = 0;
+	static constexpr uint64_t kHoverRepickMs = 200;
 	struct BatchTraining {
 		bool active = false;
 		bool from_unit = false; // trained by a unit (Trainer on a unit), else a structure
@@ -923,7 +940,6 @@ private:
 	// session.timewarp.fastforward runs the game at 20x while held.
 	bool time_warp_ = false;
 	bool time_warp_ff_ = false;
-	float time_warp_speed_ = 1.0f; // the speed to go back to when fast forward is let go
 	uint32_t time_warp_turn_ = UINT32_MAX;
 	uint32_t time_warp_serial_ = 0;
 	std::vector<String> time_warp_snapshots_;
@@ -940,6 +956,7 @@ public:
 	Dictionary get_rejoin_test() const;
 private:
 	bool rejoin_test_ = false;
+	bool random_map_ = false; // the match's map was generated (0.28 mapType "random")
 	std::unique_ptr<rtso::Simulation> rejoin_sim_;
 	std::unique_ptr<rtso::TurnManager> rejoin_tm_;
 	uint32_t rejoin_from_turn_ = 0, rejoin_turns_ = 0, rejoin_oos_turn_ = 0;
@@ -983,6 +1000,8 @@ private:
 	Dictionary debug_selected_building() const;
 	Dictionary debug_queue_slot(int i);
 	Dictionary debug_minimap_panel() const;
+	// An Attacked message on `target` (a unit) from `attacker_owner`, through the session's AttackDetection.
+	void debug_attacked(int64_t target, int64_t attacker_owner);
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while
@@ -1016,8 +1035,8 @@ private:
 	void apply_settings_snapshot(const Dictionary &settings);
 	Array player_list() const;
 	void begin_match_recording(const rtso::GameSetupParams *mp_setup);
-	void write_replay();
-	void stop_replay_recording();
+	void write_replay(bool ended = false); // ended: leaving the match (0.28 endGame), which adds the summary
+	void stop_replay_recording(bool ended = false);
 	bool start_pending_replay();
 	bool load_pending_save();
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start

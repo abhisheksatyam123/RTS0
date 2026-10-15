@@ -331,10 +331,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		// read where the order is given; a press arms nothing.
 		if (fired("session.attackmoveunit")) return;
 
-		// Training: Z X C V B N M , queue the selected building's 1st-8th
-		// trainee; Shift trains a batch of 5 (gui.session.batchtrainingsize).
+		// Training: Z X C V B N M queue the selected building's 1st-7th trainee;
+		// Shift trains a batch of 5 (gui.session.batchtrainingsize). training.xml
+		// wires only queueunit.1-7, so Comma (queueunit.8) does nothing, as in 0.28.
 		if (selected_building_id != 0 && command_panel_.roster_list()) {
-			for (int q = 1; q <= 8; ++q) {
+			for (int q = 1; q <= 7; ++q) {
 				if (!fired(("session.queueunit." + std::to_string(q)).c_str())) continue;
 				if (q - 1 < command_panel_.roster_list()->get_item_count() && !command_panel_.roster_list()->is_item_disabled(q - 1)) {
 					const uint16_t tmpl = (uint16_t)(int)command_panel_.roster_list()->get_item_metadata(q - 1);
@@ -368,9 +369,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.toggleattackrange")) { toggle_overlay("gui.session.attackrange"); return; }
 		if (fired("session.toggleaurasrange")) { toggle_overlay("gui.session.aurasrange"); return; }
 		if (fired("session.togglehealrange")) { toggle_overlay("gui.session.healrange"); return; }
-		// 0 A.D. hotkeys/misc.xml "silhouettes": Renderer_SetSilhouettesEnabled, for this run only.
-		if (fired("silhouettes")) {
-			rtso::user_config::set("silhouettes", rtso::user_config::get_bool("silhouettes") ? "false" : "true");
+		// 0 A.D. hotkeys/misc.xml "silhouettes": toggleConfigBool saves it to user.cfg (session.js:840).
+		if (fired("silhouettes")) { toggle_overlay("silhouettes"); return; }
+		// MenuButtons.js Lobby (hotkey "lobby"): the lobby over the game when a lobby client exists.
+		if (fired("lobby")) {
+			if (has_lobby_client()) {
+				close_open_dialogs();
+				_on_lobby_button_pressed();
+			}
 			return;
 		}
 		// OverlayCounterElapsedTime / RemainingCeasefire Hotkey: the top-right counters.
@@ -1597,6 +1603,10 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const 
 	float best_ud2 = 2.0f * 2.0f;
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!uview.alive[i]) continue;
+		// Distance first: it rules out nearly every unit before the costlier checks.
+		const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 >= best_ud2) continue;
 		if (any_player ? !rtso::los_sees_unit(*sim, view_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])
 		               : uview.team[i] != local_player())
 			continue;
@@ -1604,9 +1614,7 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const 
 			const Vector3 up(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			if ((up - ray_o).dot(ray_d) > bld_t + 0.5f) continue;
 		}
-		const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
-		const float d2 = dx * dx + dz * dz;
-		if (d2 < best_ud2) {
+		{
 			best_ud2 = d2;
 			best_uidx = i;
 		}

@@ -30,6 +30,8 @@ def test_object():
     check(code == 200 and alice["name"] == "alice" and alice["token"], "sign in trims the name and returns a token")
     check(lb.login("Alice")[0] == 409, "a name in use (any case) is refused")
     check(lb.login("")[0] == 400, "an empty name is refused")
+    for bad in ("bob, carol", "@mod", "eve (1800)", "x"):
+        check(lb.login(bad)[0] == 400, f"a guest named {bad!r} is refused: it would pass for something else")
     _, bob = lb.login("bob")
     check([p["name"] for p in lb.player_list()[1]["players"]] == ["alice", "bob"], "players are listed by name")
     check(lb.presence(bob["token"], "playing")[0] == 200, "presence can change")
@@ -71,6 +73,14 @@ def test_object():
     check(lb.register({"id": "g1", "players": 3})[1]["player_names"][0]["name"] == "alice",
           "player names left out keep their value")
     check(lb.register({"id": "g1", "player_names": "bad"})[1]["player_names"] == [], "a bad player list is empty")
+    check("mods" not in room, "a host that sends no mods lists none")
+    mods = [{"name": "0ad", "version": "0.28.0"}, {"name": "fx", "version": "1", "ignoreInCompatibilityChecks": 1},
+            {"version": "2"}, "junk"]
+    room = lb.register({"id": "g1", "mods": mods})[1]
+    check(room["mods"] == [{"name": "0ad", "version": "0.28.0", "ignoreInCompatibilityChecks": False},
+                           {"name": "fx", "version": "1", "ignoreInCompatibilityChecks": True}],
+          "a host's mods are kept, sanitized, in order")
+    check(lb.register({"id": "g1", "players": 2})[1]["mods"] == room["mods"], "mods left out keep their value")
     check(lb.register({"id": "g3"}, "10.0.0.7")[1]["host_ip"] == "10.0.0.7", "without host_ip, the sender's address")
     check(lb.register({"id": "g2", "state": "bogus"})[1]["state"] == "init", "an unknown state reads as init")
     check(len(lb.room_list()[1]["rooms"]) == 3 and "seen" not in lb.room_list()[1]["rooms"][0],
@@ -110,7 +120,10 @@ def test_http():
     check(call("/chat?since=0")[1]["messages"][-1]["text"] == "gg", "HTTP chat history")
     check(call("/rooms", {"id": "r", "host_port": 20601, "name": "Test"})[0] == 201, "HTTP register")
     check(call("/rooms/")[1]["rooms"][0]["name"] == "Test", "HTTP game list")
-    check(call("/rooms/connect", {"token": me["token"], "id": "r"})[1].get("host_port") == 20601, "HTTP connect")
+    code, conn = call("/rooms/connect", {"token": me["token"], "id": "r"})
+    check(conn.get("host_port") == 20601, "HTTP connect")
+    check(call("/rooms/ticket", {"id": "r", "ticket": conn.get("ticket")}) == (200, {"name": "carol"}),
+          "HTTP ticket redeemed by the game's host")
     check(call("/players")[1]["players"] == [{"name": "carol", "status": "available"}], "HTTP players")
     check(call("/rooms/punch", {"token": me["token"], "id": "r", "ip": "127.0.0.1", "port": 40000})[0] == 200, "HTTP punch")
     check(call("/rooms/punch?id=r&since=0")[1]["endpoints"][0]["port"] == 40000, "HTTP punch list")
@@ -220,6 +233,38 @@ def test_room_owners():
           [r["id"] for r in lb.room_list()[1]["rooms"]] == ["room-20595"], "a host removes its own game")
 
 
+def test_tickets():
+    """0 A.D. lobby authentication: the host learns a joiner's lobby name from
+    the lobby (LobbyAuth iq), here by redeeming the ticket /rooms/connect gave."""
+    now = [1000.0]
+    lb = lobby_server.Lobby(timeout=600.0, clock=lambda: now[0])
+    host = lb.login("host")[1]["token"]
+    lb.register({"token": host, "id": "room-20595", "host_port": 20595}, "198.51.100.1")
+    bob = lb.login("Bob")[1]["token"]
+    t1 = lb.connect({"token": bob, "id": "room-20595"})[1]["ticket"]
+    t2 = lb.connect({"token": bob, "id": "room-20595"})[1]["ticket"]
+    check(t1 != t2, "every ask gets a new ticket")
+    check("tickets" not in lb.room_list()[1]["rooms"][0], "tickets stay out of the game list")
+    mallory = lb.login("mallory")[1]["token"]
+    check(lb.redeem_ticket({"token": mallory, "id": "room-20595", "ticket": t1}, "192.0.2.66")[0] == 404,
+          "only the game's host redeems its tickets")
+    check(lb.redeem_ticket({"token": host, "id": "room-20595", "ticket": t1}, "198.51.100.1") == (200, {"name": "Bob"}),
+          "the host learns the ticket's lobby name")
+    check(lb.redeem_ticket({"token": host, "id": "room-20595", "ticket": t1}, "198.51.100.1")[0] == 404,
+          "a ticket counts once")
+    check(lb.redeem_ticket({"token": host, "id": "room-20595", "ticket": "made-up"}, "198.51.100.1")[0] == 404,
+          "a ticket the lobby never gave is unknown")
+    lb.register({"token": host, "id": "room-20595", "players": 2}, "198.51.100.1")
+    now[0] += lobby_server.TICKET_TIMEOUT + 1
+    check(lb.redeem_ticket({"token": host, "id": "room-20595", "ticket": t2}, "198.51.100.1")[0] == 404,
+          "a heartbeat keeps tickets, but they expire")
+    lb.register({"id": "room-20600", "host_port": 20600}, "203.0.113.5")  # a saved game's own post, no token
+    t3 = lb.connect({"token": bob, "id": "room-20600"})[1]["ticket"]
+    other = lb.login("other")[1]["token"]
+    check(lb.redeem_ticket({"token": other, "id": "room-20600", "ticket": t3}, "203.0.113.5") == (200, {"name": "Bob"}),
+          "a game posted without a token is the host's at its address")
+
+
 def test_player_states():
     """LobbyGamelistReporter: a running game's players carry State and Offline."""
     out = lobby_server._player_names([{"name": "alice", "state": "won"}, {"name": "bob", "state": "defeated", "offline": 1},
@@ -242,6 +287,11 @@ def test_moderation():
     check(lb.kick(bob, "carol")[0] == 403 and carol in lb.players, "a player who is no moderator cannot kick")
     check(lb.set_subject(bob, "x")[0] == 403 and lb.set_subject(mod, " Be nice ")[1]["subject"] == "Be nice",
           "only a moderator sets the subject")
+    check(lb.chat[-1]["text"] == "mod changed the lobby subject to:\nBe nice" and lb.chat[-1]["from"] == "",
+          "the room hears of the new subject")
+    lb.set_subject(mod, "")
+    check(lb.chat[-1]["text"] == "mod deleted the lobby subject.", "and of its removal")
+    lb.set_subject(mod, "Be nice")
     check(lb.kick(mod, "nobody")[0] == 404, "kicking someone not in the lobby is refused")
     check(lb.kick(mod, "Bob", "spam")[0] == 200 and bob not in lb.players, "a moderator kicks bob")
     check(lb.chat[-1]["text"] == "bob has been kicked from the lobby. Reason: spam", "the lobby is told why")
@@ -267,8 +317,9 @@ def test_punch():
     check("host_ip" not in room and "host_port" not in room, "so does its public address")
     check(lb.connect({"id": "g"})[0] == 401, "only a signed-in player is told a game's address")
     check(lb.connect({"token": tok, "id": "nope"})[0] == 404, "an unknown game has no address")
-    check(lb.connect({"token": tok, "id": "g"}) == (200, {"host_ip": "198.51.100.4", "host_port": 40001}),
-          "a signed-in joiner is told the game's address")
+    code, obj = lb.connect({"token": tok, "id": "g"})
+    check(code == 200 and (obj["host_ip"], obj["host_port"]) == ("198.51.100.4", 40001) and len(obj["ticket"]) == 32,
+          "a signed-in joiner is told the game's address, with a ticket")
     check(lb.add_punch({"token": tok, "id": "nope", "ip": "203.0.113.9", "port": 5})[0] == 404, "a punch needs a game")
     check(lb.add_punch({"token": tok, "id": "g", "ip": "", "port": 5})[0] == 400, "a punch needs an endpoint")
     check(lb.add_punch({"token": tok, "id": "g", "ip": "203.0.113.9", "port": 51000}) == (200, {}),
@@ -320,6 +371,8 @@ def test_accounts():
     check(lb.register_account("alice", pw)[0] == 409, "the name, in any case, can be registered once")
     check(lb.register_account("bad name!", pw)[0] == 400, "a name outside a-z 0-9 . _ - is refused")
     check(lb.register_account("x" * 21, pw)[0] == 400, "a name over 20 characters is refused")
+    check(lb.register_account("ab", pw)[0] == 400 and lb.register_account("123", pw)[0] == 400,
+          "as credentials.js: at least 3 characters, one of them a letter")
     check("hunter22" not in open(path).read() and pw not in open(path).read(),
           "the accounts file keeps neither the password nor what the client sent")
     check(lb.login("alice", "wrong")[0] == 401, "the wrong password is refused")
@@ -331,12 +384,23 @@ def test_accounts():
     strict = lobby_server.Lobby(accounts_path=path, accounts_only=True)
     check(strict.login("carol")[0] == 401, "with --accounts-only a name with no account is refused")
     check(strict.login("ALICE", pw)[0] == 200, "accounts load from the file")
+    tok = next(t for t, p in lb.players.items() if p["name"] == "Alice")  # signed in above
+    pw2 = lobby_server.encrypt_password("correct horse", "Alice")
+    check(lb.change_password("nobody", pw2)[0] == 401, "a password change needs a session")
+    check(lb.change_password(tok, "")[0] == 400, "and a new password")
+    guest = lb.login("guest2")[1]["token"]
+    check(lb.change_password(guest, pw2)[0] == 403, "a guest has no password to change")
+    check(lb.change_password(tok, pw2)[0] == 200, "the account's password changes")
+    lb.logout(tok)
+    check(lb.login("alice", pw)[0] == 401 and lb.login("alice", pw2)[0] == 200, "the old one no longer signs in, the new one does")
+    check(lobby_server.Lobby(accounts_path=path).login("alice", pw2)[0] == 200, "and it is saved")
 
 
 if __name__ == "__main__":
     test_accounts()
     test_object()
     test_room_owners()
+    test_tickets()
     test_moderation()
     test_player_states()
     test_punch()

@@ -262,7 +262,7 @@ static func population_filter_caps() -> Array:
 static func time_to_string(seconds: float) -> String:
 	var s := int(seconds)
 	if s >= 3600:
-		return "%d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
+		return "%02d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60] # l10n.js timeToString "HH:mm:ss"
 	return "%02d:%02d" % [s / 60, s % 60]
 
 # --- Filters (replay_filters.js) -------------------------------------------------
@@ -445,7 +445,7 @@ func display_replay_details() -> void:
 	_btn_start.disabled = not picked
 	_btn_delete.disabled = not picked
 	_filename.visible = picked
-	_btn_summary.visible = picked
+	_btn_summary.visible = picked and r["meta"].has("summary") # HasReplayMetadata
 	if not picked:
 		return
 	_info_labels["name"].text = r["map"]
@@ -780,6 +780,8 @@ static func hotkey_text(keys: Dictionary, hotkey: String) -> String:
 	var combos := Array(keys.get(hotkey, PackedStringArray()))
 	if combos.is_empty():
 		return "[Unassigned hotkey: %s]" % hotkey
+	var cfg := RtsoHotkeyConfig.new() # formatHotkeyCombination: the names 0.28 shows
+	combos = combos.map(func(c): return cfg.display_combo(str(c)))
 	combos.sort_custom(func(a, b): return str(a).length() < str(b).length())
 	return "[%s]" % ", ".join(PackedStringArray(combos))
 

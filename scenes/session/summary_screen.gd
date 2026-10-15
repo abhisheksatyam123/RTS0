@@ -587,23 +587,38 @@ func map_caption() -> String:
 		else str(load("res://scenes/menu/replay_browser.gd").map_info(map_id)["type"])
 	return "%s - %s" % [map_name, kind] if kind != "" else map_name
 
-func _label(text: String, size := 13, color := Color.WHITE) -> Label:
+# gui/common/modern/styles.xml ModernLabelText and its kin: sans-bold-stroke-14, white.
+static var _bold_font: FontVariation
+
+static func bold_font() -> FontVariation:
+	if _bold_font == null:
+		_bold_font = FontVariation.new()
+		_bold_font.variation_embolden = 0.6
+	return _bold_font
+
+func _label(text: String, size := 14, color := Color.WHITE) -> Label:
 	var l := Label.new()
 	l.text = text
+	l.add_theme_font_override("font", bold_font())
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 3)
 	l.mouse_filter = Control.MOUSE_FILTER_PASS
 	return l
 
-func _rich(bbcode: String, size := 12) -> RichTextLabel:
+func _rich(bbcode: String, size := 14) -> RichTextLabel:
 	var r := RichTextLabel.new()
 	r.bbcode_enabled = true
 	r.fit_content = true
 	r.scroll_active = false
 	r.autowrap_mode = TextServer.AUTOWRAP_OFF
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.add_theme_font_override("normal_font", bold_font())
 	r.add_theme_font_size_override("normal_font_size", size)
 	r.add_theme_font_size_override("bold_font_size", size)
+	r.add_theme_color_override("font_outline_color", Color.BLACK)
+	r.add_theme_constant_override("outline_size", 3)
 	r.text = bbcode
 	return r
 
@@ -640,13 +655,23 @@ func _build() -> void:
 	style.set_border_width_all(2)
 	_window.add_theme_stylebox_override("panel", style)
 	add_child(_window)
-	var title := _label("Summary", 18, GOLD)
+	var title := _label(L10n.t("Summary")) # summaryWindowTitle: ModernLabelText
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	title.offset_left = -128
 	title.offset_right = 128
 	title.offset_top = 4
 	title.offset_bottom = 30
+	if dialog:
+		# summary.js: in a dialog the title sits on the top edge, "50%-128 -16 50%+128 16".
+		title.offset_top = -16
+		title.offset_bottom = 16
+		var plate := StyleBoxFlat.new()
+		plate.bg_color = style.bg_color
+		plate.border_color = GOLD
+		plate.set_border_width_all(2)
+		title.add_theme_stylebox_override("normal", plate)
+		title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_window.add_child(title)
 	var header := HBoxContainer.new()
 	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -714,10 +739,11 @@ func _build() -> void:
 	_continue_button.pressed.connect(continue_pressed)
 	_continue_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_window.add_child(_continue_button)
-	_continue_button.offset_left = -170
+	# summary.xml continueButton "100%-200 100%-48 100%-20 100%-20", replayButton "100%-410 ... 100%-210".
+	_continue_button.offset_left = -200
 	_continue_button.offset_right = -20
-	_continue_button.offset_top = -46
-	_continue_button.offset_bottom = -12
+	_continue_button.offset_top = -48
+	_continue_button.offset_bottom = -20
 	_replay_button = Button.new()
 	_replay_button.name = "ReplayButton"
 	_replay_button.text = "Watch Replay"
@@ -725,13 +751,13 @@ func _build() -> void:
 	_replay_button.visible = not gui.get("isInGame", false) and str(gui.get("replayDirectory", "")) != ""
 	_replay_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_window.add_child(_replay_button)
-	_replay_button.offset_left = -330
-	_replay_button.offset_right = -180
-	_replay_button.offset_top = -46
-	_replay_button.offset_bottom = -12
+	_replay_button.offset_left = -410
+	_replay_button.offset_right = -210
+	_replay_button.offset_top = -48
+	_replay_button.offset_bottom = -20
 	# lobbyButton: after a game while signed in to the lobby, left of the other buttons.
 	# A 16 px speech bubble (sprite iconBubbleGold, iconBubbleWhite under the mouse), "100%-436
-	# 100%-45 100%-420 100%-29": 6 px left of the Watch Replay button.
+	# 100%-45 100%-420 100%-29": 10 px left of the Watch Replay button.
 	var lobby := TextureButton.new()
 	lobby.name = "LobbyButton"
 	lobby.texture_normal = Ref.texture(BUBBLE_ICON)
@@ -745,7 +771,7 @@ func _build() -> void:
 	lobby.pressed.connect(open_lobby)
 	lobby.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_window.add_child(lobby)
-	var right := (_replay_button.offset_left if _replay_button.visible else _continue_button.offset_left) - 6
+	var right := (_replay_button.offset_left if _replay_button.visible else _continue_button.offset_left) - 10
 	lobby.offset_left = right - 16
 	lobby.offset_right = right
 	lobby.offset_top = -45
@@ -791,7 +817,7 @@ func _update_panel(pd: Dictionary) -> void:
 		var cap: String = L10n.t(h.get("header", h["caption"])) # layout.js translate(), before the markup
 		if hi == 0 and not teams.is_empty() and not teams.has(-1):
 			cap = "" # no players without a team: no "Player name" heading
-		var r := _rich("[center][b]%s[/b][/center]" % cap if hi > 0 else "[b]%s[/b]" % cap, 13)
+		var r := _rich("[center][b]%s[/b][/center]" % cap if hi > 0 else "[b]%s[/b]" % cap)
 		r.name = "Heading%d" % hi
 		r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # long captions wrap in their column
 		_place(r, _general, Vector2(left, h["y"]), Vector2(h["w"], 40))
@@ -799,7 +825,7 @@ func _update_panel(pd: Dictionary) -> void:
 			left += h["w"]
 	left = 250
 	for t in pd["titles"]:
-		var r := _rich("[center][b]%s[/b][/center]" % L10n.t(t["caption"]), 13)
+		var r := _rich("[center][b]%s[/b][/center]" % L10n.t(t["caption"]))
 		_place(r, _general, Vector2(left, t["y"]), Vector2(t["w"], 20))
 	var row_w := 240
 	for c in counters:
@@ -827,7 +853,7 @@ func _update_panel(pd: Dictionary) -> void:
 			for n in members.size():
 				_player_row(players[members[n]], counters, headings, index, Vector2(10, y + 30 + n * (BOX_H + BOX_GAP)), row_w)
 			var total_y: int = y + 30 + members.size() * (BOX_H + BOX_GAP) + 10
-			var total := _label("Team total", 13, GOLD)
+			var total := _label(L10n.t("Team total")) # teamHeading: ModernLeftLabelText, white
 			_place(total, _general, Vector2(50, total_y), Vector2(180, 20))
 			var x := 240
 			for ci in counters.size():
@@ -887,7 +913,7 @@ func _build_charts() -> void:
 		_charts_panel.add_child(part)
 		var pickers := []
 		for j in 3:
-			var cap := _label(["Category:", "Value:", "Type:"][j], 13)
+			var cap := _label(["Category:", "Value:", "Type:"][j])
 			_place(cap, part, Vector2(1 + j * 150, 6), Vector2(144, 20)) # "1 6 145 26"
 			var dd := OptionButton.new()
 			dd.name = ["Category", "Value", "Type"][j]
@@ -917,13 +943,13 @@ func _build_charts() -> void:
 		chart.draw.connect(_draw_chart.bind(k))
 		part.add_child(chart)
 		_chart_nodes.append(chart)
-		var axis := _label("Time elapsed", 12)
+		var axis := _label("Time elapsed")
 		axis.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		axis.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 		axis.offset_top = -25 # XAxisLabel "5 100%-25 100%-5 100%-5"
 		axis.offset_bottom = -5
 		part.add_child(axis)
-	_legend = _rich("", 13)
+	_legend = _rich("")
 	_legend.name = "ChartLegend"
 	_legend.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	_legend.offset_left = 15
@@ -1231,7 +1257,7 @@ func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if _fired(event, "summary") or (gui.get("isInGame", false) and event is InputEventKey and event.pressed
-			and event.keycode == KEY_ESCAPE):
+			and "cancel" in RtsoHotkeyConfig.new().fired(event)):
 		get_viewport().set_input_as_handled()
 		continue_pressed()
 	elif _fired(event, "lobby") and not gui.get("isInGame", false) and _lobby_signed_in():

@@ -22,13 +22,26 @@ var _server: LineEdit
 var _name: LineEdit
 var _sign_btn: Button
 var _password: LineEdit
+var _password2: LineEdit # prelobby Register's passwordRepeat
 var _remember: CheckBox
 var _register_btn: Button
 var _games: Tree
+var _setup: GDScript = load("res://scenes/menu/gamesetup.gd")
+var game_sort_column := "Name"
+var game_sort_order := 1
 var _players: Tree
+var _players_filter: LineEdit
 var _profile: VBoxContainer
 var _profile_name: Label
+var _profile_role: Label # ProfilePanel roleText
 var _profile_values := {}
+# ProfilePage: "Player Profile Lookup", any player by name.
+var _lookup: AcceptDialog
+var _lookup_input: LineEdit
+var _lookup_error: Label
+var _lookup_grid: GridContainer
+var _lookup_values := {}
+var _lookup_player := ""
 var _requested_player := "" # ProfilePanel.requestedPlayer
 var _selected_player := "" # the player list's selection
 var _leaderboard: AcceptDialog
@@ -47,6 +60,8 @@ var _status: Label
 var _timer: Timer
 var _chat_last := 0
 var _chat_backlog := true # the first fetch after signing in is the backlog (lobby.history)
+var _chat_replay := false # the first fetch of a page reopened in the session: its chat so far
+var _reconnect_dlg: ConfirmationDialog
 var _rooms: Array = []
 var _ratings := {} # player name -> rating, from the player list
 ## lobby.js with attribs.dialog: opened from the game setup's Lobby button
@@ -56,6 +71,7 @@ signal closed
 var _moderators := {} # names the lobby lists as moderators
 var _subject := "" # the lobby room subject (Subject.js)
 var _details: RichTextLabel
+var _details_preview: TextureRect
 var _rating_column := false # lobby.columns.gamerating
 var _rating_filter: OptionButton
 var _shown_rooms: Array = [] # _rooms past the filters
@@ -68,8 +84,17 @@ var _buddy_btn: Button
 const BUDDY_SYMBOL := "•"
 const MAX_PLAYERS := 8
 
-const GAME_COLUMNS := ["Name", "Host", "Map", "Players", "Status"]
-const RATING_COL := 3 # where the Rating column goes when shown
+# GameList.xml gamesBox: the columns, and the key each one sorts on.
+const GAME_COLUMNS := ["Name", "Map Name", "Size", "Type", "Players"]
+const RATING_COL := 5 # where the Rating column goes when shown
+const GAME_SORT_KEYS := {"Name": "gameName", "Map Name": "mapName", "Size": "mapSize", "Type": "mapType",
+	"Players": "maxnbp", "Rating": "gameRating"}
+# Game.js GameStatusOrder and StateTags: setups first, in green; running red.
+const GAME_STATES := ["init", "waiting", "running"]
+const STATE_COLORS := {"init": Color8(0, 219, 0), "waiting": Color8(255, 127, 0), "running": Color8(219, 0, 0)}
+# GameList.xml textcolor of the other columns.
+const GAME_COLUMN_COLORS := {"Map Name": Color8(128, 128, 128), "Size": Color8(128, 128, 128),
+	"Type": Color8(0, 160, 160), "Players": Color8(0, 128, 128), "Rating": Color8(0, 160, 160)}
 # GameListFilters/Rating.js RatingFilters, after "Any".
 const RATING_FILTERS := ["", ">1500", ">1400", ">1300", ">1200", "<1200", "<1100", "<1000"]
 
@@ -84,7 +109,15 @@ func _ready() -> void:
 	_server.text = LobbySession.address
 	_name.text = LobbySession.player_name if LobbySession.signed_in() else multiplayer_name()
 	LobbySession.kicked.connect(_on_kicked)
+	LobbySession.disconnected.connect(_on_disconnected)
+	if LobbySession.signed_in() and LobbySession.chat_from >= 0:
+		# LobbyHandler: a reopened lobby shows the session's chat so far.
+		_chat_last = LobbySession.chat_from
+		_chat_backlog = false
+		_chat_replay = true
 	_update_signed_in()
+	if LobbySession.lost:
+		_ask_reconnect.call_deferred()
 	_refresh()
 
 
@@ -109,6 +142,9 @@ func _build() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	header.add_child(_button("Leaderboard", _on_leaderboard_pressed))
+	header.add_child(_button("Player Profile Lookup", _on_lookup_pressed))
+	# LobbyPage.xml: "Account settings" (AccountSettingsPage).
+	header.add_child(_button("Account settings", _on_account_pressed))
 	header.add_child(_button("Back" if dialog else "Main Menu", _on_back_pressed))
 
 	var login := HBoxContainer.new()
@@ -127,6 +163,10 @@ func _build() -> void:
 	_password = _line("", 140)
 	_password.secret = true
 	login.add_child(_password)
+	_password2 = _line("", 120)
+	_password2.secret = true
+	_password2.placeholder_text = "Repeat to register"
+	login.add_child(_password2)
 	_remember = CheckBox.new()
 	_remember.text = "Remember password"
 	_remember.button_pressed = cfg.get_bool("lobby.rememberpassword")
@@ -185,9 +225,19 @@ func _build() -> void:
 	_games.set_column_expand_ratio(2, 2)
 	_games.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_games.item_selected.connect(_on_game_selected)
+	# gamesBox sortable: a click on a heading sorts on it, again reverses.
+	_games.column_title_clicked.connect(func(c: int, _b: int) -> void: sort_games_by(game_columns(_rating_column)[c]))
+	_update_game_titles()
 	if not dialog:
-		_games.item_activated.connect(_on_join_pressed)
+		_games.item_activated.connect(_on_join_pressed.bind(false))
 	left.add_child(_games)
+	# GameDetails.js sgMapPreview: the selected game's map, over its details.
+	_details_preview = TextureRect.new()
+	_details_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_details_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_details_preview.custom_minimum_size = Vector2(0, 160)
+	_details_preview.visible = false
+	left.add_child(_details_preview)
 	_details = RichTextLabel.new()
 	_details.bbcode_enabled = true
 	_details.fit_content = true
@@ -238,6 +288,13 @@ func _build() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(right)
 	right.add_child(_label("Players online"))
+	# PlayerList.xml playersFilter: Enter picks the typed player, Tab completes.
+	_players_filter = _line("", 0)
+	_players_filter.placeholder_text = "Search for Player"
+	_players_filter.tooltip_text = AUTOCOMPLETE_TIP
+	_players_filter.text_submitted.connect(_select_player)
+	_players_filter.gui_input.connect(_on_name_input.bind(_players_filter))
+	right.add_child(_players_filter)
 	_players = Tree.new()
 	_players.columns = 3
 	_players.hide_root = true
@@ -252,6 +309,7 @@ func _build() -> void:
 		if picked == _selected_player:
 			return # the refresh re-selecting it
 		_selected_player = picked
+		_select_game_of(_selected_player)
 		_update_buddy_button()
 		_request_profile(_selected_player))
 	right.add_child(_players)
@@ -259,10 +317,14 @@ func _build() -> void:
 	_buddy_btn.disabled = true
 	right.add_child(_buddy_btn)
 	_players.item_activated.connect(_on_buddy_pressed) # PlayerList double click
+	# onMouseLeftClickItem: a click on the picked player finds their game again.
+	_players.item_mouse_selected.connect(func(_p: Vector2, _b: int) -> void: _select_game_of(_selected_player))
 	_profile = _build_profile()
 	right.add_child(_profile)
 	_leaderboard = _build_leaderboard()
 	add_child(_leaderboard)
+	_lookup = _build_lookup()
+	add_child(_lookup)
 	right.add_child(_label("Chat"))
 	_chat_log = RichTextLabel.new()
 	_chat_log.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -275,6 +337,8 @@ func _build() -> void:
 	_chat_line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_chat_line.placeholder_text = "Chat"
 	_chat_line.text_submitted.connect(func(_t: String) -> void: _on_send_pressed())
+	_chat_line.tooltip_text = AUTOCOMPLETE_TIP # ChatInputPanel onTab
+	_chat_line.gui_input.connect(_on_name_input.bind(_chat_line))
 	chat_row.add_child(_chat_line)
 	_chat_send = _button("Send", _on_send_pressed)
 	chat_row.add_child(_chat_send)
@@ -292,11 +356,12 @@ func _build_profile() -> VBoxContainer:
 	_profile_name = _label("")
 	_profile_name.add_theme_font_size_override("font_size", 16)
 	box.add_child(_profile_name)
+	_profile_role = _label("")
+	box.add_child(_profile_role)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	box.add_child(grid)
-	for row in [["rank", "Current Rank:"], ["highestRating", "Highest Rating:"], ["totalGamesPlayed", "Total Games:"],
-			["wins", "Wins:"], ["losses", "Losses:"], ["ratio", "Win Rate:"]]:
+	for row in PROFILE_ROWS:
 		grid.add_child(_label(row[1]))
 		var v := _label(NOT_AVAILABLE)
 		grid.add_child(v)
@@ -323,12 +388,150 @@ func _build_leaderboard() -> AcceptDialog:
 		if it:
 			_request_profile(str(it.get_metadata(0))))
 	dlg.add_child(_board)
+	# LeaderboardPage leaderboardUpdateButton: ask the lobby again.
+	dlg.add_button("Update", false, "update")
+	dlg.custom_action.connect(func(action: StringName) -> void:
+		if action == &"update" and LobbySession.signed_in():
+			LobbySession.get_json("/leaderboard", _on_leaderboard))
 	dlg.confirmed.connect(func() -> void: _request_profile(_selected_player))
 	dlg.canceled.connect(func() -> void: _request_profile(_selected_player))
 	return dlg
 
 
 const NOT_AVAILABLE := "N/A"
+const PROFILE_ROWS := [["rank", "Current Rank:"], ["highestRating", "Highest Rating:"], ["totalGamesPlayed", "Total Games:"],
+	["wins", "Wins:"], ["losses", "Losses:"], ["ratio", "Win Rate:"]]
+
+
+# ProfilePage.xml: "Enter playername:", View Profile, then the profile or
+# 'Player "%(nick)s" not found.'
+func _build_lookup() -> AcceptDialog:
+	var dlg := AcceptDialog.new()
+	dlg.name = "ProfileLookup"
+	dlg.title = "Player Profile Lookup"
+	dlg.ok_button_text = "Back"
+	dlg.min_size = Vector2i(360, 300)
+	var box := VBoxContainer.new()
+	dlg.add_child(box)
+	box.add_child(_label("Enter playername:"))
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	_lookup_input = _line("", 180)
+	_lookup_input.text_submitted.connect(func(_t: String) -> void: _on_lookup_view())
+	row.add_child(_lookup_input)
+	row.add_child(_button("View Profile", _on_lookup_view))
+	_lookup_error = _label("")
+	_lookup_error.visible = false
+	box.add_child(_lookup_error)
+	_lookup_grid = GridContainer.new()
+	_lookup_grid.columns = 2
+	_lookup_grid.visible = false
+	box.add_child(_lookup_grid)
+	_lookup_values["name"] = _label("")
+	_lookup_grid.add_child(_label("Player:"))
+	_lookup_grid.add_child(_lookup_values["name"])
+	for r in PROFILE_ROWS:
+		_lookup_grid.add_child(_label(r[1]))
+		_lookup_values[r[0]] = _label(NOT_AVAILABLE)
+		_lookup_grid.add_child(_lookup_values[r[0]])
+	return dlg
+
+
+## AccountSettingsPage.xml: the new password twice, the request's result, and
+## Close / Change password.
+func _on_account_pressed() -> void:
+	if not LobbySession.signed_in():
+		_say("Sign in to change your account settings.")
+		return
+	var dlg := AcceptDialog.new()
+	dlg.name = "AccountSettings"
+	dlg.title = "Account settings"
+	dlg.ok_button_text = "Close"
+	dlg.min_size = Vector2i(460, 280)
+	var box := VBoxContainer.new()
+	dlg.add_child(box)
+	box.add_child(_label("New password:"))
+	var pw := _line("", 0)
+	pw.name = "Password"
+	pw.secret = true
+	box.add_child(pw)
+	box.add_child(_label("Confirm new password:"))
+	var pw2 := _line("", 0)
+	pw2.name = "PasswordConfirm"
+	pw2.secret = true
+	box.add_child(pw2)
+	var result := _label("")
+	result.name = "RequestResult"
+	box.add_child(result)
+	var change := dlg.add_button("Change password", true, "change")
+	dlg.custom_action.connect(func(_a: StringName) -> void: _change_password(pw.text, pw2.text, result, change))
+	dlg.confirmed.connect(dlg.queue_free)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+	pw.grab_focus()
+
+
+## AccountSettingsPage._changePassword: check the length and the confirmation,
+## ask the lobby, then keep lobby.password only when it is remembered.
+func _change_password(new_pass: String, confirm: String, result: Label, button: Button) -> void:
+	var fail := func(text: String) -> void:
+		result.add_theme_color_override("font_color", Color.RED)
+		result.text = text
+	result.add_theme_color_override("font_color", Color.WHITE)
+	result.text = "Changing password…"
+	if new_pass.length() < LobbySession.MIN_PASSWORD_LENGTH:
+		fail.call("Please choose a longer password")
+		return
+	if confirm != new_pass:
+		fail.call("Passwords do not match")
+		return
+	var encrypted: String = LobbySession.encrypt_password(new_pass, LobbySession.player_name)
+	button.disabled = true
+	LobbySession.change_password(encrypted, func(code: int, obj) -> void:
+		if not is_instance_valid(result):
+			return
+		button.disabled = false
+		if code == 0:
+			fail.call("Request timed out.")
+		elif code != 200:
+			fail.call(str(obj.get("error", "Error")) if obj is Dictionary else "Error")
+		else:
+			result.text = "Password changed successfully."
+			var cfg := RtsoUserConfig.new()
+			cfg.set_value("lobby.password", encrypted if cfg.get_bool("lobby.rememberpassword") else "")
+			cfg.save())
+
+
+func _on_lookup_pressed() -> void:
+	if not LobbySession.signed_in():
+		_say("Sign in to look up a player.")
+		return
+	_lookup_error.visible = false
+	_lookup_grid.visible = false
+	_lookup.popup_centered()
+	_lookup_input.grab_focus()
+
+
+func _on_lookup_view() -> void:
+	_lookup_player = _lookup_input.text.strip_edges()
+	if _lookup_player == "":
+		return
+	var asked := _lookup_player
+	LobbySession.get_json("/profile?name=" + asked.uri_encode(), func(code: int, obj) -> void:
+		if not is_inside_tree() or asked != _lookup_player:
+			return
+		var found := code == 200 and obj is Dictionary
+		_lookup_grid.visible = found
+		_lookup_error.visible = not found
+		if not found:
+			_lookup_error.text = 'Player "%s" not found.' % asked
+			return
+		_lookup_values["name"].text = LobbySession.rated_name(str(obj.get("name", "")), obj.get("rating"))
+		_lookup_values["name"].add_theme_color_override("font_color", player_color(str(obj.get("name", ""))))
+		for k in ["rank", "highestRating", "totalGamesPlayed", "wins", "losses"]:
+			_lookup_values[k].text = str(obj.get(k, NOT_AVAILABLE))
+		_lookup_values["ratio"].text = LobbySession.format_win_rate(obj))
 
 
 func _request_profile(player: String) -> void:
@@ -337,6 +540,9 @@ func _request_profile(player: String) -> void:
 	if player == "" or not LobbySession.signed_in():
 		return
 	_profile_name.text = player
+	_profile_name.add_theme_color_override("font_color", player_color(player)) # ColorPlayerName
+	# ProfilePanel RoleNames: Moderator, else Player (the lobby mutes nobody).
+	_profile_role.text = "Moderator" if _moderators.has(player) else "Player"
 	for k in _profile_values:
 		_profile_values[k].text = NOT_AVAILABLE
 	LobbySession.get_json("/profile?name=" + player.uri_encode(), _on_profile)
@@ -406,6 +612,7 @@ func _update_signed_in() -> void:
 	_server.editable = not on
 	_name.editable = not on
 	_password.editable = not on
+	_password2.editable = not on
 	_register_btn.disabled = on
 	_chat_line.editable = on
 	_chat_send.disabled = not on
@@ -426,7 +633,52 @@ func _on_back_pressed() -> void:
 		closed.emit()
 		queue_free()
 		return
+	# QuitButton.returnToMainMenu: StopXmppClient, so we leave the lobby.
+	if LobbySession.signed_in() and LobbySession.room.is_empty():
+		LobbySession.sign_out()
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
+
+
+## ConnectionHandler: the lobby lost our session.
+func _on_disconnected() -> void:
+	_system_line("Disconnected.")
+	_update_signed_in()
+	_ask_reconnect()
+
+
+func _ask_reconnect() -> void:
+	if _reconnect_dlg != null or LobbySession.signed_in():
+		return
+	_reconnect_dlg = ConfirmationDialog.new()
+	_reconnect_dlg.name = "ReconnectDialog"
+	_reconnect_dlg.title = "Connection Lost"
+	_reconnect_dlg.dialog_text = "You have been disconnected from the lobby. Do you want to reconnect?"
+	_reconnect_dlg.ok_button_text = "Yes"
+	_reconnect_dlg.cancel_button_text = "No"
+	add_child(_reconnect_dlg)
+	var done := func() -> void:
+		_reconnect_dlg.queue_free()
+		_reconnect_dlg = null
+	_reconnect_dlg.confirmed.connect(func() -> void:
+		done.call()
+		_say("Signing in...")
+		LobbySession.reconnect(func(code: int, _obj) -> void:
+			if not is_inside_tree():
+				return
+			if code == 200:
+				_chat_last = 0
+				_chat_backlog = true
+				_chat_replay = false
+				_system_line("Connected.")
+				_update_signed_in()
+				_refresh()
+			else:
+				_say("The lobby server at %s does not answer." % LobbySession.address if code == 0
+						else "Sign in refused.")))
+	_reconnect_dlg.canceled.connect(func() -> void:
+		LobbySession.lost = false
+		done.call())
+	_reconnect_dlg.popup_centered()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -471,6 +723,7 @@ func _sign_in(who: String) -> void:
 			cfg.set_value("lobby.password", encrypted if _remember.button_pressed else "")
 			cfg.save()
 			_password.text = ""
+			_password2.text = ""
 			MatchSettings.net_player_name = LobbySession.player_name
 			_chat_last = 0
 			_chat_backlog = true
@@ -486,8 +739,7 @@ func _sign_in(who: String) -> void:
 
 func _on_register_pressed() -> void:
 	var who := _name.text.strip_edges()
-	# One field here, so the password is its own confirmation; 0 A.D. asks twice.
-	var problem := LobbySession.register_problem(who, _password.text, _password.text)
+	var problem := LobbySession.register_problem(who, _password.text, _password2.text)
 	if problem != "":
 		_say(problem)
 		return
@@ -537,6 +789,54 @@ static func rating_passes(filter: String, rating: int) -> bool:
 	return rating >= n if filter.begins_with(">") else rating < n
 
 
+func sort_games_by(column: String) -> void:
+	if column == game_sort_column:
+		game_sort_order = -game_sort_order
+	else:
+		game_sort_column = column
+		game_sort_order = 1
+	_update_game_titles()
+	_show_rooms()
+
+
+func _update_game_titles() -> void:
+	var titles := game_columns(_rating_column)
+	for i in titles.size():
+		_games.set_column_title(i, titles[i] + (("  ▲" if game_sort_order > 0 else "  ▼") if titles[i] == game_sort_column else ""))
+
+
+## Game.js sortValues: Name sorts setups, then running games, by name; the
+## others on the stanza's value.
+func _game_sort_value(r: Dictionary, column: String) -> Variant:
+	match GAME_SORT_KEYS.get(column, "gameName"):
+		"mapName":
+			return game_map_title(r).to_lower()
+		"mapSize":
+			return _setup.MAP_SIZES.map(func(z) -> String: return str(z[1])).find(str(r.get("map_size", "")))
+		"mapType":
+			return str(r.get("map_type", ""))
+		"maxnbp":
+			return int(r.get("max_players", MAX_PLAYERS))
+		"gameRating":
+			return _room_rating(r)
+	# compatibility + state + name, as Game.js sortValues.gameName.
+	return "%s%d%s" % [str(LobbySession.game_compatible(r)), GAME_STATES.find(str(r.get("state", "init"))), game_title(r).to_lower()]
+
+
+static func game_title(r: Dictionary) -> String:
+	return str(r.get("name", "")) if str(r.get("name", "")) != "" else str(r.get("id", ""))
+
+
+static func game_map_title(r: Dictionary) -> String:
+	return str(r.get("map_name", "")) if str(r.get("map_name", "")) != "" else str(r.get("map_id", ""))
+
+
+## Game.js getTranslatedPlayerCount: "current/max", "+observers" when watched.
+static func game_player_count(r: Dictionary) -> String:
+	var watching := (r.get("player_names", []) as Array).filter(func(p) -> bool: return p.get("observer", false)).size()
+	return "%d/%d" % [int(r.get("players", 1)), int(r.get("max_players", MAX_PLAYERS))] + (" +%d" % watching if watching else "")
+
+
 func _room_rating(r: Dictionary) -> int:
 	return LobbySession.game_rating(r.get("player_names", []), _ratings)
 
@@ -550,6 +850,15 @@ func _show_rooms() -> void:
 	var f := _filters()
 	_shown_rooms = _rooms.filter(func(r) -> bool:
 		return rating_passes(filter, _room_rating(r)) and room_passes(r, f))
+	var keys := {}
+	for r in _shown_rooms:
+		keys[str(r.get("id", ""))] = _game_sort_value(r, game_sort_column)
+	_shown_rooms.sort_custom(func(a, b) -> bool:
+		var ka = keys[str(a.get("id", ""))]
+		var kb = keys[str(b.get("id", ""))]
+		if ka == kb:
+			return str(a.get("id", "")) < str(b.get("id", ""))
+		return ka < kb if game_sort_order > 0 else ka > kb)
 	var buddy_list := buddies()
 	var col := func(name: String) -> int: return game_columns(_rating_column).find(name)
 	_games.clear()
@@ -557,15 +866,24 @@ func _show_rooms() -> void:
 	var reselected := false
 	for r in _shown_rooms:
 		var it := _games.create_item(top)
-		var title := str(r.get("name", "")) if str(r.get("name", "")) != "" else str(r.get("id", ""))
-		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + title
+		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + game_title(r)
 			+ (" (password)" if int(r.get("password", 0)) else ""))
-		it.set_text(1, str(r.get("host_name", "")))
-		it.set_text(2, str(r.get("map_name", "")) if str(r.get("map_name", "")) != "" else str(r.get("map_id", "")))
+		# Game.js IncompatibleTags: a game needing other mods is grey.
+		it.set_custom_color(0, STATE_COLORS.get(str(r.get("state", "init")), STATE_COLORS["init"])
+			if LobbySession.game_compatible(r) else Color8(128, 128, 128))
+		it.set_text(col.call("Map Name"), game_map_title(r))
+		it.set_text(col.call("Size"), str(r.get("map_size", "")))
+		var type_title := ""
+		for t in _setup.MAP_TYPES:
+			if t[0] == str(r.get("map_type", "")):
+				type_title = t[1]
+		it.set_text(col.call("Type"), type_title)
 		if _rating_column:
 			it.set_text(col.call("Rating"), str(_room_rating(r)))
-		it.set_text(col.call("Players"), "%d/%d" % [int(r.get("players", 1)), int(r.get("max_players", 8))])
-		it.set_text(col.call("Status"), "Running" if r.get("state", "init") == "running" else "Waiting")
+		it.set_text(col.call("Players"), game_player_count(r))
+		for c in GAME_COLUMN_COLORS:
+			if col.call(c) >= 0:
+				it.set_custom_color(col.call(c), GAME_COLUMN_COLORS[c])
 		it.set_metadata(0, str(r.get("id", "")))
 		if str(r.get("id", "")) == keep:
 			it.select(0)
@@ -655,6 +973,9 @@ func _on_buddy_pressed() -> void:
 func _show_details(r: Dictionary) -> void:
 	# Subject.js: the room subject shows while no game is selected.
 	_details.visible = not r.is_empty() or (_subject != "" and LobbySession.signed_in())
+	_details_preview.texture = null if r.is_empty() else \
+			load("res://scenes/menu/gamesetup.gd").map_preview(str(r.get("map_id", "")))
+	_details_preview.visible = _details_preview.texture != null
 	if not r.is_empty():
 		_details.text = LobbySession.game_details(r, _ratings)
 	elif _details.visible:
@@ -666,6 +987,15 @@ func _on_kicked(text: String) -> void:
 	_system_line(text.replace("[", "[lb]"))
 	_say(text)
 	_update_signed_in()
+	# ConnectionHandler.onClientKicked: a message box titled KICKED or BANNED.
+	var box := AcceptDialog.new()
+	box.name = "KickedDialog"
+	box.title = "BANNED" if text.contains("banned") else "KICKED"
+	box.dialog_text = text
+	add_child(box)
+	box.confirmed.connect(box.queue_free)
+	box.canceled.connect(box.queue_free)
+	box.popup_centered()
 
 
 func _on_players(code: int, obj) -> void:
@@ -690,6 +1020,7 @@ func _on_players(code: int, obj) -> void:
 		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Busy"}.get(st, st))
 		it.set_custom_color(0, col)
 		it.set_text(1, (BUDDY_SYMBOL + " " if buddy_list.has(str(p.get("name", ""))) else "") + _nick(str(p.get("name", ""))))
+		it.set_custom_color(1, player_color(str(p.get("name", ""))))
 		it.set_text(2, str(p.get("rating", "")))
 		it.set_metadata(0, str(p.get("name", "")))
 		if str(p.get("name", "")) == _selected_player:
@@ -708,31 +1039,40 @@ func _on_chat(code: int, obj) -> void:
 		return
 	var messages: Array = obj.get("messages", [])
 	var backlog := _chat_backlog
+	var replay := _chat_replay
 	_chat_backlog = false
+	_chat_replay = false
 	if backlog:
 		# 0 A.D.'s lobby.history: how many past messages to load when joining.
 		var keep := maxi(0, int(RtsoUserConfig.new().get_number("lobby.history")))
 		messages = messages.slice(maxi(0, messages.size() - keep))
+		# Where this session's chat starts, for the lobby pages opened later.
+		LobbySession.chat_from = int(messages[0].get("id", 1)) - 1 if not messages.is_empty() \
+				else int(obj.get("last", _chat_last))
 	var me := LobbySession.player_name
-	var notify := not backlog and me != "" and RtsoUserConfig.new().get_bool("sound.notify.nick")
+	var notify := not backlog and not replay and me != "" and RtsoUserConfig.new().get_bool("sound.notify.nick")
 	for m in messages:
 		var who := str(m.get("from", ""))
 		if notify and who != "" and who != me and str(m.get("text", "")).findn(me) >= 0:
 			notify = false
 			_play_nick_alert()
-		var raw := str(m.get("text", ""))
-		var text := raw.replace("[", "[lb]")
-		var when := _chat_time(m)
-		if who == "":
-			_chat_log.append_text("%s[color=#aaaaaa]%s[/color]\n" % [when, text])
-		elif raw.begins_with("/me "):
-			# ChatMessageFormatMe: "* %(sender)s %(message)s".
-			_chat_log.append_text("%s* [b]%s[/b] %s\n" % [when, _nick(who).replace("[", "[lb]"), text.substr(4)])
-		else:
-			if raw.begins_with("/say "):
-				text = text.substr(5)
-			_chat_log.append_text("%s[color=#e0c070]%s:[/color] %s\n" % [when, _nick(who).replace("[", "[lb]"), text])
+		_chat_log.append_text(_chat_time(m) + _format_chat(who, str(m.get("text", "")), me) + "\n")
 	_chat_last = int(obj.get("last", _chat_last))
+
+
+## ChatMessageFormat: a system line in grey; a player's line with their name
+## in its colour (after /me, "* name text") and our name highlighted.
+func _format_chat(who: String, raw: String, me: String) -> String:
+	var text := raw.replace("[", "[lb]")
+	if who == "":
+		return "[color=#aaaaaa]%s[/color]" % text
+	if who != me:
+		text = highlight_name(text, me)
+	if raw.begins_with("/me "):
+		return "* [b]%s[/b] %s" % [colored_name(who, _nick(who)), text.substr(4)]
+	if raw.begins_with("/say "):
+		text = text.substr(5)
+	return "%s: %s" % [colored_name(who, _nick(who)), text]
 
 
 func _play_nick_alert() -> void:
@@ -749,6 +1089,161 @@ func _chat_time(m: Dictionary) -> String:
 		return ""
 	var t := Time.get_datetime_dict_from_unix_time(int(m["time"]) + int(Time.get_time_zone_from_system().get("bias", 0)) * 60)
 	return "[color=#aaaaaa][lb]%02d:%02d] [/color]" % [int(t["hour"]), int(t["minute"])]
+
+## PlayerColor.GetPlayerColor: a colour from the name's hash, lightness at
+## least 0.7 so it reads on the dark background.
+static func player_color(name: String) -> Color:
+	var h := 0
+	var buf := name.to_utf16_buffer()
+	for i in range(0, buf.size() - 1, 2):
+		# hash = charCode + ((hash << 5) - hash); JS "<<" takes hash's int32.
+		h = (buf[i] | (buf[i + 1] << 8)) + (_int32(_int32(h) << 5) - h)
+	h = _int32(h)
+	var hsl := _rgb_to_hsl(((h >> 24) & 0xFF) / 255.0, ((h >> 16) & 0xFF) / 255.0, ((h >> 8) & 0xFF) / 255.0)
+	var rgb := _hsl_to_rgb(hsl.x, hsl.y, maxf(0.7, hsl.z))
+	return Color8(roundi(rgb.x * 255), roundi(rgb.y * 255), roundi(rgb.z * 255))
+
+static func _int32(x: int) -> int:
+	return ((x & 0xFFFFFFFF) ^ 0x80000000) - 0x80000000
+
+## color.js rgbToHsl and hslToRgb.
+static func _rgb_to_hsl(r: float, g: float, b: float) -> Vector3:
+	var mx := maxf(r, maxf(g, b))
+	var mn := minf(r, minf(g, b))
+	var l := (mx + mn) / 2
+	if mx == mn:
+		return Vector3(0, 0, l)
+	var d := mx - mn
+	var s := d / (2 - mx - mn) if l > 0.5 else d / (mx + mn)
+	var h: float
+	if mx == r:
+		h = (g - b) / d + (6.0 if g < b else 0.0)
+	elif mx == g:
+		h = (b - r) / d + 2
+	else:
+		h = (r - g) / d + 4
+	return Vector3(h / 6, s, l)
+
+static func _hsl_to_rgb(h: float, s: float, l: float) -> Vector3:
+	if s == 0:
+		return Vector3(l, l, l)
+	var q := l * (1 + s) if l < 0.5 else l + s - l * s
+	var p := 2 * l - q
+	return Vector3(_hue2rgb(p, q, h + 1.0 / 3), _hue2rgb(p, q, h), _hue2rgb(p, q, h - 1.0 / 3))
+
+static func _hue2rgb(p: float, q: float, t: float) -> float:
+	if t < 0:
+		t += 1
+	if t > 1:
+		t -= 1
+	if t < 1.0 / 6:
+		return p + (q - p) * 6 * t
+	if t < 0.5:
+		return q
+	if t < 2.0 / 3:
+		return p + (q - p) * (2.0 / 3 - t) * 6
+	return p
+
+## PlayerColor.ColorPlayerName as BBCode: what is shown (escaped), in the
+## colour of the player's name.
+static func colored_name(name: String, shown := "") -> String:
+	return "[color=#%s]%s[/color]" % [player_color(name).to_html(false), (shown if shown != "" else name).replace("[", "[lb]")]
+
+## ChatMessageFormat: the first mention of our name in an escaped chat line,
+## in our colour.
+static func highlight_name(text: String, me: String) -> String:
+	var esc := me.replace("[", "[lb]")
+	var at := text.find(esc)
+	if me == "" or at < 0:
+		return text
+	return text.substr(0, at) + colored_name(me) + text.substr(at + esc.length())
+
+## color.js colorizeAutocompleteHotkey.
+const AUTOCOMPLETE_TIP := "Press [Tab] to autocomplete player names."
+
+## functions_utility.js tryAutoComplete: the last word, completed when exactly
+## one name starts with it (any case); ", " after a lone word, else " ".
+static func autocomplete(text: String, names: Array) -> String:
+	var words := text.split(" ")
+	var last := words[words.size() - 1]
+	if last.is_empty():
+		return text
+	var found := []
+	for w in names:
+		if str(w).to_lower().begins_with(last.to_lower()):
+			found.append(str(w))
+			if found.size() > 1:
+				break
+	if found.size() != 1:
+		return text
+	words.remove_at(words.size() - 1)
+	var head := " ".join(words)
+	return (head + " " + found[0] + " ") if head != "" else (found[0] + ", ")
+
+func _online_names() -> Array:
+	var names := []
+	if _players.get_root():
+		for it in _players.get_root().get_children():
+			names.append(str(it.get_metadata(0)))
+	return names
+
+## autoCompleteText: Tab in the search field or the chat line completes the
+## name before the caret.
+func _on_name_input(ev: InputEvent, line: LineEdit) -> void:
+	var k := ev as InputEventKey
+	if k == null or not k.pressed or k.keycode != KEY_TAB:
+		return
+	line.accept_event()
+	var caret := line.caret_column
+	var before := line.text.substr(0, caret)
+	var done := autocomplete(before, _online_names())
+	line.text = done + line.text.substr(caret)
+	line.caret_column = caret + done.length() - before.length()
+
+## PlayerList.selectPlayer: Enter in the search field picks that player.
+func _select_player(name: String) -> void:
+	if _players.get_root() == null:
+		return
+	for it in _players.get_root().get_children():
+		if str(it.get_metadata(0)) == name:
+			it.select(0)
+			_players.scroll_to_item(it)
+			return
+
+## GameList.selectGameFromPlayername: the game the player plays in, else the
+## last one they watch, else the last one they were in (now offline).
+static func game_of_player(rooms: Array, name: String) -> int:
+	if name == "":
+		return -1
+	var pick := -1
+	var as_observer := false
+	for i in rooms.size():
+		for p in rooms[i].get("player_names", []):
+			if split_rating(str(p.get("name", ""))) != name:
+				continue
+			if p.get("observer", false):
+				as_observer = true
+				pick = i
+			elif not p.get("offline", false):
+				return i
+			if not as_observer:
+				pick = i
+	return pick
+
+## splitRatingFromNick: "name (1500)" is "name".
+static func split_rating(s: String) -> String:
+	var m := RegEx.create_from_string("^(.+) \\(\\d+\\)$").search(s)
+	return m.get_string(1) if m else s
+
+func _select_game_of(name: String) -> void:
+	var i := game_of_player(_shown_rooms, name)
+	var top := _games.get_root()
+	if i < 0 or top == null or i >= top.get_child_count():
+		return
+	var it := top.get_child(i)
+	if not it.is_selected(0):
+		it.select(0)
+	_games.scroll_to_item(it)
 
 ## PlayerColor.ColorPlayerName: "@" before a moderator's name.
 func _nick(name: String) -> String:
@@ -806,6 +1301,7 @@ func _chat_command(text: String) -> bool:
 			return false
 		"clear":
 			_chat_log.clear()
+			LobbySession.chat_from = _chat_last # a page opened later starts from here too
 		"kick", "ban":
 			# Engine.LobbyKick / LobbyBan: the nick, then the reason.
 			var j := args.find(" ")
@@ -878,13 +1374,58 @@ func _on_host_saved_pressed() -> void:
 	_on_host_pressed(true)
 
 
-func _on_join_pressed() -> void:
+func _ask_mods(r: Dictionary) -> void:
+	var modlib: GDScript = load("res://scenes/menu/mods.gd")
+	var ask := ConfirmationDialog.new()
+	ask.name = "IncompatibleModsDialog"
+	ask.title = "Incompatible mods"
+	ask.dialog_text = "Your active mods do not match the mods of this game.\n\n" \
+		+ modlib.compared_mods_string(r.get("mods", []) if r.get("mods") is Array else [], modlib.engine_mods()) \
+		+ "\n\nDo you want to switch to the mod selection page?"
+	ask.ok_button_text = "Yes"
+	ask.cancel_button_text = "No"
+	add_child(ask)
+	ask.canceled.connect(ask.queue_free)
+	ask.confirmed.connect(func() -> void:
+		ask.queue_free()
+		# Engine.StopXmppClient, then the mod selection; closing it leaves for the main menu.
+		LobbySession.sign_out()
+		_update_signed_in()
+		var page: Node = load("res://scenes/menu/modmod.gd").open(self)
+		page.tree_exited.connect(func() -> void:
+			if is_inside_tree():
+				MatchSettings.go("res://scenes/menu/main_menu.tscn")))
+	ask.popup_centered()
+
+
+func _on_join_pressed(confirmed := false) -> void:
 	var r := _selected_room()
 	if _join_ip.text.strip_edges() == "" and not r.is_empty():
 		# A listed game: its address comes from the lobby, and only to a
 		# signed-in player (0 A.D. XmppClient SendIqGetConnectionData).
 		if not LobbySession.signed_in():
 			_say("Sign in to join a listed game, or type the host's address.")
+			return
+		# JoinButton.js: a game with other mods offers the mod selection instead.
+		if not LobbySession.game_compatible(r):
+			_ask_mods(r)
+			return
+		# JoinButton.js: a running game we are not in is joined only to watch, if we say so.
+		if not confirmed and str(r.get("state", "init")) != "init" and not (r.get("player_names", []) as Array).any(
+				func(p) -> bool: return str(p.get("name", "")) == LobbySession.player_name):
+			var ask := ConfirmationDialog.new()
+			ask.name = "ObserveDialog"
+			ask.title = "Confirmation"
+			ask.dialog_text = "The game has already started. Do you want to join as observer?"
+			ask.ok_button_text = "Yes"
+			ask.cancel_button_text = "No"
+			add_child(ask)
+			ask.confirmed.connect(func() -> void:
+				ask.queue_free()
+				_observe.button_pressed = true
+				_on_join_pressed(true))
+			ask.canceled.connect(ask.queue_free)
+			ask.popup_centered()
 			return
 		_say("Asking the lobby for the game's address...")
 		LobbySession.post_json("/rooms/connect", {"token": LobbySession.token, "id": str(r.get("id", ""))},
@@ -894,14 +1435,17 @@ func _on_join_pressed() -> void:
 				if code != 200 or not obj is Dictionary:
 					_say("Could not get the game's address from the lobby.")
 					return
-				_start_join(str(obj.get("host_ip", "")), int(obj.get("host_port", 0)), str(r.get("id", ""))))
+				_start_join(str(obj.get("host_ip", "")), int(obj.get("host_port", 0)), str(r.get("id", "")),
+						str(obj.get("ticket", ""))))
 		return
 	_start_join(_join_ip.text.strip_edges(), _join_port.text.to_int(), "")
 
 
 # A typed address is joined directly; a listed game (room_id) through the
 # lobby, with STUN and hole punching (0 A.D. TryToConnectWithSTUN).
-func _start_join(ip: String, port: int, room_id: String) -> void:
+# ticket: the lobby's, which a host signed in to the lobby redeems for this
+# player's name (a typed address carries none, and such a host refuses it).
+func _start_join(ip: String, port: int, room_id: String, ticket := "") -> void:
 	if ip == "" or port <= 0 or port > 65535:
 		_say("Type the host's address and port, or pick a game.")
 		return
@@ -912,6 +1456,7 @@ func _start_join(ip: String, port: int, room_id: String) -> void:
 	MatchSettings.net_port = port
 	MatchSettings.net_password = _join_pwd.text
 	MatchSettings.net_observe = _observe.button_pressed
+	MatchSettings.net_lobby_ticket = ticket
 	var via_lobby := room_id != ""
 	if not via_lobby:
 		# gamesetup_mp.js startJoin: a direct join keeps its address and port.
@@ -966,7 +1511,7 @@ func _on_host_pressed(saved := false) -> void:
 			"host_name": who,
 			"map_id": MatchSettings.map_id,
 			"map_name": MatchSettings.map_id.replace("_", " ").capitalize(),
-			"max_players": 8,
+			"max_players": MatchSettings.player_count,
 			"players": 1,
 			"password": _host_pwd.text != "",
 			"state": "init",
