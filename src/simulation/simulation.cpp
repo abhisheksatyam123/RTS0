@@ -3640,10 +3640,13 @@ void Simulation::tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type
 		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, bld_type) * library
 			* (stat == TEAM_BONUS_TECH_COST && r >= 0 ? tc[r] : 1.0f);
 	};
-	paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
-	paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
-	paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
-	paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	// TechnologyManager.js Queue: Math.floor(multiplier x cost) (a float product a hair under a
+	// whole number still counts as it).
+	auto price = [](float cost, float mult) { return std::floor((double)cost * (double)mult + 1e-4); };
+	paid[RES_FOOD] = price(tinfo.food_cost, team(TEAM_BONUS_TECH_COST, RES_FOOD));
+	paid[RES_WOOD] = price(tinfo.wood_cost, team(TEAM_BONUS_TECH_COST, RES_WOOD));
+	paid[RES_GOLD] = price(tinfo.gold_cost, team(TEAM_BONUS_TECH_COST, RES_GOLD));
+	paid[RES_STONE] = price(tinfo.stone_cost, team(TEAM_BONUS_TECH_COST, RES_STONE));
 	// TechnologyManager.js Queue: techCostMultiplier.time x researchTime. The AI's Cost/BuildTime
 	// cheat (config.js Cheat) reaches units and structures, not technologies.
 	time = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
