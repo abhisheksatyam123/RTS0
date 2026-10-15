@@ -490,6 +490,9 @@ static var _map_types := {} # map id -> its map type (the map list file, read on
 static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictionary:
 	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
 	var map_id := str(ms.get("map_id"))
+	# A Random map stays Random in the game list until the game starts.
+	if ms.get("net_map_random") == true and started_at <= 0:
+		map_id = "random"
 	var map_name := map_id.replace("_", " ").capitalize()
 	var map_type := ""
 	for r in setup.RMS_MAPS:
@@ -723,7 +726,34 @@ static func rating_report(stats: Dictionary, summary: Dictionary, seat: int) -> 
 		for p in players:
 			out += str((p.get("stats", {}) as Dictionary).get(key, 0)) + ","
 		return out
-	return {
+	var lower := func(t: String) -> String: return t.substr(0, 1).to_lower() + t.substr(1)
+	# Per-class and per-resource counters, in the first player's key order as 0.28 does.
+	var nested := func(group: String, key: String) -> String:
+		var out := ""
+		for p in players:
+			out += str(((p.get("stats", {}) as Dictionary).get(group, {}) as Dictionary).get(key, 0)) + ","
+		return out
+	var first: Dictionary = players[0].get("stats", {})
+	var extra := {}
+	# Resources.js: <res>Gathered/Used/Sold/Bought and vegetarianFoodGathered.
+	for action in ["Gathered", "Used", "Sold", "Bought"]:
+		for res in ["food", "wood", "stone", "metal"]:
+			extra[res + action] = nested.call("resources" + action, res)
+	extra["vegetarianFoodGathered"] = nested.call("resourcesGathered", "vegetarianFood")
+	# Units.js and Buildings.js: every class the tracker counts.
+	for c in (first.get("unitsTrained", {}) as Dictionary).keys():
+		extra[lower.call(str(c)) + "UnitsTrained"] = nested.call("unitsTrained", c)
+	for c in (first.get("unitsLost", {}) as Dictionary).keys():
+		extra[lower.call(str(c)) + "UnitsLost"] = nested.call("unitsLost", c)
+	for c in (first.get("enemyUnitsKilled", {}) as Dictionary).keys():
+		extra["enemy" + str(c) + "UnitsKilled"] = nested.call("enemyUnitsKilled", c)
+	for c in (first.get("buildingsConstructed", {}) as Dictionary).keys():
+		extra[lower.call(str(c)) + "BuildingsConstructed"] = nested.call("buildingsConstructed", c)
+	for c in (first.get("buildingsLost", {}) as Dictionary).keys():
+		extra[lower.call(str(c)) + "BuildingsLost"] = nested.call("buildingsLost", c)
+	for c in (first.get("enemyBuildingsDestroyed", {}) as Dictionary).keys():
+		extra["enemy" + str(c) + "BuildingsDestroyed"] = nested.call("enemyBuildingsDestroyed", c)
+	var report := {
 		"playerID": seat + 1,
 		"matchID": "%s-%s-%s" % [str(summary.get("seed", 0)), str(summary.get("map_id", "")), ",".join(sorted_names)],
 		"mapName": str(stats.get("map_name", "")),
@@ -740,7 +770,12 @@ static func rating_report(stats: Dictionary, summary: Dictionary, seat: int) -> 
 		"tributesReceived": stat.call("tributesReceived"),
 		"treasuresCollected": stat.call("treasuresCollected"),
 		"lootCollected": stat.call("lootCollected"),
+		# Misc.js percentMapExplored; Players.js teamsLocked.
+		"percentMapExplored": join.call("percentMapExplored"),
+		"teamsLocked": "true" if bool(stats.get("lock_teams", false)) else "false",
 	}
+	report.merge(extra)
+	return report
 
 
 ## gamedescription.js g_Buddies: lobby.buddies, comma separated.

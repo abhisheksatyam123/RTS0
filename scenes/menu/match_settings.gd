@@ -106,6 +106,9 @@ var net_lobby_ticket: String = ""
 # 0 A.D. "Host Saved Game": with net_mode "host", the save in load_save_path is
 # continued in multiplayer (cleared once used).
 var net_saved_game: bool = false
+# Host, before Start: the map is Random (MapSelection.js). map_id holds the map
+# it picked, which RtsoMain sends as "random" until NMT_GAME_START.
+var net_map_random: bool = false
 # 0 A.D. campaignData: the campaign run (its file name under user://saves/campaigns/)
 # and the level being played; empty outside a campaign. Saves and replays keep them.
 var campaign_run: String = ""

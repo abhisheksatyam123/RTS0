@@ -2787,6 +2787,44 @@ static void test_idle_drift_walk_back() {
 	check(run_case(STANCE_AGGRESSIVE) > 5.0f, "an aggressive builder stays by the house");
 }
 
+static void test_queue_after_auto_fight() {
+	std::printf("78. an order queued during a fight, flight or cheer the unit took up while idle runs once it ends (FinishOrder)\n");
+	auto walked = [](Simulation &s, uint32_t u) {
+		const auto *q = s.unit_order_queue(u);
+		return dist(s, u, -30.0f, 0.0f) < 3.0f && (!q || q->empty());
+	};
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		s.spawn_unit(4, 0, 1, UNIT_SPEARMAN, 60.0f);
+		run(s, 1.0f);
+		check(act_of(s, a) == ACTION_ATTACK, "the idle swordsman fights the spearman");
+		s.order_walk(&a, 1, -30, 0, true);
+		check(run_until(s, 40.0f, [&] { return walked(s, a); }), "then walks the queued walk");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+		uint32_t e = s.spawn_unit(2, 0, 1, UNIT_SWORDSMAN);
+		s.order_attack(&e, 1, w, false);
+		check(run_until(s, 20.0f, [&] { return act_of(s, w) == ACTION_FLEE; }), "the woman flees");
+		s.order_walk(&w, 1, -30, 0, true);
+		s.cmd_delete(1, &e, 1);
+		check(run_until(s, 40.0f, [&] { return walked(s, w); }), "then walks the queued walk");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		s.spawn_unit(3, 0, 1, UNIT_SPEARMAN, 5.0f);
+		check(run_until(s, 20.0f, [&] { return act_of(s, a) == ACTION_CHEER; }), "the swordsman cheers its kill");
+		s.order_walk(&a, 1, -30, 0, true);
+		check(run_until(s, 40.0f, [&] { return walked(s, a); }), "then walks the queued walk");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2868,6 +2906,7 @@ int main(int argc, char **argv) {
 	test_healer_stances();
 	test_forced_flag_not_inherited();
 	test_idle_drift_walk_back();
+	test_queue_after_auto_fight();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

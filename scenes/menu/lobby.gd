@@ -16,6 +16,7 @@ extends Control
 # (Buttons/BuddyButton.js) keeps lobby.buddies, and buddies and the games they
 # are in carry the "•" mark (gamedescription.js g_BuddySymbol).
 
+const GameSetupMp := preload("res://scenes/menu/gamesetup_mp.gd")
 const REFRESH_S := 3.0
 
 var _server: LineEdit
@@ -1466,23 +1467,7 @@ func _start_join(ip: String, port: int, room_id: String, ticket := "") -> void:
 	if ip == "" or port <= 0 or port > 65535:
 		_say("Type the host's address and port, or pick a game.")
 		return
-	MatchSettings.net_mode = "join"
-	MatchSettings.net_lobby = LobbySession.address
-	MatchSettings.net_player_name = _player_name()
-	MatchSettings.net_ip = ip
-	MatchSettings.net_port = port
-	MatchSettings.net_password = _join_pwd.text
-	MatchSettings.net_observe = _observe.button_pressed
-	MatchSettings.net_lobby_ticket = ticket
-	var via_lobby := room_id != ""
-	if not via_lobby:
-		# gamesetup_mp.js startJoin: a direct join keeps its address and port.
-		var cfg := RtsoUserConfig.new()
-		cfg.set_value("multiplayerserver", MatchSettings.net_ip)
-		cfg.set_value("multiplayerjoining.port", str(port))
-		cfg.save()
-	LobbySession.join_game(room_id)
-	MatchSettings.go("res://scenes/main.tscn")
+	GameSetupMp.start_join(_player_name(), ip, port, _join_pwd.text, _observe.button_pressed, room_id, ticket)
 
 
 func _on_host_pressed(saved := false) -> void:
@@ -1497,40 +1482,4 @@ func _on_host_pressed(saved := false) -> void:
 		if str(r.get("name", "")) == game_name and str(r.get("host_name", "")) != who:
 			_say("Game name already in use.")
 			return
-	MatchSettings.net_mode = "host"
-	MatchSettings.net_lobby = LobbySession.address
-	MatchSettings.net_player_name = who
-	MatchSettings.net_port = port
-	MatchSettings.net_password = _host_pwd.text
-	MatchSettings.net_observe = false
-	# gamesetup_mp.js startHost keeps multiplayerhosting.port.
-	var cfg := RtsoUserConfig.new()
-	cfg.set_value("multiplayerhosting.port", str(port))
-	cfg.save()
-	LobbySession.map_upnp(port)
-	if saved:
-		# gamesetup_mp.js handleAuthenticated: the host picks the save (the
-		# load page), and the match scene hosts it once loaded
-		# and registers its game in the lobby.
-		MatchSettings.net_saved_game = true
-		var d: Node = load("res://scenes/session/savegame_dialog.gd").open(self, "load")
-		d.closed.connect(func() -> void:
-			MatchSettings.net_saved_game = false
-			MatchSettings.net_mode = "")
-		return
-	if LobbySession.signed_in():
-		# The same id main_node registers, so both update one entry (the lobby
-		# matches main_node's untokened post to it by address).
-		LobbySession.host_game({
-			"id": "room-%d" % port,
-			"host_port": port,
-			"name": game_name,
-			"host_name": who,
-			"map_id": MatchSettings.map_id,
-			"map_name": MatchSettings.map_id.replace("_", " ").capitalize(),
-			"max_players": MatchSettings.player_count,
-			"players": 1,
-			"password": _host_pwd.text != "",
-			"state": "init",
-		})
-	MatchSettings.go("res://scenes/main.tscn")
+	GameSetupMp.start_host(self, who, game_name, port, _host_pwd.text, saved)

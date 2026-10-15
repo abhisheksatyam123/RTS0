@@ -10,7 +10,7 @@ struct TerritoryInfluenceInfo {
 	bool root; // Root: connects the territory around it
 };
 
-inline constexpr uint8_t TERRITORY_INFLUENCE_ROWS = 86;
+inline constexpr uint8_t TERRITORY_INFLUENCE_ROWS = 87;
 inline const TerritoryInfluenceInfo &territory_influence_info(uint8_t type) {
 	static const TerritoryInfluenceInfo kTable[TERRITORY_INFLUENCE_ROWS + 1] = {
 		{35.0f, 10000, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre (140 m)
@@ -99,6 +99,7 @@ inline const TerritoryInfluenceInfo &territory_influence_info(uint8_t type) {
 		{20.0f, 40000, false}, // BLD_FORTRESS_OLD: structures/han/fortress_old (80 m)
 		{0.0f, 0, false}, // BLD_LAOZI_GATE: structures/han/laozigate
 		{10.0f, 30000, false}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2 (40 m)
+		{0.0f, 0, false}, // BLD_MILL: structures/mill_greek
 		{0.0f, 0, false}, // out of range
 	};
 	return kTable[type < TERRITORY_INFLUENCE_ROWS ? type : TERRITORY_INFLUENCE_ROWS];

@@ -400,13 +400,58 @@ func _build_tabs() -> void:
 			if d != 0:
 				select_tab(TAB_BUTTONS_JS.next_index(_tab, d, TAB_BUTTONS.size()))
 				b.accept_event())
+	# A container re-sort puts the sliding panel back at 0; keep it where it is.
+	(get_node("%TabButtons").get_parent() as Container).sort_children.connect(func():
+		if _slide_panel != null:
+			_slide_panel.position.x = _slide_x)
 	select_tab(-1 if _mp_role == "client" else 0)
 
 func select_tab(i: int) -> void:
+	var was := _tab
 	_tab = i
+	var slide := RtsoUserConfig.new().get_bool("gui.gamesetup.settingsslide")
 	for k in SETTING_TABS.size():
-		(get_node("%" + SETTING_TABS[k]) as Control).visible = k == i
+		var panel: Control = get_node("%" + SETTING_TABS[k])
+		# The panel that closes with nothing taking its place stays up while it
+		# slides out; the others switch at once, as 0.28's do.
+		panel.visible = k == i or (slide and i == -1 and k == was)
 		(get_node("%" + TAB_BUTTONS[k]) as Button).set_pressed_no_signal(k == i)
+	if not slide:
+		_slide_x = 0.0
+		_slide_panel = null
+		return
+	if was == -1 and i != -1:
+		_slide_panel = get_node("%" + SETTING_TABS[i])
+		if _slide_x == 0.0:
+			_slide_x = -_slide_width()
+	elif i == -1 and was != -1:
+		_slide_panel = get_node("%" + SETTING_TABS[was])
+	elif i != -1:
+		_slide_panel = get_node("%" + SETTING_TABS[i])
+
+## 0.28 GameSettingsPanel.js onTick (gui.gamesetup.settingsslide): the settings
+## panel slides in from the left at 1.2 px/ms when a tab opens and back out when
+## the last one closes.
+const SLIDE_SPEED := 1200.0 # px per second
+var _slide_x := 0.0
+var _slide_panel: Control = null
+
+func _slide_width() -> float:
+	return maxf((get_node("%TabButtons") as Control).size.x, 330.0)
+
+func _tick_slide(delta: float) -> void:
+	if _slide_panel == null:
+		return
+	var target := 0.0 if _tab != -1 else -_slide_width()
+	_slide_x = move_toward(_slide_x, target, SLIDE_SPEED * delta)
+	_slide_panel.position.x = _slide_x
+	if _slide_x != target:
+		return
+	if _tab == -1:
+		_slide_panel.visible = false
+		_slide_panel.position.x = 0.0
+		_slide_x = 0.0
+	_slide_panel = null
 
 # ---------------------------------------------------------------- maps ---
 
@@ -1769,15 +1814,18 @@ const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors", "local_slot"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
+## PersistentMatchSettings(isNetworked): a networked game's controller keeps its own file.
+const PERSIST_FILE_MP := "user://config/matchsettings.mp.json"
 const PERSIST_KEY := "persistmatchsettings"
 const PERSIST_VERSION := 1
 
 ## 0 A.D. PersistentMatchSettings.loadFile: the settings saved on the last Start
 ## or Back while "Persist match settings" is on, else {}.
-static func load_persisted() -> Dictionary:
-	if not RtsoUserConfig.new().get_bool(PERSIST_KEY) or not FileAccess.file_exists(PERSIST_FILE):
+static func load_persisted(networked := false) -> Dictionary:
+	var path := PERSIST_FILE_MP if networked else PERSIST_FILE
+	if not RtsoUserConfig.new().get_bool(PERSIST_KEY) or not FileAccess.file_exists(path):
 		return {}
-	var f := FileAccess.open(PERSIST_FILE, FileAccess.READ)
+	var f := FileAccess.open(path, FileAccess.READ)
 	var data: Variant = JSON.parse_string(f.get_as_text()) if f else null
 	if typeof(data) != TYPE_DICTIONARY or int(data.get("version", 0)) != PERSIST_VERSION:
 		return {}
@@ -1786,10 +1834,15 @@ static func load_persisted() -> Dictionary:
 
 ## PersistentMatchSettings.saveFile: written whether or not the option is on,
 ## empty when it is off, so turning it back on doesn't bring back old settings.
+## GameSettingsController.savePersistentMatchSettings: only the controller,
+## never for a saved game; a networked one to matchsettings.mp.json.
 func save_persisted() -> void:
+	if _mp_role == "client" or (_mp_role == "host" and _saved_game()):
+		return
 	var on := RtsoUserConfig.new().get_bool(PERSIST_KEY)
-	DirAccess.make_dir_recursive_absolute(PERSIST_FILE.get_base_dir())
-	var f := FileAccess.open(PERSIST_FILE, FileAccess.WRITE)
+	var path := PERSIST_FILE_MP if _mp_role == "host" else PERSIST_FILE
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify({"version": PERSIST_VERSION, "attributes": page_state() if on else {}}, "\t"))
 
@@ -1825,8 +1878,17 @@ func _restore_settings() -> void:
 	var src := {}
 	for k in PERSISTED_KEYS:
 		src[k] = m.get(k)
-	# A networked game's setup is the host's MatchSettings, never this player's saved file.
-	var saved := load_persisted() if net_main == null else {}
+	# GameSettingsController.onLoad: the controller's own persisted settings
+	# (a networked host's from matchsettings.mp.json, none for a saved game);
+	# a client's setup is the host's MatchSettings.
+	var saved := {}
+	if net_main == null:
+		saved = load_persisted()
+	elif net_main.has_method("get_net_setup_state"):
+		var st: Dictionary = net_main.get_net_setup_state()
+		if bool(st.get("controller", false)) and not bool(st.get("saved_game", false)):
+			saved = load_persisted(true)
+			saved.erase("local_slot")
 	for k in saved:
 		if src.has(k) and typeof(saved[k]) in [TYPE_FLOAT, TYPE_INT, TYPE_BOOL, TYPE_STRING, TYPE_ARRAY]:
 			src[k] = saved[k]
@@ -1925,6 +1987,7 @@ func _apply_settings(ms: Dictionary) -> void:
 
 func _on_back_pressed() -> void:
 	if _mp_role != "none":
+		save_persisted() # GameSettingsController.onClose (the host's)
 		# 0 A.D. gamesetup's Back in a networked game: leave it for the lobby.
 		net_main.leave_net_game()
 		return
@@ -2065,6 +2128,8 @@ func _on_start_pressed() -> void:
 	if _mp_role == "host":
 		# The host's MatchSettings is the setup; RtsoMain starts every peer
 		# once all players are ready (0.28 ReadyController).
+		if bool(_net_state.get("can_start", false)):
+			save_persisted() # launchGame, before Random is resolved
 		_host_write_setup(true)
 		net_main._on_lobby_start_pressed()
 		return
@@ -2176,7 +2241,8 @@ var _wait_label: Label
 var _rated: CheckBox
 var _setting_warning: Label
 var _saved_label: Label
-var _rated_was_available := false
+## The player count and cheats setting Rated Game was last set from (Rating.js maybeUpdate).
+var _rated_key := ""
 ## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
 ## StayReady); pressing moves to the next state.
 const READY_CAPTIONS := ["I'm ready", "Stay ready", "I'm not ready!"]
@@ -2271,7 +2337,7 @@ func _build_net_controls() -> void:
 	_rated = CheckBox.new()
 	_rated.name = "RatedGame"
 	_rated.text = "Rated Game"
-	_rated.tooltip_text = "Toggle 1v1 rated game."
+	_rated.tooltip_text = "Toggle if this game will be rated for the leaderboard."
 	_rated.toggled.connect(func(_on): _update_rated(); _update_net_controls())
 	# GameSettingsLayout.js: Rating closes the Game Type tab.
 	%TeamsRow.add_child(_rated)
@@ -2353,8 +2419,9 @@ func _update_net_chat() -> void:
 	var log: RichTextLabel = %NetChatLog
 	log.text = str(chat.get("text", ""))
 
-## Rating.js: a lobby game of exactly two players may be rated, and is by
-## default when it becomes one; Cheats.js: a rated game has no cheats.
+## Rating.js: a lobby game of exactly two players without cheats may be rated, and is by
+## default whenever the player count or cheats change (maybeUpdate: enabled = available);
+## Cheats.js: a rated game has no cheats.
 func _rated_available() -> bool:
 	# Rating.js: a saved game is never rated.
 	return not _saved_game() and has_node("/root/MatchSettings") and str(get_node("/root/MatchSettings").net_lobby) != "" \
@@ -2363,15 +2430,16 @@ func _rated_available() -> bool:
 func _update_rated() -> void:
 	if _rated == null or _mp_role != "host":
 		return
-	var avail := _rated_available()
-	if avail and not _rated_was_available:
-		_rated.set_pressed_no_signal(true)
-	_rated_was_available = avail
-	_rated.visible = avail
 	var cheats: CheckBox = %Cheats
+	var avail := _rated_available() and not cheats.button_pressed
+	var key := "%d/%s" % [_net_rows().size(), cheats.button_pressed]
+	if key != _rated_key:
+		_rated_key = key
+		_rated.set_pressed_no_signal(avail)
+	if not avail:
+		_rated.set_pressed_no_signal(false)
+	_rated.visible = avail
 	cheats.disabled = avail and _rated.button_pressed
-	if cheats.disabled:
-		cheats.set_pressed_no_signal(false)
 
 func _update_net_controls() -> void:
 	if _mp_role == "none":
@@ -2404,6 +2472,7 @@ func _on_ready_pressed() -> void:
 	_update_net_controls()
 
 func _process(delta: float) -> void:
+	_tick_slide(delta)
 	# GameDescription.updateGameDescription: the summary follows every setting.
 	_desc_tick += delta
 	if _desc_tick >= 0.3:
@@ -2441,8 +2510,11 @@ func _host_write_setup(force: bool) -> void:
 		ps[k] = keep.filter(func(i): return i < a.size()).map(func(i): return a[i])
 	if not ps["slot_types"].is_empty():
 		ps["slot_types"][0] = mini(int(ps["slot_types"][0]), 1)
-	if str(ps["map_id"]) == RANDOM_MAP_ID:
-		# Every peer must load the same map, so Random picks one at once.
+	ps["net_map_random"] = str(ps["map_id"]) == RANDOM_MAP_ID
+	if ps["net_map_random"]:
+		# Every peer must load the same map, so Random picks one now; the
+		# clients see "Random" until Start (launchGame resolves it), as
+		# RtsoMain sends the setup with map "random".
 		var pool := _filtered.filter(func(x): return str(x["id"]) != RANDOM_MAP_ID)
 		if not pool.any(func(x): return str(x["id"]) == _net_random_map) and not pool.is_empty():
 			_net_random_map = str(pool[randi() % pool.size()]["id"])

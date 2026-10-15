@@ -11866,14 +11866,16 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	std::vector<std::pair<float, float>> fruit_trees;
 	uint8_t fruit_kind = FLORA_DEFAULT;
 	uint16_t fruit_food = 0;
-	// Islands: a player's woodline, 10-13 from its civic centre (forests and stragglers keep out).
+	// placePlayerBaseTrees: each player's starting trees, 11-13 tiles from its start plus their
+	// group's spread, are the script's tree1 ("Trees": {"template": oTree1}), not stragglers
+	// (createStragglerTrees keeps off the player areas).
+	constexpr float BASE_TREE_REACH = 18.0f;
 	std::vector<std::pair<float, float>> starts;
-	if (type == MAP_ISLANDS)
-		for (const auto &b : sim.buildings())
-			if (is_civic_centre(b.type) && b.team < MAX_PLAYERS) starts.emplace_back(b.x, b.z);
-	auto near_start = [&](float x, float z) {
+	for (const auto &b : sim.buildings())
+		if (is_civic_centre(b.type) && b.team < MAX_PLAYERS) starts.emplace_back(b.x, b.z);
+	auto base_tree = [&](float x, float z) {
 		for (const auto &[sx, sz] : starts)
-			if ((x - sx) * (x - sx) + (z - sz) * (z - sz) < 16.0f * 16.0f) return true;
+			if ((x - sx) * (x - sx) + (z - sz) * (z - sz) < BASE_TREE_REACH * BASE_TREE_REACH) return true;
 		return false;
 	};
 	// Trees per 2-tile cell, to tell forests from stragglers.
@@ -11906,16 +11908,15 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 			kind = (second ? t45 : t12)[h & 1u];
 			wood = (second ? w45 : w12)[h & 1u];
 			gatherers = (second ? g45 : g12)[h & 1u];
-		} else if (type == MAP_ISLANDS && near_start(rv.x[r], rv.z[r])) {
-			// islands.js placePlayerBases "Trees": the five home trees are all oTree1.
-			kind = t12[0];
-			wood = w12[0];
-			gatherers = g12[0];
 		} else if (type == MAP_LOWER_NUBIA && own) {
 			// lower_nubia.js's lone trees are its stragglers (acacia, dead tree, bush_badlands), not palms.
 			kind = f->tree3[h % (uint32_t)n3];
 			wood = f->tree3_wood[h % (uint32_t)n3];
 			gatherers = tree_slot_gatherers(slot_name, own, 1, (int)(h % (uint32_t)n3), 0);
+		} else if (base_tree(rv.x[r], rv.z[r])) {
+			kind = t12[0];
+			wood = w12[0];
+			gatherers = g12[0];
 		} else {
 			// createStragglerTrees: [tree1, tree2, tree4, tree3].
 			const uint8_t pick[4] = {t12[0], t12[1], t45[0], t3};
