@@ -901,8 +901,10 @@ void RtsoMain::_process(double delta) {
 	if (net_lockstep()) {
 		if (net_game_started_) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
-			if (turn_mgr_.tick((float)scaled_delta, *sim))
+			if (turn_mgr_.tick((float)scaled_delta, *sim)) {
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
+				rejoin_test_turn();
+			}
 			// OutOfSyncNetwork: the box opens once the dump is written, and again
 			// if the host later names an earlier diverging turn.
 			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
@@ -986,6 +988,7 @@ void RtsoMain::_process(double delta) {
 			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;
+				rejoin_test_turn();
 			}
 		}
 	} else {

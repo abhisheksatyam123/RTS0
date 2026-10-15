@@ -52,6 +52,7 @@
 #include <godot_cpp/classes/input.hpp>
 #include <unordered_map>
 #include <utility>
+#include <memory>
 #include <vector>
 
 #include "../simulation/simulation.h"
@@ -752,7 +753,18 @@ private:
 public:
 	bool time_warp_rewind();
 	int time_warp_snapshot_count() const { return (int)time_warp_snapshots_.size(); }
+	// The developer overlay's Activate Rejoin Test (0.28 Engine.ActivateRejoinTest), once its
+	// box's OK is pressed: after the next turn a copy of the game is rejoined from a snapshot
+	// (rejoin_sim_), then every turn is replayed onto the copy too and the two compared, until
+	// the match ends. It can't be turned off.
+	void activate_rejoin_test();
+	Dictionary get_rejoin_test() const;
 private:
+	bool rejoin_test_ = false;
+	std::unique_ptr<rtso::Simulation> rejoin_sim_;
+	std::unique_ptr<rtso::TurnManager> rejoin_tm_;
+	uint32_t rejoin_from_turn_ = 0, rejoin_turns_ = 0, rejoin_oos_turn_ = 0;
+	void rejoin_test_turn();
 	int perspective_pick_ = -1; // the dropdown item picked, until the lockstep turn seats us there
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;
