@@ -6,7 +6,10 @@ extends SceneTree
 #   3. an ally's Civic Center shows its units too, but only ours can be unloaded:
 #      the ally's are disabled and grey, with their names and owner;
 #   4. a vertical bar beside the icons shows the garrisoned units' total health
-#      (updateGarrisonHealthBar), "Health: <sum> / <max sum>", hidden when empty.
+#      (updateGarrisonHealthBar), "Health: <sum> / <max sum>", hidden when empty;
+#   5. two selected siege towers share one panel (Garrison.getItems groups every
+#      holder's units), a click unloads one from each (Commands.js "unload-template"),
+#      and the Formation panel gives way to it (conflictsWith Garrison).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_garrison_panel.gd
 # Exit code 0 = pass.
@@ -51,6 +54,14 @@ func named(g: Array, name: String) -> Dictionary:
 
 func garrison_health() -> ProgressBar:
 	return root.find_child("healthGarrison", true, false) as ProgressBar
+
+func is_formation_button(b: Button) -> bool:
+	if not b.is_visible_in_tree():
+		return false
+	for c in b.get_signal_connection_list("pressed"):
+		if c["callable"].get_method() == "_on_formation_selected":
+			return true
+	return false
 
 func click(i: Dictionary) -> void:
 	(instance_from_id(i["id"]) as Button).pressed.emit()
@@ -111,5 +122,21 @@ func run() -> void:
 		await click(own[0])
 		g = icons()
 		check(g.size() == 1 and g[0]["disabled"], "a click unloads ours; theirs stay")
+	print("5. Two siege towers selected")
+	var towers: PackedInt32Array = main.debug_spawn_units("han/siege_tower", 2)
+	for t in towers:
+		main.debug_put_inside(main.debug_spawn_units("athen/infantry_archer_b", 1), t)
+	await frames(200)
+	main.debug_select_units(towers)
+	await frames(30)
+	g = icons()
+	print("    ", g.map(func(e): return "%s x%d" % [str(e["tip"]).get_slice("\n", 0), e["count"]]))
+	check(g.size() == 1 and g[0]["count"] == 2 and not g[0]["disabled"], "one Archer icon for both towers, x2")
+	var forms: Array = main.find_children("*", "Button", true, false).filter(is_formation_button)
+	check(forms.is_empty(), "no Formation panel under it: %d buttons" % forms.size())
+	if g.size() == 1:
+		await click(g[0])
+		await frames(20)
+		check(icons().is_empty(), "a click unloads one from each tower: " + str(icons().size()))
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

@@ -56,6 +56,8 @@ public:
 	virtual const godot::PackedInt32Array &ui_selected_ids() const = 0;
 	// Every selected structure, the first being ui_selected_building_id().
 	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
+	// The selected structures, ships, rams and siege towers that hold units (Garrison.getItems).
+	virtual std::vector<uint32_t> ui_selected_garrison_holders() const = 0;
 };
 
 class RtsoInspectorView {
@@ -851,6 +853,7 @@ public:
 				!structs.empty() && structs.size() + (size_t)selected_ids.size() > 1) {
 			fill_multiple(*sim, structs);
 			show_selection_grid = true;
+			show_garrison_grid = fill_garrison_grid(*sim, host_->ui_selected_garrison_holders());
 			panel_->set_visible(true);
 			return;
 		}
@@ -1056,6 +1059,8 @@ public:
 			ungarrison_btn_->set_visible(false);
 			selection_grid_.update(selection_groups(*sim, uview, groups), "");
 			show_selection_grid = true;
+			// Ships, rams and siege towers with passengers: one merged garrison panel.
+			show_garrison_grid = fill_garrison_grid(*sim, host_->ui_selected_garrison_holders());
 		}
 		panel_->set_visible(true);
 	}
@@ -1628,11 +1633,32 @@ private:
 	// that type) when we own the holder or the units; others' units show disabled and grey
 	// (not grey for an observer). False when nothing is inside.
 	bool fill_garrison_grid(const rtso::Simulation &sim, uint32_t holder) {
+		return fill_garrison_grid(sim, std::vector<uint32_t>{holder});
+	}
+
+	// Garrison.getItems: the units of every selected holder in one EntityGroups, so two
+	// towers' archers make one icon.
+	bool fill_garrison_grid(const rtso::Simulation &sim, const std::vector<uint32_t> &holders) {
 		using namespace godot;
-		uint8_t holder_owner = 0xFF;
-		const std::vector<uint32_t> inside = sim.holder_contents(holder, &holder_owner);
+		const uint8_t me = host_->local_player();
+		std::vector<uint32_t> inside;
+		std::vector<uint32_t> in_own_holder; // units we may unload as the holder's owner
+		for (uint32_t holder : holders) {
+			uint8_t holder_owner = 0xFF;
+			const std::vector<uint32_t> in = sim.holder_contents(holder, &holder_owner);
+			inside.insert(inside.end(), in.begin(), in.end());
+			if (holder_owner == me) in_own_holder.insert(in_own_holder.end(), in.begin(), in.end());
+		}
 		if (inside.empty()) return false;
 		auto uview = sim.units();
+		std::vector<int> own_holder_keys;
+		for (uint32_t id : in_own_holder)
+			for (size_t i = 0; i < uview.count; ++i)
+				if (uview.id[i] == id) {
+					own_holder_keys.push_back(RtsoSelectionGrid::owner_key(uview.unit_type[i],
+							uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uview.team[i]));
+					break;
+				}
 		std::vector<RtsoSelectionGrid::Group> groups = RtsoSelectionGrid::group_units(uview, inside.data(), inside.size(), true);
 		// updateGarrisonHealthBar: every garrisoned unit's health summed, hidden at none.
 		float hp = 0.0f, max_hp = 0.0f;
@@ -1647,10 +1673,12 @@ private:
 			garrison_hp_bar_->set_tooltip_text(rtso::seldet::health(hp, max_hp));
 		}
 		if (groups.size() > 12) groups.resize(12);
-		const uint8_t me = host_->local_player();
 		const bool observer = me >= rtso::MAX_PLAYERS;
 		for (auto &g : groups) {
-			g.enabled = !observer && (me == holder_owner || me == g.player);
+			// controlsPlayer(data.player) || controlsPlayer(entState.player): we own a holder of
+			// these units, or the units.
+			g.enabled = !observer && (me == g.player ||
+					std::find(own_holder_keys.begin(), own_holder_keys.end(), g.key) != own_holder_keys.end());
 			g.grey = !observer;
 			const uint32_t rgb = rtso::display_colors::rgb(sim, g.player);
 			g.bg = Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 160.0f / 255.0f);

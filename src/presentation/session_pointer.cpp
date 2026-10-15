@@ -63,13 +63,18 @@ void RtsoMain::update_cursor() {
 	const Vector2 mouse = vp->get_mouse_position();
 	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
 	if (!over_ui && !build_mode) {
-		if (flare_armed_ || flare_held()) {
-			want = "action-flare";
+		// input.js updateCursorAndTooltip: never in a replay; an observer's flare has its own cursor.
+		if ((flare_armed_ && !turn_mgr_.is_replaying()) || flare_held()) {
+			want = spectating() ? "action-observer-flare" : "action-player-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
 			const Vector3 at = get_ground_click_pos(mouse);
 			if (over_own_rally_structure(at) &&
 					!(rtso::hotkeys::held("session.autorallypoint") && selected_building_trains_units())) {
 				want = "action-unset-rally";
+			} else if (selected_building_shoots() && rtso::hotkeys::held("session.focusfire")) {
+				// unit_actions.js "set-rallypoint" getActionInfo: an attacking structure with
+				// session.focusfire held aims ("action-target") instead of setting the rally point.
+				want = "action-target";
 			} else {
 				// unit_actions.js "set-rallypoint" getActionInfo: the cursor of what the trained
 				// units will do there (RallyPoint orders: gather, repair, garrison, attack).
@@ -291,6 +296,13 @@ void RtsoMain::update_cursor() {
 		return;
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
+	if (tex.is_null()) {
+		// 0.28's own art for these isn't in the repo yet (ASSET_MANIFEST_TODO): the nearest cursor.
+		static const char *const kStandIn[][2] = {{"action-player-flare", "action-flare"},
+				{"action-observer-flare", "action-flare"}, {"action-target", "action-attack"}};
+		for (const auto &m : kStandIn)
+			if (std::strcmp(want, m[0]) == 0) tex = load_tex(String("res://assets/textures/cursors/") + m[1] + ".png");
+	}
 	if (tex.is_null()) {
 		// Cursors not ported yet (-disabled variants, cancel-setup-trade-route) use the base one.
 		String base = String(want).trim_suffix("-disabled").replace("action-cancel-", "action-");
@@ -673,6 +685,14 @@ bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execu
 
 // input.js updateCursorAndTooltip / handleInputBeforeGui: session.flare held arms a flare,
 // never in a replay (!g_IsReplay).
+bool RtsoMain::selected_building_shoots() const {
+	if (!sim || selected_building_id == 0 || !selected_ids.is_empty()) return false;
+	for (const auto &b : sim->buildings())
+		if (b.id == selected_building_id)
+			return b.team == local_player() && rtso::building_ai_info(b.type).shoots();
+	return false;
+}
+
 bool RtsoMain::flare_held() const {
 	return !turn_mgr_.is_replaying() && rtso::hotkeys::held("session.flare");
 }
