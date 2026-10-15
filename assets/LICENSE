@@ -22,6 +22,10 @@ Exceptions:
   derivative), https://dejavu-fonts.github.io/License.html
 - assets/fonts/LinBiolinum_*.ttf: Linux Libertine/Biolinum, SIL Open Font
   License 1.1 or GPL with font exception, https://libertine-fonts.org
+- assets/fonts/cjk/NotoSansCJK-*-Regular.otf: Noto Sans CJK (the glyphs of
+  Source Han Sans, which 0 A.D. ships), (c) 2014-2021 Adobe, SIL Open Font
+  License 1.1 (assets/fonts/cjk/OFL.txt), subset per language by
+  tools/subset_cjk_fonts.py
 - assets/maps/heightmaps/*.png: heightmaps from 0 A.D.'s random maps; the
   imagery is by Jesse Allen, NASA's Earth Observatory, from GEBCO data, public
   domain (https://visibleearth.nasa.gov/useterms.php).

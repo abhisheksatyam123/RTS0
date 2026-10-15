@@ -371,9 +371,11 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 void RtsoMain::_on_tech_pressed_at(int tech_id, int64_t building_id) {
 	if (building_id == 0) return;
 	if (turn_cmds())
-		post_lockstep(9, nullptr, 0, 0, 0, (uint32_t)building_id, (uint8_t)tech_id);
+		// selection_panels_helpers.js addResearchToQueue: "pushFront" (target_x 1).
+		post_lockstep(9, nullptr, 0, rtso::hotkeys::held("session.pushorderfront") ? 1.0f : 0.0f, 0, (uint32_t)building_id,
+				(uint8_t)tech_id);
 	else
-		sim->cmd_research(local_player(), (uint32_t)building_id, (uint8_t)tech_id);
+		sim->cmd_research(local_player(), (uint32_t)building_id, (uint8_t)tech_id, rtso::hotkeys::held("session.pushorderfront"));
 }
 
 // The selected structures of the primary one's type, primary first: 0.28's selection
