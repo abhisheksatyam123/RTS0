@@ -2044,10 +2044,14 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
 		// template_structure_defensive_palisade: Defensive Palisade, no Wall.
 		case BLD_PALISADE: case BLD_PALISADE_GATE: return c | TC_DEFENSIVE;
-		case BLD_TEMPLE: case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS: return c | TC_TEMPLE | TC_CIVIC;
-		// Other template_structure_civic children. The Kushite temple's TempleOfApedemak
-		// auras reach RTS0 as Temple, so the Temple of Amun stays out of that class.
-		case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA: case BLD_TEMPLE_MARS:
+		// structures/kush/temple is the Temple of Apedemak; RTS0's one temple type carries the
+		// class, which only Arakamani's aura names and it reaches only its Kushite owner.
+		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC | TC_TEMPLEOFAPEDEMAK;
+		// template_structure_civic_temple's other children: the shrines, the temples of Isis,
+		// Amun, Vesta and Mars.
+		case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS:
+		case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA: case BLD_TEMPLE_MARS: return c | TC_TEMPLE | TC_CIVIC;
+		// Other template_structure_civic children.
 		case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: case BLD_MINISTRY: return c | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
