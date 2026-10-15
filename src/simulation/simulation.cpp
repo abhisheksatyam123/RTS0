@@ -142,6 +142,10 @@ const std::vector<uint8_t> &unit_research_list(uint16_t tmpl) {
 
 } // namespace
 
+// ResourceGatherer.js IsTargetInRange / FindNearestDropsite for a ship: a dropsite with the
+// Naval class, the dock and the Briton crannog (a civic centre built on the shore).
+static bool is_naval_dropsite(uint8_t type) { return type == BLD_DOCK || type == BLD_CRANNOG; }
+
 // 0 A.D. BuildingAI.js roundCount: firing rounds per Attack/Ranged/RepeatTime.
 static constexpr int BUILDING_AI_ROUNDS = 20; // BuildingAI.js roundCount
 
@@ -10876,7 +10880,7 @@ uint32_t Simulation::ensure_field_resource(const Building &b) {
 	return rid;
 }
 
-uint32_t Simulation::find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip) const {
+uint32_t Simulation::find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip, uint8_t team) const {
 	if (!sea) return 0;
 	uint32_t best = 0;
 	float best_d2 = max_d * max_d;
@@ -10890,6 +10894,8 @@ uint32_t Simulation::find_free_fish(uint16_t sea, float x, float z, float max_d,
 		if (d2 >= best_d2) continue;
 		auto [cx, cy] = nav_grid_.world_to_cell(resources_.x[r], resources_.z[r]);
 		if (nav_grid_.global_region_at(cx, cy, PASS_SHIP) != sea) continue;
+		// UnitAI CheckTargetVisible: only fish the boat's player has seen (a supply stays in the fog).
+		if (team < MAX_PLAYERS && los_.cells() != 0 && !los_explored(team, resources_.x[r], resources_.z[r])) continue;
 		best_d2 = d2;
 		best = resources_.id[r];
 	}
@@ -11028,7 +11034,7 @@ void Simulation::tick_gather(float dt) {
 			for (const auto &b : buildings_) {
 				if (b.build_progress < 1.0f || !dropsite_usable_by(uteam, b)) continue;
 				bool valid_drop = false;
-				if (units_.unit_type[i] == UNIT_FISHING_BOAT) valid_drop = b.type == BLD_DOCK; // boats can only reach docks
+				if (units_.unit_type[i] == UNIT_FISHING_BOAT) valid_drop = is_naval_dropsite(b.type); // boats can only reach docks
 				else if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type)) valid_drop = true;
 				else if (b.type == BLD_STOREHOUSE && (units_.res_type_carried[i] != RES_FOOD)) valid_drop = true;
 				else if (b.type == BLD_FARMSTEAD && (units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
@@ -11108,13 +11114,17 @@ void Simulation::tick_gather(float dt) {
 			auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 			const bool boat = units_.unit_type[i] == UNIT_FISHING_BOAT;
 			auto next_fish = [&]() {
-				// UnitAI: a boat whose fish is gone or full moves on to the nearest fish on its sea.
+				// UnitAI FindNearbyResource: a boat whose fish is gone or full moves on to the nearest
+				// fish on its sea it has seen, within 64 m of itself, else of the old fish (initPos).
 				auto [cx, cy] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
-				const uint32_t alt = find_free_fish(nav_grid_.global_region_at(cx, cy, PASS_SHIP),
-				                                    units_.pos_x[i], units_.pos_z[i], 40.0f, units_.target_resource_id[i]);
+				const uint16_t sea = nav_grid_.global_region_at(cx, cy, PASS_SHIP);
+				const uint32_t old = units_.target_resource_id[i];
+				uint32_t alt = find_free_fish(sea, units_.pos_x[i], units_.pos_z[i], NEARBY_SEARCH_RANGE, old, uteam);
+				if (!alt && rit != res_id_to_idx_.end())
+					alt = find_free_fish(sea, resources_.x[rit->second], resources_.z[rit->second], NEARBY_SEARCH_RANGE, old, uteam);
 				// FindNearbyResource takes live whales too (KillBeforeGather food.fish): the boat
 				// harpoons a whale nearer than that fish, and PerformGather kills it first.
-				float alt_d2 = 40.0f * 40.0f;
+				float alt_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
 				if (auto ai = res_id_to_idx_.find(alt); alt && ai != res_id_to_idx_.end()) {
 					const float dx = resources_.x[ai->second] - units_.pos_x[i], dz = resources_.z[ai->second] - units_.pos_z[i];
 					alt_d2 = dx * dx + dz * dz;
@@ -15545,7 +15555,11 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 		}
 		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
 		const float d2 = dx * dx + dz * dz;
-		if (d2 < best_d2) { best_d2 = d2; best = resources_.id[r]; }
+		if (d2 >= best_d2) continue;
+		// UnitAI CheckTargetVisible: only a supply the player has seen (it stays in the fog).
+		if (team < MAX_PLAYERS && los_.cells() != 0 && !los_explored(team, resources_.x[r], resources_.z[r])) continue;
+		best_d2 = d2;
+		best = resources_.id[r];
 	}
 	return best;
 }
@@ -16355,7 +16369,7 @@ void Simulation::set_unit_hp(uint32_t unit_id, float hp) {
 bool Simulation::dropsite_accepts(size_t i, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || !dropsite_usable_by(units_.team[i], b) || b.build_progress < 1.0f) return false;
 	const uint8_t rt = units_.res_type_carried[i];
-	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return b.type == BLD_DOCK;
+	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return is_naval_dropsite(b.type);
 	if (is_civic_centre(b.type) || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)) return true;
 	if (b.type == BLD_STOREHOUSE) return rt != RES_FOOD;
 	return b.type == BLD_FARMSTEAD && rt == RES_FOOD;
@@ -18654,6 +18668,7 @@ bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water
 	if (water && !sea) return false;
 	const float px = units_.pos_x[u], pz = units_.pos_z[u];
 	auto [ucx, ucz] = nav_grid_.world_to_cell(px, pz);
+	const uint16_t land = water ? 0 : petra_access_at(px, pz);
 	uint32_t best = 0;
 	float best_d2 = 1e18f;
 	for (const auto &t : treasures_) {
@@ -18666,7 +18681,11 @@ bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water
 		auto [cx, cz] = nav_grid_.world_to_cell(t.x, t.z);
 		if (water) {
 			if (nav_grid_.global_region_at(cx, cz, PASS_SHIP) != sea) continue; // getSeaAccess
-		} else if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
+		} else {
+			// getLandAccess: a wreck out at sea is on no land, so a land collector leaves it to ships.
+			if (land && petra_access_at(t.x, t.z) != land) continue;
+			if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
+		}
 		best_d2 = d2;
 		best = t.id;
 	}
