@@ -95,7 +95,10 @@ static func texture(path: String) -> Texture2D:
 	if path == "":
 		return null
 	if ResourceLoader.exists(path):
-		return load(path)
+		var res = load(path)
+		if res != null:
+			return res
+	# Not imported yet (a new image before the editor has opened the project): read the file.
 	if FileAccess.file_exists(path):
 		var img := Image.load_from_file(path)
 		if img:

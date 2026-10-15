@@ -94,6 +94,16 @@ func run() -> void:
 		check(cc != null and cc.tooltip_text.contains("Dropsite for:") and cc.tooltip_text.contains("Garrison Limit"),
 				"the Civic Center's dropsite and garrison lines")
 		check(cc != null and cc.tooltip_text.contains("Current Count:"), "and its EntityLimits line")
+		# getEntityCostTooltip for a wallset: the pieces' range and the tower's cost.
+		var pal: Button = null
+		for b in buttons(main, []):
+			if b.tooltip_text.contains("\nWalls:  "):
+				pal = b
+				break
+		if pal:
+			print(pal.tooltip_text)
+		check(pal != null and RegEx.create_from_string("\nWalls:  .*\\d+ to .*\\d+.*\nTowers:  ").search(pal.tooltip_text) != null
+				and not pal.tooltip_text.contains("\nCost:"), "a wallset: Walls N to M, Towers, no Cost line")
 		var before := viewers()
 		await right_click(house)
 		check(viewers() == before + 1, "a right click opens the Template Viewer")
