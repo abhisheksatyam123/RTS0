@@ -429,6 +429,7 @@ public:
 	void _on_roster_gui_input(const Ref<InputEvent> &event);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
+	void _on_tech_pressed_at(int tech_id, int64_t building_id);
 	void _on_upgrade_pressed(int choice);
 	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
@@ -689,6 +690,7 @@ public:
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
+	void debug_select_structures(const PackedInt32Array &ids);
 	int64_t debug_civic_centre_id(int player) const;
 	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
