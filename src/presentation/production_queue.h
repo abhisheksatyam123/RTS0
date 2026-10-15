@@ -115,6 +115,7 @@ public:
 		godot::ColorRect *progress = nullptr; // unitQueueProgressSlider
 		godot::Label *chip = nullptr;         // unitQueueCount
 		int queue_index = -1;                 // the item a left click removes; -1 for a ghost
+		uint32_t producer = 0;                // the structure whose queue holds it (0: the selected one)
 		godot::String kind;                   // the Template Viewer's page on a right click
 		int id = -1, civ = 0;
 	};
@@ -219,6 +220,28 @@ public:
 		else clear();
 	}
 
+	// Queue.getItems for several selected structures: every structure's first item, then
+	// every second item, and so on, with each one's auto-queue ghosts after.
+	void update_multi(const std::vector<const rtso::Simulation::Building *> &producers) {
+		trainer_unit_ = 0;
+		std::vector<Item> items;
+		bool found = true;
+		for (int i = 0; found && (int)items.size() < kSlots; ++i) {
+			found = false;
+			for (const auto *b : producers)
+				if (b && i < (int)b->queue.size() && (int)items.size() < kSlots) {
+					items.push_back({&b->queue, b->id, i, false, b->team});
+					found = true;
+				}
+		}
+		std::vector<Item> repeat;
+		for (const Item &it : items)
+			for (const auto *b : producers)
+				if (b && b->id == it.producer && b->autoqueue && !(*it.queue)[it.qi].is_tech()) repeat.push_back({it.queue, it.producer, it.qi, true, it.player});
+		for (size_t r = 0; !repeat.empty() && (int)items.size() < kSlots; ++r) items.push_back(repeat[r % repeat.size()]);
+		show_items(items);
+	}
+
 	// A unit's Trainer queue (triremes, Cyrus II); a click cancels through the unit.
 	void update_unit(uint32_t unit_id, const std::vector<rtso::ProductionOrder> *queue) {
 		trainer_unit_ = unit_id;
@@ -229,20 +252,36 @@ public:
 	// g_SelectionPanels.Queue: getItems (the queue, then the auto-queue's ghost
 	// repeats of its units up to 16) and setupButton.
 	void show(const std::vector<rtso::ProductionOrder> *queue, uint8_t researcher, bool autoqueue, uint8_t player) {
-		using namespace godot;
+		(void)researcher;
 		if (!queue || queue->empty()) {
 			clear();
 			return;
 		}
-		const rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
-		const int civ = sim && player < rtso::MAX_PLAYERS ? sim->player_civ(player) : 0;
-		std::vector<int> items; // queue indices; ghosts as -1 - index
-		for (int i = 0; i < (int)queue->size() && (int)items.size() < kSlots; ++i) items.push_back(i);
-		std::vector<int> repeat;
+		std::vector<Item> items;
+		for (int i = 0; i < (int)queue->size() && (int)items.size() < kSlots; ++i) items.push_back({queue, 0, i, false, player});
+		std::vector<Item> repeat;
 		if (autoqueue)
 			for (int i = 0; i < (int)queue->size(); ++i)
-				if (!(*queue)[i].is_tech()) repeat.push_back(-1 - i);
+				if (!(*queue)[i].is_tech()) repeat.push_back({queue, 0, i, true, player});
 		for (size_t r = 0; !repeat.empty() && (int)items.size() < kSlots; ++r) items.push_back(repeat[r % repeat.size()]);
+		show_items(items);
+	}
+
+	struct Item {
+		const std::vector<rtso::ProductionOrder> *queue;
+		uint32_t producer; // 0: the selected structure or unit
+		int qi;
+		bool ghost;
+		uint8_t player;
+	};
+
+	void show_items(const std::vector<Item> &items) {
+		using namespace godot;
+		if (items.empty()) {
+			clear();
+			return;
+		}
+		const rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
 
 		production_icon_->set_visible(true);
 		time_remaining_->set_text("");
@@ -252,10 +291,13 @@ public:
 				hide_slot(slot);
 				continue;
 			}
-			const bool ghost = items[q] < 0;
-			const int qi = ghost ? -1 - items[q] : items[q];
-			const rtso::ProductionOrder &po = (*queue)[qi];
+			const bool ghost = items[q].ghost;
+			const int qi = items[q].qi;
+			const uint8_t player = items[q].player;
+			const int civ = sim && player < rtso::MAX_PLAYERS ? sim->player_civ(player) : 0;
+			const rtso::ProductionOrder &po = (*items[q].queue)[qi];
 			slot.queue_index = ghost ? -1 : qi;
+			slot.producer = items[q].producer;
 			slot.panel->set_visible(true);
 
 			String name;
@@ -303,7 +345,8 @@ public:
 				slot.progress->set_size(Vector2(28, 30));
 				slot.progress->set_visible(true);
 			} else {
-				const float progress = q == 0 && po.duration > 0.0f ? std::clamp(po.timer / po.duration, 0.0f, 1.0f) : 0.0f;
+				// Each structure's first item advances (queuedItem.progress).
+				const float progress = qi == 0 && po.duration > 0.0f ? std::clamp(po.timer / po.duration, 0.0f, 1.0f) : 0.0f;
 				if (q == 0) {
 					const int left = (int)std::ceil(std::max(po.duration - po.timer, 0.0f));
 					time_remaining_->set_text(vformat("%d:%02d", left / 60, left % 60)); // countdown format "m:ss"
@@ -311,7 +354,7 @@ public:
 				slot.progress->set_color(Color(0.0f, 1.0f, 0.0f, 128 / 255.0f));
 				slot.progress->set_position(Vector2(2, 3 + 30.0f * progress));
 				slot.progress->set_size(Vector2(28, 30.0f * (1.0f - progress)));
-				slot.progress->set_visible(q == 0);
+				slot.progress->set_visible(qi == 0);
 			}
 		}
 	}
@@ -329,7 +372,7 @@ public:
 		if (mb.is_null() || !mb->is_pressed() || slot_idx < 0 || slot_idx >= kSlots) return;
 		const QueueSlotUI &slot = queue_slots_[slot_idx];
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
-			if (slot.queue_index >= 0) cancel(slot.queue_index);
+			if (slot.queue_index >= 0) cancel(slot.queue_index, slot.producer);
 			if (vp) vp->set_input_as_handled();
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT) {
 			if (!slot.kind.is_empty() && owner_) owner_->call("_on_template_details_input", event, slot.kind, slot.id, slot.civ);
@@ -346,15 +389,17 @@ public:
 		d["tooltip"] = s.panel->get_tooltip_text();
 		d["count"] = s.chip->get_text();
 		d["ghost"] = s.panel->is_visible() && s.queue_index < 0;
+		d["producer"] = (int64_t)s.producer;
 		d["kind"] = s.kind;
 		d["id"] = s.id;
 		d["time"] = production_icon_ && production_icon_->is_visible() ? time_remaining_->get_text() : godot::String();
 		return d;
 	}
 
-	void cancel(int slot_idx) {
+	// Removes queue item `slot_idx` of `producer` (0: the selected structure or trainer unit).
+	void cancel(int slot_idx, uint32_t producer = 0) {
 		if (!host_) return;
-		uint32_t bld_id = host_->ui_selected_building_id();
+		uint32_t bld_id = producer != 0 ? producer : host_->ui_selected_building_id();
 		rtso::Simulation *sim = host_->ui_sim();
 		if (bld_id == 0 && trainer_unit_ != 0 && sim) {
 			if (host_->turn_cmds())
@@ -382,6 +427,7 @@ public:
 private:
 	static void hide_slot(QueueSlotUI &s) {
 		s.queue_index = -1;
+		s.producer = 0;
 		s.kind = godot::String();
 		if (!s.panel) return;
 		s.panel->set_visible(false);
