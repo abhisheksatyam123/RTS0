@@ -120,6 +120,11 @@ int main() {
 	const uint16_t themi = find_template(CIV_ATHENIANS, "Themistocles");
 	CHECK(!m.cmd_train_template(0, pryt, themi));
 	CHECK(!m.cmd_train_template(0, tc, find_template(CIV_HAN, "Infantry Crossbowman"))); // other civ's unit
+	// 0 A.D. has no RTS0 villager: its row is only a class default, never trained by name.
+	CHECK(!m.cmd_train_template(0, tc, roster_id("athen/rts0_villager")));
+	CHECK(m.cmd_train(0, tc, UNIT_VILLAGER));
+	for (const auto &b : m.buildings())
+		if (b.id == tc) CHECK(!b.queue.empty() && b.queue.back().tmpl == roster_id("athen/support_civilian"));
 	const float food_before = m.player(0).food();
 	CHECK(m.cmd_train(0, tc, UNIT_FEMALE_CITIZEN));
 	CHECK(m.player(0).food() < food_before);

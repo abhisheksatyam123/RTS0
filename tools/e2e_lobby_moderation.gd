@@ -42,19 +42,25 @@ func names(tree: Tree, col: int) -> Array:
 
 func run() -> void:
 	var server_pid := OS.create_process("python3", [ProjectSettings.globalize_path("res://tools/lobby_server.py"),
-		"--port", str(PORT), "--quiet", "--stun-port", "0", "--moderators", "alice,mod", "--subject", "Welcome to the lobby"])
+		"--port", str(PORT), "--quiet", "--stun-port", "0", "--exit-with-parent", "--moderators", "alice,mod", "--subject", "Welcome to the lobby"])
 	var ls: Node = root.get_node("/root/LobbySession")
 	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
 	root.add_child(lobby)
 	await process_frame
 	var signed := [0]
-	for attempt in 50:
-		ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: signed[0] = code)
-		await until(func() -> bool: return signed[0] != 0, 30)
-		if signed[0] == 200:
+	# Wait for the server to answer, then sign in once: retrying a sign-in that
+	# is slow to answer (a loaded machine) leaves the first one signed in on the
+	# server and the retries refused as "that name is in use".
+	ls.address = "127.0.0.1:%d" % PORT
+	var up := [false]
+	for attempt in 100:
+		ls.get_json("/players", func(code: int, _o) -> void: up[0] = up[0] or code == 200)
+		await until(func() -> bool: return up[0], 30)
+		if up[0]:
 			break
-		signed[0] = 0
 		await create_timer(0.1).timeout
+	ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: signed[0] = code)
+	await until(func() -> bool: return signed[0] != 0)
 	var login := func(who: String, out: Array) -> void:
 		ls.post_json("/login", {"name": who}, func(code: int, o) -> void:
 			out[0] = str(o.get("token", "")) if code == 200 and o is Dictionary else "-")
@@ -73,6 +79,14 @@ func run() -> void:
 	lobby._on_send_pressed()
 	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("@alice: hello"))
 	check(lobby._chat_log.get_parsed_text().contains("@alice: hello"), "her chat lines read @alice")
+
+	var subj := [false]
+	ls.post_json("/subject", {"token": ls.token, "subject": "Play nice"}, func(_c: int, _o) -> void: subj[0] = true)
+	await until(func() -> bool: return subj[0])
+	lobby._refresh()
+	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("alice changed the lobby subject to:"))
+	check(lobby._chat_log.get_parsed_text().contains("alice changed the lobby subject to:\nPlay nice"),
+		"a new subject is announced in the chat")
 
 	print("2. /kick")
 	lobby._chat_line.text = "/help"
@@ -102,6 +116,9 @@ func run() -> void:
 	await until(func() -> bool: return not ls.signed_in())
 	check(not ls.signed_in() and not ls.moderator, "alice is signed out")
 	check(lobby._chat_log.get_parsed_text().contains("You have been banned from the lobby! Reason: testing"), "and told she was banned")
+	var box: AcceptDialog = lobby.find_child("KickedDialog", true, false)
+	check(box != null and box.title == "BANNED" and box.dialog_text.begins_with("You have been banned from the lobby!"),
+		"in a BANNED message box (ConnectionHandler.onClientKicked)")
 	var again := [0]
 	ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: again[0] = code)
 	await until(func() -> bool: return again[0] != 0)

@@ -658,7 +658,7 @@ def units_demo_entities(z):
     return out
 
 
-def apply_player_data(players, settings):
+def apply_player_data(players, settings, scenario=False):
     """ScriptSettings PlayerData: a scenario's fixed civs, starting resources, locked teams and
     population limits, onto the map's player entries (by id). Its first entry is player 1, or
     an empty Gaia placeholder in older maps. Returns the PopulationLimit every player shares, if any."""
@@ -672,8 +672,10 @@ def apply_player_data(players, settings):
             p["civ"] = CIV_CODES.index(pd["Civ"])
         if isinstance(pd.get("Resources"), dict):
             p["resources"] = {k: int(v) for k, v in pd["Resources"].items()}
-        # Locked teams (LockTeams) are the map's own; otherwise Game Setup picks them.
-        if settings.get("LockTeams") and isinstance(pd.get("Team"), int):
+        # 0.28 PlayerTeam.js onMapChange: a scenario's PlayerData teams are the map's own (locked in
+        # Game Setup); a skirmish map's are ignored, its players starting without a team, LockTeams
+        # or not. (-1, no team, is the porter's default: a team of one.)
+        if scenario and isinstance(pd.get("Team"), int) and pd["Team"] >= 0:
             p["team"] = pd["Team"]
         if isinstance(pd.get("PopulationLimit"), int):
             p["pop_limit"] = pd["PopulationLimit"]
@@ -717,7 +719,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 return
             with open(out_path) as f:
                 old = json.load(f)
-            limit = apply_player_data(old["players"], settings)
+            # Teams back to the porter's default (a team of one) before PlayerData sets a scenario's.
+            for p in old["players"]:
+                p["team"] = p["id"] - 1
+            limit = apply_player_data(old["players"], settings, xml_rel.startswith("maps/scenarios/"))
             old.pop("pop_limit", None)
             if limit is not None:
                 old["pop_limit"] = limit
@@ -926,7 +931,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 if is_unit:
                     pass
                 elif wall:
-                    structures.append(dict(wall, player=ply))
+                    # The template: SkirmishReplacer keeps skirmish/structures/iber_wall_* for
+                    # Iberians only, and default_wall_* turns into the owner's own walls.
+                    structures.append(dict(wall, player=ply, template=tpl))
                 elif any(k in ltpl for k in ["civil_centre", "town_center", "civic"]):
                     players[ply]["start_x"] = wx
                     players[ply]["start_z"] = wz
@@ -1031,7 +1038,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             if not has_tc and not army_only:
                 structures.append({"type": "town_center", "player": p["id"], "x": p["start_x"], "z": p["start_z"]})
 
-        pop_limit = apply_player_data(list(players.values()), settings)
+        pop_limit = apply_player_data(list(players.values()), settings, xml_rel.startswith("maps/scenarios/"))
 
         map_data = {
             "id": map_id,
@@ -1094,8 +1101,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                         if o is not None:
                             used.add(id(o))
                         want = dict(e, x=x, z=z, length=round(e["length"] * k, 3))
-                        want.pop("template", None)
-                        if o is not None and o.get("template"):
+                        if o is not None and o.get("template") and "template" not in want:
                             want["template"] = o["template"]
                         if o is not None and o != want:
                             o.clear()
@@ -1222,27 +1228,28 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             json.dump(map_data, f, indent=2)
         print(f"  -> Generated {out_path}: {len(resources)} resources, {len(fauna)} fauna, {len(structures)} structures, {len(units)} units, {len(gaia['gaia_structures'])} Gaia structures, {len(gaia['gaia_units'])} Gaia units, {len(players)} players (Water={water_height}m).")
 
+# The map's width comes from its .pmp (None): 16 tiles a patch, 1 RTS0 unit a 4 m tile.
 maps_list = [
-    ("acropolis_bay", "maps/skirmishes/acropolis_bay_2p.xml", "maps/skirmishes/acropolis_bay_2p.pmp", 256.0, "mediterranean", None),
-    ("corinthian_isthmus", "maps/skirmishes/corinthian_isthmus_4p.xml", "maps/skirmishes/corinthian_isthmus_4p.pmp", 384.0, "mediterranean", None),
-    ("atlas_valleys", "maps/skirmishes/atlas_valleys_8p.xml", "maps/skirmishes/atlas_valleys_8p.pmp", 384.0, "savanna", None),
-    ("bactria", "maps/skirmishes/bactria_2p.xml", "maps/skirmishes/bactria_2p.pmp", 256.0, "desert", None),
-    ("battle_for_the_tiber", "maps/scenarios/battle_for_the_tiber.xml", "maps/scenarios/battle_for_the_tiber.pmp", 320.0, "temperate", None),
-    ("belgian_bog", "maps/skirmishes/belgian_bog_2p.xml", "maps/skirmishes/belgian_bog_2p.pmp", 256.0, "temperate", None),
-    ("death_canyon", "maps/skirmishes/death_canyon_2p.xml", "maps/skirmishes/death_canyon_2p.pmp", 256.0, "desert", None),
-    ("deccan_plateau", "maps/skirmishes/deccan_plateau_2p.xml", "maps/skirmishes/deccan_plateau_2p.pmp", 256.0, "tropical", None),
-    ("cycladic_archipelago", "maps/skirmishes/cycladic_archipelago_2p.xml", "maps/skirmishes/cycladic_archipelago_2p.pmp", 256.0, "mediterranean", None),
-    ("golden_island", "maps/skirmishes/golden_island_2p.xml", "maps/skirmishes/golden_island_2p.pmp", 256.0, "mediterranean", None),
-    ("persian_highlands", "maps/skirmishes/persian_highlands_4p.xml", "maps/skirmishes/persian_highlands_4p.pmp", 384.0, "desert", None),
-    ("saharan_oases", "maps/skirmishes/saharan_oases_4p.xml", "maps/skirmishes/saharan_oases_4p.pmp", 384.0, "desert", None),
-    ("sicilia", "maps/skirmishes/sicilia_2p.xml", "maps/skirmishes/sicilia_2p.pmp", 256.0, "mediterranean", None),
-    ("alpine_valleys", "maps/skirmishes/alpine_valleys_2p.xml", "maps/skirmishes/alpine_valleys_2p.pmp", 256.0, "alpine", None),
-    ("tuscan_acropolis", "maps/skirmishes/tuscan_acropolis_4p.xml", "maps/skirmishes/tuscan_acropolis_4p.pmp", 384.0, "mediterranean", None),
-    ("arcadia", "maps/scenarios/arcadia.xml", "maps/scenarios/arcadia.pmp", 256.0, "mediterranean", None),
-    ("vesuvius", "maps/skirmishes/vesuvius_6p.xml", "maps/skirmishes/vesuvius_6p.pmp", 384.0, "mediterranean", None),
-    ("mediterranean_cove", "maps/skirmishes/mediterranean_cove_2p.xml", "maps/skirmishes/mediterranean_cove_2p.pmp", 256.0, "mediterranean", None),
-    ("nile_river", "maps/skirmishes/nile_river_4p.xml", "maps/skirmishes/nile_river_4p.pmp", 384.0, "desert", None),
-    ("gallic_fields", "maps/skirmishes/gallic_fields_3p.xml", "maps/skirmishes/gallic_fields_3p.pmp", 320.0, "temperate", None),
+    ("acropolis_bay", "maps/skirmishes/acropolis_bay_2p.xml", "maps/skirmishes/acropolis_bay_2p.pmp", None, "mediterranean", None),
+    ("corinthian_isthmus", "maps/skirmishes/corinthian_isthmus_4p.xml", "maps/skirmishes/corinthian_isthmus_4p.pmp", None, "mediterranean", None),
+    ("atlas_valleys", "maps/skirmishes/atlas_valleys_8p.xml", "maps/skirmishes/atlas_valleys_8p.pmp", None, "savanna", None),
+    ("bactria", "maps/skirmishes/bactria_2p.xml", "maps/skirmishes/bactria_2p.pmp", None, "desert", None),
+    ("battle_for_the_tiber", "maps/scenarios/battle_for_the_tiber.xml", "maps/scenarios/battle_for_the_tiber.pmp", None, "temperate", None),
+    ("belgian_bog", "maps/skirmishes/belgian_bog_2p.xml", "maps/skirmishes/belgian_bog_2p.pmp", None, "temperate", None),
+    ("death_canyon", "maps/skirmishes/death_canyon_2p.xml", "maps/skirmishes/death_canyon_2p.pmp", None, "desert", None),
+    ("deccan_plateau", "maps/skirmishes/deccan_plateau_2p.xml", "maps/skirmishes/deccan_plateau_2p.pmp", None, "tropical", None),
+    ("cycladic_archipelago", "maps/skirmishes/cycladic_archipelago_2p.xml", "maps/skirmishes/cycladic_archipelago_2p.pmp", None, "mediterranean", None),
+    ("golden_island", "maps/skirmishes/golden_island_2p.xml", "maps/skirmishes/golden_island_2p.pmp", None, "mediterranean", None),
+    ("persian_highlands", "maps/skirmishes/persian_highlands_4p.xml", "maps/skirmishes/persian_highlands_4p.pmp", None, "desert", None),
+    ("saharan_oases", "maps/skirmishes/saharan_oases_4p.xml", "maps/skirmishes/saharan_oases_4p.pmp", None, "desert", None),
+    ("sicilia", "maps/skirmishes/sicilia_2p.xml", "maps/skirmishes/sicilia_2p.pmp", None, "mediterranean", None),
+    ("alpine_valleys", "maps/skirmishes/alpine_valleys_2p.xml", "maps/skirmishes/alpine_valleys_2p.pmp", None, "alpine", None),
+    ("tuscan_acropolis", "maps/skirmishes/tuscan_acropolis_4p.xml", "maps/skirmishes/tuscan_acropolis_4p.pmp", None, "mediterranean", None),
+    ("arcadia", "maps/scenarios/arcadia.xml", "maps/scenarios/arcadia.pmp", None, "mediterranean", None),
+    ("vesuvius", "maps/skirmishes/vesuvius_6p.xml", "maps/skirmishes/vesuvius_6p.pmp", None, "mediterranean", None),
+    ("mediterranean_cove", "maps/skirmishes/mediterranean_cove_2p.xml", "maps/skirmishes/mediterranean_cove_2p.pmp", None, "mediterranean", None),
+    ("nile_river", "maps/skirmishes/nile_river_4p.xml", "maps/skirmishes/nile_river_4p.pmp", None, "desert", None),
+    ("gallic_fields", "maps/skirmishes/gallic_fields_3p.xml", "maps/skirmishes/gallic_fields_3p.pmp", None, "temperate", None),
 ]
 
 # 0 A.D. skirmish maps fetched with --github: file name -> (RTS0 id, biome).
@@ -1296,6 +1303,13 @@ github_skirmishes = {
     "tarim_basin_2p": ("tarim_basin_2p", "desert"),
     "tarim_basin_4p": ("tarim_basin_4p", "desert"),
     "team_oasis_2pv2p": ("team_oasis", "desert"),
+    # The other 0.28 sizes of maps ported above (pass-3 audit), each its own map like 0.28's.
+    "corinthian_isthmus_2p": ("corinthian_isthmus_2p", "mediterranean"),
+    "cycladic_archipelago_3p": ("cycladic_archipelago_3p", "mediterranean"),
+    "greek_acropolis_2p": ("greek_acropolis_2p", "aegean"),
+    "median_oasis_4p": ("median_oasis_4p", "desert"),
+    "neareastern_badlands_2p": ("neareastern_badlands_2p", "desert"),
+    "saharan_oases_2p": ("saharan_oases_2p", "desert"),
     "temperate_roadway_2p": ("temperate_roadway", "temperate"),
     "thessalian_plains_4p": ("thessalian_plains", "aegean"),
     "via_augusta_4p": ("via_augusta", "mediterranean"),

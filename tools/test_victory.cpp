@@ -3,6 +3,7 @@
 //        src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o test_victory
 // The checks poke simulation state directly to stage end-of-match situations.
 #define private public
+#include <algorithm>
 #include <set>
 #include "simulation/simulation.h"
 #include "simulation/start_entities_data.h"
@@ -925,9 +926,18 @@ int main() {
 		(void)sim.take_session_notices();
 		const auto why = sim.research_check(1, TECH_PHASE_TOWN, tc1);
 		CHECK(why == Simulation::TECH_OK);
+		// 0.28 TechnologyManager StartedResearch/StoppedResearch: a phase announces "started" when the
+		// queue starts it and "aborted" only if it had started, so a cancel before any tick says nothing.
 		CHECK(sim.cmd_research(1, tc1, TECH_PHASE_TOWN));
 		CHECK(sim.cmd_cancel_train(1, tc1, 0));
 		ns = sim.take_session_notices();
+		CHECK(std::none_of(ns.begin(), ns.end(), [](const auto &n) { return n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED; }));
+		for (int r = 0; r < RES_COUNT; ++r) sim.players_[1].res[r] = 5000.0f;
+		CHECK(sim.cmd_research(1, tc1, TECH_PHASE_TOWN));
+		for (int i = 0; i < 10; ++i) sim.tick(0.05f);
+		CHECK(sim.cmd_cancel_train(1, tc1, 0));
+		ns = sim.take_session_notices();
+		std::erase_if(ns, [](const auto &n) { return n.kind != N::PHASE_STARTED && n.kind != N::PHASE_ABORTED; });
 		CHECK(ns.size() == 2 && ns[0].kind == N::PHASE_STARTED && ns[0].player == 1 && ns[1].kind == N::PHASE_ABORTED &&
 				ns[1].tech == TECH_PHASE_TOWN);
 		CHECK(sim.cmd_research(0, tc, TECH_WEAPONS_1) || true);
@@ -1057,6 +1067,37 @@ int main() {
 		sim->record_.buildings_destroyed++;
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());
+		delete sim;
+		// Nomad (ConquestCommon.js: a query fires only when its last entity leaves): with no
+		// structures to start, Conquest Structures keeps the players in on their units, and
+		// "ConquestCritical Structure" defeats once the critical units are gone too.
+		auto nomad = [&](uint8_t mask) {
+			Simulation *n = combined(mask);
+			n->set_nomad(true);
+			std::erase_if(n->buildings_, [](const auto &b) { return b.team < MAX_PLAYERS; });
+			return n;
+		};
+		auto reason = [](Simulation &n, uint8_t player) {
+			int why = -1;
+			for (const auto &note : n.take_session_notices())
+				if (note.kind == Simulation::SessionNotice::DEFEATED && note.player == player) why = note.tech;
+			return why;
+		};
+		sim = nomad(VK_CONQUEST_STRUCTURES);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over() && sim->defeated_mask() == 0);
+		wipe(*sim, 1, true, false);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory() && reason(*sim, 1) == Simulation::SessionNotice::END_STRUCTURES_CRITICAL);
+		delete sim;
+		// Conquest Civic Centers: a Nomad player wiped out before building one is out
+		// ("lost all civic centers and critical units and structures").
+		sim = nomad(VK_CONQUEST_CIVIC_CENTRES);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over());
+		wipe(*sim, 1, true, false);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory() && reason(*sim, 1) == Simulation::SessionNotice::END_CIVIC_CENTRES_CRITICAL);
 		delete sim;
 		GameSetupParams gp, back;
 		gp.victory = VICTORY_COMBINED | VK_CONQUEST | VK_WONDER | VK_RELIC;

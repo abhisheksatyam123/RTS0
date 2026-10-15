@@ -318,6 +318,9 @@ private:
 	std::string lobby_ticket_;
 	std::map<uint32_t, AuthenticateMsg> lobby_auth_pending_; // host: joiners waiting on the lobby
 	void authenticate_peer(NetPeer &p, AuthenticateMsg auth);
+public:
+	static std::string sanitise_player_name(const std::string &original);
+private:
 	std::string software_version_ = NET_SOFTWARE_VERSION;
 	std::string host_software_version_;
 	bool duplicate_names_ = false;

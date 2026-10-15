@@ -12,8 +12,12 @@ extends CanvasLayer
 ##
 ## 0 A.D. 0.28 gui/common/setup.xml: snToolTip on the menus (delay 500 ms,
 ## maxwidth 400, offset 16 32, black text on white with a black border) and
-## sessionToolTip in a match (delay 100 ms, white text on the dark session
-## sprite). The hovered control's get_tooltip() decides the text, so per-item
+## sessionToolTip in a match (delay 100 ms, white sans-14 on
+## BackgroundSessionTooltip: dark brown 30 20 10 with a 1 px gold 237 227 167
+## border). session/setup.xml adds sessionToolTipBold (sans-bold-14) and the
+## bottom-anchored sessionToolTipBottom/-Bold (offset -4 -4, the box's bottom
+## left at the cursor) that the panel buttons, minimap and research progress
+## pick through the same meta. The hovered control's get_tooltip() decides the text, so per-item
 ## tooltips of lists and trees work, and a control's _make_custom_tooltip()
 ## replaces the text as Godot's own tooltips would.
 
@@ -25,6 +29,9 @@ const BUFFER := 4.0
 const REFERENCE_STYLES := {
 	"reference": {"delay": 0.05, "width": 480.0, "offset": Vector2(16, 24), "font": 14, "buffer": 4.0},
 	"civinfo": {"delay": 0.05, "width": 440.0, "offset": Vector2(16, 32), "font": 12, "buffer": 10.0},
+	"session_bold": {"delay": 0.1, "width": 400.0, "offset": Vector2(16, 32), "font": 14, "bold": true},
+	"session_bottom": {"delay": 0.1, "width": 400.0, "offset": Vector2(-4, -4), "font": 14, "bottom": true},
+	"session_bottom_bold": {"delay": 0.1, "width": 400.0, "offset": Vector2(-4, -4), "font": 14, "bottom": true, "bold": true},
 	"pg": {"delay": 0.0, "width": 293.0, "font": 14, "fixed": Rect2(-313, 25, 313, 175)},
 }
 
@@ -44,7 +51,7 @@ func _ready() -> void:
 	layer = 128
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_menu_style = _style(Color(1, 1, 1, 0.95), Color(0, 0, 0))
-	_session_style = _style(Color(0.06, 0.07, 0.09, 0.92), Color(0.45, 0.42, 0.32))
+	_session_style = _style(Color(30 / 255.0, 20 / 255.0, 10 / 255.0), Color(237 / 255.0, 227 / 255.0, 167 / 255.0))
 	_pg_style = _style(Color(0, 0, 0, 85.0 / 255.0), Color(0, 0, 0, 0)) # BackgroundTranslucent
 	_pg_style.set_border_width_all(0)
 	_pg_style.set_content_margin_all(10)
@@ -82,6 +89,11 @@ static func plain(text: String) -> String:
 		t = t.replace(m.get_string(), m.get_string(1).capitalize())
 	t = RegEx.create_from_string("\\[/?(b|i|u|color|font_size)[^\\]]*\\]").sub(t, "", true)
 	return t.replace("[lb]", "[").replace("[rb]", "]")
+
+## The style shown now, for tests: {"bold", "bottom", "rect"}.
+func shown_style() -> Dictionary:
+	return {"bold": _ref.get("bold", false), "bottom": _ref.get("bottom", false),
+		"rect": Rect2(_panel.position, _panel.size), "bg": _session_style.bg_color}
 
 ## The tooltip text shown now ("" when hidden), for tests.
 func shown_text() -> String:
@@ -148,7 +160,7 @@ func _show(c: Control, text: String) -> void:
 		# sans-bold-stroke-14 on the menu panel.
 		_label.add_theme_constant_override("outline_size", 3 if pg else 0)
 		_label.add_theme_color_override("font_outline_color", Color.BLACK)
-		if pg:
+		if pg or _ref.get("bold", false):
 			_label.add_theme_font_override("normal_font", _label.get_theme_font("bold_font"))
 		else:
 			_label.remove_theme_font_override("normal_font")
@@ -174,6 +186,11 @@ func _place(mouse: Vector2, screen: Vector2) -> void:
 	var size := _panel.get_combined_minimum_size()
 	var buffer: float = _ref.get("buffer", BUFFER)
 	var pos: Vector2 = mouse + _ref.get("offset", OFFSET)
+	if _ref.get("bottom", false):
+		# anchor="bottom": the offset places the box's bottom edge.
+		pos.y -= size.y
+		if pos.y < buffer:
+			pos.y = buffer
 	if pos.x + size.x > screen.x - buffer:
 		pos.x = maxf(buffer, screen.x - buffer - size.x)
 	if pos.y + size.y > screen.y - buffer:

@@ -137,8 +137,11 @@ def encrypt_password(password, username):
     return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, ENCRYPT_ITERATIONS).hex().upper()
 
 
-# 0 A.D. prelobby checkUsername for a new account.
-ACCOUNT_NAME = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
+# 0 A.D. prelobby checkUsername (credentials.js): 3 to 20 of a-z 0-9 . _ -, one
+# letter at least, any case. Guests' names follow it too: a space, comma, "@"
+# or " (1800)" would pass for something else (a buddy list entry, a moderator,
+# a rating).
+ACCOUNT_NAME = re.compile(r"^(?=.*[a-z])[a-z0-9._-]{3,20}$", re.IGNORECASE)
 ELO_K_FACTOR_CONSTANT_RATING = 2200.0  # ratings above this move at its rate
 VOLATILITY_CONSTANT = 20.0          # games after which a rating is stable
 ANTI_INFLATION = 0.015
@@ -161,6 +164,21 @@ def get_rating_adjustment(rating, opponent_rating, games_played, opponent_games_
 
 
 MAX_ROOM_PLAYERS = 24
+
+
+MAX_ROOM_MODS = 32
+
+
+def _mods(value):
+    """Sanitizes a room's mod list (LobbyGameRegistration.js mods, the host's
+    Engine.GetEngineInfo().mods): {name, version, ignoreInCompatibilityChecks}
+    per entry, in load order. Anything else becomes an empty list."""
+    out = []
+    for m in value if isinstance(value, list) else []:
+        if isinstance(m, dict) and str(m.get("name") or "").strip():
+            out.append({"name": str(m["name"]).strip()[:64], "version": str(m.get("version") or "")[:32],
+                        "ignoreInCompatibilityChecks": bool(m.get("ignoreInCompatibilityChecks"))})
+    return out[:MAX_ROOM_MODS]
 
 
 def _player_names(value):
@@ -294,6 +312,9 @@ class Lobby:
         if p["name"].lower() not in self.moderators:
             return 403, {"error": "The command is restricted to moderators."}
         self.subject = str(subject or "").strip()[:MAX_TEXT]
+        # StatusMessageEvents.js Subject: the room hears of the change.
+        self._say(None, f"{p['name']} changed the lobby subject to:\n{self.subject}" if self.subject
+                  else f"{p['name']} deleted the lobby subject.")
         return 200, {"subject": self.subject}
 
     @staticmethod
@@ -322,6 +343,22 @@ class Lobby:
         self._save_accounts()
         return 200, {"name": name}
 
+    def change_password(self, token, password):
+        """0.28 AccountSettingsPage: Engine.LobbyChangePassword, an XMPP in-band
+        password change for the signed-in account."""
+        p = self.player(token)
+        if not p:
+            return self.not_signed_in(token)
+        acct = self.accounts.get(p["name"].lower())
+        if not acct:
+            return 403, {"error": "Register an account first"}
+        if not password:
+            return 400, {"error": "Please enter your password"}
+        acct["salt"] = secrets.token_hex(16)
+        acct["hash"] = self._hash(acct["salt"], password)
+        self._save_accounts()
+        return 200, {"name": acct["name"]}
+
     def login(self, name, password=None):
         name = " ".join(str(name or "").split())[:MAX_NAME]
         if not name:
@@ -333,6 +370,8 @@ class Lobby:
             name = acct["name"]
         elif password or self.accounts_only:
             return 401, {"error": "Wrong username or password" if password else "Register an account first"}
+        elif not ACCOUNT_NAME.match(name):
+            return 400, {"error": "Invalid username"}
         if name.lower() in self.banned:
             return 403, {"error": "You have been banned from the lobby!"}
         if any(p["name"].lower() == name.lower() for p in self.players.values()):
@@ -591,6 +630,7 @@ class Lobby:
             "start_time": field("start_time", 0, int),
             "player_names": _player_names(data["player_names"]) if "player_names" in data
             else old.get("player_names", []),
+            "mods": _mods(data["mods"]) if "mods" in data else old.get("mods"),
             "local_ip": field("local_ip", "", str)[:64],
             "local_port": field("local_port", 0, int),
             "punch": old.get("punch", []),
@@ -600,6 +640,8 @@ class Lobby:
         }
         if room["state"] not in ROOM_STATES:
             room["state"] = "init"
+        if room["mods"] is None:
+            del room["mods"]  # a host that sends no mods (an older RTS0)
         public = {k: v for k, v in room.items() if k not in PRIVATE_ROOM_KEYS}
         if old:
             self.rooms[self.rooms.index(old)] = room
@@ -714,6 +756,8 @@ class LobbyHandler(BaseHTTPRequestHandler):
                     code, obj = LOBBY.login(data.get("name"), data.get("password"))
                 elif path == "/register":
                     code, obj = LOBBY.register_account(data.get("name"), data.get("password"))
+                elif path == "/password":
+                    code, obj = LOBBY.change_password(data.get("token"), data.get("password"))
                 elif path == "/logout":
                     code, obj = LOBBY.logout(data.get("token"))
                 elif path == "/presence":
@@ -779,6 +823,17 @@ def serve(bind, port, verbose=True):
     return server
 
 
+def watch_parent():
+    """Exits once the parent process is gone (this process is then re-parented)."""
+    parent = os.getppid()
+
+    def watch():
+        while os.getppid() == parent:
+            time.sleep(0.5)
+        os._exit(0)
+    threading.Thread(target=watch, daemon=True).start()
+
+
 def main():
     parser = argparse.ArgumentParser(description="RTS0 multiplayer lobby (players, chat, game list)")
     parser.add_argument("--port", type=int, default=8088)
@@ -795,7 +850,12 @@ def main():
     parser.add_argument("--moderators", default="",
                         help="comma-separated names that may /kick and /ban (0 A.D. lobby moderators)")
     parser.add_argument("--subject", default="", help="the lobby room's subject")
+    parser.add_argument("--exit-with-parent", action="store_true",
+                        help="stop when the process that started this one ends (for test scripts, so a "
+                             "crashed or killed test leaves no server holding its port and its players)")
     args = parser.parse_args()
+    if args.exit_with_parent:
+        watch_parent()
     global LOBBY
     LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings, accounts_path=args.accounts,
                   accounts_only=args.accounts_only, moderators=args.moderators.split(","),

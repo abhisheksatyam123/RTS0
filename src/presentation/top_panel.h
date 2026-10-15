@@ -191,6 +191,9 @@ public:
 	// `me` is the local player whose economy the panel shows.
 	// observer: g_IsObserver (an observer, a replay viewer, or a player who won or lost),
 	// whose tooltips list every player even while following one.
+	// The next update() refreshes everything, not only the clock (a click changed the order).
+	void invalidate() { last_refresh_ms_ = 0; }
+
 	void update(rtso::Simulation *sim, uint8_t me, double match_elapsed_time, bool observer = false) {
 		observer_ = observer;
 		using namespace godot;
@@ -205,6 +208,22 @@ public:
 		for (int i = 0; i < 4; ++i)
 			if (res_panels_[i]) res_panels_[i]->set_visible(!hidden);
 		if (pop_panel_) pop_panel_->set_visible(!hidden);
+
+		// CounterPopulation.onTick: orange for half of each second while a batch waits for
+		// population room, white otherwise; the rest refreshes once a turn (200 ms), as
+		// 0.28's counters do on each simulation update, not every frame.
+		const uint64_t now_ms = godot::Time::get_singleton()->get_ticks_msec();
+		if (!hidden && pop_label_) {
+			const bool flash = pop_blocked_ && now_ms % 1000 < 500;
+			set_font_color(pop_label_, flash ? Color(1.0f, 165 / 255.0f, 0.0f) : Color(1, 1, 1));
+		}
+		if (me == last_me_ && hidden == last_hidden_ && now_ms - last_refresh_ms_ < kRefreshMs && last_refresh_ms_) {
+			update_clock(sim, me, match_elapsed_time);
+			return;
+		}
+		last_me_ = me;
+		last_hidden_ = hidden;
+		last_refresh_ms_ = now_ms;
 
 		if (!hidden) {
 			// Dynamic Civ Crest & Phase Badge Emblems
@@ -264,18 +283,18 @@ public:
 			}
 
 			pop_label_->set_text(pop_caption(sim, me));
-			// CounterPopulation.onTick: orange for half of each second while a batch waits
-			// for population room, white otherwise.
 			pop_blocked_ = sim->training_blocked(me);
-			const bool flash = pop_blocked_ && godot::Time::get_singleton()->get_ticks_msec() % 1000 < 500;
-			pop_label_->add_theme_color_override("font_color", flash ? Color(1.0f, 165 / 255.0f, 0.0f) : Color(1, 1, 1));
 			set_gatherers(pop_stats_, total);
 			pop_panel_->set_tooltip_text(rtso::tr0("Population: current/limit (max)") + ally_stats(sim, me, [this, sim](uint8_t p) {
 				return std::make_pair(pop_caption(sim, p), (int64_t)sim->pop_current(p));
 			}));
 		}
 
+		update_clock(sim, me, match_elapsed_time);
+	}
 
+	void update_clock(rtso::Simulation *sim, uint8_t me, double match_elapsed_time) {
+		using namespace godot;
 		// Clock & Wave
 		int mins = (int)match_elapsed_time / 60;
 		int secs = (int)match_elapsed_time % 60;
@@ -393,8 +412,17 @@ private:
 	// DefaultResourceGatherersColor gold, "200 200 200" at zero.
 	static void set_gatherers(godot::Label *l, int n) {
 		l->set_text(godot::String::num_int64(n));
-		l->add_theme_color_override("font_color", n ? godot::Color(1.0f, 0.84f, 0.0f) : godot::Color(200 / 255.0f, 200 / 255.0f, 200 / 255.0f));
+		set_font_color(l, n ? godot::Color(1.0f, 0.84f, 0.0f) : godot::Color(200 / 255.0f, 200 / 255.0f, 200 / 255.0f));
 	}
+	// A theme override notifies the control's whole subtree: only when the colour changes.
+	static void set_font_color(godot::Label *l, const godot::Color &c) {
+		if (l->has_theme_color_override("font_color") && l->get_theme_color("font_color") == c) return;
+		l->add_theme_color_override("font_color", c);
+	}
+	static constexpr uint64_t kRefreshMs = 200;
+	uint64_t last_refresh_ms_ = 0;
+	uint8_t last_me_ = 0xFF;
+	bool last_hidden_ = false;
 
 	godot::Control *res_panels_[4] = {nullptr};
 	godot::Label *res_stats_[4] = {nullptr};

@@ -29,6 +29,16 @@ func _initialize() -> void:
 	root.add_child(main)
 	run.call_deferred()
 
+# Types a line into the chat input and sends it, as the player would.
+func say(text: String) -> void:
+	main.toggle_chat()
+	await frames(2)
+	var le := root.gui_get_focus_owner() as LineEdit
+	if le:
+		le.text = text
+	main._on_chat_text_submitted(text)
+	await frames(2)
+
 func frames(n: int) -> void:
 	for i in n:
 		await process_frame
@@ -94,6 +104,8 @@ func run() -> void:
 	press("Reveal map")
 	await frames(3)
 	check(not main.debug_dev_overlay()["map_revealed"], "and clearing it hides it again")
+	var log: String = main.debug_dev_overlay()["chat_log"]
+	check(log.count("(Cheat - reveal map)") == 2 and log.contains("> (Cheat - reveal map)"), "each press tells everyone in the player's chat line (Commands.js aichat)")
 
 	press("Restrict camera")
 	await frames(1)
@@ -111,6 +123,16 @@ func run() -> void:
 	var after: int = int(main.debug_dev_overlay()["selection_ranks"])
 	check(after > before, "Promote selected units raises their ranks: %d -> %d" % [before, after])
 	check(not box("Promote selected units").button_pressed, "its box doesn't stay ticked")
+	check(main.debug_dev_overlay()["chat_log"].contains("> (Cheat - promoted units)"), "and \"(Cheat - promoted units)\" in the chat")
+
+	print("Cheat codes")
+	await say("i want pizza lots")
+	await frames(3)
+	check(main.debug_dev_overlay()["chat_log"].contains("> This cheat requires a numeric parameter."), "a non-numeric parameter: the player's own chat line")
+	await say("retro me")
+	await frames(3)
+	check(main.get_audio_state()["music_state"] == "custom", "\"retro me\" plays the custom track: " + str(main.get_audio_state()["track"]))
+	await say("retro me off")
 
 	check(not main.debug_dev_overlay()["view_picker"] and int(main.debug_dev_overlay()["seat"]) == 0, "a player has no view dropdown")
 	press("Change perspective")

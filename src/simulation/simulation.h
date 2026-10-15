@@ -514,11 +514,24 @@ public:
 		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5,
 			DEFEATED = 6,   // player is out; tech: the EndReason
 			WON = 7,        // other: the winners' mask; tech: the EndReason
-			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
+			LOST = 8,       // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
+			TEXT = 9,       // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
+			CHEAT = 10 };   // Commands.js "aichat" from `player`: tech 0 "(Cheat - reveal map)", 1 "(Cheat - promoted units)"
+		// The "text" time notifications (10 s, centre top) the sim pushes for `player`.
+		enum TextMessage : uint8_t {
+			TEXT_QUEUE_FULL = 0,       // ProductionQueue.js AddItem: "The production queue is full."
+			TEXT_UPGRADING,            // AddItem: "Entity is being upgraded. Cannot start production."
+			TEXT_AUTOQUEUE_OFF,        // ProductionQueue.js: "Could not auto-queue unit, de-activating."
+			TEXT_SPAWN_BLOCKED,        // Trainer.js: "Can't find free space to spawn trained units."
+			TEXT_PRODUCING,            // Upgrade.js: "Entity is producing. Cannot start upgrading."
+			TEXT_UNLOAD_FAILED,        // Commands.js notifyUnloadFailure: "Unable to unload unit(s)."
+			TEXT_BACK_TO_WORK_FAILED,  // notifyBackToWorkFailure: "Some unit(s) can't go back to work"
+			TEXT_NO_BRIBABLE,          // Commands.js spy-request: "There are no bribable units"
+		};
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
-			END_TREASURE };
+			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -668,6 +681,7 @@ public:
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
+		terrain_lowest_known_ = false;
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -1752,6 +1766,7 @@ public:
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
 	int petra_pop_phase2() const; // config.js Economy.popPhase2 after setConfig's population scaling
+	int petra_config_pop_phase2() const; // the same before startingStrategy.js's saveResources cut
 	int petra_accounted_population() const;
 	int petra_pop_for_barracks1() const;
 	int petra_pop_for_barracks2() const;
@@ -2614,6 +2629,8 @@ private:
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
 	void record_unit_death(size_t i, uint8_t killer_team); // record_death for unit i, noting its DeathDamage
 	const DeathDamageInfo *unit_death_damage(size_t i) const;
+	static uint8_t unit_death_damage_row(uint16_t tmpl); // 1 + its death damage table row, 0 none
+	static const DeathDamageInfo *death_damage_info(uint8_t row); // that row's DeathDamage, or nullptr
 	float unit_template_regen(size_t i) const;
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
 	// (out of range or the victim's own owner credits nobody).
@@ -2637,13 +2654,18 @@ private:
 	void award_structure_damage_xp(uint32_t attacker_id, const Building &b, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-			bool target_is_building, float damage, bool melee = false);
+			bool target_is_building, float damage, bool melee = false, bool capture = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
 	std::vector<TriggerEventData> pending_attack_alerts_; // OnAttackDetected, raised at the end of the tick that detected them
 	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
 	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
+	void note_text(uint8_t player, uint8_t message, uint32_t entity = 0) {
+		SessionNotice n{SessionNotice::TEXT, player, 0, message, {}};
+		n.amounts[0] = (int32_t)entity;
+		note_session(n);
+	}
 	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
 		if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) note_session({kind, player, 0, tech, {}});
 	}
@@ -3112,6 +3134,7 @@ private:
 	uint8_t petra_enemy_player(uint8_t kind) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
+	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
@@ -3141,6 +3164,8 @@ private:
 	// attackPlan.js isBlocked: the plan's target is a wall piece that blocked its path.
 	bool petra_plan_blocked(const AttackPlan &plan) const;
 	bool petra_unit_reserved(uint32_t uid) const;
+	std::unordered_set<uint32_t> petra_launched_units() const;
+	bool petra_builder_worker(size_t unit_idx, const std::unordered_set<uint32_t> &launched) const;
 	bool petra_mustering(uint32_t uid) const;
 	void petra_leave_mustering(uint32_t uid);
 
@@ -3251,7 +3276,7 @@ private:
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
-	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const;
+	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id, bool any_base = false) const;
 	void petra_lands_around(float x, float z, float half, uint16_t out[8]) const; // a structure's lands, or a unit's
 	void petra_attack_from_lands(uint16_t same_land, uint16_t out[8]) const; // same_land, or the home base's lands
 	bool petra_lands_reach(const uint16_t from[8], const uint16_t to[8], bool by_sea, const PetraNavalTopo *&topo) const;
@@ -3326,6 +3351,10 @@ private:
 	bool petra_is_critical_relic(size_t unit_idx) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
 	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
+	// A defense army's foe that is still about: a living unit, or an animal neither dead nor
+	// penned (defenseManager.js checkEnemyUnits keeps animals attacking us or our allies).
+	bool petra_army_foe_pos(uint32_t fid, float &x, float &z) const;
+	float petra_fauna_strength(size_t f) const; // getMaxStrength, x3 for an elephant (evaluateStrength)
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
 	float petra_enemy_capture_points(const Building &b) const;
 	bool petra_near_invading_army(float x, float z, float dist2) const;
@@ -3388,7 +3417,17 @@ private:
 	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
-	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const;
+	// findDockPosition's other searches, over the whole map: buildOverseaDock's (on any of
+	// `lands`, by land id, facing any sea) and buildFirstBase's (nearest to (px, pz)).
+	struct PetraDockSearch {
+		const std::vector<uint8_t> *lands = nullptr; // oversea
+		bool proximity = false;
+		float px = 0.0f, pz = 0.0f;
+	};
+	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz,
+	                              const PetraDockSearch *search = nullptr) const;
+	bool petra_build_oversea_dock();
+	void petra_transport_garrisons_to(uint32_t foundation_id);
 	void petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, float x1, float z0, float z1) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
@@ -3416,9 +3455,14 @@ private:
 	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
+	bool petra_wood_starved() const;
+	bool petra_wood_kept_for(int queue) const;
+	void petra_clear_blocked_spawns();
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
+	int petra_config_max_pop(int unlimited = 300) const; // config.js setConfig's getPopulationMax
+	float petra_config_pop_scaling() const; // Config.popScaling: pop_scaling times sqrt(maxPop/300) under 300
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
@@ -3728,6 +3772,9 @@ private:
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
 	std::vector<CaptureReach> capture_cell_buildings_;
+	// What capture_cell_* were built from (map half-size, then each building's x, z): the grid
+	// is rebuilt only when these change.
+	std::vector<float> capture_cell_key_;
 	// Capture points each player's capture attacks took from each building this tick
 	// (tick_combat fills it, tick_capture spends it). Indexed like buildings_.
 	std::vector<std::array<float, MAX_PLAYERS>> capture_attack_;
@@ -3810,6 +3857,10 @@ private:
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;
 	std::vector<float> terrain_heights_;
+	// The lowest terrain height (0 on a flat map), found once per heightmap (structure arrows' reach).
+	mutable float terrain_lowest_ = 0.0f;
+	mutable bool terrain_lowest_known_ = false;
+	float lowest_terrain_height() const;
 	TerrainTiles terrain_tiles_; // saved v49, after the heightmap
 	float terrain_water_height_ = -1.0f;
 	std::string current_map_id_ = "default";

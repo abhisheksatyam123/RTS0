@@ -30,6 +30,8 @@
 //    MTU, and reliable messages arrive in the order sent, also with 30% loss.
 // 10. 0.28 NetServer's late-joiner refusals: a refused client is told why
 //     (NDR_SERVER_ALREADY_IN_GAME), not "The host has ended the game." (2).
+// 12. 0 A.D. SanitisePlayerName: no GUI tags, at most 32 characters, trimmed,
+//     "Anonymous" for blanks.
 // 11. 0.28 lobby authentication (NetServer m_LobbyAuth): a lobby host asks
 //     the lobby whose ticket a joiner sent and admits it only under that
 //     name (case and a " (rating)" aside); another name, an unknown ticket or
@@ -423,6 +425,32 @@ int main() {
 		pump(h, cl, 6000, [&] { return cl[0]->connectionLost(); });
 		CHECK(cl[0]->connectionLost() && cl[0]->disconnectReason() == NDR_SERVER_ALREADY_IN_GAME,
 		      "a refused late observer is told the game has started (reason 5)");
+	}
+
+	// 12. Names as the host keeps them.
+	CHECK(NetHost::sanitise_player_name("  [b]bob[/b] ") == "{b}bob{/b}", "GUI tags are defused and the name trimmed");
+	CHECK(NetHost::sanitise_player_name(std::string(40, 'x')) == std::string(32, 'x'), "at most 32 characters");
+	CHECK(NetHost::sanitise_player_name(std::string(31, 'x') + "\xc3\xa9\xc3\xa9") == std::string(31, 'x') + "\xc3\xa9",
+	      "counted in characters, not bytes");
+	CHECK(NetHost::sanitise_player_name("   ") == "Anonymous", "a blank name is Anonymous");
+	{
+		NetHost h;
+		h.setLocalPlayerName("host");
+		h.setPassword("pw");
+		h.setPasswordHasher([](const std::string &pw, const std::string &name) { return pw + "|" + name; });
+		h.startHost(c);
+		std::vector<std::string> in;
+		h.onPeerConnected([&](uint32_t id) { in.push_back(h.getPeer(id)->player_name); });
+		std::vector<std::unique_ptr<NetHost>> cl;
+		cl.push_back(std::make_unique<NetHost>());
+		cl[0]->setLocalPlayerName(" [color=red]x[/color] ");
+		cl[0]->setPassword("pw");
+		cl[0]->setPasswordHasher([](const std::string &pw, const std::string &name) { return pw + "|" + name; });
+		cl[0]->startClient("127.0.0.1", h.localPort());
+		pump(h, cl, 5000, [&] { return cl[0]->authResult() >= 0 || cl[0]->connectionLost(); });
+		CHECK(cl[0]->authResult() == ARC_OK && in == std::vector<std::string>{"{color=red}x{/color}"},
+		      "a joiner is admitted under the sanitised name, its password salted by the name it sent");
+		cl[0]->stop();
 	}
 
 	// 11. Lobby authentication: tickets the toy lobby knows.

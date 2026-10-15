@@ -163,6 +163,12 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool net_setup_overlay_unsupported_ = false;
 	Button *lobby_start_btn_ = nullptr;
 	void update_net_setup_overlay();
+	// gamesetup_mp.js pageConnecting: "Connecting to server..." (then
+	// "Registering with server...") with Cancel over the screen until the
+	// host lets us in, and while a rejoin loads the host's game.
+	void update_net_connect_overlay();
+	Node *net_connect_overlay_ = nullptr; // scenes/menu/net_connecting.gd
+	CanvasLayer *net_connect_layer_ = nullptr;
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -198,6 +204,13 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Label *banner_label = nullptr;
 	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
 	RichTextLabel *time_notification_label_ = nullptr; // notificationText: player names in their colours
+	// The sim's "text" notices (SessionNotice::TEXT) shown under it until end_ms (match time).
+	struct TextNotice {
+		String text;
+		uint32_t end_ms;
+	};
+	std::vector<TextNotice> text_notices_;
+	std::unordered_map<uint32_t, uint32_t> spawn_notified_; // building -> match ms of its last blocked-spawn notice
 	// 0.28 NetworkDelayOverlay: "Delay to live stream" while this peer holds more
 	// than MAX_LIVE_DELAY turns it hasn't run yet; checked once a second.
 	Label *net_delay_label_ = nullptr;
@@ -356,6 +369,16 @@ public:
 	void quicksave();
 	void quickload();
 	void show_notice(const String &text);
+	// CLogger's rendered messages (CLogger.cpp RENDER_TIMEOUT 10 s, RENDER_LIMIT 20).
+	struct LogLine {
+		String text;
+		bool error;
+		uint64_t until_ms;
+	};
+	std::vector<LogLine> log_lines_;
+	RichTextLabel *log_label_ = nullptr;
+	void log_render(const String &text, bool error = false);
+	void update_log_messages(bool changed = false);
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
 	static String speed_text(float speed);
 	static String speed_title(float speed);
@@ -662,8 +685,11 @@ public:
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	Vector2 debug_spawn_offset(const String &template_id, int count, int player = -1) const;
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
+	String debug_unit_model_path(int civ, int unit_type);
+	String debug_template_model_path(const String &template_id);
 	Dictionary debug_snap_placement(int btype, float x, float z, bool hover, float stale_angle);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
@@ -715,6 +741,13 @@ public:
 	// input.js setHighlightList: the entity under the cursor, or what the band box would pick.
 	void update_highlight();
 	PackedInt32Array highlight_ids_;
+	// The hover pick (PickEntityAtPoint) is redone when the mouse or camera moves, or
+	// every kHoverRepickMs while they stand still (units walk under the cursor).
+	PackedInt32Array hover_pick_;
+	Vector2 hover_mouse_ = Vector2(-1e9f, -1e9f);
+	Transform3D hover_cam_;
+	uint64_t hover_at_ms_ = 0;
+	static constexpr uint64_t kHoverRepickMs = 200;
 	struct BatchTraining {
 		bool active = false;
 		bool from_unit = false; // trained by a unit (Trainer on a unit), else a structure
@@ -981,6 +1014,8 @@ private:
 	Dictionary debug_selected_building() const;
 	Dictionary debug_queue_slot(int i);
 	Dictionary debug_minimap_panel() const;
+	// An Attacked message on `target` (a unit) from `attacker_owner`, through the session's AttackDetection.
+	void debug_attacked(int64_t target, int64_t attacker_owner);
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while

@@ -1,6 +1,7 @@
 // P4.6: RtsoMain's debug_* hooks, the queries and steps the Godot e2e tests drive the session through.
 
 #include <algorithm>
+#include <cmath>
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
@@ -35,6 +36,7 @@
 #include "../core/diagnostics/perf_tracker.h"
 #include "../core/job_system.h"
 #include "../graphics/assets/model_library.h"
+#include "../graphics/assets/unit_template_models.h"
 #include <sstream>
 using namespace godot;
 using rtso::sprintf0;
@@ -422,8 +424,50 @@ Array RtsoMain::debug_command_row() {
 	return out;
 }
 
+// Test hook: where debug_spawn_units puts its row of `count` (the first unit's offset from
+// the player's Civic Centre). 16 m out on both axes, unless that row has water within 4 m:
+// on a small coastal map that may be sea or its shore, where a siege tower finds nowhere to
+// unload and walkers can't reach it. Then the nearest row with none, still 12 m or more off
+// the Civic Centre and clear of trees and mines; with none, the usual one. Structures a
+// test placed nearby are its own business. Ships keep the usual row.
+Vector2 RtsoMain::debug_spawn_offset(const String &template_id, int count, int player) const {
+	if (!sim) return Vector2(-16.0f, -16.0f);
+	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
+	if (t >= rtso::CIV_UNIT_TEMPLATE_COUNT) return Vector2(-16.0f, -16.0f);
+	const uint8_t me = player < 0 ? local_player() : (uint8_t)player;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : sim->buildings())
+		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+	const rtso::NavGrid &nav = sim->nav_grid();
+	if (rtso::unit_is_ship(rtso::civ_unit_template(t).unit_type) || nav.cells.blank()) return Vector2(-16.0f, -16.0f);
+	auto dry = [&](float x, float z) {
+		const auto [gx, gy] = nav.world_to_cell(x, z);
+		if (!nav.cells.inside(gx, gy)) return false;
+		const uint8_t c = nav.cells.at(gx, gy);
+		return c != rtso::NAV_WATER && c != rtso::NAV_SHALLOW && sim->get_terrain_height(x, z) >= sim->water_height() + 0.15f;
+	};
+	const auto res = sim->resources();
+	auto clear_row = [&](float ox, float oz, bool moved) {
+		if (std::max(std::fabs(ox), std::fabs(oz)) < 12.0f) return false;
+		for (float dz = -4.0f; dz <= 4.0f; dz += 2.0f)
+			for (float dx = -4.0f; dx <= 3.0f * (count - 1) + 4.0f; dx += 2.0f)
+				if (!dry(cx + ox + dx, cz + oz + dz)) return false;
+		if (moved) // nor into a wood or a mine the usual row is clear of
+			for (size_t r = 0; r < res.count; ++r)
+				if (res.alive[r] && res.x[r] > cx + ox - 4.0f && res.x[r] < cx + ox + 3.0f * (count - 1) + 4.0f &&
+						std::fabs(res.z[r] - (cz + oz)) < 4.0f)
+					return false;
+		return true;
+	};
+	for (int k = 0; k <= 22; ++k)
+		for (int dz = 0; dz <= std::min(k, 10); ++dz)
+			if (clear_row(-16.0f + (float)(k - dz), -16.0f + (float)dz, k > 0)) return Vector2(-16.0f + (float)(k - dz), -16.0f + (float)dz);
+	return Vector2(-16.0f, -16.0f);
+}
+
 // Test hook: spawns `count` of the roster template `template_id` (e.g.
-// "athen/support_female_citizen") for the local player by its Civic Centre.
+// "athen/support_female_citizen") for the local player in a row by its Civic Centre,
+// 3 m apart from debug_spawn_offset.
 PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count, int player) {
 	PackedInt32Array out;
 	if (!sim) return out;
@@ -433,8 +477,9 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
 		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+	const Vector2 o = debug_spawn_offset(template_id, count, player);
 	for (int i = 0; i < count; ++i)
-		out.push_back((int32_t)sim->spawn_unit(cx - 16.0f + 3.0f * i, cz - 16.0f, me,
+		out.push_back((int32_t)sim->spawn_unit(cx + o.x + 3.0f * i, cz + o.y, me,
 				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
 	return out;
 }
@@ -782,5 +827,44 @@ Dictionary RtsoMain::debug_minimap_panel() const {
 	}
 	d["idle_count"] = minimap_panel_.idle_count_text();
 	d["flare_armed"] = flare_armed_;
+	d["pings"] = minimap_view ? (int64_t)minimap_view->entity_ping_count() : (int64_t)0;
 	return d;
+}
+
+void RtsoMain::debug_attacked(int64_t target, int64_t attacker_owner) {
+	if (!sim) return;
+	auto uv = sim->units();
+	int64_t u = -1;
+	for (size_t i = 0; i < uv.count && u < 0; ++i)
+		if (uv.alive[i] && uv.id[i] == (uint32_t)target) u = (int64_t)i;
+	rtso::Simulation::AttackedEvent e{};
+	e.target_id = (uint32_t)target;
+	e.attacker_owner = (uint8_t)attacker_owner;
+	if (u >= 0) {
+		e.target_owner = uv.team[u];
+		e.x = uv.pos_x[u];
+		e.z = uv.pos_z[u];
+	} else { // an owned animal (livestock)
+		const auto fv = sim->fauna();
+		size_t f = 0;
+		while (f < fv.count && fv.id[f] != (uint32_t)target) ++f;
+		if (f == fv.count) return;
+		e.target_owner = fv.owner[f];
+		e.x = fv.pos_x[f];
+		e.z = fv.pos_z[f];
+	}
+	detect_attacks({e});
+}
+
+// The GLB a civ's class model for a unit type loads from (ModelLibrary, aliases included).
+String RtsoMain::debug_unit_model_path(int civ, int unit_type) {
+	return rtso::ModelLibrary::get("units", String(rtso::civ_unit_model((uint8_t)civ, (uint8_t)unit_type))).path;
+}
+
+// The GLB a roster template's own model (unit_template_draw_index) loads from; "" when it
+// draws its civ's class model.
+String RtsoMain::debug_template_model_path(const String &template_id) {
+	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
+	const char *own = rtso::unit_template_draw_model(rtso::unit_template_draw_index(t));
+	return own ? rtso::ModelLibrary::get("units", String(own)).path : String();
 }
