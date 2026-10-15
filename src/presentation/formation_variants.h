@@ -101,6 +101,7 @@ inline const VariantClips &variant_clips(uint8_t v) {
 inline const char *animation_variants(uint8_t formation) {
 	switch (formation) {
 		case FORMATION_PHALANX:
+		case FORMATION_SHIELD_WALL: // shield_wall.xml: the phalanx variants
 			return "1..1,1..-1: phalanx_front; 2..2,1..-1: phalanx_mid; 3..-1,1..-1: phalanx_back";
 		case FORMATION_SYNTAGMA:
 			return "1..2,1..-1: syntagma_front; 3..3,1..-1: syntagma_01; 4..4,1..-1: syntagma_02; "

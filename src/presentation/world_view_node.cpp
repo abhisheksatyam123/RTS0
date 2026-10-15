@@ -1864,7 +1864,7 @@ void RtsoWorldView::update_upgrade_scaffold(BuildingVis &v, const String &model_
 void RtsoWorldView::update_production_fx(BuildingVis &v, const String &model_id, uint8_t state, float b_scale, float y_offset) {
 	if (state == v.production || !v.root) return;
 	v.production = state;
-	for (GPUParticles3D *p : v.production_fx) {
+	for (Node3D *p : v.production_fx) {
 		if (p->get_parent()) p->get_parent()->remove_child(p);
 		p->queue_free();
 	}
@@ -1887,6 +1887,11 @@ void RtsoWorldView::update_production_fx(BuildingVis &v, const String &model_id,
 					Array pos = fx.get("pos", Array());
 					const String kind = fx.get("fx", "");
 					if (pos.size() != 3) continue;
+					if (fx.has("glb")) {
+						set.actors[s].push_back({ String(fx["glb"]), Vector3((float)pos[0], (float)pos[1], (float)pos[2]),
+								(float)fx.get("yaw", 0.0) });
+						continue;
+					}
 					set.fx[s].push_back({ (uint8_t)(kind == "sparks" ? 0 : kind == "smoke" ? 1 : 2),
 							Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
 				}
@@ -1954,6 +1959,28 @@ void RtsoWorldView::update_production_fx(BuildingVis &v, const String &model_id,
 		p->set_position(Vector3(fx.pos.x * b_scale, y_offset + fx.pos.y * b_scale, fx.pos.z * b_scale));
 		v.root->add_child(p);
 		v.production_fx.push_back(p);
+	}
+	// The German forge's forger and the German temple's crows: animated actor
+	// props, playing their Idle (blacksmith_idle, bird_circle_idle_01) in a loop.
+	for (const ProductionActor &a : set.actors[state == 1 ? 0 : 1]) {
+		auto entry = rtso::ModelLibrary::get("units", a.glb);
+		if (!entry.scene.is_valid()) continue;
+		Node3D *n = Object::cast_to<Node3D>(entry.scene->instantiate());
+		if (!n) continue;
+		rtso::ModelLibrary::apply_imported_material_fixups(n);
+		n->set_position(Vector3(a.pos.x * b_scale, y_offset + a.pos.y * b_scale, a.pos.z * b_scale));
+		n->set_rotation(Vector3(0.0f, a.yaw, 0.0f));
+		n->set_scale(Vector3(m, m, m));
+		v.root->add_child(n);
+		TypedArray<Node> aps = n->find_children("*", "AnimationPlayer", true, false);
+		if (AnimationPlayer *ap = aps.is_empty() ? nullptr : Object::cast_to<AnimationPlayer>(aps[0])) {
+			const StringName idle("Idle");
+			if (ap->has_animation(idle)) {
+				if (Ref<Animation> an = ap->get_animation(idle); an.is_valid()) an->set_loop_mode(Animation::LOOP_LINEAR);
+				ap->play(idle);
+			}
+		}
+		v.production_fx.push_back(n);
 	}
 }
 
@@ -2398,8 +2425,13 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
-		for (int s = 0; slot->rest.is_valid() && s < slot->rest->get_surface_count(); ++s)
-			if (rtso::ModelLibrary::is_player_color_material(slot->rest->surface_get_material(s))) slot->player_color = true;
+		// Owner-coloured: a player_color.gdshader surface with a mask (the shader also
+		// draws unmasked skins that vary by unit or carry specular or height maps).
+		for (int s = 0; slot->rest.is_valid() && s < slot->rest->get_surface_count(); ++s) {
+			Ref<ShaderMaterial> sm = slot->rest->surface_get_material(s);
+			if (rtso::ModelLibrary::is_player_color_material(sm) && sm->get_shader_parameter("mask_tex").get_type() != Variant::NIL)
+				slot->player_color = true;
+		}
 	}
 	return *slot;
 }

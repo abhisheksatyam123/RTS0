@@ -82,6 +82,9 @@ int main() {
 	// Modifier hotkeys are held queries; camera.left yields to Ctrl+A (rotate).
 	CHECK(t.is_held("session.queue", held({"Shift"})));
 	CHECK(t.is_held("session.attackmove", held({"Ctrl"})));
+	// default.cfg's mixed-case names (attackmoveUnit) load lower-cased; lookups take either spelling.
+	CHECK(t.is_held("session.attackmoveUnit", held({"Ctrl", "Q"})) && t.is_held("session.attackmoveunit", held({"Ctrl", "Q"})));
+	CHECK(!t.is_held("session.attackmoveUnit", held({"Ctrl"})));
 	CHECK(t.is_held_exclusive("camera.left", held({"A"})));
 	CHECK(!t.is_held_exclusive("camera.left", held({"A", "Ctrl"})));
 	CHECK(t.is_held_exclusive("camera.rotate.cw", held({"A", "Ctrl"})));
@@ -89,7 +92,13 @@ int main() {
 
 	// 0.28: F is the attack and focus-fire modifier, the arrows also page items.
 	CHECK(t.label("session.attack") == "F" && t.label("session.focusfire") == "F");
-	CHECK(t.label("item.next") == "RightArrow" && t.label("item.prev") == "LeftArrow");
+	CHECK(t.get("item.next")->size() == 1 && combo_to_string(t.get("item.next")->front()) == "RightArrow");
+	// Labels as 0.28 shows them (KeyName.cpp, hotkeys.js): arrows as glyphs, every combination
+	// shortest first, modifiers in Alt, Ctrl, Shift order.
+	CHECK(t.label("item.next") == "\xe2\x86\x92" && t.label("item.prev") == "\xe2\x86\x90");
+	CHECK(t.label("pause") == "Pause, Shift+Space");
+	CHECK(combo_display(parse_combo("Shift+Ctrl+Plus")) == "Ctrl+Shift+Equals");
+	CHECK(combo_display(parse_combo("BackSlash")) == "Backslash" && combo_display(parse_combo("MouseX1")) == "WheelLeft");
 	CHECK(t.get("camera.follow")->empty() && t.get("session.showstatusbars")->empty());
 	CHECK(t.label("session.gui.matchsettings.toggle") == "Ctrl+O");
 

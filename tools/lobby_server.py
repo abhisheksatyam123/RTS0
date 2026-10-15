@@ -30,11 +30,16 @@ behind a small JSON API:
   POST /subject   {token, subject}       a moderator sets the room subject
   GET  /rooms                            -> {rooms: [...]}, without host_ip and host_port: as in
                                          0 A.D.'s game list, nobody learns a host's address from it
-  POST /rooms/connect {token, id}        -> {host_ip, host_port}: the address a signed-in joiner
-                                         connects to (0 A.D. sends a joiner the connection data
-                                         on request, XmppClient SendIqGetConnectionData); one
+  POST /rooms/connect {token, id}        -> {host_ip, host_port, ticket}: the address a signed-in
+                                         joiner connects to (0 A.D. sends a joiner the connection
+                                         data on request, XmppClient SendIqGetConnectionData); one
                                          behind the host's public address learns the LAN one
-                                         from /rooms/punch
+                                         from /rooms/punch. ticket goes to the host with the
+                                         joiner's authentication
+  POST /rooms/ticket {token, id, ticket} -> {name}: the host redeems a joiner's ticket (once, within
+                                         60 s) for the joiner's lobby name, as 0 A.D.'s host learns
+                                         it from the lobby (LobbyAuth iq, NetServer OnLobbyAuth);
+                                         404 for a ticket the lobby never gave for that game
   POST /rooms     {id, host_ip, host_port, players, max_players, map_id,
                    name, host_name, map_name, victory, state, password,
                    map_type, map_size, start_time, player_names}
@@ -108,7 +113,9 @@ STATUSES = ("available", "away", "playing")
 ROOM_STATES = ("init", "running")
 PUNCH_KEEP = 16         # joiner endpoints kept per game
 PUNCH_TIMEOUT = 30.0    # seconds a joiner endpoint stays listed
-PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port", "base", "owner", "poster_ip")
+PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port", "base", "owner", "poster_ip",
+                     "tickets")
+TICKET_TIMEOUT = 60.0   # seconds a joiner's lobby ticket stays redeemable
 LISTED_HIDDEN_KEYS = PRIVATE_ROOM_KEYS + ("host_ip", "host_port")
 STUN_MAGIC_COOKIE = 0x2112A442
 
@@ -130,8 +137,11 @@ def encrypt_password(password, username):
     return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, ENCRYPT_ITERATIONS).hex().upper()
 
 
-# 0 A.D. prelobby checkUsername for a new account.
-ACCOUNT_NAME = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
+# 0 A.D. prelobby checkUsername (credentials.js): 3 to 20 of a-z 0-9 . _ -, one
+# letter at least, any case. Guests' names follow it too: a space, comma, "@"
+# or " (1800)" would pass for something else (a buddy list entry, a moderator,
+# a rating).
+ACCOUNT_NAME = re.compile(r"^(?=.*[a-z])[a-z0-9._-]{3,20}$", re.IGNORECASE)
 ELO_K_FACTOR_CONSTANT_RATING = 2200.0  # ratings above this move at its rate
 VOLATILITY_CONSTANT = 20.0          # games after which a rating is stable
 ANTI_INFLATION = 0.015
@@ -154,6 +164,21 @@ def get_rating_adjustment(rating, opponent_rating, games_played, opponent_games_
 
 
 MAX_ROOM_PLAYERS = 24
+
+
+MAX_ROOM_MODS = 32
+
+
+def _mods(value):
+    """Sanitizes a room's mod list (LobbyGameRegistration.js mods, the host's
+    Engine.GetEngineInfo().mods): {name, version, ignoreInCompatibilityChecks}
+    per entry, in load order. Anything else becomes an empty list."""
+    out = []
+    for m in value if isinstance(value, list) else []:
+        if isinstance(m, dict) and str(m.get("name") or "").strip():
+            out.append({"name": str(m["name"]).strip()[:64], "version": str(m.get("version") or "")[:32],
+                        "ignoreInCompatibilityChecks": bool(m.get("ignoreInCompatibilityChecks"))})
+    return out[:MAX_ROOM_MODS]
 
 
 def _player_names(value):
@@ -287,6 +312,9 @@ class Lobby:
         if p["name"].lower() not in self.moderators:
             return 403, {"error": "The command is restricted to moderators."}
         self.subject = str(subject or "").strip()[:MAX_TEXT]
+        # StatusMessageEvents.js Subject: the room hears of the change.
+        self._say(None, f"{p['name']} changed the lobby subject to:\n{self.subject}" if self.subject
+                  else f"{p['name']} deleted the lobby subject.")
         return 200, {"subject": self.subject}
 
     @staticmethod
@@ -315,6 +343,22 @@ class Lobby:
         self._save_accounts()
         return 200, {"name": name}
 
+    def change_password(self, token, password):
+        """0.28 AccountSettingsPage: Engine.LobbyChangePassword, an XMPP in-band
+        password change for the signed-in account."""
+        p = self.player(token)
+        if not p:
+            return self.not_signed_in(token)
+        acct = self.accounts.get(p["name"].lower())
+        if not acct:
+            return 403, {"error": "Register an account first"}
+        if not password:
+            return 400, {"error": "Please enter your password"}
+        acct["salt"] = secrets.token_hex(16)
+        acct["hash"] = self._hash(acct["salt"], password)
+        self._save_accounts()
+        return 200, {"name": acct["name"]}
+
     def login(self, name, password=None):
         name = " ".join(str(name or "").split())[:MAX_NAME]
         if not name:
@@ -326,6 +370,8 @@ class Lobby:
             name = acct["name"]
         elif password or self.accounts_only:
             return 401, {"error": "Wrong username or password" if password else "Register an account first"}
+        elif not ACCOUNT_NAME.match(name):
+            return 400, {"error": "Invalid username"}
         if name.lower() in self.banned:
             return 403, {"error": "You have been banned from the lobby!"}
         if any(p["name"].lower() == name.lower() for p in self.players.values()):
@@ -523,12 +569,29 @@ class Lobby:
         """A game's address, only for a signed-in joiner (0 A.D. XmppClient
         SendIqGetConnectionData; the host's own checks, the password and its
         bans, stay at the game socket)."""
-        if not self.player(data.get("token")):
+        p = self.player(data.get("token"))
+        if not p:
             return 401, {"error": "not signed in"}
         room = next((r for r in self.rooms if r["id"] == str(data.get("id"))), None)
         if not room:
             return 404, {"error": "no such game"}
-        return 200, {"host_ip": room["host_ip"], "host_port": room["host_port"]}
+        now = self.clock()
+        tickets = {t: v for t, v in room["tickets"].items() if now - v["time"] <= TICKET_TIMEOUT}
+        ticket = secrets.token_hex(16)
+        tickets[ticket] = {"name": p["name"], "time": now}
+        room["tickets"] = dict(list(tickets.items())[-64:])
+        return 200, {"host_ip": room["host_ip"], "host_port": room["host_port"], "ticket": ticket}
+
+    def redeem_ticket(self, data, peer_ip="127.0.0.1"):
+        """The joiner a ticket was given to, for the host of its game only;
+        a ticket counts once."""
+        room = self._own_room(str(data.get("id")), self._owner(data.get("token")), peer_ip)
+        if not room:
+            return 404, {"error": "no such game"}
+        t = room["tickets"].pop(str(data.get("ticket") or ""), None)
+        if not t or self.clock() - t["time"] > TICKET_TIMEOUT:
+            return 404, {"error": "unknown ticket"}
+        return 200, {"name": t["name"]}
 
     def register(self, data, peer_ip="127.0.0.1"):
         """Registers a game, or updates the fields a host sends again (a field
@@ -567,14 +630,18 @@ class Lobby:
             "start_time": field("start_time", 0, int),
             "player_names": _player_names(data["player_names"]) if "player_names" in data
             else old.get("player_names", []),
+            "mods": _mods(data["mods"]) if "mods" in data else old.get("mods"),
             "local_ip": field("local_ip", "", str)[:64],
             "local_port": field("local_port", 0, int),
             "punch": old.get("punch", []),
+            "tickets": old.get("tickets", {}),
             "next_punch": old.get("next_punch", 1),
             "seen": self.clock(),
         }
         if room["state"] not in ROOM_STATES:
             room["state"] = "init"
+        if room["mods"] is None:
+            del room["mods"]  # a host that sends no mods (an older RTS0)
         public = {k: v for k, v in room.items() if k not in PRIVATE_ROOM_KEYS}
         if old:
             self.rooms[self.rooms.index(old)] = room
@@ -681,12 +748,16 @@ class LobbyHandler(BaseHTTPRequestHandler):
                     code, obj = LOBBY.add_punch(data)
                 elif path == "/rooms/connect":
                     code, obj = LOBBY.connect(data)
+                elif path == "/rooms/ticket":
+                    code, obj = LOBBY.redeem_ticket(data, self.client_address[0])
                 elif path == "/rooms/unregister":
                     code, obj = LOBBY.unregister(data.get("id"), data.get("token"), self.client_address[0])
                 elif path == "/login":
                     code, obj = LOBBY.login(data.get("name"), data.get("password"))
                 elif path == "/register":
                     code, obj = LOBBY.register_account(data.get("name"), data.get("password"))
+                elif path == "/password":
+                    code, obj = LOBBY.change_password(data.get("token"), data.get("password"))
                 elif path == "/logout":
                     code, obj = LOBBY.logout(data.get("token"))
                 elif path == "/presence":

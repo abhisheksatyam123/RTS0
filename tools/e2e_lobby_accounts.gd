@@ -6,7 +6,10 @@ extends SceneTree
 #   2. against tools/lobby_server.py --accounts-only, through the lobby screen:
 #      Register creates the account and signs in, Remember password keeps the
 #      encrypted password in lobby.password so the next sign-in needs no typing,
-#      a wrong password and a name with no account are refused.
+#      a wrong password and a name with no account are refused;
+#   3. AccountSettingsPage: "Account settings" changes the password (8 or
+#      more characters, typed twice) and keeps the new one in lobby.password
+#      when it is remembered; the old one no longer signs in.
 #
 #   godot --headless --path . -s tools/e2e_lobby_accounts.gd
 # Exit code 0 = pass. Needs python3 for the lobby server.
@@ -47,8 +50,15 @@ func run() -> void:
 	check(LobbySessionScript.register_problem("", "x", "x") == "Please enter your username", "a name is needed")
 	check(LobbySessionScript.register_problem("bad name", "x", "x") == "Invalid username", "no spaces in a name")
 	check(LobbySessionScript.register_problem("alice", "", "") == "Please enter your password", "a password is needed")
-	check(LobbySessionScript.register_problem("alice", "a", "b") == "Passwords do not match", "the confirmation must match")
-	check(LobbySessionScript.register_problem("Alice.x_1-2", "a", "a") == "", "a good name and password pass")
+	check(LobbySessionScript.register_problem("al", "hunter22", "hunter22") == "Invalid username" and
+		LobbySessionScript.register_problem("1234", "hunter22", "hunter22") == "Invalid username",
+		"a name needs 3 characters and a letter")
+	check(LobbySessionScript.register_problem("alice", "hunter2", "hunter2") == "Please choose a longer password",
+		"a password needs 8 characters")
+	check(LobbySessionScript.register_problem("alice", "hunter22", "") == "Please enter your password again",
+		"the password is asked twice")
+	check(LobbySessionScript.register_problem("alice", "hunter22", "hunter23") == "Passwords do not match", "the confirmation must match")
+	check(LobbySessionScript.register_problem("Alice.x_1-2", "hunter22", "hunter22") == "", "a good name and password pass")
 
 	print("2. the lobby")
 	var accounts := OS.get_user_data_dir().path_join("e2e_accounts.json")
@@ -78,6 +88,7 @@ func run() -> void:
 	lobby._server.text = "127.0.0.1:%d" % PORT
 	lobby._name.text = "Alice"
 	lobby._password.text = "hunter22"
+	lobby._password2.text = "hunter22"
 	lobby._remember.button_pressed = true
 	lobby._on_register_pressed()
 	await until(func() -> bool: return ls.signed_in())
@@ -106,6 +117,7 @@ func run() -> void:
 	check(cfg.get_value("lobby.password") == ALICE_PASSWORD, "a refused sign-in keeps the remembered password")
 
 	lobby._password.text = "hunter22"
+	lobby._password2.text = "hunter22"
 	lobby._on_register_pressed()
 	await until(func() -> bool: return lobby._status.text.begins_with("Registration failed"))
 	check(lobby._status.text == "Registration failed: Username already taken", "a name registers once")
@@ -115,6 +127,43 @@ func run() -> void:
 	await until(func() -> bool: return ls.signed_in())
 	cfg.reload()
 	check(ls.signed_in() and cfg.get_value("lobby.password") == "", "without Remember password nothing is kept")
+
+	print("3. account settings")
+	lobby._on_account_pressed()
+	var dlg: AcceptDialog = lobby.find_child("AccountSettings", true, false)
+	check(dlg != null and dlg.title == "Account settings", "Account settings opens")
+	var pw: LineEdit = dlg.find_child("Password", true, false) if dlg else null
+	var pw2: LineEdit = dlg.find_child("PasswordConfirm", true, false) if dlg else null
+	var result: Label = dlg.find_child("RequestResult", true, false) if dlg else null
+	check(pw != null and pw.secret and pw2 != null and pw2.secret and result != null, "with two hidden password fields")
+	if dlg and pw and pw2 and result:
+		pw.text = "short"
+		pw2.text = "short"
+		dlg.custom_action.emit("change")
+		check(result.text == "Please choose a longer password", "a short password is refused")
+		pw.text = "correct horse"
+		pw2.text = "correct horsf"
+		dlg.custom_action.emit("change")
+		check(result.text == "Passwords do not match", "so is a confirmation that differs")
+		cfg.set_value("lobby.rememberpassword", "true")
+		cfg.save()
+		pw2.text = "correct horse"
+		dlg.custom_action.emit("change")
+		await until(func() -> bool: return result.text != "Changing password…")
+		check(result.text == "Password changed successfully.", "the password changes: " + result.text)
+		cfg.reload()
+		check(cfg.get_value("lobby.password") == ls.encrypt_password("correct horse", "Alice"),
+			"and the remembered lobby.password is the new one")
+		dlg.confirmed.emit()
+	ls.sign_out()
+	var old := [0]
+	ls.sign_in("127.0.0.1:%d" % PORT, "Alice", func(code: int, _o) -> void: old[0] = code, ALICE_PASSWORD)
+	await until(func() -> bool: return old[0] != 0)
+	check(old[0] == 401, "the old password no longer signs in")
+	var new := [0]
+	ls.sign_in("127.0.0.1:%d" % PORT, "Alice", func(code: int, _o) -> void: new[0] = code, ls.encrypt_password("correct horse", "Alice"))
+	await until(func() -> bool: return new[0] != 0)
+	check(new[0] == 200, "the new one does")
 	ls.sign_out()
 
 	for key in saved:

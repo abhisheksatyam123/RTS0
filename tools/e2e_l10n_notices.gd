@@ -157,7 +157,9 @@ func run() -> void:
 	var spec: String = names_by_mode["2"]
 	var gen: String = names_by_mode["3"]
 	check(spec != "" and gen != "" and spec != gen, "only specific: %s, only generic: %s" % [spec, gen])
-	check(names_by_mode["0"] == "%s (%s)" % [spec, gen] and names_by_mode["1"] == "%s (%s)" % [gen, spec], "specific first, then generic first")
+	# The primary name is in small caps (getEntityNamesFormatted), the secondary as written.
+	check(names_by_mode["0"].to_upper() == ("%s (%s)" % [spec, gen]).to_upper() and names_by_mode["1"].to_upper() == ("%s (%s)" % [gen, spec]).to_upper()
+			and names_by_mode["0"].begins_with(spec + " (") and names_by_mode["0"] != names_by_mode["0"].to_upper(), "specific first, then generic first")
 
 	print("6. Cost tooltips")
 	main.debug_train_buttons(0)

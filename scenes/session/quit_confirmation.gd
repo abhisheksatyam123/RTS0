@@ -246,6 +246,6 @@ func _build() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	# The message box's cancel hotkey answers with the first button.
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+	if event is InputEventKey and event.pressed and not event.echo and "cancel" in RtsoHotkeyConfig.new().fired(event):
 		get_viewport().set_input_as_handled()
 		press(0)

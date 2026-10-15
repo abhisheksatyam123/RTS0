@@ -30,6 +30,12 @@
 //    MTU, and reliable messages arrive in the order sent, also with 30% loss.
 // 10. 0.28 NetServer's late-joiner refusals: a refused client is told why
 //     (NDR_SERVER_ALREADY_IN_GAME), not "The host has ended the game." (2).
+// 12. 0 A.D. SanitisePlayerName: no GUI tags, at most 32 characters, trimmed,
+//     "Anonymous" for blanks.
+// 11. 0.28 lobby authentication (NetServer m_LobbyAuth): a lobby host asks
+//     the lobby whose ticket a joiner sent and admits it only under that
+//     name (case and a " (rating)" aside); another name, an unknown ticket or
+//     a direct join without one is refused with NDR_LOBBY_AUTH_FAILED.
 #include "network/net_host.h"
 #include "network/chat_routing.h"
 
@@ -419,6 +425,75 @@ int main() {
 		pump(h, cl, 6000, [&] { return cl[0]->connectionLost(); });
 		CHECK(cl[0]->connectionLost() && cl[0]->disconnectReason() == NDR_SERVER_ALREADY_IN_GAME,
 		      "a refused late observer is told the game has started (reason 5)");
+	}
+
+	// 12. Names as the host keeps them.
+	CHECK(NetHost::sanitise_player_name("  [b]bob[/b] ") == "{b}bob{/b}", "GUI tags are defused and the name trimmed");
+	CHECK(NetHost::sanitise_player_name(std::string(40, 'x')) == std::string(32, 'x'), "at most 32 characters");
+	CHECK(NetHost::sanitise_player_name(std::string(31, 'x') + "\xc3\xa9\xc3\xa9") == std::string(31, 'x') + "\xc3\xa9",
+	      "counted in characters, not bytes");
+	CHECK(NetHost::sanitise_player_name("   ") == "Anonymous", "a blank name is Anonymous");
+	{
+		NetHost h;
+		h.setLocalPlayerName("host");
+		h.setPassword("pw");
+		h.setPasswordHasher([](const std::string &pw, const std::string &name) { return pw + "|" + name; });
+		h.startHost(c);
+		std::vector<std::string> in;
+		h.onPeerConnected([&](uint32_t id) { in.push_back(h.getPeer(id)->player_name); });
+		std::vector<std::unique_ptr<NetHost>> cl;
+		cl.push_back(std::make_unique<NetHost>());
+		cl[0]->setLocalPlayerName(" [color=red]x[/color] ");
+		cl[0]->setPassword("pw");
+		cl[0]->setPasswordHasher([](const std::string &pw, const std::string &name) { return pw + "|" + name; });
+		cl[0]->startClient("127.0.0.1", h.localPort());
+		pump(h, cl, 5000, [&] { return cl[0]->authResult() >= 0 || cl[0]->connectionLost(); });
+		CHECK(cl[0]->authResult() == ARC_OK && in == std::vector<std::string>{"{color=red}x{/color}"},
+		      "a joiner is admitted under the sanitised name, its password salted by the name it sent");
+		cl[0]->stop();
+	}
+
+	// 11. Lobby authentication: tickets the toy lobby knows.
+	{
+		const std::map<std::string, std::string> lobby = {{"t-bob", "Bob"}, {"t-cy", "cy"}};
+		NetHost h;
+		h.setLocalPlayerName("host");
+		std::vector<std::pair<uint32_t, std::string>> asked;
+		h.setLobbyAuth([&](uint32_t peer, const std::string &ticket) { asked.push_back({peer, ticket}); });
+		h.startHost(c);
+		std::vector<std::string> in;
+		h.onPeerConnected([&](uint32_t id) { in.push_back(h.getPeer(id)->player_name); });
+		std::vector<std::unique_ptr<NetHost>> cl;
+		auto lobby_join = [&](const std::string &name, const std::string &ticket, bool answer) {
+			cl.push_back(std::make_unique<NetHost>());
+			NetHost &j = *cl.back();
+			j.setLocalPlayerName(name);
+			j.setLobbyTicket(ticket);
+			j.startClient("127.0.0.1", h.localPort());
+			const size_t before = asked.size();
+			pump(h, cl, 5000, [&] { return asked.size() > before || j.connectionLost(); });
+			if (answer && asked.size() > before) {
+				const auto it = lobby.find(asked.back().second);
+				// A late answer about another ticket changes nothing.
+				CHECK(!h.finishLobbyAuth(asked.back().first, "t-stale", "Bob"), "an answer about another ticket is ignored");
+				h.finishLobbyAuth(asked.back().first, asked.back().second, it == lobby.end() ? "" : it->second);
+			}
+			pump(h, cl, 6000, [&] { return j.connectionLost() || j.authResult() >= 0; });
+			return j.authResult() == ARC_OK ? -1 : j.disconnectReason();
+		};
+		CHECK(lobby_join("bob", "t-bob", true) == -1 && in == std::vector<std::string>{"bob"},
+		      "bob's ticket names Bob: in, whatever the case");
+		CHECK(lobby_join("cy (1500)", "t-cy", true) == -1 && in.size() == 2, "a lobby rating in the name is allowed for");
+		CHECK(lobby_join("mallory", "t-bob", true) == NDR_LOBBY_AUTH_FAILED && in.size() == 2,
+		      "someone else's ticket is refused (NDR_LOBBY_AUTH_FAILED)");
+		CHECK(lobby_join("dan", "t-made-up", true) == NDR_LOBBY_AUTH_FAILED, "so is a ticket the lobby never gave");
+		const size_t asked_before = asked.size();
+		CHECK(lobby_join("eve", "", false) == NDR_LOBBY_AUTH_FAILED && asked.size() == asked_before,
+		      "a direct join without a ticket gives up at the handshake (Join via lobby.)");
+		lobby_join("fay", "t-cy", false);
+		CHECK(in.size() == 2 && cl.back()->authResult() < 0 && !cl.back()->connectionLost(),
+		      "a joiner waits while the lobby has not answered");
+		for (auto &j : cl) j->stop();
 	}
 
 	if (failures) {

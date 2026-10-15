@@ -99,7 +99,7 @@ class RtsoWorldView : public Node3D {
 		MeshInstance3D *flag = nullptr; // 0 A.D. garrison flag, shown while garrisoned
 		Node3D *upgrade_scaffold = nullptr; // child of `model`: 0 A.D.'s "upgrading" variant scaffold
 		uint8_t production = 0; // FoggedBuilding::production the effects below were made for
-		std::vector<GPUParticles3D *> production_fx; // the "researching"/"training" variant's particles
+		std::vector<Node3D *> production_fx; // the "researching"/"training" variant's particles and animated props
 		// 0 A.D.'s construction_dust (the foundation's "scaffold" variant) or
 		// destruction_dust_small (the "upgrading" variant) on the actor's root.
 		GPUParticles3D *site_dust = nullptr;
@@ -172,9 +172,11 @@ class RtsoWorldView : public Node3D {
 	bool upgrade_scaffolds_loaded_ = false;
 	void update_upgrade_scaffold(BuildingVis &v, const String &model_id, bool show);
 	// data/production_fx.json (tools/extract_production_fx.py): the particles 0 A.D.'s
-	// "researching" and "training" actor variants prop on a building GLB.
+	// "researching" and "training" actor variants prop on a building GLB, and the
+	// animated actors they prop (the German forger and temple crows).
 	struct ProductionFx { uint8_t kind = 0; Vector3 pos; }; // kind: 0 sparks, 1 smoke, 2 flame
-	struct ProductionFxSet { float metre = 0.25f; std::vector<ProductionFx> fx[2]; };
+	struct ProductionActor { String glb; Vector3 pos; float yaw = 0.0f; }; // an animated unit GLB at 0 A.D. metres
+	struct ProductionFxSet { float metre = 0.25f; std::vector<ProductionFx> fx[2]; std::vector<ProductionActor> actors[2]; };
 	std::unordered_map<std::string, ProductionFxSet> production_fx_;
 	bool production_fx_loaded_ = false;
 	Ref<QuadMesh> fx_sparks_quad_, fx_forge_smoke_quad_;

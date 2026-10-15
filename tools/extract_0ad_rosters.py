@@ -644,7 +644,12 @@ def rts0_class(name, t, civ):
             return "UNIT_BOLT_SHOOTER"
         if "SiegeTower" in c:
             return "UNIT_BOLT_SHOOTER"  # fires its own Bow attack; flagged ROSTER_SIEGE_TOWER
-        return None  # flamethrowers have no RTS0 class yet
+        if t.value("Attack/Ranged/Damage/Fire"):
+            # template_unit_siege_flamethrower (the Theban fire-raiser): a ranged siege engine
+            # firing one Fire projectile, no splash, so the bolt shooter's class; its row's
+            # CombatProfile carries the Fire damage, as the fire ships' do.
+            return "UNIT_BOLT_SHOOTER"
+        return None
     if "trumpeter" in stem:
         return "UNIT_CARNYX"
     if "Dog" in c:

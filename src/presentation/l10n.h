@@ -35,6 +35,31 @@ inline godot::String sprintf0(const godot::String &format,
 // tooltips.js getEntityNames under gui.session.howtoshownames (0 specific
 // first, 1 generic first, 2 only specific, 3 only generic): "Primary
 // (Secondary)", or the one name.
+// g_SpecificNamesPrimary / g_ShowSecondaryNames: the primary name and, when shown, the secondary.
+inline void entity_name_parts(const godot::String &generic, const godot::String &specific, godot::String &primary, godot::String &secondary) {
+	const std::string mode = user_config::get("gui.session.howtoshownames");
+	const bool specific_first = mode != "1" && mode != "3";
+	const bool show_secondary = mode != "2" && mode != "3";
+	secondary = godot::String();
+	if (specific.is_empty() || specific == generic) {
+		primary = specific.is_empty() ? tr0(generic) : specific;
+	} else {
+		primary = specific_first ? specific : tr0(generic);
+		if (show_secondary) secondary = specific_first ? tr0(generic) : specific;
+	}
+}
+
+// selection_panels.js Upgrade: "Upgrade to a %(primaryName)s (%(secondaryName)s). %(tooltip)s".
+inline godot::String upgrade_to_text(const godot::String &generic, const godot::String &specific, const godot::String &hint) {
+	godot::String primary, secondary;
+	entity_name_parts(generic, specific, primary, secondary);
+	if (!secondary.is_empty())
+		return sprintf0(tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s (%(secondaryName)s)." : "Upgrade to a %(primaryName)s (%(secondaryName)s). %(tooltip)s"),
+				{{"primaryName", primary}, {"secondaryName", secondary}, {"tooltip", tr0(hint)}});
+	return sprintf0(tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s." : "Upgrade to a %(primaryName)s. %(tooltip)s"),
+			{{"primaryName", primary}, {"tooltip", tr0(hint)}});
+}
+
 inline godot::String entity_names(const godot::String &generic, const godot::String &specific, bool packed = false) {
 	const std::string mode = user_config::get("gui.session.howtoshownames");
 	const bool specific_first = mode != "1" && mode != "3";
@@ -70,6 +95,22 @@ inline godot::String label_details(const godot::String &label, const godot::Stri
 // inline, hotkeys in 255 251 131 (color.js g_HotkeyTags).
 inline godot::String objection_font(const godot::String &text) { return "[color=red][b]" + text + "[/b][/color]"; }
 inline godot::String header_font(const godot::String &text) { return "[b]" + text + "[/b]"; }
+// namePrimaryBig / namePrimarySmall / nameSecondary: sans-bold-16, sans-bold-12, sans-bold-16.
+inline godot::String name_big(const godot::String &text) { return "[font_size=16][b]" + text + "[/b][/font_size]"; }
+// The primary name in small caps: its first letter big, the rest upper case and small.
+inline godot::String name_small_caps(const godot::String &name) {
+	if (name.is_empty()) return name;
+	return name_big(name.substr(0, 1)) + "[font_size=12][b]" + name.substr(1).to_upper() + "[/b][/font_size]";
+}
+// tooltips.js getEntityNamesFormatted: the Construction, Training and Research tooltips' first line.
+inline godot::String entity_names_formatted(const godot::String &generic, const godot::String &specific) {
+	if (specific.is_empty()) return name_big(tr0(generic));
+	godot::String primary, secondary;
+	entity_name_parts(generic, specific, primary, secondary);
+	if (secondary.is_empty()) return sprintf0(tr0("%(primaryName)s"), {{"primaryName", name_small_caps(primary)}});
+	return sprintf0(tr0("%(primaryName)s (%(secondaryName)s)"),
+			{{"primaryName", name_small_caps(primary)}, {"secondaryName", name_big(secondary)}});
+}
 inline godot::String resource_icon(const char *code) {
 	return godot::String("[img=16x16]res://assets/textures/ui/archive/icons/resources/") + code + "_small.png[/img]";
 }
@@ -138,7 +179,7 @@ inline godot::String batch_training_string(int buildings, int batch, int remaind
 	if (buildings > 1 || (buildings == 1 && remainder > 0))
 		format = remainder > 0 ? "%(action)s to train %(number)s (%(fullBatch)s + %(remainderBatch)s)."
 				: "%(action)s to train %(number)s (%(fullBatch)s).";
-	return sprintf0(tr0(format), {{"action", tr0("Shift-click")}, {"number", godot::String::num_int64(total)},
+	return sprintf0(tr0(format), {{"action", header_font(tr0("Shift-click"))}, {"number", godot::String::num_int64(total)},
 			{"fullBatch", full}, {"remainderBatch", godot::String::num_int64(remainder)}});
 }
 

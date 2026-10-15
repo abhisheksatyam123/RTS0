@@ -926,7 +926,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 if is_unit:
                     pass
                 elif wall:
-                    structures.append(dict(wall, player=ply))
+                    # The template: SkirmishReplacer keeps skirmish/structures/iber_wall_* for
+                    # Iberians only, and default_wall_* turns into the owner's own walls.
+                    structures.append(dict(wall, player=ply, template=tpl))
                 elif any(k in ltpl for k in ["civil_centre", "town_center", "civic"]):
                     players[ply]["start_x"] = wx
                     players[ply]["start_z"] = wz
@@ -1094,8 +1096,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                         if o is not None:
                             used.add(id(o))
                         want = dict(e, x=x, z=z, length=round(e["length"] * k, 3))
-                        want.pop("template", None)
-                        if o is not None and o.get("template"):
+                        if o is not None and o.get("template") and "template" not in want:
                             want["template"] = o["template"]
                         if o is not None and o != want:
                             o.clear()
@@ -1296,6 +1297,13 @@ github_skirmishes = {
     "tarim_basin_2p": ("tarim_basin_2p", "desert"),
     "tarim_basin_4p": ("tarim_basin_4p", "desert"),
     "team_oasis_2pv2p": ("team_oasis", "desert"),
+    # The other 0.28 sizes of maps ported above (pass-3 audit), each its own map like 0.28's.
+    "corinthian_isthmus_2p": ("corinthian_isthmus_2p", "mediterranean"),
+    "cycladic_archipelago_3p": ("cycladic_archipelago_3p", "mediterranean"),
+    "greek_acropolis_2p": ("greek_acropolis_2p", "aegean"),
+    "median_oasis_4p": ("median_oasis_4p", "desert"),
+    "neareastern_badlands_2p": ("neareastern_badlands_2p", "desert"),
+    "saharan_oases_2p": ("saharan_oases_2p", "desert"),
     "temperate_roadway_2p": ("temperate_roadway", "temperate"),
     "thessalian_plains_4p": ("thessalian_plains", "aegean"),
     "via_augusta_4p": ("via_augusta", "mediterranean"),

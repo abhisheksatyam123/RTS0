@@ -180,6 +180,25 @@ public:
 	void setPasswordHasher(std::function<std::string(const std::string &password, const std::string &name)> hasher) {
 		password_hasher_ = std::move(hasher);
 	}
+	// Host: 0 A.D. CNetServer(useLobbyAuth), on while hosting through the lobby.
+	// Its handshake answer asks for lobby authentication
+	// (PS_NETWORK_FLAG_REQUIRE_LOBBYAUTH) and each joiner's NMT_AUTHENTICATE
+	// waits: the verifier gets the peer and the lobby ticket the joiner sent,
+	// and answers with finishLobbyAuth once the lobby named the ticket's owner
+	// ("" for an unknown ticket), naming the ticket it was asked about. An
+	// empty verifier turns it off.
+	void setLobbyAuth(std::function<void(uint32_t peer_id, const std::string &ticket)> verifier) {
+		lobby_auth_ = std::move(verifier);
+	}
+	bool lobbyAuth() const { return bool(lobby_auth_); }
+	// Host: 0 A.D. OnAuthenticate's lobby check. The name the joiner sent,
+	// without a " (rating)", must be the lobby's name for it, compared in lower
+	// case; else it is refused with NDR_LOBBY_AUTH_FAILED. False if the peer
+	// had no check waiting for that ticket.
+	bool finishLobbyAuth(uint32_t peer_id, const std::string &ticket, const std::string &lobby_name);
+	// Client: the ticket sent with NMT_AUTHENTICATE ("" for a direct join,
+	// which a lobby host refuses: "Join via lobby.").
+	void setLobbyTicket(const std::string &ticket) { lobby_ticket_ = ticket; }
 	// The engine version and mods this side sends in its handshake (0 A.D.
 	// engine version + enabled mods); a host refuses a client whose differs
 	// (NDR_INCORRECT_SOFTWARE_VERSION).
@@ -295,6 +314,13 @@ private:
 	bool admitted(const NetPeer &p) const { return p.connected && p.is_authenticated && !p.kick_disconnect_ms; }
 	std::string password_;
 	std::function<std::string(const std::string &, const std::string &)> password_hasher_;
+	std::function<void(uint32_t, const std::string &)> lobby_auth_;
+	std::string lobby_ticket_;
+	std::map<uint32_t, AuthenticateMsg> lobby_auth_pending_; // host: joiners waiting on the lobby
+	void authenticate_peer(NetPeer &p, AuthenticateMsg auth);
+public:
+	static std::string sanitise_player_name(const std::string &original);
+private:
 	std::string software_version_ = NET_SOFTWARE_VERSION;
 	std::string host_software_version_;
 	bool duplicate_names_ = false;
