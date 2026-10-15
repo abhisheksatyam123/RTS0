@@ -211,6 +211,14 @@ class RtsoWorldView : public Node3D {
 	bool ambient_fx_loaded_ = false;
 	// death: the "death" variant's emitters (v.death_fx) instead of the always-on ones.
 	void update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, bool death = false);
+	void load_ambient_fx();
+	GPUParticles3D *make_ambient_emitter(const AmbientParticle &d, float m);
+	// The dust 0 A.D.'s "Run" variant props (dust_cav) under running cavalry, camels,
+	// elephants and animals: per unit GLB its particles, and one world-space
+	// emitter per particle and scale that emit_particle feeds.
+	std::unordered_map<std::string, std::vector<std::string>> run_fx_;
+	std::unordered_map<std::string, GPUParticles3D *> run_emitters_;
+	void emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
