@@ -220,6 +220,29 @@ func _run() -> void:
 							break
 						await _wait(0.1)
 					_say("setup_chat=" + " | ".join(Array(plain.strip_edges().split("\n")).map(func(l): return l.strip_edges())))
+					# 0.28 LobbyButton: the lobby as a dialog over the setup, its own game listed, no Host or Join.
+					var lb_btn = root.find_child("LobbyButton", true, false)
+					if lb_btn and lb_btn.visible:
+						lb_btn.pressed.emit()
+						await _wait(0.2)
+						var dlg = root.find_child("LobbyDialog", true, false)
+						var dlobby = dlg.get_child(0) if dlg else null
+						var listed := false
+						for i in 40:
+							if dlobby and dlobby._games.get_root() and dlobby._games.get_root().get_child_count() > 0:
+								listed = true
+								break
+							await _wait(0.1)
+						var join_hidden := true
+						for b in dlobby.find_children("*", "Button", true, false) if dlobby else []:
+							if b.text in ["Join Game", "Host Game"] and b.is_visible_in_tree():
+								join_hidden = false
+						var opened: bool = dlobby != null and dlobby.dialog
+						if dlobby:
+							dlobby._on_back_pressed()
+						await _wait(0.2)
+						_say("lobby_dialog=%s listed=%s join_hidden=%s closed=%s" % [str(opened), str(listed), str(join_hidden),
+							str(root.find_child("LobbyDialog", true, false) == null)])
 					_say("both players in and ready, pressing Start")
 					main._on_lobby_start_pressed()
 		if st.get("oos", false):

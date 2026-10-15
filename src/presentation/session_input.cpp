@@ -124,13 +124,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (save) {
 				selected_groups[grp].clear();
 				const bool disjoint = rtso::user_config::get_bool("gui.session.disjointcontrolgroups");
-				for (int s = 0; s < selected_ids.size(); ++s) {
+				// Any selected entity, a structure too (EntityGroupsContainer).
+				PackedInt32Array members = selected_ids;
+				if (selected_building_id != 0) members.push_back((int32_t)selected_building_id);
+				for (int s = 0; s < members.size(); ++s) {
 					for (int o = 0; o < 10 && disjoint; ++o) {
 						if (o == grp) continue;
-						const int64_t at = selected_groups[o].find(selected_ids[s]);
+						const int64_t at = selected_groups[o].find(members[s]);
 						if (at >= 0) selected_groups[o].remove_at(at);
 					}
-					if (!selected_groups[grp].has(selected_ids[s])) selected_groups[grp].push_back(selected_ids[s]);
+					if (!selected_groups[grp].has(members[s])) selected_groups[grp].push_back(members[s]);
 				}
 				return;
 			}
@@ -420,6 +423,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				double_click_pending = click_count_ >= 2;
 				dragging = true;
 				drag_start = mouse_pos;
+				if (sim) {
+					const size_t hit = own_unit_under_mouse(mouse_pos);
+					press_pick_unit_ = hit == (size_t)-1 ? 0 : sim->units().id[hit];
+				}
 				sel_rect->set_rect(drag_start, mouse_pos, true);
 			} else {
 				const bool dbl_click = double_click_pending;
@@ -476,30 +483,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Vector3 click_pos = get_ground_click_pos(mouse_pos);
 						auto uview = sim->units();
 
-						// A structure the ray reaches first hides the units behind it.
-						float bld_t = 1e30f;
-						building_under_mouse(mouse_pos, &bld_t);
-						Camera3D *pick_cam = cam_rig ? cam_rig->get_camera() : nullptr;
-						const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
-						const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();
-
-						// Check unit hit
+						// input.js: the entity hit on mouse-down is kept, so a unit that walked away
+						// before the release is still picked; else the one under the release.
 						size_t best_uidx = (size_t)-1;
-						float best_ud2 = 2.0f * 2.0f;
-						for (size_t i = 0; i < uview.count; ++i) {
-							if (!uview.alive[i] || uview.team[i] != local_player()) continue;
-							if (pick_cam && bld_t < 1e29f) {
-								const Vector3 up(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
-								if ((up - ray_o).dot(ray_d) > bld_t + 0.5f) continue;
-							}
-							float dx = uview.pos_x[i] - click_pos.x;
-							float dz = uview.pos_z[i] - click_pos.z;
-							float d2 = dx * dx + dz * dz;
-							if (d2 < best_ud2) {
-								best_ud2 = d2;
-								best_uidx = i;
-							}
-						}
+						if (press_pick_unit_ != 0)
+							for (size_t i = 0; i < uview.count; ++i)
+								if (uview.id[i] == press_pick_unit_ && uview.alive[i] && uview.team[i] == local_player()) best_uidx = i;
+						if (best_uidx == (size_t)-1) best_uidx = own_unit_under_mouse(mouse_pos);
 
 						if (best_uidx != (size_t)-1 && is_ctrl && !dbl_click) {
 							// Ctrl+click drops the unit from the selection (selection.remove).
@@ -692,8 +682,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					sim->cmd_unset_rally_point(local_player(), selected_building_id);
 				return;
 			}
-			// If building selected, right click sets Rally Point!
-			if (selected_building_id != 0) {
+			// A selected structure alone: a right-click sets its rally point. With units also
+			// selected (Shift+click), their orders come first (unit_actions.js: the units'
+			// actions are checked before "set-rallypoint").
+			if (selected_building_id != 0 && selected_ids.is_empty()) {
 				if (try_focus_fire(click_pos)) return;
 				uint32_t target_res = 0, target_bld = 0;
 				auto rview = sim->resources();
@@ -1261,4 +1253,33 @@ bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
 	play_civ_voice("build");
 	if (order_one) pop_from_selection(selected_ids, one_builder);
 	return true;
+}
+
+// The local player's unit nearest the ground point under the mouse (within 2 units), or
+// SIZE_MAX; a structure the ray reaches first hides the units behind it.
+size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos) const {
+	if (!sim) return (size_t)-1;
+	const Vector3 click_pos = get_ground_click_pos(mouse_pos);
+	auto uview = sim->units();
+	float bld_t = 1e30f;
+	building_under_mouse(mouse_pos, &bld_t);
+	Camera3D *pick_cam = cam_rig ? cam_rig->get_camera() : nullptr;
+	const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
+	const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();
+	size_t best_uidx = (size_t)-1;
+	float best_ud2 = 2.0f * 2.0f;
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+		if (pick_cam && bld_t < 1e29f) {
+			const Vector3 up(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
+			if ((up - ray_o).dot(ray_d) > bld_t + 0.5f) continue;
+		}
+		const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 < best_ud2) {
+			best_ud2 = d2;
+			best_uidx = i;
+		}
+	}
+	return best_uidx;
 }

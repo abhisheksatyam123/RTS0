@@ -7,7 +7,7 @@
 // DeveloperOverlayControlCheckbox.js), and DeveloperOverlayEntityState's yellow
 // text on the left with the state of the first selected entity. RTS0 ports the
 // commands it has something behind, in 0.28's order: Change perspective, Display
-// selection state, the pathfinder, obstruction, unit motion and range overlays
+// selection state, the pathfinder, hierarchical pathfinder, obstruction, unit motion and range overlays
 // (debug_overlays.h), Restrict camera, Reveal map, Enable time warp and Promote
 // selected units; then DeveloperOverlayControlDropDowns' Render Debug Mode
 // dropdown, a row of its own under the boxes.
@@ -30,6 +30,7 @@ public:
 		DEV_CHANGE_PERSPECTIVE,
 		DEV_SELECTION_STATE,
 		DEV_PATHFINDER_OVERLAY,
+		DEV_HIER_PATHFINDER_OVERLAY,
 		DEV_OBSTRUCTION_OVERLAY,
 		DEV_UNIT_MOTION_OVERLAY,
 		DEV_RANGE_OVERLAY,
@@ -40,7 +41,7 @@ public:
 		DEV_COUNT
 	};
 	static constexpr const char *kLabels[DEV_COUNT] = {
-		"Change perspective", "Display selection state", "Pathfinder overlay", "Obstruction overlay", "Unit motion overlay",
+		"Change perspective", "Display selection state", "Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay",
 		"Range overlay", "Restrict camera", "Reveal map", "Enable time warp", "Promote selected units",
 	};
 	static constexpr float kRow = 24.0f;
