@@ -206,6 +206,12 @@ public:
             if (dx * dx + dz * dz > s.range * s.range) continue;
             any = true;
             if (type == AURA_HEAL) {
+                // Non-stackable, like every aura here: each aura once, however many sources.
+                const int16_t key = s.aura >= 0 ? s.aura : (int16_t)(-1 - (int16_t)s.need_class);
+                bool seen = false;
+                for (int k = 0; k < once_n; ++k) seen |= once[k] == key;
+                if (seen) continue;
+                if (once_n < 16) once[once_n++] = key;
                 sum += s.value;
             } else if (type == AURA_BUILD) {
                 const int row = builder_rate_aura_index(s.aura);
