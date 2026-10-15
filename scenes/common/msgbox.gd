@@ -71,18 +71,15 @@ func _ready() -> void:
 	fade.color = Color(0, 0, 0, 0.6)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
+	theme = preload("res://scenes/common/modern_theme.gd").theme()
 	var main := Panel.new()
 	main.name = "Main"
+	main.theme_type_variation = "ModernDialog"
 	main.set_anchors_preset(Control.PRESET_CENTER)
 	main.offset_left = -width / 2.0
 	main.offset_right = width / 2.0
 	main.offset_top = -height / 2.0
 	main.offset_bottom = height / 2.0
-	var sheet := StyleBoxFlat.new()
-	sheet.bg_color = Color(0.09, 0.08, 0.07, 0.98)
-	sheet.border_color = Color(0.72, 0.6, 0.3)
-	sheet.set_border_width_all(2)
-	main.add_theme_stylebox_override("panel", sheet)
 	add_child(main)
 	var bar := Label.new()
 	bar.name = "Title"
