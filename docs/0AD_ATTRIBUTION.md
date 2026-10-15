@@ -192,7 +192,7 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | Alpine Lakes | `maps/random/alpine_lakes.js` | Modelled on it, layout from memory |
 | Lake | `maps/random/lake.js` | Modelled on it, layout from memory |
 | Gulf of Bothnia | `maps/random/gulf_of_bothnia.js` | Modelled on it, layout from memory; fish from 0.28's script (4 x scaleByMapSize of the winter biome's 5-30 groups of 2-3, 12 tiles apart) |
-| Ardennes Forest | `maps/random/ardennes_forest.js` | Modelled on it, layout from memory |
+| Ardennes Forest | `maps/random/ardennes_forest.js` | Ported: central dip, rim noise, hills, ravines and general noise |
 | Near-Eastern Badlands (`nearestern_badlands`) | `maps/random/neareastern_badlands.js` | Modelled on it, layout from memory |
 | Rivers | `maps/random/rivers.js` | Modelled on it, layout from memory |
 | Canyon | `maps/random/canyon.js` | Ported: base canyons, central basin, ridges, clearings and roads |
