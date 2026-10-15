@@ -171,7 +171,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 91; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 92; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_STUCK = 92; // each Petra attack plan's position 5 turns ago (siege stuck check)
 	static constexpr uint32_t SAVE_VERSION_PETRA_MOVE_TO_GATHERER = 91; // when each Petra mobile dropsite next looks for a gatherer
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
@@ -1944,6 +1945,9 @@ public:
 		// attackPlan.js path: the march's waypoints still ahead, the next one first.
 		std::vector<float> path_x, path_z;
 		float last_x = 0.0f, last_z = 0.0f; // lastPosition: the army's centre on the last turn
+		// position5TurnsAgo: the army's centre at the last turn that was a multiple of 5 (far off
+		// until the march's first such turn, as 0.28's [0, 0] map corner).
+		float pos5_x = 1e6f, pos5_z = 1e6f;
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }

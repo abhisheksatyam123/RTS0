@@ -47,6 +47,7 @@
 #include <cstdio>
 #include <memory>
 #include <vector>
+#include <array>
 using namespace rtso;
 
 static int g_failures = 0;
@@ -2694,6 +2695,69 @@ static void test_attack_rally_point() {
 	CHECK(fewest < waypoints, "the march passes its waypoints");
 	CHECK(to_target < 26.0f || s->territory_owner_at(cx, cz) == 0, "the march arrives near the target");
 	CHECK(n > 0 && together * 4 >= n * 3, "the army arrives together");
+}
+
+// attackPlan.js UpdateWalking position5TurnsAgo: an army that has not moved over 5 turns is
+// very likely stuck on a siege engine; the one farthest from its centre is destroyed.
+static void test_attack_stuck_siege() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+	s->set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
+	run_for(*s, 5.0f);
+	float bx = 0.0f, bz = 0.0f, ex = 0.0f, ez = 0.0f;
+	uint32_t enemy_cc = 0;
+	for (const auto &b : s->buildings()) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 1) { bx = b.x; bz = b.z; }
+		if (b.team == 0) { ex = b.x; ez = b.z; enemy_cc = b.id; }
+	}
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::WALKING;
+	plan.target_building_id = enemy_cc;
+	plan.target_player = 0;
+	plan.target_x = ex;
+	plan.target_z = ez;
+	plan.retreat_x = bx;
+	plan.retreat_z = bz;
+	const float ax = bx + (ex - bx) * 0.3f, az = bz + (ez - bz) * 0.3f;
+	const uint32_t near_ram = s->spawn_unit(ax + 2.0f, az, 1, UNIT_SIEGE_RAM);
+	const uint32_t far_ram = s->spawn_unit(ax + 8.0f, az, 1, UNIT_SIEGE_RAM);
+	plan.squad = {near_ram, far_ram};
+	for (int k = 0; k < 4; ++k) plan.squad.push_back(s->spawn_unit(ax + (float)k, az + 2.0f, 1, UNIT_SPEARMAN));
+	plan.path_x = {(ax + ex) * 0.5f, ex};
+	plan.path_z = {(az + ez) * 0.5f, ez};
+	std::vector<std::array<float, 3>> held; // every unit held where it stands: the army is stuck
+	for (uint32_t uid : plan.squad) {
+		const int32_t k = s->lookup_unit(uid);
+		held.push_back({(float)uid, s->units_.pos_x[k], s->units_.pos_z[k]});
+	}
+	plan.last_x = ax;
+	plan.last_z = az;
+	s->petra_started_attacks_.push_back(plan);
+	auto alive = [&](uint32_t uid) { const int32_t k = s->lookup_unit(uid); return k >= 0 && s->units_.alive[k]; };
+	int turns = 0;
+	bool far_first = false;
+	for (; turns < 15 && alive(far_ram) && alive(near_ram); ) {
+		const bool due = s->petra_turn_due(1);
+		s->tick(Simulation::FIXED_STEP);
+		if (due) ++turns;
+		for (const auto &h : held) {
+			const int32_t k = s->lookup_unit((uint32_t)h[0]);
+			if (k < 0 || !s->units_.alive[k]) continue;
+			s->units_.pos_x[k] = h[1];
+			s->units_.pos_z[k] = h[2];
+		}
+	}
+	far_first = !alive(far_ram) && alive(near_ram);
+	std::printf("  stuck army: a ram destroyed after %d AI turns, the farther one %s\n", turns, far_first ? "yes" : "no");
+	CHECK(far_first && turns <= 11, "a stuck army loses its farthest siege engine within two 5-turn checks");
 }
 
 // attackPlan.js mustStart: an Attack starts once every class of its unitStat reaches its
@@ -5802,6 +5866,7 @@ int main(int argc, char **argv) {
 	RUN(test_ai_slots);
 	RUN(test_attack_plans);
 	RUN(test_attack_rally_point);
+	RUN(test_attack_stuck_siege);
 	RUN(test_attack_waits_for_each_class);
 	RUN(test_slot_config);
 	RUN(test_allow_capture);
