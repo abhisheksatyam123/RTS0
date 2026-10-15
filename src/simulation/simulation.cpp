@@ -1401,6 +1401,22 @@ void Simulation::rebuild_nav_grid() {
 			auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
 			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
 		}
+		// A WallSet segment (a wall or palisade piece, or a locked gate: the only footprints longer than
+		// they are deep, building_half_depth) is 4 to 8 m thick, under an 8 m navcell: turned, the rule
+		// above leaves navcells along it open, and a long path goes straight through the wall. 0.28's
+		// 1 m navcells close a wall whole (Rasterize.cpp:29-130 blocks each navcell whose corners all lie
+		// within the clearance plus 1 m of it, and the pieces overlap their towers), so its long paths
+		// take the gate. At 8 m navcells the navcells its centre line passes through block too, as for
+		// thin scenery below: a chain with no gap, which ends inside the towers at its ends.
+		if (b.hu != b.hv) {
+			const rtso::nav::Vec2 d = b.hv > b.hu ? rtso::nav::footprint_dir(b, 0.0f, b.hv) : rtso::nav::footprint_dir(b, b.hu, 0.0f);
+			const auto [x0, y0] = nav_grid_.world_to_navcells(b.x - d.x, b.z - d.y);
+			const auto [x1, y1] = nav_grid_.world_to_navcells(b.x + d.x, b.z + d.y);
+			nav_grid_.walk_line(x0, y0, x1, y1, [&](int x, int y) {
+				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				return true;
+			});
+		}
 	}
 	// A 14 m palisade gate is shorter than two navcells, and the towers at its ends block the cell
 	// under their centres, which can be the gate's own: an unlocked gate keeps the cell under its
@@ -10957,22 +10973,6 @@ uint32_t Simulation::find_free_fish(uint16_t sea, float x, float z, float max_d,
 	return best;
 }
 
-uint32_t Simulation::find_free_field(uint8_t team, float x, float z) {
-	uint32_t best = 0;
-	float best_d2 = 1e30f;
-	for (const auto &b : buildings_) {
-		if (b.team != team || b.type != BLD_FIELD) continue;
-		auto fit = field_res_by_bld_.find(b.id);
-		if (fit == field_res_by_bld_.end()) continue;
-		auto git = field_gatherers_.find(fit->second);
-		if (git != field_gatherers_.end() && git->second.total >= field_cap(b)) continue;
-		float dx = b.x - x, dz = b.z - z;
-		float d2 = dx * dx + dz * dz;
-		if (d2 < best_d2) { best_d2 = d2; best = fit->second; }
-	}
-	return best;
-}
-
 void Simulation::sync_field_resources() {
 	// Retire supplies whose field was destroyed or demolished. Zeroing the
 	// amount lets the cleanup at the end of tick_gather remove the resource;
@@ -11231,16 +11231,12 @@ void Simulation::tick_gather(float dt) {
 				bool exists = bit != building_id_to_idx_.end();
 				const int cap = exists ? field_cap(buildings_[bit->second]) : FIELD_MAX_GATHERERS;
 				if (!exists || fg.slots_taken >= cap) {
-					// Field full or gone: try our nearest field with a free slot.
-					uint32_t alt = exists ? find_free_field(uteam, units_.pos_x[i], units_.pos_z[i]) : 0;
-					if (alt != 0) {
-						fg.total--;
-						field_gatherers_[alt].total++;
-						order_gather(&units_.id[i], 1, alt, false, false);
-					} else {
-						units_.target_resource_id[i] = 0;
-						units_.action_state[i] = ACTION_IDLE;
-					}
+					// Field full or gone: AddGatherer fails at APPROACHING enter and UnitAI goes to
+					// FINDINGNEWTARGET: queued orders first, then a free field of anyone's within
+					// 64 m of the farmer or of where she was sent, else back to a dropsite.
+					fg.total--;
+					if (units_.carry[i] == 0) units_.res_type_carried[i] = RES_FOOD; // the order's type
+					finish_order(i, true);
 					continue;
 				}
 				fg.slots_taken++;
@@ -15263,10 +15259,12 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 		const uint8_t species = sub == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
 		const uint32_t previous = units_.target_resource_id[i];
 		uint32_t r = 0;
+		// A field takes MaxGatherers farmers (IsAvailableTo): skip the full ones.
+		const auto *busy = sub == RES_SUB_GRAIN ? &field_gatherers_ : nullptr;
 		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
-			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
+			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
 		if (r == 0)
-			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, previous, species);
+			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
@@ -15599,11 +15597,7 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 			auto g = busy->find(resources_.id[r]);
 			if (g != busy->end() && g->second.total >= resources_.max_gatherers[r]) continue;
 		}
-		auto f = field_bld_by_res_.find(resources_.id[r]);
-		if (f != field_bld_by_res_.end()) { // only our own fields, or Gaia's
-			auto b = building_id_to_idx_.find(f->second);
-			if (b == building_id_to_idx_.end() || (buildings_[b->second].team != team && buildings_[b->second].team != GAIA_PLAYER)) continue;
-		}
+		// Any player's field too: FindNearbyResource takes "resources owned by Gaia or any player".
 		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (d2 < best_d2) { best_d2 = d2; best = resources_.id[r]; }

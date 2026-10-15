@@ -2303,7 +2303,6 @@ private:
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
 	}
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
-	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
 	void tick_pack(float dt);
 	// Formation.js port (formation.h): controllers walk, members follow their slots.

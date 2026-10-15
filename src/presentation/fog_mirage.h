@@ -44,6 +44,7 @@ struct FoggedBuilding {
 	bool committed = false;
 	bool wrecked = false;
 	bool is_burning = false;
+	bool upgrading = false; // Upgrade.js in progress: the actor's "upgrading" variant
 	bool miraged = false; // true: last-seen copy (0 A.D. Mirage entity), not the live structure
 };
 
