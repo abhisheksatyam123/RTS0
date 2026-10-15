@@ -98,12 +98,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 		}
 
+		// Chat.openPage: each chat hotkey opens the window afresh on its addressee.
 		if (fired("chat")) {
-			toggle_chat();
+			chat_open_page();
 			return;
 		}
 		if (fired("teamchat") || fired("privatechat")) {
-			if (!chat_window_.is_open()) toggle_chat();
+			chat_open_page();
 			if (fired("teamchat")) chat_window_.select_team();
 			else chat_window_.select_last_private();
 			return;
@@ -744,20 +745,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (selected_building_id != 0 && selected_ids.is_empty()) {
 				if (try_focus_fire(click_pos)) return;
 				uint32_t target_res = 0, target_bld = 0;
-				auto rview = sim->resources();
-				for (size_t r = 0; r < rview.count; ++r) {
-					if (!rview.alive[r]) continue;
-					float dx = rview.x[r] - click_pos.x;
-					float dz = rview.z[r] - click_pos.z;
-					if (dx * dx + dz * dz < 2.0f * 2.0f) { target_res = rview.id[r]; break; }
-				}
+				rally_target_at(click_pos, target_res, target_bld);
 				if (auto_rally) target_bld = selected_building_id;
-				for (const auto &b : sim->buildings()) {
-					if (target_bld || b.id == selected_building_id) continue;
-					float dx = b.x - click_pos.x;
-					float dz = b.z - click_pos.z;
-					if (dx * dx + dz * dz < 3.0f * 3.0f) { target_bld = b.id; break; }
-				}
 				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
 				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				// unit_actions.js "set-rallypoint": every selected structure with a RallyPoint.
