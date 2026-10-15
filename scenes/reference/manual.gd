@@ -88,14 +88,14 @@ func _input(event: InputEvent) -> void:
 static func manual_bbcode() -> String:
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(DATA)) if FileAccess.file_exists(DATA) else null
 	var intro := str(parsed.get("intro", "")) if typeof(parsed) == TYPE_DICTIONARY else ""
-	var hotkeys: Dictionary = RtsoHotkeyConfig.new().get_hotkey_map()
+	var cfg := RtsoHotkeyConfig.new()
 	var re := RegEx.create_from_string("hotkey\\.([a-z0-9_\\.]+[a-z0-9_])")
 	var out := ""
 	var pos := 0
 	for m in re.search_all(intro):
 		out += intro.substr(pos, m.get_start() - pos)
-		var combos: PackedStringArray = hotkeys.get(m.get_string(1), PackedStringArray())
-		out += ", ".join(combos) if not combos.is_empty() else "unassigned"
+		var combos: String = cfg.display(m.get_string(1))
+		out += combos if combos != "" else "unassigned"
 		pos = m.get_end()
 	out += intro.substr(pos)
 	return font_tags_to_bbcode(out.replace("[", "[lb]").replace("[lb]font=", "[font="))

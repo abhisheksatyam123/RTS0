@@ -33,8 +33,8 @@ func _ready() -> void:
 	_render_tooltips()
 
 func _hotkey_text(name: String) -> String:
-	var keys: Array = _hotkeys.get_hotkey_map().get(name, [])
-	return ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")
+	var keys: String = _hotkeys.display(name)
+	return keys if keys != "" else L10n.t("Unassigned")
 
 ## CloseButton / CivInfoButton / StructreeButton tooltips (StructreePage.js:62,
 ## CivInfoPage.js:131, Buttons/*Button.js:32): the close key, and the key that
