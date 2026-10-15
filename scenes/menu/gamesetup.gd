@@ -1006,7 +1006,9 @@ func description_info() -> Dictionary:
 		"team_placement": st["team_placement"], "trigger_difficulty": st["trigger_difficulty"], "nomad": st["nomad"],
 		"start_res": st["res"], "pop_cap": pop, "disable_treasures": st["disable_treasures"],
 		"explore_map": st["explore"], "reveal_map": st["reveal"], "ally_view": st["ally_view"],
-		"cheats": %Cheats.button_pressed if _mp_role != "none" else true}
+		"cheats": %Cheats.button_pressed if _mp_role != "none" else true,
+		"biome": _selected_biome(), "rated": _rated != null and _rated.button_pressed,
+		"player_count": (st["types"] as Array).size(), "lobby_game": _mp_role != "none" and LobbySession.signed_in()}
 
 ## The description scrolls in the Map Preview panel, beside the preview under
 ## the map's name line; the panel takes the page's spare height.
