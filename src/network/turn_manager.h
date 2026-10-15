@@ -145,6 +145,9 @@ public:
 	// Turns after the current one whose every batch is already here (capped
 	// at 64): how far this peer is behind the host.
 	uint32_t turns_behind();
+	// Turns past the current one with any batch in hand, ready or not (a lost
+	// batch may still be on its way): a rejoiner fast-forwards until these run out.
+	uint32_t turns_in_hand() const;
 	// Host: at most this many observers in a running match (0 A.D.
 	// network.observerlimit, 8); one more is refused with reason 7.
 	void set_observer_limit(int limit) { observer_limit_ = limit < 0 ? 0 : limit; }

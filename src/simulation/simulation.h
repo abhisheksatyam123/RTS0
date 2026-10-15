@@ -3563,7 +3563,9 @@ private:
 	// VisionSharing.AddSpy: a bribed unit sees for the briber (its allies sharing that LOS)
 	// while the spy lasts. Rebuilt from spies_ each LOS update and on load, never saved.
 	std::vector<LosSource> los_spy_src_;
+	std::vector<LosSource> los_garrison_src_; // VisionSharing of garrisoned allies, rebuilt each tick
 	void update_spy_los();
+	void update_garrison_los();
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
