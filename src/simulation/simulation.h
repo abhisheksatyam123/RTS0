@@ -171,7 +171,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 94; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 95; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
 	static constexpr uint32_t SAVE_VERSION_PETRA_SUPPLY_ROOM = 94; // each Petra gatherer's supply; structures with no room, for 90 s; the AIs' own random stream
 	static constexpr uint32_t SAVE_VERSION_PETRA_STUCK = 93; // each Petra attack plan's position 5 turns ago (siege stuck check)
 	static constexpr uint32_t SAVE_VERSION_GUARD_OF = 92; // each unit's isGuardOf, kept through other orders
@@ -3525,6 +3526,8 @@ private:
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
+	int petra_plan_siege_target(bool huge) const; // addSiegeUnits targetSize
+	void petra_raid_add_siege();                  // addSiegeUnits for the raid plan
 	int petra_config_max_pop(int unlimited = 300) const; // config.js setConfig's getPopulationMax
 	float petra_config_pop_scaling() const; // Config.popScaling: pop_scaling times sqrt(maxPop/300) under 300
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
