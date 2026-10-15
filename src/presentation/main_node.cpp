@@ -2576,11 +2576,21 @@ void RtsoMain::refresh_lobby_seats() {
 			buddy = !c.name.empty() && list.find("," + c.name + ",") != std::string::npos;
 		}
 		if (opt == "disabled" || (opt == "buddies" && !buddy)) { seat_choice_[c.id] = SEAT_OBSERVER; continue; }
+		if (c.watches) continue;
+		auto held = [&](int slot) {
+			bool h = false;
+			for (const auto &o : clients) h |= o.id != c.id && eff[o.id] == slot;
+			return h;
+		};
 		auto last = seat_last_.find(c.name);
-		if (c.watches || last == seat_last_.end() || last->second >= slots.size() || slots[last->second].type == 'x') continue;
-		bool held = false;
-		for (const auto &o : clients) held |= o.id != c.id && eff[o.id] == last->second;
-		if (!held) seat_choice_[c.id] = last->second;
+		if (last != seat_last_.end() && last->second < slots.size() && slots[last->second].type != 'x' && !held(last->second)) {
+			seat_choice_[c.id] = last->second;
+			continue;
+		}
+		// findAssignmentSlot: else the slot the saved game has for that name.
+		const String saved = "@" + String::utf8(c.name.c_str()).to_lower();
+		for (int i = 0; net_saved_setup() && i < (int)net_saved_seats_.size() && i < (int)slots.size(); ++i)
+			if (net_saved_seats_[i] == saved && slots[i].type == 'h' && !held(i)) { seat_choice_[c.id] = i; break; }
 	}
 	lobby_effective_seats(eff);
 	for (const auto &c : clients) seat_last_[c.name] = eff[c.id];
@@ -2674,8 +2684,19 @@ void RtsoMain::prepare_lobby_seats(rtso::GameSetupParams &setup, bool commit) {
 		if (e.second == SEAT_OBSERVER) { setup.observers |= bit; continue; }
 		setup.observers &= (uint8_t)~bit;
 		if (e.second < 0 || e.second >= setup.slot_count || setup.slot_types[e.second] == 'x') continue;
+		// PlayerAssignment.rebuildList: a saved game's AI can't be replaced.
+		if (net_saved_setup() && setup.slot_types[e.second] != 'h') continue;
 		setup.seats[e.first] = (uint8_t)e.second;
 		setup.slot_types[e.second] = 'h';
+	}
+	if (net_saved_setup()) {
+		// Only the save's human seats take players; the rest watch.
+		for (uint8_t i = 0; i < setup.slot_count; ++i)
+			if (setup.slot_types[i] == 'h' && (i >= net_saved_seats_.size() || net_saved_seats_[i].is_empty())) setup.slot_types[i] = 'x';
+		if (commit)
+			for (const auto &p : net_host_.getPeers())
+				if (p.connected && p.id != 0 && p.id < 8) net_host_.setPeerObserver(p.id, (setup.observers >> p.id) & 1);
+		return;
 	}
 	int need = (setup.observers & 1) ? 0 : 1;
 	for (const auto &p : net_host_.getPeers()) {
@@ -2728,6 +2749,7 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		if (const char *why = apply_net_setup_request(r.client, r.request)) net_host_.sendSetupRefusal(r.client, why);
 	rtso::NetSetupState n;
 	match_settings_setup(n.setup);
+	if (net_saved_setup()) n.setup.saved_game = 1; // the clients lock their page too
 	uint8_t eff[8];
 	{
 		rtso::GameSetupParams seated = n.setup;
@@ -2854,6 +2876,7 @@ const char *RtsoMain::apply_net_setup_request(uint32_t client, const std::string
 	const size_t eq = request.find('=');
 	if (!ms || eq == std::string::npos) return "Unknown request";
 	if (slot < 0) return "You have no player slot";
+	if (net_saved_setup()) return "The controller loaded a saved game";
 	if ((bool)ms->get("map_locks_players")) return "This map sets every player's civilization, team and color";
 	const std::string key = request.substr(0, eq);
 	const String sv = String(request.substr(eq + 1).c_str());
@@ -2946,7 +2969,9 @@ Dictionary RtsoMain::get_net_setup_state() const {
 	d["all_ready"] = net_setup_.all_ready();
 	d["can_start"] = host && !net_game_started_ && net_setup_.all_ready();
 	d["ready"] = host ? 2 : (int)net_ready_;
-	d["locked"] = net_setup_.setup.lock_players != 0;
+	// SavedGameLabel and GameSettingControl EnabledWhenSavedGame.
+	d["saved_game"] = net_setup_.setup.saved_game != 0;
+	d["locked"] = net_setup_.setup.lock_players != 0 || net_setup_.setup.saved_game != 0;
 	d["version"] = (int64_t)net_setup_.seq;
 	d["settings_version"] = (int64_t)net_setup_.settings_version;
 	return d;

@@ -1061,6 +1061,10 @@ private:
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start
 	// then continues it for everyone (host_start_saved_game).
 	String net_saved_game_;
+	// The save's seats a human may take (lower-case name in the save, or empty
+	// for an AI or defeated player), by player id; filled with net_saved_game_.
+	std::vector<String> net_saved_seats_;
+	bool net_saved_setup() const { return !net_saved_game_.is_empty() && !net_game_started_; }
 	void host_start_saved_game();
 	void tick_match_archive();
 	Dictionary statistics_summary() const;
