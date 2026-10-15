@@ -6,15 +6,21 @@ it copies is CC BY-SA 3.0 (see docs/0AD_ATTRIBUTION.md).
 actor variant while the first item of its queue is a technology or a batch,
 and back to "idle" when the queue empties. In 0.28 the forges use it: their
 "researching" variant props blacksmith sparks, forge smoke and flames on the
-forge's prop points (the Han arsenal smokes while it trains too). This tool
-writes data/production_fx.json, which tells the 3D view where to draw them on
-each building GLB:
+forge's prop points (the Han arsenal smokes while it trains too). The German
+forge also props its forger, hammering at the anvil, and the German temple a
+murder of crows circling 27 m above it. This tool writes
+data/production_fx.json, which tells the 3D view where to draw them on each
+building GLB:
 
-  {"<building GLB id>": {"metre": m, "researching": [{"fx": "smoke", "pos": [x, y, z]}, ...],
+  {"<building GLB id>": {"metre": m, "researching": [{"fx": "smoke", "pos": [x, y, z]},
+                                                    {"glb": "germ_forger", "pos": [x, y, z], "yaw": a}, ...],
                          "training": [...]}}
 
 `pos` is in the building GLB's units and `metre` is GLB units per 0 A.D. metre
-(for the particles' sizes and speeds). Like tools/extract_upgrade_scaffolds.py
+(for the particles' sizes and speeds). A "glb" entry is an animated unit GLB
+extracted at 0 A.D. metres (tools/extract_0ad_assets.py, fit "scale" 1), drawn
+playing its Idle with its origin at `pos`, turned by `yaw` (radians about +Y)
+and scaled by `metre`. Like tools/extract_upgrade_scaffolds.py
 it composes each structure actor as extract_0ad_assets.compose_actor does and
 maps the prop points into the GLB through the GLB's size in the manifest.
 It also copies the particle textures the effects use into
@@ -27,6 +33,7 @@ Usage:
 import argparse
 import io
 import json
+import math
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -49,6 +56,11 @@ PARTICLES = {
     "particle/flame_firepit_2.xml": ("flame", 0.0),
     "particle/flame_catapult.xml": ("flame", 0.0),
 }
+# Animated actor props -> their unit GLB id (extracted at 0 A.D. metres).
+ACTORS = {
+    "units/germans/forger.xml": "germ_forger",
+    "fauna/crow_circle.xml": "crow_circle",
+}
 # The textures those effects draw (flame.png and smoke_64a.png are already copied).
 TEXTURES = ("sparks.png", "smoke_64a_blacksmith.png")
 
@@ -65,15 +77,21 @@ def state_props(vfs, actor_path, state):
             continue
         for prop in var.iter("prop"):
             a = (prop.get("actor") or "").replace("\\", "/")
-            if a in PARTICLES:
+            if a in PARTICLES or a in ACTORS:
                 found.append((a, (prop.get("attachpoint") or "root").lower()))
     return found
 
 
 def prop_point(parts, name):
     """World position of prop point `name` on the composed parts (CModel rule)."""
+    xf = prop_matrix(parts, name)
+    return None if xf is None else mat_apply(xf, (0.0, 0.0, 0.0))
+
+
+def prop_matrix(parts, name):
+    """World transform of prop point `name` on the composed parts."""
     if name == "root":
-        return (0.0, 0.0, 0.0)
+        return trs((0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0))
     for part in parts:
         md = part.mesh_data
         for pp in md.get("prop_points") or []:
@@ -84,12 +102,24 @@ def prop_point(parts, name):
                 t, q = md["bones"][pp["bone"]]
                 local = mat_mul(trs(t, q), local)
             xf = part.transform if part.transform is not None else trs((0, 0, 0), (0, 0, 0, 1))
-            return mat_apply(mat_mul(xf, local), (0.0, 0.0, 0.0))
+            return mat_mul(xf, local)
     return None
 
 
+def glb_pivot(vfs, actor_path):
+    """The actor point the unit GLB's origin is at: the centre of its rest-pose
+    bounds in x and z, their bottom in y (compile_unit_animated's grounding)."""
+    parts, _ = compose_actor(vfs, actor_path, 0, None, set(), None)
+    pts = []
+    for part in parts:
+        xf = part.transform if part.transform is not None else trs((0, 0, 0), (0, 0, 0, 1))
+        pts.extend(mat_apply(xf, p) for p, _n in part.mesh_data["verts"])
+    xs, ys, zs = [p[0] for p in pts], [p[1] for p in pts], [p[2] for p in pts]
+    return ((min(xs) + max(xs)) / 2, min(ys), (min(zs) + max(zs)) / 2)
+
+
 def build(vfs, models):
-    out = {}
+    out, pivots = {}, {}
     for gid in sorted(models):
         m = models[gid]
         if not m.get("file", "").startswith("models/buildings/") or "size_meters" not in m:
@@ -119,10 +149,20 @@ def build(vfs, models):
             for state, plist in props.items():
                 fx = []
                 for actor_ref, ap in plist:
-                    p = prop_point(parts, ap)
-                    if p is None:
+                    xf = prop_matrix(parts, ap)
+                    if xf is None:
                         print(f"  ! {gid}: no prop point '{ap}' for {actor_ref}")
                         continue
+                    if actor_ref in ACTORS:
+                        if actor_ref not in pivots:
+                            pivots[actor_ref] = glb_pivot(vfs, "art/actors/" + actor_ref)
+                        p = mat_apply(xf, pivots[actor_ref])
+                        o, fwd = mat_apply(xf, (0.0, 0.0, 0.0)), mat_apply(xf, (0.0, 0.0, 1.0))
+                        fx.append({"glb": ACTORS[actor_ref],
+                                   "pos": [round((p[0] - cx) * r, 4), round((p[1] - base) * r, 4), round((p[2] - cz) * r, 4)],
+                                   "yaw": round(math.atan2(fwd[0] - o[0], fwd[2] - o[2]), 4)})
+                        continue
+                    p = mat_apply(xf, (0.0, 0.0, 0.0))
                     kind, height = PARTICLES[actor_ref]
                     fx.append({"fx": kind, "pos": [round((p[0] - cx) * r, 4), round((p[1] + height - base) * r, 4),
                                                     round((p[2] - cz) * r, 4)]})

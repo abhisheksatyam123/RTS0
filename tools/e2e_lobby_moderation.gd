@@ -74,6 +74,14 @@ func run() -> void:
 	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("@alice: hello"))
 	check(lobby._chat_log.get_parsed_text().contains("@alice: hello"), "her chat lines read @alice")
 
+	var subj := [false]
+	ls.post_json("/subject", {"token": ls.token, "subject": "Play nice"}, func(_c: int, _o) -> void: subj[0] = true)
+	await until(func() -> bool: return subj[0])
+	lobby._refresh()
+	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("alice changed the lobby subject to:"))
+	check(lobby._chat_log.get_parsed_text().contains("alice changed the lobby subject to:\nPlay nice"),
+		"a new subject is announced in the chat")
+
 	print("2. /kick")
 	lobby._chat_line.text = "/help"
 	lobby._on_send_pressed()
@@ -102,6 +110,9 @@ func run() -> void:
 	await until(func() -> bool: return not ls.signed_in())
 	check(not ls.signed_in() and not ls.moderator, "alice is signed out")
 	check(lobby._chat_log.get_parsed_text().contains("You have been banned from the lobby! Reason: testing"), "and told she was banned")
+	var box: AcceptDialog = lobby.find_child("KickedDialog", true, false)
+	check(box != null and box.title == "BANNED" and box.dialog_text.begins_with("You have been banned from the lobby!"),
+		"in a BANNED message box (ConnectionHandler.onClientKicked)")
 	var again := [0]
 	ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: again[0] = code)
 	await until(func() -> bool: return again[0] != 0)
