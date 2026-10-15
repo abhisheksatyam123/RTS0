@@ -105,8 +105,14 @@ func _run() -> void:
 						row = it
 		row.select(0)
 		await _wait(0.1)
-		_say("picked %s at %s:%s" % [row.get_text(0), lobby._join_ip.text, lobby._join_port.text])
+		_say("picked %s (address %s)" % [row.get_text(0), "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
 		lobby._on_join_pressed()
+		# The lobby hands the address over on request (/rooms/connect).
+		while ms.net_mode != "join":
+			if Time.get_ticks_msec() > deadline:
+				return _fail("the lobby never gave the game's address: " + lobby._status.text)
+			await _wait(0.1)
+		_say("joining %s:%d" % [ms.net_ip, ms.net_port])
 
 	# The match: main.tscn behind the loading page.
 	var main = null
