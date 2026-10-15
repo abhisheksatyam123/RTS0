@@ -531,10 +531,13 @@ bool RtsoMain::try_focus_fire(const Vector3 &at) {
 	}
 	if (!target) return false;
 	const bool queued = rtso::hotkeys::held("session.queue");
+	// input.js: pushFront = session.pushorderfront held (unbound by default).
+	const bool push_front = rtso::hotkeys::held("session.pushorderfront");
 	const uint32_t ids[1] = {selected_building_id};
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target, queued ? rtso::NET_PARAM_QUEUED : 0);
-	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued))
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target,
+				(queued ? rtso::NET_PARAM_QUEUED : 0) | (push_front ? rtso::NET_PARAM_PUSH_FRONT : 0));
+	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued, push_front))
 		return false;
 	return true;
 }
@@ -801,6 +804,7 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_PLAYERNAME_IN_USE: why = tr("Player name in use. If you were disconnected, retry in few seconds."); break;
 			case rtso::NDR_SERVER_ALREADY_IN_GAME: why = tr("Game has already started, no observers allowed."); break;
 			case rtso::NDR_SERVER_FULL: why = tr("Server full."); break;
+			case rtso::NDR_LOBBY_AUTH_FAILED: why = tr("Secure lobby authentication failed. Join via lobby."); break;
 			case 14: why = tr("Password is invalid."); break;
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = mismatch_detail(); break;
 			default: why = tr("An unknown error occurred."); break;
@@ -2350,6 +2354,9 @@ void RtsoMain::_start_menu_net() {
 	}
 	if (lobby_name) lobby_name->set_text(ms->get("net_player_name"));
 	if (lobby_host && mode == "join") lobby_host->set_text(ms->get("net_ip"));
+	// The lobby's ticket for a game joined from its list, once.
+	net_host_.setLobbyTicket(mode == "join" ? String(ms->get("net_lobby_ticket")).utf8().get_data() : "");
+	ms->set("net_lobby_ticket", "");
 	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
@@ -2419,6 +2426,10 @@ void RtsoMain::net_query_stun(const String &server, int port) {
 void RtsoMain::net_hole_punch(const String &ip, int port) {
 	if (port <= 0 || port > 65535) return;
 	net_host_.holePunch(ip.utf8().get_data(), (uint16_t)port);
+}
+
+void RtsoMain::net_lobby_auth_result(int peer, const String &ticket, const String &name) {
+	net_host_.finishLobbyAuth((uint32_t)peer, ticket.utf8().get_data(), name.utf8().get_data());
 }
 
 void RtsoMain::net_retarget_host(const String &ip, int port) {
@@ -3024,6 +3035,17 @@ void RtsoMain::_on_lobby_host_pressed() {
 	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
 	kicks_shown_ = 0;
 	apply_net_host_options(net_host_);
+	// 0 A.D. StartNetworkHost: a host signed in to the lobby has it vouch for
+	// every joiner's name (CNetServer useLobbyAuth = HasXmppClient).
+	Node *lobby_session = get_node_or_null(NodePath("/root/LobbySession"));
+	if (lobby_session && bool(lobby_session->call("signed_in")))
+		net_host_.setLobbyAuth([this](uint32_t peer, const std::string &ticket) {
+			Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
+			if (ls) ls->call("verify_join", (int64_t)peer, String::utf8(ticket.c_str()));
+			else net_host_.finishLobbyAuth(peer, ticket, "");
+		});
+	else
+		net_host_.setLobbyAuth(nullptr);
 	if (!net_host_.startHost(cfg)) {
 		if (lobby_status) lobby_status->set_text("Host bind failed");
 		return;

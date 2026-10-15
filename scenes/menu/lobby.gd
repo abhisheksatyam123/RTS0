@@ -894,14 +894,17 @@ func _on_join_pressed() -> void:
 				if code != 200 or not obj is Dictionary:
 					_say("Could not get the game's address from the lobby.")
 					return
-				_start_join(str(obj.get("host_ip", "")), int(obj.get("host_port", 0)), str(r.get("id", ""))))
+				_start_join(str(obj.get("host_ip", "")), int(obj.get("host_port", 0)), str(r.get("id", "")),
+						str(obj.get("ticket", ""))))
 		return
 	_start_join(_join_ip.text.strip_edges(), _join_port.text.to_int(), "")
 
 
 # A typed address is joined directly; a listed game (room_id) through the
 # lobby, with STUN and hole punching (0 A.D. TryToConnectWithSTUN).
-func _start_join(ip: String, port: int, room_id: String) -> void:
+# ticket: the lobby's, which a host signed in to the lobby redeems for this
+# player's name (a typed address carries none, and such a host refuses it).
+func _start_join(ip: String, port: int, room_id: String, ticket := "") -> void:
 	if ip == "" or port <= 0 or port > 65535:
 		_say("Type the host's address and port, or pick a game.")
 		return
@@ -912,6 +915,7 @@ func _start_join(ip: String, port: int, room_id: String) -> void:
 	MatchSettings.net_port = port
 	MatchSettings.net_password = _join_pwd.text
 	MatchSettings.net_observe = _observe.button_pressed
+	MatchSettings.net_lobby_ticket = ticket
 	var via_lobby := room_id != ""
 	if not via_lobby:
 		# gamesetup_mp.js startJoin: a direct join keeps its address and port.
