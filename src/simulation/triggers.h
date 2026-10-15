@@ -316,6 +316,8 @@ struct TriggerState {
 		points.push_back(p);
 	}
 
+	// The GUI translates text (0 A.D. markForTranslation): a format with "%(name)s"
+	// parameters carries them after it as "\x1fname=value" (translateParameters).
 	void add_notification(const char *text, uint32_t duration_ms, uint8_t players = 0xFF) {
 		TimeNotification n;
 		n.id = next_notification_id++;

@@ -13696,9 +13696,9 @@ void Simulation::end_match(uint8_t winners, uint8_t reason) {
 	game_over_ = true;
 }
 
-void Simulation::set_player_won(uint8_t pid) {
+void Simulation::set_player_won(uint8_t pid, uint8_t reason) {
 	if (game_over_ || victory_ || pid >= MAX_PLAYERS) return;
-	end_match(side_of(pid), SessionNotice::END_GAME_MODE);
+	end_match(side_of(pid), reason);
 }
 
 uint8_t Simulation::relic_winners() const {
@@ -30314,7 +30314,11 @@ void Simulation::note_player_command(uint8_t player, uint16_t kind, uint32_t tar
 std::vector<const TimeNotification *> Simulation::time_notifications_for(uint8_t player) const {
 	std::vector<const TimeNotification *> out;
 	for (const TimeNotification &n : triggers_.notifications)
-		if (n.end_ms > triggers_.time_ms && (player >= 8 || ((n.players >> player) & 1))) out.push_back(&n);
+		// GuiInterface GetTimeNotifications: an observer sees only those for everyone
+		// (a players list without -1 leaves it out).
+		if (n.end_ms > triggers_.time_ms && (player >= 8 ? n.players == 0xFF : ((n.players >> player) & 1))) out.push_back(&n);
+	// Latest end first, as 0 A.D. sorts them.
+	std::stable_sort(out.begin(), out.end(), [](const TimeNotification *a, const TimeNotification *b) { return a->end_ms > b->end_ms; });
 	return out;
 }
 
@@ -30563,7 +30567,7 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_TREASURE_ISLANDS_VICTORY:
 			// TriggerHelper.SetPlayerWon(playerID).
-			set_player_won((uint8_t)arg);
+			set_player_won((uint8_t)arg, SessionNotice::END_TREASURE); // "has won (treasure collected)"
 			break;
 		case TRIGGER_ACTION_SURVIVAL_INIT:
 			trigger_survival_init();
@@ -30836,8 +30840,9 @@ void Simulation::trigger_treasure_islands_collected(const TriggerEventData &data
 		if (count + 3 == goal)
 			triggers_.add_notification("Hurry up! Your enemy is close to victory!", kPushNotificationMs, other_mask);
 		if (count + 3 >= goal) {
-			char text[96];
-			std::snprintf(text, sizeof(text), "Treasures remaining to collect for victory:  %d!", (int)(goal - count));
+			char text[128];
+			std::snprintf(text, sizeof(text), "Treasures remaining to collect for victory:  %%(remainingTreasures)s!\x1fremainingTreasures=%d",
+			              (int)(goal - count));
 			triggers_.add_notification(text, kPushNotificationMs, me_mask);
 		} else {
 			triggers_.add_notification("You have collected a treasure!", kPushNotificationMs, me_mask);
