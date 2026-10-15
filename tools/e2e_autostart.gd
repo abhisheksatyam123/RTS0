@@ -7,7 +7,8 @@ extends SceneTree
 #   4. -autostart-player=-1 watches: every seat is played, a Sandbox AI where
 #      none was named;
 #   5. an unknown map type or map is refused;
-#   6. the main menu started with the command line below goes straight to the match.
+#   6. the main menu started with the command line below goes straight to the match
+#      (without it the test supplies the same options).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_autostart.gd -- \
 #     -autostart=random/mainland -autostart-ai=2:petra -autostart-civ=2:brit -autostart-seed=7
@@ -102,6 +103,10 @@ func run() -> void:
 		and ms.record_replay and ms.net_mode == "", "a plain autostart needs no driver")
 
 	print("6. Main menu")
+	# Run without the command line above, the test supplies it.
+	if not Autostart.parse(OS.get_cmdline_user_args()).has("autostart"):
+		Autostart.args_override = PackedStringArray(["-autostart=random/mainland", "-autostart-ai=2:petra",
+			"-autostart-civ=2:brit", "-autostart-seed=7"])
 	var menu = load("res://scenes/menu/main_menu.tscn").instantiate()
 	root.add_child(menu)
 	current_scene = menu
