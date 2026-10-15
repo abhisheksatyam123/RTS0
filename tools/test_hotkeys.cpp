@@ -82,6 +82,9 @@ int main() {
 	// Modifier hotkeys are held queries; camera.left yields to Ctrl+A (rotate).
 	CHECK(t.is_held("session.queue", held({"Shift"})));
 	CHECK(t.is_held("session.attackmove", held({"Ctrl"})));
+	// default.cfg's mixed-case names (attackmoveUnit) load lower-cased; lookups take either spelling.
+	CHECK(t.is_held("session.attackmoveUnit", held({"Ctrl", "Q"})) && t.is_held("session.attackmoveunit", held({"Ctrl", "Q"})));
+	CHECK(!t.is_held("session.attackmoveUnit", held({"Ctrl"})));
 	CHECK(t.is_held_exclusive("camera.left", held({"A"})));
 	CHECK(!t.is_held_exclusive("camera.left", held({"A", "Ctrl"})));
 	CHECK(t.is_held_exclusive("camera.rotate.cw", held({"A", "Ctrl"})));

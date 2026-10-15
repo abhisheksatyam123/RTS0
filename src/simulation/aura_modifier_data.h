@@ -161,7 +161,7 @@ inline const RelicGlobalAura *relic_global_auras() {
 		{"brit_catafalque_2", 1, 31, 1},
 		{"gaul_catafalque_1", 1, 32, 7},
 		{"gaul_catafalque_2", 1, 39, 1},
-		{"iber_catafalque_1", 3, 40, 1},
+		{"iber_catafalque_1", 11, 40, 1},
 		{"iber_catafalque_2", 1, 41, 1},
 		{"maur_catafalque_1", 1, 42, 1},
 		{"maur_catafalque_2", 1, 43, 1},
@@ -224,7 +224,7 @@ inline const CaptureAttackRangeAura *capture_attack_range_auras() {
 	static const CaptureAttackRangeAura kAuras[11] = {
 		{"carnyx", 0.9f, 0.0f, 20.0f, 4},
 		{"brit_hero_boudicca", 1.0f, 2.0f, 40.0f, 1},
-		{"cart_hero_hannibal", 1.0f, 1.0f, 60.0f, 3},
+		{"cart_hero_hannibal", 1.0f, 1.0f, 60.0f, 11},
 		{"gaul_hero_vercingetorix", 1.0f, 1.0f, 60.0f, 1},
 		{"han_hero_wei_qing_1", 1.0f, 2.0f, 60.0f, 1},
 		{"kush_hero_amanirenas", 1.0f, 2.0f, 60.0f, 1},

@@ -13,6 +13,9 @@ extends CanvasLayer
 const L10n := preload("res://scenes/menu/l10n.gd")
 
 const Ref = preload("res://scenes/reference/reference_common.gd")
+# gui/common/sprites.xml iconBubbleGold: global/icon/bubble.png, add_color 237 227 167.
+const BUBBLE_ICON := "res://assets/textures/ui/global/icon/bubble.png"
+const BUBBLE_GOLD := Color8(237, 227, 167)
 
 ## summary.js g_TypeColors.
 const TYPE_COLORS := {
@@ -727,19 +730,26 @@ func _build() -> void:
 	_replay_button.offset_top = -46
 	_replay_button.offset_bottom = -12
 	# lobbyButton: after a game while signed in to the lobby, left of the other buttons.
-	var lobby := Button.new()
+	# A 16 px speech bubble (sprite iconBubbleGold, iconBubbleWhite under the mouse), "100%-436
+	# 100%-45 100%-420 100%-29": 6 px left of the Watch Replay button.
+	var lobby := TextureButton.new()
 	lobby.name = "LobbyButton"
-	lobby.text = "Lobby"
+	lobby.texture_normal = Ref.texture(BUBBLE_ICON)
+	lobby.ignore_texture_size = true
+	lobby.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	lobby.self_modulate = BUBBLE_GOLD
+	lobby.mouse_entered.connect(func(): lobby.self_modulate = Color.WHITE)
+	lobby.mouse_exited.connect(func(): lobby.self_modulate = BUBBLE_GOLD)
 	lobby.tooltip_text = "%s: Toggle the multiplayer lobby in a dialog window." % _hotkey_text("lobby")
 	lobby.visible = not gui.get("isInGame", false) and _lobby_signed_in()
 	lobby.pressed.connect(open_lobby)
 	lobby.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_window.add_child(lobby)
-	var right := (_replay_button.offset_left if _replay_button.visible else _continue_button.offset_left) - 10
-	lobby.offset_left = right - 80
+	var right := (_replay_button.offset_left if _replay_button.visible else _continue_button.offset_left) - 6
+	lobby.offset_left = right - 16
 	lobby.offset_right = right
-	lobby.offset_top = -46
-	lobby.offset_bottom = -12
+	lobby.offset_top = -45
+	lobby.offset_bottom = -29
 
 ## tab_buttons.xml MouseWheelDown / MouseWheelUp: the next or previous tab.
 func _on_tab_wheel(event: InputEvent) -> void:
@@ -1034,6 +1044,7 @@ func _update_legend() -> void:
 			parts.append("%s %s" % [_bb("■", p["color"]), p["name"]])
 	_legend.text = "[center]%s[/center]" % "   ".join(parts)
 
+## CChart::AddFormattedValue.
 static func format_axis(v: float, format: String) -> String:
 	match format:
 		"PERCENTAGE":
@@ -1041,58 +1052,80 @@ static func format_axis(v: float, format: String) -> String:
 		"DECIMAL2":
 			return "%.2f" % v
 		"DURATION_SHORT":
-			return time_to_string(v)
+			var sec := int(v)
+			return "%d:%02d" % [sec / 60, sec % 60]
 	return str(roundi(v))
 
-## CChart: the series as lines over axes with their ranges marked.
-func _draw_chart(n: int) -> void:
-	var chart: Control = _chart_nodes[n]
-	var font := ThemeDB.fallback_font
-	var left := 48.0
-	var bottom := chart.size.y - 16.0
-	var right := chart.size.x - 8.0
-	var top := 8.0
-	var min_x := INF
-	var max_x := -INF
-	var min_y := 0.0
-	var max_y := 0.0
-	# CChart::UpdateBounds: infinite values (a kill/death ratio with no deaths) set no bounds.
-	for s in series[n]:
+# gui/common/modern/styles.xml ModernChart: axis_color, axis_width, buffer_zone, sans-stroke-14.
+const CHART_AXIS_COLOR := Color8(209, 174, 132)
+const CHART_AXIS_WIDTH := 2.0
+const CHART_BUFFER := 4.0
+const CHART_FONT_SIZE := 14
+
+## CChart::UpdateBounds: the smallest and largest finite x and y over every series, from
+## the first point on (no zero baseline); an axis with one value gets 1 added to its top.
+## Returns [left_bottom, right_top, equal_x, equal_y].
+static func chart_bounds(all_series: Array) -> Array:
+	var lb := Vector2(INF, INF)
+	var rt := Vector2(-INF, -INF)
+	for s in all_series:
 		for pt in s["points"]:
 			if not is_inf(pt.x):
-				min_x = minf(min_x, pt.x)
-				max_x = maxf(max_x, pt.x)
+				lb.x = minf(lb.x, pt.x)
+				rt.x = maxf(rt.x, pt.x)
 			if not is_inf(pt.y):
-				min_y = minf(min_y, pt.y)
-				max_y = maxf(max_y, pt.y)
-	if min_x == INF:
-		min_x = 0.0
-		max_x = 1.0
-	if max_x <= min_x:
-		max_x = min_x + 1.0
-	if max_y <= min_y:
-		max_y = min_y + 1.0
-	var axis_color := Color(1, 1, 1, 0.6)
-	for g in 5:
-		var gy := bottom - (bottom - top) * g / 4.0
-		chart.draw_line(Vector2(left, gy), Vector2(right, gy), Color(1, 1, 1, 0.08 if g > 0 else 0.6), 1.0)
-		chart.draw_string(font, Vector2(2, gy + 4), format_axis(min_y + (max_y - min_y) * g / 4.0, chart_format[n]),
-			HORIZONTAL_ALIGNMENT_LEFT, left - 4, 11, axis_color)
-		var gx := left + (right - left) * g / 4.0
-		chart.draw_string(font, Vector2(gx - 20, chart.size.y - 2), format_axis(min_x + (max_x - min_x) * g / 4.0, "DURATION_SHORT"),
-			HORIZONTAL_ALIGNMENT_CENTER, 40, 11, axis_color)
-	chart.draw_line(Vector2(left, top), Vector2(left, bottom), axis_color, 1.0)
-	# CChart::Draw: an infinite point is not drawn and breaks the line there.
+				lb.y = minf(lb.y, pt.y)
+				rt.y = maxf(rt.y, pt.y)
+	if is_inf(lb.x):
+		lb.x = 0.0
+		rt.x = 0.0
+	if is_inf(lb.y):
+		lb.y = 0.0
+		rt.y = 0.0
+	var equal_x := rt.x == lb.x
+	var equal_y := rt.y == lb.y
+	if equal_x:
+		rt.x += 1.0
+	if equal_y:
+		rt.y += 1.0
+	return [lb, rt, equal_x, equal_y]
+
+## CChart::Draw: the series as 2 px lines inside the axes, the left and bottom axes, and
+## SetupText's labels: three y values down the left from the top, three x values along
+## the bottom from the right (one each when an axis has a single value).
+func _draw_chart(n: int) -> void:
+	var chart: Control = _chart_nodes[n]
+	if series[n].is_empty():
+		return
+	var font := ThemeDB.fallback_font
+	var rect := Rect2(Vector2(CHART_AXIS_WIDTH, CHART_AXIS_WIDTH), chart.size - Vector2(2, 2) * CHART_AXIS_WIDTH)
+	var b := chart_bounds(series[n])
+	var lb: Vector2 = b[0]
+	var rt: Vector2 = b[1]
+	var scale := Vector2(rect.size.x / (rt.x - lb.x), rect.size.y / (rt.y - lb.y))
 	for s in series[n]:
 		for line in chart_lines(s["points"]):
+			if line.size() < 2:
+				continue # a one-point line draws nothing
 			var pts := PackedVector2Array()
 			for pt in line:
-				pts.append(Vector2(left + (right - left) * (pt.x - min_x) / (max_x - min_x),
-					bottom - (bottom - top) * (pt.y - min_y) / (max_y - min_y)))
-			if pts.size() == 1:
-				chart.draw_circle(pts[0], 2.5, s["color"])
-			elif pts.size() > 1:
-				chart.draw_polyline(pts, s["color"], 2.0, true)
+				pts.append(Vector2(rect.position.x + (pt.x - lb.x) * scale.x, rect.end.y - (pt.y - lb.y) * scale.y))
+			chart.draw_polyline(pts, s["color"], 2.0, true)
+	chart.draw_rect(Rect2(0, 0, CHART_AXIS_WIDTH, chart.size.y), CHART_AXIS_COLOR)
+	chart.draw_rect(Rect2(0, chart.size.y - CHART_AXIS_WIDTH, chart.size.x, CHART_AXIS_WIDTH), CHART_AXIS_COLOR)
+	var ascent := font.get_ascent(CHART_FONT_SIZE)
+	var text := func(t: String, top_left: Vector2) -> void:
+		chart.draw_string_outline(font, top_left + Vector2(CHART_BUFFER, CHART_BUFFER + ascent), t,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, CHART_FONT_SIZE, 3, Color.BLACK)
+		chart.draw_string(font, top_left + Vector2(CHART_BUFFER, CHART_BUFFER + ascent), t,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, CHART_FONT_SIZE, Color.WHITE)
+	var box := func(t: String) -> Vector2:
+		return font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, CHART_FONT_SIZE) + Vector2(2, 2) * CHART_BUFFER
+	for i in (1 if b[3] else 3):
+		text.call(format_axis(rt.y - (rt.y - lb.y) / 3.0 * i, chart_format[n]), rect.position + Vector2(0, rect.size.y / 3.0 * i))
+	for i in (1 if b[2] else 3):
+		var t := format_axis(rt.x - (rt.x - lb.x) / 3.0 * i, "DURATION_SHORT")
+		text.call(t, rect.end - box.call(t) - Vector2(rect.size.x / 3.0 * i, 0))
 
 ## A series' runs of finite points, split where a point is infinite (CChart::Draw).
 static func chart_lines(points: PackedVector2Array) -> Array:
@@ -1198,7 +1231,7 @@ func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if _fired(event, "summary") or (gui.get("isInGame", false) and event is InputEventKey and event.pressed
-			and event.keycode == KEY_ESCAPE):
+			and "cancel" in RtsoHotkeyConfig.new().fired(event)):
 		get_viewport().set_input_as_handled()
 		continue_pressed()
 	elif _fired(event, "lobby") and not gui.get("isInGame", false) and _lobby_signed_in():
