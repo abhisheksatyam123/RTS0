@@ -1883,16 +1883,25 @@ func _restore_settings() -> void:
 	# (a networked host's from matchsettings.mp.json, none for a saved game);
 	# a client's setup is the host's MatchSettings.
 	var saved := {}
+	# 0.28 LockedTeams.onLoad: every new setup opens with DefaultValue =
+	# Engine.HasNetClient(), whatever was persisted ("in multiplayer mode,
+	# players negotiate teams before starting the match"); single player keeps
+	# open diplomacy. A client takes the host's value.
+	var lock_default := -1
 	if net_main == null:
 		saved = load_persisted()
+		lock_default = 0
 	elif net_main.has_method("get_net_setup_state"):
 		var st: Dictionary = net_main.get_net_setup_state()
 		if bool(st.get("controller", false)) and not bool(st.get("saved_game", false)):
 			saved = load_persisted(true)
 			saved.erase("local_slot")
+			lock_default = 1
 	for k in saved:
 		if src.has(k) and typeof(saved[k]) in [TYPE_FLOAT, TYPE_INT, TYPE_BOOL, TYPE_STRING, TYPE_ARRAY]:
 			src[k] = saved[k]
+	if lock_default >= 0:
+		src["lock_teams"] = lock_default == 1
 	_apply_settings(src)
 
 func _apply_settings(ms: Dictionary) -> void:
