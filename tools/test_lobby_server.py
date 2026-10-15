@@ -110,6 +110,7 @@ def test_http():
     check(call("/chat?since=0")[1]["messages"][-1]["text"] == "gg", "HTTP chat history")
     check(call("/rooms", {"id": "r", "host_port": 20601, "name": "Test"})[0] == 201, "HTTP register")
     check(call("/rooms/")[1]["rooms"][0]["name"] == "Test", "HTTP game list")
+    check(call("/rooms/connect", {"token": me["token"], "id": "r"})[1].get("host_port") == 20601, "HTTP connect")
     check(call("/players")[1]["players"] == [{"name": "carol", "status": "available"}], "HTTP players")
     check(call("/rooms/punch", {"token": me["token"], "id": "r", "ip": "127.0.0.1", "port": 40000})[0] == 200, "HTTP punch")
     check(call("/rooms/punch?id=r&since=0")[1]["endpoints"][0]["port"] == 40000, "HTTP punch list")
@@ -203,8 +204,9 @@ def test_room_owners():
     lb.register({"token": bob, "id": "room-20595", "players": 2}, "203.0.113.2")
     lb.register({"id": "room-20595", "players": 3}, "198.51.100.1")  # the match scene's own post, no token
     rooms = {r["id"]: r for r in lb.room_list()[1]["rooms"]}
-    check(len(rooms) == 2 and rooms["room-20595"]["host_ip"] == "198.51.100.1" and rooms["room-20595"]["players"] == 3
-          and rooms["room-20595-2"]["host_ip"] == "203.0.113.2" and rooms["room-20595-2"]["players"] == 2,
+    addr = {rid: lb.connect({"token": bob, "id": rid})[1]["host_ip"] for rid in rooms}
+    check(len(rooms) == 2 and addr["room-20595"] == "198.51.100.1" and rooms["room-20595"]["players"] == 3
+          and addr["room-20595-2"] == "203.0.113.2" and rooms["room-20595-2"]["players"] == 2,
           "each host's heartbeat with the old id updates only its own game")
     check("owner" not in rooms["room-20595"] and "poster_ip" not in rooms["room-20595"], "the owner stays private")
     mallory = lb.login("mallory")[1]["token"]
@@ -262,6 +264,11 @@ def test_punch():
     check(lb.add_punch({"id": "g", "ip": "203.0.113.9", "port": 51000})[0] == 401, "a punch needs a signed-in player")
     room = lb.room_list()[1]["rooms"][0]
     check("local_ip" not in room and "punch" not in room, "the host's LAN address stays out of the game list")
+    check("host_ip" not in room and "host_port" not in room, "so does its public address")
+    check(lb.connect({"id": "g"})[0] == 401, "only a signed-in player is told a game's address")
+    check(lb.connect({"token": tok, "id": "nope"})[0] == 404, "an unknown game has no address")
+    check(lb.connect({"token": tok, "id": "g"}) == (200, {"host_ip": "198.51.100.4", "host_port": 40001}),
+          "a signed-in joiner is told the game's address")
     check(lb.add_punch({"token": tok, "id": "nope", "ip": "203.0.113.9", "port": 5})[0] == 404, "a punch needs a game")
     check(lb.add_punch({"token": tok, "id": "g", "ip": "", "port": 5})[0] == 400, "a punch needs an endpoint")
     check(lb.add_punch({"token": tok, "id": "g", "ip": "203.0.113.9", "port": 51000}) == (200, {}),

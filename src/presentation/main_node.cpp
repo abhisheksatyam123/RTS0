@@ -343,6 +343,17 @@ void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
 	}
+	// MiniMap.js onWorldClick: an armed ground action (call to arms, attack-walk, patrol) runs at
+	// the clicked point and stays armed under Shift or Alt; otherwise the camera moves there.
+	if ((attack_move_mode || patrol_mode || call_to_arms_mode) && !selected_ids.is_empty()) {
+		const bool keep = rtso::hotkeys::held("session.queue") || rtso::hotkeys::held("session.orderone");
+		const bool modes[3] = { attack_move_mode, patrol_mode, call_to_arms_mode };
+		if (minimap_unit_order(world_pos)) {
+			attack_move_mode = patrol_mode = call_to_arms_mode = false;
+			if (keep && !selected_ids.is_empty()) attack_move_mode = modes[0], patrol_mode = modes[1], call_to_arms_mode = modes[2];
+			return;
+		}
+	}
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
 	}
@@ -1679,13 +1690,22 @@ void RtsoMain::select_group(int key, bool drop) {
 		return;
 	}
 	auto uview = sim->units();
+	auto fv = sim->fauna();
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s) {
+		bool found = false;
 		for (size_t i = 0; i < uview.count; ++i) {
 			if (uview.id[i] != (uint32_t)selected_ids[s]) continue;
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key;
 			if (in_group != drop) kept.push_back(selected_ids[s]);
+			found = true;
+			break;
+		}
+		// The player's own livestock, grouped by kind.
+		for (size_t f = 0; !found && f < fv.count; ++f) {
+			if (fv.id[f] != (uint32_t)selected_ids[s]) continue;
+			if ((RtsoSelectionGrid::fauna_key(fv.fauna_type[f]) == key) != drop) kept.push_back(selected_ids[s]);
 			break;
 		}
 	}
@@ -2198,8 +2218,9 @@ void RtsoMain::refresh_lobby_rooms() {
 	}
 	lobby_room_cache_ = rtso::parse_lobby_rooms(body);
 	for (const auto &r : lobby_room_cache_) {
-		String line = String(r.id.c_str()) + "  " + String(r.host_ip.c_str()) + ":" +
-		              String::num_int64(r.host_port) + "  " + String::num_int64(r.players) +
+		// The lobby's list carries no address since /rooms/connect; older ones did.
+		const String addr = r.host_ip.empty() ? String() : String(r.host_ip.c_str()) + ":" + String::num_int64(r.host_port) + "  ";
+		String line = String(r.id.c_str()) + "  " + addr + String::num_int64(r.players) +
 		              "/" + String::num_int64(r.max_players) + "  " + String(r.map_id.c_str());
 		lobby_rooms->add_item(line);
 	}
@@ -3059,7 +3080,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	PackedInt32Array sel = lobby_rooms->get_selected_items();
 	if (sel.size() > 0) {
 		int idx = sel[0];
-		if (idx >= 0 && (size_t)idx < lobby_room_cache_.size()) {
+		if (idx >= 0 && (size_t)idx < lobby_room_cache_.size() && !lobby_room_cache_[(size_t)idx].host_ip.empty()) {
 			ip = lobby_room_cache_[(size_t)idx].host_ip;
 			port = lobby_room_cache_[(size_t)idx].host_port;
 		}

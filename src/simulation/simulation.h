@@ -168,9 +168,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 85; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 86; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
+	static constexpr uint32_t SAVE_VERSION_ATTACK_DETECTION = 86; // each player's suppressed attacks (OnAttackDetected)
 	static constexpr uint32_t SAVE_VERSION_STATUS_STACKS = 80; // each Poisoned/Burning hit its own status, on units, structures and animals
 	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_NAMES = 83; // Petra's plan counter, the main plan's siege class, the raid's sizes
 	static constexpr uint32_t SAVE_VERSION_SEEN_MASK = 84; // which players have seen each structure (Fogging seen)
@@ -370,6 +371,10 @@ public:
 	void reset();
 	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); reroll_petra_personalities(); }
 	uint32_t sim_seed() const { return sim_seed_; }
+	// 0 A.D. -autostart-aiseed: the AIs' personality seed, 0 = the match seed. Not saved: the
+	// drawn personalities are (PetraConfig).
+	void set_ai_seed(uint32_t seed) { ai_seed_ = seed; reroll_petra_personalities(); }
+	uint32_t ai_seed() const { return ai_seed_; }
 	uint32_t sim_rng_state() const { return sim_rng_.state(); }
 	uint32_t next_id() const { return next_id_; }
 	void spawn_initial();
@@ -958,6 +963,9 @@ public:
 	// circle): the parabolic reach of `range` fired from y_origin above the ground at (x, z),
 	// averaged over 16 directions of the terrain around it.
 	float average_elevation_range(float x, float z, float range, float y_origin) const;
+	// The same reach along one direction (ux, uz), as a unit's GetElevationAdaptedRange at
+	// angle 0 takes the range in front of it.
+	float elevation_range_toward(float x, float z, float ux, float uz, float range, float y_origin) const;
 	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
 	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
 	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
@@ -1020,6 +1028,12 @@ public:
 	};
 	UnitDetails unit_details(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
+	// GarrisonHolder.OccupiedSlots of a ship or siege engine, and IsAllowedToGarrison for one unit.
+	int get_transport_occupied(uint32_t transport_id) const {
+		auto it = transport_passengers_.find(transport_id);
+		return it == transport_passengers_.end() ? 0 : occupied_slots(it->second);
+	}
+	bool can_board_unit(uint32_t transport_id, uint32_t unit_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
@@ -2523,6 +2537,7 @@ private:
 			bool target_is_building, float damage, bool melee = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<TriggerEventData> pending_attack_alerts_; // OnAttackDetected, raised at the end of the tick that detected them
 	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
 	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
@@ -2721,6 +2736,7 @@ private:
 
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
+	uint32_t ai_seed_ = 0; // set_ai_seed
 	SimRng sim_rng_;
 	std::array<PlayerState, MAX_PLAYERS> players_{};
 	PlayerState &petra_ps() { return players_[petra_pid_]; }
@@ -3022,6 +3038,15 @@ private:
 	struct PetraBaseDropsiteCheck { uint32_t anchor_id; PetraDropsiteCheck check; };
 	std::vector<PetraBaseDropsiteCheck> petra_base_dropsite_checks_;
 	float petra_econ_timer_ = 0.0f;
+	// GetCurrentGatherRates and queueManager wantedGatherRates as petra_manage_economy found them
+	// this AI turn, for the trade manager (setTradingGoods, performBarter) later in the same turn.
+	// Not saved: the economy recomputes them before every use (petra_rates_this_turn).
+	float petra_cur_rate_[RES_COUNT] = {}, petra_want_rate_[RES_COUNT] = {};
+	uint32_t petra_rates_stamp_ = 0;
+	uint32_t petra_rates_key() const { return (petra_played_turn() << 4) | (uint32_t)(petra_pid_ + 1); }
+	bool petra_rates_this_turn() const { return petra_rates_stamp_ == petra_rates_key(); }
+	// headquarters.js pickMostNeededResources over those rates.
+	static void petra_most_needed(const float want_rate[RES_COUNT], const float cur_rate[RES_COUNT], uint8_t out[RES_COUNT]);
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
 	float petra_scout_timer_ = 0.0f;
@@ -3181,7 +3206,7 @@ private:
 	void petra_manage_transport(float dt);
 	void apply_petra_config();
 	// config.js setConfig personality draw: per-player seed from the match seed, + teamsLocked.
-	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
+	uint32_t petra_personality_seed(uint8_t pid) const { return ((ai_seed_ ? ai_seed_ : sim_seed_) ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
 	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
 	int petra_queue_base_priority(uint8_t q) const; // config.js priorities after setConfig (attackPlan.js for plan queues)

@@ -139,6 +139,7 @@
 "pers_wall_long": "s_persians_wall_long",
 "pers_wall_medium": "s_persians_wall_medium",
 "pers_wall_short": "s_persians_wall_short",
+"pers_warehouse": "s_persians_alt_building_01",
 "pillar": "s_props_mauryas_ashoka_pillar",
 "ptol_arsenal": "s_ptolemies_workshop",
 "ptol_blacksmith": "s_ptolemies_blacksmith",
@@ -206,5 +207,5 @@
 "temple_vesta": "s_romans_temple_vesta",
 "tent": "s_romans_rome_tent",
 "trading_post": "s_persians_market",
-"warehouse": "pers_storehouse"
+"warehouse": "s_persians_alt_building_01"
 }

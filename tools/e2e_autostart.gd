@@ -77,7 +77,7 @@ func run() -> void:
 	var d: Node = Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland",
 		"-autostart-host", "-autostart-host-players=3", "-autostart-port=20700", "-autostart-playername=alice"])))
 	check(d != null and d.host and not d.client and d.host_players == 3 and ms.net_mode == "host" and ms.net_port == 20700
-		and ms.net_player_name == "alice" and ms.record_replay, "host: waits for 3 players on port 20700 as alice")
+		and ms.net_player_name == "alice" and ms.record_replay and ms.ai_seed == 0, "host: waits for 3 players on port 20700 as alice")
 	d.free()
 	d = Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart-client=10.0.0.5", "-autostart-disable-replay"])))
 	check(d != null and d.client and ms.net_mode == "join" and ms.net_ip == "10.0.0.5" and ms.net_player_name == "anonymous"
@@ -86,6 +86,10 @@ func run() -> void:
 	d = Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-nonvisual"])))
 	check(d != null and d.nonvisual and not d.host and not d.client and ms.net_mode == "", "nonvisual, offline")
 	d.free()
+	check(Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-aiseed=12"]))) == null
+		and ms.ai_seed == 12, "-autostart-aiseed=12 seeds the AIs")
+	Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-aiseed=-1"])))
+	check(ms.ai_seed > 0, "-autostart-aiseed=-1 picks one")
 	check(Autostart.configure_run(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland"]))) == null
 		and ms.record_replay and ms.net_mode == "", "a plain autostart needs no driver")
 

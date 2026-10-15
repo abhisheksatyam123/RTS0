@@ -210,6 +210,42 @@ static void test_petra_trader_transport() {
 	CHECK(routed);
 }
 
+// navalManager.js transportShips and getBestShip: a merchantman with no trade route is a
+// transport (Carthage's village-phase transport is its merchantman), so it carries a land
+// trader across, and isn't counted or routed as a trader while it does.
+static uint16_t tmpl_of(const char *id);
+static void test_petra_merchantman_transport() {
+	static Simulation s;
+	fresh(s);
+	s.players_[1].civ = CIV_CARTHAGINIANS;
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-50.0f, 52.0f, BLD_MARKET, 1);
+	s.spawn_building_world(30.0f, 52.0f, BLD_MARKET, 1);
+	const uint32_t trader = s.spawn_unit(-30.0f, -40.0f, 1, UNIT_TRADER);
+	const uint32_t ship = s.spawn_unit(-30.0f, -10.0f, 1, UNIT_MERCHANT_SHIP, 0.0f, tmpl_of("cart/ship_merchant"));
+	bool planned = false;
+	for (int t = 0; t < 40 && !planned; ++t) {
+		run(s, 1.0f);
+		for (const auto &tp : s.petra_transports_)
+			if (tp.owner == PETRA_TRANSPORT_TRADER && tp.ship_id == ship &&
+			    std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), trader) != tp.passenger_ids.end())
+				planned = true;
+	}
+	bool routed = false;
+	for (int t = 0; t < 120 && !routed; ++t) {
+		run(s, 1.0f);
+		routed = s.trader_routes_.count(trader) && s.units_.action_state[s.lookup_unit(trader)] == ACTION_TRADE;
+	}
+	std::printf("Petra merchantman as a transport: carries the trader %s, trader trading %s, ship routed %s\n", planned ? "yes" : "no",
+	            routed ? "yes" : "no", s.trader_routes_.count(ship) ? "yes" : "no");
+	CHECK(planned);
+	CHECK(routed);
+	CHECK(!s.trader_routes_.count(ship)); // no sea route here: it stays a transport
+}
+
 static const uint8_t *subtype_of(const Simulation &s, uint32_t rid, int32_t *amount = nullptr) {
 	const auto r = s.resources();
 	for (size_t i = 0; i < r.count; ++i)
@@ -1045,6 +1081,35 @@ static void test_petra_fishing() {
 	CHECK(bi < 0 || !s.units().alive[bi]);
 }
 
+// defenseManager.js checkEvents: an idle or gathering fishing boat that is attacked moves out
+// of its attacker's range (ranged range + 15 m).
+static void test_petra_fishing_boat_backs_off() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	s.spawn_resource_world(18.0f, 4.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH); // else Petra deletes the idle boat
+	const uint32_t boat = s.spawn_unit(20.0f, 8.0f, 1, UNIT_FISHING_BOAT, 1.0e5f);
+	const uint32_t ship = s.spawn_unit(24.0f, 8.0f, 0, UNIT_TRIREME);
+	const int32_t si = s.lookup_unit(ship);
+	const float reach = s.units_.attack_range[si] + 15.0f * 0.28f;
+	s.order_attack(&ship, 1, boat);
+	// Petra's next turn after the first hit: the boat leaves its fish for a spot out of reach.
+	const int32_t bi = s.lookup_unit(boat);
+	bool away = false;
+	float d = 0.0f;
+	for (int k = 0; k < 40 && !away; ++k) {
+		run(s, 0.1f);
+		away = s.units_.order_kind[bi] == ORDER_WALK;
+		const float dx = s.units_.order_x[bi] - s.units().pos_x[si], dz = s.units_.order_z[bi] - s.units().pos_z[si];
+		d = std::sqrt(dx * dx + dz * dz);
+	}
+	std::printf("Petra fishing boat attacked: walks off %s, to %.1f from the warship (its reach + 15 m: %.1f)\n", away ? "yes" : "no", d, reach);
+	CHECK(away && d >= reach);
+}
+
 // startingStrategy.js configFirstBase: on a starting land under 25000 m² Petra keeps to one
 // field and lays a corral as well (saveSpace, maxFields 1, needCorral); a finished market
 // lifts the field cap.
@@ -1604,10 +1669,12 @@ int main() {
 	test_petra_overseas_base();
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();
+	test_petra_merchantman_transport();
 	test_petra_cothon();
 	test_ship_treasure();
 	test_petra_ship_treasure();
 	test_petra_fishing();
+	test_petra_fishing_boat_backs_off();
 	test_petra_small_land_fields();
 	test_petra_dock_position();
 	test_petra_workers_across_water();
