@@ -3341,6 +3341,7 @@ void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 
 void RtsoMain::toggle_chat() {
 	if (!chat_window_.is_open()) close_open_dialogs();
+	refresh_chat_tooltips();
 	chat_window_.toggle();
 }
 
