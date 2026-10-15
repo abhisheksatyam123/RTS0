@@ -50,6 +50,8 @@ public:
 	virtual uint8_t local_player() const = 0;
 	virtual uint8_t view_player() const = 0;
 	virtual godot::String player_display_name(uint8_t pid) const = 0;
+	// messages.js onClientLeave g_Players[id].offline: a human who left the match.
+	virtual bool player_offline(uint8_t pid) const { (void)pid; return false; }
 	virtual uint32_t ui_selected_building_id() const = 0;
 	virtual const godot::PackedInt32Array &ui_selected_ids() const = 0;
 	// Every selected structure, the first being ui_selected_building_id().
@@ -1188,7 +1190,10 @@ private:
 		owner_bg_->set_visible(true);
 		class_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
 		class_->add_theme_constant_override("outline_size", 2);
-		class_->set_text(host_->player_display_name(owner) + suffix);
+		// selection_details.js: a disconnected player's name is prefixed "[OFFLINE]".
+		const godot::String owner_name = host_->player_display_name(owner);
+		class_->set_text((host_->player_offline(owner)
+				? rtso::sprintf0(rtso::tr0("[OFFLINE] %(player)s"), {{"player", owner_name}}) : owner_name) + suffix);
 		const uint8_t civ = sim.player_civ(owner);
 		owner_civ_->set_texture(civ < rtso::CIV_COUNT ? rtso::load_ui_texture(rtso::civ_info(civ).emblem_path) : Ref<Texture2D>());
 		owner_civ_->set_visible(owner_civ_->get_texture().is_valid());
