@@ -21,6 +21,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G28 | The developer overlay lacks Control all units and the culling boxes | low | Stats |
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
 | G30 | Pathfinding grid: 8 m navcells against 0.28's 1 m, no JumpPointCache, float maths | low | Migrate |
+| G33 | Match music stops on the summary screen, where 0.28 seems to keep it playing until the main menu (inferred from its GUI scripts, unconfirmed); a fleeing chicken plays no panic sound; siege engines train with footsteps, not ram_trained (its sound file isn't in the shared 0.28 data) | low | Session UI |
 
 Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of woods too tight for them, #1086) and the rows below.
 
@@ -42,6 +43,7 @@ Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of wo
 | G25 | ~~Livestock that an easier Petra breeds skips the AI training-time handicap~~ Fixed (#1101) | low | A |
 | G26 | ~~In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch)~~ Fixed by #1084: clients and the game list see "Random" until Start | low | Multiplayer |
 | G31 | ~~0.28's new_rms_test demo map isn't ported~~ Done: New RMS Test (RMS) under Demo Maps | low | Triggers |
+| G32 | ~~Match sounds and music (Session UI pass 9, `docs/archive/SESSION_UI_AUDIT_028_PASS9.md`): the Germans hear the default peace tracks; the music follows the viewed player; no ally- or enemy-defeated alarm and an extra victory one; every tech plays the wrong alarm; elephants, dogs, the wagon and traders train with the wrong sound; alerts and gates are silent~~ Closed 2026-10-15: germ.json's five tracks; the civ tracks are this client's own, battle music only for a player still playing, victory and defeat music only for its own player; Player.OnGlobalPlayerDefeated's defeated, defeated_ally and defeated_enemy alarms and no won one; alarm_upgradearmory for techs; elephant_trained, complete_kennel, siege_select and alarm_create_worker; alarm_alert_0/1 on raise and end; stonegate_open/close where a seen gate moves and sel_gate on lock and unlock (`tools/e2e_match_sounds.gd`) | low | Session UI |
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
