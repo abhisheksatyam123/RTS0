@@ -16,7 +16,9 @@ host's chat must say "bob has left the game."; the second time the host leaves,
 and the client must show "Connection to the server has been lost." with "The
 host has ended the game.", whose Exit opens the summary as disconnected.
 Then the host saves a match, hosts that saved game, and the client must load
-the host's world into its old seat and stay in step with it.
+the host's world into its old seat and stay in step with it. Last, a join at
+the signed-in host's typed address must be refused as 0.28's lobby
+authentication does ("Secure lobby authentication failed. Join via lobby.").
 
 Both clients sit behind a simulated NAT firewall (each drops datagrams from
 endpoints it never sent to; --no-firewall turns it off), so the join works
@@ -77,6 +79,7 @@ def main():
     ok = play_saved(args, lobby) and ok
     ok = play_setup_leave(args, lobby) and ok
     ok = play_connect_timeout(args, lobby) and ok
+    ok = play_direct_join_refused(args, lobby) and ok
     server.shutdown()
     stun.close()
     return 0 if ok else 1
@@ -183,6 +186,44 @@ def play_connect_timeout(args, lobby):
         return True
     print("\n".join(l for l in out.splitlines() if "NetHost" in l or "[gmp]" in l)[-3000:])
     print(f"[gmp] FAIL connect timeout rc={p.returncode} status={status!r} scene={scene!r}")
+    return False
+
+
+def play_direct_join_refused(args, lobby):
+    """0.28 lobby authentication: a host signed in to the lobby admits only
+    joiners the lobby vouches for, so a join at its typed address is refused
+    with "Secure lobby authentication failed. Join via lobby." (reason 10)."""
+    print("[gmp] ---- a typed-address join to a lobby host ----")
+    port = args.port + 4
+    base = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
+            f"lobby={lobby}", f"timeout={args.timeout}", f"stun={args.stun_port}", "lan=0"]
+    host_log = tempfile.TemporaryFile(mode="w+")
+    host = subprocess.Popen(base + ["role=host", "name=alice", f"port={port}"],
+                            stdout=host_log, stderr=subprocess.STDOUT, text=True)
+    time.sleep(2.0)
+    log = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(base + ["role=join", "name=dave", f"join_addr=127.0.0.1:{port}"],
+                         stdout=log, stderr=subprocess.STDOUT, text=True)
+    try:
+        p.wait(timeout=args.timeout + 30)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        p.wait()
+    host.kill()
+    host.wait()
+    log.seek(0)
+    out = log.read()
+    status = next((l.split(" connect_status=", 1)[1] for l in gmp_lines(out) if " connect_status=" in l), "")
+    ok = (p.returncode == 0 and
+          status == "Failed to connect to the server. | Secure lobby authentication failed. Join via lobby. reason=10")
+    for line in gmp_lines(out):
+        print("   " + line)
+    if ok:
+        print("[gmp] PASS a typed-address join to a lobby host was refused: Secure lobby authentication failed. "
+              "Join via lobby.")
+        return True
+    print("\n".join(l for l in out.splitlines() if "NetHost" in l or "[gmp]" in l)[-3000:])
+    print(f"[gmp] FAIL direct join rc={p.returncode} status={status!r}")
     return False
 
 
