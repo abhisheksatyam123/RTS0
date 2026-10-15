@@ -171,7 +171,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 90; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 91; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_MOVE_TO_GATHERER = 91; // when each Petra mobile dropsite next looks for a gatherer
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
 	static constexpr uint32_t SAVE_VERSION_PETRA_NO_UNITS = 90; // Petra's canBuildUnits and the units it sent to allies (dispatchUnits)
@@ -3190,6 +3191,10 @@ private:
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
 	std::vector<PetraHuntSearch> petra_hunt_search_;
+	// worker.js nextMoveToGatherer: when (petra_timer_) each mobile dropsite next looks for a
+	// gatherer to walk to; one with no entry looks from 5 s on.
+	struct PetraNextMove { uint32_t id; float time; };
+	std::vector<PetraNextMove> petra_move_to_gatherer_;
 	// worker.js isInaccessibleSupply: each gatherer's or hunter's approach (approachingTarget, the
 	// petra_timer_ time and spot it was last seen moving from, time < 0 none yet, carriedBefore,
 	// alreadyTried), and the supplies it flagged (inaccessibleTime: skipped until `until`).
@@ -3545,7 +3550,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_)
+	X(petra_kept_) X(petra_move_to_gatherer_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

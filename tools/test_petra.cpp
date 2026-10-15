@@ -3846,6 +3846,64 @@ static void test_mobile_dropsite_follows() {
 	CHECK(gathering > 0 && walks, "a mobile dropsite walks to the nearest gatherer (moveToGatherer)");
 }
 
+// worker.js moveToGatherer cadence and base: a mobile dropsite that found a gatherer looks
+// again 12 s later and 5 s later when it found none (nextMoveToGatherer), and it looks only
+// at its own base's gatherers.
+static void test_mobile_dropsite_cadence() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 30.0f);
+	float tx = 0.0f, tz = 0.0f, ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings()) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 1) { tx = b.x; tz = b.z; }
+		if (b.team == 0) { ex = b.x; ez = b.z; }
+	}
+	// A second base halfway to the enemy, with no gatherers yet.
+	const float fx = 0.5f * (tx + ex), fz = 0.5f * (tz + ez);
+	s->spawn_building_world(fx, fz, BLD_TOWN_CENTER, 1, 1.0f);
+	run_for(*s, 3.0f);
+	// The home wagon 10 to the side of the first civic centre, across from the enemy line.
+	const float len = std::max(1.0f, std::hypot(ex - tx, ez - tz)), sx = -(ez - tz) / len, sz = (ex - tx) / len;
+	const uint32_t home = s->spawn_unit(tx + 10.0f * sx, tz + 10.0f * sz, 1, UNIT_WAGON);
+	const uint32_t front = s->spawn_unit(fx - 8.0f * sx, fz - 8.0f * sz, 1, UNIT_WAGON);
+	auto walking = [&](uint32_t id) {
+		const int32_t w = s->lookup_unit(id);
+		return w >= 0 && s->units_.order_kind[w] == ORDER_WALK;
+	};
+	auto stop = [&]() { s->cmd_stop(&home, 1); s->cmd_stop(&front, 1); };
+	stop();
+	s->petra_move_dropsites_to_gatherers();
+	const bool home_first = walking(home), front_first = walking(front);
+	stop();
+	// A gatherer of the second base, after the front wagon's 5 s wait has begun.
+	const uint32_t tree = s->spawn_resource_world(fx + 9.0f * sx, fz + 9.0f * sz, RES_WOOD, 200);
+	const uint32_t woman = s->spawn_unit(fx + 8.0f * sx, fz + 8.0f * sz, 1, UNIT_FEMALE_CITIZEN);
+	s->order_gather(&woman, 1, tree);
+	s->petra_timer_ += 4.5f;
+	s->petra_move_dropsites_to_gatherers();
+	const bool front_early = walking(front);
+	s->petra_timer_ += 1.0f;
+	s->petra_move_dropsites_to_gatherers();
+	const bool front_then = walking(front), home_early = walking(home);
+	const int32_t f = s->lookup_unit(front), g = s->lookup_unit(woman);
+	const float off = f < 0 || g < 0 ? 1e9f : std::hypot(s->units_.order_x[f] - s->units_.pos_x[g], s->units_.order_z[f] - s->units_.pos_z[g]);
+	stop();
+	s->petra_timer_ += 7.0f; // 12.5 s after the home wagon's first look
+	s->petra_move_dropsites_to_gatherers();
+	const bool home_again = walking(home);
+	std::printf("  mobile dropsite cadence: home wagon walks %s, again before 12 s %s, at 12.5 s %s; front wagon with no "
+	            "gatherer of its base walks %s, before 5 s %s, at 5.5 s %s (%.2f from its gatherer)\n",
+	            home_first ? "yes" : "no", home_early ? "yes" : "no", home_again ? "yes" : "no", front_first ? "yes" : "no",
+	            front_early ? "yes" : "no", front_then ? "yes" : "no", off);
+	CHECK(home_first && !home_early && home_again, "a mobile dropsite that found a gatherer looks again 12 s later");
+	CHECK(!front_first, "a mobile dropsite looks only at its own base's gatherers");
+	CHECK(!front_early && front_then && off < 0.5f, "a mobile dropsite that found none looks again 5 s later");
+}
+
 // attackPlan.js Abort: an aborted attack withdraws to the nearest of our bases on its
 // land, a second civic centre near the front included, not to the first one.
 static void test_abort_nearest_base() {
@@ -5003,6 +5061,7 @@ int main(int argc, char **argv) {
 	RUN(test_fasten_end_game);
 	RUN(test_abort_nearest_base);
 	RUN(test_mobile_dropsite_follows);
+	RUN(test_mobile_dropsite_cadence);
 	RUN(test_worker_mix);
 	RUN(test_unit_choice);
 	RUN(test_build_defenses);
