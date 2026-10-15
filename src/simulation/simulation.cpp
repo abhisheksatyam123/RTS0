@@ -6950,9 +6950,10 @@ void Simulation::garrison_arrow_auras_of(const std::vector<uint32_t> &ids, uint8
 	arrows = max_arrows = 1.0f;
 	if (GARRISON_ARROW_AURA_COUNT == 0) return;
 	uint32_t seen = 0; // garrison_arrow_auras() rows applied: one aura counts once, not per carrier
+	(void)owner; // Auras.js ApplyGarrisonAura: any unit inside, an ally's too, applies its aura
 	for (uint32_t uid : ids) {
 		const int32_t g = lookup_unit(uid);
-		if (g < 0 || units_.team[g] != owner || units_.tmpl[g] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+		if (g < 0 || units_.tmpl[g] >= CIV_UNIT_TEMPLATE_COUNT) continue;
 		for (int16_t a : civ_unit_template(units_.tmpl[g]).auras) {
 			const int row = garrison_arrow_aura_index(a);
 			if (row < 0 || row >= 32 || (seen & (1u << row))) continue;
