@@ -30,7 +30,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G20 | Session UI: no flare, target or "no" cursors; no paused queue items; no unexplored-area placement message; the garrison panel shows one holder where 0.28 merges several; the Barter dialog lacks 0.28's titles, labels and (i) buttons; some selection-detail strings are built from parts | low | Session UI |
 | G21 | Hotkeys still unwired: push-front for unit orders, training and research; confirm on multiplayer dialogs; watermark, wireframe, profilers; the tiled big screenshot | low | Session UI |
 | G22 | CJK languages need Source Han Sans shipped | low | Session UI |
-| G23 | The chat window is a corner box with extra buttons, and Tab doesn't complete player names | low | B |
+| G23 | The chat window is a corner box with extra buttons (Tab now completes names in the session and setup chats, pass 5 gap 8) | low | B |
 | G24 | Circular maps show an extra 8 m ring past 0.28's edge; square maps have no 12 m edge frame | low | A |
 | G25 | Livestock that an easier Petra breeds skips the AI training-time handicap | low | A |
 | G26 | ~~In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch)~~ Fixed by #1084: clients and the game list see "Random" until Start | low | Multiplayer |
