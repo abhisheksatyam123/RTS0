@@ -1,6 +1,7 @@
 #include "net_host.h"
 #include "stun.h"
 #include <chrono>
+#include <thread>
 #include <iostream>
 #include <cstring>
 #include <algorithm>
@@ -65,6 +66,45 @@ NetHost::NetHost() {
 
 NetHost::~NetHost() {
 	stop();
+}
+
+void NetHost::begin_keepalive() {
+	end_keepalive();
+	if (socket_fd_ < 0) return;
+	// Everything the thread needs is copied here: it touches only the socket.
+	NetWireHeader hdr;
+	hdr.peer_id = local_peer_id_;
+	hdr.flags = NET_FLAG_HEARTBEAT;
+	std::vector<std::pair<std::string, uint16_t>> to;
+	if (isClient() && !server_ip_.empty()) to.emplace_back(server_ip_, server_port_);
+	else if (isHost())
+		for (const auto &p : peers_)
+			if (p.connected) to.emplace_back(p.address, p.port);
+	std::vector<sockaddr_in> dests;
+	for (const auto &[ip, port] : to) {
+		sockaddr_in d{};
+		d.sin_family = AF_INET;
+		d.sin_port = htons(port);
+		if (inet_pton(AF_INET, ip.c_str(), &d.sin_addr) > 0) dests.push_back(d);
+	}
+	if (dests.empty()) return;
+	keepalive_stop_ = false;
+	const int fd = socket_fd_;
+	keepalive_ = std::thread([this, fd, hdr, dests] {
+		while (!keepalive_stop_) {
+			for (const auto &d : dests)
+				sendto(static_cast<SOCKET>(fd), reinterpret_cast<const char*>(&hdr), sizeof(hdr), 0,
+						reinterpret_cast<const struct sockaddr*>(&d), sizeof(d));
+			for (int i = 0; i < 20 && !keepalive_stop_; ++i)
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		}
+	});
+}
+
+void NetHost::end_keepalive() {
+	if (!keepalive_.joinable()) return;
+	keepalive_stop_ = true;
+	keepalive_.join();
 }
 
 bool NetHost::startHost(const NetConfig &c) {
@@ -1338,6 +1378,7 @@ void NetHost::send_client_performance(uint64_t now_ms) {
 }
 
 void NetHost::stop() {
+	end_keepalive();
 	if (socket_fd_ >= 0) {
 		for (int i = 0; i < kDisconnectSends; ++i) {
 			if (isClient() && !server_ip_.empty()) {

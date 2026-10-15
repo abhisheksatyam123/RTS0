@@ -2106,6 +2106,20 @@ struct ShortPathMemo {
 };
 static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
 
+// A unit's last short path search and what it found, kept beside the saved state, not in it: a
+// search is a function of these inputs alone, so while they are the same bit for bit (a unit held
+// where it stands, which searches again each tick for the same aim) its answer is reused, and a
+// game loaded or joined, which starts without it, searches and finds the same.
+struct ShortPathSearchMemo {
+	uint32_t pos_x = 0, pos_z = 0, aim_x = 0, aim_z = 0, radius = 0, range = 0; // float bits
+	uint32_t key = 0;     // the buildings (ShortPathMemo::key)
+	uint32_t ignore = 0;  // the building not steered round
+	uint32_t terrain = 0; // NavGrid::terrain_version
+	uint64_t small = 0;   // the small obstacles' contents (small_obstacles_hash), 0 for none
+	float out_x = 0.0f, out_z = 0.0f;
+	bool found = false, valid = false;
+};
+
 // CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
 // ticks), which motion_feedback() judges when the turn ends, as UnitMotion judges each turn's Move,
 // and CCmpUnitMotionManager's pushing pressure. Saves before pressure held 0 in its byte.
@@ -2512,16 +2526,19 @@ inline bool unit_has_slaughter(uint8_t unit_type, uint16_t tmpl) {
 
 // 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
 // workers build and repair; cavalry, champions, heroes, siege and ships do not.
+// Mercenary citizen infantry (CitizenSoldier Infantry with ResourceGatherer disabled).
+inline bool unit_is_mercenary_infantry(uint8_t unit_type, uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const uint16_t f = civ_unit_template(tmpl).flags;
+	return (f & ROSTER_MERCENARY) && (f & ROSTER_CITIZEN) && !(f & ROSTER_CHAMPION) &&
+			(unit_tech_classes(unit_type) & TC_INFANTRY) && !(unit_tech_classes(unit_type) & TC_CAVALRY);
+}
+
 // Mercenary infantry keep Builder in 0.28 though their ResourceGatherer is gone (template_unit_infantry
 // pulls in mixins/builder); the Neodamodes, no mercenaries, disable it.
 inline bool unit_can_build(uint8_t unit_type, uint16_t tmpl) {
 	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER || unit_type == UNIT_WORKER_ELEPHANT) return true;
-	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
-		const uint16_t f = civ_unit_template(tmpl).flags;
-		if ((f & ROSTER_MERCENARY) && (f & ROSTER_CITIZEN) && !(f & ROSTER_CHAMPION) &&
-				(unit_tech_classes(unit_type) & TC_INFANTRY) && !(unit_tech_classes(unit_type) & TC_CAVALRY))
-			return true;
-	}
+	if (unit_is_mercenary_infantry(unit_type, tmpl)) return true;
 	return unit_gather_class(unit_type, tmpl) == GATHER_INFANTRY;
 }
 

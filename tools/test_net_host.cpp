@@ -21,6 +21,10 @@
 //    unique, since the turn manager still knows a dropped client's id.
 // 7. 0.28 reportConnectionRequestTimeOut: a connect nobody answers gives up
 //    (reason 0) instead of waiting forever.
+// 8. 0.28 polls the network on its own thread, so a peer whose main thread is
+//    busy (loading the map at Start) is not timed out. NetHost::KeepAlive
+//    sends its heartbeats meanwhile: a host stuck for 12 s keeps its client,
+//    and a client stuck for 12 s keeps its seat; without it the client is lost.
 #include "network/net_host.h"
 #include "network/chat_routing.h"
 
@@ -268,6 +272,60 @@ int main() {
 		const uint64_t took = now_ms() - t0;
 		CHECK(lonely[0]->connectionLost() && lonely[0]->disconnectReason() == 0 && took >= 10000 && took < 15000,
 		      "a connect nobody answers times out after about 11 s (reason 0)");
+	}
+
+	// 8. A peer that does not poll for 12 s.
+	{
+		auto session = [&](NetHost &h, std::vector<std::unique_ptr<NetHost>> &cl) {
+			h.startHost(c);
+			cl.push_back(std::make_unique<NetHost>());
+			cl[0]->setLocalPlayerName("loader");
+			cl[0]->startClient("127.0.0.1", h.localPort());
+			return pump(h, cl, 3000, [&] { return cl[0]->getLocalPeerId() != 0; });
+		};
+		auto client_kept = [](NetHost &h) {
+			for (const auto &p : h.getPeers())
+				if (p.id != 0 && p.connected) return true;
+			return false;
+		};
+		Arena arena(1 << 16);
+		auto poll_only = [&](NetHost &who, uint64_t ms) {
+			const uint64_t until = now_ms() + ms;
+			while (now_ms() < until) {
+				who.poll(arena);
+				arena.reset();
+				std::this_thread::sleep_for(std::chrono::milliseconds(5));
+			}
+		};
+		{
+			NetHost h;
+			std::vector<std::unique_ptr<NetHost>> cl;
+			CHECK(session(h, cl), "8: the loader joins");
+			{
+				NetHost::KeepAlive keep(h);
+				poll_only(*cl[0], 12000); // the host loads
+			}
+			pump(h, cl, 1500, [&] { return false; });
+			CHECK(!cl[0]->connectionLost() && client_kept(h), "a host that loads for 12 s keeps its client");
+		}
+		{
+			NetHost h;
+			std::vector<std::unique_ptr<NetHost>> cl;
+			session(h, cl);
+			{
+				NetHost::KeepAlive keep(*cl[0]);
+				poll_only(h, 12000); // the client loads
+			}
+			pump(h, cl, 1500, [&] { return false; });
+			CHECK(!cl[0]->connectionLost() && client_kept(h), "a client that loads for 12 s keeps its seat");
+		}
+		{
+			NetHost h;
+			std::vector<std::unique_ptr<NetHost>> cl;
+			session(h, cl);
+			poll_only(*cl[0], 12000);
+			CHECK(cl[0]->connectionLost(), "without it the client loses a host silent for 12 s");
+		}
 	}
 
 	if (failures) {

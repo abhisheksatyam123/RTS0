@@ -6,6 +6,9 @@ extends Node
 # (unregisterGame). The lobby screen signs in through here; tools/lobby_server.py
 # is the server.
 
+## 0 A.D. KickStrings Local: a moderator kicked or banned us, with the reason.
+signal kicked(text: String)
+
 const HEARTBEAT_S := 10.0
 const REPORT_CHECK_S := 1.0
 const NAT_TICK_S := 0.25
@@ -56,6 +59,54 @@ func _ready() -> void:
 	add_child(_nat_timer)
 
 
+## NetServer SetupUPnP: a host asks the router (an UPnP IGD) to forward its
+## game port, on a thread so hosting never waits on it: discovery for 2 s,
+## then a permanent "0AD Multiplayer" UDP mapping, checked by reading it back.
+## 0.28 builds do this when compiled with miniupnpc; network.upnp turns it off.
+## upnp_status is the last attempt's outcome, as NetServer logs it.
+var upnp_status := ""
+var _upnp_thread: Thread
+
+func map_upnp(port: int) -> void:
+	if not RtsoUserConfig.new().get_bool("network.upnp"):
+		upnp_status = "off"
+		return
+	if _upnp_thread != null:
+		if _upnp_thread.is_alive():
+			return
+		_upnp_thread.wait_to_finish()
+	upnp_status = "discovering"
+	_upnp_thread = Thread.new()
+	_upnp_thread.start(_upnp_run.bind(port))
+
+func upnp_busy() -> bool:
+	return _upnp_thread != null and _upnp_thread.is_alive()
+
+func _upnp_run(port: int) -> void:
+	var u := UPNP.new()
+	var out := ""
+	if u.discover(2000, 2, "InternetGatewayDevice") != UPNP.UPNP_RESULT_SUCCESS or u.get_gateway() == null:
+		out = "No IGD found"
+	elif not u.get_gateway().is_valid_gateway():
+		out = "No valid IGD found"
+	else:
+		var ext := u.query_external_address()
+		var r := u.add_port_mapping(port, port, "0AD Multiplayer", "UDP", 0)
+		if r != UPNP.UPNP_RESULT_SUCCESS:
+			out = "AddPortMapping(%d) failed with code %d" % [port, r]
+		else:
+			out = "External %s:%d UDP is redirected to %s:%d" % [ext, port, u.get_gateway().igd_our_addr, port]
+	print("Net server: UPnP: ", out)
+	_upnp_done.call_deferred(out)
+
+func _upnp_done(out: String) -> void:
+	upnp_status = out
+
+func _exit_tree() -> void:
+	if _upnp_thread != null:
+		_upnp_thread.wait_to_finish()
+
+
 func signed_in() -> bool:
 	return token != ""
 
@@ -77,10 +128,18 @@ func _send(path: String, method: int, body: String, cb: Callable) -> void:
 	var req := HTTPRequest.new()
 	req.timeout = REQUEST_TIMEOUT_S
 	add_child(req)
+	# Only an answer to a request made with our own token can say we were kicked.
+	var sent_token := token if token != "" and (body.contains(token) or path.contains(token)) else ""
 	req.request_completed.connect(func(result: int, code: int, _headers: PackedStringArray, data: PackedByteArray) -> void:
 		req.queue_free()
 		var ok := result == HTTPRequest.RESULT_SUCCESS
 		var obj = JSON.parse_string(data.get_string_from_utf8()) if ok else null
+		if ok and code == 401 and obj is Dictionary and obj.has("kicked") and sent_token != "" and sent_token == token:
+			token = ""
+			room = {}
+			join_room = ""
+			moderator = false
+			kicked.emit(str(obj["kicked"]))
 		if cb.is_valid():
 			cb.call(code if ok else 0, obj))
 	var headers := PackedStringArray(["Content-Type: application/json"])
@@ -285,11 +344,17 @@ func _match_node() -> Node:
 	return scene if scene != null and scene.has_method("get_lobby_state") else null
 
 
+## 0.28 lobby /away and /back: the presence chosen in the lobby, kept by every
+## heartbeat until a match makes it "playing".
+var away := false
+## The lobby lists us as a moderator (0 A.D. LobbyGetPlayerRole "moderator").
+var moderator := false
+
 func _beat() -> void:
 	if token == "":
 		return
 	var main := _match_node()
-	post_json("/presence", {"token": token, "status": "playing" if main != null else "available"})
+	post_json("/presence", {"token": token, "status": "playing" if main != null else ("away" if away else "available")})
 	if room.is_empty():
 		return
 	if main == null:
@@ -361,6 +426,12 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 		if kind == 1:
 			p["ai_difficulty"] = int(at.call("slot_diffs", i, ms.get("ai_difficulty")))
 			p["ai_behavior"] = int(at.call("slot_behs", i, ms.get("ai_behavior")))
+		# LobbyGamelistReporter getPlayers: State (won, defeated) and Offline.
+		var seat: Dictionary = slots[i] if i < slots.size() else {}
+		if str(seat.get("state", "")) != "":
+			p["state"] = str(seat["state"])
+		if kind == 0 and seat.get("offline", false):
+			p["offline"] = true
 		players.append(p)
 	for o in net.get("observers", []):
 		players.append({"name": str(o.get("name", "")), "team": -1, "observer": true})
@@ -440,6 +511,11 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 			parts.append(summary.ai_description(p))
 		else:
 			who = rated_name(name, ratings.get(name))
+			# formatPlayerInfo: "%(playerName)s (OFFLINE, %(state)s)", no civ.
+			if p.get("offline", false):
+				parts = ["OFFLINE"]
+		if str(p.get("state", "")) in ["won", "defeated"]:
+			parts.append(str(p["state"]))
 		var t := int(p.get("team", -1))
 		if not teams.has(t):
 			teams[t] = PackedStringArray()

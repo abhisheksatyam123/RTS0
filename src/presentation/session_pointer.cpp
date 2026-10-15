@@ -49,6 +49,7 @@ void RtsoMain::update_cursor() {
 	if (!sim || !vp) return;
 	const char *want = "";
 	String tip; // the action's tooltip, shown beside the cursor (0 A.D. cursor tooltips)
+	bool tip_orange = false; // coloredText(tooltip, "orange")
 	Vector2 hot(1, 1);
 	const Vector2 mouse = vp->get_mouse_position();
 	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
@@ -165,13 +166,22 @@ void RtsoMain::update_cursor() {
 					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
 					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
 					// unit_actions "garrison": an own or allied holder whose List takes a selected unit.
-					else if (selection_can_garrison(b.id)) want = "action-garrison";
+					else if (selection_can_garrison(b.id)) {
+						want = "action-garrison";
+						// unit_actions "garrison" getActionInfo: the holder's slots, orange once full.
+						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
+						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
+								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					}
 					break;
 				}
 			}
 		}
 	}
 	if (cursor_tip_) {
+		const Color tip_color = tip_orange ? Color(1.0f, 0.65f, 0.0f) : Color(1.0f, 1.0f, 1.0f);
+		if (cursor_tip_->get_theme_color("font_color") != tip_color) cursor_tip_->add_theme_color_override("font_color", tip_color);
 		cursor_tip_->set_visible(!tip.is_empty());
 		if (!tip.is_empty()) {
 			if (cursor_tip_->get_text() != tip) cursor_tip_->set_text(tip);

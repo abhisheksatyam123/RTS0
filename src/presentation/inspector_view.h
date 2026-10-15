@@ -10,10 +10,10 @@
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/label.hpp>
+#include <godot_cpp/classes/text_server.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
-#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
@@ -35,6 +35,7 @@
 #include "../simulation/simulation.h"
 #include "attack_detection.h"
 #include "display_colors.h"
+#include "fog_mirage.h"
 #include "hotkeys.h"
 #include "l10n.h"
 #include "selection_details.h"
@@ -88,14 +89,26 @@ public:
 		portrait_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		portrait_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_COVERED);
 		panel_->add_child(portrait_);
-		// selection_details.xml rankIcon: the rank over the portrait's top-left corner.
+		// single_details_area.xml: the iconBorder's clicks (left follows or focuses, right opens the
+		// Template Viewer), the rankIcon at 4 4 20 20 and up to five statusEffectsIcons down the
+		// right edge (100%-20 4 100%-4 100%), each 16 px every 18 px.
+		portrait_->connect("gui_input", Callable(owner, "_on_portrait_gui_input"));
 		rank_icon_ = memnew(TextureRect);
 		rank_icon_->set_position(Vector2(4, 4));
-		rank_icon_->set_size(Vector2(24, 24));
+		rank_icon_->set_size(Vector2(16, 16));
 		rank_icon_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-		rank_icon_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+		rank_icon_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 		rank_icon_->set_visible(false);
-		panel_->add_child(rank_icon_);
+		portrait_->add_child(rank_icon_);
+		for (int i = 0; i < kStatusIcons; ++i) {
+			status_icons_[i] = memnew(TextureRect);
+			status_icons_[i]->set_position(Vector2(84 - 20, 4 + i * 18));
+			status_icons_[i]->set_size(Vector2(16, 16));
+			status_icons_[i]->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+			status_icons_[i]->set_mouse_filter(Control::MOUSE_FILTER_PASS);
+			status_icons_[i]->set_visible(false);
+			portrait_->add_child(status_icons_[i]);
+		}
 
 		title_ = memnew(Label);
 		title_->set_position(Vector2(102, 6));
@@ -195,6 +208,14 @@ public:
 		make_insp_bar(hp_bar_, hp_label_, 41, Color(0.25f, 0.75f, 0.35f), "HP", "res://assets/textures/ui/icons/insp_health_fg.png");
 		// 2. Capture Points Bar (Cyan / Blue)
 		make_insp_bar(capture_bar_, capture_label_, 54, Color(0.35f, 0.55f, 0.95f), "CP", "res://assets/textures/ui/icons/insp_capture_bar.png");
+		// selection_details.js captureBar[n]: one part per player in their colour at half alpha,
+		// the owner's first, over the bar (whose own fill stays empty).
+		for (ColorRect *&part : capture_parts_) {
+			part = memnew(ColorRect);
+			part->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			part->set_visible(false);
+			capture_bar_->add_child(part);
+		}
 		// 3. Veterancy / Experience XP Bar (Gold / Amber)
 		make_insp_bar(xp_bar_, xp_label_, 67, Color(0.95f, 0.75f, 0.20f), "XP", "res://assets/textures/ui/icons/insp_experience_fg.png");
 		// 4. Stamina / Energy Bar (Teal / Mint)
@@ -234,6 +255,14 @@ public:
 		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 10, 36.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
 		garrison_grid_.build(panel_, Vector2(102, 148), Vector2(404, 34), owner, "_on_garrison_group_clicked", 12, 30.0f);
+		// The Barter panel's place (0.28's left panel, shared with the garrison panel); the
+		// command panel fills it.
+		barter_host_ = memnew(Control);
+		barter_host_->set_name("unitBarterPanel");
+		barter_host_->set_position(Vector2(148, 100));
+		barter_host_->set_size(Vector2(164, 82));
+		barter_host_->set_visible(false);
+		panel_->add_child(barter_host_);
 	}
 
 	godot::Panel *panel() const { return panel_; }
@@ -243,6 +272,12 @@ public:
 	// (EntitySelection; the command panels need the player's own entities).
 	uint8_t kind() const { return kind_; }
 	uint32_t id() const { return id_; }
+	// The portrait's click targets (RtsoMain::_on_portrait_gui_input).
+	uint32_t portrait_follow_id() const { return portrait_follow_id_; }
+	godot::Vector2 portrait_position() const { return godot::Vector2(portrait_x_, portrait_z_); }
+	const godot::String &portrait_viewer_kind() const { return portrait_viewer_kind_; }
+	int portrait_viewer_id() const { return portrait_viewer_id_; }
+	int portrait_viewer_civ() const { return portrait_viewer_civ_; }
 	// A selection of the player's own replaces whatever a click inspected.
 	void clear() { kind_ = INSPECT_NONE; }
 	// Tests: inspect an entity as a click would, and read back what the panel shows.
@@ -262,10 +297,29 @@ public:
 		d["portrait_tooltip"] = portrait_->get_tooltip_text();
 		d["portrait"] = portrait_->get_texture().is_valid() ? portrait_->get_texture()->get_path() : godot::String();
 		d["rank_icon"] = rank_icon_->is_visible() && rank_icon_->get_texture().is_valid() ? rank_icon_->get_texture()->get_path() : godot::String();
-		d["rank_tooltip"] = rank_icon_->is_visible() ? rank_icon_->get_tooltip_text() : godot::String();
+		d["rank_tooltip"] = rank_icon_->get_tooltip_text();
+		godot::Array statuses;
+		for (int i = 0; i < kStatusIcons; ++i)
+			if (status_icons_[i]->is_visible()) {
+				godot::Dictionary st;
+				st["icon"] = status_icons_[i]->get_texture().is_valid() ? status_icons_[i]->get_texture()->get_path() : godot::String();
+				st["tooltip"] = status_icons_[i]->get_tooltip_text();
+				statuses.push_back(st);
+			}
+		d["statuses"] = statuses;
 		d["health"] = hp_label_->get_text();
 		d["xp"] = xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
 		d["stats"] = stats_->get_text();
+		godot::Array capture_parts;
+		for (godot::ColorRect *r : capture_parts_)
+			if (r->is_visible()) {
+				godot::Dictionary part;
+				part["color"] = r->get_color();
+				part["width"] = r->get_size().x;
+				capture_parts.push_back(part);
+			}
+		d["capture_parts"] = capture_parts;
+		d["xp_tooltip"] = xp_bar_->get_tooltip_text();
 		d["stats_tooltip"] = stats_->get_tooltip_text();
 		d["extra"] = extra_->get_text();
 		d["extra_tooltip"] = extra_->get_tooltip_text();
@@ -311,11 +365,17 @@ public:
 			}
 			if (best != (size_t)-1) return pick(INSPECT_FAUNA, fv.id[best]);
 		}
-		for (const auto &b : sim->buildings()) {
-			if (b.team == host_->local_player() || b.wrecked || !explored(b.x, b.z)) continue;
-			const float hr = (b.hu > 0.0f ? std::max(b.hu, b.hv) : b.half_size) + 0.4f;
-			const float dx = b.x - cx, dz = b.z - cz;
-			if (dx * dx + dz * dz <= hr * hr) return pick(INSPECT_BUILDING, b.id);
+		// Structures as the viewer knows them (Fogging.js): live in sight, the mirage in the
+		// fog (it stays selectable after the structure is gone), nothing if never seen.
+		mirages_.update(*sim, vp);
+		for (const auto &m : mirages_.buildings()) {
+			if (m.team == host_->local_player() || m.wrecked) continue;
+			const rtso::Simulation::Building *b = nullptr;
+			for (const auto &lb : sim->buildings())
+				if (lb.id == m.id) { b = &lb; break; }
+			const float hr = (b && b->hu > 0.0f ? std::max(b->hu, b->hv) : m.half_size) + 0.4f;
+			const float dx = m.x - cx, dz = m.z - cz;
+			if (dx * dx + dz * dz <= hr * hr) return pick(INSPECT_BUILDING, m.id);
 		}
 		{
 			auto rv = sim->resources();
@@ -344,6 +404,7 @@ public:
 
 	// False when the inspected entity is gone or out of sight.
 	godot::GridContainer *garrison_grid_view() const { return garrison_grid_.grid(); }
+	godot::Control *barter_host() const { return barter_host_; }
 
 	bool fill_inspected_details() {
 		rtso::Simulation *sim = host_->ui_sim();
@@ -378,10 +439,11 @@ public:
 			const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
 			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
-			title_->set_text(rank_prefix(uv.rank[u]) + String::utf8(uinfo.name));
+			title_->set_text(String::utf8(uinfo.name));
 			set_owner(*sim, uv.team[u]);
 			health(uv.hp[u], uv.max_hp[u]);
 			fill_unit_details(*sim, u, title_->get_text());
+			set_unit_extras(*sim, u);
 			return true;
 		}
 		if (kind_ == INSPECT_FAUNA) {
@@ -398,6 +460,9 @@ public:
 			title_->set_text(String::utf8(fi.name));
 			set_owner(*sim, owner);
 			health(fv.hp[f], fv.max_hp[f]);
+			set_statuses(*sim, rtso::Simulation::STATUS_ON_FAUNA, fv.id[f]);
+			set_portrait_target(false, 0, fv.pos_x[f], fv.pos_z[f], String(), -1, 0);
+			portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), rtso::portraits::fauna_entry(fv.fauna_type[f]), String(), String(), false));
 			// An animal's Attack/Melee and Resistance as tooltips.js shows a unit's.
 			rtso::Simulation::UnitDetails d;
 			d.damage[0] = fi.hack_damage;
@@ -408,7 +473,9 @@ public:
 			d.resistance[0] = fi.hack_armor;
 			d.resistance[1] = fi.pierce_armor;
 			d.resistance[2] = fi.crush_armor;
-			const String attack = rtso::seldet::attack_tooltip(d), resistance = rtso::seldet::resistance_tooltip(d.resistance);
+			const String attack = rtso::seldet::attack_tooltip(d,
+					godot::Dictionary(rtso::portraits::fauna_entry(fv.fauna_type[f]).get("viewer", godot::Dictionary())).get("attacks", godot::Array())),
+					resistance = rtso::seldet::resistance_tooltip(d.resistance);
 			stats_->set_text(rtso::seldet::join_lines({body_lines(attack), body_lines(resistance)}));
 			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance}));
 			// resourceSection: the meat it yields, "Food: 100 / 100".
@@ -418,6 +485,32 @@ public:
 			return true;
 		}
 		if (kind_ == INSPECT_BUILDING) {
+			// Fogging.js AddMiragedEntity: a fogged structure shows its mirage, the Health,
+			// Capturable, Foundation and owner it had when last seen.
+			mirages_.update(*sim, host_->view_player());
+			const rtso::FoggedBuilding *seen = nullptr;
+			for (const auto &m : mirages_.buildings())
+				if (m.id == id_) { seen = &m; break; }
+			if (!seen) return false;
+			if (seen->miraged) {
+				const auto &binfo = rtso::building_type_info(seen->type);
+				portrait_->set_texture(rtso::portraits::structure(seen->civ, seen->type));
+				title_->set_text(String(binfo.name));
+				set_owner(*sim, seen->team);
+				health(seen->hp, seen->max_hp);
+				if (seen->max_capture_points > 0.0f)
+				{
+					bar(capture_bar_, capture_label_, true, seen->capture_points, seen->max_capture_points,
+							rtso::seldet::capture(seen->capture_points, seen->max_capture_points));
+					float pts[rtso::MAX_PLAYERS + 1] = {};
+					pts[seen->team < rtso::MAX_PLAYERS ? seen->team : rtso::MAX_PLAYERS] = seen->capture_points;
+					set_capture_parts(*sim, seen->team, pts, seen->max_capture_points);
+				}
+				stats_->set_text(seen->build_progress < 1.0f
+						? "Construction: " + String::num((double)(seen->build_progress * 100.0f), 0) + "%" : String());
+				stats_->set_tooltip_text(String());
+				return true;
+			}
 			const rtso::Simulation::Building *found = nullptr;
 			for (const auto &b : sim->buildings())
 				if (b.id == id_) { found = &b; break; }
@@ -427,12 +520,23 @@ public:
 			title_->set_text(String(binfo.name));
 			set_owner(*sim, found->team);
 			health(found->hp, found->max_hp);
-			if (found->max_capture_points > 0.0f)
+			set_structure_extras(*sim, *found);
+			if (found->max_capture_points > 0.0f) {
 				bar(capture_bar_, capture_label_, true, found->capture_points, found->max_capture_points,
 						rtso::seldet::capture(found->capture_points, found->max_capture_points));
-			stats_->set_text(found->build_progress < 1.0f
-					? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : String());
-			stats_->set_tooltip_text(structure_tooltip(*sim, *found));
+				set_structure_capture_parts(*sim, *found);
+			}
+			rtso::Simulation::BuildWork work;
+			String build_tip;
+			if (sim->structure_build_work(*found, work)) {
+				stats_->set_text(join_spaced(found->build_progress < 1.0f
+						? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : rtso::tr0("Repair"),
+						rtso::seldet::build_work_caption(work.builders, work.remaining)));
+				build_tip = build_work_tooltip(work);
+			} else {
+				stats_->set_text(String());
+			}
+			stats_->set_tooltip_text(rtso::seldet::join_lines({build_tip, structure_tooltip(*sim, *found)}));
 			return true;
 		}
 		if (kind_ == INSPECT_TREASURE) {
@@ -448,6 +552,9 @@ public:
 				if (ti.amount[k] > 0) reward += (reward.is_empty() ? "" : ", ") + String::num_int64(ti.amount[k]) + " " + kRes[k];
 			portrait_->set_texture(rtso::portraits::treasure(found->type));
 			title_->set_text(String::utf8(ti.name));
+			set_portrait_target(false, 0, found->x, found->z, String(), -1, 0);
+			portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), rtso::portraits::treasure_entry(found->type), String(),
+					rtso::seldet::reward_tooltip(ti.amount), false));
 			set_owner(*sim, rtso::GAIA_PLAYER);
 			bar(hp_bar_, hp_label_, false);
 			stats_->set_text("Reward: " + reward + "\nCollect time: " + String::num((double)ti.collect_time, 1) + " s");
@@ -474,6 +581,9 @@ public:
 		title_->set_text(title);
 		set_owner(*sim, rtso::GAIA_PLAYER);
 		bar(hp_bar_, hp_label_, false);
+		set_portrait_target(false, 0, rv.x[r], rv.z[r], String(), -1, 0);
+		portrait_->set_tooltip_text(portrait_tooltip(title, rtso::portraits::resource_entry(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0),
+				String(), String(), false));
 		// resourceSection ("Wood:" and amount / max, ∞ for a field) and the gatherers count
 		// (current / max, "Current/max gatherers").
 		(void)kind;
@@ -531,6 +641,9 @@ public:
 		// The stamina bar has no 0 A.D. counterpart.
 		show_bar(stamina_bar_, stamina_label_, false);
 		clear_tooltips();
+		stats_->set_position(Vector2(102, 108));
+		stats_->set_size(Vector2(404, 38));
+		stats_->set_autowrap_mode(TextServer::AUTOWRAP_OFF);
 		// Each grid shows if a branch below asks for it; the guard applies the
 		// result once, whichever way update_inspector returns.
 		bool show_selection_grid = false, show_garrison_grid = false;
@@ -559,16 +672,22 @@ public:
 						: String());
 
 				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health(found_b->hp, found_b->max_hp));
+				set_structure_extras(*sim, *found_b);
 
-				if (found_b->max_capture_points > 0.0f)
+				if (found_b->max_capture_points > 0.0f) {
 					set_bar(capture_bar_, capture_label_, found_b->capture_points, found_b->max_capture_points,
 							rtso::seldet::capture(found_b->capture_points, found_b->max_capture_points));
-				else
+					set_structure_capture_parts(*sim, *found_b);
+				} else
 					show_bar(capture_bar_, capture_label_, false);
 
+				rtso::Simulation::BuildWork work;
+				const bool building_work = sim->structure_build_work(*found_b, work);
 				if (found_b->build_progress < 1.0f) {
 					set_bar(xp_bar_, xp_label_, found_b->build_progress, 1.0f,
-							"Construction: " + String::num((double)(found_b->build_progress * 100.0f), 0) + "%");
+							join_spaced("Construction: " + String::num((double)(found_b->build_progress * 100.0f), 0) + "%",
+									rtso::seldet::build_work_caption(work.builders, work.remaining)));
+					if (building_work) xp_bar_->set_tooltip_text(build_work_tooltip(work));
 				} else if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT && found_b->upgrade_duration > 0.0f) {
 					set_bar(xp_bar_, xp_label_, found_b->upgrade_timer, found_b->upgrade_duration,
 							"Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" +
@@ -578,6 +697,11 @@ public:
 					set_bar(xp_bar_, xp_label_, po.timer, po.duration,
 							"Researching " + String::utf8(rtso::tech_info(rt).name) + " (" +
 							String::num(po.duration - po.timer, 0) + " s left)");
+				} else if (building_work && work.repair) {
+					// selection_details.js: a damaged structure shows its repairers and the time left.
+					set_bar(xp_bar_, xp_label_, found_b->hp, found_b->max_hp,
+							join_spaced(rtso::tr0("Repair"), rtso::seldet::build_work_caption(work.builders, work.remaining)));
+					xp_bar_->set_tooltip_text(build_work_tooltip(work));
 				} else {
 					show_bar(xp_bar_, xp_label_, false);
 				}
@@ -594,6 +718,13 @@ public:
 							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
 							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 				stats_->set_text(status);
+				// Beside the Barter panel when it shows.
+				const bool barter = barter_host_ && barter_host_->is_visible();
+				if (barter) {
+					stats_->set_position(Vector2(318, 108));
+					stats_->set_size(Vector2(188, 38));
+					stats_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+				}
 				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
 				// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
 				const int penned = found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0;
@@ -650,8 +781,7 @@ public:
 
 			// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
 			const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
-			const String name = rank_prefix(uview.rank[u]) +
-					rtso::entity_names(String::utf8(uinfo.name), String::utf8(specific ? specific : ""));
+			const String name = rtso::entity_names(String::utf8(uinfo.name), String::utf8(specific ? specific : ""));
 			title_->set_text(name);
 			const uint8_t owner = uview.team[u];
 			set_owner(*sim, owner, " - Kills: " + String::num_int64(uview.kills[u]));
@@ -675,6 +805,7 @@ public:
 			else show_bar(aura_bar_, aura_label_, false);
 
 			fill_unit_details(*sim, u, name);
+			set_unit_extras(*sim, u);
 
 			String extra;
 			uint32_t route_a = 0, route_b = 0;
@@ -758,7 +889,7 @@ public:
 			stats_->set_text("");
 			extra_->set_text("");
 			ungarrison_btn_->set_visible(false);
-			selection_grid_.update(groups, "Click to select only these, Ctrl+click or right-click to deselect them.");
+			selection_grid_.update(selection_groups(*sim, uview, groups), "");
 			show_selection_grid = true;
 		}
 		panel_->set_visible(true);
@@ -766,21 +897,130 @@ public:
 
 private:
 	void clear_tooltips() {
-		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_}) c->set_tooltip_text("");
+		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_, xp_bar_}) c->set_tooltip_text("");
 		rank_icon_->set_visible(false);
+		rank_icon_->set_tooltip_text("");
+		for (godot::ColorRect *r : capture_parts_) r->set_visible(false);
+		for (godot::TextureRect *icon : status_icons_) icon->set_visible(false);
+		set_portrait_target(false, 0, 0.0f, 0.0f, String(), -1, 0);
 	}
-	// The rank glyph's "%(rank)s Rank" reads as a prefix of the name here: "Advanced", "Elite".
-	static String rank_prefix(uint8_t rank) {
-		if (rank == 2) return rtso::tr0("Advanced") + " ";
-		if (rank >= 3) return rtso::tr0("Elite") + " ";
-		return String();
+
+	// The capture bar's parts: pts[p] for each player p, pts[MAX_PLAYERS] for Gaia; the owner first.
+	void set_capture_parts(const rtso::Simulation &sim, uint8_t owner, const float *pts, float max) {
+		capture_bar_->set_value(0.0f);
+		const float w = capture_bar_->get_size().x, h = capture_bar_->get_size().y;
+		const int owner_slot = owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS;
+		float x = 0.0f;
+		int used = 0;
+		auto part = [&](int slot) {
+			const float frac = max > 0.0f ? std::clamp(pts[slot] / max, 0.0f, 1.0f) : 0.0f;
+			if (frac <= 0.0f || used >= kCaptureParts) return;
+			const uint32_t rgb = slot < rtso::MAX_PLAYERS ? rtso::display_colors::rgb(sim, (uint8_t)slot) : sim.player_color(rtso::GAIA_PLAYER);
+			godot::ColorRect *r = capture_parts_[used++];
+			r->set_color(godot::Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 128.0f / 255.0f));
+			r->set_position(godot::Vector2(x, 0.0f));
+			r->set_size(godot::Vector2(w * frac, h));
+			r->set_visible(true);
+			x += w * frac;
+		};
+		part(owner_slot);
+		for (int slot = 0; slot <= rtso::MAX_PLAYERS; ++slot)
+			if (slot != owner_slot) part(slot);
+		for (int i = used; i < kCaptureParts; ++i) capture_parts_[i]->set_visible(false);
+	}
+	// Capturable.js GetCapturePoints of a structure. A Gaia structure keeps its points in slot 0.
+	void set_structure_capture_parts(const rtso::Simulation &sim, const rtso::Simulation::Building &b) {
+		float pts[rtso::MAX_PLAYERS + 1] = {};
+		for (int p = 0; p < rtso::MAX_PLAYERS; ++p) pts[p] = b.capture_points_by_team[p];
+		if (b.team >= rtso::MAX_PLAYERS) {
+			pts[rtso::MAX_PLAYERS] = b.capture_points;
+			pts[0] = 0.0f;
+		}
+		set_capture_parts(sim, b.team, pts, b.max_capture_points);
+	}
+
+	static String join_spaced(const String &a, const String &b) { return b.is_empty() ? a : a + String("  ") + b; }
+	static String build_work_tooltip(const rtso::Simulation::BuildWork &w) {
+		return rtso::seldet::build_work_tooltip(w.repair, w.builders, w.remaining, w.remaining_new);
+	}
+
+	// What the portrait's clicks act on: follow_focus(id) for a unit or structure, else the
+	// position to look at; the Template Viewer's kind ("unit", "structure"), id and civ.
+	void set_portrait_target(bool unit, uint32_t follow_id, float x, float z, const String &viewer_kind, int viewer_id, int viewer_civ) {
+		portrait_unit_ = unit;
+		portrait_follow_id_ = follow_id;
+		portrait_x_ = x;
+		portrait_z_ = z;
+		portrait_viewer_kind_ = viewer_kind;
+		portrait_viewer_id_ = viewer_id;
+		portrait_viewer_civ_ = viewer_civ;
+	}
+
+	// selection_details.js iconBorder tooltip: the name, getVisibleEntityClassesFormatted,
+	// getAurasTooltip, getEntityTooltip, getTreasureTooltip, then what the clicks do.
+	static String portrait_tooltip(const String &name, const godot::Dictionary &entry, const String &auras, const String &reward, bool unit) {
+		using namespace rtso::seldet;
+		const String tooltip = entry.get("tooltip", String());
+		return join_lines({name, classes_line(entry.get("classes", godot::Array())), auras,
+				tooltip.is_empty() ? String() : rtso::tr0(tooltip), reward, portrait_click_line(unit)});
+	}
+
+	// The rank glyph: "%(rank)s Rank" and the rank technology's tooltip (unit_advanced,
+	// unit_elite), for templates with an Identity/Rank.
+	void set_rank(const godot::Dictionary &entry, uint8_t rank) {
+		const godot::Dictionary viewer = entry.get("viewer", godot::Dictionary());
+		String name = viewer.get("rank", String());
+		if (name.is_empty()) return;
+		static const char *const kRank[] = {"Basic", "Advanced", "Elite"};
+		if (rank >= 1) name = kRank[std::min<int>(rank, 3) - 1];
+		rank_icon_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/archive/icons/ranks/" + name + ".png"));
+		const godot::Dictionary techs = rtso::portraits::reference().get("techs", godot::Dictionary());
+		const String tech_tip = godot::Dictionary(techs.get("unit_" + name.to_lower(), godot::Dictionary())).get("tooltip", String());
+		rank_icon_->set_tooltip_text(rtso::sprintf0(rtso::tr0("%(rank)s Rank"), {{"rank", rtso::tr0(name)}}) +
+				(tech_tip.is_empty() ? String() : "\n" + rtso::tr0(tech_tip)));
+		rank_icon_->set_visible(rank_icon_->get_texture().is_valid());
+	}
+
+	// The statusEffectsIcons: one per stacked status, its icon and receiver tooltip.
+	void set_statuses(const rtso::Simulation &sim, uint8_t target_kind, uint32_t id) {
+		rtso::Simulation::StatusView st[kStatusIcons];
+		const int n = std::min(sim.statuses_on(target_kind, id, st, kStatusIcons), kStatusIcons);
+		for (int i = 0; i < kStatusIcons; ++i) {
+			status_icons_[i]->set_visible(i < n);
+			if (i >= n) continue;
+			status_icons_[i]->set_texture(rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/status_effects/") +
+					(st[i].kind == 2 ? "burning" : "poisoned") + ".png"));
+			status_icons_[i]->set_tooltip_text(rtso::seldet::status_tooltip(st[i].kind, st[i].damage, st[i].interval, st[i].remaining));
+		}
+	}
+
+	// A single unit's rank, statuses, portrait tooltip and clicks.
+	void set_unit_extras(const rtso::Simulation &sim, size_t u) {
+		auto uv = sim.units();
+		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
+		const godot::Dictionary entry = rtso::portraits::unit_entry(tmpl);
+		set_rank(entry, uv.rank[u]);
+		set_statuses(sim, rtso::Simulation::STATUS_ON_UNIT, uv.id[u]);
+		set_portrait_target(true, uv.id[u], uv.pos_x[u], uv.pos_z[u], tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? "unit" : "", tmpl, 0);
+		portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), entry, aura_label_->get_tooltip_text(), String(), true));
+	}
+
+	// A single structure's statuses, portrait tooltip and clicks.
+	void set_structure_extras(const rtso::Simulation &sim, const rtso::Simulation::Building &b) {
+		set_statuses(sim, rtso::Simulation::STATUS_ON_STRUCTURE, b.id);
+		const uint8_t civ = b.team < rtso::MAX_PLAYERS ? sim.player_civ(b.team) : sim.player_civ(host_->local_player());
+		set_portrait_target(false, b.id, b.x, b.z, "structure", b.type, civ);
+		portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), rtso::portraits::structure_entry(b.civ, b.type), String(), String(), false));
 	}
 	// A "%(label)s\n%(details)s" tooltip's details, unindented, for the stats lines.
 	static String body_lines(const String &tip) {
 		const int nl = tip.find("\n");
 		if (nl < 0) return tip;
 		String out;
-		for (const String &line : tip.substr(nl + 1).split("\n")) out += String(out.is_empty() ? "" : "\n") + line.strip_edges();
+		for (const String &line : tip.substr(nl + 1).split("\n")) {
+			if (line.begins_with("    ")) continue; // an attack's status and splash lines stay in the tooltip
+			out += String(out.is_empty() ? "" : "\n") + line.strip_edges();
+		}
 		return out;
 	}
 	// displaySingle for a unit: the attack and resistance lines, the detailed tooltip
@@ -789,7 +1029,9 @@ private:
 	void fill_unit_details(const rtso::Simulation &sim, size_t u, const String &name) {
 		using namespace rtso::seldet;
 		const rtso::Simulation::UnitDetails d = sim.unit_details(u);
-		const String attack = attack_tooltip(d), resistance = resistance_tooltip(d.resistance);
+		auto uv0 = sim.units();
+		const godot::Dictionary viewer = rtso::portraits::unit_entry(uv0.tmpl ? uv0.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE).get("viewer", godot::Dictionary());
+		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array())), resistance = resistance_tooltip(d.resistance);
 		stats_->set_text(join_lines({body_lines(attack), body_lines(resistance)}));
 		auto uv = sim.units();
 		Amounts loot;
@@ -810,14 +1052,6 @@ private:
 			}
 		portrait_->set_tooltip_text(join_lines({name, auras}));
 		aura_label_->set_tooltip_text(auras);
-		if (sim.unit_has_rank(u)) {
-			static const char *kIcon[] = {"Basic", "Advanced", "Elite"};
-			const uint8_t rank = std::min<uint8_t>(std::max<uint8_t>(uv.rank[u], 1), 3);
-			rank_icon_->set_texture(godot::ResourceLoader::get_singleton()->load(
-					String("res://assets/textures/ui/archive/icons/ranks/") + kIcon[rank - 1] + ".png"));
-			rank_icon_->set_tooltip_text(rank_tooltip(rank));
-			rank_icon_->set_visible(true);
-		}
 	}
 	// displaySingle's detailed tooltip for a structure: its arrows (getAttackTooltip with
 	// BuildingAI), resistance and garrison limit (getGarrisonTooltip).
@@ -857,7 +1091,14 @@ private:
 	uint32_t id_ = 0; // what kind_ inspects
 	godot::Panel *panel_ = nullptr;
 	godot::TextureRect *portrait_ = nullptr;
+	static constexpr int kStatusIcons = 5;
 	godot::TextureRect *rank_icon_ = nullptr;
+	godot::TextureRect *status_icons_[kStatusIcons] = {};
+	bool portrait_unit_ = false;
+	uint32_t portrait_follow_id_ = 0;
+	float portrait_x_ = 0.0f, portrait_z_ = 0.0f;
+	String portrait_viewer_kind_;
+	int portrait_viewer_id_ = -1, portrait_viewer_civ_ = 0;
 	godot::Label *title_ = nullptr;
 	godot::Label *class_ = nullptr;
 	godot::ColorRect *owner_bg_ = nullptr;
@@ -915,6 +1156,8 @@ private:
 	godot::ProgressBar *hp_bar_ = nullptr;
 	godot::Label *hp_label_ = nullptr;
 	godot::ProgressBar *capture_bar_ = nullptr;
+	static constexpr int kCaptureParts = rtso::MAX_PLAYERS + 1;
+	godot::ColorRect *capture_parts_[kCaptureParts] = {};
 	godot::Label *capture_label_ = nullptr;
 	godot::ProgressBar *xp_bar_ = nullptr;
 	godot::Label *xp_label_ = nullptr;
@@ -925,8 +1168,58 @@ private:
 	godot::Label *stats_ = nullptr;
 	godot::Label *extra_ = nullptr;
 	godot::Button *ungarrison_btn_ = nullptr;
+	rtso::FogMirages mirages_; // the viewer's structures: live in sight, mirages in the fog
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
+	godot::Control *barter_host_ = nullptr;
+
+	// 0.28's Selection panel (g_SelectionPanels.Selection setupButton): each group's tooltip
+	// is its names, what its units carry (a trader counts its goods' total gain) and, for an
+	// observer, the owner, whose colour then shows behind the icon.
+	std::vector<RtsoSelectionGrid::Group> selection_groups(const rtso::Simulation &sim,
+			const rtso::Simulation::UnitView &uview, std::vector<RtsoSelectionGrid::Group> groups) {
+		const PackedInt32Array &selected_ids = host_->ui_selected_ids();
+		const bool observer = host_->local_player() >= rtso::MAX_PLAYERS;
+		for (auto &g : groups) {
+			rtso::seldet::Amounts carried;
+			for (int s = 0; s < selected_ids.size(); ++s) {
+				size_t i = 0;
+				for (; i < uview.count; ++i)
+					if (uview.id[i] == (uint32_t)selected_ids[s]) break;
+				if (i == uview.count || !uview.alive[i]) continue;
+				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+				if (RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) != g.key) continue;
+				const uint8_t res = uview.res_type_carried[i];
+				if (res >= rtso::RES_COUNT) continue;
+				uint32_t route_a = 0, route_b = 0;
+				int route_leg = 0;
+				if (rtso::unit_is_trader(uview.unit_type[i]) && sim.trader_route(uview.id[i], route_a, route_b, route_leg)) {
+					const rtso::Simulation::Building *ma = nullptr, *mb = nullptr;
+					for (const auto &bb : sim.buildings()) {
+						if (bb.id == route_a) ma = &bb;
+						if (bb.id == route_b) mb = &bb;
+					}
+					if (ma && mb) {
+						const auto gain = sim.calculate_trade_gain(*ma, *mb, uview.team[i], uview.unit_type[i]);
+						carried.res[res] += gain.trader + gain.market1 + gain.market2;
+					}
+				} else if (uview.carry[i] > 0) {
+					carried.res[res] += uview.carry[i];
+				}
+			}
+			const auto &info = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(g.tmpl, g.unit_type) : rtso::unit_type_info(g.unit_type);
+			const char *specific = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(g.tmpl).specific_name : nullptr;
+			g.tip = rtso::entity_names(String::utf8(info.name), String::utf8(specific ? specific : ""));
+			if (carried.any()) g.tip += "\n" + rtso::seldet::amounts_list(carried, false);
+			if (observer) {
+				g.tip += "\n" + rtso::sprintf0(rtso::tr0("Player: %(playername)s"), {{"playername", host_->player_display_name(g.player)}});
+				const uint32_t rgb = rtso::display_colors::rgb(sim, g.player);
+				g.bg = Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 160.0f / 255.0f);
+			}
+			g.tip += "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+		}
+		return groups;
+	}
 
 	// g_SelectionPanels.Garrison for a structure, ship, ram or siege tower: up to 12 icons,
 	// one per template and owner, on the owner's colour. A click unloads one (Shift: all of

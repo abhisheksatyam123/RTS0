@@ -69,8 +69,10 @@
 #include "inspector_view.h"
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
+#include "cinema_view.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
+#include "debug_overlays.h"
 #include "dev_overlay_view.h"
 #include "minimap_panel_view.h"
 #include "control_groups_view.h"
@@ -207,9 +209,12 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
+	rtso::RtsoCinemaView cinema_view_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
+	rtso::RtsoDebugOverlays debug_overlays_; // its pathfinder, obstruction, unit motion and range overlays
+	int render_debug_mode_ = 0; // its Render Debug Mode (RtsoDevOverlay::RenderDebugMode)
 	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker
@@ -358,6 +363,7 @@ public:
 	void _on_call_to_arms_pressed();
 	void _on_template_info_pressed();
 	void _on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ);
+	void _on_portrait_gui_input(const Ref<InputEvent> &event);
 	void _on_alert_pressed(int end);
 	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
@@ -366,6 +372,7 @@ public:
 	void _on_research_progress_pressed(int slot);
 	void toggle_dev_overlay();
 	void _on_dev_command(int command);
+	void _on_render_debug_mode(int index);
 	void refresh_dev_overlay();
 	Dictionary debug_dev_overlay() const;
 	void _on_control_group_gui_input(const Ref<InputEvent> &event, int button);
@@ -374,6 +381,9 @@ public:
 	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
+	void _on_barter_sell_selected(int resource);
+	void _on_pack_cancel_pressed(int pack);
+	Array debug_barter_panel();
 	uint32_t selected_garrison_holder() const;
 	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
@@ -409,6 +419,7 @@ public:
 	void _on_lobby_start_pressed();
 	void _on_lobby_seat_selected(int index, int client);
 	void apply_net_game_start();
+	void show_net_loading_page(const std::string &map_id);
 	void apply_match_settings();
 	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);
@@ -433,6 +444,9 @@ public:
 	void request_net_player_setting(const String &key, int value);
 	void set_net_ready(int status);
 	void leave_net_game();
+	// 0.28 gamesetup ChatPanel: the chat before Start, shown on the setup page.
+	Dictionary get_setup_chat() const; // {rev, text}: the chat log's bbcode
+	void send_setup_chat(const String &text);
 	// The lockstep state hash this client computed for a turn (0 if not kept).
 	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();
@@ -489,6 +503,10 @@ public:
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
+	// 0.28 gamesetup ChatMessages: joined, left, ready and not ready lines.
+	void post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after);
+	String setup_client_name(const rtso::NetSetupState &n, uint32_t client) const;
+	void post_kick_chat();
 	// gui.session.formationwalkonly: this order takes its units out of their formations.
 	bool order_disbands_formation(uint8_t cmd_type) const;
 	// gui.session.selectformationasone: the unit and the rest of its formation.
@@ -551,6 +569,9 @@ public:
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
 	Dictionary debug_selection_grid(bool select_all);
+	void debug_set_carry(int64_t unit_id, int res, int amount);
+	void debug_set_resource(int res, float amount);
+	bool debug_placing() const;
 	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
@@ -559,13 +580,17 @@ public:
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
+	void debug_select_units(const PackedInt32Array &ids);
 	int64_t debug_civic_centre_id(int player) const;
+	int64_t debug_spawn_building(int type, float dx, float dz);
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
+	size_t own_unit_under_mouse(Vector2 mouse_pos) const;
+	uint32_t press_pick_unit_ = 0; // the own unit under the left press (input.js clickedEntity)
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
@@ -579,6 +604,7 @@ public:
 	void set_placement_tip(const String &text, bool error);
 	String placement_failure_text(int result, uint8_t btype, float x, float z) const;
 	Dictionary debug_placement_tip() const;
+	Dictionary debug_cursor_tip();
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);

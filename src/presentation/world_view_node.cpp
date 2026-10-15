@@ -2592,7 +2592,7 @@ void RtsoWorldView::refresh_silhouettes() {
 			silhouette_mat_->set_shader(sh);
 		}
 	}
-	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid();
+	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid() && !cinema_playing_;
 	silhouettes_ = on;
 	const Ref<Material> overlay = on ? Ref<Material>(silhouette_mat_) : Ref<Material>();
 	for (auto &per_civ : crowd_)
@@ -2627,11 +2627,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		water_mesh_node->set_position(Vector3(0.0f, drawn_water_height(sim), 0.0f));
 	}
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
+	// A cinema path playing (CCmpCinemaManager::SetEnabled) turns silhouettes and the
+	// territory borders off (session.js: renderer.silhouettes, TerritoryManager SetVisibility).
+	if (cinema_playing_ != sim->cinema_playing()) {
+		cinema_playing_ = sim->cinema_playing();
+		silhouette_gen_ = 0xFFFFFFFFu;
+	}
 	refresh_silhouettes();
 
 	update_fog(sim, delta);
 	if (paint_dirty_ && sim->resources().count > 0) build_ground_paint(sim);
 	update_territory_borders(sim);
+	if (border_mi_ && border_mi_->is_visible() == cinema_playing_) border_mi_->set_visible(!cinema_playing_);
 
 	// Update skeletal animation controllers
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
@@ -2658,6 +2665,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto rview_g = sim->resources();
 	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
 		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
+	};
+	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
+	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
+	auto fauna_visible = [sim, this](float x, float z) {
+		return rtso::los_sees_all(*sim, local_player_) || mirages_.los_at(x, z) != rtso::Simulation::FOW_UNEXPLORED;
 	};
 	std::unordered_map<uint32_t, uint8_t> res_sub;
 	res_sub.reserve(rview_g.count);
@@ -3421,7 +3433,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	int f_counts[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		// Baked before the first count, so both passes pick the same clips.
@@ -3443,7 +3455,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	size_t rings_used = 0;
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		float vx = fview.vel_x[f];
