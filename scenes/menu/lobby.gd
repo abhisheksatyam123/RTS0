@@ -49,6 +49,10 @@ var _chat_last := 0
 var _chat_backlog := true # the first fetch after signing in is the backlog (lobby.history)
 var _rooms: Array = []
 var _ratings := {} # player name -> rating, from the player list
+## lobby.js with attribs.dialog: opened from the game setup's Lobby button
+## over the setup, without Host and Join; Back (or Escape) closes it.
+var dialog := false
+signal closed
 var _moderators := {} # names the lobby lists as moderators
 var _subject := "" # the lobby room subject (Subject.js)
 var _details: RichTextLabel
@@ -105,9 +109,10 @@ func _build() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	header.add_child(_button("Leaderboard", _on_leaderboard_pressed))
-	header.add_child(_button("Main Menu", _on_back_pressed))
+	header.add_child(_button("Back" if dialog else "Main Menu", _on_back_pressed))
 
 	var login := HBoxContainer.new()
+	login.visible = not dialog
 	root.add_child(login)
 	login.add_child(_label("Lobby server"))
 	_server = _line("127.0.0.1:8088", 180)
@@ -180,7 +185,8 @@ func _build() -> void:
 	_games.set_column_expand_ratio(2, 2)
 	_games.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_games.item_selected.connect(_on_game_selected)
-	_games.item_activated.connect(_on_join_pressed)
+	if not dialog:
+		_games.item_activated.connect(_on_join_pressed)
 	left.add_child(_games)
 	_details = RichTextLabel.new()
 	_details.bbcode_enabled = true
@@ -190,6 +196,7 @@ func _build() -> void:
 	left.add_child(_details)
 
 	var join := HBoxContainer.new()
+	join.visible = not dialog
 	left.add_child(join)
 	join.add_child(_label("Address"))
 	_join_ip = _line("127.0.0.1", 140)
@@ -206,6 +213,7 @@ func _build() -> void:
 	join.add_child(_button("Join Game", _on_join_pressed))
 
 	var host := HBoxContainer.new()
+	host.visible = not dialog
 	left.add_child(host)
 	host.add_child(_label("Game name"))
 	_host_name = _line("", 180)
@@ -410,7 +418,18 @@ func _update_signed_in() -> void:
 
 
 func _on_back_pressed() -> void:
+	if dialog:
+		# QuitButton.closeDialog: back to the game setup.
+		closed.emit()
+		queue_free()
+		return
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if dialog and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_on_back_pressed()
 
 
 func _on_sign_pressed() -> void:

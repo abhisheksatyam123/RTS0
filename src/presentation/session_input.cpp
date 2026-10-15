@@ -3,6 +3,7 @@
 // (PLAN P4.6); the state it reads and writes is RtsoMain's.
 
 #include "main_node.h"
+#include "fog_mirage.h"
 #include "l10n.h"
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
@@ -124,13 +125,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (save) {
 				selected_groups[grp].clear();
 				const bool disjoint = rtso::user_config::get_bool("gui.session.disjointcontrolgroups");
-				for (int s = 0; s < selected_ids.size(); ++s) {
+				// Any selected entity, a structure too (EntityGroupsContainer).
+				PackedInt32Array members = selected_ids;
+				if (selected_building_id != 0) members.push_back((int32_t)selected_building_id);
+				for (int s = 0; s < members.size(); ++s) {
 					for (int o = 0; o < 10 && disjoint; ++o) {
 						if (o == grp) continue;
-						const int64_t at = selected_groups[o].find(selected_ids[s]);
+						const int64_t at = selected_groups[o].find(members[s]);
 						if (at >= 0) selected_groups[o].remove_at(at);
 					}
-					if (!selected_groups[grp].has(selected_ids[s])) selected_groups[grp].push_back(selected_ids[s]);
+					if (!selected_groups[grp].has(members[s])) selected_groups[grp].push_back(members[s]);
 				}
 				return;
 			}
@@ -284,7 +288,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (!fired(("session.queueunit." + std::to_string(q)).c_str())) continue;
 				if (q - 1 < command_panel_.roster_list()->get_item_count() && !command_panel_.roster_list()->is_item_disabled(q - 1)) {
 					const uint16_t tmpl = (uint16_t)(int)command_panel_.roster_list()->get_item_metadata(q - 1);
-					try_train_template(selected_building_id, tmpl, train_batch());
+					add_training(false, selected_building_id, tmpl);
 				}
 				return;
 			}
@@ -420,6 +424,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				double_click_pending = click_count_ >= 2;
 				dragging = true;
 				drag_start = mouse_pos;
+				if (sim) {
+					const size_t hit = own_unit_under_mouse(mouse_pos);
+					press_pick_unit_ = hit == (size_t)-1 ? 0 : sim->units().id[hit];
+				}
 				sel_rect->set_rect(drag_start, mouse_pos, true);
 			} else {
 				const bool dbl_click = double_click_pending;
@@ -476,30 +484,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Vector3 click_pos = get_ground_click_pos(mouse_pos);
 						auto uview = sim->units();
 
-						// A structure the ray reaches first hides the units behind it.
-						float bld_t = 1e30f;
-						building_under_mouse(mouse_pos, &bld_t);
-						Camera3D *pick_cam = cam_rig ? cam_rig->get_camera() : nullptr;
-						const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
-						const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();
-
-						// Check unit hit
+						// input.js: the entity hit on mouse-down is kept, so a unit that walked away
+						// before the release is still picked; else the one under the release.
 						size_t best_uidx = (size_t)-1;
-						float best_ud2 = 2.0f * 2.0f;
-						for (size_t i = 0; i < uview.count; ++i) {
-							if (!uview.alive[i] || uview.team[i] != local_player()) continue;
-							if (pick_cam && bld_t < 1e29f) {
-								const Vector3 up(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
-								if ((up - ray_o).dot(ray_d) > bld_t + 0.5f) continue;
-							}
-							float dx = uview.pos_x[i] - click_pos.x;
-							float dz = uview.pos_z[i] - click_pos.z;
-							float d2 = dx * dx + dz * dz;
-							if (d2 < best_ud2) {
-								best_ud2 = d2;
-								best_uidx = i;
-							}
-						}
+						if (press_pick_unit_ != 0)
+							for (size_t i = 0; i < uview.count; ++i)
+								if (uview.id[i] == press_pick_unit_ && uview.alive[i] && uview.team[i] == local_player()) best_uidx = i;
+						if (best_uidx == (size_t)-1) best_uidx = own_unit_under_mouse(mouse_pos);
 
 						if (best_uidx != (size_t)-1 && is_ctrl && !dbl_click) {
 							// Ctrl+click drops the unit from the selection (selection.remove).
@@ -606,57 +597,20 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Vector2 min_p(std::min(drag_start.x, drag_end.x), std::min(drag_start.y, drag_end.y));
 						Vector2 max_p(std::max(drag_start.x, drag_end.x), std::max(drag_start.y, drag_end.y));
 
-						auto uview = sim->units();
 						if (!is_shift && !is_ctrl) {
 							selected_ids.clear();
 						}
 						selected_building_id = 0;
-						Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
-						if (cam) {
-							for (size_t i = 0; i < uview.count; ++i) {
-								if (!uview.alive[i] || uview.team[i] != local_player()) continue;
-								const rtso::TechClasses cls = rtso::unit_tech_classes(uview.unit_type[i]);
-								const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
-								if ((military_only && !military) || (nonmilitary_only && military)) continue;
-								if (idle_only && uview.action_state[i] != rtso::ACTION_IDLE) continue;
-								// gui.session.woundedunithotkeythreshold = 33 %.
-								if (wounded_only && uview.hp[i] >= uview.max_hp[i] * user_opts_.wounded_fraction) continue;
-								Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
-								if (cam->is_position_behind(world_pos)) continue;
-								Vector2 screen_pos = cam->unproject_position(world_pos);
-								if (screen_pos.x >= min_p.x && screen_pos.x <= max_p.x &&
-									screen_pos.y >= min_p.y && screen_pos.y <= max_p.y) {
-									for (int32_t uid : formation_mates((int32_t)uview.id[i])) {
-										if (is_ctrl) {
-											const int64_t at = selected_ids.find(uid);
-											if (at >= 0) selected_ids.remove_at(at);
-										} else if (!selected_ids.has(uid)) {
-											selected_ids.push_back(uid);
-										}
-									}
-								}
+						for (int32_t uid : band_box_ids(drag_start, drag_end)) {
+							const int64_t at = selected_ids.find(uid);
+							if (is_ctrl) {
+								if (at >= 0) selected_ids.remove_at(at);
+							} else if (at < 0) {
+								selected_ids.push_back(uid);
 							}
-							// The player's own livestock in the box (not with the military,
-							// idle or wounded filters, which pick soldiers and workers).
-							auto fview = sim->fauna();
-							for (size_t f = 0; f < fview.count && !military_only && !idle_only && !wounded_only; ++f) {
-								if (!sim->fauna_selectable_by(local_player(), fview.id[f])) continue;
-								Vector3 world_pos(fview.pos_x[f], 0, fview.pos_z[f]);
-								if (cam->is_position_behind(world_pos)) continue;
-								Vector2 screen_pos = cam->unproject_position(world_pos);
-								if (screen_pos.x < min_p.x || screen_pos.x > max_p.x || screen_pos.y < min_p.y || screen_pos.y > max_p.y)
-									continue;
-								const int32_t fid = (int32_t)fview.id[f];
-								const int64_t at = selected_ids.find(fid);
-								if (is_ctrl) {
-									if (at >= 0) selected_ids.remove_at(at);
-								} else if (at < 0) {
-									selected_ids.push_back(fid);
-								}
-							}
-							if (selected_ids.size() > 0) {
-								play_civ_voice("select");
-							}
+						}
+						if (selected_ids.size() > 0) {
+							play_civ_voice("select");
 						}
 					}
 				}
@@ -692,8 +646,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					sim->cmd_unset_rally_point(local_player(), selected_building_id);
 				return;
 			}
-			// If building selected, right click sets Rally Point!
-			if (selected_building_id != 0) {
+			// A selected structure alone: a right-click sets its rally point. With units also
+			// selected (Shift+click), their orders come first (unit_actions.js: the units'
+			// actions are checked before "set-rallypoint").
+			if (selected_building_id != 0 && selected_ids.is_empty()) {
 				if (try_focus_fire(click_pos)) return;
 				uint32_t target_res = 0, target_bld = 0;
 				auto rview = sim->resources();
@@ -1261,4 +1217,79 @@ bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
 	play_civ_voice("build");
 	if (order_one) pop_from_selection(selected_ids, one_builder);
 	return true;
+}
+
+// The local player's units (with their formation mates) and livestock whose screen position
+// lies in the box from `a` to `b`, under the held selection filters (input.js
+// PickPlayerEntitiesInRect + getPreferredEntities).
+std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
+	std::vector<int32_t> out;
+	Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+	if (!sim || !cam) return out;
+	const Vector2 min_p(std::min(a.x, b.x), std::min(a.y, b.y));
+	const Vector2 max_p(std::max(a.x, b.x), std::max(a.y, b.y));
+	const bool nonmilitary_only = rtso::hotkeys::held("selection.nonmilitaryonly");
+	const bool military_only = !nonmilitary_only && rtso::hotkeys::held("selection.militaryonly");
+	const bool idle_only = rtso::hotkeys::held("selection.idleonly");
+	const bool wounded_only = rtso::hotkeys::held("selection.woundedonly");
+	auto in_box = [&](float x, float z) {
+		const Vector3 world_pos(x, 0, z);
+		if (cam->is_position_behind(world_pos)) return false;
+		const Vector2 sp = cam->unproject_position(world_pos);
+		return sp.x >= min_p.x && sp.x <= max_p.x && sp.y >= min_p.y && sp.y <= max_p.y;
+	};
+	auto uview = sim->units();
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+		const rtso::TechClasses cls = rtso::unit_tech_classes(uview.unit_type[i]);
+		const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
+		if ((military_only && !military) || (nonmilitary_only && military)) continue;
+		if (idle_only && uview.action_state[i] != rtso::ACTION_IDLE) continue;
+		// gui.session.woundedunithotkeythreshold = 33 %.
+		if (wounded_only && uview.hp[i] >= uview.max_hp[i] * user_opts_.wounded_fraction) continue;
+		if (!in_box(uview.pos_x[i], uview.pos_z[i])) continue;
+		for (int32_t uid : formation_mates((int32_t)uview.id[i]))
+			if (std::find(out.begin(), out.end(), uid) == out.end()) out.push_back(uid);
+	}
+	// The player's own livestock in the box (not with the military,
+	// idle or wounded filters, which pick soldiers and workers).
+	auto fview = sim->fauna();
+	for (size_t f = 0; f < fview.count && !military_only && !idle_only && !wounded_only; ++f) {
+		if (!sim->fauna_selectable_by(local_player(), fview.id[f])) continue;
+		if (in_box(fview.pos_x[f], fview.pos_z[f])) out.push_back((int32_t)fview.id[f]);
+	}
+	return out;
+}
+
+// The local player's unit nearest the ground point under the mouse (within 2 units), or
+// SIZE_MAX; a structure the ray reaches first hides the units behind it. With
+// `any_player`, any unit the viewed player sees (Engine.PickEntityAtPoint).
+size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const {
+	if (!sim) return (size_t)-1;
+	const Vector3 click_pos = get_ground_click_pos(mouse_pos);
+	auto uview = sim->units();
+	float bld_t = 1e30f;
+	building_under_mouse(mouse_pos, &bld_t);
+	Camera3D *pick_cam = cam_rig ? cam_rig->get_camera() : nullptr;
+	const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
+	const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();
+	size_t best_uidx = (size_t)-1;
+	float best_ud2 = 2.0f * 2.0f;
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i]) continue;
+		if (any_player ? !rtso::los_sees_unit(*sim, view_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])
+		               : uview.team[i] != local_player())
+			continue;
+		if (pick_cam && bld_t < 1e29f) {
+			const Vector3 up(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
+			if ((up - ray_o).dot(ray_d) > bld_t + 0.5f) continue;
+		}
+		const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 < best_ud2) {
+			best_ud2 = d2;
+			best_uidx = i;
+		}
+	}
+	return best_uidx;
 }

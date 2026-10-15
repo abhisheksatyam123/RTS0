@@ -1219,6 +1219,29 @@ static void test_uphill_archer() {
 	shoot(3.0f, up_d, up_hp);
 	check(flat_hp > 0.0f, "on level ground the archer shoots its target");
 	check(up_d < flat_d - 1.0f && up_hp > 0.0f, "below its target it walks closer and shoots it");
+	{
+		// Likewise a structure up on the rise.
+		Simulation s;
+		setup(s);
+		s.set_player_active(1, true, false);
+		s.terrain_res_ = 257;
+		s.terrain_heights_.assign((size_t)s.terrain_res_ * s.terrain_res_, 0.0f);
+		for (int z = 0; z < s.terrain_res_; ++z)
+			for (int x = 0; x < s.terrain_res_; ++x) {
+				const float wx = -s.map_half_ + 2.0f * s.map_half_ * (float)x / (float)(s.terrain_res_ - 1);
+				s.terrain_heights_[(size_t)z * s.terrain_res_ + x] = 4.0f * std::clamp((wx - 8.0f) / 6.0f, 0.0f, 1.0f);
+			}
+		const uint32_t bid = s.spawn_building_world(24.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+		s.spawn_building_world(52.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		const uint32_t archer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		s.set_reveal_map(true);
+		const float hp0 = building(s, bid)->hp;
+		s.order_attack_building(&archer, 1, bid, false, false);
+		for (int k = 0; k < 600; ++k) s.tick(DT);
+		const int a = idx(s, archer);
+		std::printf("      house 4 up: archer at x %.2f, house -%.0f\n", s.units_.pos_x[a], hp0 - building(s, bid)->hp);
+		check(building(s, bid)->hp < hp0, "below a structure it walks closer and shoots it");
+	}
 }
 
 int main() {

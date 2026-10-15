@@ -5,7 +5,8 @@ extends SceneTree
 #   2. a House out of its territory: "cannot be built in neutral territory. Valid territories: own";
 #   3. a Civic Center by your own: "too close to a CivilCentre, must be at least 200 meters away";
 #   4. a free spot shows nothing;
-#   5. a palisade: its cost while dragging, "Cannot build wall here!" after a refused click.
+#   5. a palisade: its cost while dragging, "Cannot build wall here!" after a refused click;
+#   6. a sentry tower on a free spot: "Basic range: N meters" and "Average bonus range: M meters".
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_placement_tooltip.gd
 # Exit code 0 = pass.
@@ -13,6 +14,7 @@ extends SceneTree
 const BLD_TOWN_CENTER := 0
 const BLD_HOUSE := 1
 const BLD_PALISADE := 21
+const BLD_SENTRY_TOWER := 19
 
 var main
 var failures := 0
@@ -118,5 +120,11 @@ func run() -> void:
 	await move(start + Vector2(30, 30))
 	check(tip()["text"] != "Cannot build wall here!", "until the cursor moves")
 	main.enter_build_mode(false)
+
+	print("6. Sentry tower")
+	var towers := await sample(BLD_SENTRY_TOWER, cc_ground)
+	var ok := any_text(towers, "Basic range: ")
+	print("    ", ok.get("tip", {}))
+	check(not ok.is_empty() and not ok["tip"]["error"] and str(ok["tip"]["text"]).contains("\nAverage bonus range: "), "a free spot shows the basic and average bonus range")
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

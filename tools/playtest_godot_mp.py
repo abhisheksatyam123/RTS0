@@ -350,6 +350,8 @@ def play(args, lobby, leave):
     # 0.28 gamesetup ChatPanel: the host's setup chat shows bob join, get ready and talk.
     setup_chat = said("host", "setup_chat")
     ok = ok and all(t in setup_chat for t in ("bob has joined", "* bob is ready!", "hello from bob"))
+    # 0.28 LobbyButton: the host opens the lobby as a dialog over the setup and closes it again.
+    ok = ok and said("host", "lobby_dialog") == "true listed=true join_hidden=true closed=true"
     # 0.28 /list on both: the users by seat, and the command is not a chat line.
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
@@ -382,6 +384,7 @@ def play(args, lobby, leave):
               f"network warning: {net_warning}")
         print("[gmp] PASS /list on both read: Users (2): alice, bob")
         print(f"[gmp] PASS the host's setup chat read: {setup_chat}")
+        print("[gmp] PASS the setup's Lobby button opened the lobby as a dialog (game listed, no Host or Join) and Back closed it")
         print(f"[gmp] PASS the host's pause showed on the client as: {paused_by}")
         print(f"[gmp] PASS both loaded the map at Start under the loading page: {loading['join']}")
     if ok and leave == "join":

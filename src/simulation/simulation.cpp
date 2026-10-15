@@ -776,6 +776,8 @@ std::vector<uint32_t> Simulation::petra_idle_builders() const {
 	return idle;
 }
 
+// The headless tests' fixed arena (and the last resort when even Mainland fails to
+// generate); it is not a 0.28 start, so matches start on a map with StartEntities.
 void Simulation::spawn_initial() {
 	reset();
 
@@ -1271,7 +1273,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	// 0 A.D. per-tile terrain textures from the final biome.
 	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
 	RmsGenerator::plant_flora(*this, seed, (uint8_t)type);
-	RmsGenerator::keep_resources_passable(*this);
+	RmsGenerator::keep_resources_passable(*this, (uint8_t)type);
 	RmsGenerator::set_mine_gatherers(*this, (uint8_t)type);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
@@ -3122,6 +3124,9 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 		if (b.build_progress < 1.0f || b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
 		return cmd_breed_livestock(player_id, building_id, FAUNA_SHEEP_TRAINABLE, count);
 	}
+	// RTS0's own villager is in no 0.28 Trainer list: the worker class trains the
+	// civ's support_civilian (the civic centre's units/{native}/support_civilian).
+	if (u_type == UNIT_VILLAGER) u_type = UNIT_FEMALE_CITIZEN;
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
 	// The civ's unit of this class that this building trains (0 A.D. Trainer
@@ -6737,6 +6742,34 @@ float Simulation::building_arrow_range(const Building &b) const {
 	return ai.max_range + (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_range[b.type] * COMBAT_DISTANCE_SCALE : 0.0f);
 }
 
+float Simulation::structure_arrow_range(uint8_t player, uint8_t type) const {
+	const BuildingAIInfo &ai = building_ai_info(type);
+	if (!ai.shoots()) return 0.0f;
+	return ai.max_range + (player < MAX_PLAYERS ? tech_mods(player).bld_range[type] * COMBAT_DISTANCE_SCALE : 0.0f);
+}
+
+// RangeManager getParabolicRangeForm: along each of 16 directions the farthest point d
+// (out to twice the range) with d^2 <= range^2 + 2 range (y0 - ground(d)); their average.
+float Simulation::average_elevation_range(float x, float z, float range, float y_origin) const {
+	if (range <= 0.0f) return 0.0f;
+	constexpr int kSteps = 16, kSamples = 64;
+	const float y0 = get_terrain_height(x, z) + y_origin;
+	float sum = 0.0f;
+	for (int k = 0; k < kSteps; ++k) {
+		const float a = 6.2831853f * (float)k / (float)kSteps;
+		const float ux = std::sin(a), uz = std::cos(a);
+		float reach = 0.0f;
+		for (int i = 1; i <= kSamples; ++i) {
+			const float d = 2.0f * range * (float)i / (float)kSamples;
+			const float h = y0 - get_terrain_height(x + ux * d, z + uz * d);
+			const float r2 = range * range + 2.0f * range * h;
+			if (r2 > 0.0f && d * d <= r2) reach = d;
+		}
+		sum += reach;
+	}
+	return sum / (float)kSteps;
+}
+
 // Who may board: same owner, not a transport itself; land siege only takes
 // 0 A.D.'s Support and Infantry classes.
 bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
@@ -9403,7 +9436,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				const bool capture = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
 						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f &&
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
-				const float reach = capture ? CAPTURE_RANGE : attack_reach(i);
+				float reach = capture ? CAPTURE_RANGE : attack_reach(i);
+				if (!capture && reach > 3.0f) { // Ranged: the elevation-adapted range, as for a unit target
+					const float h = get_terrain_height(b.x, b.z) - unit_height(i);
+					const float eff = std::sqrt(std::max(0.0f, reach * reach - 2.0f * reach * h));
+					reach = eff > reach ? 0.5f * (reach + eff) : eff;
+				}
 				const float eff_d = structure_gap(b, px[i], pz[i], unit_clearance_at(i));
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
@@ -12745,6 +12783,15 @@ float Simulation::promotion_train_time_mult(uint16_t tmpl) {
 	return m;
 }
 
+bool Simulation::unit_has_rank(size_t i) const {
+	if (i >= units_.count) return false;
+	if (units_.rank[i] >= 2) return true;
+	// A Basic unit promotes to Advanced; a champion or wagon promoting into another
+	// template at rank 1 (Olympian, wagon house) has no Rank of its own.
+	const PromotionLink *l = promotion_link(units_.tmpl[i], units_.unit_type[i], units_.rank[i]);
+	return l && l->target_rank >= 2;
+}
+
 float Simulation::promotion_required_xp(size_t i) const {
 	if (i >= units_.count) return -1.0f;
 	const PromotionLink *l = promotion_link(units_.tmpl[i], units_.unit_type[i], units_.rank[i]);
@@ -13649,9 +13696,9 @@ void Simulation::end_match(uint8_t winners, uint8_t reason) {
 	game_over_ = true;
 }
 
-void Simulation::set_player_won(uint8_t pid) {
+void Simulation::set_player_won(uint8_t pid, uint8_t reason) {
 	if (game_over_ || victory_ || pid >= MAX_PLAYERS) return;
-	end_match(side_of(pid), SessionNotice::END_GAME_MODE);
+	end_match(side_of(pid), reason);
 }
 
 uint8_t Simulation::relic_winners() const {
@@ -30338,7 +30385,11 @@ void Simulation::note_player_command(uint8_t player, uint16_t kind, uint32_t tar
 std::vector<const TimeNotification *> Simulation::time_notifications_for(uint8_t player) const {
 	std::vector<const TimeNotification *> out;
 	for (const TimeNotification &n : triggers_.notifications)
-		if (n.end_ms > triggers_.time_ms && (player >= 8 || ((n.players >> player) & 1))) out.push_back(&n);
+		// GuiInterface GetTimeNotifications: an observer sees only those for everyone
+		// (a players list without -1 leaves it out).
+		if (n.end_ms > triggers_.time_ms && (player >= 8 ? n.players == 0xFF : ((n.players >> player) & 1))) out.push_back(&n);
+	// Latest end first, as 0 A.D. sorts them.
+	std::stable_sort(out.begin(), out.end(), [](const TimeNotification *a, const TimeNotification *b) { return a->end_ms > b->end_ms; });
 	return out;
 }
 
@@ -30587,7 +30638,7 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_TREASURE_ISLANDS_VICTORY:
 			// TriggerHelper.SetPlayerWon(playerID).
-			set_player_won((uint8_t)arg);
+			set_player_won((uint8_t)arg, SessionNotice::END_TREASURE); // "has won (treasure collected)"
 			break;
 		case TRIGGER_ACTION_SURVIVAL_INIT:
 			trigger_survival_init();
@@ -30860,8 +30911,9 @@ void Simulation::trigger_treasure_islands_collected(const TriggerEventData &data
 		if (count + 3 == goal)
 			triggers_.add_notification("Hurry up! Your enemy is close to victory!", kPushNotificationMs, other_mask);
 		if (count + 3 >= goal) {
-			char text[96];
-			std::snprintf(text, sizeof(text), "Treasures remaining to collect for victory:  %d!", (int)(goal - count));
+			char text[128];
+			std::snprintf(text, sizeof(text), "Treasures remaining to collect for victory:  %%(remainingTreasures)s!\x1fremainingTreasures=%d",
+			              (int)(goal - count));
 			triggers_.add_notification(text, kPushNotificationMs, me_mask);
 		} else {
 			triggers_.add_notification("You have collected a treasure!", kPushNotificationMs, me_mask);
