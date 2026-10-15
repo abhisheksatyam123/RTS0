@@ -1382,9 +1382,12 @@ bool NetHost::name_taken(const std::string &name, const NetPeer *self) const {
 	return false;
 }
 
-void NetHost::refusePeer(uint32_t peer_id) {
+void NetHost::refusePeer(uint32_t peer_id, uint8_t reason) {
 	NetPeer *p = isHost() && peer_id != 0 ? getPeer(peer_id) : nullptr;
-	if (p && p->connected && !p->kick_disconnect_ms) p->kick_disconnect_ms = get_now_ms() + 2000;
+	if (p && p->connected && !p->kick_disconnect_ms) {
+		p->kick_disconnect_ms = get_now_ms() + 2000;
+		if (reason) p->disconnect_reason = reason;
+	}
 }
 
 bool NetHost::kickPeer(uint32_t peer_id, bool ban) {
