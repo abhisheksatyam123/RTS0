@@ -2,6 +2,8 @@ extends SceneTree
 # unit_actions.js "garrison" getActionInfo: with units selected, hovering an own
 # structure they can garrison in shows the garrison cursor and "Current garrison: x/y"
 # beside it, in orange once the structure is full.
+# selection.js: a right-click garrison order keeps the units selected until they are
+# inside (hidden), then they leave the selection.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_garrison_cursor_tip.gd
 # Exit code 0 = pass.
@@ -56,12 +58,30 @@ func run() -> void:
 	check(t["visible"] and str(t["text"]).begins_with("Current garrison: 0/"), "Current garrison: 0/capacity")
 	check(t["color"] == Color(1, 1, 1), "white while there is room")
 	var cap := int(str(t["text"]).get_slice("/", 1))
+	for down in [true, false]:
+		var mb := InputEventMouseButton.new()
+		mb.button_index = MOUSE_BUTTON_RIGHT
+		mb.pressed = down
+		mb.position = at
+		mb.global_position = at
+		root.push_input(mb, true)
+		await frames(1)
+	check(main.debug_selection_grid(false)["selected"] == 1, "the garrison order keeps the unit selected")
+	for i in 400:
+		await frames(1)
+		if main.debug_selection_grid(false)["selected"] == 0:
+			break
+	check(main.debug_selection_grid(false)["selected"] == 0, "inside, it leaves the selection")
+	main.debug_select_units(main.debug_spawn_units("athen/infantry_spearman_b", 1))
+	await frames(4)
+	await move(at)
+	cap -= 1
 	var fill: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", cap)
 	main.debug_put_inside(fill, cc)
 	await frames(4)
 	t = main.debug_cursor_tip()
 	print("    ", t)
-	check(str(t["text"]) == "Current garrison: %d/%d" % [cap, cap], "full: Current garrison: cap/cap")
+	check(str(t["text"]) == "Current garrison: %d/%d" % [cap + 1, cap + 1], "full: Current garrison: cap/cap")
 	check(t["color"] == Color(1.0, 0.65, 0.0), "orange once full")
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

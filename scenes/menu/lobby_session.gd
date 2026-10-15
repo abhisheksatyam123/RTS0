@@ -426,6 +426,12 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 		if kind == 1:
 			p["ai_difficulty"] = int(at.call("slot_diffs", i, ms.get("ai_difficulty")))
 			p["ai_behavior"] = int(at.call("slot_behs", i, ms.get("ai_behavior")))
+		# LobbyGamelistReporter getPlayers: State (won, defeated) and Offline.
+		var seat: Dictionary = slots[i] if i < slots.size() else {}
+		if str(seat.get("state", "")) != "":
+			p["state"] = str(seat["state"])
+		if kind == 0 and seat.get("offline", false):
+			p["offline"] = true
 		players.append(p)
 	for o in net.get("observers", []):
 		players.append({"name": str(o.get("name", "")), "team": -1, "observer": true})
@@ -505,6 +511,11 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 			parts.append(summary.ai_description(p))
 		else:
 			who = rated_name(name, ratings.get(name))
+			# formatPlayerInfo: "%(playerName)s (OFFLINE, %(state)s)", no civ.
+			if p.get("offline", false):
+				parts = ["OFFLINE"]
+		if str(p.get("state", "")) in ["won", "defeated"]:
+			parts.append(str(p["state"]))
 		var t := int(p.get("team", -1))
 		if not teams.has(t):
 			teams[t] = PackedStringArray()

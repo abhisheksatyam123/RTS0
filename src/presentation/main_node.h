@@ -586,8 +586,24 @@ public:
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
+	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
+	size_t own_unit_under_mouse(Vector2 mouse_pos) const;
+	struct BatchTraining {
+		bool active = false;
+		bool from_unit = false; // trained by a unit (Trainer on a unit), else a structure
+		uint32_t holder = 0;
+		uint16_t tmpl = 0;
+		int batches = 0;
+		int allowed = -1; // canBeAddedCount at the last click, -1 = no limit
+	};
+	BatchTraining batch_training_;
+	void add_training(bool from_unit, uint32_t holder, uint16_t tmpl);
+	void flush_training_batch();
+	int template_can_be_added(uint16_t tmpl) const;
+	bool can_afford_template(uint16_t tmpl, int count) const;
+	uint32_t press_pick_unit_ = 0; // the own unit under the left press (input.js clickedEntity)
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
