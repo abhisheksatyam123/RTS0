@@ -5323,6 +5323,10 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 			// UnitAI Stop drops the whole order queue.
 			set_order(idx, ORDER_NONE, 0, 0, units_.pos_x[idx], units_.pos_z[idx]);
 			order_queues_.erase(units_.id[idx]);
+			// ReplaceOrder lets Stop through a pack in progress; leaving PACKING / UNPACKING calls
+			// Pack.CancelPack, so the engine stays as it was.
+			if (units_.pack_state[idx] == PACK_PACKING) { units_.pack_state[idx] = PACK_UNPACKED; units_.pack_elapsed[idx] = 0.0f; }
+			else if (units_.pack_state[idx] == PACK_UNPACKING) { units_.pack_state[idx] = PACK_PACKED; units_.pack_elapsed[idx] = 0.0f; }
 		}
 	}
 }
