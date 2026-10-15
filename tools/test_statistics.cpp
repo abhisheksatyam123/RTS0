@@ -330,8 +330,38 @@ static void test_delete_not_lost() {
 	CHECK(a.buildings_lost[STAT_BLD_TOTAL] == 0 && a.buildings_lost_value == 0);
 }
 
+// template_unit_hero_infantry / _cavalry add Infantry or Cavalry; elephant heroes have neither.
+static void test_hero_classes() {
+	std::printf("hero classes\n");
+	const char *ids[3] = {"spart/hero_leonidas", "mace/hero_alexander_iii", "cart/hero_hannibal"};
+	const uint8_t want[3] = {STAT_UNIT_INFANTRY, STAT_UNIT_CAVALRY, STAT_UNIT_TOTAL};
+	for (int h = 0; h < 3; ++h) {
+		Simulation s;
+		s.reset();
+		s.set_victory_condition(VICTORY_ENDLESS);
+		s.set_player_active(0, true, false);
+		s.set_player_active(1, true, false);
+		s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		const uint16_t tmpl = civ_unit_template_by_id(ids[h]);
+		CHECK(tmpl < CIV_UNIT_TEMPLATE_COUNT);
+		uint32_t sw[4];
+		for (int k = 0; k < 4; ++k) sw[k] = s.spawn_unit(-1.0f + k * 0.7f, 0.0f, 0, UNIT_SWORDSMAN, 160.0f);
+		const uint32_t hero = s.spawn_unit(0.0f, 1.5f, 1, (UnitType)civ_unit_template(tmpl).unit_type, 1.0f, tmpl);
+		s.order_attack(sw, 4, hero);
+		run(s, 20 * 20);
+		const PlayerStatistics a = s.statistics(0);
+		std::printf("  %s: killed %u hero %u infantry %u cavalry %u\n", ids[h], a.enemy_units_killed[STAT_UNIT_TOTAL],
+		            a.enemy_units_killed[STAT_UNIT_HERO], a.enemy_units_killed[STAT_UNIT_INFANTRY], a.enemy_units_killed[STAT_UNIT_CAVALRY]);
+		CHECK(a.enemy_units_killed[STAT_UNIT_HERO] == 1);
+		CHECK(a.enemy_units_killed[STAT_UNIT_INFANTRY] == (want[h] == STAT_UNIT_INFANTRY ? 1u : 0u));
+		CHECK(a.enemy_units_killed[STAT_UNIT_CAVALRY] == (want[h] == STAT_UNIT_CAVALRY ? 1u : 0u));
+	}
+}
+
 int main() {
 	test_kill_credit();
+	test_hero_classes();
 	test_delete_not_lost();
 	test_tribute_barter();
 	test_counts();

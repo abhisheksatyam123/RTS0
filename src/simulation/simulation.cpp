@@ -8581,11 +8581,24 @@ uint32_t Simulation::stat_building_value(const Building &b) const {
 	return stat_cost_value(c);
 }
 
+// The unit's StatisticsTracker classes. Heroes take Infantry or Cavalry from their 0.28
+// template (template_unit_hero_infantry / _cavalry; elephant and healer heroes have neither),
+// which the formation table carries as Identity classes.
+uint32_t Simulation::stat_unit_classes_of(size_t idx) const {
+	const uint16_t tmpl = units_.tmpl[idx];
+	uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	if ((cls & (1u << STAT_UNIT_HERO)) && tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint16_t idc = formation_unit_table()[tmpl].classes;
+		if (idc & FCLASS_INFANTRY) cls |= 1u << STAT_UNIT_INFANTRY;
+		if (idc & FCLASS_CAVALRY) cls |= 1u << STAT_UNIT_CAVALRY;
+	}
+	return cls;
+}
+
 void Simulation::stat_unit_trained(size_t idx) {
 	const uint8_t p = units_.team[idx];
 	if (p >= MAX_PLAYERS) return;
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	PlayerStatistics &st = stats_[p];
 	for (uint8_t c = 0; c < STAT_UNIT_TOTAL; ++c)
 		if (cls & (1u << c)) st.units_trained[c]++;
@@ -8597,8 +8610,7 @@ void Simulation::stat_unit_trained(size_t idx) {
 // and through regeneration or auras count nowhere, so only attack kills call these.
 void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 	const uint8_t p = units_.team[idx];
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	const uint32_t value = stat_unit_value(idx);
 	// LostEntity for the owner, KilledEntity for whoever killed it.
 	if (p < MAX_PLAYERS) {
@@ -8621,8 +8633,7 @@ void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 // from, CapturedEntity for the captor. A catafalque has no Cost, so no value.
 void Simulation::stat_unit_captured(size_t idx, uint8_t from) {
 	const uint8_t p = units_.team[idx];
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	const uint32_t value = stat_unit_value(idx);
 	if (from < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[from];
@@ -12330,9 +12341,11 @@ void Simulation::tick_combat(float dt) {
 				           unit_splash(units_.tmpl[i], u_att));
 			}
 
-		} else if (!invulnerable(units_.id[t])) {
+		} else if (units_.alive[t] && !invulnerable(units_.id[t])) {
 			// helpers/Attack.js HandleAttackEffects returns at once for an invulnerable target:
-			// no damage, xp, Attacked message or status.
+			// no damage, xp, Attacked message or status. A target another attacker killed
+			// earlier this turn is already dead: Health.Reduce does nothing for it, so its
+			// kill, loot and statistics count once.
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
 			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg, true);
 			units_.hp[t] -= final_dmg;

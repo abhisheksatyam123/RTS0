@@ -2502,6 +2502,7 @@ private:
 	float unit_template_regen(size_t i) const;
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
 	// (out of range or the victim's own owner credits nobody).
+	uint32_t stat_unit_classes_of(size_t idx) const;
 	void stat_unit_trained(size_t idx);
 	void stat_unit_lost(size_t idx, uint8_t killer);
 	void stat_building_constructed(const Building &b);
