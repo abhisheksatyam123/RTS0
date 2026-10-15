@@ -14599,6 +14599,12 @@ void Simulation::spawn_regicide_heroes() {
 			const CivUnitTemplate &u = civ_unit_template(t);
 			if ((u.flags & ROSTER_HERO) && !std::strstr(u.id, "/rts0_")) heroes.push_back(t);
 		}
+		// GetTemplateNamesByClasses("Hero", civ) lists every Hero template of the civ, the
+		// ones only maps place too (Scipio's infantry form, Craterus).
+		for (uint16_t t = CIV_ROSTER_PROMOTION_ONLY_FIRST; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+			const CivUnitTemplate &u = civ_unit_template(t);
+			if (u.civ == civ_of(p) && (u.flags & ROSTER_MAP_ONLY) && (u.flags & ROSTER_HERO)) heroes.push_back(t);
+		}
 		struct Spot { int pref; uint32_t id; bool building; size_t bi; };
 		std::vector<Spot> spots;
 		for (size_t bi = 0; bi < buildings_.size(); ++bi) {
@@ -17035,8 +17041,8 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // Petra keeps a free ring of cells around everything it builds so units can
 // always walk around and reach foundations (0 A.D. placement uses obstruction
 // clearance for the same reason); tight packing left builders stranded.
-bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
-	if (!petra_ring_clear(cell_x, cell_y, footprint, petra_clearance(btype))) return false;
+bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype, int clearance) const {
+	if (!petra_ring_clear(cell_x, cell_y, footprint, clearance >= 0 ? (uint8_t)clearance : petra_clearance(btype))) return false;
 	return btype >= BLD_TYPE_COUNT || (!triggers_.building_disabled(petra_pid_, btype) &&
 	                                   check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
 	                                   petra_limit_allows_building(btype)); // EntityLimits
@@ -19848,11 +19854,12 @@ int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_
 			for (const auto &a : around) {
 				const float px = wx + a[0] * inside, pz = wz + a[1] * inside;
 				if (std::abs(px) > map_half_ || std::abs(pz) > map_half_) continue; // outside the map
+				if (past_map_edge(px, pz)) continue; // off a circular map's world (mapMask.outside)
 				if (territory_owner_at(px, pz) != petra_pid_) { frontier = true; break; }
 			}
 			if (frontier) continue;
 			const int cx = (int)std::floor((wx - half) / GRID), cz = (int)std::floor((wz - half) / GRID);
-			if (!petra_can_place(cx, cz, info.footprint, BLD_MARKET) || !is_position_safe(wx, wz, 6.0f)) continue;
+			if (!petra_can_place(cx, cz, info.footprint, BLD_MARKET) || petra_dangerous_location(wx, wz, half)) continue; // isDangerousLocation
 			best_val = max_val;
 			best_d2 = max_val;
 			out_x = wx;
@@ -20739,7 +20746,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			}
 			float score = 40.0f * (float)prox;
 			score += 20.0f * (10.0f - std::min(10.0f, resources_around(ix, iz)));
-			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) score += 20.0f;
+			if (near_map_border(x, z, border)) score += 20.0f;
 			// checkDockPlacement water: open water of that sea ahead, in 15 m steps along three
 			// lines from the shore, 4 a step, up to 16.
 			Building probe;
@@ -21269,11 +21276,16 @@ void Simulation::petra_manage_buildings(float dt) {
 			// the Town phase), else the house.
 			const uint8_t house = civ_can_build(petra_ps().civ, BLD_APARTMENT) &&
 			                      building_required_phase(BLD_APARTMENT, petra_ps().civ) <= petra_ps().phase ? BLD_APARTMENT : BLD_HOUSE;
-			// When the population limit is tight, houses go at twice their priority.
-			petra_queues_.priority[PETRA_Q_HOUSE] = free_slots < 5 ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
+			// When the population limit is tight (free slots against the accounted population,
+			// queued trainees included), houses go at twice their priority.
+			const int accounted_free = free_slots - (petra_accounted_population() - pop);
+			petra_queues_.priority[PETRA_Q_HOUSE] = accounted_free < 5 ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
 			const int needed_at = saving || pop <= 30 ? 10 : pop > 55 ? 21 : 15;
 			if (free_slots <= needed_at && planned < (pop > 80 ? 5 : 3)) {
-				if (!petra_place_generic(house, PETRA_Q_HOUSE) && petra_place_no_room_ && free_slots < 5)
+				uint32_t bid = petra_place_generic(house, PETRA_Q_HOUSE);
+				// canBuild(apartment) fails while there is no room for one: a house instead.
+				if (!bid && petra_place_no_room_ && house == BLD_APARTMENT) bid = petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+				if (!bid && petra_place_no_room_ && free_slots < 5)
 					petra_research_population_bonus();
 			}
 		}
@@ -21868,15 +21880,9 @@ bool Simulation::petra_cc_tile_ok(uint8_t btype, float x, float z) const {
 	const int foot = building_type_info(btype).footprint;
 	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
 	if (!petra_can_place(cx, cz, foot, btype)) return false;
-	if (!is_position_safe(x, z, 5.0f)) return false; // isNearInvadingArmy
-	// isUnderEnemyFire: within an enemy shooting structure's range plus the footprint's half size.
-	const float half = 0.5f * (float)foot * GRID;
-	for (const Building &eb : buildings_) {
-		if (!petra_foe(eb.team) || eb.hp <= 0.0f || eb.wrecked || eb.build_progress < 1.0f || !building_ai_info(eb.type).shoots()) continue;
-		const float range = half + building_arrow_range(eb);
-		if ((eb.x - x) * (eb.x - x) + (eb.z - z) * (eb.z - z) < range * range) return false;
-	}
-	return true;
+	// isDangerousLocation: near an invading army, or within an enemy shooting structure's range
+	// plus the footprint's half size (isUnderEnemyFire).
+	return !petra_dangerous_location(x, z, 0.5f * (float)foot * GRID);
 }
 
 // headquarters.js findStrategicCCLocation: with two allied civic centres or more, the neutral
@@ -22097,7 +22103,9 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 	const int inside_large = std::max(1, (int)std::lround(80.0f / 4.0f / cell));
 	static const float kAround[8][2] = {{-0.7f, 0.7f}, {0, 1}, {0.7f, 0.7f}, {1, 0}, {0.7f, -0.7f}, {0, -1}, {-0.7f, -0.7f}, {-1, 0}};
 	const uint8_t mine = (uint8_t)(petra_pid_ + 1);
-	auto other = [&](int x, int z) { // territory that is neither ours nor an ally's
+	const bool cost_ok = territory_cost_.w == territory_grid_.w && territory_cost_.h == territory_grid_.h;
+	auto other = [&](int x, int z) { // territory that is neither ours nor an ally's, on the map
+		if (cost_ok && territory_cost_.at(x, z) == TERRITORY_OFF_WORLD_COST) return false; // mapMask.outside
 		const uint8_t v = territory_grid_.at(x, z);
 		return v != mine && !(v != 0 && is_ally(petra_pid_, (uint8_t)(v - 1)));
 	};
@@ -22156,7 +22164,8 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 				for (int dz = -r; dz <= r && !placed; ++dz)
 					for (int dx = -r; dx <= r && !placed; ++dx) {
 						if (std::abs(dx) != r && std::abs(dz) != r) continue;
-						if (petra_can_place(c0x + dx, c0z + dz, foot, btype)) { out_cx = c0x + dx; out_cz = c0z + dz; placed = true; }
+						// findDefensiveLocation: a tower needs only its own obstruction (no +4 m gap).
+						if (petra_can_place(c0x + dx, c0z + dz, foot, btype, tower ? 0 : -1)) { out_cx = c0x + dx; out_cz = c0z + dz; placed = true; }
 					}
 			if (!placed) continue;
 			best = min_dist;
@@ -22640,9 +22649,9 @@ void Simulation::petra_manage_research(float dt) {
 	pick(techs[h % techs.size()]);
 }
 
-bool Simulation::petra_dangerous_location(float x, float z, float radius) const {
-	// isNearInvadingArmy: within sqrt(12000) m of an army's foes' centre (world units of 4 m).
-	constexpr float kNearSq = 12000.0f / 16.0f;
+// The centres of the foes of each defense army (Army.foePosition), for isNearInvadingArmy.
+void Simulation::petra_invading_army_centres(std::vector<std::array<float, 2>> &out) const {
+	out.clear();
 	for (const PetraDefenseArmy &a : petra_defense_armies_) {
 		float cx = 0.0f, cz = 0.0f;
 		int n = 0;
@@ -22650,8 +22659,23 @@ bool Simulation::petra_dangerous_location(float x, float z, float radius) const 
 			const int32_t k = lookup_unit(f);
 			if (k >= 0 && units_.alive[k]) { cx += units_.pos_x[k]; cz += units_.pos_z[k]; ++n; }
 		}
-		if (n && (cx / n - x) * (cx / n - x) + (cz / n - z) * (cz / n - z) < kNearSq) return true;
+		if (n) out.push_back({cx / n, cz / n});
 	}
+}
+
+// headquarters.js isNearInvadingArmy: within sqrt(12000) m of an army's foes' centre (world
+// units of 4 m).
+bool Simulation::petra_near_invading_army(float x, float z, const std::vector<std::array<float, 2>> &centres) {
+	constexpr float kNearSq = 12000.0f / 16.0f;
+	for (const auto &c : centres)
+		if ((c[0] - x) * (c[0] - x) + (c[1] - z) * (c[1] - z) < kNearSq) return true;
+	return false;
+}
+
+bool Simulation::petra_dangerous_location(float x, float z, float radius) const {
+	std::vector<std::array<float, 2>> centres;
+	petra_invading_army_centres(centres);
+	if (petra_near_invading_army(x, z, centres)) return true;
 	// isUnderEnemyFire
 	for (const Building &eb : buildings_) {
 		if (!petra_foe(eb.team) || eb.hp <= 0.0f || eb.wrecked || eb.build_progress < 1.0f || !building_ai_info(eb.type).shoots()) continue;
@@ -25488,7 +25512,7 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 				const size_t j = (size_t)iz * bw + ix;
 				float val = (float)v[j] - (float)maps[0][(size_t)(iz + m.z0) * w + (ix + m.x0)] / 3.0f;
 				const float x = ((float)(ix + m.x0) + 0.5f) * GRID - map_half_, z = ((float)(iz + m.z0) + 0.5f) * GRID - map_half_;
-				if (std::abs(x) >= map_half_ - edge || std::abs(z) >= map_half_ - edge) val /= 2.0f;
+				if (near_map_border(x, z, edge)) val /= 2.0f;
 				v[j] = (uint8_t)std::clamp(val, 0.0f, 255.0f);
 			}
 	}
@@ -25498,10 +25522,9 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 	const bool favor_border = btype == BLD_MARKET;
 	const bool disfavor_border = petra_ps().phase > 1 && !building_ai_info(btype).shoots();
 	const float border = 80.0f / 4.0f;
-	auto on_border = [&](float x, float z) {
-		if (circular_map()) return x * x + z * z >= (map_half_ - border) * (map_half_ - border);
-		return std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border;
-	};
+	auto on_border = [&](float x, float z) { return near_map_border(x, z, border); };
+	std::vector<std::array<float, 2>> armies;
+	petra_invading_army_centres(armies);
 	for (int iz = 0; iz < bh; ++iz)
 		for (int ix = 0; ix < bw; ++ix) {
 			const size_t j = (size_t)iz * bw + ix;
@@ -25510,7 +25533,7 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 			const float x = ((float)(ix + m.x0) + 0.5f) * GRID - map_half_, z = ((float)(iz + m.z0) + 0.5f) * GRID - map_half_;
 			if (favor_border && on_border(x, z)) v[j] = (uint8_t)std::min(255, v[j] + 50);
 			else if (disfavor_border && !on_border(x, z)) v[j] = (uint8_t)std::min(255, v[j] + 10);
-			if (!is_position_safe(x, z, 5.0f)) v[j] = 0; // isNearInvadingArmy
+			if (petra_near_invading_army(x, z, armies)) v[j] = 0;
 			else if (base <= 0 && favored > 0 && m.base[j] == favored) v[j] = (uint8_t)std::min(255, v[j] + 100);
 		}
 	// Map.findBestTile: the first tile of the highest value the structure fits on.
