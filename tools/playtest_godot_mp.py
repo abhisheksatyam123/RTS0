@@ -79,6 +79,7 @@ def main():
     ok = play_saved(args, lobby) and ok
     ok = play_setup_leave(args, lobby) and ok
     ok = play_connect_timeout(args, lobby) and ok
+    ok = play_connect_cancel(args, lobby) and ok
     ok = play_direct_join_refused(args, lobby) and ok
     server.shutdown()
     stun.close()
@@ -89,7 +90,8 @@ def play_saved(args, lobby):
     """0 A.D. Host Saved Game: a two-player match is played alone for 20 s and
     saved; the host hosts that save, the joiner joins from the game list, and
     at Start the joiner loads the host's world (it never built its own) and
-    takes the second seat. Their turn hashes must match."""
+    takes the second seat. The setup refuses the joiner's civ, team and
+    colour picks (0.28 locks every setting of a saved game but the seats). Their turn hashes must match."""
     print("[gmp] ---- a saved game: the host continues it, the joiner loads its world ----")
     port = args.port + 2
     def client(role, name, *more):
@@ -135,6 +137,8 @@ def play_saved(args, lobby):
     ok = (host.returncode == 0 and join.returncode == 0 and h and j and hosted and loaded
           and h.get("hash") == j.get("hash") and h.get("hash") not in (None, "00000000")
           and h.get("seat") == "0" and j.get("seat") == "1"
+          # GameSettingControl EnabledWhenSavedGame: the joiner's own picks are refused.
+          and "refused=The controller loaded a saved game" in outs["join"]
           # A saved game's clients load it at Start: nobody "has rejoined".
           and h.get("rejoined_lines") == "0" and j.get("rejoined_lines") == "0")
     for role in ("host", "join"):
@@ -150,6 +154,32 @@ def play_saved(args, lobby):
                         if "[RTS0]" in l or "TurnManager" in l or "NetHost" in l or "[gmp]" in l))
     print(f"[gmp] FAIL saved game rc host/join={host.returncode}/{join.returncode} host={h} join={j} "
           f"hosted={hosted} loaded={loaded}")
+    return False
+
+
+def play_connect_cancel(args, lobby):
+    """0.28 gamesetup_mp pageConnecting: a join shows "Connecting to server..."
+    with Cancel over the screen, and Cancel goes back to the lobby."""
+    print("[gmp] ---- Cancel while connecting ----")
+    dead = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    dead.bind(("127.0.0.1", 0))  # a port that swallows datagrams
+    cmd = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
+           "role=join", "name=carol", f"lobby={lobby}", f"timeout={args.timeout}",
+           f"stun={args.stun_port}", "lan=0", f"join_addr=127.0.0.1:{dead.getsockname()[1]}", "join_cancel=1"]
+    try:
+        out = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                             timeout=args.timeout + 30).stdout
+    except subprocess.TimeoutExpired as e:
+        out = e.stdout or ""
+    dead.close()
+    box = next((l.split(" connecting_box=", 1)[1] for l in gmp_lines(out) if " connecting_box=" in l), "")
+    scene = next((l.split(" connect_exit_scene=", 1)[1] for l in gmp_lines(out) if " connect_exit_scene=" in l), "")
+    for line in gmp_lines(out):
+        print("   " + line)
+    if box == "Connecting to server..." and scene == "res://scenes/menu/lobby.tscn":
+        print("[gmp] PASS the join showed \"Connecting to server...\" and Cancel went back to the lobby")
+        return True
+    print(f"[gmp] FAIL connect cancel box={box!r} scene={scene!r}")
     return False
 
 

@@ -9557,6 +9557,78 @@
       "template": "structures/ptol/temple_2",
       "x": 1.49,
       "z": 41.27
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -38.24,
+      "z": 90.88
+    },
+    {
+      "type": "pyramid_large",
+      "template": "structures/kush/pyramid_large",
+      "x": -30.72,
+      "z": 92.86
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": 34.59,
+      "z": 90.41
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": 38.07,
+      "z": 85.75
+    },
+    {
+      "type": "pyramid_large",
+      "template": "structures/kush/pyramid_large",
+      "x": 44.81,
+      "z": 89.1
+    },
+    {
+      "type": "pyramid_large",
+      "template": "structures/kush/pyramid_large",
+      "x": 49.13,
+      "z": 85.07
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": 26.99,
+      "z": 92.04
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": 53.92,
+      "z": 78.48
+    },
+    {
+      "type": "pyramid_large",
+      "template": "structures/kush/pyramid_large",
+      "x": -42.81,
+      "z": 86.06
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -35.65,
+      "z": 80.3
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -30.83,
+      "z": 83.6
+    },
+    {
+      "type": "camp_blemmye",
+      "template": "structures/kush/camp_blemmye",
+      "x": -1.91,
+      "z": 118.44
     }
   ],
   "gaia_units": [

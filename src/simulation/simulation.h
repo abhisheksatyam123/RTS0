@@ -3135,6 +3135,10 @@ private:
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
+	uint8_t petra_target_owner(uint32_t id) const;
+	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
+	void petra_scuttle_undefendable();
+	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
@@ -3215,6 +3219,10 @@ private:
 	bool petra_rates_this_turn() const { return petra_rates_stamp_ == petra_rates_key(); }
 	// headquarters.js pickMostNeededResources over those rates.
 	static void petra_most_needed(const float want_rate[RES_COUNT], const float cur_rate[RES_COUNT], uint8_t out[RES_COUNT]);
+	// pickMostNeededResources for diplomacy: wanted > 0 per resource, and the most needed one;
+	// from this turn's gather rates when in, else from what our queues are short of.
+	void petra_wanted_resources(bool out[RES_COUNT]);
+	uint8_t petra_most_needed_resource();
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
 	float petra_scout_timer_ = 0.0f;
@@ -3804,6 +3812,7 @@ private:
 	bool guard_keeps_target(size_t i, size_t t) const;
 	void guard_answer(size_t i, size_t g, uint32_t attacker);
 	void walk_to_held_position(size_t i);
+	void walk_back_if_drifted(size_t i);
 	void find_targets_then_walk_back(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;
