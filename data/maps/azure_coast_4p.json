@@ -38975,6 +38975,7 @@
       "piece": "wall",
       "angle": 2.3562,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_small"
     },
     {
@@ -38985,6 +38986,7 @@
       "piece": "wall",
       "angle": 2.3562,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_small"
     },
     {
@@ -38995,6 +38997,7 @@
       "piece": "wall",
       "angle": 2.3562,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_small"
     },
     {
@@ -39005,6 +39008,7 @@
       "piece": "wall",
       "angle": 2.113,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_small"
     },
     {
@@ -39015,6 +39019,7 @@
       "piece": "wall",
       "angle": -2.7122,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_small"
     },
     {
@@ -39025,6 +39030,7 @@
       "piece": "wall",
       "angle": -2.8246,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_small"
     },
     {
@@ -39035,6 +39041,7 @@
       "piece": "wall",
       "angle": -2.5328,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_small"
     },
     {
@@ -39045,6 +39052,7 @@
       "piece": "wall",
       "angle": 2.3562,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_tall"
     },
     {
@@ -39055,6 +39063,7 @@
       "piece": "wall",
       "angle": 2.3562,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_tall"
     },
     {
@@ -39065,6 +39074,7 @@
       "piece": "wall",
       "angle": 2.3562,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_tall"
     },
     {
@@ -39075,6 +39085,7 @@
       "piece": "tower",
       "angle": 2.3562,
       "length": 2.0,
+      "no_capture": true,
       "template": "structures/palisades_fort"
     },
     {
@@ -39085,13 +39096,18 @@
       "piece": "tower",
       "angle": 2.3562,
       "length": 2.0,
+      "no_capture": true,
       "template": "structures/palisades_fort"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_watchtower",
       "x": 7.24,
-      "z": 125.85
+      "z": 125.85,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 1.25,
+      "template": "structures/palisades_watchtower"
     },
     {
       "type": "house",
@@ -39113,6 +39129,7 @@
       "piece": "wall",
       "angle": 2.3562,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_tall"
     },
     {
@@ -39123,6 +39140,7 @@
       "piece": "wall",
       "angle": 2.3562,
       "length": 2.75,
+      "no_decay": true,
       "template": "structures/palisades_spikes_tall"
     },
     {
@@ -39133,6 +39151,7 @@
       "piece": "wall",
       "angle": -2.1923,
       "length": 0.75,
+      "no_decay": true,
       "template": "structures/palisades_spike_angle"
     },
     {
@@ -39143,6 +39162,7 @@
       "piece": "wall",
       "angle": -2.4383,
       "length": 0.75,
+      "no_decay": true,
       "template": "structures/palisades_spike_angle"
     },
     {
@@ -39193,6 +39213,7 @@
       "piece": "tower",
       "angle": -0.821,
       "length": 2.0,
+      "no_capture": true,
       "template": "structures/palisades_fort"
     },
     {

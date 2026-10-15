@@ -1191,6 +1191,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.capture_regen_rate = binfo.capture_regen_rate;
 	b.capture_garrison_regen_rate = binfo.capture_garrison_regen_rate;
 	b.territory_decay_rate = binfo.territory_decay_rate;
+	b.decay_disabled = false;
 	b.capture_points_by_team.fill(0.0f);
 	// A Gaia structure's points are Gaia's pool (what no player holds), not player 0's;
 	// giving them to player 0 handed it every Gaia tower on the first tick.
@@ -3981,7 +3982,7 @@ void Simulation::finish_upgrade(Building &b) {
 	b.capture_points = b.capture_points_by_team[b.team < 8 ? b.team : 0];
 	b.capture_regen_rate = ninfo.capture_regen_rate;
 	b.capture_garrison_regen_rate = ninfo.capture_garrison_regen_rate;
-	b.territory_decay_rate = ninfo.territory_decay_rate;
+	b.territory_decay_rate = b.decay_disabled ? 0.0f : ninfo.territory_decay_rate;
 	// TransferGarrisonedUnits: whoever the new structure doesn't take, or doesn't fit, is unloaded.
 	b.garrison_cap = structure_garrison_cap(b);
 	for (const uint32_t uid : std::vector<uint32_t>(b.garrisoned_units))
@@ -28172,6 +28173,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.wonder_owner, sizeof(b.wonder_owner));
 		out.write((const char *)&b.wonder_allies, sizeof(b.wonder_allies));
 		out.write((const char *)&b.seen_mask, sizeof(b.seen_mask));
+		out.write((const char *)&b.decay_disabled, sizeof(b.decay_disabled));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -28593,11 +28595,13 @@ bool Simulation::load_state(const char *filepath) {
 		}
 		bld.seen_mask = 0; // older saves: seen again when next in sight
 		if (version >= SAVE_VERSION_SEEN_MASK) in.read((char *)&bld.seen_mask, sizeof(bld.seen_mask));
+		bld.decay_disabled = false;
+		if (version >= SAVE_VERSION_DECAY_DISABLED) in.read((char *)&bld.decay_disabled, sizeof(bld.decay_disabled));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;
-		bld.territory_decay_rate = bi.territory_decay_rate;
+		bld.territory_decay_rate = bld.decay_disabled ? 0.0f : bi.territory_decay_rate;
 		bld.committed = (bld.build_progress > 0.0f);
 		bld.wrecked = (bld.hp <= 0.0f);
 
