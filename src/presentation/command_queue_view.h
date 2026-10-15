@@ -540,30 +540,46 @@ public:
 				}
 
 				// 0.28's Gate panel (g_SelectionPanels.Gate): Lock Gate (lock_locked) and Unlock Gate
-				// (lock_unlocked), the current state's button framed by the corners.
-				if (found_b->team == local_player() && rtso::is_gate_type(found_b->type)) {
+				// (lock_unlocked) when any selected entity is a gate, each framed by the corners when
+				// some selected gate is in that state.
+				// 0.28's Alert panel (g_SelectionPanels.Alert, AlertRaiser.js): Raise (bell_level1)
+				// sends nearby civilians or traders into the nearest structures with room, End
+				// (bell_level0) sends them back out; shown when any selected entity raises alerts.
+				bool any_gate = false, any_locked = false, any_unlocked = false;
+				int alert_raisers = 0, civilian_raisers = 0, trader_raisers = 0;
+				for (uint32_t id : structs.size() > 1 ? structs : std::vector<uint32_t>{found_b->id})
+					for (const auto &b : bldgs) {
+						if (b.id != id || b.team != local_player()) continue;
+						if (rtso::is_gate_type(b.type)) {
+							any_gate = true;
+							(b.gate_locked ? any_locked : any_unlocked) = true;
+						}
+						rtso::AlertRaiserInfo ai;
+						if (b.build_progress >= 1.0f && rtso::building_alert_raiser(b.type, ai)) {
+							++alert_raisers;
+							(ai.traders ? trader_raisers : civilian_raisers) += 1;
+						}
+						break;
+					}
+				if (any_gate) {
 					for (int lock = 1; lock >= 0; --lock) {
 						Button *btn = icon_button(lock ? "Lock Gate" : "Unlock Gate",
 								rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + (lock ? "lock_locked.png" : "lock_unlocked.png")));
 						btn->set_tooltip_text(rtso::tr0(lock ? "Lock Gate" : "Unlock Gate"));
-						if (found_b->gate_locked == (lock != 0)) add_corners(btn);
+						if (lock ? any_locked : any_unlocked) add_corners(btn);
 						btn->connect("pressed", Callable(owner_, "_on_gate_lock_pressed").bind(lock));
 						production_bar_->add_child(btn);
 					}
 				}
-
-				// 0.28's Alert panel (g_SelectionPanels.Alert, AlertRaiser.js): Raise (bell_level1)
-				// sends nearby civilians or traders into the nearest structures with room, End
-				// (bell_level0) sends them back out.
-				rtso::AlertRaiserInfo alert;
-				if (found_b->team == local_player() && found_b->build_progress >= 1.0f &&
-						rtso::building_alert_raiser(found_b->type, alert)) {
+				if (alert_raisers > 0) {
+					const bool civilians = civilian_raisers == alert_raisers, traders = trader_raisers == alert_raisers;
 					for (int end = 0; end < 2; ++end) {
 						Button *btn = icon_button(end ? "End alert" : "Raise alert",
 								rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + (end ? "bell_level0.png" : "bell_level1.png")));
 						String tip = rtso::tr0(end ? "End the alert." : "Raise an alert!");
-						tip += "\n" + rtso::tr0(end ? (alert.traders ? "Unload nearby Traders." : "Unload nearby Civilians.")
-								: (alert.traders ? "Alert nearby Traders to seek refuge." : "Alert nearby Civilians to seek refuge."));
+						tip += "\n" + rtso::tr0(end ? (civilians ? "Unload nearby Civilians." : traders ? "Unload nearby Traders." : "Unload nearby vulnerable units.")
+								: (civilians ? "Alert nearby Civilians to seek refuge." : traders ? "Alert nearby Traders to seek refuge."
+															 : "Alert nearby vulnerable units to seek refuge."));
 						btn->set_tooltip_text(tip);
 						btn->set_meta("tooltip_style", "session_bottom_bold");
 						btn->connect("pressed", Callable(owner_, "_on_alert_pressed").bind(end));

@@ -17,7 +17,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <atomic>
 #include <cstdint>
+#include <memory>
+#include <thread>
 #include <random>
 #include <string>
 #include <vector>
@@ -75,6 +78,10 @@ public:
 	static constexpr const char *kPath = "res://assets/audio/music/";
 	// music.js musicGain 0.3.
 	static constexpr float kGainDb = -10.5f;
+
+	~RtsoMusic() {
+		if (load_ && load_->thread.joinable()) load_->thread.join();
+	}
 
 	void build(godot::Node *parent) {
 		for (auto &p : players_) {
@@ -151,8 +158,9 @@ public:
 				p->set_volume_db(g > 0.001f ? kGainDb + 20.0f * std::log10(g) : -80.0f);
 			}
 		}
+		poll_load();
 		godot::AudioStreamPlayer *cur = players_[cur_];
-		if (state_ != OFF && cur && !playlist_.empty() && !cur->is_playing() && fade_rate_[cur_] >= 0) {
+		if (state_ != OFF && !load_ && cur && !playlist_.empty() && !cur->is_playing() && fade_rate_[cur_] >= 0) {
 			index_ = (index_ + 1) % playlist_.size();
 			start_track(0.0);
 		}
@@ -164,28 +172,70 @@ private:
 			fade_rate_[cur_] = secs > 0 ? -gain_[cur_] / secs : -1e9;
 	}
 
+	// A track loads on its own thread (the decode setup cost ~35 ms of a frame on every
+	// peace/battle switch); tick() starts it once loaded. A newer request supersedes one in
+	// flight, which finishes and is dropped.
+	struct Load {
+		std::thread thread;
+		std::atomic<bool> done{false};
+		godot::Ref<godot::AudioStream> stream;
+		godot::String path;
+	};
+
 	void start_track(double fade_in) {
 		fade_out_current(1.0);
+		want_fade_ = fade_in;
+		tries_ = 0;
+		++want_gen_;
+		if (!load_) request_load();
+	}
+
+	void request_load() {
+		if (playlist_.empty()) return;
+		load_ = std::make_unique<Load>();
+		load_->path = godot::String(kPath) + godot::String::utf8(playlist_[index_].c_str());
+		load_gen_ = want_gen_;
+		load_index_ = index_;
+		Load *l = load_.get();
+		l->thread = std::thread([l] {
+			l->stream = load_audio(l->path);
+			l->done.store(true, std::memory_order_release);
+		});
+	}
+
+	void poll_load() {
+		if (!load_ || !load_->done.load(std::memory_order_acquire)) return;
+		load_->thread.join();
+		godot::Ref<godot::AudioStream> s = load_->stream;
+		const bool current = load_gen_ == want_gen_ && state_ != OFF;
+		load_.reset();
+		if (!current) { // superseded: load what is wanted now
+			if (state_ != OFF) request_load();
+			return;
+		}
+		if (s.is_valid()) {
+			cur_ ^= 1;
+			godot::AudioStreamPlayer *p = players_[cur_];
+			if (!p) return;
+			p->set_stream(s);
+			gain_[cur_] = want_fade_ > 0 ? 0.0f : 1.0f;
+			fade_rate_[cur_] = want_fade_ > 0 ? 1.0 / want_fade_ : 0.0;
+			p->set_volume_db(want_fade_ > 0 ? -80.0f : kGainDb);
+			p->play();
+			current_name_ = godot::String::utf8(playlist_[load_index_].c_str());
+			return;
+		}
 		// Skip tracks missing from this checkout, as Engine.AddPlaylistItem would.
-		for (size_t tries = 0; tries < playlist_.size(); ++tries) {
-			const godot::String path = godot::String(kPath) + godot::String::utf8(playlist_[index_].c_str());
-			godot::Ref<godot::AudioStream> s = load_audio(path);
-			if (s.is_valid()) {
-				cur_ ^= 1;
-				godot::AudioStreamPlayer *p = players_[cur_];
-				if (!p) return;
-				p->set_stream(s);
-				gain_[cur_] = fade_in > 0 ? 0.0f : 1.0f;
-				fade_rate_[cur_] = fade_in > 0 ? 1.0 / fade_in : 0.0;
-				p->set_volume_db(fade_in > 0 ? -80.0f : kGainDb);
-				p->play();
-				current_name_ = godot::String::utf8(playlist_[index_].c_str());
-				return;
-			}
+		if (++tries_ < playlist_.size()) {
 			index_ = (index_ + 1) % playlist_.size();
+			request_load();
 		}
 	}
 
+	std::unique_ptr<Load> load_;
+	uint64_t want_gen_ = 0, load_gen_ = 0;
+	size_t load_index_ = 0, tries_ = 0;
+	double want_fade_ = 0.0;
 	std::vector<std::string> tracks_[CUSTOM + 1];
 	std::vector<std::string> playlist_;
 	size_t index_ = 0;

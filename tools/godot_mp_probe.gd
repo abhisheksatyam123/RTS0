@@ -215,7 +215,8 @@ func _run() -> void:
 				var teams: Array = ms.slot_teams
 				var cols: Array = ms.slot_colors
 				var got: bool = slot < civs.size() and int(civs[slot]) == 15 and int(teams[slot]) == 2 and int(cols[slot]) == 5
-				if got and refusals.size() and int(ns.get("settings_version", 0)) != ready_for:
+				# A saved game's setup refuses every pick (only the seats change).
+				if (got or bool(ns.get("saved_game", false))) and refusals.size() and int(ns.get("settings_version", 0)) != ready_for:
 					_say("refused=%s" % refusals[0])
 					ready_for = int(ns.get("settings_version", 0))
 					main.set_net_ready(1)

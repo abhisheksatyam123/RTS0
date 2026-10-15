@@ -169,7 +169,7 @@ static void test_restricted() {
 	s.units_.alive[idx(s, ram)] = 0;
 	s.order_attack_building(&dog, 1, bar);
 	for (int k = 0; k < 200; ++k) s.tick(DT);
-	check(building(s, bar)->hp == bhp2, "a dog never attacks a structure");
+	check(building(s, bar)->hp >= bhp2, "a dog never attacks a structure"); // Petra's units may repair it meanwhile
 }
 
 static void test_structure_armour() {
@@ -1331,6 +1331,38 @@ static void test_status_inside() {
 			"a passenger takes the whole burn aboard: 4 ticks of 2");
 }
 
+// 25. BuildingAI range: IsInTargetParabolicRange measures from the structure's square
+//     obstruction, so a fortress reaches as far past its corner as past a side.
+static bool fortress_aims_at(float gx, float gz) {
+	Simulation s;
+	setup(s);
+	const uint32_t fort = s.spawn_building_world(0.0f, 0.0f, BLD_FORTRESS, 0, 1.0f);
+	Simulation::Building *b = building(s, fort);
+	b->set_rot(0.0f);
+	// gx, gz: the gap from the footprint's +x and +z edges.
+	dummy(s, b->x + b->hu + gx, b->z + b->hv + gz, UNIT_SPEARMAN);
+	s.tick(DT);
+	return building(s, fort)->arrow_timer_on;
+}
+static void test_arrow_square_range() {
+	std::printf("25. arrow range from the square footprint\n");
+	// The farthest gap past a side at which the fortress aims (the unit stands mid-side: gz is
+	// minus the half depth, so it is level with the centre).
+	Simulation probe;
+	setup(probe);
+	const uint32_t fid = probe.spawn_building_world(0.0f, 0.0f, BLD_FORTRESS, 0, 1.0f);
+	building(probe, fid)->set_rot(0.0f);
+	const float hv = building(probe, fid)->hv;
+	float lo = 0.0f, hi = 60.0f;
+	for (int k = 0; k < 14; ++k) {
+		const float mid = 0.5f * (lo + hi);
+		(fortress_aims_at(mid, -hv) ? lo : hi) = mid;
+	}
+	const float side = lo, diag = 0.97f * side / std::sqrt(2.0f);
+	std::printf("      side reach %.2f, corner gap %.2f along each axis\n", side, diag);
+	check(side > 1.0f && fortress_aims_at(diag, diag), "a fortress aims at a unit just inside its reach past a corner");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -1356,6 +1388,7 @@ int main() {
 	test_razed_target();
 	test_uphill_archer();
 	test_status_inside();
+	test_arrow_square_range();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

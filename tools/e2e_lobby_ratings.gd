@@ -27,7 +27,7 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
-	run.call_deferred()
+	preload("res://tools/lobby_test_clock.gd").run_in_wall_time(self, "res://tools/e2e_lobby_ratings.gd", run)
 
 func frames(n: int) -> void:
 	for i in n:
@@ -45,7 +45,10 @@ func until(cond: Callable, max_frames := 600) -> bool:
 
 func player(id: int, name: String, state: String, ai := false) -> Dictionary:
 	return {"id": id, "name": name, "state": state, "ai": ai, "civ_name": "Athenians", "team": 1,
-		"economyScore": 10, "militaryScore": 20, "totalScore": 30, "stats": {"tradeIncome": 5}}
+		"economyScore": 10, "militaryScore": 20, "totalScore": 30, "percentMapExplored": 12.5,
+		"stats": {"tradeIncome": 5, "resourcesGathered": {"food": 100, "vegetarianFood": 60},
+			"unitsTrained": {"Infantry": 3}, "enemyUnitsKilled": {"Cavalry": 1},
+			"buildingsConstructed": {"House": 2}}}
 
 func run() -> void:
 	print("1. the report")
@@ -58,6 +61,12 @@ func run() -> void:
 	check(r.get("matchID") == "42-random_mainland-alice,bob" and r.get("timeElapsed") == 600000,
 		"both players name the match alike (seed, map, players)")
 	check(r.get("tradeIncome") == "5,5,", "the Misc counters ride along")
+	# LobbyRatingReport Resources, Units, Buildings, Misc percentMapExplored, Players teamsLocked.
+	check(r.get("foodGathered") == "100,100," and r.get("vegetarianFoodGathered") == "60,60," and r.get("woodUsed") == "0,0,"
+		and r.get("infantryUnitsTrained") == "3,3," and r.get("enemyCavalryUnitsKilled") == "1,1,"
+		and r.get("houseBuildingsConstructed") == "2,2," and r.get("percentMapExplored") == "12.5,12.5,"
+		and r.get("teamsLocked") == "false",
+		"the resource, unit, building and exploration parts ride along: " + str(r))
 	var other: Dictionary = LobbySessionScript.rating_report(stats, summary, 0)
 	check(other.get("matchID") == r.get("matchID"), "the winner sends the same match id")
 	stats.players[1].state = "active"
