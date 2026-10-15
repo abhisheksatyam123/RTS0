@@ -62,6 +62,9 @@ class RtsoWorldView : public Node3D {
 		Sprite3D *rank_icon = nullptr;   // StatusBars AddRankIcon
 		uint8_t rank_shown = 0;
 		uint32_t sim_id = 0;
+		// The entity and model the body skin variant (variant_u) was set for.
+		uint32_t variant_id = 0;
+		Node *variant_model = nullptr;
 		float yaw = 0.0f;
 		bool ring_on = false;
 		uint32_t vis_stamp = 0;
