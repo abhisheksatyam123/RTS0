@@ -736,6 +736,10 @@ public:
 	void debug_set_camera_data(const Dictionary &c) { if (cam_rig) cam_rig->set_camera_data(c); }
 	// Menu.xml: the menu panel hangs under the Menu button.
 	Rect2 menu_button_rect() const { return menu_btn ? menu_btn->get_global_rect() : Rect2(); }
+	// ChatInput.getOpenHotkeyTooltip (also the menu's Chat entry, MenuButtons.js).
+	String chat_open_hotkey_tooltip() const;
+	void refresh_chat_tooltips();
+	Dictionary debug_chat_tooltips() const { Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip(); return d; }
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);

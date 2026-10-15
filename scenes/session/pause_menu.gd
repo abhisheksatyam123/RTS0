@@ -161,6 +161,10 @@ func toggle():
 	if visible:
 		_slide_down()
 	rebuild_pause()
+	# MenuButtons.js Chat: the chat hotkeys' lines.
+	var chat: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnChat")
+	if chat and get_parent().has_method("chat_open_hotkey_tooltip"):
+		chat.tooltip_text = get_parent().chat_open_hotkey_tooltip()
 	var lobby: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnLobby")
 	if lobby:
 		lobby.disabled = not (get_parent().has_method("has_lobby_client") and get_parent().has_lobby_client())
