@@ -346,6 +346,10 @@ var _filter_names: Array = []  # the filters the map type has maps for, in dropd
 var _want_map_id := ""         # the map to select on the next refresh_map_list
 var _was_scenario := false     # the slots hold a scenario's locked teams
 var _slot_rows: Array = []     # per-slot {kind,civ,team,diff,beh}
+## Single player: the row you play (0.28 PlayerAssignment), -1 to watch the AIs.
+var _local_slot := 0
+## The player assignment entry that seats you (its other ids are the kinds).
+const KIND_YOU := 10
 var _map_browser: Control = null
 var _desc_tick := 0.0
 var _ai_buttons: Array = []
@@ -873,7 +877,7 @@ func open_civ_reference(tab: int) -> void:
 	tabs.add_child(tree)
 	civinfo.civ_changed.connect(tree.set_civ)
 	tree.civ_changed.connect(civinfo.set_civ)
-	var civ := _slot_civ(0)
+	var civ := _slot_civ(maxi(_local_slot, 0))
 	if _civ_pos(civ) >= 0: # not Random
 		civinfo.set_civ.call_deferred(civ)
 		tree.set_civ.call_deferred(civ)
@@ -1098,8 +1102,8 @@ func _update_preview() -> void:
 	if lbl:
 		lbl.text = "%s • %s • %s • %dm • %d players • %s" % [
 			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt]
-		if _slot_rows.size() > 0 and int(_slot_rows[0]["kind"]) == 1:
-			lbl.text += "\nNo Human slot: you watch the AIs play with the map revealed."
+		if _mp_role == "none" and _local_slot < 0:
+			lbl.text += "\nYou are not assigned to a slot: you watch the AIs play with the map revealed."
 	_update_description()
 
 ## 0.28 Panels/GameDescription.js: getGameDescription of the settings as they
@@ -1348,7 +1352,7 @@ func _render_speeds() -> void:
 	var n := int(_slot_count_node().value)
 	var ff := true
 	for i in mini(n, _slot_rows.size()):
-		if int(_slot_rows[i]["kind"]) == 0:
+		if int(_slot_rows[i]["kind"]) == 0 and (_mp_role != "none" or i == _local_slot):
 			ff = false
 	var listed := 0
 	for sp in SPEEDS:
@@ -1376,11 +1380,23 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	kind_slot.custom_minimum_size = Vector2(92, 28)
 	grid.add_child(kind_slot)
 	var kind := _make_option(kind_slot)
-	# Slot 1 is you, or AI: with no Human slot you watch the AIs play (0 A.D. lets every slot be AI).
-	for k in (SLOT_KINDS if i > 0 else SLOT_KINDS.slice(0, 2)):
-		kind.add_item(k)
-	kind.select(int(row["kind"]) if i > 0 else mini(int(row["kind"]), 1))
-	kind.item_selected.connect(_on_slot_kind.bind(i))
+	if _mp_role == "none":
+		# 0.28 PlayerAssignment: you, "AI: Petra Bot", "Unassigned" or "Removed" (not on slot 1,
+		# since a removed slot drops out and the later players move up).
+		kind.add_item(singleplayer_name(), KIND_YOU)
+		kind.add_item(tr("AI: %(ai)s").replace("%(ai)s", tr("Petra Bot")), 1)
+		kind.add_item(tr("Unassigned"), 0)
+		if i > 0:
+			kind.add_item(tr("Removed"), 2)
+		var k := KIND_YOU if i == _local_slot and int(row["kind"]) == 0 else int(row["kind"])
+		kind.select(maxi(kind.get_item_index(k), 0))
+		kind.tooltip_text = tr("Select player.")
+		kind.item_selected.connect(func(ix: int): _on_slot_assign(kind.get_item_id(ix), i))
+	else:
+		for k in (SLOT_KINDS if i > 0 else SLOT_KINDS.slice(0, 2)):
+			kind.add_item(k)
+		kind.select(int(row["kind"]) if i > 0 else mini(int(row["kind"]), 1))
+		kind.item_selected.connect(_on_slot_kind.bind(i))
 	# civ
 	var civ_slot := Control.new()
 	civ_slot.custom_minimum_size = Vector2(130, 28)
@@ -1440,10 +1456,39 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	col.disabled = _is_scenario()
 	col_slot.modulate.a = 0.0 if _is_scenario() else 1.0
 
+## PlayerAssignment.onSelectionChange (single player). Picking yourself moves you here:
+## a slot that was an AI hands its AI to the slot you left (else that one becomes
+## Unassigned), and civ and colour swap too, except on a scenario (Client item).
+func _on_slot_assign(id: int, slot: int) -> void:
+	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
+		return
+	var row: Dictionary = _slot_rows[slot]
+	if id != KIND_YOU:
+		if slot == _local_slot:
+			_local_slot = -1 # Unassigned, AI or Removed on your own slot: you watch
+		_on_slot_kind(id, slot)
+		refresh_slots.call_deferred()
+		return
+	var src := _local_slot
+	if src >= 0 and src != slot and src < _slot_rows.size():
+		var old: Dictionary = _slot_rows[src]
+		old["kind"] = 1 if int(row["kind"]) == 1 else 0
+		for key in (["diff", "beh"] + ([] if _is_scenario() else ["civ", "color"])):
+			var t = old[key]
+			old[key] = row[key]
+			row[key] = t
+	row["kind"] = 0
+	_local_slot = slot
+	_render_speeds()
+	_update_preview()
+	refresh_slots.call_deferred()
+
 func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["kind"] = idx
+	if slot == _local_slot and idx != 0:
+		_local_slot = -1 # PlayerAssignment: you watch once your slot is given away
 	_render_speeds()
 	if slot == 0:
 		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
@@ -1721,7 +1766,7 @@ const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap", "team_pop",
 	"ceasefire_min", "reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "water_level",
 	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
-	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
+	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors", "local_slot"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
 const PERSIST_KEY := "persistmatchsettings"
@@ -1768,7 +1813,8 @@ func page_state() -> Dictionary:
 		"start_res": st["res"], "biome": st["biome"], "game_speed": st["speed"],
 		"slot_types": rows.map(func(r): return int(r["kind"])), "slot_civs": rows.map(func(r): return int(r["civ"])),
 		"slot_teams": rows.map(func(r): return int(r["team"])), "slot_diffs": rows.map(func(r): return int(r["diff"])),
-		"slot_behs": rows.map(func(r): return int(r["beh"])), "slot_colors": rows.map(func(r): return int(r["color"]))}
+		"slot_behs": rows.map(func(r): return int(r["beh"])), "slot_colors": rows.map(func(r): return int(r["color"])),
+		"local_slot": _local_slot}
 
 ## The settings to show: the persisted file when there is one, else what this
 ## run last started with (MatchSettings).
@@ -1870,6 +1916,9 @@ func _apply_settings(ms: Dictionary) -> void:
 				_slot_rows[i]["color"] = clampi(int(scolors[i]), 0, PLAYER_COLORS.size() - 1)
 			if i == 0:
 				_slot_rows[i]["kind"] = mini(int(_slot_rows[i]["kind"]), 1)
+		# local_slot -2 (older setups): you sit in slot 1 when it is Human.
+		var ls := int(ms.get("local_slot", -2))
+		_local_slot = ls if ls >= -1 and ls < _slot_rows.size() else (0 if int(_slot_rows[0]["kind"]) == 0 else -1)
 		refresh_slots()
 
 # ---------------------------------------------------------------- start ---
@@ -1909,12 +1958,15 @@ func _collect_setup() -> Dictionary:
 	var colors: Array = []
 	var humans := 0
 	var ai_total := 0
+	var local := -1 # the setup slot you play (local_slot), -1 to watch
 	for i in range(n):
 		var k := int(_slot_rows[i]["kind"])
 		if i == 0:
 			k = mini(k, 1) # Human or AI, never closed
 		if k == 2:
 			continue # closed: 0 A.D. drops the slot, so later players move up
+		if k == 0 and i == _local_slot:
+			local = types.size()
 		types.append(k)
 		var c := int(_slot_rows[i]["civ"])
 		if _civ_pos(c) < 0: # "Random": 0 A.D. picks one when the match starts
@@ -1928,7 +1980,7 @@ func _collect_setup() -> Dictionary:
 			humans += 1
 		elif k == 1:
 			ai_total += 1
-	var names := _player_names(types, civs)
+	var names := _player_names(types, civs, local)
 	# Single-player Petra settings: the first AI slot's picks (per-slot AI is next).
 	var diff := 3
 	var beh := 2
@@ -1970,7 +2022,7 @@ func _collect_setup() -> Dictionary:
 		"cheats": true,
 		"disable_spies": %DisableSpies.button_pressed,
 		"disable_treasures": %DisableTreasures.button_pressed,
-		"humans": humans, "ai": ai_total, "slots": types.size()}
+		"humans": humans, "ai": ai_total, "slots": types.size(), "local_slot": local}
 
 ## functions_utility.js singleplayerName: Options' "Player name (single-player)",
 ## else the system user name.
@@ -1980,15 +2032,16 @@ static func singleplayer_name() -> String:
 		n = OS.get_environment("USERNAME" if OS.get_name() == "Windows" else "USER").strip_edges()
 	return n if not n.is_empty() else "Player 1"
 
-# 0 A.D. PlayerName: slot 1 is you (Options > player name), AI slots take an unused name from
-# their civ's AINames ("Name 2" when the list runs out), other humans are "Player N".
-func _player_names(types: Array, civs: Array) -> Array:
+# 0 A.D. PlayerName: your slot has your name (Options > player name), AI slots take an
+# unused name from their civ's AINames ("Name 2" when the list runs out), other humans
+# are "Player N".
+func _player_names(types: Array, civs: Array, local := 0) -> Array:
 	var you := singleplayer_name()
 	var picked: Array = []
 	var names: Array = []
 	for i in range(types.size()):
-		if i == 0 and int(types[i]) == 0:
-			names.append(you if not you.is_empty() else "Player 1")
+		if i == local and int(types[i]) == 0:
+			names.append(you if not you.is_empty() else "Player %d" % (i + 1))
 		elif int(types[i]) == 1:
 			var pool: Array = CivAINames.AI_NAMES[clampi(int(civs[i]), 0, CivAINames.AI_NAMES.size() - 1)]
 			var free: Array = pool.filter(func(n): return not picked.has(n))
@@ -2015,11 +2068,8 @@ func _on_start_pressed() -> void:
 		_host_write_setup(true)
 		net_main._on_lobby_start_pressed()
 		return
-	if int(st["humans"]) < 1 and int(st["ai"]) < 2:
+	if int(st["local_slot"]) < 0 and int(st["ai"]) < 2:
 		_show_error("Watching a game needs at least 2 AI players.")
-		return
-	if int(st["humans"]) > 0 and int(st["types"][0]) != 0:
-		_show_error("Slot 1 must be Human, or make every slot AI to watch.")
 		return
 	save_persisted() # GameSettingsController.launchGame, before random choices are resolved
 	var m: Dictionary = st["map"]
@@ -2071,6 +2121,7 @@ func _on_start_pressed() -> void:
 	ms.slot_behs = st["behs"]
 	ms.slot_colors = st["colors"]
 	ms.slot_names = st["names"]
+	ms.local_slot = int(st["local_slot"])
 	ms.nomad = bool(st["nomad"])
 	ms.regicide_garrison = bool(st["regicide_garrison"])
 	ms.lock_teams = bool(st["lock_teams"])
@@ -2445,7 +2496,7 @@ func _net_request(key: String, value: int) -> void:
 ## The slot's name: in a networked game, the client in it and whether it is ready.
 func _slot_label(i: int, row: Dictionary) -> String:
 	if _mp_role == "none":
-		return "P%d%s" % [i + 1, " (You)" if i == 0 and int(row["kind"]) == 0 else ""]
+		return "P%d%s" % [i + 1, " (You)" if i == _local_slot and int(row["kind"]) == 0 else ""]
 	var k := _net_rows().find(i) if _mp_role == "host" else i
 	var slots: Array = _net_state.get("slots", [])
 	if k < 0 or k >= slots.size() or int(slots[k].get("client", -1)) < 0:
