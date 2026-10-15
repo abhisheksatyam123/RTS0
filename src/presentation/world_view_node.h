@@ -114,6 +114,10 @@ class RtsoWorldView : public Node3D {
 		std::vector<GPUParticles3D *> ambient_fx;
 		std::vector<Vector3> ambient_pos;
 		String ambient_key; // the GLB id and scale they were made for
+		// The dust and smoke of the actor's "death" variant, raised when it collapses.
+		std::vector<GPUParticles3D *> death_fx;
+		std::vector<Vector3> death_pos;
+		String death_key;
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -201,11 +205,12 @@ class RtsoWorldView : public Node3D {
 		Vector2 pos[3], vel[3];
 		Vector3 force;
 	};
-	std::unordered_map<std::string, AmbientFxSet> ambient_fx_;
+	std::unordered_map<std::string, AmbientFxSet> ambient_fx_, death_fx_;
 	std::unordered_map<std::string, AmbientParticle> ambient_particles_;
 	std::unordered_map<std::string, Ref<QuadMesh>> ambient_quads_;
 	bool ambient_fx_loaded_ = false;
-	void update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base);
+	// death: the "death" variant's emitters (v.death_fx) instead of the always-on ones.
+	void update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, bool death = false);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
