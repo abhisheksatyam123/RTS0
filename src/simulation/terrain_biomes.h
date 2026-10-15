@@ -122,12 +122,12 @@ inline const BiomeFlora *biome_flora(const char *biome) {
 		{"oasis", {{FLORA_TREE_CRETAN_DATE_PALM_SHORT, FLORA_TREE_DATE_PALM}, {FLORA_TREE_DATE_PALM, FLORA_TREE_CRETAN_DATE_PALM_TALL}}, {FLORA_JUNIPER},
 		 {{FLORA_TREE_DATE_PALM, FLORA_TREE_DATE_PALM}, {FLORA_TREE_CRETAN_DATE_PALM_PATCH, FLORA_TREE_CRETAN_DATE_PALM_PATCH}}, FLORA_DATE,
 		 {{100, 200}, {200, 200}}, {200}, {{200, 200}, {300, 300}}},
-		// oak + oak_hungarian, oak_holly + maple or oak_hungarian + oak_holly; apple (a fruit tree,
-		// drawn here as a leafy tree; gaia/fruit/apple holds food, not wood, so it keeps TREE_WOOD_SUPPLY);
-		// pine and pine_maritime.
-		{"temperate", {{FLORA_OAK, FLORA_TREE_OAK_HUNGARIAN}, {FLORA_TREE_OAK_HOLLY, FLORA_MAPLE}, {FLORA_TREE_OAK_HUNGARIAN, FLORA_TREE_OAK_HOLLY}}, {FLORA_BROADLEAF},
-		 {{FLORA_PINE, FLORA_TREE_PINE_MARITIME}}, FLORA_BERRY,
-		 {{200, 200}, {200, 300}, {200, 200}}, {0}, {{200, 200}}},
+		// oak + oak_hungarian, oak_holly + maple or oak_hungarian + oak_holly; gaia/fruit/apple (a fruit
+		// tree: its straggler is a 400-food supply, not wood); pine + pine_maritime, pine + pine or
+		// pine_maritime + pine_maritime.
+		{"temperate", {{FLORA_OAK, FLORA_TREE_OAK_HUNGARIAN}, {FLORA_TREE_OAK_HOLLY, FLORA_MAPLE}, {FLORA_TREE_OAK_HUNGARIAN, FLORA_TREE_OAK_HOLLY}}, {FLORA_FRUIT_APPLE},
+		 {{FLORA_PINE, FLORA_TREE_PINE_MARITIME}, {FLORA_PINE, FLORA_PINE}, {FLORA_TREE_PINE_MARITIME, FLORA_TREE_PINE_MARITIME}}, FLORA_BERRY,
+		 {{200, 200}, {200, 300}, {200, 200}}, {400}, {{200, 200}, {200, 200}, {200, 200}}},
 		// bush_steppe_01-03.
 		{"steppe", {{FLORA_TREE_BUSH_STEPPE_01, FLORA_TREE_BUSH_STEPPE_02}}, {FLORA_TREE_BUSH_STEPPE_01}, {{FLORA_TREE_BUSH_STEPPE_03, FLORA_TREE_BUSH_STEPPE_02}}, FLORA_BERRY,
 		 {{100, 100}}, {100}, {{100, 100}}},
