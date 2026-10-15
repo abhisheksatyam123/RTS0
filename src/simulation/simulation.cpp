@@ -3801,7 +3801,7 @@ bool Simulation::cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id) {
 void Simulation::cancel_upgrade(Building &b, uint8_t refund_to) {
 	if (b.upgrade_to == BLD_TYPE_COUNT) return;
 	if (refund_to < MAX_PLAYERS)
-		players_[refund_to].refund(b.upgrade_paid[RES_FOOD], b.upgrade_paid[RES_WOOD], b.upgrade_paid[RES_GOLD], b.upgrade_paid[RES_STONE]);
+		players_[refund_to].add(b.upgrade_paid[RES_FOOD], b.upgrade_paid[RES_WOOD], b.upgrade_paid[RES_GOLD], b.upgrade_paid[RES_STONE]);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
@@ -8939,11 +8939,24 @@ uint32_t Simulation::stat_building_value(const Building &b) const {
 	return stat_cost_value(c);
 }
 
+// The unit's StatisticsTracker classes. Heroes take Infantry or Cavalry from their 0.28
+// template (template_unit_hero_infantry / _cavalry; elephant and healer heroes have neither),
+// which the formation table carries as Identity classes.
+uint32_t Simulation::stat_unit_classes_of(size_t idx) const {
+	const uint16_t tmpl = units_.tmpl[idx];
+	uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	if ((cls & (1u << STAT_UNIT_HERO)) && tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint16_t idc = formation_unit_table()[tmpl].classes;
+		if (idc & FCLASS_INFANTRY) cls |= 1u << STAT_UNIT_INFANTRY;
+		if (idc & FCLASS_CAVALRY) cls |= 1u << STAT_UNIT_CAVALRY;
+	}
+	return cls;
+}
+
 void Simulation::stat_unit_trained(size_t idx) {
 	const uint8_t p = units_.team[idx];
 	if (p >= MAX_PLAYERS) return;
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	PlayerStatistics &st = stats_[p];
 	for (uint8_t c = 0; c < STAT_UNIT_TOTAL; ++c)
 		if (cls & (1u << c)) st.units_trained[c]++;
@@ -8955,8 +8968,7 @@ void Simulation::stat_unit_trained(size_t idx) {
 // and through regeneration or auras count nowhere, so only attack kills call these.
 void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 	const uint8_t p = units_.team[idx];
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	const uint32_t value = stat_unit_value(idx);
 	// LostEntity for the owner, KilledEntity for whoever killed it.
 	if (p < MAX_PLAYERS) {
@@ -8979,8 +8991,7 @@ void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 // from, CapturedEntity for the captor. A catafalque has no Cost, so no value.
 void Simulation::stat_unit_captured(size_t idx, uint8_t from) {
 	const uint8_t p = units_.team[idx];
-	const uint16_t tmpl = units_.tmpl[idx];
-	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
+	const uint32_t cls = stat_unit_classes_of(idx);
 	const uint32_t value = stat_unit_value(idx);
 	if (from < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[from];
@@ -12163,6 +12174,10 @@ void Simulation::tick_production(float dt) {
 	}
 }
 
+// The widest unit_building_clearance (a trireme's 1.8): how far past a range a unit's centre
+// can be while its obstruction edge is in it, for the grid searches round a range.
+constexpr float UNIT_RANGE_MARGIN = 2.0f;
+
 inline bool in_parabolic_range(float d2, float att_y, float def_y, float base_range) {
 	float height_diff = def_y - att_y; // target_y - attacker_y
 	float max_r2 = base_range * base_range - 2.0f * base_range * height_diff;
@@ -12201,7 +12216,7 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 			const size_t i = (size_t)ui;
 			ok = units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && can_attack(b.team, units_.team[i])
 					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
-					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, 0.0f, unit_height(i));
+					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		} else if (tb != building_id_to_idx_.end()) {
 			const Building &ob = buildings_[tb->second];
 			ok = !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
@@ -12688,9 +12703,11 @@ void Simulation::tick_combat(float dt) {
 				           unit_splash(units_.tmpl[i], u_att));
 			}
 
-		} else if (!invulnerable(units_.id[t])) {
+		} else if (units_.alive[t] && !invulnerable(units_.id[t])) {
 			// helpers/Attack.js HandleAttackEffects returns at once for an invulnerable target:
-			// no damage, xp, Attacked message or status.
+			// no damage, xp, Attacked message or status. A target another attacker killed
+			// earlier this turn is already dead: Health.Reduce does nothing for it, so its
+			// kill, loot and statistics count once.
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
 			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg, true);
 			units_.hp[t] -= final_dmg;
@@ -12906,8 +12923,10 @@ void Simulation::tick_combat(float dt) {
 		auto unit_ok = [&](int32_t t) {
 			if (!units_.alive[t] || units_.action_state[t] == ACTION_GARRISONED || !can_attack(team, units_.team[t])) return false;
 			if (units_.team[t] == GAIA_PLAYER && units_.attack_damage[t] <= 0.0f) return false;
+			// From obstruction edge to obstruction edge, as the range query measures.
 			const float dx = units_.pos_x[t] - sx, dz = units_.pos_z[t] - sz;
-			if (!in_parabolic_range(dx * dx + dz * dz, sy, unit_height(t), range)) return false;
+			const float gap = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_clearance_at(i) - unit_clearance_at((size_t)t));
+			if (!in_parabolic_range(gap * gap, sy, unit_height(t), range)) return false;
 			return !check_los || los_visible(team, units_.pos_x[t], units_.pos_z[t]);
 		};
 		auto building_ok = [&](const Building &ob) {
@@ -12917,9 +12936,13 @@ void Simulation::tick_combat(float dt) {
 			return !check_los || los_explored(team, ob.x, ob.z);
 		};
 		const bool shoots_gaia = team != GAIA_PLAYER && is_hostile(team, GAIA_PLAYER);
+		// Dangerous Gaia animals, and enemy players' livestock (BuildingAI's enemy query takes
+		// every entity with Resistance), as for structures.
 		auto fauna_ok = [&](int32_t f) {
 			const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
-			return shoots_gaia && in_parabolic_range(dx * dx + dz * dz, sy, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]), range)
+			const uint8_t owner = fauna_owner_[f];
+			const bool foe = owner < MAX_PLAYERS ? team != GAIA_PLAYER && can_attack(team, owner) : shoots_gaia;
+			return foe && in_parabolic_range(dx * dx + dz * dz, sy, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]), range)
 					&& (!check_los || los_visible(team, fauna_.pos_x[f], fauna_.pos_z[f]));
 		};
 		// The UnitAI target first, then the best of the rest.
@@ -12943,16 +12966,19 @@ void Simulation::tick_combat(float dt) {
 					best_pref = pref; best_d2 = d2; best_kind = kind; best_idx = idx;
 				}
 			};
-			if (n) grid.visit_radius(sx, sz, range, [&](int32_t t) {
+			// The flat-ground reach from the tower's Origin/Y, past which no unit's edge is in range.
+			const float reach = std::sqrt(range * range + 2.0f * range * (sy - ground_y)) + UNIT_RANGE_MARGIN + unit_clearance_at(i);
+			if (n) grid.visit_radius(sx, sz, reach, [&](int32_t t) {
 				if (!unit_ok(t)) return;
 				const float dx = units_.pos_x[t] - sx, dz = units_.pos_z[t] - sz;
 				consider(prefers_human && unit_combat_at((size_t)t).classes.has(CC_HUMAN) ? 0 : 49, dx * dx + dz * dz, 0, t);
 			});
-			for (const int32_t f : wild) {
-				if (!fauna_ok(f)) continue;
-				const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
-				consider(49, dx * dx + dz * dz, 1, f);
-			}
+			for (const std::vector<uint16_t> *list : {&wild, &herd})
+				for (const int32_t f : *list) {
+					if (!fauna_ok(f)) continue;
+					const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
+					consider(49, dx * dx + dz * dz, 1, f);
+				}
 			for (size_t o = 0; o < buildings_.size(); ++o) {
 				if (!building_ok(buildings_[o])) continue;
 				const float dx = buildings_[o].x - sx, dz = buildings_[o].z - sz;
@@ -13039,7 +13065,7 @@ void Simulation::tick_combat(float dt) {
 		auto unit_target = [&](int32_t i) {
 			return units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && can_attack(b.team, units_.team[i])
 					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
-					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, 0.0f, unit_height(i));
+					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		};
 		auto building_target = [&](const Building &ob) {
 			return !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
@@ -13055,7 +13081,7 @@ void Simulation::tick_combat(float dt) {
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) { any = any || unit_target(i); });
+			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
 			for (size_t k = 0; k < wild.size() && !any; ++k) any = fauna_target(wild[k]);
 			for (size_t k = 0; k < herd.size() && !any; ++k) any = fauna_target(herd[k]);
 			for (size_t o = 0; o < buildings_.size() && !any; ++o) any = building_target(buildings_[o]);
@@ -13072,7 +13098,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
@@ -30732,7 +30758,13 @@ void Simulation::scenery_check_owner(Scenery &sc) {
 	if (sc.cp[owner] > 0.0f) return;
 	int best = GAIA;
 	for (int t = 0; t < GAIA; ++t) if (sc.cp[t] > sc.cp[best]) best = t;
+	const uint8_t from = sc.owner;
 	sc.owner = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
+	// Capturable.js: CapturedEntity for the new owner, LostEntity for the old (template_structure:
+	// a Structure with none of the tracked classes, so only the Total columns move).
+	if (from == sc.owner) return;
+	if (sc.owner < MAX_PLAYERS) stats_[sc.owner].buildings_captured[STAT_BLD_TOTAL]++;
+	if (from < MAX_PLAYERS) stats_[from].buildings_lost[STAT_BLD_TOTAL]++;
 }
 
 // Capturable.js TimerTick, once a second for each Capturable scenery entity: TerritoryDecay
@@ -30765,12 +30797,18 @@ void Simulation::tick_scenery_capture() {
 void Simulation::destroy_scenery(size_t k, int32_t killer) {
 	const uint32_t id = scenery_[k].id;
 	const SceneryTypeInfo &info = scenery_type_info(scenery_[k].type);
+	// Health.js KilledBy: KilledEntity / LostEntity count a Structure (Total only, costless),
+	// then Looter.Collect adds to lootCollected.
+	if (scenery_[k].owner < MAX_PLAYERS) stats_[scenery_[k].owner].buildings_lost[STAT_BLD_TOTAL]++;
 	if (killer >= 0 && units_.team[killer] < MAX_PLAYERS) {
 		PlayerState &ps = players_[units_.team[killer]];
 		ps.res[RES_FOOD] += (float)info.loot[0];
 		ps.res[RES_WOOD] += (float)info.loot[1];
 		ps.res[RES_STONE] += (float)info.loot[2];
 		ps.res[RES_GOLD] += (float)info.loot[3];
+		PlayerStatistics &st = stats_[units_.team[killer]];
+		st.enemy_buildings_destroyed[STAT_BLD_TOTAL]++;
+		st.loot_collected += (uint32_t)(info.loot[0] + info.loot[1] + info.loot[2] + info.loot[3]);
 	}
 	scenery_.erase(scenery_.begin() + (ptrdiff_t)k);
 	for (size_t i = 0; i < units_.count; ++i) {

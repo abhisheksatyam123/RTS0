@@ -52,6 +52,7 @@
 #include <godot_cpp/classes/input.hpp>
 #include <unordered_map>
 #include <utility>
+#include <memory>
 #include <vector>
 
 #include "../simulation/simulation.h"
@@ -95,6 +96,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	AudioStreamPlayer *voice_player = nullptr;
 	AudioStreamPlayer *alarm_player = nullptr;
 	AudioStreamPlayer *sfx_player = nullptr;
+	AudioStreamPlayer *click_player_ = nullptr; // ui_button_click.ogg
+	int ui_clicks_ = 0; // tests: clicks played
+	void hook_ui_click_sounds(Node *n);
 	AudioStreamPlayer *ambient_player = nullptr;
 	AudioStreamPlayer *ambient_wind_player = nullptr;
 	AudioStreamPlayer *ambient_water_player = nullptr;
@@ -709,6 +713,20 @@ public:
 	String placement_failure_text(int result, uint8_t btype, float x, float z) const;
 	Dictionary debug_placement_tip() const;
 	Dictionary debug_cursor_tip();
+	void _on_tree_node_added(Node *n);
+	void _on_ui_click();
+	void _on_ui_click_item(int) { _on_ui_click(); }
+	int debug_ui_clicks() const { return ui_clicks_; }
+	// Tests: the control groups and camera as a save stores them, and setting the camera.
+	Dictionary debug_saved_gui() const {
+		Dictionary d;
+		Array groups;
+		for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
+		d["groups"] = groups;
+		if (cam_rig) d["camera"] = cam_rig->camera_data();
+		return d;
+	}
+	void debug_set_camera_data(const Dictionary &c) { if (cam_rig) cam_rig->set_camera_data(c); }
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -871,7 +889,18 @@ private:
 public:
 	bool time_warp_rewind();
 	int time_warp_snapshot_count() const { return (int)time_warp_snapshots_.size(); }
+	// The developer overlay's Activate Rejoin Test (0.28 Engine.ActivateRejoinTest), once its
+	// box's OK is pressed: after the next turn a copy of the game is rejoined from a snapshot
+	// (rejoin_sim_), then every turn is replayed onto the copy too and the two compared, until
+	// the match ends. It can't be turned off.
+	void activate_rejoin_test();
+	Dictionary get_rejoin_test() const;
 private:
+	bool rejoin_test_ = false;
+	std::unique_ptr<rtso::Simulation> rejoin_sim_;
+	std::unique_ptr<rtso::TurnManager> rejoin_tm_;
+	uint32_t rejoin_from_turn_ = 0, rejoin_turns_ = 0, rejoin_oos_turn_ = 0;
+	void rejoin_test_turn();
 	int perspective_pick_ = -1; // the dropdown item picked, until the lockstep turn seats us there
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;
@@ -958,6 +987,7 @@ private:
 	void quit_confirmation(const String &kind, bool won = false, bool ask_exit = true);
 	void tick_quit_confirmation();
 	bool write_save_metadata(const String &path, const String &description) const;
+	void restore_saved_gui(const String &path);
 	void write_save_thumbnail(const String &path);
 };
 

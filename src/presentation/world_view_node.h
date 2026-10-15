@@ -412,7 +412,18 @@ private:
 	BuildingVis &acquire_building_slot(uint32_t sim_id);
 	void attach_unit_model(UnitVis &v, const String &model_name);
 	void attach_building_model(BuildingVis &v, const String &model_name);
-	void set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype);
+	void set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype,
+			uint8_t civ, const String &model_id, float b_scale);
+	// data/foundations.json (tools/extract_foundations.py): each structure's 0 A.D.
+	// FoundationActor and the scaffold of its "scaffold" variant, and where an
+	// actor's origin lies in each building GLB.
+	struct ActorFrame { float scale = 0.0f; Vector3 origin; }; // GLB units per metre, actor origin
+	struct FoundationArt { String id; ActorFrame frame; String scaffold; ActorFrame scaffold_frame; };
+	std::unordered_map<std::string, std::string> foundation_of_; // "<civ code>/<BuildingType>" -> foundation id
+	std::unordered_map<std::string, FoundationArt> foundation_art_;
+	std::unordered_map<std::string, ActorFrame> building_frames_;
+	bool foundations_loaded_ = false;
+	void load_foundations();
 	static Node *instantiate_building_id(const String &id);
 	void play_unit_clip(UnitVis &v, const StringName &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);

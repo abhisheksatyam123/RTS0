@@ -21,6 +21,8 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
+#include <godot_cpp/classes/base_button.hpp>
+#include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/script.hpp>
@@ -742,6 +744,15 @@ void RtsoMain::_ready() {
 	sfx_player->set_bus("Action");
 	add_child(sfx_player);
 	add_child(alarm_player);
+	// 0.28's button styles (iconButton, StoneButton, BrownButton, CivIconOverlay, the dropdowns)
+	// play ui_button_click.ogg on a press: every button of the session UI does here, through its
+	// own player so it never cuts off another sound.
+	click_player_ = memnew(AudioStreamPlayer);
+	click_player_->set_bus("UI");
+	click_player_->set_stream(rtso::load_audio("res://assets/sounds/ui/ui_button_click.ogg"));
+	add_child(click_player_);
+	hook_ui_click_sounds(this);
+	get_tree()->connect("node_added", Callable(this, "_on_tree_node_added"));
 
 	// 0 A.D. music.js playlists and in-game sound events (music_manager.h,
 	// session_audio.h).
@@ -957,8 +968,10 @@ void RtsoMain::_process(double delta) {
 	if (net_lockstep()) {
 		if (net_game_started_) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
-			if (turn_mgr_.tick((float)scaled_delta, *sim))
+			if (turn_mgr_.tick((float)scaled_delta, *sim)) {
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
+				rejoin_test_turn();
+			}
 			// OutOfSyncNetwork: the box opens once the dump is written, and again
 			// if the host later names an earlier diverging turn.
 			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
@@ -1042,6 +1055,7 @@ void RtsoMain::_process(double delta) {
 			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;
+				rejoin_test_turn();
 			}
 		}
 	} else {
@@ -1513,4 +1527,26 @@ void RtsoMain::sound_notification_nick() {
 void RtsoMain::chat_open_page() {
 	close_open_dialogs();
 	chat_window_.open_page();
+}
+
+// gui/common/styles.xml sound_pressed, and the dropdowns' sound_opened / sound_selected.
+void RtsoMain::hook_ui_click_sounds(Node *n) {
+	if (BaseButton *b = Object::cast_to<BaseButton>(n)) {
+		const Callable click(this, "_on_ui_click");
+		if (!b->is_connected("pressed", click)) b->connect("pressed", click);
+		if (OptionButton *o = Object::cast_to<OptionButton>(n)) {
+			const Callable picked = Callable(this, "_on_ui_click_item");
+			if (!o->is_connected("item_selected", picked)) o->connect("item_selected", picked);
+		}
+	}
+	for (int i = 0; i < n->get_child_count(); ++i) hook_ui_click_sounds(n->get_child(i));
+}
+
+void RtsoMain::_on_tree_node_added(Node *n) {
+	if (n && Object::cast_to<BaseButton>(n) && is_ancestor_of(n)) hook_ui_click_sounds(n);
+}
+
+void RtsoMain::_on_ui_click() {
+	++ui_clicks_;
+	if (click_player_ && click_player_->get_stream().is_valid()) click_player_->play();
 }

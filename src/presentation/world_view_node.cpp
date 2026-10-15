@@ -1525,7 +1525,63 @@ Node *RtsoWorldView::instantiate_building_id(const String &id) {
 	return nullptr;
 }
 
-void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype) {
+// The building GLB ModelLibrary::load draws for `id` (its alias, its own GLB, or
+// its base model after the civ code), as the key of the tables written per GLB.
+static std::string building_table_key(const String &id) {
+	const String glb = rtso::ModelLibrary::building_glb_id(id);
+	if (glb != id || rtso::Assets::res_exists("res://assets/models/buildings/" + id + ".glb"))
+		return glb.utf8().get_data();
+	const int us = id.find("_");
+	if (us <= 0 || us >= id.length() - 1) return glb.utf8().get_data();
+	return rtso::ModelLibrary::building_glb_id(id.substr(us + 1)).utf8().get_data();
+}
+
+void RtsoWorldView::load_foundations() {
+	foundations_loaded_ = true;
+	auto actor_frame_of = [](const Dictionary &e, const char *scale_key) {
+		ActorFrame f;
+		f.scale = (float)e.get(scale_key, 0.0);
+		Array o = e.get("origin", Array());
+		if (o.size() == 3) f.origin = Vector3((float)o[0], (float)o[1], (float)o[2]);
+		return f;
+	};
+	Ref<FileAccess> f = FileAccess::open("res://data/foundations.json", FileAccess::READ);
+	if (!f.is_valid()) return;
+	Dictionary root = JSON::parse_string(f->get_as_text());
+	Dictionary structures = root.get("structures", Dictionary());
+	Array civs = structures.keys();
+	for (int i = 0; i < civs.size(); ++i) {
+		Dictionary types = structures[civs[i]];
+		Array keys = types.keys();
+		for (int j = 0; j < keys.size(); ++j)
+			foundation_of_[(String(civs[i]) + "/" + String(keys[j])).utf8().get_data()] = String(types[keys[j]]).utf8().get_data();
+	}
+	Dictionary arts = root.get("foundations", Dictionary());
+	Array ids = arts.keys();
+	for (int i = 0; i < ids.size(); ++i) {
+		Dictionary e = arts[ids[i]];
+		FoundationArt a;
+		a.id = ids[i];
+		a.frame = actor_frame_of(e, "scale");
+		Dictionary s = e.get("scaffold", Dictionary());
+		if (!s.is_empty()) {
+			a.scaffold = s.get("id", "");
+			a.scaffold_frame = actor_frame_of(s, "scale");
+		}
+		foundation_art_[String(ids[i]).utf8().get_data()] = a;
+	}
+	Dictionary frames = root.get("frames", Dictionary());
+	Array glbs = frames.keys();
+	for (int i = 0; i < glbs.size(); ++i)
+		building_frames_[String(glbs[i]).utf8().get_data()] = actor_frame_of(frames[glbs[i]], "metre");
+}
+
+// 0 A.D. Foundation.js: a structure being built draws its template's
+// FoundationActor, switched to the "scaffold" variant once building starts. Both
+// sit on the entity's position: under the building model as drawn, the actor
+// origin of its GLB (data/foundations.json frames), at the model's scale.
+void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype,
+		uint8_t civ, const String &model_id, float b_scale) {
 	auto drop = [&](Node *&n) {
 		if (!n) return;
 		if (v.root && n->get_parent() == v.root)
@@ -1562,8 +1618,45 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 		drop(v.scaffold);
 		v.overlay_type = (int)btype;
 	}
-	place(v.foundation, rtso::civ_building_foundation(btype), foundation_on);
-	place(v.scaffold, rtso::civ_building_scaffold(btype), scaffold_on);
+	if (!foundations_loaded_ && (foundation_on || scaffold_on)) load_foundations();
+	const FoundationArt *art = nullptr;
+	const ActorFrame *frame = nullptr;
+	if (foundation_on || scaffold_on || v.foundation) {
+		const auto fo = foundation_of_.find(std::string(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "/" + std::to_string(btype));
+		const auto fa = fo == foundation_of_.end() ? foundation_art_.end() : foundation_art_.find(fo->second);
+		const auto fr = building_frames_.find(building_table_key(model_id));
+		if (fa != foundation_art_.end() && fr != building_frames_.end() && fr->second.scale > 0.0f) {
+			art = &fa->second;
+			frame = &fr->second;
+		}
+	}
+	if (!art) {
+		place(v.foundation, rtso::civ_building_foundation(btype), foundation_on);
+		place(v.scaffold, rtso::civ_building_scaffold(btype), scaffold_on);
+		return;
+	}
+	// The actor origin in the root's space, on the ground (the root's height; the
+	// model is lifted until its lowest vertex meets it), and world units per metre.
+	const Vector3 origin(frame->origin.x * b_scale, 0.0f, frame->origin.z * b_scale);
+	const float metre = frame->scale * b_scale;
+	auto seat = [&](Node *&slot, const String &id, const ActorFrame &f, bool show) {
+		if (id.is_empty() || f.scale <= 0.0f) return;
+		if (!slot && show) {
+			slot = instantiate_building_id(id);
+			if (!slot) return;
+			v.root->add_child(slot);
+			v.fog_dim = -1.0f;
+			v.player_rgba = -1;
+		}
+		if (Node3D *n3 = Object::cast_to<Node3D>(slot)) {
+			const float k = metre / f.scale;
+			n3->set_scale(Vector3(k, k, k));
+			n3->set_position(origin - f.origin * k);
+			n3->set_visible(show);
+		}
+	};
+	seat(v.foundation, art->id, art->frame, foundation_on);
+	seat(v.scaffold, art->scaffold, art->scaffold_frame, scaffold_on);
 }
 
 // 0 A.D. WallSet segments (Simulation::cmd_build_wall) are 12, 24 or 36 m long and
@@ -1604,17 +1697,6 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 		v.model = mi;
 	}
 	v.root->add_child(v.model);
-}
-
-// The building GLB ModelLibrary::load draws for `id` (its alias, its own GLB, or
-// its base model after the civ code), as the key of the tables written per GLB.
-static std::string building_table_key(const String &id) {
-	const String glb = rtso::ModelLibrary::building_glb_id(id);
-	if (glb != id || rtso::Assets::res_exists("res://assets/models/buildings/" + id + ".glb"))
-		return glb.utf8().get_data();
-	const int us = id.find("_");
-	if (us <= 0 || us >= id.length() - 1) return glb.utf8().get_data();
-	return rtso::ModelLibrary::building_glb_id(id.substr(us + 1)).utf8().get_data();
 }
 
 // 0 A.D. Upgrade.js SetUpgradeAnimationVariant: while a structure upgrades its
@@ -3232,7 +3314,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// Models face -z unrotated, so the sim's 0 A.D. rotation is offset by DEFAULT_BUILDING_ROT.
 		v.root->set_transform(Transform3D(Basis(Vector3(0, 1, 0), b.rot - rtso::Simulation::DEFAULT_BUILDING_ROT),
 				Vector3(b.x, base_y, b.z)));
-		set_building_site_visible(v, v.phase == 1 || v.phase == 2, v.phase == 2, b.type);
+		{
+			const auto &site = rtso::ModelLibrary::get(cat_b, mid);
+			set_building_site_visible(v, v.phase == 1 || v.phase == 2, v.phase == 2, b.type, bciv, mid,
+					site.scale > 0.05f ? site.scale : 1.0f);
+		}
 
 		if (Node3D *n3 = Object::cast_to<Node3D>(v.model)) {
 			n3->set_scale(Vector3(b_scale, b_scale, b_scale));
