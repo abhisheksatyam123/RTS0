@@ -11492,13 +11492,15 @@ void rescale_028(HeightmapGrid &hm, float lo, float hi) {
 // The paths caledonian_meadows.js lays between the players (clPath), a tile grid for its
 // resource spots (place_caledonian_spots) to keep off.
 thread_local std::vector<uint8_t> t_caledonian_paths;
+// Whether the map being generated is circular (Simulation::circular_map, set before generate).
+thread_local bool t_circular_map = true;
 
 void RmsGenerator::synth_caledonian_meadows(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// caledonian_meadows.js, in metres: diamond-square land from a flat 2x2 seed (smoothness 0.8)
 	// over heightRange (MIN_HEIGHT and MAX_HEIGHT x (size + 256) / 768 / 4), 5 rounds of
 	// splashErodeMap(0.1), rescaled to the range; the water a fifth of the way up it. Players
 	// at getStartLocationsByHeightmap's spots between heighLimits 4 and 5 (1/8 and 3/8 of the
-	// way from the water to the top), 30 from the border, grouped in a cycle; each smoothed to
+	// way from the water to the top), 30 from the border (and the circle's edge), grouped in a cycle; each smoothed to
 	// its height over 35 tiles, and RandomPathPlacer paths (4 wide) between them blended 0.4
 	// toward the player height and smoothed (SmoothingPainter(5, 1, 1)) within 5 of them.
 	const float half = hm.map_half, size = 2.0f * half;
@@ -11520,6 +11522,7 @@ void RmsGenerator::synth_caledonian_meadows(HeightmapGrid &hm, RmsRng &rng, floa
 	for (int x = border; x < tiles - border; ++x)
 		for (int y = border; y < tiles - border; ++y) {
 			const float h = height_at_tile(x, y);
+			if (t_circular_map && !(std::hypot((float)x - half, (float)y - half) < half - (float)border)) continue;
 			if (h >= limit(2.0f / 8.0f) && h <= limit(3.0f / 8.0f)) valid.push_back({x, y});
 		}
 	std::vector<std::pair<int, int>> best;
@@ -11537,7 +11540,7 @@ void RmsGenerator::synth_caledonian_meadows(HeightmapGrid &hm, RmsRng &rng, floa
 	// From here on RTS0 heights: the water at 1, a metre kMetre.
 	water_h = 1.0f;
 	for (float &h : hm.data) h = water_h + (h - sea) * kMetre;
-	const float player_h = water_h + ((limit(1.0f / 8.0f) + limit(2.0f / 8.0f)) / 2.0f - sea) * kMetre; // playerHeight
+	const float player_h = water_h + ((limit(2.0f / 8.0f) + limit(3.0f / 8.0f)) / 2.0f - sea) * kMetre; // playerHeight
 	if ((int)best.size() < num_players) {
 		place_ring_spawns(hm, spawns, num_players, half * 0.66f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
 		t_caledonian_paths.clear();
@@ -11771,6 +11774,7 @@ static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, flo
 
 bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	sim.reset();
+	t_circular_map = sim.circular_map();
 
 	t_map_areas.clear();
 	RmsRng rng(config.seed ? config.seed : 1337);
