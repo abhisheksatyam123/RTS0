@@ -190,7 +190,8 @@ enum MapType : uint8_t {
 	MAP_FOOTHILLS = 91,
 	MAP_COAST_RANGE = 92,
 	MAP_WALL_DEMO = 93, // 0.28's demo of rmgen-common wall_builder.js (keyword "demo")
-	MAP_TYPE_COUNT = 94
+	MAP_NEW_RMS_TEST = 94, // 0.28's new_rms_test.js: player bases on flat grass (keyword "demo")
+	MAP_TYPE_COUNT = 95
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -345,7 +346,8 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_CONTINENT, "continent", "Continent (RMS)", "temperate", true, "All players starts on a continent surrounded by water."},
 		{MAP_FOOTHILLS, "foothills", "Foothills (RMS)", "temperate", true, "A land map with rolling hills and no obstructions."},
 		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."},
-		{MAP_WALL_DEMO, "wall_demo", "Wall Demo (RMS)", "temperate", true, "A demonstration of wall placement methods/code in random maps. Giant map size is recommended!"}
+		{MAP_WALL_DEMO, "wall_demo", "Wall Demo (RMS)", "temperate", true, "A demonstration of wall placement methods/code in random maps. Giant map size is recommended!"},
+		{MAP_NEW_RMS_TEST, "new_rms_test", "New RMS Test (RMS)", "temperate", true, "A basic test of the random map generator - not playable."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
