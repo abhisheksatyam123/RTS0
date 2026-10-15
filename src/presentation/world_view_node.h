@@ -446,6 +446,11 @@ private:
 	std::unordered_map<std::string, std::string> foundation_of_; // "<civ code>/<BuildingType>" -> foundation id
 	std::unordered_map<std::string, FoundationArt> foundation_art_;
 	std::unordered_map<std::string, ActorFrame> building_frames_;
+	// data/rubble.json: each civ's SpawnEntityOnDeath rubble per BuildingType and its actor frame.
+	std::unordered_map<std::string, std::string> rubble_of_;
+	std::unordered_map<std::string, ActorFrame> rubble_frames_;
+	bool rubble_loaded_ = false;
+	void load_rubble();
 	bool foundations_loaded_ = false;
 	void load_foundations();
 	static Node *instantiate_building_id(const String &id);
