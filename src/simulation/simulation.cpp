@@ -3709,7 +3709,8 @@ bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_
 	// ProductionQueue.js RemoveItem: Trainer/Researcher refund what the item cost.
 	const ProductionOrder &item = b.queue[queue_idx];
 	if (item.is_tech() || item.paid[RES_FOOD] + item.paid[RES_WOOD] + item.paid[RES_GOLD] + item.paid[RES_STONE] > 0.0f) {
-		if (item.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
+		// StoppedResearch: "aborted" only for research that had started.
+		if (item.is_tech() && item.timer > 0.0f) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
 		ps.refund(item.paid[RES_FOOD], item.paid[RES_WOOD], item.paid[RES_GOLD], item.paid[RES_STONE]);
 		b.queue.erase(b.queue.begin() + queue_idx);
 		return true;
@@ -3922,7 +3923,6 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	tech_price(player_id, tech_id, b.type, order.paid.data(), order.duration);
 	players_[player_id].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]);
 	b.queue.push_back(order);
-	note_phase(SessionNotice::PHASE_STARTED, player_id, tech_id);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnResearchQueued
 		TriggerEventData ev;
 		ev.entity = building_id;
@@ -12420,6 +12420,8 @@ void Simulation::tick_production(float dt) {
 			if (bteam < MAX_PLAYERS && pop_current(bteam) + order_pop(order, bteam) > pop_max(bteam)) continue;
 			order.started = true;
 		}
+		// TechnologyManager.js StartedResearch: "X is advancing to the Y." on the first work done.
+		if (order.is_tech() && order.timer == 0.0f) note_phase(SessionNotice::PHASE_STARTED, bteam, order.tech);
 		order.timer += dt;
 		if (order.timer < order.duration) continue;
 		const ProductionOrder done = order;
@@ -16876,9 +16878,11 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		set_reveal_map(true);
 		return true;
 	case CHEAT_DEV_REVEAL_MAP: // Commands.js "reveal-map": SetLosRevealAll(-1, cmd.enable)
+		note_session({SessionNotice::CHEAT, player, 0, 0, {}}); // "(Cheat - reveal map)", for everyone to see
 		set_reveal_map(parameter != 0);
 		return true;
 	case CHEAT_DEV_PROMOTE: // Commands.js "promote": each own unit gains the xp its next rank needs (IncreaseXp)
+		note_session({SessionNotice::CHEAT, player, 0, 1, {}}); // "(Cheat - promoted units)"
 		for (size_t k = 0; k < count; ++k) {
 			const int32_t i = lookup_unit(selected[k]);
 			if (i < 0 || !units_.alive[i] || units_.team[i] != player) continue;
@@ -16918,19 +16922,26 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		mark_players_defeated(bit);
 		return true;
 	}
-	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer
+	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer;
+		// extra 1, "iwanttopwnthem" (createHeros.json): its nine heroes in turn.
 		static const char *const kSaladBowl[] = {"athen/infantry_spearman_b", "brit/infantry_spearman_b",
 			"cart/infantry_spearman_b", "gaul/infantry_spearman_b", "iber/infantry_spearman_b",
 			"kush/infantry_spearman_b", "mace/infantry_pikeman_b", "maur/infantry_spearman_b",
 			"pers/infantry_spearman_b", "ptol/infantry_pikeman_b", "rome/infantry_spearman_b",
 			"sele/infantry_spearman_b", "spart/infantry_spearman_b"};
-		static const std::vector<uint16_t> templates = [] {
+		static const char *const kHeroes[] = {"cart/hero_hamilcar", "cart/hero_hannibal", "cart/hero_maharbal",
+			"pers/hero_cyrus_ii", "pers/hero_darius_i", "pers/hero_xerxes_i", "rome/hero_marcellus",
+			"rome/hero_maximus", "rome/hero_scipio"};
+		auto lookup = [](const char *const *names, size_t n) {
 			std::vector<uint16_t> out;
-			for (const char *name : kSaladBowl)
+			for (size_t k = 0; k < n; ++k)
 				for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
-					if (std::strcmp(civ_unit_template(t).id, name) == 0) { out.push_back(t); break; }
+					if (std::strcmp(civ_unit_template(t).id, names[k]) == 0) { out.push_back(t); break; }
 			return out;
-		}();
+		};
+		static const std::vector<uint16_t> salad = lookup(kSaladBowl, std::size(kSaladBowl));
+		static const std::vector<uint16_t> heroes = lookup(kHeroes, std::size(kHeroes));
+		const std::vector<uint16_t> &templates = extra == 1 ? heroes : salad;
 		if (!count || templates.empty()) return false;
 		auto it = building_id_to_idx_.find(selected[0]);
 		if (it == building_id_to_idx_.end()) return false;
@@ -22684,7 +22695,7 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			delta = std::sqrt(d1) - favoured;
 			val += delta * delta;
 			if (d2 >= 0.0f) { delta = std::sqrt(d2) - favoured; val += delta * delta; }
-			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) val += 10000.0f / 16.0f;
+			if (near_map_border(x, z, border)) val += 10000.0f / 16.0f; // the circular borderMap too
 			if (found && val > best) continue;
 			// The land last of the tests a tile can fail: its search costs the most.
 			const uint16_t l = petra_land_at(x, z);
@@ -22784,7 +22795,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 					if (c.ally && d < ally_dis) norm_max *= 0.5f;
 				}
 				if (near) continue;
-				if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm_max *= 0.5f;
+				if (near_map_border(x, z, border)) norm_max *= 0.5f;
 				float val_max = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
 				val_max *= norm_max;
 				if (!dps.empty()) val_max = std::max(val_max, cut + 0.1f);
@@ -22816,7 +22827,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 				}
 				if (norm == 0.0f) continue;
 			}
-			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm *= 0.5f;
+			if (near_map_border(x, z, border)) norm *= 0.5f; // the circular borderMap too
 			float val = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
 			val *= norm;
 			if (oversea) val = std::max(val, cut + 0.1f);
@@ -23167,6 +23178,9 @@ void Simulation::petra_research_population_bonus() {
 	petra_available_techs(techs);
 	for (uint8_t t : techs) {
 		const TechInfo &ti = tech_info(t);
+		// modifications[0] must be Population/Bonus: Wagon Trains lists Promotion/RequiredXp first
+		// (its XP part lives in promotion_data.h).
+		if (t == TECH_WAGON_TRAINS) continue;
 		if (ti.effect_count && tech_effects_table()[ti.effect_begin].stat == TSTAT_POP_BONUS) {
 			petra_start_research(t);
 			return;
@@ -23285,7 +23299,14 @@ void Simulation::petra_manage_research(float dt) {
 		}
 		// buildTemple (not while saving resources): one temple, after a market, from the city
 		// phase (the town phase in regicide, for healer guards); Rome's is the Temple of Vesta.
-		if (!saving && have_building(BLD_MARKET) && !have_building(BLD_TEMPLE) && !have_building(BLD_TEMPLE_VESTA) &&
+		// The Temple class: template_structure_civic_temple's children (shrines, the Temples of
+		// Amun, Isis, Mars and Vesta), foundations included.
+		bool have_temple = false;
+		for (const auto &b : buildings_)
+			have_temple |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked &&
+			               ((building_tech_classes(b.type) & TC_TEMPLE) || b.type == BLD_TEMPLE_AMUN ||
+			                b.type == BLD_TEMPLE_VESTA || b.type == BLD_TEMPLE_MARS);
+		if (!saving && have_building(BLD_MARKET) && !have_temple &&
 		    (petra_ps().phase >= 3 || has_victory(VK_REGICIDE))) {
 			if (can_build(BLD_TEMPLE_VESTA)) petra_place_generic(BLD_TEMPLE_VESTA, PETRA_Q_ECONOMIC_BUILDING);
 			else if (can_build(BLD_TEMPLE)) petra_place_generic(BLD_TEMPLE, PETRA_Q_ECONOMIC_BUILDING);
@@ -23377,7 +23398,12 @@ void Simulation::petra_manage_research(float dt) {
 			// The Seleucid army reform, either one at random, likewise ahead of the rest.
 			uint8_t choice = t;
 			const uint8_t other = t == TECH_TRADITIONAL_ARMY_SELE ? TECH_REFORMED_ARMY_SELE : TECH_TRADITIONAL_ARMY_SELE;
-			if (std::find(techs.begin(), techs.end(), other) != techs.end() && sim_rng_.range_int(0, 1) == 1) choice = other;
+			// Drawn once and kept while it waits (researchManager.js:90): a hash of what Petra has
+			// researched, as the City-phase pick below, not a fresh draw each pass.
+			uint64_t h = 0xD6E8FEB86659FD93ull * (petra_pid_ + 1);
+			for (uint64_t w : petra_ps().techs.words) h = (h ^ w) * 0xBF58476D1CE4E5B9ull;
+			h ^= h >> 31;
+			if (std::find(techs.begin(), techs.end(), other) != techs.end() && (h & 1)) choice = other;
 			petra_change_priority(PETRA_Q_MINOR_TECH, 2 * petra_queue_base_priority(PETRA_Q_MINOR_TECH), PETRA_Q_MINOR_TECH);
 			pick(choice);
 			return;
@@ -26240,7 +26266,7 @@ static inline bool petra_military_structure(uint8_t t) {
 	switch (building_research_base(t)) {
 		case BLD_BARRACKS: case BLD_FORTRESS: case BLD_DOCK: case BLD_STABLE: case BLD_RANGE: case BLD_FORGE:
 		case BLD_ARSENAL: case BLD_ELEPHANT_STABLE: case BLD_EMBASSY: case BLD_ARMY_CAMP: case BLD_MERCENARY_CAMP:
-		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA:
+		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_KENNEL: case BLD_ACADEMY:
 			return true;
 		default:
 			return false;
@@ -32035,7 +32061,7 @@ float Simulation::treasure_reach(size_t i) const {
 			const char *slash = std::strrchr(id, '/');
 			const char *name = slash ? slash + 1 : id;
 			if (std::strcmp(name, "ship_scout") == 0) m = 7.0f;
-			else if (std::strcmp(name, "ship_siege") == 0) m = 24.0f;
+			else if (std::strcmp(name, "ship_siege") == 0 || std::strcmp(name, "champion_juggernaut") == 0) m = 24.0f; // juggernaut: template_unit_ship_warship_siege
 		}
 	}
 	return m * 0.6f + 1.0f;

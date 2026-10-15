@@ -41,7 +41,9 @@ func run() -> void:
 		return
 	await frames(4)
 	var b: Button = shown(col)[0] if shown(col).size() == 1 else null
-	check(b != null and b.tooltip_text == r["name"], "one button names it: " + (b.tooltip_text if b else "none"))
+	# getEntityNames: "Specific (Generic)" when the civ has a specific name.
+	check(b != null and (b.tooltip_text == r["name"] or b.tooltip_text.ends_with(" (%s)" % r["name"])), "one button names it: " + (b.tooltip_text if b else "none"))
+	check(b != null and not b.tooltip_text.contains("This item is paused.") and not b.get_child(3).visible, "the front item is not paused")
 	if b:
 		var t0: String = b.get_child(2).text
 		check(t0.length() >= 4 and t0.contains(":"), "with the time left as m:ss: " + t0)
