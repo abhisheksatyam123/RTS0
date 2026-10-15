@@ -62,6 +62,26 @@ uint32_t RtsoMain::transport_under(float x, float z) const {
 	return 0;
 }
 
+void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) const {
+	res = bld = 0;
+	if (!sim) return;
+	float best = 2.0f * 2.0f;
+	auto rv = sim->resources();
+	for (size_t r = 0; r < rv.count; ++r) {
+		if (!rv.alive[r] || rv.amount[r] <= 0) continue;
+		const float dx = rv.x[r] - at.x, dz = rv.z[r] - at.z, d2 = dx * dx + dz * dz;
+		if (d2 < best) { best = d2; res = rv.id[r]; }
+	}
+	if (res) return;
+	const std::vector<uint32_t> mine = selected_structures();
+	float best_b = 1e9f;
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked || std::find(mine.begin(), mine.end(), b.id) != mine.end()) continue;
+		const float dx = b.x - at.x, dz = b.z - at.z, d2 = dx * dx + dz * dz, hit_r = b.half_size + 1.2f;
+		if (d2 <= hit_r * hit_r && d2 < best_b) { best_b = d2; bld = b.id; }
+	}
+}
+
 bool RtsoMain::selection_can_board(uint32_t holder) const {
 	if (!sim || !sim->is_transport(holder)) return false;
 	for (int s = 0; s < selected_ids.size(); ++s)
