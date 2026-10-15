@@ -199,9 +199,12 @@ func _build() -> void:
 	join.visible = not dialog
 	left.add_child(join)
 	join.add_child(_label("Address"))
-	_join_ip = _line("127.0.0.1", 140)
+	# gamesetup_mp.xml: the last address and ports, from multiplayerserver,
+	# multiplayerjoining.port and multiplayerhosting.port.
+	var mp_cfg := RtsoUserConfig.new()
+	_join_ip = _line(mp_cfg.get_value("multiplayerserver"), 140)
 	join.add_child(_join_ip)
-	_join_port = _line("20595", 70)
+	_join_port = _line(str(_valid_port(mp_cfg.get_value("multiplayerjoining.port"))), 70)
 	join.add_child(_join_port)
 	_join_pwd = _line("", 110)
 	_join_pwd.placeholder_text = "Password"
@@ -219,7 +222,7 @@ func _build() -> void:
 	_host_name = _line("", 180)
 	_host_name.placeholder_text = "My game"
 	host.add_child(_host_name)
-	_host_port = _line("20595", 70)
+	_host_port = _line(str(_valid_port(mp_cfg.get_value("multiplayerhosting.port"))), 70)
 	host.add_child(_host_port)
 	_host_pwd = _line("", 110)
 	_host_pwd.placeholder_text = "Password"
@@ -864,6 +867,12 @@ static func multiplayer_name() -> String:
 	return n if not n.is_empty() else "Player"
 
 
+## gamesetup_mp.js getValidPort: the default port for anything outside 1-65535.
+static func _valid_port(text: String) -> int:
+	var p := text.strip_edges().to_int()
+	return p if text.strip_edges().is_valid_int() and p > 0 and p <= 65535 else 20595
+
+
 func _on_host_saved_pressed() -> void:
 	_on_host_pressed(true)
 
@@ -885,7 +894,14 @@ func _on_join_pressed() -> void:
 	var r := _selected_room()
 	var listed := not r.is_empty() and str(r.get("host_ip", "")) == MatchSettings.net_ip \
 			and int(r.get("host_port", 0)) == port
-	LobbySession.join_game(str(r.get("id", "")) if listed and LobbySession.signed_in() else "")
+	var via_lobby := listed and LobbySession.signed_in()
+	if not via_lobby:
+		# gamesetup_mp.js startJoin: a direct join keeps its address and port.
+		var cfg := RtsoUserConfig.new()
+		cfg.set_value("multiplayerserver", MatchSettings.net_ip)
+		cfg.set_value("multiplayerjoining.port", str(port))
+		cfg.save()
+	LobbySession.join_game(str(r.get("id", "")) if via_lobby else "")
 	MatchSettings.go("res://scenes/main.tscn")
 
 
@@ -907,6 +923,10 @@ func _on_host_pressed(saved := false) -> void:
 	MatchSettings.net_port = port
 	MatchSettings.net_password = _host_pwd.text
 	MatchSettings.net_observe = false
+	# gamesetup_mp.js startHost keeps multiplayerhosting.port.
+	var cfg := RtsoUserConfig.new()
+	cfg.set_value("multiplayerhosting.port", str(port))
+	cfg.save()
 	LobbySession.map_upnp(port)
 	if saved:
 		# gamesetup_mp.js handleAuthenticated: the host picks the save (the

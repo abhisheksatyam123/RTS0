@@ -1812,7 +1812,7 @@ static void test_attack_blocked_by_walls() {
 	float bx = 0.0f, bz = 0.0f;
 	const uint32_t to = s->petra_target_obstruction(house, ox, oz, bx, bz);
 	const auto it = s->building_id_to_idx_.find(to);
-	const bool wall = to != house && it != s->building_id_to_idx_.end() && (building_tech_classes(s->buildings_[it->second].type) & TC_WALL).any();
+	const bool wall = to != house && it != s->building_id_to_idx_.end() && is_wall_piece(s->buildings_[it->second].type);
 	std::printf("  %zu wall pieces round a house: the target becomes %s\n", laid, wall ? "a wall piece" : to == house ? "still the house" : "something else");
 	CHECK(laid >= 8, "the wall closes round the house");
 	CHECK(wall, "the wall piece in the way becomes the target (checkTargetObstruction)");
