@@ -1065,6 +1065,15 @@ static void test_ship_treasure() {
 	std::printf("merchant ship shore treasure: food %+.0f\n", s.player(0).food() - food0);
 	CHECK(s.player(0).food() - food0 == 200.0f);
 	CHECK(s.treasures().empty());
+	// The Ptolemaic Juggernaut's parent is template_unit_ship_warship_siege: MaxDistance 24, not 12.
+	const uint32_t siege = s.spawn_unit(-30.0f, -12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("cart/ship_siege"));
+	const uint32_t jugg = s.spawn_unit(-30.0f, -18.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("ptol/champion_juggernaut"));
+	const float r_war = s.treasure_reach((size_t)s.lookup_unit(war));
+	const float r_siege = s.treasure_reach((size_t)s.lookup_unit(siege));
+	const float r_jugg = s.treasure_reach((size_t)s.lookup_unit(jugg));
+	std::printf("ship treasure reach: warship %.2f, siege ship %.2f, juggernaut %.2f\n", r_war, r_siege, r_jugg);
+	CHECK(r_siege > r_war);
+	CHECK(r_jugg == r_siege);
 }
 
 // navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
