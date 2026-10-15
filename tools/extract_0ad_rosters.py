@@ -1667,6 +1667,20 @@ def emit_json(rows, auras, civ_json, bonuses):
     return json.dumps(doc, indent=1, ensure_ascii=False, sort_keys=False) + "\n"
 
 
+def builder_named(loader):
+    """Every structure template some civ's units can build: their 0 A.D. Builder/Entities
+    lists with {civ} and {native} resolved (mixins/builder.xml plus the civs' own extras,
+    such as structures/ptol/library)."""
+    named = set()
+    for civ in CIVS:
+        udir = os.path.join(loader.root, "units", civ)
+        for fn in sorted(os.listdir(udir)):
+            if fn.endswith(".xml"):
+                for tok in loader.load("units/%s/%s" % (civ, fn[:-4])).tokens("Builder/Entities"):
+                    named.add(tok.replace("{civ}", civ).replace("{native}", civ))
+    return named
+
+
 def unique_building_rows(sim_root, generic_masks=None):
     """BuildingTypeInfo rows, civ masks and phases for UNIQUE_BUILDINGS, read
     from each structure's 0 A.D. template the way the generic rows in
@@ -1674,6 +1688,7 @@ def unique_building_rows(sim_root, generic_masks=None):
     Population/Bonus, Capturable, TerritoryDecay; BuildTime x0.25; footprint
     2 cells when wider than 15 m."""
     loader = TemplateLoader(sim_root)
+    named = builder_named(loader)
     out = []
     for enum, stems, model, portrait in UNIQUE_BUILDINGS:
         civs, t, src = [], None, None
@@ -1681,7 +1696,13 @@ def unique_building_rows(sim_root, generic_masks=None):
             for st in stems:
                 name = "structures/%s/%s" % (civ, st)
                 if loader.exists(name):
-                    civs.append(civ)
+                    # A civ has the structure when its Builder lists name it (an Upgrade
+                    # reaches UPGRADE_ONLY ones): 0.28's ptol/mercenary_camp, mace and sele
+                    # libraries, rome/amphitheater_pompeii and temple_mars and germ/totem
+                    # are templates only maps place.
+                    wallset = "structures/%s/%s" % (civ, WALLSET_PHASE.get(enum, ""))
+                    if name in named or wallset in named or enum in UPGRADE_ONLY:
+                        civs.append(civ)
                     if t is None:
                         t, src = loader.load(name), name
                     break

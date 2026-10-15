@@ -185,6 +185,8 @@ public:
 	// (NDR_INCORRECT_SOFTWARE_VERSION).
 	void setSoftwareVersion(const std::string &v) { software_version_ = v; }
 	const std::string &softwareVersion() const { return software_version_; }
+	// Client: the engine version the host's NMT_SERVER_HANDSHAKE named ("" before it came).
+	const std::string &hostSoftwareVersion() const { return host_software_version_; }
 	// Host: 0.28 network.duplicateplayernames. Off, a name already in the game
 	// is refused (NDR_PLAYERNAME_IN_USE); on, the joiner becomes "Name (2)".
 	void setDuplicatePlayerNames(bool on) { duplicate_names_ = on; }
@@ -294,6 +296,7 @@ private:
 	std::string password_;
 	std::function<std::string(const std::string &, const std::string &)> password_hasher_;
 	std::string software_version_ = NET_SOFTWARE_VERSION;
+	std::string host_software_version_;
 	bool duplicate_names_ = false;
 	// Host: close a link with this reason, sent in the disconnect's channel byte.
 	void refuse_with(NetPeer &p, uint8_t reason);

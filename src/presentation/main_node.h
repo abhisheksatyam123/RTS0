@@ -485,6 +485,7 @@ public:
 	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
 	// (AI slots get one from their civ's AINames), else "Player N".
 	String player_display_name(uint8_t pid) const override;
+	bool player_offline(uint8_t pid) const override;
 	bool controls_player(uint8_t pid) const override {
 		return pid < rtso::MAX_PLAYERS && !turn_mgr_.is_replaying() && !spectating() && pid == seat_player();
 	}
@@ -498,6 +499,8 @@ public:
 	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
 	String chat_user(const String &sender_guid) override;
+	// network.js getMismatchMessage("engine", ...) when the host's version is known.
+	String mismatch_detail() const;
 	// NMT_CHAT (the chat commands are chat_network_command).
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
