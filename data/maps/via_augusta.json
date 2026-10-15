@@ -14821,6 +14821,18 @@
       "length": 2.75,
       "no_decay": true,
       "template": "structures/palisades_spikes_small"
+    },
+    {
+      "type": "outpost",
+      "template": "structures/gaul/outpost",
+      "x": -98.39,
+      "z": -53.66
+    },
+    {
+      "type": "outpost",
+      "template": "structures/gaul/outpost",
+      "x": -96.85,
+      "z": -57.88
     }
   ],
   "gaia_units": [

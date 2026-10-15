@@ -1087,10 +1087,8 @@ Ref<PackedScene> ModelLibrary::borrow_clips(Node *inst, const String &donor) {
 	return ps;
 }
 
-ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id) {
-	String key = category + String("/") + id;
-	Entry e;
-
+// The GLBs load() tries for a model id, in order.
+Vector<String> ModelLibrary::candidate_paths(const String &category, const String &id) {
 	Vector<String> candidates;
 	if (category == "units") {
 		// Civ class models whose 0.28 actor was extracted under another name (pass-3 audit):
@@ -1101,6 +1099,8 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 			{"han_female_citizen", "units/han_villager_female"},
 			{"han_cavalry", "units/han_cavalry_spearman"},
 			{"han_fishing_boat", "buildings/han_fishing_ship"},
+			// The Athenian stone thrower is the Hellenic lithobolos_med 0.28 shares with mace and sele.
+			{"athen_catapult", "units/mace_catapult"},
 		};
 		for (const auto &a : kAliases) {
 			if (id == a[0]) candidates.push_back(String("res://assets/models/") + a[1] + String(".glb"));
@@ -1147,11 +1147,51 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 			candidates.push_back("res://assets/models/buildings/foundation_small.glb");
 		}
 	}
+	return candidates;
+}
+
+HashMap<String, bool> &ModelLibrary::threaded_paths() {
+	static auto &m = *new HashMap<String, bool>();
+	return m;
+}
+
+// ResourceLoader's threaded load reads the GLB and the textures it names on a
+// worker; load() then takes it with load_threaded_get instead of reading it on
+// the frame that first draws the model.
+void ModelLibrary::prefetch(const String &category, const String &id) {
+	if (cache().has(category + String("/") + id)) return;
+	const Vector<String> candidates = candidate_paths(category, id);
+	for (int i = 0; i < candidates.size(); ++i) {
+		const String &path = candidates[i];
+		if (!ResourceLoader::get_singleton()->exists(path)) continue;
+		if (!threaded_paths().has(path) && !ResourceLoader::get_singleton()->has_cached(path) &&
+				ResourceLoader::get_singleton()->load_threaded_request(path) == OK)
+			threaded_paths().insert(path, true);
+		break;
+	}
+	// A template model borrows its class model's scale and, without clips, a donor's.
+	if (category == "units") {
+		if (const rtso::UnitTemplateModel *tm = rtso::find_unit_template_model(id.utf8().get_data())) {
+			if (tm->class_model) prefetch(category, String(tm->class_model));
+			if (tm->clip_donor) prefetch(category, String(tm->clip_donor));
+		}
+	}
+}
+
+ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id) {
+	String key = category + String("/") + id;
+	Entry e;
+	const Vector<String> candidates = candidate_paths(category, id);
 
 	for (int i = 0; i < candidates.size(); ++i) {
 		const String &path = candidates[i];
 		if (ResourceLoader::get_singleton()->exists(path)) {
-			Ref<PackedScene> ps = ResourceLoader::get_singleton()->load(path);
+			Ref<PackedScene> ps;
+			if (threaded_paths().has(path)) {
+				threaded_paths().erase(path);
+				ps = ResourceLoader::get_singleton()->load_threaded_get(path);
+			}
+			if (ps.is_null()) ps = ResourceLoader::get_singleton()->load(path);
 			if (ps.is_valid()) {
 				Node *inst = ps->instantiate();
 				if (inst) {
@@ -1238,6 +1278,8 @@ const ModelLibrary::Entry &ModelLibrary::get(const String &category, const Strin
 }
 
 void ModelLibrary::clear() {
+	for (const KeyValue<String, bool> &kv : threaded_paths()) ResourceLoader::get_singleton()->load_threaded_get(kv.key);
+	threaded_paths().clear();
 	cache().clear();
 	player_color_mats().clear();
 }

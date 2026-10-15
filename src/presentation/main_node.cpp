@@ -2423,7 +2423,9 @@ void RtsoMain::_start_menu_net() {
 	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
-	if (lobby_panel) lobby_panel->set_visible(true);
+	// A joiner sees the Connecting box, then the setup page; the developer
+	// lobby panel stays behind its button.
+	if (lobby_panel) lobby_panel->set_visible(mode == "host");
 	if (lobby_btn) lobby_btn->set_visible(true);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
@@ -2968,6 +2970,40 @@ void RtsoMain::update_net_setup_overlay() {
 	const bool shown = net_setup_overlay_ != nullptr;
 	if (lobby_seats) lobby_seats->set_visible(!shown);
 	if (lobby_start_btn_) lobby_start_btn_->set_visible(!shown);
+}
+
+void RtsoMain::update_net_connect_overlay() {
+	const bool client = net_host_.getRole() == rtso::NetRole::Client;
+	const bool want = client && !net_game_started_ && !net_disconnected_ && !net_host_.connectionLost() &&
+			(net_host_.authResult() < 0 || turn_mgr_.rejoin_syncing());
+	if (want && !net_connect_overlay_) {
+		Ref<Script> script = ResourceLoader::get_singleton()->load("res://scenes/menu/net_connecting.gd");
+		if (script.is_null()) return;
+		Control *page = memnew(Control);
+		page->set_script(script);
+		page->set("net_main", this);
+		net_connect_layer_ = memnew(CanvasLayer);
+		net_connect_layer_->set_layer(21); // over the setup page (20)
+		add_child(net_connect_layer_);
+		net_connect_layer_->add_child(page);
+		net_connect_overlay_ = page;
+	} else if (!want && net_connect_overlay_) {
+		net_connect_layer_->queue_free();
+		net_connect_layer_ = nullptr;
+		net_connect_overlay_ = nullptr;
+	}
+	if (!net_connect_overlay_) return;
+	// gamesetup_mp.js: "Connecting to server..." until the host's handshake,
+	// "Registering with server..." until it lets us in; a rejoin then loads
+	// the running game (handleAuthenticated).
+	const uint8_t why = turn_mgr_.rejoin_reject_reason();
+	const char *text = why == 6 ? "This game does not let observers join after it started."
+			: why == 7 ? "This game is full: it has as many observers as it allows."
+			: why == 3 || why == 4 || why == 5 ? "Could not load the host's game."
+			: turn_mgr_.rejoin_syncing() ? "Game has already started, rejoining..."
+			: net_host_.hostSoftwareVersion().empty() ? "Connecting to server..."
+			: "Registering with server...";
+	if (String(net_connect_overlay_->get("text")) != text) net_connect_overlay_->set("text", String(text));
 }
 
 // Game Setup's Back in a networked game: leave it for the lobby.
