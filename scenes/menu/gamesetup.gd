@@ -1931,6 +1931,17 @@ func _build_net_controls() -> void:
 	_wait_label.visible = _mp_role == "client"
 	_ready_btn.visible = _mp_role == "client"
 	start.visible = _mp_role == "host"
+	# 0.28 LobbyButton: with a lobby connection, the lobby opens as a dialog.
+	var lobby_btn := Button.new()
+	lobby_btn.name = "LobbyButton"
+	lobby_btn.text = "Lobby"
+	lobby_btn.tooltip_text = "Show the multiplayer lobby in a dialog window."
+	lobby_btn.visible = LobbySession.signed_in()
+	lobby_btn.pressed.connect(open_lobby_dialog)
+	$VBox/Header.add_child(lobby_btn)
+	$VBox/Header.move_child(lobby_btn, $VBox/Header/BtnBack.get_index())
+	lobby_btn.owner = self
+	lobby_btn.unique_name_in_owner = true
 	# 0.28 Rating.js "Rated Game" and Cheats.js, which the host sets in a
 	# networked game (off by default) unless the game is rated.
 	var cheats: CheckBox = %Cheats
@@ -1947,6 +1958,21 @@ func _build_net_controls() -> void:
 	_rated.owner = self
 	_rated.unique_name_in_owner = true
 	_update_rated()
+
+## Engine.OpenChildPage("page_lobby.xml", {"dialog": true}): the lobby over
+## the setup on its own layer; it frees itself on Back.
+func open_lobby_dialog() -> Node:
+	if not LobbySession.signed_in():
+		return null
+	var layer := CanvasLayer.new()
+	layer.name = "LobbyDialog"
+	layer.layer = 40
+	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
+	lobby.dialog = true
+	lobby.closed.connect(layer.queue_free)
+	layer.add_child(lobby)
+	get_tree().root.add_child(layer)
+	return lobby
 
 ## 0.28 Panels/Chat/ChatPanel: the chat under the player slots, where single
 ## player shows its tips. The input goes through RtsoMain's chat send, so

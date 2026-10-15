@@ -667,7 +667,7 @@ void RtsoMain::_ready() {
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
 	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
-	dev_overlay_.build(ui_layer, this, "_on_dev_command");
+	dev_overlay_.build(ui_layer, this, "_on_dev_command", "_on_render_debug_mode");
 	control_groups_.build(ui_layer, this, "_on_control_group_gui_input");
 	rtso::strip_engine_popups(ui_layer);
 
@@ -1136,6 +1136,8 @@ void RtsoMain::_process(double delta) {
 	show_session_notices(sim->take_session_notices());
 	show_trigger_dialogs(sim->take_trigger_dialogs());
 	update_cursor();
+	// input.js INPUT_BATCHTRAINING: releasing session.batchtrain posts the batch.
+	if (batch_training_.active && !rtso::hotkeys::held("session.batchtrain")) flush_training_batch();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
@@ -1326,7 +1328,23 @@ void RtsoMain::_process(double delta) {
 				const auto placed = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle);
 				const bool can_build = placed == rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
-				set_placement_tip(can_build ? String() : placement_failure_text(placed, (uint8_t)current_build_type, gx, gz), true);
+				String range_tip;
+				if (can_build) {
+					// input.js updateBuildingPlacementPreview: a structure with a Ranged attack shows
+					// its basic range and the average bonus the terrain gives it there.
+					const float range = sim->structure_arrow_range(local_player(), (uint8_t)current_build_type);
+					if (range > 0.0f) {
+						constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+						const float origin = rtso::civ_building_ai_info(sim->team_civ(local_player()), (uint8_t)current_build_type).origin_y;
+						const int64_t basic = (int64_t)std::lround(range * kM);
+						const int64_t bonus = (int64_t)std::lround((sim->average_elevation_range(gx, gz, range, origin) - range) * kM);
+						range_tip = rtso::sprintf0(rtso::tr0(basic == 1 ? "Basic range: %(range)s meter" : "Basic range: %(range)s meters"),
+											{{"range", String::num_int64(basic)}}) + "\n" +
+								rtso::sprintf0(rtso::tr0(bonus == 1 || bonus == -1 ? "Average bonus range: %(range)s meter" : "Average bonus range: %(range)s meters"),
+										{{"range", String::num_int64(bonus)}});
+					}
+				}
+				set_placement_tip(can_build ? range_tip : placement_failure_text(placed, (uint8_t)current_build_type, gx, gz), !can_build);
 			}
 		}
 	} else {
@@ -1342,7 +1360,7 @@ void RtsoMain::_process(double delta) {
 	rtso::update_rally_marker(rally_flag, sim, selected_building_id, local_player());
 	range_overlays_.tick((float)delta);
 	range_overlays_.update(sim, local_player(), selected_building_id, selected_ids.ptr(), selected_ids.size());
-	debug_overlays_.update(sim);
+	debug_overlays_.update(sim, view);
 
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {
 		summary_shown_ = true;

@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <atomic>
+#include <thread>
 
 namespace rtso {
 
@@ -116,6 +118,19 @@ public:
 	// it has an authoritative setup to hand a late joiner. NetHost never parses
 	// the attributes itself (TurnManager owns the payload) but records the id.
 	void note_game_start_sent() { game_start_sent_ = true; }
+	// 0.28 polls ENet on its own thread "to avoid getting timeouts if the main
+	// thread hangs" (NetSession.h). RTS0 polls in _process, so a step that
+	// blocks it, the map load at Start, keeps its peers from timing it out by
+	// sending heartbeats from a thread meanwhile. KeepAlive scopes that.
+	void begin_keepalive();
+	void end_keepalive();
+	struct KeepAlive {
+		NetHost &host;
+		explicit KeepAlive(NetHost &h) : host(h) { host.begin_keepalive(); }
+		~KeepAlive() { host.end_keepalive(); }
+		KeepAlive(const KeepAlive &) = delete;
+		KeepAlive &operator=(const KeepAlive &) = delete;
+	};
 	bool game_start_sent() const { return game_start_sent_; }
 	void sendHandshake();
 	void sendAuthenticate(const std::string &name, const std::string &password = "");
@@ -322,6 +337,8 @@ private:
 	// True after this host sent NMT_GAME_START, so a late joiner is only answered
 	// with an authoritative setup. Cleared by startHost/startClient/stop.
 	bool game_start_sent_ = false;
+	std::thread keepalive_;
+	std::atomic<bool> keepalive_stop_{false};
 };
 
 } // namespace rtso

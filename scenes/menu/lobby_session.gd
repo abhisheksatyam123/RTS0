@@ -6,6 +6,9 @@ extends Node
 # (unregisterGame). The lobby screen signs in through here; tools/lobby_server.py
 # is the server.
 
+## 0 A.D. KickStrings Local: a moderator kicked or banned us, with the reason.
+signal kicked(text: String)
+
 const HEARTBEAT_S := 10.0
 const REPORT_CHECK_S := 1.0
 const NAT_TICK_S := 0.25
@@ -125,10 +128,18 @@ func _send(path: String, method: int, body: String, cb: Callable) -> void:
 	var req := HTTPRequest.new()
 	req.timeout = REQUEST_TIMEOUT_S
 	add_child(req)
+	# Only an answer to a request made with our own token can say we were kicked.
+	var sent_token := token if token != "" and (body.contains(token) or path.contains(token)) else ""
 	req.request_completed.connect(func(result: int, code: int, _headers: PackedStringArray, data: PackedByteArray) -> void:
 		req.queue_free()
 		var ok := result == HTTPRequest.RESULT_SUCCESS
 		var obj = JSON.parse_string(data.get_string_from_utf8()) if ok else null
+		if ok and code == 401 and obj is Dictionary and obj.has("kicked") and sent_token != "" and sent_token == token:
+			token = ""
+			room = {}
+			join_room = ""
+			moderator = false
+			kicked.emit(str(obj["kicked"]))
 		if cb.is_valid():
 			cb.call(code if ok else 0, obj))
 	var headers := PackedStringArray(["Content-Type: application/json"])
@@ -336,6 +347,8 @@ func _match_node() -> Node:
 ## 0.28 lobby /away and /back: the presence chosen in the lobby, kept by every
 ## heartbeat until a match makes it "playing".
 var away := false
+## The lobby lists us as a moderator (0 A.D. LobbyGetPlayerRole "moderator").
+var moderator := false
 
 func _beat() -> void:
 	if token == "":
@@ -413,6 +426,12 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 		if kind == 1:
 			p["ai_difficulty"] = int(at.call("slot_diffs", i, ms.get("ai_difficulty")))
 			p["ai_behavior"] = int(at.call("slot_behs", i, ms.get("ai_behavior")))
+		# LobbyGamelistReporter getPlayers: State (won, defeated) and Offline.
+		var seat: Dictionary = slots[i] if i < slots.size() else {}
+		if str(seat.get("state", "")) != "":
+			p["state"] = str(seat["state"])
+		if kind == 0 and seat.get("offline", false):
+			p["offline"] = true
 		players.append(p)
 	for o in net.get("observers", []):
 		players.append({"name": str(o.get("name", "")), "team": -1, "observer": true})
@@ -492,6 +511,11 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 			parts.append(summary.ai_description(p))
 		else:
 			who = rated_name(name, ratings.get(name))
+			# formatPlayerInfo: "%(playerName)s (OFFLINE, %(state)s)", no civ.
+			if p.get("offline", false):
+				parts = ["OFFLINE"]
+		if str(p.get("state", "")) in ["won", "defeated"]:
+			parts.append(str(p["state"]))
 		var t := int(p.get("team", -1))
 		if not teams.has(t):
 			teams[t] = PackedStringArray()

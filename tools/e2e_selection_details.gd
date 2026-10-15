@@ -47,11 +47,16 @@ func run() -> void:
 	check(not String(u["title"]).begins_with("Advanced ") and not String(u["title"]).begins_with("Elite "), "the rank moves from the name to the glyph")
 	check(Array(u["statuses"]).is_empty(), "an unhurt unit shows no status icons")
 	check(String(u["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/units/"), "the portrait is the unit template's 0.28 icon")
+	check(String(u["rank_icon"]).ends_with("/ranks/Basic.png") and String(u["rank_tooltip"]) == "Basic Rank", "a Basic soldier's rank icon reads \"Basic Rank\"")
 	check(Color(u["owner_color"]).a > 0.4 and Color(u["owner_color"]).a < 0.6, "the owner row sits on the player colour at half alpha")
 	check(" — " in String(u["owner_tooltip"]) and String(u["owner_tooltip"]).ends_with("Phase"), "its tooltip names the civ and, for the viewer, the phase")
 	check(String(u["owner_phase"]).begins_with("res://assets/textures/ui/archive/panel_phase_emblems_") and not String(u["owner_phase"]).ends_with("hidden.png"), "the viewer's own phase emblems show")
 	check(not " (" in String(u["owner"]), "the row names the player, the civ moves to the tooltip")
 
+	var elite: PackedInt32Array = main.debug_spawn_units("spart/champion_infantry_swordsman", 1)
+	await frames(2)
+	var e: Dictionary = main.debug_inspector(str(elite[0]))
+	check(String(e["rank_icon"]).ends_with("/ranks/Elite.png") and String(e["rank_tooltip"]).begins_with("Elite Rank\nElite units +20% training time"), "an Elite champion's rank icon gives the unit_elite bonus")
 	var m: Dictionary = main.debug_inspector("multi")
 	print("multi: ", m)
 	check(String(m["title_tooltip"]).begins_with("Garrison Size: "), "a group's tooltip gives its garrison size")
@@ -67,6 +72,8 @@ func run() -> void:
 	check(String(b["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/structures/"), "a Civic Center shows its template's 0.28 icon")
 	check(String(b["portrait_tooltip"]).ends_with("Left-click to focus. Right-click for more information.") and "Territory root." in String(b["portrait_tooltip"]), "its portrait tooltip gives the template tooltip and the focus click")
 	check(String(b["rank_icon"]) == "", "a structure has no rank glyph")
+	var parts: Array = b["capture_parts"]
+	check(parts.size() == 1 and float(parts[0]["width"]) > 300.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")
 
 	var r: Dictionary = main.debug_inspector("resource")
 	print("resource: ", r)

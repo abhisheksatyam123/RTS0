@@ -1755,6 +1755,32 @@ static void test_siege_prefers_any_gate() {
 	CHECK(on == gate, "a palisade gate draws a wall-breaker first (Gate class +10000)");
 }
 
+// attackPlan.js "Raid": FastMoving minSize 3 and targetSize 4 vary like any plan's (x0.8-1.2,
+// x0.2 below Easy), and each plan made counts toward the next one's name (totalNumber).
+static void test_raid_sizes_vary() {
+	for (uint8_t d : {(uint8_t)PETRA_VERY_EASY, (uint8_t)PETRA_MEDIUM}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		s->set_petra_difficulty(d);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f); // an enemy structure in Petra's land
+		const uint8_t made = s->petra_attack_mgr_.plans_made;
+		for (int k = 0; k < 20 && s->petra_raid_plan_.state != Simulation::AttackPlan::MUSTER; ++k) run_for(*s, 1.0f);
+		const auto &m = s->petra_attack_mgr_;
+		std::printf("  raid at difficulty %d: target %d, min %d, plans made %d\n", (int)d, (int)m.raid_target, (int)m.raid_min, (int)m.plans_made);
+		CHECK(s->petra_raid_plan_.state == Simulation::AttackPlan::MUSTER, "an enemy structure in Petra's land starts a raid");
+		if (d == PETRA_MEDIUM) CHECK(m.raid_target >= 4 && m.raid_target <= 5 && m.raid_min == 3, "a Medium raid wants 4-5 riders, 3 at least");
+		else CHECK(m.raid_target == 1 && m.raid_min == 1, "a Very Easy raid wants one rider");
+		CHECK(m.plans_made > made, "the raid counts as a plan made (totalNumber)");
+	}
+}
+
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
 // and leave the plan; those of a started attack are held back.
 static void test_mustering_units_defend() {
@@ -4394,6 +4420,7 @@ int main(int argc, char **argv) {
 	RUN(test_army_answers_attackers);
 	RUN(test_attack_targets_target_player);
 	RUN(test_siege_prefers_any_gate);
+	RUN(test_raid_sizes_vary);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_relic_capture);
