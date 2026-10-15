@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scenes/menu/main_menu.gd" id="1_script"]
 [ext_resource type="Theme" path="res://assets/themes/zeroad_theme.tres" id="2_theme"]
@@ -6,8 +6,6 @@
 [ext_resource type="Texture2D" path="res://assets/textures/ui/pregame/logo/wfg_logo_white.png" id="4_wfg"]
 [ext_resource type="Texture2D" path="res://assets/textures/ui/global/stone_background.png" id="5_stone"]
 [ext_resource type="Texture2D" path="res://assets/textures/ui/pregame/menu_panel_background_shading.png" id="6_shading"]
-[ext_resource type="AudioStream" path="res://assets/music/honor_bound.ogg" id="7_music"]
-[ext_resource type="AudioStream" path="res://assets/sounds/ui/ui_button_click.ogg" id="8_sfx"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel_border"]
 bg_color = Color(0.1, 0.1, 0.12, 0.35)
@@ -274,11 +272,3 @@ theme_override_colors/font_color = Color(0.8, 0.75, 0.65, 0.9)
 theme_override_font_sizes/font_size = 11
 text = "CIVILIZATION: HELLENES"
 horizontal_alignment = 2
-
-[node name="MusicPlayer" type="AudioStreamPlayer" parent="."]
-stream = ExtResource("7_music")
-volume_db = -6.0
-
-[node name="ClickSFX" type="AudioStreamPlayer" parent="."]
-stream = ExtResource("8_sfx")
-volume_db = -2.0
