@@ -1295,7 +1295,16 @@ static void test_petra_no_units() {
 	s->triggers_.disabled_buildings[1] |= bld_bit(BLD_TOWN_CENTER);
 	for (int k = 0; k < 8; ++k) s->spawn_unit(x + (float)k, z + 3.0f, 1, UNIT_SPEARMAN);
 	for (int k = 0; k < 8; ++k) s->spawn_unit(x + (float)k, z + 5.0f, 1, UNIT_ARCHER);
-	run_for(*s, 30.0f);
+	// The enemy stands close: a defense army takes some at once, and army.clear walks those it
+	// releases to the ally's land (none of ours), where they wait like any unit with no plan.
+	std::vector<uint32_t> defended;
+	for (int t = 0; t < 60; ++t) {
+		run_for(*s, 0.5f);
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->petra_is_defender(s->units_.id[i]) &&
+			    std::find(defended.begin(), defended.end(), s->units_.id[i]) == defended.end())
+				defended.push_back(s->units_.id[i]);
+	}
 	const PetraKept &kept = s->petra_kept_;
 	int alive = 0, support = 0, in_attack = 0, allied_in_attack = 0, allied_soldiers = 0, defending = 0, idle = 0;
 	bool cc = false;
@@ -1308,7 +1317,9 @@ static void test_petra_no_units() {
 		allied_soldiers += allied && !petra_is_support_unit(s->units_.unit_type[i]);
 		if (s->petra_in_attack_squad(id)) { ++in_attack; allied_in_attack += allied; }
 		else if (!allied && s->petra_is_defender(id)) ++defending; // a defense army's: plan -2, not available
-		else if (!allied && s->units_.order_kind[i] == ORDER_NONE && s->units_.action_state[i] == ACTION_IDLE) ++idle;
+		else if (!allied && s->units_.order_kind[i] == ORDER_NONE && s->units_.action_state[i] == ACTION_IDLE &&
+		         std::find(defended.begin(), defended.end(), id) == defended.end())
+			++idle;
 	}
 	for (const auto &b : s->buildings_) cc |= b.team == 1 && b.hp > 0.0f && is_civic_centre(b.type);
 	std::printf("  no units to build: canBuildUnits %s, %zu sent to the ally (%d soldiers, %d support units of ours), "
@@ -1319,7 +1330,7 @@ static void test_petra_no_units() {
 	CHECK(!cc, "and no first base");
 	CHECK(allied_soldiers == 5 && (int)kept.allied.size() == 5 + support, "5 soldiers and every support unit guard the ally");
 	CHECK(allied_in_attack == 0 && idle == 0 && 2 * in_attack > alive - (int)kept.allied.size(),
-	      "an attack takes the other units at once, and none stands idle");
+	      "an attack takes the other units at once, and none but released defenders stands idle");
 	run_for(*s, 60.0f);
 	std::printf("  then %zu attack(s) under way\n", s->petra_started_attacks_.size());
 	CHECK(!s->petra_started_attacks_.empty(), "and sets off");
