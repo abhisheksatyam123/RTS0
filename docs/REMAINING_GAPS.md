@@ -57,7 +57,7 @@ Combat, loot, territory, garrison, capture, rally points, trade and camps agains
 | P5 | Unloading with a "garrison back in here" rally still runs the Shift-added rally steps; 0.28 skips all of them | low | Fixed |
 | P6 | No trade-route waypoints (0.28 SetupTradeRoute route, reversed on the way back) | low | Open (A for trade) |
 | P7 | A gatherer far from its exhausted patch with nothing near goes to a dropsite; 0.28 walks back to where it started and searches again first (UnitAI.js:2640) | low | Open |
-| P8 | Allied builders go idle when your building finishes; 0.28 sends them ConstructionFinished too, so they move on to their own nearby foundations | low | Open |
+| P8 | Allied builders go idle when your building finishes; 0.28 sends them ConstructionFinished too, so they move on to their own nearby foundations | low | Fixed |
 | P9 | A passive siege engine never flees when hit; 0.28 needs only that it can move | low | Fixed |
 | P10 | Splash, death damage and melee splash never hit animals; 0.28 queries enemies, Gaia included | low | Open |
 | P11 | Damage to animals ignores attack auras (0.28 builds one damage for every target) | low | Open |
