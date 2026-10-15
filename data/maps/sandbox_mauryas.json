@@ -4439,93 +4439,102 @@
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": 36.66,
       "z": -24.88,
       "wallset": "stone",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "maur/wall_long"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": 32.74,
       "z": -29.01,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "maur/wall_tower"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": 40.55,
       "z": -21.22,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "maur/wall_tower"
     },
     {
       "type": "gate",
-      "player": 1,
       "x": 28.96,
       "z": -32.79,
       "wallset": "stone",
       "piece": "gate",
       "angle": 2.3562,
-      "length": 9.0
+      "length": 9.0,
+      "player": 1,
+      "template": "maur/wall_gate"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": 25.2,
       "z": -36.4,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "maur/wall_tower"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": 22.39,
       "z": -39.27,
       "wallset": "stone",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "maur/wall_medium"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": 19.56,
       "z": -42.02,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "maur/wall_tower"
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": 17.81,
       "z": -43.63,
       "wallset": "stone",
       "piece": "wall",
       "angle": 2.3562,
-      "length": 3.0
+      "length": 3.0,
+      "player": 1,
+      "template": "maur/wall_short"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": 16.06,
       "z": -45.07,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.3562,
-      "length": 1.75
+      "length": 1.75,
+      "player": 1,
+      "template": "maur/wall_tower"
     }
   ],
   "units": [

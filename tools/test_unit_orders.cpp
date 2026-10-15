@@ -1040,8 +1040,11 @@ static void test_alert() {
 	s.order_gather(w, 3, tree);
 	uint32_t far_w = s.spawn_unit(40, 0, 0, UNIT_FEMALE_CITIZEN);
 	uint32_t sp = s.spawn_unit(2, 4, 0, UNIT_SPEARMAN);
+	// AlertRaiser/List "Civilian": a legacy Female Citizen (no Civilian class) stays put.
+	uint32_t legacy = s.spawn_unit(2, 5, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_unit_template_by_id("athen/support_female_citizen"));
 	run(s, 3.0f);
 	check(s.cmd_raise_alert(0, store), "a storehouse raises the alert");
+	check(s.unit_order(legacy).kind != ORDER_GARRISON, "a legacy Female Citizen ignores it");
 	check(!s.cmd_raise_alert(0, house) && !s.cmd_raise_alert(1, store), "a house can't, nor can an enemy");
 	check(s.unit_order(w[0]).kind == ORDER_GARRISON && s.unit_order(far_w).kind == ORDER_NONE &&
 			s.unit_order(sp).kind == ORDER_NONE, "nearby women head for shelter, the far one and soldiers don't");
@@ -1086,9 +1089,15 @@ static void test_queue_edges() {
 	s.order_walk(&w, 1, 10, 0);
 	s.order_gather(&w, 1, t1, true);
 	s.order_walk(&w, 1, -10, 0, true);
-	const bool found = run_until(s, 30.0f, [&] { return s.unit_order(w).kind == ORDER_GATHER; });
-	check(found && s.unit_order(w).target == t2, "the gather goes to the tree next to the one that was cut");
-	check(s.unit_order_queue(w) && s.unit_order_queue(w)->size() == 1, "the walk after it still waits");
+	// Order.Gather on a supply it can't gather -> FINDINGNEWTARGET, whose first step is "give up
+	// on this order and try our next queued order" (FinishOrder): the walk after it.
+	bool gathered_t2 = false;
+	const bool walking = run_until(s, 30.0f, [&] {
+		gathered_t2 |= s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == t2;
+		return s.unit_order(w).kind == ORDER_WALK && s.unit_order(w).x < 0.0f;
+	});
+	check(walking && !gathered_t2, "the gather of the cut tree is skipped for the walk after it");
+	check(!s.unit_order_queue(w) || s.unit_order_queue(w)->empty(), "nothing left queued");
 
 	uint32_t a = s.spawn_unit(0, 5, 0, UNIT_SPEARMAN);
 	const uint32_t house = s.spawn_building_world(20, -20, BLD_HOUSE, 0, 1.0f);

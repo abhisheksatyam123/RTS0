@@ -56,6 +56,17 @@ func run() -> void:
 	await frames(4)
 	var pos: Vector2 = main.debug_ground_at(main.debug_unit_screen(man))
 
+	print("0. AttackDetection: livestock is low priority, a later attack near it alerts again")
+	var sheep := int(main.debug_spawn_fauna(2, 1, true)[0]) # FAUNA_SHEEP, by the civic centre
+	await frames(2)
+	var n0: int = main.debug_chat_overlay().size()
+	main.debug_attacked(sheep, 1)
+	await frames(2)
+	check(main.debug_chat_overlay().size() == n0 + 1 and str(last_line().get("text", "")).contains("Your livestock has been attacked by"), "the sheep: the livestock line")
+	main.debug_attacked(man, 1)
+	await frames(2)
+	check(main.debug_chat_overlay().size() == n0 + 2 and str(last_line().get("text", "")).contains("You have been attacked by"), "the spearman near it: a new alert (priority raised)")
+
 	print("1. The attack line")
 	main.notify_attack(Vector3(pos.x, 0, pos.y), 2, false, man)
 	await frames(4)
@@ -74,6 +85,17 @@ func run() -> void:
 	await click(l["node"])
 	var cam: Dictionary = main.debug_camera()
 	check(int(cam["follow"]) == 0 and (cam["target"] as Vector2).distance_to(pos + Vector2(40, 40)) < 1.0, "the camera moves to the attacked spot: " + str(cam))
+
+	print("3. AttackDetection: every hit entity pings the minimap, alerted or suppressed")
+	var before: int = main.debug_minimap_panel()["pings"]
+	var first := int(main.debug_spawn_units("athen/infantry_spearman_b", 1)[0]) # not pinged yet
+	await frames(2)
+	main.debug_attacked(first, 1)
+	var other := int(main.debug_spawn_units("athen/infantry_spearman_b", 1)[0])
+	await frames(2)
+	main.debug_attacked(other, 1) # same spot, suppressed: no new line, still a ping
+	await frames(2)
+	check(int(main.debug_minimap_panel()["pings"]) >= before + 2, "both hit units ping the minimap: %d" % int(main.debug_minimap_panel()["pings"]))
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

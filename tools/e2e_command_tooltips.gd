@@ -6,6 +6,9 @@ extends SceneTree
 #   2. Training: names, classes, Identity tooltip, cost and the right-click line; a right
 #      click on a row opens the viewer for the unit;
 #   3. Research: the right-click line.
+#   4. Styles (session/setup.xml): the panel buttons use sessionToolTipBottom, the box's
+#      bottom left at the cursor less 4 px; the command row sessionToolTipBottomBold; all
+#      on BackgroundSessionTooltip (dark brown with a gold border).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_command_tooltips.gd
 # Exit code 0 = pass.
@@ -94,6 +97,22 @@ func run() -> void:
 		check(cc != null and cc.tooltip_text.contains("Dropsite for:") and cc.tooltip_text.contains("Garrison Limit"),
 				"the Civic Center's dropsite and garrison lines")
 		check(cc != null and cc.tooltip_text.contains("Current Count:"), "and its EntityLimits line")
+		var temple: Button = null
+		for b in buttons(main, []):
+			if b.tooltip_text.contains("\nMedical Treatment: "):
+				temple = b
+		check(temple != null and temple.tooltip_text.contains("Humans +1 health regeneration rate. Range: 40 meters"),
+				"a temple's aura line (getAurasTooltip)")
+		# getEntityCostTooltip for a wallset: the pieces' range and the tower's cost.
+		var pal: Button = null
+		for b in buttons(main, []):
+			if b.tooltip_text.contains("\nWalls:  "):
+				pal = b
+				break
+		if pal:
+			print(pal.tooltip_text)
+		check(pal != null and RegEx.create_from_string("\nWalls:  .*\\d+ to .*\\d+.*\nTowers:  ").search(pal.tooltip_text) != null
+				and not pal.tooltip_text.contains("\nCost:"), "a wallset: Walls N to M, Towers, no Cost line")
 		var before := viewers()
 		await right_click(house)
 		check(viewers() == before + 1, "a right click opens the Template Viewer")
@@ -122,6 +141,39 @@ func run() -> void:
 			tech = b
 			break
 	check(tech != null, "a research button carries the right-click line")
+
+	print("4. Styles")
+	var tips: Node = root.get_node("Tooltips")
+	if tech:
+		check(tips._reference_style(tech).get("bottom", false) and not tips._reference_style(tech).get("bold", false),
+				"a research button uses sessionToolTipBottom")
+		var at: Vector2 = tech.get_global_rect().get_center()
+		var ev := InputEventMouseMotion.new()
+		ev.position = root.get_final_transform() * at
+		ev.global_position = ev.position
+		Input.parse_input_event(ev)
+		Input.flush_buffered_events()
+		await frames(8)
+		var st: Dictionary = tips.shown_style()
+		var r: Rect2 = st.get("rect", Rect2())
+		print("  tooltip at ", r, " cursor ", at)
+		check(tips.shown_text() != "" and st.get("bottom", false), "it shows, bottom-anchored")
+		check(absf(r.end.y - (at.y - 4.0)) < 1.5 or r.position.y <= 4.5, "its bottom edge sits 4 px above the cursor")
+		check(absf(r.position.x - (at.x - 4.0)) < 1.5 or r.end.x >= root.get_visible_rect().size.x - 4.5,
+				"its left edge 4 px left of the cursor")
+		check(st.get("bg", Color()).is_equal_approx(Color(30 / 255.0, 20 / 255.0, 10 / 255.0)), "on the dark brown session box")
+	var cmd: Button = null
+	for b in buttons(main, []):
+		if b.has_meta("tooltip_style") and b.get_meta("tooltip_style") == "session_bottom_bold":
+			cmd = b
+			break
+	if cmd == null:
+		for b in buttons(main, []):
+			if b.get_parent().has_meta("tooltip_style") and b.get_parent().get_meta("tooltip_style") == "session_bottom_bold":
+				cmd = b
+				break
+	check(cmd != null and tips._reference_style(cmd).get("bold", false) and tips._reference_style(cmd).get("bottom", false),
+			"a command or formation button uses sessionToolTipBottomBold")
 
 	print("PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

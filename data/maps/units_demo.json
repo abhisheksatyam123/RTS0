@@ -16636,7 +16636,7 @@
     },
     {
       "type": "wall_segment",
-      "x": -230.39999999999998,
+      "x": -230.4,
       "z": -175.12,
       "wallset": "stone",
       "piece": "wall",
@@ -19211,6 +19211,7 @@
       "piece": "tower",
       "angle": 0.0,
       "length": 2.0,
+      "no_capture": true,
       "player": 1,
       "template": "palisades_fort"
     },
@@ -19248,10 +19249,14 @@
       "template": "palisades_medium"
     },
     {
-      "type": "tower",
-      "player": 1,
+      "type": "palisade",
       "x": 153.38,
       "z": -66.88,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 0.0,
+      "length": 1.5,
+      "player": 1,
       "template": "palisades_outpost"
     },
     {
@@ -19273,6 +19278,7 @@
       "piece": "wall",
       "angle": 0.0,
       "length": 0.75,
+      "no_decay": true,
       "player": 1,
       "template": "palisades_spike_angle"
     },
@@ -19284,6 +19290,7 @@
       "piece": "wall",
       "angle": 0.0,
       "length": 2.75,
+      "no_decay": true,
       "player": 1,
       "template": "palisades_spikes_small"
     },
@@ -19295,14 +19302,19 @@
       "piece": "wall",
       "angle": 0.0,
       "length": 2.75,
+      "no_decay": true,
       "player": 1,
       "template": "palisades_spikes_tall"
     },
     {
-      "type": "wall_segment",
-      "player": 1,
+      "type": "palisade",
       "x": 175.62,
       "z": -66.88,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 1.5708,
+      "length": 2.25,
+      "player": 1,
       "template": "palisades_straight"
     },
     {
@@ -19317,10 +19329,14 @@
       "template": "palisades_tower"
     },
     {
-      "type": "tower",
-      "player": 1,
+      "type": "palisade",
       "x": 184.88,
       "z": -66.88,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 0.0,
+      "length": 1.25,
+      "player": 1,
       "template": "palisades_watchtower"
     },
     {
@@ -20001,6 +20017,7 @@
       "piece": "gate",
       "angle": 0.0,
       "length": 9.0,
+      "no_decay": true,
       "player": 1,
       "template": "rome/siege_wall_gate"
     },
@@ -20012,6 +20029,7 @@
       "piece": "wall",
       "angle": 0.0,
       "length": 9.0,
+      "no_decay": true,
       "player": 1,
       "template": "rome/siege_wall_long"
     },
@@ -20023,6 +20041,7 @@
       "piece": "wall",
       "angle": 0.0,
       "length": 6.0,
+      "no_decay": true,
       "player": 1,
       "template": "rome/siege_wall_medium"
     },
@@ -20034,6 +20053,7 @@
       "piece": "wall",
       "angle": 0.0,
       "length": 3.0,
+      "no_decay": true,
       "player": 1,
       "template": "rome/siege_wall_short"
     },
@@ -20045,6 +20065,7 @@
       "piece": "tower",
       "angle": 0.0,
       "length": 1.5,
+      "no_decay": true,
       "player": 1,
       "template": "rome/siege_wall_tower"
     },

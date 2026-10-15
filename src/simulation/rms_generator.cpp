@@ -3708,7 +3708,8 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 		const float base = (float)scale_by_map_size(15, 25, half) + 15.0f;
 		for (int tries = 0; tries < 20000; ++tries) {
 			const float x = rng.range_float(-half * 0.95f, half * 0.95f), z = rng.range_float(-half * 0.95f, half * 0.95f);
-			bool ok = hm.compute_slope_world(x, z) <= 0.6f;
+			// A circular map (g_Map.randomCoordinate): the corners outside the circle are off the map.
+			bool ok = std::hypot(x, z) <= half * 0.95f && hm.compute_slope_world(x, z) <= 0.6f;
 			for (int k = 0; ok && k < 9; ++k) {
 				const float a = 0.7853982f * (float)k, r = k == 8 ? 0.0f : 2.0f;
 				ok = hm.sample_world(x + std::cos(a) * r, z + std::sin(a) * r) > water_h;
@@ -3819,6 +3820,8 @@ void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGr
 	auto spawn = [&](float x, float z, uint8_t type, std::vector<Placed> &into) {
 		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
 		if (!id) return 0u;
+		// structures/kush/* and structures/ptol/wonder: their template's civ.
+		sim.set_building_civ(id, type == BLD_WONDER ? CIV_PTOLEMIES : CIV_KUSHITES);
 		for (const auto &b : sim.buildings())
 			if (b.id == id) { into.push_back({b.x, b.z, b.half_size}); break; }
 		return id;
@@ -4009,6 +4012,7 @@ void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &
 				!clear(x, z, 6.0f, kRock | kMetal)) continue;
 		const uint32_t id = sim.spawn_building_world(x, z, BLD_PYRAMID_LARGE, GAIA_PLAYER, 1.0f);
 		if (!id) continue;
+		sim.set_building_civ(id, CIV_KUSHITES); // structures/kush/pyramid_large
 		for (const auto &b : sim.buildings())
 			if (b.id == id) { mark(b.x, b.z, b.half_size, kPyramid); break; }
 		break;
@@ -4183,15 +4187,18 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			sim.spawn_resource_world(bx, bz, RES_FOOD, 200);
 		}
 
-		// 5. Primary Forest: Dense Woodline (10 spots of two 200-wood trees)
+		// 5. Primary Forest: Dense Woodline (10 spots of two 200-wood trees). islands.js asks
+		// placePlayerBases for "Trees": {count: 5}: one group of 5 trees, 0-5 apart, 11-13
+		// from the civic centre.
 		float forest_cx = px - fx * 10.5f + rx * 3.5f;
 		float forest_cz = pz - fz * 10.5f + rz * 3.5f;
 		dry(px, pz, forest_cx, forest_cz, 5.0f);
-		for (int t = 0; t < 10; ++t) {
-			float ta = -1.2f + (2.4f * t) / 9.0f;
-			float tx = forest_cx + std::cos(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
-			float tz = forest_cz + std::sin(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
-			spawn_trees(sim, hm, tx, tz, dry_h);
+		const bool five_trees = mt == MAP_ISLANDS;
+		for (int t = 0; t < (five_trees ? 5 : 10); ++t) {
+			float ta = five_trees ? -1.2f + (2.4f * t) / 4.0f : -1.2f + (2.4f * t) / 9.0f;
+			float tx = forest_cx + std::cos(ta) * (five_trees ? 2.0f : 4.0f) + rng.range_float(-0.4f, 0.4f);
+			float tz = forest_cz + std::sin(ta) * (five_trees ? 2.0f : 4.0f) + rng.range_float(-0.4f, 0.4f);
+			spawn_trees(sim, hm, tx, tz, dry_h, five_trees ? 1 : 2);
 		}
 
 		// 6-7. rmgen placePlayerBaseMines: one large metal mine and one large
@@ -4359,6 +4366,17 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		}
 	}
 
+	auto on_player_island = [&](float x, float z) {
+		for (const auto &sp : spawns) {
+			const float dx = x - sp.x, dz = z - sp.z, d = std::sqrt(dx * dx + dz * dz);
+			if (d > 40.0f) continue;
+			bool dry_line = true;
+			for (float f = 0.0f; f <= d && dry_line; f += 0.5f)
+				dry_line = hm.sample_world(sp.x + dx * f / std::max(d, 1e-3f), sp.z + dz * f / std::max(d, 1e-3f)) > water_h;
+			if (dry_line) return true;
+		}
+		return false;
+	};
 	// 1. Organic Forest Clumps
 	for (int g = 0; g < num_groves; ++g) {
 		float gx = rng.range_float(-half * 0.82f, half * 0.82f);
@@ -4384,7 +4402,11 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 			float r = std::sqrt(rng.next_float()) * grove_r;
 			float tx = gx + std::cos(a) * r;
 			float tz = gz + std::sin(a) * r;
-			if (hm.sample_world(tx, tz) > water_h + 0.2f) spawn_trees(sim, hm, tx, tz, water_h + 0.2f);
+			if (hm.sample_world(tx, tz) <= water_h + 0.2f) continue;
+			// islands.js: forests avoidClasses(clPlayer, 0), so none on a player's island
+			// (the straight line from its civic centre stays on land).
+			if (config.map_type == MAP_ISLANDS && on_player_island(tx, tz)) continue;
+			spawn_trees(sim, hm, tx, tz, water_h + 0.2f);
 		}
 	}
 
@@ -5337,6 +5359,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 	auto building = [&](float x, float z, uint8_t type, bool capturable) {
 		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
 		if (!id) return id;
+		sim.set_building_civ(id, CIV_GAULS); // structures/gaul/*: a captured CC trains Gallic women
 		if (!capturable) sim.set_structure_uncapturable(id);
 		for (const auto &b : sim.buildings())
 			if (b.id == id) sim.clear_resources_near(x, z, b.half_size + 1.0f);
@@ -5958,10 +5981,17 @@ void RmsGenerator::synth_cycladic_archipelago(HeightmapGrid &hm, RmsRng &rng, fl
 		const float r = rng.range_float(0.1f, 0.16f) * size;
 		central[(size_t)i] = polar(start + kSeasPi * ((float)i * 2.0f / (float)central_count + rng.range_float(-1.0f, 1.0f) / 8.0f), r);
 	}
-	std::vector<uint8_t> player_mask(hm.data.size(), 0);
+	std::vector<uint8_t> player_mask(hm.data.size(), 0), coral_mask(hm.data.size(), 0);
 	std::vector<std::vector<int>> areas;
 	std::vector<std::pair<float, float>> spots;
-	auto island = [&](float x, float z, float r, bool player) {
+	auto island = [&](float x, float z, float r, float coral_r, bool player) {
+		// Deep ocean rocks: a ring of coral tiles coral_r out (no elevation), kept off earlier rings and player islands.
+		const auto coral = seas_clump(hm, rng, kSeasPi * (r + coral_r) * (r + coral_r), 0.7f, 0.1f, 1e9f, x, z,
+		                              [&](int i) { return !coral_mask[(size_t)i] && !player_mask[(size_t)i]; });
+		if (seas_any(coral)) {
+			record_area(hm, coral, AREA_CORAL);
+			seas_add(coral_mask, coral);
+		}
 		const auto m = seas_clump(hm, rng, kSeasPi * r * r, 0.7f, 0.1f, 1e9f, x, z, [&](int i) { return !player_mask[(size_t)i]; });
 		paint_mask_elevation(hm, m, land, 5.0f);
 		record_area(hm, m, AREA_ISLAND);
@@ -5975,9 +6005,9 @@ void RmsGenerator::synth_cycladic_archipelago(HeightmapGrid &hm, RmsRng &rng, fl
 		const auto p = polar(start + 2.0f * kSeasPi * (float)i / (float)island_count, 0.39f * size);
 		const bool is_player = num_players >= 6 || (n_player < num_players && i == kStarting[num_players - 1][n_player]);
 		if (is_player) { spots.push_back(p); ++n_player; }
-		island(p.first, p.second, island_r, is_player);
+		island(p.first, p.second, island_r, seas_scale(1, 5, half), is_player);
 	}
-	for (const auto &c : central) island(c.first, c.second, central_r, false);
+	for (const auto &c : central) island(c.first, c.second, central_r, 2.0f, false);
 	// placePlayerBases with sortAllPlayers(): spots in team order.
 	std::vector<int> order((size_t)num_players);
 	for (int i = 0; i < num_players; ++i) order[(size_t)i] = i;
@@ -9416,6 +9446,8 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 	};
 	auto building = [&](float x, float z, uint8_t type, bool capturable) {
 		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
+		// structures/kush/* and structures/ptol/wonder: a captured camp trains its {native} mercenaries.
+		if (id) sim.set_building_civ(id, type == BLD_WONDER ? CIV_PTOLEMIES : CIV_KUSHITES);
 		if (id && !capturable) sim.set_structure_uncapturable(id);
 		return id;
 	};
@@ -11830,6 +11862,10 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	const int g3 = tree_slot_gatherers(slot_name, own, 1, (int)o3, 0);
 
 	const auto rv = sim.resources();
+	// Stragglers whose slot is a fruit tree (temperate's gaia/fruit/apple): food supplies, spawned after the pass.
+	std::vector<std::pair<float, float>> fruit_trees;
+	uint8_t fruit_kind = FLORA_DEFAULT;
+	uint16_t fruit_food = 0;
 	// Trees per 2-tile cell, to tell forests from stragglers.
 	std::unordered_map<uint64_t, int> cells;
 	auto cell_key = [](int cx, int cz) { return (uint64_t)(uint32_t)cx << 32 | (uint32_t)cz; };
@@ -11873,12 +11909,23 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 			const int pick_gatherers[4] = {g12[0], g12[1], g45[0], g3};
 			wood = pick_wood[h % 4u];
 			gatherers = pick_gatherers[h % 4u];
+			if (flora_is_fruit(kind)) {
+				fruit_trees.emplace_back(rv.x[r], rv.z[r]);
+				fruit_kind = kind;
+				fruit_food = wood;
+				continue;
+			}
 		}
 		sim.set_resource_flora(rv.id[r], kind);
 		// The template's ResourceSupply/Max, for a tree the generator spawned with TREE_WOOD_SUPPLY
 		// (the Survival of the Fittest forests keep their own 800).
 		if (wood != 0 && rv.amount[r] == TREE_WOOD_SUPPLY) sim.set_resource_amount(rv.id[r], wood);
 		if (gatherers != 8) sim.set_resource_max_gatherers(rv.id[r], gatherers);
+	}
+	for (const auto &[x, z] : fruit_trees) {
+		sim.clear_resources_near(x, z, 0.001f);
+		const uint32_t id = sim.spawn_resource_world(x, z, RES_FOOD, fruit_food);
+		if (id) sim.set_resource_flora(id, fruit_kind);
 	}
 }
 

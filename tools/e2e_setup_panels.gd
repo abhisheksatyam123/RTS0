@@ -8,7 +8,9 @@ extends SceneTree
 #      tick box is cleared (gui.gamesetup.enabletips); cleared, the next page has none;
 #   4. GameSettingTabs.js: the Map, Player and Game Type tabs each show their own
 #      settings (GameSettingsLayout.js), the open one's button closes it, so does
-#      Escape (cancel), and the host or single player starts on Map.
+#      Escape (cancel), and the host or single player starts on Map;
+#   5. GameSpeed.js: 0.28's named speeds, Fast Forward only with nobody in a player slot;
+#   6. the dropdown entries' own hover tooltips (civ History, map sizes, resources...).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_setup_panels.gd
 # Exit code 0 = pass.
@@ -114,5 +116,38 @@ func run() -> void:
 	esc.pressed = true
 	page._unhandled_input(esc)
 	check(shown.call().is_empty(), "Escape closes it too")
+
+	print("5. Game Speed (GameSpeed.js, game_speeds.json)")
+	var spd = page.get_node("%SpeedSlot").get_child(0)
+	var titles := func() -> Array:
+		var out := []
+		for i in spd.get_item_count():
+			out.append(spd.get_item_text(i))
+		return out
+	check(page.get_node("%SpeedLabel").text == "Game Speed" and spd.get_item_text(spd.get_selected()) == "Normal (1×)", "Game Speed, Normal (1×) by default")
+	check(titles.call() == ["Turtle (0.1×)", "Slow (0.25×)", "Leisurely (0.5×)", "Relaxed (0.75×)", "Normal (1×)",
+		"Fast (1.25×)", "Very Fast (1.5×)", "Insane (2×)"], "the eight speeds while you play: %s" % str(titles.call()))
+	spd.select(7)
+	for i in page._slot_rows.size():
+		page._slot_rows[i]["kind"] = 1
+	page._render_speeds()
+	check(titles.call().size() == 11 and titles.call()[10] == "Fast Forward (20×)" and spd.get_item_text(spd.get_selected()) == "Insane (2×)",
+		"Fast Forward too when every slot is an AI, Insane kept")
+	spd.select(10)
+	check(is_equal_approx(float(page._collect_setup()["speed"]), 20.0), "and the match gets 20×")
+	page._slot_rows[0]["kind"] = 0
+	page._render_speeds()
+	check(titles.call().size() == 8 and spd.get_item_text(spd.get_selected()) == "Normal (1×)", "taking a seat again drops it back to Normal")
+
+	print("6. Entry tooltips (onHoverChange)")
+	var opt := func(slot: String): return page.get_node("%" + slot).get_child(0)
+	check(opt.call("MapSizeSlot").get_item_tooltip(0) == "This map size has barely any room for even the most basic resources.", "map sizes (map_sizes.json)")
+	check(opt.call("ResSlot").get_item_tooltip(1) == "Initial amount of each resource: 300.", "starting resources")
+	check(opt.call("PopCapTypeSlot").get_item_tooltip(2) == "Distributes the total population cap evenly over all living players.", "population cap types")
+	check(opt.call("MapTypeSlot").get_item_tooltip(2) == "A map with a predefined landscape and matchsettings.", "map types")
+	check(opt.call("MapFilterSlot").get_item_tooltip(0) == "All maps except naval and demo maps.", "map filters")
+	var civ_opts: Array = page._slots_grid().find_children("*", "RtsoSafeSelect", true, false).filter(func(o): return o.get_item_count() > 10)
+	check(not civ_opts.is_empty() and civ_opts[0].get_item_tooltip(0) == "Picks one civilization at random when the game starts."
+		and civ_opts[0].get_item_tooltip(1).length() > 40, "civs: Random, then each civ's History (%s…)" % (civ_opts[0].get_item_tooltip(1).substr(0, 40) if civ_opts else ""))
 	print("PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

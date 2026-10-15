@@ -64688,6 +64688,222 @@
       "angle": 2.3562,
       "length": 2.0,
       "template": "structures/kush/wall_tower"
+    },
+    {
+      "type": "pyramid_large",
+      "template": "structures/kush/pyramid_large",
+      "x": -171.79,
+      "z": 73.03
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -165.68,
+      "z": 61.22
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -176.32,
+      "z": 55.68
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 213.77,
+      "z": -35.61
+    },
+    {
+      "type": "arsenal",
+      "template": "structures/kush/arsenal",
+      "x": 211.7,
+      "z": -0.3
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 216.09,
+      "z": 24.99
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 108.96,
+      "z": -210.54
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 122.04,
+      "z": 2.32
+    },
+    {
+      "type": "arsenal",
+      "template": "structures/kush/arsenal",
+      "x": 153.87,
+      "z": -10.04
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 198.58,
+      "z": 137.31
+    },
+    {
+      "type": "arsenal",
+      "template": "structures/kush/arsenal",
+      "x": 110.78,
+      "z": -9.75
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 46.47,
+      "z": 114.74
+    },
+    {
+      "type": "arsenal",
+      "template": "structures/kush/arsenal",
+      "x": 71.51,
+      "z": 149.53
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 82.77,
+      "z": 161.6
+    },
+    {
+      "type": "arsenal",
+      "template": "structures/kush/arsenal",
+      "x": 101.8,
+      "z": 174.58
+    },
+    {
+      "type": "arsenal",
+      "template": "structures/kush/arsenal",
+      "x": 89.79,
+      "z": -145.55
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 70.76,
+      "z": -158.53
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 77.88,
+      "z": 234.77
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 27.94,
+      "z": -42.42
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 48.72,
+      "z": -117.04
+    },
+    {
+      "type": "forge",
+      "template": "structures/kush/forge",
+      "x": 31.06,
+      "z": -90.4
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -173.0,
+      "z": 52.58
+    },
+    {
+      "type": "pyramid_large",
+      "template": "structures/kush/pyramid_large",
+      "x": -176.25,
+      "z": 47.76
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -176.24,
+      "z": 42.71
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -183.67,
+      "z": 38.73
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -187.74,
+      "z": 43.94
+    },
+    {
+      "type": "pyramid_large",
+      "template": "structures/kush/pyramid_large",
+      "x": -96.56,
+      "z": -17.41
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -90.45,
+      "z": -22.77
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -88.1,
+      "z": -19.43
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -88.14,
+      "z": -14.28
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -93.69,
+      "z": -26.15
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -113.05,
+      "z": -18.83
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -115.56,
+      "z": -14.56
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -113.67,
+      "z": -10.53
+    },
+    {
+      "type": "pyramid_small",
+      "template": "structures/kush/pyramid_small",
+      "x": -107.76,
+      "z": -8.61
+    },
+    {
+      "type": "arsenal",
+      "template": "structures/kush/arsenal",
+      "x": 48.71,
+      "z": 182.34
     }
   ],
   "gaia_units": [

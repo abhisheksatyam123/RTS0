@@ -1303,6 +1303,7 @@ static void circular_map_edge() {
 	for (int circular = 0; circular < 2; ++circular) {
 		Simulation s;
 		circle_setup(s, circular);
+		s.set_explore_map(true); // the edge rule, not the shroud
 		res[circular] = s.check_placement(0, cell_x, cell_y, BLD_HOUSE);
 	}
 	std::printf("  circular map: a house reaching %.1f out placed %d on a square map, %d on a circular one (0 = ok)\n",
@@ -1485,6 +1486,7 @@ static void cliff_clearance() {
 	// the land in two as Petra sees it (petra_access_at); the rock doesn't.
 	Simulation s;
 	cliff_clearance_setup(s);
+	s.set_explore_map(true); // the slope rule, not the shroud
 	const int on = (int)s.check_placement(0, -10, -5, BLD_HOUSE), beside = (int)s.check_placement(0, -12, -5, BLD_HOUSE);
 	const uint16_t below = s.petra_access_at(-5.0f, 0.0f), above = s.petra_access_at(5.0f, 0.0f);
 	const uint16_t west = s.petra_access_at(-25.0f, -9.0f), east = s.petra_access_at(-15.0f, -9.0f);

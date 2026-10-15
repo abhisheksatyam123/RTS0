@@ -6,6 +6,7 @@ extends Control
 ## opens it for that player: AI Player (None or Petra Bot), AI Difficulty and
 ## AI Behavior, the AI's description, and OK. Choosing None makes the slot an
 ## unassigned one again and closes the dialog (AIConfigPage.maybeClose).
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 signal closed
 
@@ -60,11 +61,8 @@ func _ready() -> void:
 	dialog.offset_right = 290
 	dialog.offset_top = -200
 	dialog.offset_bottom = 200
-	var sheet := StyleBoxFlat.new()
-	sheet.bg_color = Color(0.09, 0.08, 0.07, 0.98)
-	sheet.border_color = Color(0.72, 0.6, 0.3)
-	sheet.set_border_width_all(2)
-	dialog.add_theme_stylebox_override("panel", sheet)
+	theme = MODERN.theme() # 0.28's modern skin (ModernDialog and its widgets)
+	dialog.theme_type_variation = "ModernDialog"
 	add_child(dialog)
 	var title := Label.new()
 	title.text = tr("AI Configuration")
@@ -86,9 +84,9 @@ func _ready() -> void:
 		_diff.add_item(tr(d))
 	_diff.item_selected.connect(func(i): setup._on_slot_diff(i, slot); setup._render_ai_button(slot))
 	_beh = _row(dialog, 2, tr("AI Behavior"))
-	for b in setup.BEHAVIORS:
-		_beh.add_item(tr(b))
-	_beh.item_selected.connect(func(i): setup._on_slot_beh(i, slot); setup._render_ai_button(slot))
+	for b in setup.BEHAVIOR_ORDER:
+		_beh.add_item(tr(setup.BEHAVIORS[b]), b)
+	_beh.item_selected.connect(func(i): setup._on_slot_beh(_beh.get_item_id(i), slot); setup._render_ai_button(slot))
 	_desc = Label.new()
 	_desc.name = "Description"
 	_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -147,7 +145,7 @@ func render() -> void:
 	var has_ai := int(row["kind"]) == 1
 	_ai.select(1 if has_ai else 0)
 	_diff.select(clampi(int(row["diff"]), 0, _diff.item_count - 1))
-	_beh.select(clampi(int(row["beh"]), 0, _beh.item_count - 1))
+	_beh.select(maxi(_beh.get_item_index(int(row["beh"])), 0))
 	for c in [_diff, _beh]:
 		c.visible = has_ai
 		c.get_parent().get_child(c.get_index() - 1).visible = has_ai

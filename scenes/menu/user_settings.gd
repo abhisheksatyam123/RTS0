@@ -58,6 +58,8 @@ const LANGUAGE_NAMES := {
 	"uk": "Українська", "zh": "中文 (简体)", "zh_TW": "中文 (繁體)",
 }
 
+const DEFAULT_CURSOR := "res://assets/textures/cursors/default-arrow.png"
+
 var cfg := RtsoUserConfig.new()
 var _gen := -1
 var _in_session := false
@@ -83,6 +85,10 @@ func _ready() -> void:
 	_make_overlay()
 	get_tree().node_added.connect(_on_node_added)
 	apply_all()
+	sync_text_hotkeys()
+	# VideoMode.cpp DEFAULT_CURSOR_NAME: 0 A.D.'s own arrow (default-arrow.txt: hotspot 1 1).
+	if ResourceLoader.exists(DEFAULT_CURSOR):
+		Input.set_custom_mouse_cursor(load(DEFAULT_CURSOR), Input.CURSOR_ARROW, Vector2(1, 1))
 
 ## main.cpp's global hotkeys: togglefullscreen (Alt+Return, CVideoMode::ToggleFullscreen,
 ## not saved) and mousegrabtoggle (F3, the window grab on or off until the next change).
@@ -92,7 +98,10 @@ func _input(event: InputEvent) -> void:
 	if _hotkeys == null:
 		_hotkeys = RtsoHotkeyConfig.new()
 	var fired: Array = Array(_hotkeys.fired(event))
-	if "togglefullscreen" in fired:
+	if "exit" in fired: # main.cpp: the custom exit key (unbound by default) quits at once
+		get_viewport().set_input_as_handled()
+		get_tree().quit()
+	elif "togglefullscreen" in fired:
 		get_viewport().set_input_as_handled()
 		toggle_fullscreen()
 	elif "mousegrabtoggle" in fired:
@@ -107,6 +116,46 @@ func _input(event: InputEvent) -> void:
 	elif "bigscreenshot" in fired or "screenshot" in fired:
 		get_viewport().set_input_as_handled()
 		take_screenshot()
+
+## The engine's text-box hotkeys (copy, paste, cut, text.delete/move.left/right) drive
+## Godot's text editing actions, so rebinding them in the Hotkeys page applies.
+const TEXT_ACTIONS := {"copy": "ui_copy", "paste": "ui_paste", "cut": "ui_cut",
+	"text.delete.left": "ui_text_backspace_word", "text.delete.right": "ui_text_delete_word",
+	"text.move.left": "ui_text_caret_word_left", "text.move.right": "ui_text_caret_word_right"}
+const KEY_NAMES := {"leftarrow": KEY_LEFT, "rightarrow": KEY_RIGHT, "uparrow": KEY_UP, "downarrow": KEY_DOWN,
+	"return": KEY_ENTER, "del": KEY_DELETE, "esc": KEY_ESCAPE}
+
+func sync_text_hotkeys() -> void:
+	if not ClassDB.class_exists("RtsoHotkeyConfig"):
+		return
+	if _hotkeys == null:
+		_hotkeys = RtsoHotkeyConfig.new()
+	var map: Dictionary = _hotkeys.get_hotkey_map()
+	for h in TEXT_ACTIONS:
+		if not map.has(h) or not InputMap.has_action(TEXT_ACTIONS[h]):
+			continue
+		InputMap.action_erase_events(TEXT_ACTIONS[h])
+		for combo in map[h]:
+			var ev := combo_event(str(combo))
+			if ev:
+				InputMap.action_add_event(TEXT_ACTIONS[h], ev)
+
+## "Ctrl+LeftArrow" as a key event (null for mouse buttons or unknown names).
+static func combo_event(combo: String) -> InputEventKey:
+	var ev := InputEventKey.new()
+	for part in combo.split("+", false):
+		var k := part.strip_edges().to_lower()
+		match k:
+			"ctrl": ev.ctrl_pressed = true
+			"shift": ev.shift_pressed = true
+			"alt": ev.alt_pressed = true
+			"super": ev.meta_pressed = true
+			_:
+				var code: int = KEY_NAMES.get(k, OS.find_keycode_from_string(part.strip_edges()))
+				if code == KEY_NONE:
+					return null
+				ev.keycode = code
+	return ev if ev.keycode != KEY_NONE else null
 
 ## main.cpp screenshot (F2) and bigscreenshot (Shift+F2) on every page:
 ## screenshots/screenshotNNNN.png, "Screenshot written to '<path>'" on screen.

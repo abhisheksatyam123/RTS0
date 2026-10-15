@@ -139,6 +139,8 @@ func run() -> void:
 	check(has_line(GameDescription.describe(rinfo), bt[0], bt[1]), "a picked biome reads its Title and Description")
 	rinfo["biome"] = 0
 	check(not GameDescription.describe(rinfo).contains(bt[0] + "[/color]"), "Map default has no biome line")
+	rinfo["biome"] = SetupPage.RANDOM_BIOME
+	check(has_line(GameDescription.describe(rinfo), "Random Biome", "Randomly select a biome from the list."), "Random reads Random Biome until Start")
 	rinfo["rated"] = true
 	rinfo["player_count"] = 2
 	check(has_line(GameDescription.describe(rinfo), "Rated game", GameDescription.RATING_DESC), "a rated 1v1 says so")

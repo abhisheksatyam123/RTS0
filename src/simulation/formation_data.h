@@ -29,6 +29,7 @@ inline const FormationTemplate *formation_template_table() {
 		{"special/formations/syntagma", "Syntagma", "Compact formation of Infantry Pikemen creating a defensive wall.", "Infantry Pikemen only, requires at least 16.", "formations/syntagma.png", 16, 1.0f, FSHAPE_SQUARE, 1.0f, {FCLASS_HERO, FCLASS_CHAMPION, FCLASS_ELITE, FCLASS_ADVANCED, FCLASS_BASIC}, 5, FSORT_DEFAULT, true, 0.86f, 0.55f, 1.0f, 0.15f, 4, 8, 9, 0.0f, false}, // FORMATION_SYNTAGMA
 		{"special/formations/testudo", "Testudo", "Compact formation of Melee Infantry creating a shield shell.", "Melee Infantry only, requires at least 16.", "formations/testudo.png", 16, 1.0f, FSHAPE_SQUARE, 0.785f, {FCLASS_HERO, FCLASS_CHAMPION, FCLASS_ELITE, FCLASS_ADVANCED, FCLASS_BASIC}, 5, FSORT_FROM_THE_SIDES, false, 0.5f, 0.4f, 0.8f, 0.0f, 8, 8, 0, 0.0f, false}, // FORMATION_TESTUDO
 		{"special/formations/anti_cavalry", "Anti Cavalry", "Square formation of Melee Infantry to fight Cavalry.", "Melee Infantry only, requires at least 16.", "formations/testudo.png", 16, 1.0f, FSHAPE_SQUARE, 1.0f, {FCLASS_HERO, FCLASS_CHAMPION, FCLASS_CAVALRY, FCLASS_MELEE, FCLASS_RANGED}, 5, FSORT_FROM_THE_SIDES, true, 0.5f, 0.37f, 0.8f, 0.0f, 8, 8, 2, 0.0f, false}, // FORMATION_ANTI_CAVALRY
+		{"special/formations/shield_wall", "Shield Wall", "Compact formation of Infantry Spearmen creating a shield wall.", "Infantry Spearmen only, requires at least 10.", "formations/phalanx.png", 10, 1.0f, FSHAPE_SQUARE, 1.0f, {FCLASS_HERO, FCLASS_CHAMPION, FCLASS_CAVALRY, FCLASS_MELEE, FCLASS_RANGED}, 5, FSORT_DEFAULT, true, 0.6f, 0.6f, 4.0f, 0.5f, 5, 20, 8, 0.0f, false}, // FORMATION_SHIELD_WALL
 	};
 	return kTemplates;
 }
@@ -51,7 +52,7 @@ inline uint32_t civ_formation_mask(uint8_t civ) {
 		0x07fffu, // CIV_SELEUCIDS
 		0x13fefu, // CIV_HAN
 		0x00000u, // CIV_GAIA
-		0x13fefu, // CIV_GERMANS
+		0x33fefu, // CIV_GERMANS
 	};
 	return civ < 16 ? kMasks[civ] : 0u;
 }
@@ -494,7 +495,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0878fu, 0x029u}, // germ/hero_teutobod
 		{0x007cfu, 0x130u}, // germ/infantry_javelineer_b
 		{0x007cfu, 0x130u}, // germ/infantry_slinger_b
-		{0x1878fu, 0x128u}, // germ/infantry_spearman_b
+		{0x3878fu, 0x128u}, // germ/infantry_spearman_b
 		{0x0878fu, 0x128u}, // germ/infantry_swordsman_b
 		{0x00000u, 0x010u}, // germ/ship_arrow
 		{0x00000u, 0x008u}, // germ/ship_fire
@@ -562,6 +563,11 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0879fu, 0x02au}, // samnite_spearman
 		{0x0878fu, 0x02au}, // samnite_swordsman
 		{0x00000u, 0x010u}, // viking_longship
+		{0x0878fu, 0x02au}, // merc_thorakites
+		{0x007cfu, 0x032u}, // merc_thureophoros
+		{0x0879fu, 0x02au}, // theb_sacred_band
+		{0x0878fu, 0x02au}, // thesp_melanochitones
+		{0x0078fu, 0x000u}, // theb_siege_fireraiser
 	};
 	return kRows;
 }

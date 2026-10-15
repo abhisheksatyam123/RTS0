@@ -403,6 +403,10 @@ ASSETS = {
     "donkey":           ("art/actors/fauna/donkey.xml",                          "height", 1.20, None),
     "fox":              ("art/actors/fauna/fox_red.xml",                         "height", 0.60, None),
     "hawk":             ("art/actors/fauna/hawk.xml",                            "height", 0.60, None),
+    # Props of 0.28 structures' "researching"/"training" variants (data/production_fx.json):
+    # the German forge's forger and the German temple's circling crows, at 0 A.D. metres.
+    "germ_forger":      ("art/actors/units/germans/forger.xml",                  "scale",  1.00, None),
+    "crow_circle":      ("art/actors/fauna/crow_circle.xml",                     "scale",  1.00, None),
     "pyramid":          ("art/actors/special/pyramid.xml",                       "width",  8.00, None),
     "pyramid_minor":    ("art/actors/special/pyramid_minor.xml",                 "width",  5.00, None),
     "ishtar_gate":      ("art/actors/special/pers_ishtar_gate.xml",              "width",  6.00, None),
@@ -1934,6 +1938,7 @@ UNIT_IDS = frozenset({
     "kush_maceman_a", "kush_maceman_b", "kush_maceman_e", "kush_pikeman_a",
     "kush_pikeman_b", "kush_pikeman_e", "kush_spearman_a", "kush_spearman_e",
     "kush_swordsman_a", "kush_swordsman_b", "kush_swordsman_e",
+    "germ_forger", "crow_circle",
 })
 BUILDING_IDS = frozenset({
     "town_center", "house", "barracks", "farmstead", "storehouse", "market",

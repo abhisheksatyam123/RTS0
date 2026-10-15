@@ -219,6 +219,10 @@ func run() -> void:
 	await frames(4)
 	st = state()
 	check(int(st["building"]) != 0 and st.has("rally") and (st["rally"] as Vector2).distance_to(spot) < 0.5, "a selected structure gets its rally point there: %s" % str(st.get("rally")))
+	# RallyPointRenderer: the civ's waypoint flag stands on it.
+	check(main.debug_rally_flags() == 1, "its rally flag is drawn (%d flags)" % main.debug_rally_flags())
+	# StatusBars.js: the selected structure shows its bars (a full-health one too).
+	check(main.debug_status_sprites() >= 2, "the selected structure has status bars (%d sprites)" % main.debug_status_sprites())
 
 	print("6. Picked on the press")
 	main.clear_selection()
@@ -247,6 +251,23 @@ func run() -> void:
 	button(press_at, MOUSE_BUTTON_LEFT, false)
 	await frames(2)
 	check(moved > 2.0 and selected() == [int(a["id"])], "walked %.1f away and still selected: %s" % [moved, str(selected())])
+
+	print("7. Hovering a supply")
+	main.debug_select_units(PackedInt32Array([int(a["id"])]))
+	await frames(2)
+	st = state()
+	main.clear_selection()
+	await frames(2)
+	if st.has("nearest_resource_screen"):
+		var rpos: Vector2 = st["nearest_resource_screen"]
+		move(rpos)
+		await frames(4)
+		var hl: PackedInt32Array = main.debug_highlight()
+		check(hl.has(int(st["nearest_resource"])), "the tree or mine under the mouse is highlighted: %s" % str(hl))
+		# StatusBars.js: its ResourceSupply bar (background and foreground).
+		check(main.debug_status_sprites() >= 2, "it shows its supply bar (%d sprites)" % main.debug_status_sprites())
+	else:
+		check(false, "a supply near the unit")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

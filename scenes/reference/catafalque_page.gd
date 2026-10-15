@@ -142,6 +142,6 @@ func close_page() -> void:
 	queue_free()
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+	if event is InputEventKey and event.pressed and "cancel" in RtsoHotkeyConfig.new().fired(event):
 		get_viewport().set_input_as_handled()
 		close_page()

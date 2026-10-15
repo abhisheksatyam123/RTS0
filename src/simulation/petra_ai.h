@@ -390,6 +390,12 @@ struct PetraKept {
 	bool need_corral = false; // a starting land under 25000 m²: the first corral goes on
 	int16_t target_traders = -1; // -1 until setTradingGoods sets it: the config value
 	std::vector<uint8_t> wanted_fish, wanted_transport;
+	// startingStrategy.js gameStart: with no civic centre and none it may build, the AI can't
+	// produce units (canBuildUnits false): every unit joins the attacks, but those dispatched
+	// to an ally's civic centre (dispatchUnits, metadata "allied").
+	bool units_checked = false;
+	bool no_units = false;
+	std::vector<uint32_t> allied;
 	static uint8_t at(const std::vector<uint8_t> &v, size_t s) { return s < v.size() ? v[s] : 0; }
 	static void raise(std::vector<uint8_t> &v, size_t s, int n) {
 		if (s >= v.size()) v.resize(s + 1, 0);
@@ -442,7 +448,11 @@ struct PetraAttackManager {
 	// The raid plan's unitStat FastMoving sizes (3 and 4 before variation and popScaling).
 	uint8_t raid_target = 4;
 	uint8_t raid_min = 3;
-	uint8_t spare[3] = {};
+	// startingStrategy.js cuts Config.Economy.popPhase2 to 3/4 for good with saveResources; set when
+	// handleNewBase clears saveResources, so the cut outlives it (0 in older saves, which kept
+	// the cut only while saving).
+	uint8_t phase2_cut_kept = 0;
+	uint8_t spare[2] = {};
 	int32_t rush_size[3] = {};
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total

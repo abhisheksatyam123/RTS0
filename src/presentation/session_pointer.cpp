@@ -6,6 +6,7 @@
 #include "l10n.h"
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
+#include <godot_cpp/classes/time.hpp>
 #include <unordered_set>
 #include <cstring>
 #include <godot_cpp/classes/theme.hpp>
@@ -43,6 +44,13 @@ static Ref<Texture2D> load_tex(const String &path) {
 		if (tex.is_valid()) return tex;
 	}
 	return Ref<Texture2D>();
+}
+
+// VideoMode.cpp DEFAULT_CURSOR_NAME "default-arrow" (default-arrow.txt: hotspot 1 1), the
+// arrow every page shows; scenes/menu/user_settings.gd sets it at start-up.
+void RtsoMain::reset_default_cursor() {
+	Input::get_singleton()->set_custom_mouse_cursor(load_tex("res://assets/textures/cursors/default-arrow.png"),
+			Input::CURSOR_ARROW, Vector2(1, 1));
 }
 
 void RtsoMain::update_cursor() {
@@ -279,7 +287,7 @@ void RtsoMain::update_cursor() {
 	cursor_name_ = want;
 	Input *in = Input::get_singleton();
 	if (!*want) {
-		in->set_custom_mouse_cursor(Ref<Resource>());
+		reset_default_cursor();
 		return;
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
@@ -304,6 +312,15 @@ void RtsoMain::update_highlight() {
 			if (boxed.empty())
 				for (uint32_t id : band_box_structures(drag_start, mouse)) ids.push_back((int32_t)id);
 		} else if (!dragging && !build_mode && !wall_drag_mode && vp->gui_get_hovered_control() == nullptr) {
+			Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+			const Transform3D cam_xf = cam ? cam->get_global_transform() : Transform3D();
+			const uint64_t now = Time::get_singleton()->get_ticks_msec();
+			if (mouse == hover_mouse_ && cam_xf == hover_cam_ && now - hover_at_ms_ < kHoverRepickMs) {
+				ids = hover_pick_; // nothing moved: the last pick stands
+			} else {
+			hover_mouse_ = mouse;
+			hover_cam_ = cam_xf;
+			hover_at_ms_ = now;
 			const size_t u = own_unit_under_mouse(mouse, true);
 			if (u != (size_t)-1) {
 				ids.push_back((int32_t)sim->units().id[u]);
@@ -322,7 +339,21 @@ void RtsoMain::update_highlight() {
 					best = dx * dx + dz * dz;
 					pick = (int32_t)fv.id[f];
 				}
+				// A tree, mine, bush or shoal as the player last saw it (Fogging.js mirages
+				// are hoverable): the one a right click would gather from.
+				if (!pick) {
+					float best_r = 2.2f * 2.2f;
+					for (const auto &r : view->resource_mirages()) {
+						if (r.amount <= 0 || r.subtype == rtso::RES_SUB_GRAIN) continue;
+						const float dx = r.x - at.x, dz = r.z - at.z;
+						if (dx * dx + dz * dz >= best_r) continue;
+						best_r = dx * dx + dz * dz;
+						pick = (int32_t)r.id;
+					}
+				}
 				if (pick) ids.push_back(pick);
+			}
+			hover_pick_ = ids;
 			}
 		}
 	}
@@ -362,39 +393,54 @@ uint32_t RtsoMain::building_under_mouse(Vector2 mouse_pos, float *hit_t, bool an
 	const Vector3 d = cam->project_ray_normal(mouse_pos);
 	uint32_t best = 0;
 	float best_t = 1e30f;
+	// Built on the first structure the ray could hit, not for every pick.
 	std::unordered_set<uint32_t> seen;
-	if (any_player && view)
-		for (const auto &fb : view->seen_buildings())
-			if (!fb.wrecked) seen.insert(fb.id);
+	bool seen_built = false;
+	auto is_seen = [&](uint32_t id) {
+		if (!seen_built) {
+			seen_built = true;
+			if (view)
+				for (const auto &fb : view->seen_buildings())
+					if (!fb.wrecked) seen.insert(fb.id);
+		}
+		return seen.count(id) != 0;
+	};
 	for (const auto &b : sim->buildings()) {
-		if (any_player ? (b.wrecked || !seen.count(b.id)) : b.team != local_player()) continue;
+		if (any_player ? b.wrecked : b.team != local_player()) continue;
 		const float hu = (b.hu > 0.0f ? b.hu : b.half_size) + 0.3f;
 		const float hv = (b.hv > 0.0f ? b.hv : b.half_size) + 0.3f;
 		const float base = sim->get_terrain_height(b.x, b.z);
+		// The ray in the structure's frame: u along (ux, uz), v across it.
+		const float px = o.x - b.x, pz = o.z - b.z;
+		const float po[3] = {px * b.ux + pz * b.uz, o.y, -px * b.uz + pz * b.ux};
+		const float pd[3] = {d.x * b.ux + d.z * b.uz, d.y, -d.x * b.uz + d.z * b.ux};
+		auto slab = [&](float top, float &t0) {
+			const float lo[3] = {-hu, base - 0.5f, -hv}, hi[3] = {hu, top, hv};
+			t0 = 0.0f;
+			float t1 = 1e30f;
+			for (int a = 0; a < 3; ++a) {
+				if (std::fabs(pd[a]) < 1e-6f) {
+					if (po[a] < lo[a] || po[a] > hi[a]) return false;
+					continue;
+				}
+				float ta = (lo[a] - po[a]) / pd[a], tb = (hi[a] - po[a]) / pd[a];
+				if (ta > tb) std::swap(ta, tb);
+				t0 = std::max(t0, ta);
+				t1 = std::min(t1, tb);
+				if (t0 > t1) return false;
+			}
+			return true;
+		};
+		// A loose box first (taller than any model), so most structures cost no model lookup.
+		float t0 = 0.0f;
+		if (!slab(base + 64.0f, t0) || t0 >= best_t) continue;
+		if (any_player && !is_seen(b.id)) continue;
 		// The model's own height (ModelLibrary bounds), else one from its size.
 		float height = std::clamp(std::max(hu, hv) * 1.2f, 1.5f, 8.0f);
 		const auto model = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(sim->team_civ(b.team), b.type)));
 		if (model.valid && model.aabb.size.y > 0.1f)
 			height = model.y_offset + model.aabb.size.y * (model.scale > 0.05f ? model.scale : 1.0f);
-		const float top = base + height;
-		// The ray in the structure's frame: u along (ux, uz), v across it.
-		const float px = o.x - b.x, pz = o.z - b.z;
-		const float po[3] = {px * b.ux + pz * b.uz, o.y, -px * b.uz + pz * b.ux};
-		const float pd[3] = {d.x * b.ux + d.z * b.uz, d.y, -d.x * b.uz + d.z * b.ux};
-		const float lo[3] = {-hu, base - 0.5f, -hv}, hi[3] = {hu, top, hv};
-		float t0 = 0.0f, t1 = 1e30f;
-		bool hit = true;
-		for (int a = 0; a < 3 && hit; ++a) {
-			if (std::fabs(pd[a]) < 1e-6f) {
-				hit = po[a] >= lo[a] && po[a] <= hi[a];
-				continue;
-			}
-			float ta = (lo[a] - po[a]) / pd[a], tb = (hi[a] - po[a]) / pd[a];
-			if (ta > tb) std::swap(ta, tb);
-			t0 = std::max(t0, ta);
-			t1 = std::min(t1, tb);
-			hit = t0 <= t1;
-		}
+		const bool hit = slab(base + height, t0);
 		if (hit && t0 < best_t) {
 			best_t = t0;
 			best = b.id;

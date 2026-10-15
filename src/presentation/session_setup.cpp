@@ -75,8 +75,12 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 	const uint8_t kind = ws == "palisade" ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
 	const uint8_t p = piece == "tower" ? rtso::Simulation::MAP_WALL_TOWER
 			: piece == "gate" ? rtso::Simulation::MAP_WALL_GATE : rtso::Simulation::MAP_WALL_SEGMENT;
-	return sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0), (float)b.get("angle", 0.0),
-			(float)b.get("length", 9.0));
+	const uint32_t id = sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0),
+			(float)b.get("angle", 0.0), (float)b.get("length", 9.0));
+	// palisades_spike_* (<TerritoryDecay disable=""/>), palisades_fort (<Capturable disable=""/>).
+	if (id && (bool)b.get("no_decay", false)) sim.set_structure_no_decay(id);
+	if (id && (bool)b.get("no_capture", false)) sim.set_structure_uncapturable(id);
+	return id;
 }
 
 // A player structure's 0 A.D. template ("athen/field", "spart/gerousia"; port_0ad_maps.py),
@@ -93,7 +97,8 @@ static uint8_t map_building_template(const String &tmpl) {
 		{"outpost", rtso::BLD_OUTPOST}, {"sentry_tower", rtso::BLD_SENTRY_TOWER}, {"defense_tower", rtso::BLD_TOWER},
 		{"arsenal", rtso::BLD_ARSENAL}, {"stable", rtso::BLD_STABLE}, {"range", rtso::BLD_RANGE},
 		{"dock", rtso::BLD_DOCK}, {"fortress", rtso::BLD_FORTRESS}, {"wonder", rtso::BLD_WONDER},
-		{"corral", rtso::BLD_CORRAL},
+		{"corral", rtso::BLD_CORRAL}, {"elephant_stable", rtso::BLD_ELEPHANT_STABLE},
+		{"pillar_ashoka", rtso::BLD_PILLAR}, {"apartment", rtso::BLD_APARTMENT},
 	};
 	for (const auto &k : kNames)
 		if (n == k.name) return k.type;
@@ -101,6 +106,16 @@ static uint8_t map_building_template(const String &tmpl) {
 	for (uint8_t t = rtso::BLD_GYMNASIUM; t < rtso::BLD_TYPE_COUNT; ++t)
 		if (n == rtso::building_type_info(t).model_id) return t;
 	return rtso::BLD_TYPE_COUNT;
+}
+
+// The civ of a 0 A.D. structure template by its folder ("structures/kush/forge": the
+// Kushites), as Trainer.js resolves {native}; CIV_COUNT for a civless one.
+static uint8_t map_template_civ(const String &tmpl) {
+	if (tmpl.get_slice_count("/") < 3) return rtso::CIV_COUNT;
+	const String code = tmpl.get_slice("/", tmpl.get_slice_count("/") - 2);
+	for (uint8_t c = 0; c < rtso::CIV_COUNT; ++c)
+		if (c != rtso::CIV_GAIA && code == rtso::civ_info(c).code) return c;
+	return rtso::CIV_COUNT;
 }
 
 // Unit class names in data/maps/*.json "units" and "gaia_units".
@@ -132,6 +147,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	}
 	map_has_teams_ = false;
 	map_pop_limit_ = -1;
+	random_map_ = false;
 
 	// 1. Procedural Random Map Generation (RMS Engine)
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
@@ -162,6 +178,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (map_id == id || map_id == "random_" + id) { mtype = (rtso::MapType)t; break; }
 		}
 
+		random_map_ = true;
 		load_progress(40, "Generating map");
 		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f, random_map_teams);
 		load_progress(70, "Building terrain");
@@ -337,7 +354,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 		// SkirmishReplacer.js: a civ's SkirmishReplacements keep one of default_house_5 and
 		// default_house_10 (the size of its own house; Han lists neither) and the empty
-		// replacement destroys the piece (the Spartans' default_wall_*).
+		// replacement destroys the piece (the Spartans' default_wall_*). Only the Iberians'
+		// SkirmishReplacements keep skirmish/structures/iber_wall_* (their Starting Walls).
 		const String tmpl = b.get("template", "");
 		const uint8_t civ = (uint8_t)sim->player(team).civ;
 		if (tmpl.ends_with("default_house_5") || tmpl.ends_with("default_house_10")) {
@@ -345,6 +363,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (civ == rtso::CIV_HAN || (pop == 5) != tmpl.ends_with("default_house_5")) continue;
 		}
 		if (civ == rtso::CIV_SPARTANS && tmpl.contains("default_wall_")) continue;
+		if (civ != rtso::CIV_IBERIANS && tmpl.contains("/iber_wall_")) continue;
 		if (b.has("wallset")) {
 			spawn_map_wall(*sim, b, team);
 			continue;
@@ -370,12 +389,20 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			gaia_structure_ids[i] = spawn_map_wall(*sim, b, rtso::GAIA_PLAYER);
 			continue;
 		}
-		// structures/shrine_*, trading_post_*, rome/tent...: their own types, keeping the template's civ.
-		const rtso::MapStructureTemplate gt = rtso::map_structure_template(String(b.get("template", "")).utf8().get_data());
-		const uint8_t btype = gt.type < rtso::BLD_TYPE_COUNT ? gt.type : map_building_type(b.get("type", ""));
+		// structures/shrine_*, trading_post_*, rome/tent...: their own types, keeping the template's
+		// civ; then civ structures by template (kush/temple_amun, ptol/military_colony, kush/camp_noba)
+		// with their folder's civ, so a captured one trains its {native} roster; then by name.
+		const String gtmpl = b.get("template", "");
+		const rtso::MapStructureTemplate gt = rtso::map_structure_template(gtmpl.utf8().get_data());
+		uint8_t btype = gt.type, civ = gt.type < rtso::BLD_TYPE_COUNT ? gt.civ : (uint8_t)rtso::CIV_COUNT;
+		if (btype >= rtso::BLD_TYPE_COUNT && !gtmpl.is_empty()) {
+			btype = map_building_template(gtmpl);
+			civ = map_template_civ(gtmpl);
+		}
+		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
-		if (gt.type < rtso::BLD_TYPE_COUNT && gt.civ < rtso::CIV_COUNT) sim->set_building_civ(gaia_structure_ids[i], gt.civ);
+		if (civ < rtso::CIV_COUNT && gaia_structure_ids[i]) sim->set_building_civ(gaia_structure_ids[i], civ);
 	}
 	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
 	Array scenery_arr = d.get("scenery", Array());
@@ -533,6 +560,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	// Every peer generates the same map: the size rides in NMT_GAME_START.
 	random_map_size = (setup.map_size >= 128 && setup.map_size <= 512) ? setup.map_size : 128;
 	match_seed_ = setup.seed;
+	turn_mgr_.set_offline_seat(0); // the lockstep seating places every client
 	random_map_players = 2;
 	for (uint8_t i = 0; i < setup.slot_count && i < rtso::MAX_PLAYERS; ++i)
 		if (setup.slot_types[i] != 'x') random_map_players = std::max(random_map_players, (int)i + 1);
@@ -696,9 +724,18 @@ void RtsoMain::apply_match_settings() {
 	for (int i = 0; i < slot_types.size() && i < rtso::MAX_PLAYERS; ++i)
 		if ((int)slot_types[i] != 2) seats = i + 1;
 	random_map_players = std::max(2, seats);
+	// 0.28 PlayerAssignment: Game Setup seats you in local_slot (-1 watches); older
+	// setups (-2) seat you in slot 1 and watch only when no slot is Human.
+	const int local_slot = String(ms->get("net_mode")).is_empty() ? (int)ms->get("local_slot") : -2;
+	const bool legacy_seat = local_slot < -1;
 	local_observer_ = seats > 0;
-	for (int i = 0; i < seats; ++i)
-		if ((int)slot_types[i] == 0) local_observer_ = false;
+	if (legacy_seat) {
+		for (int i = 0; i < seats; ++i)
+			if ((int)slot_types[i] == 0) local_observer_ = false;
+	} else if (local_slot >= 0 && local_slot < seats && local_slot < slot_types.size() && (int)slot_types[local_slot] == 0) {
+		local_observer_ = false;
+	}
+	turn_mgr_.set_offline_seat(!legacy_seat && !local_observer_ ? (uint8_t)local_slot : (uint8_t)0);
 	{
 		Array slot_teams_arr = ms->get("slot_teams");
 		for (int i = 0; i < rtso::MAX_PLAYERS; ++i) {
@@ -795,14 +832,15 @@ void RtsoMain::apply_match_settings() {
 	if (seats > 0) {
 		for (int t = 0; t < rtso::MAX_PLAYERS; ++t) {
 			const int ty = t < slot_types.size() ? (int)slot_types[t] : 2;
-			// Slot 1 is you unless every slot is AI (local_observer_); then Petra plays it too.
-			const bool seated = t < seats && ty != 2 && (t > 0 || ty == 0 || local_observer_);
-			sim->set_player_active((uint8_t)t, seated || t == 0, (t > 0 || local_observer_) && seated && ty == 1);
+			// Older setups: slot 1 is you unless every slot is AI (local_observer_); then
+			// Petra plays it too. With player assignment any slot may be AI.
+			const bool seated = t < seats && ty != 2 && (!legacy_seat || t > 0 || ty == 0 || local_observer_);
+			sim->set_player_active((uint8_t)t, seated || t == 0, (!legacy_seat || t > 0 || local_observer_) && seated && ty == 1);
 		}
 	}
 	apply_player_names(ms->get("slot_names")); // after seating: the diplomacy labels read civ and AI
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
-			" civ ", rtso::civ_info(sim->player_civ()).name,
+			" civ ", rtso::civ_info(sim->player_civ(local_player() < rtso::MAX_PLAYERS ? local_player() : 0)).name,
 			" vs ", rtso::civ_info(sim->team_civ(1)).name);
 	// Map just (re)spawned - select the human player's units like the old
 	// _ready tail did (it ran before any map existed, so it selected nothing).

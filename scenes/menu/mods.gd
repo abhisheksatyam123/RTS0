@@ -167,3 +167,39 @@ static func load_enabled_packs(dir: String = MODS_DIR) -> Array:
 static func restart(tree: SceneTree) -> void:
 	OS.set_restart_on_exit(true, OS.get_cmdline_args())
 	tree.quit()
+
+## Engine.GetEngineInfo().mods: the mods this run plays with, in load order,
+## as {name, version, ignoreInCompatibilityChecks} (mod.json's own fields).
+## The enabled list counts only when it loaded (no incompatible mod).
+static func engine_mods(dir: String = MODS_DIR) -> Array:
+	var mods := available(dir)
+	var folders := enabled() if incompatible.is_empty() else []
+	if not folders.has(PUBLIC):
+		folders.push_front(PUBLIC)
+	var out := []
+	for f in folders:
+		if not mods.has(f):
+			continue
+		var m: Dictionary = mods[f]
+		out.append({"name": str(m.get("name", f)), "version": str(m.get("version", "")),
+			"ignoreInCompatibilityChecks": m.get("ignoreInCompatibilityChecks", false) == true})
+	return out
+
+## Mod.cpp AreModsPlayCompatible: the same mods (name and version) in the
+## same order, skipping the ones marked ignoreInCompatibilityChecks.
+static func play_compatible(a: Array, b: Array) -> bool:
+	var keep := func(list: Array) -> Array:
+		return list.filter(func(m) -> bool: return m is Dictionary and not m.get("ignoreInCompatibilityChecks", false)) \
+			.map(func(m) -> String: return "%s %s" % [str(m.get("name", "")), str(m.get("version", ""))])
+	return keep.call(a) == keep.call(b)
+
+## mod.js modToString: "name (version)", the name alone for a mod that does
+## not affect compatibility.
+static func mod_to_string(m: Dictionary) -> String:
+	if m.get("ignoreInCompatibilityChecks", false):
+		return str(m.get("name", ""))
+	return "%s (%s)" % [str(m.get("name", "")), str(m.get("version", ""))]
+
+## mod.js comparedModsString.
+static func compared_mods_string(required: Array, active: Array) -> String:
+	return "Required: %s\nActive: %s" % [", ".join(required.map(func(m) -> String: return mod_to_string(m))), ", ".join(active.map(func(m) -> String: return mod_to_string(m)))]

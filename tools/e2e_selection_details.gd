@@ -30,7 +30,7 @@ func run() -> void:
 	var u: Dictionary = main.debug_inspector("unit")
 	print("unit: ", u)
 	check(u["visible"], "a selected unit shows the details panel")
-	check(String(u["health"]).begins_with("Health: ") and " / " in String(u["health"]), "health reads \"Health: current / max\"")
+	check(not String(u["health"]).begins_with("Health: ") and " / " in String(u["health"]), "health reads \"current / max\" (healthStats, rounded up, no label)")
 	var tip := String(u["stats_tooltip"])
 	check(tip.begins_with("Attack:\n"), "the detailed tooltip opens with the attack")
 	check("Hack" in tip and "Interval: " in tip and "Range: " in tip, "the attack names its damage types, range and interval")
@@ -52,6 +52,8 @@ func run() -> void:
 	check(" — " in String(u["owner_tooltip"]) and String(u["owner_tooltip"]).ends_with("Phase"), "its tooltip names the civ and, for the viewer, the phase")
 	check(String(u["owner_phase"]).begins_with("res://assets/textures/ui/archive/panel_phase_emblems_") and not String(u["owner_phase"]).ends_with("hidden.png"), "the viewer's own phase emblems show")
 	check(not " (" in String(u["owner"]), "the row names the player, the civ moves to the tooltip")
+	check(not "Kills" in String(u["owner"]) and String(u["extra"]) == "", "no RTS0-only kill count or extra line (displaySingle has no free text)")
+	check(String(u["xp"]).begins_with("Experience: ") and " / " in String(u["xp"]), "a Basic soldier's experience shows on the portrait's vertical bar")
 
 	var elite: PackedInt32Array = main.debug_spawn_units("spart/champion_infantry_swordsman", 1)
 	await frames(2)
@@ -66,6 +68,8 @@ func run() -> void:
 	print("multi: ", m)
 	check(String(m["title_tooltip"]).begins_with("Garrison Size: "), "a group's tooltip gives its garrison size")
 	check("Loot: " in String(m["title_tooltip"]), "and its loot")
+	check(String(m["count"]).is_valid_int() and String(m["count_tooltip"]) == String(m["title_tooltip"]), "numberOfUnits shows the bare count, with that tooltip")
+	check(String(m["health_multiple"]).begins_with("Health: ") and String(m["portrait"]) != "", "and a vertical health bar beside it")
 
 	var b: Dictionary = main.debug_inspector("building")
 	print("building: ", b)
@@ -83,6 +87,8 @@ func run() -> void:
 	check(String(b["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/structures/"), "a Civic Center shows its template's 0.28 icon")
 	check(String(b["portrait_tooltip"]).ends_with("Left-click to focus. Right-click for more information.") and "Territory root." in String(b["portrait_tooltip"]), "its portrait tooltip gives the template tooltip and the focus click")
 	check(String(b["rank_icon"]) == "", "a structure has no rank glyph")
+	check(not "Garrison:" in String(b["owner"]) and not "Production:" in String(b["stats"]) and not "Attack:" in String(b["stats"])
+			and String(b["extra"]) == "", "no RTS0-only garrison, queue, attack or rally text on a structure")
 	check(String(b["title"]) == "Agora (Civic Center)", "an Athenian Civic Center is named as 0.28: \"Agora (Civic Center)\"")
 	var parts: Array = b["capture_parts"]
 	check(parts.size() == 1 and float(parts[0]["width"]) > 300.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")
@@ -134,6 +140,7 @@ func run() -> void:
 	var ls: Dictionary = main.debug_inspector("livestock")
 	print("livestock: ", ls["title"], " ", ls["owner"], " ", ls["health"])
 	check(String(ls["title"]) == "3 units selected" and String(ls["owner"]) == "2 types", "several of the player's livestock show displayMultiple: count and kinds")
+	check(String(ls["count"]) == "3" and String(ls["health_multiple"]) != "", "displayMultiple: numberOfUnits in large text beside a vertical health bar")
 	check(String(ls["health"]).begins_with("Health: "), "with their summed health")
 	var lg: Dictionary = main.debug_selection_grid(false)
 	var licons: Array = lg["icons"]

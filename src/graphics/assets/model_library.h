@@ -35,6 +35,7 @@ public:
 		float y_offset = 0.0f; // add to instance Y so the model base sits on ground
 		bool valid = false;
 		bool animated = false;
+		godot::String path; // the GLB it was loaded from (empty for a procedural stand-in)
 	};
 
 	struct CrowdSkin {
@@ -66,6 +67,8 @@ public:
 	};
 
 	static const Entry &get(const godot::String &category, const godot::String &id);
+	// Read the model's GLB on a worker thread ahead of its first get().
+	static void prefetch(const godot::String &category, const godot::String &id);
 	static void clear();
 	static bool capture_crowd_skin(godot::Node *root, CrowdSkin &out);
 	static godot::Ref<godot::ArrayMesh> bake_crowd_skin(CrowdSkin &skin, const godot::Ref<godot::ArrayMesh> &reuse = godot::Ref<godot::ArrayMesh>());
@@ -77,6 +80,10 @@ public:
 	// Owner colour for the 0 A.D. player_trans surfaces under root (the
 	// instance uniform of shaders/player_color.gdshader).
 	static void set_player_color(godot::Node *root, const godot::Color &c);
+	// The entity's draw in [0, 1) that picks its body skin (variant_u of
+	// shaders/player_color.gdshader, data/unit_variants.json).
+	static void set_variant(godot::Node *root, float u);
+	static float variant_draw(uint32_t entity_id);
 	static bool is_player_color_material(const godot::Ref<godot::Material> &mat);
 	// The GLB a building model id draws with (data/building_models.json), or id itself.
 	static godot::String building_glb_id(const godot::String &id);
@@ -85,6 +92,8 @@ public:
 
 private:
 	static Entry load(const godot::String &category, const godot::String &id);
+	static godot::Vector<godot::String> candidate_paths(const godot::String &category, const godot::String &id);
+	static HashMap<godot::String, bool> &threaded_paths(); // prefetch requests not yet taken
 	static godot::Ref<godot::PackedScene> borrow_clips(godot::Node *inst, const godot::String &donor);
 	static float target_height(const godot::String &category, const godot::String &id, float natural_h);
 	static HashMap<godot::String, Entry> &cache();

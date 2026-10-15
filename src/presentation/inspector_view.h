@@ -312,6 +312,47 @@ public:
 		}
 		garrison_hp_bar_->set_visible(false);
 		panel_->add_child(garrison_hp_bar_);
+		// single_details_area.xml experience (2 2 6 100%-2): a vertical bar on the portrait's left
+		// edge. multiple_details_area.xml: numberOfUnits in large text where the portrait goes, the
+		// vertical healthMultiple and captureMultiple bars under it.
+		// A background with its fill as the first child; set_vbar fills it from the bottom.
+		auto make_vbar = [&](Control *parent, const char *name, Vector2 pos, Vector2 size, Color fill_col) {
+			ColorRect *b = memnew(ColorRect);
+			b->set_name(name);
+			b->set_position(pos);
+			b->set_size(size);
+			b->set_color(Color(0.10f, 0.12f, 0.16f, 0.85f));
+			b->set_mouse_filter(Control::MOUSE_FILTER_PASS);
+			ColorRect *fill = memnew(ColorRect);
+			fill->set_color(fill_col);
+			fill->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			b->add_child(fill);
+			b->set_visible(false);
+			parent->add_child(b);
+			return b;
+		};
+		xp_vbar_ = make_vbar(portrait_, "experience", Vector2(2, 2), Vector2(4, 80), Color(0.95f, 0.75f, 0.20f));
+		count_label_ = memnew(Label);
+		count_label_->set_name("numberOfUnits");
+		count_label_->set_position(Vector2(10, 10));
+		count_label_->set_size(Vector2(84, 40));
+		count_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		count_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+		count_label_->add_theme_font_size_override("font_size", 28);
+		count_label_->add_theme_color_override("font_color", Color(1, 1, 1));
+		count_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		count_label_->add_theme_constant_override("outline_size", 4);
+		count_label_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
+		count_label_->set_visible(false);
+		panel_->add_child(count_label_);
+		hp_vbar_ = make_vbar(panel_, "healthMultiple", Vector2(42, 54), Vector2(8, 40), Color(0.25f, 0.75f, 0.35f));
+		cap_vbar_ = make_vbar(panel_, "captureMultiple", Vector2(54, 54), Vector2(8, 40), Color(0, 0, 0, 0));
+		for (ColorRect *&part : cap_vbar_parts_) {
+			part = memnew(ColorRect);
+			part->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			part->set_visible(false);
+			cap_vbar_->add_child(part);
+		}
 		// The Barter panel's place (0.28's left panel, shared with the garrison panel); the
 		// command panel fills it.
 		barter_host_ = memnew(Control);
@@ -365,7 +406,15 @@ public:
 			}
 		d["statuses"] = statuses;
 		d["health"] = hp_label_->get_text();
-		d["xp"] = xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
+		d["xp"] = xp_vbar_->is_visible() ? xp_vbar_->get_tooltip_text() : xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
+		d["count"] = count_label_->is_visible() ? count_label_->get_text() : godot::String();
+		d["count_tooltip"] = count_label_->get_tooltip_text();
+		d["health_multiple"] = hp_vbar_->is_visible() ? hp_vbar_->get_tooltip_text() : godot::String();
+		d["capture_multiple"] = cap_vbar_->is_visible() ? cap_vbar_->get_tooltip_text() : godot::String();
+		godot::Array cap_multi_parts;
+		for (godot::ColorRect *r : cap_vbar_parts_)
+			if (cap_vbar_->is_visible() && r->is_visible()) cap_multi_parts.push_back(r->get_size().y);
+		d["capture_multiple_parts"] = cap_multi_parts;
 		d["stats"] = stats_->get_text();
 		godot::Array capture_parts;
 		for (godot::ColorRect *r : capture_parts_)
@@ -465,6 +514,7 @@ public:
 	godot::Control *barter_host() const { return barter_host_; }
 
 	bool fill_inspected_details() {
+		hide_multi();
 		rtso::Simulation *sim = host_->ui_sim();
 		if (!sim || kind_ == INSPECT_NONE) return false;
 		const uint8_t vp = host_->view_player();
@@ -478,7 +528,7 @@ public:
 			lbl->set_text(text);
 		};
 		auto health = [&](float hp, float max) {
-			bar(hp_bar_, hp_label_, max > 0.0f, hp, max, rtso::seldet::health(hp, max));
+			bar(hp_bar_, hp_label_, max > 0.0f, hp, max, rtso::seldet::health_stats(hp, max));
 		};
 		bar(capture_bar_, capture_label_, false);
 		bar(xp_bar_, xp_label_, false);
@@ -562,7 +612,7 @@ public:
 				if (seen->max_capture_points > 0.0f)
 				{
 					bar(capture_bar_, capture_label_, true, seen->capture_points, seen->max_capture_points,
-							rtso::seldet::capture(seen->capture_points, seen->max_capture_points));
+							rtso::seldet::capture_stats(seen->capture_points, seen->max_capture_points));
 					float pts[rtso::MAX_PLAYERS + 1] = {};
 					pts[seen->team < rtso::MAX_PLAYERS ? seen->team : rtso::MAX_PLAYERS] = seen->capture_points;
 					set_capture_parts(*sim, seen->team, pts, seen->max_capture_points);
@@ -584,7 +634,7 @@ public:
 			set_structure_extras(*sim, *found);
 			if (found->max_capture_points > 0.0f) {
 				bar(capture_bar_, capture_label_, true, found->capture_points, found->max_capture_points,
-						rtso::seldet::capture(found->capture_points, found->max_capture_points));
+						rtso::seldet::capture_stats(found->capture_points, found->max_capture_points));
 				set_structure_capture_parts(*sim, *found);
 			}
 			rtso::Simulation::BuildWork work;
@@ -715,6 +765,7 @@ public:
 		hp_bar_->set_max(max_hp > 0.0f ? max_hp : 1.0f);
 		hp_bar_->set_value(hp);
 		hp_label_->set_text(rtso::seldet::health(hp, max_hp));
+		show_multi((int64_t)selected_ids.size(), "", hp, max_hp);
 		for (int i = 0; i < kStatusIcons; ++i) status_icons_[i]->set_visible(false);
 		hide_resource_bar();
 		stats_->set_text("");
@@ -746,6 +797,7 @@ public:
 		// The stamina bar has no 0 A.D. counterpart.
 		show_bar(stamina_bar_, stamina_label_, false);
 		hide_resource_bar();
+		hide_multi();
 		garrison_hp_bar_->set_visible(false); // fill_garrison_grid shows it
 		clear_tooltips();
 		stats_->set_position(Vector2(102, 108));
@@ -783,16 +835,15 @@ public:
 				portrait_->set_texture(rtso::portraits::structure(found_b->civ, found_b->type));
 				title_->set_text(structure_name(found_b->civ, found_b->type, binfo.name));
 				const uint8_t owner = found_b->team;
-				set_owner(*sim, owner, found_b->garrison_cap > 0
-						? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
-						: String());
+				// The garrison count is on the garrison panel and the Unload All icon, not here.
+				set_owner(*sim, owner, String());
 
-				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health(found_b->hp, found_b->max_hp));
+				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health_stats(found_b->hp, found_b->max_hp));
 				set_structure_extras(*sim, *found_b);
 
 				if (found_b->max_capture_points > 0.0f) {
 					set_bar(capture_bar_, capture_label_, found_b->capture_points, found_b->max_capture_points,
-							rtso::seldet::capture(found_b->capture_points, found_b->max_capture_points));
+							rtso::seldet::capture_stats(found_b->capture_points, found_b->max_capture_points));
 					set_structure_capture_parts(*sim, *found_b);
 				} else
 					show_bar(capture_bar_, capture_label_, false);
@@ -804,15 +855,6 @@ public:
 							join_spaced("Construction: " + String::num((double)(found_b->build_progress * 100.0f), 0) + "%",
 									rtso::seldet::build_work_caption(work.builders, work.remaining)));
 					if (building_work) xp_bar_->set_tooltip_text(build_work_tooltip(work));
-				} else if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT && found_b->upgrade_duration > 0.0f) {
-					set_bar(xp_bar_, xp_label_, found_b->upgrade_timer, found_b->upgrade_duration,
-							"Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" +
-							String::num(found_b->upgrade_duration - found_b->upgrade_timer, 0) + " s left)");
-				} else if (const uint8_t rt = rtso::Simulation::researching(*found_b); rt != rtso::TECH_NONE && found_b->queue.front().duration > 0.0f) {
-					const rtso::ProductionOrder &po = found_b->queue.front();
-					set_bar(xp_bar_, xp_label_, po.timer, po.duration,
-							"Researching " + String::utf8(rtso::tech_info(rt).name) + " (" +
-							String::num(po.duration - po.timer, 0) + " s left)");
 				} else if (building_work && work.repair) {
 					// selection_details.js: a damaged structure shows its repairers and the time left.
 					set_bar(xp_bar_, xp_label_, found_b->hp, found_b->max_hp,
@@ -823,18 +865,10 @@ public:
 				}
 				show_bar(aura_bar_, aura_label_, false);
 
-				String status;
-				if (rtso::is_gate_type(found_b->type))
-					status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
-				else if (!found_b->queue.empty())
-					status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
-							" in queue" + (found_b->autoqueue ? " (autoqueue on)" : "") + " (click a slot to cancel)";
-				if (const rtso::Simulation::StructureDetails sd = sim->structure_details(*found_b); sd.shoots)
-					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sd.arrows) + " arrows of " +
-							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
-							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
-				// A field's resourceSection: "Food: ∞" and its gatherers.
-				stats_->set_text(rtso::seldet::join_lines({status, supply_lines(*sim, sim->field_resource_id(found_b->id))}));
+				// A field's resourceSection: "Food: ∞" and its gatherers. 0.28 has no free text here: the
+				// upgrade and research progress are on the Queue panel, the gate state on its Lock
+				// buttons, the arrows on the attack tooltip (selection_details.js displaySingle).
+				stats_->set_text(supply_lines(*sim, sim->field_resource_id(found_b->id)));
 				// Beside the Barter panel when it shows.
 				const bool barter = barter_host_ && barter_host_->is_visible();
 				if (barter) {
@@ -843,19 +877,11 @@ public:
 					stats_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 				}
 				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
-				// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
-				const int penned = found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0;
-				String extra = found_b->has_rally_point ? "Rally point set" : "";
-				if (penned > 0)
-					extra += String(extra.is_empty() ? "" : "\n") + "Penned animals: " + String::num_int64(penned) + " / " +
-							String::num_int64(rtso::CORRAL_GARRISON_MAX);
-				extra_->set_text(extra);
+				extra_->set_text("");
 
-				// Garrison panel; U unloads all we may (Commands.js unload / unload-all-by-owner).
-				const std::vector<uint32_t> mine = sim->unloadable_by(host_->local_player(), found_b->id);
+				// Garrison panel; Unload All is the command row's icon (g_EntityCommands).
 				show_garrison_grid = fill_garrison_grid(*sim, found_b->id);
-				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-				ungarrison_btn_->set_visible(!mine.empty() || (penned > 0 && owner == host_->local_player()));
+				ungarrison_btn_->set_visible(false);
 				panel_->set_visible(true);
 				return;
 			}
@@ -880,7 +906,8 @@ public:
 			hp_sum += g.hp;
 			hp_max_sum += g.max_hp;
 		}
-		set_bar(hp_bar_, hp_label_, hp_sum, hp_max_sum, rtso::seldet::health(hp_sum, hp_max_sum));
+		set_bar(hp_bar_, hp_label_, hp_sum, hp_max_sum,
+				selected_ids.size() == 1 ? rtso::seldet::health_stats(hp_sum, hp_max_sum) : rtso::seldet::health(hp_sum, hp_max_sum));
 		show_bar(capture_bar_, capture_label_, false);
 
 		if (selected_ids.size() == 1 && !groups.empty()) {
@@ -900,25 +927,17 @@ public:
 			const String name = unit_name(uview, u, uinfo.name);
 			title_->set_text(name);
 			const uint8_t owner = uview.team[u];
-			set_owner(*sim, owner, " - Kills: " + String::num_int64(uview.kills[u]));
+			set_owner(*sim, owner, String()); // kills are on the summary screen, not here
 
 			// Experience toward the next rank (Promotion.js GetRequiredXp after technologies).
 			if (const float need = sim->promotion_required_xp(u); need > 0.0f) {
-				set_bar(xp_bar_, xp_label_, (float)uview.xp[u], need, rtso::seldet::experience(uview.xp[u], need));
-			} else {
-				show_bar(xp_bar_, xp_label_, false);
+				set_vbar(xp_vbar_, (float)uview.xp[u], need);
+				xp_vbar_->set_tooltip_text(rtso::seldet::experience(uview.xp[u], need));
+				xp_vbar_->set_visible(true);
 			}
+			show_bar(xp_bar_, xp_label_, false);
 
-			String auras;
-			if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
-				for (int16_t a : rtso::civ_unit_template(tmpl).auras) {
-					if (a < 0) continue;
-					if (!auras.is_empty()) auras += ", ";
-					auras += String::utf8(rtso::civ_hero_aura(a).name);
-				}
-			}
-			if (!auras.is_empty()) set_bar(aura_bar_, aura_label_, 1.0f, 1.0f, "Auras: " + auras);
-			else show_bar(aura_bar_, aura_label_, false);
+			show_bar(aura_bar_, aura_label_, false); // auras are on the portrait tooltip (getAurasTooltip)
 
 			fill_unit_details(*sim, u, name);
 			set_unit_extras(*sim, u);
@@ -961,10 +980,8 @@ public:
 						rtso::seldet::amount_of(uview.carry[u], sim->unit_details(u).carry_max);
 			}
 			if (sim->is_transport((uint32_t)selected_ids[0])) {
-				const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
-				extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(sim->get_transport_capacity((uint32_t)selected_ids[0]));
-				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-				ungarrison_btn_->set_visible(!sim->unloadable_by(host_->local_player(), (uint32_t)selected_ids[0]).empty());
+				// Passengers are on the garrison panel and the Unload All icon's count.
+				ungarrison_btn_->set_visible(false);
 				show_garrison_grid = fill_garrison_grid(*sim, (uint32_t)selected_ids[0]);
 			} else {
 				ungarrison_btn_->set_visible(false);
@@ -998,6 +1015,7 @@ public:
 				}
 				title_->set_tooltip_text(rtso::seldet::multiple_tooltip(garrison_size, carrying, loot));
 			}
+			show_multi((int64_t)selected_ids.size(), title_->get_tooltip_text(), hp_sum, hp_max_sum);
 			clear_owner();
 			class_->set_text(String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
 			show_bar(xp_bar_, xp_label_, false);
@@ -1022,6 +1040,62 @@ private:
 	}
 
 	// The capture bar's parts: pts[p] for each player p, pts[MAX_PLAYERS] for Gaia; the owner first.
+	static void set_vbar(godot::ColorRect *bar, float value, float max) {
+		auto *fill = godot::Object::cast_to<godot::ColorRect>(bar->get_child(0));
+		const float frac = max > 0.0f ? std::clamp(value / max, 0.0f, 1.0f) : 0.0f;
+		const godot::Vector2 size = bar->get_size();
+		fill->set_position(godot::Vector2(0.0f, size.y * (1.0f - frac)));
+		fill->set_size(godot::Vector2(size.x, size.y * frac));
+	}
+	void hide_multi() {
+		portrait_->set_visible(true);
+		xp_vbar_->set_visible(false);
+		count_label_->set_visible(false);
+		count_label_->set_tooltip_text("");
+		hp_vbar_->set_visible(false);
+		cap_vbar_->set_visible(false);
+	}
+	// displayMultiple: the count in place of the portrait, health (and capture) as vertical bars.
+	void show_multi(int64_t count, const godot::String &tip, float hp, float max_hp) {
+		portrait_->set_visible(false);
+		count_label_->set_text(godot::String::num_int64(count));
+		count_label_->set_tooltip_text(tip);
+		count_label_->set_visible(true);
+		hp_bar_->set_visible(false);
+		hp_label_->set_visible(false);
+		capture_bar_->set_visible(false);
+		capture_label_->set_visible(false);
+		hp_label_->set_text(rtso::seldet::health(hp, max_hp));
+		set_vbar(hp_vbar_, hp, max_hp);
+		hp_vbar_->set_tooltip_text(hp_label_->get_text());
+		hp_vbar_->set_visible(true);
+		cap_vbar_->set_visible(false);
+	}
+	// captureMultiple: one part per player stacked from the bottom, the owner's first.
+	void set_multi_capture(const rtso::Simulation &sim, uint8_t owner, const float *pts, float max) {
+		const float w = cap_vbar_->get_size().x, h = cap_vbar_->get_size().y;
+		const int owner_slot = owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS;
+		float y = h;
+		int used = 0;
+		auto part = [&](int slot) {
+			const float frac = max > 0.0f ? std::clamp(pts[slot] / max, 0.0f, 1.0f) : 0.0f;
+			if (frac <= 0.0f || used >= kCaptureParts) return;
+			const uint32_t rgb = slot < rtso::MAX_PLAYERS ? rtso::display_colors::rgb(sim, (uint8_t)slot) : sim.player_color(rtso::GAIA_PLAYER);
+			godot::ColorRect *r = cap_vbar_parts_[used++];
+			r->set_color(godot::Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 128.0f / 255.0f));
+			y -= h * frac;
+			r->set_position(godot::Vector2(0.0f, y));
+			r->set_size(godot::Vector2(w, h * frac));
+			r->set_visible(true);
+		};
+		part(owner_slot);
+		for (int slot = 0; slot <= rtso::MAX_PLAYERS; ++slot)
+			if (slot != owner_slot) part(slot);
+		for (int i = used; i < kCaptureParts; ++i) cap_vbar_parts_[i]->set_visible(false);
+		set_vbar(cap_vbar_, 0.0f, 1.0f);
+		cap_vbar_->set_tooltip_text(rtso::seldet::capture(pts[owner_slot], max));
+		cap_vbar_->set_visible(true);
+	}
 	void set_capture_parts(const rtso::Simulation &sim, uint8_t owner, const float *pts, float max) {
 		capture_bar_->set_value(0.0f);
 		const float w = capture_bar_->get_size().x, h = capture_bar_->get_size().y;
@@ -1182,7 +1256,7 @@ private:
 				capture_bar_->set_visible(true);
 				capture_label_->set_visible(true);
 				capture_bar_->set_max(max);
-				capture_label_->set_text(rtso::seldet::capture(r.cp[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS], max));
+				capture_label_->set_text(rtso::seldet::capture_stats(r.cp[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS], max));
 				set_capture_parts(sim, owner, r.cp.data(), max);
 				break;
 			}
@@ -1375,6 +1449,11 @@ private:
 	godot::Label *capture_label_ = nullptr;
 	godot::ProgressBar *xp_bar_ = nullptr;
 	godot::Label *xp_label_ = nullptr;
+	godot::ColorRect *xp_vbar_ = nullptr;     // experience
+	godot::Label *count_label_ = nullptr;     // numberOfUnits
+	godot::ColorRect *hp_vbar_ = nullptr;     // healthMultiple
+	godot::ColorRect *cap_vbar_ = nullptr;    // captureMultiple
+	godot::ColorRect *cap_vbar_parts_[kCaptureParts] = {};
 	godot::ProgressBar *stamina_bar_ = nullptr;
 	godot::Label *stamina_label_ = nullptr;
 	godot::Label *resource_name_ = nullptr;   // resourceLabel
@@ -1451,11 +1530,12 @@ private:
 			const float own = pts[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS];
 			capture_bar_->set_max(max_cp);
 			capture_label_->set_text(rtso::seldet::capture(own, max_cp));
-			set_capture_parts(sim, owner, pts, max_cp);
 		}
 		portrait_->set_texture(groups.empty() ? godot::Ref<godot::Texture2D>()
 				: groups.front().icon.is_valid() ? groups.front().icon : rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
 		title_->set_text(godot::String::num_int64(total) + " selected");
+		show_multi(total, "", hp, max_hp);
+		if (max_cp > 0.0f) set_multi_capture(sim, owner, pts, max_cp);
 		clear_owner();
 		class_->set_text(godot::String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
 		show_bar(xp_bar_, xp_label_, false);

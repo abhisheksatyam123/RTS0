@@ -35,6 +35,16 @@ func key(code: int, ctrl := false) -> void:
 		await frames(1)
 	await frames(2)
 
+func drag(at: Vector2) -> void:
+	for i in 3:
+		var m := InputEventMouseMotion.new()
+		m.position = at
+		m.global_position = at
+		m.relative = Vector2(30, 0)
+		Input.parse_input_event(m)
+		await frames(2)
+	await frames(10)
+
 func target() -> Vector2:
 	return main.debug_camera()["target"]
 
@@ -67,6 +77,42 @@ func run() -> void:
 	await frames(2)
 	await key(KEY_SPACE)
 	check(int(main.debug_camera()["follow"]) == man, "the camera follows the attacked unit")
+
+	print("3. camera.pan (MouseMiddle) drags the view while held, and follows a rebind")
+	var at := root.get_final_transform() * Vector2(512, 400)
+	var mb := InputEventMouseButton.new()
+	mb.button_index = MOUSE_BUTTON_MIDDLE
+	mb.position = at
+	mb.global_position = at
+	mb.pressed = true
+	Input.parse_input_event(mb)
+	await frames(2)
+	var p0: Vector2 = target()
+	await drag(at)
+	check(target().distance_to(p0) > 0.5, "the middle button drags the view")
+	mb = mb.duplicate()
+	mb.pressed = false
+	Input.parse_input_event(mb)
+	await frames(2)
+	p0 = target()
+	await drag(at)
+	check(target().distance_to(p0) < 0.01, "released, moving the mouse doesn't")
+	var hk := RtsoHotkeyConfig.new()
+	hk.set_hotkey("camera.pan", PackedStringArray(["J"]))
+	var j := InputEventKey.new()
+	j.keycode = KEY_J
+	j.physical_keycode = KEY_J
+	j.pressed = true
+	Input.parse_input_event(j)
+	await frames(2)
+	p0 = target()
+	await drag(at)
+	check(target().distance_to(p0) > 0.5, "camera.pan rebound to J: holding J drags")
+	j = j.duplicate()
+	j.pressed = false
+	Input.parse_input_event(j)
+	await frames(2)
+	hk.reload()
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

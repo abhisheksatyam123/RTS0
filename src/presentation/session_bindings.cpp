@@ -108,6 +108,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_civ_icon_gui_input", "event"), &RtsoMain::_on_civ_icon_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_flare_button_pressed"), &RtsoMain::_on_flare_button_pressed);
 	ClassDB::bind_method(D_METHOD("debug_minimap_panel"), &RtsoMain::debug_minimap_panel);
+	ClassDB::bind_method(D_METHOD("debug_attacked", "target", "attacker_owner"), &RtsoMain::debug_attacked);
 	ClassDB::bind_method(D_METHOD("debug_selected_building"), &RtsoMain::debug_selected_building);
 	ClassDB::bind_method(D_METHOD("debug_queue_slot", "i"), &RtsoMain::debug_queue_slot);
 	ClassDB::bind_method(D_METHOD("debug_placement_tip"), &RtsoMain::debug_placement_tip);
@@ -185,6 +186,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_placing"), &RtsoMain::debug_placing);
 	ClassDB::bind_method(D_METHOD("debug_highlight"), &RtsoMain::debug_highlight);
 	ClassDB::bind_method(D_METHOD("debug_selected_structures"), &RtsoMain::debug_selected_structures);
+	ClassDB::bind_method(D_METHOD("debug_rally_flags"), &RtsoMain::debug_rally_flags);
+	ClassDB::bind_method(D_METHOD("debug_status_sprites"), &RtsoMain::debug_status_sprites);
 	ClassDB::bind_method(D_METHOD("debug_building_queue", "id"), &RtsoMain::debug_building_queue);
 	ClassDB::bind_method(D_METHOD("debug_structure_outlined", "id"), &RtsoMain::debug_structure_outlined);
 	ClassDB::bind_method(D_METHOD("debug_guard_target", "unit_id"), &RtsoMain::debug_guard_target);
@@ -201,14 +204,19 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player"), &RtsoMain::debug_spawn_units, DEFVAL(-1));
+	ClassDB::bind_method(D_METHOD("debug_spawn_offset", "template_id", "count", "player"), &RtsoMain::debug_spawn_offset, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_spawn_fauna", "fauna_type", "count", "owned"), &RtsoMain::debug_spawn_fauna);
+	ClassDB::bind_method(D_METHOD("debug_spawn_mine", "x", "z", "max_gatherers"), &RtsoMain::debug_spawn_mine);
+	ClassDB::bind_method(D_METHOD("debug_unit_model_path", "civ", "unit_type"), &RtsoMain::debug_unit_model_path);
+	ClassDB::bind_method(D_METHOD("debug_template_model_path", "template_id"), &RtsoMain::debug_template_model_path);
+	ClassDB::bind_method(D_METHOD("debug_snap_placement", "btype", "x", "z", "hover", "stale_angle"), &RtsoMain::debug_snap_placement);
 	ClassDB::bind_method(D_METHOD("debug_put_inside", "ids", "holder"), &RtsoMain::debug_put_inside);
 	ClassDB::bind_method(D_METHOD("debug_select_entity", "id"), &RtsoMain::debug_select_entity);
 	ClassDB::bind_method(D_METHOD("debug_select_units", "ids"), &RtsoMain::debug_select_units);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_id", "player"), &RtsoMain::debug_civic_centre_id);
 	ClassDB::bind_method(D_METHOD("debug_spawn_building", "type", "dx", "dz", "player"), &RtsoMain::debug_spawn_building, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
-	ClassDB::bind_method(D_METHOD("debug_structure_types"), &RtsoMain::debug_structure_types);
+	ClassDB::bind_method(D_METHOD("debug_structure_types", "with_civ"), &RtsoMain::debug_structure_types, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_add_xp", "ids", "xp"), &RtsoMain::debug_add_xp);
@@ -254,6 +262,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("net_query_stun", "server", "port"), &RtsoMain::net_query_stun);
 	ClassDB::bind_method(D_METHOD("net_hole_punch", "ip", "port"), &RtsoMain::net_hole_punch);
 	ClassDB::bind_method(D_METHOD("net_retarget_host", "ip", "port"), &RtsoMain::net_retarget_host);
+	ClassDB::bind_method(D_METHOD("net_lobby_auth_result", "peer", "ticket", "name"), &RtsoMain::net_lobby_auth_result);
 	ClassDB::bind_method(D_METHOD("get_turn_hash", "turn"), &RtsoMain::get_turn_hash);
 
 	const StringName cls = get_class_static();

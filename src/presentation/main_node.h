@@ -78,6 +78,7 @@
 #include "minimap_panel_view.h"
 #include "control_groups_view.h"
 #include "range_overlays.h"
+#include "rally_point_renderer.h"
 #include "music_manager.h"
 #include "session_audio.h"
 
@@ -162,6 +163,12 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool net_setup_overlay_unsupported_ = false;
 	Button *lobby_start_btn_ = nullptr;
 	void update_net_setup_overlay();
+	// gamesetup_mp.js pageConnecting: "Connecting to server..." (then
+	// "Registering with server...") with Cancel over the screen until the
+	// host lets us in, and while a rejoin loads the host's game.
+	void update_net_connect_overlay();
+	Node *net_connect_overlay_ = nullptr; // scenes/menu/net_connecting.gd
+	CanvasLayer *net_connect_layer_ = nullptr;
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -197,6 +204,13 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Label *banner_label = nullptr;
 	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
 	RichTextLabel *time_notification_label_ = nullptr; // notificationText: player names in their colours
+	// The sim's "text" notices (SessionNotice::TEXT) shown under it until end_ms (match time).
+	struct TextNotice {
+		String text;
+		uint32_t end_ms;
+	};
+	std::vector<TextNotice> text_notices_;
+	std::unordered_map<uint32_t, uint32_t> spawn_notified_; // building -> match ms of its last blocked-spawn notice
 	// 0.28 NetworkDelayOverlay: "Delay to live stream" while this peer holds more
 	// than MAX_LIVE_DELAY turns it hasn't run yet; checked once a second.
 	Label *net_delay_label_ = nullptr;
@@ -226,8 +240,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	MeshInstance3D *ghost_mesh = nullptr;
 	Ref<StandardMaterial3D> ghost_mat_ok;
 	Ref<StandardMaterial3D> ghost_mat_bad;
-	MeshInstance3D *rally_flag = nullptr;
 	RtsoRangeOverlays range_overlays_;
+	RtsoRallyPoints rally_points_;
 	std::vector<MeshInstance3D *> wall_ghosts;
 
 	bool build_mode = false;
@@ -355,6 +369,16 @@ public:
 	void quicksave();
 	void quickload();
 	void show_notice(const String &text);
+	// CLogger's rendered messages (CLogger.cpp RENDER_TIMEOUT 10 s, RENDER_LIMIT 20).
+	struct LogLine {
+		String text;
+		bool error;
+		uint64_t until_ms;
+	};
+	std::vector<LogLine> log_lines_;
+	RichTextLabel *log_label_ = nullptr;
+	void log_render(const String &text, bool error = false);
+	void update_log_messages(bool changed = false);
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
 	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
@@ -445,6 +469,8 @@ public:
 	void net_query_stun(const String &server, int port);
 	void net_hole_punch(const String &ip, int port);
 	void net_retarget_host(const String &ip, int port);
+	// LobbySession.verify_join's answer: the lobby name the ticket belongs to ("" unknown).
+	void net_lobby_auth_result(int peer, const String &ticket, const String &name);
 	// Networked Game Setup for scenes/menu/gamesetup.gd: see net_setup_.
 	bool is_net_pregame() const;
 	Dictionary get_net_setup_state() const;
@@ -472,11 +498,11 @@ public:
 		if (observer_view_ < rtso::MAX_PLAYERS && spectating()) return observer_view_;
 		return seat_player();
 	}
-	// The seat this client plays: its lockstep slot in multiplayer, player 0
-	// offline; 0xFF for an observer (multiplayer, or every slot AI).
+	// The seat this client plays: its lockstep slot in multiplayer, Game Setup's
+	// assigned slot offline (player 0 by default); 0xFF for an observer.
 	uint8_t seat_player() const {
 		if (net_lockstep() || turn_mgr_.perspective_changed()) return turn_mgr_.local_player();
-		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0;
+		return local_observer_ ? (uint8_t)0xFF : turn_mgr_.offline_seat();
 	}
 	// This client only watches: an observer, or a player who was defeated
 	// (0 A.D. g_IsObserver). Not in a replay, which has its own picker.
@@ -555,6 +581,7 @@ public:
 	}
 	int ui_batch_size() const override { return user_opts_.batch_size; }
 	int ui_pending_batch(uint16_t tmpl) const override;
+	int ui_trainer_count(uint16_t tmpl, uint32_t holder) const override { return (int)structure_trainers(tmpl, holder).size(); }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
 	Dictionary get_trade_dialog_state() const;
 	void _on_trading_goods_requested(const PackedInt32Array &shares);
@@ -631,6 +658,9 @@ public:
 				}
 		return -1;
 	}
+	// Rally point flags drawn this frame (rally_point_renderer.h).
+	int debug_rally_flags() const { return rally_points_.flag_count(); }
+	int debug_status_sprites() const { return view ? view->status_sprite_count() : 0; }
 	PackedInt32Array debug_selected_structures() const {
 		PackedInt32Array out;
 		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);
@@ -656,14 +686,19 @@ public:
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	Vector2 debug_spawn_offset(const String &template_id, int count, int player = -1) const;
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
+	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
+	String debug_unit_model_path(int civ, int unit_type);
+	String debug_template_model_path(const String &template_id);
+	Dictionary debug_snap_placement(int btype, float x, float z, bool hover, float stale_angle);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
 	int64_t debug_civic_centre_id(int player) const;
 	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
-	Dictionary debug_structure_types();
+	Dictionary debug_structure_types(bool with_civ = false);
 	void debug_delete_units(const PackedInt32Array &ids);
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
 	Dictionary debug_diplomacy() const { return diplo_dialog_.debug_state(); } // tests: the diplomacy dialog's rows
@@ -707,6 +742,13 @@ public:
 	// input.js setHighlightList: the entity under the cursor, or what the band box would pick.
 	void update_highlight();
 	PackedInt32Array highlight_ids_;
+	// The hover pick (PickEntityAtPoint) is redone when the mouse or camera moves, or
+	// every kHoverRepickMs while they stand still (units walk under the cursor).
+	PackedInt32Array hover_pick_;
+	Vector2 hover_mouse_ = Vector2(-1e9f, -1e9f);
+	Transform3D hover_cam_;
+	uint64_t hover_at_ms_ = 0;
+	static constexpr uint64_t kHoverRepickMs = 200;
 	struct BatchTraining {
 		bool active = false;
 		bool from_unit = false; // trained by a unit (Trainer on a unit), else a structure
@@ -740,6 +782,7 @@ public:
 	void _on_ui_click_item(int) { _on_ui_click(); }
 	int debug_ui_clicks() const { return ui_clicks_; }
 	bool debug_overlay_visible() const { return debug_overlay && debug_overlay->is_visible(); }
+	static void reset_default_cursor();
 	int voices_played_ = 0; // tests: unit voice lines started
 	int debug_voices() const { return voices_played_; }
 	// Tests: the control groups and camera as a save stores them, and setting the camera.
@@ -828,7 +871,8 @@ private:
 	// 0 A.D. input.js snap to edges: with isSnapToEdgesEnabled, turns placement_angle to the
 	// nearest structure's sides (ObstructionSnap.getPosition) and moves (cell_x, cell_y) to the
 	// building cell nearest the flush position.
-	void snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y);
+	bool snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y, bool hover = false);
+	bool debug_force_snap_ = false; // debug_snap_placement: snapping on whatever the option and hotkey say
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
 	void try_train_unit(rtso::UnitType utype);
@@ -913,7 +957,6 @@ private:
 	// session.timewarp.fastforward runs the game at 20x while held.
 	bool time_warp_ = false;
 	bool time_warp_ff_ = false;
-	float time_warp_speed_ = 1.0f; // the speed to go back to when fast forward is let go
 	uint32_t time_warp_turn_ = UINT32_MAX;
 	uint32_t time_warp_serial_ = 0;
 	std::vector<String> time_warp_snapshots_;
@@ -930,6 +973,7 @@ public:
 	Dictionary get_rejoin_test() const;
 private:
 	bool rejoin_test_ = false;
+	bool random_map_ = false; // the match's map was generated (0.28 mapType "random")
 	std::unique_ptr<rtso::Simulation> rejoin_sim_;
 	std::unique_ptr<rtso::TurnManager> rejoin_tm_;
 	uint32_t rejoin_from_turn_ = 0, rejoin_turns_ = 0, rejoin_oos_turn_ = 0;
@@ -973,6 +1017,8 @@ private:
 	Dictionary debug_selected_building() const;
 	Dictionary debug_queue_slot(int i);
 	Dictionary debug_minimap_panel() const;
+	// An Attacked message on `target` (a unit) from `attacker_owner`, through the session's AttackDetection.
+	void debug_attacked(int64_t target, int64_t attacker_owner);
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while
@@ -1006,8 +1052,8 @@ private:
 	void apply_settings_snapshot(const Dictionary &settings);
 	Array player_list() const;
 	void begin_match_recording(const rtso::GameSetupParams *mp_setup);
-	void write_replay();
-	void stop_replay_recording();
+	void write_replay(bool ended = false); // ended: leaving the match (0.28 endGame), which adds the summary
+	void stop_replay_recording(bool ended = false);
 	bool start_pending_replay();
 	bool load_pending_save();
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start

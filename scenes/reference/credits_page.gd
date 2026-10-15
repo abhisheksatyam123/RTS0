@@ -68,7 +68,9 @@ func _ready() -> void:
 	fade.color = Color(0, 0, 0, 0.6)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
+	theme = preload("res://scenes/common/modern_theme.gd").theme()
 	var panel := Panel.new() # size="50%-473 24 50%+473 100%-24"
+	panel.theme_type_variation = "ModernDialog"
 	panel.anchor_left = 0.5
 	panel.anchor_right = 0.5
 	panel.anchor_bottom = 1.0
@@ -106,6 +108,7 @@ func _ready() -> void:
 				b.accept_event())
 		b.toggle_mode = true
 		b.button_group = group
+		b.theme_type_variation = "ModernTabButtonVertical"
 		b.custom_minimum_size = Vector2(190, 35)
 		b.pressed.connect(select_panel.bind(i))
 		tabs.add_child(b)
@@ -146,7 +149,7 @@ func close_page() -> void:
 	queue_free()
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE: # hotkey="cancel"
+	if event is InputEventKey and event.pressed and "cancel" in RtsoHotkeyConfig.new().fired(event):
 		get_viewport().set_input_as_handled()
 		close_page()
 		return

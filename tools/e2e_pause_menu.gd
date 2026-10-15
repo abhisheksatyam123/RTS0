@@ -60,17 +60,22 @@ func run() -> void:
 	check(names == ["BtnManual", "BtnChat", "BtnSave", "BtnSummary", "BtnLobby", "BtnOptions", "BtnHotkeys", "BtnPause", "BtnResign", "BtnExit"],
 		"0.28's buttons in order, no Load: " + str(names))
 	main._on_menu_button_pressed()
-	await frames(6) # the slide down
+	await frames(10) # the slide down
 	check(menu.visible and not paused and not main.is_game_paused(), "the menu opens over the running game")
 	check(btn(menu, "BtnLobby").disabled, "Lobby is disabled without a lobby connection")
+	check(btn(menu, "BtnSummary").tooltip_text == "Press Ctrl+Tab to open the summary screen.", "Summary's tooltip names the summary hotkey: " + btn(menu, "BtnSummary").tooltip_text)
 	await key(KEY_ESCAPE)
 	check(not menu.visible, "Esc closes the menu")
+	check(main.get_node_or_null("PauseMenuClosing") != null, "and its panel slides back up (Menu.js close)")
+	await frames(10)
+	check(main.get_node_or_null("PauseMenuClosing") == null, "then the sliding copy is gone")
 
 	main._on_menu_button_pressed()
-	await frames(6) # the slide down
+	await frames(10) # the slide down
 	await key(KEY_F10)
 	check(not menu.visible, "the menu hotkey (F10) closes it too")
 	await key(KEY_F10)
+	await frames(10) # the slide down
 	check(menu.visible and btn(menu, "BtnPause").text == "Pause" and not btn(menu, "BtnPause").disabled, "and opens it again, Pause enabled")
 	check(btn(menu, "BtnPause").tooltip_text.begins_with("Press ") and btn(menu, "BtnPause").tooltip_text.ends_with(" to pause or resume the game."),
 		"Pause's 0.28 tooltip: " + btn(menu, "BtnPause").tooltip_text)
@@ -78,13 +83,13 @@ func run() -> void:
 	await click(btn(menu, "BtnPause").get_global_rect().get_center())
 	check(not menu.visible and main.is_game_paused(), "Pause closes the menu and pauses")
 	main._on_menu_button_pressed()
-	await frames(6) # the slide down
+	await frames(10) # the slide down
 	check(btn(menu, "BtnPause").text == "Resume", "the button reads Resume while paused")
 	await click(btn(menu, "BtnPause").get_global_rect().get_center())
 	check(not menu.visible and not main.is_game_paused(), "Resume resumes")
 
 	main._on_menu_button_pressed()
-	await frames(6) # the slide down
+	await frames(10) # the slide down
 	await click(btn(menu, "BtnSave").get_global_rect().get_center())
 	await frames(2)
 	var dlg = main.get_children().filter(func(c): return c.get_script() == load("res://scenes/session/savegame_dialog.gd"))
@@ -96,7 +101,7 @@ func run() -> void:
 
 	for b in [["BtnHotkeys", "Hotkeys"], ["BtnManual", "Manual"]]:
 		main._on_menu_button_pressed()
-		await frames(6)
+		await frames(10)
 		await click(btn(menu, b[0]).get_global_rect().get_center())
 		await frames(3)
 		var pages: Array = main.find_children(b[1], "Control", true, false)
@@ -110,7 +115,7 @@ func run() -> void:
 		check(not paused and main.find_children(b[1], "Control", true, false).is_empty(), b[1] + " closes back to the running game")
 	print("Layout, tooltip and world clicks")
 	main._on_menu_button_pressed()
-	await frames(6)
+	await frames(10)
 	var mrect: Rect2 = main.menu_button_rect()
 	var prect: Rect2 = menu.get_node("CenterContainer/Panel").get_global_rect()
 	check(absf(prect.end.x - mrect.end.x) < 1.0 and prect.position.y >= mrect.end.y and prect.size.x == 164.0,

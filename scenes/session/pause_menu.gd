@@ -21,6 +21,9 @@ func _unhandled_input(event):
 		get_viewport().set_input_as_handled()
 		_on_resume_pressed()
 
+## Menu.js MENU_SPEED: 1.2 px per ms, sliding down to open and back up to close.
+const MENU_SPEED := 1200.0
+
 # Menu.xml / Menu.js startAnimation: the panel (164 wide) hangs under the Menu button at the
 # top right and slides down out of it.
 func _slide_down() -> void:
@@ -38,7 +41,36 @@ func _slide_down() -> void:
 	panel.size = Vector2(164.0, h)
 	panel.position = Vector2(0.0, -h)
 	var tw := create_tween()
-	tw.tween_property(panel, "position:y", 0.0, 0.15)
+	tw.tween_property(panel, "position:y", 0.0, h / MENU_SPEED)
+
+# Menu.js close: the panel slides back up into the Menu button. The menu is closed at
+# once (so its buttons and Esc stop at once); an inert copy of the panel slides up.
+func _slide_up() -> void:
+	var box: Control = $CenterContainer
+	var panel: Control = $CenterContainer/Panel
+	var h: float = panel.size.y
+	var main := get_parent()
+	if main == null or h <= 0.0 or not box.visible:
+		return
+	var ghost_layer := CanvasLayer.new()
+	ghost_layer.name = "PauseMenuClosing"
+	ghost_layer.layer = layer
+	ghost_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	var ghost := Control.new()
+	ghost.position = box.position
+	ghost.size = box.size
+	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var copy: Control = panel.duplicate(0)
+	copy.position = panel.position
+	copy.size = panel.size
+	for c in [copy] + copy.find_children("*", "Control", true, false):
+		(c as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ghost.add_child(copy)
+	ghost_layer.add_child(ghost)
+	main.add_child(ghost_layer)
+	var tw := ghost_layer.create_tween()
+	tw.tween_property(copy, "position:y", -h, maxf(copy.position.y + h, 0.0) / MENU_SPEED)
+	tw.tween_callback(ghost_layer.queue_free)
 
 # Closes the menu, through RtsoMain when it is there (Menu.close).
 func _on_resume_pressed():
@@ -46,6 +78,7 @@ func _on_resume_pressed():
 	if visible and main and main.has_method("_on_menu_button_pressed"):
 		main._on_menu_button_pressed()
 		return
+	_slide_up()
 	visible = false
 	$CenterContainer.visible = false
 
@@ -53,6 +86,13 @@ func _on_resume_pressed():
 func _close() -> void:
 	if visible:
 		_on_resume_pressed()
+
+## MenuButtons: closeOpenDialogs() before a page opens over the game.
+func _close_dialogs() -> void:
+	_close()
+	var main := get_parent()
+	if main and main.has_method("close_open_dialogs"):
+		main.close_open_dialogs()
 
 func _networked() -> bool:
 	var main := get_parent()
@@ -75,19 +115,19 @@ func _on_chat_pressed():
 
 # MenuButtons Options: the options page over the game (Engine.OpenChildPage).
 func _on_options_pressed():
-	_close()
+	_close_dialogs()
 	var page = load("res://scenes/menu/options.gd").open_overlay(get_parent())
 	_implicit_pause(page, "closed")
 
 # MenuButtons Manual: the game manual (gui/manual).
 func _on_manual_pressed():
-	_close()
+	_close_dialogs()
 	var page = load("res://scenes/reference/manual.gd").open_overlay(get_parent())
 	_implicit_pause(page, "closed")
 
 # MenuButtons Hotkeys: the hotkey editor (gui/hotkeys) over the game.
 func _on_hotkeys_pressed():
-	_close()
+	_close_dialogs()
 	var page = load("res://scenes/menu/hotkeys.gd").open_overlay(get_parent())
 	_implicit_pause(page, "closed")
 
@@ -107,23 +147,21 @@ func rebuild_pause() -> void:
 		return
 	btn.text = L10n.t("Resume") if main.is_game_paused() else L10n.t("Pause")
 	btn.disabled = main.has_method("can_pause") and not main.can_pause()
-	var keys: Array = _hotkeys.get_hotkey_map().get("pause", [])
+	var keys: String = _hotkeys.display("pause")
 	btn.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to pause or resume the game."),
-		{"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")})
+		{"hotkey": keys if keys != "" else L10n.t("Unassigned")})
 
 # 0 A.D. MenuButtons Summary: the summary page over the game ("summary" hotkey).
 func _on_summary_pressed():
 	var main := get_parent()
-	_close()
-	if main.has_method("close_open_dialogs"):
-		main.close_open_dialogs() # Summary.onPress: closeOpenDialogs
+	_close_dialogs()
 	if main.has_method("toggle_summary"):
 		main.toggle_summary()
 
 # MenuButtons Lobby: the multiplayer lobby page over the game, only with a
 # lobby connection.
 func _on_lobby_pressed():
-	_close()
+	_close_dialogs()
 	var main := get_parent()
 	if main.has_method("has_lobby_client") and main.has_lobby_client():
 		main._on_lobby_button_pressed()
@@ -133,7 +171,7 @@ func _on_lobby_pressed():
 const SavegameDialog = preload("res://scenes/session/savegame_dialog.gd")
 
 func _on_save_pressed():
-	_close()
+	_close_dialogs()
 	var d = SavegameDialog.open(get_parent(), "save", get_parent())
 	_implicit_pause(d, "closed")
 
@@ -156,6 +194,8 @@ func _on_resign_pressed():
 		load("res://scenes/session/quit_confirmation.gd").resign(main)
 
 func toggle():
+	if visible:
+		_slide_up()
 	visible = !visible
 	$CenterContainer.visible = visible
 	if visible:
@@ -165,12 +205,18 @@ func toggle():
 	var chat: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnChat")
 	if chat and get_parent().has_method("chat_open_hotkey_tooltip"):
 		chat.tooltip_text = get_parent().chat_open_hotkey_tooltip()
+	# MenuButtons.js Summary: the current "summary" hotkey.
+	var summary: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnSummary")
+	if summary:
+		var skeys: String = _hotkeys.display("summary")
+		summary.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to open the summary screen."),
+			{"hotkey": skeys if skeys != "" else L10n.t("Unassigned")})
 	var lobby: Button = get_node_or_null("CenterContainer/Panel/VBox/BtnLobby")
 	if lobby:
 		lobby.disabled = not (get_parent().has_method("has_lobby_client") and get_parent().has_lobby_client())
-		var keys: Array = _hotkeys.get_hotkey_map().get("lobby", [])
+		var keys: String = _hotkeys.display("lobby")
 		lobby.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to open the multiplayer lobby page without leaving the game."),
-			{"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")})
+			{"hotkey": keys if keys != "" else L10n.t("Unassigned")})
 	var resign_btn := get_node_or_null("CenterContainer/Panel/VBox/BtnResign")
 	if resign_btn and visible and get_parent().has_method("get_summary_gui"):
 		resign_btn.disabled = get_parent().get_summary_gui(false).get("isObserver", true)

@@ -39,6 +39,13 @@ struct Combo {
 // "Ctrl+F5" -> {ctrl, f5}. Empty combos ("" or "unused") parse to no keys.
 Combo parse_combo(const std::string &text);
 std::string combo_to_string(const Combo &c); // "Ctrl+F5"
+// The combination as 0.28 shows it (KeyName.cpp FindKeyName, hotkeys.js
+// formatHotkeyCombination): modifiers first in Alt, Ctrl, Shift, Super order,
+// arrows as glyphs, "Equals", "Backslash", "SingleQuote", "WheelLeft".
+std::string combo_display(const Combo &c);
+// Every combination of a hotkey for display, shortest first, joined by ", "
+// (formatHotkeyCombinations); empty when unbound.
+std::string combos_display(const std::vector<Combo> &combos);
 
 using IsDown = std::function<bool(const std::string &key)>;
 
@@ -76,7 +83,7 @@ public:
 	// Hotkeys bound to exactly this key set (0 A.D. Engine.GetConflicts).
 	std::vector<std::string> bound_to(const Combo &combo) const;
 
-	// First binding as text ("Ctrl+F5"), for tooltips; "" when unbound.
+	// Every binding as 0.28's tooltips show it (colorizeHotkey: "Pause, Shift+Space"); "" when unbound.
 	std::string label(const std::string &name) const;
 
 private:

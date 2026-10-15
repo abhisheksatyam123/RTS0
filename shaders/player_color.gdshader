@@ -30,10 +30,23 @@ uniform bool use_parallax = false;
 uniform sampler2D height_tex : filter_linear, hint_default_white;
 uniform float parallax_scale = 0.0075;
 // Close-up units and buildings set this per node; crowd MultiMeshes pass the
-// owner's colour in INSTANCE_CUSTOM (alpha 1).
+// owner's colour in INSTANCE_CUSTOM (alpha 1 + variant_u).
 instance uniform vec4 player_color : source_color = vec4(1.0);
+// 0 A.D. picks each unit's body, head, helmet and shield skins by frequency from
+// their actors' skin-only variant groups (tools/extract_unit_variants.py).
+// variant_tex holds the skins as 0 A.D. draws them, the player-colour mask in
+// alpha (0 for skins without player colour); variant_cut the cumulative
+// frequency where each layer after the first starts (2.0 past the last).
+uniform bool use_variants = false;
+uniform sampler2DArray variant_tex : source_color, filter_linear, hint_default_white;
+uniform vec4 variant_cut[2];
+// Offsets the entity's draw per image, so its head, helmet and shield pick apart.
+uniform float variant_salt = 0.0;
+// The entity's draw in [0, 1): crowds pass it in INSTANCE_CUSTOM.a - 1.
+instance uniform float variant_u = 0.0;
 
 varying vec3 v_player;
+varying float v_variant;
 varying float v_spec;
 varying float v_spec_pow;
 
@@ -43,6 +56,7 @@ void vertex() {
 		COLOR.rgb = mix(pow((c + vec3(0.055)) * (1.0 / 1.055), vec3(2.4)), c * (1.0 / 12.92), lessThan(c, vec3(0.04045)));
 	}
 	v_player = INSTANCE_CUSTOM.a > 0.5 ? INSTANCE_CUSTOM.rgb : player_color.rgb;
+	v_variant = INSTANCE_CUSTOM.a > 0.5 ? INSTANCE_CUSTOM.a - 1.0 : variant_u;
 }
 
 // model_common.fs USE_PARALLAX: step along the eye ray in tangent space until it
@@ -75,6 +89,16 @@ void fragment() {
 	vec4 tex = texture(albedo_tex, uv) * albedo;
 	float m = texture(mask_tex, uv).r;
 	vec3 baked = mix(vec3(1.0), bake_tint, m);
+	if (use_variants) {
+		float layer = 0.0;
+		float u = fract(v_variant + variant_salt);
+		for (int i = 0; i < 8; ++i)
+			layer += step(variant_cut[i / 4][i % 4], u);
+		vec4 vt = texture(variant_tex, vec3(uv, layer));
+		tex = vec4(vt.rgb, 1.0) * albedo;
+		m = vt.a;
+		baked = vec3(1.0);
+	}
 	vec3 owner = mix(vec3(1.0), v_player, m);
 	ALBEDO = tex.rgb * owner / max(baked, vec3(0.05)) * COLOR.rgb;
 	ROUGHNESS = roughness;

@@ -23,14 +23,18 @@ struct RecentDeath {
 	uint8_t type = 0;
 	bool is_building = false;
 	bool death_damage_applied = false;
-	bool death_damage = false; // the dead unit has DeathDamage (fire ships); was the unused loot_applied byte
+	// The dead unit's DeathDamage: 1 + its row in Simulation's death damage table, 0 none.
+	// Row 0 is the ignited fire ship, so older saves' bool (1 = a fire ship) reads the same.
+	// It was the unused loot_applied byte.
+	uint8_t death_damage = 0;
 };
 // DeathDamage.js: Circular splash when the entity dies (Range in RTS0 units, Damage summed).
 struct DeathDamageInfo {
 	float range;
-	float damage; // Damage/Crush, against the target's crush Resistance
+	float damage; // Damage/Crush against the target's crush Resistance, or Damage/Fire (fire)
 	bool friendly_fire;
 	float ship_building_mult; // Bonuses: Classes "Ship Building" Multiplier
+	bool fire = false; // Damage/Fire: no 0.28 template resists Fire
 };
 enum BiomeType : uint8_t {
 	BIOME_AEGEAN = 0,
@@ -602,7 +606,8 @@ inline constexpr bool is_civic_centre(uint8_t type) {
 }
 // 0 A.D. class ConquestCritical (template_structure_civic, _military and _wonder, less the
 // stoa and the forge): the structures that keep a player in a Conquest match. Towers, walls,
-// palisades, economic and other special structures don't.
+// palisades, economic and other special structures don't, nor the Persian hall
+// (template_structure_special) and the Han Laozi gate (plain template_structure).
 inline constexpr bool is_conquest_critical(uint8_t type) {
 	switch (type) {
 		case BLD_STOREHOUSE: case BLD_TOWER: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE:
@@ -612,6 +617,7 @@ inline constexpr bool is_conquest_critical(uint8_t type) {
 		case BLD_LIGHTHOUSE: case BLD_ICE_HOUSE: case BLD_TOWER_GREAT: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: case BLD_TRADING_POST: case BLD_TOWER_BOLT:
 		case BLD_TOWER_ARTILLERY: case BLD_STOA: case BLD_TRIUMPHAL_ARCH: case BLD_TOWER_DOUBLE:
+		case BLD_HALL: case BLD_LAOZI_GATE:
 			return false;
 		default:
 			return type < BLD_TYPE_COUNT;
@@ -745,8 +751,11 @@ inline float regrow_interval(uint8_t type, uint8_t subtype) {
 	if (type != RES_FOOD) return -1.0f;
 	return subtype == RES_SUB_FISH ? FISH_REGROW_INTERVAL_S : subtype == RES_SUB_NONE ? FRUIT_REGROW_INTERVAL_S : -1.0f;
 }
-// Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
-constexpr float FISH_GATHER_REACH = 4.0f;
+// UnitAI CheckTargetRange (CCmpObstructionManager::IsInTargetRange, DistanceBetweenShapes): a fish's
+// Obstruction is a Unit shape with no UnitMotion, so no clearance (its 10 m Footprint circle is only
+// for selection); the boat reaches it from its ResourceGatherer MaxDistance (6 m) plus its own
+// ship-small Clearance (3 m): 9 m from the fish's centre, in tiles.
+constexpr float FISH_GATHER_REACH = 9.0f / 4.0f;
 
 // 0 A.D. UnitAI.js g_Stances. Values are saved and sent over the wire; 3 was an
 // invented "hold ground" and is now 0 A.D.'s "violent".
@@ -921,7 +930,8 @@ enum UnitFormation : uint8_t {
 	FORMATION_SYNTAGMA = 14,     // syntagma (pikemen; kush, mace, ptol, sele)
 	FORMATION_TESTUDO = 15,      // testudo (melee infantry; rome)
 	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (han and roman spearmen; han, rome)
-	FORMATION_COUNT = 17,
+	FORMATION_SHIELD_WALL = 17,  // shield_wall (germ spearmen; germ)
+	FORMATION_COUNT = 18,
 	FORMATION_SCATTER = FORMATION_SKIRMISH // old name
 };
 
@@ -1574,6 +1584,13 @@ inline bool is_wallset_piece(uint8_t type, float half_w) {
 	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
 }
 
+// 0.28 Builder lists name only the WallSet proxies (mixins/builder.xml), and gates "cannot be built
+// directly": a wall's segments and towers are laid by the wall tool and its gates by an Upgrade.
+inline bool built_only_by_wall_tool(uint8_t type) {
+	return type == BLD_WALL_SEGMENT || type == BLD_WALL_TOWER || type == BLD_GATE || type == BLD_PALISADE ||
+	       type == BLD_SIEGE_WALL;
+}
+
 // A WallSet piece's 0 A.D. values (wallset_info) by its type and length; negative when it keeps
 // its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
 // `civ` is the piece's template civ (Building::civ); the generic set's lengths are tried too, as
@@ -1989,8 +2006,9 @@ inline constexpr float SIEGE_EJECT_HEALTH = 0.1f;
 inline TechClasses building_tech_classes(uint8_t type) {
 	const TechClasses c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
-		// The Crannog and the military colony are template_structure_civic_civil_centre too.
-		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC;
+		// The Crannog and the military colony are template_structure_civic_civil_centre too,
+		// whose VisibleClasses are Defensive CivilCentre (Danubius and Jebel Barkal aim at them).
+		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		// han/academy and ptol/mercenary_camp are template_structure_military_barracks.
 		case BLD_BARRACKS: case BLD_ACADEMY: case BLD_MERCENARY_CAMP: return c | TC_BARRACKS;
@@ -2023,7 +2041,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_ARSENAL: return c | TC_ARSENAL;
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
-		case BLD_MILITARY_COLONY: return c | TC_CIVCENTRE | TC_CIVIC | TC_COLONY;
+		case BLD_MILITARY_COLONY: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE | TC_COLONY;
 		// germ/encampment: VisibleClasses Civic Defensive Colony Encampment (no CivCentre).
 		case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED: return c | TC_CIVIC | TC_DEFENSIVE | TC_COLONY;
 		default: return c;
@@ -2483,12 +2501,15 @@ inline float unit_heal_range_base(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_CHAMPION)) return CHAMPION_HEAL_RANGE;
 	return 12.0f;
 }
-// unit_min_range_ratio for the unit's template: siege towers have no MinRange, the onager 20 of 60.
+// unit_min_range_ratio for the unit's template: siege towers have no MinRange, the onager 20 of 60,
+// the fire-raiser 10 of 15.
 inline float unit_min_range_ratio(uint8_t type, uint16_t tmpl) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (t.flags & ROSTER_SIEGE_TOWER) return 0.0f;
 		if (type == UNIT_CATAPULT && std::strstr(t.id, "onager")) return 20.0f / 60.0f;
+		// template_unit_siege_flamethrower.xml (the Theban fire-raiser): MinRange 10 of MaxRange 15.
+		if (type == UNIT_BOLT_SHOOTER && std::strstr(t.id, "fireraiser")) return 10.0f / 15.0f;
 	}
 	return unit_min_range_ratio(type);
 }

@@ -65,9 +65,9 @@ void RtsoMain::_notification(int p_what) {
 		toggle_pause();
 	}
 	if (p_what == NOTIFICATION_EXIT_TREE) {
-		write_replay(); // leaving the match keeps its replay
+		write_replay(true); // leaving the match keeps its replay, with its summary (endGame)
 		// Menus get the normal arrow back (update_cursor sets action cursors).
-		if (!cursor_name_.empty()) Input::get_singleton()->set_custom_mouse_cursor(Ref<Resource>());
+		if (!cursor_name_.empty()) reset_default_cursor();
 		// The Render Debug Mode is the session's; the menus draw normally.
 		if (render_debug_mode_ && get_viewport()) get_viewport()->set_debug_draw(Viewport::DEBUG_DRAW_DISABLED);
 		if (SceneTree *t = get_tree()) {
@@ -126,11 +126,12 @@ void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
 	RtsoTopPanel::cycle_order();
+	top_panel_.invalidate();
 	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
 }
 
 Dictionary RtsoMain::get_audio_state() const {
-	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat"};
+	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat", "custom"};
 	Dictionary d;
 	d["music_state"] = kStates[music_.state()];
 	d["track"] = music_.current_track();
@@ -217,7 +218,9 @@ void RtsoMain::_on_flare_requested(Vector2 world_pos) {
 // Player numbers typed after "wololo" and "exodia" are 0 A.D.'s (0 = Gaia, 1 = the first player).
 bool RtsoMain::chat_try_cheat(const String &text) {
 	using S = rtso::Simulation;
+	// resource: the resource for CHEAT_ADD_RESOURCE, the unit list for CHEAT_CREATE_UNITS (1 heroes).
 	struct CheatCode { const char *name; uint8_t action; int resource; const char *def; bool numeric; };
+	constexpr uint8_t kPlayRetro = 0xFF; // retroMe.json "playRetro": the player's own music
 	static const CheatCode kCheats[] = {
 		{"i want pizza", S::CHEAT_ADD_RESOURCE, rtso::RES_FOOD, "1000", true},
 		{"bring me my axe", S::CHEAT_ADD_RESOURCE, rtso::RES_WOOD, "1000", true},
@@ -228,6 +231,8 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		{"black death", S::CHEAT_KILL_UNITS, 0, "", false},
 		{"exodia", S::CHEAT_DEFEAT_PLAYER, 0, "2", true},
 		{"salad bowl", S::CHEAT_CREATE_UNITS, 0, "13", true},
+		{"iwanttopwnthem", S::CHEAT_CREATE_UNITS, 1, "1", true}, // createHeros.json
+		{"retro me", kPlayRetro, 0, "0_8Bit_Bonus_Track.ogg", false},
 		{"back to the future", S::CHEAT_CHANGE_PHASE, 0, "", false},
 		{"brainiac", S::CHEAT_RESEARCH, 0, "", false},
 		{"gift from the gods", S::CHEAT_META, 0, "100000", true},
@@ -244,8 +249,18 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 	String parameter = text.substr(String(cheat->name).length() + 1).strip_edges();
 	if (parameter.is_empty()) parameter = cheat->def;
 	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_int()) {
-		chat_window_.append_line("[color=#eebb22]This cheat requires a numeric parameter.[/color]\n");
+		// Cheats.js NoNumericMessage: a chat message from the player, shown only here.
+		chat_window_.append_kind(String("<") + colored_player_name(me) + "> " + tr("This cheat requires a numeric parameter.") + "\n",
+				RtsoChatWindow::message_bits("", true));
 		return false;
+	}
+	if (cheat->action == kPlayRetro) {
+		// Cheat.js playRetro: "play-tracks" with the typed tracks, locked; "off" unlocks.
+		std::vector<std::string> tracks;
+		if (parameter.to_lower() != "off")
+			for (const String &t : parameter.split(" ", false)) tracks.push_back(t.utf8().get_data());
+		music_.play_custom(tracks);
+		return true;
 	}
 	int64_t number = cheat->numeric && !parameter.is_empty() ? parameter.to_int() : 0;
 	uint32_t extra = (uint32_t)std::max(cheat->resource, 0);
@@ -275,7 +290,8 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		}
 	}
 	if (cheat->action == S::CHEAT_CREATE_UNITS && !selected_building_id) {
-		chat_window_.append_line("[color=#eebb22]You need to select a building that trains units.[/color]\n");
+		// Cheat.js createunits: a centre text notice.
+		text_notices_.push_back({tr("You need to select a building that trains units."), (uint32_t)std::lround(sim->game_time() * 1000.0f) + 10000});
 		return true;
 	}
 	if (turn_cmds()) post_lockstep(39, ids.data(), ids.size(), (float)extra, 0.0f, (uint32_t)(int32_t)number, cheat->action);
@@ -403,7 +419,16 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 	for (const auto &a : attacks) {
 		// Attacks against other players, or dealt by myself, are not registered.
 		if (a.target_owner != me || a.attacker_owner == me) continue;
-		if (attack_detection_.report(a.x, a.z, match_elapsed_time)) {
+		// AttackDetection.OnGlobalAttacked: every hit entity pings the minimap, before suppression.
+		if (minimap_view) minimap_view->ping_entity(a.target_id);
+		// AttackDetection.js: an attack on livestock is a low-priority event (targetIsDomesticAnimal).
+		bool livestock = false;
+		if (!a.target_is_building) {
+			const auto fv = sim->fauna();
+			for (size_t f = 0; f < fv.count; ++f)
+				if (fv.id[f] == a.target_id) { livestock = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic(); break; }
+		}
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time, livestock)) {
 			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0, a.target_id);
 			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
 			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
@@ -412,13 +437,12 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 }
 
 // 0 A.D. messages.js "attack" notification: remember the spot for
-// camera.lastattackfocus, ping the minimap, play the "attacked" sound group
+// camera.lastattackfocus, play the "attacked" sound group
 // (alarm_attackplayer, or alarm_attacked_gaia for Gaia) and add a chat line.
 void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target) {
 	has_last_attack_ = true;
 	last_attack_pos_ = pos;
 	last_attack_unit_ = structure ? 0 : target;
-	if (minimap_view) minimap_view->add_ping(Vector2(pos.x, pos.z), Color(1.0f, 0.15f, 0.1f));
 	const bool gaia = attacker == rtso::GAIA_PLAYER;
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
 	if (!chat_window_.is_ready() || !user_opts_.attack_notice) return;
@@ -531,10 +555,13 @@ bool RtsoMain::try_focus_fire(const Vector3 &at) {
 	}
 	if (!target) return false;
 	const bool queued = rtso::hotkeys::held("session.queue");
+	// input.js: pushFront = session.pushorderfront held (unbound by default).
+	const bool push_front = rtso::hotkeys::held("session.pushorderfront");
 	const uint32_t ids[1] = {selected_building_id};
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target, queued ? rtso::NET_PARAM_QUEUED : 0);
-	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued))
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target,
+				(queued ? rtso::NET_PARAM_QUEUED : 0) | (push_front ? rtso::NET_PARAM_PUSH_FRONT : 0));
+	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued, push_front))
 		return false;
 	return true;
 }
@@ -656,16 +683,43 @@ void RtsoMain::show_notice(const String &text) {
 
 void RtsoMain::quicksave() {
 	if (net_lockstep() || turn_mgr_.is_replaying()) return;
-	show_notice(save_game(kQuicksavePath, "Quicksave") ? "Quicksaved game" : "Quicksave failed");
+	const bool ok = save_game(kQuicksavePath, "Quicksave");
+	log_render(ok ? "Quicksaved game" : "Quicksave failed", !ok);
 }
 
 void RtsoMain::quickload() {
 	if (net_lockstep() || turn_mgr_.is_replaying()) return;
 	if (!FileAccess::file_exists(kQuicksavePath)) {
-		show_notice("No quicksave to load");
+		log_render("No quicksave to load", true);
 		return;
 	}
-	show_notice(load_game(kQuicksavePath) ? "Quickloaded game" : "Quickload failed");
+	const bool ok = load_game(kQuicksavePath);
+	log_render(ok ? "Quickloaded game" : "Quickload failed", !ok);
+}
+
+// CLogger::WriteMessage with "render": a line in the top-left overlay; the oldest goes
+// when a 21st comes.
+void RtsoMain::log_render(const String &text, bool error) {
+	log_lines_.push_back({text, error, Time::get_singleton()->get_ticks_msec() + 10000});
+	if (log_lines_.size() > 20) log_lines_.erase(log_lines_.begin());
+	update_log_messages(true);
+}
+
+void RtsoMain::update_log_messages(bool changed) {
+	if (!log_label_ || (log_lines_.empty() && !changed)) return;
+	const uint64_t now = Time::get_singleton()->get_ticks_msec();
+	const size_t before = log_lines_.size();
+	log_lines_.erase(std::remove_if(log_lines_.begin(), log_lines_.end(), [now](const LogLine &l) { return l.until_ms <= now; }),
+			log_lines_.end());
+	if (!changed && log_lines_.size() == before) return;
+	String txt;
+	for (const LogLine &l : log_lines_) {
+		if (!txt.is_empty()) txt += "\n";
+		const String line = l.text.replace("[", "[lb]");
+		txt += l.error ? "[color=#ff0000]" + line + "[/color]" : line;
+	}
+	log_label_->set_text(txt);
+	log_label_->set_visible(!log_lines_.empty());
 }
 
 // PauseControl.js canPause(explicit): an observer who is not the host cannot
@@ -801,6 +855,7 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_PLAYERNAME_IN_USE: why = tr("Player name in use. If you were disconnected, retry in few seconds."); break;
 			case rtso::NDR_SERVER_ALREADY_IN_GAME: why = tr("Game has already started, no observers allowed."); break;
 			case rtso::NDR_SERVER_FULL: why = tr("Server full."); break;
+			case rtso::NDR_LOBBY_AUTH_FAILED: why = tr("Secure lobby authentication failed. Join via lobby."); break;
 			case 14: why = tr("Password is invalid."); break;
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = mismatch_detail(); break;
 			default: why = tr("An unknown error occurred."); break;
@@ -892,7 +947,9 @@ void RtsoMain::post_network_chat() {
 	for (; rejoined_chatted_ < rejoined.size(); ++rejoined_chatted_)
 		for (const auto &e : now)
 			if (e.client == rejoined[rejoined_chatted_] && e.status != rtso::PlayerAssignmentMsg::LEFT) {
-				chat_window_.append_kind(sprintf0(tr("%(player)s has rejoined the game."), {{"player", who(e)}}) + "\n", CHAT_FILTER_NETWORK);
+				// ChatMessageFormatNetwork.rejoined: an observer "has joined the game.".
+				chat_window_.append_kind(sprintf0(e.player < rtso::MAX_PLAYERS ? tr("%(player)s has rejoined the game.") : tr("%(player)s has joined the game."),
+						{{"player", who(e)}}) + "\n", CHAT_FILTER_NETWORK);
 				break;
 			}
 }
@@ -1076,8 +1133,9 @@ bool RtsoMain::load_game(String path) {
 	if (!sim) return false;
 	String global_path = ProjectSettings::get_singleton()->globalize_path(path);
 	load_progress(50, "Loading saved game");
-	// The replay so far stays valid up to here; what follows starts from the save.
-	stop_replay_recording();
+	// The replay so far stays valid up to here; what follows starts from the save. Loading
+	// leaves this match (0.28 endGame), so its replay keeps its summary.
+	stop_replay_recording(true);
 	bool success = sim->load_state(global_path.utf8().get_data());
 	if (success) {
 		selected_ids.clear();
@@ -1443,6 +1501,15 @@ void RtsoMain::_on_research_progress_pressed(int slot) {
 		if (cam_rig) cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 		return;
 	}
+	// A unit researching (a Researcher on a unit); a garrisoned one can't be selected.
+	const auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (uv.id[i] != id || !uv.alive[i]) continue;
+		clear_selection();
+		selected_ids.push_back((int32_t)id);
+		if (cam_rig) cam_rig->set_target_pos(Vector3(uv.pos_x[i], 0, uv.pos_z[i]));
+		return;
+	}
 }
 
 // DeveloperOverlay.toggle: only with cheats in a networked game; DeveloperOverlay.sendNotification
@@ -1581,7 +1648,7 @@ void RtsoMain::set_time_warp(bool on) {
 	if (on == time_warp_) return;
 	time_warp_ = on;
 	if (!on) {
-		if (time_warp_ff_) game_speed = time_warp_speed_;
+		if (time_warp_ff_) game_speed = 1.0f;
 		time_warp_ff_ = false;
 		for (const String &p : time_warp_snapshots_) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(p));
 		time_warp_snapshots_.clear();
@@ -1592,13 +1659,12 @@ void RtsoMain::set_time_warp(bool on) {
 }
 
 // CTurnManager time warp: a snapshot of the game every 10 turns, and SetSimRate(20)
-// while the fast forward hotkey is held.
+// while the fast forward hotkey is held, back to 1 when it is let go.
 void RtsoMain::time_warp_tick() {
 	if (!time_warp_ || !sim) return;
 	const bool ff = rtso::hotkeys::held("session.timewarp.fastforward");
 	if (ff != time_warp_ff_) {
-		if (ff) time_warp_speed_ = game_speed;
-		game_speed = ff ? 20.0f : time_warp_speed_;
+		game_speed = ff ? 20.0f : 1.0f; // TimeWarp.resetSpeed: SetSimRate(1), whatever the speed was
 		time_warp_ff_ = ff;
 	}
 	const uint32_t turn = turn_mgr_.current_turn();
@@ -1637,7 +1703,8 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 		dev_overlay_.set_checked(D::DEV_REJOIN_TEST, rejoin_test_); // checked(): this.disabled
-		dev_overlay_.set_enabled(D::DEV_REJOIN_TEST, !rejoin_test_ && !turn_mgr_.is_replaying());
+		// 0.28 enabled(): !this.disabled && g_InitAttributes.mapType != "random".
+		dev_overlay_.set_enabled(D::DEV_REJOIN_TEST, !rejoin_test_ && !random_map_ && !turn_mgr_.is_replaying());
 		using O = rtso::RtsoDebugOverlays;
 		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
 		dev_overlay_.set_checked(D::DEV_HIER_PATHFINDER_OVERLAY, debug_overlays_.on(O::HIER_PATHFINDER));
@@ -1862,10 +1929,13 @@ float RtsoMain::placement_angle_at(uint8_t btype, float x, float z) const {
 	return placement_angle;
 }
 
-void RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y) {
-	if (!sim || btype == rtso::BLD_DOCK) return;
+bool RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y, bool hover) {
+	// A dock faces the sea (dock_angle): the simulation turns it so whatever the command says.
+	if (!sim || btype == rtso::BLD_DOCK) return false;
 	// isSnapToEdgesEnabled: the hotkey turns it on, or off when the option is "enabled".
-	if (rtso::hotkeys::held("session.snaptoedges") == (rtso::user_config::get("gui.session.snaptoedges") == "enabled")) return;
+	if (!debug_force_snap_ && rtso::hotkeys::held("session.snaptoedges") == (rtso::user_config::get("gui.session.snaptoedges") == "enabled")) return false;
+	// input.js: the hover resets the angle first, to snap to the edge nearest the default facing.
+	if (hover) placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 	const float GRID = rtso::Simulation::GRID;
 	const int fp = rtso::building_type_info(btype).footprint;
 	const float half = fp * GRID * 0.5f;
@@ -1878,9 +1948,17 @@ void RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y) 
 		if (!sim->los_explored(local_player(), b.x, b.z)) continue;
 		rects.push_back({b.x, b.z, b.half_size, b.half_d, b.rot});
 	}
+	// Mines and ruins have static obstructions too (template_gaia_ore, _rock, _ruins).
+	auto rv = sim->resources();
+	for (size_t i = 0; i < rv.count; ++i) {
+		if (!rv.alive[i] || std::fabs(rv.x[i] - x) > reach || std::fabs(rv.z[i] - z) > reach) continue;
+		rtso::nav::Footprint f;
+		if (!sim->mine_footprint(i, f) || !sim->los_explored(local_player(), f.x, f.z)) continue;
+		rects.push_back({f.x, f.z, f.hu, f.hv, std::atan2(-f.uz, f.ux)}); // snap::rotate turns (1, 0) to (cos, -sin)
+	}
 	const std::vector<rtso::snap::Edge> edges = rtso::snap::edges_near(rects, x, z);
 	rtso::snap::Result r;
-	if (!rtso::snap::snap_position(edges, half, rtso::building_half_depth(btype, half), x, z, placement_angle, r)) return;
+	if (!rtso::snap::snap_position(edges, half, rtso::building_half_depth(btype, half), x, z, placement_angle, r)) return false;
 	placement_angle = r.angle;
 	// RTS0 places on GRID cells: the cell nearest the flush centre that can be built, else the nearest.
 	const float fx = r.x / GRID - fp * 0.5f, fz = r.z / GRID - fp * 0.5f;
@@ -1897,6 +1975,7 @@ void RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y) 
 		}
 	cell_x = best_x;
 	cell_y = best_y;
+	return true;
 }
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
@@ -2338,10 +2417,15 @@ void RtsoMain::_start_menu_net() {
 	}
 	if (lobby_name) lobby_name->set_text(ms->get("net_player_name"));
 	if (lobby_host && mode == "join") lobby_host->set_text(ms->get("net_ip"));
+	// The lobby's ticket for a game joined from its list, once.
+	net_host_.setLobbyTicket(mode == "join" ? String(ms->get("net_lobby_ticket")).utf8().get_data() : "");
+	ms->set("net_lobby_ticket", "");
 	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
-	if (lobby_panel) lobby_panel->set_visible(true);
+	// A joiner sees the Connecting box, then the setup page; the developer
+	// lobby panel stays behind its button.
+	if (lobby_panel) lobby_panel->set_visible(mode == "host");
 	if (lobby_btn) lobby_btn->set_visible(true);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
@@ -2407,6 +2491,10 @@ void RtsoMain::net_query_stun(const String &server, int port) {
 void RtsoMain::net_hole_punch(const String &ip, int port) {
 	if (port <= 0 || port > 65535) return;
 	net_host_.holePunch(ip.utf8().get_data(), (uint16_t)port);
+}
+
+void RtsoMain::net_lobby_auth_result(int peer, const String &ticket, const String &name) {
+	net_host_.finishLobbyAuth((uint32_t)peer, ticket.utf8().get_data(), name.utf8().get_data());
 }
 
 void RtsoMain::net_retarget_host(const String &ip, int port) {
@@ -2884,6 +2972,40 @@ void RtsoMain::update_net_setup_overlay() {
 	if (lobby_start_btn_) lobby_start_btn_->set_visible(!shown);
 }
 
+void RtsoMain::update_net_connect_overlay() {
+	const bool client = net_host_.getRole() == rtso::NetRole::Client;
+	const bool want = client && !net_game_started_ && !net_disconnected_ && !net_host_.connectionLost() &&
+			(net_host_.authResult() < 0 || turn_mgr_.rejoin_syncing());
+	if (want && !net_connect_overlay_) {
+		Ref<Script> script = ResourceLoader::get_singleton()->load("res://scenes/menu/net_connecting.gd");
+		if (script.is_null()) return;
+		Control *page = memnew(Control);
+		page->set_script(script);
+		page->set("net_main", this);
+		net_connect_layer_ = memnew(CanvasLayer);
+		net_connect_layer_->set_layer(21); // over the setup page (20)
+		add_child(net_connect_layer_);
+		net_connect_layer_->add_child(page);
+		net_connect_overlay_ = page;
+	} else if (!want && net_connect_overlay_) {
+		net_connect_layer_->queue_free();
+		net_connect_layer_ = nullptr;
+		net_connect_overlay_ = nullptr;
+	}
+	if (!net_connect_overlay_) return;
+	// gamesetup_mp.js: "Connecting to server..." until the host's handshake,
+	// "Registering with server..." until it lets us in; a rejoin then loads
+	// the running game (handleAuthenticated).
+	const uint8_t why = turn_mgr_.rejoin_reject_reason();
+	const char *text = why == 6 ? "This game does not let observers join after it started."
+			: why == 7 ? "This game is full: it has as many observers as it allows."
+			: why == 3 || why == 4 || why == 5 ? "Could not load the host's game."
+			: turn_mgr_.rejoin_syncing() ? "Game has already started, rejoining..."
+			: net_host_.hostSoftwareVersion().empty() ? "Connecting to server..."
+			: "Registering with server...";
+	if (String(net_connect_overlay_->get("text")) != text) net_connect_overlay_->set("text", String(text));
+}
+
 // Game Setup's Back in a networked game: leave it for the lobby.
 void RtsoMain::leave_net_game() {
 	net_host_.stop();
@@ -3012,6 +3134,17 @@ void RtsoMain::_on_lobby_host_pressed() {
 	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
 	kicks_shown_ = 0;
 	apply_net_host_options(net_host_);
+	// 0 A.D. StartNetworkHost: a host signed in to the lobby has it vouch for
+	// every joiner's name (CNetServer useLobbyAuth = HasXmppClient).
+	Node *lobby_session = get_node_or_null(NodePath("/root/LobbySession"));
+	if (lobby_session && bool(lobby_session->call("signed_in")))
+		net_host_.setLobbyAuth([this](uint32_t peer, const std::string &ticket) {
+			Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
+			if (ls) ls->call("verify_join", (int64_t)peer, String::utf8(ticket.c_str()));
+			else net_host_.finishLobbyAuth(peer, ticket, "");
+		});
+	else
+		net_host_.setLobbyAuth(nullptr);
 	if (!net_host_.startHost(cfg)) {
 		if (lobby_status) lobby_status->set_text("Host bind failed");
 		return;
@@ -3032,7 +3165,11 @@ void RtsoMain::_on_lobby_host_pressed() {
 	   << cfg.port << ",\"players\":1,\"max_players\":" << (int)cfg.maxPlayers
 	   << ",\"map_id\":\"default\"}";
 	std::string body;
-	rtso::lobby_http_post_json(lobby_http_host_, lobby_http_port_, "/rooms", js.str(), body);
+	// The menu's LobbySession lists a game it hosts itself, with its details;
+	// this post would overwrite them with placeholders.
+	Node *ls_node = get_node_or_null(NodePath("/root/LobbySession"));
+	const bool menu_listed = ls_node && !Dictionary(ls_node->get("room")).is_empty();
+	if (!menu_listed) rtso::lobby_http_post_json(lobby_http_host_, lobby_http_port_, "/rooms", js.str(), body);
 	if (lobby_status) lobby_status->set_text("Hosting on " + String::num_int64(cfg.port));
 	refresh_lobby_rooms();
 }
@@ -3315,6 +3452,7 @@ String RtsoMain::placement_failure_text(int result, uint8_t btype, float x, floa
 		case S::PLACE_OBSTRUCTED: return named("%(name)s cannot be built on another building or resource");
 		case S::PLACE_TERRAIN: return named("%(name)s cannot be built on invalid terrain");
 		case S::PLACE_SHORE: return named("%(name)s must be built on a valid shoreline");
+		case S::PLACE_UNEXPLORED: return named("%(name)s cannot be built in unexplored area");
 		case S::PLACE_TERRITORY: {
 			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
 			// markForTranslationWithContext("Territory type", ...) and the template's Territory list.

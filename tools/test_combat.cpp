@@ -4,7 +4,8 @@
 //  1. Data: template bonuses (spearmen x3 against cavalry), structure armour, classes.
 //  2. Spearmen deal their template bonus to cavalry; swordsmen have none.
 //  3. RestrictedClasses: a ram never attacks units, a dog never attacks structures.
-//  4. Structures take damage through their own template armour.
+//  4. Structures take damage through their own template armour; foundations through
+//     template_structure's Foundation form (1/10/1).
 //  5. Arrows scatter by template spread: close shots nearly always hit, long shots
 //     often miss, and a stray arrow hits the enemy it lands on.
 //  6. No invented mechanics: structures below a third of their health don't burn
@@ -191,6 +192,14 @@ static void test_structure_armour() {
 	std::printf("      swordsman on barracks: %.3f (want %.3f, armour %.0f/%.0f/%.0f)\n", got, want,
 			bc.hack_armor, bc.pierce_armor, bc.crush_armor);
 	check(std::fabs(got - want) < 0.01f, "barracks take damage through their template armour");
+	// Resistance.js: a foundation's Foundation form, Hack 1 Pierce 10 Crush 1 for every structure.
+	const uint32_t fnd = s.spawn_building_world(-20.0f, 20.0f, BLD_FORTRESS, 1, 0.5f);
+	float fr[3], br[3];
+	s.structure_resistance(*building(s, fnd), fr);
+	s.structure_resistance(*building(s, bar), br);
+	std::printf("      fortress foundation resistance %.0f/%.0f/%.0f, finished barracks %.0f/%.0f/%.0f\n",
+			fr[0], fr[1], fr[2], br[0], br[1], br[2]);
+	check(fr[0] == 1.0f && fr[1] == 10.0f && fr[2] == 1.0f, "a foundation takes damage with the Foundation resistance");
 }
 
 static void test_corner_reach() {
@@ -323,6 +332,14 @@ static void test_auras() {
 	check(std::fabs(attack_mod(own) - 1.2f) < 1e-4f, "Hannibal: own soldier +20% attack");
 	check(std::fabs(attack_mod(ally) - 1.2f) < 1e-4f, "Hannibal: allied soldier +20% attack");
 	check(attack_mod(enemy) == 0.0f, "Hannibal: enemy soldier unaffected");
+	// "Ally" (Auras.js): the players Hannibal's owner counts as allies, whatever they answer.
+	s.set_diplomacy(0, 3, Simulation::DIPLO_ALLY);
+	s.set_diplomacy(4, 0, Simulation::DIPLO_ALLY);
+	uint32_t courted = s.spawn_unit(2.0f, 2.0f, 3, UNIT_SPEARMAN, 0.0f, cart_spear);
+	uint32_t courting = s.spawn_unit(-2.0f, 2.0f, 4, UNIT_SPEARMAN, 0.0f, cart_spear);
+	s.rebuild_auras();
+	check(std::fabs(attack_mod(courted) - 1.2f) < 1e-4f, "Hannibal: a player his owner allies one-sidedly gets +20%");
+	check(attack_mod(courting) == 0.0f, "Hannibal: a player allying his owner one-sidedly does not");
 
 	Simulation r;
 	setup(r);
@@ -384,6 +401,30 @@ static void test_auras() {
 	check(heal(far_u) == 0.0f, "temple: own soldier beyond 40 m not healed");
 	check(heal(foe) == 0.0f, "temple: enemy soldier not healed");
 	check(heal(ram) == 0.0f, "temple: siege (not Human) not healed");
+	// Auras.js: one aura applies once, however many sources project it; the Temple of Isis
+	// projects the same temple_heal.
+	t.spawn_building_world(4.0f, -4.0f, BLD_TEMPLE, 0, 1.0f);
+	t.spawn_building_world(-4.0f, 4.0f, BLD_TEMPLE_ISIS, 0, 1.0f);
+	t.rebuild_auras();
+	std::printf("      two temples and an Isis temple heal %.2f hp/s\n", heal(near_u));
+	check(std::fabs(heal(near_u) - 1.0f) < 1e-4f, "temple: overlapping temples heal +1 hp/s, not +1 each");
+	// A global hero aura holds while its hero is garrisoned (Darius: own units +15% speed).
+	Simulation g;
+	setup(g);
+	const uint32_t darius = g.spawn_unit(0.0f, 0.0f, 0, UNIT_HERO, 0.0f, template_named("pers/hero_darius_i"));
+	const uint32_t walker = g.spawn_unit(30.0f, 30.0f, 0, UNIT_SWORDSMAN, 50.0f);
+	auto speed = [&]() {
+		int i = idx(g, walker);
+		return g.aura_mgr_.query_modifier(g.units_.pos_x[i], g.units_.pos_z[i], g.units_.team[i], AURA_SPEED,
+			g.units_.tmpl[i], &g.unit_combat_at(i).classes);
+	};
+	g.rebuild_auras();
+	const float out = speed();
+	const uint32_t bk = g.spawn_building_world(0.0f, 8.0f, BLD_FORTRESS, 0, 1.0f);
+	check(g.garrison_unit_now(darius, bk), "Darius garrisoned in the fortress");
+	g.rebuild_auras();
+	std::printf("      Darius' speed aura: %.3f outside, %.3f garrisoned\n", out, speed());
+	check(std::fabs(out - 1.15f) < 1e-4f && std::fabs(speed() - out) < 1e-4f, "a garrisoned hero's global aura still applies");
 }
 
 static void test_regen() {
@@ -564,6 +605,12 @@ static void test_structure_auras() {
 	check(mod(far, AURA_ATTACK) == 0.0f, "large pyramid: soldier beyond 70 m unaffected");
 	check(mod(foe, AURA_ATTACK) == 0.0f, "large pyramid: enemy soldier unaffected");
 	check(std::fabs(mod(worker, AURA_GATHER) - (1.0f - 1.0f / 1.15f)) < 1e-3f, "small pyramid: own worker gathers 15% faster");
+	// Different auras multiply (ModifiersManager): Viridomarus' global +15% with the pyramid's.
+	const uint32_t viridomarus = s.spawn_unit(-40.0f, 40.0f, 0, UNIT_HERO, 0.0f, template_named("gaul/hero_viridomarus"));
+	s.order_set_stance(&viridomarus, 1, STANCE_STAND_GROUND);
+	s.rebuild_auras();
+	std::printf("      pyramid and Viridomarus: interval cut %.4f\n", mod(worker, AURA_GATHER));
+	check(std::fabs(mod(worker, AURA_GATHER) - (1.0f - 1.0f / (1.15f * 1.15f))) < 1e-3f, "pyramid and Viridomarus: +15% twice, multiplied");
 
 	// Temple of Amun: own heroes -5% health everywhere.
 	const uint16_t amanirenas = template_named("kush/hero_amanirenas");
@@ -1244,6 +1291,46 @@ static void test_uphill_archer() {
 	}
 }
 
+// StatusEffectsReceiver keeps its timers while the entity is out of the world: a burning or
+// poisoned unit that garrisons or boards keeps taking damage, and one that dies inside leaves
+// its holder (GarrisonHolder OnGlobalOwnershipChanged) with no corpse.
+static void test_status_inside() {
+	std::printf("24. status effects tick inside garrisons and ships\n");
+	Simulation s;
+	setup(s);
+	const uint16_t iber_cav = template_named("iber/champion_cavalry");
+	const CombatProfile &cp = unit_combat(iber_cav, UNIT_CAVALRY); // Burning 2 per 3 s for 9 s
+	const uint32_t house = s.spawn_building_world(-20.0f, -20.0f, BLD_HOUSE, 0, 1.0f);
+	uint32_t in_house = s.spawn_unit(-24.0f, -20.0f, 0, UNIT_SWORDSMAN);
+	s.apply_status((size_t)idx(s, in_house), cp, 0, 1);
+	s.garrison_now((size_t)idx(s, in_house), *building(s, house));
+	s.units_.hp[idx(s, in_house)] = 3.0f; // dies on the second tick, 3 s in
+	const uint32_t ship = s.spawn_unit(30.0f, -30.0f, 0, UNIT_TRIREME);
+	const uint32_t aboard = s.spawn_unit(30.0f, -30.0f, 0, UNIT_SWORDSMAN);
+	const uint32_t sick = s.spawn_unit(30.0f, -30.0f, 0, UNIT_SWORDSMAN);
+	for (uint32_t p : {aboard, sick}) {
+		const int i = idx(s, p);
+		s.apply_status((size_t)i, cp, 0, 1);
+		s.units_.action_state[i] = ACTION_GARRISONED;
+		s.units_.alive[i] = 0;
+		s.transport_passengers_[ship].push_back(p);
+	}
+	s.units_.hp[idx(s, aboard)] = 3.0f;
+	const float h_sick = s.units_.hp[idx(s, sick)];
+	for (int k = 0; k < 2; ++k) s.tick(DT);
+	check(s.units_.hp[idx(s, in_house)] < 3.0f && (s.units_.status_effects[idx(s, in_house)] & EFFECT_BURNING),
+			"a burning unit that garrisons keeps burning inside");
+	for (int k = 0; k < (int)(4.0f / DT); ++k) s.tick(DT);
+	check(idx(s, in_house) < 0 && building(s, house)->garrisoned_units.empty(), "it dies inside and leaves the house");
+	check(idx(s, aboard) < 0, "a burning passenger dies aboard");
+	const auto pit = s.transport_passengers_.find(ship);
+	check(pit != s.transport_passengers_.end() && pit->second.size() == 1 && pit->second[0] == sick,
+			"and leaves the ship, the other passenger stays aboard");
+	for (int k = 0; k < (int)(8.0f / DT); ++k) s.tick(DT);
+	check(std::fabs((h_sick - s.units_.hp[idx(s, sick)]) - 8.0f) < 1e-3f && s.units_.status_effects[idx(s, sick)] == 0,
+			"a passenger takes the whole burn aboard: 4 ticks of 2");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -1268,6 +1355,7 @@ int main() {
 	test_attack_rate_and_invulnerable();
 	test_razed_target();
 	test_uphill_archer();
+	test_status_inside();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

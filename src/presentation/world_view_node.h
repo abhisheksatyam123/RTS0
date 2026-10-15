@@ -33,6 +33,7 @@
 #include "../simulation/simulation.h"
 #include "../graphics/assets/unit_template_models.h"
 #include "fog_mirage.h"
+#include "status_sprites.h"
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/shader_material.hpp>
@@ -61,6 +62,9 @@ class RtsoWorldView : public Node3D {
 		Sprite3D *rank_icon = nullptr;   // StatusBars AddRankIcon
 		uint8_t rank_shown = 0;
 		uint32_t sim_id = 0;
+		// The entity and model the body skin variant (variant_u) was set for.
+		uint32_t variant_id = 0;
+		Node *variant_model = nullptr;
 		float yaw = 0.0f;
 		bool ring_on = false;
 		uint32_t vis_stamp = 0;
@@ -95,7 +99,7 @@ class RtsoWorldView : public Node3D {
 		MeshInstance3D *flag = nullptr; // 0 A.D. garrison flag, shown while garrisoned
 		Node3D *upgrade_scaffold = nullptr; // child of `model`: 0 A.D.'s "upgrading" variant scaffold
 		uint8_t production = 0; // FoggedBuilding::production the effects below were made for
-		std::vector<GPUParticles3D *> production_fx; // the "researching"/"training" variant's particles
+		std::vector<Node3D *> production_fx; // the "researching"/"training" variant's particles and animated props
 		// 0 A.D.'s construction_dust (the foundation's "scaffold" variant) or
 		// destruction_dust_small (the "upgrading" variant) on the actor's root.
 		GPUParticles3D *site_dust = nullptr;
@@ -105,6 +109,15 @@ class RtsoWorldView : public Node3D {
 		std::vector<Decal *> decals;
 		String decal_key; // the GLB id, scale and position the decals were laid for
 		String foundation_glb; // the foundation GLB set_building_site_visible drew
+		// The particles 0 A.D.'s structure or rubble actor always props (chimney smoke,
+		// temple fires, burning rubble), with their GLB positions for re-seating.
+		std::vector<GPUParticles3D *> ambient_fx;
+		std::vector<Vector3> ambient_pos;
+		String ambient_key; // the GLB id and scale they were made for
+		// The dust and smoke of the actor's "death" variant, raised when it collapses.
+		std::vector<GPUParticles3D *> death_fx;
+		std::vector<Vector3> death_pos;
+		String death_key;
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -163,9 +176,11 @@ class RtsoWorldView : public Node3D {
 	bool upgrade_scaffolds_loaded_ = false;
 	void update_upgrade_scaffold(BuildingVis &v, const String &model_id, bool show);
 	// data/production_fx.json (tools/extract_production_fx.py): the particles 0 A.D.'s
-	// "researching" and "training" actor variants prop on a building GLB.
+	// "researching" and "training" actor variants prop on a building GLB, and the
+	// animated actors they prop (the German forger and temple crows).
 	struct ProductionFx { uint8_t kind = 0; Vector3 pos; }; // kind: 0 sparks, 1 smoke, 2 flame
-	struct ProductionFxSet { float metre = 0.25f; std::vector<ProductionFx> fx[2]; };
+	struct ProductionActor { String glb; Vector3 pos; float yaw = 0.0f; }; // an animated unit GLB at 0 A.D. metres
+	struct ProductionFxSet { float metre = 0.25f; std::vector<ProductionFx> fx[2]; std::vector<ProductionActor> actors[2]; };
 	std::unordered_map<std::string, ProductionFxSet> production_fx_;
 	bool production_fx_loaded_ = false;
 	Ref<QuadMesh> fx_sparks_quad_, fx_forge_smoke_quad_;
@@ -178,6 +193,36 @@ class RtsoWorldView : public Node3D {
 	bool building_decals_loaded_ = false;
 	static constexpr uint32_t DECAL_LAYER = 1u << 19; // the terrain's extra render layer: decals land only on it
 	void update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness);
+	// data/ambient_fx.json (tools/extract_ambient_fx.py): the particle props of each
+	// building GLB's actor, and the 0 A.D. particle files they name.
+	struct AmbientFx { std::string particle; Vector3 pos; };
+	struct AmbientFxSet { float metre = 0.25f; std::vector<AmbientFx> fx; };
+	struct AmbientParticle {
+		String tex;
+		bool add = false, start_full = false, relative = false;
+		float rate = 0.0f, growth = 0.0f;
+		Vector2 life, size, color, angle, spin;
+		Vector2 pos[3], vel[3];
+		Vector3 force;
+	};
+	std::unordered_map<std::string, AmbientFxSet> ambient_fx_, death_fx_;
+	std::unordered_map<std::string, AmbientParticle> ambient_particles_;
+	std::unordered_map<std::string, Ref<QuadMesh>> ambient_quads_;
+	bool ambient_fx_loaded_ = false;
+	// death: the "death" variant's emitters (v.death_fx) instead of the always-on ones.
+	void update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, bool death = false);
+	void load_ambient_fx();
+	GPUParticles3D *make_ambient_emitter(const AmbientParticle &d, float m);
+	// The dust 0 A.D.'s "Run" variant props (dust_cav) under running cavalry, camels,
+	// elephants and animals: per unit GLB its particles, and one world-space
+	// emitter per particle and scale that emit_particle feeds.
+	std::unordered_map<std::string, std::vector<std::string>> run_fx_;
+	std::unordered_map<std::string, GPUParticles3D *> run_emitters_;
+	void emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta);
+	// Unit models started loading on a worker before their first draw (per civ and crowd key).
+	std::vector<bool> prefetched_;
+	float prefetch_poll_ = 0.0f;
+	void prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
@@ -198,6 +243,9 @@ class RtsoWorldView : public Node3D {
 	// A mine is large (template_gaia_*_large, 5000) or small (1000, a cut quarry 2000) by its
 	// supply when first drawn, so a worked large mine keeps its model. Cleared on a new match.
 	std::unordered_map<uint32_t, bool> mine_large_;
+	// Each supply's ResourceSupply/Max for its status bar: its amount when the match
+	// (or this view) began, or when it first appeared. Cleared with mine_large_.
+	std::unordered_map<uint32_t, int32_t> supply_max_;
 	float mine_large_time_ = -1.0f;
 	std::string mine_large_map_;
 	MultiMeshInstance3D *food_mmi = nullptr;   // fruit_bush.glb
@@ -312,6 +360,14 @@ class RtsoWorldView : public Node3D {
 	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][CROWD_KEY_COUNT];
 	uint8_t crowd_key_utype_[CROWD_KEY_COUNT] = {}; // a unit type drawn by each key
 	Node3D *crowd_bake_root = nullptr;
+	// Crowd clip baking is spread over frames: past this frame's deadline (set in sync)
+	// a clip waits for a later frame, drawn in the rest pose meanwhile; one clip always
+	// bakes per frame, so new clips keep arriving. A late-game army's first new clips
+	// otherwise froze the client for 0.2-0.8 s.
+	static constexpr uint64_t CROWD_BAKE_BUDGET_US = 4000;
+	uint64_t crowd_bake_deadline_us_ = 0;
+	bool crowd_baked_this_frame_ = false;
+	bool crowd_bake_over_budget();
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 	// Formation.js GetFormationAnimationVariant per formation member this frame, and which
 	// variants each crowd key's 0 A.D. actor lists (bit 31: looked up).
@@ -378,6 +434,9 @@ public:
 	bool structure_outlined(uint32_t id) const { return sel_buildings_.count((int32_t)id) > 0; }
 	// The structures the viewer sees, live or as mirages (what the world draws).
 	const std::vector<rtso::FoggedBuilding> &seen_buildings() const { return mirages_.buildings(); }
+	// The supplies as the local player last saw them (hover picks these, so a felled
+	// tree in the fog stays hoverable as its mirage).
+	const std::vector<rtso::FoggedResource> &resource_mirages() const { return mirages_.resources(); }
 	void set_highlight_ids(const PackedInt32Array &ids) {
 		highlight_set_.clear();
 		for (int i = 0; i < ids.size(); ++i) highlight_set_.insert(ids[i]);
@@ -388,6 +447,8 @@ public:
 	// session.showstatusbars (Tab): bars over every visible unit and structure.
 	void set_show_all_status_bars(bool on) { show_all_status_bars_ = on; }
 	bool show_all_status_bars() const { return show_all_status_bars_; }
+	// StatusBars.js sprites drawn this frame (tests).
+	int status_sprite_count() const { return status_sprites_.sprite_count(); }
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
@@ -399,6 +460,27 @@ public:
 private:
 	uint8_t local_player_ = 0;
 	bool show_all_status_bars_ = false;
+	// StatusBars.js sprites of every entity with status bars on (status_sprites.h).
+	RtsoStatusSprites status_sprites_;
+	bool status_sprites_built_ = false;
+	struct AuraIconSource {
+		const rtso::AuraSource *src;
+		int icon;
+	};
+	std::vector<AuraIconSource> aura_icon_sources_;
+	// StatusBars.js RegenerateSprites: one entity's sprites, bottom up.
+	struct StatusStack {
+		float xp = -1.0f, pack = -1.0f, upgrade = -1.0f, supply = -1.0f, health = -1.0f;
+		Color health_color;
+		const float *capture = nullptr; // capture points per player slot
+		float capture_max = 0.0f;
+		uint8_t owner = 0xFF;
+		int rank_icon = -1;
+		int icons[8];
+		int n_icons = 0;
+	};
+	void status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const;
+	void draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, const StatusStack &st);
 
 	// Fog of war (0 A.D. Fogging.js/Mirage.js + CLOSTexture): what the local
 	// player remembers, and the smoothed LOS bitmap that shades the world.
@@ -446,6 +528,11 @@ private:
 	std::unordered_map<std::string, std::string> foundation_of_; // "<civ code>/<BuildingType>" -> foundation id
 	std::unordered_map<std::string, FoundationArt> foundation_art_;
 	std::unordered_map<std::string, ActorFrame> building_frames_;
+	// data/rubble.json: each civ's SpawnEntityOnDeath rubble per BuildingType and its actor frame.
+	std::unordered_map<std::string, std::string> rubble_of_;
+	std::unordered_map<std::string, ActorFrame> rubble_frames_;
+	bool rubble_loaded_ = false;
+	void load_rubble();
 	bool foundations_loaded_ = false;
 	void load_foundations();
 	static Node *instantiate_building_id(const String &id);
@@ -453,9 +540,10 @@ private:
 	void hide_unit_vis(UnitVis &v);
 	CrowdBatch &crowd_batch(uint8_t civ, uint16_t key);
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
-	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
+	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks;
+	// with `budgeted`, stops once crowd_bake_over_budget() (the rest bake on later frames).
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-			const bool *needed, int count, uint64_t death_slots, bool female = false);
+			const bool *needed, int count, uint64_t death_slots, bool female = false, bool budgeted = false);
 	// Adds the 0 A.D. clips the unit GLBs lack (per-resource carry, promotion)
 	// to a biped's animation library from assets/animations/*.psa.
 	void ensure_runtime_clips(AnimationPlayer *ap, bool female);

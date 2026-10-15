@@ -268,6 +268,23 @@ def _wall_length(root):
         return None
 
 
+def _obstruction(root):
+    """The Obstruction Static (width, depth) of a template, or None."""
+    try:
+        st = root.find("Obstruction").find("Static")
+        return float(st.get("width")), float(st.get("depth"))
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _disabled(root, component):
+    """True when the template disables `component` (<TerritoryDecay disable=""/>), False when it
+    declares it, None when it leaves it to its parent."""
+    if root is None or root.find(component) is None:
+        return None
+    return root.find(component).get("disable") is not None
+
+
 def _max_gatherers(root):
     try:
         return int(root.find("ResourceSupply").findtext("MaxGatherers"))
@@ -297,8 +314,13 @@ def template_info(source, name):
     st, mx = _supply(root)
     mg = _max_gatherers(root)
     wl = _wall_length(root)
+    ob = _obstruction(root)
+    dd, cd = _disabled(root, "TerritoryDecay"), _disabled(root, "Capturable")
     info = {"chain": [mixin] + (base["chain"] if base else []),
             "wall_length": wl if wl is not None else (base["wall_length"] if base else None),
+            "obstruction": ob if ob is not None else (base["obstruction"] if base else None),
+            "decay_disabled": dd if dd is not None else (base["decay_disabled"] if base else False),
+            "capture_disabled": cd if cd is not None else (base["capture_disabled"] if base else False),
             "supply_type": st or (base["supply_type"] if base else None),
             "supply_max": mx if mx is not None else (base["supply_max"] if base else None),
             "max_gatherers": mg if mg is not None else (base["max_gatherers"] if base else None)}
@@ -311,8 +333,16 @@ def wall_piece(source, tpl, wx, wz, angle, scale):
     walls) as a structures entry: its piece kind, WallSet, Position angle and WallPiece Length
     in RTS0 units, laid turned by main_node.cpp like Walls.js laid it; None for anything else."""
     info = template_info(source, tpl)
+    length = info["wall_length"]
+    if length is None and info["obstruction"] and any(c.startswith("template_structure_defensive_palisade") for c in info["chain"]):
+        # palisades_straight has no WallPiece: a palisade as long as its obstruction, which
+        # runs along its depth (a WallPiece's Length runs along its width).
+        w, d = info["obstruction"]
+        length = max(w, d)
+        if d > w:
+            angle += math.pi / 2
     # Fences have a WallPiece too, but they are scenery (gaia_owned), not defensive structures.
-    if info["wall_length"] is None or not any(c.startswith("template_structure_defensive") for c in info["chain"]):
+    if length is None or not any(c.startswith("template_structure_defensive") for c in info["chain"]):
         return None
     names = " ".join(info["chain"]).lower()
     wallset = "palisade" if "palisade" in names else "siege" if "siege_wall" in names else "stone"
@@ -320,8 +350,14 @@ def wall_piece(source, tpl, wx, wz, angle, scale):
     btype = {("stone", "tower"): "wall_tower", ("stone", "gate"): "gate", ("stone", "wall"): "wall_segment",
              ("palisade", "gate"): "palisade_gate", ("siege", "gate"): "siege_wall_gate",
              ("siege", "tower"): "siege_wall", ("siege", "wall"): "siege_wall"}.get((wallset, piece), "palisade")
-    return {"type": btype, "x": wx, "z": wz, "wallset": wallset, "piece": piece, "angle": round(angle, 4),
-            "length": round(info["wall_length"] * scale, 3)}
+    entry = {"type": btype, "x": wx, "z": wz, "wallset": wallset, "piece": piece, "angle": round(angle, 4),
+             "length": round(length * scale, 3)}
+    # palisades_spike_*: <TerritoryDecay disable=""/>; palisades_fort: <Capturable disable=""/>.
+    if info["decay_disabled"]:
+        entry["no_decay"] = True
+    if info["capture_disabled"]:
+        entry["no_capture"] = True
+    return entry
 
 
 # 0 A.D. structure template class -> RTS0 building name (main_node.cpp map_building_type).
@@ -339,7 +375,7 @@ GAIA_STRUCTURE_CLASSES = [
     ("template_structure_military_dock", "dock"),
     ("template_structure_military_fortress", "fortress"),
     ("template_structure_defensive_tower_sentry", "sentry_tower"),
-    ("template_structure_defensive_tower_outpost", "outpost"),
+    ("template_structure_defensive_outpost", "outpost"),
     ("template_structure_defensive_tower", "tower"),
     ("template_structure_defensive_palisade", "palisade"),
     ("template_structure_defensive_wall_tower", "wall_tower"),
@@ -367,6 +403,11 @@ def gaia_owned(source, tpl, wx, wz, angle=0.0, scale=1.0):
         for cls, name in GAIA_STRUCTURE_CLASSES:
             if any(c.startswith(cls) for c in chain):
                 return "gaia_structures", {"type": name, "template": tpl, "x": wx, "z": wz}
+        # Wonders, pyramids, forges, arsenals, Kushite camps, the Ashoka pillar, ice houses,
+        # lighthouses...: the game resolves these by template (session_setup.cpp
+        # map_building_template) and skips what RTS0 doesn't have.
+        if any(c.startswith("template_structure_") for c in chain):
+            return "gaia_structures", {"type": tpl.rsplit("/", 1)[1], "template": tpl, "x": wx, "z": wz}
         return None
     if tpl.startswith("units/"):
         utype = unit_class(" ".join([tpl.lower()] + chain))
@@ -622,7 +663,7 @@ def units_demo_entities(z):
     return out
 
 
-def apply_player_data(players, settings):
+def apply_player_data(players, settings, scenario=False):
     """ScriptSettings PlayerData: a scenario's fixed civs, starting resources, locked teams and
     population limits, onto the map's player entries (by id). Its first entry is player 1, or
     an empty Gaia placeholder in older maps. Returns the PopulationLimit every player shares, if any."""
@@ -636,8 +677,10 @@ def apply_player_data(players, settings):
             p["civ"] = CIV_CODES.index(pd["Civ"])
         if isinstance(pd.get("Resources"), dict):
             p["resources"] = {k: int(v) for k, v in pd["Resources"].items()}
-        # Locked teams (LockTeams) are the map's own; otherwise Game Setup picks them.
-        if settings.get("LockTeams") and isinstance(pd.get("Team"), int):
+        # 0.28 PlayerTeam.js onMapChange: a scenario's PlayerData teams are the map's own (locked in
+        # Game Setup); a skirmish map's are ignored, its players starting without a team, LockTeams
+        # or not. (-1, no team, is the porter's default: a team of one.)
+        if scenario and isinstance(pd.get("Team"), int) and pd["Team"] >= 0:
             p["team"] = pd["Team"]
         if isinstance(pd.get("PopulationLimit"), int):
             p["pop_limit"] = pd["PopulationLimit"]
@@ -681,7 +724,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 return
             with open(out_path) as f:
                 old = json.load(f)
-            limit = apply_player_data(old["players"], settings)
+            # Teams back to the porter's default (a team of one) before PlayerData sets a scenario's.
+            for p in old["players"]:
+                p["team"] = p["id"] - 1
+            limit = apply_player_data(old["players"], settings, xml_rel.startswith("maps/scenarios/"))
             old.pop("pop_limit", None)
             if limit is not None:
                 old["pop_limit"] = limit
@@ -890,7 +936,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 if is_unit:
                     pass
                 elif wall:
-                    structures.append(dict(wall, player=ply))
+                    # The template: SkirmishReplacer keeps skirmish/structures/iber_wall_* for
+                    # Iberians only, and default_wall_* turns into the owner's own walls.
+                    structures.append(dict(wall, player=ply, template=tpl))
                 elif any(k in ltpl for k in ["civil_centre", "town_center", "civic"]):
                     players[ply]["start_x"] = wx
                     players[ply]["start_z"] = wz
@@ -995,7 +1043,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             if not has_tc and not army_only:
                 structures.append({"type": "town_center", "player": p["id"], "x": p["start_x"], "z": p["start_z"]})
 
-        pop_limit = apply_player_data(list(players.values()), settings)
+        pop_limit = apply_player_data(list(players.values()), settings, xml_rel.startswith("maps/scenarios/"))
 
         map_data = {
             "id": map_id,
@@ -1043,25 +1091,58 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             with open(out_path) as f:
                 old = json.load(f)
             k = old.get("world_size", world_size_m) / world_size_m
-            tagged = added = 0
+            tagged = added = walls = 0
             for key, new in (("structures", structures), ("gaia_structures", gaia["gaia_structures"])):
                 have = old.setdefault(key, [])
+                used = set()
                 for e in new:
-                    if not MAP_ONLY_STRUCTURE.search(e.get("template", "")):
+                    if "wallset" in e:
+                        # A WallSet piece: the palisades the map had as stone wall segments
+                        # (palisades_straight), and the spikes' and forts' no_decay / no_capture.
+                        x, z = round(e["x"] * k, 2), round(e["z"] * k, 2)
+                        near = [o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5
+                                and o.get("player") == e.get("player") and id(o) not in used]
+                        o = min(near, key=lambda o: math.hypot(o["x"] - x, o["z"] - z), default=None)
+                        if o is not None:
+                            used.add(id(o))
+                        want = dict(e, x=x, z=z, length=round(e["length"] * k, 3))
+                        if o is not None and o.get("template") and "template" not in want:
+                            want["template"] = o["template"]
+                        if o is not None and o != want:
+                            o.clear()
+                            o.update(want)
+                            walls += 1
+                        continue
+                    gaia = key == "gaia_structures"
+                    if not e.get("template") or not (gaia or MAP_ONLY_STRUCTURE.search(e["template"])):
                         continue
                     x, z = round(e["x"] * k, 2), round(e["z"] * k, 2)
                     o = next((o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5 and "wallset" not in o
-                              and o.get("player") == e.get("player")), None)
+                              and o.get("player") == e.get("player") and id(o) not in used), None)
+                    if o is None and gaia:
+                        # A Gaia structure an older port laid as a wall piece (gaul/fortress has a WallPiece).
+                        o = next((o for o in have if abs(o["x"] - x) < 0.5 and abs(o["z"] - z) < 0.5 and "wallset" in o
+                                  and id(o) not in used), None)
+                        if o is not None:
+                            o.clear()
+                            o.update(dict(e, x=x, z=z))
+                            used.add(id(o))
+                            tagged += 1
+                            continue
                     if o is None:
                         have.append(dict(e, x=x, z=z))
                         added += 1
-                    elif o.get("template") != e["template"]:
+                        continue
+                    used.add(id(o))
+                    if o.get("template") != e["template"] or (gaia and o.get("type") != e["type"]):
                         o["template"] = e["template"]
+                        if gaia:
+                            o["type"] = e["type"]
                         tagged += 1
-            if tagged or added:
+            if tagged or added or walls:
                 with open(out_path, "w") as f:
                     json.dump(old, f, indent=2)
-            print(f"  -> {out_path}: {tagged} structures given their template, {added} added")
+            print(f"  -> {out_path}: {tagged} structures given their template, {added} added, {walls} wall pieces refreshed")
             return
         if supplies_only:
             # Keep the existing map; only refresh each resource's amount and gatherer limit,
@@ -1167,27 +1248,28 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             json.dump(map_data, f, indent=2)
         print(f"  -> Generated {out_path}: {len(resources)} resources, {len(fauna)} fauna, {len(structures)} structures, {len(units)} units, {len(gaia['gaia_structures'])} Gaia structures, {len(gaia['gaia_units'])} Gaia units, {len(players)} players (Water={water_height}m).")
 
+# The map's width comes from its .pmp (None): 16 tiles a patch, 1 RTS0 unit a 4 m tile.
 maps_list = [
-    ("acropolis_bay", "maps/skirmishes/acropolis_bay_2p.xml", "maps/skirmishes/acropolis_bay_2p.pmp", 256.0, "mediterranean", None),
-    ("corinthian_isthmus", "maps/skirmishes/corinthian_isthmus_4p.xml", "maps/skirmishes/corinthian_isthmus_4p.pmp", 384.0, "mediterranean", None),
-    ("atlas_valleys", "maps/skirmishes/atlas_valleys_8p.xml", "maps/skirmishes/atlas_valleys_8p.pmp", 384.0, "savanna", None),
-    ("bactria", "maps/skirmishes/bactria_2p.xml", "maps/skirmishes/bactria_2p.pmp", 256.0, "desert", None),
-    ("battle_for_the_tiber", "maps/scenarios/battle_for_the_tiber.xml", "maps/scenarios/battle_for_the_tiber.pmp", 320.0, "temperate", None),
-    ("belgian_bog", "maps/skirmishes/belgian_bog_2p.xml", "maps/skirmishes/belgian_bog_2p.pmp", 256.0, "temperate", None),
-    ("death_canyon", "maps/skirmishes/death_canyon_2p.xml", "maps/skirmishes/death_canyon_2p.pmp", 256.0, "desert", None),
-    ("deccan_plateau", "maps/skirmishes/deccan_plateau_2p.xml", "maps/skirmishes/deccan_plateau_2p.pmp", 256.0, "tropical", None),
-    ("cycladic_archipelago", "maps/skirmishes/cycladic_archipelago_2p.xml", "maps/skirmishes/cycladic_archipelago_2p.pmp", 256.0, "mediterranean", None),
-    ("golden_island", "maps/skirmishes/golden_island_2p.xml", "maps/skirmishes/golden_island_2p.pmp", 256.0, "mediterranean", None),
-    ("persian_highlands", "maps/skirmishes/persian_highlands_4p.xml", "maps/skirmishes/persian_highlands_4p.pmp", 384.0, "desert", None),
-    ("saharan_oases", "maps/skirmishes/saharan_oases_4p.xml", "maps/skirmishes/saharan_oases_4p.pmp", 384.0, "desert", None),
-    ("sicilia", "maps/skirmishes/sicilia_2p.xml", "maps/skirmishes/sicilia_2p.pmp", 256.0, "mediterranean", None),
-    ("alpine_valleys", "maps/skirmishes/alpine_valleys_2p.xml", "maps/skirmishes/alpine_valleys_2p.pmp", 256.0, "alpine", None),
-    ("tuscan_acropolis", "maps/skirmishes/tuscan_acropolis_4p.xml", "maps/skirmishes/tuscan_acropolis_4p.pmp", 384.0, "mediterranean", None),
-    ("arcadia", "maps/scenarios/arcadia.xml", "maps/scenarios/arcadia.pmp", 256.0, "mediterranean", None),
-    ("vesuvius", "maps/skirmishes/vesuvius_6p.xml", "maps/skirmishes/vesuvius_6p.pmp", 384.0, "mediterranean", None),
-    ("mediterranean_cove", "maps/skirmishes/mediterranean_cove_2p.xml", "maps/skirmishes/mediterranean_cove_2p.pmp", 256.0, "mediterranean", None),
-    ("nile_river", "maps/skirmishes/nile_river_4p.xml", "maps/skirmishes/nile_river_4p.pmp", 384.0, "desert", None),
-    ("gallic_fields", "maps/skirmishes/gallic_fields_3p.xml", "maps/skirmishes/gallic_fields_3p.pmp", 320.0, "temperate", None),
+    ("acropolis_bay", "maps/skirmishes/acropolis_bay_2p.xml", "maps/skirmishes/acropolis_bay_2p.pmp", None, "mediterranean", None),
+    ("corinthian_isthmus", "maps/skirmishes/corinthian_isthmus_4p.xml", "maps/skirmishes/corinthian_isthmus_4p.pmp", None, "mediterranean", None),
+    ("atlas_valleys", "maps/skirmishes/atlas_valleys_8p.xml", "maps/skirmishes/atlas_valleys_8p.pmp", None, "savanna", None),
+    ("bactria", "maps/skirmishes/bactria_2p.xml", "maps/skirmishes/bactria_2p.pmp", None, "desert", None),
+    ("battle_for_the_tiber", "maps/scenarios/battle_for_the_tiber.xml", "maps/scenarios/battle_for_the_tiber.pmp", None, "temperate", None),
+    ("belgian_bog", "maps/skirmishes/belgian_bog_2p.xml", "maps/skirmishes/belgian_bog_2p.pmp", None, "temperate", None),
+    ("death_canyon", "maps/skirmishes/death_canyon_2p.xml", "maps/skirmishes/death_canyon_2p.pmp", None, "desert", None),
+    ("deccan_plateau", "maps/skirmishes/deccan_plateau_2p.xml", "maps/skirmishes/deccan_plateau_2p.pmp", None, "tropical", None),
+    ("cycladic_archipelago", "maps/skirmishes/cycladic_archipelago_2p.xml", "maps/skirmishes/cycladic_archipelago_2p.pmp", None, "mediterranean", None),
+    ("golden_island", "maps/skirmishes/golden_island_2p.xml", "maps/skirmishes/golden_island_2p.pmp", None, "mediterranean", None),
+    ("persian_highlands", "maps/skirmishes/persian_highlands_4p.xml", "maps/skirmishes/persian_highlands_4p.pmp", None, "desert", None),
+    ("saharan_oases", "maps/skirmishes/saharan_oases_4p.xml", "maps/skirmishes/saharan_oases_4p.pmp", None, "desert", None),
+    ("sicilia", "maps/skirmishes/sicilia_2p.xml", "maps/skirmishes/sicilia_2p.pmp", None, "mediterranean", None),
+    ("alpine_valleys", "maps/skirmishes/alpine_valleys_2p.xml", "maps/skirmishes/alpine_valleys_2p.pmp", None, "alpine", None),
+    ("tuscan_acropolis", "maps/skirmishes/tuscan_acropolis_4p.xml", "maps/skirmishes/tuscan_acropolis_4p.pmp", None, "mediterranean", None),
+    ("arcadia", "maps/scenarios/arcadia.xml", "maps/scenarios/arcadia.pmp", None, "mediterranean", None),
+    ("vesuvius", "maps/skirmishes/vesuvius_6p.xml", "maps/skirmishes/vesuvius_6p.pmp", None, "mediterranean", None),
+    ("mediterranean_cove", "maps/skirmishes/mediterranean_cove_2p.xml", "maps/skirmishes/mediterranean_cove_2p.pmp", None, "mediterranean", None),
+    ("nile_river", "maps/skirmishes/nile_river_4p.xml", "maps/skirmishes/nile_river_4p.pmp", None, "desert", None),
+    ("gallic_fields", "maps/skirmishes/gallic_fields_3p.xml", "maps/skirmishes/gallic_fields_3p.pmp", None, "temperate", None),
 ]
 
 # 0 A.D. skirmish maps fetched with --github: file name -> (RTS0 id, biome).
@@ -1241,6 +1323,13 @@ github_skirmishes = {
     "tarim_basin_2p": ("tarim_basin_2p", "desert"),
     "tarim_basin_4p": ("tarim_basin_4p", "desert"),
     "team_oasis_2pv2p": ("team_oasis", "desert"),
+    # The other 0.28 sizes of maps ported above (pass-3 audit), each its own map like 0.28's.
+    "corinthian_isthmus_2p": ("corinthian_isthmus_2p", "mediterranean"),
+    "cycladic_archipelago_3p": ("cycladic_archipelago_3p", "mediterranean"),
+    "greek_acropolis_2p": ("greek_acropolis_2p", "aegean"),
+    "median_oasis_4p": ("median_oasis_4p", "desert"),
+    "neareastern_badlands_2p": ("neareastern_badlands_2p", "desert"),
+    "saharan_oases_2p": ("saharan_oases_2p", "desert"),
     "temperate_roadway_2p": ("temperate_roadway", "temperate"),
     "thessalian_plains_4p": ("thessalian_plains", "aegean"),
     "via_augusta_4p": ("via_augusta", "mediterranean"),

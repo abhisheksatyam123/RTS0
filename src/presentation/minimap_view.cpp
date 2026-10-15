@@ -1,4 +1,5 @@
 #include "minimap_view.h"
+#include <godot_cpp/classes/time.hpp>
 #include "display_colors.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/rect2.hpp>
@@ -54,6 +55,20 @@ void RtsoMiniMapView::add_ping(Vector2 world_pos, Color col) {
 	queue_redraw();
 }
 
+static constexpr uint64_t kPingDurationMs = 50000; // default.cfg gui.session.minimap.pingduration
+static constexpr uint64_t kBlinkDurationMs = 1700; // gui.session.minimap.blinkduration
+
+void RtsoMiniMapView::ping_entity(uint32_t id) {
+	entity_pings_[id] = Time::get_singleton()->get_ticks_msec() + kPingDurationMs; // a new hit restarts it
+}
+
+bool RtsoMiniMapView::entity_ping_lit(uint32_t id, uint64_t now_ms) const {
+	auto it = entity_pings_.find(id);
+	if (it == entity_pings_.end() || now_ms >= it->second) return false;
+	const uint64_t since = kPingDurationMs - (it->second - now_ms);
+	return (since % kBlinkDurationMs) < kBlinkDurationMs / 2;
+}
+
 void RtsoMiniMapView::sync(const rtso::Simulation *s, Vector3 p_cam_pos) {
 	sim = s;
 	cam_pos = p_cam_pos;
@@ -64,6 +79,11 @@ void RtsoMiniMapView::sync(const rtso::Simulation *s, Vector3 p_cam_pos) {
 	}
 	pings.erase(std::remove_if(pings.begin(), pings.end(),
 		[](const MapPing &p) { return p.timer <= 0.0f; }), pings.end());
+	if (!entity_pings_.empty()) {
+		const uint64_t now = Time::get_singleton()->get_ticks_msec();
+		for (auto it = entity_pings_.begin(); it != entity_pings_.end();)
+			it = now >= it->second ? entity_pings_.erase(it) : std::next(it);
+	}
 
 	queue_redraw();
 }
@@ -347,6 +367,8 @@ void RtsoMiniMapView::_draw() {
 			box_sz = 5.0f;
 		}
 
+		if (!entity_pings_.empty() && entity_ping_lit(b.id, Time::get_singleton()->get_ticks_msec()))
+			col = Color(1, 1, 1); // MiniMapTexture: a pinging entity's vertex is white
 		draw_rect(Rect2(pos - Vector2(box_sz * 0.5f, box_sz * 0.5f), Vector2(box_sz, box_sz)), col, true);
 	}
 
@@ -373,6 +395,7 @@ void RtsoMiniMapView::_draw() {
 
 		Vector2 pos = map_to_mini(units.pos_x[i], units.pos_z[i]);
 		Color col = player_color(units.team[i]);
+		if (!entity_pings_.empty() && entity_ping_lit(units.id[i], Time::get_singleton()->get_ticks_msec())) col = Color(1, 1, 1);
 		float rad = (units.unit_type[i] == rtso::UNIT_CAVALRY || units.unit_type[i] == rtso::UNIT_TRADER) ? 3.0f : 2.0f;
 		draw_rect(Rect2(pos.x - rad * 0.5f, pos.y - rad * 0.5f, rad, rad), col, true);
 	}

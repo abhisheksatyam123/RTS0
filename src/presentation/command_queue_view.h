@@ -62,6 +62,9 @@ public:
 	// The units a held Shift batch of this template holds so far (input.js g_NumberOfBatches
 	// x the batch size), 0 when none is being built.
 	virtual int ui_pending_batch(uint16_t tmpl) const = 0;
+	// getBuildingsWhichCanTrainEntity: the selected finished structures that train it
+	// (`holder` among them).
+	virtual int ui_trainer_count(uint16_t tmpl, uint32_t holder) const { return 1; }
 	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
 	// g_IsObserver: an observer, a defeated player or a replay viewer.
 	virtual bool ui_observing() const { return false; }
@@ -78,6 +81,9 @@ public:
 		return rtso::FORMATION_NONE;
 	}
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
+	// Where refresh_roster_state puts a training cell's Cost and batch lines in its base tooltip.
+	static constexpr const char *COST_SLOT = "\x01cost";
+	static constexpr const char *BATCH_SLOT = "\x01batch";
 	static constexpr int ROSTER_TECH = 0x20000;   // roster_list metadata flag: a training unit's technology
 
 	// owner: signal target (RtsoMain: the stance, formation, tech, build and command presses,
@@ -105,6 +111,9 @@ public:
 		cmd_style->set_border_color(Color(0.90f, 0.75f, 0.31f, 1.0f));
 		panel_->add_theme_stylebox_override("panel", cmd_style);
 		if (theme.is_valid()) panel_->set_theme(theme);
+		// session/selection_panels*.xml: the panel's buttons use sessionToolTipBottom (tooltips.gd);
+		// the stance, formation, alert, command and barter ones override it with the bold variant.
+		panel_->set_meta("tooltip_style", "session_bottom");
 		parent->add_child(panel_);
 
 		roster_list_ = memnew(ItemList);
@@ -130,6 +139,7 @@ public:
 		roster_list_->set_allow_rmb_select(true); // a right click opens the Template Viewer
 		roster_list_->connect("item_clicked", Callable(owner_, "_on_roster_item_clicked"));
 		roster_list_->connect("gui_input", Callable(owner_, "_on_roster_gui_input"));
+		roster_list_->set_meta("tooltip_style", "session_bottom");
 		parent->add_child(roster_list_);
 
 		title_ = memnew(Label);
@@ -145,6 +155,7 @@ public:
 		stances_bar_->set_position(Vector2(10, 24));
 		stances_bar_->set_size(Vector2(552, 26));
 		stances_bar_->add_theme_constant_override("separation", 6);
+		stances_bar_->set_meta("tooltip_style", "session_bottom_bold");
 		panel_->add_child(stances_bar_);
 
 		// Indexed by UnitStance; laid out in 0 A.D. g_Stances order (violent, aggressive,
@@ -191,6 +202,7 @@ public:
 		actions_bar_->set_position(Vector2(10, 52));
 		actions_bar_->set_size(Vector2(552, 26));
 		actions_bar_->add_theme_constant_override("separation", 2);
+		actions_bar_->set_meta("tooltip_style", "session_bottom_bold");
 		panel_->add_child(actions_bar_);
 
 		// Production Bar (Training & Tech)
@@ -220,7 +232,10 @@ public:
 	godot::Panel *panel() const { return panel_; }
 	godot::HFlowContainer *production_bar() const { return production_bar_; }
 	void set_barter_sell(int r) { barter_sell_ = r; } // BarterButtonManager.setSelectedResource
-	void set_barter_host(godot::Control *c) { barter_host_ = c; }
+	void set_barter_host(godot::Control *c) {
+		barter_host_ = c;
+		if (c) c->set_meta("tooltip_style", "session_bottom_bold");
+	}
 	godot::Control *barter_host() const { return barter_host_; }
 	godot::ItemList *roster_list() const { return roster_list_; }
 	godot::String roster_label(int idx) const { return idx >= 0 && idx < (int)roster_labels_.size() ? roster_labels_[idx] : godot::String(); }
@@ -324,7 +339,9 @@ public:
 						if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 					}
 					rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
-					if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
+					// Researcher.js GetTechnologiesList: a researched or in-progress tech leaves its slot
+					// to its successor.
+					if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_IN_PROGRESS || rc == rtso::Simulation::TECH_ERR_CIV
 					    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
 					// 0.28 Research panel (g_SelectionPanels.Research): an icon button per technology.
 					Button *btn = memnew(Button);
@@ -344,8 +361,10 @@ public:
 					// team bonuses and the Library of Alexandria, as cmd_research charges it.
 					float paid[rtso::RES_COUNT], rtime = 0.0f;
 					sim->tech_price(local_player(), (uint8_t)t, found_b->type, paid, rtime);
-					// Names, tooltip, cost, right-click, requirements, needed resources.
-					String tip = String::utf8(ti.name);
+					// Names (getEntityNamesFormatted: the civ's specificName first), tooltip, cost,
+					// right-click, requirements, needed resources.
+					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
+					String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
 					if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
@@ -356,18 +375,17 @@ public:
 					String why;
 					bool reqs_failed = false;
 					switch (rc) {
-						case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; reqs_failed = true; break;
 						// selection_panels.js: the tech's own requirementsTooltip ("Unlocked in Town
 						// Phase.", "Unlocked in City Phase. Requires “Shipwrights.”").
 						case rtso::Simulation::TECH_ERR_PHASE:
-							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = String::utf8(req);
+							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = rtso::objection_font(owner_->tr(String::utf8(req)));
 							else why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase");
 							reqs_failed = true;
 							break;
 						case rtso::Simulation::TECH_ERR_PREREQUISITE: {
 							const uint8_t sup = rtso::tech_supersedes((uint8_t)t);
 							const bool need_prev = sup != rtso::TECH_NONE && !sim->player(local_player()).has_tech(sup);
-							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = String::utf8(req);
+							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = rtso::objection_font(owner_->tr(String::utf8(req)));
 							else why = requires_text(String::utf8(rtso::tech_info(need_prev ? sup : ti.prerequisite).name));
 							reqs_failed = true;
 							break;
@@ -384,13 +402,21 @@ public:
 										{{"entityCounts", rtso::sprintf0(owner_->tr(remaining == 1 ? "%(number)s entity of class %(class)s"
 																						: "%(number)s entities of class %(class)s"),
 												 {{"number", String::num_int64(remaining)}, {"class", owner_->tr(city ? "Town" : "Village")}})}});
+							why = rtso::objection_font(why);
 						}
 							reqs_failed = true;
 							break;
 						case rtso::Simulation::TECH_ERR_COST: why = needed_text(tech_cost); break;
 						default: break;
 					}
-					if (!why.is_empty()) tip += "\n" + owner_->tr(why);
+					if (!why.is_empty()) tip += "\n" + why;
+					// getNeededResourcesTooltip follows whatever requirement failed.
+					if (rc != rtso::Simulation::TECH_ERR_COST) {
+						const auto &ps = sim->player(local_player());
+						const String need = rtso::needed_resources_tooltip(tech_cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+								ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD], true);
+						if (!need.is_empty()) tip += "\n" + need;
+					}
 					// Requirements not met: "color:0 0 0 127:grayscale:"; resources missing: the
 					// resources' alpha mask (red here); both disable the button.
 					if (reqs_failed) {
@@ -434,6 +460,7 @@ public:
 					Button *bottom = top == btn ? other : btn;
 					HBoxContainer *pair = memnew(HBoxContainer);
 					pair->set_name("unitResearchPair");
+					pair->set_meta("node_name", "unitResearchPair");
 					pair->add_theme_constant_override("separation", 1);
 					pair->add_child(top);
 					pair->add_child(bottom);
@@ -495,6 +522,7 @@ public:
 						tip += "\n" + rtso::tr0(end ? (alert.traders ? "Unload nearby Traders." : "Unload nearby Civilians.")
 								: (alert.traders ? "Alert nearby Traders to seek refuge." : "Alert nearby Civilians to seek refuge."));
 						btn->set_tooltip_text(tip);
+						btn->set_meta("tooltip_style", "session_bottom_bold");
 						btn->connect("pressed", Callable(owner_, "_on_alert_pressed").bind(end));
 						production_bar_->add_child(btn);
 					}
@@ -536,19 +564,18 @@ public:
 							icon->set_material(grayscale_material());
 							icon->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
 						} else {
-							const String hint = String::utf8(up.tooltip ? up.tooltip : "");
-							const bool two = !specific.is_empty() && specific != generic;
-							const String primary = two ? specific : generic;
-							tip = two ? rtso::sprintf0(rtso::tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s (%(secondaryName)s)."
-														: "Upgrade to a %(primaryName)s (%(secondaryName)s). %(tooltip)s"),
-											{{"primaryName", primary}, {"secondaryName", generic}, {"tooltip", rtso::tr0(hint)}})
-									: rtso::sprintf0(rtso::tr0(hint.is_empty() ? "Upgrade to a %(primaryName)s." : "Upgrade to a %(primaryName)s. %(tooltip)s"),
-											{{"primaryName", primary}, {"tooltip", rtso::tr0(hint)}});
+							// Names, cost, the target's limit, requirements, needed resources, right-click.
+							tip = rtso::upgrade_to_text(generic, specific, String::utf8(up.tooltip ? up.tooltip : ""));
 							const rtso::CostTip up_cost{up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost, 0, (int64_t)std::ceil(up.time)};
 							const String cost_tip = rtso::cost_tooltip(up_cost, true);
 							if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
+							const String limit_tip = limit_tooltip(local_player(), rtso::BUILDING_LIMIT_CATEGORY[up.to]);
+							if (!limit_tip.is_empty()) tip += "\n" + limit_tip;
 							if (check == rtso::Simulation::UPGRADE_ERR_PHASE) tip += "\n" + requires_text(up.required_phase >= 3 ? "City Phase" : "Town Phase");
-							else if (check == rtso::Simulation::UPGRADE_ERR_LIMIT) tip += "\n" + owner_->tr("Limit reached");
+							const auto &stock = sim->player(local_player());
+							const String up_need = rtso::needed_resources_tooltip(up_cost, stock.res[rtso::RES_FOOD], stock.res[rtso::RES_WOOD],
+									stock.res[rtso::RES_STONE], stock.res[rtso::RES_GOLD], true);
+							if (!up_need.is_empty()) tip += "\n" + up_need;
 							else if (check == rtso::Simulation::UPGRADE_ERR_COST) tip += "\n" + needed_text(up_cost);
 							tip += "\n" + right_click_tooltip();
 							if (check == rtso::Simulation::UPGRADE_ERR_PHASE || check == rtso::Simulation::UPGRADE_ERR_LIMIT) {
@@ -602,7 +629,9 @@ public:
 			}
 			// The structure's command row (unit_actions.js g_EntityCommands).
 			if (found_b && found_b->team == local_player()) {
-				const int inside = (int)found_b->garrisoned_units.size();
+				// A corral's penned animals are its garrison too (GarrisonHolder List Animal).
+				const int inside = (int)found_b->garrisoned_units.size() +
+						(found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0);
 				if (inside > 0)
 					add_entity_command("unload-all", "Unload All", "session.unload",
 							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
@@ -662,7 +691,7 @@ public:
 				static const char *const kFormationIcons[rtso::FORMATION_COUNT] = {
 					"null", "line_closed", "box", "column", "phalanx", "wedge", "skirmish", "line_open",
 					"column_open", "flank", "battle_line", "ship_line", "ship_column", "flank", "syntagma",
-					"testudo", "testudo"};
+					"testudo", "testudo", "phalanx"};
 				const uint32_t *sel_ids = (const uint32_t *)selected_ids.ptr();
 				const size_t sel_n = (size_t)selected_ids.size();
 				uint32_t in_use = 0;       // formations a selected unit is in (bit 0: a unit in none)
@@ -860,18 +889,17 @@ public:
 						if (upgrading == 0 && upgradable > 0) {
 							// "Upgrade to a <specific> (<generic>).", the cost for the whole selection,
 							// requirements, the resources the upgradable ones lack, the right-click line.
-							const String specific = String::utf8(tt.specific_name ? tt.specific_name : "");
-							tip = specific.is_empty()
-									? rtso::sprintf0(rtso::tr0("Upgrade to a %(primaryName)s."), {{"primaryName", String::utf8(tt.name)}})
-									: rtso::sprintf0(rtso::tr0("Upgrade to a %(primaryName)s (%(secondaryName)s)."),
-											{{"primaryName", specific}, {"secondaryName", String::utf8(tt.name)}});
+							tip = rtso::upgrade_to_text(String::utf8(tt.name), String::utf8(tt.specific_name ? tt.specific_name : ""), String());
 							const int n_all = (int)own.size();
 							const rtso::CostTip all_cost{(int64_t)row->food_cost * n_all, (int64_t)row->wood_cost * n_all,
 									(int64_t)row->stone_cost * n_all, (int64_t)row->gold_cost * n_all, 0, (int64_t)std::ceil(row->time)};
 							const String cost_tip = rtso::cost_tooltip(all_cost, true);
 							if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
+							if (to < rtso::CIV_UNIT_TEMPLATE_COUNT) {
+								const String limit_tip = limit_tooltip(local_player(), rtso::UNIT_LIMITS[to].category);
+								if (!limit_tip.is_empty()) tip += "\n" + limit_tip;
+							}
 							if (check == rtso::Simulation::UPGRADE_ERR_PHASE) tip += "\n" + requires_text("City Phase");
-							else if (check == rtso::Simulation::UPGRADE_ERR_LIMIT) tip += "\n" + owner_->tr("Limit reached");
 							const rtso::CostTip need_cost{(int64_t)row->food_cost * upgradable, (int64_t)row->wood_cost * upgradable,
 									(int64_t)row->stone_cost * upgradable, (int64_t)row->gold_cost * upgradable, 0, 0};
 							const String need = rtso::needed_resources_tooltip(need_cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
@@ -1002,7 +1030,7 @@ public:
 						rtso::BLD_CORRAL, rtso::BLD_DOCK, rtso::BLD_BARRACKS, rtso::BLD_STABLE,
 						rtso::BLD_RANGE, rtso::BLD_SENTRY_TOWER, rtso::BLD_OUTPOST, rtso::BLD_PALISADE,
 						rtso::BLD_FORGE, rtso::BLD_MARKET, rtso::BLD_TEMPLE, rtso::BLD_TOWER,
-						rtso::BLD_EMBASSY, rtso::BLD_WALL_SEGMENT, rtso::BLD_WALL_TOWER, rtso::BLD_GATE,
+						rtso::BLD_EMBASSY, rtso::BLD_WALL_SEGMENT,
 						rtso::BLD_FORTRESS, rtso::BLD_ARSENAL, rtso::BLD_ELEPHANT_STABLE, rtso::BLD_THEATER,
 						rtso::BLD_WONDER
 					};
@@ -1044,24 +1072,32 @@ public:
 						const Dictionary text = structure_template_text(my_civ, bt);
 						const String generic = text.get("generic_name", String::utf8(bi.name));
 						const String specific = text.get("specific_name", String());
-						String tip = specific.is_empty() || specific == generic ? generic : specific + String(" (") + generic + String(")");
+						String tip = rtso::entity_names_formatted(generic, specific);
 						auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 						add_line(classes_tooltip(text));
+						add_line(structure_auras_tooltip(text));
 						add_line(identity_tooltip(text));
 						const rtso::CostTip b_cost{(int64_t)price[rtso::RES_FOOD], (int64_t)price[rtso::RES_WOOD],
 								(int64_t)price[rtso::RES_STONE], (int64_t)price[rtso::RES_GOLD], 0,
-								(int64_t)std::round(sim->structure_build_time_for(local_player(), (uint8_t)bt))};
-						add_line(rtso::cost_tooltip(b_cost, true));
+								(int64_t)std::ceil(sim->structure_build_time_for(local_player(), (uint8_t)bt))};
+						if (const rtso::WallSetInfo ws = rtso::wallset_info(rtso::wallset_kind_of((uint8_t)bt), my_civ); ws.segment == bt)
+							add_line(wallset_cost_tooltip(ws));
+						else
+							add_line(rtso::cost_tooltip(b_cost, true));
 						add_line(dropsite_tooltip(text));
 						const int garrison = rtso::structure_garrison_max((uint8_t)bt, my_civ);
 						if (garrison > 0)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s: %(garrisonLimit)s"),
-									{{"label", rtso::tr0("Garrison Limit")}, {"garrisonLimit", String::num_int64(garrison)}});
+									{{"label", rtso::header_font(rtso::tr0("Garrison Limit"))}, {"garrisonLimit", String::num_int64(garrison)}});
+						if (const float heal = rtso::building_garrison_heal((uint8_t)bt); garrison > 0 && heal > 0.0f)
+							tip += "\n" + rtso::sprintf0(rtso::tr0("%(healRateLabel)s %(value)s %(health)s / %(second)s"),
+									{{"healRateLabel", rtso::header_font(rtso::tr0("Heal:"))}, {"value", String::num_int64(std::lround(heal))},
+											{"health", rtso::tr0("Health")}, {"second", rtso::tr0("second")}});
 						add_line(turrets_tooltip(text));
 						const int pop_bonus = sim->structure_pop_bonus((uint8_t)bt, local_player());
 						if (pop_bonus > 0)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s %(bonus)s"),
-									{{"label", rtso::tr0("Population Bonus:")}, {"bonus", String::num_int64(pop_bonus)}});
+									{{"label", rtso::header_font(rtso::tr0("Population Bonus:"))}, {"bonus", String::num_int64(pop_bonus)}});
 						add_line(right_click_tooltip());
 						on_right_click_details(bb, "structure", bt, my_civ);
 						add_line(limit_tooltip(local_player(), rtso::BUILDING_LIMIT_CATEGORY[bt]));
@@ -1197,14 +1233,22 @@ private:
 				const rtso::FaunaTrainCost &c = rtso::fauna_train_cost(f);
 				String label = String::utf8(rtso::fauna_type_info(f).name) + " (" + String::num_int64(c.res[0]) + "f)";
 				const int idx = add_roster_icon(label, rtso::portraits::fauna(f), ROSTER_ANIMAL | (int)f);
-				set_roster_tip(idx, String::utf8(rtso::fauna_type_info(f).name) + "\nTrain " +
-						String::num(sim->livestock_train_time(pid, f), 0) + " s, " +
-						String::num_int64(rtso::fauna_type_info(f).food_amount) + " food when slaughtered, " +
-						String::num(rtso::fauna_corral_food(f), 0) + " food every " +
-						String::num(rtso::CORRAL_TRICKLE_INTERVAL, 0) + " s while penned" +
-						(rtso::Simulation::livestock_required_phase(f) > phase
-										? String(rtso::Simulation::livestock_required_phase(f) >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase")
-										: String()));
+				// The Training panel's tooltip for gaia/fauna_*_trainable: hotkey and names, Tooltip,
+				// cost, limit, batch line and requirements; the live part adds the rest.
+				const Dictionary gaia = reference_templates().get("gaia", Dictionary());
+				const Dictionary text = gaia.get(String("gaia/") + rtso::fauna_type_info(f).template_name, Dictionary());
+				const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
+				String tip = (hotkey.empty() ? String() : rtso::hotkey_tag(String(hotkey.c_str())) + " ") +
+						rtso::entity_names_formatted(String(text.get("generic_name", String::utf8(rtso::fauna_type_info(f).name))),
+								String(text.get("specific_name", String())));
+				auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
+				add_line(identity_tooltip(text));
+				tip += "\n" + String(COST_SLOT);
+				add_line(limit_tooltip(pid, rtso::LIMIT_ANIMAL));
+				tip += "\n" + String(BATCH_SLOT);
+				const uint8_t need_phase = rtso::Simulation::livestock_required_phase(f);
+				if (need_phase > phase) tip += "\n" + requires_text(need_phase >= 3 ? "City Phase" : "Town Phase");
+				set_roster_tip(idx, tip);
 				if (rtso::Simulation::livestock_required_phase(f) > phase) roster_list_->set_item_disabled(idx, true);
 			}
 			finish_roster(b);
@@ -1277,14 +1321,21 @@ private:
 			String tip;
 			const int idx = add_roster_item(pid, all[k], tip);
 			if (!(can_mask & (1ull << k))) {
+				// getRequirementsTooltip: the phase or technology the unit waits on.
 				roster_list_->set_item_disabled(idx, true);
-				tip += "\n" + owner_->tr("Requirements not met");
+				const rtso::CivUnitTemplate &tu = rtso::civ_unit_template(all[k]);
+				const uint8_t gate = rtso::Simulation::unit_trainee_tech(tmpl, all[k]);
+				const uint8_t unlock = sim->train_unlock_tech(pid, tu.unit_type, rtso::BLD_TYPE_COUNT, all[k]);
+				// The ships' marines and archers: Techs "iphicratean_reforms" (their phase follows from it).
+				if (gate != rtso::TECH_NONE && !sim->player(pid).has_tech(gate)) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
+				else if (unlock != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(unlock).name));
+				else if (tu.phase > sim->player_phase(pid)) tip += "\n" + requires_text(tu.phase >= 3 ? "City Phase" : "Town Phase");
 			}
 			set_roster_tip(idx, tip);
 		}
 		for (uint8_t t : techs) {
 			const auto check = sim->research_check(pid, t);
-			if (check == rtso::Simulation::TECH_ERR_RESEARCHED) continue;
+			if (check == rtso::Simulation::TECH_ERR_RESEARCHED || check == rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 			const rtso::TechInfo &ti = rtso::tech_info(t);
 			String costs;
 			auto add_cost = [&](int v, const char *suffix) {
@@ -1301,11 +1352,23 @@ private:
 			const int idx = add_roster_icon(String::utf8(ti.name) + " (" + costs + ")", rtso::RtsoResearchProgress::icon(t), ROSTER_TECH | (int)t);
 			const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 					(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
-			String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\n" + rtso::cost_tooltip(tech_cost, true);
+			// The Research tooltip: names, tooltip, cost, right-click, requirements, needed resources.
+			const char *tech_specific = rtso::tech_specific_name(t, sim->player_civ(pid));
+			String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
+			if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
+			const String cost_line = rtso::cost_tooltip(tech_cost, true);
+			if (!cost_line.is_empty()) tip += "\n" + cost_line;
+			tip += "\n" + right_click_tooltip();
 			if (check != rtso::Simulation::TECH_OK && check != rtso::Simulation::TECH_ERR_COST) {
 				roster_list_->set_item_disabled(idx, true);
-				tip += "\n" + owner_->tr("Requirements not met");
+				if (const char *req = rtso::tech_requirements_tooltip(t)) tip += "\n" + rtso::objection_font(owner_->tr(String::utf8(req)));
+				else if (check == rtso::Simulation::TECH_ERR_PHASE) tip += "\n" + requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase");
+				else if (ti.prerequisite != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(ti.prerequisite).name));
 			}
+			const auto &ps = sim->player(pid);
+			const String need = rtso::needed_resources_tooltip(tech_cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+					ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD], true);
+			if (!need.is_empty()) tip += "\n" + need;
 			set_roster_tip(idx, tip);
 		}
 		finish_roster(nullptr);
@@ -1343,11 +1406,15 @@ private:
 		roster_list_->set_visible(roster_list_->get_item_count() > 0);
 	}
 
-	// selection_panels.js Training setupButton, every frame: the count a click would train
-	// (getTrainingStatus: the held Shift batch so far plus one more batch size while Shift
-	// is down) under the portrait; requirements unmet, the entity limit reached or the
+	// selection_panels.js Training setupButton, every frame: getTrainingStatus's count a
+	// click would train (the held Shift batch so far plus one more batch while Shift is down,
+	// in every selected structure that trains it, cut to the entity limit) under the portrait;
+	// the tooltip's Cost line for that many (getEntityCostComponentsTooltipString: resources
+	// and population times the count, time ceil(time x GetBatchTime)) and its
+	// formatBatchTrainingString line; requirements unmet, the entity limit reached or the
 	// trainer upgrading grey and disable it ("Cannot train while upgrading."); resources
-	// short for that count mask it red and add what is needed.
+	// short for that count mask it red, and getNeededResourcesTooltip follows whatever else
+	// is wrong.
 	void refresh_roster_state(const rtso::Simulation::Building *b) {
 		using namespace godot;
 		rtso::Simulation *sim = host_->ui_sim();
@@ -1356,36 +1423,72 @@ private:
 		const int size = std::max(1, host_->ui_batch_size());
 		const bool shift = rtso::hotkeys::held("session.batchtrain");
 		const bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		const uint16_t trainer_tmpl = b ? 0 : sim->unit_template(trainer_unit_id_);
 		for (int idx = 0; idx < roster_list_->get_item_count() && idx < (int)roster_state_.size(); ++idx) {
 			const int meta = (int)roster_list_->get_item_metadata(idx);
-			if (meta & (ROSTER_ANIMAL | ROSTER_TECH) || meta >= rtso::CIV_UNIT_TEMPLATE_COUNT) continue;
-			const uint16_t tmpl = (uint16_t)meta;
-			const uint8_t cat = rtso::UNIT_LIMITS[tmpl].category;
+			const bool animal = meta & ROSTER_ANIMAL;
+			if (meta & ROSTER_TECH || (!animal && meta >= rtso::CIV_UNIT_TEMPLATE_COUNT)) continue;
+			// A corral's animal: ROSTER_ANIMAL | FaunaType, trained one Shift batch at a time.
+			const uint16_t tmpl = animal ? (uint16_t)(meta & 0xFF) : (uint16_t)meta;
+			const uint8_t cat = animal ? (uint8_t)rtso::LIMIT_ANIMAL : rtso::UNIT_LIMITS[tmpl].category;
 			const int limit = cat == rtso::LIMIT_NONE || cat >= rtso::LIMIT_CATEGORY_COUNT ? -1 : sim->entity_limit(pid, cat);
 			const int allowed = limit < 0 ? -1 : std::max(0, limit - sim->entity_limit_count(pid, cat));
-			const int pending = host_->ui_pending_batch(tmpl);
-			int next = pending + (shift && (allowed < 0 || allowed > pending) ? size : 0);
+			const int buildings = b && !animal ? std::max(1, host_->ui_trainer_count(tmpl, b->id)) : 1;
+			const int pending = animal ? 0 : host_->ui_pending_batch(tmpl);
+			int next = pending;
+			if (shift && (allowed < 0 || allowed > pending * buildings)) next += size;
 			next = std::max(next, 1);
-			if (allowed >= 0) next = std::min(next, std::max(allowed, 1));
-			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(tmpl);
-			float cost[rtso::RES_COUNT];
-			sim->unit_train_cost(pid, tmpl, rtso::civ_template_unit_info(tmpl, u.unit_type), cost);
+			int full = buildings, rest = 0;
+			if (allowed >= 0 && allowed < next * buildings) {
+				full = allowed / next;
+				rest = allowed % next;
+			}
+			const int num = full * next + rest;
+			const int batch = full > 0 ? next : rest;
+			float cost[rtso::RES_COUNT] = {};
+			int pop = 0;
+			float seconds = 0.0f;
+			if (animal) {
+				const rtso::FaunaTrainCost &c = rtso::fauna_train_cost((uint8_t)tmpl); // food, wood, stone, metal
+				cost[rtso::RES_FOOD] = c.res[0];
+				cost[rtso::RES_WOOD] = c.res[1];
+				cost[rtso::RES_STONE] = c.res[2];
+				cost[rtso::RES_GOLD] = c.res[3];
+				seconds = sim->livestock_train_time(pid, (uint8_t)tmpl);
+			} else {
+				const rtso::CivUnitTemplate &u = rtso::civ_unit_template(tmpl);
+				sim->unit_train_cost(pid, tmpl, rtso::civ_template_unit_info(tmpl, u.unit_type), cost);
+				pop = u.pop_cost;
+				seconds = sim->unit_train_seconds(pid, tmpl);
+			}
+			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
+			const rtso::CostTip total{(int64_t)std::floor(cost[rtso::RES_FOOD] * num), (int64_t)std::floor(cost[rtso::RES_WOOD] * num),
+					(int64_t)std::floor(cost[rtso::RES_STONE] * num), (int64_t)std::floor(cost[rtso::RES_GOLD] * num),
+					(int64_t)pop * num, (int64_t)std::ceil(seconds * batch_mult)};
+			const int64_t costs[4] = {total.food, total.wood, total.stone, total.metal};
+			const int res_of[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
+			String sig = String::num_int64(full) + "," + String::num_int64(next) + "," + String::num_int64(rest) + "," +
+					String::num_int64(total.time);
 			bool short_of = false;
-			for (int r = 0; r < rtso::RES_COUNT; ++r) short_of |= ps.res[r] < cost[r] * (float)next;
+			for (int r = 0; r < 4; ++r) {
+				const int64_t need = costs[r] > ps.res[res_of[r]] ? (int64_t)std::ceil((double)costs[r] - ps.res[res_of[r]]) : 0;
+				short_of |= need > 0;
+				sig += "," + String::num_int64(need);
+			}
 			const bool grey = roster_req_disabled_[idx] || allowed == 0 || upgrading;
 			const bool red = !grey && short_of;
-			const rtso::CostTip need{(int64_t)(cost[rtso::RES_FOOD] * next), (int64_t)(cost[rtso::RES_WOOD] * next),
-					(int64_t)(cost[rtso::RES_STONE] * next), (int64_t)(cost[rtso::RES_GOLD] * next), 0, 0};
-			const String needed = red ? needed_text(need) : String();
-			const String sig = String::num_int64(next) + (grey ? "G" : "") + (upgrading ? "U" : "") + needed;
+			sig += String(grey ? "G" : "") + (upgrading ? "U" : "");
 			if (sig == roster_state_[idx]) continue;
 			roster_state_[idx] = sig;
-			roster_list_->set_item_text(idx, next > 1 ? String::num_int64(next) : String());
+			roster_list_->set_item_text(idx, num > 1 ? String::num_int64(num) : String());
 			roster_list_->set_item_icon_modulate(idx, grey ? Color(0.45f, 0.45f, 0.45f) : red ? Color(1.0f, 0.35f, 0.35f) : Color(1, 1, 1));
 			roster_list_->set_item_disabled(idx, grey);
-			String tip = roster_base_tips_[idx];
+			auto slot = [](const String &line) { return line.is_empty() ? String() : "\n" + line; };
+			String tip = roster_base_tips_[idx]
+								 .replace("\n" + String(COST_SLOT), slot(rtso::cost_tooltip(total, true)))
+								 .replace("\n" + String(BATCH_SLOT), slot(rtso::batch_training_string(full, next, rest)));
+			if (short_of) tip += "\n" + needed_text(total);
 			if (upgrading) tip += "\n" + rtso::objection_font(rtso::tr0("Cannot train while upgrading."));
-			if (red) tip += "\n" + needed;
 			roster_list_->set_item_tooltip(idx, tip);
 		}
 	}
@@ -1415,20 +1518,19 @@ private:
 		// and attack, then the batch line; callers add requirements.
 		const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
 		tip = (hotkey.empty() ? String() : rtso::hotkey_tag(String(hotkey.c_str())) + " ") +
-				rtso::entity_names(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
+				rtso::entity_names_formatted(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
 		auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 		const Dictionary text = unit_template_text(u.id);
 		add_line(classes_tooltip(text));
 		add_line(auras_tooltip(u));
 		add_line(identity_tooltip(text));
-		const rtso::CostTip unit_cost{(int64_t)cost[rtso::RES_FOOD], (int64_t)cost[rtso::RES_WOOD], (int64_t)cost[rtso::RES_STONE],
-				(int64_t)cost[rtso::RES_GOLD], (int64_t)u.pop_cost, (int64_t)std::ceil(sim->unit_train_seconds(pid, i))};
-		add_line(rtso::cost_tooltip(unit_cost, true));
+		tip += "\n" + String(COST_SLOT); // the Cost line for the count a click trains (refresh_roster_state)
 		// formatLimitString, formatMatchLimitString (heroes: MatchLimit 1).
 		if (i < rtso::CIV_UNIT_TEMPLATE_COUNT) {
 			add_line(limit_tooltip(pid, rtso::UNIT_LIMITS[i].category));
 			if (rtso::UNIT_LIMITS[i].match_limit == 1)
-				add_line(rtso::tr0(host_->ui_sim()->match_limit_allows(pid, i) ? "Can be trained only once." : "Could only be trained once."));
+				add_line(host_->ui_sim()->match_limit_allows(pid, i) ? rtso::tr0("Can be trained only once.")
+						: rtso::objection_font(rtso::tr0("Could only be trained once.")));
 		}
 		// Options' Detailed tooltips (showdetailedtooltips, off by default): health, attack,
 		// healer, resistance, garrison, turrets, projectiles, speed and dropsite, from the
@@ -1443,8 +1545,7 @@ private:
 			if (!it->second.is_empty()) tip += "\n" + it->second;
 		}
 		add_line(right_click_tooltip());
-		const String batch = rtso::batch_training_string(1, host_->ui_batch_size(), 0);
-		if (!batch.is_empty()) tip += "\n" + batch;
+		tip += "\n" + String(BATCH_SLOT); // formatBatchTrainingString, live too
 		return idx;
 	}
 
@@ -1452,6 +1553,45 @@ private:
 	godot::String requires_text(const godot::String &what) const {
 		using namespace godot;
 		return rtso::objection_font(rtso::sprintf0(owner_->tr("Requires %(technology)s"), {{"technology", owner_->tr(what)}}));
+	}
+
+	// getEntityCostTooltip for a wallset (structures/{civ}/wallset_*): getWallPieceTooltip's
+	// "Walls:  [stone] 14 to [stone] 36  [time] 4 to [time] 10" over the short, medium and long
+	// pieces, then "Towers:  [stone] 45  [time] 15".
+	godot::String wallset_cost_tooltip(const rtso::WallSetInfo &ws) const {
+		using namespace godot;
+		rtso::Simulation *sim = host_->ui_sim();
+		const uint8_t pid = local_player();
+		static const struct { int res; const char *icon; } kRes[] = {
+				{rtso::RES_FOOD, "food"}, {rtso::RES_WOOD, "wood"}, {rtso::RES_STONE, "stone"}, {rtso::RES_GOLD, "metal"}};
+		int64_t lo[5], hi[5];
+		for (int k = 0; k < 5; ++k) lo[k] = INT64_MAX, hi[k] = 0;
+		bool has[5] = {}, same = true;
+		for (int piece = 2; piece >= 0; --piece) { // short, medium, long
+			float price[rtso::RES_COUNT];
+			const int64_t t = (int64_t)std::ceil(sim->wall_piece_price(pid, ws.segment, 0.5f * ws.lengths[piece], price));
+			for (int k = 0; k < 5; ++k) {
+				const int64_t v = k < 4 ? (int64_t)price[kRes[k].res] : t;
+				if (piece == 2) has[k] = v > 0;
+				else if ((v > 0) != has[k]) same = false;
+				lo[k] = std::min(lo[k], v);
+				hi[k] = std::max(hi[k], v);
+			}
+		}
+		String walls;
+		for (int k = 0; k < 5 && same; ++k) {
+			if (!has[k]) continue;
+			const String icon = rtso::resource_icon(k < 4 ? kRes[k].icon : "time");
+			if (!walls.is_empty()) walls += "  ";
+			walls += rtso::sprintf0(rtso::tr0("%(resourceIcon)s %(minimum)s to %(resourceIcon)s %(maximum)s"),
+					{{"resourceIcon", icon}, {"minimum", String::num_int64(lo[k])}, {"maximum", String::num_int64(hi[k])}});
+		}
+		float tower[rtso::RES_COUNT];
+		const int64_t tower_time = (int64_t)std::ceil(sim->wall_piece_price(pid, ws.tower, ws.tower_half, tower));
+		const rtso::CostTip tower_cost{(int64_t)tower[rtso::RES_FOOD], (int64_t)tower[rtso::RES_WOOD], (int64_t)tower[rtso::RES_STONE],
+				(int64_t)tower[rtso::RES_GOLD], 0, tower_time};
+		return rtso::sprintf0(rtso::tr0("Walls:  %(costs)s"), {{"costs", walls}}) + "\n" +
+				rtso::sprintf0(rtso::tr0("Towers:  %(costs)s"), {{"costs", rtso::cost_components(tower_cost, "  ", true)}});
 	}
 
 	// getNeededResourcesTooltip for the local player's stock, called once the sim
@@ -1488,6 +1628,7 @@ private:
 			btn->set_text(text);
 		}
 		btn->set_disabled(!enabled);
+		btn->set_meta("tooltip_style", "session_bottom_bold"); // g_EntityCommands
 		btn->connect("pressed", Callable(owner_, "_on_entity_command").bind(String(name)));
 		production_bar_->add_child(btn);
 	}
@@ -1571,6 +1712,10 @@ private:
 			bar->remove_child(n);
 			memdelete(n);
 		}
+		// A fresh set built beside a named old one got Godot's unique name; it gets its own back.
+		if (!same)
+			for (int i = 0; i < bar->get_child_count(); ++i)
+				if (Node *n = bar->get_child(i); n->has_meta("node_name")) n->set_name(String(n->get_meta("node_name")));
 	}
 
 	// A structure's icon: its portrait, else 0 A.D.'s session portrait from
@@ -1646,21 +1791,41 @@ private:
 	}
 
 	// getAurasTooltip: "Name: description Range: 30 meters" per aura of a roster unit.
+	// getAurasTooltip's line for one aura: "Name: description", then its range.
+	static godot::String aura_line(const godot::String &name, const godot::String &description, float radius) {
+		using namespace godot;
+		String line = rtso::sprintf0(rtso::tr0("%(auralabel)s %(aurainfo)s"),
+				{{"auralabel", rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(name)}})},
+				 {"aurainfo", rtso::tr0(description)}});
+		if (radius > 0.0f) {
+			const int64_t r = (int64_t)std::lround(radius);
+			line += " " + rtso::sprintf0(rtso::tr0("%(label)s %(val)s %(unit)s"),
+					{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
+		}
+		return line;
+	}
+
 	static godot::String auras_tooltip(const rtso::CivUnitTemplate &u) {
 		using namespace godot;
 		String out;
 		for (int16_t a : u.auras) {
 			if (a < 0) continue;
 			const auto &aura = rtso::civ_hero_aura(a);
-			String line = rtso::sprintf0(rtso::tr0("%(auralabel)s %(aurainfo)s"),
-					{{"auralabel", rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(String::utf8(aura.name))}})},
-					 {"aurainfo", rtso::tr0(String::utf8(aura.description ? aura.description : ""))}});
-			if (aura.radius > 0.0f) {
-				const int64_t r = (int64_t)std::lround(aura.radius);
-				line += " " + rtso::sprintf0(rtso::tr0("%(label)s %(val)s %(unit)s"),
-						{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
-			}
+			const String line = aura_line(String::utf8(aura.name), String::utf8(aura.description ? aura.description : ""), aura.radius);
 			out += (out.is_empty() ? String() : String("\n")) + line;
+		}
+		return out;
+	}
+
+	// The same for a structure, from its 0.28 template's Auras (templates.json).
+	static godot::String structure_auras_tooltip(const godot::Dictionary &text) {
+		using namespace godot;
+		const Array auras = text.get("auras", Array());
+		String out;
+		for (int k = 0; k < auras.size(); ++k) {
+			const Dictionary a = auras[k];
+			out += (out.is_empty() ? String() : String("\n")) +
+					aura_line(String(a.get("name", "")), String(a.get("description", "")), (float)a.get("radius", 0.0f));
 		}
 		return out;
 	}

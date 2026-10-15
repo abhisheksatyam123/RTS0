@@ -55,13 +55,14 @@ func run() -> void:
 		r = r2
 		if still and i > 10:
 			break
-	# Four archers where debug_spawn_units puts the first, 16 m off the Civic Center's corner,
+	# Four archers where debug_spawn_units puts the first (debug_spawn_offset, 16 m off the Civic Center's corner on dry land),
 	# and the tower right beside them, within its LoadingRange (a debug-spawned structure
 	# further off is not reliably reachable in this test map).
 	var archers := PackedInt32Array()
 	for k in 4:
 		archers.append_array(main.debug_spawn_units("maur/infantry_archer_b", 1))
-	var tower: int = main.debug_spawn_building(BLD_TOWER_DOUBLE, -14.3, -16.0)
+	var spot: Vector2 = main.debug_spawn_offset("maur/infantry_archer_b", 1)
+	var tower: int = main.debug_spawn_building(BLD_TOWER_DOUBLE, spot.x + 1.7, spot.y)
 	main.debug_select_entity(tower)
 	await frames(4)
 	var at: Vector2 = main.debug_selected_building()["screen"]

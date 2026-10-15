@@ -12,6 +12,7 @@
 #include <godot_cpp/classes/input_event_screen_touch.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/core/math.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 #include "../simulation/simulation.h"
 #include "hotkeys_godot.h"
 
@@ -24,6 +25,7 @@ void RtsoCameraRig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("toggle_birds_eye"), &RtsoCameraRig::toggle_birds_eye);
 	ClassDB::bind_method(D_METHOD("is_birds_eye"), &RtsoCameraRig::is_birds_eye);
 	ClassDB::bind_method(D_METHOD("get_pitch_deg"), &RtsoCameraRig::get_pitch_deg);
+	ClassDB::bind_method(D_METHOD("get_speed_multipliers"), &RtsoCameraRig::get_speed_multipliers);
 	ClassDB::bind_method(D_METHOD("set_edge_scroll_enabled", "enabled"), &RtsoCameraRig::set_edge_scroll_enabled);
 	ClassDB::bind_method(D_METHOD("is_edge_scroll_enabled"), &RtsoCameraRig::is_edge_scroll_enabled);
 }
@@ -71,6 +73,15 @@ void RtsoCameraRig::toggle_birds_eye() {
 	}
 }
 
+void RtsoCameraRig::change_speed(int kind, bool increase) {
+	static const char *kModifier[3] = { "view.scroll.speed.modifier", "view.rotate.speed.modifier", "view.zoom.speed.modifier" };
+	static const char *kName[3] = { "Scroll", "Rotate", "Zoom" };
+	if (kind < 0 || kind > 2) return;
+	const float m = std::max(1.0f, (float)rtso::user_config::get_number(kModifier[kind]));
+	speed_mul_[kind] = increase ? speed_mul_[kind] * m : speed_mul_[kind] / m;
+	UtilityFunctions::print(String(kName[kind]) + (increase ? " speed increased to x" : " speed decreased to x") + String::num(speed_mul_[kind], 3));
+}
+
 void RtsoCameraRig::follow_to(Vector3 pos) {
 	set_target_pos(pos);
 }
@@ -78,12 +89,15 @@ void RtsoCameraRig::follow_to(Vector3 pos) {
 void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 	if (cinema_view_) return;
 	Ref<InputEventMouseButton> mb = event;
-	if (mb.is_valid()) {
-		// Middle Mouse Button Drag (0 A.D. pan = MouseMiddle)
-		if (mb->get_button_index() == MOUSE_BUTTON_MIDDLE) {
-			mmb_dragging = mb->is_pressed();
-			return;
+	if (mb.is_valid() || Ref<InputEventKey>(event).is_valid()) {
+		// CameraController camera.pan (MouseMiddle by default): drag the view while it is held.
+		const bool pan = rtso::hotkeys::held("camera.pan");
+		if (pan != mmb_dragging) {
+			mmb_dragging = pan;
+			if (mb.is_valid()) return;
 		}
+	}
+	if (mb.is_valid()) {
 		if (mb->is_pressed()) {
 			// 0 A.D. camera.zoom.wheel.* and camera.rotate.wheel.* (Shift+wheel rotates).
 			const auto hk = rtso::hotkeys::fired(mb);
@@ -179,12 +193,13 @@ void RtsoCameraRig::_process(double delta) {
 		if (on("camera.down")) input_dir.z += 1.0f;
 		if (on("camera.left")) input_dir.x -= 1.0f;
 		if (on("camera.right")) input_dir.x += 1.0f;
-		if (on("camera.rotate.cw")) target_yaw += 2.0f * (float)delta;
-		if (on("camera.rotate.ccw")) target_yaw -= 2.0f * (float)delta;
-		if (!birds_eye_ && on("camera.rotate.up")) target_pitch_deg = Math::clamp(target_pitch_deg - 40.0f * (float)delta, 25.0f, 85.0f);
-		if (!birds_eye_ && on("camera.rotate.down")) target_pitch_deg = Math::clamp(target_pitch_deg + 40.0f * (float)delta, 25.0f, 85.0f);
-		if (on("camera.zoom.in")) zoom(-30.0f * (float)delta);
-		if (on("camera.zoom.out")) zoom(30.0f * (float)delta);
+		const float rot = speed_mul_[SPEED_ROTATE] * (float)delta, zm = speed_mul_[SPEED_ZOOM] * (float)delta;
+		if (on("camera.rotate.cw")) target_yaw += 2.0f * rot;
+		if (on("camera.rotate.ccw")) target_yaw -= 2.0f * rot;
+		if (!birds_eye_ && on("camera.rotate.up")) target_pitch_deg = Math::clamp(target_pitch_deg - 40.0f * rot, 25.0f, 85.0f);
+		if (!birds_eye_ && on("camera.rotate.down")) target_pitch_deg = Math::clamp(target_pitch_deg + 40.0f * rot, 25.0f, 85.0f);
+		if (on("camera.zoom.in")) zoom(-30.0f * zm);
+		if (on("camera.zoom.out")) zoom(30.0f * zm);
 	}
 
 	// Edge scrolling (active when mouse is near viewport boundaries and no key pan active)
@@ -214,7 +229,7 @@ void RtsoCameraRig::_process(double delta) {
 			0.0f,
 			input_dir.x * sin_y + input_dir.z * cos_y
 		);
-		target_pos += world_dir * speed * (float)delta;
+		target_pos += world_dir * speed * speed_mul_[SPEED_SCROLL] * (float)delta;
 		float half = bounds_half();
 		target_pos.x = Math::clamp(target_pos.x, -half, half);
 		target_pos.z = Math::clamp(target_pos.z, -half, half);

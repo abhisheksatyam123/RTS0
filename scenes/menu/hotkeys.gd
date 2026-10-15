@@ -21,15 +21,17 @@ var categories := {} # key -> {name, desc, hotkeys: []}
 var category_keys: Array = []
 var hotkeys := {} # name -> PackedStringArray, edited copy
 var dirty := false
+var pending := {} # hotkeys edited since the last save
 
 var filter_select
 var text_filter: LineEdit
 var tree: Tree
 var save_btn: Button
-var desc_label: Label
+var dialog: PanelContainer
 
 # Picker
-var picker: PanelContainer
+var picker: Control
+var picker_hint: Label
 var picker_name := ""
 var picker_title: Label
 var picker_desc: Label
@@ -116,91 +118,113 @@ func _setup_data() -> void:
 func _display_name(h: String) -> String:
 	return meta_hotkeys[h]["name"] if meta_hotkeys.has(h) else h
 
+## formatHotkeyCombinations: the names 0.28 shows (KeyName.cpp), shortest first.
 func _format(combos) -> String:
-	var parts: PackedStringArray = []
+	var parts: Array = []
 	for c in combos:
-		parts.append(c)
-	return ", ".join(parts)
+		parts.append(cfg.display_combo(str(c)))
+	parts.sort_custom(func(a, b): return a.length() < b.length())
+	return ", ".join(PackedStringArray(parts))
 
+## hotkeys.xml: a 700×688 ModernDialog over a translucent background, with
+## "Category:" and "Filter:" above the Name / Mapping list.
 func _build_ui() -> void:
+	theme = preload("res://scenes/common/modern_theme.gd").theme()
 	var bg := ColorRect.new()
-	bg.color = Color(0.08, 0.07, 0.06)
+	bg.color = Color(0, 0, 0, 0.5) # BackgroundTranslucent
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
+	dialog = PanelContainer.new()
+	dialog.name = "HotkeysDialog"
+	center.add_child(dialog)
+	_fit_dialog()
+	get_viewport().size_changed.connect(_fit_dialog)
 	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 24)
-	add_child(margin)
+	dialog.add_child(margin)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
 	margin.add_child(vb)
 	var title := Label.new()
-	title.text = "Hotkeys"
-	title.add_theme_font_size_override("font_size", 26)
+	title.text = tr("Hotkeys")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 20)
 	vb.add_child(title)
 
 	var top := HBoxContainer.new()
 	vb.add_child(top)
+	var cat_label := Label.new()
+	cat_label.text = tr("Category:")
+	top.add_child(cat_label)
 	filter_select = RtsoSafeSelect.new()
-	filter_select.custom_minimum_size = Vector2(260, 30)
+	filter_select.custom_minimum_size = Vector2(218, 26)
 	filter_select.item_selected.connect(func(_i): _setup_list())
 	top.add_child(filter_select)
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(gap)
+	var filter_label := Label.new()
+	filter_label.text = tr("Filter:")
+	top.add_child(filter_label)
 	text_filter = LineEdit.new()
-	text_filter.placeholder_text = "Filter"
-	text_filter.custom_minimum_size = Vector2(240, 30)
+	text_filter.custom_minimum_size = Vector2(168, 26)
 	MatchSettings.prepare_line_edit(text_filter)
 	text_filter.text_changed.connect(func(_t): _setup_list())
 	top.add_child(text_filter)
-	var hint := Label.new()
-	hint.text = "Double-click a hotkey to change it."
-	hint.modulate = Color(0.8, 0.8, 0.7)
-	top.add_child(hint)
 
 	tree = Tree.new()
 	tree.columns = 2
 	tree.hide_root = true
 	tree.column_titles_visible = true
-	tree.set_column_title(0, "Action")
-	tree.set_column_title(1, "Key")
+	tree.set_column_title(0, tr("Name"))
+	tree.set_column_title(1, tr("Mapping"))
 	tree.set_column_expand_ratio(0, 3)
 	tree.set_column_expand_ratio(1, 2)
 	tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tree.item_activated.connect(_on_item_activated)
-	tree.item_selected.connect(_on_item_selected)
+	tree.item_activated.connect(_on_item_activated) # onMouseLeftDoubleClickItem
 	vb.add_child(tree)
 
-	desc_label = Label.new()
-	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_label.modulate = Color(0.85, 0.85, 0.75)
-	vb.add_child(desc_label)
-
 	var bottom := HBoxContainer.new()
-	bottom.alignment = BoxContainer.ALIGNMENT_END
 	vb.add_child(bottom)
 	var reset_btn := Button.new()
-	reset_btn.text = "Reset"
-	reset_btn.tooltip_text = "Resets user settings to their game default"
+	reset_btn.text = tr("Reset")
+	reset_btn.tooltip_text = tr("Resets user settings to their game default")
+	reset_btn.custom_minimum_size = Vector2(156, 28)
 	reset_btn.pressed.connect(_on_reset_all)
 	bottom.add_child(reset_btn)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom.add_child(spacer)
 	save_btn = Button.new()
-	save_btn.text = "Save"
+	save_btn.text = tr("Save")
 	save_btn.disabled = true
-	save_btn.tooltip_text = "Saves changes"
+	save_btn.tooltip_text = tr("Saves changes")
+	save_btn.custom_minimum_size = Vector2(156, 28)
 	save_btn.pressed.connect(_on_save)
 	bottom.add_child(save_btn)
 	var close_btn := Button.new()
-	close_btn.text = "Close"
-	close_btn.tooltip_text = "Unsaved changes will be lost"
+	close_btn.text = tr("Close")
+	close_btn.tooltip_text = tr("Unsaved changes will be lost")
+	close_btn.custom_minimum_size = Vector2(156, 28)
 	close_btn.pressed.connect(_on_close)
 	bottom.add_child(close_btn)
 	_build_picker()
 
+func _fit_dialog() -> void:
+	var vp := get_viewport_rect().size
+	dialog.custom_minimum_size = Vector2(minf(700, vp.x - 16), minf(688, vp.y - 16))
+
 func _setup_filters() -> void:
 	filter_select.clear()
 	filter_select.add_item("All Hotkeys")
+	filter_select.set_item_tooltip(0, tr("All available hotkeys.")) # HotkeysPage.onFilterHover
 	for c in category_keys:
 		filter_select.add_item(categories[c]["name"])
+		filter_select.set_item_tooltip(filter_select.get_item_count() - 1, tr(str(categories[c].get("desc", ""))))
 	filter_select.select(0)
 
 func _visible_hotkeys() -> Array:
@@ -225,70 +249,97 @@ func _setup_list() -> void:
 		it.set_text(0, _display_name(h))
 		it.set_text(1, _format(hotkeys.get(h, [])))
 		it.set_metadata(0, h)
-		if meta_hotkeys.has(h):
-			it.set_tooltip_text(0, meta_hotkeys[h].get("desc", ""))
-
-func _on_item_selected() -> void:
-	var it := tree.get_selected()
-	if it == null:
-		return
-	var h: String = it.get_metadata(0)
-	desc_label.text = meta_hotkeys[h].get("desc", "") if meta_hotkeys.has(h) else "No tooltip available."
+		# HotkeysPage.onHotkeyHover: the description, else "No tooltip available."
+		var desc: String = str(meta_hotkeys[h].get("desc", "")) if meta_hotkeys.has(h) else ""
+		var tip := tr(desc) if desc != "" else tr("No tooltip available.")
+		it.set_tooltip_text(0, tip)
+		it.set_tooltip_text(1, tip)
 
 func _on_item_activated() -> void:
 	var it := tree.get_selected()
 	if it:
 		open_picker(it.get_metadata(0))
 
-# HotkeyPicker
+# HotkeyPicker (hotkeys.xml hotkeyPicker): a 600×410 dialog over a translucent background.
 func _build_picker() -> void:
-	picker = PanelContainer.new()
-	picker.set_anchors_preset(Control.PRESET_CENTER)
-	picker.custom_minimum_size = Vector2(620, 420)
-	picker.position = Vector2(-310, -210)
+	picker = ColorRect.new()
+	picker.name = "HotkeyPicker"
+	(picker as ColorRect).color = Color(0, 0, 0, 0.5)
+	picker.set_anchors_preset(Control.PRESET_FULL_RECT)
 	picker.visible = false
 	add_child(picker)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	picker.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(600, 410)
+	center.add_child(panel)
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 12)
+	panel.add_child(margin)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 6)
-	picker.add_child(vb)
+	margin.add_child(vb)
 	picker_title = Label.new()
+	picker_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	picker_title.add_theme_font_size_override("font_size", 20)
 	vb.add_child(picker_title)
-	picker_desc = Label.new()
+	picker_desc = Label.new() # hotkeyPickerDescHotkey
 	picker_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	picker_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(picker_desc)
+	picker_hint = Label.new() # hotkeyPickerDesc
+	picker_hint.text = tr("Click on any mapping to modify it.\n You may have up to 4 different hotkeys.")
+	picker_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(picker_hint)
 	for i in SLOTS:
 		var row := HBoxContainer.new()
 		vb.add_child(row)
 		var nb := Label.new()
 		nb.text = "#%d" % i
-		nb.custom_minimum_size = Vector2(30, 0)
+		nb.custom_minimum_size = Vector2(22, 0)
 		row.add_child(nb)
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(380, 30)
+		btn.custom_minimum_size = Vector2(320, 30)
+		btn.tooltip_text = tr("Click to set the hotkey")
 		btn.pressed.connect(func(): _start_entering(i))
 		row.add_child(btn)
 		slot_labels.append(btn)
 		var del := Button.new()
-		del.text = "X"
-		del.tooltip_text = "Remove this combination."
+		del.text = "✕" # sprite crossRed
+		del.add_theme_color_override("font_color", Color(0.9, 0.15, 0.1))
+		del.add_theme_color_override("font_hover_color", Color(1.0, 0.3, 0.2))
+		del.custom_minimum_size = Vector2(24, 24)
+		del.tooltip_text = tr("Click to delete the hotkey")
 		del.pressed.connect(func(): picker_combos[i] = ""; _render_picker())
 		row.add_child(del)
 		slot_delete.append(del)
 		var conf := Label.new()
-		conf.modulate = Color(1.0, 0.6, 0.0)
+		conf.add_theme_color_override("font_color", Color8(255, 153, 0))
 		conf.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		vb.add_child(conf)
+		conf.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		conf.custom_minimum_size = Vector2(180, 0)
+		row.add_child(conf)
 		slot_conflicts.append(conf)
+	var fill := Control.new()
+	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.add_child(fill)
 	var buttons := HBoxContainer.new()
-	buttons.alignment = BoxContainer.ALIGNMENT_END
 	vb.add_child(buttons)
 	for spec in [["Reset", "Resets user settings to their game default", _on_picker_reset],
+			["", "", null],
 			["Accept", "Change the hotkeys and close", func(): _close_picker(true)],
 			["Cancel", "The hotkeys will not be modified", func(): _close_picker(false)]]:
+		if spec[2] == null:
+			var gap := Control.new()
+			gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			buttons.add_child(gap)
+			continue
 		var b := Button.new()
-		b.text = spec[0]
-		b.tooltip_text = spec[1]
+		b.text = tr(spec[0])
+		b.tooltip_text = tr(spec[1])
+		b.custom_minimum_size = Vector2(156, 28)
 		b.pressed.connect(spec[2])
 		buttons.add_child(b)
 		picker_buttons.append(b)
@@ -296,7 +347,8 @@ func _build_picker() -> void:
 func open_picker(h: String) -> void:
 	picker_name = h
 	picker_title.text = _display_name(h)
-	picker_desc.text = meta_hotkeys[h].get("desc", "") if meta_hotkeys.has(h) else ""
+	picker_desc.text = tr(str(meta_hotkeys[h].get("desc", ""))) if meta_hotkeys.has(h) else ""
+	picker_desc.visible = meta_hotkeys.has(h)
 	picker_combos = []
 	for c in hotkeys.get(h, []):
 		picker_combos.append(c)
@@ -314,16 +366,16 @@ func _start_entering(i: int) -> void:
 func _render_picker() -> void:
 	for i in SLOTS:
 		if i == entering:
-			slot_labels[i].text = cfg.format_keys(held_keys) + " (hold to register)" if held_keys.size() > 0 else "Enter new Hotkey, hold to register."
+			slot_labels[i].text = cfg.display_combo(cfg.format_keys(held_keys)) + tr(" (hold to register)") if held_keys.size() > 0 else tr("Enter new Hotkey, hold to register.")
 		else:
-			slot_labels[i].text = picker_combos[i] if picker_combos[i] != "" else "(unused)"
+			slot_labels[i].text = cfg.display_combo(picker_combos[i]) if picker_combos[i] != "" else tr("(unused)")
 		slot_delete[i].visible = picker_combos[i] != ""
 		var conflicts: Array = []
 		if picker_combos[i] != "":
 			for n in cfg.get_conflicts(picker_combos[i]):
 				if n != picker_name:
 					conflicts.append(_display_name(n))
-		slot_conflicts[i].text = "May conflict with: " + ", ".join(conflicts) if conflicts.size() > 0 else ""
+		slot_conflicts[i].text = tr("May conflict with: ") + ", ".join(conflicts) if conflicts.size() > 0 else ""
 		slot_conflicts[i].visible = conflicts.size() > 0
 	for b in picker_buttons:
 		b.disabled = entering != -1
@@ -378,13 +430,24 @@ func register_combo(combo: String) -> void:
 	held_keys = []
 	_render_picker()
 
+## HotkeyPicker Reset: ConfigDB_RemoveValueAndSave drops this hotkey's user value and
+## saves straight away; the page's other unsaved edits stay pending.
 func _on_picker_reset() -> void:
+	var defaults: PackedStringArray = cfg.get_default(picker_name)
+	cfg.reload() # user.cfg as saved, without the page's pending edits
+	cfg.set_hotkey(picker_name, defaults)
+	cfg.save_user()
+	pending.erase(picker_name)
+	for h in pending:
+		cfg.set_hotkey(h, hotkeys[h])
+	hotkeys[picker_name] = defaults
 	picker_combos = []
-	for c in cfg.get_default(picker_name):
+	for c in defaults:
 		picker_combos.append(c)
 	while picker_combos.size() < SLOTS:
 		picker_combos.append("")
 	_render_picker()
+	_setup_list()
 
 func _close_picker(save: bool) -> void:
 	picker.visible = false
@@ -398,6 +461,7 @@ func _close_picker(save: bool) -> void:
 	hotkeys[picker_name] = combos
 	# Live table too, so conflicts reflect the edit straight away.
 	cfg.set_hotkey(picker_name, combos)
+	pending[picker_name] = true
 	dirty = true
 	save_btn.disabled = false
 	_setup_list()
@@ -410,7 +474,9 @@ func _on_save() -> void:
 		cfg.set_hotkey(h, hotkeys[h])
 	cfg.save_user()
 	dirty = false
+	pending.clear()
 	save_btn.disabled = true
+	UserSettings.sync_text_hotkeys()
 
 ## HotkeysPage.js resetUserHotkeys: only after the question.
 func _on_reset_all() -> void:
@@ -423,6 +489,7 @@ func _on_reset_all() -> void:
 func _reset_all() -> void:
 	cfg.reset_user()
 	dirty = false
+	pending.clear()
 	save_btn.disabled = true
 	_setup_data()
 	_setup_list()

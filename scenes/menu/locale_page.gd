@@ -89,8 +89,10 @@ func _ready() -> void:
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	var half := Vector2(220, 210) if advanced else Vector2(210, 100)
+	theme = preload("res://scenes/common/modern_theme.gd").theme()
 	var panel := Panel.new() # ModernDialog
 	panel.name = "Dialog"
+	panel.theme_type_variation = "ModernDialog"
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.offset_left = -half.x
 	panel.offset_right = half.x
@@ -294,6 +296,6 @@ func _close(result: String) -> void:
 	queue_free()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE: # hotkey="cancel"
+	if event is InputEventKey and event.pressed and "cancel" in RtsoHotkeyConfig.new().fired(event):
 		get_viewport().set_input_as_handled()
 		_close("")

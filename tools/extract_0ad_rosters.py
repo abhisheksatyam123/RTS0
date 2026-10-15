@@ -644,7 +644,12 @@ def rts0_class(name, t, civ):
             return "UNIT_BOLT_SHOOTER"
         if "SiegeTower" in c:
             return "UNIT_BOLT_SHOOTER"  # fires its own Bow attack; flagged ROSTER_SIEGE_TOWER
-        return None  # flamethrowers have no RTS0 class yet
+        if t.value("Attack/Ranged/Damage/Fire"):
+            # template_unit_siege_flamethrower (the Theban fire-raiser): a ranged siege engine
+            # firing one Fire projectile, no splash, so the bolt shooter's class; its row's
+            # CombatProfile carries the Fire damage, as the fire ships' do.
+            return "UNIT_BOLT_SHOOTER"
+        return None
     if "trumpeter" in stem:
         return "UNIT_CARNYX"
     if "Dog" in c:
@@ -886,10 +891,15 @@ BUILDING_CLASS = {
     "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER", "BLD_TOWER_GREAT"], "Field": ["BLD_FIELD"],
     "Storehouse": ["BLD_STOREHOUSE"],
     "House": ["BLD_HOUSE"],
-    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"],
-    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
-    "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG"], "Temple": ["BLD_TEMPLE"], "Forge": ["BLD_FORGE"],
-    "Barracks": ["BLD_BARRACKS"], "Stable": ["BLD_STABLE"], "Arsenal": ["BLD_ARSENAL"],
+    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE",
+                 "BLD_TRADING_POST"],  # trading_post_* inherit template_structure_economic_market
+    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+    # military_colony inherits template_structure_civic_civil_centre; the temples of Vesta, Mars,
+    # Amun and Isis (ptol/temple_2) template_structure_civic_temple; han/academy and the
+    # mercenary camps template_structure_military_barracks.
+    "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"],
+    "Temple": ["BLD_TEMPLE", "BLD_TEMPLE_VESTA", "BLD_TEMPLE_MARS", "BLD_TEMPLE_AMUN", "BLD_TEMPLE_ISIS"], "Forge": ["BLD_FORGE"],
+    "Barracks": ["BLD_BARRACKS", "BLD_ACADEMY", "BLD_MERCENARY_CAMP"], "Stable": ["BLD_STABLE"], "Arsenal": ["BLD_ARSENAL"],
 }
 BUILDING_STAT = {
     "Health/Max": "CIV_BONUS_BUILDING_HP", "Cost/BuildTime": "CIV_BONUS_BUILDING_BUILD_TIME",
@@ -1008,7 +1018,7 @@ GLOBAL_AURA_RANGE = 1000.0
 # 0 A.D. Auras.js affectedPlayers -> AuraPlayers bits in sim_types.h: 1 = the
 # owner, 2 = the owner's other allies, 4 = enemies (GetAllies() includes the
 # owner itself; ExclusiveMutualAlly does not).
-AURA_PLAYER_BITS = {"Player": 1, "Ally": 3, "MutualAlly": 3, "ExclusiveMutualAlly": 2, "Enemy": 4}
+AURA_PLAYER_BITS = {"Player": 1, "Ally": 11, "MutualAlly": 3, "ExclusiveMutualAlly": 2, "Enemy": 4}  # 8: by the owner's own stance
 
 
 def aura_players_mask(a):
@@ -1130,6 +1140,9 @@ MAP_ROWS = (
     "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",
     "units/samnite_skirmisher", "units/samnite_spearman", "units/samnite_swordsman",
     "units/viking_longship",
+    # Survival of the Fittest's Gaia champions (Survival's champion pool), placed by its trigger.
+    "units/merc_thorakites", "units/merc_thureophoros", "units/theb_sacred_band", "units/theb_siege_fireraiser",
+    "units/thesp_melanochitones",
 )
 
 

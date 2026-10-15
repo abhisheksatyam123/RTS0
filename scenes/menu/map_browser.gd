@@ -7,6 +7,7 @@ extends Control
 ## and Map Filter dropdowns, pages that move by a row, zoom, and the selected
 ## map's preview and description. Learn to Play's Map Overview opens it to
 ## look only; Game Setup opens it to pick a map (Pick Random Map, Select).
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 signal map_chosen(map_id: String, map_type: String, map_filter: String)
 signal closed
@@ -93,12 +94,8 @@ func _ready() -> void:
 	dialog.anchor_right = 0.95
 	dialog.anchor_bottom = 0.95
 	dialog.gui_input.connect(_on_wheel)
-	# ModernDialog: an opaque dark sheet with a gold edge.
-	var sheet := StyleBoxFlat.new()
-	sheet.bg_color = Color(0.09, 0.08, 0.07, 0.98)
-	sheet.border_color = Color(0.72, 0.6, 0.3)
-	sheet.set_border_width_all(2)
-	dialog.add_theme_stylebox_override("panel", sheet)
+	theme = MODERN.theme() # 0.28's modern skin (ModernDialog and its widgets)
+	dialog.theme_type_variation = "ModernDialog"
 	add_child(dialog)
 	var title := Label.new()
 	title.text = tr("Map Browser")
@@ -290,8 +287,8 @@ func _row(caption: String, control: Control) -> HBoxContainer:
 	return row
 
 func _hotkey_text(name: String) -> String:
-	var keys: Array = _hotkeys.get_hotkey_map().get(name, [])
-	return ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")
+	var keys: String = _hotkeys.display(name)
+	return keys if keys != "" else L10n.t("Unassigned")
 
 # MapFiltering.select: the type and filter, then the list.
 func select(filter_name: String, map_type: String) -> void:
