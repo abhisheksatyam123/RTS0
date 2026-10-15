@@ -351,6 +351,16 @@ void NetHost::send_raw_packet(const std::string &ip, uint16_t port, const uint8_
 
 void NetHost::send_wire_packet(const std::string &ip, uint16_t port, uint32_t peer_id, uint8_t flags, uint8_t channel, const uint8_t *payload, size_t payload_len, bool reliable) {
 	if (socket_fd_ < 0) return;
+	if (reliable && payload_len > kFragmentPayload) {
+		// ENet fragments: consecutive reliable parts, all but the last flagged.
+		for (size_t off = 0; off < payload_len; off += kFragmentPayload) {
+			const size_t n = std::min(kFragmentPayload, payload_len - off);
+			const bool last = off + n >= payload_len;
+			send_wire_packet(ip, port, peer_id, last ? flags : (uint8_t)(NET_FLAG_FRAGMENT | (flags & ~NET_FLAG_DISCONNECT)),
+					channel, payload + off, n, true);
+		}
+		return;
+	}
 
 	NetWireHeader hdr;
 	hdr.magic = PS_PROTOCOL_MAGIC;
@@ -760,6 +770,8 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 		}
 	}
 
+	const uint8_t *payload_ptr = data + sizeof(NetWireHeader);
+	const size_t payload_size = std::min(static_cast<size_t>(hdr.payload_len), size - sizeof(NetWireHeader));
 	// If packet is reliable, send ACK back
 	if (hdr.flags & NET_FLAG_RELIABLE) {
 		send_ack(from_ip, from_port, hdr.peer_id, hdr.seq);
@@ -771,16 +783,77 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			if (hdr.seq <= p->last_recv_seq || p->recv_ahead.count(hdr.seq)) {
 				return;
 			}
-			p->recv_ahead.insert(hdr.seq);
-			while (!p->recv_ahead.empty() && *p->recv_ahead.begin() == p->last_recv_seq + 1) {
-				p->recv_ahead.erase(p->recv_ahead.begin());
-				++p->last_recv_seq;
+			if (hdr.seq != p->last_recv_seq + 1) {
+				// Early: it waits for the ones before it (ENet's in-order channel),
+				// so a pause cannot overtake its resume or a part its message.
+				p->recv_ahead.insert(hdr.seq);
+				p->held_packets[hdr.seq] = {hdr.flags, std::vector<uint8_t>(payload_ptr, payload_ptr + payload_size)};
+				if (!p->held_since_ms) p->held_since_ms = now_ms;
+				return;
 			}
+			++p->last_recv_seq;
+			deliver_packet(hdr.flags, payload_ptr, payload_size, sender_peer_id);
+			// The callbacks can drop peers; look the sender up again.
+			if (NetPeer *q = getPeer(sender_peer_id)) release_held(*q, false);
+			return;
 		}
 	}
+	deliver_packet(hdr.flags, payload_ptr, payload_size, sender_peer_id);
+}
 
+void NetHost::release_held(NetPeer &p, bool skip) {
+	const uint32_t id = p.id;
+	while (true) {
+		NetPeer *q = getPeer(id);
+		if (!q || q->held_packets.empty()) {
+			if (q) q->held_since_ms = 0;
+			return;
+		}
+		auto it = q->held_packets.begin();
+		if (it->first != q->last_recv_seq + 1) {
+			if (!skip) {
+				q->held_since_ms = get_now_ms(); // a newer gap: its own wait
+				return;
+			}
+			std::cout << "[NetHost] Peer " << id << ": reliable seqs " << q->last_recv_seq + 1 << "-" << it->first - 1
+			          << " never arrived; delivering after them\n";
+			q->fragments.clear();
+		}
+		skip = false;
+		const uint32_t seq = it->first;
+		const uint8_t flags = it->second.first;
+		const std::vector<uint8_t> payload = std::move(it->second.second);
+		q->held_packets.erase(it);
+		q->recv_ahead.erase(seq);
+		q->last_recv_seq = seq;
+		deliver_packet(flags, payload.data(), payload.size(), id);
+	}
+}
+
+void NetHost::check_held(uint64_t now_ms) {
+	for (size_t i = 0; i < peers_.size(); ++i)
+		if (!peers_[i].held_packets.empty() && peers_[i].held_since_ms && now_ms - peers_[i].held_since_ms > kHoldGapMs)
+			release_held(peers_[i], true);
+}
+
+void NetHost::deliver_packet(uint8_t flags, const uint8_t *payload_ptr, size_t payload_size, uint32_t sender_peer_id) {
+	// ENet reassembly: the parts of one message come in order (see above).
+	std::vector<uint8_t> whole;
+	if (NetPeer *fp = (flags & NET_FLAG_RELIABLE) ? getPeer(sender_peer_id) : nullptr) {
+		if (flags & NET_FLAG_FRAGMENT) {
+			if (fp->fragments.size() + payload_size <= (16u << 20))
+				fp->fragments.insert(fp->fragments.end(), payload_ptr, payload_ptr + payload_size);
+			return;
+		}
+		if (!fp->fragments.empty()) {
+			whole.swap(fp->fragments);
+			whole.insert(whole.end(), payload_ptr, payload_ptr + payload_size);
+			payload_ptr = whole.data();
+			payload_size = whole.size();
+		}
+	}
 	// Handle Disconnect
-	if (hdr.flags & NET_FLAG_DISCONNECT) {
+	if (flags & NET_FLAG_DISCONNECT) {
 		NetPeer *p = getPeer(sender_peer_id);
 		if (p) {
 			p->connected = false;
@@ -792,10 +865,7 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 	}
 
 	// Process payload
-	if (hdr.payload_len > 0) {
-		const uint8_t *payload_ptr = data + sizeof(NetWireHeader);
-		size_t payload_size = std::min(static_cast<size_t>(hdr.payload_len), size - sizeof(NetWireHeader));
-
+	if (payload_size > 0) {
 		NetMessage net_msg;
 		if (NetPacketSerializer::unpack_message(payload_ptr, payload_size, net_msg)) {
 			// dispatchMessage() owns message_cb_ delivery for every type (once
@@ -1133,12 +1203,14 @@ void NetHost::poll(Arena &arena) {
 	(void)arena;
 	if (socket_fd_ < 0) return;
 
-	uint8_t buffer[4096];
+	// A whole UDP datagram: a shorter buffer cuts a long one off unseen.
+	static thread_local std::vector<uint8_t> recv_buf(65536);
+	uint8_t *buffer = recv_buf.data();
 	sockaddr_in from_addr{};
 
 	while (true) {
 		socklen_t from_len = sizeof(from_addr);
-		ssize_t bytes = recvfrom(static_cast<SOCKET>(socket_fd_), reinterpret_cast<char*>(buffer), sizeof(buffer), 0, reinterpret_cast<struct sockaddr*>(&from_addr), &from_len);
+		ssize_t bytes = recvfrom(static_cast<SOCKET>(socket_fd_), reinterpret_cast<char*>(buffer), recv_buf.size(), 0, reinterpret_cast<struct sockaddr*>(&from_addr), &from_len);
 		if (bytes <= 0) {
 			break;
 		}
@@ -1150,6 +1222,7 @@ void NetHost::poll(Arena &arena) {
 
 	uint64_t now = get_now_ms();
 	check_stun(now);
+	check_held(now);
 	send_hole_punches(now);
 	check_retransmissions(now);
 	send_heartbeats(now);
