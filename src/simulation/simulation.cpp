@@ -575,6 +575,7 @@ void Simulation::reset() {
 
 	next_id_ = 1;
 	sim_rng_.set_seed(sim_seed_);
+	petra_rng_.set_seed(petra_rng_seed());
 	// Per-player economy reset. Civ, team and active/AI flags come from game setup and survive reset().
 	// Player 0 starts with the human stock, every other slot with Petra's.
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -18242,8 +18243,8 @@ void Simulation::petra_manage_scouting(float dt) {
 			order_walk(&petra_scout_unit_id_, 1, target_wx, target_wz, false);
 		} else {
 			// Exploration sweep: patrol perimeter of friendly territory towards center
-			float sweep_x = -origin_x * 0.4f + (float)sim_rng_.range_int(-8, 7);
-			float sweep_z = -origin_z * 0.4f + (float)sim_rng_.range_int(-8, 7);
+			float sweep_x = -origin_x * 0.4f + (float)petra_rng_.range_int(-8, 7);
+			float sweep_z = -origin_z * 0.4f + (float)petra_rng_.range_int(-8, 7);
 			if (!(village && enemy_land_at(sweep_x, sweep_z)))
 				order_walk(&petra_scout_unit_id_, 1, sweep_x, sweep_z, false);
 		}
@@ -18638,7 +18639,7 @@ bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, 
 		for (size_t q = cc.queue.size(); q-- > 0;)
 			if (!cc.queue[q].started && cc.queue[q].timer <= 0.0f) cmd_cancel_train(petra_pid_, cc.id, q); // stopProduction
 	const bool autogarrison = garrisoned < structure_garrison_cap(cc) && structure_has_enough_health(cc);
-	const bool ranged_wanted = sim_rng_.range_int(0, 1) == 1 && autogarrison;
+	const bool ranged_wanted = petra_rng_.range_int(0, 1) == 1 && autogarrison;
 
 	const TechClasses arrow_classes = building_ai_info(cc.type).garrison_arrow_classes;
 	uint16_t found = CIV_UNIT_TEMPLATE_NONE;
@@ -18853,7 +18854,7 @@ int Simulation::petra_train_more_workers() {
 		// The template's own classes (mercenaries are CitizenSoldier too in 0.28), no hero or
 		// siege tower, and the scarce-resource penalty findBestTrainableUnit adds: under 800 in
 		// stock and under 800 left in our territory, x0.6 (over 400 left) or x0.2.
-		const int pick = (int)sim_rng_.range_int(0, 2);
+		const int pick = (int)petra_rng_.range_int(0, 2);
 		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
 		if (total < 45) penalty[RES_STONE] = penalty[RES_GOLD] = 0.5f;
 		{
@@ -24494,7 +24495,7 @@ void Simulation::petra_unit_stat_sizes(uint8_t kind, int &out_target, int &out_m
 	}
 	// Randomness on the size, smaller below Medium and much smaller below Easy, where
 	// each class also needs at most 2 to march.
-	float variation = sim_rng_.range_float(0.8f, 1.2f);
+	float variation = petra_rng_.range_float(0.8f, 1.2f);
 	const uint8_t d = petra_config_.difficulty;
 	if (d < PETRA_EASY) variation *= 0.2f;
 	else if (d < PETRA_MEDIUM) variation *= 0.6f;
@@ -24729,7 +24730,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 	};
 	auto pick = [&](size_t n, float share) { // randIntExclusive(0, n * share)
 		const int hi = std::max(1, (int)std::ceil((float)n * share));
-		return (size_t)std::min<int>((int)n - 1, sim_rng_.range_int(0, hi - 1));
+		return (size_t)std::min<int>((int)n - 1, petra_rng_.range_int(0, hi - 1));
 	};
 	auto best_structure = [&](int32_t i, float range2, bool siege_unit) -> int32_t {
 		const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
@@ -27512,7 +27513,7 @@ void Simulation::petra_check_decaying_structures() {
 		const float ratio = b.capture_points_by_team[petra_pid_] / total;
 		if (ratio < 0.5f) continue;
 		const bool attacked = structure_attacker(b.id, petra_pid_) >= 0;
-		const float ratio_max = (attacked ? 0.85f : 0.7f) + sim_rng_.range_float(0.0f, 0.1f);
+		const float ratio_max = (attacked ? 0.85f : 0.7f) + petra_rng_.range_float(0.0f, 0.1f);
 		if (ratio > ratio_max) continue;
 		cmd_delete(petra_pid_, &id, 1);
 	}
@@ -28944,10 +28945,10 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		// 0 A.D. counts Gaia among the enemies and us among the mutual allies. The
 		// window re-arms whatever the enemy count; a request only goes out with
 		// at least two real enemies and fewer mutual allies than them.
-		if (sd.sent_lapse < 0.0f) sd.sent_lapse = 120.0f + sim_rng_.range_float(10.0f, 100.0f);
+		if (sd.sent_lapse < 0.0f) sd.sent_lapse = 120.0f + petra_rng_.range_float(10.0f, 100.0f);
 		if (dip.elapsed > sd.sent_lapse) {
-			sd.sent_lapse = dip.elapsed + 300.0f + sim_rng_.range_float(10.0f, 100.0f);
-			if (enemies + 1 > 2 && mutual_allies + 1 < enemies && sim_rng_.range_float(0.0f, 1.0f) < 0.1f)
+			sd.sent_lapse = dip.elapsed + 300.0f + petra_rng_.range_float(10.0f, 100.0f);
+			if (enemies + 1 > 2 && mutual_allies + 1 < enemies && petra_rng_.range_float(0.0f, 1.0f) < 0.1f)
 				petra_send_diplomacy_request();
 		}
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -29085,7 +29086,7 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 	}
 	const bool more_enemies_than_allies = enemies > allies;
 	const uint8_t current_enemy = petra_attack_enemy();
-	auto rand_bool = [&](float chance) { return sim_rng_.range_float(0.0f, 1.0f) < chance; };
+	auto rand_bool = [&](float chance) { return petra_rng_.range_float(0.0f, 1.0f) < chance; };
 
 	// Be likely to decline a first request for good, and always when it would leave us
 	// with no one to fight or when we are attacking that player.
@@ -29154,7 +29155,7 @@ void Simulation::petra_last_man_standing_check() {
 	}
 	// Wait a while before turning (randFloat(10, 110)).
 	if (!dip.waiting_to_betray) {
-		dip.betray_lapse = dip.elapsed + sim_rng_.range_float(10.0f, 110.0f);
+		dip.betray_lapse = dip.elapsed + petra_rng_.range_float(10.0f, 110.0f);
 		dip.waiting_to_betray = true;
 		return;
 	}
@@ -30936,6 +30937,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		// Saves before v21 hold one config that every AI shared.
 		io_config(s.petra_config_);
 		for (S::PetraSlot &slot : s.petra_slots_) slot.petra_config_ = s.petra_config_;
+	}
+	// v92: the AIs' own random stream (CCmpAIManager m_RNG, seeded from the AI seed); before it,
+	// Petra drew from the match's.
+	if (ar.version >= S::SAVE_VERSION_PETRA_SUPPLY_ROOM) {
+		uint32_t st = s.petra_rng_.state();
+		ar.pod(st);
+		if constexpr (Ar::loading) s.petra_rng_.set_state(st);
+	} else if constexpr (Ar::loading) {
+		s.petra_rng_.set_seed(s.petra_rng_seed());
 	}
 	ar.pod(s.petra_pid_);
 	ar.pod(s.petra_tribute_inbox_);

@@ -19,8 +19,8 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G9 | Units garrisoned in an ally's structure or ship don't share its vision | low | A |
 | G10 | Trade: a zero-gain route keeps its trader busy forever, and traders boarding or leaving a ship mid-voyage don't change that leg's gain | low | A |
 | G11 | Ptolemaic and Seleucid walls give 3 stone of loot (0.28: 7 or 5); a bribe's spy ignores vision techs; garrisoned traders can't be bribed | low | A |
-| G12 | Petra: starting cavalry joins attacks instead of hunting; rushes and raids take no siege; far-off gatherers aren't sent back | low | D (cavalry, siege), C (gatherers) |
-| G13 | Petra's numberMissingRoom has no 90 s lapse | low | C |
+| G12 | Petra: starting cavalry joins attacks instead of hunting; rushes and raids take no siege; ~~far-off gatherers aren't sent back~~ (fixed 2026-10-15: a gatherer that drifts off its base's nearby or medium supplies, or onto a crowded one, is stopped and reassigned, worker.js) | low | D (cavalry, siege), C (gatherers) |
+| G13 | ~~Petra's numberMissingRoom has no 90 s lapse~~ Closed 2026-10-15: each template's no-room mark lapses after 90 s and clears when our territory grows (buildManager.js, headquarters.js) | low | C |
 | G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
 | G15 | Petra buys trade-gain and population techs only if it can pay at the check | low | E |
 | G16 | A defensive-stance unit keeps chasing a target that leaves its reach; boarding a transport skips 0.28's garrison rules | low | Unit orders |
@@ -34,7 +34,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G24 | Circular maps show an extra 8 m ring past 0.28's edge; square maps have no 12 m edge frame | low | A |
 | G25 | Livestock that an easier Petra breeds skips the AI training-time handicap | low | A |
 | G26 | ~~In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch)~~ Fixed by #1084: clients and the game list see "Random" until Start | low | Multiplayer |
-| G27 | -autostart-aiseed seeds only the AI personalities; Petra's other draws use the match's random stream | low | C |
+| G27 | ~~-autostart-aiseed seeds only the AI personalities; Petra's other draws use the match's random stream~~ Closed 2026-10-15: Petra draws from its own stream seeded by the AI seed (CCmpAIManager m_RNG), saved with the game | low | C |
 | G28 | The developer overlay lacks Control all units and the culling boxes | low | Stats |
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
 | G30 | Pathfinding grid: 8 m navcells against 0.28's 1 m, no JumpPointCache, float maths | low | Migrate |
