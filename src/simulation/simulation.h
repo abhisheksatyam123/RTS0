@@ -171,11 +171,12 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 95; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 96; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
 	static constexpr uint32_t SAVE_VERSION_PETRA_SUPPLY_ROOM = 94; // each Petra gatherer's supply; structures with no room, for 90 s; the AIs' own random stream
 	static constexpr uint32_t SAVE_VERSION_PETRA_STUCK = 93; // each Petra attack plan's position 5 turns ago (siege stuck check)
 	static constexpr uint32_t SAVE_VERSION_GUARD_OF = 92; // each unit's isGuardOf, kept through other orders
+	static constexpr uint32_t SAVE_VERSION_WORK_ORDERS = 96; // each unit's workOrders queue (Back to Work)
 	static constexpr uint32_t SAVE_VERSION_PETRA_MOVE_TO_GATHERER = 91; // when each Petra mobile dropsite next looks for a gatherer
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
@@ -3877,6 +3878,13 @@ private:
 	// keep it and the IDLE Timer goes back to guarding; remove-guard, a guard order for
 	// someone else or a charge that is gone or no longer an ally ends it.
 	std::unordered_map<uint32_t, uint32_t> guard_of_;
+	// UnitAI workOrders: the queue from its first Gather, Trade, Repair or ReturnResource order,
+	// kept when an order that isn't work replaces it (UpdateWorkOrders), for Back to Work.
+	std::unordered_map<uint32_t, std::vector<UnitOrder>> work_orders_;
+	static bool is_work_order_kind(uint8_t k) {
+		return k == ORDER_GATHER || k == ORDER_TRADE || k == ORDER_BUILD || k == ORDER_RETURN_RESOURCE;
+	}
+	void update_work_orders(size_t i, uint8_t kind);
 	bool guard_charge_ok(size_t i, uint32_t charge) const;
 	bool applying_queued_ = false; // set while an order from a queue is applied: keep the rest
 	UnitOrder current_order(size_t i) const;
