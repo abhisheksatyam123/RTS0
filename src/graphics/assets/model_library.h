@@ -94,6 +94,7 @@ private:
 	static Entry load(const godot::String &category, const godot::String &id);
 	static godot::Vector<godot::String> candidate_paths(const godot::String &category, const godot::String &id);
 	static HashMap<godot::String, bool> &threaded_paths(); // prefetch requests not yet taken
+	static void request_threaded(const godot::String &path);
 	static godot::Ref<godot::PackedScene> borrow_clips(godot::Node *inst, const godot::String &donor);
 	static float target_height(const godot::String &category, const godot::String &id, float natural_h);
 	static HashMap<godot::String, Entry> &cache();
