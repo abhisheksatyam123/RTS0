@@ -361,6 +361,9 @@ void RtsoMain::_ready() {
 	menu_btn = memnew(Button);
 	menu_btn->set_custom_minimum_size(Vector2(60, 28));
 	menu_btn->set_text("Menu");
+	// Menu.js rebuild: "Press %(hotkey)s to toggle this menu."
+	menu_btn->set_tooltip_text(String(rtso::tr0("Press %(hotkey)s to toggle this menu.")).replace("%(hotkey)s",
+			rtso::hotkeys::table().label("session.gui.menu.toggle").c_str()));
 	menu_btn->add_theme_font_size_override("font_size", 12);
 	menu_btn->connect("pressed", Callable(this, "_on_menu_button_pressed"));
 	top_hbox->add_child(menu_btn);

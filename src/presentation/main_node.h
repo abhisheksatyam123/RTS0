@@ -722,6 +722,8 @@ public:
 	void _on_ui_click();
 	void _on_ui_click_item(int) { _on_ui_click(); }
 	int debug_ui_clicks() const { return ui_clicks_; }
+	int voices_played_ = 0; // tests: unit voice lines started
+	int debug_voices() const { return voices_played_; }
 	// Tests: the control groups and camera as a save stores them, and setting the camera.
 	Dictionary debug_saved_gui() const {
 		Dictionary d;
@@ -732,6 +734,8 @@ public:
 		return d;
 	}
 	void debug_set_camera_data(const Dictionary &c) { if (cam_rig) cam_rig->set_camera_data(c); }
+	// Menu.xml: the menu panel hangs under the Menu button.
+	Rect2 menu_button_rect() const { return menu_btn ? menu_btn->get_global_rect() : Rect2(); }
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);

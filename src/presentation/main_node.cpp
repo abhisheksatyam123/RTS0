@@ -80,6 +80,7 @@ void RtsoMain::_notification(int p_what) {
 
 void RtsoMain::play_voice(const char *path) {
 	if (!voice_player || !path) return;
+	++voices_played_;
 	String p = path;
 	String final_path = p;
 	if (!final_path.begins_with("res://")) {
