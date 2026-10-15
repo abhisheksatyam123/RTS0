@@ -354,28 +354,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("timeelapsedcounter.toggle")) { toggle_overlay("gui.session.timeelapsedcounter"); return; }
 		if (fired("ceasefirecounter.toggle")) { toggle_overlay("gui.session.ceasefirecounter"); return; }
 
-		if (fired("fps.toggle")) {
-			if (debug_overlay) debug_overlay->set_visible(!debug_overlay->is_visible());
-			return;
-		}
-
-		if (fired("screenshot")) {
-			Viewport *vp = get_viewport();
-			if (vp) {
-				Ref<ViewportTexture> tex = vp->get_texture();
-				if (tex.is_valid()) {
-					Ref<Image> img = tex->get_image();
-					if (img.is_valid()) {
-						DirAccess::make_dir_recursive_absolute("user://screenshots");
-						const String path = "user://screenshots/screenshot" +
-								String::num_int64((int64_t)Time::get_singleton()->get_unix_time_from_system()) + ".png";
-						img->save_png(path);
-						print_line("[RTS0] Saved screenshot to " + path);
-					}
-				}
-			}
-			return;
-		}
+		// fps.toggle, realtime.toggle, screenshot and bigscreenshot are global
+		// (scenes/menu/user_settings.gd), as in 0.28.
 	}
 
 	Ref<InputEventMouseButton> mb = event;
