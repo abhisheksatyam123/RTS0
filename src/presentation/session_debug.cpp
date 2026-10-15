@@ -549,6 +549,13 @@ void RtsoMain::debug_select_units(const PackedInt32Array &ids) {
 	selected_ids = ids;
 }
 
+void RtsoMain::debug_select_structures(const PackedInt32Array &ids) {
+	selected_ids.clear();
+	std::vector<uint32_t> v;
+	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
+	set_selected_structures(v);
+}
+
 void RtsoMain::debug_select_entity(int64_t id) {
 	if (!sim) return;
 	selected_ids.clear();
