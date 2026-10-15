@@ -85,6 +85,7 @@ const SCHEMA := [
 	]],
 	["Game Setup", [
 		["boolean", "gui.gamesetup.enabletips", "Enable game setting tips", "Show tips when setting up a game."],
+		["boolean", "gui.gamesetup.settingsslide", "Enable settings panel slide", "Slide the settings panel when opening, closing or resizing."],
 		["boolean", "persistmatchsettings", "Persist match settings", "Save and restore match settings for quick reuse when hosting another game."],
 		["dropdown", "gui.gamesetup.aidifficulty", "Default AI difficulty", "Default difficulty of the AI.",
 			[["Sandbox", "0"], ["Very Easy", "1"], ["Easy", "2"], ["Medium", "3"], ["Hard", "4"], ["Very Hard", "5"]]],

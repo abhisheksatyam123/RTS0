@@ -951,7 +951,7 @@ public:
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
 	static bool is_dropsite_type(uint8_t type) {
-		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || is_food_dropsite(type) ||
 			civ_building_is_dropsite(type);
 	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
@@ -3141,6 +3141,7 @@ private:
 	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
+	float petra_starting_wood(float x, float z) const;
 	void petra_plan_sizes(uint8_t kind);
 	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
 	// attackPlan.js unitStat: a plan's classes with their priority, minSize, targetSize,

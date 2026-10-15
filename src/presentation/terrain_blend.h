@@ -166,9 +166,9 @@ inline int calculate(const uint8_t lacks[8], unsigned &flags) {
 	return ALPHA_MAP_BAD;
 }
 
-// Blends a tile keeps: 0 A.D. draws every higher-priority neighbour terrain (up to
-// 8); past this many the lowest-priority ones are left out.
-constexpr int MAX_BLENDS = 4;
+// Blends a tile keeps: 0 A.D. draws every higher-priority neighbour terrain, at most
+// one for each of its 8 neighbours, so none is left out.
+constexpr int MAX_BLENDS = 8;
 
 // CPatchRData::BuildBlends for the whole map: RGBA8 texels, res * MAX_BLENDS
 // wide and res high, texel (tx * MAX_BLENDS + k, tz) the k-th blend drawn over tile

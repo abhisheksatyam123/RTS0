@@ -521,7 +521,8 @@ enum BuildingType : uint8_t {
 	BLD_FORTRESS_OLD = 83,    // han/fortress_old (the fortress with the old actor)
 	BLD_LAOZI_GATE = 84,      // han/laozigate (not capturable)
 	BLD_TEMPLE_ISIS = 85,     // ptol/temple_2 (Temple of Isis: City, one per player, trains the heroes)
-	BLD_TYPE_COUNT = 86
+	BLD_MILL = 86,            // structures/mill_*, {brit,gaul}/rotarymill (Gaia; capture only, farmstead_60)
+	BLD_TYPE_COUNT = 87
 };
 
 #include "civ_building_data.h"
@@ -545,15 +546,17 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	          type == BLD_TOWER_DOUBLE) ? (uint8_t)BLD_TOWER
 	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN) ? (uint8_t)BLD_HOUSE
 	       : type == BLD_FORTRESS_OLD ? (uint8_t)BLD_FORTRESS
+	       : type == BLD_MILL ? (uint8_t)BLD_FARMSTEAD
 	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS) ? (uint8_t)BLD_TEMPLE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
 
-// Health disable="" (mixins/shrine.xml, mixins/trading_post.xml): attacks can't damage the
-// structure (Attack.js CanAttack needs Health), so it changes hands only by capture.
+// Health disable="" (mixins/shrine.xml, mixins/trading_post.xml, mixins/rotary_mill.xml):
+// attacks can't damage the structure (Attack.js CanAttack needs Health), so it changes hands
+// only by capture.
 inline constexpr bool structure_has_health(uint8_t type) {
-	return type != BLD_SHRINE && type != BLD_TRADING_POST;
+	return type != BLD_SHRINE && type != BLD_TRADING_POST && type != BLD_MILL;
 }
 
 // The structures only maps place, by their 0 A.D. template ("structures/rome/tent", or a map's
@@ -587,6 +590,13 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"kush/shrine", BLD_KUSH_SHRINE, CIV_KUSHITES}, {"han/fortress_old", BLD_FORTRESS_OLD, CIV_HAN},
 		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN}, {"ptol/temple_2", BLD_TEMPLE_ISIS, CIV_PTOLEMIES},
 		{"merc_camp_egyptian", BLD_MERCENARY_CAMP, CIV_PTOLEMIES}, // Identity/Civ ptol
+		// The mills keep their actor's civ: farmsteads of the Ptolemies, Spartans, Mauryas,
+		// Romans, Persians and Kushites; celts/special and britons/special for the rest.
+		{"mill_desert", BLD_MILL, CIV_PTOLEMIES}, {"mill_greek", BLD_MILL, CIV_SPARTANS},
+		{"mill_indian", BLD_MILL, CIV_MAURYANS}, {"mill_italian", BLD_MILL, CIV_ROMANS},
+		{"mill_middle_eastern", BLD_MILL, CIV_PERSIANS}, {"mill_saharan", BLD_MILL, CIV_KUSHITES},
+		{"mill_temperate_europe", BLD_MILL, CIV_GAULS}, {"gaul/rotarymill", BLD_MILL, CIV_GAULS},
+		{"brit/rotarymill", BLD_MILL, CIV_BRITONS},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -596,6 +606,8 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 
 // 0 A.D. Market component with TradeType land and class Barter: the market and the Gaia
 // trading post (mixins/trading_post.xml keeps template_structure_economic_market's).
+// ResourceDropsite/Types food only: the farmstead and the mills (template_structure_economic_farmstead).
+inline constexpr bool is_food_dropsite(uint8_t type) { return type == BLD_FARMSTEAD || type == BLD_MILL; }
 inline constexpr bool is_land_market(uint8_t type) {
 	return type == BLD_MARKET || type == BLD_TRADING_POST;
 }
@@ -611,7 +623,7 @@ inline constexpr bool is_civic_centre(uint8_t type) {
 // (template_structure_special) and the Han Laozi gate (plain template_structure).
 inline constexpr bool is_conquest_critical(uint8_t type) {
 	switch (type) {
-		case BLD_STOREHOUSE: case BLD_TOWER: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE:
+		case BLD_STOREHOUSE: case BLD_TOWER: case BLD_FARMSTEAD: case BLD_MILL: case BLD_MARKET: case BLD_GATE:
 		case BLD_WALL_SEGMENT: case BLD_CORRAL: case BLD_FIELD: case BLD_FORGE: case BLD_SENTRY_TOWER:
 		case BLD_OUTPOST: case BLD_PALISADE: case BLD_WALL_TOWER: case BLD_THEATER: case BLD_AMPHITHEATER:
 		case BLD_LIBRARY: case BLD_MONUMENT: case BLD_PILLAR: case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL:
@@ -1896,6 +1908,7 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	// mixins/shrine.xml: Researcher disable="". mixins/trading_post.xml drops the market's trade
 	// technologies (trader_health, trade_gain_01/02, trade_commercial_treaty).
 	case BLD_SHRINE: return false;
+	case BLD_MILL: return false; // mixins/rotary_mill.xml: Researcher disable=""
 	case BLD_TRADING_POST: return tech_id == TECH_UNLOCK_SHARED_LOS || tech_id == TECH_UNLOCK_SHARED_DROPSITES;
 	// template_structure_defensive_tower_bolt and _artillery research only tower_health;
 	// rome/tent has Researcher disable="" (pers/inn keeps the house's list).
@@ -2020,7 +2033,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_INN: case BLD_TENT: case BLD_WAREHOUSE: case BLD_TAVERN: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_STOA: case BLD_HELLENIC_STOA: return c | TC_CIVIC;
 		case BLD_WALL_TOWER: return c | TC_WALL | TC_DEFENSIVE;
-		case BLD_FARMSTEAD: return c | TC_FARMSTEAD;
+		case BLD_FARMSTEAD: case BLD_MILL: return c | TC_FARMSTEAD;
 		case BLD_FIELD: return c | TC_FIELD;
 		case BLD_CORRAL: return c | TC_CORRAL;
 		case BLD_MARKET: case BLD_TRADING_POST: return c | TC_MARKET;

@@ -22,14 +22,28 @@
 
 #include "../simulation/simulation.h"
 #include "hotkeys.h"
+#include "l10n.h"
 
 using namespace godot;
 
 namespace rtso {
 
-// A tutorial line with "%(hotkey)s" filled by the player's binding.
+// A tutorial line, translated (messages.js translate / colorizeHotkey(translate(text))),
+// with "%(hotkey)s" filled by the player's binding.
 inline std::string tutorial_line_text(const TutorialLine &l) {
-	std::string s = l.text ? l.text : "";
+	std::string s;
+	if (l.text) {
+		const String en = String::utf8(l.text);
+		String t = tr0(en);
+		// One 0.28 msgid reads "%(hotkey)" without its "s" (the walkthrough's two-Civilians
+		// reminder); RTS0's line has the "s", so look the translation up under 0.28's spelling.
+		if (t == en && en.contains("%(hotkey)s")) {
+			const String alt = en.replace("%(hotkey)s", "%(hotkey)");
+			const String ta = tr0(alt);
+			if (ta != alt) t = ta.replace("%(hotkey)s", "%(hotkey)").replace("%(hotkey)", "%(hotkey)s");
+		}
+		s = t.utf8().get_data();
+	}
 	if (!l.hotkey) return s;
 	const std::string tag = "%(hotkey)s";
 	std::string key = hotkeys::table().label(l.hotkey);
@@ -122,21 +136,36 @@ public:
 		panel_->set_visible(running && !hidden_);
 		if (!running) {
 			last_.clear();
+			last_key_ = String();
+			last_shown_ = -1;
 			return;
 		}
-		const std::string t = tutorial_panel_text(*sim);
-		if (t != last_) {
-			last_ = t;
-			text_->set_text(String::utf8(t.c_str()));
+		// The text is rebuilt only for a new goal or language (not every frame).
+		const String key = String::num_int64(sim->tutorial_id() * 1000 + sim->tutorial_goal_index()) + ":" +
+				TranslationServer::get_singleton()->get_locale();
+		if (key != last_key_) {
+			last_key_ = key;
+			const std::string t = tutorial_panel_text(*sim);
+			if (t != last_) {
+				last_ = t;
+				text_->set_text(String::utf8(t.c_str()));
+			}
 		}
 		const bool ready = sim->tutorial_ready_button(), leave = on_last_goal(*sim);
-		ready_->set_visible(ready);
-		ready_->set_text(leave ? "Quit" : "Ready");
 		const uint8_t w = sim->tutorial_warning();
+		// updateTutorial: a new goal or warning shows the panel again, even if toggled off.
+		const int shown = sim->tutorial_goal_index() * 256 + w;
+		if (shown != last_shown_) {
+			if (last_shown_ >= 0) hidden_ = false;
+			last_shown_ = shown;
+		}
+		panel_->set_visible(!hidden_);
+		ready_->set_visible(ready);
+		ready_->set_text(tr0(leave ? "Quit" : "Ready"));
 		const std::string status = w != TUTORIAL_WARN_NONE && w < TUTORIAL_WARN_COUNT
 				? "[color=orange]" + tutorial_line_text(tutorial_warning(w)) + "[/color]"
-				: !ready ? "Follow the instructions."
-				: leave ? "Click to quit this tutorial." : "Click when ready.";
+				: std::string(tr0(!ready ? "Follow the instructions."
+				: leave ? "Click to quit this tutorial." : "Click when ready.").utf8().get_data());
 		if (status != last_status_) {
 			last_status_ = status;
 			status_->set_text(String::utf8(status.c_str()));
@@ -160,6 +189,8 @@ private:
 	RichTextLabel *status_ = nullptr;
 	Button *ready_ = nullptr;
 	std::string last_, last_status_;
+	int last_shown_ = -1; // goal * 256 + warning last shown
+	String last_key_;      // tutorial, goal and locale of the text shown
 	bool hidden_ = false;
 };
 

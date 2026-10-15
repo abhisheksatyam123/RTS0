@@ -91,9 +91,9 @@ var submenu_data = {
 		"title": "MULTIPLAYER",
 		"items": [
 			{"label": "Game Lobby", "tooltip": "%(hotkey)s: Launch the multiplayer lobby to join and host publicly visible games and chat with other players.", "hotkey": "lobby", "action": "open_lobby"},
-			{"label": "Connect by IP", "tooltip": "Joining an existing multiplayer game at a given IP address.", "action": "open_lobby"},
-			{"label": "Host New Game", "tooltip": "Host a new multiplayer game. Other players can connect directly to you via your IP address.", "action": "open_lobby"},
-			{"label": "Host Saved Game", "tooltip": "Continue playing a game from a savegame.", "action": "open_lobby"},
+			{"label": "Connect by IP", "tooltip": "Joining an existing multiplayer game at a given IP address.", "action": "open_mp_join"},
+			{"label": "Host New Game", "tooltip": "Host a new multiplayer game. Other players can connect directly to you via your IP address.", "action": "open_mp_host"},
+			{"label": "Host Saved Game", "tooltip": "Continue playing a game from a savegame.", "action": "open_mp_host_saved"},
 			{"label": "Replays", "tooltip": "Playback previous games.", "action": "open_replays_mp"}
 		]
 	},
@@ -381,6 +381,11 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/replay_browser.tscn")
 		"open_lobby":
 			_go_to_scene("res://scenes/menu/lobby.tscn")
+		# MainMenuItems.js: page_gamesetup_mp.xml in join, host or host-saved mode.
+		"open_mp_join", "open_mp_host", "open_mp_host_saved":
+			_close_submenu()
+			load("res://scenes/menu/gamesetup_mp.gd").open(self, "join" if action == "open_mp_join" else "host",
+					action == "open_mp_host_saved")
 		"open_options": # MainMenuItems.js: Engine.PushGuiPage("page_options.xml") over the menu
 			_close_submenu()
 			load("res://scenes/menu/options.gd").open_overlay(self)

@@ -268,6 +268,10 @@ UNIQUE_BUILDINGS = [
     # The Ptolemaic Temple of Isis (ptol/temple_2, City phase, one per player): the
     # Ptolemaic heroes train there only. Drawn with the civ's temple until its actor is ported.
     ("BLD_TEMPLE_ISIS", ["temple_2"], "temple", "temple"),
+    # The Gaia mills and rotary mills maps place (structures/mill_*, {brit,gaul}/rotarymill,
+    # mixins/rotary_mill.xml): captured, never destroyed; their farmstead_60 aura speeds the
+    # grain of the owner's workers nearby. Drawn with the farmstead of the template's civ.
+    ("BLD_MILL", ["mill_greek"], "farmstead", "farmstead"),
 ]
 # Numbered stems that are a building of their own rather than an upgrade's _N form.
 KEEP_NUMBERED_STEMS = {"temple_2"}
@@ -288,7 +292,7 @@ UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BL
 GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
 # Gaia structures in UNIQUE_BUILDINGS (structures/<stem>.xml, mixins/shrine.xml and
 # mixins/trading_post.xml): no civ builds them.
-GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA"}
+GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA", "BLD_MILL"}
 # Civ structures in UNIQUE_BUILDINGS that only maps place: no civ builds them.
 MAP_ONLY = {"BLD_TOWER_BOLT", "BLD_TOWER_ARTILLERY", "BLD_STOA", "BLD_INN", "BLD_TENT", "BLD_TRIUMPHAL_ARCH",
             "BLD_HALL", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TOWER_DOUBLE", "BLD_KUSH_SHRINE", "BLD_FORTRESS_OLD",
@@ -1810,7 +1814,8 @@ def unique_building_rows(sim_root, generic_masks=None):
                           if t.value("TerritoryInfluence/Root") == "true" else 0.0),
             # Vision/Range on RTS0's scale (x0.3, never below the 18 every structure gets).
             "vision": max(18.0, t.num("Vision/Range") * 0.3),
-            "dropsite": bool(t.tokens("ResourceDropsite/Types")),
+            # Every resource: a food-only dropsite (the mills) is is_food_dropsite's.
+            "dropsite": set(t.tokens("ResourceDropsite/Types")) >= {"food", "wood", "stone", "metal"},
             # Loot/* a destroyed or captured structure yields (Looter.js), metal -> gold.
             "loot": [int(t.num("Loot/" + k)) for k in ("xp", "food", "wood", "stone", "metal")],
         })

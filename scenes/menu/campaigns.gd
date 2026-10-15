@@ -111,8 +111,8 @@ func render() -> void:
 				var open := run.meets_requirements(level)
 				if not open and not run.template.get("ShowUnavailable", false):
 					continue
-				var status := tr("Completed", "campaign status") if run.is_completed(e["id"]) \
-					else (tr("Available", "campaign status") if open else "")
+				var status := tr("Completed") if run.is_completed(e["id"]) \
+					else (tr("Available") if open else "")
 				var item := _add_row(level_name(level), status)
 				if not open:
 					item.set_custom_color(0, GRAY)
@@ -130,9 +130,11 @@ func render() -> void:
 		list.get_root().get_child(selected).select(0)
 	render_details()
 
-## A template's Name or Description, translateWithContext("Campaign Template", …).
+## A template's Name or Description, translateWithContext("Campaign Template", …). RTS0's
+## .po files keep context entries under their bare msgid (tools/fetch_0ad_l10n.py), so
+## the lookups here take no context.
 func template_text(t: Dictionary, key: String, fallback := "") -> String:
-	return tr(str(t[key]), "Campaign Template") if t.has(key) else fallback
+	return tr(str(t[key])) if t.has(key) else fallback
 
 func render_details() -> void:
 	delete_button.visible = mode == "load"
@@ -166,7 +168,7 @@ func render_details() -> void:
 			var level: Dictionary = run.template["Levels"][entries[selected]]
 			info_name.text = level_name(level)
 			# getLevelDescription and getLevelPreview: the level's own, else its map's.
-			info_desc.text = TranslationServer.translate(str(level["Description"]), "Campaign Template") if level.has("Description") \
+			info_desc.text = TranslationServer.translate(str(level["Description"])) if level.has("Description") \
 				else tr(str(_map_json(CampaignRun.level_map_id(level)).get("desc", "")))
 			info_preview.texture = _level_preview(level)
 			start_button.disabled = not run.meets_requirements(level)
@@ -193,7 +195,7 @@ static func _texture(p: String) -> Texture2D:
 ## its map's.
 static func level_name(level: Dictionary) -> String:
 	if level.has("Name"):
-		return TranslationServer.translate(str(level["Name"]), "Campaign Template")
+		return TranslationServer.translate(str(level["Name"]))
 	return TranslationServer.translate(str(_map_json(CampaignRun.level_map_id(level)).get("name", CampaignRun.level_map_id(level))))
 
 static func _map_json(map_id: String) -> Dictionary:
