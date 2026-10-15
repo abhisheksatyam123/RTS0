@@ -9748,15 +9748,29 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				return off(x, z) && !off(px[i], pz[i]);
 			};
 			if (barred(npx[i], npz[i])) {
-				// A refused step that reaches a short-path waypoint ends on it, as PerformMove moves a unit
-				// within its step of a waypoint onto it: the waypoint is kept off steep ground, the step
-				// past it may not be, and next tick searches from the waypoint.
+				// A refused step that reaches a short-path waypoint ends on it and spends the rest heading on
+				// for the aim, as PerformMove moves a unit within its step of a waypoint onto it and then
+				// towards the next: the waypoint is kept off steep ground, the step past it may not be. The
+				// rest slides along an axis when the way to the aim is barred too, and the unit stays on the
+				// waypoint when both are; next tick searches from where it stands. The rest that is barred
+				// counts as obstructed (motion_feedback), as 0.28's move that stops at the waypoint does.
 				const float wx = std::clamp(px[i] + dx, -map_half_, map_half_), wz = std::clamp(pz[i] + dz, -map_half_, map_half_);
 				if (corner_reached && !barred(wx, wz)) {
 					npx[i] = wx;
 					npz[i] = wz;
 					want_x[i] = dx;
 					want_z[i] = dz;
+					const float rx = aim_x - wx, rz = aim_z - wz, rl = std::sqrt(rx * rx + rz * rz);
+					const float rest = std::min(step - std::sqrt(d2), rl);
+					if (rest > 1e-4f) {
+						const float ex = std::clamp(wx + rx * (rest / rl), -map_half_, map_half_);
+						const float ez = std::clamp(wz + rz * (rest / rl), -map_half_, map_half_);
+						want_x[i] += ex - wx;
+						want_z[i] += ez - wz;
+						if (!barred(ex, ez)) npx[i] = ex, npz[i] = ez;
+						else if (!barred(ex, wz)) npx[i] = ex;
+						else if (!barred(wx, ez)) npz[i] = ez;
+					}
 				} else if (!barred(npx[i], pz[i])) npz[i] = pz[i];
 				else if (!barred(px[i], npz[i])) npx[i] = px[i];
 				else { npx[i] = px[i]; npz[i] = pz[i]; }
