@@ -23,6 +23,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
+#include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/classes/base_button.hpp>
 #include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
@@ -1238,14 +1239,17 @@ void RtsoMain::_process(double delta) {
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
 			if (!sim->petra_chat_reaches(line, local_player())) continue; // addressed to someone else
+			// messages.js: the line translated, its player names in their colours.
 			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
-				return std::string(player_display_name(pid).utf8().get_data());
+				return std::string(colored_player_name(pid).utf8().get_data());
+			}, [](const char *msgid) {
+				return std::string(rtso::tr0(String::utf8(msgid)).replace("[", "[lb]").utf8().get_data());
 			});
 			// messages.js aichat: a "message" from the player, formatted as a player's chat
 			// (ChatMessageFormatPlayer): "(Ally) <name> text" for /allies, "(Private)" for /msg.
 			const bool allies = line.to == rtso::PETRA_CHAT_ALLIES, priv = !allies && line.to < rtso::MAX_PLAYERS;
 			const String ctx = allies ? "(" + tr("Ally") + ") " : priv ? "(" + tr("Private") + ") " : String();
-			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()).replace("[", "[lb]") + "\n",
+			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()) + "\n",
 					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", true));
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
@@ -1511,6 +1515,14 @@ void RtsoMain::_process(double delta) {
 		campaign_win_noted_ = true;
 		Ref<Script> summary = ResourceLoader::get_singleton()->load("res://scenes/session/summary_screen.gd");
 		if (summary.is_valid()) summary->call("mark_campaign_won");
+	}
+	// LobbyRatingReporter.onPlayersFinished: the report goes out the moment this seat has won
+	// or lost, not on LobbySession's next poll, so leaving at once still rates the game.
+	if (!lobby_report_noted_ && !turn_mgr_.is_replaying() &&
+			(sim->is_victory_for(seat_player()) || sim->is_defeated(seat_player()))) {
+		lobby_report_noted_ = true;
+		if (Node *lobby = get_tree() ? get_tree()->get_root()->get_node_or_null(NodePath("LobbySession")) : nullptr)
+			lobby->call("_check_report");
 	}
 }
 

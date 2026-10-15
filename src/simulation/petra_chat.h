@@ -180,19 +180,26 @@ inline const char *petra_chat_resource_name(uint8_t res) {
 	return res < 4 ? kNames[res] : "resources";
 }
 
-// The line's text, with player_name(pid) for %(_player_)s and %(_player_2)s.
-template <class NameFn>
-std::string petra_chat_text(const PetraChatLine &l, NameFn &&player_name) {
+// The line's text, with player_name(pid) for %(_player_)s and %(_player_2)s; translate(msgid)
+// gives the line and the resource name in the player's language first (chatHelper.js sends
+// each line with "translateMessage", and the resource "translateParameters").
+template <class NameFn, class TranslateFn>
+std::string petra_chat_text(const PetraChatLine &l, NameFn &&player_name, TranslateFn &&translate) {
 	const PetraChatPool p = petra_chat_pool(l.kind, l.sub);
 	if (!p.count) return std::string();
-	std::string s = p.lines[l.variant % p.count];
-	const std::string res = petra_chat_resource_name(l.resource);
+	std::string s = translate(p.lines[l.variant % p.count]);
+	const std::string res = translate(petra_chat_resource_name(l.resource));
 	petra_chat_detail::replace_all(s, "%(_player_2)s", l.player2 < 0xFE ? std::string(player_name(l.player2)) : std::string());
 	petra_chat_detail::replace_all(s, "%(_player_)s", l.player < 0xFE ? std::string(player_name(l.player)) : std::string());
 	petra_chat_detail::replace_all(s, "%(_amount_)s", std::to_string(l.amount));
 	petra_chat_detail::replace_all(s, "%(_resource_)s", res);
 	petra_chat_detail::replace_all(s, "%(resource)s", res);
 	return s;
+}
+
+template <class NameFn>
+std::string petra_chat_text(const PetraChatLine &l, NameFn &&player_name) {
+	return petra_chat_text(l, player_name, [](const char *msgid) { return std::string(msgid); });
 }
 
 } // namespace rtso
