@@ -370,6 +370,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					return;
 				}
 
+				if (!build_mode && any_armed_mode() && run_armed_click(mb)) return;
 				if (build_mode) {
 					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE ||
 							current_build_type == rtso::BLD_SIEGE_WALL) {
@@ -677,6 +678,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			flare_armed_ = false; // INPUT_FLARE: a right click cancels the flare
 			return;
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
+			// INPUT_PRESELECTEDACTION: a right click drops the armed action, then gives the usual order.
+			if (!replaying_right_ && any_armed_mode())
+				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 			// A right-click while band-boxing cancels the box and gives no order
 			// (input.js INPUT_BANDBOXING: right button resets to INPUT_NORMAL).
 			if (dragging && drag_start.distance_to(mouse_pos) > 4.0f) {
@@ -841,7 +845,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			// Attack-move: session.attackmove (Ctrl) + right-click, or attack_move_mode
 			// toggled. Ctrl on one of our own buildings garrisons instead (session.garrison).
-			// The Garrison and Repair buttons arm one click, like holding the modifier.
+			// The Garrison and Repair buttons arm the next left click (run_armed_click), like the modifier.
 			const bool force_garrison = garrison_mode || rtso::hotkeys::held("session.garrison");
 			const bool force_repair = repair_mode || rtso::hotkeys::held("session.repair");
 			// "occupy-turret": the Occupy Turret button arms it (preSelectedActionCheck, ahead of
@@ -971,23 +975,19 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 
-			// 1. Right click on Allied War Trireme / Transport (Board Naval Transport)
-			uint32_t clicked_transport_id = 0;
-			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || !sim->is_ally(local_player(), uview.team[i]) || uview.unit_type[i] != rtso::UNIT_TRIREME) continue; // own or a mutual ally's
-				float dx = uview.pos_x[i] - click_pos.x;
-				float dz = uview.pos_z[i] - click_pos.z;
-				if (dx * dx + dz * dz <= 3.2f * 3.2f) {
-					clicked_transport_id = uview.id[i];
-					break;
-				}
-			}
-			if (clicked_transport_id != 0) {
+			// 1. Right click on an own or allied ship, ram or siege tower (board it).
+			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.
+			// Its specificness 20 loses to "repair" (11) unless session.garrison forces it.
+			const uint32_t clicked_transport_id = transport_under(click_pos.x, click_pos.z);
+			auto board = [&]() {
 				if (turn_cmds())
 					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id);
 				else
 					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id);
 				play_civ_voice("move");
+			};
+			if (clicked_transport_id != 0 && force_garrison) {
+				board();
 				return;
 			}
 
@@ -1018,6 +1018,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					play_civ_voice("build");
 					return;
 				}
+			}
+			if (clicked_transport_id != 0) {
+				board();
+				return;
 			}
 
 			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
@@ -1324,6 +1328,62 @@ bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
 	}
 	play_civ_voice("build");
 	if (order_one) pop_from_selection(selected_ids, one_builder);
+	return true;
+}
+
+// unit_actions.js actionCheck of the armed action: whether the click under the cursor is a
+// target it takes (else the click does nothing and the action stays armed).
+bool RtsoMain::armed_target_ok(const Vector3 &at) const {
+	if (!(garrison_mode || turret_mode || repair_mode || guard_mode)) return true; // ground actions
+	const uint8_t me = local_player();
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
+		const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
+		if (dx * dx + dz * dz > hit_r * hit_r) continue;
+		if (garrison_mode) return selection_can_garrison(b.id) || transport_under(at.x, at.z);
+		if (turret_mode) return selection_can_occupy_turret(b.id);
+		if (repair_mode) return b.build_progress < 1.0f || b.hp < b.max_hp;
+		return true; // Guard.js guards own and allied structures
+	}
+	if (garrison_mode) return transport_under(at.x, at.z) != 0;
+	if (guard_mode || repair_mode) {
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (!uv.alive[i]) continue;
+			const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z;
+			if (guard_mode && uv.team[i] == me && dx * dx + dz * dz < 3.0f * 3.0f &&
+					!selected_ids.has((int32_t)uv.id[i]))
+				return true;
+			if (repair_mode && dx * dx + dz * dz <= 2.2f * 2.2f && uv.hp[i] < uv.max_hp[i] &&
+					(uv.team[i] == me || sim->is_ally(me, uv.team[i])) && sim->is_repairable_unit(uv.id[i]))
+				return true;
+		}
+	}
+	return false;
+}
+
+// input.js INPUT_PRESELECTEDACTION left button: run the armed action at the click (as the
+// order path of a right click), keep it armed under Shift (session.queue) or Alt (orderone),
+// and select nothing. Returns false when the selection is gone, which clears the action.
+bool RtsoMain::run_armed_click(const Ref<InputEventMouseButton> &press) {
+	if (!sim || selected_ids.is_empty() || spectating()) {
+		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
+		return false;
+	}
+	if (!armed_target_ok(get_ground_click_pos(press->get_position()))) return true; // the -disabled cursor: nothing happens
+	const bool keep = rtso::hotkeys::held("session.queue") || rtso::hotkeys::held("session.orderone");
+	const bool modes[7] = { attack_move_mode, patrol_mode, guard_mode, call_to_arms_mode, garrison_mode, turret_mode, repair_mode };
+	Ref<InputEventMouseButton> right = press->duplicate();
+	right->set_button_index(MOUSE_BUTTON_RIGHT);
+	right->set_button_mask(MOUSE_BUTTON_MASK_RIGHT);
+	replaying_right_ = true;
+	_unhandled_input(right);
+	replaying_right_ = false;
+	attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
+	if (keep && !selected_ids.is_empty()) {
+		attack_move_mode = modes[0], patrol_mode = modes[1], guard_mode = modes[2], call_to_arms_mode = modes[3];
+		garrison_mode = modes[4], turret_mode = modes[5], repair_mode = modes[6];
+	}
 	return true;
 }
 

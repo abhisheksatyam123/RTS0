@@ -603,6 +603,15 @@ public:
 		return out;
 	}
 	int64_t debug_guard_target(int64_t uid) const { return sim ? (int64_t)sim->unit_guard_target((uint32_t)uid) : 0; }
+	// Tests: where a unit stands on screen (viewport pixels), or (-1, -1).
+	Vector2 debug_unit_screen(int64_t uid) const {
+		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid && uv.alive[i])
+				return cam_rig->get_camera()->unproject_position(Vector3(uv.pos_x[i], sim->get_terrain_height(uv.pos_x[i], uv.pos_z[i]), uv.pos_z[i]));
+		return Vector2(-1, -1);
+	}
 	Vector2 debug_ground_at(Vector2 screen) const {
 		const Vector3 g = get_ground_click_pos(screen);
 		return Vector2(g.x, g.z);
@@ -613,6 +622,7 @@ public:
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
@@ -639,6 +649,12 @@ public:
 	PackedVector2Array last_line_targets_; // tests: the last walk-custom positions
 	PackedInt32Array last_line_entities_;
 	void finish_right_line(const Ref<InputEventMouseButton> &release);
+	// input.js INPUT_PRESELECTEDACTION: a command button armed an action for the next left click.
+	bool any_armed_mode() const {
+		return attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode;
+	}
+	bool armed_target_ok(const Vector3 &at) const;
+	bool run_armed_click(const Ref<InputEventMouseButton> &press);
 	Dictionary debug_right_line() const {
 		Dictionary d;
 		d["active"] = right_line_.active;
@@ -717,6 +733,8 @@ private:
 	void clear_selection();
 	bool selection_can_garrison(uint32_t building_id) const;
 	bool selection_can_occupy_turret(uint32_t building_id) const;
+	uint32_t transport_under(float x, float z) const;
+	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();
 	void prune_selection();
