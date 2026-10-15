@@ -76,16 +76,23 @@ func run() -> void:
 	print("2. the lobby")
 	var out := []
 	server_pid = OS.create_process("python3", [ProjectSettings.globalize_path("res://tools/lobby_server.py"),
-		"--port", str(PORT), "--quiet"])
+		"--port", str(PORT), "--quiet", "--exit-with-parent"])
 	check(server_pid > 0, "the lobby server starts")
 	var ls: Node = root.get_node("/root/LobbySession")
 	var signed := [0]
-	for attempt in 50:
-		ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: signed[0] = code)
-		await until(func() -> bool: return signed[0] != 0 or false, 30)
-		if signed[0] == 200:
+	# Wait for the server to answer, then sign in once: retrying a sign-in that
+	# is slow to answer (a loaded machine) leaves the first one signed in on the
+	# server and the retries refused as "that name is in use".
+	ls.address = "127.0.0.1:%d" % PORT
+	var up := [false]
+	for attempt in 100:
+		ls.get_json("/players", func(code: int, _o) -> void: up[0] = up[0] or code == 200)
+		await until(func() -> bool: return up[0], 30)
+		if up[0]:
 			break
 		await create_timer(0.1).timeout
+	ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: signed[0] = code)
+	await until(func() -> bool: return signed[0] != 0)
 	check(signed[0] == 200, "alice signs in")
 	var bob_token := [""]
 	ls.post_json("/login", {"name": "bob"}, func(code: int, o) -> void:
@@ -176,7 +183,7 @@ func run() -> void:
 	check(LobbySessionScript.game_rating(names, {"alice": 1265, "bob": 1135}) == 1200
 		and LobbySessionScript.game_rating(names, {"alice": 1500, "bob": 1500}) == 1400
 		and LobbySessionScript.game_rating([], {}) == 1200, "a game's rating averages its players, 1200 for none")
-	check(lobby.game_columns(true) == ["Name", "Host", "Map", "Rating", "Players", "Status"]
+	check(lobby.game_columns(true) == ["Name", "Map Name", "Size", "Type", "Players", "Rating"]
 		and lobby.game_columns(false).size() == 5, "the Rating column only with lobby.columns.gamerating")
 	check(lobby.rating_passes(">1300", 1300) and not lobby.rating_passes(">1300", 1299)
 		and lobby.rating_passes("<1200", 1199) and not lobby.rating_passes("<1200", 1200)
@@ -193,6 +200,11 @@ func run() -> void:
 	await until(func() -> bool: return lobby._games.get_root() != null and lobby._games.get_root().get_child_count() == 1)
 	var game_item: TreeItem = lobby._games.get_root().get_child(0) if lobby._games.get_root() and lobby._games.get_root().get_child_count() else null
 	check(game_item != null, "the game is listed")
+	if game_item:
+		check(game_item.get_text(1) == "Continental" and game_item.get_text(2) == "Medium" and game_item.get_text(3) == "Random"
+			and game_item.get_text(4) == "2/8 +1" and game_item.get_custom_color(0) == Color8(219, 0, 0),
+			"its row: map, size, type, \"2/8 +1\" with carol watching, red while running: %s | %s | %s | %s" % [
+			game_item.get_text(1), game_item.get_text(2), game_item.get_text(3), game_item.get_text(4)])
 	if game_item:
 		game_item.select(0)
 	await frames(2)

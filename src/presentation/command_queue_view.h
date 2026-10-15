@@ -111,6 +111,9 @@ public:
 		cmd_style->set_border_color(Color(0.90f, 0.75f, 0.31f, 1.0f));
 		panel_->add_theme_stylebox_override("panel", cmd_style);
 		if (theme.is_valid()) panel_->set_theme(theme);
+		// session/selection_panels*.xml: the panel's buttons use sessionToolTipBottom (tooltips.gd);
+		// the stance, formation, alert, command and barter ones override it with the bold variant.
+		panel_->set_meta("tooltip_style", "session_bottom");
 		parent->add_child(panel_);
 
 		roster_list_ = memnew(ItemList);
@@ -136,6 +139,7 @@ public:
 		roster_list_->set_allow_rmb_select(true); // a right click opens the Template Viewer
 		roster_list_->connect("item_clicked", Callable(owner_, "_on_roster_item_clicked"));
 		roster_list_->connect("gui_input", Callable(owner_, "_on_roster_gui_input"));
+		roster_list_->set_meta("tooltip_style", "session_bottom");
 		parent->add_child(roster_list_);
 
 		title_ = memnew(Label);
@@ -151,6 +155,7 @@ public:
 		stances_bar_->set_position(Vector2(10, 24));
 		stances_bar_->set_size(Vector2(552, 26));
 		stances_bar_->add_theme_constant_override("separation", 6);
+		stances_bar_->set_meta("tooltip_style", "session_bottom_bold");
 		panel_->add_child(stances_bar_);
 
 		// Indexed by UnitStance; laid out in 0 A.D. g_Stances order (violent, aggressive,
@@ -197,6 +202,7 @@ public:
 		actions_bar_->set_position(Vector2(10, 52));
 		actions_bar_->set_size(Vector2(552, 26));
 		actions_bar_->add_theme_constant_override("separation", 2);
+		actions_bar_->set_meta("tooltip_style", "session_bottom_bold");
 		panel_->add_child(actions_bar_);
 
 		// Production Bar (Training & Tech)
@@ -226,7 +232,10 @@ public:
 	godot::Panel *panel() const { return panel_; }
 	godot::HFlowContainer *production_bar() const { return production_bar_; }
 	void set_barter_sell(int r) { barter_sell_ = r; } // BarterButtonManager.setSelectedResource
-	void set_barter_host(godot::Control *c) { barter_host_ = c; }
+	void set_barter_host(godot::Control *c) {
+		barter_host_ = c;
+		if (c) c->set_meta("tooltip_style", "session_bottom_bold");
+	}
 	godot::Control *barter_host() const { return barter_host_; }
 	godot::ItemList *roster_list() const { return roster_list_; }
 	godot::String roster_label(int idx) const { return idx >= 0 && idx < (int)roster_labels_.size() ? roster_labels_[idx] : godot::String(); }
@@ -355,7 +364,7 @@ public:
 					// Names (getEntityNamesFormatted: the civ's specificName first), tooltip, cost,
 					// right-click, requirements, needed resources.
 					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
-					String tip = rtso::entity_names(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
+					String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
 					if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
@@ -513,6 +522,7 @@ public:
 						tip += "\n" + rtso::tr0(end ? (alert.traders ? "Unload nearby Traders." : "Unload nearby Civilians.")
 								: (alert.traders ? "Alert nearby Traders to seek refuge." : "Alert nearby Civilians to seek refuge."));
 						btn->set_tooltip_text(tip);
+						btn->set_meta("tooltip_style", "session_bottom_bold");
 						btn->connect("pressed", Callable(owner_, "_on_alert_pressed").bind(end));
 						production_bar_->add_child(btn);
 					}
@@ -619,7 +629,9 @@ public:
 			}
 			// The structure's command row (unit_actions.js g_EntityCommands).
 			if (found_b && found_b->team == local_player()) {
-				const int inside = (int)found_b->garrisoned_units.size();
+				// A corral's penned animals are its garrison too (GarrisonHolder List Animal).
+				const int inside = (int)found_b->garrisoned_units.size() +
+						(found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0);
 				if (inside > 0)
 					add_entity_command("unload-all", "Unload All", "session.unload",
 							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
@@ -679,7 +691,7 @@ public:
 				static const char *const kFormationIcons[rtso::FORMATION_COUNT] = {
 					"null", "line_closed", "box", "column", "phalanx", "wedge", "skirmish", "line_open",
 					"column_open", "flank", "battle_line", "ship_line", "ship_column", "flank", "syntagma",
-					"testudo", "testudo"};
+					"testudo", "testudo", "phalanx"};
 				const uint32_t *sel_ids = (const uint32_t *)selected_ids.ptr();
 				const size_t sel_n = (size_t)selected_ids.size();
 				uint32_t in_use = 0;       // formations a selected unit is in (bit 0: a unit in none)
@@ -1060,7 +1072,7 @@ public:
 						const Dictionary text = structure_template_text(my_civ, bt);
 						const String generic = text.get("generic_name", String::utf8(bi.name));
 						const String specific = text.get("specific_name", String());
-						String tip = rtso::entity_names(generic, specific);
+						String tip = rtso::entity_names_formatted(generic, specific);
 						auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 						add_line(classes_tooltip(text));
 						add_line(structure_auras_tooltip(text));
@@ -1227,7 +1239,7 @@ private:
 				const Dictionary text = gaia.get(String("gaia/") + rtso::fauna_type_info(f).template_name, Dictionary());
 				const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
 				String tip = (hotkey.empty() ? String() : rtso::hotkey_tag(String(hotkey.c_str())) + " ") +
-						rtso::entity_names(String(text.get("generic_name", String::utf8(rtso::fauna_type_info(f).name))),
+						rtso::entity_names_formatted(String(text.get("generic_name", String::utf8(rtso::fauna_type_info(f).name))),
 								String(text.get("specific_name", String())));
 				auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 				add_line(identity_tooltip(text));
@@ -1342,7 +1354,7 @@ private:
 					(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 			// The Research tooltip: names, tooltip, cost, right-click, requirements, needed resources.
 			const char *tech_specific = rtso::tech_specific_name(t, sim->player_civ(pid));
-			String tip = rtso::entity_names(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
+			String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
 			if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 			const String cost_line = rtso::cost_tooltip(tech_cost, true);
 			if (!cost_line.is_empty()) tip += "\n" + cost_line;
@@ -1506,7 +1518,7 @@ private:
 		// and attack, then the batch line; callers add requirements.
 		const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
 		tip = (hotkey.empty() ? String() : rtso::hotkey_tag(String(hotkey.c_str())) + " ") +
-				rtso::entity_names(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
+				rtso::entity_names_formatted(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
 		auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 		const Dictionary text = unit_template_text(u.id);
 		add_line(classes_tooltip(text));
@@ -1616,6 +1628,7 @@ private:
 			btn->set_text(text);
 		}
 		btn->set_disabled(!enabled);
+		btn->set_meta("tooltip_style", "session_bottom_bold"); // g_EntityCommands
 		btn->connect("pressed", Callable(owner_, "_on_entity_command").bind(String(name)));
 		production_bar_->add_child(btn);
 	}

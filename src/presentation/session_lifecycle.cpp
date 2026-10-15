@@ -8,6 +8,8 @@
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <cmath>
 #include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/classes/font_variation.hpp>
+#include <godot_cpp/classes/theme_db.hpp>
 #include <godot_cpp/classes/crypto.hpp>
 #include <godot_cpp/classes/hashing_context.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
@@ -122,10 +124,12 @@ void RtsoMain::_ready() {
 				// "never", "observer" (only while observing) or "always".
 				const std::string when = rtso::user_config::get("gui.session.notifications.flare");
 				const uint8_t from = chat_player_of(guid);
-				if (from < rtso::MAX_PLAYERS && (when == "always" || (when == "observer" && chat_local_observer())))
+				// colorizePlayernameByGUID: an observer's name in white.
+				const String name = from < rtso::MAX_PLAYERS ? colored_player_name(from) : chat_user(guid).replace("[color=#b3b3b3]", "[color=#ffffff]");
+				if (when == "always" || (when == "observer" && chat_local_observer()))
 					chat_window_.append_line(sprintf0(tr("%(icon)s%(player)s has sent a flare."),
 							{{"icon", "[img=16x16]res://assets/textures/ui/archive/icons/focus-flare.png[/img]"},
-									{"player", colored_player_name(from)}}) + "\n",
+									{"player", name}}) + "\n",
 							"flare:" + String::num(fx) + "," + String::num(fz), tr("Click to focus on the flare's location."));
 			}
 			return;
@@ -293,15 +297,19 @@ void RtsoMain::_ready() {
 	time_notification_label_->set_use_bbcode(true);
 	time_notification_label_->set_fit_content(true);
 	time_notification_label_->set_scroll_active(false);
-	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
-	time_notification_label_->set_anchor(SIDE_RIGHT, 1.0f);
+	// TimeNotificationOverlay.xml: 50%-300 60 50%+300 120, white sans-bold-stroke-14.
+	time_notification_label_->set_anchor(SIDE_LEFT, 0.5f);
+	time_notification_label_->set_anchor(SIDE_RIGHT, 0.5f);
 	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
 	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
-	time_notification_label_->set_offset(SIDE_TOP, 62.0f);
-	time_notification_label_->set_offset(SIDE_BOTTOM, 140.0f);
+	time_notification_label_->set_offset(SIDE_LEFT, -300.0f);
+	time_notification_label_->set_offset(SIDE_RIGHT, 300.0f);
+	time_notification_label_->set_offset(SIDE_TOP, 60.0f);
+	time_notification_label_->set_offset(SIDE_BOTTOM, 120.0f);
 	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	time_notification_label_->add_theme_font_size_override("normal_font_size", 16);
-	time_notification_label_->add_theme_color_override("default_color", Color(1.0f, 0.92f, 0.6f));
+	time_notification_label_->add_theme_font_size_override("normal_font_size", 14);
+	time_notification_label_->add_theme_font_size_override("bold_font_size", 14);
+	time_notification_label_->add_theme_color_override("default_color", Color(1, 1, 1));
 	time_notification_label_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
 	time_notification_label_->add_theme_constant_override("outline_size", 4);
 	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -611,9 +619,13 @@ void RtsoMain::_ready() {
 	{
 		ColorRect *dim = memnew(ColorRect);
 		dim->set_anchors_preset(Control::PRESET_FULL_RECT);
-		dim->set_color(Color(0, 0, 0, 0.45f));
+		dim->set_color(Color(0, 0, 0, 185.0f / 255.0f)); // sprites.xml: 0 0 0 185
 		dim->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		pause_overlay_->add_child(dim);
+		Ref<FontVariation> bold;
+		bold.instantiate();
+		bold->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
+		bold->set_variation_embolden(0.7f);
 		auto caption = [&](const String &text, float top, int size) {
 			Label *l = memnew(Label);
 			l->set_text(text);
@@ -626,14 +638,16 @@ void RtsoMain::_ready() {
 			l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 			l->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 			l->add_theme_font_size_override("font_size", size);
+			l->add_theme_font_override("font", bold); // styles.xml: sans-bold-*
 			l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
 			l->add_theme_constant_override("outline_size", 4);
 			l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 			pause_overlay_->add_child(l);
 			return l;
 		};
-		caption(tr("Game Paused"), -20.0f, 28);
-		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
+		// PauseOverlay.xml: "Game Paused" sans-bold-24, "Click to Resume Game" sans-bold-12.
+		caption(tr("Game Paused"), -20.0f, 24);
+		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 12);
 		// "Paused by" names each client in its player's colour, so it is bbcode.
 		pause_by_label_ = memnew(RichTextLabel);
 		pause_by_label_->set_use_bbcode(true);
@@ -645,7 +659,8 @@ void RtsoMain::_ready() {
 		pause_by_label_->set_anchor(SIDE_BOTTOM, 0.4f);
 		pause_by_label_->set_offset(SIDE_TOP, 50.0f);
 		pause_by_label_->set_offset(SIDE_BOTTOM, 72.0f);
-		pause_by_label_->add_theme_font_size_override("normal_font_size", 14);
+		pause_by_label_->add_theme_font_size_override("normal_font_size", 16); // netStatusPlayersText: sans-bold-16
+		pause_by_label_->add_theme_font_override("normal_font", bold);
 		pause_by_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
 		pause_by_label_->add_theme_constant_override("outline_size", 4);
 		pause_by_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -715,6 +730,23 @@ void RtsoMain::_ready() {
 		net_status_overlay_->add_child(exit);
 	}
 	ui_layer->add_child(net_status_overlay_);
+
+	// CLogger's on-screen messages (LOGMESSAGERENDER, LOGERROR): top left, mono-stroke-10,
+	// at most 20 lines, each for 10 s; errors red.
+	log_label_ = memnew(RichTextLabel);
+	log_label_->set_name("LogMessages");
+	log_label_->set_use_bbcode(true);
+	log_label_->set_fit_content(true);
+	log_label_->set_scroll_active(false);
+	log_label_->set_position(Vector2(4, 4));
+	log_label_->set_size(Vector2(900, 10));
+	log_label_->add_theme_font_size_override("normal_font_size", 11);
+	log_label_->add_theme_color_override("default_color", Color(1, 1, 1));
+	log_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+	log_label_->add_theme_constant_override("outline_size", 3);
+	log_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	log_label_->set_visible(false);
+	ui_layer->add_child(log_label_);
 
 	// 5/6. Chat overlay + diplomacy/tribute matrix: P4.1 leaf widgets
 	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
@@ -924,6 +956,7 @@ void RtsoMain::_process(double delta) {
 		notice_until_ = 0;
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
 	}
+	update_log_messages();
 	update_pause_overlay();
 	if (hotkey_paused_ && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
@@ -1127,6 +1160,17 @@ void RtsoMain::_process(double delta) {
 			}
 			txt += line.replace("[", "[lb]"); // a map's text, not markup
 		}
+		{
+			// GetTimeNotifications sorts by end time, latest first.
+			const uint32_t now = (uint32_t)std::lround(sim->game_time() * 1000.0f);
+			text_notices_.erase(std::remove_if(text_notices_.begin(), text_notices_.end(),
+					[now](const TextNotice &t) { return t.end_ms <= now || t.end_ms > now + 10000; }), text_notices_.end());
+			for (auto it = text_notices_.rbegin(); it != text_notices_.rend(); ++it) {
+				if (!txt.is_empty()) txt += "\n";
+				txt += it->text;
+			}
+			if (spawn_notified_.size() > 64) spawn_notified_.clear();
+		}
 		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
 		// player (the wonder's owner, its allies or everyone else).
 		{
@@ -1187,7 +1231,7 @@ void RtsoMain::_process(double delta) {
 			else if (left <= 0.0f && left > -5.0f) line = rtso::tr0("You can attack now!");
 			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
-		if (!txt.is_empty()) txt = "[center]" + txt + "[/center]";
+		if (!txt.is_empty()) txt = "[center][b]" + txt + "[/b][/center]";
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
 	if (sim && chat_window_.is_ready()) {

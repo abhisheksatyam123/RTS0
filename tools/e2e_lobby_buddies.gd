@@ -56,19 +56,25 @@ func run() -> void:
 	cfg.set_value("lobby.buddies", ",")
 	cfg.save()
 	server_pid = OS.create_process("python3", [ProjectSettings.globalize_path("res://tools/lobby_server.py"),
-		"--port", str(PORT), "--quiet", "--stun-port", "0"])
+		"--port", str(PORT), "--quiet", "--stun-port", "0", "--exit-with-parent"])
 	var ls: Node = root.get_node("/root/LobbySession")
 	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
 	root.add_child(lobby)
 	await process_frame
 	var signed := [0]
-	for attempt in 50:
-		ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: signed[0] = code)
-		await until(func() -> bool: return signed[0] != 0, 30)
-		if signed[0] == 200:
+	# Wait for the server to answer, then sign in once: retrying a sign-in that
+	# is slow to answer (a loaded machine) leaves the first one signed in on the
+	# server and the retries refused as "that name is in use".
+	ls.address = "127.0.0.1:%d" % PORT
+	var up := [false]
+	for attempt in 100:
+		ls.get_json("/players", func(code: int, _o) -> void: up[0] = up[0] or code == 200)
+		await until(func() -> bool: return up[0], 30)
+		if up[0]:
 			break
-		signed[0] = 0
 		await create_timer(0.1).timeout
+	ls.sign_in("127.0.0.1:%d" % PORT, "alice", func(code: int, _o) -> void: signed[0] = code)
+	await until(func() -> bool: return signed[0] != 0)
 	var bob := [""]
 	ls.post_json("/login", {"name": "bob"}, func(code: int, o) -> void:
 		bob[0] = str(o.get("token", "")) if code == 200 and o is Dictionary else "-")
@@ -99,7 +105,7 @@ func run() -> void:
 		room("bob watches", 1, 4, "running", "Small", "skirmish", [{"name": "carol"}, {"name": "bob", "observer": true}]),
 		room("AI bob", 2, 4, "init", "Normal", "skirmish", [{"name": "dave"}, {"name": "bob", "ai": true}])]
 	lobby._show_rooms()
-	check(names(lobby._games, 0) == ["• with bob", "• bob watches", "AI bob"],
+	check(names(lobby._games, 0) == ["AI bob", "• with bob", "• bob watches"],
 		"games with bob playing or watching are marked, an AI named bob is not: %s" % [names(lobby._games, 0)])
 	check(lobby.room_buddies(lobby._rooms[0], lobby.buddies()) == 2 and lobby.room_buddies(lobby._rooms[1], lobby.buddies()) == 1,
 		"a playing buddy ranks above a watching one (Game.js hasBuddies)")
@@ -119,10 +125,28 @@ func run() -> void:
 	lobby._type_filter.select(0)
 	lobby._count_filter.select(4) # 4 players
 	lobby._count_filter.item_selected.emit(4)
-	check(names(lobby._games, 0) == ["• bob watches", "AI bob"], "4 player slots")
+	check(names(lobby._games, 0) == ["AI bob", "• bob watches"], "4 player slots")
 	lobby._count_filter.select(0)
 	lobby._count_filter.item_selected.emit(0)
 	check(names(lobby._games, 0).size() == 3, "Any shows every game again")
+
+	print("2b. sorting and colours (GameList.js, Game.js)")
+	check(lobby._games.get_column_title(0) == "Name  ▲" and lobby._games.get_column_title(1) == "Map Name"
+		and lobby._games.get_column_title(2) == "Size" and lobby._games.get_column_title(3) == "Type",
+		"0.28's columns, sorted on Name: " + lobby._games.get_column_title(0))
+	var rows: Array = lobby._games.get_root().get_children()
+	check(rows[0].get_custom_color(0) == Color8(0, 219, 0) and rows[2].get_custom_color(0) == Color8(219, 0, 0),
+		"setups listed first in green, running games in red")
+	check(rows[2].get_text(2) == "Small" and rows[2].get_text(3) == "Skirmish" and rows[2].get_text(4) == "1/4 +1"
+		and rows[1].get_text(3) == "Random" and rows[1].get_text(4) == "2/2", "size, type and the observer count \"1/4 +1\"")
+	lobby._games.column_title_clicked.emit(4, MOUSE_BUTTON_LEFT) # Players
+	check(names(lobby._games, 0) == ["• with bob", "AI bob", "• bob watches"] and lobby._games.get_column_title(4) == "Players  ▲",
+		"a heading click sorts on it: %s" % [names(lobby._games, 0)])
+	lobby._games.column_title_clicked.emit(2, MOUSE_BUTTON_LEFT) # Size
+	lobby._games.column_title_clicked.emit(2, MOUSE_BUTTON_LEFT)
+	check(names(lobby._games, 0)[2] == "• bob watches" and lobby._games.get_column_title(2) == "Size  ▼",
+		"a second click reverses it: %s" % [names(lobby._games, 0)])
+	lobby._games.column_title_clicked.emit(0, MOUSE_BUTTON_LEFT)
 
 	print("3. unmark")
 	lobby._buddy_btn.pressed.emit()

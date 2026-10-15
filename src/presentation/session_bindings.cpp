@@ -204,8 +204,11 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player"), &RtsoMain::debug_spawn_units, DEFVAL(-1));
+	ClassDB::bind_method(D_METHOD("debug_spawn_offset", "template_id", "count", "player"), &RtsoMain::debug_spawn_offset, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_spawn_fauna", "fauna_type", "count", "owned"), &RtsoMain::debug_spawn_fauna);
 	ClassDB::bind_method(D_METHOD("debug_spawn_mine", "x", "z", "max_gatherers"), &RtsoMain::debug_spawn_mine);
+	ClassDB::bind_method(D_METHOD("debug_unit_model_path", "civ", "unit_type"), &RtsoMain::debug_unit_model_path);
+	ClassDB::bind_method(D_METHOD("debug_template_model_path", "template_id"), &RtsoMain::debug_template_model_path);
 	ClassDB::bind_method(D_METHOD("debug_snap_placement", "btype", "x", "z", "hover", "stale_angle"), &RtsoMain::debug_snap_placement);
 	ClassDB::bind_method(D_METHOD("debug_put_inside", "ids", "holder"), &RtsoMain::debug_put_inside);
 	ClassDB::bind_method(D_METHOD("debug_select_entity", "id"), &RtsoMain::debug_select_entity);

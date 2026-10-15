@@ -52,6 +52,7 @@ FORMATIONS = [
     ("FORMATION_SYNTAGMA", "special/formations/syntagma"),
     ("FORMATION_TESTUDO", "special/formations/testudo"),
     ("FORMATION_ANTI_CAVALRY", "special/formations/anti_cavalry"),
+    ("FORMATION_SHIELD_WALL", "special/formations/shield_wall"),
 ]
 FORMATION_INDEX = {path: i for i, (_, path) in enumerate(FORMATIONS)}
 
