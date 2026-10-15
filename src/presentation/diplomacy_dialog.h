@@ -56,6 +56,8 @@ public:
 	// translateAISettings: "Medium Balanced Petra Bot" for an AI, "" for a human.
 	virtual String ai_settings_text(uint8_t pid) const { (void)pid; return String(); }
 	virtual rtso::Simulation *ui_sim() = 0;
+	// setCameraFollow: follow a unit (messages.js "spy-response" shows the bribed one).
+	virtual void follow_unit(uint32_t id) { (void)id; }
 	// 0 A.D. colorizePlayernameByID's name: lobby, Options or AI name.
 	virtual String player_display_name(uint8_t pid) const = 0;
 	// The session.masstribute hotkey (Shift) is held.
@@ -263,6 +265,19 @@ public:
 		if (panel_) panel_->set_visible(false);
 	}
 
+	// messages.js "spy-response" with an entity: the dialog closes and the camera follows the
+	// bribed unit. Run every frame, before refresh() can settle the request.
+	void poll_spies() {
+		const rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
+		const uint8_t me = host_ ? host_->local_player() : 0xFF;
+		if (!sim || me >= rtso::MAX_PLAYERS) return;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			if (!spy_pending_[p] || sim->statistics(me).successful_bribes <= spy_pending_success_[p]) continue;
+			spy_pending_[p] = false;
+			show_bribed(*sim, me);
+		}
+	}
+
 	// DiplomacyDialog.open: only with a player to show (g_ViewedPlayer >= 1); an observer
 	// who follows a player sees that player's side.
 	void toggle() {
@@ -414,6 +429,7 @@ public:
 				const auto st = sim->statistics(me);
 				spy_pending_[player_idx] = true;
 				spy_pending_bribes_[player_idx] = st.successful_bribes + st.failed_bribes;
+				spy_pending_success_[player_idx] = st.successful_bribes;
 				spy_pending_time_[player_idx] = sim->game_time();
 			}
 			msg = ok ? "Bribing a unit of " : "Not enough metal to bribe ";
@@ -425,6 +441,7 @@ public:
 															  : "Not enough metal to bribe ";
 		}
 		if (chat_) chat_->append_line("[color=#eebb22]" + msg + host_->player_display_name((uint8_t)player_idx) + "[/color]\n");
+		if (ok && !host_->turn_cmds()) show_bribed(*sim, me);
 		if (ok) host_->play_sfx("res://assets/sounds/ui/bonus.ogg");
 		else host_->play_alarm("res://assets/sounds/ui/alarm.ogg");
 		host_->update_hud();
@@ -451,6 +468,16 @@ private:
 	static constexpr float SPY_REQUEST_TIMEOUT = 5.0f;
 	bool spy_pending_[rtso::MAX_PLAYERS] = {};
 	uint32_t spy_pending_bribes_[rtso::MAX_PLAYERS] = {};
+	uint32_t spy_pending_success_[rtso::MAX_PLAYERS] = {};
+	void show_bribed(const rtso::Simulation &sim, uint8_t me) {
+		const auto &spies = sim.spies();
+		for (auto it = spies.rbegin(); it != spies.rend(); ++it)
+			if (it->player == me) {
+				close();
+				host_->follow_unit(it->unit_id);
+				return;
+			}
+	}
 	float spy_pending_time_[rtso::MAX_PLAYERS] = {};
 
 	struct Row {

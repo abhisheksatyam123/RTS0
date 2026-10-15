@@ -1178,15 +1178,20 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     // and our final sync checks get acknowledged. The host stays until every
     // client has finished and left (or 30 s): under heavy loss a client, an
     // observer most of all, can be many turns behind, and a host that left
-    // first cut it off before its last turns.
+    // first cut it off before its last turns. A seated client stays until the
+    // host has run the last turn too (its sync check for it came, or 30 s): a
+    // host held up for more than the 3 s would otherwise see it leave before
+    // the end and list it as gone.
     uint64_t linger = now_us();
+    const bool seated = !host && !tm.is_observer();
     auto clients_left = [&] {
         for (const auto &p : net.getPeers())
             if (p.connected) return true;
         return false;
     };
     while (now_us() - linger < 3'000'000ull ||
-           (host && clients_left() && now_us() - linger < 30'000'000ull)) {
+           (host && clients_left() && now_us() - linger < 30'000'000ull) ||
+           (seated && !net.connectionLost() && !tm.has_peer_hash(turns, 0) && now_us() - linger < 30'000'000ull)) {
         net.poll(arena);
         arena.reset();
         std::this_thread::sleep_for(std::chrono::milliseconds(5));

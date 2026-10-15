@@ -133,11 +133,19 @@ void RtsoMain::_ready() {
 		// widget (chat_window.h append_incoming()); no-op until built.
 		const String sender = String::utf8(cm.sender_guid.c_str());
 		// 0.28 sound.notify.nick: a chime when someone else's message names you.
-		if (chat_window_.append_incoming(sender, msg) && rtso::user_config::get_bool("sound.notify.nick")) {
-			const String me = chat_user("peer-" + String::num_int64(turn_mgr_.local_client_id()));
-			if (!me.is_empty() && sender != "peer-" + String::num_int64(turn_mgr_.local_client_id()) &&
-					msg.to_lower().contains(me.to_lower()))
-				play_alarm("res://assets/audio/interface/ui/chat_alert.ogg");
+		if (chat_window_.append_incoming(sender, msg)) {
+			// ChatMessageFormatPlayer: the plain nick (splitRatingFromNick drops a lobby
+			// rating) in someone else's message text, past its wire tag.
+			const String self = "peer-" + String::num_int64(turn_mgr_.local_client_id());
+			String nick = RtsoChatWindow::plain(chat_user(self));
+			const int paren = nick.rfind(" (");
+			if (paren > 0 && nick.ends_with(")") && nick.substr(paren + 2, nick.length() - paren - 3).is_valid_int())
+				nick = nick.substr(0, paren);
+			String text = msg;
+			if (text.begins_with("[") && text.find("]") > 0) text = text.substr(text.find("]") + 1);
+			if (!nick.is_empty() && sender != self && RtsoChatWindow::plain(chat_user(sender)) != RtsoChatWindow::plain(chat_user(self)) &&
+					text.to_lower().contains(nick.to_lower()))
+				sound_notification_nick();
 		}
 	});
 
@@ -949,8 +957,10 @@ void RtsoMain::_process(double delta) {
 	if (net_lockstep()) {
 		if (net_game_started_) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
-			if (turn_mgr_.tick((float)scaled_delta, *sim))
+			if (turn_mgr_.tick((float)scaled_delta, *sim)) {
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
+				rejoin_test_turn();
+			}
 			// OutOfSyncNetwork: the box opens once the dump is written, and again
 			// if the host later names an earlier diverging turn.
 			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
@@ -1034,6 +1044,7 @@ void RtsoMain::_process(double delta) {
 			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;
+				rejoin_test_turn();
 			}
 		}
 	} else {
@@ -1206,6 +1217,7 @@ void RtsoMain::_process(double delta) {
 	research_progress_.refresh(*sim, view_player());
 	refresh_dev_overlay();
 	control_groups_.refresh(*sim, local_player(), selected_groups);
+	diplo_dialog_.poll_spies();
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while
@@ -1492,4 +1504,16 @@ void RtsoMain::update_net_delay_overlay(double delta) {
 	const String secs = s < 5.0 ? String::num(s, 1).pad_decimals(1) : String::num_int64((int64_t)std::llround(s));
 	net_delay_label_->set_text(rtso::sprintf0(tr("Delay to live stream: %(delay)ss"), {{"delay", secs}}));
 	net_delay_label_->set_visible(true);
+}
+
+void RtsoMain::sound_notification_nick() {
+	if (!rtso::user_config::get_bool("sound.notify.nick")) return;
+	const uint64_t now = Time::get_singleton()->get_ticks_msec();
+	if (nick_notify_ms_ == 0 || now > nick_notify_ms_ + 3000) play_alarm("res://assets/audio/interface/ui/chat_alert.ogg");
+	nick_notify_ms_ = now; // lastInteractionTime moves on even when the chime is held back
+}
+
+void RtsoMain::chat_open_page() {
+	close_open_dialogs();
+	chat_window_.open_page();
 }

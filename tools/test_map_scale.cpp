@@ -137,7 +137,8 @@ int main() {
 			std::vector<std::pair<float, float>> tcs;
 			for (const auto &b : sim.buildings())
 				if (b.type == BLD_TOWN_CENTER && b.team < MAX_PLAYERS) tcs.push_back({b.x, b.z}); // not Danubius' Gaia villages
-			CHECK((int)tcs.size() >= 2, "%s %d: %zu town centres", map_type_info(mt).id, size, tcs.size());
+			// wall_demo.js places walls alone, no player entities (test_wall_demo checks them).
+			CHECK((int)tcs.size() >= 2 || mt == MAP_WALL_DEMO, "%s %d: %zu town centres", map_type_info(mt).id, size, tcs.size());
 			for (size_t i = 0; i < tcs.size(); ++i) {
 				for (size_t j = 0; j < tcs.size(); ++j) {
 					if (i == j) continue;

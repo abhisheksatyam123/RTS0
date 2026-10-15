@@ -226,6 +226,7 @@ int main() {
 	{
 		static Simulation s;
 		fresh(s);
+		s.set_explore_map(true); // FindNearbyResource takes only trees the player has seen
 		s.spawn_building_world(40.0f, 20.0f, BLD_TOWN_CENTER, 0, 1.0f);
 		const uint32_t full = s.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 200);
 		const uint32_t other = s.spawn_resource_world(0.0f, 6.0f, RES_WOOD, 200);
@@ -387,10 +388,12 @@ int main() {
 	}
 
 	// 16. UnitAI FINDINGNEWTARGET: a farmer turned away from a full field takes a free field of any
-	// player's within 64 m (FindNearbyResource), not her own across the map.
+	// player's within 64 m (FindNearbyResource), not her own across the map. Explored, as
+	// CheckTargetVisible skips "hidden" supplies.
 	{
 		static Simulation s;
 		fresh(s);
+		s.set_explore_map(true);
 		const uint32_t full = s.spawn_building_world(0.0f, 0.0f, BLD_FIELD, 0, 1.0f);
 		const uint32_t theirs = s.spawn_building_world(0.0f, 10.0f, BLD_FIELD, 1, 1.0f);
 		const uint32_t far_own = s.spawn_building_world(0.0f, -70.0f, BLD_FIELD, 0, 1.0f);

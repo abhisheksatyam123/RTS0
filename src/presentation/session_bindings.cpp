@@ -78,6 +78,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_render_debug_mode", "index"), &RtsoMain::_on_render_debug_mode);
 	ClassDB::bind_method(D_METHOD("time_warp_rewind"), &RtsoMain::time_warp_rewind);
 	ClassDB::bind_method(D_METHOD("time_warp_snapshot_count"), &RtsoMain::time_warp_snapshot_count);
+	ClassDB::bind_method(D_METHOD("activate_rejoin_test"), &RtsoMain::activate_rejoin_test);
+	ClassDB::bind_method(D_METHOD("get_rejoin_test"), &RtsoMain::get_rejoin_test);
 	ClassDB::bind_method(D_METHOD("debug_dev_overlay"), &RtsoMain::debug_dev_overlay);
 	ClassDB::bind_method(D_METHOD("debug_set_net_delay", "turns"), &RtsoMain::debug_set_net_delay);
 	ClassDB::bind_method(D_METHOD("debug_net_delay_text"), &RtsoMain::debug_net_delay_text);
@@ -158,6 +160,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
+	ClassDB::bind_method(D_METHOD("debug_trade_tip", "market"), &RtsoMain::debug_trade_tip);
+	ClassDB::bind_method(D_METHOD("debug_tutorial_panel"), &RtsoMain::debug_tutorial_panel);
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
 	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
@@ -195,6 +199,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_add_xp", "ids", "xp"), &RtsoMain::debug_add_xp);
 	ClassDB::bind_method(D_METHOD("debug_diplomacy"), &RtsoMain::debug_diplomacy);
+	ClassDB::bind_method(D_METHOD("chat_open_page"), &RtsoMain::chat_open_page);
 	ClassDB::bind_method(D_METHOD("debug_set_observer_view", "player"), &RtsoMain::debug_set_observer_view);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
