@@ -104,7 +104,7 @@ void RtsoMain::_on_remove_guard_pressed() {
 		sim->order_remove_guard(ids.data(), ids.size());
 }
 
-// g_EntityCommands "call-to-arms": arms ACTION_CALLTOARMS, so the next right-click
+// g_EntityCommands "call-to-arms": arms ACTION_CALLTOARMS, so the next left click
 // sends the selection there (drop loads, then attack-move; lockstep command 38).
 void RtsoMain::_on_call_to_arms_pressed() {
 	if (selected_ids.is_empty()) return;

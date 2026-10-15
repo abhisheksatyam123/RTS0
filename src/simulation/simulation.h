@@ -963,6 +963,9 @@ public:
 	// circle): the parabolic reach of `range` fired from y_origin above the ground at (x, z),
 	// averaged over 16 directions of the terrain around it.
 	float average_elevation_range(float x, float z, float range, float y_origin) const;
+	// The same reach along one direction (ux, uz), as a unit's GetElevationAdaptedRange at
+	// angle 0 takes the range in front of it.
+	float elevation_range_toward(float x, float z, float ux, float uz, float range, float y_origin) const;
 	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
 	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
 	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).

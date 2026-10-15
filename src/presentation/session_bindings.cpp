@@ -170,6 +170,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_building_queue", "id"), &RtsoMain::debug_building_queue);
 	ClassDB::bind_method(D_METHOD("debug_structure_outlined", "id"), &RtsoMain::debug_structure_outlined);
 	ClassDB::bind_method(D_METHOD("debug_guard_target", "unit_id"), &RtsoMain::debug_guard_target);
+	ClassDB::bind_method(D_METHOD("debug_unit_screen", "unit_id"), &RtsoMain::debug_unit_screen);
 	ClassDB::bind_method(D_METHOD("debug_right_line"), &RtsoMain::debug_right_line);
 	ClassDB::bind_method(D_METHOD("debug_ground_at", "screen"), &RtsoMain::debug_ground_at);
 	ClassDB::bind_method(D_METHOD("debug_inspector", "what"), &RtsoMain::debug_inspector);
@@ -178,6 +179,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player"), &RtsoMain::debug_spawn_units, DEFVAL(-1));
+	ClassDB::bind_method(D_METHOD("debug_spawn_fauna", "fauna_type", "count", "owned"), &RtsoMain::debug_spawn_fauna);
 	ClassDB::bind_method(D_METHOD("debug_put_inside", "ids", "holder"), &RtsoMain::debug_put_inside);
 	ClassDB::bind_method(D_METHOD("debug_select_entity", "id"), &RtsoMain::debug_select_entity);
 	ClassDB::bind_method(D_METHOD("debug_select_units", "ids"), &RtsoMain::debug_select_units);
