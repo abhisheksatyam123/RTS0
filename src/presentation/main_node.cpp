@@ -3067,7 +3067,11 @@ void RtsoMain::_on_lobby_host_pressed() {
 	   << cfg.port << ",\"players\":1,\"max_players\":" << (int)cfg.maxPlayers
 	   << ",\"map_id\":\"default\"}";
 	std::string body;
-	rtso::lobby_http_post_json(lobby_http_host_, lobby_http_port_, "/rooms", js.str(), body);
+	// The menu's LobbySession lists a game it hosts itself, with its details;
+	// this post would overwrite them with placeholders.
+	Node *ls_node = get_node_or_null(NodePath("/root/LobbySession"));
+	const bool menu_listed = ls_node && !Dictionary(ls_node->get("room")).is_empty();
+	if (!menu_listed) rtso::lobby_http_post_json(lobby_http_host_, lobby_http_port_, "/rooms", js.str(), body);
 	if (lobby_status) lobby_status->set_text("Hosting on " + String::num_int64(cfg.port));
 	refresh_lobby_rooms();
 }

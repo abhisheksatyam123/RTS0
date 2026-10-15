@@ -47,6 +47,8 @@ var _status: Label
 var _timer: Timer
 var _chat_last := 0
 var _chat_backlog := true # the first fetch after signing in is the backlog (lobby.history)
+var _chat_replay := false # the first fetch of a page reopened in the session: its chat so far
+var _reconnect_dlg: ConfirmationDialog
 var _rooms: Array = []
 var _ratings := {} # player name -> rating, from the player list
 ## lobby.js with attribs.dialog: opened from the game setup's Lobby button
@@ -84,7 +86,15 @@ func _ready() -> void:
 	_server.text = LobbySession.address
 	_name.text = LobbySession.player_name if LobbySession.signed_in() else multiplayer_name()
 	LobbySession.kicked.connect(_on_kicked)
+	LobbySession.disconnected.connect(_on_disconnected)
+	if LobbySession.signed_in() and LobbySession.chat_from >= 0:
+		# LobbyHandler: a reopened lobby shows the session's chat so far.
+		_chat_last = LobbySession.chat_from
+		_chat_backlog = false
+		_chat_replay = true
 	_update_signed_in()
+	if LobbySession.lost:
+		_ask_reconnect.call_deferred()
 	_refresh()
 
 
@@ -426,7 +436,52 @@ func _on_back_pressed() -> void:
 		closed.emit()
 		queue_free()
 		return
+	# QuitButton.returnToMainMenu: StopXmppClient, so we leave the lobby.
+	if LobbySession.signed_in() and LobbySession.room.is_empty():
+		LobbySession.sign_out()
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
+
+
+## ConnectionHandler: the lobby lost our session.
+func _on_disconnected() -> void:
+	_system_line("Disconnected.")
+	_update_signed_in()
+	_ask_reconnect()
+
+
+func _ask_reconnect() -> void:
+	if _reconnect_dlg != null or LobbySession.signed_in():
+		return
+	_reconnect_dlg = ConfirmationDialog.new()
+	_reconnect_dlg.name = "ReconnectDialog"
+	_reconnect_dlg.title = "Connection Lost"
+	_reconnect_dlg.dialog_text = "You have been disconnected from the lobby. Do you want to reconnect?"
+	_reconnect_dlg.ok_button_text = "Yes"
+	_reconnect_dlg.cancel_button_text = "No"
+	add_child(_reconnect_dlg)
+	var done := func() -> void:
+		_reconnect_dlg.queue_free()
+		_reconnect_dlg = null
+	_reconnect_dlg.confirmed.connect(func() -> void:
+		done.call()
+		_say("Signing in...")
+		LobbySession.reconnect(func(code: int, _obj) -> void:
+			if not is_inside_tree():
+				return
+			if code == 200:
+				_chat_last = 0
+				_chat_backlog = true
+				_chat_replay = false
+				_system_line("Connected.")
+				_update_signed_in()
+				_refresh()
+			else:
+				_say("The lobby server at %s does not answer." % LobbySession.address if code == 0
+						else "Sign in refused.")))
+	_reconnect_dlg.canceled.connect(func() -> void:
+		LobbySession.lost = false
+		done.call())
+	_reconnect_dlg.popup_centered()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -708,13 +763,18 @@ func _on_chat(code: int, obj) -> void:
 		return
 	var messages: Array = obj.get("messages", [])
 	var backlog := _chat_backlog
+	var replay := _chat_replay
 	_chat_backlog = false
+	_chat_replay = false
 	if backlog:
 		# 0 A.D.'s lobby.history: how many past messages to load when joining.
 		var keep := maxi(0, int(RtsoUserConfig.new().get_number("lobby.history")))
 		messages = messages.slice(maxi(0, messages.size() - keep))
+		# Where this session's chat starts, for the lobby pages opened later.
+		LobbySession.chat_from = int(messages[0].get("id", 1)) - 1 if not messages.is_empty() \
+				else int(obj.get("last", _chat_last))
 	var me := LobbySession.player_name
-	var notify := not backlog and me != "" and RtsoUserConfig.new().get_bool("sound.notify.nick")
+	var notify := not backlog and not replay and me != "" and RtsoUserConfig.new().get_bool("sound.notify.nick")
 	for m in messages:
 		var who := str(m.get("from", ""))
 		if notify and who != "" and who != me and str(m.get("text", "")).findn(me) >= 0:
@@ -806,6 +866,7 @@ func _chat_command(text: String) -> bool:
 			return false
 		"clear":
 			_chat_log.clear()
+			LobbySession.chat_from = _chat_last # a page opened later starts from here too
 		"kick", "ban":
 			# Engine.LobbyKick / LobbyBan: the nick, then the reason.
 			var j := args.find(" ")
@@ -970,7 +1031,7 @@ func _on_host_pressed(saved := false) -> void:
 			"host_name": who,
 			"map_id": MatchSettings.map_id,
 			"map_name": MatchSettings.map_id.replace("_", " ").capitalize(),
-			"max_players": 8,
+			"max_players": MatchSettings.player_count,
 			"players": 1,
 			"password": _host_pwd.text != "",
 			"state": "init",
