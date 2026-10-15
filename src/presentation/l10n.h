@@ -65,6 +65,16 @@ inline godot::String label_details(const godot::String &label, const godot::Stri
 	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0(label)}, {"details", details}});
 }
 
+// g_TooltipTextFormats (tooltips.js) as the BBCode the tooltip layer draws
+// (scenes/common/tooltips.gd): objections bold red, headers bold, resource icons
+// inline, hotkeys in 255 251 131 (color.js g_HotkeyTags).
+inline godot::String objection_font(const godot::String &text) { return "[color=red][b]" + text + "[/b][/color]"; }
+inline godot::String header_font(const godot::String &text) { return "[b]" + text + "[/b]"; }
+inline godot::String resource_icon(const char *code) {
+	return godot::String("[img=16x16]res://assets/textures/ui/archive/icons/resources/") + code + "_small.png[/img]";
+}
+inline godot::String hotkey_tag(const godot::String &key) { return "[color=#fffb83][lb]" + key + "[rb][/color]"; }
+
 // A cost in getCostTypes() order: food, wood, stone, metal, population, time.
 struct CostTip {
 	int64_t food = 0, wood = 0, stone = 0, metal = 0, population = 0, time = 0;
@@ -72,39 +82,45 @@ struct CostTip {
 
 // getEntityCostComponentsTooltipString: one "%(component)s %(cost)s" per cost
 // type, the resource's name standing in for its icon; time reads as seconds.
-inline godot::String cost_components(const CostTip &c, const char *sep = "  ") {
+// rich: each component is its resourceIcon, time included, as 0.28 draws it.
+inline godot::String cost_components(const CostTip &c, const char *sep = "  ", bool rich = false) {
 	godot::String out;
 	auto add = [&](const godot::String &entry) {
 		if (!out.is_empty()) out += sep;
 		out += entry;
 	};
-	const struct { int64_t v; const char *name; } parts[] = {
-		{c.food, "Food"}, {c.wood, "Wood"}, {c.stone, "Stone"}, {c.metal, "Metal"}, {c.population, "Population"}};
+	const struct { int64_t v; const char *name; const char *icon; } parts[] = {{c.food, "Food", "food"}, {c.wood, "Wood", "wood"},
+			{c.stone, "Stone", "stone"}, {c.metal, "Metal", "metal"}, {c.population, "Population", "population"}};
 	for (const auto &p : parts)
-		if (p.v > 0) add(sprintf0(tr0("%(component)s %(cost)s"), {{"component", tr0(p.name)}, {"cost", godot::String::num_int64(p.v)}}));
-	if (c.time > 0) add(seconds_string(c.time));
+		if (p.v > 0)
+			add(sprintf0(tr0("%(component)s %(cost)s"),
+					{{"component", rich ? resource_icon(p.icon) : tr0(p.name)}, {"cost", godot::String::num_int64(p.v)}}));
+	if (c.time > 0)
+		add(rich ? sprintf0(tr0("%(component)s %(cost)s"), {{"component", resource_icon("time")}, {"cost", godot::String::num_int64(c.time)}})
+				 : seconds_string(c.time));
 	return out;
 }
 
 // getEntityCostTooltip: "Cost: Food 50  Wood 50  10 seconds", or "".
-inline godot::String cost_tooltip(const CostTip &c) {
-	const godot::String costs = cost_components(c);
+inline godot::String cost_tooltip(const CostTip &c, bool rich = false) {
+	const godot::String costs = cost_components(c, "  ", rich);
 	if (costs.is_empty()) return costs;
-	return sprintf0(tr0("%(label)s %(costs)s"), {{"label", tr0("Cost:")}, {"costs", costs}});
+	return sprintf0(tr0("%(label)s %(costs)s"), {{"label", rich ? header_font(tr0("Cost:")) : tr0("Cost:")}, {"costs", costs}});
 }
 
 // getNeededResourcesTooltip: "Insufficient resources: Food 20  Wood 5", or ""
 // when the stock covers the cost.
 inline godot::String needed_resources_tooltip(const CostTip &cost, const float stock_food, const float stock_wood,
-		const float stock_stone, const float stock_metal) {
+		const float stock_stone, const float stock_metal, bool rich = false) {
 	CostTip need;
 	auto short_by = [](int64_t c, float s) { return c > s ? (int64_t)std::ceil((double)c - s) : (int64_t)0; };
 	need.food = short_by(cost.food, stock_food);
 	need.wood = short_by(cost.wood, stock_wood);
 	need.stone = short_by(cost.stone, stock_stone);
 	need.metal = short_by(cost.metal, stock_metal);
-	const godot::String parts = cost_components(need);
-	return parts.is_empty() ? parts : tr0("Insufficient resources:") + " " + parts;
+	const godot::String parts = cost_components(need, "  ", rich);
+	if (parts.is_empty()) return parts;
+	return (rich ? objection_font(tr0("Insufficient resources:")) : tr0("Insufficient resources:")) + " " + parts;
 }
 
 // selection_panels_helpers.js formatBatchTrainingString: "Shift-click to

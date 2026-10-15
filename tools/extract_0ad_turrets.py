@@ -76,7 +76,7 @@ def points(loader, civ, stem, scale=SCALE, fit=True, keep_order=False):
 
 def check_turretable(loader):
     with open(ROSTER, encoding="utf-8") as fh:
-        ids = re.findall(r'^\t\t\{"([a-z_]+/[a-z0-9_]+)"', fh.read(), re.M)
+        ids = re.findall(r'^\t\t\{"([a-z0-9_/]+)", "(?:[^"\\]|\\.)*", "(?:[^"\\]|\\.)*", CIV_[A-Z]+, UNIT_', fh.read(), re.M)
     for uid in ids:
         name = "units/" + uid
         if not loader.exists(name):

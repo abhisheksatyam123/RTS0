@@ -354,39 +354,24 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("timeelapsedcounter.toggle")) { toggle_overlay("gui.session.timeelapsedcounter"); return; }
 		if (fired("ceasefirecounter.toggle")) { toggle_overlay("gui.session.ceasefirecounter"); return; }
 
-		if (fired("fps.toggle")) {
-			if (debug_overlay) debug_overlay->set_visible(!debug_overlay->is_visible());
-			return;
-		}
-
-		if (fired("screenshot")) {
-			Viewport *vp = get_viewport();
-			if (vp) {
-				Ref<ViewportTexture> tex = vp->get_texture();
-				if (tex.is_valid()) {
-					Ref<Image> img = tex->get_image();
-					if (img.is_valid()) {
-						DirAccess::make_dir_recursive_absolute("user://screenshots");
-						const String path = "user://screenshots/screenshot" +
-								String::num_int64((int64_t)Time::get_singleton()->get_unix_time_from_system()) + ".png";
-						img->save_png(path);
-						print_line("[RTS0] Saved screenshot to " + path);
-					}
-				}
-			}
-			return;
-		}
+		// fps.toggle, realtime.toggle, screenshot and bigscreenshot are global
+		// (scenes/menu/user_settings.gd), as in 0.28.
 	}
 
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_valid()) {
 		Vector2 mouse_pos = mb->get_position();
+		// input.js: a left or right click in the game world closes the session menu (g_Menu.close),
+		// and still does what it does.
+		if (mb->get_button_index() == MOUSE_BUTTON_LEFT || mb->get_button_index() == MOUSE_BUTTON_RIGHT)
+			if (CanvasLayer *menu = Object::cast_to<CanvasLayer>(get_node_or_null(NodePath("PauseMenu"))); menu && menu->is_visible())
+				_on_menu_button_pressed();
 
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 			if (mb->is_pressed()) {
 				// Hold K and click to send a flare (0 A.D. session.flare), or click once
 				// the flare button armed it (INPUT_FLARE).
-				if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
+				if (flare_armed_ || flare_held()) {
 					flare_armed_ = false;
 					const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 					trigger_flare(click_pos.x, click_pos.z);

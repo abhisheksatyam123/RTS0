@@ -12,6 +12,12 @@ extends Control
 ## [category, [[type, key, label, tooltip, extra], ...]]; extra is
 ## [min, max] for slider and number, [[label, value], ...] for dropdowns.
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
+const TABS := preload("res://scenes/common/tab_buttons.gd")
+# options.json tooltip of each SCHEMA category, in order.
+const TAB_TIPS := ["Change general options.", "Set the balance between performance and visual appearance.",
+	"Adjust advanced graphic options.", "Make changes to the sound options.",
+	"Change options relevant on the game setup page.", "Change multiplayer options.",
+	"Configure the in-game chat.", "Customize the in-game display.", "Change options affecting the gameplay."]
 
 const SCHEMA := [
 	["General", [
@@ -226,6 +232,7 @@ var _controls := {} # key -> [type, control, extra]
 var _labels := {} # key -> its Label
 var _saved := {} # key -> value at the last save / load
 var _tabs: TabContainer
+var _hotkeys := RtsoHotkeyConfig.new()
 var _description: Label
 var _confirm: Control # the open message box, null when closed
 var _updating := false
@@ -287,6 +294,14 @@ func _build() -> void:
 		scroll.add_child(grid)
 		for opt in cat[1]:
 			_add_option(grid, opt)
+	var keys: Dictionary = RtsoHotkeyConfig.new().get_hotkey_map()
+	for i in SCHEMA.size():
+		_tabs.set_tab_tooltip(i, TABS.tooltip(tr(TAB_TIPS[i]) if i < TAB_TIPS.size() else "", true, keys))
+	_tabs.get_tab_bar().gui_input.connect(func(ev: InputEvent):
+		var d: int = TABS.wheel(ev)
+		if d != 0:
+			_tabs.current_tab = TABS.next_index(_tabs.current_tab, d, _tabs.get_tab_count())
+			_tabs.get_tab_bar().accept_event())
 	_description = Label.new()
 	_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_description.custom_minimum_size = Vector2(0, 40)
@@ -585,6 +600,12 @@ func _on_hotkeys_pressed() -> void:
 	MatchSettings.go("res://scenes/menu/hotkeys.tscn")
 
 func _unhandled_input(event: InputEvent) -> void:
-	if overlay and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+	var d: int = TABS.direction(event, _hotkeys)
+	if d != 0 and _confirm == null:
+		get_viewport().set_input_as_handled()
+		_tabs.current_tab = TABS.next_index(_tabs.current_tab, d, _tabs.get_tab_count())
+		return
+	# closeButton hotkey="cancel", over a match or opened from the main menu.
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE and _confirm == null:
 		_on_close()
 		get_viewport().set_input_as_handled()
