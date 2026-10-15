@@ -70,6 +70,11 @@ func run() -> void:
 	var b: Dictionary = main.debug_inspector("building")
 	print("building: ", b)
 	check(String(b["stats_tooltip"]).begins_with("Attack:\n  Bow: ") and " arrows / " in String(b["stats_tooltip"]), "a Civic Center's tooltip opens with its arrows, \"Rate: n arrows / 4 seconds\"")
+	# elevationAdaptedRange: the range its arrows' height and the ground round it give, when that
+	# differs ("Range: 67 (+3) meters"); the map is random, so the number varies.
+	var rng_m := RegEx.create_from_string("Bow: [^\\n]*Range: (\\d+)( \\(([+-]\\d+)\\))? meters").search(String(b["stats_tooltip"]))
+	print("    range ", rng_m.get_string(0) if rng_m else "none")
+	check(rng_m != null and (rng_m.get_string(3) == "" or int(rng_m.get_string(3)) != 0), "its range, with what the ground there adds")
 	check("\nResistance:\n" in String(b["stats_tooltip"]), "then its resistance")
 	check("Projectile Limit: " in String(b["stats_tooltip"]) and ", Per Unit: " in String(b["stats_tooltip"]), "its projectile limit, default and per unit")
 	check("Population Bonus: " in String(b["stats_tooltip"]) and "\nLoot: " in String(b["stats_tooltip"]), "its population bonus and loot")
