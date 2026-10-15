@@ -16,6 +16,8 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
+	# The batch Shift trains comes from user.cfg; pin 0 A.D.'s default (in memory only).
+	RtsoUserConfig.new().set_value("gui.session.batchtrainingsize", "5")
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	run.call_deferred()
