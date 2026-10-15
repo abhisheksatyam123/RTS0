@@ -1841,6 +1841,89 @@ void RtsoWorldView::update_production_fx(BuildingVis &v, const String &model_id,
 	}
 }
 
+// 0 A.D. Foundation.js sets the foundation actor's "numbuilders" and its
+// "scaffold" variant props art/particles/construction_dust.xml, which emits 2
+// puffs a second per builder (at most 16); the structures' "upgrading" variant
+// props destruction_dust_small.xml (50 a second). Rates, lifetimes, the emission
+// box, speeds, sizes and the downward force are the files' values in metres, from
+// the actor origin (data/foundations.json frames) at the model's scale.
+void RtsoWorldView::update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale) {
+	if (!v.root) return;
+	struct Def { float rate, life_min, life_max, box, y, side, up_min, up_max, size_min, size_max, force, spin_min, spin_max; Color color; };
+	static const Def kDefs[2] = {
+		{ 16.0f, 3.0f, 5.0f, 8.0f, 1.0f, 1.25f, 2.0f, 3.5f, 5.0f, 7.5f, -2.5f, -2.0f, 3.0f, Color(0.75f, 0.7f, 0.55f) }, // construction_dust
+		{ 50.0f, 3.0f, 8.0f, 7.0f, 4.0f, 1.0f, 1.5f, 2.0f, 5.0f, 10.0f, -0.15f, -1.5f, 1.5f, Color(1.0f, 1.0f, 1.0f) }, // destruction_dust_small
+	};
+	if (kind != v.site_dust_kind) {
+		if (v.site_dust) {
+			if (v.site_dust->get_parent()) v.site_dust->get_parent()->remove_child(v.site_dust);
+			v.site_dust->queue_free();
+			v.site_dust = nullptr;
+		}
+		v.site_dust_kind = kind;
+		if (kind == 0) return;
+		if (fx_dust_quad_.is_null()) {
+			Ref<StandardMaterial3D> mat;
+			mat.instantiate();
+			mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+			mat->set_billboard_mode(BaseMaterial3D::BILLBOARD_PARTICLES);
+			mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+			mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+			mat->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+			const char *tex_path = "res://assets/textures/particles/dust_256a.png";
+			if (rtso::Assets::res_exists(tex_path)) {
+				Ref<Texture2D> t = ResourceLoader::get_singleton()->load(tex_path);
+				if (t.is_valid()) mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, t);
+			}
+			fx_dust_quad_.instantiate();
+			fx_dust_quad_->set_size(Vector2(1.0f, 1.0f));
+			fx_dust_quad_->set_material(mat);
+		}
+		if (!foundations_loaded_) load_foundations();
+		Vector3 origin;
+		float m = 0.25f; // world units per metre (1 unit = 4 m) when the GLB has no actor frame
+		const auto fr = building_frames_.find(building_table_key(model_id));
+		if (fr != building_frames_.end() && fr->second.scale > 0.0f) {
+			origin = Vector3(fr->second.origin.x * b_scale, 0.0f, fr->second.origin.z * b_scale);
+			m = fr->second.scale * b_scale;
+		}
+		const Def &d = kDefs[kind - 1];
+		Ref<ParticleProcessMaterial> pm;
+		pm.instantiate();
+		pm->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
+		pm->set_emission_box_extents(Vector3(d.box * m, 0.0f, d.box * m));
+		pm->set_direction(Vector3(0, 1, 0));
+		pm->set_spread(Math::rad_to_deg(Math::atan2(d.side, d.up_min)));
+		pm->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, d.up_min * m);
+		pm->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, d.up_max * m);
+		pm->set_gravity(Vector3(0, d.force * m, 0));
+		pm->set_param_min(ParticleProcessMaterial::PARAM_SCALE, d.size_min * m);
+		pm->set_param_max(ParticleProcessMaterial::PARAM_SCALE, d.size_max * m);
+		pm->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, -180.0f);
+		pm->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, 180.0f);
+		pm->set_param_min(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin_min));
+		pm->set_param_max(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin_max));
+		if (fx_smoke_ppm_.is_valid()) pm->set_color_ramp(fx_smoke_ppm_->get_color_ramp());
+		pm->set_color(d.color);
+		GPUParticles3D *p = memnew(GPUParticles3D);
+		p->set_process_material(pm);
+		p->set_draw_pass_mesh(0, fx_dust_quad_);
+		p->set_amount(std::max(1, (int)std::ceil(d.rate * d.life_max)));
+		p->set_lifetime(d.life_max);
+		p->set_randomness_ratio(1.0f - d.life_min / d.life_max);
+		p->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		p->set_visibility_aabb(AABB(Vector3(-12, -1, -12), Vector3(24, 30, 24)));
+		p->set_position(origin + Vector3(0, d.y * m, 0));
+		v.root->add_child(p);
+		v.site_dust = p;
+	}
+	if (kind == 1 && v.site_dust && builders >= 0) {
+		const float ratio = std::min(16, 2 * builders) / 16.0f; // emissionrate numbuilders x 2, max 16
+		v.site_dust->set_amount_ratio(ratio);
+		v.site_dust->set_emitting(ratio > 0.0f);
+	}
+}
+
 void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.root) v.root->set_visible(false);
 	if (v.ring) v.ring->set_visible(false);
@@ -3372,6 +3455,25 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		update_upgrade_scaffold(v, visual_id, v.phase == 0 && b.upgrading);
 		update_production_fx(v, visual_id, v.phase == 0 && !b.miraged ? b.production : 0, b_scale, entry.y_offset);
+		{
+			// Dust while builders work on the foundation, or while the upgrade's scaffold stands.
+			const uint8_t dust = b.miraged ? 0 : v.phase == 2 ? 1 : (v.upgrade_scaffold && v.upgrade_scaffold->is_visible()) ? 2 : 0;
+			int builders = -1;
+			if (dust == 1) {
+				v.site_dust_poll -= delta;
+				if (v.site_dust_poll <= 0.0f || v.site_dust_kind != 1) {
+					v.site_dust_poll = 0.5f;
+					builders = 0;
+					for (const auto &rb : sim->buildings()) {
+						if (rb.id != b.id) continue;
+						rtso::Simulation::BuildWork work;
+						if (sim->structure_build_work(rb, work) && !work.repair) builders = work.builders;
+						break;
+					}
+				}
+			}
+			update_site_dust(v, dust, builders, visual_id, b_scale);
+		}
 		update_garrison_flag(v, visual_id, v.phase == 0 && !b.miraged && (sim->get_garrison_count(b.id) > 0 || (b.type == rtso::BLD_CORRAL && sim->corral_count(b.id) > 0)),
 				player_display_color(sim, b.team), b_scale, entry.y_offset);
 
@@ -3447,6 +3549,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].upgrade_scaffold = nullptr;
 			building_pool[s].production = 0;
 			building_pool[s].production_fx.clear();
+			building_pool[s].site_dust = nullptr;
+			building_pool[s].site_dust_kind = 0;
+			building_pool[s].site_dust_poll = 0.0f;
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}
