@@ -500,6 +500,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		rtso::CinemaPath path;
 		const CharString name = String(cp.get("name", "")).utf8();
 		std::strncpy(path.info.name, name.get_data(), sizeof(path.info.name) - 1);
+		// 0 A.D. takes names up to 128 characters; RTS0 saves 31 (CinemaPathInfo), so a
+		// longer one could not be queued by its full name.
+		if (name.length() >= (int)sizeof(path.info.name))
+			UtilityFunctions::push_warning(vformat("[Cinema] Path name '%s' is longer than %d bytes and is cut short.", String(cp.get("name", "")), (int)sizeof(path.info.name) - 1));
 		path.info.timescale = (float)(double)cp.get("timescale", 1.0);
 		path.info.mode = rtso::cinema_mode_from_name(String(cp.get("mode", "ease_inout")).utf8().get_data());
 		path.info.style = rtso::cinema_style_from_name(String(cp.get("style", "default")).utf8().get_data());
