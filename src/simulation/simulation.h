@@ -1494,7 +1494,9 @@ public:
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
+		PLACE_UNEXPLORED, // land the (human) player has never explored
 	};
+	bool placement_unexplored(uint8_t player, float x, float z) const;
 	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type,
 			float angle = DEFAULT_BUILDING_ROT) const;
 	// What BuildRestrictions.CheckPlacement's GUI message names for `player` placing `b_type`
@@ -2667,6 +2669,9 @@ private:
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
 	// tick, and the stance each had before it went up (UnitAI previousStance).
 	std::unordered_map<uint32_t, float> turret_height_;
+	// The turret_height_ units up on a Mauryan rampart tower: its TurretHolder has no
+	// wall_garrisoned aura. Rebuilt with turret_height_.
+	std::unordered_set<uint32_t> rampart_turrets_;
 	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
 	const TurretPointSet *turret_points_of(const Building &b) const;

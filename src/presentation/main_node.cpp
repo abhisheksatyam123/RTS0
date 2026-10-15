@@ -3315,6 +3315,7 @@ String RtsoMain::placement_failure_text(int result, uint8_t btype, float x, floa
 		case S::PLACE_OBSTRUCTED: return named("%(name)s cannot be built on another building or resource");
 		case S::PLACE_TERRAIN: return named("%(name)s cannot be built on invalid terrain");
 		case S::PLACE_SHORE: return named("%(name)s must be built on a valid shoreline");
+		case S::PLACE_UNEXPLORED: return named("%(name)s cannot be built in unexplored area");
 		case S::PLACE_TERRITORY: {
 			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
 			// markForTranslationWithContext("Territory type", ...) and the template's Territory list.

@@ -86,10 +86,11 @@ func _on_node_added(n: Node) -> void:
 	if n.has_meta("_menu_click"):
 		return
 	n.set_meta("_menu_click", true)
-	_hook.call_deferred(n)
+	_hook.call_deferred(n.get_instance_id()) # by id: the node may be freed before the call
 
-func _hook(n: Node) -> void:
-	if not is_instance_valid(n) or _in_session(n):
+func _hook(id: int) -> void:
+	var n := instance_from_id(id) as Node
+	if n == null or _in_session(n):
 		return
 	if n is BaseButton:
 		n.pressed.connect(_play_click)

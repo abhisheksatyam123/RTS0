@@ -543,10 +543,12 @@ int main() {
 		fresh(s);
 		s.set_player_civ(CIV_CARTHAGINIANS);
 		s.player(0).phase = 2;
-		float stone0 = (float)s.stone();
-		CHECK(s.cmd_build(0, -12, 0, BLD_WALL_TOWER) != 0); // in its Civic Centre's territory
-		float paid = stone0 - (float)s.stone();
-		CHECK(std::fabs(paid - 2.0f * building_type_info(BLD_WALL_TOWER).stone_cost) < 1.01f);
+		float cost[RES_COUNT];
+		s.structure_cost_for(0, BLD_WALL_TOWER, cost);
+		CHECK(std::fabs(cost[RES_STONE] - 2.0f * building_type_info(BLD_WALL_TOWER).stone_cost) < 1.01f);
+		// 0.28's Builder lists only the WallSets: no lone wall tower or gate foundations.
+		CHECK(s.cmd_build(0, -12, 0, BLD_WALL_TOWER) == 0);
+		CHECK(s.cmd_build(0, -12, 0, BLD_GATE) == 0);
 	}
 
 	// Auras.js: Viriato's Guerrilla Tactics (+20% soldier speed) multiplies walk
@@ -722,6 +724,20 @@ int main() {
 		CHECK(w.pop_limit(0) == (int)std::lround(base * 1.2f * 1.2f));
 		CHECK(w.pop_limit(1) == base);
 		std::printf("Glorious Expansion: population limit %d -> %d with two Wonders\n", base, w.pop_limit(0));
+	}
+
+	// han/maur/pers_population (autoResearch civ bonuses): Player/MaxPopulation x1.1.
+	{
+		static Simulation w;
+		fresh(w);
+		w.set_pop_cap(300);
+		int lim[4];
+		const uint8_t civs[4] = {CIV_HAN, CIV_MAURYANS, CIV_PERSIANS, CIV_ATHENIANS};
+		for (int k = 0; k < 4; ++k) { w.set_player_civ(civs[k]); lim[k] = w.pop_limit(0); }
+		w.set_player_civ(CIV_HAN);
+		w.set_pop_cap(200);
+		std::printf("civ max population: han %d maur %d pers %d athen %d; han on a 200 cap %d\n", lim[0], lim[1], lim[2], lim[3], w.pop_limit(0));
+		CHECK(lim[0] == 330 && lim[1] == 330 && lim[2] == 330 && lim[3] == 300 && w.pop_limit(0) == 220);
 	}
 
 	// Migratory Resettlement (resettlement.json): Germanic structures except walls keep their

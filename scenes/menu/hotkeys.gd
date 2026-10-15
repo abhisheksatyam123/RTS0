@@ -123,6 +123,7 @@ func _format(combos) -> String:
 	return ", ".join(parts)
 
 func _build_ui() -> void:
+	theme = preload("res://scenes/common/modern_theme.gd").theme()
 	var bg := ColorRect.new()
 	bg.color = Color(0.08, 0.07, 0.06)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
