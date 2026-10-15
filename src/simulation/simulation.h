@@ -515,7 +515,8 @@ public:
 			DEFEATED = 6,   // player is out; tech: the EndReason
 			WON = 7,        // other: the winners' mask; tech: the EndReason
 			LOST = 8,       // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
-			TEXT = 9 };     // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
+			TEXT = 9,       // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
+			CHEAT = 10 };   // Commands.js "aichat" from `player`: tech 0 "(Cheat - reveal map)", 1 "(Cheat - promoted units)"
 		// The "text" time notifications (10 s, centre top) the sim pushes for `player`.
 		enum TextMessage : uint8_t {
 			TEXT_QUEUE_FULL = 0,       // ProductionQueue.js AddItem: "The production queue is full."
@@ -680,6 +681,7 @@ public:
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
+		terrain_lowest_known_ = false;
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -3457,6 +3459,9 @@ private:
 	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
+	bool petra_wood_starved() const;
+	bool petra_wood_kept_for(int queue) const;
+	void petra_clear_blocked_spawns();
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl, uint8_t type, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
@@ -3771,6 +3776,9 @@ private:
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
 	std::vector<CaptureReach> capture_cell_buildings_;
+	// What capture_cell_* were built from (map half-size, then each building's x, z): the grid
+	// is rebuilt only when these change.
+	std::vector<float> capture_cell_key_;
 	// Capture points each player's capture attacks took from each building this tick
 	// (tick_combat fills it, tick_capture spends it). Indexed like buildings_.
 	std::vector<std::array<float, MAX_PLAYERS>> capture_attack_;
@@ -3853,6 +3861,10 @@ private:
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;
 	std::vector<float> terrain_heights_;
+	// The lowest terrain height (0 on a flat map), found once per heightmap (structure arrows' reach).
+	mutable float terrain_lowest_ = 0.0f;
+	mutable bool terrain_lowest_known_ = false;
+	float lowest_terrain_height() const;
 	TerrainTiles terrain_tiles_; // saved v49, after the heightmap
 	float terrain_water_height_ = -1.0f;
 	std::string current_map_id_ = "default";

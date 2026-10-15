@@ -1022,6 +1022,36 @@ int main() {
 		CHECK(s.units_.target_unit_id[ui] == 0 && s.units_.action_state[ui] == ACTION_IDLE);
 	}
 
+	{
+		// l. A hunter on a path stops for the animal, not within its slaughter range of a waypoint:
+		// a path whose first waypoint lay 1.9 away left a Petra cavalry hunter standing there for good.
+		fresh(s);
+		uint32_t cav = s.spawn_unit(0.0f, 0.0f, 0, UNIT_CAVALRY);
+		uint32_t deer = s.spawn_fauna(30.0f, 0.0f, FAUNA_DEER);
+		s.order_hunt(&cav, 1, deer);
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t c = uidx(s, cav);
+		WaypointPath &wp = s.unit_paths_[c];
+		const float x0 = s.units_.pos_x[c], z0 = s.units_.pos_z[c];
+		wp.clear();
+		wp.xs[0] = x0; wp.zs[0] = z0 + 1.9f;
+		wp.xs[1] = x0 + 10.0f; wp.zs[1] = z0 + 1.9f;
+		wp.xs[2] = s.units_.target_x[c]; wp.zs[2] = s.units_.target_z[c];
+		wp.count = 3;
+		wp.cur = 0;
+		wp.has_goal = true;
+		wp.goal_x = s.units_.target_x[c];
+		wp.goal_z = s.units_.target_z[c];
+		s.units_.waypoint_cur[c] = 0;
+		s.units_.waypoint_count[c] = 3;
+		run(s, 2.0f);
+		const float mx = s.units_.pos_x[c] - x0, mz = s.units_.pos_z[c] - z0;
+		std::printf("hunt path: hunter moved %.1f\n", std::sqrt(mx * mx + mz * mz));
+		CHECK(mx * mx + mz * mz > 4.0f);
+		run(s, 30.0f);
+		CHECK(!f_alive(s, deer));
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;
