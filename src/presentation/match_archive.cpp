@@ -714,6 +714,13 @@ bool RtsoMain::write_save_metadata(const String &path, const String &description
 	meta["settings"] = match_settings_snapshot(match_seed_);
 	meta["players"] = player_list();
 	meta["local_player"] = (int)local_player();
+	// session.js getSavedGameData: the control groups, and the camera (CGameView's save data).
+	Dictionary gui;
+	Array groups;
+	for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
+	gui["groups"] = groups;
+	if (cam_rig) gui["camera"] = cam_rig->camera_data();
+	meta["gui"] = gui;
 	return write_text(path.get_basename() + ".json", JSON::stringify(meta, "\t"));
 }
 
@@ -826,4 +833,17 @@ void RtsoMain::host_start_saved_game() {
 			(int)seats[0] + 1, " with ", (int64_t)clients.size(), " client(s)");
 	if (lobby_status) lobby_status->set_text("Continuing the saved game; waiting for every player to load it");
 	net_saved_game_ = String();
+}
+
+// session.js restoreSavedGameData: the camera, an empty selection and the control groups.
+void RtsoMain::restore_saved_gui(const String &path) {
+	const Dictionary gui = read_json(path.get_basename() + ".json").get("gui", Dictionary());
+	if (cam_rig && gui.has("camera")) cam_rig->set_camera_data(gui["camera"]);
+	const Array groups = gui.get("groups", Array());
+	for (int g = 0; g < 10; ++g) {
+		selected_groups[g].clear();
+		if (g >= groups.size()) continue;
+		const Array ids = groups[g];
+		for (int i = 0; i < ids.size(); ++i) selected_groups[g].push_back((int32_t)(int64_t)ids[i]);
+	}
 }
