@@ -572,9 +572,8 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 	for t in setup.MAP_TYPES:
 		if t[0] == type_title:
 			type_title = t[1]
-	for r in setup.RMS_MAPS:
-		if r[0] == str(room.get("map_id", "")):
-			desc = r[6]
+	# Game.js: the description of any map this install knows, random or not.
+	desc = str(load("res://scenes/menu/replay_browser.gd").map_info(str(room.get("map_id", ""))).get("desc", ""))
 	var victory := str(room.get("victory", ""))
 	var lines := PackedStringArray(["[b]%s[/b]" % esc.call(map_title),
 		"[b]Victory Conditions:[/b] " + (esc.call(victory.replace(",", ", ")) if victory != "" else "Endless Game")])

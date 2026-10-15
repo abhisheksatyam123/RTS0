@@ -68,6 +68,7 @@ signal closed
 var _moderators := {} # names the lobby lists as moderators
 var _subject := "" # the lobby room subject (Subject.js)
 var _details: RichTextLabel
+var _details_preview: TextureRect
 var _rating_column := false # lobby.columns.gamerating
 var _rating_filter: OptionButton
 var _shown_rooms: Array = [] # _rooms past the filters
@@ -213,6 +214,13 @@ func _build() -> void:
 	if not dialog:
 		_games.item_activated.connect(_on_join_pressed.bind(false))
 	left.add_child(_games)
+	# GameDetails.js sgMapPreview: the selected game's map, over its details.
+	_details_preview = TextureRect.new()
+	_details_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_details_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_details_preview.custom_minimum_size = Vector2(0, 160)
+	_details_preview.visible = false
+	left.add_child(_details_preview)
 	_details = RichTextLabel.new()
 	_details.bbcode_enabled = true
 	_details.fit_content = true
@@ -816,6 +824,9 @@ func _on_buddy_pressed() -> void:
 func _show_details(r: Dictionary) -> void:
 	# Subject.js: the room subject shows while no game is selected.
 	_details.visible = not r.is_empty() or (_subject != "" and LobbySession.signed_in())
+	_details_preview.texture = null if r.is_empty() else \
+			load("res://scenes/menu/gamesetup.gd").map_preview(str(r.get("map_id", "")))
+	_details_preview.visible = _details_preview.texture != null
 	if not r.is_empty():
 		_details.text = LobbySession.game_details(r, _ratings)
 	elif _details.visible:
