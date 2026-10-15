@@ -329,6 +329,18 @@ void RtsoMain::update_highlight() {
 					best = dx * dx + dz * dz;
 					pick = (int32_t)fv.id[f];
 				}
+				// A tree, mine, bush or shoal as the player last saw it (Fogging.js mirages
+				// are hoverable): the one a right click would gather from.
+				if (!pick) {
+					float best_r = 2.2f * 2.2f;
+					for (const auto &r : view->resource_mirages()) {
+						if (r.amount <= 0 || r.subtype == rtso::RES_SUB_GRAIN) continue;
+						const float dx = r.x - at.x, dz = r.z - at.z;
+						if (dx * dx + dz * dz >= best_r) continue;
+						best_r = dx * dx + dz * dz;
+						pick = (int32_t)r.id;
+					}
+				}
 				if (pick) ids.push_back(pick);
 			}
 		}

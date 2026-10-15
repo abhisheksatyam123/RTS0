@@ -224,6 +224,9 @@ class RtsoWorldView : public Node3D {
 	// A mine is large (template_gaia_*_large, 5000) or small (1000, a cut quarry 2000) by its
 	// supply when first drawn, so a worked large mine keeps its model. Cleared on a new match.
 	std::unordered_map<uint32_t, bool> mine_large_;
+	// Each supply's ResourceSupply/Max for its status bar: its amount when the match
+	// (or this view) began, or when it first appeared. Cleared with mine_large_.
+	std::unordered_map<uint32_t, int32_t> supply_max_;
 	float mine_large_time_ = -1.0f;
 	std::string mine_large_map_;
 	MultiMeshInstance3D *food_mmi = nullptr;   // fruit_bush.glb
@@ -404,6 +407,9 @@ public:
 	bool structure_outlined(uint32_t id) const { return sel_buildings_.count((int32_t)id) > 0; }
 	// The structures the viewer sees, live or as mirages (what the world draws).
 	const std::vector<rtso::FoggedBuilding> &seen_buildings() const { return mirages_.buildings(); }
+	// The supplies as the local player last saw them (hover picks these, so a felled
+	// tree in the fog stays hoverable as its mirage).
+	const std::vector<rtso::FoggedResource> &resource_mirages() const { return mirages_.resources(); }
 	void set_highlight_ids(const PackedInt32Array &ids) {
 		highlight_set_.clear();
 		for (int i = 0; i < ids.size(); ++i) highlight_set_.insert(ids[i]);
