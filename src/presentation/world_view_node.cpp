@@ -1666,6 +1666,31 @@ void RtsoWorldView::load_foundations() {
 		building_frames_[String(glbs[i]).utf8().get_data()] = actor_frame_of(frames[glbs[i]], "metre");
 }
 
+void RtsoWorldView::load_rubble() {
+	rubble_loaded_ = true;
+	Ref<FileAccess> f = FileAccess::open("res://data/rubble.json", FileAccess::READ);
+	if (!f.is_valid()) return;
+	Dictionary root = JSON::parse_string(f->get_as_text());
+	Dictionary structures = root.get("structures", Dictionary());
+	Array civs = structures.keys();
+	for (int i = 0; i < civs.size(); ++i) {
+		Dictionary rows = structures[civs[i]];
+		Array types = rows.keys();
+		for (int j = 0; j < types.size(); ++j)
+			rubble_of_[String(String(civs[i]) + "/" + String(types[j])).utf8().get_data()] = String(rows[types[j]]).utf8().get_data();
+	}
+	Dictionary rubble = root.get("rubble", Dictionary());
+	Array ids = rubble.keys();
+	for (int i = 0; i < ids.size(); ++i) {
+		Dictionary e = rubble[ids[i]];
+		ActorFrame fr;
+		fr.scale = (float)e.get("scale", 0.0);
+		Array o = e.get("origin", Array());
+		if (o.size() == 3) fr.origin = Vector3((float)o[0], (float)o[1], (float)o[2]);
+		rubble_frames_[String(ids[i]).utf8().get_data()] = fr;
+	}
+}
+
 // 0 A.D. Foundation.js: a structure being built draws its template's
 // FoundationActor, switched to the "scaffold" variant once building starts. Both
 // sit on the entity's position: under the building model as drawn, the actor
@@ -3625,6 +3650,27 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		String cat_b = "buildings";
 		// Collapse = house sinks (no skeletal death clip). Then SpawnEntityOnDeath rubble.
 		String visual_id = (v.phase == 4) ? String(rubble_id) : String(mid);
+		// 0 A.D. Health/SpawnEntityOnDeath: the structure's own rubble actor (data/rubble.json),
+		// laid on the entity's position through the building GLB's actor frame.
+		bool own_rubble = false;
+		float rubble_k = 1.0f, rubble_metre = 0.25f;
+		Vector3 rubble_pos;
+		if (v.phase == 4) {
+			if (!rubble_loaded_) load_rubble();
+			if (!foundations_loaded_) load_foundations();
+			const auto ro = rubble_of_.find(std::string(rtso::civ_info(bciv < rtso::CIV_COUNT ? bciv : rtso::CIV_ATHENIANS).code) + "/" + std::to_string(b.type));
+			const auto fr = building_frames_.find(building_table_key(mid));
+			const auto rf = ro == rubble_of_.end() ? rubble_frames_.end() : rubble_frames_.find(ro->second);
+			if (rf != rubble_frames_.end() && rf->second.scale > 0.0f && fr != building_frames_.end() && fr->second.scale > 0.0f) {
+				const auto &me = rtso::ModelLibrary::get(cat_b, mid);
+				const float ms = me.scale > 0.05f ? me.scale : 1.0f;
+				rubble_metre = fr->second.scale * ms;
+				rubble_k = rubble_metre / rf->second.scale;
+				rubble_pos = Vector3(fr->second.origin.x * ms, 0.0f, fr->second.origin.z * ms) - rf->second.origin * rubble_k;
+				visual_id = String(ro->second.c_str());
+				own_rubble = true;
+			}
+		}
 		attach_building_model(v, visual_id);
 		auto entry = rtso::ModelLibrary::get(cat_b, visual_id);
 		float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
@@ -3657,6 +3703,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					dy = 4.0f;
 				n3->set_rotation(Vector3(t * 0.22f, t * 0.40f, t * -0.14f));
 				n3->set_position(Vector3((t - 0.5f) * 0.45f, entry.y_offset - t * dy * 0.90f, (0.5f - t) * 0.35f));
+			} else if (v.phase == 4 && own_rubble) {
+				// template_rubble.xml Decay: it stands DelayTime 15 s, then sinks at SinkRate 0.2 m/s.
+				n3->set_visible(true);
+				n3->set_scale(Vector3(rubble_k, rubble_k, rubble_k));
+				const float sink = std::max(0.0f, v.phase_t - 0.70f - 15.0f) * 0.2f * rubble_metre;
+				n3->set_position(rubble_pos - Vector3(0, sink, 0));
 			} else if (v.phase == 4) {
 				n3->set_visible(true);
 				float sink = Math::clamp((v.phase_t - 0.70f) / 2.40f, 0.0f, 1.0f);
@@ -3685,6 +3737,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Vector3 dbase;
 			if (v.phase == 0) {
 				decal_glb = visual_id;
+			} else if (v.phase == 4 && own_rubble) {
+				decal_glb = visual_id;
+				dk = rubble_k;
+				dbase = rubble_pos;
 			} else if (v.phase == 1 || v.phase == 2) {
 				if (Node3D *fn = Object::cast_to<Node3D>(v.foundation); fn && fn->is_visible()) {
 					decal_glb = v.foundation_glb;

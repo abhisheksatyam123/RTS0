@@ -3817,6 +3817,86 @@
     -0.0
    ]
   },
+  "rubble_3x3": {
+   "metre": 0.21002,
+   "origin": [
+    0.0538,
+    0.6002,
+    -0.121
+   ]
+  },
+  "rubble_brit_cc": {
+   "metre": 0.21,
+   "origin": [
+    -0.0973,
+    1.4277,
+    -0.0124
+   ]
+  },
+  "rubble_celt_dock": {
+   "metre": 0.20997,
+   "origin": [
+    0.0351,
+    1.6212,
+    0.0546
+   ]
+  },
+  "rubble_gaul_civic_center": {
+   "metre": 0.21001,
+   "origin": [
+    -0.0983,
+    1.1674,
+    0.2042
+   ]
+  },
+  "rubble_hele_cc": {
+   "metre": 0.21,
+   "origin": [
+    -0.0373,
+    1.4277,
+    0.1147
+   ]
+  },
+  "rubble_hele_dock": {
+   "metre": 0.31589,
+   "origin": [
+    -0.29,
+    0.1012,
+    0.0328
+   ]
+  },
+  "rubble_iber_cc": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0428,
+    1.726,
+    0.1317
+   ]
+  },
+  "rubble_iber_dock": {
+   "metre": 0.61981,
+   "origin": [
+    4.7397,
+    0.4334,
+    -0.8122
+   ]
+  },
+  "rubble_kart_cc": {
+   "metre": 0.21,
+   "origin": [
+    -0.0373,
+    1.4277,
+    0.1147
+   ]
+  },
+  "rubble_kart_dock": {
+   "metre": 0.23228,
+   "origin": [
+    -0.076,
+    1.5849,
+    0.0288
+   ]
+  },
   "rubble_large": {
    "metre": 0.1969,
    "origin": [
@@ -3825,12 +3905,140 @@
     0.1076
    ]
   },
+  "rubble_maur_cc": {
+   "metre": 0.21,
+   "origin": [
+    -0.0373,
+    1.4277,
+    0.1147
+   ]
+  },
+  "rubble_pers_cc": {
+   "metre": 0.21001,
+   "origin": [
+    -0.0373,
+    1.4278,
+    0.1148
+   ]
+  },
+  "rubble_pers_dock": {
+   "metre": 0.21001,
+   "origin": [
+    -0.1373,
+    2.1923,
+    0.3913
+   ]
+  },
+  "rubble_rome_camp_palisade": {
+   "metre": 0.21001,
+   "origin": [
+    0.1151,
+    1.8161,
+    -0.1277
+   ]
+  },
+  "rubble_rome_cc": {
+   "metre": 0.20999,
+   "origin": [
+    0.0341,
+    1.4277,
+    0.0564
+   ]
+  },
+  "rubble_rome_dock": {
+   "metre": 0.21001,
+   "origin": [
+    -0.1659,
+    2.1319,
+    -0.5366
+   ]
+  },
   "rubble_small": {
    "metre": 0.12193,
    "origin": [
     0.0416,
     0.6778,
     -0.0166
+   ]
+  },
+  "rubble_stone_2x2": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0266,
+    0.4672,
+    0.0055
+   ]
+  },
+  "rubble_stone_3x3": {
+   "metre": 0.21,
+   "origin": [
+    0.0717,
+    1.1674,
+    -0.0286
+   ]
+  },
+  "rubble_stone_4x2": {
+   "metre": 0.21001,
+   "origin": [
+    -0.0,
+    1.1756,
+    -0.0213
+   ]
+  },
+  "rubble_stone_4x4": {
+   "metre": 0.21,
+   "origin": [
+    -0.0303,
+    1.726,
+    0.0934
+   ]
+  },
+  "rubble_stone_4x6": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0352,
+    1.7575,
+    -0.0
+   ]
+  },
+  "rubble_stone_5x5": {
+   "metre": 0.21,
+   "origin": [
+    -0.0376,
+    1.7111,
+    0.1157
+   ]
+  },
+  "rubble_stone_6x4": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0054,
+    1.7575,
+    0.1662
+   ]
+  },
+  "rubble_stone_6x6": {
+   "metre": 0.21,
+   "origin": [
+    -0.0373,
+    1.4277,
+    0.1147
+   ]
+  },
+  "rubble_stone_wall_long": {
+   "metre": 0.21001,
+   "origin": [
+    -0.0022,
+    0.6113,
+    0.0476
+   ]
+  },
+  "rubble_stone_wall_tower": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0266,
+    0.4672,
+    0.0055
    ]
   },
   "ruins": {
