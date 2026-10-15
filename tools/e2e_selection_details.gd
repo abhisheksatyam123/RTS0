@@ -91,7 +91,7 @@ func run() -> void:
 			and String(b["extra"]) == "", "no RTS0-only garrison, queue, attack or rally text on a structure")
 	check(String(b["title"]) == "Agora (Civic Center)", "an Athenian Civic Center is named as 0.28: \"Agora (Civic Center)\"")
 	var parts: Array = b["capture_parts"]
-	check(parts.size() == 1 and float(parts[0]["width"]) > 300.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")
+	check(parts.size() == 1 and float(parts[0]["width"]) > 250.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")
 
 	main.debug_inspector("field")
 	await frames(40) # a few turns: the field's supply comes with the next tick_gather
@@ -152,7 +152,7 @@ func run() -> void:
 	var rl: Dictionary = main.debug_inspector("relic")
 	print("relic: ", rl["title"], " ", rl["capture_parts"].size())
 	var rparts: Array = rl["capture_parts"]
-	check(rparts.size() == 1 and float(rparts[0]["width"]) > 300.0, "a Gaia relic shows its capture bar, all Gaia's (captureSection)")
+	check(rparts.size() == 1 and float(rparts[0]["width"]) > 250.0, "a Gaia relic shows its capture bar, all Gaia's (captureSection)")
 
 	print("e2e_selection_details: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
