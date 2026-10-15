@@ -3326,6 +3326,10 @@ private:
 	bool petra_is_critical_relic(size_t unit_idx) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
 	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
+	// A defense army's foe that is still about: a living unit, or an animal neither dead nor
+	// penned (defenseManager.js checkEnemyUnits keeps animals attacking us or our allies).
+	bool petra_army_foe_pos(uint32_t fid, float &x, float &z) const;
+	float petra_fauna_strength(size_t f) const; // getMaxStrength, x3 for an elephant (evaluateStrength)
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
 	float petra_enemy_capture_points(const Building &b) const;
 	bool petra_near_invading_army(float x, float z, float dist2) const;

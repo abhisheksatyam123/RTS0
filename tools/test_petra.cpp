@@ -3385,6 +3385,75 @@ static void test_defense_ignores_ships() {
 	CHECK(s->petra_defense_armies().size() == 1, "a swordsman by the civic centre still does");
 }
 
+// defenseManager.js checkEnemyUnits "Keep animals attacking us or our allies": a wolf biting
+// one of Petra's women makes a defense army whose defenders kill it; a wolf merely roaming by
+// the civic centre, or biting an enemy's unit, raises none.
+static void test_defense_animals() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 10; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	const uint32_t idle_wolf = s->spawn_fauna(cx + 9.0f, cz + 8.0f, FAUNA_WOLF);
+	const uint32_t enemy = s->spawn_unit(cx + 9.0f, cz - 9.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t enemy_wolf = s->spawn_fauna(cx + 10.0f, cz - 9.0f, FAUNA_WOLF);
+	auto wolf_idx = [&](uint32_t id) {
+		auto it = s->fauna_id_to_idx_.find(id);
+		return it == s->fauna_id_to_idx_.end() ? SIZE_MAX : it->second;
+	};
+	auto keep_biting = [&](uint32_t wolf, uint32_t target) {
+		const size_t f = wolf_idx(wolf);
+		if (f != SIZE_MAX && s->fauna_.alive[f] && s->fauna_.behavior[f] != FAUNA_ATTACK) s->fauna_start_attack(f, target);
+	};
+	// Each tick, as the wolves would pick Petra's workers by the civic centre on their own.
+	for (int t = 0; t < 3; ++t) {
+		do {
+			const size_t e = wolf_idx(enemy_wolf);
+			if (e != SIZE_MAX) s->fauna_start_attack(e, enemy);
+			const size_t f = wolf_idx(idle_wolf);
+			if (f != SIZE_MAX) { s->fauna_.behavior[f] = FAUNA_IDLE_GRAZE; s->fauna_.target_unit_id[f] = 0; }
+			s->tick(Simulation::FIXED_STEP);
+		} while (!s->petra_turn_due(1));
+		s->tick(Simulation::FIXED_STEP);
+	}
+	std::printf("  animals: a roaming wolf and one biting an enemy make %zu armies\n", s->petra_defense_armies().size());
+	CHECK(s->petra_defense_armies().empty(), "an animal not attacking us or our allies raises no army");
+	const uint32_t woman = s->spawn_unit(cx - 9.0f, cz - 9.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t wolf = s->spawn_fauna(cx - 10.0f, cz - 9.0f, FAUNA_WOLF);
+	bool army = false, hunted = false;
+	for (int t = 0; t < 4 && !(army && hunted); ++t) {
+		keep_biting(wolf, woman);
+		run_ai_turns(*s, 1);
+		for (const auto &a : s->petra_defense_armies()) {
+			if (std::find(a.foe_ids.begin(), a.foe_ids.end(), wolf) == a.foe_ids.end()) continue;
+			army = true;
+			for (uint32_t d : a.defender_ids) {
+				const int32_t i = s->lookup_unit(d);
+				hunted |= i >= 0 && s->units_.action_state[i] == ACTION_ATTACK && s->units_.target_unit_id[i] == wolf;
+			}
+		}
+	}
+	run_for(*s, 20.0f);
+	const size_t f = wolf_idx(wolf);
+	const bool dead = f == SIZE_MAX || !s->fauna_.alive[f] || s->fauna_.behavior[f] == FAUNA_CARCASS;
+	bool still = false;
+	for (const auto &a : s->petra_defense_armies())
+		still |= std::find(a.foe_ids.begin(), a.foe_ids.end(), wolf) != a.foe_ids.end();
+	std::printf("  animals: a wolf biting Petra's woman: army %s, defenders on it %s, killed %s, army gone %s\n",
+	            army ? "yes" : "no", hunted ? "yes" : "no", dead ? "yes" : "no", still ? "no" : "yes");
+	CHECK(army, "a wolf biting one of ours joins a defense army (checkEnemyUnits, checkEvents)");
+	CHECK(hunted, "the army's defenders go for the wolf (assignUnit)");
+	CHECK(dead && !still, "the wolf is killed and leaves the army");
+}
+
 // defenseManager.js switchToAttack: an army whose foes are gone, with a defender within
 // 120 m of an enemy structure in our territory, attacks that structure alone and ends
 // once it falls (uniqueTargetId).
@@ -4928,6 +4997,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_by_strength);
 	RUN(test_defense_armies);
 	RUN(test_defense_ignores_ships);
+	RUN(test_defense_animals);
 	RUN(test_defense_switch_to_attack);
 	RUN(test_capturing_armies);
 	RUN(test_defenders_stop_hopeless_capture);

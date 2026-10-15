@@ -23129,8 +23129,8 @@ void Simulation::petra_invading_army_centres(std::vector<std::array<float, 2>> &
 		float cx = 0.0f, cz = 0.0f;
 		int n = 0;
 		for (uint32_t f : a.foe_ids) {
-			const int32_t k = lookup_unit(f);
-			if (k >= 0 && units_.alive[k]) { cx += units_.pos_x[k]; cz += units_.pos_z[k]; ++n; }
+			float fx, fz;
+			if (petra_army_foe_pos(f, fx, fz)) { cx += fx; cz += fz; ++n; }
 		}
 		if (n) out.push_back({cx / n, cz / n});
 	}
@@ -26498,6 +26498,38 @@ float Simulation::petra_unit_strength(size_t i) const {
 	return s * units_.max_hp[i] / 100.0f;
 }
 
+float Simulation::petra_fauna_strength(size_t f) const {
+	const FaunaTypeInfo &info = fauna_type_info(fauna_.fauna_type[f]);
+	float s = 0.0f;
+	if (info.attack_damage() > 0.0f) {
+		s += (0.075f * info.hack_damage + 0.085f * info.pierce_damage + 0.045f * info.crush_damage) / 4.0f;
+		s += info.attack_range / 0.6f * 0.0125f; // back to 0 A.D. metres, as for a unit's melee
+		s += info.attack_cooldown * 1000.0f / 100000.0f;
+	}
+	s += (0.075f * info.hack_armor + 0.085f * info.pierce_armor + 0.045f * info.crush_armor) / 4.0f;
+	s *= fauna_.max_hp[f] / 100.0f;
+	// "TODO adapt the getMaxStrength function for animals": elephants get three times theirs.
+	if (std::strstr(info.template_name, "elephant")) s *= 3.0f;
+	return s;
+}
+
+bool Simulation::petra_army_foe_pos(uint32_t fid, float &x, float &z) const {
+	const int32_t fi = lookup_unit(fid);
+	if (fi >= 0) {
+		if (!units_.alive[fi]) return false;
+		x = units_.pos_x[fi];
+		z = units_.pos_z[fi];
+		return true;
+	}
+	const auto it = fauna_id_to_idx_.find(fid);
+	if (it == fauna_id_to_idx_.end()) return false;
+	const size_t f = it->second;
+	if (!fauna_.alive[f] || fauna_.behavior[f] == FAUNA_CARCASS || fauna_.behavior[f] == FAUNA_CORRALLED) return false;
+	x = fauna_.pos_x[f];
+	z = fauna_.pos_z[f];
+	return true;
+}
+
 bool Simulation::petra_is_defender(uint32_t uid) const {
 	for (const PetraDefenseArmy &a : petra_defense_armies_)
 		if (std::find(a.defender_ids.begin(), a.defender_ids.end(), uid) != a.defender_ids.end()) return true;
@@ -26539,10 +26571,10 @@ bool Simulation::petra_army_position(const PetraDefenseArmy &army, float &x, flo
 		return true;
 	}
 	for (uint32_t fid : army.foe_ids) {
-		const int32_t fi = lookup_unit(fid);
-		if (fi < 0 || !units_.alive[fi]) continue;
-		x += units_.pos_x[fi];
-		z += units_.pos_z[fi];
+		float fx, fz;
+		if (!petra_army_foe_pos(fid, fx, fz)) continue;
+		x += fx;
+		z += fz;
 		++n;
 	}
 	if (n == 0) return false;
@@ -26595,14 +26627,14 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 		return reach;
 	};
-	auto near_own_structure = [&](size_t i) {
-		const float reach = danger_reach2(i);
+	auto near_own_structure_at = [&](float x, float z, float reach) {
 		for (const Building *b : own_structures) {
-			const float dx = units_.pos_x[i] - b->x, dz = units_.pos_z[i] - b->z;
+			const float dx = x - b->x, dz = z - b->z;
 			if (dx * dx + dz * dz <= reach) return true;
 		}
 		return false;
 	};
+	auto near_own_structure = [&](size_t i) { return near_own_structure_at(units_.pos_x[i], units_.pos_z[i], danger_reach2(i)); };
 	// defenseManager.js update: how many enemies attack each ally (attackedAllies), from
 	// enemy players with 8 or more units inside that ally's territory (attackingUnits).
 	int ally_units[MAX_PLAYERS][MAX_PLAYERS] = {};
@@ -26622,15 +26654,14 @@ void Simulation::petra_manage_defense(float dt) {
 	// isDangerous outside our own land: a fighter in neutral or allied land close to one
 	// of our structures, to a cooperative ally's civic centre, or (an ally attacked by
 	// several enemies) to that ally's structures. Enemy land is never ours to defend.
-	auto dangerous_outside = [&](size_t i, int owner) {
+	auto dangerous_outside_at = [&](float x, float z, float reach, int owner) {
 		if (owner == petra_pid_ || (owner >= 0 && !is_ally(petra_pid_, (uint8_t)owner))) return false;
-		if (near_own_structure(i)) return true;
-		const float reach = danger_reach2(i);
+		if (near_own_structure_at(x, z, reach)) return true;
 		const bool help_ally = owner >= 0 && attacked_allies[owner] > 1 && cooperation((uint8_t)owner) > 0.7f;
 		for (const auto &b : buildings_) {
 			if (b.hp <= 0.0f || b.wrecked || b.build_progress <= 0.0f || b.team >= MAX_PLAYERS) continue;
 			if (b.team == petra_pid_ || !is_ally(petra_pid_, b.team)) continue;
-			const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+			const float dx = x - b.x, dz = z - b.z;
 			if (dx * dx + dz * dz > reach) continue;
 			const float coop = cooperation(b.team);
 			if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && coop >= 0.3f &&
@@ -26639,6 +26670,9 @@ void Simulation::petra_manage_defense(float dt) {
 			if (help_ally && b.team == owner) return true;
 		}
 		return false;
+	};
+	auto dangerous_outside = [&](size_t i, int owner) {
+		return dangerous_outside_at(units_.pos_x[i], units_.pos_z[i], danger_reach2(i), owner);
 	};
 	auto army_of_foe = [&](uint32_t fid) {
 		for (size_t a = 0; a < armies.size(); ++a)
@@ -26649,12 +26683,12 @@ void Simulation::petra_manage_defense(float dt) {
 	// it starts an army of its own.
 	const float compact2 = petra_config_.army_compact_sq / 16.0f; // m² to RTS0 units² (4 m each)
 	auto make_into_army = [&](uint32_t fid) {
-		const int32_t fi = lookup_unit(fid);
-		if (fi < 0 || army_of_foe(fid) >= 0) return;
+		float fx, fz;
+		if (!petra_army_foe_pos(fid, fx, fz) || army_of_foe(fid) >= 0) return;
 		for (PetraDefenseArmy &a : armies) {
 			float ax, az;
 			if (petra_army_capturing(a) || !petra_army_position(a, ax, az)) continue;
-			const float dx = units_.pos_x[fi] - ax, dz = units_.pos_z[fi] - az;
+			const float dx = fx - ax, dz = fz - az;
 			if (dx * dx + dz * dz > compact2) continue;
 			a.foe_ids.push_back(fid);
 			return;
@@ -26739,7 +26773,12 @@ void Simulation::petra_manage_defense(float dt) {
 		if (!petra_army_capturing(a)) // a capturing army's structure is checked below
 			a.foe_ids.erase(std::remove_if(a.foe_ids.begin(), a.foe_ids.end(), [&](uint32_t fid) {
 				const int32_t fi = lookup_unit(fid);
-				return fi < 0 || !units_.alive[fi] || !petra_foe(units_.team[fi]) || units_.action_state[fi] == ACTION_GARRISONED;
+				if (fi < 0) {
+					float fx, fz;
+					const auto it = fauna_id_to_idx_.find(fid);
+					return !petra_army_foe_pos(fid, fx, fz) || !is_hostile(petra_pid_, fauna_owner_[it->second]);
+				}
+				return !units_.alive[fi] || !petra_foe(units_.team[fi]) || units_.action_state[fi] == ACTION_GARRISONED;
 			}), a.foe_ids.end());
 		a.defender_ids.erase(std::remove_if(a.defender_ids.begin(), a.defender_ids.end(), [&](uint32_t uid) {
 			const int32_t idx = lookup_unit(uid);
@@ -26786,6 +26825,30 @@ void Simulation::petra_manage_defense(float dt) {
 			if (t >= 0 && units_.team[t] == petra_pid_ && !in_attack_squad(units_.id[t])) add_attacker((int32_t)i);
 		}
 	}
+	// checkEnemyUnits "Keep animals attacking us or our allies": an enemy's or Gaia's animal in
+	// COMBAT whose target is ours or an ally's counts as a foe. One biting ours is answered
+	// from neutral or allied land as any attacker is (checkEvents); one biting an ally's only
+	// where isDangerous says so (close to our structures, a cooperative ally's civic centre).
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_ATTACK || !is_hostile(petra_pid_, fauna_owner_[f])) continue;
+		if (army_of_foe(fauna_.id[f]) >= 0) continue;
+		const uint32_t tid = fauna_.target_unit_id[f];
+		int target_owner = -1;
+		if (const int32_t t = lookup_unit(tid); t >= 0) {
+			if (units_.alive[t]) target_owner = units_.team[t];
+			if (target_owner == petra_pid_ && in_attack_squad(tid)) continue;
+		} else if (const auto it = fauna_id_to_idx_.find(tid); it != fauna_id_to_idx_.end()) {
+			target_owner = fauna_owner_[it->second];
+		}
+		if (target_owner < 0 || target_owner >= MAX_PLAYERS || (target_owner != petra_pid_ && !is_ally(petra_pid_, (uint8_t)target_owner))) continue;
+		const float x = fauna_.pos_x[f], z = fauna_.pos_z[f];
+		const int terr = territory_owner_at(x, z);
+		if (terr >= 0 && (terr >= MAX_PLAYERS || !is_ally(petra_pid_, (uint8_t)terr))) continue; // enemy land
+		const float reach = 6000.0f / 16.0f; // a melee attacker's dist2Min, m² to RTS0 units²
+		const bool dangerous = target_owner == petra_pid_ || (terr == petra_pid_ && near_own_structure_at(x, z, reach)) ||
+		                       dangerous_outside_at(x, z, reach, terr);
+		if (dangerous) make_into_army(fauna_.id[f]);
+	}
 
 	// defenseArmy.js update for a capturing army: it disbands once no enemy holds points on
 	// its structure (or the structure is gone), and defenseManager.js checkEvents aborts it
@@ -26815,8 +26878,9 @@ void Simulation::petra_manage_defense(float dt) {
 			float ax, az;
 			if (petra_army_capturing(a) || !petra_army_position(a, ax, az)) continue;
 			a.foe_ids.erase(std::remove_if(a.foe_ids.begin(), a.foe_ids.end(), [&](uint32_t fid) {
-				const int32_t fi = lookup_unit(fid);
-				const float dx = units_.pos_x[fi] - ax, dz = units_.pos_z[fi] - az;
+				float fx = ax, fz = az;
+				petra_army_foe_pos(fid, fx, fz);
+				const float dx = fx - ax, dz = fz - az;
 				if (dx * dx + dz * dz <= PETRA_ARMY_BREAKAWAY_SQ / 16.0f) return false;
 				breakaways.push_back(fid);
 				return true;
@@ -26977,9 +27041,11 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 		for (uint32_t fid : armies[a].foe_ids) {
 			const int32_t fi = lookup_unit(fid);
-			if (fi < 0) continue;
-			foe_strength += petra_unit_strength((size_t)fi);
-			if (!n.land) n.land = petra_land_at(units_.pos_x[fi], units_.pos_z[fi]);
+			float fx, fz;
+			if (fi >= 0) foe_strength += petra_unit_strength((size_t)fi);
+			else if (const auto it = fauna_id_to_idx_.find(fid); it != fauna_id_to_idx_.end()) foe_strength += petra_fauna_strength(it->second);
+			else continue;
+			if (!n.land && petra_army_foe_pos(fid, fx, fz)) n.land = petra_land_at(fx, fz);
 		}
 		for (uint32_t uid : armies[a].defender_ids)
 			if (const int32_t idx = lookup_unit(uid); idx >= 0) own_strength += petra_unit_strength((size_t)idx);
@@ -27105,14 +27171,17 @@ void Simulation::petra_manage_defense(float dt) {
 			uint32_t best_foe = 0, best_any = 0;
 			float best_d2 = 1e18f, best_any_d2 = 1e18f;
 			for (uint32_t fid : army.foe_ids) {
-				int32_t fi = lookup_unit(fid);
-				if (fi < 0 || !units_.alive[fi]) continue;
-				if (units_.target_unit_id[fi] == uid) { best_foe = fid; break; } // being attacked: fight back
+				float fx, fz;
+				if (!petra_army_foe_pos(fid, fx, fz)) continue;
+				const int32_t fi = lookup_unit(fid);
+				const auto fit = fi < 0 ? fauna_id_to_idx_.find(fid) : fauna_id_to_idx_.end();
+				const uint32_t foe_target = fi >= 0 ? units_.target_unit_id[fi] : fauna_.target_unit_id[fit->second];
+				if (foe_target == uid) { best_foe = fid; break; } // being attacked: fight back
 				const int n = against.count(fid) ? against[fid] : 0;
-				const bool big = units_.unit_type[fi] == UNIT_HERO || unit_is_siege_engine(units_.unit_type[fi]);
+				const bool big = fi >= 0 && (units_.unit_type[fi] == UNIT_HERO || unit_is_siege_engine(units_.unit_type[fi]));
 				if (n > 8 || (n > 5 && !big)) continue;
-				float dx = units_.pos_x[idx] - units_.pos_x[fi];
-				float dz = units_.pos_z[idx] - units_.pos_z[fi];
+				float dx = units_.pos_x[idx] - fx;
+				float dz = units_.pos_z[idx] - fz;
 				float d2 = dx * dx + dz * dz;
 				if (d2 < best_any_d2) { best_any_d2 = d2; best_any = fid; }
 				if (n <= 2 && d2 < best_d2) { best_d2 = d2; best_foe = fid; }
@@ -27120,7 +27189,8 @@ void Simulation::petra_manage_defense(float dt) {
 			if (!best_foe) best_foe = best_any;
 			if (best_foe != 0) {
 				++against[best_foe];
-				order_attack(&uid, 1, best_foe);
+				if (lookup_unit(best_foe) >= 0) order_attack(&uid, 1, best_foe);
+				else order_hunt(&uid, 1, best_foe);
 			} else if (home && units_.action_state[idx] == ACTION_ATTACK) {
 				order_walk(&uid, 1, home->x, home->z, false);
 			}
