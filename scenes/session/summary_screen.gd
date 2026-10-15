@@ -578,7 +578,7 @@ func summary_text() -> String:
 	return "You have abandoned the game."
 
 func map_caption() -> String:
-	var map_name := str(data.get("map_name", ""))
+	var map_name := str(data.get("map_name", "")).trim_suffix(" (RMS)") # summary.js: the plain map name
 	var map_id := str(data.get("map_id", ""))
 	var random := map_id.begins_with("random_") or map_id.begins_with("procedural_")
 	var size := int(data.get("map_size", 0))
