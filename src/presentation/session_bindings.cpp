@@ -158,6 +158,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
+	ClassDB::bind_method(D_METHOD("debug_trade_tip", "market"), &RtsoMain::debug_trade_tip);
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
 	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
@@ -170,6 +171,10 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_building_queue", "id"), &RtsoMain::debug_building_queue);
 	ClassDB::bind_method(D_METHOD("debug_structure_outlined", "id"), &RtsoMain::debug_structure_outlined);
 	ClassDB::bind_method(D_METHOD("debug_guard_target", "unit_id"), &RtsoMain::debug_guard_target);
+	ClassDB::bind_method(D_METHOD("_on_chat_line_input", "event", "action"), &RtsoMain::_on_chat_line_input);
+	ClassDB::bind_method(D_METHOD("debug_chat_overlay"), &RtsoMain::debug_chat_overlay);
+	ClassDB::bind_method(D_METHOD("debug_camera"), &RtsoMain::debug_camera);
+	ClassDB::bind_method(D_METHOD("notify_attack", "pos", "attacker", "structure", "target"), &RtsoMain::notify_attack, DEFVAL(0));
 	ClassDB::bind_method(D_METHOD("debug_unit_screen", "unit_id"), &RtsoMain::debug_unit_screen);
 	ClassDB::bind_method(D_METHOD("debug_right_line"), &RtsoMain::debug_right_line);
 	ClassDB::bind_method(D_METHOD("debug_ground_at", "screen"), &RtsoMain::debug_ground_at);
@@ -191,6 +196,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_add_xp", "ids", "xp"), &RtsoMain::debug_add_xp);
 	ClassDB::bind_method(D_METHOD("debug_diplomacy"), &RtsoMain::debug_diplomacy);
+	ClassDB::bind_method(D_METHOD("chat_open_page"), &RtsoMain::chat_open_page);
 	ClassDB::bind_method(D_METHOD("debug_set_observer_view", "player"), &RtsoMain::debug_set_observer_view);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);

@@ -168,7 +168,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 86; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 87; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_RALLY = 87; // each Petra plan's completing step, march waypoints and last position
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
 	static constexpr uint32_t SAVE_VERSION_ATTACK_DETECTION = 86; // each player's suppressed attacks (OnAttackDetected)
@@ -1028,6 +1029,12 @@ public:
 	};
 	UnitDetails unit_details(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
+	// GarrisonHolder.OccupiedSlots of a ship or siege engine, and IsAllowedToGarrison for one unit.
+	int get_transport_occupied(uint32_t transport_id) const {
+		auto it = transport_passengers_.find(transport_id);
+		return it == transport_passengers_.end() ? 0 : occupied_slots(it->second);
+	}
+	bool can_board_unit(uint32_t transport_id, uint32_t unit_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
@@ -1334,6 +1341,11 @@ public:
 		UPGRADE_ERR_LIMIT // the target's EntityLimits category is full
 	};
 	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
+	// The civ whose Upgrade choices a structure offers: its own template's (Upgrade.js reads
+	// the entity's template, so a captured Tachara keeps its four forms), else its owner's.
+	uint8_t structure_upgrade_civ(const Building &b) const {
+		return b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ : (uint8_t)civ_of(b.team);
+	}
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
@@ -1430,6 +1442,16 @@ public:
 		market_b = it->second.second;
 		auto lit = trader_leg_.find(unit_id);
 		leg = lit == trader_leg_.end() ? 0 : lit->second;
+		return true;
+	}
+	// Trader.js goods.amount: the gains of the goods a trader carries, worked out when they were
+	// loaded. False while it carries none.
+	bool trader_goods(uint32_t unit_id, TradeGain &out) const {
+		auto it = trader_goods_.find(unit_id);
+		if (it == trader_goods_.end()) return false;
+		const int32_t u = lookup_unit(unit_id);
+		if (u < 0 || units_.carry[u] <= 0) return false;
+		out = it->second;
 		return true;
 	}
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
@@ -1860,6 +1882,14 @@ public:
 		uint8_t target_player = 0xFF; // attackPlan.js targetPlayer (0xFF until a target is chosen)
 		bool forced = false;    // forceStart: march with what it has, take any target
 		bool requested = false; // started at an ally's request: asks no one to join
+		// attackPlan.js "completing": the army walks to its rally point (staging_x/z, at our
+		// border) and sets off once none of it has a forced order left, or after
+		// completing_time seconds (maxCompletingTime).
+		bool completing = false;
+		float completing_time = 0.0f;
+		// attackPlan.js path: the march's waypoints still ahead, the next one first.
+		std::vector<float> path_x, path_z;
+		float last_x = 0.0f, last_z = 0.0f; // lastPosition: the army's centre on the last turn
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
@@ -2288,7 +2318,6 @@ private:
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
 	}
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
-	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
 	void tick_pack(float dt);
 	// Formation.js port (formation.h): controllers walk, members follow their slots.
@@ -2660,7 +2689,7 @@ private:
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
 	std::vector<Scenery> scenery_; // saved
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
-	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0, uint8_t team = 0xFF) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	// Every standing building's footprint cells (can_place): FULL where a footprint covers the cell,
@@ -2980,6 +3009,16 @@ private:
 	float petra_diplo_timer_ = 0.0f;
 	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
+	// headquarters.js isDangerousLocation: near an army invading us or within `radius` of an
+	// enemy shooting structure's range.
+	bool petra_dangerous_location(float x, float z, float radius) const;
+	// attackPlan.js getPathToTarget and setRallyPoint: the plan's march path from (rx, rz) to
+	// its target, and its rally point where that path leaves our territory.
+	void petra_plan_path(AttackPlan &plan, float rx, float rz);
+	// attackPlan.js StartAttack: the army sets off along its path.
+	void petra_start_march(AttackPlan &plan);
+	// Whether some unit of the army still walks under a forced order (hasForceOrder).
+	bool petra_plan_has_force_order(const AttackPlan &plan) const;
 	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr) const;
 	uint8_t petra_enemy_player(uint8_t kind) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
@@ -3553,6 +3592,7 @@ private:
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
 	float unit_height(size_t i) const; // terrain, or the water surface under a ship
+	float unit_attack_origin_y(size_t i) const;
 	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);

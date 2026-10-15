@@ -57,7 +57,7 @@ static void fresh(Simulation &s) {
 }
 
 // Damage a siege tower with `archers` archers inside deals in `secs` to a sturdy enemy.
-static float tower_damage(int archers, float secs) {
+static float tower_damage(int archers, float secs, float dist = 10.0f) {
 	static Simulation s;
 	fresh(s);
 	const uint16_t st_t = template_id("mace/siege_tower");
@@ -65,7 +65,8 @@ static float tower_damage(int archers, float secs) {
 	std::vector<uint32_t> ids;
 	for (int a = 0; a < archers; ++a) ids.push_back(s.spawn_unit(1.0f, 1.0f, 0, UNIT_ARCHER));
 	if (!ids.empty()) s.order_board_transport(ids.data(), ids.size(), tower);
-	uint32_t target = s.spawn_unit(10.0f, 0.0f, 1, UNIT_SPEARMAN, 20000.0f);
+	s.order_set_stance(&tower, 1, STANCE_STAND_GROUND);
+	uint32_t target = s.spawn_unit(dist, 0.0f, 1, UNIT_SPEARMAN, 20000.0f);
 	s.order_set_stance(&target, 1, STANCE_PASSIVE);
 	// Count the arrows the tower looses: whether each one hits depends on 0 A.D.'s
 	// projectile spread (DelayedDamage.js), so damage is too noisy a measure.
@@ -161,6 +162,14 @@ int main() {
 		CHECK(d0 == 0.0f);
 		CHECK(d1 > 0.0f);
 		CHECK(d5 > d1 * 4.0f && d5 < d1 * 6.0f);
+		// Attack/Ranged/Origin/Y 10 m: the parabolic range is measured from the top, so on flat
+		// ground it reaches sqrt(55^2 + 2*55*10) = 63.8 m, not 55.
+		fresh(s);
+		const uint32_t probe = s.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, st_t);
+		const float range = s.unit_attack_range_at((size_t)idx_of(s, probe));
+		const float d_top = tower_damage(5, 12.0f, range * 1.1f), d_past = tower_damage(5, 12.0f, range * 1.2f);
+		std::printf("siege tower arrows in 12 s at 1.1x range %.0f, at 1.2x %.0f\n", d_top, d_past);
+		CHECK(d_top > 0.0f && d_past == 0.0f);
 	}
 
 	// 4. Unload below 10% health, unharmed and next to the tower.

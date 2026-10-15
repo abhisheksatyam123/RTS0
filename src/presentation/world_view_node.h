@@ -92,6 +92,9 @@ class RtsoWorldView : public Node3D {
 		GPUParticles3D *fx_flame = nullptr;
 		uint8_t fx_level = 0;
 		MeshInstance3D *flag = nullptr; // 0 A.D. garrison flag, shown while garrisoned
+		Node3D *upgrade_scaffold = nullptr; // child of `model`: 0 A.D.'s "upgrading" variant scaffold
+		uint8_t production = 0; // FoggedBuilding::production the effects below were made for
+		std::vector<GPUParticles3D *> production_fx; // the "researching"/"training" variant's particles
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -143,6 +146,20 @@ class RtsoWorldView : public Node3D {
 	Ref<Mesh> flag_mesh_;
 	bool flags_loaded_ = false;
 	void load_garrison_flags();
+	// data/upgrade_scaffolds.json (tools/extract_upgrade_scaffolds.py): the scaffold
+	// 0 A.D.'s "upgrading" actor variant props on a building GLB, in the GLB's units.
+	struct UpgradeScaffold { String id; float scale = 1.0f; Vector3 offset; };
+	std::unordered_map<std::string, UpgradeScaffold> upgrade_scaffolds_;
+	bool upgrade_scaffolds_loaded_ = false;
+	void update_upgrade_scaffold(BuildingVis &v, const String &model_id, bool show);
+	// data/production_fx.json (tools/extract_production_fx.py): the particles 0 A.D.'s
+	// "researching" and "training" actor variants prop on a building GLB.
+	struct ProductionFx { uint8_t kind = 0; Vector3 pos; }; // kind: 0 sparks, 1 smoke, 2 flame
+	struct ProductionFxSet { float metre = 0.25f; std::vector<ProductionFx> fx[2]; };
+	std::unordered_map<std::string, ProductionFxSet> production_fx_;
+	bool production_fx_loaded_ = false;
+	Ref<QuadMesh> fx_sparks_quad_, fx_forge_smoke_quad_;
+	void update_production_fx(BuildingVis &v, const String &model_id, uint8_t state, float b_scale, float y_offset);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
 	// World height of a unit standing on a turret point `offset` above the terrain

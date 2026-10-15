@@ -298,12 +298,15 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 		bool set = false;
 		Vector3 pos;
 	};
-	CameraBookmark camera_bookmarks_[4];
+	CameraBookmark camera_bookmarks_[10]; // camera.jump.1-10
+	// g_JumpCameraLast: where the camera was before the last jump, for the jump back.
+	CameraBookmark camera_jump_last_;
 	// Single-player pause from the pause hotkey (Pause, Shift+Space).
 	bool hotkey_paused_ = false;
 	// Where the local player was last attacked (camera.lastattackfocus = Space).
 	bool has_last_attack_ = false;
 	Vector3 last_attack_pos_;
+	uint32_t last_attack_unit_ = 0; // the attacked unit, which camera.lastattackfocus follows
 	// Under-attack alerts (0 A.D. AttackDetection.js + messages.js "attack"):
 	// last seen health of each local entity, to spot damage between frames.
 	rtso::AttackDetection attack_detection_;
@@ -490,6 +493,10 @@ public:
 		return pid < rtso::MAX_PLAYERS && !turn_mgr_.is_replaying() && !spectating() && pid == seat_player();
 	}
 	String ai_settings_text(uint8_t pid) const override;
+	// soundNotification("nick"): the chime, at most once per 3 s of mentions.
+	void sound_notification_nick();
+	void chat_open_page(); // Chat.openPage(""): the chat hotkey
+	uint64_t nick_notify_ms_ = 0;
 	bool mass_tribute_held() const override { return rtso::hotkeys::held("session.masstribute"); }
 	String player_names_[rtso::MAX_PLAYERS];
 	void apply_player_names(const Array &names);
@@ -521,6 +528,10 @@ public:
 	// gui.session.selectformationasone: the unit and the rest of its formation.
 	std::vector<int32_t> formation_mates(int32_t uid) const;
 	rtso::Simulation *ui_sim() override { return sim; }
+	void follow_unit(uint32_t id) override {
+		if (cam_rig) cam_rig->set_follow_id(0);
+		follow_focus(id, false);
+	}
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
@@ -576,8 +587,9 @@ public:
 	// 0 A.D. unit_actions "setup-trade-route": traders take a route in two right-clicks,
 	// the origin market, then the destination (lockstep command 35 sends both).
 	// Returns false when no selected trader trades at b; *tooltip gets the cursor text.
-	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
+	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip, const char **cursor = nullptr);
 	Dictionary debug_trade_route_clicks();
+	Dictionary debug_trade_tip(int64_t market);
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
@@ -655,6 +667,7 @@ public:
 	}
 	bool armed_target_ok(const Vector3 &at) const;
 	bool run_armed_click(const Ref<InputEventMouseButton> &press);
+	bool minimap_unit_order(Vector2 world_pos);
 	Dictionary debug_right_line() const {
 		Dictionary d;
 		d["active"] = right_line_.active;
@@ -733,6 +746,11 @@ private:
 	void clear_selection();
 	bool selection_can_garrison(uint32_t building_id) const;
 	bool selection_can_occupy_turret(uint32_t building_id) const;
+	uint32_t transport_under(float x, float z) const;
+	// unit_actions.js "set-rallypoint" target under the cursor: a resource, else a structure
+	// (not one of the selected).
+	void rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) const;
+	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();
 	void prune_selection();
@@ -783,7 +801,17 @@ private:
 	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;
-	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);
+	void notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target = 0);
+	void _on_chat_line_input(const Ref<InputEvent> &event, const String &action);
+	Array debug_chat_overlay() const { return chat_window_.overlay_state(); }
+	// Tests: the camera's target on the ground and the unit it follows.
+	Dictionary debug_camera() const {
+		Dictionary d;
+		if (!cam_rig) return d;
+		d["target"] = Vector2(cam_rig->get_target_pos().x, cam_rig->get_target_pos().z);
+		d["follow"] = (int64_t)cam_rig->follow_id();
+		return d;
+	}
 	void play_voice(const char *path);
 	// Tells the loading page how far setup got (signal load_progress).
 	void load_progress(int percent, const char *description) { emit_signal("load_progress", percent, String(description)); }

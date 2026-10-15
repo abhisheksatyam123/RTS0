@@ -98,12 +98,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 		}
 
+		// Chat.openPage: each chat hotkey opens the window afresh on its addressee.
 		if (fired("chat")) {
-			toggle_chat();
+			chat_open_page();
 			return;
 		}
 		if (fired("teamchat") || fired("privatechat")) {
-			if (!chat_window_.is_open()) toggle_chat();
+			chat_open_page();
 			if (fired("teamchat")) chat_window_.select_team();
 			else chat_window_.select_last_private();
 			return;
@@ -209,14 +210,26 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 
 		// Camera (0 A.D. [hotkey.camera], gui/session/hotkeys/camera.xml).
-		for (int j = 1; j <= 4; ++j) {
+		for (int j = 1; j <= 10; ++j) {
 			const std::string n = std::to_string(j);
 			if (fired(("camera.jump.set." + n).c_str())) {
 				if (cam_rig) camera_bookmarks_[j - 1] = {true, cam_rig->get_target_pos()};
 				return;
 			}
 			if (fired(("camera.jump." + n).c_str())) {
-				if (cam_rig && camera_bookmarks_[j - 1].set) cam_rig->set_target_pos(camera_bookmarks_[j - 1].pos);
+				// jumpCamera: already within gui.session.camerajump.threshold (metres) of the
+				// bookmark, jump back to where the camera was before the last jump.
+				if (cam_rig && camera_bookmarks_[j - 1].set) {
+					const Vector3 pos = camera_bookmarks_[j - 1].pos, pivot = cam_rig->get_target_pos();
+					const float threshold = (float)std::atof(rtso::user_config::get("gui.session.camerajump.threshold").c_str()) / 4.0f; // 1 unit = 4 m
+					cam_rig->set_follow_id(0);
+					if (camera_jump_last_.set && std::fabs(pivot.x - pos.x) < threshold && std::fabs(pivot.z - pos.z) < threshold) {
+						cam_rig->set_target_pos(camera_jump_last_.pos);
+					} else {
+						camera_jump_last_ = {true, pivot};
+						cam_rig->set_target_pos(pos);
+					}
+				}
 				return;
 			}
 		}
@@ -228,8 +241,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (cam_rig) cam_rig->toggle_birds_eye();
 			return;
 		}
-		if (fired("camera.follow")) {
-			if (cam_rig) cam_rig->set_follow_id(selected_ids.is_empty() ? 0 : (uint32_t)selected_ids[0]);
+		if (fired("camera.follow")) { // setCameraFollow: a unit is followed, a structure looked at
+			const uint32_t first = !selected_ids.is_empty() ? (uint32_t)selected_ids[0] : selected_building_id;
+			if (cam_rig) cam_rig->set_follow_id(0);
+			follow_focus(first, false);
 			return;
 		}
 		if (fired("camera.rallypointfocus")) { // unit_actions.js "focus-rally"
@@ -237,7 +252,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("camera.lastattackfocus")) {
-			if (cam_rig && has_last_attack_) cam_rig->set_target_pos(last_attack_pos_);
+			// focusAttack: follow the attacked unit while it lives, else look at the spot.
+			if (cam_rig && has_last_attack_) {
+				cam_rig->set_follow_id(0);
+				follow_focus(last_attack_unit_, false);
+				if (cam_rig->follow_id() == 0) cam_rig->set_target_pos(last_attack_pos_);
+			}
 			return;
 		}
 
@@ -250,8 +270,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			_on_entity_command("stop");
 			return;
 		}
-		if (fired("session.unload")) {
-			_on_ungarrison_pressed();
+		// misc.xml: U both unloads the selected holders and takes units off their turret points.
+		const bool unload = fired("session.unload"), leave_turret = fired("session.leaveturret");
+		if (unload || leave_turret) {
+			if (unload) _on_ungarrison_pressed();
+			if (leave_turret) _on_entity_command("leave-turret");
 			return;
 		}
 		if (fired("session.unloadturrets")) { // unit_actions "unload-all-turrets"
@@ -722,20 +745,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (selected_building_id != 0 && selected_ids.is_empty()) {
 				if (try_focus_fire(click_pos)) return;
 				uint32_t target_res = 0, target_bld = 0;
-				auto rview = sim->resources();
-				for (size_t r = 0; r < rview.count; ++r) {
-					if (!rview.alive[r]) continue;
-					float dx = rview.x[r] - click_pos.x;
-					float dz = rview.z[r] - click_pos.z;
-					if (dx * dx + dz * dz < 2.0f * 2.0f) { target_res = rview.id[r]; break; }
-				}
+				rally_target_at(click_pos, target_res, target_bld);
 				if (auto_rally) target_bld = selected_building_id;
-				for (const auto &b : sim->buildings()) {
-					if (target_bld || b.id == selected_building_id) continue;
-					float dx = b.x - click_pos.x;
-					float dz = b.z - click_pos.z;
-					if (dx * dx + dz * dz < 3.0f * 3.0f) { target_bld = b.id; break; }
-				}
 				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
 				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				// unit_actions.js "set-rallypoint": every selected structure with a RallyPoint.
@@ -955,43 +966,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			auto uview = sim->units();
 
-			// 0. Right click with Loaded Transport on Shore/Land (Disembark)
-			bool has_loaded_transport = false;
-			uint32_t transport_sel_id = 0;
-			for (int s = 0; s < selected_ids.size(); ++s) {
-				if (sim->is_transport((uint32_t)selected_ids[s]) && sim->get_transport_passenger_count((uint32_t)selected_ids[s]) > 0) {
-					has_loaded_transport = true;
-					transport_sel_id = (uint32_t)selected_ids[s];
-					break;
-				}
-			}
-			if (has_loaded_transport && sim->get_terrain_height(click_pos.x, click_pos.z) >= sim->water_height() + 0.1f) {
-				if (one_id != 0) one_id = transport_sel_id;
-				if (turn_cmds())
-					post_lockstep(19, &transport_sel_id, 1, click_pos.x, click_pos.z);
-				else
-					sim->order_disembark(transport_sel_id, click_pos.x, click_pos.z);
-				play_civ_voice("move");
-				return;
-			}
+			// A loaded ship right-clicked on land just moves (unit_actions.js has no unload-on-click
+			// action): passengers leave through Unload All, the garrison icons or session.unload.
 
-			// 1. Right click on Allied War Trireme / Transport (Board Naval Transport)
-			uint32_t clicked_transport_id = 0;
-			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || !sim->is_ally(local_player(), uview.team[i]) || uview.unit_type[i] != rtso::UNIT_TRIREME) continue; // own or a mutual ally's
-				float dx = uview.pos_x[i] - click_pos.x;
-				float dz = uview.pos_z[i] - click_pos.z;
-				if (dx * dx + dz * dz <= 3.2f * 3.2f) {
-					clicked_transport_id = uview.id[i];
-					break;
-				}
-			}
-			if (clicked_transport_id != 0) {
+			// 1. Right click on an own or allied ship, ram or siege tower (board it).
+			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.
+			// Its specificness 20 loses to "repair" (11) unless session.garrison forces it.
+			const uint32_t clicked_transport_id = transport_under(click_pos.x, click_pos.z);
+			auto board = [&]() {
 				if (turn_cmds())
 					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id);
 				else
 					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id);
 				play_civ_voice("move");
+			};
+			if (clicked_transport_id != 0 && force_garrison) {
+				board();
 				return;
 			}
 
@@ -1022,6 +1012,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					play_civ_voice("build");
 					return;
 				}
+			}
+			if (clicked_transport_id != 0) {
+				board();
+				return;
 			}
 
 			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
@@ -1340,11 +1334,12 @@ bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
 		const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
 		if (dx * dx + dz * dz > hit_r * hit_r) continue;
-		if (garrison_mode) return selection_can_garrison(b.id);
+		if (garrison_mode) return selection_can_garrison(b.id) || transport_under(at.x, at.z);
 		if (turret_mode) return selection_can_occupy_turret(b.id);
 		if (repair_mode) return b.build_progress < 1.0f || b.hp < b.max_hp;
 		return true; // Guard.js guards own and allied structures
 	}
+	if (garrison_mode) return transport_under(at.x, at.z) != 0;
 	if (guard_mode || repair_mode) {
 		auto uv = sim->units();
 		for (size_t i = 0; i < uv.count; ++i) {
