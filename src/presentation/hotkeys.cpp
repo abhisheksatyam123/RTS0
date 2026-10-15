@@ -142,6 +142,36 @@ std::string combo_to_string(const Combo &c) {
 	return out;
 }
 
+std::string combo_display(const Combo &c) {
+	static const std::unordered_map<std::string, std::string> names = {
+		{"uparrow", "\xe2\x86\x91"}, {"downarrow", "\xe2\x86\x93"}, {"leftarrow", "\xe2\x86\x90"},
+		{"rightarrow", "\xe2\x86\x92"}, {"backslash", "Backslash"}, {"plus", "Equals"}, {"quote", "SingleQuote"},
+		{"mousex1", "WheelLeft"}, {"mousex2", "WheelRight"},
+	};
+	static const char *const kMods[] = {"alt", "ctrl", "shift", "super"};
+	std::vector<std::string> parts;
+	for (const char *m : kMods)
+		if (std::find(c.keys.begin(), c.keys.end(), m) != c.keys.end()) parts.push_back(combo_to_string(Combo{{m}}));
+	for (const std::string &k : c.keys) {
+		if (is_modifier(k)) continue;
+		auto it = names.find(k);
+		parts.push_back(it != names.end() ? it->second : combo_to_string(Combo{{k}}));
+	}
+	std::string out;
+	for (size_t i = 0; i < parts.size(); ++i) out += (i ? "+" : "") + parts[i];
+	return out;
+}
+
+std::string combos_display(const std::vector<Combo> &combos) {
+	std::vector<std::string> v;
+	for (const Combo &c : combos)
+		if (!c.keys.empty()) v.push_back(combo_display(c));
+	std::stable_sort(v.begin(), v.end(), [](const std::string &a, const std::string &b) { return a.size() < b.size(); });
+	std::string out;
+	for (size_t i = 0; i < v.size(); ++i) out += (i ? ", " : "") + v[i];
+	return out;
+}
+
 int HotkeyTable::load_cfg(const std::string &text) {
 	int set_count = 0;
 	std::string section;
@@ -177,7 +207,7 @@ int HotkeyTable::load_cfg(const std::string &text) {
 }
 
 void HotkeyTable::set(const std::string &name, const std::vector<Combo> &combos) {
-	bindings_[name] = combos;
+	bindings_[lower(name)] = combos;
 	rebuild_index();
 }
 
@@ -189,7 +219,9 @@ void HotkeyTable::rebuild_index() {
 }
 
 const std::vector<Combo> *HotkeyTable::get(const std::string &name) const {
+	// Names load lower-cased; callers may spell them as default.cfg does (session.attackmoveUnit).
 	auto it = bindings_.find(name);
+	if (it == bindings_.end()) it = bindings_.find(lower(name));
 	return it == bindings_.end() ? nullptr : &it->second;
 }
 
@@ -299,7 +331,7 @@ std::vector<std::string> HotkeyTable::bound_to(const Combo &combo) const {
 
 std::string HotkeyTable::label(const std::string &name) const {
 	const auto *c = get(name);
-	return c && !c->empty() ? combo_to_string(c->front()) : std::string();
+	return c ? combos_display(*c) : std::string();
 }
 
 const char *default_cfg() { return detail::kDefaultCfg; }

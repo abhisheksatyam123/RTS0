@@ -52,19 +52,36 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	// hotkeys can share a key (B = build menu or fifth trainee), so the context
 	// below picks between them, like 0 A.D.'s gui/session/hotkeys/*.xml.
 	Ref<InputEventKey> key = event;
-	const std::vector<std::string> hk = rtso::hotkeys::fired(key);
+	std::vector<std::string> hk = rtso::hotkeys::fired(key, true);
+	if (key.is_valid() && key->is_echo()) {
+		// A held key repeats only the 0.28 actions bound on="KeyDown" (hotkeys/misc.xml,
+		// training.xml) and placement rotation (input.js "hotkeydown"); Delete is left out
+		// so a held key can't stack confirmations.
+		static const char *const kRepeats[] = {"selection.cancel", "selection.idlebuilder", "selection.idlewarrior",
+			"selection.idleunit", "session.backtowork", "session.leaveturret", "session.stop", "session.unload",
+			"session.unloadturrets", "session.queueunit.1", "session.queueunit.2", "session.queueunit.3",
+			"session.queueunit.4", "session.queueunit.5", "session.queueunit.6", "session.queueunit.7",
+			"session.queueunit.autoqueueon", "session.queueunit.autoqueueoff", "session.rotate.cw", "session.rotate.ccw"};
+		std::vector<std::string> kept;
+		for (const std::string &n : hk)
+			for (const char *r : kRepeats)
+				if (n == r) { kept.push_back(n); break; }
+		hk.swap(kept);
+	}
 	if (!hk.empty()) {
 		auto fired = [&](const char *name) { return rtso::hotkeys::has(hk, name); };
 		auto ids_ptr = [&]() { return (const uint32_t *)selected_ids.ptr(); };
 
 		if (fired("cancel") || fired("selection.cancel")) {
-			// 0 A.D. closeOpenDialogs() closes every dialog at once, then
-			// clearSelection() (input.js:1709).
-			if (close_open_dialogs()) return;
-			if (build_mode) enter_build_mode(false);
-			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode)
+			// misc.xml: Escape is both hotkeys and both act on one press: cancel runs
+			// closeOpenDialogs(), selection.cancel clearSelection() (input.js:1739), which
+			// ends placement or else empties the selection, and drops the armed action.
+			if (fired("cancel")) close_open_dialogs();
+			if (fired("selection.cancel")) {
+				if (build_mode) enter_build_mode(false);
+				else clear_selection();
 				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
-			else clear_selection();
+			}
 			return;
 		}
 
@@ -277,15 +294,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			_on_entity_command("stop");
 			return;
 		}
-		// misc.xml: U both unloads the selected holders and takes units off their turret points.
-		const bool unload = fired("session.unload"), leave_turret = fired("session.leaveturret");
-		if (unload || leave_turret) {
+		// misc.xml: U (unload, unloadturrets and leaveturret) unloads the selected holders,
+		// empties their turret points and takes selected units off theirs, all on one press.
+		const bool unload = fired("session.unload"), leave_turret = fired("session.leaveturret"),
+				unload_turrets = fired("session.unloadturrets");
+		if (unload || leave_turret || unload_turrets) {
 			if (unload) _on_ungarrison_pressed();
+			if (unload_turrets) _on_entity_command("unload-all-turrets"); // unit_actions "unload-all-turrets"
 			if (leave_turret) _on_entity_command("leave-turret");
-			return;
-		}
-		if (fired("session.unloadturrets")) { // unit_actions "unload-all-turrets"
-			_on_entity_command("unload-all-turrets");
 			return;
 		}
 		// Delete (0 A.D. session.kill, unit_actions "delete"): DeleteSelectionConfirmation
@@ -315,10 +331,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		// read where the order is given; a press arms nothing.
 		if (fired("session.attackmoveunit")) return;
 
-		// Training: Z X C V B N M , queue the selected building's 1st-8th
-		// trainee; Shift trains a batch of 5 (gui.session.batchtrainingsize).
+		// Training: Z X C V B N M queue the selected building's 1st-7th trainee;
+		// Shift trains a batch of 5 (gui.session.batchtrainingsize). training.xml
+		// wires only queueunit.1-7, so Comma (queueunit.8) does nothing, as in 0.28.
 		if (selected_building_id != 0 && command_panel_.roster_list()) {
-			for (int q = 1; q <= 8; ++q) {
+			for (int q = 1; q <= 7; ++q) {
 				if (!fired(("session.queueunit." + std::to_string(q)).c_str())) continue;
 				if (q - 1 < command_panel_.roster_list()->get_item_count() && !command_panel_.roster_list()->is_item_disabled(q - 1)) {
 					const uint16_t tmpl = (uint16_t)(int)command_panel_.roster_list()->get_item_metadata(q - 1);
@@ -352,9 +369,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.toggleattackrange")) { toggle_overlay("gui.session.attackrange"); return; }
 		if (fired("session.toggleaurasrange")) { toggle_overlay("gui.session.aurasrange"); return; }
 		if (fired("session.togglehealrange")) { toggle_overlay("gui.session.healrange"); return; }
-		// 0 A.D. hotkeys/misc.xml "silhouettes": Renderer_SetSilhouettesEnabled, for this run only.
-		if (fired("silhouettes")) {
-			rtso::user_config::set("silhouettes", rtso::user_config::get_bool("silhouettes") ? "false" : "true");
+		// 0 A.D. hotkeys/misc.xml "silhouettes": toggleConfigBool saves it to user.cfg (session.js:840).
+		if (fired("silhouettes")) { toggle_overlay("silhouettes"); return; }
+		// MenuButtons.js Lobby (hotkey "lobby"): the lobby over the game when a lobby client exists.
+		if (fired("lobby")) {
+			if (has_lobby_client()) {
+				close_open_dialogs();
+				_on_lobby_button_pressed();
+			}
 			return;
 		}
 		// OverlayCounterElapsedTime / RemainingCeasefire Hotkey: the top-right counters.

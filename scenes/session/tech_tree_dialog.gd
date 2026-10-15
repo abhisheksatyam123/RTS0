@@ -93,7 +93,7 @@ func _close_viewers() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if is_open and event.keycode == KEY_ESCAPE:
+		if is_open and "cancel" in RtsoHotkeyConfig.new().fired(event):
 			_toggle_tab(_tabs.current_tab)
 			get_viewport().set_input_as_handled()
 			return

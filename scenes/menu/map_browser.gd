@@ -287,8 +287,8 @@ func _row(caption: String, control: Control) -> HBoxContainer:
 	return row
 
 func _hotkey_text(name: String) -> String:
-	var keys: Array = _hotkeys.get_hotkey_map().get(name, [])
-	return ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")
+	var keys: String = _hotkeys.display(name)
+	return keys if keys != "" else L10n.t("Unassigned")
 
 # MapFiltering.select: the type and filter, then the list.
 func select(filter_name: String, map_type: String) -> void:

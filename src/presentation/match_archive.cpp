@@ -46,7 +46,7 @@ const char *const kSetupKeys[] = {
 	// a setting changed in the Game Setup since it was recorded.
 	"biome", "landscape", "team_placement", "water_level", "sea_level_rise_min", "trigger_difficulty", "map_daytime",
 	"nomad", "regicide_garrison", "cheats", "disable_spies", "disable_treasures",
-	"slot_diffs", "slot_behs", "slot_colors", "slot_names", "ai_seed",
+	"slot_diffs", "slot_behs", "slot_colors", "slot_names", "ai_seed", "local_slot",
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
@@ -429,7 +429,7 @@ void RtsoMain::begin_recording_from_save(const String &save_path) {
 	replay_meta_["start_time"] = (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP;
 }
 
-void RtsoMain::write_replay() {
+void RtsoMain::write_replay(bool ended) {
 	if (!replay_recording_ || replay_dir_.is_empty() || !sim) return;
 	const uint32_t turns = (uint32_t)turn_mgr_.turn_history().size();
 	if (turns < 25) return; // under five seconds: nothing worth keeping (0 A.D. drops empty replays too)
@@ -442,15 +442,17 @@ void RtsoMain::write_replay() {
 	meta["turns"] = (int64_t)turns;
 	meta["duration"] = (double)turns * rtso::TurnManager::TURN_DURATION;
 	meta["players"] = player_list();
-	meta["summary"] = statistics_summary();
+	// ReplayMetadata: 0.28 writes it only in endGame, so a replay whose match never closed
+	// (a crash) has no summary and the replay menu hides its Summary button.
+	if (ended) meta["summary"] = statistics_summary();
 	meta["finished"] = sim->is_game_over() || sim->is_victory();
 	write_text(replay_dir_ + "metadata.json", JSON::stringify(meta, "\t"));
 	replay_written_turn_ = turns;
 }
 
-void RtsoMain::stop_replay_recording() {
+void RtsoMain::stop_replay_recording(bool ended) {
 	// What was recorded still replays: it ends where the game left its commands.
-	write_replay();
+	write_replay(ended);
 	replay_recording_ = false;
 }
 

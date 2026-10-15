@@ -351,7 +351,7 @@ func _held(hotkey: String) -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or confirm != null or message != null:
 		return
-	if event.keycode == KEY_ESCAPE or _fired(event, "cancel"):
+	if _fired(event, "cancel"):
 		get_viewport().set_input_as_handled()
 		close()
 	elif (event.keycode == KEY_DELETE or _fired(event, "session.savedgames.delete")) and not description.has_focus():
