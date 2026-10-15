@@ -62788,6 +62788,24 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_persians_alt_building_01": {
+   "file": "models/buildings/s_persians_alt_building_01.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    5.193,
+    3.609,
+    5.737
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/persians/alt_building_01.xml",
+    "actor:art/actors/props/structures/persians/alt_building_01_prop.xml",
+    "mesh:props/pers_alt_build_01_big.dae",
+    "mesh:props/pers_alt_build_01_prop.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
   "s_persians_alt_building_04": {
    "file": "models/buildings/s_persians_alt_building_04.glb",
    "origin": "ground-center",
