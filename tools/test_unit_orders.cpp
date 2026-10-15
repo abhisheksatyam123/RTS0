@@ -2844,6 +2844,24 @@ static void test_healers_on_attack_move() {
 	}
 }
 
+static void test_alert_allied_shelter() {
+	std::printf("80. an alert shelters civilians in a mutual ally's structures too, and its end lets them out (AlertRaiser mutualAllies)\n");
+	Simulation s;
+	setup(s);
+	s.set_player_active(2, true, false);
+	s.cmd_set_diplomacy(0, 2, Simulation::DIPLO_ALLY);
+	s.cmd_set_diplomacy(2, 0, Simulation::DIPLO_ALLY);
+	const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t ally_house = s.spawn_building_world(14, 0, BLD_HOUSE, 2, 1.0f);
+	uint32_t w = s.spawn_unit(12, 4, 0, UNIT_FEMALE_CITIZEN);
+	run(s, 1.0f);
+	check(s.cmd_raise_alert(0, store), "the alert is raised");
+	check(s.unit_order(w).kind == ORDER_GARRISON && s.unit_order(w).target == ally_house, "the woman runs into the ally's house beside her");
+	check(run_until(s, 20.0f, [&] { const auto *g = s.get_garrisoned_units(ally_house); return g && !g->empty(); }), "she is inside");
+	check(s.cmd_end_alert(0, store), "end of alert");
+	check(alive(s, w), "she comes out of the ally's house");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2927,6 +2945,7 @@ int main(int argc, char **argv) {
 	test_idle_drift_walk_back();
 	test_queue_after_auto_fight();
 	test_healers_on_attack_move();
+	test_alert_allied_shelter();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
