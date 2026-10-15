@@ -210,6 +210,42 @@ static void test_petra_trader_transport() {
 	CHECK(routed);
 }
 
+// navalManager.js transportShips and getBestShip: a merchantman with no trade route is a
+// transport (Carthage's village-phase transport is its merchantman), so it carries a land
+// trader across, and isn't counted or routed as a trader while it does.
+static uint16_t tmpl_of(const char *id);
+static void test_petra_merchantman_transport() {
+	static Simulation s;
+	fresh(s);
+	s.players_[1].civ = CIV_CARTHAGINIANS;
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-50.0f, 52.0f, BLD_MARKET, 1);
+	s.spawn_building_world(30.0f, 52.0f, BLD_MARKET, 1);
+	const uint32_t trader = s.spawn_unit(-30.0f, -40.0f, 1, UNIT_TRADER);
+	const uint32_t ship = s.spawn_unit(-30.0f, -10.0f, 1, UNIT_MERCHANT_SHIP, 0.0f, tmpl_of("cart/ship_merchant"));
+	bool planned = false;
+	for (int t = 0; t < 40 && !planned; ++t) {
+		run(s, 1.0f);
+		for (const auto &tp : s.petra_transports_)
+			if (tp.owner == PETRA_TRANSPORT_TRADER && tp.ship_id == ship &&
+			    std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), trader) != tp.passenger_ids.end())
+				planned = true;
+	}
+	bool routed = false;
+	for (int t = 0; t < 120 && !routed; ++t) {
+		run(s, 1.0f);
+		routed = s.trader_routes_.count(trader) && s.units_.action_state[s.lookup_unit(trader)] == ACTION_TRADE;
+	}
+	std::printf("Petra merchantman as a transport: carries the trader %s, trader trading %s, ship routed %s\n", planned ? "yes" : "no",
+	            routed ? "yes" : "no", s.trader_routes_.count(ship) ? "yes" : "no");
+	CHECK(planned);
+	CHECK(routed);
+	CHECK(!s.trader_routes_.count(ship)); // no sea route here: it stays a transport
+}
+
 static const uint8_t *subtype_of(const Simulation &s, uint32_t rid, int32_t *amount = nullptr) {
 	const auto r = s.resources();
 	for (size_t i = 0; i < r.count; ++i)
@@ -1633,6 +1669,7 @@ int main() {
 	test_petra_overseas_base();
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();
+	test_petra_merchantman_transport();
 	test_petra_cothon();
 	test_ship_treasure();
 	test_petra_ship_treasure();

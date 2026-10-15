@@ -3032,6 +3032,15 @@ private:
 	struct PetraBaseDropsiteCheck { uint32_t anchor_id; PetraDropsiteCheck check; };
 	std::vector<PetraBaseDropsiteCheck> petra_base_dropsite_checks_;
 	float petra_econ_timer_ = 0.0f;
+	// GetCurrentGatherRates and queueManager wantedGatherRates as petra_manage_economy found them
+	// this AI turn, for the trade manager (setTradingGoods, performBarter) later in the same turn.
+	// Not saved: the economy recomputes them before every use (petra_rates_this_turn).
+	float petra_cur_rate_[RES_COUNT] = {}, petra_want_rate_[RES_COUNT] = {};
+	uint32_t petra_rates_stamp_ = 0;
+	uint32_t petra_rates_key() const { return (petra_played_turn() << 4) | (uint32_t)(petra_pid_ + 1); }
+	bool petra_rates_this_turn() const { return petra_rates_stamp_ == petra_rates_key(); }
+	// headquarters.js pickMostNeededResources over those rates.
+	static void petra_most_needed(const float want_rate[RES_COUNT], const float cur_rate[RES_COUNT], uint8_t out[RES_COUNT]);
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
 	float petra_scout_timer_ = 0.0f;
