@@ -106,6 +106,11 @@ class RtsoWorldView : public Node3D {
 		std::vector<Decal *> decals;
 		String decal_key; // the GLB id, scale and position the decals were laid for
 		String foundation_glb; // the foundation GLB set_building_site_visible drew
+		// The particles 0 A.D.'s structure or rubble actor always props (chimney smoke,
+		// temple fires, burning rubble), with their GLB positions for re-seating.
+		std::vector<GPUParticles3D *> ambient_fx;
+		std::vector<Vector3> ambient_pos;
+		String ambient_key; // the GLB id and scale they were made for
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -179,6 +184,23 @@ class RtsoWorldView : public Node3D {
 	bool building_decals_loaded_ = false;
 	static constexpr uint32_t DECAL_LAYER = 1u << 19; // the terrain's extra render layer: decals land only on it
 	void update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness);
+	// data/ambient_fx.json (tools/extract_ambient_fx.py): the particle props of each
+	// building GLB's actor, and the 0 A.D. particle files they name.
+	struct AmbientFx { std::string particle; Vector3 pos; };
+	struct AmbientFxSet { float metre = 0.25f; std::vector<AmbientFx> fx; };
+	struct AmbientParticle {
+		String tex;
+		bool add = false, start_full = false, relative = false;
+		float rate = 0.0f, growth = 0.0f;
+		Vector2 life, size, color, angle, spin;
+		Vector2 pos[3], vel[3];
+		Vector3 force;
+	};
+	std::unordered_map<std::string, AmbientFxSet> ambient_fx_;
+	std::unordered_map<std::string, AmbientParticle> ambient_particles_;
+	std::unordered_map<std::string, Ref<QuadMesh>> ambient_quads_;
+	bool ambient_fx_loaded_ = false;
+	void update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);

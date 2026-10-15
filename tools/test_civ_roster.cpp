@@ -407,8 +407,8 @@ int main()
 			"the Roman centurion carries Combat Leadership and Century Maneuvers");
 	}
 
-	// Templates only 0.28's maps place (extract_0ad_rosters.py MAP_ROWS) have rows of their own,
-	// appended after the 463 rows saves already store, which keep their ids.
+	// Templates only 0.28's maps and Survival's Gaia waves place (extract_0ad_rosters.py MAP_ROWS)
+	// have rows of their own, appended after the 463 rows saves already store, which keep their ids.
 	{
 		uint64_t h = 0xcbf29ce484222325ull; // FNV-1a over rows 0-462's ids, each with a newline
 		for (uint16_t i = 0; i < 463 && i < CIV_UNIT_TEMPLATE_COUNT; ++i)
@@ -439,7 +439,7 @@ int main()
 			}
 		}
 		std::snprintf(msg, sizeof msg, "map-only rows (%d) are trained nowhere and sit in their civ's slot", map_rows);
-		check(map_rows_ok && map_rows == 39, msg);
+		check(map_rows_ok && map_rows == 43, msg);
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
 			for (uint16_t i : civ_roster_ids(c))
 				if (civ_unit_template(i).flags & ROSTER_MAP_ONLY) check(false, "a map-only row is in a civ's trainable roster");
