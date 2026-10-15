@@ -11905,6 +11905,22 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			water_h = 1.0f;
 			hm.init(hm.res, hm.map_half, metres(water_h, 1.0f));
 			break;
+		case MAP_NEW_RMS_TEST: {
+			// new_rms_test.js: RandomMap(0, "grass1_spring") (flat, water kept a metre down as
+			// on Wall Demo) and playerPlacementCircle(fractionToTiles(0.39)): getPlayerIDs order,
+			// a random start angle, positions rounded to whole tiles.
+			water_h = 1.0f;
+			hm.init(hm.res, hm.map_half, metres(water_h, 1.0f));
+			spawns.clear();
+			const float half = hm.map_half, r = 0.78f * half, start = rng.range_float(0.0f, 6.2831853f);
+			for (int i = 0; i < config.num_players; ++i) {
+				const float a = start + 6.2831853f * (float)i / (float)config.num_players;
+				const float sx = std::round(half + r * std::cos(a)) - half, sz = std::round(half + r * std::sin(a)) - half;
+				const float d = std::max(1e-3f, std::hypot(sx, sz));
+				spawns.push_back({(uint8_t)i, sx, sz, hm.sample_world(sx, sz), -sx / d, -sz / d});
+			}
+			break;
+		}
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
 		default:
@@ -11913,7 +11929,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	}
 
 	// Survival of the Fittest's cliffs are meant to keep the bases apart; the waves come over them.
-	if (config.map_type != MAP_SURVIVAL_OF_THE_FITTEST && config.map_type != MAP_WALL_DEMO)
+	if (config.map_type != MAP_SURVIVAL_OF_THE_FITTEST && config.map_type != MAP_WALL_DEMO && config.map_type != MAP_NEW_RMS_TEST)
 		ease_routes_between_bases(hm, spawns, water_h);
 
 	// Transfer heightmap to simulation
@@ -11928,6 +11944,23 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// Wall Demo places its walls alone: no player bases, resources or animals.
 	if (config.map_type == MAP_WALL_DEMO) {
 		place_wall_demo(sim, hm.map_half, rng);
+		return true;
+	}
+	// New RMS Test: placePlayerBases with no base functions gives only
+	// placeCivDefaultStartingEntities (civic centre, StartEntities, Iberian walls), and
+	// placePlayersNomad the nomad groups. No resources, animals or relics.
+	if (config.map_type == MAP_NEW_RMS_TEST) {
+		if (sim.nomad()) {
+			place_nomad_units(sim, hm, spawns, rng);
+			return true;
+		}
+		for (const auto &sp : spawns) {
+			sim.spawn_building_world(sp.x, sp.z, BLD_TOWN_CENTER, sp.team, 1.0f);
+			place_start_entities(sim, hm, sp.team, sp.x, sp.z);
+		}
+		const int map_tiles = (int)std::lround(2.0f * hm.map_half);
+		for (const auto &sp : spawns)
+			sim.place_starting_walls(sp.team, sp.x, sp.z, map_tiles, Simulation::STARTING_WALLS_FORTRESS, -0.7853982f, rng.next_u32());
 		return true;
 	}
 
@@ -12010,14 +12043,16 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	std::vector<std::pair<float, float>> fruit_trees;
 	uint8_t fruit_kind = FLORA_DEFAULT;
 	uint16_t fruit_food = 0;
-	// Islands: a player's woodline, 10-13 from its civic centre (forests and stragglers keep out).
+	// placePlayerBaseTrees: each player's starting trees, 11-13 tiles from its start plus their
+	// group's spread, are the script's tree1 ("Trees": {"template": oTree1}), not stragglers
+	// (createStragglerTrees keeps off the player areas).
+	constexpr float BASE_TREE_REACH = 18.0f;
 	std::vector<std::pair<float, float>> starts;
-	if (type == MAP_ISLANDS)
-		for (const auto &b : sim.buildings())
-			if (is_civic_centre(b.type) && b.team < MAX_PLAYERS) starts.emplace_back(b.x, b.z);
-	auto near_start = [&](float x, float z) {
+	for (const auto &b : sim.buildings())
+		if (is_civic_centre(b.type) && b.team < MAX_PLAYERS) starts.emplace_back(b.x, b.z);
+	auto base_tree = [&](float x, float z) {
 		for (const auto &[sx, sz] : starts)
-			if ((x - sx) * (x - sx) + (z - sz) * (z - sz) < 16.0f * 16.0f) return true;
+			if ((x - sx) * (x - sx) + (z - sz) * (z - sz) < BASE_TREE_REACH * BASE_TREE_REACH) return true;
 		return false;
 	};
 	// Trees per 2-tile cell, to tell forests from stragglers.
@@ -12050,16 +12085,15 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 			kind = (second ? t45 : t12)[h & 1u];
 			wood = (second ? w45 : w12)[h & 1u];
 			gatherers = (second ? g45 : g12)[h & 1u];
-		} else if (type == MAP_ISLANDS && near_start(rv.x[r], rv.z[r])) {
-			// islands.js placePlayerBases "Trees": the five home trees are all oTree1.
-			kind = t12[0];
-			wood = w12[0];
-			gatherers = g12[0];
 		} else if (type == MAP_LOWER_NUBIA && own) {
 			// lower_nubia.js's lone trees are its stragglers (acacia, dead tree, bush_badlands), not palms.
 			kind = f->tree3[h % (uint32_t)n3];
 			wood = f->tree3_wood[h % (uint32_t)n3];
 			gatherers = tree_slot_gatherers(slot_name, own, 1, (int)(h % (uint32_t)n3), 0);
+		} else if (base_tree(rv.x[r], rv.z[r])) {
+			kind = t12[0];
+			wood = w12[0];
+			gatherers = g12[0];
 		} else {
 			// createStragglerTrees: [tree1, tree2, tree4, tree3].
 			const uint8_t pick[4] = {t12[0], t12[1], t45[0], t3};
@@ -12294,6 +12328,11 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	t.tiles.assign((size_t)res * (size_t)res, 0);
 	if (type == MAP_WALL_DEMO) { // wall_demo.js: RandomMap(0, "grass1") and nothing painted on it
 		t.names = {"grass1"};
+		sim.set_terrain_tiles(std::move(t));
+		return;
+	}
+	if (type == MAP_NEW_RMS_TEST) { // new_rms_test.js: RandomMap(0, "grass1_spring"), nothing painted
+		t.names = {"grass1_spring"};
 		sim.set_terrain_tiles(std::move(t));
 		return;
 	}

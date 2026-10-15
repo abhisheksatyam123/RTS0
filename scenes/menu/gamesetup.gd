@@ -141,6 +141,7 @@ const RMS_MAPS := [
 	["random_coast_range", "Coast Range (RMS)", "Random", 8, 128, "temperate", "All players starts on a continent surrounded by water. This map is designed and balanced for 2 teams only. Supports 2-8 players."],
 	# wall_demo.json's "demo" keyword lists it only under the Demo Maps filter, as in 0.28.
 	["random_wall_demo", "Wall Demo (RMS)", "Random", 8, 128, "temperate", "A demonstration of wall placement methods/code in random maps. Giant map size is recommended!"],
+	["random_new_rms_test", "New RMS Test (RMS)", "Random", 8, 128, "temperate", "A basic test of the random map generator - not playable."],
 ]
 
 # 0 A.D. 0.28 Population Cap Type and its caps (simulation/data/settings/
@@ -301,7 +302,7 @@ const VICTORY_KINDS := [
 	[8, "Conquest Civic Centers", "Defeat opponents by destroying all their fully built civic centers."],
 	[32, "Capture the Relic", "Capture all relics spread across the map and keep them for a certain time to win the game."],
 	[64, "Regicide", "Defeat opponents by killing their hero."],
-	[16, "Wonder", "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured."]]
+	[16, "Wonder", "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured. If the allied victory mode is enabled, the timer will also be reset when the alliances of the owner change."]]
 const VK_REGICIDE := 64
 # 0.28 victory condition file names (a scenario's settings VictoryConditions) -> VictoryKind bit.
 const VICTORY_NAMES := {"conquest": 1, "conquest_units": 2, "conquest_structures": 4, "conquest_civic_centers": 8,
@@ -1814,15 +1815,18 @@ const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors", "local_slot"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
+## PersistentMatchSettings(isNetworked): a networked game's controller keeps its own file.
+const PERSIST_FILE_MP := "user://config/matchsettings.mp.json"
 const PERSIST_KEY := "persistmatchsettings"
 const PERSIST_VERSION := 1
 
 ## 0 A.D. PersistentMatchSettings.loadFile: the settings saved on the last Start
 ## or Back while "Persist match settings" is on, else {}.
-static func load_persisted() -> Dictionary:
-	if not RtsoUserConfig.new().get_bool(PERSIST_KEY) or not FileAccess.file_exists(PERSIST_FILE):
+static func load_persisted(networked := false) -> Dictionary:
+	var path := PERSIST_FILE_MP if networked else PERSIST_FILE
+	if not RtsoUserConfig.new().get_bool(PERSIST_KEY) or not FileAccess.file_exists(path):
 		return {}
-	var f := FileAccess.open(PERSIST_FILE, FileAccess.READ)
+	var f := FileAccess.open(path, FileAccess.READ)
 	var data: Variant = JSON.parse_string(f.get_as_text()) if f else null
 	if typeof(data) != TYPE_DICTIONARY or int(data.get("version", 0)) != PERSIST_VERSION:
 		return {}
@@ -1831,10 +1835,15 @@ static func load_persisted() -> Dictionary:
 
 ## PersistentMatchSettings.saveFile: written whether or not the option is on,
 ## empty when it is off, so turning it back on doesn't bring back old settings.
+## GameSettingsController.savePersistentMatchSettings: only the controller,
+## never for a saved game; a networked one to matchsettings.mp.json.
 func save_persisted() -> void:
+	if _mp_role == "client" or (_mp_role == "host" and _saved_game()):
+		return
 	var on := RtsoUserConfig.new().get_bool(PERSIST_KEY)
-	DirAccess.make_dir_recursive_absolute(PERSIST_FILE.get_base_dir())
-	var f := FileAccess.open(PERSIST_FILE, FileAccess.WRITE)
+	var path := PERSIST_FILE_MP if _mp_role == "host" else PERSIST_FILE
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify({"version": PERSIST_VERSION, "attributes": page_state() if on else {}}, "\t"))
 
@@ -1870,8 +1879,17 @@ func _restore_settings() -> void:
 	var src := {}
 	for k in PERSISTED_KEYS:
 		src[k] = m.get(k)
-	# A networked game's setup is the host's MatchSettings, never this player's saved file.
-	var saved := load_persisted() if net_main == null else {}
+	# GameSettingsController.onLoad: the controller's own persisted settings
+	# (a networked host's from matchsettings.mp.json, none for a saved game);
+	# a client's setup is the host's MatchSettings.
+	var saved := {}
+	if net_main == null:
+		saved = load_persisted()
+	elif net_main.has_method("get_net_setup_state"):
+		var st: Dictionary = net_main.get_net_setup_state()
+		if bool(st.get("controller", false)) and not bool(st.get("saved_game", false)):
+			saved = load_persisted(true)
+			saved.erase("local_slot")
 	for k in saved:
 		if src.has(k) and typeof(saved[k]) in [TYPE_FLOAT, TYPE_INT, TYPE_BOOL, TYPE_STRING, TYPE_ARRAY]:
 			src[k] = saved[k]
@@ -1970,6 +1988,7 @@ func _apply_settings(ms: Dictionary) -> void:
 
 func _on_back_pressed() -> void:
 	if _mp_role != "none":
+		save_persisted() # GameSettingsController.onClose (the host's)
 		# 0 A.D. gamesetup's Back in a networked game: leave it for the lobby.
 		net_main.leave_net_game()
 		return
@@ -2110,6 +2129,8 @@ func _on_start_pressed() -> void:
 	if _mp_role == "host":
 		# The host's MatchSettings is the setup; RtsoMain starts every peer
 		# once all players are ready (0.28 ReadyController).
+		if bool(_net_state.get("can_start", false)):
+			save_persisted() # launchGame, before Random is resolved
 		_host_write_setup(true)
 		net_main._on_lobby_start_pressed()
 		return
@@ -2367,6 +2388,9 @@ func _build_net_chat() -> void:
 	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	input.max_length = 256
 	input.text_submitted.connect(func(_t: String) -> void: _send_net_chat())
+	# ChatInputPanel.onTab / Tooltip: Tab completes player names, then civs and settings.
+	input.tooltip_text = "Press Tab to autocomplete player names or settings."
+	input.gui_input.connect(func(ev: InputEvent) -> void: _on_net_chat_key(ev, input))
 	row.add_child(input)
 	var send := Button.new()
 	send.name = "NetChatSend"
@@ -2380,6 +2404,70 @@ func _build_net_chat() -> void:
 		n.owner = self
 		n.unique_name_in_owner = true
 	_update_net_chat()
+
+## functions_utility.js tryAutoComplete: the last word becomes the one entry that
+## starts with it (any case), when exactly one does.
+static func try_autocomplete(text: String, words: Array) -> String:
+	var split := text.split(" ")
+	var last := split[split.size() - 1]
+	if last.is_empty():
+		return text
+	var found := []
+	for w in words:
+		if str(w).to_lower().begins_with(last.to_lower()):
+			found.append(str(w))
+			if found.size() > 1:
+				break
+	if found.size() != 1:
+		return text
+	split.remove_at(split.size() - 1)
+	var head := " ".join(split)
+	return (head + " " if head != "" else "") + found[0]
+
+## ChatInputAutocomplete.getAutocompleteEntries: player names (order 100), civs (90),
+## then the setting titles and every dropdown's choices (0), without repeats.
+func autocomplete_entries() -> Array:
+	var names: Array = []
+	for e in Array(_net_state.get("slots", [])) + Array(_net_state.get("observers", [])):
+		if int(e.get("client", -1)) >= 0 and str(e.get("name", "")) != "":
+			names.append(str(e["name"]))
+	for i in _civ_order():
+		names.append(str(CIVS[i]["name"]))
+	var settings: Array = []
+	_collect_autocomplete($VBox, settings, _slots_grid())
+	var out: Array = []
+	for w in names + settings:
+		if w != "" and not out.has(w):
+			out.append(w)
+	return out
+
+## The per-player rows add only names and civs (above), as in 0.28.
+func _collect_autocomplete(n: Node, out: Array, skip: Node) -> void:
+	if n is Label and (n as Label).text.ends_with(":"):
+		out.append((n as Label).text.trim_suffix(":").strip_edges())
+	elif n is OptionButton or n is RtsoSafeSelect:
+		var count: int = n.get_item_count()
+		for i in count:
+			out.append(str(n.get_item_text(i)))
+	elif n is ItemList:
+		var il := n as ItemList
+		for i in il.item_count:
+			out.append(il.get_item_text(i))
+	for c in n.get_children():
+		if c is Control and c != skip and c.name != "NetChat":
+			_collect_autocomplete(c, out, skip)
+
+## autoCompleteText: Tab completes the word before the caret.
+func _on_net_chat_key(ev: InputEvent, line: LineEdit) -> void:
+	var k := ev as InputEventKey
+	if k == null or not k.pressed or k.keycode != KEY_TAB:
+		return
+	line.accept_event()
+	var caret := line.caret_column
+	var before := line.text.substr(0, caret)
+	var done := try_autocomplete(before, autocomplete_entries())
+	line.text = done + line.text.substr(caret)
+	line.caret_column = caret + done.length() - before.length()
 
 func _send_net_chat() -> void:
 	var input: LineEdit = %NetChatInput
@@ -2490,8 +2578,11 @@ func _host_write_setup(force: bool) -> void:
 		ps[k] = keep.filter(func(i): return i < a.size()).map(func(i): return a[i])
 	if not ps["slot_types"].is_empty():
 		ps["slot_types"][0] = mini(int(ps["slot_types"][0]), 1)
-	if str(ps["map_id"]) == RANDOM_MAP_ID:
-		# Every peer must load the same map, so Random picks one at once.
+	ps["net_map_random"] = str(ps["map_id"]) == RANDOM_MAP_ID
+	if ps["net_map_random"]:
+		# Every peer must load the same map, so Random picks one now; the
+		# clients see "Random" until Start (launchGame resolves it), as
+		# RtsoMain sends the setup with map "random".
 		var pool := _filtered.filter(func(x): return str(x["id"]) != RANDOM_MAP_ID)
 		if not pool.any(func(x): return str(x["id"]) == _net_random_map) and not pool.is_empty():
 			_net_random_map = str(pool[randi() % pool.size()]["id"])

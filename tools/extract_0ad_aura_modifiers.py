@@ -76,11 +76,9 @@ EXTRA_ALIASES = {
     # Nastasen's Gift of Warships: units/kush/ship_arrow is Kush's only ArrowShip, and the
     # aura reaches only its Kushite owner, who trains no other civ's ships.
     "KushTrireme": ["ArrowShip"],
-    # Arakamani's Follower of Apedemak, which reaches only its Kushite owner: the Kushite temple
-    # (structures/kush/temple.xml) is the Temple of Apedemak, and the Apedemak Temple Guard
+    # Arakamani's Follower of Apedemak, which reaches only its Kushite owner: the Apedemak Temple Guard
     # (units/kush/champion_infantry_apedemak, an axeman) is Kush's only melee champion
     # infantry that is no swordsman (the Amun guard is).
-    "TempleOfApedemak": ["Temple"],
     "ApedemakGuard": ["Champion Infantry Melee !Swordsman"],
 }
 

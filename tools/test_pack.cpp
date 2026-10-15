@@ -274,6 +274,29 @@ static void test_garrison_packs_first() {
 		"once packed it walks in, packed");
 }
 
+static void test_stop_cancels_pack() {
+	std::printf("10. Stop cancels a pack or unpack in progress (ReplaceOrder lets Stop through, Pack.CancelPack)\n");
+	Simulation s;
+	setup(s);
+	uint32_t cat = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+	s.order_pack(&cat, 1, false);
+	run(s, 5.4f);
+	check(pack_of(s, cat) == PACK_UNPACKED, "deployed");
+	s.cmd_move(&cat, 1, -30.0f, 0.0f);
+	run(s, 1.0f);
+	check(pack_of(s, cat) == PACK_PACKING, "a walk starts packing");
+	s.cmd_stop(&cat, 1);
+	run(s, 6.0f);
+	check(pack_of(s, cat) == PACK_UNPACKED, "Stop keeps it unpacked");
+	uint32_t cat2 = s.spawn_unit(6, 0, 0, UNIT_CATAPULT);
+	s.order_pack(&cat2, 1, false);
+	run(s, 2.0f);
+	check(pack_of(s, cat2) == PACK_UNPACKING, "unpacking");
+	s.cmd_stop(&cat2, 1);
+	run(s, 6.0f);
+	check(pack_of(s, cat2) == PACK_PACKED, "Stop keeps it packed");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_pack.sav";
 	test_who_packs();
@@ -285,6 +308,7 @@ int main(int argc, char **argv) {
 	test_lockstep();
 	test_retreat_under_fire();
 	test_garrison_packs_first();
+	test_stop_cancels_pack();
 	if (g_failures) {
 		std::printf("test_pack: FAIL (%d)\n", g_failures);
 		return 1;

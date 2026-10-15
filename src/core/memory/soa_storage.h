@@ -8,14 +8,13 @@
 #include <cstdlib>
 #include <cstring>
 #include "../../simulation/sim_types.h"
+#include "aligned.h"
 
 namespace rtso {
 
 template <size_t CacheLine = 64>
 inline void *aligned_alloc64(size_t n) {
-	void *p = nullptr;
-	if (posix_memalign(&p, CacheLine, n) != 0) return nullptr;
-	return p;
+	return aligned_malloc(CacheLine, n);
 }
 
 struct UnitSoA {
@@ -98,7 +97,7 @@ struct UnitSoA {
 
 	void init(size_t initial_cap = 1024) { reserve(initial_cap); }
 	void free_all() {
-		#define FREE(p) if(p){ free(p); p=nullptr; }
+		#define FREE(p) if(p){ aligned_free(p); p=nullptr; }
 		FREE(pos_x); FREE(pos_z); FREE(vel_x); FREE(vel_z);
 		FREE(target_x); FREE(target_z); FREE(anchor_x); FREE(anchor_z); FREE(has_order); FREE(alive);
 		FREE(hp); FREE(max_hp); FREE(id); FREE(team);
@@ -127,7 +126,7 @@ struct UnitSoA {
 			assert(np);
 			if (ptr) {
 				if (old_cap > 0) memcpy(np, ptr, old_cap * sizeof(*ptr));
-				free(ptr);
+				aligned_free(ptr);
 			}
 			ptr = (decltype(ptr))np;
 		};
@@ -331,18 +330,18 @@ struct ResourceSoA {
 	size_t cap = 0, count = 0;
 	void init(size_t c = 256) { reserve(c); }
 	void free_all() {
-		if (x) free(x);
-		if (z) free(z);
-		if (amount) free(amount);
-		if (type) free(type);
-		if (subtype) free(subtype);
-		if (max_gatherers) free(max_gatherers);
-		if (max_amount) free(max_amount);
-		if (flora) free(flora);
-		if (fauna) free(fauna);
-		if (regrow_left) free(regrow_left);
-		if (alive) free(alive);
-		if (id) free(id);
+		if (x) aligned_free(x);
+		if (z) aligned_free(z);
+		if (amount) aligned_free(amount);
+		if (type) aligned_free(type);
+		if (subtype) aligned_free(subtype);
+		if (max_gatherers) aligned_free(max_gatherers);
+		if (max_amount) aligned_free(max_amount);
+		if (flora) aligned_free(flora);
+		if (fauna) aligned_free(fauna);
+		if (regrow_left) aligned_free(regrow_left);
+		if (alive) aligned_free(alive);
+		if (id) aligned_free(id);
 		x = z = nullptr; regrow_left = nullptr; amount = max_amount = nullptr; type = subtype = max_gatherers = flora = fauna = alive = nullptr; id = nullptr; cap = count = 0;
 	}
 	~ResourceSoA() { free_all(); }
@@ -355,7 +354,7 @@ struct ResourceSoA {
 			void *np = aligned_alloc64<64>(b); assert(np);
 			if (p) {
 				if (old_cap > 0) memcpy(np, p, old_cap * sizeof(*p));
-				free(p);
+				aligned_free(p);
 			}
 			p = (decltype(p))np;
 		};

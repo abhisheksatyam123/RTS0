@@ -2520,8 +2520,9 @@ static void test_guard_stances() {
 		Simulation s;
 		setup(s);
 		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
-		uint32_t w = s.spawn_unit(-2, 0, 0, UNIT_FEMALE_CITIZEN);
-		check(s.units_.stance[idx_of(s, w)] == STANCE_PASSIVE, "a woman is passive");
+		// A passive soldier: a Support guard (a woman) tends an injured charge instead (case 81).
+		uint32_t w = s.spawn_unit(-2, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&w, 1, STANCE_PASSIVE);
 		s.order_guard(&w, 1, vip);
 		run(s, 1.0f);
 		uint32_t e = s.spawn_unit(4, 0, 1, UNIT_SPEARMAN, 5000.0f);
@@ -2580,7 +2581,8 @@ static void test_guard_towers_and_animals() {
 		setup(s);
 		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
 		s.order_set_stance(&vip, 1, STANCE_STAND_GROUND);
-		uint32_t g = s.spawn_unit(-3, 0, 0, UNIT_FEMALE_CITIZEN); // passive: she picks no animal herself
+		uint32_t g = s.spawn_unit(-3, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&g, 1, STANCE_PASSIVE); // passive: it picks no animal itself
 		s.order_guard(&g, 1, vip);
 		run(s, 1.0f);
 		const uint32_t wolf = s.spawn_fauna(2.5f, 0.0f, FAUNA_WOLF_ARCTIC_VIOLENT);
@@ -2787,6 +2789,116 @@ static void test_idle_drift_walk_back() {
 	check(run_case(STANCE_AGGRESSIVE) > 5.0f, "an aggressive builder stays by the house");
 }
 
+static void test_queue_after_auto_fight() {
+	std::printf("78. an order queued during a fight, flight or cheer the unit took up while idle runs once it ends (FinishOrder)\n");
+	auto walked = [](Simulation &s, uint32_t u) {
+		const auto *q = s.unit_order_queue(u);
+		return dist(s, u, -30.0f, 0.0f) < 3.0f && (!q || q->empty());
+	};
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		s.spawn_unit(4, 0, 1, UNIT_SPEARMAN, 60.0f);
+		run(s, 1.0f);
+		check(act_of(s, a) == ACTION_ATTACK, "the idle swordsman fights the spearman");
+		s.order_walk(&a, 1, -30, 0, true);
+		check(run_until(s, 40.0f, [&] { return walked(s, a); }), "then walks the queued walk");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+		uint32_t e = s.spawn_unit(2, 0, 1, UNIT_SWORDSMAN);
+		s.order_attack(&e, 1, w, false);
+		check(run_until(s, 20.0f, [&] { return act_of(s, w) == ACTION_FLEE; }), "the woman flees");
+		s.order_walk(&w, 1, -30, 0, true);
+		s.cmd_delete(1, &e, 1);
+		check(run_until(s, 40.0f, [&] { return walked(s, w); }), "then walks the queued walk");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		s.spawn_unit(3, 0, 1, UNIT_SPEARMAN, 5.0f);
+		check(run_until(s, 20.0f, [&] { return act_of(s, a) == ACTION_CHEER; }), "the swordsman cheers its kill");
+		s.order_walk(&a, 1, -30, 0, true);
+		check(run_until(s, 40.0f, [&] { return walked(s, a); }), "then walks the queued walk");
+	}
+}
+
+static void test_healers_on_attack_move() {
+	std::printf("79. a healer on attack-move or patrol heals the hurt on its way, then walks on (FindWalkAndFightTargets -> FindNewHealTargets)\n");
+	for (int mode = 0; mode < 2; ++mode) {
+		Simulation s;
+		setup(s);
+		uint32_t h = s.spawn_unit(-20, 0, 0, UNIT_HEALER);
+		uint32_t w = s.spawn_unit(0, 2, 0, UNIT_SPEARMAN);
+		const int wi = idx_of(s, w);
+		s.units_.hp[wi] = s.units_.max_hp[wi] * 0.3f;
+		const float hp0 = s.units_.hp[wi];
+		if (mode == 0) s.order_attack_move(&h, 1, 25, 0, false, false, false);
+		else s.order_patrol(&h, 1, 25, 0, false);
+		check(run_until(s, 30.0f, [&] { return s.units_.hp[idx_of(s, w)] > hp0 + 1.0f; }),
+				mode == 0 ? "the attack-moving healer heals the spearman" : "the patrolling healer heals the spearman");
+		if (mode == 0)
+			check(run_until(s, 120.0f, [&] { return dist(s, h, 25, 0) < 3.0f; }), "then goes on to the attack-move's end");
+	}
+}
+
+static void test_alert_allied_shelter() {
+	std::printf("80. an alert shelters civilians in a mutual ally's structures too, and its end lets them out (AlertRaiser mutualAllies)\n");
+	Simulation s;
+	setup(s);
+	s.set_player_active(2, true, false);
+	s.cmd_set_diplomacy(0, 2, Simulation::DIPLO_ALLY);
+	s.cmd_set_diplomacy(2, 0, Simulation::DIPLO_ALLY);
+	const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t ally_house = s.spawn_building_world(14, 0, BLD_HOUSE, 2, 1.0f);
+	uint32_t w = s.spawn_unit(12, 4, 0, UNIT_FEMALE_CITIZEN);
+	run(s, 1.0f);
+	check(s.cmd_raise_alert(0, store), "the alert is raised");
+	check(s.unit_order(w).kind == ORDER_GARRISON && s.unit_order(w).target == ally_house, "the woman runs into the ally's house beside her");
+	check(run_until(s, 20.0f, [&] { const auto *g = s.get_garrisoned_units(ally_house); return g && !g->empty(); }), "she is inside");
+	check(s.cmd_end_alert(0, store), "end of alert");
+	check(alive(s, w), "she comes out of the ally's house");
+}
+
+static void test_guards_repair_charge() {
+	std::printf("81. guards repair the siege engine they guard; a Support guard tends it when it is attacked (GUARDING Timer, GuardedAttacked)\n");
+	for (UnitType ut : {UNIT_SPEARMAN, UNIT_FEMALE_CITIZEN}) {
+		Simulation s;
+		setup(s);
+		uint32_t r = s.spawn_unit(0, 0, 0, UNIT_SIEGE_RAM);
+		uint32_t g = s.spawn_unit(3, 0, 0, ut);
+		const int ri = idx_of(s, r);
+		s.units_.hp[ri] = s.units_.max_hp[ri] * 0.5f;
+		const float h0 = s.units_.hp[ri];
+		s.order_guard(&g, 1, r, false);
+		check(run_until(s, 20.0f, [&] { return s.units_.hp[idx_of(s, r)] > h0 + 1.0f; }),
+				ut == UNIT_SPEARMAN ? "a spearman guarding a damaged ram repairs it" : "a woman guarding a damaged ram repairs it");
+		check(run_until(s, 120.0f, [&] { return s.unit_order(g).kind == ORDER_GUARD; }), "then guards again");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t r = s.spawn_unit(0, 0, 0, UNIT_SIEGE_RAM);
+		uint32_t w = s.spawn_unit(3, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_guard(&w, 1, r, false);
+		run(s, 1.0f);
+		uint32_t e = s.spawn_unit(-3, 0, 1, UNIT_SWORDSMAN);
+		s.order_attack(&e, 1, r, false);
+		check(run_until(s, 20.0f, [&] { return s.units_.hp[idx_of(s, r)] < s.units_.max_hp[idx_of(s, r)]; }), "the swordsman hurts the ram");
+		bool fought = false, repaired = false;
+		run_until(s, 10.0f, [&] {
+			fought |= s.units_.target_unit_id[idx_of(s, w)] == e && act_of(s, w) == ACTION_ATTACK;
+			repaired |= act_of(s, w) == ACTION_REPAIR;
+			return false;
+		});
+		check(repaired && !fought, "the woman repairs the ram instead of fighting its attacker");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2868,6 +2980,10 @@ int main(int argc, char **argv) {
 	test_healer_stances();
 	test_forced_flag_not_inherited();
 	test_idle_drift_walk_back();
+	test_queue_after_auto_fight();
+	test_healers_on_attack_move();
+	test_alert_allied_shelter();
+	test_guards_repair_charge();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
