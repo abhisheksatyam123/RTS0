@@ -29,7 +29,15 @@ var _games: Tree
 var _players: Tree
 var _profile: VBoxContainer
 var _profile_name: Label
+var _profile_role: Label # ProfilePanel roleText
 var _profile_values := {}
+# ProfilePage: "Player Profile Lookup", any player by name.
+var _lookup: AcceptDialog
+var _lookup_input: LineEdit
+var _lookup_error: Label
+var _lookup_grid: GridContainer
+var _lookup_values := {}
+var _lookup_player := ""
 var _requested_player := "" # ProfilePanel.requestedPlayer
 var _selected_player := "" # the player list's selection
 var _leaderboard: AcceptDialog
@@ -120,6 +128,7 @@ func _build() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	header.add_child(_button("Leaderboard", _on_leaderboard_pressed))
+	header.add_child(_button("Player Profile Lookup", _on_lookup_pressed))
 	header.add_child(_button("Back" if dialog else "Main Menu", _on_back_pressed))
 
 	var login := HBoxContainer.new()
@@ -278,6 +287,8 @@ func _build() -> void:
 	right.add_child(_profile)
 	_leaderboard = _build_leaderboard()
 	add_child(_leaderboard)
+	_lookup = _build_lookup()
+	add_child(_lookup)
 	right.add_child(_label("Chat"))
 	_chat_log = RichTextLabel.new()
 	_chat_log.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -307,11 +318,12 @@ func _build_profile() -> VBoxContainer:
 	_profile_name = _label("")
 	_profile_name.add_theme_font_size_override("font_size", 16)
 	box.add_child(_profile_name)
+	_profile_role = _label("")
+	box.add_child(_profile_role)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	box.add_child(grid)
-	for row in [["rank", "Current Rank:"], ["highestRating", "Highest Rating:"], ["totalGamesPlayed", "Total Games:"],
-			["wins", "Wins:"], ["losses", "Losses:"], ["ratio", "Win Rate:"]]:
+	for row in PROFILE_ROWS:
 		grid.add_child(_label(row[1]))
 		var v := _label(NOT_AVAILABLE)
 		grid.add_child(v)
@@ -338,12 +350,83 @@ func _build_leaderboard() -> AcceptDialog:
 		if it:
 			_request_profile(str(it.get_metadata(0))))
 	dlg.add_child(_board)
+	# LeaderboardPage leaderboardUpdateButton: ask the lobby again.
+	dlg.add_button("Update", false, "update")
+	dlg.custom_action.connect(func(action: StringName) -> void:
+		if action == &"update" and LobbySession.signed_in():
+			LobbySession.get_json("/leaderboard", _on_leaderboard))
 	dlg.confirmed.connect(func() -> void: _request_profile(_selected_player))
 	dlg.canceled.connect(func() -> void: _request_profile(_selected_player))
 	return dlg
 
 
 const NOT_AVAILABLE := "N/A"
+const PROFILE_ROWS := [["rank", "Current Rank:"], ["highestRating", "Highest Rating:"], ["totalGamesPlayed", "Total Games:"],
+	["wins", "Wins:"], ["losses", "Losses:"], ["ratio", "Win Rate:"]]
+
+
+# ProfilePage.xml: "Enter playername:", View Profile, then the profile or
+# 'Player "%(nick)s" not found.'
+func _build_lookup() -> AcceptDialog:
+	var dlg := AcceptDialog.new()
+	dlg.name = "ProfileLookup"
+	dlg.title = "Player Profile Lookup"
+	dlg.ok_button_text = "Back"
+	dlg.min_size = Vector2i(360, 300)
+	var box := VBoxContainer.new()
+	dlg.add_child(box)
+	box.add_child(_label("Enter playername:"))
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	_lookup_input = _line("", 180)
+	_lookup_input.text_submitted.connect(func(_t: String) -> void: _on_lookup_view())
+	row.add_child(_lookup_input)
+	row.add_child(_button("View Profile", _on_lookup_view))
+	_lookup_error = _label("")
+	_lookup_error.visible = false
+	box.add_child(_lookup_error)
+	_lookup_grid = GridContainer.new()
+	_lookup_grid.columns = 2
+	_lookup_grid.visible = false
+	box.add_child(_lookup_grid)
+	_lookup_values["name"] = _label("")
+	_lookup_grid.add_child(_label("Player:"))
+	_lookup_grid.add_child(_lookup_values["name"])
+	for r in PROFILE_ROWS:
+		_lookup_grid.add_child(_label(r[1]))
+		_lookup_values[r[0]] = _label(NOT_AVAILABLE)
+		_lookup_grid.add_child(_lookup_values[r[0]])
+	return dlg
+
+
+func _on_lookup_pressed() -> void:
+	if not LobbySession.signed_in():
+		_say("Sign in to look up a player.")
+		return
+	_lookup_error.visible = false
+	_lookup_grid.visible = false
+	_lookup.popup_centered()
+	_lookup_input.grab_focus()
+
+
+func _on_lookup_view() -> void:
+	_lookup_player = _lookup_input.text.strip_edges()
+	if _lookup_player == "":
+		return
+	var asked := _lookup_player
+	LobbySession.get_json("/profile?name=" + asked.uri_encode(), func(code: int, obj) -> void:
+		if not is_inside_tree() or asked != _lookup_player:
+			return
+		var found := code == 200 and obj is Dictionary
+		_lookup_grid.visible = found
+		_lookup_error.visible = not found
+		if not found:
+			_lookup_error.text = 'Player "%s" not found.' % asked
+			return
+		_lookup_values["name"].text = LobbySession.rated_name(str(obj.get("name", "")), obj.get("rating"))
+		for k in ["rank", "highestRating", "totalGamesPlayed", "wins", "losses"]:
+			_lookup_values[k].text = str(obj.get(k, NOT_AVAILABLE))
+		_lookup_values["ratio"].text = LobbySession.format_win_rate(obj))
 
 
 func _request_profile(player: String) -> void:
@@ -352,6 +435,8 @@ func _request_profile(player: String) -> void:
 	if player == "" or not LobbySession.signed_in():
 		return
 	_profile_name.text = player
+	# ProfilePanel RoleNames: Moderator, else Player (the lobby mutes nobody).
+	_profile_role.text = "Moderator" if _moderators.has(player) else "Player"
 	for k in _profile_values:
 		_profile_values[k].text = NOT_AVAILABLE
 	LobbySession.get_json("/profile?name=" + player.uri_encode(), _on_profile)
