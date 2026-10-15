@@ -70,6 +70,12 @@ func run() -> void:
 	var parts: Array = b["capture_parts"]
 	check(parts.size() == 1 and float(parts[0]["width"]) > 300.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")
 
+	main.debug_inspector("field")
+	await frames(10)
+	var fd: Dictionary = main.debug_inspector("field")
+	print("field: ", fd)
+	check(String(fd["stats"]).ends_with("Food: ∞\n0 / 5") or String(fd["stats"]).contains("Food: ∞\n0 / "), "a field shows \"Food: ∞\" and its gatherers, current / max")
+
 	var r: Dictionary = main.debug_inspector("resource")
 	print("resource: ", r)
 	check(String(r["stats"]).begins_with("Wood: "), "a tree shows \"Wood:\" and its supply")
