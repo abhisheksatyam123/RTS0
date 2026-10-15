@@ -21513,10 +21513,10 @@ static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
 
 int Simulation::petra_pop_phase2() const {
 	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
-	int base = petra_config_.pop_phase2;
-	if (petra_attack_mgr_.save_resources) base = base * 3 / 4; // startingStrategy.js: phase sooner to expand
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
-	return std::min(std::max((int)((float)base * scaling), 20), max_pop / 2);
+	const int pop = std::min(std::max((int)((float)petra_config_.pop_phase2 * scaling), 20), max_pop / 2);
+	// startingStrategy.js runs after setConfig: 3/4 of the scaled and clamped value, to phase sooner and expand.
+	return petra_attack_mgr_.save_resources ? pop * 3 / 4 : pop;
 }
 
 int Simulation::petra_target_workers() const {
