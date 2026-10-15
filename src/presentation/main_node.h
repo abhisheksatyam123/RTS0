@@ -363,6 +363,16 @@ public:
 	void quicksave();
 	void quickload();
 	void show_notice(const String &text);
+	// CLogger's rendered messages (CLogger.cpp RENDER_TIMEOUT 10 s, RENDER_LIMIT 20).
+	struct LogLine {
+		String text;
+		bool error;
+		uint64_t until_ms;
+	};
+	std::vector<LogLine> log_lines_;
+	RichTextLabel *log_label_ = nullptr;
+	void log_render(const String &text, bool error = false);
+	void update_log_messages(bool changed = false);
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
 	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
@@ -670,9 +680,11 @@ public:
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	Vector2 debug_spawn_offset(const String &template_id, int count, int player = -1) const;
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
 	String debug_unit_model_path(int civ, int unit_type);
+	String debug_template_model_path(const String &template_id);
 	Dictionary debug_snap_placement(int btype, float x, float z, bool hover, float stale_angle);
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
