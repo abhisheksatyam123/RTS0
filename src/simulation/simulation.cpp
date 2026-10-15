@@ -25420,7 +25420,26 @@ void Simulation::petra_manage_defense(float dt) {
 	};
 	for (const auto &[target, attacker] : petra_turn_attacks_) {
 		const int32_t i = lookup_unit(target);
-		if (i >= 0 && units_.alive[i] && units_.team[i] == petra_pid_ && !in_attack_squad(target)) add_attacker(lookup_unit(attacker));
+		if (i < 0 || !units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		// checkEvents: an idle or gathering fishing boat moves out of its attacker's reach,
+		// its ranged range + 15 m (25 m from a melee attacker), x0.28.
+		if (units_.unit_type[i] == UNIT_FISHING_BOAT) {
+			const int32_t a = lookup_unit(attacker);
+			if (a < 0 || !units_.alive[a] || is_ally(petra_pid_, units_.team[a])) continue;
+			const bool gathering = units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_GATHER ||
+			                       units_.action_state[i] == ACTION_RETURN_DROPSITE || units_.order_kind[i] == ORDER_GATHER;
+			if (!gathering) continue;
+			const float range = (unit_tech_classes(units_.unit_type[a]) & TC_RANGED).any() ? units_.attack_range[a] + 15.0f * 0.28f : 25.0f * 0.28f;
+			const float dx = units_.pos_x[i] - units_.pos_x[a], dz = units_.pos_z[i] - units_.pos_z[a];
+			const float d = std::sqrt(dx * dx + dz * dz);
+			if (d >= range) continue;
+			// moveToRange(range, range + 5): straight away from the attacker.
+			const float to = range + 2.5f * 0.28f, ux = d > 1e-3f ? dx / d : 1.0f, uz = d > 1e-3f ? dz / d : 0.0f;
+			const uint32_t uid = units_.id[i];
+			order_walk(&uid, 1, units_.pos_x[a] + ux * to, units_.pos_z[a] + uz * to, false);
+			continue;
+		}
+		if (!in_attack_squad(target)) add_attacker(lookup_unit(attacker));
 	}
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i]) continue;
