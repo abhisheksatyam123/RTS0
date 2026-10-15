@@ -414,25 +414,17 @@ public:
 					production_bar_->add_child(pair);
 				}
 
-				// Gate lock (0 A.D. Gate.js): a locked gate stays shut for everyone.
+				// 0.28's Gate panel (g_SelectionPanels.Gate): Lock Gate (lock_locked) and Unlock Gate
+				// (lock_unlocked), the current state's button framed by the corners.
 				if (found_b->team == local_player() && rtso::is_gate_type(found_b->type)) {
-					Button *btn = memnew(Button);
-					btn->set_text(found_b->gate_locked ? "Unlock gate" : "Lock gate");
-					btn->set_tooltip_text(found_b->gate_locked ? "Let your and your allies' units through again"
-							: "Keep the gate shut, even for your own units");
-					btn->connect("pressed", Callable(owner_, "_on_gate_lock_pressed").bind(found_b->gate_locked ? 0 : 1));
-					production_bar_->add_child(btn);
-				}
-
-				// Dropsite sharing (0 A.D. ResourceDropsite.js): shown once the owner has Diaspora.
-				if (found_b->team == local_player() && rtso::Simulation::is_dropsite_type(found_b->type) &&
-						sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES)) {
-					Button *btn = memnew(Button);
-					btn->set_text(found_b->dropsite_shared ? "Stop sharing dropsite" : "Share dropsite");
-					btn->set_tooltip_text(found_b->dropsite_shared ? "Allies can no longer drop resources here"
-							: "Let allies with Diaspora drop resources here");
-					btn->connect("pressed", Callable(owner_, "_on_dropsite_sharing_pressed").bind(found_b->dropsite_shared ? 0 : 1));
-					production_bar_->add_child(btn);
+					for (int lock = 1; lock >= 0; --lock) {
+						Button *btn = icon_button(lock ? "Lock Gate" : "Unlock Gate",
+								rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + (lock ? "lock_locked.png" : "lock_unlocked.png")));
+						btn->set_tooltip_text(rtso::tr0(lock ? "Lock Gate" : "Unlock Gate"));
+						if (found_b->gate_locked == (lock != 0)) add_corners(btn);
+						btn->connect("pressed", Callable(owner_, "_on_gate_lock_pressed").bind(lock));
+						production_bar_->add_child(btn);
+					}
 				}
 
 				// 0.28's Alert panel (g_SelectionPanels.Alert, AlertRaiser.js): Raise (bell_level1)
@@ -451,17 +443,6 @@ public:
 						btn->connect("pressed", Callable(owner_, "_on_alert_pressed").bind(end));
 						production_bar_->add_child(btn);
 					}
-				}
-
-				// Autoqueue (0 A.D. ProductionQueue.js): each finished batch is queued again.
-				if (found_b->team == local_player() && found_b->build_progress >= 1.0f && roster_list_ &&
-						roster_list_->get_item_count() > 0) {
-					Button *btn = memnew(Button);
-					btn->set_text(found_b->autoqueue ? "Autoqueue: on" : "Autoqueue: off");
-					btn->set_tooltip_text(found_b->autoqueue ? "Stop repeating the batches this structure trains"
-							: "Queue each batch again when it finishes, paying for it again");
-					btn->connect("pressed", Callable(owner_, "_on_autoqueue_pressed").bind(found_b->autoqueue ? 0 : 1));
-					production_bar_->add_child(btn);
 				}
 
 				// 0.28's Upgrade panel for a structure (g_SelectionPanels.Upgrade): an icon button per
@@ -537,6 +518,14 @@ public:
 					}
 				}
 			}
+			// is-dropsite-shared: an ally's sharable dropsite, once we have Diaspora (always disabled).
+			if (found_b && found_b->team != local_player() && local_player() < rtso::MAX_PLAYERS &&
+					sim->is_ally(local_player(), found_b->team) && rtso::Simulation::is_dropsite_type(found_b->type) &&
+					sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))
+				add_entity_command("is-dropsite-shared", found_b->dropsite_shared ? "Shared Dropsite" : "Locked Dropsite", "",
+						found_b->dropsite_shared ? "Shared Dropsite\nYou are allowed to use this dropsite."
+												 : "Locked Dropsite\nThe use of this dropsite is prohibited.",
+						found_b->dropsite_shared ? "unlocked_small.png" : "locked_small.png", false);
 			// The structure's command row (unit_actions.js g_EntityCommands).
 			if (found_b && found_b->team == local_player()) {
 				const int inside = (int)found_b->garrisoned_units.size();
@@ -559,6 +548,22 @@ public:
 				if (found_b->type == rtso::BLD_MARKET && found_b->build_progress >= 1.0f)
 					add_entity_command("select-trading-goods", "Barter & Trade", "session.gui.barter.toggle",
 							"Barter & Trade\nOpen the dialog for managing resource trading and bartering.", "economics.png");
+				// share-dropsite: shown once the owner has Diaspora (ResourceDropsite sharable).
+				if (rtso::Simulation::is_dropsite_type(found_b->type) && found_b->build_progress >= 1.0f &&
+						sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))
+					add_entity_command("share-dropsite", found_b->dropsite_shared ? "Lock Dropsite" : "Share Dropsite", "",
+							found_b->dropsite_shared ? "Lock Dropsite\nPrevent allies from using this dropsite, now shared."
+													 : "Share Dropsite\nAllow allies to use this dropsite, now locked.",
+							found_b->dropsite_shared ? "unlocked_small.png" : "locked_small.png");
+				// autoqueue-on / autoqueue-off: a structure that trains units.
+				if (found_b->build_progress >= 1.0f && roster_list_ && roster_list_->get_item_count() > 0) {
+					if (!found_b->autoqueue)
+						add_entity_command("autoqueue-on", "Activate Auto-Queue", "session.queueunit.autoqueueon",
+								"Activate Auto-Queue\nActivate the production auto-queue for the selected structures.", "autoqueue-on.png");
+					else
+						add_entity_command("autoqueue-off", "Deactivate Auto-Queue", "session.queueunit.autoqueueoff",
+								"Deactivate Auto-Queue\nDeactivate the production auto-queue for the selected structures.", "autoqueue-off.png");
+				}
 			}
 		} else {
 			// Non-building selected: clear visual queue slots, or show a training unit's (one selected).
@@ -662,34 +667,33 @@ public:
 					}
 				}
 
-				// 0 A.D. Pack / Unpack buttons (gui/session unit_actions.js "pack"): shown when the
-				// selection has siege engines with a Pack component, enabled for the state they can go to.
-				bool can_pack = false, can_unpack = false;
-				for (int i = 0; i < selected_ids.size(); ++i) {
-					for (size_t u = 0; u < uview.count; ++u) {
-						if (uview.id[u] != (uint32_t)selected_ids[i] || !uview.alive[u]) continue;
-						const uint8_t ps = uview.pack_state[u];
-						if (ps == rtso::PACK_UNPACKED || ps == rtso::PACK_UNPACKING) can_pack = true;
-						if (ps == rtso::PACK_PACKED || ps == rtso::PACK_PACKING) can_unpack = true;
-						break;
-					}
-				}
-				if (can_pack || can_unpack) {
-					static const struct { const char *label; const char *tip; const char *icon; int pack; } kPackButtons[2] = {
-						{"Pack", "Pack the siege engine so it can move (10 s)", "res://assets/textures/ui/archive/icons/pack_fg.png", 1},
-						{"Unpack", "Unpack the siege engine so it can attack (10 s)", "res://assets/textures/ui/archive/icons/unpack.png", 0},
-					};
-					for (const auto &pb : kPackButtons) {
-						Button *btn = memnew(Button);
-						btn->set_text(pb.label);
-						btn->set_tooltip_text(pb.tip);
-						Ref<Texture2D> p_ico = rtso::load_ui_texture(pb.icon);
-						if (p_ico.is_valid()) {
-							btn->set_button_icon(p_ico);
-							btn->add_theme_constant_override("icon_max_width", 20);
+				// 0.28's Pack panel (g_SelectionPanels.Pack): Pack (pack.png) for unpacked engines,
+				// Unpack (unpack.png) for packed ones, Cancel Packing / Cancel Unpacking (cancel.png)
+				// for those in progress.
+				{
+					bool pack_btn = false, unpack_btn = false, pack_cancel = false, unpack_cancel = false;
+					for (int i = 0; i < selected_ids.size(); ++i) {
+						for (size_t u = 0; u < uview.count; ++u) {
+							if (uview.id[u] != (uint32_t)selected_ids[i] || !uview.alive[u]) continue;
+							const uint8_t ps = uview.pack_state[u];
+							pack_btn = pack_btn || ps == rtso::PACK_UNPACKED;
+							unpack_btn = unpack_btn || ps == rtso::PACK_PACKED;
+							pack_cancel = pack_cancel || ps == rtso::PACK_PACKING;
+							unpack_cancel = unpack_cancel || ps == rtso::PACK_UNPACKING;
+							break;
 						}
-						btn->set_disabled(pb.pack ? !can_pack : !can_unpack);
-						btn->connect("pressed", Callable(owner_, "_on_pack_pressed").bind(pb.pack));
+					}
+					const struct { bool show; const char *tip; const char *icon; const char *method; int pack; } kPack[4] = {
+						{pack_btn, "Pack", "pack.png", "_on_pack_pressed", 1},
+						{unpack_btn, "Unpack", "unpack.png", "_on_pack_pressed", 0},
+						{pack_cancel, "Cancel Packing", "cancel.png", "_on_pack_cancel_pressed", 1},
+						{unpack_cancel, "Cancel Unpacking", "cancel.png", "_on_pack_cancel_pressed", 0},
+					};
+					for (const auto &pb : kPack) {
+						if (!pb.show) continue;
+						Button *btn = icon_button(pb.tip, rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + pb.icon));
+						btn->set_tooltip_text(rtso::tr0(pb.tip));
+						btn->connect("pressed", Callable(owner_, pb.method).bind(pb.pack));
 						production_bar_->add_child(btn);
 					}
 				}
@@ -986,10 +990,32 @@ public:
 							bb->set_text(label);
 						}
 						bb->add_theme_font_size_override("font_size", 9);
-						if (need > sim->player_phase(local_player())) {
-							bb->set_disabled(true);
-							tip += "\n" + requires_text(String(kPhaseNames[need]) + " Phase");
+						const bool reqs_failed = need > sim->player_phase(local_player());
+						if (reqs_failed) tip += "\n" + requires_text(String(kPhaseNames[need]) + " Phase");
+						// selection_panels.js Construction: requirements unmet or the entity limit
+						// reached grey the icon; missing resources mask it red and list what is
+						// needed; both disable the button.
+						const uint8_t limit_cat = rtso::BUILDING_LIMIT_CATEGORY[bt];
+						const int limit = limit_cat == rtso::LIMIT_NONE || limit_cat >= rtso::LIMIT_CATEGORY_COUNT ? -1
+								: sim->entity_limit(local_player(), limit_cat);
+						const bool at_limit = limit >= 0 && sim->entity_limit_count(local_player(), limit_cat) >= limit;
+						const auto &ps = sim->player(local_player());
+						bool short_of = false;
+						for (int r = 0; r < rtso::RES_COUNT; ++r) short_of |= ps.res[r] < price[r];
+						if (short_of) tip += "\n" + needed_text(b_cost);
+						if (reqs_failed || at_limit) {
+							bb->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
+							bb->set_meta("grey", true);
+						} else if (short_of) {
+							ColorRect *mask = memnew(ColorRect);
+							mask->set_name("resourcesMask");
+							mask->set_position(Vector2(3, 3));
+							mask->set_size(Vector2(32, 32));
+							mask->set_color(Color(0.8f, 0.0f, 0.0f, 0.45f));
+							mask->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+							bb->add_child(mask);
 						}
+						bb->set_disabled(reqs_failed || at_limit || short_of);
 						bb->set_tooltip_text(tip);
 						bb->connect("pressed", Callable(owner_, "_on_build_btn_pressed").bind(bt));
 						production_bar_->add_child(bb);
@@ -1307,6 +1333,14 @@ private:
 		}
 		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
 		if (b->has_meta("progress")) s += String("\x1fg") + String::num_int64((int64_t)b->get_meta("progress"));
+		// Child overlays (the corners frame, a red mask, a greyed icon) change with state.
+		for (int i = 0; i < b->get_child_count(); ++i) {
+			Node *c = b->get_child(i);
+			if (Object::cast_to<Container>(c) || Object::cast_to<Button>(c)) continue;
+			const String name = c->get_name();
+			s += String("\x1fo") + (name.contains("@") ? c->get_class() : name); // auto names differ per frame
+			if (CanvasItem *ci = Object::cast_to<CanvasItem>(c)) s += ci->get_material().is_valid() ? "G" : "";
+		}
 		Ref<Texture2D> ico = b->get_button_icon();
 		if (ico.is_valid()) s += String("\x1fi") + (ico->get_path().is_empty() ? String::num_int64(ico->get_instance_id()) : ico->get_path());
 		s += String("\x1fm") + String(Variant(b->get_custom_minimum_size()));
@@ -1589,6 +1623,20 @@ private:
 			row->add_child(col);
 		}
 		barter_host_->add_child(row);
+	}
+
+	// guiSelection's "stretched:session/icons/corners.png" over a panel button.
+	static void add_corners(godot::Button *btn) {
+		using namespace godot;
+		TextureRect *corners = memnew(TextureRect);
+		corners->set_name("corners");
+		corners->set_texture(rtso::load_ui_texture("res://assets/textures/ui/archive/icons/corners.png"));
+		corners->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		corners->set_stretch_mode(TextureRect::STRETCH_SCALE);
+		corners->set_position(Vector2(3, 3));
+		corners->set_size(Vector2(32, 32));
+		corners->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		btn->add_child(corners);
 	}
 
 	// A 0.28 panel button: 38x38, its icon a child TextureRect (so "grayscale:" greys only

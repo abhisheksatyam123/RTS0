@@ -24,7 +24,7 @@ Status key (grep, 2026-10-08): **Present** = code exists and is called from `tic
 | `victoryManager.js`, `wonderManager.js` | `petra_manage_victory` (`simulation.cpp:7192`) | Present |
 | `chatHelper.js` | `PetraChatLine` (`petra_ai.h:179`); `petra_say` (`simulation.cpp:6902`) | Present |
 | `statistics.js` | none found | Not re-checked |
-| `workerManager.js`, `trainingManager.js` | `petra_manage_workers` (`simulation.cpp:4829`); training is inside `petra_manage_military_production` and `petra_manage_economy` | Present; no separate manager class |
+| `workerManager.js`, `trainingManager.js` | worker roles are in `petra_manage_economy`; training is inside `petra_manage_military_production` and `petra_manage_economy`. RTS0's own threat evacuation (`petra_manage_workers`) is gone: 0.28 has none, and `petra_garrison_attacked_unit` ports defenseManager garrisonAttackedUnit | Present; no separate manager class |
 | `researchManager.js` | `petra_manage_research` (`simulation.cpp:5930`) | Present |
 | `emergencyManager.js` | `petra_manage_emergency` (`simulation.cpp:7364`); `PetraEmergency` (`petra_ai.h:196`) | Present |
 | `scoutManager.js` (not in the 0 A.D. list above) | `petra_manage_scouting` (`simulation.cpp:4625`) | Present |
@@ -40,7 +40,6 @@ tick_petra_ai(dt)
   1   update_petra_threat_map        (timer 0.4 s, simulation.cpp:4336)
   2   update_petra_bases
   3   petra_manage_scouting
-  4   petra_manage_workers
   5   petra_manage_military_production
   6   petra_manage_economy
   7   petra_manage_trading

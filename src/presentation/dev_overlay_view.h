@@ -9,7 +9,8 @@
 // commands it has something behind, in 0.28's order: Change perspective, Display
 // selection state, the pathfinder, obstruction, unit motion and range overlays
 // (debug_overlays.h), Restrict camera, Reveal map, Enable time warp and Promote
-// selected units.
+// selected units; then DeveloperOverlayControlDropDowns' Render Debug Mode
+// dropdown, a row of its own under the boxes.
 
 #include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
@@ -18,6 +19,8 @@
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/callable.hpp>
+
+#include "safe_select.h"
 
 namespace rtso {
 
@@ -41,9 +44,15 @@ public:
 		"Range overlay", "Restrict camera", "Reveal map", "Enable time warp", "Promote selected units",
 	};
 	static constexpr float kRow = 24.0f;
+	// RenderDebugMode values(): RENDER_DEBUG_MODE_NONE, _AO, _ALPHA, _CUSTOM.
+	enum RenderDebugMode { RENDER_DEBUG_NONE, RENDER_DEBUG_AO, RENDER_DEBUG_ALPHA, RENDER_DEBUG_CUSTOM, RENDER_DEBUG_COUNT };
+	static constexpr const char *kRenderDebugLabels[RENDER_DEBUG_COUNT] = {
+		"Render Debug Mode Disabled", "Render Debug Mode AO", "Render Debug Mode Alpha", "Render Debug Mode Custom",
+	};
 
-	// parent: the HUD layer; owner gets `method`(command, checked) when a box is pressed.
-	void build(godot::Node *parent, godot::Object *owner, const char *method) {
+	// parent: the HUD layer; owner gets `method`(command) when a box is pressed and
+	// `dropdown_method`(index) when a Render Debug Mode is picked.
+	void build(godot::Node *parent, godot::Object *owner, const char *method, const char *dropdown_method) {
 		using namespace godot;
 		// DeveloperOverlay.xml size="100%-250 50%-280 100%-8 50%", sessionOverlayBackground.
 		panel_ = memnew(ColorRect);
@@ -56,7 +65,7 @@ public:
 		panel_->set_offset(SIDE_LEFT, -250.0f);
 		panel_->set_offset(SIDE_RIGHT, -8.0f);
 		panel_->set_offset(SIDE_TOP, -280.0f);
-		panel_->set_offset(SIDE_BOTTOM, -280.0f + DEV_COUNT * kRow); // DeveloperOverlay.resize
+		panel_->set_offset(SIDE_BOTTOM, -280.0f + (DEV_COUNT + 1) * kRow); // DeveloperOverlay.resize: boxes and dropdown
 		panel_->set_visible(false);
 		parent->add_child(panel_);
 		for (int i = 0; i < DEV_COUNT; ++i) {
@@ -76,6 +85,16 @@ public:
 			panel_->add_child(cb);
 			boxes_[i] = cb;
 		}
+		// dev_command_dropdown: "0 0 100% 100%" of the row after the boxes, devCommandsDropDown.
+		render_debug_ = memnew(RtsoSafeSelect); // an OptionButton's popup Window is unsafe here (safe_select.h)
+		render_debug_->set_name("RenderDebugMode");
+		for (int i = 0; i < RENDER_DEBUG_COUNT; ++i) render_debug_->add_item(kRenderDebugLabels[i], i);
+		render_debug_->set_position(Vector2(0, DEV_COUNT * kRow));
+		render_debug_->set_size(Vector2(250 - 8, kRow));
+		render_debug_->add_theme_font_size_override("font_size", 13);
+		render_debug_->select(RENDER_DEBUG_NONE);
+		render_debug_->connect("item_selected", Callable(owner, dropdown_method));
+		panel_->add_child(render_debug_);
 		// DeveloperOverlayEntityState.xml: "0 70 80% 100%", yellow mono, ghost.
 		state_ = memnew(Label);
 		state_->set_name("DeveloperOverlayEntityState");
@@ -103,6 +122,10 @@ public:
 	void set_checked(int c, bool on) {
 		if (c >= 0 && c < DEV_COUNT && boxes_[c] && boxes_[c]->is_pressed() != on) boxes_[c]->set_pressed_no_signal(on);
 	}
+	// RenderDebugMode.selected, synchronised while the panel is open.
+	void set_render_debug(int mode) {
+		if (render_debug_ && render_debug_->get_selected() != mode) render_debug_->select(mode);
+	}
 	void show_state(bool on) {
 		if (state_) state_->set_visible(on);
 	}
@@ -116,6 +139,7 @@ private:
 	godot::ColorRect *panel_ = nullptr;
 	godot::CheckBox *boxes_[DEV_COUNT] = {};
 	godot::Label *state_ = nullptr;
+	RtsoSafeSelect *render_debug_ = nullptr;
 };
 
 } // namespace rtso
