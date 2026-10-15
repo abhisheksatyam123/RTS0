@@ -316,6 +316,10 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 		auto rv = sim->resources();
 		for (size_t r = 0; r < rv.count; ++r)
 			if (rv.alive[r] && rv.amount[r] > 0 && rv.type[r] == rtso::RES_WOOD) { inspector_.inspect(RtsoInspectorView::INSPECT_RESOURCE, rv.id[r]); break; }
+	} else if (what == "livestock") {
+		auto fv = sim->fauna();
+		for (size_t f = 0; f < fv.count; ++f)
+			if (sim->fauna_selectable_by(local_player(), fv.id[f])) selected_ids.push_back((int32_t)fv.id[f]);
 	} else if (what == "fauna") {
 		auto fv = sim->fauna();
 		for (size_t f = 0; f < fv.count; ++f)
@@ -478,6 +482,20 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 	for (int i = 0; i < count; ++i)
 		out.push_back((int32_t)sim->spawn_unit(cx - 16.0f + 3.0f * i, cz - 16.0f, me,
 				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
+	return out;
+}
+
+// Test hook: `count` animals of a FaunaType by the player's Civic Centre, owned by the
+// player (trained livestock) or Gaia.
+PackedInt32Array RtsoMain::debug_spawn_fauna(int fauna_type, int count, bool owned) {
+	PackedInt32Array out;
+	if (!sim) return out;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : sim->buildings())
+		if (b.team == local_player() && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+	for (int i = 0; i < count; ++i)
+		out.push_back((int32_t)sim->spawn_fauna(cx + 16.0f + 3.0f * i, cz + 16.0f, (uint8_t)fauna_type,
+				owned ? local_player() : rtso::GAIA_PLAYER));
 	return out;
 }
 
@@ -2628,13 +2646,22 @@ void RtsoMain::_on_selection_group_clicked(int key) {
 void RtsoMain::select_group(int key, bool drop) {
 	if (!sim) return;
 	auto uview = sim->units();
+	auto fv = sim->fauna();
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s) {
+		bool found = false;
 		for (size_t i = 0; i < uview.count; ++i) {
 			if (uview.id[i] != (uint32_t)selected_ids[s]) continue;
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key;
 			if (in_group != drop) kept.push_back(selected_ids[s]);
+			found = true;
+			break;
+		}
+		// The player's own livestock, grouped by kind.
+		for (size_t f = 0; !found && f < fv.count; ++f) {
+			if (fv.id[f] != (uint32_t)selected_ids[s]) continue;
+			if ((RtsoSelectionGrid::fauna_key(fv.fauna_type[f]) == key) != drop) kept.push_back(selected_ids[s]);
 			break;
 		}
 	}

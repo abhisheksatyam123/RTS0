@@ -252,7 +252,7 @@ public:
 			c->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 
 		// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
-		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 10, 36.0f);
+		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 8, 36.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
 		garrison_grid_.build(panel_, Vector2(102, 148), Vector2(404, 34), owner, "_on_garrison_group_clicked", 12, 30.0f);
 		// garrison_panel.xml healthGarrison: the garrisoned units' total health, a vertical
@@ -623,8 +623,9 @@ public:
 	}
 
 	// The player's own selected livestock (0 A.D. livestock are units): one animal's details,
-	// or a count for several. False when the selection holds anything else.
-	bool fill_livestock_details() {
+	// or displayMultiple for several (count, summed health, a group per kind). False when
+	// the selection holds anything else.
+	bool fill_livestock_details(bool &show_grid) {
 		rtso::Simulation *sim = host_->ui_sim();
 		const PackedInt32Array &selected_ids = host_->ui_selected_ids();
 		if (!sim || selected_ids.is_empty()) return false;
@@ -637,8 +638,51 @@ public:
 		const bool ok = fill_inspected_details();
 		kind_ = keep_kind;
 		id_ = keep_id;
-		if (ok && selected_ids.size() > 1) title_->set_text(String::num_int64(selected_ids.size()) + " animals selected");
-		return ok;
+		if (!ok || selected_ids.size() < 2) return ok;
+		auto fv = sim->fauna();
+		std::vector<RtsoSelectionGrid::Group> groups;
+		for (int s = 0; s < selected_ids.size(); ++s)
+			for (size_t f = 0; f < fv.count; ++f) {
+				if (fv.id[f] != (uint32_t)selected_ids[s]) continue;
+				const int key = RtsoSelectionGrid::fauna_key(fv.fauna_type[f]);
+				RtsoSelectionGrid::Group *g = nullptr;
+				for (auto &e : groups)
+					if (e.key == key) g = &e;
+				if (!g) {
+					groups.emplace_back();
+					g = &groups.back();
+					g->key = key;
+					g->fauna = fv.fauna_type[f];
+					g->player = fv.owner ? fv.owner[f] : rtso::GAIA_PLAYER;
+				}
+				++g->count;
+				g->hp += fv.hp[f];
+				g->max_hp += fv.max_hp[f];
+				break;
+			}
+		float hp = 0.0f, max_hp = 0.0f;
+		for (auto &g : groups) {
+			hp += g.hp;
+			max_hp += g.max_hp;
+			g.tip = rtso::entity_names(RtsoSelectionGrid::group_name(g), String()) + "\n" +
+					rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+		}
+		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
+		title_->set_text(String::num_int64(selected_ids.size()) + " units selected");
+		title_->set_tooltip_text("");
+		portrait_->set_tooltip_text("");
+		clear_owner();
+		class_->set_text(String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
+		hp_bar_->set_max(max_hp > 0.0f ? max_hp : 1.0f);
+		hp_bar_->set_value(hp);
+		hp_label_->set_text(rtso::seldet::health(hp, max_hp));
+		for (int i = 0; i < kStatusIcons; ++i) status_icons_[i]->set_visible(false);
+		stats_->set_text("");
+		stats_->set_tooltip_text("");
+		extra_->set_text("");
+		selection_grid_.update(groups, "");
+		show_grid = true;
+		return true;
 	}
 
 	void update() {
@@ -773,7 +817,7 @@ public:
 			panel_->set_visible(kind_ != INSPECT_NONE);
 			return;
 		}
-		if (fill_livestock_details()) {
+		if (fill_livestock_details(show_selection_grid)) {
 			ungarrison_btn_->set_visible(false);
 			panel_->set_visible(true);
 			return;
@@ -890,7 +934,8 @@ public:
 					for (; i < uview.count; ++i)
 						if (uview.id[i] == (uint32_t)selected_ids[s]) break;
 					if (i == uview.count || !uview.alive[i]) continue;
-					if (!rtso::unit_is_ship(uview.unit_type[i])) ++garrison_size;
+					// Garrisonable.size (ships have none) plus a holder's GarrisonHolder.occupiedSlots.
+					garrison_size += (rtso::unit_is_ship(uview.unit_type[i]) ? 0 : 1) + (int64_t)sim->get_transport_passenger_count(uview.id[i]);
 					const rtso::LootInfo l = sim->unit_details(i).loot;
 					loot.res[rtso::RES_FOOD] += l.food;
 					loot.res[rtso::RES_WOOD] += l.wood;
@@ -1275,6 +1320,7 @@ private:
 			}
 			g.tip += "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
 		}
+		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
 		return groups;
 	}
 

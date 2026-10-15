@@ -45,12 +45,19 @@ public:
 		bool enabled = true, grey = true;
 		Color bg = Color(0, 0, 0, 0);
 		String tip;
+		int fauna = -1; // the player's own livestock: its FaunaType (fauna_key), else -1
 	};
+
+	// selection_panels.js Selection.getMaxNumberOfItems: at most 16 groups show.
+	static constexpr size_t kMaxSelectionGroups = 16;
 
 	// Template row when the unit has one, else 0x10000 | unit type.
 	static int group_key(uint8_t unit_type, uint16_t tmpl) {
 		return tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? (int)tmpl : (0x10000 | unit_type);
 	}
+
+	// A group of the player's own livestock (fauna, not units): its FaunaType.
+	static int fauna_key(uint8_t fauna_type) { return 0x20000 | fauna_type; }
 
 	// The garrison panel's groups (EntityGroups): template and owner.
 	static int owner_key(uint8_t unit_type, uint16_t tmpl, uint8_t player) {
@@ -85,6 +92,7 @@ public:
 	}
 
 	static String group_name(const Group &g) {
+		if (g.fauna >= 0) return String::utf8(rtso::fauna_type_info((uint8_t)g.fauna).name);
 		if (g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) return String::utf8(rtso::civ_unit_template(g.tmpl).name);
 		return String(rtso::unit_type_info(g.unit_type).name);
 	}
@@ -156,7 +164,7 @@ public:
 			b->set_custom_minimum_size(Vector2(icon_, icon_));
 			b->set_expand_icon(true);
 			b->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-			Ref<Texture2D> tex = rtso::portraits::unit(g.tmpl, g.unit_type);
+			Ref<Texture2D> tex = g.fauna >= 0 ? rtso::portraits::fauna((uint8_t)g.fauna) : rtso::portraits::unit(g.tmpl, g.unit_type);
 			if (tex.is_valid() && g.enabled) {
 				b->set_button_icon(tex);
 			} else if (tex.is_valid()) {

@@ -104,5 +104,19 @@ func run() -> void:
 	check(String(f["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/gaia/fauna_"), "an animal shows its template's icon")
 	check(String(f["owner"]) == "Gaia" and String(f["owner_tooltip"]) == "" and Color(f["owner_color"]).a == 0.0, "Gaia has no colour, emblem or tooltip")
 
+	main.debug_spawn_fauna(2, 2, true) # FAUNA_SHEEP
+	main.debug_spawn_fauna(31, 1, true) # FAUNA_GOAT
+	await frames(2)
+	var ls: Dictionary = main.debug_inspector("livestock")
+	print("livestock: ", ls["title"], " ", ls["owner"], " ", ls["health"])
+	check(String(ls["title"]) == "3 units selected" and String(ls["owner"]) == "2 types", "several of the player's livestock show displayMultiple: count and kinds")
+	check(String(ls["health"]).begins_with("Health: "), "with their summed health")
+	var lg: Dictionary = main.debug_selection_grid(false)
+	var licons: Array = lg["icons"]
+	check(licons.size() == 2 and String(licons[0]["tip"]).begins_with("Sheep"), "one icon per kind of animal")
+	(instance_from_id(licons[0]["id"]) as Button).pressed.emit()
+	await frames(2)
+	check(int(main.debug_selection_grid(false)["selected"]) == 2, "a click on the sheep keeps only the sheep")
+
 	print("e2e_selection_details: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
