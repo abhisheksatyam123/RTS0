@@ -473,11 +473,14 @@ public:
 			d.resistance[0] = fi.hack_armor;
 			d.resistance[1] = fi.pierce_armor;
 			d.resistance[2] = fi.crush_armor;
+			// getSpeedTooltip: walk and run, in 0 A.D. metres a second (RTS0 walks at x0.356).
+			d.walk = fi.speed / 0.356f;
+			d.run = d.walk * (fi.run_mult > 0.0f ? fi.run_mult : 1.0f);
 			const String attack = rtso::seldet::attack_tooltip(d,
 					godot::Dictionary(rtso::portraits::fauna_entry(fv.fauna_type[f]).get("viewer", godot::Dictionary())).get("attacks", godot::Array())),
 					resistance = rtso::seldet::resistance_tooltip(d.resistance);
 			stats_->set_text(rtso::seldet::join_lines({body_lines(attack), body_lines(resistance)}));
-			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance}));
+			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance, rtso::seldet::speed_tooltip(d)}));
 			// resourceSection: the meat it yields, "Food: 100 / 100".
 			if (fv.food_amount[f] > 0)
 				extra_->set_text(rtso::seldet::resource_label(rtso::RES_FOOD) + " " +
@@ -576,6 +579,13 @@ public:
 			title = rv.subtype[r] == rtso::RES_SUB_MEAT ? String("Carcass") : rv.subtype[r] == rtso::RES_SUB_FISH ? String("Fish")
 					: flora_title(rv.flora ? rv.flora[r] : rtso::FLORA_BERRY);
 			kind = "Food";
+		}
+		// A tree or fruit: its template's SpecificName under the Tree or Fruit GenericName
+		// (gaia/tree and gaia/fruit templates set only SpecificName): "Aleppo Pine (Tree)".
+		if (rv.type[r] == rtso::RES_WOOD || (rv.type[r] == rtso::RES_FOOD && rv.subtype[r] != rtso::RES_SUB_MEAT &&
+				rv.subtype[r] != rtso::RES_SUB_FISH && rv.subtype[r] != rtso::RES_SUB_GRAIN)) {
+			const String generic = rtso::portraits::resource_entry(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0).get("generic_name", String());
+			if (!generic.is_empty()) title = rtso::entity_names(generic, title);
 		}
 		portrait_->set_texture(rtso::portraits::resource(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0));
 		title_->set_text(title);
