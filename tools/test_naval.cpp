@@ -822,6 +822,7 @@ static void test_petra_overseas_attack() {
 	slot.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
 	slot.petra_attack_plan_.target_building_id = house;
 	slot.petra_attack_plan_.state_timer = 0.0f;
+	slot.petra_attack_plan_.forced = true; // six spearmen: no plan's classes are full (mustStart)
 	run(s, 4.0f);
 	// Ready, but nothing to sail in: it waits, and a transport ship is in training.
 	CHECK(s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER);
