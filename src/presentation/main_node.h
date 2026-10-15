@@ -1046,6 +1046,10 @@ private:
 	// a rejoin loads, and "disconnected": the host is gone, so the match stops
 	// here. Exit leaves for the summary (endGame(true)).
 	Control *net_status_overlay_ = nullptr;
+	Label *net_status_title_ = nullptr;
+	Button *net_status_exit_ = nullptr;
+	Button *net_status_faq_ = nullptr;
+	void _on_open_faq_pressed();
 	Label *net_status_label_ = nullptr;
 	RichTextLabel *net_loading_clients_ = nullptr; // loadingClientsText
 	bool net_disconnected_ = false; // session.js g_Disconnected

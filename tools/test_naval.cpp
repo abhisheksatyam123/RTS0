@@ -106,8 +106,10 @@ static void test_dock_trade() {
 	CHECK(athen_ship == cart_land);
 	std::printf("dock route %.0f m: Carthaginian ship %d, caravan %d, Athenian ship %d\n", metres, cart_ship, cart_land, athen_ship);
 
-	// A merchant ship in the sea finds the route itself and is paid on each arrival.
+	// A merchant ship in the sea takes the farthest pair of docks it can trade at (the route an
+	// AI's idle trader picks, order_trade_auto) and is paid on each arrival.
 	const uint32_t ship = s.spawn_unit(-40.0f, 8.0f, 0, UNIT_MERCHANT_SHIP);
+	s.order_trade_auto(&ship, 1);
 	run(s, 240.0f);
 	const int earned = total(s, 0);
 	std::printf("Carthaginian merchant ship earned %d in 240 s\n", earned);
@@ -132,6 +134,7 @@ static void test_dock_trade() {
 	const uint32_t cmarket = c.spawn_building_world(-40.0f, -40.0f, BLD_MARKET, 0);
 	c.spawn_building_world(5.0f, -45.0f, BLD_TOWN_CENTER, 0); // territory, or both decay to Gaia
 	const uint32_t caravan = c.spawn_unit(-30.0f, -40.0f, 0, UNIT_TRADER);
+	c.order_trade_auto(&caravan, 1);
 	run(c, 240.0f);
 	const auto route = c.trader_routes_.find(caravan);
 	CHECK(route != c.trader_routes_.end());
@@ -2098,6 +2101,47 @@ static void test_ships_accelerate() {
 	CHECK(std::fabs(furthest - x_back - v * v / (2.0f * a)) < 0.2f && std::fabs(x_end + 40.0f) < 1.0f);
 }
 
+// UnitAI Order.Garrison on a ship: an unpacked siege engine packs first; a unit with no room
+// walks over and stops beside the ship; an ally's unit walking to board ignores enemies.
+static void test_board_rules() {
+	std::printf("board rules\n");
+	static Simulation s;
+	fresh(s);
+	const uint32_t arrow = s.spawn_unit(-20.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t cat = s.spawn_unit(-20.0f, 17.5f, 0, UNIT_CATAPULT);
+	s.units_.pack_state[idx(s, cat)] = PACK_UNPACKED;
+	s.order_board_transport(&cat, 1, arrow);
+	CHECK(!aboard(s, arrow, cat));
+	run(s, 0.4f);
+	CHECK(s.units().pack_state[idx(s, cat)] == PACK_PACKING);
+	run(s, 20.0f);
+	CHECK(aboard(s, arrow, cat));
+
+	const uint32_t scout = s.spawn_unit(20.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_scout"));
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 10; ++k) crew.push_back(s.spawn_unit(18.0f + 0.4f * k, 17.5f, 0, UNIT_SPEARMAN));
+	const uint32_t extra = s.spawn_unit(32.0f, 18.0f, 0, UNIT_SPEARMAN);
+	crew.push_back(extra);
+	s.order_board_transport(crew.data(), crew.size(), scout);
+	const float d0 = std::fabs(s.units().pos_x[idx(s, extra)] - 20.0f);
+	CHECK(s.units().action_state[idx(s, extra)] == ACTION_MOVE);
+	run(s, 12.0f);
+	const int32_t ie = idx(s, extra);
+	CHECK(s.get_transport_passenger_count(scout) == 10);
+	CHECK(s.units().alive[ie] && !aboard(s, scout, extra) && s.units().action_state[ie] == ACTION_IDLE);
+	CHECK(std::fabs(s.units().pos_x[ie] - 20.0f) < d0 - 4.0f);
+
+	s.set_mutual_ally(0, 2);
+	const uint32_t ship2 = s.spawn_unit(-50.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t friend_ = s.spawn_unit(-62.0f, 18.0f, 2, UNIT_SPEARMAN);
+	const uint32_t foe = s.spawn_unit(-60.0f, 19.5f, 1, UNIT_SPEARMAN);
+	s.order_set_stance(&foe, 1, STANCE_PASSIVE);
+	s.order_board_transport(&friend_, 1, ship2);
+	run(s, 10.0f);
+	CHECK(aboard(s, ship2, friend_));
+	CHECK(s.units().hp[idx(s, foe)] == s.units().max_hp[idx(s, foe)]);
+}
+
 int main() {
 	test_ships_accelerate();
 	test_transport();
@@ -2145,6 +2189,7 @@ int main() {
 	test_fire_ship();
 	test_whale_hunt();
 	test_gather_unreachable();
+	test_board_rules();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
