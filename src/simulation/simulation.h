@@ -4,6 +4,7 @@
 #include "../core/memory/arena.h"
 #include "../core/memory/soa_storage.h"
 #include "grid_nav.h"
+#include "id_index.h"
 #include "los_grid.h"
 #include "nav/footprint.h"
 #include "nav/obstacle_grid.h"
@@ -708,6 +709,8 @@ public:
 	// Roster templates the unit `tmpl` trains for `player` now (Trainer/Entities with their
 	// requirements met), and every one it could train (`all`).
 	std::vector<uint16_t> unit_trainables(uint8_t player, uint16_t tmpl, bool all = false) const;
+	// The technology a training unit's Trainer list entry requires (unit_trainer_data.h), or TECH_NONE.
+	static uint8_t unit_trainee_tech(uint16_t trainer_tmpl, uint16_t trainee);
 	static bool unit_is_trainer(uint16_t tmpl); // trains or researches (Trainer or Researcher)
 	// 0 A.D. Researcher on a unit (Athenian triremes: Iphicratean Reforms): the technologies the
 	// roster unit `tmpl` researches, and queueing one (research_check's rules, without a structure).
@@ -2667,7 +2670,7 @@ private:
 	// (0 A.D. Trainer spawns gaia/fauna_*_trainable owned by that player). Beside fauna_, not
 	// in it, so the saved FaunaStorage layout stays; save v58 adds it.
 	uint8_t fauna_owner_[FaunaStorage::MAX_FAUNA] = {};
-	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
+	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
 	// tick, and the stance each had before it went up (UnitAI previousStance).
@@ -2740,7 +2743,7 @@ private:
 	float last_alert_time_[6] = {};
 	std::unordered_map<uint32_t, size_t> unit_id_to_idx_;
 	std::vector<int32_t> unit_idx_by_id_;
-	std::unordered_map<uint32_t, size_t> res_id_to_idx_;
+	IdIndex res_id_to_idx_;
 	std::array<TechMods, MAX_PLAYERS> tech_mods_;
 	std::unordered_map<uint32_t, uint32_t> field_res_by_bld_; // field building id -> grain resource id
 	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
@@ -2754,7 +2757,7 @@ private:
 	std::vector<Scenery> scenery_; // saved
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0, uint8_t team = 0xFF) const;
-	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
+	IdIndex building_id_to_idx_;
 
 	// Every standing building's footprint cells (can_place): FULL where a footprint covers the cell,
 	// PART where one only reaches into it. A wreck no longer obstructs (0 A.D. rubble has no
@@ -3428,6 +3431,7 @@ private:
 		int at(float x, float z, float half) const;
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
+	mutable std::vector<int> petra_bases_tile_scratch_; // petra_bases_map's territory tile per column, then per row
 	// `bmap` and `base` (from 1) limit the search to that base's territory.
 	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f,
 	                              const PetraBasesMap *bmap = nullptr, int base = 0);
@@ -3550,13 +3554,44 @@ private:
 	};
 	std::vector<TerritoryRoot> territory_roots_, territory_roots_scratch_;
 	// rebuild_territory_grids() scratch: CalculateCostGrid's tile costs and CalculateTerritories'
-	// per-structure, per-player and best weights, flood queue and the tiles one structure reached.
+	// per-structure weights, flood queue and the tiles one structure reached.
 	static constexpr uint8_t TERRITORY_IMPASSABLE_COST = 4; // territorymanager.xml ImpassableCost
 	static constexpr uint8_t TERRITORY_OFF_WORLD_COST = 255; // CCmpTerritoryManager: past the map edge
 	Grid<uint8_t> territory_cost_;
-	std::vector<uint32_t> territory_entity_w_, territory_player_w_, territory_best_w_, territory_open_, territory_touched_;
+	std::vector<uint32_t> territory_entity_w_, territory_open_, territory_touched_;
 	int territory_roots_res_ = 0;
 	float territory_roots_half_ = 0.0f;
+	// The cost grid's inputs when it was last worked out: the nav grid (nav_terrain_stamp_), the
+	// grid size, the map extent and a circular map's edge.
+	uint32_t territory_cost_stamp_ = 0;
+	int territory_cost_res_ = 0;
+	float territory_cost_half_ = 0.0f;
+	bool territory_cost_circular_ = false;
+	// What CalculateTerritories works out, kept per player so that a capture, which moves one
+	// structure between two players, floods only that structure again. One structure's flood
+	// depends on nothing but itself and the cost grid; a player's weight on a tile is its floods'
+	// sum, except on a structure's own tile, where the weights before it are dropped (the replay in
+	// rebuild_territory_grids). Not saved: kept only while the cost grid and the influence grid
+	// are those it made (territory_last_influence_), so a loaded game floods everything once.
+	struct TerritoryFlood {
+		TerritoryRoot root{};
+		int x0 = 0, z0 = 0, w = 0, h = 0; // the tiles it reached
+		std::vector<uint32_t> v;           // its weight on each of them, row by row (0: not reached)
+		int origin = -1;                   // its own tile, -1 when it floods nothing
+		uint32_t at(int x, int z) const {
+			x -= x0;
+			z -= z0;
+			return (unsigned)x < (unsigned)w && (unsigned)z < (unsigned)h ? v[(size_t)z * w + x] : 0;
+		}
+	};
+	struct TerritoryTeam {
+		std::vector<TerritoryFlood> floods; // the player's claiming structures, in buildings_ order
+		std::vector<uint32_t> sum;          // all its floods' weights per tile
+		std::vector<uint32_t> max_w;        // the highest weight its floods gave each tile, as they ran
+	};
+	std::array<TerritoryTeam, MAX_PLAYERS> territory_teams_;
+	bool territory_teams_valid_ = false;
+	std::vector<uint8_t> territory_last_influence_;
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
 	// move_units' copy of the buildings that block movement, in buildings_ order, and the mines, with
 	// only the fields nav/building_steering.h reads, so its per-unit scans read a short packed list.

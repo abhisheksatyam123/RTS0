@@ -2101,6 +2101,178 @@ void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id,
 		if (d->get_modulate() != mod) d->set_modulate(mod);
 }
 
+// 0 A.D. structure actors prop particle emitters in the variants they always show
+// (chimney smoke, temple and camp fires, the lighthouse beacon, the flames and
+// smoke of civic-centre rubble). Each art/particles/*.xml file's emission rate,
+// lifetimes, emitter offset and box, velocities, sizes, growth, force, colour and
+// blending become a GPUParticles3D on the root, at the prop's GLB position; `k`
+// and `base` place the GLB's units under the root, as the decals'. Emitters with
+// world-space velocities are turned back to the world's axes; use_relative_velocity
+// ones turn with the structure.
+void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, float k, const Vector3 &base) {
+	if (!v.root) return;
+	const String key = glb_id.is_empty() ? String() : glb_id + String("|") + String::num(k, 4);
+	if (key != v.ambient_key) {
+		for (GPUParticles3D *p : v.ambient_fx) {
+			if (p->get_parent()) p->get_parent()->remove_child(p);
+			p->queue_free();
+		}
+		v.ambient_fx.clear();
+		v.ambient_pos.clear();
+		v.ambient_key = key;
+		if (key.is_empty()) return;
+		if (!ambient_fx_loaded_) {
+			ambient_fx_loaded_ = true;
+			Ref<FileAccess> f = FileAccess::open("res://data/ambient_fx.json", FileAccess::READ);
+			Dictionary root = f.is_valid() ? Dictionary(JSON::parse_string(f->get_as_text())) : Dictionary();
+			auto pair = [](const Variant &a) {
+				Array r = a;
+				return r.size() == 2 ? Vector2((float)r[0], (float)r[1]) : Vector2();
+			};
+			Dictionary parts = root.get("particles", Dictionary());
+			Array names = parts.keys();
+			for (int i = 0; i < names.size(); ++i) {
+				Dictionary e = parts[names[i]];
+				AmbientParticle d;
+				d.tex = e.get("tex", "");
+				d.add = e.get("add", false);
+				d.start_full = e.get("start_full", false);
+				d.relative = e.get("relative", false);
+				d.rate = (float)e.get("rate", 0.0);
+				d.growth = (float)e.get("growth", 0.0);
+				d.life = pair(e.get("life", Array()));
+				d.size = pair(e.get("size", Array()));
+				d.color = pair(e.get("color", Array()));
+				d.angle = pair(e.get("angle", Array()));
+				d.spin = pair(e.get("spin", Array()));
+				Array pos = e.get("pos", Array()), vel = e.get("vel", Array()), force = e.get("force", Array());
+				for (int a = 0; a < 3; ++a) {
+					d.pos[a] = pos.size() == 3 ? pair(pos[a]) : Vector2();
+					d.vel[a] = vel.size() == 3 ? pair(vel[a]) : Vector2();
+				}
+				if (force.size() == 3) d.force = Vector3((float)force[0], (float)force[1], (float)force[2]);
+				ambient_particles_[String(names[i]).utf8().get_data()] = d;
+			}
+			Dictionary structures = root.get("structures", Dictionary());
+			Array keys = structures.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Dictionary e = structures[keys[i]];
+				AmbientFxSet set;
+				set.metre = (float)e.get("metre", 0.25);
+				Array list = e.get("fx", Array());
+				for (int j = 0; j < list.size(); ++j) {
+					Dictionary fx = list[j];
+					Array pos = fx.get("pos", Array());
+					if (pos.size() != 3) continue;
+					set.fx.push_back({ String(fx.get("p", "")).utf8().get_data(), Vector3((float)pos[0], (float)pos[1], (float)pos[2]) });
+				}
+				ambient_fx_[String(keys[i]).utf8().get_data()] = set;
+			}
+		}
+		const auto it = ambient_fx_.find(building_table_key(glb_id));
+		if (it == ambient_fx_.end()) return;
+		const AmbientFxSet &set = it->second;
+		const float m = set.metre * k; // world units per 0 A.D. metre
+		for (const AmbientFx &fx : set.fx) {
+			const auto pd = ambient_particles_.find(fx.particle);
+			if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) continue;
+			const AmbientParticle &d = pd->second;
+			Ref<QuadMesh> &quad = ambient_quads_[d.tex.utf8().get_data()];
+			if (quad.is_null()) {
+				Ref<StandardMaterial3D> mat;
+				mat.instantiate();
+				mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+				mat->set_billboard_mode(BaseMaterial3D::BILLBOARD_PARTICLES);
+				mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+				if (d.add) mat->set_blend_mode(BaseMaterial3D::BLEND_MODE_ADD);
+				mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+				mat->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+				const String path = "res://assets/textures/particles/" + d.tex;
+				if (rtso::Assets::res_exists(path)) {
+					Ref<Texture2D> t = ResourceLoader::get_singleton()->load(path);
+					if (t.is_valid()) mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, t);
+				}
+				quad.instantiate();
+				quad->set_size(Vector2(1.0f, 1.0f));
+				quad->set_material(mat);
+			}
+			auto mid = [](const Vector2 &r) { return 0.5f * (r.x + r.y); };
+			auto half = [](const Vector2 &r) { return 0.5f * std::abs(r.y - r.x); };
+			const Vector3 vmean(mid(d.vel[0]), mid(d.vel[1]), mid(d.vel[2]));
+			const float speed = vmean.length();
+			// The velocity box's widest axis across the mean direction sets the spread.
+			const int along = std::abs(vmean.z) > std::abs(vmean.y) ? 2 : 1;
+			const float along_half = half(d.vel[along]);
+			const float across = std::max(half(d.vel[0]), along == 1 ? half(d.vel[2]) : half(d.vel[1]));
+			Ref<ParticleProcessMaterial> pm;
+			pm.instantiate();
+			pm->set_direction(speed > 1e-4f ? vmean / speed : Vector3(0, 1, 0));
+			pm->set_spread(speed > 1e-4f ? Math::rad_to_deg(Math::atan2(across, speed)) : 180.0f);
+			pm->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, std::max(0.0f, speed - along_half) * m);
+			pm->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, (speed + along_half) * m);
+			pm->set_gravity(d.force * m);
+			pm->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
+			pm->set_emission_box_extents(Vector3(half(d.pos[0]), half(d.pos[1]), half(d.pos[2])) * m);
+			pm->set_param_min(ParticleProcessMaterial::PARAM_SCALE, d.size.x * m);
+			pm->set_param_max(ParticleProcessMaterial::PARAM_SCALE, d.size.y * m);
+			if (d.growth > 0.0f && mid(d.size) > 0.0f) {
+				// size.growthRate metres a second over the particle's life.
+				const float g = 1.0f + d.growth * mid(d.life) / mid(d.size);
+				Ref<Curve> grow;
+				grow.instantiate();
+				grow->set_max_value(g);
+				grow->add_point(Vector2(0.0f, 1.0f));
+				grow->add_point(Vector2(1.0f, g));
+				Ref<CurveTexture> ct;
+				ct.instantiate();
+				ct->set_curve(grow);
+				pm->set_param_texture(ParticleProcessMaterial::PARAM_SCALE, ct);
+			}
+			pm->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, Math::rad_to_deg(d.angle.x));
+			pm->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, Math::rad_to_deg(d.angle.y));
+			pm->set_param_min(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin.x));
+			pm->set_param_max(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, Math::rad_to_deg(d.spin.y));
+			const float c = mid(d.color);
+			pm->set_color(Color(c, c, c, 1.0f));
+			{
+				Ref<Gradient> gr;
+				gr.instantiate();
+				gr->set_offsets(PackedFloat32Array({ 0.0f, 0.15f, 1.0f }));
+				gr->set_colors(PackedColorArray({ Color(1, 1, 1, 0), Color(1, 1, 1, 1), Color(1, 1, 1, 0) }));
+				Ref<GradientTexture1D> gt;
+				gt.instantiate();
+				gt->set_gradient(gr);
+				pm->set_color_ramp(gt);
+			}
+			GPUParticles3D *p = memnew(GPUParticles3D);
+			p->set_process_material(pm);
+			p->set_draw_pass_mesh(0, quad);
+			p->set_amount(std::max(1, (int)std::ceil(d.rate * d.life.y)));
+			p->set_lifetime(d.life.y);
+			p->set_randomness_ratio(Math::clamp(1.0f - d.life.x / d.life.y, 0.0f, 1.0f));
+			if (d.start_full) p->set_pre_process_time(d.life.y);
+			p->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+			{
+				const float t = d.life.y;
+				const float rise = ((speed + along_half) * t + 0.5f * std::abs(d.force.y) * t * t) * m + d.size.y * m * (1.0f + d.growth * t);
+				const float wide = std::min(40.0f, (across + 0.5f * Vector2(d.force.x, d.force.z).length() * t) * t * m + d.size.y * m * (1.0f + d.growth * t));
+				const float h = std::min(60.0f, rise);
+				p->set_visibility_aabb(AABB(Vector3(-wide - 1.0f, -1.0f, -wide - 1.0f), Vector3(2.0f * wide + 2.0f, h + 2.0f, 2.0f * wide + 2.0f)));
+			}
+			p->set_meta("relative", d.relative);
+			v.root->add_child(p);
+			v.ambient_fx.push_back(p);
+			v.ambient_pos.push_back(fx.pos + Vector3(mid(d.pos[0]), mid(d.pos[1]), mid(d.pos[2])) * set.metre);
+		}
+	}
+	const Basis unturn = v.root->get_transform().basis.inverse();
+	for (size_t i = 0; i < v.ambient_fx.size(); ++i) {
+		GPUParticles3D *p = v.ambient_fx[i];
+		const Transform3D t(bool(p->get_meta("relative")) ? Basis() : unturn, base + v.ambient_pos[i] * k);
+		if (p->get_transform() != t) p->set_transform(t);
+	}
+}
+
 void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.root) v.root->set_visible(false);
 	if (v.ring) v.ring->set_visible(false);
@@ -3764,6 +3936,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				}
 			}
 			update_building_decals(v, decal_glb, dk, dbase, Math::round(los_brightness(b.x, b.z) * (FOG_OVERLAY_LEVELS - 1)) / (FOG_OVERLAY_LEVELS - 1));
+			// The particles the structure's actor, or its rubble's, always props.
+			if (v.phase == 0)
+				update_ambient_fx(v, visual_id, b_scale, Vector3(0.0f, entry.y_offset, 0.0f));
+			else if (v.phase == 4 && own_rubble)
+				update_ambient_fx(v, visual_id, rubble_k, Object::cast_to<Node3D>(v.model) ? Object::cast_to<Node3D>(v.model)->get_position() : rubble_pos);
+			else
+				update_ambient_fx(v, String(), 1.0f, Vector3());
 		}
 
 		{
@@ -3885,6 +4064,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].site_dust_poll = 0.0f;
 			building_pool[s].decals.clear();
 			building_pool[s].decal_key = String();
+			building_pool[s].ambient_fx.clear();
+			building_pool[s].ambient_pos.clear();
+			building_pool[s].ambient_key = String();
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}
