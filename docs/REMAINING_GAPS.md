@@ -9,16 +9,14 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | # | Gap | Impact | Owner |
 |---|---|---|---|
 | G1 | Rams, siege engines and elephants path into woods only infantry can pass, and grind along the tree line (0.28 gives large units their own long-path grid; fix on a branch) | high | Fauna |
-| G2 | Idle traders start trade routes on their own, and a stopped trader restarts and loses its goods (0.28 traders trade only when ordered) | medium | A |
 | G3 | Petra plans rushes only in the village phase and drops a mustering rush at the town phase (aggressive 0.28 Petra rushes in the town phase too) | medium | D |
 | G4 | Petra rates units on base stats, not after its own techs, so it keeps spearmen where 0.28 switches to archers | medium | D |
 | G5 | A town-phase HugeAttack waits for champions and a hero once the city phase comes (0.28 drops those classes from the plan) | medium | D |
 | G6 | A guard forgets the unit it guards after any new order (0.28 goes back to guarding once idle) | medium | Unit orders |
 | G7 | The bottom HUD isn't 0.28's centred 1024 px group: panels sit at the corners, the Training grid floats, and the stance buttons have captions | medium | Session UI |
-| G8 | Liu Bang's Confucian Reforms aura (Han walls regenerate 10 HP/s) does nothing; Themistocles' wall aura skips palisades | medium | Compare |
-| G9 | Units garrisoned in an ally's structure or ship don't share its vision | low | A |
-| G10 | Trade: a zero-gain route keeps its trader busy forever, and traders boarding or leaving a ship mid-voyage don't change that leg's gain | low | A |
-| G11 | Ptolemaic and Seleucid walls give 3 stone of loot (0.28: 7 or 5); a bribe's spy ignores vision techs; garrisoned traders can't be bribed | low | A |
+| G8 | Liu Bang's Confucian Reforms aura (Han walls regenerate 10 HP/s) does nothing | medium | Compare |
+| G10 | Trade: traders boarding or leaving a ship mid-voyage don't change that leg's gain | low | A |
+| G11 | Garrisoned or embarked traders can't be bribed | low | A |
 | G12 | Petra: starting cavalry joins attacks instead of hunting; rushes and raids take no siege; far-off gatherers aren't sent back | low | D (cavalry, siege), C (gatherers) |
 | G13 | Petra's numberMissingRoom has no 90 s lapse | low | C |
 | G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
@@ -32,7 +30,6 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G22 | CJK languages need Source Han Sans shipped | low | Session UI |
 | G23 | The chat window is a corner box with extra buttons, and Tab doesn't complete player names | low | B |
 | G24 | Circular maps show an extra 8 m ring past 0.28's edge; square maps have no 12 m edge frame | low | A |
-| G25 | Livestock that an easier Petra breeds skips the AI training-time handicap | low | A |
 | G26 | In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch) | low | Multiplayer |
 | G27 | -autostart-aiseed seeds only the AI personalities; Petra's other draws use the match's random stream | low | C |
 | G28 | The developer overlay lacks Control all units and the culling boxes | low | Stats |
