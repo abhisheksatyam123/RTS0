@@ -2,7 +2,9 @@ extends SceneTree
 # unit_actions.js "set-rallypoint" getActionInfo: with a structure selected, the cursor shows
 # what the trained units will do at the rally point: action-garrison with "Current garrison:
 # x/y" over an own holder, action-capture over an enemy structure, the plain rally cursor on
-# open ground.
+# open ground. With session.focusfire (F) held an attacking structure aims instead
+# ("action-target"), and with session.flare (K) held the cursor is input.js's
+# "action-player-flare".
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_rally_cursor.gd
 # Exit code 0 = pass.
@@ -33,6 +35,14 @@ func move(pos: Vector2) -> void:
 	mm.global_position = mm.position
 	Input.parse_input_event(mm)
 	await frames(2)
+
+func hold(code: Key, on: bool) -> void:
+	var k := InputEventKey.new()
+	k.keycode = code
+	k.physical_keycode = code
+	k.pressed = on
+	Input.parse_input_event(k)
+	await frames(3)
 
 func screen_of(id: int) -> Vector2:
 	main.debug_select_entity(id)
@@ -75,6 +85,23 @@ func run() -> void:
 	await move(tower_at + (tower_at - enemy_at).normalized() * 160.0)
 	t = main.debug_cursor_tip()
 	check(t["cursor"] == "cursor-rally", "the rally cursor: " + str(t["cursor"]))
+
+	print("4. F held: the Civic Center aims its arrows")
+	await hold(KEY_F, true)
+	await move(enemy_at)
+	t = main.debug_cursor_tip()
+	check(t["cursor"] == "action-target", "the target cursor: " + str(t["cursor"]))
+	await hold(KEY_F, false)
+	await move(enemy_at + Vector2(1, 0))
+	t = main.debug_cursor_tip()
+	check(t["cursor"] == "action-capture", "back to capture on release: " + str(t["cursor"]))
+
+	print("5. K held: the player's flare cursor")
+	await hold(KEY_K, true)
+	await move(tower_at)
+	t = main.debug_cursor_tip()
+	check(t["cursor"] == "action-player-flare", "the player flare cursor: " + str(t["cursor"]))
+	await hold(KEY_K, false)
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
