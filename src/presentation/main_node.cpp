@@ -1257,20 +1257,15 @@ void RtsoMain::update_observer_view_picker() {
 		return;
 	}
 	if (!observer_view_picker_) {
-		HBoxContainer *row = memnew(HBoxContainer);
-		row->set_position(Vector2(16.0f, 64.0f));
 		observer_view_picker_ = new_player_view_picker();
 		observer_view_picker_->connect("item_selected", Callable(this, "_on_observer_view_selected"));
-		row->add_child(observer_view_picker_);
 		observer_mode_label_ = memnew(Label);
 		observer_mode_label_->set_text("Observer Mode");
-		row->add_child(observer_mode_label_);
 		observer_follow_box_ = new_follow_player_box();
-		row->add_child(observer_follow_box_);
 		CanvasLayer *layer = memnew(CanvasLayer);
 		layer->set_layer(5);
 		add_child(layer);
-		layer->add_child(row);
+		layer->add_child(new_player_view_row(observer_view_picker_, observer_mode_label_, observer_follow_box_));
 		const uint8_t seat = seat_player();
 		if (!spectating()) {
 			sync_observer_view_picker(); // Change perspective: the player's own seat
