@@ -54,7 +54,7 @@ void RtsoMain::_ready() {
 	// clients it is for (the receivers keep their own check too).
 	net_host_.setChatRouter([this](uint32_t from, uint32_t to, const std::string &message) {
 		const std::string tag = rtso::chat_wire_tag(message);
-		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag);
+		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag, to);
 	});
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
 		String msg = String::utf8(cm.message.c_str());
@@ -64,6 +64,18 @@ void RtsoMain::_ready() {
 			// 0 A.D. sends a flare to the sender's mutual allies and the observers.
 			const String guid = String::utf8(cm.sender_guid.c_str());
 			if (!chat_local_observer() && !chat_is_addressee(guid, "[Allies]")) return;
+			// messages.js g_FlareRateLimitScope / g_FlareRateLimitMaximumFlares: at
+			// most 16 flares from others in any 6 s; more are dropped.
+			const uint64_t now = Time::get_singleton()->get_ticks_msec();
+			flare_received_ms_.erase(std::remove_if(flare_received_ms_.begin(), flare_received_ms_.end(),
+					[now](uint64_t t) { return now - t >= 6000; }), flare_received_ms_.end());
+			if (flare_received_ms_.size() >= 16) {
+				const std::string line = "Received too many flares. Dropping a flare request by '" +
+						std::string(guid.utf8().get_data()) + "'.";
+				rtso::Logger::warn("Chat", line.c_str());
+				return;
+			}
+			flare_received_ms_.push_back(now);
 			String coords = msg.substr(7).strip_edges();
 			int32_t comma = coords.find(",");
 			if (comma > 0) {

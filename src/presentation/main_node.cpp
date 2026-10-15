@@ -4366,22 +4366,23 @@ uint8_t RtsoMain::chat_player_of_client(uint32_t client) const {
 
 // ChatAddressees.js AddresseeTypes isAddressee, with the local player as the receiver.
 bool RtsoMain::chat_is_addressee(const String &sender_guid, const String &tag) {
-	return chat_reaches(chat_player_of(sender_guid), local_player(), tag.utf8().get_data());
+	return chat_reaches(chat_player_of(sender_guid), local_player(), tag.utf8().get_data(),
+			net_lockstep() ? turn_mgr_.local_client_id() : UINT32_MAX);
 }
 
 // chat_routing.h chat_tag_reaches on this match's diplomacy: the receiver's
 // check above, and the host's relay (NetHost::setChatRouter, _ready).
-bool RtsoMain::chat_reaches(uint8_t from, uint8_t to, const std::string &tag) const {
+bool RtsoMain::chat_reaches(uint8_t from, uint8_t to, const std::string &tag, uint32_t to_client) const {
 	auto stance = [this](uint8_t a, uint8_t b, uint8_t s) { return sim && sim->get_diplomacy(a, b) == s; };
 	return rtso::chat_tag_reaches(from, to, tag, rtso::MAX_PLAYERS,
 			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ALLY); },
-			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY); });
+			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY); }, to_client);
 }
 
 bool RtsoMain::chat_local_observer() { return local_player() >= rtso::MAX_PLAYERS; }
 
-std::vector<std::pair<int, String>> RtsoMain::chat_private_targets() {
-	std::vector<std::pair<int, String>> out;
+std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
+	std::vector<std::pair<String, String>> out;
 	if (!net_lockstep()) return out;
 	const uint32_t mine = turn_mgr_.local_client_id();
 	const bool me_obs = chat_local_observer();
@@ -4389,7 +4390,11 @@ std::vector<std::pair<int, String>> RtsoMain::chat_private_targets() {
 		if (e.client == mine) continue;
 		const bool obs = e.player >= rtso::MAX_PLAYERS;
 		if (me_obs && !obs) continue; // no private message from an observer to a player
-		out.push_back({obs ? 0 : (int)e.player + 1, chat_user("peer-" + String::num_int64(e.client))});
+		// 0.28 /msg names the addressee's GUID: an observer by its client, so a
+		// line to one observer reaches no other.
+		const String tag = obs ? "[Observer-" + String::num_int64(e.client) + "]"
+		                       : "[Player-" + String::num_int64((int)e.player + 1) + "]";
+		out.push_back({tag, chat_user("peer-" + String::num_int64(e.client))});
 	}
 	return out;
 }
