@@ -16,8 +16,6 @@
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/line_edit.hpp>
-#include <godot_cpp/classes/resource_loader.hpp>
-#include <godot_cpp/classes/script.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/rich_text_label.hpp>
@@ -73,9 +71,28 @@ public:
 	// as (wire tag, coloured name): "[Player-N]" for player id N - 1, "[Observer-C]" for
 	// the observer on client C.
 	virtual std::vector<std::pair<String, String>> chat_private_targets() = 0;
-	// g_PlayerAssignments: every connected human's (coloured) name, the local one too.
-	virtual std::vector<String> chat_assigned_names() { return {}; }
+	// ChatInput.autoComplete: the names of g_PlayerAssignments (every connected human).
+	virtual std::vector<String> chat_autocomplete_names() { return {}; }
 };
+
+// functions_utility.js tryAutoComplete: the last word of `text` becomes the one
+// entry that starts with it (any case), when exactly one does.
+inline String rtso_try_autocomplete(const String &text, const std::vector<String> &words) {
+	PackedStringArray split = text.split(" ");
+	if (split.is_empty()) return text;
+	const String last = split[split.size() - 1].to_lower();
+	if (last.is_empty()) return text;
+	std::vector<String> found;
+	for (const String &w : words) {
+		if (!w.to_lower().begins_with(last)) continue;
+		found.push_back(w);
+		if (found.size() > 1) break;
+	}
+	if (found.size() != 1) return text;
+	split.remove_at(split.size() - 1);
+	String head = String(" ").join(split);
+	return (head.is_empty() ? String() : head + " ") + found[0];
+}
 
 // ChatHistory.js Filters, fixed per message when it arrives.
 enum RtsoChatFilter : uint16_t {
@@ -196,7 +213,7 @@ public:
 		input_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 		input_->add_theme_font_size_override("font_size", 11);
 		input_->connect("text_submitted", Callable(owner, "_on_chat_text_submitted"));
-		input_->connect("gui_input", Callable(owner, "_on_chat_input_key"));
+		input_->connect("gui_input", Callable(owner, "_on_chat_input_gui"));
 		input_->set_max_length(1024); // chat_window.xml chatInput max_length
 		rtso::parent_line_edit(chat_input_bar, input_);
 
@@ -243,6 +260,17 @@ public:
 	void set_input_tooltip(const String &tip) {
 		if (input_) input_->set_tooltip_text(tip);
 		if (send_btn_) send_btn_->set_tooltip_text(tip);
+	}
+	// ChatInput.onTab -> autoCompleteText: Tab completes the word before the caret.
+	void tab_complete() {
+		if (!input_ || !host_) return;
+		input_->accept_event();
+		const String text = input_->get_text();
+		const int caret = input_->get_caret_column();
+		const String before = text.substr(0, caret);
+		const String done = rtso_try_autocomplete(before, host_->chat_autocomplete_names());
+		input_->set_text(done + text.substr(caret));
+		input_->set_caret_column(caret + done.length() - before.length());
 	}
 	// ChatWindow.closePage: Cancel or sending empties the input.
 	void close() {
@@ -465,21 +493,6 @@ public:
 	// Test hooks: the log as plain text, and the input line.
 	String log_text() const { return log_ ? log_->get_parsed_text() : String(); }
 	LineEdit *input() const { return input_; }
-
-	// ChatInput.autoComplete (onTab): autoCompleteText over g_PlayerAssignments' names, the
-	// lobby's port of tryAutoComplete (lobby.gd autocomplete) on the text before the caret.
-	void autocomplete() {
-		if (!input_ || !host_) return;
-		Array names;
-		for (const String &n : host_->chat_assigned_names()) names.push_back(plain(n));
-		Ref<Script> lobby = ResourceLoader::get_singleton()->load("res://scenes/menu/lobby.gd");
-		if (lobby.is_null()) return;
-		const int caret = input_->get_caret_column();
-		const String before = input_->get_text().substr(0, caret);
-		const String done = lobby->call("autocomplete", before, names);
-		input_->set_text(done + input_->get_text().substr(caret));
-		input_->set_caret_column(caret + done.length() - before.length());
-	}
 	size_t overlay_count() const { return overlay_lines_.size(); }
 	int filter_count() const { return filter_select_ ? filter_select_->get_item_count() : 0; }
 	String addressee_list() const { // the dropdown's labels, "|"-joined (an icon item: "■" first)

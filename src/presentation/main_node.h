@@ -169,6 +169,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	void update_net_connect_overlay();
 	Node *net_connect_overlay_ = nullptr; // scenes/menu/net_connecting.gd
 	CanvasLayer *net_connect_layer_ = nullptr;
+	// The network warnings over the setup page and the Connecting box before Start.
+	CanvasLayer *net_warnings_layer_ = nullptr;
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -229,6 +231,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoCinemaView cinema_view_;
 	bool campaign_win_noted_ = false; // summary_screen.gd mark_campaign_won ran for this match
+	bool lobby_report_noted_ = false; // LobbySession._check_report ran on this seat's win or defeat
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
@@ -380,7 +383,6 @@ public:
 	void log_render(const String &text, bool error = false);
 	void update_log_messages(bool changed = false);
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
-	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
 	static String speed_title(float speed);
 	static Array speed_choices(bool fast_forward);
@@ -417,7 +419,6 @@ public:
 	void _on_barter_sell_selected(int resource);
 	void _on_pack_cancel_pressed(int pack);
 	Array debug_barter_panel();
-	uint32_t selected_garrison_holder() const;
 	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
@@ -435,6 +436,7 @@ public:
 	void _on_roster_gui_input(const Ref<InputEvent> &event);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
+	void _on_tech_pressed_at(int tech_id, int64_t building_id);
 	void _on_upgrade_pressed(int choice);
 	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
@@ -546,7 +548,6 @@ public:
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
 	std::vector<std::pair<String, String>> chat_private_targets() override;
-	std::vector<String> chat_assigned_names() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
@@ -566,6 +567,8 @@ public:
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
+	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
+	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
 	// Tests: the training roster's rows (name, disabled).
 	Array debug_roster() {
@@ -613,9 +616,10 @@ public:
 	void _on_chat_send_pressed();
 	void _on_chat_filter_selected(int index); // ChatHistory.onSelectionChange
 	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
-	void _on_chat_input_key(const Ref<InputEvent> &event); // ChatInput onTab: name autocomplete
 	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
 	void _on_chat_text_submitted(const String &text);
+	void _on_chat_input_gui(const Ref<InputEvent> &event);
+	std::vector<String> chat_autocomplete_names() override;
 	void _on_chat_channel_btn_pressed(int channel_idx);
 
 	void toggle_diplomacy();
@@ -663,6 +667,8 @@ public:
 	// Rally point flags drawn this frame (rally_point_renderer.h).
 	int debug_rally_flags() const { return rally_points_.flag_count(); }
 	int debug_status_sprites() const { return view ? view->status_sprite_count() : 0; }
+	PackedStringArray debug_status_rank_icons() const { return view ? view->status_rank_icons() : PackedStringArray(); }
+	int debug_status_xp_bars() const { return view ? view->status_xp_bars() : 0; }
 	PackedInt32Array debug_selected_structures() const {
 		PackedInt32Array out;
 		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);
@@ -697,10 +703,13 @@ public:
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
+	void debug_select_structures(const PackedInt32Array &ids);
+	int64_t debug_spawn_relic(float dx, float dz);
+	void debug_capture_relic(const PackedInt32Array &ids, int64_t relic);
 	int64_t debug_civic_centre_id(int player) const;
 	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
-	Dictionary debug_structure_types();
+	Dictionary debug_structure_types(bool with_civ = false);
 	void debug_delete_units(const PackedInt32Array &ids);
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
 	Dictionary debug_diplomacy() const { return diplo_dialog_.debug_state(); } // tests: the diplomacy dialog's rows
@@ -803,8 +812,15 @@ public:
 	String chat_open_hotkey_tooltip() const;
 	// input.js: session.flare held arms a flare, never in a replay (!g_IsReplay).
 	bool flare_held() const;
+	bool selected_building_shoots() const; // own, with BuildingAI arrows (try_focus_fire)
 	void refresh_chat_tooltips();
-	Dictionary debug_chat_tooltips() const { Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip(); return d; }
+	Dictionary debug_chat_tooltips() {
+		Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip();
+		PackedStringArray names;
+		for (const String &n : chat_autocomplete_names()) names.push_back(n);
+		d["names"] = names;
+		return d;
+	}
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -856,6 +872,7 @@ private:
 	std::vector<uint32_t> extra_structures_;
 	uint32_t extras_primary_ = 0; // the selected_building_id the extras belong to
 	std::vector<uint32_t> selected_structures() const;
+	std::vector<uint32_t> selected_garrison_holders() const; // the selection's holders with units inside
 	std::vector<uint32_t> selected_structures_like_primary() const;
 	void set_selected_structures(const std::vector<uint32_t> &ids);
 	void prune_structure_selection();
@@ -916,6 +933,7 @@ private:
 	void play_civ_voice(const char *action);
 	void update_music_state();
 	Dictionary get_audio_state() const;
+	bool debug_combat_sound(float x, float z) { return sim && session_audio_.debug_combat_sound(sim, local_player(), x, z); }
 	rtso::RtsoMusic music_;
 	rtso::RtsoSessionAudio session_audio_;
 	uint8_t music_civ_ = 0xFF;
@@ -945,8 +963,6 @@ private:
 	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
 	uint32_t net_oos_shown_turn_ = 0;        // OutOfSyncNetwork showed this turn (0 none)
 	static constexpr int kReplayViewGaiaId = 100;
-	OptionButton *replay_speed_picker_ = nullptr;
-	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
 	// An observer's perspective (0 A.D. session "viewPlayer" dropdown): the whole
 	// map, or one player's sight and panels. Presentation only.
@@ -989,6 +1005,9 @@ private:
 	CheckBox *observer_follow_box_ = nullptr;
 	CheckBox *replay_follow_box_ = nullptr;
 	CheckBox *new_follow_player_box();
+	// PlayerViewControl.xml and FollowPlayer.xml: the picker, "Observer Mode" and Follow Player
+	// placed in the top panel's frame; returns the row holding them.
+	Control *new_player_view_row(OptionButton *picker, Label *observer_label, CheckBox *follow) const;
 	int followed_view() const;
 	void set_follow_player(bool on);
 	bool is_follow_player() const { return follow_player_; }
@@ -1027,6 +1046,10 @@ private:
 	// a rejoin loads, and "disconnected": the host is gone, so the match stops
 	// here. Exit leaves for the summary (endGame(true)).
 	Control *net_status_overlay_ = nullptr;
+	Label *net_status_title_ = nullptr;
+	Button *net_status_exit_ = nullptr;
+	Button *net_status_faq_ = nullptr;
+	void _on_open_faq_pressed();
 	Label *net_status_label_ = nullptr;
 	RichTextLabel *net_loading_clients_ = nullptr; // loadingClientsText
 	bool net_disconnected_ = false; // session.js g_Disconnected
@@ -1061,6 +1084,10 @@ private:
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start
 	// then continues it for everyone (host_start_saved_game).
 	String net_saved_game_;
+	// The save's seats a human may take (lower-case name in the save, or empty
+	// for an AI or defeated player), by player id; filled with net_saved_game_.
+	std::vector<String> net_saved_seats_;
+	bool net_saved_setup() const { return !net_saved_game_.is_empty() && !net_game_started_; }
 	void host_start_saved_game();
 	void tick_match_archive();
 	Dictionary statistics_summary() const;

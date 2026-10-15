@@ -11,6 +11,9 @@
 //   MiniMapFlareButton: top left, arms the flare (INPUT_FLARE): the next left
 //     click on the map or the minimap sends one, a right click cancels;
 //     disabled in a replay, the observer sprite for observers.
+// Behind the minimap: the viewed player's civ background
+// (session/icons/bkg/background_circle_<civ>.png, gaia when observing) and
+// session/minimap_circle_modern.png (MiniMapPanel.setCivBackgroundTexture).
 
 #include <godot_cpp/classes/bit_map.hpp>
 #include <godot_cpp/classes/control.hpp>
@@ -18,7 +21,11 @@
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/texture_button.hpp>
+#include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/variant/callable.hpp>
+
+#include <functional>
+#include <string>
 
 #include "l10n.h"
 
@@ -39,12 +46,12 @@ public:
 		panel_->set_name("MiniMapPanel");
 		panel_->set_meta("tooltip_style", "session_bottom"); // minimap_panel.xml sessionToolTipBottom
 		panel_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		panel_->set_anchor(SIDE_LEFT, 0.0f);
-		panel_->set_anchor(SIDE_RIGHT, 0.0f);
+		panel_->set_anchor(SIDE_LEFT, 0.5f);
+		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_anchor(SIDE_TOP, 1.0f);
 		panel_->set_anchor(SIDE_BOTTOM, 1.0f);
-		panel_->set_offset(SIDE_LEFT, 14.0f - 8.0f);
-		panel_->set_offset(SIDE_RIGHT, 14.0f - 8.0f + 200.0f);
+		panel_->set_offset(SIDE_LEFT, -512.0f); // session.xml: 50%-512 .. 50%-312
+		panel_->set_offset(SIDE_RIGHT, -312.0f);
 		panel_->set_offset(SIDE_TOP, -204.0f - 10.0f);
 		panel_->set_offset(SIDE_BOTTOM, -204.0f - 10.0f + 200.0f);
 		parent->add_child(panel_);
@@ -107,6 +114,49 @@ public:
 		if (buttons_[DIPLOMACY]) buttons_[DIPLOMACY]->set_tooltip_text(lead(DIPLOMACY) + tr0("Toggle Diplomacy Colors"));
 	}
 
+	// minimapBackgroundTexture ("4 4 100%-4 100%-4") and the background circle ("4 6 100%-4
+	// 100%-6"), added before the minimap so it draws over them.
+	template <typename Load>
+	void build_background(godot::Node *parent, Load load) {
+		using namespace godot;
+		back_ = memnew(Control);
+		back_->set_name("MiniMapBackground");
+		back_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		back_->set_anchor(SIDE_LEFT, 0.5f);
+		back_->set_anchor(SIDE_RIGHT, 0.5f);
+		back_->set_anchor(SIDE_TOP, 1.0f);
+		back_->set_anchor(SIDE_BOTTOM, 1.0f);
+		back_->set_offset(SIDE_LEFT, -512.0f); // session.xml: 50%-512 .. 50%-312
+		back_->set_offset(SIDE_RIGHT, -312.0f);
+		back_->set_offset(SIDE_TOP, -204.0f - 10.0f);
+		back_->set_offset(SIDE_BOTTOM, -204.0f - 10.0f + 200.0f);
+		parent->add_child(back_);
+		auto image = [&](const char *name, Vector2 pos, Vector2 size) {
+			TextureRect *t = memnew(TextureRect);
+			t->set_name(name);
+			t->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+			t->set_stretch_mode(TextureRect::STRETCH_SCALE);
+			t->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			t->set_position(pos);
+			t->set_size(size);
+			back_->add_child(t);
+			return t;
+		};
+		civ_back_ = image("minimapBackgroundTexture", Vector2(4, 4), Vector2(192, 192));
+		image("minimapCircle", Vector2(4, 6), Vector2(192, 188))->set_texture(load(String(kDir) + "minimap_circle_modern.png"));
+		load_ = [load](const String &p) { return load(p); };
+	}
+
+	// setCivBackgroundTexture for the viewed player's civ code ("gaia" when observing).
+	void set_civ(const char *code) {
+		if (!civ_back_ || civ_code_ == code) return;
+		civ_code_ = code;
+		civ_back_->set_texture(load_(godot::String(kDir) + "icons/bkg/background_circle_" + godot::String(code) + ".png"));
+	}
+	godot::String civ_background() const {
+		return civ_back_ && civ_back_->get_texture().is_valid() ? civ_back_->get_texture()->get_path() : godot::String();
+	}
+
 	// rebuild: the idle count, the diplomacy sprite, the flare button's state.
 	void update(int idle, bool diplomacy_colors, bool observer, bool replay) {
 		if (!panel_) return;
@@ -130,6 +180,10 @@ public:
 	godot::String idle_count_text() const { return count_ ? count_->get_text() : godot::String(); }
 
 private:
+	godot::Control *back_ = nullptr;
+	godot::TextureRect *civ_back_ = nullptr;
+	std::string civ_code_;
+	std::function<godot::Ref<godot::Texture2D>(const godot::String &)> load_;
 	godot::String lead(int i) const { return keys_[i].is_empty() ? godot::String() : keys_[i] + godot::String(" "); }
 
 	// The sprite's alpha as the click mask.

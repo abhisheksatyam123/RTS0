@@ -28,7 +28,7 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
-	run.call_deferred()
+	preload("res://tools/lobby_test_clock.gd").run_in_wall_time(self, "res://tools/e2e_lobby_accounts.gd", run)
 
 # max_frames counts frames at 60 fps of real time: headless --fixed-fps runs
 # frames unthrottled, and the lobby's HTTP answers take wall-clock time.
@@ -68,7 +68,8 @@ func run() -> void:
 	check(server_pid > 0, "the lobby server starts")
 	var cfg := RtsoUserConfig.new()
 	var saved := {}
-	for key in ["lobby.login", "lobby.password", "lobby.rememberpassword"]:
+	for key in ["lobby.login", "lobby.password", "lobby.rememberpassword",
+			"lobby.terms_of_service", "lobby.terms_of_use", "lobby.privacy_policy"]:
 		saved[key] = cfg.get_value(key)
 	var ls: Node = root.get_node("/root/LobbySession")
 	# Wait for the server: a guest is refused, which proves it answers.
@@ -107,7 +108,22 @@ func run() -> void:
 	check(ls.signed_in(), "Remember password signs in again with nothing typed")
 
 	lobby._on_sign_pressed()
+	# credentials.js toggleRememberPassword: unticking a remembered password asks first.
 	lobby._remember.button_pressed = false
+	var forget: ConfirmationDialog = lobby.get_node_or_null("ForgetPasswordDialog")
+	check(forget != null and forget.title == "Confirmation"
+		and forget.dialog_text == "Are you sure you want to delete the password after connecting?"
+		and forget.ok_button_text == "Yes" and forget.cancel_button_text == "No", "unticking Remember password asks first")
+	if forget != null:
+		forget.canceled.emit()
+	await process_frame
+	check(lobby._remember.button_pressed and lobby.get_node_or_null("ForgetPasswordDialog") == null, "No keeps it ticked")
+	lobby._remember.button_pressed = false
+	forget = lobby.get_node_or_null("ForgetPasswordDialog")
+	if forget != null:
+		forget.confirmed.emit()
+	await process_frame
+	check(not lobby._remember.button_pressed and lobby.get_node_or_null("ForgetPasswordDialog") == null, "Yes unticks it")
 	lobby._password.text = "wrong"
 	lobby._on_sign_pressed()
 	await until(func() -> bool: return lobby._status.text.begins_with("Sign in refused"))
@@ -165,6 +181,71 @@ func run() -> void:
 	await until(func() -> bool: return new[0] != 0)
 	check(new[0] == 200, "the new one does")
 	ls.sign_out()
+
+	print("4. terms")
+	# termslobby.js: a lobby with terms lets nobody sign in before each page is accepted.
+	var terms_pid := OS.create_process("python3", [ProjectSettings.globalize_path("res://tools/lobby_server.py"),
+		"--port", str(PORT + 1), "--quiet", "--stun-port", "0", "--exit-with-parent",
+		"--terms-dir", ProjectSettings.globalize_path("res://tools/lobby_terms")])
+	for key in ["lobby.terms_of_service", "lobby.terms_of_use", "lobby.privacy_policy"]:
+		cfg.set_value(key, "0")
+	cfg.save()
+	var pages := [[]]
+	for attempt in 50:
+		ls.fetch_terms("127.0.0.1:%d" % (PORT + 1), func(p: Array) -> void: pages[0] = p)
+		await until(func() -> bool: return not pages[0].is_empty(), 30)
+		if not pages[0].is_empty():
+			break
+		await create_timer(0.1).timeout
+	check(pages[0].map(func(p): return p["title"]) == ["Terms of Service", "Terms of Use", "Privacy Policy"],
+		"the server serves its three pages")
+	check(lobby.find_child("TermsService", true, false) != null and lobby.find_child("TermsPrivacy", true, false) != null,
+		"the sign-in row has the terms buttons")
+	lobby._server.text = "127.0.0.1:%d" % (PORT + 1)
+	lobby._name.text = "dora"
+	lobby._password.text = ""
+	lobby._on_sign_pressed()
+	await until(func() -> bool: return lobby._status.text.begins_with("Please read"))
+	check(not ls.signed_in() and lobby._status.text == "Please read and accept the Terms of Service.",
+		"Sign In waits for the Terms of Service: " + lobby._status.text)
+	lobby.open_terms("Service")
+	await until(func() -> bool: return lobby.get_node_or_null("TermsDialog") != null)
+	var terms_dlg: ConfirmationDialog = lobby.get_node_or_null("TermsDialog")
+	check(terms_dlg != null and terms_dlg.title == "Terms of Service" and terms_dlg.ok_button_text == "Accept"
+		and terms_dlg.cancel_button_text == "Decline" and terms_dlg.get_node("TermsText").text.begins_with("Terms of Service"),
+		"the page opens with its text, Decline and Accept")
+	if terms_dlg != null:
+		terms_dlg.canceled.emit()
+	await process_frame
+	lobby._on_sign_pressed()
+	await until(func() -> bool: return lobby._status.text.begins_with("Please read"))
+	check(lobby._status.text == "Please read and accept the Terms of Service.", "Decline leaves it unaccepted")
+	for page in ["Service", "Use"]:
+		lobby.open_terms(page)
+		await until(func() -> bool: return lobby.get_node_or_null("TermsDialog") != null)
+		lobby.get_node("TermsDialog").confirmed.emit()
+		await process_frame
+		await process_frame
+	lobby._status.text = ""
+	lobby._on_sign_pressed()
+	await until(func() -> bool: return lobby._status.text.begins_with("Please read"))
+	check(lobby._status.text == "Please read and accept the Privacy Policy.", "then the Privacy Policy")
+	lobby.open_terms("Privacy")
+	await until(func() -> bool: return lobby.get_node_or_null("TermsDialog") != null)
+	lobby.get_node("TermsDialog").confirmed.emit()
+	await process_frame
+	await process_frame
+	lobby._on_sign_pressed()
+	await until(func() -> bool: return ls.signed_in())
+	check(ls.signed_in() and ls.player_name == "dora", "with all three accepted, Sign In goes ahead")
+	lobby._on_sign_pressed() # sign out
+	lobby._name.text = "edgar"
+	lobby._status.text = ""
+	lobby._on_sign_pressed()
+	await until(func() -> bool: return lobby._status.text.begins_with("Please read"))
+	check(not ls.signed_in() and lobby._status.text == "Please read and accept the Terms of Service.",
+		"another name has accepted nothing (the version is salted with the name)")
+	OS.kill(terms_pid)
 
 	for key in saved:
 		cfg.set_value(key, saved[key])

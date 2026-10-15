@@ -106,8 +106,10 @@ static void test_dock_trade() {
 	CHECK(athen_ship == cart_land);
 	std::printf("dock route %.0f m: Carthaginian ship %d, caravan %d, Athenian ship %d\n", metres, cart_ship, cart_land, athen_ship);
 
-	// A merchant ship in the sea finds the route itself and is paid on each arrival.
+	// A merchant ship in the sea takes the farthest pair of docks it can trade at (the route an
+	// AI's idle trader picks, order_trade_auto) and is paid on each arrival.
 	const uint32_t ship = s.spawn_unit(-40.0f, 8.0f, 0, UNIT_MERCHANT_SHIP);
+	s.order_trade_auto(&ship, 1);
 	run(s, 240.0f);
 	const int earned = total(s, 0);
 	std::printf("Carthaginian merchant ship earned %d in 240 s\n", earned);
@@ -132,6 +134,7 @@ static void test_dock_trade() {
 	const uint32_t cmarket = c.spawn_building_world(-40.0f, -40.0f, BLD_MARKET, 0);
 	c.spawn_building_world(5.0f, -45.0f, BLD_TOWN_CENTER, 0); // territory, or both decay to Gaia
 	const uint32_t caravan = c.spawn_unit(-30.0f, -40.0f, 0, UNIT_TRADER);
+	c.order_trade_auto(&caravan, 1);
 	run(c, 240.0f);
 	const auto route = c.trader_routes_.find(caravan);
 	CHECK(route != c.trader_routes_.end());
@@ -1092,6 +1095,9 @@ static void test_petra_concurrent_transports() {
 	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
 	s.petra_attack_plan_.target_building_id = house;
 	s.petra_attack_plan_.state_timer = 0.0f;
+	// Forced (as an ally's call for help): it sets off with what it has, whatever siege class
+	// the plan rotation would still have it wait for.
+	s.petra_attack_plan_.forced = true;
 	// The army is the six given above: drop the batches Petra queues for the attack, which
 	// the plan would wait for (updatePreparation waits for its units in training), here and
 	// on each second below (trainMoreUnits keeps filling its ranged and cavalry classes).
@@ -1170,6 +1176,125 @@ static void test_petra_transport_ship_lost() {
 	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
 }
 
+// navalManager.checkEvents: a transport ship sunk while sailing sets its infantry down on the
+// nearest shore; those not on the destination's land ask for another transport, which takes
+// them across instead of the plan ending.
+static void test_petra_transport_sunk_at_sea() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t first = s.spawn_unit(-30.0f, 8.0f, 1, UNIT_TRIREME);
+	const uint32_t second = s.spawn_unit(30.0f, 8.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	CHECK(s.petra_start_transport(crew, -30.0f, 30.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	for (int k = 0; k < 120 && !(s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].state == PetraTransportPlan::SAILING); ++k)
+		run(s, 0.5f);
+	const bool sailing = s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].state == PetraTransportPlan::SAILING;
+	const size_t aboard = s.get_transport_passenger_count(first);
+	// Sunk off the north shore it left: the spearmen swim back to it.
+	const int32_t fi = idx(s, first);
+	s.units_.pos_x[fi] = -30.0f;
+	s.units_.pos_z[fi] = 13.0f;
+	s.cmd_delete(1, &first, 1);
+	uint32_t took = 0;
+	int landed = 0;
+	for (int k = 0; k < 200; ++k) {
+		run(s, 1.0f);
+		if (!s.petra_transport_plans().empty() && s.petra_transport_plans()[0].ship_id) took = s.petra_transport_plans()[0].ship_id;
+		landed = 0;
+		for (uint32_t uid : crew) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.units().pos_z[i] < -16.0f) ++landed;
+		}
+		if (landed >= (int)aboard && aboard) break;
+	}
+	std::printf("Petra transport sunk at sea: sailing %s with %zu aboard, plan moved to ship %s, %d landed\n", sailing ? "yes" : "no",
+	            aboard, took == second ? "two" : "none", landed);
+	CHECK(sailing && aboard >= 2);
+	CHECK(took == second && landed >= (int)aboard);
+}
+
+// An islet in the sea before the south shore.
+static float islet_height_at(float x, float z) {
+	const float ix = x + 30.0f, iz = z;
+	if (ix * ix + iz * iz < 5.0f * 5.0f) return 3.0f;
+	return height_at(x, z);
+}
+
+// transportPlan.js onSailing: units unloaded on another land than the destination go back
+// aboard and the ship sails for another landing point on the right land.
+static void test_petra_transport_wrong_land() {
+	static Simulation s;
+	fresh(s, islet_height_at);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t ship = s.spawn_unit(-20.0f, 12.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-24.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	const uint16_t south = s.petra_land_at(-20.0f, -40.0f), islet = s.petra_land_at(-30.0f, 0.0f);
+	CHECK(south && islet && south != islet);
+	CHECK(s.petra_start_transport(crew, -20.0f, 30.0f, -20.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	for (int k = 0; k < 120 && !(s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].state == PetraTransportPlan::SAILING); ++k)
+		run(s, 0.5f);
+	const size_t aboard = s.get_transport_passenger_count(ship);
+	// The ship stops beside the islet: it sets its passengers down there.
+	const int32_t si = idx(s, ship);
+	s.units_.pos_x[si] = -30.0f;
+	s.units_.pos_z[si] = -7.5f;
+	s.cmd_stop(&ship, 1);
+	int on_islet = 0, landed = 0;
+	for (int k = 0; k < 150; ++k) {
+		run(s, 1.0f);
+		landed = 0;
+		for (uint32_t uid : crew) {
+			const int32_t i = idx(s, uid);
+			if (i < 0 || !s.units().alive[i]) continue;
+			const uint16_t land = s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]);
+			landed += land == south;
+			if (k > 20) on_islet += land == islet; // the recovery takes a turn or two
+		}
+		if (landed >= (int)aboard && aboard) break;
+	}
+	std::printf("Petra transport set down on the wrong land: %zu aboard, %d landed on the south land, %d unit-seconds left on the islet\n",
+	            aboard, landed, on_islet);
+	CHECK(aboard >= 2);
+	CHECK(landed >= (int)aboard && on_islet == 0);
+}
+
+// transportPlan.js never leaves units aboard: an idle ship of Petra's carrying units outside any
+// transport plan (one boarded after its plan gave up) sets them down on the shore.
+static void test_petra_laden_ship_lands() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t ship = s.spawn_unit(-30.0f, 0.0f, 1, UNIT_TRIREME);
+	uint32_t pair[2];
+	for (int k = 0; k < 2; ++k) pair[k] = s.spawn_unit(-30.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s.order_board_transport(pair, 2, ship);
+	const size_t aboard = s.get_transport_passenger_count(ship);
+	float ashore = -1.0f;
+	for (int k = 0; k < 120 && ashore < 0.0f; ++k) {
+		run(s, 1.0f);
+		if (s.get_transport_passenger_count(ship) == 0) ashore = (float)k;
+	}
+	std::printf("Petra laden ship outside a plan: %zu aboard, ashore at %.0fs\n", aboard, ashore);
+	CHECK(aboard == 2);
+	CHECK(ashore >= 0.0f);
+}
+
 // DeathDamage.js: a fire ship ignited (Upgrade/Ignition to ship_fire_fire, mixins/fireship.xml)
 // burns down at RegenRate -200 and, dying, deals Crush 500 over 22 m (x3 vs Ship and Building)
 // to enemies only, with quadratic falloff. Before ignition it neither burns nor blasts. Other ships and
@@ -1209,6 +1334,40 @@ static void test_ship_treasure() {
 	std::printf("ship treasure reach: warship %.2f, siege ship %.2f, juggernaut %.2f\n", r_war, r_siege, r_jugg);
 	CHECK(r_siege > r_war);
 	CHECK(r_jugg == r_siege);
+}
+
+// template_gaia_treasure: a shipwreck floating at sea blocks movement (Obstruction/Static,
+// BlockMovement), so a ship sailing past steers round it instead of through it.
+static void test_ship_round_wreck() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
+	const uint32_t ship = s.spawn_unit(-30.0f, 0.0f, 0, UNIT_TRIREME);
+	s.cmd_move(&ship, 1, 10.0f, 0.0f);
+	s.ensure_gaia_obstacles();
+	Simulation::SteerObstacle w{};
+	for (const auto &o : s.gaia_obstacles_)
+		if (o.id == wreck) w = o;
+	const nav::Vec2 u = nav::footprint_u(w), v = nav::footprint_v(w);
+	float worst = 1e9f; // the ship centre's least clearance outside the wreck's square (negative: inside)
+	int arrived = -1;
+	for (int t = 0; t < 900 && arrived < 0; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		const int i = s.lookup_unit(ship);
+		const auto un = s.units();
+		const nav::Vec2 p = nav::Vec2(un.pos_x[i], un.pos_z[i]) - nav::Vec2(w.x, w.z);
+		worst = std::min(worst, std::max(std::fabs(p.dot(u)) - w.hu, std::fabs(p.dot(v)) - w.hv));
+		if (std::hypot(un.pos_x[i] - 10.0f, un.pos_z[i]) < 1.0f) arrived = t;
+	}
+	std::printf("ship past a floating wreck: arrived after %d ticks, closest %.2f outside its square (%.1f x %.1f)\n",
+	            arrived, worst, 2.0f * w.hu, 2.0f * w.hv);
+	CHECK(arrived >= 0);
+	CHECK(worst > 0.0f);
+	// Sent to collect it, the ship still sails up to it.
+	const float wood0 = s.player(0).wood();
+	s.order_collect_treasure(&ship, 1, wreck);
+	run(s, 30.0f);
+	CHECK(s.player(0).wood() > wood0);
 }
 
 // navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
@@ -1646,9 +1805,10 @@ static void test_petra_cothon() {
 	}
 }
 
-// A worker on the far shore carries its load only to a dropsite on its own land (0 A.D.
-// picks reachable dropsites): with the only storehouse across the sea it waits, and once
-// one stands on its side it drops off there.
+// A worker on the far shore carries its load only to a dropsite on its own land: with the only
+// storehouse across the sea she finds none and RETURNINGRESOURCE finishes the order (she stays by
+// her tree, idle and still carrying, free for a new task); sent to gather again once one stands
+// on her side, she drops off there.
 static void test_dropsite_own_land() {
 	static Simulation s;
 	fresh(s);
@@ -1664,7 +1824,9 @@ static void test_dropsite_own_land() {
 	const int carried = s.units().carry[idx(s, woman)];
 	std::printf("  dropsite across the sea: carrying %d, %s\n", carried, left_shore ? "set off for the beach" : "stayed by the tree");
 	CHECK(!left_shore && carried > 0 && total(s, 0) == 0);
+	CHECK(s.units().action_state[idx(s, woman)] != ACTION_RETURN_DROPSITE);
 	s.spawn_building_world(0.0f, -40.0f, BLD_STOREHOUSE, 0, 1.0f);
+	s.order_gather(&woman, 1, tree);
 	run(s, 20.0f);
 	std::printf("  storehouse on her side: stock %d\n", total(s, 0));
 	CHECK(total(s, 0) > 0);
@@ -1939,6 +2101,47 @@ static void test_ships_accelerate() {
 	CHECK(std::fabs(furthest - x_back - v * v / (2.0f * a)) < 0.2f && std::fabs(x_end + 40.0f) < 1.0f);
 }
 
+// UnitAI Order.Garrison on a ship: an unpacked siege engine packs first; a unit with no room
+// walks over and stops beside the ship; an ally's unit walking to board ignores enemies.
+static void test_board_rules() {
+	std::printf("board rules\n");
+	static Simulation s;
+	fresh(s);
+	const uint32_t arrow = s.spawn_unit(-20.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t cat = s.spawn_unit(-20.0f, 17.5f, 0, UNIT_CATAPULT);
+	s.units_.pack_state[idx(s, cat)] = PACK_UNPACKED;
+	s.order_board_transport(&cat, 1, arrow);
+	CHECK(!aboard(s, arrow, cat));
+	run(s, 0.4f);
+	CHECK(s.units().pack_state[idx(s, cat)] == PACK_PACKING);
+	run(s, 20.0f);
+	CHECK(aboard(s, arrow, cat));
+
+	const uint32_t scout = s.spawn_unit(20.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_scout"));
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 10; ++k) crew.push_back(s.spawn_unit(18.0f + 0.4f * k, 17.5f, 0, UNIT_SPEARMAN));
+	const uint32_t extra = s.spawn_unit(32.0f, 18.0f, 0, UNIT_SPEARMAN);
+	crew.push_back(extra);
+	s.order_board_transport(crew.data(), crew.size(), scout);
+	const float d0 = std::fabs(s.units().pos_x[idx(s, extra)] - 20.0f);
+	CHECK(s.units().action_state[idx(s, extra)] == ACTION_MOVE);
+	run(s, 12.0f);
+	const int32_t ie = idx(s, extra);
+	CHECK(s.get_transport_passenger_count(scout) == 10);
+	CHECK(s.units().alive[ie] && !aboard(s, scout, extra) && s.units().action_state[ie] == ACTION_IDLE);
+	CHECK(std::fabs(s.units().pos_x[ie] - 20.0f) < d0 - 4.0f);
+
+	s.set_mutual_ally(0, 2);
+	const uint32_t ship2 = s.spawn_unit(-50.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t friend_ = s.spawn_unit(-62.0f, 18.0f, 2, UNIT_SPEARMAN);
+	const uint32_t foe = s.spawn_unit(-60.0f, 19.5f, 1, UNIT_SPEARMAN);
+	s.order_set_stance(&foe, 1, STANCE_PASSIVE);
+	s.order_board_transport(&friend_, 1, ship2);
+	run(s, 10.0f);
+	CHECK(aboard(s, ship2, friend_));
+	CHECK(s.units().hp[idx(s, foe)] == s.units().max_hp[idx(s, foe)]);
+}
+
 int main() {
 	test_ships_accelerate();
 	test_transport();
@@ -1966,9 +2169,13 @@ int main() {
 	test_petra_start_at_sea();
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();
+	test_petra_transport_sunk_at_sea();
+	test_petra_transport_wrong_land();
+	test_petra_laden_ship_lands();
 	test_petra_merchantman_transport();
 	test_petra_cothon();
 	test_ship_treasure();
+	test_ship_round_wreck();
 	test_petra_ship_treasure();
 	test_crannog_takes_fish();
 	test_next_fish_range();
@@ -1982,6 +2189,7 @@ int main() {
 	test_fire_ship();
 	test_whale_hunt();
 	test_gather_unreachable();
+	test_board_rules();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

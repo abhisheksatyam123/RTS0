@@ -52,10 +52,10 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
 	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
 	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
-	ClassDB::bind_method(D_METHOD("_on_replay_speed_selected", "index"), &RtsoMain::_on_replay_speed_selected);
 	ClassDB::bind_method(D_METHOD("is_game_paused"), &RtsoMain::is_game_paused);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
 	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
+	ClassDB::bind_method(D_METHOD("debug_combat_sound", "x", "z"), &RtsoMain::debug_combat_sound);
 	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
 	ClassDB::bind_method(D_METHOD("_on_trading_goods_requested", "shares"), &RtsoMain::_on_trading_goods_requested);
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
@@ -64,6 +64,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_entity_command", "name"), &RtsoMain::_on_entity_command);
 	ClassDB::bind_method(D_METHOD("_on_pause_overlay_pressed"), &RtsoMain::_on_pause_overlay_pressed);
 	ClassDB::bind_method(D_METHOD("_on_disconnected_exit_pressed"), &RtsoMain::_on_disconnected_exit_pressed);
+	ClassDB::bind_method(D_METHOD("_on_open_faq_pressed"), &RtsoMain::_on_open_faq_pressed);
 	ClassDB::bind_method(D_METHOD("_on_delete_confirmed"), &RtsoMain::_on_delete_confirmed);
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
 	ClassDB::bind_method(D_METHOD("_on_template_details_input", "event", "kind", "id", "civ"), &RtsoMain::_on_template_details_input);
@@ -93,6 +94,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_roster_gui_input", "event"), &RtsoMain::_on_roster_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
+	ClassDB::bind_method(D_METHOD("_on_tech_pressed_at", "tech_id", "building_id"), &RtsoMain::_on_tech_pressed_at);
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "choice"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
 	ClassDB::bind_method(D_METHOD("_on_dropsite_sharing_pressed", "shared"), &RtsoMain::_on_dropsite_sharing_pressed);
@@ -161,8 +163,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_chat_send_pressed"), &RtsoMain::_on_chat_send_pressed);
 	ClassDB::bind_method(D_METHOD("_on_chat_filter_selected", "index"), &RtsoMain::_on_chat_filter_selected);
 	ClassDB::bind_method(D_METHOD("_on_chat_history_toggled", "on"), &RtsoMain::_on_chat_history_toggled);
-	ClassDB::bind_method(D_METHOD("_on_chat_input_key", "event"), &RtsoMain::_on_chat_input_key);
 	ClassDB::bind_method(D_METHOD("_on_chat_text_submitted", "text"), &RtsoMain::_on_chat_text_submitted);
+	ClassDB::bind_method(D_METHOD("_on_chat_input_gui", "event"), &RtsoMain::_on_chat_input_gui);
 	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy_colors"), &RtsoMain::toggle_diplomacy_colors);
@@ -189,6 +191,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selected_structures"), &RtsoMain::debug_selected_structures);
 	ClassDB::bind_method(D_METHOD("debug_rally_flags"), &RtsoMain::debug_rally_flags);
 	ClassDB::bind_method(D_METHOD("debug_status_sprites"), &RtsoMain::debug_status_sprites);
+	ClassDB::bind_method(D_METHOD("debug_status_rank_icons"), &RtsoMain::debug_status_rank_icons);
+	ClassDB::bind_method(D_METHOD("debug_status_xp_bars"), &RtsoMain::debug_status_xp_bars);
 	ClassDB::bind_method(D_METHOD("debug_building_queue", "id"), &RtsoMain::debug_building_queue);
 	ClassDB::bind_method(D_METHOD("debug_structure_outlined", "id"), &RtsoMain::debug_structure_outlined);
 	ClassDB::bind_method(D_METHOD("debug_guard_target", "unit_id"), &RtsoMain::debug_guard_target);
@@ -213,11 +217,14 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_snap_placement", "btype", "x", "z", "hover", "stale_angle"), &RtsoMain::debug_snap_placement);
 	ClassDB::bind_method(D_METHOD("debug_put_inside", "ids", "holder"), &RtsoMain::debug_put_inside);
 	ClassDB::bind_method(D_METHOD("debug_select_entity", "id"), &RtsoMain::debug_select_entity);
+	ClassDB::bind_method(D_METHOD("debug_select_structures", "ids"), &RtsoMain::debug_select_structures);
+	ClassDB::bind_method(D_METHOD("debug_spawn_relic", "dx", "dz"), &RtsoMain::debug_spawn_relic);
+	ClassDB::bind_method(D_METHOD("debug_capture_relic", "ids", "relic"), &RtsoMain::debug_capture_relic);
 	ClassDB::bind_method(D_METHOD("debug_select_units", "ids"), &RtsoMain::debug_select_units);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_id", "player"), &RtsoMain::debug_civic_centre_id);
 	ClassDB::bind_method(D_METHOD("debug_spawn_building", "type", "dx", "dz", "player"), &RtsoMain::debug_spawn_building, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
-	ClassDB::bind_method(D_METHOD("debug_structure_types"), &RtsoMain::debug_structure_types);
+	ClassDB::bind_method(D_METHOD("debug_structure_types", "with_civ"), &RtsoMain::debug_structure_types, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_add_xp", "ids", "xp"), &RtsoMain::debug_add_xp);

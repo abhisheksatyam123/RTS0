@@ -141,6 +141,10 @@ Dictionary RtsoMain::get_audio_state() const {
 	d["workers_at_work"] = session_audio_.workers_at_work();
 	d["workers_in_earshot"] = session_audio_.workers_in_earshot();
 	d["listener"] = session_audio_.listener();
+	d["combat_sounds"] = session_audio_.combat_sounds_played();
+	d["combat_culled"] = session_audio_.combat_sounds_culled();
+	d["voices"] = view ? view->spatial_voices_playing() : 0;
+	d["voices_dropped"] = view ? view->spatial_sounds_dropped() : 0;
 	return d;
 }
 
@@ -665,9 +669,6 @@ void RtsoMain::set_game_speed(float speed) {
 	const Array speeds = speed_choices(fast_forward_allowed());
 	game_speed = std::clamp(speed, (float)speeds[0], (float)speeds[speeds.size() - 1]);
 	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
-	if (replay_speed_picker_)
-		for (int i = 0; i < replay_speed_picker_->get_item_count(); ++i)
-			if ((float)replay_speed_picker_->get_item_metadata(i) == game_speed) replay_speed_picker_->select(i);
 }
 
 // The pause hotkey and the replay's Pause button. Networked, the pause holds
@@ -733,7 +734,6 @@ void RtsoMain::toggle_pause() {
 	if (!can_pause()) return;
 	hotkey_paused_ = !hotkey_paused_;
 	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_);
-	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
 	update_pause_overlay();
 }
 
@@ -822,6 +822,10 @@ void RtsoMain::update_net_warnings() {
 		bool gone = it->first != "server";
 		for (const auto &e : net_host_.playerAssignment())
 			if (rtso::peer_guid(e.client) == it->first && e.status != rtso::PlayerAssignmentMsg::LEFT) gone = false;
+		// Before Start there is no player assignment yet: the connected clients.
+		if (is_net_pregame())
+			for (const auto &p : net_host_.getPeers())
+				if (p.connected && rtso::peer_guid(p.id) == it->first) gone = false;
 		if (!on || now > it->second.first + rtso::NETWORK_WARNING_SHOW_MS || gone) {
 			it = net_warnings_.erase(it);
 			continue;
@@ -833,6 +837,23 @@ void RtsoMain::update_net_warnings() {
 		if (w.first != "server") text += String(text.is_empty() ? "" : "\n") + w.second.second;
 	net_warnings_label_->set_text("[right]" + text + "[/right]");
 	net_warnings_label_->set_visible(!text.is_empty());
+	// SetupWindow.js registers netwarn too: before Start the warnings go over
+	// the (opaque) setup page and the Connecting box, then back on the session UI.
+	Node *home = ui_layer;
+	if (is_net_pregame()) {
+		if (!net_warnings_layer_) {
+			net_warnings_layer_ = memnew(CanvasLayer);
+			net_warnings_layer_->set_name("NetWarnings");
+			net_warnings_layer_->set_layer(22); // the setup page is 20, the Connecting box 21
+			add_child(net_warnings_layer_);
+		}
+		home = net_warnings_layer_;
+	}
+	if (home && net_warnings_label_->get_parent() != home) net_warnings_label_->reparent(home, false);
+	if (!is_net_pregame() && net_warnings_layer_ && net_warnings_label_->get_parent() != net_warnings_layer_) {
+		net_warnings_layer_->queue_free();
+		net_warnings_layer_ = nullptr;
+	}
 }
 
 void RtsoMain::update_net_status_overlay() {
@@ -873,6 +894,18 @@ void RtsoMain::update_net_status_overlay() {
 					tr("If the issue persists or occurs regularly, visit the official FAQ for detailed guidance and troubleshooting steps.");
 		}
 		net_status_label_->set_text(text);
+		// The timeout is a "Connection Error" box with Close and Open FAQ.
+		const bool timed_out = !joined && net_host_.disconnectReason() == 0;
+		if (net_status_title_) {
+			net_status_title_->set_text(timed_out ? tr("Connection Error") : String());
+			net_status_title_->set_visible(timed_out);
+		}
+		if (net_status_exit_) {
+			net_status_exit_->set_text(timed_out ? tr("Close") : tr("Exit"));
+			net_status_exit_->set_offset(SIDE_LEFT, timed_out ? -176 : -84);
+			net_status_exit_->set_offset(SIDE_RIGHT, timed_out ? -8 : 84);
+		}
+		if (net_status_faq_) net_status_faq_->set_visible(timed_out);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
 		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
@@ -901,6 +934,11 @@ void RtsoMain::update_net_status_overlay() {
 	if (net_loading_clients_->get_text() != centred) net_loading_clients_->set_text(centred);
 	net_loading_clients_->set_visible(!loading.is_empty());
 	if (net_status_overlay_->is_visible() == status.is_empty()) net_status_overlay_->set_visible(!status.is_empty());
+}
+
+// reportConnectionRequestTimeOut's Open FAQ.
+void RtsoMain::_on_open_faq_pressed() {
+	OS::get_singleton()->shell_open("https://gitea.wildfiregames.com/0ad/0ad/wiki/FAQ#what-shall-i-do-when-joining-multiplayer-matches-fails-with-an-error-message");
 }
 
 // disconnectedExitButton: endGame(true), the summary page.
@@ -1261,20 +1299,15 @@ void RtsoMain::update_observer_view_picker() {
 		return;
 	}
 	if (!observer_view_picker_) {
-		HBoxContainer *row = memnew(HBoxContainer);
-		row->set_position(Vector2(16.0f, 64.0f));
 		observer_view_picker_ = new_player_view_picker();
 		observer_view_picker_->connect("item_selected", Callable(this, "_on_observer_view_selected"));
-		row->add_child(observer_view_picker_);
 		observer_mode_label_ = memnew(Label);
 		observer_mode_label_->set_text("Observer Mode");
-		row->add_child(observer_mode_label_);
 		observer_follow_box_ = new_follow_player_box();
-		row->add_child(observer_follow_box_);
 		CanvasLayer *layer = memnew(CanvasLayer);
 		layer->set_layer(5);
 		add_child(layer);
-		layer->add_child(row);
+		layer->add_child(new_player_view_row(observer_view_picker_, observer_mode_label_, observer_follow_box_));
 		const uint8_t seat = seat_player();
 		if (!spectating()) {
 			sync_observer_view_picker(); // Change perspective: the player's own seat
@@ -1347,9 +1380,11 @@ void RtsoMain::update_hud() {
 		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
 		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
 				turn_mgr_.is_replaying());
+		const uint8_t vp = view_player();
+		minimap_panel_.set_civ(vp < rtso::MAX_PLAYERS ? rtso::civ_info(sim->player_civ(vp)).code : "gaia");
 	}
-	// GameSpeedButton is hidden in networked games; a replay's own row has the speed list.
-	if (speed_btn) speed_btn->set_visible(!net_lockstep() && !turn_mgr_.is_replaying());
+	// GameSpeedButton: hidden in networked games (g_IsNetworked), shown in replays with Fast Forward.
+	if (speed_btn) speed_btn->set_visible(!net_lockstep());
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
@@ -1600,6 +1635,8 @@ void RtsoMain::activate_rejoin_test() {
 	if (rejoin_test_ || !sim || turn_mgr_.is_replaying()) return;
 	rejoin_test_ = true;
 	refresh_dev_overlay();
+	// 0.28 Engine.ActivateRejoinTest: LOGMESSAGERENDER("Rejoin test will activate in %i turns"); the copy joins after the next turn.
+	show_notice(String("Rejoin test will activate in %d turns").replace("%d", "1"));
 }
 
 // After each turn: the first takes the snapshot and rejoins the copy from it (a fresh
@@ -1731,8 +1768,27 @@ void RtsoMain::refresh_dev_overlay() {
 			text += vformat("  unitType:%d\n  actionState:%d\n  stance:%d\n  rank:%d\n  xp:%d\n  kills:%d\n",
 					(int64_t)uv.unit_type[i], (int64_t)uv.action_state[i], (int64_t)uv.stance[i], (int64_t)uv.rank[i],
 					(int64_t)(uv.xp ? uv.xp[i] : 0), (int64_t)(uv.kills ? uv.kills[i] : 0));
-			text += vformat("  carrying:{type:%d, amount:%d}\n  formation:%d\n}", (int64_t)uv.res_type_carried[i],
+			text += vformat("  carrying:{type:%d, amount:%d}\n  formation:%d\n", (int64_t)uv.res_type_carried[i],
 					(int64_t)uv.carry[i], (int64_t)uv.formation[i]);
+			// The rest of the entity's live state (0.28 lists every GetEntityState key).
+			text += vformat("  alive:%d\n  velocity:{x:%.2f, z:%.2f}\n  target:{x:%.2f, z:%.2f}\n  targetResource:%d\n",
+					(int64_t)uv.alive[i], uv.vel_x[i], uv.vel_z[i], uv.target_x[i], uv.target_z[i], (int64_t)uv.target_resource_id[i]);
+			text += vformat("  deathTimer:%.2f\n  statusEffects:%d\n  packState:%d\n  packElapsed:%.2f\n}",
+					uv.death_timer ? uv.death_timer[i] : 0.0f, (int64_t)(uv.status_effects ? uv.status_effects[i] : 0),
+					(int64_t)(uv.pack_state ? uv.pack_state[i] : 0), uv.pack_elapsed ? uv.pack_elapsed[i] : 0.0f);
+			if (tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT) {
+				// template: GetTemplateData of the entity's template.
+				const rtso::CivUnitTemplate &t = rtso::civ_unit_template(tmpl);
+				text += vformat("\n\ntemplate: {name:{generic:\"%s\", specific:\"%s\"}, civ:%d, phase:%d, ",
+						String::utf8(t.name ? t.name : ""), String::utf8(t.specific_name ? t.specific_name : ""), (int64_t)t.civ, (int64_t)t.phase);
+				text += vformat("cost:{food:%d, wood:%d, stone:%d, metal:%d, population:%d, time:%.1f}, ", (int64_t)t.food_cost,
+						(int64_t)t.wood_cost, (int64_t)t.stone_cost, (int64_t)t.gold_cost, (int64_t)t.pop_cost, t.train_time);
+				text += vformat("maxHitpoints:%.1f, speed:%.2f, vision:%.2f, ", t.hp, t.speed, t.vision);
+				text += vformat("attack:{hack:%.1f, pierce:%.1f, crush:%.1f, range:%.2f, repeatTime:%.2f}, ", t.hack_damage,
+						t.pierce_damage, t.crush_damage, t.attack_range, t.attack_cooldown);
+				text += vformat("resistance:{hack:%.1f, pierce:%.1f, crush:%.1f}, carryCapacity:%d}", t.hack_armor, t.pierce_armor,
+						t.crush_armor, (int64_t)t.carry_capacity);
+			}
 			break;
 		}
 	} else if (selected_building_id) {
@@ -1872,36 +1928,46 @@ void RtsoMain::select_group(int key, bool drop) {
 
 // The garrison panel's holder: the selected structure, or a lone selected ship, ram or
 // siege tower.
-uint32_t RtsoMain::selected_garrison_holder() const {
-	if (selected_building_id != 0) return selected_building_id;
-	if (sim && selected_ids.size() == 1 && sim->is_transport((uint32_t)selected_ids[0])) return (uint32_t)selected_ids[0];
-	return 0;
+// unloadTemplate's garrisonHolders: the selected structures and units that hold units.
+std::vector<uint32_t> RtsoMain::selected_garrison_holders() const {
+	std::vector<uint32_t> out;
+	if (!sim) return out;
+	for (uint32_t id : selected_structures())
+		if (!sim->holder_contents(id).empty()) out.push_back(id);
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t id = (uint32_t)selected_ids[s];
+		if (sim->is_transport(id) && !sim->holder_contents(id).empty()) out.push_back(id);
+	}
+	return out;
 }
 
-// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): unload
-// one unit of the group (template and owner), or all of them with session.unloadtype (Shift).
+bool RtsoMain::ui_garrison_panel_shown() const { return !selected_garrison_holders().empty(); }
+
+// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): every selected
+// holder (Commands.js "unload-template" -> GarrisonHolder.UnloadTemplate) unloads one unit of the
+// group (template and owner), or all of them with session.unloadtype (Shift).
 void RtsoMain::_on_garrison_group_clicked(int key) {
-	const uint32_t holder = selected_garrison_holder();
-	if (!sim || holder == 0) return;
-	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
-	if (mine.empty()) return;
+	if (!sim) return;
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
-	std::vector<uint32_t> out;
-	for (uint32_t gid : mine) {
-		for (size_t i = 0; i < uview.count; ++i) {
-			if (uview.id[i] != gid) continue;
-			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-			if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
-			break;
+	for (uint32_t holder : selected_garrison_holders()) {
+		const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
+		std::vector<uint32_t> out;
+		for (uint32_t gid : mine) {
+			for (size_t i = 0; i < uview.count; ++i) {
+				if (uview.id[i] != gid) continue;
+				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
+				break;
+			}
+			if (!all && !out.empty()) break;
 		}
-		if (!all && !out.empty()) break;
+		if (out.empty()) continue;
+		if (turn_cmds())
+			post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
+		else
+			sim->cmd_unload(local_player(), holder, out.data(), out.size());
 	}
-	if (out.empty()) return;
-	if (turn_cmds())
-		post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
-	else
-		sim->cmd_unload(local_player(), holder, out.data(), out.size());
 }
 
 void RtsoMain::update_command_panel() { command_panel_.update(); }
@@ -2098,7 +2164,9 @@ void RtsoMain::flush_training_batch() {
 void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count) {
 	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
 	if (turn_cmds()) {
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id, 0);
+		// input.js addTrainingToQueue / flushTrainingBatch: "pushFront" with session.pushorderfront.
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id,
+				rtso::hotkeys::held("session.pushorderfront") ? rtso::NET_PARAM_PUSH_FRONT_ORDER : 0);
 		play_civ_voice("select");
 		return;
 	}
@@ -2467,9 +2535,18 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["setup_page"] = net_setup_overlay_ != nullptr;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
+	d["net_status_title"] = net_status_title_ && net_status_title_->is_visible() ? net_status_title_->get_text() : String();
+	{
+		String buttons;
+		for (Button *b : {net_status_exit_, net_status_faq_})
+			if (b && b->is_visible()) buttons += (buttons.is_empty() ? "" : ",") + b->get_text();
+		d["net_status_buttons"] = buttons;
+	}
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
 	d["net_warnings"] = net_warnings_label_ && net_warnings_label_->is_visible() ? net_warnings_label_->get_parsed_text() : String();
+	if (net_warnings_label_)
+		if (CanvasLayer *l = Object::cast_to<CanvasLayer>(net_warnings_label_->get_parent())) d["net_warnings_layer"] = (int)l->get_layer();
 	return d;
 }
 
@@ -2559,11 +2636,21 @@ void RtsoMain::refresh_lobby_seats() {
 			buddy = !c.name.empty() && list.find("," + c.name + ",") != std::string::npos;
 		}
 		if (opt == "disabled" || (opt == "buddies" && !buddy)) { seat_choice_[c.id] = SEAT_OBSERVER; continue; }
+		if (c.watches) continue;
+		auto held = [&](int slot) {
+			bool h = false;
+			for (const auto &o : clients) h |= o.id != c.id && eff[o.id] == slot;
+			return h;
+		};
 		auto last = seat_last_.find(c.name);
-		if (c.watches || last == seat_last_.end() || last->second >= slots.size() || slots[last->second].type == 'x') continue;
-		bool held = false;
-		for (const auto &o : clients) held |= o.id != c.id && eff[o.id] == last->second;
-		if (!held) seat_choice_[c.id] = last->second;
+		if (last != seat_last_.end() && last->second < slots.size() && slots[last->second].type != 'x' && !held(last->second)) {
+			seat_choice_[c.id] = last->second;
+			continue;
+		}
+		// findAssignmentSlot: else the slot the saved game has for that name.
+		const String saved = "@" + String::utf8(c.name.c_str()).to_lower();
+		for (int i = 0; net_saved_setup() && i < (int)net_saved_seats_.size() && i < (int)slots.size(); ++i)
+			if (net_saved_seats_[i] == saved && slots[i].type == 'h' && !held(i)) { seat_choice_[c.id] = i; break; }
 	}
 	lobby_effective_seats(eff);
 	for (const auto &c : clients) seat_last_[c.name] = eff[c.id];
@@ -2657,8 +2744,19 @@ void RtsoMain::prepare_lobby_seats(rtso::GameSetupParams &setup, bool commit) {
 		if (e.second == SEAT_OBSERVER) { setup.observers |= bit; continue; }
 		setup.observers &= (uint8_t)~bit;
 		if (e.second < 0 || e.second >= setup.slot_count || setup.slot_types[e.second] == 'x') continue;
+		// PlayerAssignment.rebuildList: a saved game's AI can't be replaced.
+		if (net_saved_setup() && setup.slot_types[e.second] != 'h') continue;
 		setup.seats[e.first] = (uint8_t)e.second;
 		setup.slot_types[e.second] = 'h';
+	}
+	if (net_saved_setup()) {
+		// Only the save's human seats take players; the rest watch.
+		for (uint8_t i = 0; i < setup.slot_count; ++i)
+			if (setup.slot_types[i] == 'h' && (i >= net_saved_seats_.size() || net_saved_seats_[i].is_empty())) setup.slot_types[i] = 'x';
+		if (commit)
+			for (const auto &p : net_host_.getPeers())
+				if (p.connected && p.id != 0 && p.id < 8) net_host_.setPeerObserver(p.id, (setup.observers >> p.id) & 1);
+		return;
 	}
 	int need = (setup.observers & 1) ? 0 : 1;
 	for (const auto &p : net_host_.getPeers()) {
@@ -2711,6 +2809,11 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		if (const char *why = apply_net_setup_request(r.client, r.request)) net_host_.sendSetupRefusal(r.client, why);
 	rtso::NetSetupState n;
 	match_settings_setup(n.setup);
+	if (net_saved_setup()) n.setup.saved_game = 1; // the clients lock their page too
+	// MapSelection.js Random: resolved only at Start (launchGame), so the
+	// clients are told "random" and see which map only once it loads.
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings")))
+		if ((bool)ms->get("net_map_random")) n.setup.map_id = "random";
 	uint8_t eff[8];
 	{
 		rtso::GameSetupParams seated = n.setup;
@@ -2837,6 +2940,7 @@ const char *RtsoMain::apply_net_setup_request(uint32_t client, const std::string
 	const size_t eq = request.find('=');
 	if (!ms || eq == std::string::npos) return "Unknown request";
 	if (slot < 0) return "You have no player slot";
+	if (net_saved_setup()) return "The controller loaded a saved game";
 	if ((bool)ms->get("map_locks_players")) return "This map sets every player's civilization, team and color";
 	const std::string key = request.substr(0, eq);
 	const String sv = String(request.substr(eq + 1).c_str());
@@ -2929,7 +3033,9 @@ Dictionary RtsoMain::get_net_setup_state() const {
 	d["all_ready"] = net_setup_.all_ready();
 	d["can_start"] = host && !net_game_started_ && net_setup_.all_ready();
 	d["ready"] = host ? 2 : (int)net_ready_;
-	d["locked"] = net_setup_.setup.lock_players != 0;
+	// SavedGameLabel and GameSettingControl EnabledWhenSavedGame.
+	d["saved_game"] = net_setup_.setup.saved_game != 0;
+	d["locked"] = net_setup_.setup.lock_players != 0 || net_setup_.setup.saved_game != 0;
 	d["version"] = (int64_t)net_setup_.seq;
 	d["settings_version"] = (int64_t)net_setup_.settings_version;
 	return d;
@@ -3053,6 +3159,10 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_z = z;
 	c.target_id = tid;
 	c.param = param;
+	// input.js: an order not queued with Shift goes first while session.pushorderfront is held.
+	if (rtso::net_cmd_takes_push_front(cmd_type) && !(param & rtso::NET_PARAM_QUEUED) &&
+			rtso::hotkeys::held("session.pushorderfront"))
+		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
 	if (spectating()) return; // observers and defeated players order nothing
 	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
 		apply_default_formation(ids, n);
@@ -3197,6 +3307,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	}
 	rtso::GameSetupParams setup;
 	match_settings_setup(setup);
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) ms->set("net_map_random", false);
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
 	// A Random civ is picked here, so every peer is told the same one.
 	for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i)
@@ -3579,16 +3690,6 @@ std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
 	return out;
 }
 
-std::vector<String> RtsoMain::chat_assigned_names() {
-	std::vector<String> out;
-	if (!net_lockstep()) {
-		out.push_back(chat_user("local"));
-		return out;
-	}
-	for (const auto &e : net_host_.playerAssignment()) out.push_back(chat_user("peer-" + String::num_int64(e.client)));
-	return out;
-}
-
 void RtsoMain::_on_chat_send_pressed() {
 	chat_window_.send_pressed();
 }
@@ -3596,6 +3697,22 @@ void RtsoMain::_on_chat_send_pressed() {
 void RtsoMain::_on_chat_text_submitted(const String &text) {
 	(void)text;
 	chat_window_.send_pressed();
+}
+
+void RtsoMain::_on_chat_input_gui(const Ref<InputEvent> &event) {
+	Ref<InputEventKey> k = event;
+	if (k.is_valid() && k->is_pressed() && k->get_keycode() == KEY_TAB) chat_window_.tab_complete();
+}
+
+std::vector<String> RtsoMain::chat_autocomplete_names() {
+	std::vector<String> out;
+	if (net_lockstep()) {
+		for (const auto &e : net_host_.playerAssignment())
+			if (!e.name.empty()) out.push_back(String::utf8(e.name.c_str()));
+	} else if (local_player() < rtso::MAX_PLAYERS) {
+		out.push_back(player_display_name(local_player()));
+	}
+	return out;
 }
 
 // 0 A.D. MatchSettingsDialog.toggle.

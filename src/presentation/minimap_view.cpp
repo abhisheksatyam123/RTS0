@@ -27,12 +27,13 @@ void RtsoMiniMapView::_bind_methods() {
 }
 
 RtsoMiniMapView::RtsoMiniMapView() {
-	set_anchor(SIDE_LEFT, 0.0f);
-	set_anchor(SIDE_RIGHT, 0.0f);
+	// Inside the minimap panel at session.xml's 50%-512 (minimap_panel_view.h).
+	set_anchor(SIDE_LEFT, 0.5f);
+	set_anchor(SIDE_RIGHT, 0.5f);
 	set_anchor(SIDE_TOP, 1.0f);
 	set_anchor(SIDE_BOTTOM, 1.0f);
-	set_offset(SIDE_LEFT, 14.0f);
-	set_offset(SIDE_RIGHT, 204.0f);
+	set_offset(SIDE_LEFT, -504.0f);
+	set_offset(SIDE_RIGHT, -314.0f);
 	set_offset(SIDE_TOP, -204.0f);
 	set_offset(SIDE_BOTTOM, -14.0f);
 	set_custom_minimum_size(Vector2(190, 190));
@@ -424,7 +425,7 @@ void RtsoMiniMapView::_draw() {
 		for (const auto &b : mirages_.buildings()) {
 			if (rtso::is_civic_centre(b.type)) draw_icon(ICON_CIVIL_CENTRE, b.x, b.z);
 			else if (b.type == rtso::BLD_WONDER) draw_icon(ICON_WONDER, b.x, b.z);
-			else if (b.type == rtso::BLD_SHRINE || b.type == rtso::BLD_TRADING_POST) draw_icon(ICON_OTHER, b.x, b.z);
+			else if (b.type == rtso::BLD_SHRINE || b.type == rtso::BLD_TRADING_POST || b.type == rtso::BLD_MILL) draw_icon(ICON_OTHER, b.x, b.z);
 		}
 		for (size_t i = 0; i < units.count; ++i)
 			if (units.alive[i] && units.unit_type[i] == rtso::UNIT_CATAFALQUE &&

@@ -16,6 +16,8 @@
 #include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/font.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/core/memory.hpp>
@@ -97,7 +99,7 @@ public:
 		for (int i = 0; i < RENDER_DEBUG_COUNT; ++i) render_debug_->add_item(kRenderDebugLabels[i], i);
 		render_debug_->set_position(Vector2(0, DEV_COUNT * kRow));
 		render_debug_->set_size(Vector2(250 - 8, kRow));
-		render_debug_->add_theme_font_size_override("font_size", 13);
+		render_debug_->add_theme_font_size_override("font_size", 12); // devCommandsDropDown: sans-12
 		render_debug_->select(RENDER_DEBUG_NONE);
 		render_debug_->connect("item_selected", Callable(owner, dropdown_method));
 		panel_->add_child(render_debug_);
@@ -112,6 +114,9 @@ public:
 		state_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
 		state_->add_theme_constant_override("outline_size", 3);
 		state_->add_theme_font_size_override("font_size", 10);
+		// mono-stroke-10: DejaVu Sans Mono, as 0.28's mono fonts.
+		godot::Ref<godot::Font> mono = godot::ResourceLoader::get_singleton()->load("res://assets/fonts/DejaVuSansMono.ttf");
+		if (mono.is_valid()) state_->add_theme_font_override("font", mono);
 		state_->set_autowrap_mode(TextServer::AUTOWRAP_ARBITRARY);
 		state_->set_clip_text(true);
 		state_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);

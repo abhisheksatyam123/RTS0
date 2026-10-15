@@ -21,7 +21,7 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
-	run.call_deferred()
+	preload("res://tools/lobby_test_clock.gd").run_in_wall_time(self, "res://tools/e2e_lobby_moderation.gd", run)
 
 # max_frames counts frames at 60 fps of real time: headless --fixed-fps runs
 # frames unthrottled, and the lobby's HTTP answers take wall-clock time.
@@ -104,10 +104,50 @@ func run() -> void:
 	await until(func() -> bool: return told[0] != "")
 	check(told[0] == "You have been kicked from the lobby! Reason: spam", "bob is told: " + told[0])
 
-	print("3. kicked ourselves")
+	print("2b. muting and notices")
+	var carl := [""]
+	login.call("carl", carl)
+	await until(func() -> bool: return carl[0] != "")
+	lobby._chat_line.text = "/mute carl"
+	lobby._on_send_pressed()
+	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("carl has been muted."))
+	check(lobby._chat_log.get_parsed_text().contains("carl has been muted."), "/mute carl: the room hears carl has been muted")
+	var said := [0]
+	ls.post_json("/chat", {"token": carl[0], "text": "hey"}, func(c: int, _o) -> void: said[0] = c)
+	await until(func() -> bool: return said[0] != 0)
+	check(said[0] == 403, "a muted player cannot chat")
+	lobby._selected_player = "carl"
+	lobby._refresh()
+	await until(func() -> bool: return lobby._muted.has("carl"))
+	lobby._request_profile("carl")
+	check(lobby._profile_role.text == "Muted Player", "carl's profile says Muted Player: " + lobby._profile_role.text)
+	# StatusMessageEvents.js Role, worded for the reader; ChatInputPanel hides a muted reader's input.
+	check(lobby._format_event({"kind": "role", "nick": "alice", "newrole": "visitor", "oldrole": "participant"}, "alice")
+		.contains("You have been muted.") and lobby._format_event({"kind": "role", "nick": "carl", "newrole": "participant",
+		"oldrole": "visitor"}, "alice").contains("carl has been unmuted.") and lobby._format_event({"kind": "role",
+		"nick": "alice", "newrole": "moderator", "oldrole": "participant"}, "alice").contains("You are now a moderator."),
+		"role lines read You have been muted. / carl has been unmuted. / You are now a moderator.")
+	lobby._muted["alice"] = true
+	lobby._update_chat_input()
+	check(not lobby._chat_line.visible and not lobby._chat_send.visible, "a muted reader has no chat input")
+	lobby._muted.erase("alice")
+	lobby._update_chat_input()
+	check(lobby._chat_line.visible, "and gets it back when unmuted")
 	var mod := [""]
 	login.call("mod", mod)
 	await until(func() -> bool: return mod[0] != "")
+	var refused := [0]
+	ls.post_json("/mute", {"token": mod[0], "nick": "alice"}, func(c: int, _o) -> void: refused[0] = c)
+	await until(func() -> bool: return refused[0] != 0)
+	check(refused[0] == 403, "a moderator cannot be muted")
+	lobby._chat_line.text = "/announce Server restarts at noon."
+	lobby._on_send_pressed()
+	await until(func() -> bool: return lobby.find_child("NoticeDialog", true, false) != null)
+	var notice: AcceptDialog = lobby.find_child("NoticeDialog", true, false)
+	check(notice != null and notice.title == "Notice" and notice.dialog_text == "Server restarts at noon.", "/announce opens a Notice box")
+	check(lobby._chat_log.get_parsed_text().contains("== Notice:\nServer restarts at noon."), "and the chat reads == Notice:")
+
+	print("3. kicked ourselves")
 	var done := [false]
 	ls.post_json("/kick", {"token": mod[0], "nick": "alice", "reason": "testing", "ban": true}, func(_c: int, _o) -> void: done[0] = true)
 	await until(func() -> bool: return done[0])

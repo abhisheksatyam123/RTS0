@@ -18436,14 +18436,10 @@
       "z": -86.25
     },
     {
-      "type": "wall_segment",
+      "type": "fortress",
       "template": "structures/gaul/fortress",
       "x": 69.61,
-      "z": -70.55,
-      "wallset": "stone",
-      "piece": "wall",
-      "angle": -1.4321,
-      "length": 4.2
+      "z": -70.55
     },
     {
       "type": "wall_segment",

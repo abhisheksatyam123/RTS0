@@ -364,12 +364,18 @@ void RtsoMain::_on_build_btn_pressed(int btype) {
 }
 
 void RtsoMain::_on_tech_pressed(int tech_id) {
-	if (selected_building_id != 0) {
-		if (turn_cmds())
-			post_lockstep(9, nullptr, 0, 0, 0, selected_building_id, (uint8_t)tech_id);
-		else
-			sim->cmd_research(local_player(), selected_building_id, (uint8_t)tech_id);
-	}
+	if (selected_building_id != 0) _on_tech_pressed_at(tech_id, selected_building_id);
+}
+
+// A Research button researches at its own researchFacilityId (Research.getItems).
+void RtsoMain::_on_tech_pressed_at(int tech_id, int64_t building_id) {
+	if (building_id == 0) return;
+	if (turn_cmds())
+		// selection_panels_helpers.js addResearchToQueue: "pushFront" (target_x 1).
+		post_lockstep(9, nullptr, 0, rtso::hotkeys::held("session.pushorderfront") ? 1.0f : 0.0f, 0, (uint32_t)building_id,
+				(uint8_t)tech_id);
+	else
+		sim->cmd_research(local_player(), (uint32_t)building_id, (uint8_t)tech_id, rtso::hotkeys::held("session.pushorderfront"));
 }
 
 // The selected structures of the primary one's type, primary first: 0.28's selection
@@ -445,10 +451,15 @@ void RtsoMain::_on_dropsite_sharing_pressed(int shared) {
 }
 
 // 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35, from every
-// selected structure of the primary one's type.
+// selected structure that raises alerts (raiseAlert: the selection's AlertRaisers).
 void RtsoMain::_on_alert_pressed(int end) {
 	if (selected_building_id == 0) return;
-	for (uint32_t id : selected_structures_like_primary()) {
+	for (uint32_t id : selected_structures()) {
+		rtso::AlertRaiserInfo ai;
+		bool raiser = false;
+		for (const auto &b : sim->buildings())
+			if (b.id == id) raiser = b.team == local_player() && rtso::building_alert_raiser(b.type, ai);
+		if (!raiser) continue;
 		if (net_lockstep())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_ALERT, nullptr, 0, 0, 0, id, end ? 1 : 0);
 		else if (end)

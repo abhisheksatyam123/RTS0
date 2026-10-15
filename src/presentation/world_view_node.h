@@ -25,6 +25,8 @@
 #include <godot_cpp/classes/environment.hpp>
 #include <godot_cpp/classes/sky.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
+#include <map>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -38,6 +40,7 @@
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/time.hpp>
 #include "../graphics/assets/assets.h"
 #include "../graphics/assets/procedural.h"
 #include "../graphics/assets/model_library.h"
@@ -61,6 +64,7 @@ class RtsoWorldView : public Node3D {
 		MeshInstance3D *xp_fg = nullptr;
 		Sprite3D *rank_icon = nullptr;   // StatusBars AddRankIcon
 		uint8_t rank_shown = 0;
+		float anim_debt = 0.0f; // seconds of clip skipped while out of view
 		uint32_t sim_id = 0;
 		// The entity and model the body skin variant (variant_u) was set for.
 		uint32_t variant_id = 0;
@@ -76,6 +80,24 @@ class RtsoWorldView : public Node3D {
 		int64_t silhouette_rgba = -1; // silhouette colour last pushed (-1: none yet, -2: silhouettes off)
 	};
 
+	// What a structure's decals or particles were made for: its GLB id, scale and
+	// seat, compared as numbers (a formatted String key per structure per frame
+	// was ~4% of a late-game frame) to the rounding the old key kept.
+	struct FxKey {
+		String glb;
+		float k = 0.0f, x = 0.0f, z = 0.0f;
+		bool made = false;
+		bool same(const String &g, float nk, float nx, float nz) const {
+			return made && g == glb && (g.is_empty() || (std::fabs(nk - k) < 5e-5f && std::fabs(nx - x) < 5e-4f && std::fabs(nz - z) < 5e-4f));
+		}
+		void set(const String &g, float nk, float nx, float nz) {
+			glb = g;
+			k = nk;
+			x = nx;
+			z = nz;
+			made = true;
+		}
+	};
 	struct BuildingVis {
 		Node3D *root = nullptr;
 		Node *model = nullptr;
@@ -107,17 +129,17 @@ class RtsoWorldView : public Node3D {
 		float site_dust_poll = 0.0f; // seconds until the builders are counted again
 		// 0 A.D.'s ground decals (props/structures/decals/*.xml) under the model or foundation drawn.
 		std::vector<Decal *> decals;
-		String decal_key; // the GLB id, scale and position the decals were laid for
+		FxKey decal_key; // the GLB id, scale and position the decals were laid for
 		String foundation_glb; // the foundation GLB set_building_site_visible drew
 		// The particles 0 A.D.'s structure or rubble actor always props (chimney smoke,
 		// temple fires, burning rubble), with their GLB positions for re-seating.
 		std::vector<GPUParticles3D *> ambient_fx;
 		std::vector<Vector3> ambient_pos;
-		String ambient_key; // the GLB id and scale they were made for
+		FxKey ambient_key; // the GLB id and scale they were made for
 		// The dust and smoke of the actor's "death" variant, raised when it collapses.
 		std::vector<GPUParticles3D *> death_fx;
 		std::vector<Vector3> death_pos;
-		String death_key;
+		FxKey death_key;
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -214,11 +236,20 @@ class RtsoWorldView : public Node3D {
 	void load_ambient_fx();
 	GPUParticles3D *make_ambient_emitter(const AmbientParticle &d, float m);
 	// The dust 0 A.D.'s "Run" variant props (dust_cav) under running cavalry, camels,
-	// elephants and animals: per unit GLB its particles, and one world-space
-	// emitter per particle and scale that emit_particle feeds.
-	std::unordered_map<std::string, std::vector<std::string>> run_fx_;
-	std::unordered_map<std::string, GPUParticles3D *> run_emitters_;
+	// elephants and animals (per unit GLB its particles), the flaming stones' trail,
+	// and one world-space emitter per particle and scale that emit_particle feeds.
+	HashMap<String, std::vector<std::string>> run_fx_;
+	std::vector<std::string> stone_fx_; // the flaming stones' flame and smoke
+	std::map<std::pair<const AmbientParticle *, int>, GPUParticles3D *> world_emitters_;
 	void emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta);
+	void emit_world_fx(const std::vector<std::string> &names, const Vector3 &at, float sc, float delta);
+	void emit_world_fx(const std::string &name, const Vector3 &at, float sc, float delta);
+	HashMap<String, AmbientFxSet> unit_fx_; // particles a unit actor always props
+	void emit_unit_fx(const String &glb_id, const Transform3D &xf, float sc, float delta);
+	// Unit models started loading on a worker before their first draw (per civ and crowd key).
+	std::vector<bool> prefetched_;
+	float prefetch_poll_ = 0.0f;
+	void prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
@@ -331,7 +362,7 @@ class RtsoWorldView : public Node3D {
 	// time a unit of that civ and type shows, so every civ in the match renders
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
 	static constexpr int CROWD_CLIP_COUNT = 61; // see crowd_clips() in world_view_node.cpp
-	static constexpr int FAUNA_CLIP_COUNT = 6;  // idle, move, attack, death, idle2, death2
+	static constexpr int FAUNA_CLIP_COUNT = 7;  // idle, move, attack, death, idle2, death2, feeding
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
 	struct CrowdPuppet {
 		String clip;
@@ -346,6 +377,9 @@ class RtsoWorldView : public Node3D {
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
+		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
+		String model_id;
+		float y_offset = 0.0f, scale = 1.0f, height = 0.0f;
 		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
 	// Crowd keys: a unit type, UNIT_TYPE_COUNT + type for a siege engine
@@ -355,6 +389,11 @@ class RtsoWorldView : public Node3D {
 	static constexpr int CROWD_KEY_COUNT = 2 * rtso::UNIT_TYPE_COUNT + rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT;
 	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][CROWD_KEY_COUNT];
 	uint8_t crowd_key_utype_[CROWD_KEY_COUNT] = {}; // a unit type drawn by each key
+	// The (civ << 16 | key) of every crowd batch made, ascending, and of those drawing units
+	// this frame (crowd_seen_ marks them), so a frame visits those batches only.
+	std::vector<uint32_t> crowd_made_;
+	std::vector<uint32_t> crowd_seen_list_;
+	uint8_t crowd_seen_[rtso::CIV_COUNT][CROWD_KEY_COUNT] = {};
 	Node3D *crowd_bake_root = nullptr;
 	// Crowd clip baking is spread over frames: past this frame's deadline (set in sync)
 	// a clip waits for a later frame, drawn in the rest pose meanwhile; one clip always
@@ -364,6 +403,13 @@ class RtsoWorldView : public Node3D {
 	uint64_t crowd_bake_deadline_us_ = 0;
 	bool crowd_baked_this_frame_ = false;
 	bool crowd_bake_over_budget();
+	// The crowd clip being baked, pose by pose: a clip's poses may span frames, and its
+	// model instance stays for the batch's later clips.
+	struct CrowdBakeJob;
+	std::unique_ptr<CrowdBakeJob> crowd_job_;
+	void crowd_job_begin_clip(CrowdBatch &b, int c);
+	void crowd_job_bake_poses();
+	void crowd_job_release();
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 	// Formation.js GetFormationAnimationVariant per formation member this frame, and which
 	// variants each crowd key's 0 A.D. actor lists (bit 31: looked up).
@@ -399,6 +445,20 @@ class RtsoWorldView : public Node3D {
 	static constexpr size_t SPATIAL_AUDIO_POOL_SIZE = 32;
 	AudioStreamPlayer3D *spatial_players[SPATIAL_AUDIO_POOL_SIZE] = {nullptr};
 	size_t next_spatial_idx = 0;
+	static constexpr int kMaxSpatialVoices = 16;
+	int spatial_dropped_ = 0;
+	uint64_t spatial_end_ms_[SPATIAL_AUDIO_POOL_SIZE] = {}; // when each voice's sound ends
+
+public:
+	int spatial_voices_playing() const {
+		const uint64_t now = Time::get_singleton()->get_ticks_msec();
+		int n = 0;
+		for (size_t i = 0; i < SPATIAL_AUDIO_POOL_SIZE; ++i) n += spatial_players[i] && now < spatial_end_ms_[i];
+		return n;
+	}
+	int spatial_sounds_dropped() const { return spatial_dropped_; }
+
+private:
 
 
 
@@ -445,6 +505,8 @@ public:
 	bool show_all_status_bars() const { return show_all_status_bars_; }
 	// StatusBars.js sprites drawn this frame (tests).
 	int status_sprite_count() const { return status_sprites_.sprite_count(); }
+	const PackedStringArray &status_rank_icons() const { return status_rank_icons_; } // drawn last frame (tests)
+	int status_xp_bars() const { return status_xp_bars_; }
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
@@ -476,6 +538,8 @@ private:
 		int n_icons = 0;
 	};
 	void status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const;
+	PackedStringArray status_rank_icons_;
+	int status_xp_bars_ = 0;
 	void draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, const StatusStack &st);
 
 	// Fog of war (0 A.D. Fogging.js/Mirage.js + CLOSTexture): what the local
@@ -536,10 +600,9 @@ private:
 	void hide_unit_vis(UnitVis &v);
 	CrowdBatch &crowd_batch(uint8_t civ, uint16_t key);
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
-	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks;
-	// with `budgeted`, stops once crowd_bake_over_budget() (the rest bake on later frames).
+	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-			const bool *needed, int count, uint64_t death_slots, bool female = false, bool budgeted = false);
+			const bool *needed, int count, uint64_t death_slots, bool female = false);
 	// Adds the 0 A.D. clips the unit GLBs lack (per-resource carry, promotion)
 	// to a biped's animation library from assets/animations/*.psa.
 	void ensure_runtime_clips(AnimationPlayer *ap, bool female);

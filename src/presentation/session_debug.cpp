@@ -146,8 +146,9 @@ Dictionary RtsoMain::debug_guard_step(int step) {
 	d["guarding"] = !selected_ids.is_empty() && sim->unit_is_guarding((uint32_t)selected_ids[0]);
 	update_command_panel();
 	PackedStringArray buttons;
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i)
-		if (Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i))) buttons.push_back(btn->get_text());
+	for (Node *bar : {(Node *)command_panel_.commands_row(), (Node *)command_panel_.production_bar()})
+		for (int i = 0; i < bar->get_child_count(); ++i)
+			if (Button *btn = Object::cast_to<Button>(bar->get_child(i))) buttons.push_back(btn->get_text());
 	d["buttons"] = buttons;
 	return d;
 }
@@ -178,6 +179,7 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 		if (!Object::cast_to<Button>(n))
 			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j));
 	}
+	for (int i = 0; i < command_panel_.commands_row()->get_child_count(); ++i) add(command_panel_.commands_row()->get_child(i));
 	return out;
 }
 
@@ -198,8 +200,10 @@ Dictionary RtsoMain::debug_command_button(const String &prefix) {
 		}
 	}
 	d["build_mode"] = build_mode;
-	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
-		Button *btn = Object::cast_to<Button>(command_panel_.production_bar()->get_child(i));
+	for (int k = 0; k < 2 && !d.has("id"); ++k) {
+	Node *bar = k == 0 ? (Node *)command_panel_.commands_row() : (Node *)command_panel_.production_bar();
+	for (int i = 0; i < bar->get_child_count(); ++i) {
+		Button *btn = Object::cast_to<Button>(bar->get_child(i));
 		if (!btn) continue;
 		const String label = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
 		if (!label.begins_with(prefix)) continue;
@@ -207,6 +211,7 @@ Dictionary RtsoMain::debug_command_button(const String &prefix) {
 		d["rect"] = btn->get_global_rect();
 		d["disabled"] = btn->is_disabled();
 		break;
+	}
 	}
 	return d;
 }
@@ -361,6 +366,10 @@ Dictionary RtsoMain::debug_selection_state() {
 				: rtso::unit_tech_classes(uview.unit_type[i]);
 		u["civilian"] = (bool)(tc & rtso::TC_CIVILIAN);
 		u["target_resource"] = (int64_t)uview.target_resource_id[i];
+		const std::vector<rtso::UnitOrder> *oq = sim->unit_order_queue(uview.id[i]);
+		u["queued_orders"] = (int64_t)(oq ? oq->size() : 0);
+		u["order_kind"] = (int64_t)sim->unit_order(uview.id[i]).kind;
+		if (oq && !oq->empty()) u["queue_front_kind"] = (int64_t)oq->front().kind;
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -421,6 +430,8 @@ Array RtsoMain::debug_command_row() {
 		if (!Object::cast_to<Button>(n))
 			for (int j = 0; j < n->get_child_count(); ++j) add(n->get_child(j), true);
 	}
+	// unit_commands.xml: the entity commands along the details panel's bottom.
+	for (int i = 0; i < command_panel_.commands_row()->get_child_count(); ++i) add(command_panel_.commands_row()->get_child(i), false);
 	return out;
 }
 
@@ -549,6 +560,29 @@ void RtsoMain::debug_select_units(const PackedInt32Array &ids) {
 	selected_ids = ids;
 }
 
+// A Gaia catafalque at (dx, dz) from the player's Civic Center.
+int64_t RtsoMain::debug_spawn_relic(float dx, float dz) {
+	if (!sim) return 0;
+	for (const auto &b : sim->buildings())
+		if (b.team == local_player() && rtso::is_civic_centre(b.type)) return sim->spawn_relic(b.x + dx, b.z + dz);
+	return 0;
+}
+
+// The units go and capture the relic (the "capture" order on a catafalque).
+void RtsoMain::debug_capture_relic(const PackedInt32Array &ids, int64_t relic) {
+	if (!sim) return;
+	std::vector<uint32_t> v;
+	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
+	sim->order_capture_relic(v.data(), v.size(), (uint32_t)relic);
+}
+
+void RtsoMain::debug_select_structures(const PackedInt32Array &ids) {
+	selected_ids.clear();
+	std::vector<uint32_t> v;
+	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
+	set_selected_structures(v);
+}
+
 void RtsoMain::debug_select_entity(int64_t id) {
 	if (!sim) return;
 	selected_ids.clear();
@@ -577,14 +611,15 @@ int64_t RtsoMain::debug_civic_centre_id(int player) const {
 }
 
 // Test hook: each player's structures by type name, {player: {name: count}}.
-Dictionary RtsoMain::debug_structure_types() {
+Dictionary RtsoMain::debug_structure_types(bool with_civ) {
 	Dictionary d;
 	if (!sim) return d;
 	for (const auto &b : sim->buildings()) {
 		if (b.hp <= 0.0f || b.wrecked) continue;
 		const int p = b.team;
 		Dictionary per = d.get(p, Dictionary());
-		const String n = String::utf8(rtso::building_type_info(b.type).name);
+		String n = String::utf8(rtso::building_type_info(b.type).name);
+		if (with_civ && b.civ < rtso::CIV_COUNT) n += String("/") + rtso::civ_info(b.civ).code; // "Blemmye Camp/kush"
 		per[n] = (int)per.get(n, 0) + 1;
 		d[p] = per;
 	}
@@ -647,7 +682,7 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["chat_extended"] = chat_window_.extended();
 	d["chat_filters"] = (int64_t)chat_window_.filter_count();
 	Array names; // the plain names Tab completes (g_PlayerAssignments)
-	for (const String &n : const_cast<RtsoMain *>(this)->chat_assigned_names()) names.push_back(RtsoChatWindow::plain(n));
+	for (const String &n : const_cast<RtsoMain *>(this)->chat_autocomplete_names()) names.push_back(RtsoChatWindow::plain(n));
 	d["chat_names"] = names;
 	d["chat_addressees"] = chat_window_.addressee_list();
 	return d;
@@ -830,6 +865,7 @@ Dictionary RtsoMain::debug_minimap_panel() const {
 		d[names[i]] = e;
 	}
 	d["idle_count"] = minimap_panel_.idle_count_text();
+	d["civ_background"] = minimap_panel_.civ_background();
 	d["flare_armed"] = flare_armed_;
 	d["pings"] = minimap_view ? (int64_t)minimap_view->entity_ping_count() : (int64_t)0;
 	return d;
