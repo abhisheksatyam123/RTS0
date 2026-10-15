@@ -9721,15 +9721,29 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				return off(x, z) && !off(px[i], pz[i]);
 			};
 			if (barred(npx[i], npz[i])) {
-				// A refused step that reaches a short-path waypoint ends on it, as PerformMove moves a unit
-				// within its step of a waypoint onto it: the waypoint is kept off steep ground, the step
-				// past it may not be, and next tick searches from the waypoint.
+				// A refused step that reaches a short-path waypoint ends on it and spends the rest heading on
+				// for the aim, as PerformMove moves a unit within its step of a waypoint onto it and then
+				// towards the next: the waypoint is kept off steep ground, the step past it may not be. The
+				// rest slides along an axis when the way to the aim is barred too, and the unit stays on the
+				// waypoint when both are; next tick searches from where it stands. The rest that is barred
+				// counts as obstructed (motion_feedback), as 0.28's move that stops at the waypoint does.
 				const float wx = std::clamp(px[i] + dx, -map_half_, map_half_), wz = std::clamp(pz[i] + dz, -map_half_, map_half_);
 				if (corner_reached && !barred(wx, wz)) {
 					npx[i] = wx;
 					npz[i] = wz;
 					want_x[i] = dx;
 					want_z[i] = dz;
+					const float rx = aim_x - wx, rz = aim_z - wz, rl = std::sqrt(rx * rx + rz * rz);
+					const float rest = std::min(step - std::sqrt(d2), rl);
+					if (rest > 1e-4f) {
+						const float ex = std::clamp(wx + rx * (rest / rl), -map_half_, map_half_);
+						const float ez = std::clamp(wz + rz * (rest / rl), -map_half_, map_half_);
+						want_x[i] += ex - wx;
+						want_z[i] += ez - wz;
+						if (!barred(ex, ez)) npx[i] = ex, npz[i] = ez;
+						else if (!barred(ex, wz)) npx[i] = ex;
+						else if (!barred(wx, ez)) npz[i] = ez;
+					}
 				} else if (!barred(npx[i], pz[i])) npz[i] = pz[i];
 				else if (!barred(px[i], npz[i])) npx[i] = px[i];
 				else { npx[i] = px[i]; npz[i] = pz[i]; }
@@ -23600,6 +23614,7 @@ void Simulation::petra_manage_raid(float dt) {
 		uint32_t tid = find_petra_raid_target(tx, tz);
 		if (!tid) return;
 		plan.squad.clear();
+		plan.forced = plan.requested = false;
 		plan.target_building_id = tid;
 		plan.target_x = tx;
 		plan.target_z = tz;
@@ -23664,7 +23679,7 @@ void Simulation::petra_manage_raid(float dt) {
 				return std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end();
 			}), main.end());
 		}
-		const bool ready = plan.squad.size() >= raid_target || (plan.squad.size() >= raid_min && plan.state_timer >= 30.0f);
+		const bool ready = plan.forced || plan.squad.size() >= raid_target || (plan.squad.size() >= raid_min && plan.state_timer >= 30.0f);
 		if (!ready) return;
 		const float tx = plan.target_x, tz = plan.target_z;
 		// A raid overseas waits for a transport ship there, and for its last crossing to end.
@@ -24174,12 +24189,22 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 			if (plan.squad.size() > 2) available = plan.squad.size();
 		}
 	}
+	// Every upcoming plan counts, the raid mustering too (its own target stays).
+	AttackPlan &raid = petra_raid_plan_;
+	const bool raid_musters = raid.state == AttackPlan::MUSTER;
+	if (raid_musters) {
+		raid.target_player = target;
+		if (raid.squad.size() > 2) available += raid.squad.size();
+	}
 	const bool join = available > 12 && plan.target_building_id != 0;
-	if (join) { // forceStart
-		plan.forced = true;
-		plan.requested = true;
-		petra_attack_mgr_.target_size = (int)plan.squad.size();
-		petra_attack_mgr_.min_size = (int)plan.squad.size();
+	if (join) { // forceStart each upcoming plan of 3 units or more
+		if (plan.state == AttackPlan::MUSTER && plan.squad.size() >= 3) {
+			plan.forced = true;
+			plan.requested = true;
+			petra_attack_mgr_.target_size = (int)plan.squad.size();
+			petra_attack_mgr_.min_size = (int)plan.squad.size();
+		}
+		if (raid_musters && raid.squad.size() >= 3) raid.forced = raid.requested = true;
 	}
 	petra_say(join ? PETRA_CHAT_ATTACK_JOIN : PETRA_CHAT_ATTACK_DECLINE, PETRA_CHAT_ALLIES, target);
 }
@@ -25672,8 +25697,12 @@ void Simulation::petra_manage_defense(float dt) {
 			const Building &b = buildings_[building_id_to_idx_.at(bid)];
 			for (uint32_t uid : army.defender_ids) {
 				const int32_t idx = lookup_unit(uid);
-				if (idx < 0 || (units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid)) continue;
+				if (idx < 0) continue;
+				const bool on_it = units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid;
+				// defenseArmy.js update: one capturing what allowCapture no longer allows damages it.
+				if (on_it && !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
 				const bool capture = petra_allow_capture(army.defender_ids, uid, b);
+				if (on_it && capture) continue;
 				if (!capture && b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) continue;
 				order_attack_building(&uid, 1, bid, false, capture);
 			}
