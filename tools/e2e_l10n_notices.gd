@@ -16,7 +16,8 @@ extends SceneTree
 #      generic first, only specific, only generic;
 #   6. training, research and construction tooltips read getEntityCostTooltip's
 #      "Cost: Food 50  Wood 50  10 seconds", formatBatchTrainingString's
-#      "Shift-click to train 5." and getNeededResourcesTooltip's
+#      "Shift-click to train 5." (only while Shift is held: one unit has no
+#      batch line) and getNeededResourcesTooltip's
 #      "Insufficient resources:" line (checked in 3, before the defeat),
 #      in German too.
 #
@@ -44,6 +45,15 @@ func frames(n: int) -> void:
 
 func chat() -> String:
 	return str(main.get_lobby_state()["chat"])
+
+func shift(down: bool) -> void:
+	var k := InputEventKey.new()
+	k.keycode = KEY_SHIFT
+	k.physical_keycode = KEY_SHIFT
+	k.shift_pressed = down
+	k.pressed = down
+	Input.parse_input_event(k)
+	await frames(2)
 
 func plain(s: String) -> String:
 	var re := RegEx.create_from_string("\\[[^\\]]*\\]")
@@ -158,7 +168,14 @@ func run() -> void:
 	var rt: String = roster_tip.call()
 	print("  ", rt.replace("\n", " | "))
 	check(RegEx.create_from_string("\nCost: (Food|Wood|Stone|Metal) \\d+.* \\d+ seconds?").search(rt) != null, "a unit's cost with population and time")
-	check(rt.contains("\nShift-click to train "), "and the batch line")
+	check(not rt.contains("Shift-click"), "no batch line for one unit")
+	await shift(true)
+	main.debug_train_buttons(0)  # the defeated player's panel refreshes on a rebuild
+	await frames(2)
+	rt = roster_tip.call()
+	print("  ", rt.replace("\n", " | "))
+	check(rt.contains("\nShift-click to train "), "the batch line while Shift is held")
+	await shift(false)
 	main.debug_train_buttons(11)
 	await frames(2)
 	var techs: Array = main.debug_command_row().map(func(e): return TT.plain(str(e["tip"]))).filter(func(t): return t.contains("Cost: "))
@@ -167,9 +184,11 @@ func run() -> void:
 	check(techs.all(func(t): return not t.contains("Not enough resources")), "no bare \"Not enough resources\"")
 	TranslationServer.add_translation(de)
 	TranslationServer.set_locale("de")
+	await shift(true)
 	main.debug_train_buttons(0)
 	await frames(2)
 	rt = roster_tip.call()
+	await shift(false)
 	print("  ", rt.replace("\n", " | "))
 	check(rt.contains("Kosten: ") and rt.contains(TranslationServer.translate("Shift-click")), "in German: Kosten, Umschalt+Klick")
 	TranslationServer.set_locale("en")

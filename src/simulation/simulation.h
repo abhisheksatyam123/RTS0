@@ -691,6 +691,8 @@ public:
 	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1);
 	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
 	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// The same for a training unit (a trireme, Cyrus II): its Trainer/BatchTimeModifier.
+	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.
 	bool cmd_set_autoqueue(uint8_t player, uint32_t building_id, bool on);
 	// The technology a structure is researching now (the front of its queue), else TECH_NONE.
@@ -2465,7 +2467,6 @@ private:
 	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
 	void tick_unit_production(float dt); // units' Trainer queues (unit_queues_)
-	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
 	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)

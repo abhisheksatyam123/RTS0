@@ -33116,17 +33116,22 @@ void Simulation::trigger_unit_motion(int step) {
 void Simulation::trigger_survival_wave() {
 	// StartAnEnemyWave: champions, siege and now and then a hero of one random civ
 	// (LoadAttackerTemplates), more every minute, spawned as Gaia at each living player's
-	// attacker point and sent to attack-walk to its civic centre. RTS0's roster has no
-	// Gaia civ, so the wave is always one of the playable civs.
+	// attacker point and sent to attack-walk to its civic centre. The civ is drawn from
+	// ["gaia", ...civs]: a Gaia wave is the Samnite and mercenary champions maps place.
 	const float minutes = (float)triggers_.time_ms / 60000.0f;
 	const float next_wave = sim_rng_.range_float(0.5f, 1.0f) * kSurvivalMaxWaveTime;
-	const uint8_t civ = playable_civ((uint32_t)sim_rng_.range_int(0, PLAYABLE_CIV_COUNT - 1));
+	const int pick = sim_rng_.range_int(0, PLAYABLE_CIV_COUNT);
+	const uint8_t civ = pick == PLAYABLE_CIV_COUNT ? CIV_GAIA : playable_civ((uint32_t)pick);
 	const int total = (int)std::ceil(std::min(kSurvivalAttackerLimit,
 			kSurvivalInitialAttackers * std::pow(kSurvivalPercentPerMinute, minutes) * next_wave / kSurvivalMaxWaveTime));
 	const float siege_ratio = sim_rng_.range_float(kSurvivalSiegeMin, kSurvivalSiegeMax);
 	// GetTemplateNamesByClasses: "Hero", "Champion+!Elephant", "Siege Champion+Elephant".
 	std::vector<uint16_t> heroes, champions, siege;
-	for (uint16_t t : civ_roster_ids(civ)) {
+	// FindAllTemplates covers the templates only maps place too.
+	std::vector<uint16_t> pool = civ_roster_ids(civ);
+	for (uint16_t t = CIV_ROSTER_PROMOTION_ONLY_FIRST; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (civ_unit_template(t).civ == civ && (civ_unit_template(t).flags & ROSTER_MAP_ONLY)) pool.push_back(t);
+	for (uint16_t t : pool) {
 		const TechClasses c = civ_unit_template(t).tech_classes;
 		if (c & TC_HERO) heroes.push_back(t);
 		else if ((c & TC_SIEGE) || ((c & TC_CHAMPION) && (c & TC_ELEPHANT))) siege.push_back(t);

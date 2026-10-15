@@ -67,7 +67,7 @@ void RtsoMain::_notification(int p_what) {
 	if (p_what == NOTIFICATION_EXIT_TREE) {
 		write_replay(); // leaving the match keeps its replay
 		// Menus get the normal arrow back (update_cursor sets action cursors).
-		if (!cursor_name_.empty()) Input::get_singleton()->set_custom_mouse_cursor(Ref<Resource>());
+		if (!cursor_name_.empty()) reset_default_cursor();
 		// The Render Debug Mode is the session's; the menus draw normally.
 		if (render_debug_mode_ && get_viewport()) get_viewport()->set_debug_draw(Viewport::DEBUG_DRAW_DISABLED);
 		if (SceneTree *t = get_tree()) {
