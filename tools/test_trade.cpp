@@ -233,6 +233,9 @@ static void test_trader_route() {
 	const uint32_t trader = s.spawn_unit(-74.0f, 4.0f, 0, UNIT_TRADER);
 	const Simulation::TradeGain g = s.calculate_trade_gain(*find_bld(s, m0), *find_bld(s, m1), 0);
 	CHECK(g.trader > 0 && g.market1 > 0);
+	// Trader.js goods.amount: none until it loads goods at a market.
+	Simulation::TradeGain carried;
+	CHECK(!s.trader_goods(trader, carried));
 	// The idle trader finds the route by itself and walks it.
 	run(s, 240.0f);
 	run(c, 240.0f);
@@ -245,6 +248,13 @@ static void test_trader_route() {
 	CHECK(p1_gain >= 2 * g.market1);
 	CHECK(p0_gain % (g.trader + g.market1) == 0 && p1_gain % g.market1 == 0);
 	CHECK(p0_gain / (g.trader + g.market1) == p1_gain / g.market1); // one bonus per leg each
+	// On its way it carries goods whose total gain is its carry.
+	{
+		CHECK(s.trader_goods(trader, carried));
+		auto uv = s.units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == trader) CHECK(uv.carry[i] == carried.trader + carried.market1 + carried.market2);
+	}
 
 	// Declaring war on the other market's owner ends the route.
 	s.set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
@@ -254,6 +264,7 @@ static void test_trader_route() {
 	for (size_t i = 0; i < u.count; ++i)
 		if (u.id[i] == trader) idle = u.action_state[i] == ACTION_IDLE && u.carry[i] == 0;
 	CHECK(idle);
+	CHECK(!s.trader_goods(trader, carried)); // the goods are dropped
 	run(c, 1.0f);
 	const int frozen = total(s, 0) - total(c, 0);
 	run(s, 60.0f);

@@ -7,6 +7,7 @@
 // targets stay on the bound RtsoMain methods (main_node.h), and all
 // net/audio/sim access goes through RtsoChatHost — wire bytes unchanged.
 
+#include <map>
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
@@ -28,6 +29,7 @@
 #include <deque>
 #include <string>
 #include <utility>
+#include <map>
 #include <vector>
 
 #include "popup_safe.h"
@@ -178,7 +180,11 @@ public:
 
 		// 0 A.D. gui/session/chat/ChatOverlay.js: while the chat window is closed,
 		// the last 20 chat and notification lines show over the map for 30 s.
-		overlay_ = memnew(RichTextLabel);
+		// ChatOverlay.js chatLines: one line each; a line with a callback is a button with a
+		// tooltip, the others are ghosts (clicks reach the map under them).
+		owner_ = owner;
+		overlay_ = memnew(VBoxContainer);
+		overlay_->add_theme_constant_override("separation", 0);
 		overlay_->set_anchor(SIDE_LEFT, 0.0f);
 		overlay_->set_anchor(SIDE_TOP, 0.0f);
 		overlay_->set_offset(SIDE_LEFT, 16.0f);
@@ -186,24 +192,34 @@ public:
 		// session.xml chatPanel starts below the hero and relic buttons (PanelEntities.xml).
 		overlay_->set_offset(SIDE_TOP, 114.0f);
 		overlay_->set_offset(SIDE_BOTTOM, 114.0f + 20 * 18.0f);
-		overlay_->set_use_bbcode(true);
-		overlay_->set_scroll_active(false);
 		overlay_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		overlay_->add_theme_font_size_override("normal_font_size", 13);
-		overlay_->add_theme_color_override("font_outline_color", Color(0, 0, 0, 1));
-		overlay_->add_theme_constant_override("outline_size", 4);
 		parent->add_child(overlay_);
 	}
 
 	bool is_ready() const { return log_ != nullptr; }
 	bool is_open() const { return panel_ != nullptr && panel_->is_visible(); }
+	// ChatWindow.closePage: Cancel or sending empties the input.
 	void close() {
 		if (panel_) panel_->set_visible(false);
+		if (input_) input_->clear();
+	}
+	// Chat.openPage(command): the chat hotkeys always open the window, on Everyone
+	// unless they name an addressee (session.teamchat, session.privatechat).
+	void open_page() {
+		if (!panel_) return;
+		panel_->set_visible(true);
+		refill_addressees();
+		select_tag("");
+		if (input_) input_->grab_focus();
 	}
 
 	void toggle() {
 		if (!panel_) return;
 		bool vis = !panel_->is_visible();
+		if (!vis) {
+			close();
+			return;
+		}
 		panel_->set_visible(vis);
 		if (vis) refill_addressees();
 		if (vis && input_) {
@@ -240,9 +256,16 @@ public:
 			add("Enemies", "[Enemies]");
 		}
 		add("Observers", "[Observers]");
+		bool kept = keep.is_empty() || keep.begins_with("[") && !keep.begins_with("[Player-") && !keep.begins_with("[Observer-");
 		if (host_)
-			for (const auto &t : host_->chat_private_targets())
+			for (const auto &t : host_->chat_private_targets()) {
 				add(t.second, t.first);
+				names_[t.first] = plain(t.second);
+				kept = kept || t.first == keep;
+			}
+		// ChatAddressees.onUpdatePlayers: a private addressee who went offline stays
+		// selected as "[OFFLINE] name" rather than falling back to everyone.
+		if (!kept && names_.count(keep)) add("[OFFLINE] " + names_[keep], keep);
 		select_tag(keep);
 	}
 
@@ -257,33 +280,39 @@ public:
 			return;
 		}
 		if (!text.is_empty()) {
-			// ChatInput.js: a typed /allies, /enemies, /observers or /msg <name> picks the
-			// addressee of this message; otherwise the dropdown's.
+			// ChatMessageFormatPlayer.parseMessageAddressee: a typed /allies, /enemies,
+			// /observers or /msg <name> picks the addressee of this message, otherwise
+			// the dropdown's. Any other command (but /me) goes to nobody.
 			String tag = selected_tag();
-			if (text.begins_with("/allies ")) { tag = "[Allies]"; text = text.substr(8).strip_edges(); }
-			else if (text.begins_with("/enemies ")) { tag = "[Enemies]"; text = text.substr(9).strip_edges(); }
-			else if (text.begins_with("/observers ")) { tag = "[Observers]"; text = text.substr(11).strip_edges(); }
-			else if (text.begins_with("/msg ") && host_) {
-				const String rest = text.substr(5);
+			const bool observer = host_->chat_local_observer();
+			const String cmd = text.begins_with("/") ? text.get_slice(" ", 0) : String();
+			const String after = text.substr(cmd.length()).strip_edges();
+			if (cmd == "/allies" && !observer) { tag = "[Allies]"; text = after; }
+			else if (cmd == "/enemies" && !observer) { tag = "[Enemies]"; text = after; }
+			else if (cmd == "/observers") { tag = "[Observers]"; text = after; }
+			else if (cmd == "/msg") {
+				// Chat.getReceiverGUIDs / matchUsername: the longest name the rest starts with.
+				String best_tag, best_name;
 				for (const auto &t : host_->chat_private_targets()) {
 					const String name = plain(t.second);
-					if (rest.begins_with(name + String(" "))) {
-						tag = t.first;
-						text = rest.substr(name.length() + 1).strip_edges();
-						break;
-					}
+					if (after.begins_with(name) && name.length() > best_name.length()) { best_tag = t.first; best_name = name; }
 				}
+				if (best_tag.is_empty()) return refuse("Unknown chat addressee: " + after);
+				tag = best_tag;
+				text = after.substr(best_name.length()).strip_edges();
+			} else if (!cmd.is_empty() && cmd != "/me") {
+				return refuse("Unknown chat command: " + cmd);
 			}
 			if (text.is_empty()) return;
+			if (is_private(tag) && !is_online(tag)) return refuse("Unknown chat addressee: " + names_[tag]);
 			const String context = tag == "[Allies]" ? "Ally" : tag == "[Enemies]" ? "Enemy" : tag == "[Observers]" ? "Observer"
 					: tag.is_empty() ? "" : "Private";
 			if (context == "Private") last_private_ = tag;
 			const String wire_tag = tag.is_empty() ? String() : tag + " ";
 			const String line = format_line(context, host_->chat_user(""), text);
 			add_log(stamp() + line + "\n");
-			post_overlay(stamp() + line);
+			post_overlay(line);
 			input_->clear();
-			host_->play_sfx("res://assets/sounds/ui/chat.ogg");
 			// Network: 0 A.D. NMT_CHAT broadcast (NetHost::sendChat net_host.cpp:327).
 			// Channel travels as wire tag (0 A.D. gui/session/chat/ChatBounce.js:15-38 parity).
 			// Parsed client-side in onChat display without breaking protocol compatibility.
@@ -329,8 +358,9 @@ public:
 			}
 		}
 		if (!tag.is_empty() && host_ && !host_->chat_is_addressee(sender_guid, tag)) return false;
-		const String line = stamp() + format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
-		add_log(line + String("\n"));
+		// chat.timestamp stamps the history only (ChatHistory.js); the overlay shows the bare text.
+		const String line = format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
+		add_log(stamp() + line + String("\n"));
 		post_overlay(line);
 		return true;
 	}
@@ -341,22 +371,19 @@ public:
 		if (!log_ || !host_) return;
 		const String line = format_line("", host_->chat_user(""), text);
 		add_log(stamp() + line + "\n");
-		post_overlay(stamp() + line);
+		post_overlay(line);
 		if (host_->net_lockstep()) host_->chat_send_wire(text.utf8().get_data());
 	}
 
-	// Raw bbcode line (Petra log, diplomacy/tribute feedback).
-	void append_line(const String &bbcode) {
-		const String line = bbcode.is_empty() ? bbcode : stamp() + bbcode;
-		if (log_) add_log(line);
-		post_overlay(line.strip_edges(false, true));
+	// Raw bbcode line (Petra log, diplomacy/tribute feedback). With an action, the overlay
+	// line is clickable (ChatOverlay.js onPress): the owner's _on_chat_line_input gets it.
+	void append_line(const String &bbcode, const String &action = String(), const String &tooltip = String()) {
+		if (log_) add_log(bbcode.is_empty() ? bbcode : stamp() + bbcode);
+		post_overlay(bbcode.strip_edges(false, true), action, tooltip);
 	}
 
-	// 0 A.D. clearChatMessages (/clear): empties the history and the overlay.
+	// 0 A.D. clearChatMessages (/clear): empties the on-screen overlay; the history stays.
 	void clear() {
-		if (log_) log_->clear();
-		history_ = String();
-		++history_rev_;
 		overlay_lines_.clear();
 		if (overlay_) rebuild_overlay();
 	}
@@ -369,6 +396,8 @@ public:
 	// Test hooks: the log as plain text, and the input line.
 	String log_text() const { return log_ ? log_->get_parsed_text() : String(); }
 	LineEdit *input() const { return input_; }
+	size_t overlay_count() const { return overlay_lines_.size(); }
+	String addressee_label() const { return channel_ && channel_->get_selected() >= 0 ? channel_->get_item_text(channel_->get_selected()) : String(); }
 
 	// 0 A.D. chat.timestamp: each line opens with the local time, "[HH:MM]".
 	void set_timestamps(bool on) { timestamps_ = on; }
@@ -379,7 +408,7 @@ public:
 		if (!overlay_) return;
 		const uint64_t now = Time::get_singleton()->get_ticks_msec();
 		bool changed = false;
-		while (!overlay_lines_.empty() && now - overlay_lines_.front().second >= kOverlayTimeoutMs) {
+		while (!overlay_lines_.empty() && now - overlay_lines_.front().at >= kOverlayTimeoutMs) {
 			overlay_lines_.pop_front();
 			changed = true;
 		}
@@ -398,6 +427,20 @@ private:
 		return ctx + (me ? "* " + user : "<" + user + ">") + " " + text;
 	}
 
+	static bool is_private(const String &tag) { return tag.begins_with("[Player-") || tag.begins_with("[Observer-"); }
+	bool is_online(const String &tag) const {
+		if (!host_) return false;
+		for (const auto &t : host_->chat_private_targets())
+			if (t.first == tag) return true;
+		return false;
+	}
+	// A message that reaches nobody: the warning 0.28 prints, in the log, and the
+	// window closes with the input cleared.
+	void refuse(const String &why) {
+		add_log("[color=#ffcc44]" + why.replace("[", "[lb]") + "[/color]\n");
+		close();
+	}
+
 	String selected_tag() const {
 		const int i = channel_ ? channel_->get_selected() : -1;
 		return i >= 0 && i < (int)tags_.size() ? tags_[(size_t)i] : String();
@@ -408,6 +451,7 @@ private:
 			if (tags_[i] == tag) { channel_->select((int)i); return; }
 		if (!tags_.empty()) channel_->select(0);
 	}
+public:
 	// A bbcode name without its colour tags.
 	static String plain(const String &bb) {
 		String out;
@@ -421,6 +465,7 @@ private:
 		return out;
 	}
 
+private:
 	String stamp() const {
 		if (!timestamps_) return String();
 		const Dictionary t = Time::get_singleton()->get_time_dict_from_system();
@@ -431,22 +476,70 @@ private:
 	static constexpr size_t kOverlayLines = 20; // ChatOverlay.js chatLinesNumber
 	static constexpr uint64_t kOverlayTimeoutMs = 30000; // ChatOverlay.js chatTimeout
 
-	void post_overlay(const String &bbcode) {
+	struct OverlayLine {
+		String bbcode;
+		uint64_t at;
+		String action, tooltip;
+	};
+	void post_overlay(const String &bbcode, const String &action = String(), const String &tooltip = String()) {
 		if (!overlay_ || bbcode.is_empty()) return;
-		overlay_lines_.emplace_back(bbcode, Time::get_singleton()->get_ticks_msec());
+		overlay_lines_.push_back({ bbcode, Time::get_singleton()->get_ticks_msec(), action, tooltip });
 		while (overlay_lines_.size() > kOverlayLines) overlay_lines_.pop_front();
 		rebuild_overlay();
 	}
 	void rebuild_overlay() {
-		String text;
-		for (const auto &l : overlay_lines_) text += l.first + String("\n");
-		overlay_->set_text(text);
+		while (overlay_->get_child_count() > 0) {
+			Node *c = overlay_->get_child(0);
+			overlay_->remove_child(c);
+			c->queue_free();
+		}
+		for (const auto &l : overlay_lines_) {
+			RichTextLabel *line = memnew(RichTextLabel);
+			line->set_use_bbcode(true);
+			line->set_fit_content(true);
+			line->set_scroll_active(false);
+			line->set_autowrap_mode(TextServer::AUTOWRAP_OFF);
+			line->add_theme_font_size_override("normal_font_size", 13);
+			line->add_theme_color_override("font_outline_color", Color(0, 0, 0, 1));
+			line->add_theme_constant_override("outline_size", 4);
+			line->set_text(l.bbcode);
+			line->set_h_size_flags(Control::SIZE_SHRINK_BEGIN);
+			if (l.action.is_empty() || !owner_) {
+				line->set_mouse_filter(Control::MOUSE_FILTER_IGNORE); // ghost
+			} else {
+				line->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+				line->set_default_cursor_shape(Control::CURSOR_POINTING_HAND);
+				line->set_tooltip_text(l.tooltip);
+				line->connect("gui_input", Callable(owner_, "_on_chat_line_input").bind(l.action));
+			}
+			overlay_->add_child(line);
+		}
 	}
+public:
+	// Tests: the overlay lines as plain text, with their action and tooltip.
+	Array overlay_state() const {
+		Array out;
+		if (!overlay_) return out;
+		for (int i = 0; i < overlay_->get_child_count(); ++i) {
+			RichTextLabel *line = Object::cast_to<RichTextLabel>(overlay_->get_child(i));
+			if (!line || line->is_queued_for_deletion()) continue;
+			Dictionary d;
+			d["text"] = line->get_parsed_text();
+			d["clickable"] = line->get_mouse_filter() == Control::MOUSE_FILTER_STOP;
+			d["tooltip"] = line->get_tooltip_text();
+			d["node"] = line;
+			out.push_back(d);
+		}
+		return out;
+	}
+private:
+	Object *owner_ = nullptr;
 
 	std::vector<String> tags_;  // the wire tag of each addressee entry
 	String last_private_;       // session.privatechat reopens it
-	RichTextLabel *overlay_ = nullptr;
-	std::deque<std::pair<String, uint64_t>> overlay_lines_;
+	std::map<String, String> names_; // each private tag's plain name, kept after they leave
+	VBoxContainer *overlay_ = nullptr;
+	std::deque<OverlayLine> overlay_lines_;
 	Panel *panel_ = nullptr;
 	RichTextLabel *log_ = nullptr;
 	String history_;

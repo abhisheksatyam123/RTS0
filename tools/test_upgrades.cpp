@@ -211,7 +211,8 @@ int main() {
 		CHECK(apt.to == BLD_APARTMENT && apt.wood_cost == 50 && apt.stone_cost == 50 && apt.time == 55.0f);
 		CHECK(building_upgrade(BLD_HOUSE, CIV_ATHENIANS).to == BLD_TYPE_COUNT);
 		CHECK(!civ_can_build(CIV_PERSIANS, BLD_TACHARA_FOOD) && civ_can_build(CIV_PERSIANS, BLD_TACHARA));
-		CHECK(!civ_can_build(CIV_CARTHAGINIANS, BLD_APARTMENT));
+		// mixins/builder.xml lists {civ}/apartment: Carthage also lays one directly; no one else.
+		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_APARTMENT) && !civ_can_build(CIV_ATHENIANS, BLD_APARTMENT));
 		CHECK(building_type_info(BLD_APARTMENT).pop_bonus == 20);
 		CHECK(building_type_info(BLD_TACHARA_METAL).max_hp == building_type_info(BLD_TACHARA).max_hp);
 
@@ -233,6 +234,19 @@ int main() {
 		CHECK(find_bld(s, ta)->upgrade_to == BLD_TACHARA_FOOD);
 		run(s, 10.5f);
 		CHECK(find_bld(s, ta)->type == BLD_TACHARA_FOOD);
+
+		// Upgrade.js reads the structure's own template: a captured Tachara keeps its four
+		// forms, and a captured Iberian sentry tower its 250-stone price.
+		fresh(s);
+		s.set_player_civ(CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		const uint32_t ct = s.spawn_building_world(-25.0f, -25.0f, BLD_TACHARA, 0, 1.0f);
+		s.set_building_civ(ct, CIV_PERSIANS);
+		CHECK(s.upgrade_check(0, ct, 3) == Simulation::UPGRADE_OK);
+		const uint32_t cs = s.spawn_building_world(-20.0f, -30.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		s.set_building_civ(cs, CIV_IBERIANS);
+		CHECK(s.cmd_upgrade_building(0, cs));
+		CHECK(s.player(0).stone() == 750.0f);
 
 		fresh(s);
 		s.set_player_civ(CIV_CARTHAGINIANS);

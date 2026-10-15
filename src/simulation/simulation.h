@@ -17,6 +17,7 @@
 #include "cinema.h"
 #include "tutorial_data.h"
 #include "turret_data.h"
+#include "wall_builder.h"
 #include <cstdint>
 #include <map>
 #include <vector>
@@ -143,8 +144,9 @@ struct PlayerState {
 		used[RES_FOOD] += f; used[RES_WOOD] += w; used[RES_GOLD] += g; used[RES_STONE] += s;
 		return true;
 	}
-	// Gives back a cancelled payment (ProductionQueue.RemoveItem, Upgrade.CancelUpgrade):
-	// the statistics count it as never used.
+	// Gives back a cancelled payment (Trainer / TechnologyManager RefundResources): the
+	// statistics count it as never used. Upgrade.CancelUpgrade uses add(), so a cancelled
+	// upgrade stays in Resources used.
 	void refund(float f, float w, float g, float s) {
 		add(f, w, g, s);
 		used[RES_FOOD] -= f; used[RES_WOOD] -= w; used[RES_GOLD] -= g; used[RES_STONE] -= s;
@@ -168,7 +170,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 86; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 87; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_RALLY = 87; // each Petra plan's completing step, march waypoints and last position
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
 	static constexpr uint32_t SAVE_VERSION_ATTACK_DETECTION = 86; // each player's suppressed attacks (OnAttackDetected)
@@ -963,6 +966,9 @@ public:
 	// circle): the parabolic reach of `range` fired from y_origin above the ground at (x, z),
 	// averaged over 16 directions of the terrain around it.
 	float average_elevation_range(float x, float z, float range, float y_origin) const;
+	// The same reach along one direction (ux, uz), as a unit's GetElevationAdaptedRange at
+	// angle 0 takes the range in front of it.
+	float elevation_range_toward(float x, float z, float ux, float uz, float range, float y_origin) const;
 	// What 0.28's detailed tooltip of a structure reads from its template after the owner's
 	// modifiers (selection_details.js: getAttackTooltip, getGarrisonTooltip, getTurretsTooltip,
 	// getPopulationBonusTooltip, getProjectilesTooltip, getResourceTrickleTooltip).
@@ -1025,6 +1031,12 @@ public:
 	};
 	UnitDetails unit_details(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
+	// GarrisonHolder.OccupiedSlots of a ship or siege engine, and IsAllowedToGarrison for one unit.
+	int get_transport_occupied(uint32_t transport_id) const {
+		auto it = transport_passengers_.find(transport_id);
+		return it == transport_passengers_.end() ? 0 : occupied_slots(it->second);
+	}
+	bool can_board_unit(uint32_t transport_id, uint32_t unit_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
@@ -1331,6 +1343,11 @@ public:
 		UPGRADE_ERR_LIMIT // the target's EntityLimits category is full
 	};
 	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
+	// The civ whose Upgrade choices a structure offers: its own template's (Upgrade.js reads
+	// the entity's template, so a captured Tachara keeps its four forms), else its owner's.
+	uint8_t structure_upgrade_civ(const Building &b) const {
+		return b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ : (uint8_t)civ_of(b.team);
+	}
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
@@ -1427,6 +1444,16 @@ public:
 		market_b = it->second.second;
 		auto lit = trader_leg_.find(unit_id);
 		leg = lit == trader_leg_.end() ? 0 : lit->second;
+		return true;
+	}
+	// Trader.js goods.amount: the gains of the goods a trader carries, worked out when they were
+	// loaded. False while it carries none.
+	bool trader_goods(uint32_t unit_id, TradeGain &out) const {
+		auto it = trader_goods_.find(unit_id);
+		if (it == trader_goods_.end()) return false;
+		const int32_t u = lookup_unit(unit_id);
+		if (u < 0 || units_.carry[u] <= 0) return false;
+		out = it->second;
 		return true;
 	}
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
@@ -1857,6 +1884,14 @@ public:
 		uint8_t target_player = 0xFF; // attackPlan.js targetPlayer (0xFF until a target is chosen)
 		bool forced = false;    // forceStart: march with what it has, take any target
 		bool requested = false; // started at an ally's request: asks no one to join
+		// attackPlan.js "completing": the army walks to its rally point (staging_x/z, at our
+		// border) and sets off once none of it has a forced order left, or after
+		// completing_time seconds (maxCompletingTime).
+		bool completing = false;
+		float completing_time = 0.0f;
+		// attackPlan.js path: the march's waypoints still ahead, the next one first.
+		std::vector<float> path_x, path_z;
+		float last_x = 0.0f, last_z = 0.0f; // lastPosition: the army's centre on the last turn
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
@@ -2064,8 +2099,10 @@ public:
 	// `radius`, long walls between towers with every `gate_every`-th wall a gate, the outline's
 	// corners pushed in or out by up to `irregularity` of a wall's length (the best closing of
 	// `max_tries` tries). Pieces in water or off the map are left out.
+	// With a `style` (WallStyle) the pieces are that style's, laid as place_wall lays them; without
+	// one, the generic stone set's, as the Iberian starting walls have always had them.
 	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
-			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
+			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100, uint8_t style = WALL_STYLE_COUNT);
 	// wall_builder.js placeCustomFortress (getWallAlignment with the stone WallSet): `player`'s
 	// built closed wall of `n` elements laid one after the next round (x, z), each a long wall, a
 	// gate, a wall tower, a cornerIn (a tower turned 45 degrees where the wall turns a quarter
@@ -2079,6 +2116,41 @@ public:
 	};
 	size_t place_custom_fortress(uint8_t player, float x, float z, float facing, const FortressPart *wall, size_t n,
 			bool (*skip)(float x, float z, const void *ctx) = nullptr, const void *ctx = nullptr);
+	// The rest of wall_builder.js (wall_builder.h has g_WallStyles and getWallElement). Positions are
+	// RTS0 world coordinates (rmgen's tile coordinates less half the map's size), orientations and
+	// angles rmgen's (wall_builder.h). Like placeEntityPassable they leave out what stands outside
+	// the map's passable area (MAP_BORDER_WIDTH); each returns the number of entities placed.
+	// placeWall: the elements one after the next from (x, z), the first facing `orientation`.
+	size_t place_wall(double x, double z, const std::vector<WallElementName> &wall, uint8_t style, uint8_t player,
+			double orientation = 0.0);
+	// placeCustomFortress: a closed wall round (x, z), its first element (the main gate) facing
+	// `orientation` from the centre.
+	size_t place_wall_fortress(double x, double z, const std::vector<WallElementName> &wall, uint8_t style, uint8_t player,
+			double orientation = 0.0);
+	// placeFortress: one of createDefaultFortressTypes' (wall_fortress_type), "medium" if `type` is none.
+	size_t place_fortress(double x, double z, const char *type, uint8_t style, uint8_t player, double orientation = 0.0);
+	// placeLinearWall: `part` again and again from (sx, sz) to (ex, ez), stretched to fit, and the
+	// first element again at the end if `end_with_first`.
+	size_t place_linear_wall(double sx, double sz, double ex, double ez, const std::vector<WallElementName> &part, uint8_t style,
+			uint8_t player, bool end_with_first = true);
+	// placeCircularWall: `part` round (cx, cz) at `radius` over `max_angle` (a full circle, else an
+	// arc whose opening faces `orientation`); end_with_first -1 is 0.28's default (true for an arc).
+	size_t place_circular_wall(double cx, double cz, double radius, const std::vector<WallElementName> &part, uint8_t style,
+			uint8_t player, double orientation = 0.0, double max_angle = 2.0 * kWallPi<double>, int end_with_first = -1);
+	// placePolygonalWall: `corner` elements at the corners of a regular polygon round (cx, cz), linear
+	// walls of `part` between them, the first side left open if `skip_first_wall`.
+	size_t place_polygonal_wall(double cx, double cz, double radius, const std::vector<WallElementName> &part,
+			const WallElementName &corner, uint8_t style, uint8_t player, double orientation = 0.0, int num_corners = 8,
+			bool skip_first_wall = true);
+	// placeIrregularPolygonalWall with its default wallPartsAssortment: the corners `irregularity`
+	// apart at random (from `seed`), each side the assortment's part that fits it best.
+	size_t place_irregular_polygonal_wall(double cx, double cz, double radius, const WallElementName &corner, uint8_t style,
+			uint8_t player, double orientation, int num_corners, double irregularity, bool skip_first_wall, uint32_t seed);
+	// placeEntityPassable for a wall_builder element at (x, z), turned to the rmgen `angle`: false,
+	// placing nothing, where it has no template or stands outside the passable map.
+	bool place_wall_element(const WallElement &e, double x, double z, double angle, uint8_t player);
+	// rmgen's inMapBounds and validTilePassable (MAP_BORDER_WIDTH 3 tiles) at world (x, z).
+	bool wall_builder_passable(double x, double z) const;
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -2285,7 +2357,6 @@ private:
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
 	}
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
-	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
 	void tick_pack(float dt);
 	// Formation.js port (formation.h): controllers walk, members follow their slots.
@@ -2506,6 +2577,7 @@ private:
 	float unit_template_regen(size_t i) const;
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
 	// (out of range or the victim's own owner credits nobody).
+	uint32_t stat_unit_classes_of(size_t idx) const;
 	void stat_unit_trained(size_t idx);
 	void stat_unit_lost(size_t idx, uint8_t killer);
 	void stat_building_constructed(const Building &b);
@@ -2657,7 +2729,7 @@ private:
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
 	std::vector<Scenery> scenery_; // saved
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
-	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0, uint8_t team = 0xFF) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	// Every standing building's footprint cells (can_place): FULL where a footprint covers the cell,
@@ -2977,6 +3049,16 @@ private:
 	float petra_diplo_timer_ = 0.0f;
 	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
+	// headquarters.js isDangerousLocation: near an army invading us or within `radius` of an
+	// enemy shooting structure's range.
+	bool petra_dangerous_location(float x, float z, float radius) const;
+	// attackPlan.js getPathToTarget and setRallyPoint: the plan's march path from (rx, rz) to
+	// its target, and its rally point where that path leaves our territory.
+	void petra_plan_path(AttackPlan &plan, float rx, float rz);
+	// attackPlan.js StartAttack: the army sets off along its path.
+	void petra_start_march(AttackPlan &plan);
+	// Whether some unit of the army still walks under a forced order (hasForceOrder).
+	bool petra_plan_has_force_order(const AttackPlan &plan) const;
 	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr) const;
 	uint8_t petra_enemy_player(uint8_t kind) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
@@ -3029,6 +3111,15 @@ private:
 	struct PetraBaseDropsiteCheck { uint32_t anchor_id; PetraDropsiteCheck check; };
 	std::vector<PetraBaseDropsiteCheck> petra_base_dropsite_checks_;
 	float petra_econ_timer_ = 0.0f;
+	// GetCurrentGatherRates and queueManager wantedGatherRates as petra_manage_economy found them
+	// this AI turn, for the trade manager (setTradingGoods, performBarter) later in the same turn.
+	// Not saved: the economy recomputes them before every use (petra_rates_this_turn).
+	float petra_cur_rate_[RES_COUNT] = {}, petra_want_rate_[RES_COUNT] = {};
+	uint32_t petra_rates_stamp_ = 0;
+	uint32_t petra_rates_key() const { return (petra_played_turn() << 4) | (uint32_t)(petra_pid_ + 1); }
+	bool petra_rates_this_turn() const { return petra_rates_stamp_ == petra_rates_key(); }
+	// headquarters.js pickMostNeededResources over those rates.
+	static void petra_most_needed(const float want_rate[RES_COUNT], const float cur_rate[RES_COUNT], uint8_t out[RES_COUNT]);
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
 	float petra_scout_timer_ = 0.0f;
@@ -3540,6 +3631,7 @@ private:
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
 	float unit_height(size_t i) const; // terrain, or the water surface under a ship
+	float unit_attack_origin_y(size_t i) const;
 	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);

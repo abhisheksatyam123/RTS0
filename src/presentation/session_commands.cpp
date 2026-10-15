@@ -49,6 +49,46 @@ bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
 	return false;
 }
 
+// unit_actions.js "garrison" on an entity: an own or mutually allied ship, ram or siege tower
+// (GarrisonHolder) under the cursor that some selected unit may board; 0 if none.
+uint32_t RtsoMain::transport_under(float x, float z) const {
+	if (!sim || selected_ids.is_empty()) return 0;
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (!uv.alive[i] || !sim->is_ally(local_player(), uv.team[i]) || selected_ids.has((int32_t)uv.id[i])) continue;
+		const float dx = uv.pos_x[i] - x, dz = uv.pos_z[i] - z;
+		if (dx * dx + dz * dz <= 3.2f * 3.2f && selection_can_board(uv.id[i])) return uv.id[i];
+	}
+	return 0;
+}
+
+void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) const {
+	res = bld = 0;
+	if (!sim) return;
+	float best = 2.0f * 2.0f;
+	auto rv = sim->resources();
+	for (size_t r = 0; r < rv.count; ++r) {
+		if (!rv.alive[r] || rv.amount[r] <= 0) continue;
+		const float dx = rv.x[r] - at.x, dz = rv.z[r] - at.z, d2 = dx * dx + dz * dz;
+		if (d2 < best) { best = d2; res = rv.id[r]; }
+	}
+	if (res) return;
+	const std::vector<uint32_t> mine = selected_structures();
+	float best_b = 1e9f;
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked || std::find(mine.begin(), mine.end(), b.id) != mine.end()) continue;
+		const float dx = b.x - at.x, dz = b.z - at.z, d2 = dx * dx + dz * dz, hit_r = b.half_size + 1.2f;
+		if (d2 <= hit_r * hit_r && d2 < best_b) { best_b = d2; bld = b.id; }
+	}
+}
+
+bool RtsoMain::selection_can_board(uint32_t holder) const {
+	if (!sim || !sim->is_transport(holder)) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->can_board_unit(holder, (uint32_t)(int64_t)selected_ids[s])) return true;
+	return false;
+}
+
 // unit_actions.js "occupy-turret" actionCheck: some selected unit may occupy a turret point of
 // this own or mutually allied holder (Turretable). Room is not checked.
 bool RtsoMain::selection_can_occupy_turret(uint32_t building_id) const {
@@ -104,7 +144,7 @@ void RtsoMain::_on_remove_guard_pressed() {
 		sim->order_remove_guard(ids.data(), ids.size());
 }
 
-// g_EntityCommands "call-to-arms": arms ACTION_CALLTOARMS, so the next right-click
+// g_EntityCommands "call-to-arms": arms ACTION_CALLTOARMS, so the next left click
 // sends the selection there (drop loads, then attack-move; lockstep command 38).
 void RtsoMain::_on_call_to_arms_pressed() {
 	if (selected_ids.is_empty()) return;

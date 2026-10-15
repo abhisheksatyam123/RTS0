@@ -92,13 +92,34 @@ Dictionary RtsoMain::debug_trade_route_clicks() {
 	}
 	if (!b1 || !b2) return d;
 	String tip;
+	const char *cur = nullptr;
 	trade_route_click(*b1, false, false, &tip);
 	d["hover_first"] = tip;
 	d["first"] = trade_route_click(*b1, true, false, nullptr);
+	trade_route_click(*b1, false, false, &tip, &cur);
+	d["hover_origin"] = tip;
+	d["origin_cursor"] = String(cur);
 	trade_route_click(*b2, false, false, &tip);
 	d["hover_second"] = tip;
 	d["second"] = trade_route_click(*b2, true, false, nullptr);
 	d["origin_after"] = (int)trade_origin_market_;
+	d["m1"] = (int64_t)m1;
+	d["m2"] = (int64_t)m2;
+	return d;
+}
+
+// Test hook: the setup-trade-route tooltip and cursor over a market for the selection.
+Dictionary RtsoMain::debug_trade_tip(int64_t market) {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)market) {
+			String tip;
+			const char *cur = nullptr;
+			d["ok"] = trade_route_click(b, false, false, &tip, &cur);
+			d["tip"] = tip;
+			d["cursor"] = String(cur ? cur : "");
+		}
 	return d;
 }
 
@@ -220,6 +241,10 @@ Dictionary RtsoMain::debug_civic_centre_roof() {
 // "fauna": the first tree or mine / animal, inspected as a click would; a number: that unit.
 Dictionary RtsoMain::debug_inspector(const String &what) {
 	if (!sim) return Dictionary();
+	if (what == "current") { // the details of the selection as it stands
+		inspector_.update();
+		return inspector_.debug_state();
+	}
 	clear_selection();
 	inspector_.clear();
 	auto uview = sim->units();
@@ -248,6 +273,10 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 		auto rv = sim->resources();
 		for (size_t r = 0; r < rv.count; ++r)
 			if (rv.alive[r] && rv.amount[r] > 0 && rv.type[r] == rtso::RES_WOOD) { inspector_.inspect(RtsoInspectorView::INSPECT_RESOURCE, rv.id[r]); break; }
+	} else if (what == "livestock") {
+		auto fv = sim->fauna();
+		for (size_t f = 0; f < fv.count; ++f)
+			if (sim->fauna_selectable_by(local_player(), fv.id[f])) selected_ids.push_back((int32_t)fv.id[f]);
 	} else if (what == "fauna") {
 		auto fv = sim->fauna();
 		for (size_t f = 0; f < fv.count; ++f)
@@ -403,6 +432,20 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 	return out;
 }
 
+// Test hook: `count` animals of a FaunaType by the player's Civic Centre, owned by the
+// player (trained livestock) or Gaia.
+PackedInt32Array RtsoMain::debug_spawn_fauna(int fauna_type, int count, bool owned) {
+	PackedInt32Array out;
+	if (!sim) return out;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : sim->buildings())
+		if (b.team == local_player() && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+	for (int i = 0; i < count; ++i)
+		out.push_back((int32_t)sim->spawn_fauna(cx + 16.0f + 3.0f * i, cz + 16.0f, (uint8_t)fauna_type,
+				owned ? local_player() : rtso::GAIA_PLAYER));
+	return out;
+}
+
 // Test hooks: put units in a structure at once (a map's <Garrison>) or send them aboard a
 // ship, ram or siege tower; select one entity by id.
 int RtsoMain::debug_put_inside(const PackedInt32Array &ids, int64_t holder) {
@@ -516,6 +559,8 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
 	d["overlay_by"] = pause_by_label_ ? pause_by_label_->get_text() : String();
 	d["chat_log"] = chat_window_.log_text();
+	d["chat_overlay"] = (int64_t)chat_window_.overlay_count();
+	d["chat_addressee"] = chat_window_.addressee_label();
 	return d;
 }
 
