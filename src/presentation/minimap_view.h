@@ -23,7 +23,7 @@ class RtsoMiniMapView : public Control {
 
 	struct MapPing {
 		Vector2 mini_pos;
-		float timer;
+		uint64_t start_ms; // real time, as CMiniMap's flares
 		Color color;
 	};
 

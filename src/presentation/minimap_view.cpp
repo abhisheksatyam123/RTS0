@@ -1,4 +1,6 @@
 #include "minimap_view.h"
+#include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include "display_colors.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -43,6 +45,43 @@ RtsoMiniMapView::RtsoMiniMapView() {
 
 RtsoMiniMapView::~RtsoMiniMapView() {}
 
+static constexpr uint64_t kFlareLifetimeMs = 6000; // MiniMap.xml flare_lifetime_seconds
+
+// The part of segment a-b inside the map (CMiniMap CropPointsByCircle on a circular
+// map; the square on a square one). False when none of it is.
+static bool crop_segment(Vector2 &a, Vector2 &b, float half, bool round) {
+	const Vector2 d = b - a;
+	float t0 = 0.0f, t1 = 1.0f;
+	if (round) {
+		// |a + t d|^2 = half^2
+		const float A = d.dot(d), B = 2.0f * a.dot(d), C = a.dot(a) - half * half;
+		if (A < 1e-8f) return C < 0.0f;
+		const float disc = B * B - 4.0f * A * C;
+		if (disc <= 0.0f) return false;
+		const float s = std::sqrt(disc);
+		t0 = std::max(t0, (-B - s) / (2.0f * A));
+		t1 = std::min(t1, (-B + s) / (2.0f * A));
+	} else {
+		// Liang-Barsky against [-half, half]^2.
+		const float p[4] = {-d.x, d.x, -d.y, d.y};
+		const float q[4] = {a.x + half, half - a.x, a.y + half, half - a.y};
+		for (int i = 0; i < 4; ++i) {
+			if (std::fabs(p[i]) < 1e-8f) {
+				if (q[i] < 0.0f) return false;
+				continue;
+			}
+			const float r = q[i] / p[i];
+			if (p[i] < 0.0f) t0 = std::max(t0, r);
+			else t1 = std::min(t1, r);
+		}
+	}
+	if (t0 >= t1) return false;
+	const Vector2 a0 = a;
+	a = a0 + d * t0;
+	b = a0 + d * t1;
+	return true;
+}
+
 void RtsoMiniMapView::add_ping(Vector2 world_pos, Color col) {
 	Vector2 sz = get_size();
 	float half_map = sim ? sim->map_half() : 64.0f;
@@ -52,7 +91,7 @@ void RtsoMiniMapView::add_ping(Vector2 world_pos, Color col) {
 
 	MapPing p;
 	p.mini_pos = mpos;
-	p.timer = 3.0f;
+	p.start_ms = Time::get_singleton()->get_ticks_msec();
 	p.color = col;
 	pings.push_back(p);
 	queue_redraw();
@@ -77,11 +116,9 @@ void RtsoMiniMapView::sync(const rtso::Simulation *s, Vector3 p_cam_pos) {
 	cam_pos = p_cam_pos;
 
 	// Decay pings
-	for (auto &p : pings) {
-		p.timer -= 0.05f;
-	}
+	const uint64_t now_ms = Time::get_singleton()->get_ticks_msec();
 	pings.erase(std::remove_if(pings.begin(), pings.end(),
-		[](const MapPing &p) { return p.timer <= 0.0f; }), pings.end());
+		[&](const MapPing &p) { return now_ms - p.start_ms >= kFlareLifetimeMs; }), pings.end());
 	if (!entity_pings_.empty()) {
 		const uint64_t now = Time::get_singleton()->get_ticks_msec();
 		for (auto it = entity_pings_.begin(); it != entity_pings_.end();)
@@ -427,10 +464,12 @@ void RtsoMiniMapView::_draw() {
 	if (show_resources) {
 		for (const auto &r : mirages_.resources()) {
 			Vector2 pos = map_to_mini(r.x, r.z);
-			Color col = Color(0.2f, 0.8f, 0.25f, 0.85f); // Wood
-			if (r.type == rtso::RES_GOLD) col = Color(1.0f, 0.85f, 0.15f, 0.95f); // Gold
-			else if (r.type == rtso::RES_STONE) col = Color(0.70f, 0.70f, 0.78f, 0.85f); // Stone
-			else if (r.type == rtso::RES_FOOD) col = Color(0.95f, 0.45f, 0.2f, 0.85f); // Food
+			// The 0.28 templates' Minimap/Color: template_gaia_tree, _ore, _rock, _fish, _fruit.
+			Color col = Color(69 / 255.0f, 107 / 255.0f, 68 / 255.0f);
+			if (r.type == rtso::RES_GOLD) col = Color(227 / 255.0f, 159 / 255.0f, 12 / 255.0f);
+			else if (r.type == rtso::RES_STONE) col = Color(170 / 255.0f, 170 / 255.0f, 170 / 255.0f);
+			else if (r.type == rtso::RES_FOOD) col = r.subtype == rtso::RES_SUB_FISH ? Color(227 / 255.0f, 130 / 255.0f, 141 / 255.0f)
+					: Color(155 / 255.0f, 204 / 255.0f, 102 / 255.0f);
 
 			draw_rect(Rect2(pos - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col, true);
 		}
@@ -523,18 +562,46 @@ void RtsoMiniMapView::_draw() {
 	}
 
 	// 6. Draw Tactical Map Pings
+	// gui/session/minimap/MiniMap.xml flare_*: 6 s, fading in over 0.25 s and out over
+	// 0.5 s (smoothstep), 16 frames at 10.67 a second of an expanding ring 32 px in
+	// radius, a second ring from half way (flare_interleave). 0 A.D. draws the frames
+	// from art/textures/animated/minimap-flare, which RTS0 does not have: a drawn ring
+	// grows the same way.
+	const uint64_t now_ms = Time::get_singleton()->get_ticks_msec();
+	auto smooth = [](float x) { x = Math::clamp(x, 0.0f, 1.0f); return x * x * (3.0f - 2.0f * x); };
 	for (const auto &p : pings) {
-		float alpha = p.timer / 3.0f;
-		float pulse_r = (1.0f - alpha) * 16.0f + 4.0f;
-		Color c = p.color;
-		c.a = alpha;
-		draw_circle(p.mini_pos, pulse_r, Color(c.r, c.g, c.b, alpha * 0.3f));
-		draw_arc(p.mini_pos, pulse_r, 0.0f, 6.2831853f, 16, c, 2.0f);
+		const float t = (float)(now_ms - p.start_ms) / 1000.0f;
+		const float alpha = std::min(smooth(t / 0.25f), smooth((kFlareLifetimeMs / 1000.0f - t) / 0.5f));
+		const int step = (int)std::floor(t * 10.67f);
+		auto ring = [&](int frame) {
+			const float k = (float)(frame % 16 + 1) / 16.0f;
+			draw_arc(p.mini_pos, 32.0f * k, 0.0f, 6.2831853f, 24, Color(p.color.r, p.color.g, p.color.b, alpha * (1.0f - 0.6f * k)), 2.0f);
+		};
+		ring(step);
+		if (step >= 8) ring(step - 8);
 	}
 
 	// 7. Draw Camera Viewport Frustum Box
-	Vector2 cam_mini = map_to_mini(cam_pos.x, cam_pos.z);
-	draw_rect(Rect2(cam_mini - Vector2(18, 14), Vector2(36, 28)), Color(1.0f, 1.0f, 1.0f, 0.6f), false, 1.5f);
+	// CMiniMap::DrawViewRect: the screen's corners on the plane at the water height,
+	// the edges cropped to the map, in red 2 px wide.
+	if (const Viewport *vp = get_viewport()) if (const Camera3D *cam = vp->get_camera_3d()) {
+		const Vector2 vs = cam->get_viewport()->get_visible_rect().size;
+		const float plane_y = std::max(sim->water_height(), 0.0f);
+		const Vector2 corners[4] = {Vector2(0, vs.y), Vector2(vs.x, vs.y), Vector2(vs.x, 0), Vector2(0, 0)};
+		Vector2 hit[4];
+		for (int k = 0; k < 4; ++k) {
+			const Vector3 o = cam->project_ray_origin(corners[k]), d = cam->project_ray_normal(corners[k]);
+			// A ray at or above the horizon reaches the far plane instead.
+			const float t = d.y < -1e-4f ? (plane_y - o.y) / d.y : (float)cam->get_far();
+			const Vector3 w = o + d * std::min(t, (float)cam->get_far());
+			hit[k] = Vector2(w.x, w.z);
+		}
+		for (int k = 0; k < 4; ++k) {
+			Vector2 a = hit[k], b = hit[(k + 1) % 4];
+			if (!crop_segment(a, b, half_map, round)) continue;
+			draw_line(map_to_mini(a.x, a.y), map_to_mini(b.x, b.y), Color(1.0f, 0.3f, 0.3f, 1.0f), 2.0f);
+		}
+	}
 
 	// The disc's rim, over everything like the square's frame.
 	if (round) draw_arc(sz * 0.5f, std::min(sz.x, sz.y) * 0.5f - 1.0f, 0.0f, 6.2831853f, 96, rim, 2.0f);
