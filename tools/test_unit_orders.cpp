@@ -2541,6 +2541,43 @@ static void test_guard_stances() {
 	}
 }
 
+static void test_guard_towers_and_animals() {
+	std::printf("73. guards go for a tower shooting their charge and an animal biting it (Guard.js OnAttacked, GuardedAttacked)\n");
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+		s.order_set_stance(&vip, 1, STANCE_STAND_GROUND); // it doesn't go for the tower itself
+		uint32_t g = s.spawn_unit(-6, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&g, 1, STANCE_DEFENSIVE); // the tower is beyond what it would pick itself
+		s.order_guard(&g, 1, vip);
+		run(s, 1.0f);
+		const uint32_t tower = s.spawn_building_world(14.0f, 0.0f, BLD_SENTRY_TOWER, 1, 1.0f);
+		check(run_until(s, 15.0f, [&] { return hp_of(s, vip) < 5000.0f; }), "the tower shoots the charge");
+		check(run_until(s, 5.0f, [&] { return s.units_.target_building_id[idx_of(s, g)] == tower; }),
+				"its guard goes for the tower");
+		s.order_set_stance(&g, 1, STANCE_STAND_GROUND);
+		s.order_guard(&g, 1, vip);
+		run(s, 3.0f);
+		check(s.units_.target_building_id[idx_of(s, g)] == 0, "a guard standing its ground doesn't go for one out of its reach");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+		s.order_set_stance(&vip, 1, STANCE_STAND_GROUND);
+		uint32_t g = s.spawn_unit(-3, 0, 0, UNIT_FEMALE_CITIZEN); // passive: she picks no animal herself
+		s.order_guard(&g, 1, vip);
+		run(s, 1.0f);
+		const uint32_t wolf = s.spawn_fauna(2.5f, 0.0f, FAUNA_WOLF_ARCTIC_VIOLENT);
+		bool went = false;
+		check(run_until(s, 15.0f, [&] {
+			went = went || target_of(s, g) == wolf;
+			return hp_of(s, vip) < 5000.0f && went;
+		}), "a wolf bites the charge, and its guard goes for the wolf");
+	}
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2740,6 +2777,7 @@ int main(int argc, char **argv) {
 	test_stance_held_position();
 	test_defensive_walks_back();
 	test_guard_stances();
+	test_guard_towers_and_animals();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
