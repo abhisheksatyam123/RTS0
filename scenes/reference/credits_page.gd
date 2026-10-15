@@ -5,6 +5,7 @@ extends Control
 ## files are copied as is to data/reference/credits/ (0 A.D. 0.28.0).
 
 const DIR := "res://data/reference/credits/"
+const TABS := preload("res://scenes/common/tab_buttons.gd")
 ## credits.js g_OrderTabNames.
 const ORDER := ["special", "programming", "art", "audio", "maps", "history",
 	"balancing", "community", "translators", "donators"]
@@ -17,6 +18,8 @@ const RTS0_CREDITS := "[font_size=16][b]RTS0[/b][/font_size]\nA Godot 4.3 and C+
 var panels: Array = []
 var text: RichTextLabel
 var tabs: VBoxContainer
+var _panel := 0
+var _hotkeys := RtsoHotkeyConfig.new()
 
 static func open(parent: Node) -> Control:
 	var page = load("res://scenes/reference/credits_page.gd").new()
@@ -91,9 +94,16 @@ func _ready() -> void:
 	tabs.add_theme_constant_override("separation", 5)
 	panel.add_child(tabs)
 	var group := ButtonGroup.new()
+	var keys: Dictionary = _hotkeys.get_hotkey_map()
 	for i in panels.size():
 		var b := Button.new()
 		b.text = panels[i]["label"]
+		b.tooltip_text = TABS.tooltip("", false, keys)
+		b.gui_input.connect(func(ev: InputEvent):
+			var d: int = TABS.wheel(ev)
+			if d != 0:
+				select_panel(TABS.next_index(_panel, d, panels.size()))
+				b.accept_event())
 		b.toggle_mode = true
 		b.button_group = group
 		b.custom_minimum_size = Vector2(190, 35)
@@ -127,6 +137,7 @@ func _ready() -> void:
 func select_panel(i: int) -> void:
 	if i < 0 or i >= panels.size():
 		return
+	_panel = i
 	(tabs.get_child(i) as Button).button_pressed = true
 	text.text = "[center]" + str(panels[i]["content"]) + "[/center]"
 	text.scroll_to_line(0) # scroll_top="true"
@@ -138,3 +149,8 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE: # hotkey="cancel"
 		get_viewport().set_input_as_handled()
 		close_page()
+		return
+	var d: int = TABS.direction(event, _hotkeys)
+	if d != 0:
+		get_viewport().set_input_as_handled()
+		select_panel(TABS.next_index(_panel, d, panels.size()))
