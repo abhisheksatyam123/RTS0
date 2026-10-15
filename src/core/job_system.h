@@ -37,25 +37,27 @@ public:
 	}
 
 private:
+	// One parallel_for at a time. Its chunks are claimed from `next_`, which carries the job's
+	// epoch in its high 32 bits: a worker that wakes late, after the job is over, fails to claim
+	// and goes back to waiting, so the caller waits only for the chunks already claimed, never for
+	// every worker to wake, and a worker never runs a chunk of a job it didn't see start.
 	struct Job {
-		std::function<void(size_t, size_t)> fn;
+		const std::function<void(size_t, size_t)> *fn = nullptr;
 		size_t count = 0;
 		size_t grain = 1;
-		size_t chunks = 0;
-		std::atomic<size_t> next{0};
-		std::atomic<size_t> remaining{0};
+		std::atomic<uint32_t> chunks{0};
 	};
-
 	void worker_main();
-	void run_chunks(Job &job);
-
+	// Runs chunks of the job of `epoch` until none is left (or another job has begun).
+	void run_chunks(uint32_t epoch);
 	std::mutex mu_;
 	std::condition_variable cv_work_;
-	std::condition_variable cv_done_;
 	std::vector<std::thread> workers_;
-	Job *job_ = nullptr;
-	uint64_t epoch_ = 0;
-	size_t workers_finished_ = 0;
+	Job job_;
+	std::atomic<uint32_t> epoch_{0};     // bumped as each job is published
+	std::atomic<uint64_t> next_{0};      // (epoch << 32) | next chunk
+	std::atomic<uint32_t> remaining_{0}; // chunks of the current job not yet finished
+	std::atomic<uint32_t> sleepers_{0};  // workers waiting on cv_work_
 	std::atomic<bool> stop_{false};
 	std::atomic<bool> in_parallel_{false};
 	bool started_ = false;
