@@ -69,7 +69,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 
 		// While placing a building, letters pick the building to place
-		// (RTS0 [hotkey.rts0.build]); the camera scrolls with the arrows only.
+		// (RTS0 [hotkey.rts0.build], unbound by default as 0.28 has no such keys).
 		if (build_mode) {
 			static const struct { const char *name; uint8_t type; } kBuildKeys[] = {
 				{"rts0.build.civilcentre", rtso::BLD_TOWN_CENTER}, {"rts0.build.house", rtso::BLD_HOUSE},
@@ -615,6 +615,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 				}
 			}
+		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && !mb->is_pressed()) {
+			// input.js INPUT_UNIT_POSITION_START / INPUT_UNIT_POSITION: the order fires on release.
+			if (right_line_.active) finish_right_line(mb);
+			return;
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed() && flare_armed_) {
 			flare_armed_ = false; // INPUT_FLARE: a right click cancels the flare
 			return;
@@ -629,6 +633,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (build_mode) {
 				enter_build_mode(false);
+				return;
+			}
+			// input.js INPUT_NORMAL right button: with units selected, wait for the release, which
+			// either gives the usual order or, after a drag, spreads them along the drawn line.
+			if (!replaying_right_ && !selected_ids.is_empty() && !spectating()) {
+				right_line_ = RightLine();
+				right_line_.active = true;
+				right_line_.start = mouse_pos;
 				return;
 			}
 			Vector3 click_pos = get_ground_click_pos(mouse_pos);
@@ -1172,6 +1184,20 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	}
 
 	Ref<InputEventMouseMotion> mm = event;
+	if (mm.is_valid() && right_line_.active && sim) {
+		// positionUnitsFreehandSelectionMouseMove: a point at least 1 m (0.25) from the last.
+		const Vector2 at = mm->get_position();
+		if (!right_line_.drawing && right_line_.start.distance_to(at) >= user_opts_.drag_delta) {
+			right_line_.drawing = true;
+			const Vector3 g = get_ground_click_pos(right_line_.start);
+			right_line_.pts.push_back(Vector2(g.x, g.z));
+		}
+		if (right_line_.drawing) {
+			const Vector3 g = get_ground_click_pos(at);
+			if (right_line_.pts.empty() || right_line_.pts.back().distance_squared_to(Vector2(g.x, g.z)) >= 0.25f * 0.25f)
+				right_line_.pts.push_back(Vector2(g.x, g.z));
+		}
+	}
 	if (mm.is_valid() && dragging) {
 		sel_rect->set_rect(drag_start, mm->get_position(), true);
 	}
@@ -1217,6 +1243,115 @@ bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
 	play_civ_voice("build");
 	if (order_one) pop_from_selection(selected_ids, one_builder);
 	return true;
+}
+
+// positionUnitsFreehandSelectionMouseUp: a short or no drag gives the usual right-click order
+// at the release point; a line of at least 8 m (2.0) with two or more units spreads them evenly
+// along it (walk-custom, or attack-walk-custom with session.attackmove), out of formation.
+void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
+	RightLine line = std::move(right_line_);
+	right_line_ = RightLine();
+	auto replay = [&]() {
+		Ref<InputEventMouseButton> press = release->duplicate();
+		press->set_pressed(true);
+		replaying_right_ = true;
+		_unhandled_input(press);
+		replaying_right_ = false;
+	};
+	if (!sim || !line.drawing || spectating()) {
+		replay();
+		return;
+	}
+	float length = 0.0f;
+	for (size_t i = 1; i < line.pts.size(); ++i) length += line.pts[i].distance_to(line.pts[i - 1]);
+	// Units and owned livestock (UnitAI), by id.
+	std::vector<uint32_t> ents;
+	std::unordered_map<uint32_t, Vector2> pos;
+	auto uv = sim->units();
+	auto fv = sim->fauna();
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t id = (uint32_t)selected_ids[s];
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == id && uv.alive[i]) pos[id] = Vector2(uv.pos_x[i], uv.pos_z[i]);
+		if (!pos.count(id))
+			for (size_t f = 0; f < fv.count; ++f)
+				if (fv.id[f] == id && fv.alive[f]) pos[id] = Vector2(fv.pos_x[f], fv.pos_z[f]);
+		if (pos.count(id)) ents.push_back(id);
+	}
+	std::sort(ents.begin(), ents.end());
+	if (length < 2.0f || ents.size() < 2) {
+		replay();
+		return;
+	}
+	const size_t n = ents.size();
+	const float between = length / (float)(n - 1);
+	std::vector<Vector2> dist{ line.pts[0] };
+	Vector2 p0 = line.pts[0];
+	float free_dist = -between;
+	for (size_t i = 1; i < line.pts.size(); ++i) {
+		const Vector2 p1 = line.pts[i];
+		free_dist += line.pts[i - 1].distance_to(p1);
+		while (free_dist >= 0.0f) {
+			p0 = (p0 - p1).normalized() * free_dist + p1;
+			dist.push_back(p0);
+			free_dist -= between;
+		}
+	}
+	// Rounding errors can lead to missing or too many points.
+	dist.resize(std::min(dist.size(), n));
+	while (dist.size() < n) dist.push_back(line.pts.back());
+	const Vector2 first = pos[ents.front()], last = pos[ents.back()];
+	if (first.distance_to(dist.front()) + last.distance_to(dist.back()) >
+			first.distance_to(dist.back()) + last.distance_to(dist.front()))
+		std::reverse(dist.begin(), dist.end());
+
+	last_line_targets_.clear();
+	last_line_entities_.clear();
+	for (size_t k = 0; k < n; ++k) {
+		last_line_targets_.push_back(dist[k]);
+		last_line_entities_.push_back((int32_t)ents[k]);
+	}
+	const bool units_only = rtso::hotkeys::held("session.attackmoveUnit");
+	const bool attack = units_only || rtso::hotkeys::held("session.attackmove") || attack_move_mode;
+	attack_move_mode = false;
+	const bool queued = rtso::hotkeys::held("session.queue");
+	const uint8_t qbit = queued ? rtso::NET_PARAM_QUEUED : 0;
+	if (turn_cmds()) {
+		// formation NULL_FORMATION: the units leave their formations first.
+		std::vector<uint32_t> formed;
+		for (const auto &fc : sim->formations())
+			for (uint32_t m : fc.members)
+				if (std::find(ents.begin(), ents.end(), m) != ents.end()) formed.push_back(m);
+		if (!formed.empty()) {
+			rtso::NetCommand leave;
+			leave.cmd_type = (uint8_t)rtso::NetCommandType::NET_CMD_FORMATION;
+			leave.entity_ids = std::move(formed);
+			leave.param = rtso::FORMATION_NONE;
+			turn_mgr_.post_local_command(leave);
+		}
+		for (size_t k = 0; k < n; ++k) {
+			rtso::NetCommand c;
+			c.cmd_type = attack ? 10 : (uint8_t)rtso::NetCommandType::NET_CMD_MOVE;
+			c.entity_ids.assign(1, ents[k]);
+			c.target_x = dist[k].x;
+			c.target_z = dist[k].y;
+			c.param = (uint8_t)(qbit | (attack && units_only ? rtso::NET_PARAM_UNITS_ONLY : 0));
+			turn_mgr_.post_local_command(c);
+		}
+	} else {
+		for (size_t k = 0; k < n; ++k) {
+			if (attack)
+				sim->order_attack_move(&ents[k], 1, dist[k].x, dist[k].y, queued, units_only, true);
+			else {
+				sim->order_walk(&ents[k], 1, dist[k].x, dist[k].y, queued, true);
+				sim->order_fauna_walk(local_player(), &ents[k], 1, dist[k].x, dist[k].y);
+			}
+		}
+	}
+	// Target markers at least 5 m (1.25) apart.
+	const size_t step = std::max<size_t>(1, (size_t)std::ceil(1.25f / std::max(between, 0.001f)));
+	for (size_t k = 0; k < n; k += step) range_overlays_.add_target_marker(dist[k].x, dist[k].y);
+	play_civ_voice(attack ? "attack" : "move");
 }
 
 // The local player's units (with their formation mates) and livestock whose screen position

@@ -575,6 +575,12 @@ public:
 	void debug_set_resource(int res, float amount);
 	bool debug_placing() const;
 	PackedInt32Array debug_highlight() const { return highlight_ids_; }
+	bool debug_structure_outlined(int64_t id) const;
+	int64_t debug_guard_target(int64_t uid) const { return sim ? (int64_t)sim->unit_guard_target((uint32_t)uid) : 0; }
+	Vector2 debug_ground_at(Vector2 screen) const {
+		const Vector3 g = get_ground_click_pos(screen);
+		return Vector2(g.x, g.z);
+	}
 	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
@@ -594,6 +600,26 @@ public:
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
 	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
 	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
+	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line
+	// drawn while the button is held.
+	struct RightLine {
+		bool active = false, drawing = false;
+		Vector2 start;
+		std::vector<Vector2> pts;
+	} right_line_;
+	bool replaying_right_ = false;
+	PackedVector2Array last_line_targets_; // tests: the last walk-custom positions
+	PackedInt32Array last_line_entities_;
+	void finish_right_line(const Ref<InputEventMouseButton> &release);
+	Dictionary debug_right_line() const {
+		Dictionary d;
+		d["active"] = right_line_.active;
+		d["drawing"] = right_line_.drawing;
+		d["points"] = (int64_t)right_line_.pts.size();
+		d["targets"] = last_line_targets_;
+		d["entities"] = last_line_entities_;
+		return d;
+	}
 	// input.js setHighlightList: the entity under the cursor, or what the band box would pick.
 	void update_highlight();
 	PackedInt32Array highlight_ids_;

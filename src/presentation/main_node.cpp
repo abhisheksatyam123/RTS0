@@ -332,6 +332,7 @@ void RtsoMain::debug_set_resource(int res, float amount) {
 
 // Test hook: whether a structure is being placed.
 bool RtsoMain::debug_placing() const { return build_mode; }
+bool RtsoMain::debug_structure_outlined(int64_t id) const { return view && view->structure_outlined((uint32_t)id); }
 
 // Test hook: a unit carries `amount` of resource `res` (0 wood, 1 metal, 2 stone, 3 food).
 void RtsoMain::debug_set_carry(int64_t unit_id, int res, int amount) {

@@ -213,6 +213,8 @@ void RtsoMain::update_highlight() {
 			const size_t u = own_unit_under_mouse(mouse, true);
 			if (u != (size_t)-1) {
 				ids.push_back((int32_t)sim->units().id[u]);
+			} else if (const uint32_t bid = building_under_mouse(mouse); bid != 0) {
+				ids.push_back((int32_t)bid);
 			} else {
 				const Vector3 at = get_ground_click_pos(mouse);
 				auto fv = sim->fauna();
@@ -228,6 +230,24 @@ void RtsoMain::update_highlight() {
 				}
 				if (pick) ids.push_back(pick);
 			}
+		}
+	}
+	// session.js updateAdditionalHighlight: PageDown rings the units guarding the selection,
+	// PageUp the entities the selection guards.
+	if (sim && view && (!selected_ids.is_empty() || selected_building_id != 0)) {
+		const bool guarding = rtso::hotkeys::held("session.highlightguarding");
+		const bool guarded = rtso::hotkeys::held("session.highlightguarded");
+		if (guarding || guarded) {
+			auto add = [&](int32_t id) {
+				if (id != 0 && !ids.has(id) && !selected_ids.has(id)) ids.push_back(id);
+			};
+			auto uv = sim->units();
+			for (size_t i = 0; i < uv.count && guarding; ++i)
+				if (uv.alive[i]) {
+					const uint32_t t = sim->unit_guard_target(uv.id[i]);
+					if (t != 0 && (selected_ids.has((int32_t)t) || t == selected_building_id)) add((int32_t)uv.id[i]);
+				}
+			for (int s = 0; s < selected_ids.size() && guarded; ++s) add((int32_t)sim->unit_guard_target((uint32_t)selected_ids[s]));
 		}
 	}
 	if (ids != highlight_ids_) {

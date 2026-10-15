@@ -38,6 +38,23 @@ func button(pos: Vector2, down: bool) -> void:
 	root.push_input(mb, true)
 	await frames(2)
 
+func key(code: Key, down: bool) -> void:
+	var k := InputEventKey.new()
+	k.keycode = code
+	k.physical_keycode = code
+	k.pressed = down
+	Input.parse_input_event(k)
+	await frames(2)
+
+func right(pos: Vector2, down: bool) -> void:
+	var mb := InputEventMouseButton.new()
+	mb.button_index = MOUSE_BUTTON_RIGHT
+	mb.pressed = down
+	mb.position = pos
+	mb.global_position = pos
+	root.push_input(mb, true)
+	await frames(2)
+
 func run() -> void:
 	await frames(60)
 	await move(Vector2(512, 400))
@@ -76,5 +93,47 @@ func run() -> void:
 	check(main.debug_selection_grid(false)["selected"] == 0, "not selected before release")
 	await button(at + Vector2(30, 30), false)
 	check(main.debug_selection_grid(false)["selected"] >= 1, "selected on release")
+	# session.highlightguarding / highlightguarded (PageDown / PageUp): ring the units
+	# guarding the selection, or what the selection guards.
+	var guard: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 1)
+	main.debug_select_units(guard)
+	await frames(4)
+	await key(KEY_G, true)
+	await right(at, true)
+	await right(at, false)
+	await key(KEY_G, false)
+	await frames(10)
+	check(main.debug_guard_target(guard[0]) == men[0], "G+right-click: the new unit guards the first")
+	await move(Vector2(40, 300))
+	main.debug_select_units(men)
+	await frames(2)
+	await key(KEY_PAGEDOWN, true)
+	hl = main.debug_highlight()
+	print("    guarding ", hl, " guard ", guard[0])
+	check(hl.has(guard[0]), "PageDown rings the unit guarding the selection")
+	await key(KEY_PAGEDOWN, false)
+	check(not main.debug_highlight().has(guard[0]), "released, the ring goes")
+	main.debug_select_units(guard)
+	await frames(2)
+	await key(KEY_PAGEUP, true)
+	hl = main.debug_highlight()
+	print("    guarded ", hl)
+	check(hl.has(men[0]), "PageUp rings the unit the selection guards")
+	await key(KEY_PAGEUP, false)
+	# Structures: an outline round the selected one, and the hovered one highlighted.
+	var cc: int = main.debug_civic_centre_id(0)
+	main.debug_select_units(PackedInt32Array())
+	await frames(2)
+	check(not main.debug_structure_outlined(cc), "no outline while unselected")
+	main.debug_select_entity(cc)
+	await frames(4)
+	var cc_at: Vector2 = main.debug_selected_building()["screen"]
+	check(main.debug_structure_outlined(cc), "the selected Civic Center is outlined")
+	main.debug_select_units(PackedInt32Array())
+	await frames(2)
+	await move(cc_at + Vector2(0, -20))
+	hl = main.debug_highlight()
+	print("    structure hover ", hl, " cc ", cc)
+	check(hl.has(cc), "hovering the Civic Center highlights it")
 	print("FAILURES: ", failures)
 	quit(1 if failures > 0 else 0)
