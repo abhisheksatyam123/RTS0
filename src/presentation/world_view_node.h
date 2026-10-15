@@ -219,6 +219,10 @@ class RtsoWorldView : public Node3D {
 	std::unordered_map<std::string, std::vector<std::string>> run_fx_;
 	std::unordered_map<std::string, GPUParticles3D *> run_emitters_;
 	void emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta);
+	// Unit models started loading on a worker before their first draw (per civ and crowd key).
+	std::vector<bool> prefetched_;
+	float prefetch_poll_ = 0.0f;
+	void prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
 	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
@@ -346,6 +350,9 @@ class RtsoWorldView : public Node3D {
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
+		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
+		String model_id;
+		float y_offset = 0.0f, scale = 1.0f, height = 0.0f;
 		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
 	// Crowd keys: a unit type, UNIT_TYPE_COUNT + type for a siege engine
@@ -355,6 +362,11 @@ class RtsoWorldView : public Node3D {
 	static constexpr int CROWD_KEY_COUNT = 2 * rtso::UNIT_TYPE_COUNT + rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT;
 	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][CROWD_KEY_COUNT];
 	uint8_t crowd_key_utype_[CROWD_KEY_COUNT] = {}; // a unit type drawn by each key
+	// The (civ << 16 | key) of every crowd batch made, ascending, and of those drawing units
+	// this frame (crowd_seen_ marks them), so a frame visits those batches only.
+	std::vector<uint32_t> crowd_made_;
+	std::vector<uint32_t> crowd_seen_list_;
+	uint8_t crowd_seen_[rtso::CIV_COUNT][CROWD_KEY_COUNT] = {};
 	Node3D *crowd_bake_root = nullptr;
 	// Crowd clip baking is spread over frames: past this frame's deadline (set in sync)
 	// a clip waits for a later frame, drawn in the rest pose meanwhile; one clip always

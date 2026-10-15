@@ -58672,6 +58672,18 @@
       "template": "structures/maur/field",
       "x": 160.92,
       "z": -77.0
+    },
+    {
+      "type": "lighthouse",
+      "template": "structures/ptol/lighthouse",
+      "x": -31.75,
+      "z": -123.4
+    },
+    {
+      "type": "lighthouse",
+      "template": "structures/ptol/lighthouse",
+      "x": 22.11,
+      "z": 102.39
     }
   ],
   "gaia_units": [

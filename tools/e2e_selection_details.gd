@@ -30,7 +30,7 @@ func run() -> void:
 	var u: Dictionary = main.debug_inspector("unit")
 	print("unit: ", u)
 	check(u["visible"], "a selected unit shows the details panel")
-	check(String(u["health"]).begins_with("Health: ") and " / " in String(u["health"]), "health reads \"Health: current / max\"")
+	check(not String(u["health"]).begins_with("Health: ") and " / " in String(u["health"]), "health reads \"current / max\" (healthStats, rounded up, no label)")
 	var tip := String(u["stats_tooltip"])
 	check(tip.begins_with("Attack:\n"), "the detailed tooltip opens with the attack")
 	check("Hack" in tip and "Interval: " in tip and "Range: " in tip, "the attack names its damage types, range and interval")

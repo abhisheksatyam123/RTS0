@@ -163,6 +163,12 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool net_setup_overlay_unsupported_ = false;
 	Button *lobby_start_btn_ = nullptr;
 	void update_net_setup_overlay();
+	// gamesetup_mp.js pageConnecting: "Connecting to server..." (then
+	// "Registering with server...") with Cancel over the screen until the
+	// host lets us in, and while a rejoin loads the host's game.
+	void update_net_connect_overlay();
+	Node *net_connect_overlay_ = nullptr; // scenes/menu/net_connecting.gd
+	CanvasLayer *net_connect_layer_ = nullptr;
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -223,6 +229,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoCinemaView cinema_view_;
 	bool campaign_win_noted_ = false; // summary_screen.gd mark_campaign_won ran for this match
+	bool lobby_report_noted_ = false; // LobbySession._check_report ran on this seat's win or defeat
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
@@ -374,7 +381,6 @@ public:
 	void log_render(const String &text, bool error = false);
 	void update_log_messages(bool changed = false);
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
-	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
 	static String speed_title(float speed);
 	static Array speed_choices(bool fast_forward);
@@ -429,6 +435,7 @@ public:
 	void _on_roster_gui_input(const Ref<InputEvent> &event);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
+	void _on_tech_pressed_at(int tech_id, int64_t building_id);
 	void _on_upgrade_pressed(int choice);
 	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
@@ -689,10 +696,13 @@ public:
 	int debug_put_inside(const PackedInt32Array &ids, int64_t holder);
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
+	void debug_select_structures(const PackedInt32Array &ids);
+	int64_t debug_spawn_relic(float dx, float dz);
+	void debug_capture_relic(const PackedInt32Array &ids, int64_t relic);
 	int64_t debug_civic_centre_id(int player) const;
 	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
-	Dictionary debug_structure_types();
+	Dictionary debug_structure_types(bool with_civ = false);
 	void debug_delete_units(const PackedInt32Array &ids);
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
 	Dictionary debug_diplomacy() const { return diplo_dialog_.debug_state(); } // tests: the diplomacy dialog's rows
@@ -937,8 +947,6 @@ private:
 	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
 	uint32_t net_oos_shown_turn_ = 0;        // OutOfSyncNetwork showed this turn (0 none)
 	static constexpr int kReplayViewGaiaId = 100;
-	OptionButton *replay_speed_picker_ = nullptr;
-	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
 	// An observer's perspective (0 A.D. session "viewPlayer" dropdown): the whole
 	// map, or one player's sight and panels. Presentation only.
@@ -1053,6 +1061,10 @@ private:
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start
 	// then continues it for everyone (host_start_saved_game).
 	String net_saved_game_;
+	// The save's seats a human may take (lower-case name in the save, or empty
+	// for an AI or defeated player), by player id; filled with net_saved_game_.
+	std::vector<String> net_saved_seats_;
+	bool net_saved_setup() const { return !net_saved_game_.is_empty() && !net_game_started_; }
 	void host_start_saved_game();
 	void tick_match_archive();
 	Dictionary statistics_summary() const;

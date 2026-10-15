@@ -12036,7 +12036,14 @@
     }
   ],
   "ruins": [],
-  "gaia_structures": [],
+  "gaia_structures": [
+    {
+      "type": "wonder",
+      "template": "structures/maur/wonder",
+      "x": -68.38,
+      "z": -1.93
+    }
+  ],
   "gaia_units": [],
   "scenery": [],
   "structures": [
