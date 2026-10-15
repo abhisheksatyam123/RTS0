@@ -12,6 +12,8 @@ void RtsoSafeSelect::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("add_item", "text", "id"), &RtsoSafeSelect::add_item, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("add_icon_item", "icon", "text", "id"), &RtsoSafeSelect::add_icon_item, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("select", "index"), &RtsoSafeSelect::select);
+	ClassDB::bind_method(D_METHOD("set_item_tooltip", "index", "tooltip"), &RtsoSafeSelect::set_item_tooltip);
+	ClassDB::bind_method(D_METHOD("get_item_tooltip", "index"), &RtsoSafeSelect::get_item_tooltip);
 	ClassDB::bind_method(D_METHOD("get_selected"), &RtsoSafeSelect::get_selected);
 	ClassDB::bind_method(D_METHOD("get_item_id", "index"), &RtsoSafeSelect::get_item_id);
 	ClassDB::bind_method(D_METHOD("get_item_text", "index"), &RtsoSafeSelect::get_item_text);
@@ -66,7 +68,7 @@ void RtsoSafeSelect::add_item(const String &text, int id) {
 	if (id < 0) {
 		id = (int)items.size();
 	}
-	items.push_back({text, id, Ref<Texture2D>()});
+	items.push_back({text, id, Ref<Texture2D>(), String()});
 	if (selected < 0) {
 		select(0);
 	} else if (list && menu && menu->is_visible()) {
@@ -78,7 +80,7 @@ void RtsoSafeSelect::add_icon_item(const Ref<Texture2D> &icon, const String &tex
 	if (id < 0) {
 		id = (int)items.size();
 	}
-	items.push_back({text, id, icon});
+	items.push_back({text, id, icon, String()});
 	if (selected < 0) {
 		select(0);
 	} else if (list && menu && menu->is_visible()) {
@@ -92,6 +94,20 @@ void RtsoSafeSelect::select(int index) {
 	}
 	selected = index;
 	refresh_button();
+}
+
+void RtsoSafeSelect::set_item_tooltip(int index, const String &tooltip) {
+	if (index < 0 || index >= (int)items.size()) {
+		return;
+	}
+	items[(size_t)index].tooltip = tooltip;
+}
+
+String RtsoSafeSelect::get_item_tooltip(int index) const {
+	if (index < 0 || index >= (int)items.size()) {
+		return String();
+	}
+	return items[(size_t)index].tooltip;
 }
 
 String RtsoSafeSelect::get_item_text(int index) const {
@@ -143,7 +159,9 @@ void RtsoSafeSelect::rebuild_list() {
 	suppress = true;
 	list->clear();
 	for (const Item &it : items) {
-		list->add_item(it.text, it.icon);
+		const int row = list->add_item(it.text, it.icon);
+		list->set_item_tooltip_enabled(row, !it.tooltip.is_empty());
+		list->set_item_tooltip(row, it.tooltip);
 	}
 	if (selected >= 0 && selected < (int)items.size()) {
 		list->select(selected);
