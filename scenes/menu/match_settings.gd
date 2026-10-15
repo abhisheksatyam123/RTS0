@@ -56,6 +56,9 @@ var disable_spies: bool = false
 var disable_treasures: bool = false
 # Random-map biome: 0 = the map's own, else rtso::BiomeType + 1. Game speed at the start.
 var biome: int = 0
+# 0.28 PlayerAssignment: the setup slot this machine plays offline (index into
+# slot_types), -1 to watch; -2 (older setups, -autostart) seats you in slot 1.
+var local_slot: int = -2
 var game_speed: float = 1.0
 # The map sets every slot's civ, team and colour (a scenario): in a networked
 # game setup, clients may not ask to change theirs.

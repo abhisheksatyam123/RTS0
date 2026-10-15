@@ -390,6 +390,12 @@ struct PetraKept {
 	bool need_corral = false; // a starting land under 25000 m²: the first corral goes on
 	int16_t target_traders = -1; // -1 until setTradingGoods sets it: the config value
 	std::vector<uint8_t> wanted_fish, wanted_transport;
+	// startingStrategy.js gameStart: with no civic centre and none it may build, the AI can't
+	// produce units (canBuildUnits false): every unit joins the attacks, but those dispatched
+	// to an ally's civic centre (dispatchUnits, metadata "allied").
+	bool units_checked = false;
+	bool no_units = false;
+	std::vector<uint32_t> allied;
 	static uint8_t at(const std::vector<uint8_t> &v, size_t s) { return s < v.size() ? v[s] : 0; }
 	static void raise(std::vector<uint8_t> &v, size_t s, int n) {
 		if (s >= v.size()) v.resize(s + 1, 0);

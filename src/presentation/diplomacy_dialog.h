@@ -255,6 +255,7 @@ public:
 				if (r.tribute[t]->is_visible()) { any_shown = true; any_enabled |= !r.tribute[t]->is_disabled(); }
 			row["tribute_shown"] = any_shown;
 			row["tribute_enabled"] = any_enabled;
+			row["spy_shown"] = r.spy->is_visible();
 			rows.push_back(row);
 		}
 		d["rows"] = rows;
@@ -334,9 +335,10 @@ public:
 						" to " + host_->player_display_name(p) + ". Shift-click to tribute " +
 						String::num_int64(next_tribute_amount(r.amount[t])) + ".");
 			}
-			// SpyRequestButton.update: hidden when spies are disabled or for a mutual ally
-			// whose vision is already shared (RTS0 allies always share it).
-			const bool spy_hidden = inactive || sim->spies_disabled() || sim->is_ally(p, me);
+			// SpyRequestButton.update: hidden when spies are disabled, and for a mutual ally only
+			// while the viewer lacks shared vision (hasSharedLos, Cartography), as 0.28 tests it.
+			const bool spy_hidden = inactive || sim->spies_disabled()
+					|| (sim->is_ally(p, me) && !sim->player(me).has_tech(rtso::TECH_UNLOCK_SHARED_LOS));
 			r.spy->set_visible(!spy_hidden);
 			if (!spy_hidden) {
 				// The cost (x the target's spyCostMultiplier), what is missing, then what a failed
