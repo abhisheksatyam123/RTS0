@@ -3360,7 +3360,7 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	const Building &b = buildings_[bit->second];
 	if (b.team != player_id) return false;
 	if (b.type == BLD_CORRAL || u_type == UNIT_TYPE_NONE) {
-		if (b.build_progress < 1.0f || b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
+		if (b.build_progress < 1.0f) return false;
 		return cmd_breed_livestock(player_id, building_id, FAUNA_SHEEP_TRAINABLE, count);
 	}
 	// RTS0's own villager is in no 0.28 Trainer list: the worker class trains the
@@ -3434,7 +3434,8 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || player_id >= MAX_PLAYERS || b.build_progress < 1.0f) return false;
-	if (b.queue.size() >= PRODUCTION_QUEUE_MAX || b.upgrade_to != BLD_TYPE_COUNT) return false;
+	if (b.upgrade_to != BLD_TYPE_COUNT) return note_text(player_id, SessionNotice::TEXT_UPGRADING), false;
+	if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return note_text(player_id, SessionNotice::TEXT_QUEUE_FULL), false;
 	if (count < 1 || count > 200) return false;
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
 	// RTS0-only rows (<civ>/rts0_villager) are class defaults for old saves and pre-roster
@@ -3907,6 +3908,10 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
+	if (b.team == player_id && b.build_progress >= 1.0f) { // ProductionQueue.js AddItem's notices
+		if (b.upgrade_to != BLD_TYPE_COUNT) return note_text(player_id, SessionNotice::TEXT_UPGRADING), false;
+		if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return note_text(player_id, SessionNotice::TEXT_QUEUE_FULL), false;
+	}
 	if (research_check(player_id, tech_id, building_id) != TECH_OK) return false;
 
 	// Researcher.js QueueTechnology: paid now, researched when it reaches the queue's front.
@@ -3977,7 +3982,14 @@ uint32_t Simulation::unit_guard_target(uint32_t uid) const {
 }
 
 bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice) {
-	if (upgrade_check(player_id, building_id, choice) != UPGRADE_OK) return false;
+	if (const uint8_t err = upgrade_check(player_id, building_id, choice); err != UPGRADE_OK) {
+		// Upgrade.js Upgrade: "Entity is producing. Cannot start upgrading."
+		if (err == UPGRADE_ERR_BUSY) {
+			const Building &b = buildings_[building_id_to_idx_.at(building_id)];
+			if (b.upgrade_to == BLD_TYPE_COUNT && !b.queue.empty()) note_text(player_id, SessionNotice::TEXT_PRODUCING);
+		}
+		return false;
+	}
 	Building &b = buildings_[building_id_to_idx_[building_id]];
 	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
 	players_[player_id].pay((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost);
@@ -8428,8 +8440,19 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	const Building &b = buildings_[bit->second];
 	const bool owner = b.team == player;
 	if (!owner && !is_ally(player, b.team)) return;
+	const uint32_t bid = b.id;
+	// Commands.js unload: "Unable to unload unit(s)." when one stays in (no free spot outside).
+	auto still_in = [&](uint32_t uid) {
+		auto it = building_id_to_idx_.find(bid);
+		if (it == building_id_to_idx_.end()) return false;
+		const auto &g = buildings_[it->second].garrisoned_units;
+		return std::find(g.begin(), g.end(), uid) != g.end();
+	};
 	if (owner && count == 0) {
+		const std::vector<uint32_t> before = b.garrisoned_units;
 		order_ungarrison(building_id);
+		for (uint32_t uid : before)
+			if (still_in(uid)) { note_text(player, SessionNotice::TEXT_UNLOAD_FAILED); break; }
 		return;
 	}
 	std::vector<uint32_t> out;
@@ -8438,11 +8461,14 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	} else {
 		out.assign(unit_ids, unit_ids + count);
 	}
+	bool failed = false;
 	for (uint32_t uid : out) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0 || (!owner && units_.team[i] != player)) continue;
 		order_ungarrison_single(building_id, uid);
+		failed |= still_in(uid);
 	}
+	if (failed) note_text(player, SessionNotice::TEXT_UNLOAD_FAILED);
 }
 
 std::vector<uint32_t> Simulation::holder_contents(uint32_t holder_id, uint8_t *holder_owner) const {
@@ -8686,7 +8712,7 @@ bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, ui
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
-	if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
+	if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return note_text(player_id, SessionNotice::TEXT_QUEUE_FULL), false;
 	count = std::clamp(count, 1, 255);
 	if (!entity_limit_allows_unit(player_id, UNIT_TYPE_NONE, CIV_UNIT_TEMPLATE_NONE, count)) return false; // Animal 50
 	const uint8_t animal = corral_animal_for(civ_of(b.team), ftype);
@@ -12450,6 +12476,7 @@ void Simulation::tick_production(float dt) {
 				for (int r = 0; r < RES_COUNT; ++r) rest.paid[r] = done.paid[r] * rest.count / done.count;
 				b.queue.insert(b.queue.begin(), rest);
 				stuck = true;
+				if (bteam < MAX_PLAYERS) note_text(bteam, SessionNotice::TEXT_SPAWN_BLOCKED, b.id); // shown once a blockage (main_node)
 				break;
 			}
 			uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
@@ -12488,7 +12515,10 @@ void Simulation::tick_production(float dt) {
 					? cmd_train_template_at(bteam, b.id, done.tmpl, false, done.count)
 					: cmd_train(bteam, b.id, (UnitType)done.unit_type, done.count);
 			}
-			if (!again) b.autoqueue = false;
+			if (!again) {
+				b.autoqueue = false;
+				note_text(bteam, SessionNotice::TEXT_AUTOQUEUE_OFF);
+			}
 		}
 	}
 }
@@ -16982,6 +17012,7 @@ Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
 	PlayerState &ps = players_[player];
 	auto pay = [&](int metal) { return ps.pay(0.0f, 0.0f, (float)metal, 0.0f); }; // TrySubtractResources: counted as used
 	if (candidates.empty()) {
+		note_text(player, SessionNotice::TEXT_NO_BRIBABLE);
 		pay(bribe_cost(player, target, true)); // TrySubtractResources: nothing if it can't pay
 		if (player < MAX_PLAYERS) stats_[player].failed_bribes++; // Commands.js IncreaseFailedBribesCounter
 		return BRIBE_NO_UNITS;
@@ -17105,16 +17136,19 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
-		if (i < 0 || !units_.alive[i] || units_.work_kind[i] == ORDER_NONE) continue;
+		if (i < 0 || !units_.alive[i]) continue;
+		// Commands.js back-to-work: notifyBackToWorkFailure for each unit that can't.
+		auto failed = [&] { if (units_.team[i] < MAX_PLAYERS) note_text(units_.team[i], SessionNotice::TEXT_BACK_TO_WORK_FAILED); };
+		if (units_.work_kind[i] == ORDER_NONE) { failed(); continue; }
 		UnitOrder o;
 		o.kind = units_.work_kind[i];
 		o.target = units_.work_target[i];
 		order_queues_.erase(unit_ids[k]);
 		if (o.kind == ORDER_GATHER && !order_still_valid((size_t)i, o)) {
 			o.target = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i]);
-			if (o.target == 0) continue;
+			if (o.target == 0) { failed(); continue; }
 		}
-		if (!order_still_valid((size_t)i, o)) continue;
+		if (!order_still_valid((size_t)i, o)) { failed(); continue; }
 		apply_order(unit_ids[k], o);
 	}
 }
