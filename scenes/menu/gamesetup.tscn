@@ -44,12 +44,7 @@ custom_minimum_size = Vector2(400, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "Game Setup — Skirmish vs Petra AI"
-
-[node name="BtnBack" type="Button" parent="VBox/Header"]
-custom_minimum_size = Vector2(120, 36)
-layout_mode = 2
-text = "Back"
+text = "Match Setup"
 
 [node name="HBox" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -567,10 +562,22 @@ theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
 text = ""
 autowrap_mode = 2
 
-[node name="BtnStart" type="Button" parent="VBox/HBox/Right"]
+[node name="Buttons" type="HBoxContainer" parent="VBox/HBox/Right"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnBack" type="Button" parent="VBox/HBox/Right/Buttons"]
+custom_minimum_size = Vector2(160, 48)
+layout_mode = 2
+tooltip_text = "Return to the main menu."
+text = "Back"
+
+[node name="BtnStart" type="Button" parent="VBox/HBox/Right/Buttons"]
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
-text = "Start Game"
+size_flags_horizontal = 3
+tooltip_text = "Start a new game with the current settings."
+text = "Start Game!"
 
-[connection signal="pressed" from="VBox/Header/BtnBack" to="." method="_on_back_pressed"]
-[connection signal="pressed" from="VBox/HBox/Right/BtnStart" to="." method="_on_start_pressed"]
+[connection signal="pressed" from="VBox/HBox/Right/Buttons/BtnBack" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="VBox/HBox/Right/Buttons/BtnStart" to="." method="_on_start_pressed"]
