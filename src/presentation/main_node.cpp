@@ -1331,7 +1331,7 @@ std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holde
 		for (const auto &b : sim->buildings()) {
 			if (b.id != id) continue;
 			if (b.team == local_player() && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
-					(id == holder || (u.trainers & rtso::bld_bit(b.type))))
+					(u.trainers & rtso::bld_bit(b.type)))
 				out.push_back(id);
 			break;
 		}
