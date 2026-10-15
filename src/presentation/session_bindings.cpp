@@ -113,6 +113,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_placement_tip"), &RtsoMain::debug_placement_tip);
 	ClassDB::bind_method(D_METHOD("debug_cursor_tip"), &RtsoMain::debug_cursor_tip);
 	ClassDB::bind_method(D_METHOD("debug_ui_clicks"), &RtsoMain::debug_ui_clicks);
+	ClassDB::bind_method(D_METHOD("debug_voices"), &RtsoMain::debug_voices);
 	ClassDB::bind_method(D_METHOD("debug_saved_gui"), &RtsoMain::debug_saved_gui);
 	ClassDB::bind_method(D_METHOD("debug_set_camera_data", "camera"), &RtsoMain::debug_set_camera_data);
 	ClassDB::bind_method(D_METHOD("_on_tree_node_added", "node"), &RtsoMain::_on_tree_node_added);

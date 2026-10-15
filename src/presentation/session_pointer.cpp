@@ -515,7 +515,7 @@ bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
 			apply_default_formation(sel_ptr, sel_n);
 			sim->order_patrol(sel_ptr, sel_n, world_pos.x, world_pos.y, queued);
 		}
-		play_civ_voice("select");
+		// "order_patrol" has no sound group in 0.28, so the order is silent.
 	} else {
 		if (turn_cmds())
 			post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
