@@ -257,6 +257,50 @@ func run() -> void:
 	lobby._on_sign_pressed()
 	await until(func() -> bool: return ls.signed_in())
 
+	print("6b. a password game asks for it before joining")
+	reg[0] = 0
+	ls.post_json("/rooms", {"token": bob[0], "id": "room-29995", "host_ip": "127.0.0.1", "host_port": 29995,
+		"name": "locked game", "state": "init", "password": true, "player_names": [{"name": "bob"}]},
+		func(c: int, _o) -> void: reg[0] = c)
+	await until(func() -> bool: return reg[0] != 0)
+	lobby._refresh()
+	await until(func() -> bool: return find_room.call("room-29995") != null)
+	lobby._join_pwd.text = "row text"
+	pick_room.call("room-29995")
+	await process_frame
+	lobby._on_join_pressed()
+	var pw_dlg: ConfirmationDialog = lobby.find_child("PasswordDialog", true, false)
+	var pw_edit: LineEdit = pw_dlg.find_child("ClientPassword", true, false) if pw_dlg else null
+	check(pw_dlg != null and pw_dlg.ok_button_text == "Confirm" and pw_edit != null and pw_edit.secret and pw_edit.max_length == 256,
+		"Join on a password game opens the password page (masked, 256, Confirm)")
+	check(MatchSettings_mode() == "", "and sends nothing yet")
+	if pw_dlg:
+		pw_dlg.canceled.emit()
+	await process_frame
+	check(MatchSettings_mode() == "" and lobby.find_child("PasswordDialog", true, false) == null, "Cancel joins nothing")
+	pick_room.call("room-29995")
+	await process_frame
+	lobby._on_join_pressed()
+	pw_dlg = lobby.find_child("PasswordDialog", true, false)
+	pw_edit = pw_dlg.find_child("ClientPassword", true, false) if pw_dlg else null
+	if pw_edit:
+		pw_edit.text = "secret"
+		pw_dlg.confirmed.emit()
+	var ms6 = root.get_node("/root/MatchSettings")
+	await until(func() -> bool: return MatchSettings_mode() == "join")
+	check(MatchSettings_mode() == "join" and ms6.net_password == "secret" and ms6.net_port == 29995,
+		"Confirm joins with the typed password, not the Join row's (%s)" % ms6.net_password)
+	# Stay on the lobby: drop the match the join opened.
+	ms6.net_mode = ""
+	await process_frame
+	if current_scene:
+		current_scene.queue_free()
+	await process_frame
+	lobby._host_port.text = "80"
+	lobby._on_host_pressed()
+	check(MatchSettings_mode() == "" and lobby._status.text.contains("Server port number must be between 1024 and 65535."),
+		"the Host row refuses a port below 1024: " + lobby._status.text)
+
 	print("7. back to the main menu signs out")
 	lobby._on_back_pressed()
 	check(not ls.signed_in(), "leaving the lobby signs alice out")
