@@ -57,6 +57,37 @@
 
 using namespace godot;
 
+// 0 A.D. 0.28 template_unit*.xml StatusBars, in metres: BarWidth, BarHeight, HeightOffset.
+static rtso::StatusBarsSize unit_status_bars(uint8_t type, uint16_t tmpl) {
+	rtso::TechClasses c = rtso::unit_tech_classes(type);
+	if (tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT) c = rtso::civ_unit_template(tmpl).tech_classes;
+	if (rtso::unit_is_siege_engine(type)) return {nullptr, 4.0f, 0.5f, 5.0f}; // template_unit_siege
+	if (type == rtso::UNIT_TRIREME || type == rtso::UNIT_MERCHANT_SHIP) return {nullptr, 6.0f, 0.5f, 6.0f}; // template_unit_ship
+	if (type == rtso::UNIT_WORKER_ELEPHANT) return {nullptr, 2.0f, 0.333f, 9.0f}; // template_unit_support_elephant
+	if (c & rtso::TC_ELEPHANT) return {nullptr, 2.0f, 0.333f, 10.0f}; // template_unit_champion_elephant
+	if (c & rtso::TC_CAVALRY) return {nullptr, 2.0f, 0.333f, 7.0f}; // template_unit_cavalry
+	if (type == rtso::UNIT_WAR_DOG) return {nullptr, 2.0f, 0.333f, 2.5f}; // template_unit_dog
+	return {nullptr, 2.0f, 0.333f, 5.0f}; // template_unit (and template_unit_ship_fishing)
+}
+
+// 0 A.D. 0.28 StatusBars/HeightOffset of a structure, in metres: template_structure's 12
+// unless its template sets another (towers and walls: the middle of the civs' values).
+static float structure_status_bar_offset(uint8_t type) {
+	switch (type) {
+		case rtso::BLD_HOUSE: case rtso::BLD_APARTMENT: case rtso::BLD_KENNEL: case rtso::BLD_FIELD: return 8.0f;
+		case rtso::BLD_OUTPOST: return 14.0f;
+		case rtso::BLD_SENTRY_TOWER: return 18.0f;
+		case rtso::BLD_TOWER: case rtso::BLD_WALL_TOWER: return 21.0f;
+		case rtso::BLD_TOWER_ARTILLERY: case rtso::BLD_TOWER_BOLT: case rtso::BLD_TOWER_DOUBLE: case rtso::BLD_TOWER_GREAT: return 19.0f;
+		case rtso::BLD_WALL_SEGMENT: return 12.6f;
+		case rtso::BLD_GATE: return 17.5f;
+		case rtso::BLD_SIEGE_WALL: return 7.7f;
+		case rtso::BLD_SIEGE_WALL_GATE: return 13.5f;
+		case rtso::BLD_PYRAMID_LARGE: return 15.0f;
+		default: return 12.0f;
+	}
+}
+
 void RtsoWorldView::_bind_methods() {
 	// Internal C++ sync call
 }
@@ -4132,7 +4163,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			StatusStack st;
 			if (bars) {
 				st.health = max_hp > 0.0f ? hp / max_hp : 1.0f;
-				st.health_color = is_player ? Color(0.2f, 0.95f, 0.3f, 0.95f) : Color(0.95f, 0.25f, 0.2f, 0.95f);
 				const float need_xp = status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
 				if (need_xp > 0.0f && uview.xp[i] > 0) st.xp = (float)uview.xp[i] / need_xp; // none at 0 XP
 				if (uview.pack_state[i] == rtso::PACK_PACKING || uview.pack_state[i] == rtso::PACK_UNPACKING) {
@@ -4150,8 +4180,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 			if (!aura_icon_sources_.empty())
 				status_aura_icons(x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
-			if (bars || st.n_icons > 0)
-				draw_status_stack(sim, Vector3(x, y + model_b.height * sc + 0.3f, z), 0.9f, 0.08f, st);
+			if (bars || st.n_icons > 0) {
+				// The GLBs are in metres, so the model's scale is world units per metre.
+				const rtso::StatusBarsSize sb = unit_status_bars(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+				draw_status_stack(sim, Vector3(x, y - model_b.y_offset + sb.height_offset * sc, z), sb.bar_width * sc, sb.bar_height * sc, sc, st);
+			}
 		}
 
 				if (detailed.count(id) == 0) {
@@ -4519,7 +4552,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (bars) {
 				// A foundation's Health grows as it is built (Foundation.js).
 				st.health = b_progress < 1.0f ? b_progress : (b.max_hp > 0.0f ? b.hp / b.max_hp : 1.0f);
-				st.health_color = b_progress < 1.0f ? Color(0.25f, 0.65f, 1.0f, 0.95f) : Color(0.2f, 0.95f, 0.3f, 0.95f);
 				if (b.type == rtso::BLD_FIELD && b_progress >= 1.0f) st.supply = 1.0f; // an infinite ResourceSupply
 				if (const auto *lb = b.miraged ? nullptr : live_building(b.id)) {
 					if (lb->upgrade_to != rtso::BLD_TYPE_COUNT && lb->upgrade_duration > 0.0f) st.upgrade = lb->upgrade_timer / lb->upgrade_duration;
@@ -4531,8 +4563,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				}
 			}
 			if (!aura_icon_sources_.empty()) status_aura_icons(b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
-			if (bars || st.n_icons > 0)
-				draw_status_stack(sim, Vector3(b.x, base_y + 5.0f, b.z), 2.25f, 0.1f, st);
+			if (bars || st.n_icons > 0) {
+				// In the model's metres (its actor frame), as the GLBs are not drawn 1 unit = 4 m.
+				float m = 0.25f;
+				const auto fr = building_frames_.find(building_table_key(mid));
+				if (fr != building_frames_.end() && fr->second.scale > 0.0f) m = fr->second.scale * b_scale;
+				draw_status_stack(sim, Vector3(b.x, base_y + structure_status_bar_offset(b.type) * m, b.z), 6.0f * m, 0.6f * m, m, st);
+			}
 		}
 
 		// 3D Positional Building Fire Acoustics
@@ -4927,9 +4964,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (food > 0) st.supply = (float)fview.food_amount[f] / (float)food;
 			if (fview.alive[f] && fview.max_hp[f] > 0.0f) {
 				st.health = fview.hp[f] / fview.max_hp[f];
-				st.health_color = fview.owner[f] == local_player_ ? Color(0.2f, 0.95f, 0.3f, 0.95f) : Color(0.95f, 0.25f, 0.2f, 0.95f);
 			}
-			draw_status_stack(sim, Vector3(fx, fy + fent.y_offset + fent.aabb.size.y * fsc + 0.3f, fz), 0.9f, 0.08f, st);
+			// The animal GLBs are in metres (fsc is world units per metre).
+			const rtso::StatusBarsSize sb = rtso::fauna_status_bars(rtso::fauna_type_info(ft).template_name);
+			draw_status_stack(sim, Vector3(fx, fy + sb.height_offset * fsc, fz), sb.bar_width * fsc, sb.bar_height * fsc, fsc, st);
 		}
 	}
 	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and
@@ -4964,7 +5002,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
 			StatusStack st;
 			st.supply = max > 0 ? (float)r.amount / (float)max : 1.0f;
-			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, st);
+			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, 0.25f, st);
 		}
 	}
 	for (size_t k = unit_rings_used; k < unit_ring_decals_.size(); ++k) unit_ring_decals_[k]->set_visible(false);
@@ -4992,7 +5030,9 @@ void RtsoWorldView::status_aura_icons(float x, float z, uint8_t team, uint16_t t
 // StatusBars.js RegenerateSprites: experience, pack, upgrade, resource supply,
 // capture, health, aura icons and rank, from `base` up, each bar BarHeight * 1.2
 // above the one under it (the experience bar 2/3 as tall, using the pack textures).
-void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, const StatusStack &st) {
+// `base` is the entity's position raised by HeightOffset; `metre` is world units per
+// 0 A.D. metre at the entity's drawn size.
+void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, float metre, const StatusStack &st) {
 	float y = 0.0f;
 	auto at = [&](float h) { return base + Vector3(0.0f, y + 0.5f * h, 0.0f); };
 	auto bar = [&](RtsoStatusSprites::Bar type, float amount, float h) {
@@ -5019,22 +5059,19 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 			if (p != st.owner && st.capture[p] > 0.0f) part(p);
 		y += height * 1.2f;
 	}
-	if (st.health >= 0.0f) {
-		const Vector3 c = at(height);
-		const float hw = 0.5f * width;
-		status_sprites_.solid(c, -hw, hw, height, Color(0.15f, 0.15f, 0.18f, 0.85f));
-		status_sprites_.solid(c, -hw, -hw + width * Math::clamp(st.health, 0.0f, 1.0f), height * 0.85f, st.health_color);
-		y += height * 1.2f;
-	}
-	const float icon = std::min(width * 0.5f, 0.6f);
+	bar(RtsoStatusSprites::BAR_HEALTH, st.health, height);
+	const float icon = width * 0.5f;
 	if (st.n_icons > 0) {
+		// AddAuraIcons adds yoffset to both the sprite and its offset, so the icons
+		// sit twice as high as the bars under them.
 		float dx = -icon * (st.n_icons - 1) * 0.6f;
-		const Vector3 c = at(icon);
+		const Vector3 c = base + Vector3(0.0f, 2.0f * y + 0.5f * icon, 0.0f);
 		for (int k = 0; k < st.n_icons; ++k, dx += icon * 1.2f) status_sprites_.icon(st.icons[k], c, dx, icon);
 		y += icon + height * 0.5f;
 	}
 	if (st.rank_icon >= 0) {
-		status_sprites_.icon(st.rank_icon, at(icon), 0.0f, icon);
+		// AddRankIcon: HeightOffset + 0.1.
+		status_sprites_.icon(st.rank_icon, at(icon) + Vector3(0.0f, 0.1f * metre, 0.0f), 0.0f, icon);
 		status_rank_icons_.push_back(status_sprites_.icon_path(st.rank_icon));
 	}
 }

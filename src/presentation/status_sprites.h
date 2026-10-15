@@ -30,7 +30,7 @@ using namespace godot;
 class RtsoStatusSprites {
 public:
 	// StatusBars.js bar types: art/textures/ui/session/icons/<type>_{bg,fg}.png.
-	enum Bar { BAR_PACK = 0, BAR_UPGRADE, BAR_SUPPLY, BAR_COUNT };
+	enum Bar { BAR_PACK = 0, BAR_UPGRADE, BAR_SUPPLY, BAR_HEALTH, BAR_COUNT };
 
 	void build(Node *parent) {
 		mesh_.instantiate();
@@ -38,10 +38,10 @@ public:
 		inst_->set_mesh(mesh_);
 		inst_->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 		parent->add_child(inst_);
-		static const char *kBars[BAR_COUNT] = { "pack", "upgrade", "supply" };
+		static const char *kBars[BAR_COUNT] = { "archive/icons/pack", "archive/icons/upgrade", "archive/icons/supply", "icons/health" };
 		for (int b = 0; b < BAR_COUNT; ++b) {
-			bar_tex_[b][0] = texture(String("res://assets/textures/ui/archive/icons/") + kBars[b] + "_bg.png");
-			bar_tex_[b][1] = texture(String("res://assets/textures/ui/archive/icons/") + kBars[b] + "_fg.png");
+			bar_tex_[b][0] = texture(String("res://assets/textures/ui/") + kBars[b] + "_bg.png");
+			bar_tex_[b][1] = texture(String("res://assets/textures/ui/") + kBars[b] + "_fg.png");
 		}
 		capture_tex_ = texture("res://assets/textures/ui/archive/icons/capture_bar.png");
 		Ref<FileAccess> f = FileAccess::open("res://data/aura_icons.json", FileAccess::READ);
@@ -87,13 +87,6 @@ public:
 		quad(slot_of(bar_tex_[type][0]), at, -0.5f * width, 0.5f * width, -0.5f * height, 0.5f * height, Color(1, 1, 1));
 		if (a > 0.0f)
 			quad(slot_of(bar_tex_[type][1]), at, -0.5f * width, width * (a - 0.5f), -0.5f * height, 0.5f * height, Color(1, 1, 1));
-	}
-
-	// RTS0's flat health and experience bars: an untextured quad in `c`, spanning
-	// x0..x1 across a bar `height` tall centred on `at`.
-	void solid(const Vector3 &at, float x0, float x1, float height, const Color &c) {
-		if (x1 <= x0) return;
-		quad(slot_of(Ref<Texture2D>()), at, x0, x1, -0.5f * height, 0.5f * height, c);
 	}
 
 	// AddCaptureBar: one segment per player holding points, in their colour.
