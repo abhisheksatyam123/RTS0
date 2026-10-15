@@ -1095,6 +1095,9 @@ static void test_petra_concurrent_transports() {
 	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
 	s.petra_attack_plan_.target_building_id = house;
 	s.petra_attack_plan_.state_timer = 0.0f;
+	// Forced (as an ally's call for help): it sets off with what it has, whatever siege class
+	// the plan rotation would still have it wait for.
+	s.petra_attack_plan_.forced = true;
 	// The army is the six given above: drop the batches Petra queues for the attack, which
 	// the plan would wait for (updatePreparation waits for its units in training), here and
 	// on each second below (trainMoreUnits keeps filling its ranged and cavalry classes).
@@ -1236,6 +1239,40 @@ static void test_ship_treasure() {
 	std::printf("ship treasure reach: warship %.2f, siege ship %.2f, juggernaut %.2f\n", r_war, r_siege, r_jugg);
 	CHECK(r_siege > r_war);
 	CHECK(r_jugg == r_siege);
+}
+
+// template_gaia_treasure: a shipwreck floating at sea blocks movement (Obstruction/Static,
+// BlockMovement), so a ship sailing past steers round it instead of through it.
+static void test_ship_round_wreck() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
+	const uint32_t ship = s.spawn_unit(-30.0f, 0.0f, 0, UNIT_TRIREME);
+	s.cmd_move(&ship, 1, 10.0f, 0.0f);
+	s.ensure_gaia_obstacles();
+	Simulation::SteerObstacle w{};
+	for (const auto &o : s.gaia_obstacles_)
+		if (o.id == wreck) w = o;
+	const nav::Vec2 u = nav::footprint_u(w), v = nav::footprint_v(w);
+	float worst = 1e9f; // the ship centre's least clearance outside the wreck's square (negative: inside)
+	int arrived = -1;
+	for (int t = 0; t < 900 && arrived < 0; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		const int i = s.lookup_unit(ship);
+		const auto un = s.units();
+		const nav::Vec2 p = nav::Vec2(un.pos_x[i], un.pos_z[i]) - nav::Vec2(w.x, w.z);
+		worst = std::min(worst, std::max(std::fabs(p.dot(u)) - w.hu, std::fabs(p.dot(v)) - w.hv));
+		if (std::hypot(un.pos_x[i] - 10.0f, un.pos_z[i]) < 1.0f) arrived = t;
+	}
+	std::printf("ship past a floating wreck: arrived after %d ticks, closest %.2f outside its square (%.1f x %.1f)\n",
+	            arrived, worst, 2.0f * w.hu, 2.0f * w.hv);
+	CHECK(arrived >= 0);
+	CHECK(worst > 0.0f);
+	// Sent to collect it, the ship still sails up to it.
+	const float wood0 = s.player(0).wood();
+	s.order_collect_treasure(&ship, 1, wreck);
+	run(s, 30.0f);
+	CHECK(s.player(0).wood() > wood0);
 }
 
 // navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
@@ -2000,6 +2037,7 @@ int main() {
 	test_petra_merchantman_transport();
 	test_petra_cothon();
 	test_ship_treasure();
+	test_ship_round_wreck();
 	test_petra_ship_treasure();
 	test_crannog_takes_fish();
 	test_next_fish_range();

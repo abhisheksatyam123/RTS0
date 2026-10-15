@@ -3771,6 +3771,14 @@ private:
 	// crosses the first `reach` of that line, kept `radius` off, or holds the walker. Only then does
 	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
 	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
+	// Ships keep off floating treasures (template_gaia_treasure shipwrecks: Obstruction/Static,
+	// BlockMovement): when the first SHIP_WRECK_STEER_REACH of ship i's line from (x, z) to (ax, az)
+	// crosses one, grown by its hull, `out` is the nearer way round, a corner of that square.
+	static constexpr float SHIP_WRECK_STEER_REACH = 12.0f;
+	bool ship_wreck_steer(size_t i, float x, float z, float ax, float az, nav::Vec2 &out) const;
+	// Whether ship i's step from (x, z) to (nx, nz) enters a floating treasure's square grown by its
+	// hull (not the one it sails to at (ax, az)): move_units refuses it, and the ship slides along.
+	bool ship_step_into_wreck(size_t i, float x, float z, float nx, float nz, float ax, float az) const;
 	// Navcells a wood closes to long paths: FOREST_CLOSED where trees and bushes leave no way
 	// across the cell (forest_cell_closed), FOREST_CLOSED_LARGE where only the large class's
 	// clearance finds none. rebuild_nav_grid marks the first obstructed and the second
