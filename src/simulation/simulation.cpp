@@ -11740,7 +11740,7 @@ void Simulation::tick_gather(float dt) {
 				for (size_t k = 0; k < buildings_.size(); ++k) {
 					const Building &b = buildings_[k];
 					if (b.build_progress >= 1.0f && (is_naval_dropsite(b.type) || is_civic_centre(b.type) ||
-							civ_building_is_dropsite(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD ||
+							civ_building_is_dropsite(b.type) || b.type == BLD_STOREHOUSE || is_food_dropsite(b.type) ||
 							b.type == BLD_DOCK))
 						drop_candidates.push_back((uint32_t)k);
 				}
@@ -11752,7 +11752,7 @@ void Simulation::tick_gather(float dt) {
 				if (units_.unit_type[i] == UNIT_FISHING_BOAT) valid_drop = is_naval_dropsite(b.type); // boats can only reach docks
 				else if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type)) valid_drop = true;
 				else if (b.type == BLD_STOREHOUSE && (units_.res_type_carried[i] != RES_FOOD)) valid_drop = true;
-				else if (b.type == BLD_FARMSTEAD && (units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
+				else if (is_food_dropsite(b.type) && (units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
 				else if (b.type == BLD_DOCK) valid_drop = true; // template_structure_military_dock: every resource
 
 				if (valid_drop) {
@@ -12603,8 +12603,10 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 		const float tech_min = tech_mods(b.team).bld_min_range[b.type];
 		const float min_r = tech_min >= 0.0f ? tech_min : ai.min_range;
 		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
+		// IsInTargetParabolicRange: from the structure's square obstruction, not a circle in it.
 		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
-			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
+			const nav::Vec2 gap = nav::footprint_gap(b, b.x + dx, b.z + dz);
+			const float eff_d = std::max(0.0f, std::sqrt(gap.x * gap.x + gap.y * gap.y) - other_half);
 			return eff_d >= min_r && in_parabolic_range(eff_d * eff_d, b_y, def_y, max_r);
 		};
 		bool ok = false;
@@ -13492,8 +13494,10 @@ void Simulation::tick_combat(float dt) {
 		const float tech_min = b.team < MAX_PLAYERS ? tech_mods(b.team).bld_min_range[b.type] : -1.0f;
 		const float min_r = tech_min >= 0.0f ? tech_min : ai.min_range; // Murder Holes
 		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
+		// IsInTargetParabolicRange: from the structure's square obstruction, not a circle in it.
 		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
-			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
+			const nav::Vec2 gap = nav::footprint_gap(b, b.x + dx, b.z + dz);
+			const float eff_d = std::max(0.0f, std::sqrt(gap.x * gap.x + gap.y * gap.y) - other_half);
 			return eff_d >= min_r && in_parabolic_range(eff_d * eff_d, b_y, def_y, max_r);
 		};
 		// No target on the ground stands lower than the map's lowest point, so none further than
@@ -13502,7 +13506,8 @@ void Simulation::tick_combat(float dt) {
 		// float rounding on the side of testing.
 		const float lowest_ground = lowest_terrain_height();
 		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
-		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + b.half_size + 1.0f : -1.0f;
+		const float corner = std::hypot(b.hu, b.hv); // the footprint's farthest reach from its centre
+		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + corner + 1.0f : -1.0f;
 		auto beyond = [&](float dx, float dz, float other_half) {
 			return ground_reach >= 0.0f && (std::fabs(dx) > ground_reach + other_half || std::fabs(dz) > ground_reach + other_half);
 		};
@@ -13521,7 +13526,8 @@ void Simulation::tick_combat(float dt) {
 		auto fauna_target = [&](int32_t f) {
 			const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
 			const uint8_t owner = fauna_owner_[f];
-			const bool foe = owner < MAX_PLAYERS ? b.team != GAIA_PLAYER && can_attack(b.team, owner) : shoots_gaia;
+			// A Gaia structure's enemy query covers every player, their livestock too (BuildingAI.js).
+			const bool foe = owner < MAX_PLAYERS ? can_attack(b.team, owner) : shoots_gaia;
 			return foe && !beyond(fx - b.x, fz - b.z, 0.0f) && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
 		};
 		// Every structure and animal that could pass building_target / fauna_target (a superset).
@@ -13545,7 +13551,7 @@ void Simulation::tick_combat(float dt) {
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
+			if (n) grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
 			if (!any) each_fauna([&](int32_t f) { any = any || fauna_target(f); });
 			if (!any) each_building([&](size_t o) { any = any || building_target(buildings_[o]); });
 			if (!any) continue;
@@ -13561,7 +13567,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
@@ -17357,7 +17363,7 @@ bool Simulation::dropsite_accepts(size_t i, const Building &b) const {
 	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return is_naval_dropsite(b.type);
 	if (is_civic_centre(b.type) || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)) return true;
 	if (b.type == BLD_STOREHOUSE) return rt != RES_FOOD;
-	return b.type == BLD_FARMSTEAD && rt == RES_FOOD;
+	return is_food_dropsite(b.type) && rt == RES_FOOD;
 }
 
 // ResourceDropsite.js IsShared + Player sharedDropsites (Diaspora): a player drops at an
@@ -19202,6 +19208,30 @@ void Simulation::petra_most_needed(const float want_rate[RES_COUNT], const float
 		for (int y = x; y > 0 && cmp(out[y - 1], out[y]) > 0.0f; --y) std::swap(out[y - 1], out[y]);
 }
 
+void Simulation::petra_wanted_resources(bool out[RES_COUNT]) {
+	if (petra_rates_this_turn()) {
+		for (int r = 0; r < RES_COUNT; ++r) out[r] = petra_want_rate_[r] > 0.0f;
+		return;
+	}
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
+	for (int r = 0; r < RES_COUNT; ++r) out[r] = demand[r] > petra_ps().res[r];
+}
+
+uint8_t Simulation::petra_most_needed_resource() {
+	if (petra_rates_this_turn()) {
+		uint8_t order[RES_COUNT];
+		petra_most_needed(petra_want_rate_, petra_cur_rate_, order);
+		return order[0];
+	}
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
+	uint8_t need = RES_FOOD;
+	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD})
+		if (demand[r] - petra_ps().res[r] > demand[need] - petra_ps().res[need]) need = r;
+	return need;
+}
+
 void Simulation::petra_manage_economy(float dt) {
 	petra_econ_timer_ += dt;
 	petra_econ_timer_ = 0.0f; // baseManager.js update: every AI turn
@@ -19472,7 +19502,7 @@ void Simulation::petra_manage_economy(float dt) {
 			if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type)) takes = 0xF;
 			else if (b.type == BLD_STOREHOUSE) takes = (1 << RES_WOOD) | (1 << RES_STONE) | (1 << RES_GOLD);
 			else if (b.type == BLD_DOCK) takes = 0xF; // template_structure_military_dock: food wood stone metal
-			else if (b.type == BLD_FARMSTEAD) takes = 1 << RES_FOOD;
+			else if (is_food_dropsite(b.type)) takes = 1 << RES_FOOD;
 			if (!takes) continue;
 			// Out of every base's territory (a dock on a neutral shore): basesManager.js noBase, 0.
 			const int base = bmap.at(b.x, b.z, map_half_);
@@ -19675,7 +19705,7 @@ void Simulation::petra_manage_economy(float dt) {
 					if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress >= 1.0f) continue;
 					const bool takes = is_civic_centre(b.type) || civ_building_is_dropsite(b.type) ||
 					                   (b.type == BLD_STOREHOUSE && rt != RES_FOOD) ||
-					                   b.type == BLD_DOCK || (b.type == BLD_FARMSTEAD && rt == RES_FOOD);
+					                   b.type == BLD_DOCK || (is_food_dropsite(b.type) && rt == RES_FOOD);
 					if (!takes || petra_access_at(b.x, b.z) != wland) continue;
 					order_build_or_repair(&uid, 1, b.id);
 					return true;
@@ -19713,7 +19743,7 @@ void Simulation::petra_manage_economy(float dt) {
 						if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress >= 1.0f) continue;
 						const bool takes = is_civic_centre(b.type) || civ_building_is_dropsite(b.type) ||
 						                   (b.type == BLD_STOREHOUSE && rt != RES_FOOD) ||
-						                   b.type == BLD_DOCK || (b.type == BLD_FARMSTEAD && rt == RES_FOOD);
+						                   b.type == BLD_DOCK || (is_food_dropsite(b.type) && rt == RES_FOOD);
 						const uint16_t land = takes ? petra_access_at(b.x, b.z) : 0;
 						if (land && land != wland && ship_to(land, b.x, b.z)) return true;
 					}
@@ -19770,7 +19800,7 @@ Simulation::PetraHuntScan Simulation::petra_hunt_scan() const {
 	for (const auto &b : buildings_) {
 		if (b.hp <= 0 || b.wrecked || b.build_progress < 1.0f || !dropsite_usable_by(petra_pid_, b)) continue;
 		if (b.team != petra_pid_ && !is_ally(b.team, petra_pid_)) continue; // isPlayerMutualAlly
-		if (!(is_civic_centre(b.type) || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)))
+		if (!(is_civic_centre(b.type) || is_food_dropsite(b.type) || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)))
 			continue;
 		PetraHuntScan::FoodDrop d{b.x, b.z, {}};
 		lands(b.x, b.z, b.half_size + GRID, d.land);
@@ -20393,7 +20423,7 @@ void Simulation::petra_manage_fields() {
 		}
 		if (b.type == BLD_CORRAL) ++corrals;
 		if (b.build_progress < 1.0f) continue;
-		if (is_civic_centre(b.type) || b.type == BLD_FARMSTEAD) {
+		if (is_civic_centre(b.type) || is_food_dropsite(b.type)) {
 			if (b.type == BLD_FARMSTEAD && !farmstead) farmstead = &b;
 			if (is_civic_centre(b.type) && !tc) tc = &b;
 			const int k = base_of(b.x, b.z);
@@ -20401,7 +20431,7 @@ void Simulation::petra_manage_fields() {
 			BaseFood &bf = bases[k - 1];
 			bf.drops.push_back({b.x, b.z});
 			bf.drop_access.push_back(petra_access_at(b.x, b.z));
-			const bool fs = b.type == BLD_FARMSTEAD;
+			const bool fs = is_food_dropsite(b.type);
 			if (fs ? !bf.by_farmstead : !bf.by) { bf.by_x = b.x; bf.by_z = b.z; bf.by = true; bf.by_farmstead = fs; }
 		}
 	}
@@ -23022,7 +23052,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 	std::vector<Dp> dps; // our dropsites but civic centres
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && !petra_base_anchor_type(b.type) &&
-		    (b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)))
+		    (b.type == BLD_STOREHOUSE || is_food_dropsite(b.type) || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)))
 			dps.push_back({b.x, b.z, petra_land_at(b.x, b.z)});
 
 	uint16_t home_land = 0;
@@ -28610,16 +28640,14 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			if (get_diplomacy(me, p) == DIPLO_ENEMY) ++enemies;
 			else if (is_ally(me, p) && is_ally(p, me)) ++mutual_allies;
 		}
-		// 0 A.D. counts Gaia among the enemies and us among the mutual allies. With
-		// fewer than two enemies no request can go out, so the timer (and its
-		// random draws) only starts once there are.
-		if (enemies + 1 > 2) {
-			if (sd.sent_lapse < 0.0f) sd.sent_lapse = 120.0f + sim_rng_.range_float(10.0f, 100.0f);
-			if (dip.elapsed > sd.sent_lapse) {
-				sd.sent_lapse = dip.elapsed + 300.0f + sim_rng_.range_float(10.0f, 100.0f);
-				if (mutual_allies + 1 < enemies && sim_rng_.range_float(0.0f, 1.0f) < 0.1f)
-					petra_send_diplomacy_request();
-			}
+		// 0 A.D. counts Gaia among the enemies and us among the mutual allies. The
+		// window re-arms whatever the enemy count; a request only goes out with
+		// at least two real enemies and fewer mutual allies than them.
+		if (sd.sent_lapse < 0.0f) sd.sent_lapse = 120.0f + sim_rng_.range_float(10.0f, 100.0f);
+		if (dip.elapsed > sd.sent_lapse) {
+			sd.sent_lapse = dip.elapsed + 300.0f + sim_rng_.range_float(10.0f, 100.0f);
+			if (enemies + 1 > 2 && mutual_allies + 1 < enemies && sim_rng_.range_float(0.0f, 1.0f) < 0.1f)
+				petra_send_diplomacy_request();
 		}
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 			if (!sd.sent_type[p] || dip.elapsed <= sd.sent_time[p] + 60.0f || pop_current(me) <= 70 ||
@@ -28642,10 +28670,11 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		available[RES_GOLD] -= acc.gold;
 		available[RES_STONE] -= acc.stone;
 	}
-	// pickMostNeededResources(...).wanted > 0: a resource our queues still want
-	// gathered (what their plans cost over what we have); only those are asked for.
-	float demand[RES_COUNT];
-	petra_resource_demand(demand);
+	// pickMostNeededResources(...).wanted > 0: a resource we want gathered (its wanted
+	// gather rate, or what our queues' plans cost over what we have when this turn's
+	// rates are not in); only those are asked for.
+	bool wanted[RES_COUNT];
+	petra_wanted_resources(wanted);
 	const int own_entities = petra_player_entities(me);
 	const int own_pop = pop_current(me);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -28655,7 +28684,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		bool any = false;
 		for (uint8_t r = 0; r < RES_COUNT; ++r) {
 			const float ally = players_[p].res[r];
-			const bool needed = demand[r] > petra_ps().res[r];
+			const bool needed = wanted[r];
 			if (donor && available[r] > 200.0f && ally < 0.2f * available[r]) {
 				amounts[r] = std::max(0, (int)std::floor(0.3f * available[r] - ally));
 				any |= amounts[r] > 0;
@@ -28786,13 +28815,10 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 		petra_say(PETRA_CHAT_ANSWER_ACCEPT, player, player, type);
 		return;
 	}
-	// Accept for a tribute of pickMostNeededResources()[0]: what our queues are
-	// furthest short of.
-	float demand[RES_COUNT];
-	petra_resource_demand(demand);
-	uint8_t need = RES_FOOD;
-	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD})
-		if (demand[r] - petra_ps().res[r] > demand[need] - petra_ps().res[need]) need = r;
+	// Accept for a tribute of pickMostNeededResources()[0]: the resource furthest short
+	// of its wanted gather rate (or, without this turn's rates, what our queues are
+	// furthest short of).
+	const uint8_t need = petra_most_needed_resource();
 	int own_units = 0;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == me) ++own_units;
@@ -32905,6 +32931,11 @@ void Simulation::rebuild_auras() {
 			if (std::strcmp(civ_hero_aura(a).id, "temple_heal") == 0) return (int16_t)a;
 		return (int16_t)-1;
 	}();
+	static const uint16_t farmstead_60 = [] {
+		uint16_t k = 0;
+		while (k < GATHER_RATE_RANGE_AURA_COUNT && std::strcmp(gather_rate_range_auras()[k].id, "farmstead_60") != 0) ++k;
+		return k;
+	}();
 	// Buildings: 0 A.D. structures/temple_heal (own Humans +1 hp/s within 40 m), and the
 	// civ structures' own range and global auras (civ_building_auras: the Iberian monument,
 	// Kushite pyramids and Temple of Amun, the Mauryan pillar, the civ temples' healing).
@@ -32915,6 +32946,12 @@ void Simulation::rebuild_auras() {
 		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE) {
 			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
 				b.x, b.z, temple_heal, CC_HUMAN);
+		}
+		// mixins/rotary_mill.xml: structures/farmstead_60, the owner's grain gatherers within 60 m x1.75.
+		if (b.type == BLD_MILL && farmstead_60 < GATHER_RATE_RANGE_AURA_COUNT) {
+			const GatherRateRangeAura &g = gather_rate_range_auras()[farmstead_60];
+			aura_mgr_.register_source(b.id, AURA_GATHER_RATE, g.radius * COMBAT_DISTANCE_SCALE, (float)farmstead_60,
+				aura_affected_players(b.team, g.players), b.x, b.z);
 		}
 		for (uint16_t k = 0; k < CAPTURE_STRUCTURE_AURA_COUNT; ++k)
 			if (capture_structure_auras()[k].building == b.type) register_capture_aura(b.id, b.team, capture_structure_auras()[k].aura, b.x, b.z);

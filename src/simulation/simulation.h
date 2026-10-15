@@ -951,7 +951,7 @@ public:
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
 	static bool is_dropsite_type(uint8_t type) {
-		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || is_food_dropsite(type) ||
 			civ_building_is_dropsite(type);
 	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
@@ -3220,6 +3220,10 @@ private:
 	bool petra_rates_this_turn() const { return petra_rates_stamp_ == petra_rates_key(); }
 	// headquarters.js pickMostNeededResources over those rates.
 	static void petra_most_needed(const float want_rate[RES_COUNT], const float cur_rate[RES_COUNT], uint8_t out[RES_COUNT]);
+	// pickMostNeededResources for diplomacy: wanted > 0 per resource, and the most needed one;
+	// from this turn's gather rates when in, else from what our queues are short of.
+	void petra_wanted_resources(bool out[RES_COUNT]);
+	uint8_t petra_most_needed_resource();
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
 	float petra_scout_timer_ = 0.0f;

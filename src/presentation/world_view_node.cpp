@@ -2197,12 +2197,15 @@ void RtsoWorldView::load_ambient_fx() {
 			(t == 0 ? ambient_fx_ : death_fx_)[String(keys[i]).utf8().get_data()] = set;
 		}
 	}
+	Array stone = Dictionary(root.get("projectiles", Dictionary())).get("stone", Array());
+	for (int j = 0; j < stone.size(); ++j) stone_fx_.push_back(String(stone[j]).utf8().get_data());
 	Dictionary run = root.get("run", Dictionary());
 	Array run_keys = run.keys();
 	for (int i = 0; i < run_keys.size(); ++i) {
 		Array names = run[run_keys[i]];
-		std::vector<std::string> &list = run_fx_[String(run_keys[i]).utf8().get_data()];
+		std::vector<std::string> list;
 		for (int j = 0; j < names.size(); ++j) list.push_back(String(names[j]).utf8().get_data());
+		run_fx_.insert(String(run_keys[i]), list);
 	}
 }
 
@@ -2299,15 +2302,18 @@ GPUParticles3D *RtsoWorldView::make_ambient_emitter(const AmbientParticle &d, fl
 // particle file's rate.
 void RtsoWorldView::emit_run_dust(const String &glb_id, const Vector3 &at, float sc, float delta) {
 	load_ambient_fx();
-	const auto it = run_fx_.find(glb_id.utf8().get_data());
-	if (it == run_fx_.end()) return;
-	for (const std::string &name : it->second) {
+	if (const std::vector<std::string> *names = run_fx_.getptr(glb_id)) emit_world_fx(*names, at, sc, delta);
+}
+
+// Puffs of each named particle at `at` (world space) at the files' rates over `delta`
+// seconds, `sc` world units per metre: one emitter per particle and scale that
+// emit_particle feeds, so a moving source leaves a trail and needs no node of its own.
+void RtsoWorldView::emit_world_fx(const std::vector<std::string> &names, const Vector3 &at, float sc, float delta) {
+	for (const std::string &name : names) {
 		const auto pd = ambient_particles_.find(name);
 		if (pd == ambient_particles_.end() || pd->second.rate <= 0.0f || pd->second.life.y <= 0.0f) continue;
 		const AmbientParticle &d = pd->second;
-		// Unit GLBs are in 0 A.D. metres: the model's scale is world units per metre.
-		const std::string key = name + "|" + std::to_string((int)std::lround(sc * 1000.0f));
-		GPUParticles3D *&p = run_emitters_[key];
+		GPUParticles3D *&p = world_emitters_[{ &d, (int)std::lround(sc * 1000.0f) }];
 		if (!p) {
 			p = make_ambient_emitter(d, sc);
 			p->set_amount(4096);
@@ -2323,7 +2329,8 @@ void RtsoWorldView::emit_run_dust(const String &glb_id, const Vector3 &at, float
 		const auto half = [](const Vector2 &r) { return 0.5f * std::abs(r.y - r.x); };
 		for (int k = 0; k < count; ++k) {
 			const Vector3 off(mid(d.pos[0]) + half(d.pos[0]) * (float)UtilityFunctions::randf_range(-1.0, 1.0),
-					mid(d.pos[1]), mid(d.pos[2]) + half(d.pos[2]) * (float)UtilityFunctions::randf_range(-1.0, 1.0));
+					mid(d.pos[1]) + half(d.pos[1]) * (float)UtilityFunctions::randf_range(-1.0, 1.0),
+					mid(d.pos[2]) + half(d.pos[2]) * (float)UtilityFunctions::randf_range(-1.0, 1.0));
 			p->emit_particle(Transform3D(Basis(), at + off * sc), Vector3(), Color(1, 1, 1, 1), Color(),
 					GPUParticles3D::EMIT_FLAG_POSITION);
 		}
@@ -2514,8 +2521,14 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 	if (key >= CROWD_KEY_COUNT) key = rtso::UNIT_VILLAGER;
 	std::unique_ptr<CrowdBatch> &slot = crowd_[civ][key];
 	if (!slot) {
+		const uint32_t ck = (uint32_t)civ << 16 | key;
+		crowd_made_.insert(std::lower_bound(crowd_made_.begin(), crowd_made_.end(), ck), ck);
 		slot = std::make_unique<CrowdBatch>();
-		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
+		slot->model_id = crowd_key_model(civ, key);
+		auto entry = rtso::ModelLibrary::get("units", slot->model_id);
+		slot->y_offset = entry.y_offset;
+		slot->scale = entry.scale;
+		slot->height = entry.aabb.size.y;
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
 		// Owner-coloured: a player_color.gdshader surface with a mask (the shader also
@@ -3575,6 +3588,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		status_sprites_built_ = true;
 	}
 	status_sprites_.begin_frame(get_viewport() ? get_viewport()->get_camera_3d() : nullptr);
+	status_rank_icons_.clear();
+	status_xp_bars_ = 0;
 	aura_icon_sources_.clear();
 	for (const rtso::AuraSource &as : sim->aura_manager().sources) {
 		if (!as.alive || as.aura < 0) continue;
@@ -3661,8 +3676,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
 	crowd_bake_deadline_us_ = bake_now_us() + CROWD_BAKE_BUDGET_US;
 	crowd_baked_this_frame_ = false;
+	// Per batch and clip: units drawn (counts) and placed so far (written). Only the rows of
+	// batches with units this frame are cleared and read; the rest count none.
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
-	std::memset(counts, 0, sizeof(counts));
+	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
+	static const int no_units[CROWD_CLIP_COUNT] = {};
+	for (const uint32_t ck : crowd_seen_list_) crowd_seen_[ck >> 16][ck & 0xFFFF] = 0;
+	crowd_seen_list_.clear();
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint8_t t = uview.unit_type[i];
@@ -3674,27 +3694,30 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		crowd_slot_scratch_[i] = (uint8_t)slot;
 		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
 		crowd_key_utype_[key] = t;
+		if (!crowd_seen_[civ][key]) {
+			crowd_seen_[civ][key] = 1;
+			crowd_seen_list_.push_back((uint32_t)civ << 16 | key);
+			std::memset(counts[civ][key], 0, sizeof(counts[civ][key]));
+			std::memset(written[civ][key], 0, sizeof(written[civ][key]));
+		}
 		counts[civ][key][slot]++;
 	}
-	for (int civ = 0; civ < rtso::CIV_COUNT; ++civ) {
-		for (int t = 0; t < CROWD_KEY_COUNT; ++t) {
-			int any = 0;
-			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += counts[civ][t][c];
-			if (any == 0 && !crowd_[civ][t]) continue;
-			if (any > 0) {
-				CrowdBatch &cb = crowd_batch((uint8_t)civ, (uint16_t)t);
-				ensure_crowd_frames((uint8_t)civ, (uint16_t)t, counts[civ][t]);
-				for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
-					if (counts[civ][t][c] > 0) crowd_mm(cb, c);
-			}
-			CrowdBatch &cb = *crowd_[civ][t];
-			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
+	// Every batch with units this frame exists before the walk, which goes civ by civ, key by key.
+	for (const uint32_t ck : crowd_seen_list_) crowd_batch((uint8_t)(ck >> 16), (uint16_t)(ck & 0xFFFF));
+	for (const uint32_t ck : crowd_made_) {
+		const int civ = (int)(ck >> 16), t = (int)(ck & 0xFFFF);
+		const bool any = crowd_seen_[civ][t] != 0;
+		const int *row = any ? counts[civ][t] : no_units;
+		CrowdBatch &cb = *crowd_[civ][t];
+		if (any) {
+			ensure_crowd_frames((uint8_t)civ, (uint16_t)t, row);
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
-				if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(counts[civ][t][c]);
+				if (row[c] > 0) crowd_mm(cb, c);
 		}
+		cycle_puppet_meshes(cb.puppet, cb.mm, row, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
+		for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
+			if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(row[c]);
 	}
-	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
-	std::memset(written, 0, sizeof(written));
 
 	const Color col_player(0.55f, 0.72f, 1.0f);
 	const Color col_enemy(1.0f, 0.52f, 0.42f);
@@ -3771,15 +3794,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
 		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
-		String utype_str = crowd_key_model(uciv, ckey);
-		String cat_units3 = "units";
-		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
+		// The batch holds the model's entry values (every unit drawn this frame has one).
+		const CrowdBatch &model_b = crowd_batch(uciv, ckey);
+		const String &utype_str = model_b.model_id;
 		const float turret_h = sim->unit_height_offset(i); // turret points stand on walls
 		float ground = sim->get_terrain_height(x, z);
 		// 0 A.D. ships are Position Floating: they ride the water surface, not the seabed.
 		if (rtso::unit_is_ship(utype) && sim->water_height() > -0.5f) ground = std::max(ground, drawn_water_height(sim));
-		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + entry.y_offset;
-		float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
+		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + model_b.y_offset;
+		float sc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
 		const float death_t = dying ? uview.death_timer[i] : 0.0f;
@@ -3788,7 +3811,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			apply_ship_wave_xform(xf, id, anim_time, speed2);
 		}
 		if (dying) {
-			apply_unit_death_xform(xf, utype, death_t, x, z, entry.aabb.size.y * sc, false);
+			apply_unit_death_xform(xf, utype, death_t, x, z, model_b.height * sc, false);
 		}
 		if (want.clip == CLIP_RUN && !dying) emit_run_dust(utype_str, Vector3(x, ground, z), sc, delta);
 		const int clip = crowd_slot_scratch_[i];
@@ -3847,7 +3870,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (!aura_icon_sources_.empty())
 				status_aura_icons(x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
 			if (bars || st.n_icons > 0)
-				draw_status_stack(sim, Vector3(x, y + entry.aabb.size.y * sc + 0.3f, z), 0.9f, 0.08f, st);
+				draw_status_stack(sim, Vector3(x, y + model_b.height * sc + 0.3f, z), 0.9f, 0.08f, st);
 		}
 
 		if (detailed.count(id) == 0) continue;
@@ -3899,14 +3922,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 
-		float dsc = entry.scale > 0.05f ? entry.scale : 1.0f;
+		float dsc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
 		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw).scaled(Vector3(dsc, dsc, dsc)),
 		               Vector3(x, y, z));
 		if (ship_wave) {
 			apply_ship_wave_xform(dxf, id, anim_time, speed2);
 		}
 		if (dying) {
-			apply_unit_death_xform(dxf, utype, death_t, x, z, entry.aabb.size.y * dsc, has_death_clip);
+			apply_unit_death_xform(dxf, utype, death_t, x, z, model_b.height * dsc, has_death_clip);
 		}
 		v.root->set_transform(dxf);
 		if (ship_wave) {
@@ -4303,6 +4326,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		Transform3D xf(rot, pos);
 		if (proj.visual == 2 && stone_proj_mm.is_valid()) {
+			// 0.28's stone throwers fling flaming rocks (props/units/weapons/rock_flaming.xml,
+			// stone_projectile_*_flaming.xml); the Han mangonel's rock.xml has no fire.
+			if (sim->team_civ(proj.team) != rtso::CIV_HAN) {
+				load_ambient_fx();
+				emit_world_fx(stone_fx_, pos, stone_proj_scale, delta);
+			}
 			xf.basis = xf.basis.scaled(Vector3(stone_proj_scale, stone_proj_scale, stone_proj_scale));
 			stone_proj_mm->set_instance_transform(stone_i++, xf);
 		} else if (proj.visual == 1 && bolt_mm.is_valid()) {
@@ -4660,6 +4689,7 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 		status_sprites_.bar(type, at(h), width, h, amount);
 		y += h * 1.2f;
 	};
+	if (st.xp >= 0.0f) ++status_xp_bars_;
 	bar(RtsoStatusSprites::BAR_PACK, st.xp, height * 2.0f / 3.0f);
 	bar(RtsoStatusSprites::BAR_PACK, st.pack, height);
 	bar(RtsoStatusSprites::BAR_UPGRADE, st.upgrade, height);
@@ -4692,7 +4722,10 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 		for (int k = 0; k < st.n_icons; ++k, dx += icon * 1.2f) status_sprites_.icon(st.icons[k], c, dx, icon);
 		y += icon + height * 0.5f;
 	}
-	if (st.rank_icon >= 0) status_sprites_.icon(st.rank_icon, at(icon), 0.0f, icon);
+	if (st.rank_icon >= 0) {
+		status_sprites_.icon(st.rank_icon, at(icon), 0.0f, icon);
+		status_rank_icons_.push_back(status_sprites_.icon_path(st.rank_icon));
+	}
 }
 
 // Selectable.js overlay for structures: an outline round the footprint of each selected

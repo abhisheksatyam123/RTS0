@@ -400,13 +400,58 @@ func _build_tabs() -> void:
 			if d != 0:
 				select_tab(TAB_BUTTONS_JS.next_index(_tab, d, TAB_BUTTONS.size()))
 				b.accept_event())
+	# A container re-sort puts the sliding panel back at 0; keep it where it is.
+	(get_node("%TabButtons").get_parent() as Container).sort_children.connect(func():
+		if _slide_panel != null:
+			_slide_panel.position.x = _slide_x)
 	select_tab(-1 if _mp_role == "client" else 0)
 
 func select_tab(i: int) -> void:
+	var was := _tab
 	_tab = i
+	var slide := RtsoUserConfig.new().get_bool("gui.gamesetup.settingsslide")
 	for k in SETTING_TABS.size():
-		(get_node("%" + SETTING_TABS[k]) as Control).visible = k == i
+		var panel: Control = get_node("%" + SETTING_TABS[k])
+		# The panel that closes with nothing taking its place stays up while it
+		# slides out; the others switch at once, as 0.28's do.
+		panel.visible = k == i or (slide and i == -1 and k == was)
 		(get_node("%" + TAB_BUTTONS[k]) as Button).set_pressed_no_signal(k == i)
+	if not slide:
+		_slide_x = 0.0
+		_slide_panel = null
+		return
+	if was == -1 and i != -1:
+		_slide_panel = get_node("%" + SETTING_TABS[i])
+		if _slide_x == 0.0:
+			_slide_x = -_slide_width()
+	elif i == -1 and was != -1:
+		_slide_panel = get_node("%" + SETTING_TABS[was])
+	elif i != -1:
+		_slide_panel = get_node("%" + SETTING_TABS[i])
+
+## 0.28 GameSettingsPanel.js onTick (gui.gamesetup.settingsslide): the settings
+## panel slides in from the left at 1.2 px/ms when a tab opens and back out when
+## the last one closes.
+const SLIDE_SPEED := 1200.0 # px per second
+var _slide_x := 0.0
+var _slide_panel: Control = null
+
+func _slide_width() -> float:
+	return maxf((get_node("%TabButtons") as Control).size.x, 330.0)
+
+func _tick_slide(delta: float) -> void:
+	if _slide_panel == null:
+		return
+	var target := 0.0 if _tab != -1 else -_slide_width()
+	_slide_x = move_toward(_slide_x, target, SLIDE_SPEED * delta)
+	_slide_panel.position.x = _slide_x
+	if _slide_x != target:
+		return
+	if _tab == -1:
+		_slide_panel.visible = false
+		_slide_panel.position.x = 0.0
+		_slide_x = 0.0
+	_slide_panel = null
 
 # ---------------------------------------------------------------- maps ---
 
@@ -2176,7 +2221,8 @@ var _wait_label: Label
 var _rated: CheckBox
 var _setting_warning: Label
 var _saved_label: Label
-var _rated_was_available := false
+## The player count and cheats setting Rated Game was last set from (Rating.js maybeUpdate).
+var _rated_key := ""
 ## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
 ## StayReady); pressing moves to the next state.
 const READY_CAPTIONS := ["I'm ready", "Stay ready", "I'm not ready!"]
@@ -2271,7 +2317,7 @@ func _build_net_controls() -> void:
 	_rated = CheckBox.new()
 	_rated.name = "RatedGame"
 	_rated.text = "Rated Game"
-	_rated.tooltip_text = "Toggle 1v1 rated game."
+	_rated.tooltip_text = "Toggle if this game will be rated for the leaderboard."
 	_rated.toggled.connect(func(_on): _update_rated(); _update_net_controls())
 	# GameSettingsLayout.js: Rating closes the Game Type tab.
 	%TeamsRow.add_child(_rated)
@@ -2353,8 +2399,9 @@ func _update_net_chat() -> void:
 	var log: RichTextLabel = %NetChatLog
 	log.text = str(chat.get("text", ""))
 
-## Rating.js: a lobby game of exactly two players may be rated, and is by
-## default when it becomes one; Cheats.js: a rated game has no cheats.
+## Rating.js: a lobby game of exactly two players without cheats may be rated, and is by
+## default whenever the player count or cheats change (maybeUpdate: enabled = available);
+## Cheats.js: a rated game has no cheats.
 func _rated_available() -> bool:
 	# Rating.js: a saved game is never rated.
 	return not _saved_game() and has_node("/root/MatchSettings") and str(get_node("/root/MatchSettings").net_lobby) != "" \
@@ -2363,15 +2410,16 @@ func _rated_available() -> bool:
 func _update_rated() -> void:
 	if _rated == null or _mp_role != "host":
 		return
-	var avail := _rated_available()
-	if avail and not _rated_was_available:
-		_rated.set_pressed_no_signal(true)
-	_rated_was_available = avail
-	_rated.visible = avail
 	var cheats: CheckBox = %Cheats
+	var avail := _rated_available() and not cheats.button_pressed
+	var key := "%d/%s" % [_net_rows().size(), cheats.button_pressed]
+	if key != _rated_key:
+		_rated_key = key
+		_rated.set_pressed_no_signal(avail)
+	if not avail:
+		_rated.set_pressed_no_signal(false)
+	_rated.visible = avail
 	cheats.disabled = avail and _rated.button_pressed
-	if cheats.disabled:
-		cheats.set_pressed_no_signal(false)
 
 func _update_net_controls() -> void:
 	if _mp_role == "none":
@@ -2404,6 +2452,7 @@ func _on_ready_pressed() -> void:
 	_update_net_controls()
 
 func _process(delta: float) -> void:
+	_tick_slide(delta)
 	# GameDescription.updateGameDescription: the summary follows every setting.
 	_desc_tick += delta
 	if _desc_tick >= 0.3:

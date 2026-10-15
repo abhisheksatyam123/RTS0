@@ -20,6 +20,8 @@ const Driver := preload("res://scenes/menu/autostart_driver.gd")
 
 ## Set once the command line has started a match: back at the menu it doesn't again.
 static var consumed := false
+## Used in place of the command line when set (a test run without its arguments).
+static var args_override := PackedStringArray()
 
 ## The -autostart options in args: each name (without dashes) to its values in order.
 static func parse(args: PackedStringArray) -> Dictionary:
@@ -199,7 +201,7 @@ static func configure_run(ms: Node, opts: Dictionary) -> Node:
 static func run(ms: Node) -> bool:
 	if consumed or ms == null:
 		return false
-	var opts := parse(OS.get_cmdline_user_args() + OS.get_cmdline_args())
+	var opts := parse(args_override if not args_override.is_empty() else OS.get_cmdline_user_args() + OS.get_cmdline_args())
 	# 0.28 AutostartClient: a client needs no map, the host sends it.
 	if not opts.has("autostart") and not opts.has("autostart-client"):
 		return false

@@ -1286,6 +1286,33 @@ static void test_barter() {
 	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0, "short on gold, none for what it has plenty of");
 }
 
+// diplomacyManager.js: tributes() asks only for a resource pickMostNeededResources wants
+// (wanted gather rate > 0), handleDiplomacyRequest asks a tribute of its first entry, and
+// update() re-arms the diplomacy-request window even with too few enemies to send one.
+static void test_diplomacy_most_needed() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 128.0f);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	run_for(*s, 20.0f);
+	for (int r = 0; r < RES_COUNT; ++r) s->petra_cur_rate_[r] = s->petra_want_rate_[r] = 0.0f;
+	s->petra_want_rate_[RES_GOLD] = 1.0f;  // wanted, nobody mines it
+	s->petra_want_rate_[RES_FOOD] = 3.0f;  // wanted, gathered at 2
+	s->petra_cur_rate_[RES_FOOD] = 2.0f;
+	s->petra_cur_rate_[RES_WOOD] = 4.0f;   // gathered but not wanted
+	s->petra_rates_stamp_ = s->petra_rates_key();
+	bool wanted[RES_COUNT];
+	s->petra_wanted_resources(wanted);
+	CHECK(wanted[RES_GOLD] && wanted[RES_FOOD] && !wanted[RES_WOOD] && !wanted[RES_STONE], "only resources with a wanted rate are asked for");
+	CHECK(s->petra_most_needed_resource() == RES_GOLD, "the tribute asked is the most needed resource (wanted, none gathered)");
+	// One enemy (the human): no request can go out, but the window still runs.
+	run_for(*s, 400.0f);
+	CHECK(s->petra_sent_diplo_.sent_lapse > s->petra_diplo_.elapsed, "the request window re-arms with a single enemy");
+	for (int p = 0; p < 8; ++p) CHECK(!s->petra_sent_diplo_.sent_type[p], "no request with a single enemy");
+}
+
 // queueplanBuilding.js findGoodPosition favorBorder: with no market or dock anywhere to measure
 // from (findMarketLocation [-1, -1, -1, 0]), the first market goes anywhere in our bases, +50
 // on the map border's tiles, so a later market can be far from it.
@@ -5548,6 +5575,7 @@ int main(int argc, char **argv) {
 	RUN(test_hunters_028);
 	RUN(test_first_base);
 	RUN(test_barter);
+	RUN(test_diplomacy_most_needed);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
 	RUN(test_petra_config_pop_scaling);
