@@ -1580,6 +1580,14 @@ static void apply_unit_tools(Node *root, const StringName &clip) {
 	rtso::ModelLibrary::apply_clip_tools(root, clip);
 }
 
+// apply_unit_tools on a detailed unit's model, skipped when it already shows the clip's tools.
+void RtsoWorldView::apply_vis_tools(UnitVis &v, const StringName &clip) {
+	if (v.tools_model == v.model && v.tools_clip == clip) return;
+	apply_unit_tools(v.model, clip);
+	v.tools_model = v.model;
+	v.tools_clip = clip;
+}
+
 void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	if (v.model_id == model_name && v.model) return;
 	if (v.anim) {
@@ -1611,7 +1619,8 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 			v.anim->set_speed_scale(1.0);
 			v.anim->advance(0.0);
 		}
-		apply_unit_tools(v.model, StringName("Idle"));
+		v.tools_model = nullptr;
+		apply_vis_tools(v, StringName("Idle"));
 		return;
 	}
 	MeshInstance3D *mi = memnew(MeshInstance3D);
@@ -1830,6 +1839,17 @@ String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_s
 	return String(rtso::civ_building_model(civ, type));
 }
 
+void RtsoWorldView::set_building_pose(BuildingVis &v, Node3D *n3, const Vector3 &scale, const Vector3 &rot, const Vector3 &pos) {
+	if (v.pose_set && v.pose_scale == scale && v.pose_rot == rot && v.pose_pos == pos) return;
+	n3->set_scale(scale);
+	n3->set_rotation(rot);
+	n3->set_position(pos);
+	v.pose_set = true;
+	v.pose_scale = scale;
+	v.pose_rot = rot;
+	v.pose_pos = pos;
+}
+
 void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_name) {
 	if (v.model_id == model_name && v.model) return;
 	if (v.model) {
@@ -1841,6 +1861,7 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 	v.upgrade_scaffold = nullptr; // freed with the old model
 	v.fog_dim = -1.0f; // new nodes: re-apply the fog overlay
 	v.player_rgba = -1;
+	v.pose_set = false;
 	v.model = instantiate_building_id(model_name);
 	if (!v.model) {
 		MeshInstance3D *mi = memnew(MeshInstance3D);
@@ -3019,7 +3040,7 @@ void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop
 	}
 	v.anim->play(clip);
 	v.anim->advance(0.0);
-	apply_unit_tools(v.model, clip);
+	apply_vis_tools(v, clip);
 }
 
 // Biped skeletons (46 bones) share 0 A.D.'s gatherer and promotion clips;
@@ -4076,7 +4097,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (play != CLIP_NONE) {
 				play_unit_clip(v, clip_name(play), loop_clip);
 				v.anim->advance((double)delta);
-				apply_unit_tools(v.model, clip_name(play));
+				apply_vis_tools(v, clip_name(play));
 			}
 			const uint8_t prop_clip = is_carry_variant(play) ? (uint8_t)play : 0;
 			if (prop_clip != v.carry_clip) {
@@ -4229,8 +4250,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 
 		// Models face -z unrotated, so the sim's 0 A.D. rotation is offset by DEFAULT_BUILDING_ROT.
-		v.root->set_transform(Transform3D(Basis(Vector3(0, 1, 0), b.rot - rtso::Simulation::DEFAULT_BUILDING_ROT),
-				Vector3(b.x, base_y, b.z)));
+		{
+			const Transform3D xf(Basis(Vector3(0, 1, 0), b.rot - rtso::Simulation::DEFAULT_BUILDING_ROT), Vector3(b.x, base_y, b.z));
+			if (!v.root_xf_set || !(xf == v.root_xf)) {
+				v.root->set_transform(xf);
+				v.root_xf = xf;
+				v.root_xf_set = true;
+			}
+		}
 		{
 			const auto &site = rtso::ModelLibrary::get(cat_b, mid);
 			set_building_site_visible(v, v.phase == 1 || v.phase == 2, v.phase == 2, b.type, bciv, mid,
@@ -4238,38 +4265,39 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 
 		if (Node3D *n3 = Object::cast_to<Node3D>(v.model)) {
-			n3->set_scale(Vector3(b_scale, b_scale, b_scale));
-			n3->set_rotation(Vector3());
+			Vector3 scale(b_scale, b_scale, b_scale), rot, pos;
 			if (v.phase == 1) {
 				n3->set_visible(false);
+				pos = v.pose_set ? v.pose_pos : n3->get_position();
 			} else if (v.phase == 2) {
 				n3->set_visible(true);
 				float dy = entry.aabb.size.y * b_scale;
 				if (dy < 1.0f)
 					dy = 4.0f;
-				n3->set_position(Vector3(0, entry.y_offset + (b_progress - 1.0f) * dy, 0));
+				pos = Vector3(0, entry.y_offset + (b_progress - 1.0f) * dy, 0);
 			} else if (v.phase == 3) {
 				n3->set_visible(true);
 				float t = Math::clamp(v.phase_t / 0.70f, 0.0f, 1.0f);
 				float dy = entry.aabb.size.y * b_scale;
 				if (dy < 1.0f)
 					dy = 4.0f;
-				n3->set_rotation(Vector3(t * 0.22f, t * 0.40f, t * -0.14f));
-				n3->set_position(Vector3((t - 0.5f) * 0.45f, entry.y_offset - t * dy * 0.90f, (0.5f - t) * 0.35f));
+				rot = Vector3(t * 0.22f, t * 0.40f, t * -0.14f);
+				pos = Vector3((t - 0.5f) * 0.45f, entry.y_offset - t * dy * 0.90f, (0.5f - t) * 0.35f);
 			} else if (v.phase == 4 && own_rubble) {
 				// template_rubble.xml Decay: it stands DelayTime 15 s, then sinks at SinkRate 0.2 m/s.
 				n3->set_visible(true);
-				n3->set_scale(Vector3(rubble_k, rubble_k, rubble_k));
+				scale = Vector3(rubble_k, rubble_k, rubble_k);
 				const float sink = std::max(0.0f, v.phase_t - 0.70f - 15.0f) * 0.2f * rubble_metre;
-				n3->set_position(rubble_pos - Vector3(0, sink, 0));
+				pos = rubble_pos - Vector3(0, sink, 0);
 			} else if (v.phase == 4) {
 				n3->set_visible(true);
 				float sink = Math::clamp((v.phase_t - 0.70f) / 2.40f, 0.0f, 1.0f);
-				n3->set_position(Vector3(0, entry.y_offset - sink * 1.20f, 0));
+				pos = Vector3(0, entry.y_offset - sink * 1.20f, 0);
 			} else {
 				n3->set_visible(true);
-				n3->set_position(Vector3(0, entry.y_offset, 0));
+				pos = Vector3(0, entry.y_offset, 0);
 			}
+			set_building_pose(v, n3, scale, rot, pos);
 		}
 
 		// Out of full sight (a mirage, or an own structure in the fog): darken it
