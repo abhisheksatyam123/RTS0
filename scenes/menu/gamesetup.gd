@@ -162,10 +162,11 @@ const POP_TYPE_PLAYER := 0
 const POP_TYPE_TEAM := 1
 const POP_TYPE_WORLD := 2
 const POP_UNLIMITED := 10000
-const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
-# 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
-const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
-const RELIC_COUNTS := [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
+# 0.28 Sliders/Ceasefire.js (0-45 min), WonderDuration.js and RelicDuration.js (0-60 min,
+# default 20) and RelicCount.js (1 to the number of civs, default 2), one entry a step.
+static var CEASEFIRES: Array = range(0, 46)
+static var VICTORY_TIMES: Array = range(0, 61)
+static var RELIC_COUNTS: Array = range(1, CIVS.size() + 1)
 # 0 A.D. map trigger options: Flood's WaterLevel and Extinct Volcano's SeaLevelRiseTime.
 const WATER_LEVELS := ["Rising water", "Shallow water", "Deep water"]
 const SEA_RISE_TIMES := [0, 5, 10, 15, 20, 25, 30, 40, 50, 60]
@@ -1439,19 +1440,23 @@ func _build_options() -> void:
 	_select_pop(300, false) # 0 A.D. default: 300 per player
 	var cf := _make_option(%CeasefireSlot)
 	for c in CEASEFIRES:
-		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
+		cf.add_item(tr("No ceasefire") if c == 0 else _minutes(c))
 	cf.select(0)
+	cf.tooltip_text = tr("Set time where no attacks are possible.")
 	var wt := _make_option(%WonderTimeSlot)
 	var rt := _make_option(%RelicTimeSlot)
 	for t in VICTORY_TIMES:
-		wt.add_item("%d min" % t)
-		rt.add_item("hold %d min" % t)
+		wt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
+		rt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
 	wt.select(VICTORY_TIMES.find(20))
 	rt.select(VICTORY_TIMES.find(20))
+	wt.tooltip_text = tr("Minutes until the player has achieved Wonder Victory")
+	rt.tooltip_text = tr("Minutes until the player has achieved Relic Victory.")
 	var rc := _make_option(%RelicCountSlot)
 	for c in RELIC_COUNTS:
-		rc.add_item(str(c))
+		rc.add_item(tr("%d relic") % c if c == 1 else tr("%d relics") % c)
 	rc.select(RELIC_COUNTS.find(2))
+	rc.tooltip_text = tr("Total number of relics spawned on the map. Relic victory is most realistic with only one or two relics. With greater numbers, the relics are important to capture to receive aura bonuses.")
 	var wl := _make_option(%WaterLevelSlot)
 	for w in WATER_LEVELS:
 		wl.add_item(w)
@@ -1922,6 +1927,10 @@ func _on_start_pressed() -> void:
 	var err := MatchSettings.go("res://scenes/main.tscn")
 	if err != OK:
 		_show_error("Could not load match scene.")
+
+## translatePlural("%(min)s minute", "%(min)s minutes").
+func _minutes(n: int) -> String:
+	return (tr("%d minute") if n == 1 else tr("%d minutes")) % n
 
 func _show_error(msg: String) -> void:
 	var lbl := $VBox/HBox/Right/BtnStart as Button

@@ -396,9 +396,9 @@ layout_mode = 2
 [node name="WonderLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Wonder victory: how long a finished wonder must stand."
+tooltip_text = "Minutes until the player has achieved Wonder Victory"
 mouse_filter = 1
-text = "Wonder"
+text = "Wonder Duration"
 
 [node name="WonderTimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
@@ -409,9 +409,9 @@ size_flags_horizontal = 3
 [node name="RelicLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Capture the Relic: how many relics, and how long all of them must be held."
+tooltip_text = "Total number of relics spawned on the map, and the minutes until the player has achieved Relic Victory."
 mouse_filter = 1
-text = "Relics"
+text = "Relic Count, Duration"
 
 [node name="RelicCountSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
