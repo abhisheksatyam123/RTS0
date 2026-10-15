@@ -2043,7 +2043,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_GATE: case BLD_WALL_SEGMENT:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
 		// template_structure_defensive_palisade: Defensive Palisade, no Wall.
-		case BLD_PALISADE: case BLD_PALISADE_GATE: return c | TC_DEFENSIVE;
+		case BLD_PALISADE: case BLD_PALISADE_GATE: return c | TC_DEFENSIVE | TC_PALISADE;
 		// structures/kush/temple is the Temple of Apedemak; RTS0's one temple type carries the
 		// class, which only Arakamani's aura names and it reaches only its Kushite owner.
 		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC | TC_TEMPLEOFAPEDEMAK;
@@ -2949,10 +2949,12 @@ inline LootInfo structure_loot(uint8_t type, uint8_t civ, float half_w) {
 	}
 	if (!is_wallset_piece(type, half_w) || is_gate_type(type)) return l;
 	const uint8_t kind = wallset_kind_of(type);
-	const WallSetInfo &ws = wallset_info(kind);
 	int k = 3; // the set's tower
-	if (!is_wallset_tower_piece(type, half_w))
-		for (k = 0; k < 2 && std::fabs(0.5f * ws.lengths[k] - half_w) >= 0.01f; ++k) {}
+	if (!is_wallset_tower_piece(type, half_w)) {
+		// The civ's own lengths (Ptolemaic and Seleucid pieces differ from the generic set).
+		const int seg = wallset_segment_index(type, half_w, civ);
+		k = seg >= 0 ? seg : 2;
+	}
 	static constexpr uint16_t STONE[4] = {7, 5, 3, 10}, PALISADE[4] = {3, 2, 1, 3}, SIEGE[4] = {12, 8, 4, 16};
 	if (kind == WALLSET_PALISADE) set(PALISADE[k], 0);
 	else if (kind == WALLSET_SIEGE) set(SIEGE[k], 0);

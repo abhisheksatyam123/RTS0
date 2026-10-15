@@ -23704,6 +23704,63 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_fruit_apple_v2": {
+   "file": "models/vegetation/flora_fruit_apple_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    15.935,
+    14.27,
+    14.086
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/apple_bloom.xml",
+    "actor:art/actors/flora/trees/apple_top_bloom_02.xml",
+    "mesh:gaia/tree_apple_top_b.dae",
+    "mesh:gaia/tree_apple_trunk_b.dae",
+    "skin:gaia/tree_apple_bloom.dds",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_fruit_apple_v3": {
+   "file": "models/vegetation/flora_fruit_apple_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    15.935,
+    14.27,
+    14.086
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/apple_bloom.xml",
+    "actor:art/actors/flora/trees/apple_top_bloom_03.xml",
+    "mesh:gaia/tree_apple_top_b.dae",
+    "mesh:gaia/tree_apple_trunk_a.dae",
+    "skin:gaia/tree_apple_bloom.dds",
+    "skin:gaia/trunk_deciduous_a.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_fruit_apple_v4": {
+   "file": "models/vegetation/flora_fruit_apple_v4.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    14.03,
+    9.223,
+    12.839
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/apple_bloom.xml",
+    "actor:art/actors/flora/trees/apple_top_bloom_04.xml",
+    "mesh:gaia/tree_apple_top_d.dae",
+    "mesh:gaia/tree_apple_trunk_b.dae",
+    "skin:gaia/tree_apple_bloom.dds",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_fruit_banana": {
    "file": "models/vegetation/flora_fruit_banana.glb",
    "origin": "ground-center",
@@ -23716,6 +23773,22 @@
    "sources": [
     "actor:art/actors/flora/trees/banana.xml",
     "mesh:gaia/banana.dae",
+    "skin:gaia/banana.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_fruit_banana_v2": {
+   "file": "models/vegetation/flora_fruit_banana_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.859,
+    14.976,
+    10.839
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/banana.xml",
+    "mesh:gaia/banana_2.dae",
     "skin:gaia/banana.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
@@ -23787,6 +23860,38 @@
    ],
    "upstream_material": "basic_trans_norm_spec.xml"
   },
+  "flora_fruit_berry_05_v2": {
+   "file": "models/vegetation/flora_fruit_berry_05_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.792,
+    3.169,
+    6.792
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_berries_large.xml",
+    "mesh:gaia/bush_med_a.dae",
+    "skin:gaia/bush_berries_c.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_fruit_berry_05_v3": {
+   "file": "models/vegetation/flora_fruit_berry_05_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.792,
+    3.169,
+    6.792
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_berries_large.xml",
+    "mesh:gaia/bush_med_a.dae",
+    "skin:gaia/bush_berries_a.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
   "flora_fruit_date": {
    "file": "models/vegetation/flora_fruit_date.glb",
    "origin": "ground-center",
@@ -23805,6 +23910,24 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_fruit_date_v2": {
+   "file": "models/vegetation/flora_fruit_date_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.408,
+    22.365,
+    9.572
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_date_new_fruit.xml",
+    "actor:art/actors/props/flora/decal_dates.xml",
+    "actor:art/actors/props/flora/decal_palms_patch.xml",
+    "mesh:gaia/palm_date_new_fruit_2.dae",
+    "skin:gaia/palm_date_new_3_fruiting.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_fruit_fig": {
    "file": "models/vegetation/flora_fruit_fig.glb",
    "origin": "ground-center",
@@ -23819,6 +23942,25 @@
     "actor:art/actors/flora/trees/fig_top_a.xml",
     "mesh:gaia/tree_fig_top_a.dae",
     "mesh:gaia/tree_fig_trunk_a.dae",
+    "skin:gaia/tree_carob_a.dds",
+    "skin:gaia/trunk_baobab.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_fruit_fig_v2": {
+   "file": "models/vegetation/flora_fruit_fig_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    18.463,
+    17.113,
+    20.717
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/fig.xml",
+    "actor:art/actors/flora/trees/fig_top_b.xml",
+    "mesh:gaia/tree_fig_top_b.dae",
+    "mesh:gaia/tree_fig_trunk_b.dae",
     "skin:gaia/tree_carob_a.dds",
     "skin:gaia/trunk_baobab.dds"
    ],
@@ -23858,6 +24000,24 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_acacia_large_v2": {
+   "file": "models/vegetation/flora_tree_acacia_large_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    43.569,
+    17.755,
+    45.504
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/acacia_large.xml",
+    "actor:art/actors/flora/trees/acacia_large_top.xml",
+    "mesh:gaia/trees/leaves/acacia_05.dae",
+    "mesh:gaia/trees/trunks/acacia_08.dae",
+    "skin:gaia/acacia.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_bamboo_dragon": {
    "file": "models/vegetation/flora_tree_bamboo_dragon.glb",
    "origin": "ground-center",
@@ -23887,6 +24047,38 @@
    "sources": [
     "actor:art/actors/flora/trees/bamboo_single.xml",
     "mesh:gaia/bamboo_single_1.dae",
+    "skin:gaia/bamboo_1.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_bamboo_single_v2": {
+   "file": "models/vegetation/flora_tree_bamboo_single_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.43,
+    17.372,
+    7.93
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/bamboo_single.xml",
+    "mesh:gaia/bamboo_single_2.dae",
+    "skin:gaia/bamboo_1.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_bamboo_single_v3": {
+   "file": "models/vegetation/flora_tree_bamboo_single_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    7.254,
+    15.166,
+    6.711
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/bamboo_single.xml",
+    "mesh:gaia/bamboo_single_3.dae",
     "skin:gaia/bamboo_1.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
@@ -23932,6 +24124,28 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_baobab_2_young_v2": {
+   "file": "models/vegetation/flora_tree_baobab_2_young_v2.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    11.783,
+    15.615,
+    15.41
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/baobab_new_young.xml",
+    "actor:art/actors/flora/trees/baobab_new_young_branches.xml",
+    "actor:art/actors/flora/trees/baobab_new_young_leaves.xml",
+    "mesh:gaia/baobab_young_1_branches.dae",
+    "mesh:gaia/baobab_young_1_leaves.dae",
+    "mesh:gaia/baobab_young_2_trunk.dae",
+    "skin:gaia/tree_baobab_dead.png",
+    "skin:gaia/tree_baobab_thin.png",
+    "skin:gaia/tree_baobab_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_baobab_3_mature": {
    "file": "models/vegetation/flora_tree_baobab_3_mature.glb",
    "origin": "ground-center",
@@ -23949,6 +24163,52 @@
     "mesh:gaia/baobab_1_branches.dae",
     "mesh:gaia/baobab_1_leaves.dae",
     "mesh:gaia/baobab_2_trunk.dae",
+    "skin:gaia/tree_baobab.png",
+    "skin:gaia/tree_baobab_dead.png",
+    "skin:gaia/tree_baobab_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_baobab_3_mature_v2": {
+   "file": "models/vegetation/flora_tree_baobab_3_mature_v2.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    30.031,
+    25.813,
+    31.491
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/baobab_new.xml",
+    "actor:art/actors/flora/trees/baobab_new_branches.xml",
+    "actor:art/actors/flora/trees/baobab_new_leaves.xml",
+    "actor:art/actors/geology/decal_stone_desert_a.xml",
+    "mesh:gaia/baobab_1_branches.dae",
+    "mesh:gaia/baobab_1_leaves.dae",
+    "mesh:gaia/baobab_3_trunk.dae",
+    "skin:gaia/tree_baobab.png",
+    "skin:gaia/tree_baobab_dead.png",
+    "skin:gaia/tree_baobab_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_baobab_3_mature_v3": {
+   "file": "models/vegetation/flora_tree_baobab_3_mature_v3.glb",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    30.031,
+    26.512,
+    31.491
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/baobab_new.xml",
+    "actor:art/actors/flora/trees/baobab_new_branches.xml",
+    "actor:art/actors/flora/trees/baobab_new_leaves.xml",
+    "actor:art/actors/geology/decal_stone_desert_a.xml",
+    "mesh:gaia/baobab_1_branches.dae",
+    "mesh:gaia/baobab_1_leaves.dae",
+    "mesh:gaia/baobab_1_trunk.dae",
     "skin:gaia/tree_baobab.png",
     "skin:gaia/tree_baobab_dead.png",
     "skin:gaia/tree_baobab_trunk.png"
@@ -23974,6 +24234,25 @@
    ],
    "upstream_material": "basic_trans_norm_spec.xml"
   },
+  "flora_tree_baobab_4_dead_v2": {
+   "file": "models/vegetation/flora_tree_baobab_4_dead_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    29.859,
+    25.813,
+    30.836
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/baobab_new_branches_dead.xml",
+    "actor:art/actors/flora/trees/baobab_new_dead.xml",
+    "mesh:gaia/baobab_1_branches.dae",
+    "mesh:gaia/baobab_3_trunk.dae",
+    "skin:gaia/tree_baobab_dead.png",
+    "skin:gaia/tree_baobab_trunk.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
   "flora_tree_bush_badlands": {
    "file": "models/vegetation/flora_tree_bush_badlands.glb",
    "origin": "ground-center",
@@ -23987,6 +24266,54 @@
     "actor:art/actors/props/flora/bush_tempe_a.xml",
     "mesh:gaia/bush_tempe_la_a_1.dae",
     "skin:gaia/bush_tempe_la_a.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_bush_badlands_v2": {
+   "file": "models/vegetation/flora_tree_bush_badlands_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    7.923,
+    4.972,
+    8.114
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_tempe_a.xml",
+    "mesh:gaia/bush_tempe_la_a_1.dae",
+    "skin:gaia/bush_tempe_la_a2.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_bush_badlands_v3": {
+   "file": "models/vegetation/flora_tree_bush_badlands_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.672,
+    9.002,
+    10.56
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_tempe_a.xml",
+    "mesh:gaia/bush_tempe_la_a_2.dae",
+    "skin:gaia/bush_tempe_la_a.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_bush_badlands_v4": {
+   "file": "models/vegetation/flora_tree_bush_badlands_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.672,
+    9.002,
+    10.56
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_tempe_a.xml",
+    "mesh:gaia/bush_tempe_la_a_2.dae",
+    "skin:gaia/bush_tempe_la_a2.dds"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
@@ -24022,6 +24349,102 @@
    ],
    "upstream_material": "basic_trans_norm_spec.xml"
   },
+  "flora_tree_bush_mediterranean_dry_v2": {
+   "file": "models/vegetation/flora_tree_bush_mediterranean_dry_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.538,
+    3.477,
+    7.068
+   ],
+   "sources": [
+    "actor:art/actors/flora/bushes/medit_scrub_02.xml",
+    "mesh:gaia/medit_bush_02.dae",
+    "skin:gaia/medit_bush_01.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_mediterranean_dry_v3": {
+   "file": "models/vegetation/flora_tree_bush_mediterranean_dry_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.538,
+    3.477,
+    7.068
+   ],
+   "sources": [
+    "actor:art/actors/flora/bushes/medit_scrub_02.xml",
+    "mesh:gaia/medit_bush_02.dae",
+    "skin:gaia/medit_bush_02.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_mediterranean_dry_v4": {
+   "file": "models/vegetation/flora_tree_bush_mediterranean_dry_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.576,
+    2.892,
+    4.161
+   ],
+   "sources": [
+    "actor:art/actors/flora/bushes/medit_scrub_02.xml",
+    "mesh:gaia/medit_bush_01.dae",
+    "skin:gaia/medit_bush_01.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_mediterranean_v2": {
+   "file": "models/vegetation/flora_tree_bush_mediterranean_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.538,
+    3.477,
+    7.068
+   ],
+   "sources": [
+    "actor:art/actors/flora/bushes/medit_scrub_01.xml",
+    "mesh:gaia/medit_bush_02.dae",
+    "skin:gaia/temperate_bush_01.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_mediterranean_v3": {
+   "file": "models/vegetation/flora_tree_bush_mediterranean_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.538,
+    3.477,
+    7.068
+   ],
+   "sources": [
+    "actor:art/actors/flora/bushes/medit_scrub_01.xml",
+    "mesh:gaia/medit_bush_02.dae",
+    "skin:gaia/temperate_bush_02.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_mediterranean_v4": {
+   "file": "models/vegetation/flora_tree_bush_mediterranean_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.576,
+    2.892,
+    4.161
+   ],
+   "sources": [
+    "actor:art/actors/flora/bushes/medit_scrub_01.xml",
+    "mesh:gaia/medit_bush_01.dae",
+    "skin:gaia/temperate_bush_01.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
   "flora_tree_bush_steppe_01": {
    "file": "models/vegetation/flora_tree_bush_steppe_01.glb",
    "origin": "ground-center",
@@ -24035,6 +24458,54 @@
     "actor:art/actors/props/flora/bush_tempe_underbrush.xml",
     "mesh:gaia/underbrush_01.dae",
     "skin:gaia/tree_euro_beech_a.dds"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_steppe_01_v2": {
+   "file": "models/vegetation/flora_tree_bush_steppe_01_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.632,
+    6.919,
+    13.588
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_tempe_underbrush.xml",
+    "mesh:gaia/underbrush_02.dae",
+    "skin:gaia/tree_euro_beech_b.dds"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_steppe_01_v3": {
+   "file": "models/vegetation/flora_tree_bush_steppe_01_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.585,
+    6.677,
+    12.037
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_tempe_underbrush.xml",
+    "mesh:gaia/underbrush_01.dae",
+    "skin:gaia/tree_euro_beech_c.dds"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_steppe_01_v4": {
+   "file": "models/vegetation/flora_tree_bush_steppe_01_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.632,
+    6.919,
+    13.588
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_tempe_underbrush.xml",
+    "mesh:gaia/underbrush_02.dae",
+    "skin:gaia/tree_oak_a.dds"
    ],
    "upstream_material": "basic_trans_norm_spec.xml"
   },
@@ -24054,6 +24525,38 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_bush_steppe_02_v2": {
+   "file": "models/vegetation/flora_tree_bush_steppe_02_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.368,
+    3.137,
+    8.738
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_juniper_prickly.xml",
+    "mesh:gaia/juniper_prickly_bush_2.dae",
+    "skin:gaia/tree_juniper_prickly_2.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_bush_steppe_02_v3": {
+   "file": "models/vegetation/flora_tree_bush_steppe_02_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    7.943,
+    2.61,
+    7.93
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_juniper_prickly.xml",
+    "mesh:gaia/juniper_prickly_bush_3.dae",
+    "skin:gaia/tree_juniper_prickly_3.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_bush_steppe_03": {
    "file": "models/vegetation/flora_tree_bush_steppe_03.glb",
    "origin": "ground-center",
@@ -24067,6 +24570,54 @@
     "actor:art/actors/props/flora/bush_medit_underbrush.xml",
     "mesh:gaia/underbrush_01.dae",
     "skin:gaia/tree_carob_c.dds"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_steppe_03_v2": {
+   "file": "models/vegetation/flora_tree_bush_steppe_03_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.632,
+    6.919,
+    13.588
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_medit_underbrush.xml",
+    "mesh:gaia/underbrush_02.dae",
+    "skin:gaia/underbrush_medit_a.dds"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_steppe_03_v3": {
+   "file": "models/vegetation/flora_tree_bush_steppe_03_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.585,
+    6.677,
+    12.037
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_medit_underbrush.xml",
+    "mesh:gaia/underbrush_01.dae",
+    "skin:gaia/underbrush_medit_b.dds"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_steppe_03_v4": {
+   "file": "models/vegetation/flora_tree_bush_steppe_03_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.632,
+    6.919,
+    13.588
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_medit_underbrush.xml",
+    "mesh:gaia/underbrush_02.dae",
+    "skin:gaia/poplar_c.dds"
    ],
    "upstream_material": "basic_trans_norm_spec.xml"
   },
@@ -24102,6 +24653,102 @@
    ],
    "upstream_material": "basic_trans_norm_spec.xml"
   },
+  "flora_tree_bush_temperate_autumn_v2": {
+   "file": "models/vegetation/flora_tree_bush_temperate_autumn_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    13.129,
+    6.981,
+    14.192
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_temperate_autumn.xml",
+    "mesh:gaia/temp_bush_02.dae",
+    "skin:gaia/temperate_tree_06.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_temperate_autumn_v3": {
+   "file": "models/vegetation/flora_tree_bush_temperate_autumn_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.631,
+    3.656,
+    10.989
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_temperate_autumn.xml",
+    "mesh:gaia/temp_bush_03.dae",
+    "skin:gaia/temperate_tree_09.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_temperate_autumn_v4": {
+   "file": "models/vegetation/flora_tree_bush_temperate_autumn_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.243,
+    9.369,
+    12.004
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_temperate_autumn.xml",
+    "mesh:gaia/temp_bush_04.dae",
+    "skin:gaia/temperate_bush_01.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_temperate_v2": {
+   "file": "models/vegetation/flora_tree_bush_temperate_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    13.129,
+    6.981,
+    14.192
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_bush_biome.xml",
+    "mesh:gaia/temp_bush_02.dae",
+    "skin:gaia/temperate_bush_01.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_temperate_v3": {
+   "file": "models/vegetation/flora_tree_bush_temperate_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    13.129,
+    6.981,
+    14.192
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_bush_biome.xml",
+    "mesh:gaia/temp_bush_02.dae",
+    "skin:gaia/temperate_bush_02.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_temperate_v4": {
+   "file": "models/vegetation/flora_tree_bush_temperate_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.056,
+    5.724,
+    8.235
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_bush_biome.xml",
+    "mesh:gaia/temp_bush_01.dae",
+    "skin:gaia/temperate_bush_01.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
   "flora_tree_bush_temperate_winter": {
    "file": "models/vegetation/flora_tree_bush_temperate_winter.glb",
    "origin": "ground-center",
@@ -24115,6 +24762,54 @@
     "actor:art/actors/flora/trees/temperate_bush_biome_winter.xml",
     "mesh:gaia/temp_bush_01.dae",
     "skin:gaia/temperate_tree_08.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_temperate_winter_v2": {
+   "file": "models/vegetation/flora_tree_bush_temperate_winter_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    13.129,
+    6.981,
+    14.192
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_bush_biome_winter.xml",
+    "mesh:gaia/temp_bush_02.dae",
+    "skin:gaia/temperate_tree_08.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_temperate_winter_v3": {
+   "file": "models/vegetation/flora_tree_bush_temperate_winter_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    13.129,
+    6.981,
+    14.192
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_bush_biome_winter.xml",
+    "mesh:gaia/temp_bush_02.dae",
+    "skin:gaia/temperate_tree_07.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "flora_tree_bush_temperate_winter_v4": {
+   "file": "models/vegetation/flora_tree_bush_temperate_winter_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.056,
+    5.724,
+    8.235
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_bush_biome_winter.xml",
+    "mesh:gaia/temp_bush_01.dae",
+    "skin:gaia/temperate_tree_07.png"
    ],
    "upstream_material": "basic_trans_norm_spec.xml"
   },
@@ -24154,6 +24849,46 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_cedar_atlas_2_young_v2": {
+   "file": "models/vegetation/flora_tree_cedar_atlas_2_young_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    10.581,
+    25.707,
+    10.042
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cedar_atlas_young.xml",
+    "actor:art/actors/flora/trees/cedar_atlas_young_deadbranches.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/cedar_atlas_young_1.dae",
+    "mesh:gaia/cedar_atlas_young_1_dead.dae",
+    "skin:gaia/cedar_atlas_1.png",
+    "skin:gaia/cedar_atlas_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cedar_atlas_2_young_v3": {
+   "file": "models/vegetation/flora_tree_cedar_atlas_2_young_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    10.763,
+    23.875,
+    10.756
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cedar_atlas_young.xml",
+    "actor:art/actors/flora/trees/cedar_atlas_young_deadbranches.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/cedar_atlas_young_1_dead.dae",
+    "mesh:gaia/cedar_atlas_young_2.dae",
+    "skin:gaia/cedar_atlas_2.png",
+    "skin:gaia/cedar_atlas_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_cedar_atlas_3_mature": {
    "file": "models/vegetation/flora_tree_cedar_atlas_3_mature.glb",
    "origin": "ground-center",
@@ -24169,6 +24904,46 @@
     "actor:art/actors/props/flora/decal_pine.xml",
     "mesh:gaia/cedar_atlas_1.dae",
     "mesh:gaia/cedar_atlas_1_dead.dae",
+    "skin:gaia/cedar_atlas_1.png",
+    "skin:gaia/cedar_atlas_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cedar_atlas_3_mature_v2": {
+   "file": "models/vegetation/flora_tree_cedar_atlas_3_mature_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    21.165,
+    31.231,
+    22.914
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cedar_atlas.xml",
+    "actor:art/actors/flora/trees/cedar_atlas_deadbranches.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/cedar_atlas_1_dead.dae",
+    "mesh:gaia/cedar_atlas_2.dae",
+    "skin:gaia/cedar_atlas_2.png",
+    "skin:gaia/cedar_atlas_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cedar_atlas_3_mature_v3": {
+   "file": "models/vegetation/flora_tree_cedar_atlas_3_mature_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    19.776,
+    31.654,
+    21.91
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cedar_atlas.xml",
+    "actor:art/actors/flora/trees/cedar_atlas_deadbranches.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/cedar_atlas_1_dead.dae",
+    "mesh:gaia/cedar_atlas_3.dae",
     "skin:gaia/cedar_atlas_1.png",
     "skin:gaia/cedar_atlas_dead.png"
    ],
@@ -24192,6 +24967,42 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_cedar_atlas_4_dead_v2": {
+   "file": "models/vegetation/flora_tree_cedar_atlas_4_dead_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    21.165,
+    31.231,
+    22.914
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cedar_atlas_dead.xml",
+    "actor:art/actors/flora/trees/cedar_atlas_deadbranches.xml",
+    "mesh:gaia/cedar_atlas_1_dead.dae",
+    "mesh:gaia/cedar_atlas_2.dae",
+    "skin:gaia/cedar_atlas_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cedar_atlas_4_dead_v3": {
+   "file": "models/vegetation/flora_tree_cedar_atlas_4_dead_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    19.776,
+    31.654,
+    21.91
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cedar_atlas_dead.xml",
+    "actor:art/actors/flora/trees/cedar_atlas_deadbranches.xml",
+    "mesh:gaia/cedar_atlas_1_dead.dae",
+    "mesh:gaia/cedar_atlas_3.dae",
+    "skin:gaia/cedar_atlas_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_cherry_blossom": {
    "file": "models/vegetation/flora_tree_cherry_blossom.glb",
    "origin": "ground-center",
@@ -24205,6 +25016,63 @@
     "actor:art/actors/flora/trees/cherryblossom.xml",
     "actor:art/actors/flora/trees/cherryblossom_top.xml",
     "mesh:gaia/tree_carob_a.dae",
+    "mesh:gaia/tree_carob_top_a.dae",
+    "skin:gaia/tree_cherryblossom_c.png",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cherry_blossom_v2": {
+   "file": "models/vegetation/flora_tree_cherry_blossom_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    18.429,
+    15.555,
+    18.003
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cherryblossom.xml",
+    "actor:art/actors/flora/trees/cherryblossom_top.xml",
+    "mesh:gaia/tree_carob_b.dae",
+    "mesh:gaia/tree_carob_top_a.dae",
+    "skin:gaia/tree_cherryblossom_c.png",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cherry_blossom_v3": {
+   "file": "models/vegetation/flora_tree_cherry_blossom_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    18.429,
+    15.419,
+    18.003
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cherryblossom.xml",
+    "actor:art/actors/flora/trees/cherryblossom_top.xml",
+    "mesh:gaia/tree_carob_c.dae",
+    "mesh:gaia/tree_carob_top_a.dae",
+    "skin:gaia/tree_cherryblossom_c.png",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cherry_blossom_v4": {
+   "file": "models/vegetation/flora_tree_cherry_blossom_v4.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    18.429,
+    15.532,
+    18.003
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cherryblossom.xml",
+    "actor:art/actors/flora/trees/cherryblossom_top.xml",
+    "mesh:gaia/tree_carob_d.dae",
     "mesh:gaia/tree_carob_top_a.dae",
     "skin:gaia/tree_cherryblossom_c.png",
     "skin:gaia/trunk_deciduous_b.dds"
@@ -24228,6 +25096,57 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_cretan_date_palm_patch_v2": {
+   "file": "models/vegetation/flora_tree_cretan_date_palm_patch_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.906,
+    17.731,
+    14.696
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date_patch.xml",
+    "actor:art/actors/props/flora/decal_palms_patch.xml",
+    "mesh:gaia/tree_cretan_date_palm_patch_01.dae",
+    "skin:gaia/tree_palm_senegal_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cretan_date_palm_patch_v3": {
+   "file": "models/vegetation/flora_tree_cretan_date_palm_patch_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.906,
+    17.731,
+    14.696
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date_patch.xml",
+    "actor:art/actors/props/flora/decal_palms_patch.xml",
+    "mesh:gaia/tree_cretan_date_palm_patch_01.dae",
+    "skin:gaia/tree_palm_senegal_c.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cretan_date_palm_patch_v4": {
+   "file": "models/vegetation/flora_tree_cretan_date_palm_patch_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.906,
+    17.731,
+    14.696
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date_patch.xml",
+    "actor:art/actors/props/flora/decal_palms_patch.xml",
+    "mesh:gaia/tree_cretan_date_palm_patch_01.dae",
+    "skin:gaia/tree_palm_senegal_d.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_cretan_date_palm_short": {
    "file": "models/vegetation/flora_tree_cretan_date_palm_short.glb",
    "origin": "ground-center",
@@ -24241,6 +25160,54 @@
     "actor:art/actors/flora/trees/palm_cretan_date_short.xml",
     "mesh:gaia/tree_cretan_date_palm_04.dae",
     "skin:gaia/tree_palm_senegal_a.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cretan_date_palm_short_v2": {
+   "file": "models/vegetation/flora_tree_cretan_date_palm_short_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.542,
+    8.789,
+    7.671
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date_short.xml",
+    "mesh:gaia/tree_cretan_date_palm_05.dae",
+    "skin:gaia/tree_palm_senegal_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cretan_date_palm_short_v3": {
+   "file": "models/vegetation/flora_tree_cretan_date_palm_short_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    7.699,
+    11.362,
+    8.035
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date_short.xml",
+    "mesh:gaia/tree_cretan_date_palm_08.dae",
+    "skin:gaia/tree_palm_senegal_c.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cretan_date_palm_short_v4": {
+   "file": "models/vegetation/flora_tree_cretan_date_palm_short_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.285,
+    17.814,
+    9.178
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date_short.xml",
+    "mesh:gaia/tree_cretan_date_palm_02.dae",
+    "skin:gaia/tree_palm_senegal_d.dds"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
@@ -24260,6 +25227,54 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_cretan_date_palm_tall_v2": {
+   "file": "models/vegetation/flora_tree_cretan_date_palm_tall_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.285,
+    17.814,
+    9.178
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date_tall.xml",
+    "mesh:gaia/tree_cretan_date_palm_02.dae",
+    "skin:gaia/tree_palm_senegal_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cretan_date_palm_tall_v3": {
+   "file": "models/vegetation/flora_tree_cretan_date_palm_tall_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.027,
+    23.907,
+    9.316
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date_tall.xml",
+    "mesh:gaia/tree_cretan_date_palm_03.dae",
+    "skin:gaia/tree_palm_senegal_c.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cretan_date_palm_tall_v4": {
+   "file": "models/vegetation/flora_tree_cretan_date_palm_tall_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.027,
+    23.907,
+    9.316
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date_tall.xml",
+    "mesh:gaia/tree_cretan_date_palm_06.dae",
+    "skin:gaia/tree_palm_senegal_d.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_cypress_wild": {
    "file": "models/vegetation/flora_tree_cypress_wild.glb",
    "origin": "ground-center",
@@ -24273,6 +25288,54 @@
     "actor:art/actors/flora/trees/cypress_mediterranean_wild.xml",
     "mesh:gaia/cypress_mediterranean_wild.dae",
     "skin:gaia/tree_cypress_a.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cypress_wild_v2": {
+   "file": "models/vegetation/flora_tree_cypress_wild_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.419,
+    19.237,
+    5.956
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cypress_mediterranean_wild.xml",
+    "mesh:gaia/cypress_mediterranean_wild_2.dae",
+    "skin:gaia/tree_cypress_c.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cypress_wild_v3": {
+   "file": "models/vegetation/flora_tree_cypress_wild_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    7.381,
+    23.315,
+    7.299
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cypress_mediterranean_wild.xml",
+    "mesh:gaia/cypress_mediterranean_wild_3.dae",
+    "skin:gaia/tree_cypress_d.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cypress_wild_v4": {
+   "file": "models/vegetation/flora_tree_cypress_wild_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.899,
+    20.726,
+    2.798
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cypress_mediterranean_wild.xml",
+    "mesh:gaia/cypress_mediterranean_wild_4.dae",
+    "skin:gaia/tree_cypress_e.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
@@ -24290,6 +25353,63 @@
     "actor:art/actors/flora/trees/cypress_mediterranean_windswept_needles.xml",
     "mesh:gaia/cypress_mediterranean_windswept_1.dae",
     "mesh:gaia/cypress_mediterranean_windswept_1_needles.dae",
+    "skin:gaia/tree_cypress_a.png",
+    "skin:gaia/tree_pine_maritime_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cypress_windswept_v2": {
+   "file": "models/vegetation/flora_tree_cypress_windswept_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    8.117,
+    14.189,
+    11.623
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cypress_mediterranean_windswept.xml",
+    "actor:art/actors/flora/trees/cypress_mediterranean_windswept_needles.xml",
+    "mesh:gaia/cypress_mediterranean_windswept_1_needles.dae",
+    "mesh:gaia/cypress_mediterranean_windswept_2.dae",
+    "skin:gaia/tree_cypress_a.png",
+    "skin:gaia/tree_pine_maritime_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cypress_windswept_v3": {
+   "file": "models/vegetation/flora_tree_cypress_windswept_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    8.117,
+    15.046,
+    13.788
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cypress_mediterranean_windswept.xml",
+    "actor:art/actors/flora/trees/cypress_mediterranean_windswept_needles.xml",
+    "mesh:gaia/cypress_mediterranean_windswept_1_needles.dae",
+    "mesh:gaia/cypress_mediterranean_windswept_3.dae",
+    "skin:gaia/tree_cypress_a.png",
+    "skin:gaia/tree_pine_maritime_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_cypress_windswept_v4": {
+   "file": "models/vegetation/flora_tree_cypress_windswept_v4.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    7.24,
+    18.423,
+    12.552
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/cypress_mediterranean_windswept.xml",
+    "actor:art/actors/flora/trees/cypress_mediterranean_windswept_needles.xml",
+    "mesh:gaia/cypress_mediterranean_windswept_1_needles.dae",
+    "mesh:gaia/cypress_mediterranean_windswept_4.dae",
     "skin:gaia/tree_cypress_a.png",
     "skin:gaia/tree_pine_maritime_trunk.png"
    ],
@@ -24327,6 +25447,102 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_date_palm_dead_v2": {
+   "file": "models/vegetation/flora_tree_date_palm_dead_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.729,
+    11.59,
+    3.032
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_date_dead.xml",
+    "mesh:gaia/palm_dead_5.dae",
+    "skin:gaia/palm_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_date_palm_dead_v3": {
+   "file": "models/vegetation/flora_tree_date_palm_dead_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.602,
+    19.533,
+    3.758
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_date_dead.xml",
+    "mesh:gaia/palm_dead_1.dae",
+    "skin:gaia/palm_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_date_palm_dead_v4": {
+   "file": "models/vegetation/flora_tree_date_palm_dead_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.106,
+    12.317,
+    3.053
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_date_dead.xml",
+    "mesh:gaia/palm_dead_2.dae",
+    "skin:gaia/palm_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_date_palm_v2": {
+   "file": "models/vegetation/flora_tree_date_palm_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.781,
+    24.476,
+    11.143
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_date_new.xml",
+    "mesh:gaia/palm_date_new_2.dae",
+    "skin:gaia/palm_date_new_2.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_date_palm_v3": {
+   "file": "models/vegetation/flora_tree_date_palm_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.155,
+    15.366,
+    11.648
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_date_new.xml",
+    "mesh:gaia/palm_date_new_3.dae",
+    "skin:gaia/palm_date_new_1.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_date_palm_v4": {
+   "file": "models/vegetation/flora_tree_date_palm_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    11.817,
+    27.089,
+    11.91
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_date_new.xml",
+    "mesh:gaia/palm_date_new_4.dae",
+    "skin:gaia/palm_date_new_2.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_elm": {
    "file": "models/vegetation/flora_tree_elm.glb",
    "origin": "ground-center",
@@ -24361,6 +25577,108 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_elm_dead_v2": {
+   "file": "models/vegetation/flora_tree_elm_dead_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    14.769,
+    23.93,
+    11.955
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/elm_dead.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/tree_elm_02.dae",
+    "skin:gaia/tree_elm_dead_01.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_elm_dead_v3": {
+   "file": "models/vegetation/flora_tree_elm_dead_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    11.993,
+    25.901,
+    13.103
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/elm_dead.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/tree_elm_03.dae",
+    "skin:gaia/tree_elm_dead_01.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_elm_dead_v4": {
+   "file": "models/vegetation/flora_tree_elm_dead_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    20.759,
+    26.26,
+    23.646
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/elm_dead.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/tree_elm_04.dae",
+    "skin:gaia/tree_elm_dead_01.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_elm_v2": {
+   "file": "models/vegetation/flora_tree_elm_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    14.769,
+    23.93,
+    11.955
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/elm.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/tree_elm_02.dae",
+    "skin:gaia/tree_elm_01.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_elm_v3": {
+   "file": "models/vegetation/flora_tree_elm_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    11.993,
+    25.901,
+    13.103
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/elm.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/tree_elm_03.dae",
+    "skin:gaia/tree_elm_01.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_elm_v4": {
+   "file": "models/vegetation/flora_tree_elm_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    20.759,
+    26.26,
+    23.646
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/elm.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/tree_elm_04.dae",
+    "skin:gaia/tree_elm_01.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_euro_beech_aut": {
    "file": "models/vegetation/flora_tree_euro_beech_aut.glb",
    "origin": "ground-center",
@@ -24374,6 +25692,25 @@
     "actor:art/actors/flora/trees/european_beech_aut.xml",
     "actor:art/actors/flora/trees/european_beech_aut_top.xml",
     "mesh:gaia/tree_oak_a.dae",
+    "mesh:gaia/tree_oak_top_a.dae",
+    "skin:gaia/tree_euro_beech_a_aut.dds",
+    "skin:gaia/trunk_beech_a.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_euro_beech_aut_v2": {
+   "file": "models/vegetation/flora_tree_euro_beech_aut_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    10.164,
+    19.403,
+    10.388
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/european_beech_aut.xml",
+    "actor:art/actors/flora/trees/european_beech_aut_top.xml",
+    "mesh:gaia/tree_oak_b.dae",
     "mesh:gaia/tree_oak_top_a.dae",
     "skin:gaia/tree_euro_beech_a_aut.dds",
     "skin:gaia/trunk_beech_a.dds"
@@ -24397,6 +25734,57 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_euro_birch_v2": {
+   "file": "models/vegetation/flora_tree_euro_birch_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    11.199,
+    18.097,
+    11.059
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/euro_birch_tree.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/euro_birch_02.dae",
+    "skin:gaia/birch_tree_02.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_euro_birch_v3": {
+   "file": "models/vegetation/flora_tree_euro_birch_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.689,
+    13.048,
+    11.164
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/euro_birch_tree.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/euro_birch_03.dae",
+    "skin:gaia/birch_tree_02.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_euro_birch_v4": {
+   "file": "models/vegetation/flora_tree_euro_birch_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.409,
+    14.586,
+    12.93
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/euro_birch_tree.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/euro_birch_04.dae",
+    "skin:gaia/birch_tree_02.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_fir_sapling": {
    "file": "models/vegetation/flora_tree_fir_sapling.glb",
    "origin": "ground-center",
@@ -24413,6 +25801,22 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_fir_sapling_v2": {
+   "file": "models/vegetation/flora_tree_fir_sapling_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.909,
+    7.549,
+    8.909
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/fir_sapling.xml",
+    "mesh:gaia/fir_sapling_2.dae",
+    "skin:gaia/cedar_atlas_2.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_fir_winter": {
    "file": "models/vegetation/flora_tree_fir_winter.glb",
    "origin": "ground-center",
@@ -24425,6 +25829,54 @@
    "sources": [
     "actor:art/actors/flora/trees/fir_tree_winter.xml",
     "mesh:gaia/fir_tree_tall_1.dae",
+    "skin:gaia/tree_fir_tall_3.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_fir_winter_v2": {
+   "file": "models/vegetation/flora_tree_fir_winter_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.018,
+    13.844,
+    4.746
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/fir_tree_winter.xml",
+    "mesh:gaia/fir_tree_tall_2.dae",
+    "skin:gaia/tree_fir_tall_3.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_fir_winter_v3": {
+   "file": "models/vegetation/flora_tree_fir_winter_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.041,
+    15.955,
+    9.705
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/fir_tree_winter.xml",
+    "mesh:gaia/fir_tree_tall_3.dae",
+    "skin:gaia/tree_fir_tall_3.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_fir_winter_v4": {
+   "file": "models/vegetation/flora_tree_fir_winter_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.481,
+    13.969,
+    4.005
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/fir_tree_winter.xml",
+    "mesh:gaia/fir_tree_small_3.dae",
     "skin:gaia/tree_fir_tall_3.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
@@ -24448,6 +25900,44 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_mangrove_v2": {
+   "file": "models/vegetation/flora_tree_mangrove_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    11.633,
+    18.075,
+    11.781
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/mangrove.xml",
+    "actor:art/actors/flora/trees/mangrove_leaves.xml",
+    "mesh:gaia/mangrove_1_leaves.dae",
+    "mesh:gaia/mangrove_2_stilts.dae",
+    "skin:gaia/mangrove_1.png",
+    "skin:gaia/mangrove_roots_2.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_mangrove_v3": {
+   "file": "models/vegetation/flora_tree_mangrove_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    11.633,
+    18.075,
+    11.781
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/mangrove.xml",
+    "actor:art/actors/flora/trees/mangrove_leaves.xml",
+    "mesh:gaia/mangrove_1_leaves.dae",
+    "mesh:gaia/mangrove_1_stilts.dae",
+    "skin:gaia/mangrove_1.png",
+    "skin:gaia/mangrove_roots_3.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_maple_autumn": {
    "file": "models/vegetation/flora_tree_maple_autumn.glb",
    "origin": "ground-center",
@@ -24462,6 +25952,57 @@
     "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
     "mesh:gaia/maple_a.dae",
     "skin:gaia/maple_tree_a.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_maple_autumn_v2": {
+   "file": "models/vegetation/flora_tree_maple_autumn_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    14.903,
+    20.245,
+    16.011
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/maple_autumn.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/maple_b.dae",
+    "skin:gaia/maple_tree_autumn_a.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_maple_autumn_v3": {
+   "file": "models/vegetation/flora_tree_maple_autumn_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    15.067,
+    17.052,
+    15.412
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/maple_autumn.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/maple_a.dae",
+    "skin:gaia/maple_tree_autumn_b.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_maple_autumn_v4": {
+   "file": "models/vegetation/flora_tree_maple_autumn_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    14.903,
+    20.245,
+    16.011
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/maple_autumn.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/maple_b.dae",
+    "skin:gaia/maple_tree_autumn_c.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
@@ -24503,6 +26044,82 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_oak_aut_new_v2": {
+   "file": "models/vegetation/flora_tree_oak_aut_new_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    22.497,
+    32.079,
+    19.41
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_new_aut.xml",
+    "actor:art/actors/flora/trees/oak_new_top_aut_b.xml",
+    "mesh:gaia/tree_oak_new_b.dae",
+    "mesh:gaia/tree_oak_new_top_b.dae",
+    "skin:gaia/tree_dead.dds",
+    "skin:gaia/tree_oak_c_aut.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_aut_new_v3": {
+   "file": "models/vegetation/flora_tree_oak_aut_new_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    29.021,
+    25.919,
+    25.155
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_new_aut.xml",
+    "actor:art/actors/flora/trees/oak_new_top_aut_c.xml",
+    "mesh:gaia/tree_oak_new_c.dae",
+    "mesh:gaia/tree_oak_new_top_c.dae",
+    "skin:gaia/tree_dead.dds",
+    "skin:gaia/tree_oak_c_aut.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_aut_new_v4": {
+   "file": "models/vegetation/flora_tree_oak_aut_new_v4.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    28.825,
+    27.598,
+    22.09
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_new_aut.xml",
+    "actor:art/actors/flora/trees/oak_new_top_aut_d.xml",
+    "mesh:gaia/tree_oak_new_d.dae",
+    "mesh:gaia/tree_oak_new_top_d.dae",
+    "skin:gaia/tree_dead.dds",
+    "skin:gaia/tree_oak_c_aut.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_aut_v2": {
+   "file": "models/vegetation/flora_tree_oak_aut_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    10.164,
+    19.403,
+    10.388
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_aut.xml",
+    "actor:art/actors/flora/trees/oak_aut_top.xml",
+    "mesh:gaia/tree_oak_b.dae",
+    "mesh:gaia/tree_oak_top_a.dae",
+    "skin:gaia/tree_oak_c_aut.dds",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "flora_tree_oak_dead": {
    "file": "models/vegetation/flora_tree_oak_dead.glb",
    "origin": "ground-center",
@@ -24515,6 +26132,54 @@
    "sources": [
     "actor:art/actors/flora/trees/oak_dead.xml",
     "mesh:gaia/tree_oak_new_b.dae",
+    "skin:gaia/tree_dead.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_dead_v2": {
+   "file": "models/vegetation/flora_tree_oak_dead_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    24.06,
+    22.291,
+    19.183
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_dead.xml",
+    "mesh:gaia/tree_oak_new_c.dae",
+    "skin:gaia/tree_dead.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_dead_v3": {
+   "file": "models/vegetation/flora_tree_oak_dead_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    17.515,
+    21.88,
+    12.607
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_dead.xml",
+    "mesh:gaia/tree_oak_new_d.dae",
+    "skin:gaia/tree_dead.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_dead_v4": {
+   "file": "models/vegetation/flora_tree_oak_dead_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    18.548,
+    27.405,
+    12.144
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_dead.xml",
+    "mesh:gaia/tree_oak_new_e.dae",
     "skin:gaia/tree_dead.dds"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
@@ -24553,6 +26218,120 @@
     "mesh:gaia/oak_holly_1.dae",
     "mesh:gaia/oak_holly_1_dead.dae",
     "skin:gaia/oak_holly_autumn_1.png",
+    "skin:gaia/oak_holly_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_holly_autumn_v2": {
+   "file": "models/vegetation/flora_tree_oak_holly_autumn_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    26.023,
+    21.967,
+    21.334
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_holly_autumn.xml",
+    "actor:art/actors/flora/trees/oak_holly_branches.xml",
+    "mesh:gaia/oak_holly_1_dead.dae",
+    "mesh:gaia/oak_holly_2.dae",
+    "skin:gaia/oak_holly_autumn_2.png",
+    "skin:gaia/oak_holly_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_holly_autumn_v3": {
+   "file": "models/vegetation/flora_tree_oak_holly_autumn_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    24.751,
+    27.404,
+    22.933
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_holly_autumn.xml",
+    "actor:art/actors/flora/trees/oak_holly_branches.xml",
+    "mesh:gaia/oak_holly_1_dead.dae",
+    "mesh:gaia/oak_holly_3.dae",
+    "skin:gaia/oak_holly_autumn_3.png",
+    "skin:gaia/oak_holly_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_holly_autumn_v4": {
+   "file": "models/vegetation/flora_tree_oak_holly_autumn_v4.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    23.0,
+    21.434,
+    17.397
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_holly_autumn.xml",
+    "actor:art/actors/flora/trees/oak_holly_branches.xml",
+    "mesh:gaia/oak_holly_1_dead.dae",
+    "mesh:gaia/oak_holly_4.dae",
+    "skin:gaia/oak_holly_1.png",
+    "skin:gaia/oak_holly_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_holly_v2": {
+   "file": "models/vegetation/flora_tree_oak_holly_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    26.023,
+    21.967,
+    21.334
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_holly.xml",
+    "actor:art/actors/flora/trees/oak_holly_branches.xml",
+    "mesh:gaia/oak_holly_1_dead.dae",
+    "mesh:gaia/oak_holly_2.dae",
+    "skin:gaia/oak_holly_2.png",
+    "skin:gaia/oak_holly_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_holly_v3": {
+   "file": "models/vegetation/flora_tree_oak_holly_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    24.751,
+    27.404,
+    22.933
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_holly.xml",
+    "actor:art/actors/flora/trees/oak_holly_branches.xml",
+    "mesh:gaia/oak_holly_1_dead.dae",
+    "mesh:gaia/oak_holly_3.dae",
+    "skin:gaia/oak_holly_3.png",
+    "skin:gaia/oak_holly_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_holly_v4": {
+   "file": "models/vegetation/flora_tree_oak_holly_v4.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    23.0,
+    21.434,
+    17.397
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_holly.xml",
+    "actor:art/actors/flora/trees/oak_holly_branches.xml",
+    "mesh:gaia/oak_holly_1_dead.dae",
+    "mesh:gaia/oak_holly_4.dae",
+    "skin:gaia/oak_holly_1.png",
     "skin:gaia/oak_holly_dead.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
@@ -24597,6 +26376,106 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_oak_hungarian_autumn_v2": {
+   "file": "models/vegetation/flora_tree_oak_hungarian_autumn_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    23.506,
+    24.788,
+    20.89
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_hungarian_autumn.xml",
+    "actor:art/actors/flora/trees/oak_hungarian_branches.xml",
+    "actor:art/actors/props/flora/olive_decal.xml",
+    "mesh:gaia/oak_hungarian_1_dead.dae",
+    "mesh:gaia/oak_hungarian_2.dae",
+    "skin:gaia/oak_hungarian_autumn_2.png",
+    "skin:gaia/oak_hungarian_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_hungarian_autumn_v3": {
+   "file": "models/vegetation/flora_tree_oak_hungarian_autumn_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    24.471,
+    19.943,
+    26.748
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_hungarian_autumn.xml",
+    "actor:art/actors/flora/trees/oak_hungarian_branches.xml",
+    "actor:art/actors/props/flora/olive_decal.xml",
+    "mesh:gaia/oak_hungarian_1_dead.dae",
+    "mesh:gaia/oak_hungarian_3.dae",
+    "skin:gaia/oak_hungarian_autumn_3.png",
+    "skin:gaia/oak_hungarian_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_hungarian_autumn_v4": {
+   "file": "models/vegetation/flora_tree_oak_hungarian_autumn_v4.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    21.339,
+    19.61,
+    19.886
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_hungarian_autumn.xml",
+    "actor:art/actors/flora/trees/oak_hungarian_branches.xml",
+    "actor:art/actors/props/flora/olive_decal.xml",
+    "mesh:gaia/oak_hungarian_1.dae",
+    "mesh:gaia/oak_hungarian_1_dead.dae",
+    "skin:gaia/oak_hungarian_autumn_4.png",
+    "skin:gaia/oak_hungarian_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_hungarian_v2": {
+   "file": "models/vegetation/flora_tree_oak_hungarian_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    23.506,
+    24.788,
+    20.89
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_hungarian.xml",
+    "actor:art/actors/flora/trees/oak_hungarian_branches.xml",
+    "actor:art/actors/props/flora/olive_decal.xml",
+    "mesh:gaia/oak_hungarian_1_dead.dae",
+    "mesh:gaia/oak_hungarian_2.dae",
+    "skin:gaia/oak_hungarian_2.png",
+    "skin:gaia/oak_hungarian_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_hungarian_v3": {
+   "file": "models/vegetation/flora_tree_oak_hungarian_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    24.471,
+    19.943,
+    26.748
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_hungarian.xml",
+    "actor:art/actors/flora/trees/oak_hungarian_branches.xml",
+    "actor:art/actors/props/flora/olive_decal.xml",
+    "mesh:gaia/oak_hungarian_1_dead.dae",
+    "mesh:gaia/oak_hungarian_3.dae",
+    "skin:gaia/oak_hungarian_3.png",
+    "skin:gaia/oak_hungarian_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_oak_large": {
    "file": "models/vegetation/flora_tree_oak_large.glb",
    "origin": "ground-center",
@@ -24610,6 +26489,44 @@
     "actor:art/actors/flora/trees/oak_large.xml",
     "actor:art/actors/flora/trees/oak_large_top.xml",
     "mesh:gaia/tree_oak_large_a.dae",
+    "mesh:gaia/tree_oak_large_top_a.dae",
+    "skin:gaia/tree_euro_beech_a.dds",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_large_v2": {
+   "file": "models/vegetation/flora_tree_oak_large_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    18.576,
+    20.78,
+    16.471
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_large.xml",
+    "actor:art/actors/flora/trees/oak_large_top.xml",
+    "mesh:gaia/tree_oak_large_b.dae",
+    "mesh:gaia/tree_oak_large_top_a.dae",
+    "skin:gaia/tree_euro_beech_a.dds",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_oak_large_v3": {
+   "file": "models/vegetation/flora_tree_oak_large_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    18.576,
+    20.793,
+    16.471
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_large.xml",
+    "actor:art/actors/flora/trees/oak_large_top.xml",
+    "mesh:gaia/tree_oak_large_c.dae",
     "mesh:gaia/tree_oak_large_top_a.dae",
     "skin:gaia/tree_euro_beech_a.dds",
     "skin:gaia/trunk_deciduous_b.dds"
@@ -24632,6 +26549,54 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_palm_areca_v2": {
+   "file": "models/vegetation/flora_tree_palm_areca_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.61,
+    25.291,
+    10.151
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_areca.xml",
+    "mesh:gaia/palm_areca_2.dae",
+    "skin:gaia/palm_areca.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_palm_areca_v3": {
+   "file": "models/vegetation/flora_tree_palm_areca_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.525,
+    26.374,
+    10.344
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_areca.xml",
+    "mesh:gaia/palm_areca_3.dae",
+    "skin:gaia/palm_areca.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_palm_areca_v4": {
+   "file": "models/vegetation/flora_tree_palm_areca_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.534,
+    31.697,
+    6.623
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_areca.xml",
+    "mesh:gaia/palm_areca_4.dae",
+    "skin:gaia/palm_areca.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_palm_doum": {
    "file": "models/vegetation/flora_tree_palm_doum.glb",
    "origin": "ground-center",
@@ -24644,6 +26609,22 @@
    "sources": [
     "actor:art/actors/flora/trees/palm_doum.xml",
     "mesh:gaia/palm_doum_1.dae",
+    "skin:gaia/palm_doum_1.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_palm_doum_v2": {
+   "file": "models/vegetation/flora_tree_palm_doum_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    12.421,
+    22.603,
+    17.213
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_doum.xml",
+    "mesh:gaia/palm_doum_2.dae",
     "skin:gaia/palm_doum_1.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
@@ -24664,6 +26645,38 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_palm_palmyra_v2": {
+   "file": "models/vegetation/flora_tree_palm_palmyra_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.818,
+    20.262,
+    10.586
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_palmyra.xml",
+    "mesh:gaia/palm_palmyra_2.dae",
+    "skin:gaia/palm_palmyra_1.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_palm_palmyra_v3": {
+   "file": "models/vegetation/flora_tree_palm_palmyra_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.818,
+    27.738,
+    10.586
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_palmyra.xml",
+    "mesh:gaia/palm_palmyra_3.dae",
+    "skin:gaia/palm_palmyra_1.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_palm_royal": {
    "file": "models/vegetation/flora_tree_palm_royal.glb",
    "origin": "ground-center",
@@ -24680,6 +26693,54 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_palm_royal_v2": {
+   "file": "models/vegetation/flora_tree_palm_royal_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    14.425,
+    32.723,
+    14.405
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_royal.xml",
+    "mesh:gaia/tree_roystonea_regia_b.dae",
+    "skin:gaia/palm_royal.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_palm_royal_v3": {
+   "file": "models/vegetation/flora_tree_palm_royal_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    14.86,
+    32.467,
+    15.708
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_royal.xml",
+    "mesh:gaia/tree_roystonea_regia_c.dae",
+    "skin:gaia/palm_royal.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_palm_royal_v4": {
+   "file": "models/vegetation/flora_tree_palm_royal_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    11.914,
+    28.302,
+    11.785
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_royal.xml",
+    "mesh:gaia/tree_roystonea_regia_d.dae",
+    "skin:gaia/palm_royal.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_palm_tropical": {
    "file": "models/vegetation/flora_tree_palm_tropical.glb",
    "origin": "ground-center",
@@ -24692,6 +26753,54 @@
    "sources": [
     "actor:art/actors/flora/trees/palm_tropical.xml",
     "mesh:gaia/tree_palm_tropical_01.dae",
+    "skin:gaia/tree_palm_2_a.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_palm_tropical_v2": {
+   "file": "models/vegetation/flora_tree_palm_tropical_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    14.154,
+    19.169,
+    12.741
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_tropical.xml",
+    "mesh:gaia/tree_palm_tropical_02.dae",
+    "skin:gaia/tree_palm_2_a.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_palm_tropical_v3": {
+   "file": "models/vegetation/flora_tree_palm_tropical_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    15.574,
+    15.626,
+    21.28
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_tropical.xml",
+    "mesh:gaia/tree_palm_tropical_03.dae",
+    "skin:gaia/tree_palm_2_a.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_palm_tropical_v4": {
+   "file": "models/vegetation/flora_tree_palm_tropical_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    13.292,
+    25.64,
+    16.665
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_tropical.xml",
+    "mesh:gaia/tree_palm_tropical_04.dae",
     "skin:gaia/tree_palm_2_a.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
@@ -24729,6 +26838,78 @@
     "actor:art/actors/flora/trees/pine_black_dead.xml",
     "mesh:gaia/pine_black_1_live.dae",
     "skin:gaia/blackpine_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_black_dead_v2": {
+   "file": "models/vegetation/flora_tree_pine_black_dead_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    20.117,
+    20.007,
+    17.756
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_black_dead.xml",
+    "mesh:gaia/pine_black_2_live.dae",
+    "skin:gaia/blackpine_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_black_dead_v3": {
+   "file": "models/vegetation/flora_tree_pine_black_dead_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    11.72,
+    25.926,
+    12.577
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_black_dead.xml",
+    "mesh:gaia/pine_black_3_live.dae",
+    "skin:gaia/blackpine_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_black_v2": {
+   "file": "models/vegetation/flora_tree_pine_black_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    16.651,
+    25.926,
+    16.999
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_black.xml",
+    "actor:art/actors/flora/trees/pine_black_deadbranches.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/pine_black_1_dead.dae",
+    "mesh:gaia/pine_black_3_live.dae",
+    "skin:gaia/blackpine_browning.png",
+    "skin:gaia/blackpine_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_black_v3": {
+   "file": "models/vegetation/flora_tree_pine_black_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    16.651,
+    26.189,
+    16.999
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_black.xml",
+    "actor:art/actors/flora/trees/pine_black_deadbranches.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/pine_black_1_dead.dae",
+    "mesh:gaia/pine_black_1_live.dae",
+    "skin:gaia/blackpine_dead.png",
+    "skin:gaia/blackpine_growth.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
@@ -24772,6 +26953,86 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_pine_maritime_short_v2": {
+   "file": "models/vegetation/flora_tree_pine_maritime_short_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    14.646,
+    17.358,
+    16.566
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_maritime_short.xml",
+    "actor:art/actors/flora/trees/pine_maritime_short_needles.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/pine_maritime_short_1_needles.dae",
+    "mesh:gaia/pine_maritime_short_2.dae",
+    "skin:gaia/tree_pine_maritime.png",
+    "skin:gaia/tree_pine_maritime_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_maritime_v2": {
+   "file": "models/vegetation/flora_tree_pine_maritime_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    14.764,
+    24.541,
+    12.708
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_maritime.xml",
+    "actor:art/actors/flora/trees/pine_maritime_needles.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/pine_maritime_1_needles.dae",
+    "mesh:gaia/pine_maritime_2.dae",
+    "skin:gaia/tree_pine_maritime.png",
+    "skin:gaia/tree_pine_maritime_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_maritime_v3": {
+   "file": "models/vegetation/flora_tree_pine_maritime_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    14.764,
+    26.455,
+    12.708
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_maritime.xml",
+    "actor:art/actors/flora/trees/pine_maritime_needles.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/pine_maritime_1_needles.dae",
+    "mesh:gaia/pine_maritime_3.dae",
+    "skin:gaia/tree_pine_maritime.png",
+    "skin:gaia/tree_pine_maritime_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_maritime_v4": {
+   "file": "models/vegetation/flora_tree_pine_maritime_v4.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    14.764,
+    24.366,
+    13.49
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_maritime.xml",
+    "actor:art/actors/flora/trees/pine_maritime_needles.xml",
+    "actor:art/actors/props/flora/decal_pine.xml",
+    "mesh:gaia/pine_maritime_1_needles.dae",
+    "mesh:gaia/pine_maritime_4.dae",
+    "skin:gaia/tree_pine_maritime.png",
+    "skin:gaia/tree_pine_maritime_trunk.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_pine_w": {
    "file": "models/vegetation/flora_tree_pine_w.glb",
    "origin": "ground-center",
@@ -24785,6 +27046,54 @@
     "actor:art/actors/flora/trees/pine_w.xml",
     "mesh:gaia/tree_pine_02.dae",
     "skin:gaia/pine_w.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_w_v2": {
+   "file": "models/vegetation/flora_tree_pine_w_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    14.078,
+    25.134,
+    14.484
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_w.xml",
+    "mesh:gaia/tree_pine_03.dae",
+    "skin:gaia/pine_w2.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_w_v3": {
+   "file": "models/vegetation/flora_tree_pine_w_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    18.302,
+    26.15,
+    19.542
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_w.xml",
+    "mesh:gaia/pine_default_1.dae",
+    "skin:gaia/pine_w.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_pine_w_v4": {
+   "file": "models/vegetation/flora_tree_pine_w_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    18.598,
+    26.243,
+    17.26
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine_w.xml",
+    "mesh:gaia/pine_default_2.dae",
+    "skin:gaia/pine_w2.dds"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
@@ -24822,6 +27131,40 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_poplar_dead_v2": {
+   "file": "models/vegetation/flora_tree_poplar_dead_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    15.638,
+    28.47,
+    14.828
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/poplar_dead.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/poplar_02.dae",
+    "skin:gaia/poplar_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_poplar_dead_v3": {
+   "file": "models/vegetation/flora_tree_poplar_dead_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    24.28,
+    27.176,
+    28.172
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/poplar_dead.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/poplar_03.dae",
+    "skin:gaia/poplar_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_poplar_lombardy_autumn": {
    "file": "models/vegetation/flora_tree_poplar_lombardy_autumn.glb",
    "origin": "ground-center",
@@ -24835,6 +27178,40 @@
     "actor:art/actors/flora/trees/poplar_autumn.xml",
     "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
     "mesh:gaia/poplar_01.dae",
+    "skin:gaia/poplar_autumn_01.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_poplar_lombardy_autumn_v2": {
+   "file": "models/vegetation/flora_tree_poplar_lombardy_autumn_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    15.638,
+    28.47,
+    14.828
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/poplar_autumn.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/poplar_02.dae",
+    "skin:gaia/poplar_autumn_02.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_poplar_lombardy_autumn_v3": {
+   "file": "models/vegetation/flora_tree_poplar_lombardy_autumn_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    24.28,
+    27.176,
+    28.172
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/poplar_autumn.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/poplar_03.dae",
     "skin:gaia/poplar_autumn_01.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
@@ -24855,6 +27232,88 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_poplar_lombardy_dead_v2": {
+   "file": "models/vegetation/flora_tree_poplar_lombardy_dead_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.668,
+    18.466,
+    9.001
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/poplar_lombardy_dead.xml",
+    "mesh:gaia/lombardy_poplar_02.dae",
+    "skin:gaia/poplar_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_poplar_lombardy_dead_v3": {
+   "file": "models/vegetation/flora_tree_poplar_lombardy_dead_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.831,
+    23.854,
+    7.989
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/poplar_lombardy_dead.xml",
+    "mesh:gaia/lombardy_poplar_03.dae",
+    "skin:gaia/poplar_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_poplar_lombardy_dead_v4": {
+   "file": "models/vegetation/flora_tree_poplar_lombardy_dead_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.831,
+    23.854,
+    8.505
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/poplar_lombardy_dead.xml",
+    "mesh:gaia/lombardy_poplar_04.dae",
+    "skin:gaia/poplar_dead.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_poplar_v2": {
+   "file": "models/vegetation/flora_tree_poplar_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    15.638,
+    28.47,
+    14.828
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/poplar.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/poplar_02.dae",
+    "skin:gaia/poplar_02.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_poplar_v3": {
+   "file": "models/vegetation/flora_tree_poplar_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    24.28,
+    27.176,
+    28.172
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/poplar.xml",
+    "actor:art/actors/props/special/eyecandy/tree_elm_base.xml",
+    "mesh:gaia/poplar_03.dae",
+    "skin:gaia/poplar_01.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_senegal_date_palm": {
    "file": "models/vegetation/flora_tree_senegal_date_palm.glb",
    "origin": "ground-center",
@@ -24868,6 +27327,54 @@
     "actor:art/actors/flora/trees/palm_senegal_date.xml",
     "mesh:gaia/tree_senegal_01.dae",
     "skin:gaia/tree_palm_senegal_a.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_senegal_date_palm_v2": {
+   "file": "models/vegetation/flora_tree_senegal_date_palm_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.663,
+    12.756,
+    8.104
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_senegal_date.xml",
+    "mesh:gaia/tree_senegal_02.dae",
+    "skin:gaia/tree_palm_senegal_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_senegal_date_palm_v3": {
+   "file": "models/vegetation/flora_tree_senegal_date_palm_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    7.194,
+    8.117,
+    7.348
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_senegal_date.xml",
+    "mesh:gaia/tree_senegal_03.dae",
+    "skin:gaia/tree_palm_senegal_c.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_senegal_date_palm_v4": {
+   "file": "models/vegetation/flora_tree_senegal_date_palm_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.839,
+    13.234,
+    6.999
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_senegal_date.xml",
+    "mesh:gaia/tree_senegal_04.dae",
+    "skin:gaia/tree_palm_senegal_d.dds"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
@@ -24890,6 +27397,25 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_strangler_v2": {
+   "file": "models/vegetation/flora_tree_strangler_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    20.99,
+    34.548,
+    21.564
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/strangler.xml",
+    "actor:art/actors/flora/trees/strangler_leaves.xml",
+    "mesh:gaia/strangler_1_leaves.dae",
+    "mesh:gaia/strangler_2_trunk.dae",
+    "skin:gaia/banyan_leaves_1.png",
+    "skin:gaia/banyan_trunk_1.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_tamarix": {
    "file": "models/vegetation/flora_tree_tamarix.glb",
    "origin": "ground-center",
@@ -24903,6 +27429,25 @@
     "actor:art/actors/flora/trees/tamarix.xml",
     "actor:art/actors/flora/trees/tamarix_top.xml",
     "mesh:gaia/tree_tamarix_a.dae",
+    "mesh:gaia/tree_tamarix_top_a.dae",
+    "skin:gaia/tree_tamarix.dds",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "flora_tree_tamarix_v2": {
+   "file": "models/vegetation/flora_tree_tamarix_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    10.228,
+    14.786,
+    12.134
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/tamarix.xml",
+    "actor:art/actors/flora/trees/tamarix_top.xml",
+    "mesh:gaia/tree_tamarix_b.dae",
     "mesh:gaia/tree_tamarix_top_a.dae",
     "skin:gaia/tree_tamarix.dds",
     "skin:gaia/trunk_deciduous_b.dds"
@@ -24943,6 +27488,108 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_temperate_autumn_v2": {
+   "file": "models/vegetation/flora_tree_temperate_autumn_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.352,
+    15.339,
+    11.287
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_forest_biome_tree_autumn.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/deciduous_17.dae",
+    "skin:gaia/temperate_tree_05.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_temperate_autumn_v3": {
+   "file": "models/vegetation/flora_tree_temperate_autumn_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.101,
+    13.567,
+    7.873
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_forest_biome_tree_autumn.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/deciduous_18.dae",
+    "skin:gaia/temperate_tree_04.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_temperate_autumn_v4": {
+   "file": "models/vegetation/flora_tree_temperate_autumn_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.487,
+    15.255,
+    9.069
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_forest_biome_tree_autumn.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/deciduous_19.dae",
+    "skin:gaia/temperate_tree_05.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_temperate_v2": {
+   "file": "models/vegetation/flora_tree_temperate_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.352,
+    15.339,
+    11.287
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_forest_biome_tree.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/deciduous_17.dae",
+    "skin:gaia/temperate_tree_03.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_temperate_v3": {
+   "file": "models/vegetation/flora_tree_temperate_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.101,
+    13.567,
+    7.873
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_forest_biome_tree.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/deciduous_18.dae",
+    "skin:gaia/temperate_tree_01.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_temperate_v4": {
+   "file": "models/vegetation/flora_tree_temperate_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.487,
+    15.255,
+    9.069
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_forest_biome_tree.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/deciduous_19.dae",
+    "skin:gaia/temperate_tree_02.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_temperate_winter": {
    "file": "models/vegetation/flora_tree_temperate_winter.glb",
    "origin": "ground-center",
@@ -24956,6 +27603,57 @@
     "actor:art/actors/flora/trees/temperate_forest_biome_tree_winter.xml",
     "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
     "mesh:gaia/deciduous_16.dae",
+    "skin:gaia/temperate_tree_07.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_temperate_winter_v2": {
+   "file": "models/vegetation/flora_tree_temperate_winter_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.352,
+    15.339,
+    11.287
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_forest_biome_tree_winter.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/deciduous_17.dae",
+    "skin:gaia/temperate_tree_08.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_temperate_winter_v3": {
+   "file": "models/vegetation/flora_tree_temperate_winter_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.101,
+    13.567,
+    7.873
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_forest_biome_tree_winter.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/deciduous_18.dae",
+    "skin:gaia/temperate_tree_07.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_temperate_winter_v4": {
+   "file": "models/vegetation/flora_tree_temperate_winter_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.487,
+    15.255,
+    9.069
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/temperate_forest_biome_tree_winter.xml",
+    "actor:art/actors/props/special/eyecandy/ground_tree_decal_01.xml",
+    "mesh:gaia/deciduous_19.dae",
     "skin:gaia/temperate_tree_07.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
@@ -24979,6 +27677,63 @@
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"
   },
+  "flora_tree_toona_v2": {
+   "file": "models/vegetation/flora_tree_toona_v2.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    17.659,
+    22.438,
+    18.267
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/tree_tropic.xml",
+    "actor:art/actors/flora/trees/tree_tropic_top.xml",
+    "mesh:gaia/tree_tropic_b.dae",
+    "mesh:gaia/tree_tropic_top.dae",
+    "skin:gaia/poplar_a.dds",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_toona_v3": {
+   "file": "models/vegetation/flora_tree_toona_v3.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    17.659,
+    22.438,
+    18.267
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/tree_tropic.xml",
+    "actor:art/actors/flora/trees/tree_tropic_top.xml",
+    "mesh:gaia/tree_tropic.dae",
+    "mesh:gaia/tree_tropic_top.dae",
+    "skin:gaia/poplar_a.dds",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_toona_v4": {
+   "file": "models/vegetation/flora_tree_toona_v4.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    17.659,
+    22.438,
+    18.267
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/tree_tropic.xml",
+    "actor:art/actors/flora/trees/tree_tropic_top.xml",
+    "mesh:gaia/tree_tropic_b.dae",
+    "mesh:gaia/tree_tropic_top.dae",
+    "skin:gaia/poplar_a.dds",
+    "skin:gaia/trunk_deciduous_b.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
   "flora_tree_tropic_rainforest": {
    "file": "models/vegetation/flora_tree_tropic_rainforest.glb",
    "origin": "ground-center",
@@ -24991,6 +27746,54 @@
    "sources": [
     "actor:art/actors/flora/trees/tropic_forest_biome_tree.xml",
     "mesh:gaia/kapok_tree_a.dae",
+    "skin:gaia/tropic_deciduous_05.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_tropic_rainforest_v2": {
+   "file": "models/vegetation/flora_tree_tropic_rainforest_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    13.681,
+    23.245,
+    16.074
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/tropic_forest_biome_tree.xml",
+    "mesh:gaia/kapok_tree_b.dae",
+    "skin:gaia/tropic_deciduous_05.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_tropic_rainforest_v3": {
+   "file": "models/vegetation/flora_tree_tropic_rainforest_v3.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    10.562,
+    13.401,
+    11.483
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/tropic_forest_biome_tree.xml",
+    "mesh:gaia/deciduous_15.dae",
+    "skin:gaia/tropic_deciduous_05.png"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "flora_tree_tropic_rainforest_v4": {
+   "file": "models/vegetation/flora_tree_tropic_rainforest_v4.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    15.396,
+    12.744,
+    18.413
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/tropic_forest_biome_tree.xml",
+    "mesh:gaia/deciduous_20.dae",
     "skin:gaia/tropic_deciduous_05.png"
    ],
    "upstream_material": "basic_trans_wind_norm_spec.xml"

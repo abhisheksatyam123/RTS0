@@ -103,6 +103,7 @@ public:
 		godot::TextureRect *icon = nullptr;
 		godot::ColorRect *progress = nullptr; // unitQueueProgressSlider
 		godot::Label *chip = nullptr;         // unitQueueCount
+		godot::TextureRect *paused = nullptr; // unitQueuePausedIcon
 		int queue_index = -1;                 // the item a left click removes; -1 for a ghost
 		uint32_t producer = 0;                // the structure whose queue holds it (0: the selected one)
 		godot::String kind;                   // the Template Viewer's page on a right click
@@ -150,6 +151,7 @@ public:
 		grayscale_.instantiate();
 		grayscale_->set_shader(gray);
 
+		const Ref<Texture2D> paused_tex = rtso::load_ui_texture("res://assets/textures/ui/archive/icons/stop.png");
 		// 0 A.D. shows the whole queue (selection_panels.js Queue: 16 items).
 		for (int q = 0; q < kSlots; ++q) {
 			Panel *sp = memnew(Panel);
@@ -193,18 +195,32 @@ public:
 			chip->set_visible(false);
 			sp->add_child(chip);
 
+			// unitQueuePausedIcon: stretched:session/icons/stop.png over the button.
+			TextureRect *pz = memnew(TextureRect);
+			pz->set_name("unitQueuePausedIcon");
+			pz->set_texture(paused_tex);
+			pz->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+			pz->set_stretch_mode(TextureRect::STRETCH_SCALE);
+			pz->set_position(Vector2(2, 3));
+			pz->set_size(Vector2(28, 30));
+			pz->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			pz->set_visible(false);
+			sp->add_child(pz);
+
 			sp->connect("gui_input", Callable(owner, "_on_queue_slot_gui_input").bind(q));
 
 			queue_slots_[q].panel = sp;
 			queue_slots_[q].icon = ico;
 			queue_slots_[q].progress = pb;
 			queue_slots_[q].chip = chip;
+			queue_slots_[q].paused = pz;
 			queue_bar_->add_child(sp);
 		}
 	}
 
 	void update(const rtso::Simulation::Building *found_b) {
 		trainer_unit_ = 0;
+		trainer_garrisoned_ = false;
 		if (found_b) show(&found_b->queue, found_b->type, found_b->autoqueue, found_b->team);
 		else clear();
 	}
@@ -213,6 +229,7 @@ public:
 	// every second item, and so on, with each one's auto-queue ghosts after.
 	void update_multi(const std::vector<const rtso::Simulation::Building *> &producers) {
 		trainer_unit_ = 0;
+		trainer_garrisoned_ = false;
 		std::vector<Item> items;
 		bool found = true;
 		for (int i = 0; found && (int)items.size() < kSlots; ++i) {
@@ -234,6 +251,13 @@ public:
 	// A unit's Trainer queue (triremes, Cyrus II); a click cancels through the unit.
 	void update_unit(uint32_t unit_id, const std::vector<rtso::ProductionOrder> *queue) {
 		trainer_unit_ = unit_id;
+		// ProductionQueue.OnGarrisonedStateChanged: a garrisoned trainer pauses its queue.
+		trainer_garrisoned_ = false;
+		if (const rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr) {
+			const auto uv = sim->units();
+			for (size_t i = 0; i < uv.count; ++i)
+				if (uv.id[i] == unit_id) { trainer_garrisoned_ = !uv.alive[i]; break; }
+		}
 		if (queue && host_) show(queue, rtso::BLD_TYPE_COUNT, false, host_->local_player());
 		else clear();
 	}
@@ -310,7 +334,13 @@ public:
 			slot.civ = civ;
 			slot.icon->set_texture(tex);
 			slot.icon->set_visible(tex.is_valid());
-			slot.icon->set_material(ghost ? Ref<Material>(grayscale_) : Ref<Material>());
+			// queuedItem.paused: ProductionQueue.PauseProduction pauses a garrisoned trainer's front
+			// item; a started item that is no longer at the front is paused too (as ResearchProgress).
+			const bool paused = !ghost && (qi == 0 ? trainer_garrisoned_ : (po.started || po.timer > 0.0f));
+			// "stretched:color:0 0 0 127:grayscale:" while paused, "grayscale:" for a ghost.
+			slot.icon->set_material(ghost || paused ? Ref<Material>(grayscale_) : Ref<Material>());
+			slot.icon->set_self_modulate(paused ? Color(0.5f, 0.5f, 0.5f) : Color(1, 1, 1));
+			slot.paused->set_visible(paused);
 
 			String tip = name;
 			if (ghost) tip += "\n" + rtso::tr0("The auto-queue will try to train this item later.");
@@ -322,6 +352,7 @@ public:
 							rtso::sprintf0(rtso::tr0("%(population)s %(neededSlots)s"),
 									{{"population", rtso::tr0("Population")}, {"neededSlots", String::num_int64(needed)}});
 			}
+			if (paused) tip += "\n" + rtso::tr0("This item is paused.");
 			if (!slot.kind.is_empty()) tip += "\n" + rtso::tr0("Right-click for more information.");
 			slot.panel->set_tooltip_text(tip);
 
@@ -334,8 +365,9 @@ public:
 				slot.progress->set_size(Vector2(28, 30));
 				slot.progress->set_visible(true);
 			} else {
-				// Each structure's first item advances (queuedItem.progress).
-				const float progress = qi == 0 && po.duration > 0.0f ? std::clamp(po.timer / po.duration, 0.0f, 1.0f) : 0.0f;
+				// queuedItem.progress: the front item's, and a paused item keeps what it had.
+				const bool shows = qi == 0 || paused;
+				const float progress = shows && po.duration > 0.0f ? std::clamp(po.timer / po.duration, 0.0f, 1.0f) : 0.0f;
 				if (q == 0) {
 					const int left = (int)std::ceil(std::max(po.duration - po.timer, 0.0f));
 					time_remaining_->set_text(vformat("%d:%02d", left / 60, left % 60)); // countdown format "m:ss"
@@ -343,7 +375,7 @@ public:
 				slot.progress->set_color(Color(0.0f, 1.0f, 0.0f, 128 / 255.0f));
 				slot.progress->set_position(Vector2(2, 3 + 30.0f * progress));
 				slot.progress->set_size(Vector2(28, 30.0f * (1.0f - progress)));
-				slot.progress->set_visible(qi == 0);
+				slot.progress->set_visible(shows);
 			}
 		}
 	}
@@ -378,6 +410,7 @@ public:
 		d["tooltip"] = s.panel->get_tooltip_text();
 		d["count"] = s.chip->get_text();
 		d["ghost"] = s.panel->is_visible() && s.queue_index < 0;
+		d["paused"] = s.panel->is_visible() && s.paused->is_visible();
 		d["producer"] = (int64_t)s.producer;
 		d["kind"] = s.kind;
 		d["id"] = s.id;
@@ -423,6 +456,7 @@ private:
 		s.icon->set_visible(false);
 		s.progress->set_visible(false);
 		s.chip->set_visible(false);
+		s.paused->set_visible(false);
 	}
 
 	godot::HBoxContainer *queue_bar_ = nullptr;
@@ -434,6 +468,7 @@ private:
 	QueueSlotUI queue_slots_[kSlots];
 	RtsoProductionQueueHost *host_ = nullptr;
 	uint32_t trainer_unit_ = 0; // the unit whose queue is shown (update_unit), else 0
+	bool trainer_garrisoned_ = false; // that unit is inside a holder: its queue is paused
 };
 
 #endif
