@@ -2766,6 +2766,24 @@ static void test_scenery_capture() {
 	}
 }
 
+static void test_idle_drift_walk_back() {
+	std::printf("77. a defensive unit entering IDLE more than 10 m from its held position walks back; an aggressive one stays (UnitAI IDLE Timer)\n");
+	auto run_case = [](uint8_t stance) {
+		Simulation s;
+		setup(s);
+		uint32_t d = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&d, 1, stance); // held at (0, 0)
+		const uint32_t house = s.spawn_building_world(12.0f, 0.0f, BLD_HOUSE, 0, 0.0f);
+		s.order_build_or_repair(&d, 1, house);
+		check(run_until(s, 120.0f, [&] { const auto *b = bld(s, house); return b && b->build_progress >= 1.0f; }), "the house is built");
+		check(dist(s, d, 0, 0) > 5.0f, "the builder stood well away from its held position");
+		run(s, 15.0f);
+		return dist(s, d, 0, 0);
+	};
+	check(run_case(STANCE_DEFENSIVE) < 1.5f, "a defensive builder walks back once idle");
+	check(run_case(STANCE_AGGRESSIVE) > 5.0f, "an aggressive builder stays by the house");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2846,6 +2864,7 @@ int main(int argc, char **argv) {
 	test_structure_scan_by_centre();
 	test_healer_stances();
 	test_forced_flag_not_inherited();
+	test_idle_drift_walk_back();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
