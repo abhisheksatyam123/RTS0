@@ -72,10 +72,10 @@ int main() {
 	CHECK(fires(t, "1", {"Shift"}, "selection.group.add.1"));
 	CHECK(fires(t, "1", {}, "selection.group.select.1"));
 	CHECK(fires(t, "0", {"Ctrl"}, "selection.group.save.10"));
-	// Same-specificity hotkeys all fire; the UI picks by context (B = build menu or 5th trainee).
-	CHECK(fires(t, "B", {}, "rts0.build.menu") && fires(t, "B", {}, "session.queueunit.5"));
-	CHECK(fires(t, "B", {"Ctrl"}, "session.gui.barter.toggle") && !fires(t, "B", {"Ctrl"}, "rts0.build.menu"));
-	CHECK(fires(t, "M", {}, "rts0.build.market"));
+	// RTS0's placement keys are unbound by default (0.28 has none): B is the 5th trainee only.
+	CHECK(!fires(t, "B", {}, "rts0.build.menu") && fires(t, "B", {}, "session.queueunit.5"));
+	CHECK(fires(t, "B", {"Ctrl"}, "session.gui.barter.toggle") && !fires(t, "B", {"Ctrl"}, "session.queueunit.5"));
+	CHECK(!fires(t, "M", {}, "rts0.build.market") && t.get("rts0.build.market") && t.get("rts0.build.market")->empty());
 	CHECK(fires(t, "Escape", {}, "cancel"));
 	CHECK(fires(t, "Space", {"Shift"}, "pause"));
 
@@ -107,7 +107,7 @@ int main() {
 
 	// Conflicts (0 A.D. GetConflicts): every hotkey on the same key set.
 	const auto b = t.bound_to(parse_combo("B"));
-	CHECK(std::find(b.begin(), b.end(), "rts0.build.menu") != b.end());
+	CHECK(std::find(b.begin(), b.end(), "rts0.build.menu") == b.end());
 	CHECK(std::find(b.begin(), b.end(), "session.queueunit.5") != b.end());
 	CHECK(t.bound_to(parse_combo("Ctrl+F5")) == std::vector<std::string>{"camera.jump.set.1"});
 	CHECK(t.bound_to(parse_combo("F5+Ctrl")) == std::vector<std::string>{"camera.jump.set.1"});

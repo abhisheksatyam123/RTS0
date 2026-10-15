@@ -22097,7 +22097,71 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	const uint8_t t = bit != building_id_to_idx_.end() ? buildings_[bit->second].type : BLD_TYPE_COUNT;
 	const bool economic = t == BLD_TYPE_COUNT || t == BLD_HOUSE || t == BLD_STOREHOUSE || t == BLD_FARMSTEAD || t == BLD_FIELD || t == BLD_CORRAL || t == BLD_DOCK || t == BLD_MARKET;
 	w.type = fortified && petra_ps().phase >= 2 ? AttackPlan::PLAN_SIEGE : economic ? AttackPlan::PLAN_RAID : AttackPlan::PLAN_ASSAULT;
+	// getNearestTarget: check that we can reach this target; a blocker can change the enemy.
+	const uint32_t reach = petra_target_obstruction(id, px, pz, out_tx, out_tz);
+	if (reach != id) w.target_player = buildings_[building_id_to_idx_.at(reach)].team;
+	return reach;
+}
+
+uint32_t Simulation::petra_target_obstruction(uint32_t id, float px, float pz, float &tx, float &tz) const {
+	auto it = building_id_to_idx_.find(id);
+	if (it == building_id_to_idx_.end()) return id;
+	const Building &target = buildings_[it->second];
+	// Done only when the attacker and the target are on the same land.
+	// (terrain-analysis.js accessibility: structures don't split land, so a walled-in target counts).
+	if (petra_access_at(target.x, target.z) != petra_access_at(px, pz)) return id;
+	WaypointPath path;
+	find_path(px, pz, target.x, target.z, path, PASS_INFANTRY);
+	if (path.count == 0) return id;
+	// Where the path ends: the reachable spot nearest the target (MakeGoalReachable).
+	const float ex = path.xs[path.count - 1], ez = path.zs[path.count - 1];
+	const float dist = std::sqrt((target.x - ex) * (target.x - ex) + (target.z - ez) * (target.z - ez));
+	const float radius = std::sqrt(target.hu * target.hu + target.hv * target.hv);
+	// A segment of the path crossing a gate's footprint (an unlocked gate does not block paths).
+	auto crosses = [&](const Building &b) {
+		float ax = px, az = pz;
+		for (int k = 0; k < path.count; ++k) {
+			const nav::Vec2 l0 = nav::footprint_local(b, ax, az), l1 = nav::footprint_local(b, path.xs[k], path.zs[k]);
+			// Liang-Barsky clip of the segment against the footprint rectangle.
+			float t0 = 0.0f, t1 = 1.0f;
+			const float d[2] = {l1.x - l0.x, l1.y - l0.y}, s[2] = {l0.x, l0.y}, h[2] = {b.hu, b.hv};
+			bool in = true;
+			for (int a = 0; a < 2 && in; ++a) {
+				for (const float sign : {-1.0f, 1.0f}) {
+					const float pp = sign * d[a], q = h[a] - sign * s[a];
+					if (std::fabs(pp) < 1e-6f) { if (q < 0.0f) { in = false; break; } continue; }
+					const float r = q / pp;
+					if (pp < 0.0f) t0 = std::max(t0, r); else t1 = std::min(t1, r);
+					if (t0 > t1) { in = false; break; }
+				}
+			}
+			if (in) return true;
+			ax = path.xs[k]; az = path.zs[k];
+		}
+		return false;
+	};
+	for (const Building &b : buildings_) {
+		if (b.id == target.id || b.hp <= 0.0f || b.wrecked || b.type == BLD_FIELD || !petra_foe(b.team)) continue;
+		if (!building_blocks_movement(b.type) || !(b.committed || b.build_progress >= 0.99f)) continue;
+		const bool gate = is_gate_type(b.type);
+		// We can reach the target, but nonetheless check that we did not cross any enemy gate.
+		if (dist < radius + 10.0f / 4.0f && !gate) continue;
+		// Blocked by this structure: advancing 1.8 m (1 + 0.8 clearance) toward the target
+		// would bring us inside its obstruction. RTS0's path ends on a navcell centre, up to
+		// a navcell short of where 0.28's would stop, so the step adds one.
+		if (dist > 1e-3f) {
+			const float step = 1.8f / 4.0f + 2.0f * nav_grid_.map_half / (float)std::max(1, nav_grid_.res);
+			const nav::Vec2 l = nav::footprint_local(b, ex + step * (target.x - ex) / dist, ez + step * (target.z - ez) / dist);
+			if (std::fabs(l.x) < b.hu && std::fabs(l.y) < b.hv) { tx = b.x; tz = b.z; return b.id; }
+		}
+		if (gate && crosses(b)) { tx = b.x; tz = b.z; return b.id; }
+	}
 	return id;
+}
+
+bool Simulation::petra_plan_blocked(const AttackPlan &plan) const {
+	auto it = building_id_to_idx_.find(plan.target_building_id);
+	return it != building_id_to_idx_.end() && (building_tech_classes(buildings_[it->second].type) & TC_WALL).any();
 }
 
 // headquarters.js gameStart + attackManager.js setRushes: Petra plans village
@@ -22339,6 +22403,8 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		const int32_t t = lookup_unit(units_.target_unit_id[j]);
 		return t < 0 || !units_.alive[t] || petra_is_support_unit(units_.unit_type[t]);
 	};
+	// isBlocked: the target is the wall piece that blocks the way.
+	const bool blocked = petra_plan_blocked(plan);
 	std::unordered_set<int32_t> reacted;
 	auto hit = [&](int32_t j, int32_t a) {
 		const uint32_t uid = units_.id[j];
@@ -22352,6 +22418,8 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		if (siege(i)) {
 			for (auto &c : nearest(i, 5, [&](int32_t j) { return !siege(j); })) hit(c.second, a);
 			if (siege(a) && (cls(a) & TC_MELEE) && (cls(i) & TC_MELEE)) hit(i, a);
+		} else if (blocked && !(cls(i) & TC_RANGED) && (cls(a) & TC_RANGED)) {
+			continue; // blocked by walls, melee units don't answer ranged ones (behind the wall)
 		} else if (siege(a)) {
 			for (auto &c : nearest(i, 5, [&](int32_t j) { return (cls(j) & TC_MELEE) != 0; })) hit(c.second, a);
 		} else {
@@ -22437,7 +22505,8 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		if (!needs) continue;
 		const TechClasses c = cls(i);
 		float range = 60.0f * M;
-		if (c & TC_RANGED) range = 30.0f * M + units_.attack_range[i];
+		if (blocked) range = units_.attack_range[i] > 0.0f ? units_.attack_range[i] : 10.0f * M; // its own attack range
+		else if (c & TC_RANGED) range = 30.0f * M + units_.attack_range[i];
 		else if (c & TC_CAVALRY) range = 90.0f * M;
 		const float range2 = range * range;
 		const uint32_t uid = units_.id[i];
@@ -22469,6 +22538,8 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		if (!foes.empty()) {
 			std::sort(foes.begin(), foes.end());
 			order_attack(&uid, 1, units_.id[foes[pick(foes.size(), 0.1f)].second]);
+		} else if (blocked && unit_can_target_building((size_t)i, buildings_[building_id_to_idx_.at(plan.target_building_id)].type)) {
+			order_attack_building(&uid, 1, plan.target_building_id, false, false);
 		} else if (far_from_target) {
 			order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true, petra_attack_avoid(plan, false));
 		} else if (const int32_t bi = best_structure(i, range2, false); bi >= 0) {

@@ -2960,6 +2960,11 @@ private:
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
 	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
 	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
+	// attackPlan.js checkTargetObstruction: the enemy structure (a wall, palisade or gate) that
+	// blocks the path from (px, pz) to target `id` on the same land, else `id` itself.
+	uint32_t petra_target_obstruction(uint32_t id, float px, float pz, float &tx, float &tz) const;
+	// attackPlan.js isBlocked: the plan's target is a wall piece that blocked its path.
+	bool petra_plan_blocked(const AttackPlan &plan) const;
 	bool petra_unit_reserved(uint32_t uid) const;
 	bool petra_mustering(uint32_t uid) const;
 	void petra_leave_mustering(uint32_t uid);
