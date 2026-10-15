@@ -179,6 +179,18 @@ public:
 		return play_path(g[rng_() % g.size()], gain);
 	}
 
+	// A random member of a sound group heard at (x, z) on the map (positional groups).
+	bool play_spatial_group(const char *dir, const char *prefix, float x, float z, float gain = 1.0f) {
+		const auto &g = sound_group(dir, prefix);
+		if (g.empty() || !spatial_) return false;
+		const godot::String path = g[rng_() % g.size()];
+		godot::Ref<godot::AudioStream> s = stream(path);
+		if (s.is_null()) return false;
+		spatial_(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 1.0f);
+		last_played_ = path;
+		return true;
+	}
+
 	bool play_path(const godot::String &path, float gain = 1.0f) {
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return false;
@@ -223,9 +235,16 @@ public:
 	// sel_<structure> (interface/select/building).
 	void play_building_select(uint8_t type) { play_group("interface/select/building", building_sound_name(type, true), 1.0f); }
 
-	// alarm_victory / alarm_defeated.
-	void play_victory() { play_group("interface/alarm", "alarmvictory", 1.0f); }
+	// template_player.xml SoundGroups, played by Player.OnGlobalPlayerDefeated to
+	// each player: "defeated" when it falls, "defeated_ally" when an ally does,
+	// "defeated_enemy" (alarm_alert_1) when an enemy does. There is no "won" group.
 	void play_defeat() { play_group("interface/alarm", "alarmdefeat", 1.0f); }
+	void play_defeated_ally() { play_group("interface/alarm", "alarm_defeated_ally", 1.0f); }
+	void play_defeated_enemy() { play_group("interface/alarm", "alarmalert1", 1.0f); }
+	// AlertRaiser alert_raise / alert_end: alarm_alert_0 / alarm_alert_1 (owner only, Gain 0.25).
+	void play_alert(bool end) { play_group("interface/alarm", end ? "alarmalert1" : "alarmalert0", 0.25f); }
+	// Gate.js sel_gate on lock and unlock (select/building/sel_gate, owner only).
+	void play_gate_lock() { play_group("interface/select/building", "sel_gate", 1.0f); }
 	void play_no_idle_unit() { play_group("interface/alarm", "alarm_no_idle_unit", 1.0f); }
 	void play_invalid_placement() { play_group("interface/alarm", "alarm_invalid_building_placement", 0.3f); }
 
@@ -256,13 +275,24 @@ public:
 		}
 		bld_progress_.swap(progress);
 
-		// Techs: phases use alarm_phase, everything else alarm_techcomplete (Gain 0.25).
+		// Gate.js gate_opening / gate_closing (actor/gate/stonegate_open, _close) where a
+		// gate the viewer sees opens or closes.
+		for (const auto &b : sim->buildings()) {
+			if (b.wrecked || !is_gate_type(b.type)) continue;
+			auto it = gate_open_.find(b.id);
+			if (fire && spatial_ && it != gate_open_.end() && it->second != b.gate_open &&
+					sim->is_entity_visible_to_viewer(b.x, b.z, b.team, me))
+				play_spatial_group("actor/gate", b.gate_open ? "stonegate_open" : "stonegate_close", b.x, b.z, 1.0f);
+			gate_open_[b.id] = b.gate_open;
+		}
+
+		// Techs (soundComplete): phases use alarm_phase, the others alarm_upgradearmory (Gain 0.25).
 		const auto &ps = sim->player(me);
 		for (uint8_t tech = 1; tech < TECH_COUNT; ++tech) {
 			const bool has = ps.has_tech(tech);
 			if (has && !techs_[tech] && fire) {
 				if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) play_group("interface/alarm", "alarmresearchphase", 1.0f);
-				else play_group("interface/alarm", "alarmresearchtech", 0.25f);
+				else play_group("interface/alarm", "alarmupgradearmory", 0.25f);
 			}
 			techs_[tech] = has;
 		}
@@ -304,6 +334,16 @@ public:
 			if (!living && fire && fauna_seen_.count(fv.id[i]))
 				play_death(sim, me, fauna_death_sound(fv.fauna_type[i]), fv.owner[i], fv.pos_x[i], fv.pos_z[i]);
 			if (living) fauna_seen.insert(fv.id[i]);
+			// UnitAI FLEEING enter: PlaySound("panic"), which only fauna_chicken has (chickens.xml).
+			if (fv.fauna_type[i] == FAUNA_CHICKEN) {
+				const bool fleeing = living && fv.behavior[i] == FAUNA_FLEE;
+				auto it = chicken_fleeing_.find(fv.id[i]);
+				if (fleeing && fire && it != chicken_fleeing_.end() && !it->second &&
+						sim->is_entity_visible_to_viewer(fv.pos_x[i], fv.pos_z[i], fv.owner[i], me))
+					play_spatial_group("actor/fauna/animal", "chicken_", fv.pos_x[i], fv.pos_z[i], 1.0f);
+				if (living) chicken_fleeing_[fv.id[i]] = fleeing;
+				else chicken_fleeing_.erase(fv.id[i]);
+			}
 		}
 		fauna_seen_.swap(fauna_seen);
 		if (fire) tick_work_sounds(sim, me, uv, t);
@@ -646,14 +686,21 @@ private:
 		return s;
 	}
 
-	// template_unit_*.xml <trained>: alarm_create_{infantry,cav,female,worker,priest,warship}.
+	// template_unit_*.xml <trained>: alarm_create_{infantry,cav,female,worker,priest,warship},
+	// elephant_trained for elephants, complete_kennel for dogs, siege_select for the
+	// Germans' wagon; alarm_create_infantry (fs_gravel) for the male civilian.
 	void play_trained(uint8_t civ, uint8_t type, bool voices_on) {
 		switch (type) {
 			case UNIT_FEMALE_CITIZEN: play_group("interface/alarm", "alarmcreatefemale", 1.0f); break;
-			case UNIT_VILLAGER: play_group("interface/alarm", "alarmcreateworker", 1.0f); break;
-			case UNIT_CAVALRY: case UNIT_CAMEL: case UNIT_CHARIOT: case UNIT_SCYTHED_CHARIOT: case UNIT_ELEPHANT:
+			case UNIT_TRADER: play_group("interface/alarm", "alarmcreateworker", 1.0f); break;
+			case UNIT_CAVALRY: case UNIT_CAMEL: case UNIT_CHARIOT: case UNIT_SCYTHED_CHARIOT:
 				play_group("interface/alarm", "alarmcreatecavalry", 1.0f);
 				break;
+			case UNIT_ELEPHANT: case UNIT_WORKER_ELEPHANT:
+				play_group("actor/fauna/animal", "elephant_trained", 1.0f);
+				break;
+			case UNIT_WAR_DOG: play_group("interface/complete/building", "complete_kennel", 1.0f); break;
+			case UNIT_WAGON: play_group("attack/siege", "siege_select", 1.0f); break;
 			case UNIT_HEALER: play_group("interface/alarm", "alarmcreatepriest", 1.0f); break;
 			case UNIT_TRIREME: case UNIT_FISHING_BOAT: case UNIT_MERCHANT_SHIP:
 				play_group("interface/alarm", "alarm_warship", 1.0f);
@@ -680,6 +727,8 @@ private:
 	unsigned next_ = 0;
 	std::unordered_map<std::string, godot::Ref<godot::AudioStream>> streams_;
 	std::unordered_map<uint32_t, float> bld_progress_;
+	std::unordered_map<uint32_t, bool> gate_open_; // gate id -> open last frame
+	std::unordered_map<uint32_t, bool> chicken_fleeing_; // chicken id -> fleeing last frame
 	std::unordered_map<uint32_t, Seen> seen_;
 	std::unordered_set<uint32_t> fauna_seen_; // animals alive last frame
 	std::unordered_set<uint32_t> known_;

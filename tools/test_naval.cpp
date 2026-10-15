@@ -1797,6 +1797,26 @@ static void test_fire_ship() {
 	s.cmd_delete(0, &a, 1);
 	run(s, 1.0f);
 	CHECK(hp(b) == b0);
+
+	// What the blast kills is a kill like any other (Health.js KilledBy with the fire ship as the
+	// attacker): its owner takes the loot, and a structure it razes leaves the territory grid.
+	const uint32_t fire2 = s.spawn_unit(30.0f, 12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+	CHECK(s.cmd_upgrade_units(0, &fire2, 1, tmpl_of("brit/ship_fire_fire")));
+	run(s, 0.1f);
+	const uint32_t prey = s.spawn_unit(33.0f, 12.0f, 1, UNIT_TRIREME);
+	const uint32_t dock = s.spawn_building_world(30.0f, 17.0f, BLD_DOCK, 1, 1.0f);
+	uint32_t pair[2] = {fire2, prey};
+	s.order_set_stance(pair, 2, STANCE_PASSIVE);
+	s.set_unit_hp(prey, 1.0f);
+	s.buildings_[s.building_id_to_idx_.at(dock)].hp = 1.0f;
+	const float wood0 = s.player(0).res[RES_WOOD];
+	s.set_unit_hp(fire2, 1.0f);
+	run(s, 1.0f);
+	CHECK(!s.units().alive[idx(s, prey)]);
+	CHECK(s.buildings_[s.building_id_to_idx_.at(dock)].wrecked);
+	std::printf("fire ship blast loot: wood %.0f -> %.0f\n", wood0, s.player(0).res[RES_WOOD]);
+	CHECK(s.player(0).res[RES_WOOD] > wood0);
+	CHECK(s.territory_owner_at(30.0f, 17.0f) != 1);
 }
 
 // A worker sent to a tree across the north-east lake walks round it (UnitMotion paths
