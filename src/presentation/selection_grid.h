@@ -45,11 +45,17 @@ public:
 		bool enabled = true, grey = true;
 		Color bg = Color(0, 0, 0, 0);
 		String tip;
-		int fauna = -1; // the player's own livestock: its FaunaType (fauna_key), else -1
+		// A structure group: its portrait and name (units take theirs from the template).
+		Ref<Texture2D> icon;
+		String name;
 	};
 
 	// selection_panels.js Selection.getMaxNumberOfItems: at most 16 groups show.
 	static constexpr size_t kMaxSelectionGroups = 16;
+
+	// A structure type of a civ (selection.js groups structures by template too).
+	static int structure_key(uint8_t civ, uint8_t type) { return 0x100000 | ((int)civ << 8) | (int)type; }
+	static bool is_structure_key(int key) { return (key & 0x100000) != 0; }
 
 	// Template row when the unit has one, else 0x10000 | unit type.
 	static int group_key(uint8_t unit_type, uint16_t tmpl) {
@@ -92,7 +98,7 @@ public:
 	}
 
 	static String group_name(const Group &g) {
-		if (g.fauna >= 0) return String::utf8(rtso::fauna_type_info((uint8_t)g.fauna).name);
+		if (!g.name.is_empty()) return g.name;
 		if (g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) return String::utf8(rtso::civ_unit_template(g.tmpl).name);
 		return String(rtso::unit_type_info(g.unit_type).name);
 	}
@@ -164,7 +170,7 @@ public:
 			b->set_custom_minimum_size(Vector2(icon_, icon_));
 			b->set_expand_icon(true);
 			b->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-			Ref<Texture2D> tex = g.fauna >= 0 ? rtso::portraits::fauna((uint8_t)g.fauna) : rtso::portraits::unit(g.tmpl, g.unit_type);
+			Ref<Texture2D> tex = g.icon.is_valid() ? g.icon : rtso::portraits::unit(g.tmpl, g.unit_type);
 			if (tex.is_valid() && g.enabled) {
 				b->set_button_icon(tex);
 			} else if (tex.is_valid()) {

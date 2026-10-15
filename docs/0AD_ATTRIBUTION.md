@@ -121,8 +121,9 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/presentation/session_input.cpp`, `session_lifecycle.cpp`, `src/simulation/simulation.cpp` (press-time pick, placement range tooltip, average elevation range) | 0 A.D. 0.28 `gui/session/input.js` (clickedEntity, updateBuildingPlacementPreview), `simulation/components/GuiInterface.js` (GetAverageRangeForBuildings), `source/simulation2/components/CCmpRangeManager.cpp` (GetElevationAdaptedRange) | Port |
 | `src/presentation/main_node.cpp` (batch training) | 0 A.D. 0.28 `gui/session/input.js` (addTrainingToQueue, flushTrainingBatch, INPUT_BATCHTRAINING) | Port |
 | `src/presentation/command_queue_view.h` (training panel) | 0 A.D. 0.28 `gui/session/selection_panels.js` (g_SelectionPanels.Training: portraits, hotkey prefix, batch count, resource mask) | Port |
-| `src/presentation/session_pointer.cpp` (hover highlight) | 0 A.D. 0.28 `gui/session/input.js` (INPUT_NORMAL mousemotion, INPUT_BANDBOXING setHighlightList), `gui/session/selection.js` (g_HighlightedAlpha) | Port |
+| `src/presentation/session_pointer.cpp` (hover highlight) | 0 A.D. 0.28 `gui/session/input.js` (INPUT_NORMAL mousemotion, INPUT_BANDBOXING setHighlightList), `gui/session/selection.js` (g_HighlightedAlpha), `gui/session/session.js` (updateAdditionalHighlight) | Port |
 | `src/presentation/session_input.cpp` (right-drag line positioning) | 0 A.D. 0.28 `gui/session/input.js` (INPUT_UNIT_POSITION_START, INPUT_UNIT_POSITION, positionUnitsFreehandSelectionMouseMove/MouseUp) | Port |
+| `src/presentation/main_node.cpp`, `session_input.cpp` (multi-structure selection) | 0 A.D. 0.28 `gui/session/input.js` (getPreferredEntities, addTrainingToQueue, flushTrainingBatch, getBuildingsWhichCanTrainEntity), `gui/session/selection.js` | Port |
 | `src/simulation/rms_generator.cpp` (`paint_heightmap`, `sample_image_bicubic`, `lower_sea_ground`, `shepard_smooth`, `slopes_m`, `player_placement_random`, `group_players_by_area`) | `maps/random/rmgen/painter/HeightmapPainter.js` (scaleHeight, bicubic paint), `RandomMap.js` (LoadHeightmapImage, getSlope), `painter/SmoothElevationPainter.js`, `painter/SmoothingPainter.js`, `rmgen-common/player.js` (playerPlacementRandom, groupPlayersByArea) | Port |
 | `tools/extract_0ad_assets.py` | `source/graphics/ModelDef.cpp`, `ps/FileIo.cpp`, `shaders/glsl/model_common.fs` | Port of file-format readers |
 | `src/presentation/fog_mirage.{h,cpp}` (`FogMirages`, `LosShading`), fog use in `world_view_node.cpp`, `minimap_view.cpp`, `shaders/terrain.gdshader`, `shaders/water.gdshader` | Mirages of fogged structures and resources from `simulation/components/Fogging.js`, `Mirage.js` and `CCmpRangeManager::ComputeLosVisibility`; the 255/127/0 LOS bitmap, 7-tap binomial blur and eased updates from `source/graphics/LOSTexture.cpp` (`GenerateBitmap`, `InterpolateLOS`) | Port |
@@ -193,7 +194,7 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | Ardennes Forest | `maps/random/ardennes_forest.js` | Modelled on it, layout from memory |
 | Near-Eastern Badlands (`nearestern_badlands`) | `maps/random/neareastern_badlands.js` | Modelled on it, layout from memory |
 | Rivers | `maps/random/rivers.js` | Modelled on it, layout from memory |
-| Canyon | `maps/random/canyon.js` | Modelled on it, layout from memory |
+| Canyon | `maps/random/canyon.js` | Ported: base canyons, central basin, ridges, clearings and roads |
 | Corinthian Isthmus | `maps/random/corinthian_isthmus.js` | Modelled on it, layout from memory |
 | Belgian Uplands | `maps/random/belgian_uplands.js` | Modelled on it, layout from memory |
 | Lorraine Plain | `maps/random/lorraine_plain.js` | Modelled on it, layout from memory |

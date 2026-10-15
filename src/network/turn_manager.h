@@ -257,7 +257,7 @@ public:
 	const std::vector<uint32_t>& oos_peers() const { return oos_peers_; }
 	void clear_out_of_sync() {
 		oos_detected_ = false; oos_turn_ = 0; oos_peers_.clear();
-		oos_reported_ = false; oos_dump_pending_ = false; oos_players_.clear();
+		oos_reported_ = false; oos_rearmed_ = false; oos_dump_pending_ = false; oos_players_.clear();
 	}
 	// 0 A.D. NetServerTurnManager / NetClientTurnManager::OnSyncError: the FIRST
 	// turn whose hashes differ is the one reported (later turns inherit it). The
@@ -403,6 +403,7 @@ private:
 	std::vector<uint32_t> oos_peers_;
 	std::vector<std::string> oos_players_;
 	bool oos_reported_ = false;    // host: NMT_SYNC_ERROR sent
+	bool oos_rearmed_ = false;     // host: every out-of-sync client left; the next divergence is a new report
 	bool oos_from_host_ = false;   // client: turn/hash came from the host's NMT_SYNC_ERROR
 	bool oos_dump_pending_ = false;
 	std::string oos_dump_dir_;
