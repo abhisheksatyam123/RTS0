@@ -613,6 +613,32 @@ func _set_pop_type(type: int, cap: int) -> void:
 	var at: int = t[5].find(cap)
 	pop.select(at if at >= 0 else t[5].find(t[6]))
 	pop.tooltip_text = tr(t[4])
+	_render_pop_tips()
+
+## 0.28 PopulationCap.onHoverChange: an entry whose cap lets the match pass 1200 units
+## (players × cap, teams × cap with each teamless player a team, or the world cap) warns
+## of lag instead of the cap type's tooltip.
+const POP_RECOMMENDATION := 1200
+func _render_pop_tips() -> void:
+	if %PopCapSlot.get_child_count() == 0:
+		return
+	var pop := _pop_select()
+	var t: Array = POP_CAP_TYPES[_pop_type]
+	var n := mini(int(_slot_count_node().value), _slot_rows.size())
+	var teams := {}
+	for i in range(n):
+		var team := int(_slot_rows[i]["team"])
+		teams[team if team > 0 else -1 - i] = true
+	for i in range(mini(pop.get_item_count(), (t[5] as Array).size())):
+		var cap := int(t[5][i])
+		var total := cap
+		match _pop_type:
+			POP_TYPE_PLAYER:
+				total = n * cap
+			POP_TYPE_TEAM:
+				total = teams.size() * cap
+		pop.set_item_tooltip(i, tr("Warning: These settings can result in significant lag when all players reach their maximum population capacity.")
+			if total > POP_RECOMMENDATION else tr(t[4]))
 	_update_lock_teams_for_pop()
 
 ## The selected cap as RTS0's pop_cap setting.
@@ -1205,6 +1231,7 @@ func refresh_slots() -> void:
 	_rebuilding_slots = false
 	_apply_mp_locks()
 	_render_speeds()
+	_render_pop_tips()
 
 ## GameSpeed.render: the Fast Forward speeds only while nobody holds a player
 ## slot (every slot AI or unassigned); a speed no longer listed goes back to Normal.
@@ -1378,6 +1405,7 @@ func _on_slot_team(idx: int, slot: int) -> void:
 		return
 	_slot_rows[slot]["team"] = idx
 	_net_request("team", idx)
+	_render_pop_tips()
 
 func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
