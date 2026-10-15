@@ -384,6 +384,13 @@ class RtsoWorldView : public Node3D {
 	uint64_t crowd_bake_deadline_us_ = 0;
 	bool crowd_baked_this_frame_ = false;
 	bool crowd_bake_over_budget();
+	// The crowd clip being baked, pose by pose: a clip's poses may span frames, and its
+	// model instance stays for the batch's later clips.
+	struct CrowdBakeJob;
+	std::unique_ptr<CrowdBakeJob> crowd_job_;
+	void crowd_job_begin_clip(CrowdBatch &b, int c);
+	void crowd_job_bake_poses();
+	void crowd_job_release();
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 	// Formation.js GetFormationAnimationVariant per formation member this frame, and which
 	// variants each crowd key's 0 A.D. actor lists (bit 31: looked up).
@@ -574,10 +581,9 @@ private:
 	void hide_unit_vis(UnitVis &v);
 	CrowdBatch &crowd_batch(uint8_t civ, uint16_t key);
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
-	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks;
-	// with `budgeted`, stops once crowd_bake_over_budget() (the rest bake on later frames).
+	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-			const bool *needed, int count, uint64_t death_slots, bool female = false, bool budgeted = false);
+			const bool *needed, int count, uint64_t death_slots, bool female = false);
 	// Adds the 0 A.D. clips the unit GLBs lack (per-resource carry, promotion)
 	// to a biped's animation library from assets/animations/*.psa.
 	void ensure_runtime_clips(AnimationPlayer *ap, bool female);
