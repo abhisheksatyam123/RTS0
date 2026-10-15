@@ -159,6 +159,18 @@ func run() -> void:
 	page.get_node("%SpinSeed").value = 99
 	await create_timer(0.4).timeout
 	check(ms.seed == 99, "a change on the page reaches MatchSettings")
+	# MapSelection.js Random: the host's map is picked now but stays Random for
+	# everyone else until Start (RtsoMain sends it as "random").
+	page._on_map_browsed(page.RANDOM_MAP_ID, "random", "")
+	await create_timer(0.4).timeout
+	var rooms: GDScript = load("res://scenes/menu/lobby_session.gd")
+	check(ms.net_map_random and str(ms.map_id) not in ["", page.RANDOM_MAP_ID]
+		and rooms.room_details(ms, {}, 0)["map_id"] == "random" and rooms.room_details(ms, {}, 0)["map_name"] == "Random"
+		and rooms.room_details(ms, {}, 1760000000)["map_id"] == str(ms.map_id),
+		"Random: the host keeps its pick (%s) and the game list says Random until the game starts" % str(ms.map_id))
+	page._on_map_browsed("random_mainland", "random", "")
+	await create_timer(0.4).timeout
+	check(not ms.net_map_random and ms.map_id == "random_mainland", "another map is no longer Random")
 	ms.slot_civs = [1, 15]
 	ms.slot_teams = [0, 2]
 	ms.slot_colors = [0, 5]
@@ -229,6 +241,10 @@ func run() -> void:
 	check(page.get_node("%SpinSeed").value == 555 and ready_btn.text == "I'm ready",
 		"a new setup shows, and Ready is back")
 	check(not picker(page, 1, 2).disabled and picker(page, 0, 2).disabled, "the locks hold after the update")
+	ms.map_id = "random"
+	client.net_setup_changed.emit()
+	await frames(3)
+	check(str(page._selected_map().get("id", "")) == page.RANDOM_MAP_ID, "a host's Random map shows as Random")
 	client.net_setup_refused.emit("That colour is taken.")
 	check(page.get_node("VBox/HBox/Right/ErrorLabel").text == "That colour is taken.", "a refused request says why")
 	check(not page.get_node("VBox/HBox/Right/Buttons/BtnBack").disabled and page.get_node("%NetChatInput").editable

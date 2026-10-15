@@ -2770,6 +2770,10 @@ void RtsoMain::host_net_setup_tick(bool force) {
 	rtso::NetSetupState n;
 	match_settings_setup(n.setup);
 	if (net_saved_setup()) n.setup.saved_game = 1; // the clients lock their page too
+	// MapSelection.js Random: resolved only at Start (launchGame), so the
+	// clients are told "random" and see which map only once it loads.
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings")))
+		if ((bool)ms->get("net_map_random")) n.setup.map_id = "random";
 	uint8_t eff[8];
 	{
 		rtso::GameSetupParams seated = n.setup;
@@ -3259,6 +3263,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	}
 	rtso::GameSetupParams setup;
 	match_settings_setup(setup);
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) ms->set("net_map_random", false);
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
 	// A Random civ is picked here, so every peer is told the same one.
 	for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i)

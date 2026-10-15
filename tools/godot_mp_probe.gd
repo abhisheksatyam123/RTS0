@@ -129,6 +129,7 @@ func _run() -> void:
 	var ready_for := -1
 	var refusals: Array = []
 	var setup_leave: bool = args.get("setup_leave", "") == "1"
+	var saw_random := false
 	var saw_setup := false
 	var saw_observer := false
 	while true:
@@ -174,8 +175,17 @@ func _run() -> void:
 					saw_observer = true
 					var obs = root.find_child("NetObservers", true, false)
 					_say("moved_to_observers=%s" % (obs.text if obs else "-"))
+			if role == "join" and not saw_random and main.is_net_pregame() and str(ms.map_id) == "random":
+				saw_random = true
+				_say("setup_map=random")
 			if role == "host" and main.is_net_pregame() and int(st.get("players", 0)) >= 2:
 				await _wait(2.0)
+				# MapSelection.js Random: the host's pick stays hidden from the client.
+				var page = root.find_child("GameSetup", true, false)
+				if page:
+					page._on_map_browsed(page.RANDOM_MAP_ID, "random", "")
+					await _wait(0.5)
+					_say("random_pick=%s hidden=%s" % [str(ms.map_id), str(ms.net_map_random)])
 				# 0.28 PlayerAssignment: the host makes bob an observer from his slot's dropdown.
 				var cell := root.find_child("Assign1", true, false)
 				var pick = cell.find_child("AssignSelect", true, false) if cell else null

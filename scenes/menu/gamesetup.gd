@@ -2510,8 +2510,11 @@ func _host_write_setup(force: bool) -> void:
 		ps[k] = keep.filter(func(i): return i < a.size()).map(func(i): return a[i])
 	if not ps["slot_types"].is_empty():
 		ps["slot_types"][0] = mini(int(ps["slot_types"][0]), 1)
-	if str(ps["map_id"]) == RANDOM_MAP_ID:
-		# Every peer must load the same map, so Random picks one at once.
+	ps["net_map_random"] = str(ps["map_id"]) == RANDOM_MAP_ID
+	if ps["net_map_random"]:
+		# Every peer must load the same map, so Random picks one now; the
+		# clients see "Random" until Start (launchGame resolves it), as
+		# RtsoMain sends the setup with map "random".
 		var pool := _filtered.filter(func(x): return str(x["id"]) != RANDOM_MAP_ID)
 		if not pool.any(func(x): return str(x["id"]) == _net_random_map) and not pool.is_empty():
 			_net_random_map = str(pool[randi() % pool.size()]["id"])
