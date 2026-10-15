@@ -13022,7 +13022,12 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		if (generic) k = bush;
 		else if (rc->fruit_kinds[1].name && rng.range_int(1, 100) > rc->fruit_kinds[0].percent) k = &rc->fruit_kinds[1];
 		if (generic && !std::strcmp(k->name, "apple")) break;
-		const uint8_t flora = generic ? (uint8_t)FLORA_BERRY : flora_kind_by_name(k->name);
+		uint8_t flora = generic ? (uint8_t)FLORA_BERRY : flora_kind_by_name(k->name);
+		// Game setup chose temperate: its apples are the biome's tree3 (fruit/apple).
+		if (!generic && !own_terrains(sim, config.map_type) && !std::strcmp(k->name, "apple"))
+			if (const BiomeFlora *bf = biome_flora("temperate"))
+				for (uint8_t t : bf->tree3)
+					if (flora_is_fruit(t)) { flora = t; break; }
 		float x, z;
 		if (flora == FLORA_COUNT || !pick(kBaseGap, food, 10.0f, x, z)) break;
 		food.push_back({x, z});
