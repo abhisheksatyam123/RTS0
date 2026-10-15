@@ -14,7 +14,10 @@ extends SceneTree
 #      colour and our name is highlighted in others' lines;
 #   5. GameDetails: a selected game shows its map's preview and the map
 #      description of any known map, not only random ones;
-#   6. QuitButton.returnToMainMenu: leaving the lobby for the main menu signs
+#   6. Game.js, GameDetails, JoinButton: a game needing other mods is grey
+#      and listed first, its details say "Mods (incompatible):", and Join
+#      offers the mod selection instead (signing out);
+#   7. QuitButton.returnToMainMenu: leaving the lobby for the main menu signs
 #      out (StopXmppClient).
 #
 #   godot --headless --path . -s tools/e2e_lobby_session.gd
@@ -203,7 +206,56 @@ func run() -> void:
 	await process_frame
 	check(not lobby._details_preview.visible, "a game with no known map shows none")
 
-	print("6. back to the main menu signs out")
+	print("6. mod compatibility")
+	var M: GDScript = load("res://scenes/menu/mods.gd")
+	var ours: Array = M.engine_mods()
+	check(ours.size() >= 1 and ours[0]["name"] == "0ad" and ours[0]["version"] == "0.28.0", "we play 0ad (0.28.0): %s" % [ours])
+	var fx := {"name": "fx", "version": "1", "ignoreInCompatibilityChecks": true}
+	check(M.play_compatible([ours[0], fx], [ours[0]]) and not M.play_compatible([{"name": "0ad", "version": "0.27.1"}], [ours[0]])
+		and not M.play_compatible([ours[0], {"name": "x", "version": "1"}], [ours[0]]),
+		"same mods and versions, skipping the ones that do not affect compatibility")
+	check(M.mod_to_string(ours[0]) == "0ad (0.28.0)" and M.mod_to_string(fx) == "fx", "mods read \"name (version)\"")
+	for g in [["room-29997", "old mods", [{"name": "0ad", "version": "0.27.1"}]], ["room-29996", "same mods", [ours[0], fx]]]:
+		reg[0] = 0
+		ls.post_json("/rooms", {"token": bob[0], "id": g[0], "host_ip": "127.0.0.1", "host_port": int(g[0].substr(5)),
+			"name": g[1], "state": "init", "mods": g[2], "player_names": [{"name": "bob"}]}, func(c: int, _o) -> void: reg[0] = c)
+		await until(func() -> bool: return reg[0] != 0)
+	lobby._refresh()
+	await until(func() -> bool: return find_room.call("room-29997") != null and find_room.call("room-29996") != null)
+	var old: TreeItem = find_room.call("room-29997")
+	check(old != null and old.get_index() == 0 and old.get_custom_color(0) == Color8(128, 128, 128),
+		"a game needing other mods is listed first, in grey")
+	var same: TreeItem = find_room.call("room-29996")
+	check(same != null and same.get_custom_color(0) == Color8(0, 219, 0), "a game with our mods is green")
+	if same:
+		same.select(0)
+	await process_frame
+	check(lobby._details.get_parsed_text().contains("Mods:\n0ad (0.28.0)\nfx"), "its details list the mods, fx last")
+	if old:
+		old.select(0)
+	await process_frame
+	check(lobby._details.get_parsed_text().contains("Mods (incompatible):\n0ad (0.27.1)"), "the other one's say incompatible")
+	lobby._on_join_pressed()
+	var mods_ask: ConfirmationDialog = lobby.find_child("IncompatibleModsDialog", true, false)
+	check(mods_ask != null and mods_ask.dialog_text == "Your active mods do not match the mods of this game.\n\n"
+		+ "Required: 0ad (0.27.1)\nActive: " + ", ".join(ours.map(func(m) -> String: return M.mod_to_string(m)))
+		+ "\n\nDo you want to switch to the mod selection page?", "Join offers the mod selection")
+	check(MatchSettings_mode() == "" and lobby.find_child("ObserveDialog", true, false) == null, "and joins nothing")
+	if mods_ask:
+		mods_ask.confirmed.emit()
+	await process_frame
+	check(not ls.signed_in() and lobby.find_child("ModSelection", true, false) != null, "Yes signs out and opens it")
+	var page: Node = lobby.find_child("ModSelection", true, false)
+	if page:
+		page.visible = false
+	for attempt in 50:
+		lobby._on_sign_pressed()
+		await until(func() -> bool: return ls.signed_in() or not lobby._sign_btn.disabled, 60)
+		if ls.signed_in():
+			break
+		await create_timer(0.1).timeout
+
+	print("7. back to the main menu signs out")
 	lobby._on_back_pressed()
 	check(not ls.signed_in(), "leaving the lobby signs alice out")
 	var listed := [null]

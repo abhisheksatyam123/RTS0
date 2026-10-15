@@ -233,6 +233,15 @@ func register(addr: String, name: String, password: String, cb: Callable) -> voi
 var _logout_pending := false
 var _after_logout: Array[Callable] = []
 
+## AccountSettingsPage: Engine.LobbyChangePassword, encrypted as for a login;
+## a reconnect then signs in with the new one.
+func change_password(encrypted: String, cb: Callable) -> void:
+	post_json("/password", {"token": token, "password": encrypted}, func(code: int, obj) -> void:
+		if code == 200 and not _last_login.is_empty():
+			_last_login["encrypted"] = encrypted
+		cb.call(code, obj))
+
+
 func sign_in(addr: String, name: String, cb: Callable, encrypted: String = "") -> void:
 	if _logout_pending:
 		_after_logout.append(func() -> void: sign_in(addr, name, cb, encrypted))
@@ -538,7 +547,9 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 	# LobbyGameRegistration.js maxnbp: the map's player count.
 	return {"map_id": map_id, "map_name": map_name, "map_type": map_type, "map_size": map_size,
 		"max_players": maxi(count, 1),
-		"victory": ",".join(victory), "start_time": started_at, "player_names": players}
+		"victory": ",".join(victory), "start_time": started_at, "player_names": players,
+		# LobbyGameRegistration.js mods: Engine.GetEngineInfo().mods.
+		"mods": load("res://scenes/menu/mods.gd").engine_mods()}
 
 
 # Game.js gameRating: the average rating of the playing (not observing)
@@ -636,7 +647,29 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 		groups.append("[b]%s:[/b]\n%s" % ["Observer" if observers.size() == 1 else "Observers", "\n".join(observers)])
 	if not groups.is_empty():
 		lines.append("\n\n".join(groups))
+	# GameDetails.js: "Mods:" (red "Mods (incompatible):"), the ones that do
+	# not affect compatibility last, in grey.
+	if room.has("mods"):
+		var modlib: GDScript = load("res://scenes/menu/mods.gd")
+		lines.append("")
+		lines.append("[b]Mods:[/b]" if game_compatible(room) else "[color=red][b]Mods (incompatible):[/b][/color]")
+		var sorted_mods: Array = (room["mods"] as Array).filter(func(m) -> bool: return m is Dictionary)
+		var plain := sorted_mods.filter(func(m) -> bool: return not m.get("ignoreInCompatibilityChecks", false))
+		for m in plain + sorted_mods.filter(func(m) -> bool: return m.get("ignoreInCompatibilityChecks", false)):
+			var line: String = esc.call(modlib.mod_to_string(m))
+			lines.append(line if plain.has(m) else "[color=#b4b4b4]%s[/color]" % line)
 	return "\n".join(lines)
+
+
+## Game.js updateMods: a game is joinable with our mods when they match its
+## (Mod.cpp AreModsPlayCompatible). A game from a host that sends no mods
+## (an older RTS0) counts as compatible.
+static func game_compatible(room: Dictionary) -> bool:
+	if not room.has("mods"):
+		return true
+	var mods: Array = room["mods"] if room["mods"] is Array else []
+	var modlib: GDScript = load("res://scenes/menu/mods.gd")
+	return modlib.play_compatible(mods, modlib.engine_mods())
 
 
 # gui/session/lobby/LobbyRatingReporter.js: once this player has won or been
