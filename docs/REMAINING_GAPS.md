@@ -13,7 +13,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G12 | Petra: ~~starting cavalry joins attacks instead of hunting; rushes take no siege~~ (fixed: citizen cavalry hunters follow assignUnits' worker rule, rushes add siege like other plans); raids take no siege; far-off gatherers aren't sent back | low | D (raid siege), C (gatherers) |
 | G13 | Petra's numberMissingRoom has no 90 s lapse | low | C |
 | G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
-| G18 | Animals never play their feeding animation, and each species wears one coat (template trees now mix up to four of their actor's looks) | low | Animal models |
+| G18 | Each animal species wears one coat; the horses, pony, hippo, peacock, arctic fox and zebra don't play 0.28's feeding animation yet (cattle, wildebeest and the red fox graze with it; template trees mix up to four of their actor's looks) | low | Animal models |
 | G19 | ~~Siege walls draw the stone wall model (siege_wall.glb is unused)~~ Closed 2026-10-15: Rome's siege WallSet draws 0.28's own siege_wall_long, _medium, _short, _tower and _gate actors | low | Animal models |
 | G23 | The chat window is a corner box with extra buttons (Tab now completes names in the session and setup chats, pass 5 gap 8) | low | B |
 | G24 | Circular maps show an extra 8 m ring past 0.28's edge; square maps have no 12 m edge frame | low | A |
