@@ -20,6 +20,7 @@ const REPLAY_ROOT := "user://replays"
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
 const SummaryPage = preload("res://scenes/session/summary_screen.gd")
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
+const L10n := preload("res://scenes/menu/l10n.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 ## compatibilityColor: incompatible replays are greyed out.
 const INCOMPATIBLE := Color8(96, 96, 96)
@@ -167,7 +168,7 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 	return {"dir": path, "meta": meta, "compatible": c[0], "why": c[1], "timestamp": timestamp,
 		"date": date.substr(0, 16), "month": date.substr(0, 7), "players": players,
 		"names": players.map(func(p): return str(p.get("name", ""))),
-		"map": str(meta.get("map_name", map_id)), "map_id": map_id, "map_type": info["type"], "desc": info["desc"],
+		"map": str(meta.get("map_name", map_id)).trim_suffix(" (RMS)"), "map_id": map_id, "map_type": info["type"], "desc": info["desc"],
 		"size": size, "pop": pop, "pop_type": pop_type,
 		"duration": float(meta.get("start_time", 0.0)) + float(meta.get("duration", 0.0)),
 		"victory": victory, "multiplayer": humans > 1, # replay_menu.js isMultiplayer
@@ -242,7 +243,14 @@ static func map_size_name(size: int) -> String:
 static func victory_name(v: int) -> String:
 	if v < 0 or v > 255 or (v >= SetupPage.VICTORIES.size() and v < SetupPage.VICTORY_COMBINED):
 		return "Unknown"
-	return SetupPage.victory_title(v)
+	# replay_menu.js / SavegameDetails.js: each condition translated, joined with translate(", ");
+	# no condition at all (an endless game) leaves the field empty.
+	var mask := SetupPage.victory_mask(v)
+	var names := PackedStringArray()
+	for k in SetupPage.VICTORY_KINDS:
+		if mask & int(k[0]):
+			names.append(L10n.t(k[1]))
+	return L10n.t(", ").join(names)
 
 ## translatePopulationCapacity.
 static func population_name(pop: int, pop_type: String) -> String:
@@ -422,8 +430,8 @@ static func player_info(r: Dictionary, spoiler: bool) -> String:
 		keys.append(-1)
 	if keys.size() == 1:
 		return "\n".join(teams[keys[0]])
-	return "\n\n".join(keys.map(func(t): return "[b]%s:[/b]\n%s" % [
-		"No Team" if t == -1 else "Team %d" % (t + 1), "\n".join(teams[t])]))
+	return "\n\n".join(keys.map(func(t): return "[b]%s[/b]:\n%s" % [ # formatPlayerInfo: only the team name bold
+		L10n.t("No Team") if t == -1 else L10n.sprintf(L10n.t("Team %(team)s"), {"team": t + 1}), "\n".join(teams[t])]))
 
 static func _player_description(p: Dictionary, spoiler: bool) -> String:
 	var c: Variant = p.get("color", null)
@@ -571,6 +579,14 @@ func _label(text: String, size := 14, color := Color.WHITE) -> Label:
 	l.add_theme_color_override("font_color", color)
 	return l
 
+## ModernLabelText / ModernLeftLabelText: sans-bold-stroke-14, white.
+func _bold_label(text: String) -> Label:
+	var l := _label(text, 14)
+	l.add_theme_font_override("font", SummaryPage.bold_font())
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 3)
+	return l
+
 func _dropdown(name: String, tooltip: String) -> OptionButton:
 	var dd := OptionButton.new()
 	dd.name = name
@@ -594,7 +610,7 @@ func _anchor(c: Control, l: float, t: float, r: float, b: float, ol := 0.0, ot :
 
 func _info_row(parent: VBoxContainer, caption: String, key: String) -> void:
 	var row := HBoxContainer.new()
-	var cap := _label(caption, 14, GOLD)
+	var cap := _bold_label(caption)
 	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	cap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(cap)
@@ -609,7 +625,7 @@ func _info_row(parent: VBoxContainer, caption: String, key: String) -> void:
 
 func _build() -> void:
 	theme = MODERN.theme() # 0.28's modern skin
-	var title := _label("Replay Games", 20, GOLD)
+	var title := _bold_label("Replay Games") # TitleText
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_anchor(title, 0.5, 0, 0.5, 0, -128, 4, 128, 32))
 	# Left panel: filters, list and file name.
@@ -701,7 +717,7 @@ func _build() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
 	_info.add_child(box)
-	var map_name := _label("", 16, GOLD)
+	var map_name := _bold_label("")
 	map_name.name = "SgMapName"
 	map_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	map_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -727,7 +743,7 @@ func _build() -> void:
 	desc.add_theme_font_size_override("normal_font_size", 12)
 	box.add_child(desc)
 	_info_labels["desc"] = desc
-	var count := _label("", 14, GOLD)
+	var count := _bold_label("")
 	count.name = "SgNbPlayers"
 	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(count)

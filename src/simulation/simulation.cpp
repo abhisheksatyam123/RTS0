@@ -5335,6 +5335,10 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 			// UnitAI Stop drops the whole order queue.
 			set_order(idx, ORDER_NONE, 0, 0, units_.pos_x[idx], units_.pos_z[idx]);
 			order_queues_.erase(units_.id[idx]);
+			// ReplaceOrder lets Stop through a pack in progress; leaving PACKING / UNPACKING calls
+			// Pack.CancelPack, so the engine stays as it was.
+			if (units_.pack_state[idx] == PACK_PACKING) { units_.pack_state[idx] = PACK_UNPACKED; units_.pack_elapsed[idx] = 0.0f; }
+			else if (units_.pack_state[idx] == PACK_UNPACKING) { units_.pack_state[idx] = PACK_PACKED; units_.pack_elapsed[idx] = 0.0f; }
 		}
 	}
 }
@@ -6960,9 +6964,10 @@ void Simulation::garrison_arrow_auras_of(const std::vector<uint32_t> &ids, uint8
 	arrows = max_arrows = 1.0f;
 	if (GARRISON_ARROW_AURA_COUNT == 0) return;
 	uint32_t seen = 0; // garrison_arrow_auras() rows applied: one aura counts once, not per carrier
+	(void)owner; // Auras.js ApplyGarrisonAura: any unit inside, an ally's too, applies its aura
 	for (uint32_t uid : ids) {
 		const int32_t g = lookup_unit(uid);
-		if (g < 0 || units_.team[g] != owner || units_.tmpl[g] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+		if (g < 0 || units_.tmpl[g] >= CIV_UNIT_TEMPLATE_COUNT) continue;
 		for (int16_t a : civ_unit_template(units_.tmpl[g]).auras) {
 			const int row = garrison_arrow_aura_index(a);
 			if (row < 0 || row >= 32 || (seen & (1u << row))) continue;
@@ -7683,6 +7688,39 @@ void Simulation::tick_turrets() {
 			units_.has_order[u] = 0; // SetImmobile: shoots what is in range, never walks
 			turret_height_[list[k]] = p.y;
 			if (b.type == BLD_TOWER_DOUBLE) rampart_turrets_.insert(list[k]);
+			// Order.Attack with !AbleToMove, and ShouldChaseTargetedEntity false for an immobile unit:
+			// a target out of reach, a player's too, ends the attack (FinishOrder / FINDINGNEWTARGET),
+			// so the unit shoots what is in range instead.
+			if (units_.order_kind[u] == ORDER_ATTACK || units_.order_kind[u] == ORDER_ATTACK_BUILDING ||
+					units_.action_state[u] == ACTION_ATTACK) {
+				const float reach = attack_reach((size_t)u);
+				const float att_y = unit_height((size_t)u);
+				auto beyond = [&](float d2, float def_y) {
+					const float max_r2 = reach * reach - 2.0f * reach * (def_y - att_y); // in_parabolic_range
+					return !(max_r2 > 0.0f && d2 <= max_r2);
+				};
+				bool out = false;
+				if (units_.target_unit_id[u] != 0) {
+					const int32_t t = lookup_unit(units_.target_unit_id[u]);
+					if (t >= 0 && units_.alive[t]) {
+						const float dx = units_.pos_x[t] - px, dz = units_.pos_z[t] - pz;
+						out = beyond(dx * dx + dz * dz, unit_height((size_t)t));
+					}
+				} else if (units_.target_building_id[u] != 0) {
+					auto tb = building_id_to_idx_.find(units_.target_building_id[u]);
+					if (tb != building_id_to_idx_.end() && !buildings_[tb->second].wrecked) {
+						const Building &t = buildings_[tb->second];
+						const float g = structure_gap(t, px, pz, unit_clearance_at((size_t)u));
+						out = beyond(g * g, get_terrain_height(t.x, t.z));
+					}
+				}
+				if (out) {
+					units_.target_unit_id[u] = units_.target_building_id[u] = 0;
+					units_.action_state[u] = ACTION_IDLE;
+					if (units_.order_kind[u] != ORDER_NONE) set_order(u, ORDER_NONE, 0, 0, px, pz);
+					order_queues_.erase(list[k]);
+				}
+			}
 			++k;
 		}
 	}
@@ -8537,12 +8575,12 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.tmpl[i], units_.unit_type[i], info.traders)) continue;
 		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
 		if (info.raise_range >= 0.0f && edge_distance(raiser, ux, uz) > info.raise_range) continue;
-		// The nearest structure of ours that can take it (queries sort by distance).
+		// The nearest structure of ours or a mutual ally's that can take it (queries sort by distance).
 		int32_t best = -1;
 		float best_d = info.search_range;
 		for (size_t h = 0; h < buildings_.size(); ++h) {
 			const Building &b = buildings_[h];
-			if (b.team != player || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
+			if (!is_ally(player, b.team) || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
 					turret_points_of(b) || !structure_has_enough_health(b) || // turrets aren't a GarrisonHolder
 					!structure_accepts_garrison(b, i))
 				continue;
@@ -8589,7 +8627,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 	// Units inside nearby structures (and the raiser): unload, then back to work or stop.
 	std::vector<std::pair<uint32_t, uint32_t>> out;
 	for (const Building &b : buildings_) {
-		if (b.team != player || b.garrisoned_units.empty()) continue;
+		if (!is_ally(player, b.team) || b.garrisoned_units.empty()) continue; // AlertRaiser mutualAllies
 		const float gap = std::hypot(b.x - raiser.x, b.z - raiser.z) - b.half_size - raiser.half_size;
 		if (b.id != raiser.id && info.end_range >= 0.0f && gap > info.end_range) continue;
 		for (uint32_t uid : b.garrisoned_units) {
@@ -16273,6 +16311,19 @@ void Simulation::guard_answer(size_t i, size_t g, uint32_t attacker) {
 		units_.waypoint_count[i] = 0;
 		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 	};
+	// GuardedAttacked: a Support guard (civilians, healers) tends its injured charge instead.
+	if ((unit_classes_at(i) & (TC_CIVILIAN | TC_HEALER)) && units_.hp[g] < units_.max_hp[g]) {
+		auto &q = order_queues_[units_.id[i]];
+		if (unit_heals(i) && can_heal(i, (int32_t)g)) {
+			q.insert(q.begin(), current_order(i));
+			start_heal(i, units_.id[g], 0);
+		} else if (can_repair_unit(i, (int32_t)g)) {
+			q.insert(q.begin(), current_order(i));
+			start_repair_unit(i, units_.id[g], 0);
+		}
+		if (q.empty()) order_queues_.erase(units_.id[i]);
+		return;
+	}
 	// Order.Attack: an unforced attack out of range ends at once for a unit standing its ground.
 	const bool stand = units_.stance[i] == STANCE_STAND_GROUND || unit_walk_speed(i) <= 0.0f;
 	const float reach = attack_reach(i);
@@ -16803,6 +16854,17 @@ void Simulation::tick_unit_ai(float dt) {
 				tick_heal(i);
 				continue;
 			}
+			// GUARDING Timer: a builder by its charge repairs it once it is damaged (a siege engine,
+			// a ship: PushOrderFront Repair), then guards again.
+			if (g >= 0 && (i + ticks_) % 4 == 0 && can_repair_unit(i, g)) {
+				const float dx = units_.pos_x[g] - units_.pos_x[i], dz = units_.pos_z[g] - units_.pos_z[i];
+				if (dx * dx + dz * dz <= GUARD_RANGE * GUARD_RANGE) {
+					auto &q = order_queues_[units_.id[i]];
+					q.insert(q.begin(), current_order(i));
+					start_repair_unit(i, units_.id[g], 0);
+					continue;
+				}
+			}
 			if (g >= 0 && units_.alive[g] && units_.attacked_by[g] != 0) guard_answer(i, (size_t)g, units_.attacked_by[g]);
 		}
 		const uint8_t now = units_.action_state[i];
@@ -16898,6 +16960,18 @@ void Simulation::tick_unit_ai(float dt) {
 				resume_order(i);
 			}
 			continue;
+		}
+		// WALKINGANDFIGHTING / PATROL Timer -> FindWalkAndFightTargets: a healer heals whoever is
+		// hurt nearby (FindNewHealTargets, an unforced Heal pushed in front), then walks on.
+		if ((now == ACTION_ATTACK_MOVE || now == ACTION_PATROL) && !interrupted && unit_heals(i) &&
+				(i + ticks_) % 4 == 0) {
+			const uint32_t t = find_heal_target(i);
+			if (t != 0) {
+				auto &q = order_queues_[units_.id[i]];
+				q.insert(q.begin(), current_order(i));
+				start_heal(i, t, 0);
+				continue;
+			}
 		}
 		// Patrol: turn round at each end (the queue's next order goes first).
 		if (now == ACTION_PATROL && units_.order_kind[i] == ORDER_PATROL) {
@@ -26462,7 +26536,7 @@ bool Simulation::petra_find_beach(float land_x, float land_z, float toward_x, fl
 // enemy territory only if there is no other, and not within 70 m (30 m for a foundation)
 // of an allied dock. False when that land has no shore on that sea.
 bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, float ship_z, float dest_x, float dest_z,
-                                    bool avoid_enemy, float &out_x, float &out_z) const {
+                                    bool avoid_enemy, float &out_x, float &out_z, const float *skip_near) const {
 	if (!land || !sea || nav_grid_.cells.blank()) return false;
 	const int w = nav_grid_.cells.w, h = nav_grid_.cells.h;
 	const float cell = 2.0f * nav_grid_.map_half / (float)nav_grid_.res;
@@ -26481,6 +26555,8 @@ bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, f
 				    nav_grid_.global_region_at(x + d[0], y + d[1], PASS_SHIP) == sea) { shore = true; break; }
 			if (!shore) continue;
 			const float px = ((float)x + 0.5f) * cell - nav_grid_.map_half, pz = ((float)y + 0.5f) * cell - nav_grid_.map_half;
+			// A landing point the ship could not unload at: try another.
+			if (skip_near && (px - skip_near[0]) * (px - skip_near[0]) + (pz - skip_near[1]) * (pz - skip_near[1]) < 64.0f) continue;
 			double dist = 4.0 * (std::hypot(px - ship_x, pz - ship_z) + std::hypot(dest_x - px, dest_z - pz)); // metres
 			if (avoid_enemy) {
 				const int owner = territory_owner_at(px, pz);
@@ -26569,6 +26645,27 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 
 void Simulation::petra_manage_transport(float dt) {
 	for (auto &tp : petra_transports_) petra_step_transport(tp, dt);
+	// A unit that boarded after its plan gave up (a lingering board order) would ride for good:
+	// transportPlan.js never leaves units aboard. An idle ship of ours in no plan sets them down
+	// where it lies, else sails for the nearest shore of our home land.
+	std::vector<uint32_t> laden;
+	for (const auto &[sid, pax] : transport_passengers_)
+		if (!pax.empty()) laden.push_back(sid);
+	std::sort(laden.begin(), laden.end()); // map order is not the same on every peer after a load
+	uint16_t home = 0;
+	for (uint32_t sid : laden) {
+		const int32_t si = lookup_unit(sid);
+		if (si < 0 || !units_.alive[si] || units_.team[si] != petra_pid_ || !petra_is_transport_ship((size_t)si)) continue;
+		if (units_.action_state[si] != ACTION_IDLE || petra_ship_in_plan(sid)) continue;
+		const float sx = units_.pos_x[si], sz = units_.pos_z[si];
+		order_disembark(sid, sx, sz);
+		if (get_transport_passenger_count(sid) == 0) continue;
+		if (!home) petra_classified_topo(home);
+		float lx, lz, wx, wz;
+		if (!home || !petra_boarding_pos(home, petra_ship_sea((size_t)si), sx, sz, sx, sz, false, lx, lz)) continue;
+		if (!nearest_water_for_ship((size_t)si, lx, lz, wx, wz)) { wx = lx; wz = lz; }
+		if ((wx - sx) * (wx - sx) + (wz - sz) * (wz - sz) > 4.0f) order_walk(&sid, 1, wx, wz, false);
+	}
 	// A finished or failed plan frees its owner and ship.
 	petra_transports_.erase(std::remove_if(petra_transports_.begin(), petra_transports_.end(), [](const PetraTransportPlan &tp) {
 		return tp.state == PetraTransportPlan::IDLE || tp.state == PetraTransportPlan::FAILED;
@@ -26641,7 +26738,28 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		float dx = units_.pos_x[sidx] - tp.pickup_x;
 		float dz = units_.pos_z[sidx] - tp.pickup_z;
 		bool ship_ready = (dx * dx + dz * dz) <= 36.0f;
-		if (!ship_ready && units_.action_state[sidx] == ACTION_MOVE) tp.state_timer = 0.0f;
+		// Ordered onto the beach itself, a ship that has come within reach can keep circling for
+		// the land point; it waits there instead.
+		if (ship_ready && units_.action_state[sidx] == ACTION_MOVE) cmd_stop(&tp.ship_id, 1);
+		// While the ship sails up the clock runs below zero. transportPlan.js onBoarding: a ship that
+		// does not reach its boarding point (nTry) tries another, here after 120 s: the shore of
+		// that land nearest this one, so the passengers still walk to it.
+		if (!ship_ready && units_.action_state[sidx] == ACTION_MOVE) {
+			tp.state_timer = std::min(tp.state_timer - dt, 0.0f) - dt; // this step's += dt undone
+			if (tp.state_timer <= -120.0f) {
+				const float skip[2] = {tp.pickup_x, tp.pickup_z};
+				float nx, nz;
+				if (petra_boarding_pos(petra_land_at(tp.pickup_x, tp.pickup_z), tp.sea, units_.pos_x[sidx], units_.pos_z[sidx],
+				                       tp.pickup_x, tp.pickup_z, false, nx, nz, skip)) {
+					tp.pickup_x = nx;
+					tp.pickup_z = nz;
+					order_walk(&tp.ship_id, 1, nx, nz, false);
+				}
+				tp.state_timer = 0.0f;
+			}
+		} else if (tp.state_timer < 0.0f) {
+			tp.state_timer = 0.0f;
+		}
 		if (tp.state_timer > 28.0f) {
 			if (aboard == 0) {
 				tp.state = PetraTransportPlan::FAILED;
@@ -26697,8 +26815,24 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 			tp.state = PetraTransportPlan::IDLE;
 			tp.passenger_ids.clear();
 		} else if (tp.state_timer >= 20.0f) {
-			tp.state = PetraTransportPlan::FAILED; // no shore to unload onto: they stay aboard
-			tp.failed = true;
+			// transportPlan.js onSailing never leaves units aboard: a ship that can't unload where
+			// it lies sails for another landing point on that land (getBoardingPos, nTry), here
+			// the nearest shore to the ship other than this one.
+			const float skip[2] = {tp.drop_x, tp.drop_z};
+			const float sx = units_.pos_x[sidx], sz = units_.pos_z[sidx];
+			float nx, nz;
+			if (petra_boarding_pos(petra_land_at(tp.drop_x, tp.drop_z), tp.sea, sx, sz, sx, sz, true, nx, nz, skip)) {
+				tp.drop_x = nx;
+				tp.drop_z = nz;
+				float x, z;
+				sail_point(x, z);
+				order_walk(&tp.ship_id, 1, x, z, false);
+				tp.state = PetraTransportPlan::SAILING;
+				tp.state_timer = 0.0f;
+			} else {
+				tp.state = PetraTransportPlan::FAILED; // that land has no other shore on this sea
+				tp.failed = true;
+			}
 		} else if (std::fmod(tp.state_timer, 3.0f) < dt) {
 			order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
 		}

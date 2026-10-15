@@ -40,6 +40,7 @@
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/time.hpp>
 #include "../graphics/assets/assets.h"
 #include "../graphics/assets/procedural.h"
 #include "../graphics/assets/model_library.h"
@@ -418,6 +419,20 @@ class RtsoWorldView : public Node3D {
 	static constexpr size_t SPATIAL_AUDIO_POOL_SIZE = 32;
 	AudioStreamPlayer3D *spatial_players[SPATIAL_AUDIO_POOL_SIZE] = {nullptr};
 	size_t next_spatial_idx = 0;
+	static constexpr int kMaxSpatialVoices = 16;
+	int spatial_dropped_ = 0;
+	uint64_t spatial_end_ms_[SPATIAL_AUDIO_POOL_SIZE] = {}; // when each voice's sound ends
+
+public:
+	int spatial_voices_playing() const {
+		const uint64_t now = Time::get_singleton()->get_ticks_msec();
+		int n = 0;
+		for (size_t i = 0; i < SPATIAL_AUDIO_POOL_SIZE; ++i) n += spatial_players[i] && now < spatial_end_ms_[i];
+		return n;
+	}
+	int spatial_sounds_dropped() const { return spatial_dropped_; }
+
+private:
 
 
 
