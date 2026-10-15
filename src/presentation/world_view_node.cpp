@@ -12,6 +12,7 @@
 #include <godot_cpp/variant/basis.hpp>
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/core/math.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_mixer.hpp>
 #include <godot_cpp/classes/animation_library.hpp>
@@ -1617,13 +1618,21 @@ Node *RtsoWorldView::instantiate_building_id(const String &id) {
 
 // The building GLB ModelLibrary::load draws for `id` (its alias, its own GLB, or
 // its base model after the civ code), as the key of the tables written per GLB.
-static std::string building_table_key(const String &id) {
+static std::string building_table_key_uncached(const String &id) {
 	const String glb = rtso::ModelLibrary::building_glb_id(id);
 	if (glb != id || rtso::Assets::res_exists("res://assets/models/buildings/" + id + ".glb"))
 		return glb.utf8().get_data();
 	const int us = id.find("_");
 	if (us <= 0 || us >= id.length() - 1) return glb.utf8().get_data();
 	return rtso::ModelLibrary::building_glb_id(id.substr(us + 1)).utf8().get_data();
+}
+
+// The key of a building model in the per-model tables, asked for every building every frame: kept
+// per id, as the answer depends only on the id and the packed files.
+static const std::string &building_table_key(const String &id) {
+	static HashMap<String, std::string> keys;
+	if (const std::string *k = keys.getptr(id)) return *k;
+	return keys.insert(id, building_table_key_uncached(id))->value;
 }
 
 void RtsoWorldView::load_foundations() {
