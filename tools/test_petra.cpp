@@ -1270,6 +1270,28 @@ static void test_pop_phase2_save_resources() {
 	CHECK(low == 18, "3/4 of the clamped value under a low population cap");
 }
 
+// config.js setConfig: Config.popScaling takes sqrt(maxPop/300) under 300, and every helper
+// built on it (transport ships, checkPausedQueues' workersMin) uses it. maxPop is
+// getPopulationMax at the first turn, with the civ's population bonus.
+static void test_petra_config_pop_scaling() {
+	auto s = std::make_unique<Simulation>();
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->petra_pid_ = 1;
+	s->players_[1].civ = CIV_ATHENIANS;
+	s->pop_cap_ = 300;
+	CHECK(std::fabs(s->petra_config_pop_scaling() - 1.0f) < 1e-4f, "no scaling at 300 population");
+	s->pop_cap_ = 75;
+	const float half = s->petra_config_pop_scaling();
+	std::printf("popScaling at 75 population: %.3f (0.28 0.500)\n", half);
+	CHECK(std::fabs(half - 0.5f) < 1e-3f, "sqrt(75/300) at 75 population");
+	CHECK(std::fabs(s->petra_plan_pop_scaling() - half) < 1e-4f, "attack plans use the same scaling");
+	s->players_[1].civ = CIV_PERSIANS;
+	s->pop_cap_ = 200;
+	std::printf("Persian maxPop at a 200 cap: %d (0.28 220)\n", s->petra_config_max_pop());
+	CHECK(s->petra_config_max_pop() == 220, "pers_population raises getPopulationMax by 10%");
+}
+
 // startingStrategy.js gameStart: no civic centre and none to build (Death Canyon's invasion
 // force): canBuildUnits is false, so no first base; dispatchUnits sends 5 units (half ranged,
 // half melee infantry) and every support unit to the ally's civic centre, and attackManager
@@ -4825,6 +4847,7 @@ int main(int argc, char **argv) {
 	RUN(test_barter);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
+	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_dock_route);

@@ -20100,14 +20100,14 @@ int Simulation::petra_trade_minimal_gain() const {
 // popScaling) until setTradingGoods sets it (kept and saved), every 60 AI turns with a route.
 int Simulation::petra_target_traders() const {
 	if (petra_kept_.target_traders >= 0) return petra_kept_.target_traders;
-	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
+	const int max_pop = petra_config_max_pop();
 	return (int)std::lround((2.0f + (float)petra_config_.difficulty) * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop));
 }
 
 // setTradingGoods: the config value, raised for each tradable resource that runs low, times
 // popScaling again.
 int Simulation::petra_compute_target_traders() const {
-	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
+	const int max_pop = petra_config_max_pop();
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
 	int target = (int)std::lround((2.0f + (float)petra_config_.difficulty) * scaling);
 	float demand[RES_COUNT];
@@ -21413,7 +21413,7 @@ void Simulation::petra_manage_naval(float dt) {
 	std::vector<int> want_transport(nseas, 0), want_fish(nseas, 0);
 	auto need_ships = [&](uint8_t kind) {
 		const int n = (kind == PETRA_ATTACK_HUGE) ? 5 : (kind == PETRA_ATTACK_ATTACK ? 3 : 1);
-		return std::max(1, (int)std::ceil(petra_config_.pop_scaling * (float)n));
+		return std::max(1, (int)std::ceil(petra_config_pop_scaling() * (float)n));
 	};
 	auto plan_wants = [&](const AttackPlan &plan, uint8_t kind) {
 		if (plan.state != AttackPlan::MUSTER && plan.state != AttackPlan::WALKING) return;
@@ -21903,7 +21903,7 @@ static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
 }
 
 int Simulation::petra_pop_phase2() const {
-	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
+	const int max_pop = petra_config_max_pop();
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
 	const int pop = std::min(std::max((int)((float)petra_config_.pop_phase2 * scaling), 20), max_pop / 2);
 	// startingStrategy.js runs after setConfig: 3/4 of the scaled and clamped value, to phase sooner and expand.
@@ -21911,7 +21911,7 @@ int Simulation::petra_pop_phase2() const {
 }
 
 int Simulation::petra_target_workers() const {
-	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
+	const int max_pop = petra_config_max_pop();
 	const uint8_t d = petra_config_.difficulty;
 	int target = d < PETRA_EASY ? std::min(40, max_pop) : d < PETRA_MEDIUM ? std::min(60, max_pop / 2)
 	                                                                        : std::min(120, max_pop / 3);
@@ -21920,7 +21920,7 @@ int Simulation::petra_target_workers() const {
 
 int Simulation::petra_work_phase3() const {
 	if (petra_config_.work_phase3 >= 999) return 999; // below Easy: never the city phase
-	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
+	const int max_pop = petra_config_max_pop();
 	int base = petra_config_.work_phase3;
 	if (has_victory(VK_WONDER)) base = base * 9 / 10;
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
@@ -21943,13 +21943,13 @@ int Simulation::petra_accounted_population() const {
 // popForBarracks2 (55), scaled by popScaling (times sqrt(maxPop/300) under 300): at least 12 and
 // at most a fifth of maxPop, and at least 45 and at most two thirds of it.
 int Simulation::petra_pop_for_barracks1() const {
-	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
+	const int max_pop = petra_config_max_pop();
 	const float base = petra_config_.difficulty >= PETRA_MEDIUM && petra_config_.aggressive > 0.7f ? 12.0f : 25.0f;
 	return std::min(std::max((int)(base * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 12), max_pop / 5);
 }
 
 int Simulation::petra_pop_for_barracks2() const {
-	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
+	const int max_pop = petra_config_max_pop();
 	return std::min(std::max((int)(55.0f * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 45), max_pop * 2 / 3);
 }
 
@@ -22890,8 +22890,7 @@ void Simulation::petra_manage_research(float dt) {
 	// at least 30, at most half the population cap) and a market stands. Every 3rd played
 	// turn (headquarters.js:2303).
 	if (petra_ps().phase >= 2 && home && petra_turn_mod(3)) {
-		const int own = player_pop_cap(petra_pid_) > 0 ? player_pop_cap(petra_pid_) : pop_cap_;
-		const int cap = own > 0 ? own : 200;
+		const int cap = petra_config_max_pop(200);
 		const int pop_for_forge = std::min(std::max((int)std::floor(65.0f * petra_pop_scaling_for(petra_config_.pop_scaling, cap)), 30), cap / 2);
 		const bool saving = petra_attack_mgr_.save_resources != 0;
 		const uint8_t civ = petra_ps().civ;
@@ -23577,9 +23576,22 @@ void Simulation::petra_set_rushes() {
 float Simulation::petra_plan_pop_scaling() const {
 	const uint8_t d = petra_config_.difficulty;
 	float pop_scaling = d < PETRA_EASY ? 0.5f : d < PETRA_MEDIUM ? 0.7f : 1.0f;
-	const int max_pop = pop_limit(petra_pid_);
+	const int max_pop = petra_config_max_pop(0);
 	if (max_pop > 0 && max_pop < 300) pop_scaling *= std::sqrt((float)max_pop / 300.0f);
 	return pop_scaling;
+}
+
+// config.js setConfig reads gameState.getPopulationMax() once, at the AI's first turn: the
+// player's population cap with its civ bonus (han/maur/pers_population, a starting
+// technology), before any Wonder or relic. `unlimited` stands in for no cap.
+int Simulation::petra_config_max_pop(int unlimited) const {
+	const int cap = pop_cap(petra_pid_);
+	if (cap <= 0) return unlimited;
+	return std::max(1, (int)std::lround((float)cap * civ_bonus_mult(civ_of(petra_pid_), CIV_BONUS_POP_CAP)));
+}
+
+float Simulation::petra_config_pop_scaling() const {
+	return petra_pop_scaling_for(petra_config_.pop_scaling, petra_config_max_pop());
 }
 
 void Simulation::petra_plan_sizes(uint8_t kind) {
@@ -25201,7 +25213,7 @@ void Simulation::petra_check_paused_queues() {
 	for (size_t i = 0; i < units_.count && !has_fishing; ++i)
 		has_fishing = units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_FISHING_BOAT;
 	const int workers = petra_accounted_workers();
-	const int workers_min = std::min(std::max(12, (int)(24.0f * petra_config_.pop_scaling)), petra_pop_phase2());
+	const int workers_min = std::min(std::max(12, (int)(24.0f * petra_config_pop_scaling())), petra_pop_phase2());
 	for (uint8_t q = 0; q < PETRA_Q_COUNT; ++q) {
 		bool pause = false;
 		if (!potential_base)
