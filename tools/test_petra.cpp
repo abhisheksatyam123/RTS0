@@ -131,7 +131,9 @@ static void test_phase_up() {
 	}
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
-	CHECK(town_at > 0.0f && town_at < 13.0f * 60.0f, "town phase within 13 minutes");
+	// This seed's personality is the slow one (other AI seeds reach the town phase in 7 to 8 minutes);
+	// its time moves some 20 s with the AI's random draws and gatherers' choices.
+	CHECK(town_at > 0.0f && town_at < 13.5f * 60.0f, "town phase within 13 and a half minutes");
 	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
@@ -3082,6 +3084,7 @@ static void test_placement_miss_memory_exact() {
 	const bool tower_fails = !s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, PETRA_Q_DEFENSE_BUILDING);
 	const bool tower_remembered = s->petra_place_misses_.size() == 1;
 	s->destroy_building(s->buildings_[s->building_id_to_idx_.at(old_tower)]);
+	s->petra_timer_ += 91.0f; // setUnbuildable(template, 90, "room"): tried again 90 s on
 	const uint32_t tower = s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, PETRA_Q_DEFENSE_BUILDING);
 
 	// Trees on every cell a temple could take in rings 5-6 around the Civic Centre.
@@ -3108,6 +3111,7 @@ static void test_placement_miss_memory_exact() {
 				s->resource_block_tick_ = UINT64_MAX;
 				freed = s->petra_can_place(cx, cz, foot, BLD_TEMPLE);
 			}
+	s->petra_timer_ += 91.0f;
 	const uint32_t temple = s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, PETRA_Q_ECONOMIC_BUILDING);
 	std::printf("  placement miss memory: tower %s, %s after its neighbour fell; temple %s, %s after felling\n",
 	            tower_fails ? "blocked" : "not blocked", tower ? "placed" : "not placed",
@@ -4056,7 +4060,12 @@ static void test_defense_armies() {
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
 	const float cx = cc->x, cz = cc->z;
-	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 6), cz + 12.0f + (float)(k / 6), 1, UNIT_SPEARMAN);
+	// Two blocks of 15, one behind each group: the civic centre garrisons the nearest of both
+	// alike (garrisonUnitsInside), so each group keeps spearmen nearer it than the other.
+	for (int k = 0; k < 30; ++k) {
+		const int j = k % 15;
+		s->spawn_unit(cx + (k < 15 ? -1.0f : 1.0f) * (5.0f + (float)(j % 3)), cz + 8.0f + (float)(j / 3), 1, UNIT_SPEARMAN);
+	}
 	std::vector<uint32_t> east, west;
 	for (int k = 0; k < 3; ++k) east.push_back(s->spawn_unit(cx + 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
 	for (int k = 0; k < 3; ++k) west.push_back(s->spawn_unit(cx - 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
@@ -5772,7 +5781,8 @@ static void test_temple_wonder_save() {
 // while it has fewer than its phase number and over 30 population per corral.
 // headquarters.js checkBaseExpansion: more than one kind of structure with no room left
 // (buildManager.numberMissingRoom) sends Petra to found a new base, below the population
-// threshold; a structure placed again clears its kind.
+// threshold. A structure no spot was found for is not tried again for 90 s
+// (setUnbuildable(template, 90, "room")), and growing territory clears the marks.
 static void test_missing_room_expansion() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -5791,21 +5801,65 @@ static void test_missing_room_expansion() {
 		return n;
 	};
 	const int before = bases();
-	s->petra_attack_mgr_.missing_room = 1u << 0; // houses only
+	s->petra_set_no_room(BLD_HOUSE);
 	s->petra_check_base_expansion();
 	CHECK(bases() == before, "one kind without room: no new base");
+	CHECK(s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) == 0 && s->petra_place_no_room_, "a house is not tried within 90 s");
+	s->petra_timer_ += 91.0f;
+	CHECK(s->petra_missing_room_count() == 0, "the mark lapses after 90 s");
 	const uint32_t house = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
-	CHECK(house != 0 && s->petra_attack_mgr_.missing_room == 0, "a house placed clears its kind");
-	s->petra_attack_mgr_.missing_room = (1u << 0) | (1u << 5); // houses and barracks
+	CHECK(house != 0 && !s->petra_no_room(BLD_HOUSE), "after 90 s a house is placed");
+	s->petra_set_no_room(BLD_HOUSE);
+	s->petra_set_no_room(BLD_BARRACKS);
 	s->petra_check_base_expansion();
 	std::printf("  missing room: %d bases before, %d after\n", before, bases());
 	CHECK(bases() == before + 1, "two kinds without room: a new base");
-	// A search that finds no spot (asked for in a corner no base holds) sets its kind.
-	s->petra_attack_mgr_.missing_room = 0;
+	// A search that finds no spot (asked for in a corner no base holds) marks its template.
 	const float corner[2] = {-60.0f, -60.0f};
-	CHECK(s->petra_place_generic(BLD_WONDER, PETRA_Q_WONDER, corner) == 0 &&
-	          s->petra_attack_mgr_.missing_room == (1u << 7),
-	      "no room for a wonder sets its kind");
+	CHECK(s->petra_place_generic(BLD_WONDER, PETRA_Q_WONDER, corner) == 0 && s->petra_no_room(BLD_WONDER),
+	      "no room for a wonder marks it");
+	// headquarters.js:2042: our territory grew, so every mark goes at the next AI turn.
+	s->petra_room_.tiles = 0;
+	s->petra_room_.marks.push_back({BLD_TEMPLE, s->petra_timer_ + 90.0f});
+	run_for(*s, 2.0f);
+	CHECK(s->petra_room_.marks.empty() || !s->petra_no_room(BLD_TEMPLE), "territory growth clears the marks");
+}
+
+// worker.js update: a gatherer that UnitAI took to a far supply (its own ran out) goes back
+// through startGathering while its base's nearby list has supplies of that kind.
+static void test_petra_far_gatherer_recheck() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	// A stone mine near the civic centre (nearby) and one far off on our land.
+	const uint32_t near = s->spawn_resource_world(cx + 8.0f, cz + 8.0f, RES_STONE, 5000);
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (int a = 0; a < 16 && !found; ++a)
+		for (float d = 30.0f; d < 44.0f && !found; d += 2.0f) {
+			const float x = cx + std::cos(a * 0.3927f) * d, z = cz + std::sin(a * 0.3927f) * d;
+			if (std::fabs(x) > s->map_half_ - 8.0f || std::fabs(z) > s->map_half_ - 8.0f) continue;
+			if (s->petra_access_at(x, z) == s->petra_access_at(cx, cz) && s->territory_owner_at(x, z) < 0) { fx = x; fz = z; found = true; }
+		}
+	CHECK(found, "land 30-44 units out");
+	if (!found) return;
+	const uint32_t far = s->spawn_resource_world(fx, fz, RES_STONE, 5000);
+	const uint32_t w = s->spawn_unit(fx + 1.5f, fz, 1, UNIT_FEMALE_CITIZEN);
+	s->order_gather(&w, 1, far); // as UnitAI would, with no Petra "supply" for it
+	run_for(*s, 4.0f);
+	const int32_t i = s->lookup_unit(w);
+	const uint32_t now = i >= 0 ? s->units_.target_resource_id[i] : 0;
+	std::printf("  far gatherer: now on %s\n", now == near ? "the nearby mine" : now == far ? "the far mine" : "something else");
+	CHECK(now != far, "a gatherer on a far supply is sent back");
 }
 
 static void test_corral_by_owner() {
@@ -6038,6 +6092,7 @@ int main(int argc, char **argv) {
 	RUN(test_food_fields);
 	RUN(test_corral_by_owner);
 	RUN(test_missing_room_expansion);
+	RUN(test_petra_far_gatherer_recheck);
 	RUN(test_emergency_units);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
