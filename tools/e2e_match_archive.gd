@@ -104,8 +104,8 @@ func run() -> void:
 	m.toggle_pause()
 	m.set_game_speed(10.0)
 	check(is_equal_approx(float(m.get_replay_status().speed), 10.0), "a replay plays at 10x")
-	check(not m.get_replay_status().speed_button and m.get_replay_status().speed_items.has("Fast Forward (20×)"),
-		"a replay has one speed list (its own row's), with Fast Forward")
+	check(m.get_replay_status().speed_button and m.get_replay_status().speed_items.has("Fast Forward (20×)"),
+		"a replay shows the Game Speed button (GameSpeedButton), its list with Fast Forward")
 	var guard := 0
 	while not m.get_replay_status().finished and guard < 20000:
 		await process_frame

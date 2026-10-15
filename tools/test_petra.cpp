@@ -5026,6 +5026,15 @@ static void test_chat_text() {
 		              t.find("1200 metal") != std::string::npos;
 	}
 	CHECK(all_filled, "a tribute answer names the player, the amount and the resource");
+	// The line and the resource name go through the translation first, then the names go in.
+	{
+		l.variant = 0;
+		const std::string t = petra_chat_text(l, name, [](const char *msgid) {
+			return std::string(msgid) == "metal" ? std::string("métal") : std::string("[fr] ") + msgid;
+		});
+		CHECK(t.rfind("[fr] ", 0) == 0 && t.find("1200 métal") != std::string::npos && t.find("Player 3") != std::string::npos,
+		      "a translated tribute answer names the player, the amount and the resource");
+	}
 	// Every kind has lines, and none leaves a placeholder unfilled.
 	for (uint8_t k = 0; k < PETRA_CHAT_KIND_COUNT; ++k)
 		for (uint8_t sub = 0; sub < 3; ++sub) {
