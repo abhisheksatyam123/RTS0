@@ -72,6 +72,8 @@ var _ratings := {} # player name -> rating, from the player list
 var dialog := false
 signal closed
 var _moderators := {} # names the lobby lists as moderators
+var _muted := {} # names with the "visitor" role (muted)
+var _notice_dlg: AcceptDialog
 var _subject := "" # the lobby room subject (Subject.js)
 var _details: RichTextLabel
 var _details_preview: TextureRect
@@ -179,6 +181,14 @@ func _build() -> void:
 	login.add_child(_sign_btn)
 	_register_btn = _button("Register", _on_register_pressed)
 	login.add_child(_register_btn)
+	# termslobby.js: the three terms buttons under the sign-in row.
+	_terms_row = HBoxContainer.new()
+	_terms_row.visible = not dialog
+	root.add_child(_terms_row)
+	for t in TERMS:
+		var b := _button(t["title"], func() -> void: open_terms(t["page"]))
+		b.name = "Terms" + t["page"]
+		_terms_row.add_child(b)
 
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -545,8 +555,8 @@ func _request_profile(player: String) -> void:
 		return
 	_profile_name.text = player
 	_profile_name.add_theme_color_override("font_color", player_color(player)) # ColorPlayerName
-	# ProfilePanel RoleNames: Moderator, else Player (the lobby mutes nobody).
-	_profile_role.text = "Moderator" if _moderators.has(player) else "Player"
+	# ProfilePanel RoleNames: Moderator, Muted Player (visitor), else Player.
+	_profile_role.text = "Moderator" if _moderators.has(player) else "Muted Player" if _muted.has(player) else "Player"
 	for k in _profile_values:
 		_profile_values[k].text = NOT_AVAILABLE
 	LobbySession.get_json("/profile?name=" + player.uri_encode(), _on_profile)
@@ -620,6 +630,7 @@ func _update_signed_in() -> void:
 	_register_btn.disabled = on
 	_chat_line.editable = on
 	_chat_send.disabled = not on
+	_update_chat_input()
 	if not on:
 		_players.clear()
 		_games.clear()
@@ -629,6 +640,13 @@ func _update_signed_in() -> void:
 	_update_buddy_button()
 	_say(("Signed in as %s." % LobbySession.player_name) if on
 		else "Sign in to see the games and players, or join an address directly.")
+
+
+## ChatInputPanel.update: a muted player ("visitor") gets no chat input.
+func _update_chat_input() -> void:
+	var muted := LobbySession.signed_in() and _muted.has(LobbySession.player_name)
+	_chat_line.visible = not muted
+	_chat_send.visible = not muted
 
 
 func _on_back_pressed() -> void:
@@ -716,6 +734,85 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_back_pressed()
 
 
+## termslobby.js initLobbyTerms: each page's title, instruction and config key.
+const TERMS := [
+	{"page": "Service", "title": "Terms of Service", "instruction": "Please read and accept the Terms of Service.",
+		"config": "lobby.terms_of_service"},
+	{"page": "Use", "title": "Terms of Use", "instruction": "Please read and accept the Terms of Use.",
+		"config": "lobby.terms_of_use"},
+	{"page": "Privacy", "title": "Privacy Policy", "instruction": "Please read and accept the Privacy Policy.",
+		"config": "lobby.privacy_policy"},
+]
+var _terms_row: HBoxContainer
+var _terms_dlg: ConfirmationDialog
+
+func _terms_entry(page: String) -> Dictionary:
+	for t in TERMS:
+		if t["page"] == page:
+			return t
+	return {}
+
+## checkTerms: the instruction of the first page this name has not accepted in
+## its current version, or "" when all are (or the server has none).
+func _terms_problem(who: String, pages: Array) -> String:
+	var cfg := RtsoUserConfig.new()
+	for p in pages:
+		var t := _terms_entry(str(p.get("page", "")))
+		if not t.is_empty() and cfg.get_value(t["config"]) != LobbySession.terms_hash(who, str(p.get("text", ""))):
+			return t["instruction"]
+	return ""
+
+## Connect and Register wait until every page is accepted.
+func _with_terms(who: String, then: Callable) -> void:
+	LobbySession.fetch_terms(_server.text.strip_edges(), func(pages: Array) -> void:
+		if not is_inside_tree():
+			return
+		var problem := _terms_problem(who, pages)
+		if problem != "":
+			_say(problem)
+		else:
+			then.call())
+
+## openTerms / termsdialog: the page's text, Decline or Accept; the accepted
+## version (salted with the player name) goes to the user config.
+func open_terms(page: String) -> void:
+	var t := _terms_entry(page)
+	if t.is_empty() or _terms_dlg != null:
+		return
+	var who := _name.text.strip_edges()
+	LobbySession.fetch_terms(_server.text.strip_edges(), func(pages: Array) -> void:
+		if not is_inside_tree() or _terms_dlg != null:
+			return
+		var text := ""
+		var found := false
+		for p in pages:
+			if str(p.get("page", "")) == page:
+				text = str(p.get("text", ""))
+				found = true
+		if not found:
+			_say("The lobby server at %s has no %s." % [_server.text, t["title"]])
+			return
+		_terms_dlg = ConfirmationDialog.new()
+		_terms_dlg.name = "TermsDialog"
+		_terms_dlg.title = t["title"]
+		_terms_dlg.ok_button_text = "Accept"
+		_terms_dlg.cancel_button_text = "Decline"
+		var body := RichTextLabel.new()
+		body.name = "TermsText"
+		body.text = text
+		body.custom_minimum_size = Vector2(560, 360)
+		_terms_dlg.add_child(body)
+		add_child(_terms_dlg)
+		var done := func(accepted: bool) -> void:
+			var cfg := RtsoUserConfig.new()
+			cfg.set_value(t["config"], LobbySession.terms_hash(who, text) if accepted else "0")
+			cfg.save()
+			_terms_dlg.queue_free()
+			_terms_dlg = null
+		_terms_dlg.confirmed.connect(func() -> void: done.call(true))
+		_terms_dlg.canceled.connect(func() -> void: done.call(false))
+		_terms_dlg.popup_centered())
+
 func _on_sign_pressed() -> void:
 	if LobbySession.signed_in():
 		LobbySession.sign_out()
@@ -725,7 +822,7 @@ func _on_sign_pressed() -> void:
 	if who == "":
 		_say("Type a player name first.")
 		return
-	_sign_in(who)
+	_with_terms(who, func() -> void: _sign_in(who))
 
 
 # The password typed now, else the one lobby.password remembers for this name.
@@ -772,6 +869,10 @@ func _on_register_pressed() -> void:
 	if problem != "":
 		_say(problem)
 		return
+	_with_terms(who, func() -> void: _register(who))
+
+
+func _register(who: String) -> void:
 	_register_btn.disabled = true
 	_say("Registering...")
 	LobbySession.register(_server.text.strip_edges(), who, _password.text, func(code: int, obj) -> void:
@@ -1050,6 +1151,7 @@ func _on_players(code: int, obj) -> void:
 	_players.clear()
 	_ratings = {}
 	_moderators = {}
+	_muted = {}
 	var buddy_list := buddies()
 	var top := _players.create_item()
 	for p in obj.get("players", []):
@@ -1058,6 +1160,8 @@ func _on_players(code: int, obj) -> void:
 		var st := str(p.get("status", "available"))
 		if p.get("moderator", false):
 			_moderators[str(p.get("name", ""))] = true
+		if p.get("muted", false):
+			_muted[str(p.get("name", ""))] = true
 		var it := _players.create_item(top)
 		var col: Color = {"available": Color(0.6, 0.9, 0.6), "away": Color(0.9, 0.8, 0.4), "playing": Color(0.9, 0.5, 0.5)}.get(st, Color.WHITE)
 		# PlayerList.js presences: Online, Away, Busy (in a game).
@@ -1070,6 +1174,7 @@ func _on_players(code: int, obj) -> void:
 		if str(p.get("name", "")) == _selected_player:
 			it.select(0)
 	LobbySession.moderator = _moderators.has(LobbySession.player_name)
+	_update_chat_input()
 	var subject := str(obj.get("subject", ""))
 	if subject != _subject:
 		_subject = subject
@@ -1100,7 +1205,11 @@ func _on_chat(code: int, obj) -> void:
 		if notify and who != "" and who != me and str(m.get("text", "")).findn(me) >= 0:
 			notify = false
 			_play_nick_alert()
-		_chat_log.append_text(_chat_time(m) + _format_chat(who, str(m.get("text", "")), me) + "\n")
+		var event: Dictionary = m.get("event", {}) if m.get("event") is Dictionary else {}
+		var line := _format_event(event, me)
+		_chat_log.append_text(_chat_time(m) + (line if line != "" else _format_chat(who, str(m.get("text", "")), me)) + "\n")
+		if str(event.get("kind", "")) == "announcement" and not backlog and not replay:
+			_show_notice(str(event.get("subject", "")), str(event.get("text", "")))
 	_chat_last = int(obj.get("last", _chat_last))
 
 
@@ -1117,6 +1226,50 @@ func _format_chat(who: String, raw: String, me: String) -> String:
 	if raw.begins_with("/say "):
 		text = text.substr(5)
 	return "%s: %s" % [colored_name(who, _nick(who)), text]
+
+
+## StatusMessageEvents.js Role (worded for the reader) and
+## ChatMessageFormatAnnouncement ("== Notice:"); "" for any other line.
+const ROLE_STRINGS := [
+	{"newrole": "visitor", "you": "You have been muted.", "nick": "%s has been muted."},
+	{"newrole": "moderator", "you": "You are now a moderator.", "nick": "%s is now a moderator."},
+	{"newrole": "participant", "oldrole": "visitor", "you": "You have been unmuted.", "nick": "%s has been unmuted."},
+	{"newrole": "participant", "oldrole": "moderator", "you": "You are not a moderator anymore.",
+		"nick": "%s is not a moderator anymore."},
+]
+
+func _format_event(event: Dictionary, me: String) -> String:
+	match str(event.get("kind", "")):
+		"role":
+			for r in ROLE_STRINGS:
+				if r["newrole"] == str(event.get("newrole", "")) and (not r.has("oldrole") or r["oldrole"] == str(event.get("oldrole", ""))):
+					var nick := str(event.get("nick", ""))
+					var txt: String = r["you"] if nick == me else r["nick"] % nick
+					return "[color=#aaaaaa]%s[/color]" % txt.replace("[", "[lb]")
+		"announcement":
+			return "[b]== Notice:\n%s[/b]" % format_announcement(str(event.get("subject", "")), str(event.get("text", ""))).replace("[", "[lb]")
+	return ""
+
+## functions_utility.js formatXmppAnnouncement: the subject, a blank line, the text.
+static func format_announcement(subject: String, text: String) -> String:
+	var s := subject.strip_edges()
+	var t := text.strip_edges()
+	return s + ("\n\n" if s != "" and t != "" else "") + t
+
+## AnnouncementHandler: a "Notice" box with the announcement.
+func _show_notice(subject: String, text: String) -> void:
+	if subject.strip_edges() == "" and text.strip_edges() == "":
+		return
+	if _notice_dlg != null:
+		_notice_dlg.queue_free()
+	_notice_dlg = AcceptDialog.new()
+	_notice_dlg.name = "NoticeDialog"
+	_notice_dlg.title = "Notice"
+	_notice_dlg.dialog_text = format_announcement(subject, text)
+	_notice_dlg.min_size = Vector2i(400, 250)
+	add_child(_notice_dlg)
+	_notice_dlg.confirmed.connect(func() -> void: _notice_dlg.queue_free(); _notice_dlg = null)
+	_notice_dlg.popup_centered()
 
 
 func _play_nick_alert() -> void:
@@ -1300,6 +1453,9 @@ const CHAT_COMMANDS := [
 	["back", "Set your state to 'Online'."],
 	["kick", "Kick a specified user from the lobby. Usage: /kick nick reason", true],
 	["ban", "Ban a specified user from the lobby. Usage: /ban nick reason", true],
+	["mute", "Mute a specified user in the lobby. Usage: /mute nick", true],
+	["unmute", "Unmute a specified user in the lobby. Usage: /unmute nick", true],
+	["announce", "Send a notice to everyone in the lobby. Usage: /announce text", true],
 	["help", "Show this help."],
 	["me", "Send a chat message about yourself. Example: /me goes swimming."],
 	["say", "Send text as a chat message (even if it starts with slash). Example: /say /help is a great command."],
@@ -1351,6 +1507,12 @@ func _chat_command(text: String) -> bool:
 			var j := args.find(" ")
 			LobbySession.post_json("/kick", {"token": LobbySession.token, "nick": args.substr(0, j) if j >= 0 else args,
 				"reason": args.substr(j + 1) if j >= 0 else "", "ban": cmd == "ban"}, func(_c: int, _o) -> void: _refresh())
+		"mute", "unmute":
+			LobbySession.post_json("/mute", {"token": LobbySession.token, "nick": args, "muted": cmd == "mute"},
+				func(_c: int, _o) -> void: _refresh())
+		"announce":
+			LobbySession.post_json("/announce", {"token": LobbySession.token, "subject": "", "text": args},
+				func(_c: int, _o) -> void: _refresh())
 	return true
 
 func _on_send_pressed() -> void:

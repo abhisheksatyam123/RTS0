@@ -2493,6 +2493,52 @@ static void test_raid_takes_every_rider() {
 	}
 }
 
+// attackPlan.js trainMoreUnits: a class no template of ours trains is deleted from the plan for
+// good, so a HugeAttack made in the town phase keeps no champions or hero once the city phase
+// comes, and mustStart no longer waits for them.
+static void test_huge_attack_drops_classes() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	s->petra_plan_sizes(PETRA_ATTACK_HUGE);
+	m.dropped_classes = 0;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_HUGE;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	const auto full = s->petra_plan_unit_stats(PETRA_ATTACK_HUGE);
+	uint16_t elite = 0;
+	for (const auto &st : full)
+		if ((st.classes & (TC_CHAMPION | TC_HERO)).any()) elite |= (uint16_t)(1u << st.index);
+	for (int k = 0; k < 4; ++k) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+		run_ai_turns(*s, 1);
+	}
+	const uint16_t dropped = m.dropped_classes;
+	s->players_[1].phase = 3;
+	int elite_left = 0;
+	for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE, m.dropped_classes))
+		elite_left += (st.classes & (TC_CHAMPION | TC_HERO)).any();
+	std::printf("  town-phase HugeAttack: dropped classes 0x%x (champions and hero 0x%x), %d left in the city phase\n",
+	            (unsigned)dropped, (unsigned)elite, elite_left);
+	CHECK(elite && (dropped & elite) == elite, "the champion and hero classes leave the plan when nothing trains them");
+	CHECK(elite_left == 0, "they stay out once the city phase arrives");
+	CHECK((dropped & ~elite) == 0, "the citizen-soldier classes stay");
+}
+
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
 // and leave the plan; those of a started attack are held back.
 static void test_mustering_units_defend() {
@@ -5747,6 +5793,36 @@ static void test_corral_by_owner() {
 	CHECK(corrals() == 2, "a second corral in the town phase past 30 population");
 }
 
+// researchManager.js researchTradeBonus: the trade technology waits in minorTech until it is
+// paid for, holding back the other minor technologies, and a second call queues nothing new.
+static void test_trade_tech_waits_for_funds() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->petra_pid_ = 1;
+	s->complete_research(1, TECH_PHASE_TOWN);
+	float mx = 0.0f, mz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && is_civic_centre(b.type)) { mx = b.x + 14.0f; mz = b.z; }
+	s->spawn_building_world(mx, mz, BLD_MARKET, 1, 1.0f);
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_research_trade_bonus();
+	const uint8_t t = s->petra_queues_.special_tech;
+	std::printf("  trade tech queued while poor: %d (%s)\n", t, t ? tech_info(t).name : "-");
+	CHECK(t != 0, "with no resources the trade technology is queued, not dropped");
+	s->petra_research_trade_bonus();
+	CHECK(s->petra_queues_.special_tech == t, "a second call keeps the same queued technology");
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	fund_queues(*s);
+	bool started = false;
+	for (int k = 0; k < 40 && !started; ++k) {
+		s->petra_manage_research(1.6f);
+		for (const auto &b : s->buildings())
+			for (const auto &o : b.queue) started |= b.team == 1 && o.tech == t;
+		s->ticks_ += 32; // the next played turn
+	}
+	CHECK(started && s->petra_queues_.special_tech == 0, "once affordable it is researched first and the queue clears");
+}
 
 // common-api entity.js: Petra scores its templates with the player's technologies applied.
 // After Archery Tradition (+10 m range) a Kushite's best citizen infantry per cost, by
@@ -5797,6 +5873,7 @@ int main(int argc, char **argv) {
 	RUN(test_phase_up);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
+	RUN(test_trade_tech_waits_for_funds);
 	RUN(test_roster_army);
 	RUN(test_diplomacy);
 	RUN(test_ai_slots);
@@ -5840,6 +5917,7 @@ int main(int argc, char **argv) {
 	RUN(test_rush_any_phase);
 	RUN(test_attack_plan_keeps_hunters);
 	RUN(test_raid_takes_every_rider);
+	RUN(test_huge_attack_drops_classes);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);

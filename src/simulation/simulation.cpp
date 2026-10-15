@@ -701,11 +701,16 @@ int Simulation::pop_current(uint8_t player) const {
 		if (units_.team[i] == player && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED))
 			count += unit_pop_cost(units_.tmpl[i], units_.unit_type[i]);
 	}
-	// Player.js TryReservePopulationSlots: a started batch already holds its population.
+	// Player.js TryReservePopulationSlots: a started batch already holds its population, at
+	// the front or paused behind a pushed-front item (Trainer Item.Pause keeps it).
 	for (const auto &b : buildings_)
-		if (b.team == player && !b.queue.empty() && b.queue.front().started) count += order_pop(b.queue.front(), player);
+		if (b.team == player)
+			for (const ProductionOrder &o : b.queue)
+				if (o.started) count += order_pop(o, player);
 	for (const auto &kv : unit_queues_)
-		if (kv.second.player == player && kv.second.orders.front().started) count += order_pop(kv.second.orders.front(), player);
+		if (kv.second.player == player)
+			for (const ProductionOrder &o : kv.second.orders)
+				if (o.started) count += order_pop(o, player);
 	return count;
 }
 
@@ -3453,8 +3458,15 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	return cmd_train_template(player_id, building_id, tmpl, count);
 }
 
-bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uint16_t tmpl, int count) {
-	return cmd_train_template_at(player_id, building_id, tmpl, true, count);
+bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uint16_t tmpl, int count, bool push_front) {
+	return cmd_train_template_at(player_id, building_id, tmpl, true, count, push_front);
+}
+
+// ProductionQueue.AddItem pushFront: the item goes first; the one in progress waits behind
+// it with its progress and population (Item.Pause).
+static void add_to_queue(std::vector<ProductionOrder> &queue, const ProductionOrder &order, bool push_front) {
+	if (push_front) queue.insert(queue.begin(), order);
+	else queue.push_back(order);
 }
 
 float Simulation::batch_time_multiplier(uint8_t player_id, uint8_t bld_type, int count) const {
@@ -3493,7 +3505,7 @@ bool Simulation::tech_queued(uint8_t player_id, uint8_t tech) const {
 
 // `exclusive`: the building must be one 0 A.D. trains the unit at (by-name
 // training); cmd_train's class requests keep generic buildings working.
-bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, uint16_t tmpl, bool exclusive, int count) {
+bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, uint16_t tmpl, bool exclusive, int count, bool push_front) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
@@ -3537,7 +3549,7 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	order.timer = 0.0f;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
 	order.duration = unit_train_seconds(player_id, tmpl) * batch_time_multiplier(player_id, b.type, count);
-	b.queue.push_back(order);
+	add_to_queue(b.queue, order, push_front);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnTrainingQueued
 		TriggerEventData ev;
 		ev.entity = building_id;
@@ -3969,7 +3981,7 @@ void Simulation::tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type
 		* (unit ? 1.0f : tech_mods(player_id).bld_research_time[bld_type]);
 }
 
-bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t tech_id) {
+bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t tech_id, bool push_front) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
@@ -3986,7 +3998,7 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	order.timer = 0.0f;
 	tech_price(player_id, tech_id, b.type, order.paid.data(), order.duration);
 	players_[player_id].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]);
-	b.queue.push_back(order);
+	add_to_queue(b.queue, order, push_front);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnResearchQueued
 		TriggerEventData ev;
 		ev.entity = building_id;
@@ -16074,7 +16086,7 @@ void Simulation::set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t targe
 
 void Simulation::begin_walk_order(size_t i) {
 	set_order(i, ORDER_WALK, 0, 0, units_.target_x[i], units_.target_z[i]);
-	if (!applying_queued_) order_queues_.erase(units_.id[i]);
+	if (!applying_queued_ && !push_front_order_) order_queues_.erase(units_.id[i]);
 }
 
 void Simulation::drop_orders(size_t i) {
@@ -16129,7 +16141,10 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 		const std::vector<uint32_t> fids = formation_whole_ids(ids, count);
 		for (FormationController &fc : formations_) {
 			if (std::find(fids.begin(), fids.end(), fc.id) == fids.end()) continue;
-			if (!queued) { fc.queue.clear(); continue; }
+			if (!queued) {
+				if (!push_front_order_) fc.queue.clear(); // pushed to the front, the queue carries on after
+				continue;
+			}
 			UnitOrder q = o;
 			if (o.kind == ORDER_PATROL) {
 				const UnitOrder *prev = fc.queue.empty() ? nullptr : &fc.queue.back();
@@ -16151,7 +16166,16 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 		for (size_t k = 0; k < count; ++k) {
 			const int32_t i = lookup_unit(ids[k]);
 			if (i < 0) continue;
-			if (!applying_queued_) order_queues_.erase(ids[k]);
+			if (push_front_order_ && !applying_queued_) {
+				// UnitAI PushOrderFront (session.pushorderfront): the new order runs now and the
+				// current one, then the rest of the queue, resume after it.
+				if (units_.alive[i] && units_.order_kind[i] != ORDER_NONE) {
+					std::vector<UnitOrder> &queue = order_queues_[ids[k]];
+					if (queue.size() < 64) queue.insert(queue.begin(), current_order((size_t)i));
+				}
+			} else if (!applying_queued_) {
+				order_queues_.erase(ids[k]);
+			}
 			now.push_back(ids[k]);
 		}
 		return now;
@@ -18451,7 +18475,7 @@ void Simulation::petra_manage_scouting(float dt) {
 // What Petra pays for its fortress (wood, gold, stone in ResourceType order).
 static constexpr float PETRA_FORTRESS_COST[RES_COUNT] = {300.0f, 200.0f, 300.0f, 0.0f};
 
-std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t kind) {
+std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t kind, uint16_t dropped) {
 	using UnitStat = PetraUnitStat;
 	const uint8_t ai_civ = petra_ps().civ;
 	const uint8_t phase = petra_ps().phase;
@@ -18530,6 +18554,8 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 		if (has_trainer[k] && target > 0)
 			stats.push_back({siege_classes[k], 1.0f, 0, target, std::min(target, 2), 0.0f, 3.0f, 1.0f, 1.0f});
 	}
+	for (size_t k = 0; k < stats.size(); ++k) stats[k].index = (uint8_t)k;
+	std::erase_if(stats, [dropped](const PetraUnitStat &st) { return st.index < 16 && (dropped >> st.index & 1u); });
 	return stats;
 }
 
@@ -18658,7 +18684,8 @@ void Simulation::petra_manage_military_production(float dt) {
 	const float pop_scaling = petra_plan_pop_scaling();
 	auto train_for = [&](const AttackPlan &plan, uint8_t kind) {
 		const uint8_t order_plan = &plan == &petra_raid_plan_ ? PETRA_ORDER_RAID : PETRA_ORDER_ATTACK;
-		std::vector<UnitStat> stats = petra_plan_unit_stats(kind);
+		const bool main_plan = &plan == &petra_attack_plan_;
+		std::vector<UnitStat> stats = petra_plan_unit_stats(kind, main_plan ? petra_attack_mgr_.dropped_classes : 0);
 
 		// What the plan has, each unit counted once in the first class it matches, plus what is
 		// in training for it (the batches queued with its plan).
@@ -18684,7 +18711,13 @@ void Simulation::petra_manage_military_production(float dt) {
 		for (const UnitStat &st : stats) {
 			if (st.count >= st.target) return;
 			const uint16_t tmpl = best_trainable(st);
-			if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue; // no template: the class drops out of the plan
+			if (tmpl == CIV_UNIT_TEMPLATE_NONE) {
+				// No template: the class drops out of the plan for good (delete this.unitStat), and
+				// mustStart no longer waits for it. (Not when its trainers' queues are only full.)
+				if (main_plan && st.index < 16 && !petra_unit_stat_trainable(st))
+					petra_attack_mgr_.dropped_classes |= (uint16_t)(1u << st.index);
+				continue;
+			}
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
 			// checkPausedQueues: short of workers, the plan trains one at a time.
 			const int batch = petra_queues_.paused[PETRA_Q_PLAN_CHAMP] ? 1 : std::min(st.batch, std::max(1, petra_pop_room()));
@@ -23781,9 +23814,23 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 	return true;
 }
 
+// researchTradeBonus / researchPopulationBonus queue their technology in minorTech
+// (researchManager.js:43, :61), where it waits until paid for; neither queues one while
+// minorTech holds a plan.
+bool Simulation::petra_minor_tech_waiting() const {
+	const PetraQueueAccount &w = petra_queues_.wants[PETRA_Q_MINOR_TECH];
+	return petra_queues_.special_tech != 0 || w.food + w.wood + w.gold + w.stone > 0.0f;
+}
+void Simulation::petra_queue_special_tech(uint8_t t) {
+	if (petra_start_research(t)) return;
+	const ResearchCheck rc = research_check(petra_pid_, t);
+	if (rc == TECH_OK || rc == TECH_ERR_COST) petra_queues_.special_tech = t;
+}
+
 // researchManager.js researchPopulationBonus: headquarters.js buildMoreHouses
 // found no room for a house.
 void Simulation::petra_research_population_bonus() {
+	if (petra_minor_tech_waiting()) return;
 	std::vector<uint8_t> techs;
 	petra_available_techs(techs);
 	for (uint8_t t : techs) {
@@ -23792,7 +23839,7 @@ void Simulation::petra_research_population_bonus() {
 		// (its XP part lives in promotion_data.h).
 		if (t == TECH_WAGON_TRAINS) continue;
 		if (ti.effect_count && tech_effects_table()[ti.effect_begin].stat == TSTAT_POP_BONUS) {
-			petra_start_research(t);
+			petra_queue_special_tech(t);
 			return;
 		}
 	}
@@ -23800,6 +23847,7 @@ void Simulation::petra_research_population_bonus() {
 
 // researchManager.js researchTradeBonus: a trader speed or gain technology.
 void Simulation::petra_research_trade_bonus() {
+	if (petra_minor_tech_waiting()) return;
 	std::vector<uint8_t> techs;
 	petra_available_techs(techs);
 	for (uint8_t t : techs) {
@@ -23807,7 +23855,7 @@ void Simulation::petra_research_trade_bonus() {
 		if (!ti.effect_count || !petra_tech_affects(t, TC_TRADER)) continue;
 		const uint8_t first = tech_effects_table()[ti.effect_begin].stat;
 		if (first != TSTAT_SPEED && first != TSTAT_TRADE_GAIN) continue;
-		petra_start_research(t);
+		petra_queue_special_tech(t);
 		return;
 	}
 }
@@ -23959,6 +24007,16 @@ void Simulation::petra_manage_research(float dt) {
 	if (!active_base) return;
 	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
 	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
+	// A trade or population technology queued by researchTradeBonus/researchPopulationBonus:
+	// update returns while it waits (researchManager.js:163), so it is bought before any other.
+	if (uint8_t &st = petra_queues_.special_tech; st) {
+		const ResearchCheck rc = research_check(petra_pid_, st);
+		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
+		else {
+			if (start_tech(st)) st = 0;
+			return;
+		}
+	}
 	std::vector<uint8_t> techs;
 	petra_available_techs(techs);
 	// Only a researcher with room in its queue can take the technology.
@@ -25304,6 +25362,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			else ++mgr.attack_number;
 			mgr.attack_name = mgr.plans_made++; // attackManager.js: new AttackPlan(..., this.totalNumber++)
 			mgr.attack_siege = 0;
+			mgr.dropped_classes = 0;
 
 			plan.kind = kind;
 			plan.target_building_id = target_id;
@@ -25420,7 +25479,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// starts with every class at its minSize or more than lengthMin units. 0.28 fails it
 			// otherwise; RTS0's Petra sits at its cap far more often while its houses go up, so
 			// the plan keeps mustering instead.
-			std::vector<PetraUnitStat> stats = petra_plan_unit_stats(mgr.kind);
+			std::vector<PetraUnitStat> stats = petra_plan_unit_stats(mgr.kind, mgr.dropped_classes);
 			for (uint32_t uid : squad) {
 				const int32_t k = lookup_unit(uid);
 				if (k < 0 || !units_.alive[k]) continue;
@@ -30991,9 +31050,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else if constexpr (std::is_same_v<T, PetraQueueManager>) {
 			if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
 				ar.pod(v);
-				if constexpr (Ar::loading)
+				if constexpr (Ar::loading) {
 					for (int q = 0; q < PETRA_Q_COUNT; ++q)
 						if (v.reset_on_start[q] > PETRA_Q_COUNT) ar.ok = false;
+					if (v.special_tech >= TECH_COUNT) ar.ok = false; // a former pad byte: 0 in older saves
+				}
 			} else if constexpr (Ar::loading) {
 				// The six coarse queues: their wants come back within a turn, so they restart empty.
 				PetraQueueManagerV59 old;
