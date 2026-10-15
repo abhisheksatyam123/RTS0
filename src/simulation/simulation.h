@@ -3116,6 +3116,20 @@ private:
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
 	void petra_unit_stat_sizes(uint8_t kind, int &target, int &minimum);
+	// attackPlan.js unitStat: a plan's classes with their priority, minSize, targetSize,
+	// batchSize and interests (the sizes petra_plan_sizes drew), siege engines included
+	// (addSiegeUnits); count is left for the caller.
+	struct PetraUnitStat {
+		TechClasses classes;
+		float priority;
+		int min, target, batch;
+		float strength, siege_strength, stone, metal; // interests; 1 = no costsResource penalty
+		int count = 0;
+	};
+	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind);
+	// Whether a building of ours trains some roster template of the class now (trainMoreUnits
+	// drops a class without one from the plan).
+	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);

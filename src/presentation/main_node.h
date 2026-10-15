@@ -924,7 +924,6 @@ private:
 	// session.timewarp.fastforward runs the game at 20x while held.
 	bool time_warp_ = false;
 	bool time_warp_ff_ = false;
-	float time_warp_speed_ = 1.0f; // the speed to go back to when fast forward is let go
 	uint32_t time_warp_turn_ = UINT32_MAX;
 	uint32_t time_warp_serial_ = 0;
 	std::vector<String> time_warp_snapshots_;
@@ -941,6 +940,7 @@ public:
 	Dictionary get_rejoin_test() const;
 private:
 	bool rejoin_test_ = false;
+	bool random_map_ = false; // the match's map was generated (0.28 mapType "random")
 	std::unique_ptr<rtso::Simulation> rejoin_sim_;
 	std::unique_ptr<rtso::TurnManager> rejoin_tm_;
 	uint32_t rejoin_from_turn_ = 0, rejoin_turns_ = 0, rejoin_oos_turn_ = 0;
@@ -1019,8 +1019,8 @@ private:
 	void apply_settings_snapshot(const Dictionary &settings);
 	Array player_list() const;
 	void begin_match_recording(const rtso::GameSetupParams *mp_setup);
-	void write_replay();
-	void stop_replay_recording();
+	void write_replay(bool ended = false); // ended: leaving the match (0.28 endGame), which adds the summary
+	void stop_replay_recording(bool ended = false);
 	bool start_pending_replay();
 	bool load_pending_save();
 	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start
