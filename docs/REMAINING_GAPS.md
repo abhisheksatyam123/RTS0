@@ -8,37 +8,40 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 
 | # | Gap | Impact | Owner |
 |---|---|---|---|
-| G2 | ~~Idle traders start trade routes on their own, and a stopped trader restarts and loses its goods~~ Fixed (#1101): a seated player's traders trade only when ordered | medium | A |
-| G3 | ~~Petra plans rushes only in the village phase and drops a mustering rush at the town phase~~ Fixed: rushes are planned in any phase while any are left, and a rush with no target in sight musters and picks one when it sets out (attackManager.js:366) | medium | Formations |
 | G5 | A town-phase HugeAttack waits for champions and a hero once the city phase comes (0.28 drops those classes from the plan) | medium | D |
-| G6 | ~~A guard forgets the unit it guards after any new order~~ Closed 2026-10-15: a guard keeps its charge through other orders and goes back to guarding once idle (isGuardOf, save v92) | medium | Unit orders |
-| G7 | ~~The bottom HUD isn't 0.28's centred 1024 px group: panels sit at the corners, the Training grid floats, and the stance buttons have captions~~ Closed 2026-10-15: the bottom HUD is 0.28's centred 1024 px group (minimap 204 px, supplemental panel 206 px with the 38 px icon-only stance row, 228 px details panel with its six-icon command row in g_EntityCommands order, 402 px commands panel with the Training grid at its top and the queue strip above it) | medium | Session UI |
-| G8 | ~~Themistocles' wall aura skips palisades~~ Fixed (#1101); Liu Bang's Confucian Reforms wall regen fixed by Compare (10 hp/s on finished Han walls, gates and wall towers while he lives, `tools/test_unit_orders.cpp` 82) | low | A |
-| G9 | ~~Units garrisoned in an ally's structure or ship don't share its vision~~ Fixed (#1101): the holder's vision is shared with each garrisoned ally | low | A |
 | G10 | Trade: ~~a zero-gain route keeps its trader busy forever~~ (fixed in #1101), and traders boarding or leaving a ship mid-voyage don't change that leg's gain | low | A |
 | G11 | ~~Ptolemaic and Seleucid walls give 3 stone of loot; a bribe's spy ignores vision techs~~ (fixed in #1101); garrisoned traders can't be bribed | low | A |
 | G12 | Petra: ~~starting cavalry joins attacks instead of hunting; rushes take no siege~~ (fixed: citizen cavalry hunters follow assignUnits' worker rule, rushes add siege like other plans); raids take no siege; far-off gatherers aren't sent back | low | D (raid siege), C (gatherers) |
 | G13 | Petra's numberMissingRoom has no 90 s lapse | low | C |
 | G14 | Petra overseas: one transport plan and ship per army (H4); defenders on another island aren't ferried (M9) | low | Formations |
 | G15 | Petra buys trade-gain and population techs only if it can pay at the check | low | E |
-| G16 | ~~A defensive-stance unit keeps chasing a target that leaves its reach; boarding a transport skips 0.28's garrison rules~~ Closed 2026-10-15: boarding follows Order.Garrison (an unpacked siege engine packs first, a unit with no room walks over and stops beside the full ship, an ally's unit walking to board ignores enemies on the way). The chase half re-checked: a defensive unit drops a target after a swing finds it out of reach and goes back; it walks up to the same target again only when FINDINGNEWTARGET would pick it again in 0.28 | low | Unit orders |
-| G17 | ~~No collect_treasure voice~~ Closed 2026-10-15: a treasure order plays 0.28's collect_treasure lines (greek male As you wish, greek female and latin gather together, persian and kushite gather) | low | Unit orders |
 | G18 | Animals never play their feeding animation, and each species wears one coat (template trees now mix up to four of their actor's looks) | low | Animal models |
 | G19 | Siege walls draw the stone wall model (siege_wall.glb is unused) | low | Animal models |
-| G20 | ~~Session UI: no flare, target or "no" cursors; no paused queue items; no unexplored-area placement message; the garrison panel shows one holder where 0.28 merges several; the Barter dialog lacks 0.28's titles, labels and (i) buttons; some selection-detail strings are built from parts~~ Closed 2026-10-15: the flare cursor is the player's or the observer's and never shows in a replay, F over an attacking structure gives the target cursor (0.28's art for both isn't in the repo yet; nothing in 0.28's data is uncontrollable, so the "no" cursor has no use), paused queue items are greyed with the stop badge and "This item is paused.", building in unexplored land already says so, several selected holders share one garrison panel, the Barter & Trade dialog has 0.28's layout, and the health and capture tooltips use whole msgids | low | Session UI |
 | G21 | Hotkeys still unwired: push-front for unit orders, training and research; confirm on multiplayer dialogs; watermark, wireframe, profilers; the tiled big screenshot | low | Session UI |
 | G22 | CJK languages need Source Han Sans shipped | low | Session UI |
 | G23 | The chat window is a corner box with extra buttons (Tab now completes names in the session and setup chats, pass 5 gap 8) | low | B |
 | G24 | Circular maps show an extra 8 m ring past 0.28's edge; square maps have no 12 m edge frame | low | A |
-| G25 | ~~Livestock that an easier Petra breeds skips the AI training-time handicap~~ Fixed (#1101) | low | A |
-| G26 | ~~In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch)~~ Fixed by #1084: clients and the game list see "Random" until Start | low | Multiplayer |
 | G27 | -autostart-aiseed seeds only the AI personalities; Petra's other draws use the match's random stream | low | C |
 | G28 | The developer overlay lacks Control all units and the culling boxes | low | Stats |
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
 | G30 | Pathfinding grid: 8 m navcells against 0.28's 1 m, no JumpPointCache, float maths | low | Migrate |
-| G31 | ~~0.28's new_rms_test demo map isn't ported~~ Done: New RMS Test (RMS) under Demo Maps | low | Triggers |
 
-Closed since re-check 3: G1 (large units' long paths keep out of woods too tight for them, #1086).
+Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of woods too tight for them, #1086) and the rows below.
+
+| # | Gap (closed) | Impact | Owner |
+|---|---|---|---|
+| G2 | ~~Idle traders start trade routes on their own, and a stopped trader restarts and loses its goods~~ Fixed (#1101): a seated player's traders trade only when ordered | medium | A |
+| G3 | ~~Petra plans rushes only in the village phase and drops a mustering rush at the town phase~~ Fixed: rushes are planned in any phase while any are left, and a rush with no target in sight musters and picks one when it sets out (attackManager.js:366) | medium | Formations |
+| G6 | ~~A guard forgets the unit it guards after any new order~~ Closed 2026-10-15 (#1115): a guard keeps its charge through other orders and goes back to guarding once idle (isGuardOf, save v92) | medium | Unit orders |
+| G7 | ~~The bottom HUD isn't 0.28's centred 1024 px group: panels sit at the corners, the Training grid floats, and the stance buttons have captions~~ Closed 2026-10-15: the bottom HUD is 0.28's centred 1024 px group (minimap 204 px, supplemental panel 206 px with the 38 px icon-only stance row, 228 px details panel with its six-icon command row in g_EntityCommands order, 402 px commands panel with the Training grid at its top and the queue strip above it) | medium | Session UI |
+| G8 | ~~Themistocles' wall aura skips palisades~~ Fixed (#1101); Liu Bang's Confucian Reforms wall regen fixed by Compare (10 hp/s on finished Han walls, gates and wall towers while he lives, `tools/test_unit_orders.cpp` 82) | low | A |
+| G9 | ~~Units garrisoned in an ally's structure or ship don't share its vision~~ Fixed (#1101): the holder's vision is shared with each garrisoned ally | low | A |
+| G16 | ~~A defensive-stance unit keeps chasing a target that leaves its reach; boarding a transport skips 0.28's garrison rules~~ Closed 2026-10-15 (#1117): boarding follows Order.Garrison (an unpacked siege engine packs first, a unit with no room walks over and stops beside the full ship, an ally's unit walking to board ignores enemies on the way). The chase half re-checked: a defensive unit drops a target after a swing finds it out of reach and goes back; it walks up to the same target again only when FINDINGNEWTARGET would pick it again in 0.28 | low | Unit orders |
+| G17 | ~~No collect_treasure voice~~ Closed 2026-10-15 (#1096): a treasure order plays 0.28's collect_treasure lines (greek male As you wish, greek female and latin gather together, persian and kushite gather) | low | Unit orders |
+| G20 | ~~Session UI: no flare, target or "no" cursors; no paused queue items; no unexplored-area placement message; the garrison panel shows one holder where 0.28 merges several; the Barter dialog lacks 0.28's titles, labels and (i) buttons; some selection-detail strings are built from parts~~ Closed 2026-10-15: the flare cursor is the player's or the observer's and never shows in a replay, F over an attacking structure gives the target cursor (0.28's art for both isn't in the repo yet; nothing in 0.28's data is uncontrollable, so the "no" cursor has no use), paused queue items are greyed with the stop badge and "This item is paused.", building in unexplored land already says so, several selected holders share one garrison panel, the Barter & Trade dialog has 0.28's layout, and the health and capture tooltips use whole msgids | low | Session UI |
+| G25 | ~~Livestock that an easier Petra breeds skips the AI training-time handicap~~ Fixed (#1101) | low | A |
+| G26 | ~~In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch)~~ Fixed by #1084: clients and the game list see "Random" until Start | low | Multiplayer |
+| G31 | ~~0.28's new_rms_test demo map isn't ported~~ Done: New RMS Test (RMS) under Demo Maps | low | Triggers |
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
