@@ -194,7 +194,7 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | Ardennes Forest | `maps/random/ardennes_forest.js` | Modelled on it, layout from memory |
 | Near-Eastern Badlands (`nearestern_badlands`) | `maps/random/neareastern_badlands.js` | Modelled on it, layout from memory |
 | Rivers | `maps/random/rivers.js` | Modelled on it, layout from memory |
-| Canyon | `maps/random/canyon.js` | Modelled on it, layout from memory |
+| Canyon | `maps/random/canyon.js` | Ported: base canyons, central basin, ridges, clearings and roads |
 | Corinthian Isthmus | `maps/random/corinthian_isthmus.js` | Modelled on it, layout from memory |
 | Belgian Uplands | `maps/random/belgian_uplands.js` | Modelled on it, layout from memory |
 | Lorraine Plain | `maps/random/lorraine_plain.js` | Modelled on it, layout from memory |
