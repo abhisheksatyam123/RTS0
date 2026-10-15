@@ -48,7 +48,8 @@ func run() -> void:
 	await frames(2)
 	var town: Array = main.debug_command_row().filter(func(e): return TT.plain(str(e["tip"])).contains("(Town Phase)"))
 	print("    ", town.map(func(e): return TT.plain(str(e["tip"])).get_slice("\n", 0)))
-	check(town.size() == 1 and TT.plain(str(town[0]["tip"])).begins_with("Kōmopolis (Town Phase)"), "the Ptolemies' Town Phase: Kōmopolis (Town Phase)")
+	check(town.size() == 1 and TT.plain(str(town[0]["tip"])).begins_with("KŌMOPOLIS (Town Phase)"), "the Ptolemies' Town Phase in small caps: KŌMOPOLIS (Town Phase)")
+	check(town.size() == 1 and str(town[0]["tip"]).begins_with("[font_size=16][b]K[/b][/font_size][font_size=12][b]ŌMOPOLIS[/b][/font_size] ([font_size=16][b]Town Phase"), "its first letter big, the rest small (namePrimaryBig, namePrimarySmall)")
 
 	print("1-2. The Temple of Isis' pair")
 	main.debug_train_buttons(BLD_TEMPLE_ISIS)

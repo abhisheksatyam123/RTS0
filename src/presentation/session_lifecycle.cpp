@@ -716,6 +716,23 @@ void RtsoMain::_ready() {
 	}
 	ui_layer->add_child(net_status_overlay_);
 
+	// CLogger's on-screen messages (LOGMESSAGERENDER, LOGERROR): top left, mono-stroke-10,
+	// at most 20 lines, each for 10 s; errors red.
+	log_label_ = memnew(RichTextLabel);
+	log_label_->set_name("LogMessages");
+	log_label_->set_use_bbcode(true);
+	log_label_->set_fit_content(true);
+	log_label_->set_scroll_active(false);
+	log_label_->set_position(Vector2(4, 4));
+	log_label_->set_size(Vector2(900, 10));
+	log_label_->add_theme_font_size_override("normal_font_size", 11);
+	log_label_->add_theme_color_override("default_color", Color(1, 1, 1));
+	log_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+	log_label_->add_theme_constant_override("outline_size", 3);
+	log_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	log_label_->set_visible(false);
+	ui_layer->add_child(log_label_);
+
 	// 5/6. Chat overlay + diplomacy/tribute matrix: P4.1 leaf widgets
 	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
 	// handler methods below delegate into them).
@@ -924,6 +941,7 @@ void RtsoMain::_process(double delta) {
 		notice_until_ = 0;
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
 	}
+	update_log_messages();
 	update_pause_overlay();
 	if (hotkey_paused_ && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
@@ -1127,6 +1145,17 @@ void RtsoMain::_process(double delta) {
 			}
 			txt += line.replace("[", "[lb]"); // a map's text, not markup
 		}
+		{
+			// GetTimeNotifications sorts by end time, latest first.
+			const uint32_t now = (uint32_t)std::lround(sim->game_time() * 1000.0f);
+			text_notices_.erase(std::remove_if(text_notices_.begin(), text_notices_.end(),
+					[now](const TextNotice &t) { return t.end_ms <= now || t.end_ms > now + 10000; }), text_notices_.end());
+			for (auto it = text_notices_.rbegin(); it != text_notices_.rend(); ++it) {
+				if (!txt.is_empty()) txt += "\n";
+				txt += it->text;
+			}
+			if (spawn_notified_.size() > 64) spawn_notified_.clear();
+		}
 		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
 		// player (the wonder's owner, its allies or everyone else).
 		{
@@ -1155,6 +1184,19 @@ void RtsoMain::_process(double delta) {
 					else add(rtso::sprintf0(rtso::tr0(allies ? "%(_player_)s owns a Wonder and %(_player_)s and their allies will win in %(time)s."
 							: "%(_player_)s owns a Wonder and will win in %(time)s."), {{"_player_", who}, {"time", left}}));
 				}
+			// EndGameManager.AlliedVictoryCheck: under Last Man Standing, once only mutual
+			// allies are left, "Last remaining player wins." (a 12-hour time notification).
+			if (sim->last_man_standing() && sim->victory_conditions() && !sim->is_game_over()) {
+				int left = 0;
+				bool allied = true;
+				for (uint8_t a = 0; a < rtso::MAX_PLAYERS; ++a) {
+					if (!((sim->participant_mask() >> a) & 1) || sim->is_defeated(a)) continue;
+					++left;
+					for (uint8_t b = a + 1; b < rtso::MAX_PLAYERS; ++b)
+						if (((sim->participant_mask() >> b) & 1) && !sim->is_defeated(b) && !(sim->is_ally(a, b) && sim->is_ally(b, a))) allied = false;
+				}
+				if (left > 1 && allied) add(rtso::tr0("Last remaining player wins."));
+			}
 			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
 				// StartCaptureTheRelicCountdown: named after the first relic's owner, "and their
 				// allies" when more than one player would win.

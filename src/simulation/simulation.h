@@ -514,11 +514,23 @@ public:
 		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5,
 			DEFEATED = 6,   // player is out; tech: the EndReason
 			WON = 7,        // other: the winners' mask; tech: the EndReason
-			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
+			LOST = 8,       // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
+			TEXT = 9 };     // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
+		// The "text" time notifications (10 s, centre top) the sim pushes for `player`.
+		enum TextMessage : uint8_t {
+			TEXT_QUEUE_FULL = 0,       // ProductionQueue.js AddItem: "The production queue is full."
+			TEXT_UPGRADING,            // AddItem: "Entity is being upgraded. Cannot start production."
+			TEXT_AUTOQUEUE_OFF,        // ProductionQueue.js: "Could not auto-queue unit, de-activating."
+			TEXT_SPAWN_BLOCKED,        // Trainer.js: "Can't find free space to spawn trained units."
+			TEXT_PRODUCING,            // Upgrade.js: "Entity is producing. Cannot start upgrading."
+			TEXT_UNLOAD_FAILED,        // Commands.js notifyUnloadFailure: "Unable to unload unit(s)."
+			TEXT_BACK_TO_WORK_FAILED,  // notifyBackToWorkFailure: "Some unit(s) can't go back to work"
+			TEXT_NO_BRIBABLE,          // Commands.js spy-request: "There are no bribable units"
+		};
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
-			END_TREASURE };
+			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -2615,6 +2627,8 @@ private:
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
 	void record_unit_death(size_t i, uint8_t killer_team); // record_death for unit i, noting its DeathDamage
 	const DeathDamageInfo *unit_death_damage(size_t i) const;
+	static uint8_t unit_death_damage_row(uint16_t tmpl); // 1 + its death damage table row, 0 none
+	static const DeathDamageInfo *death_damage_info(uint8_t row); // that row's DeathDamage, or nullptr
 	float unit_template_regen(size_t i) const;
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
 	// (out of range or the victim's own owner credits nobody).
@@ -2645,6 +2659,11 @@ private:
 	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
 	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
+	void note_text(uint8_t player, uint8_t message, uint32_t entity = 0) {
+		SessionNotice n{SessionNotice::TEXT, player, 0, message, {}};
+		n.amounts[0] = (int32_t)entity;
+		note_session(n);
+	}
 	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
 		if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) note_session({kind, player, 0, tech, {}});
 	}

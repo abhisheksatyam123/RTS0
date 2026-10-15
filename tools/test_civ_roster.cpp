@@ -439,7 +439,7 @@ int main()
 			}
 		}
 		std::snprintf(msg, sizeof msg, "map-only rows (%d) are trained nowhere and sit in their civ's slot", map_rows);
-		check(map_rows_ok && map_rows == 43, msg);
+		check(map_rows_ok && map_rows == 44, msg);
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
 			for (uint16_t i : civ_roster_ids(c))
 				if (civ_unit_template(i).flags & ROSTER_MAP_ONLY) check(false, "a map-only row is in a civ's trainable roster");
@@ -547,6 +547,86 @@ int main()
 		i = sim.lookup_unit(sim.spawn_map_unit(-10.0f, 0.0f, 0, UNIT_ARCHER, "athen/infantry_marine_archer_e"));
 		check(i >= 0 && sim.units_.tmpl[i] == civ_unit_template_by_id("athen/infantry_marine_archer_b") && sim.units_.rank[i] == 3,
 			"a map's elite Cretan archer spawns as the Cretan archer at Elite");
+	}
+
+	// Survival of the Fittest's fire-raiser (units/theb_siege_fireraiser, row 506, after the rows
+	// saves already store): template_unit_siege_flamethrower's Ranged "Fire" attack, 100 Fire from
+	// 10 to 15 m (x COMBAT_DISTANCE_SCALE), and its DeathDamage, 600 Fire over 20 m (x
+	// AREA_DAMAGE_SCALE) with FriendlyFire: dying, it burns every owner's units, Gaia's included.
+	// No 0.28 template resists Fire. The fire ship's DeathDamage stays Crush 500 over 22 m.
+	{
+		const uint16_t fr = civ_unit_template_by_id("theb_siege_fireraiser");
+		check(fr == 506, "the fire-raiser is row 506, after every older row");
+		const CivUnitTemplate &u = civ_unit_template(fr < CIV_UNIT_TEMPLATE_COUNT ? fr : 0);
+		check(fr < CIV_UNIT_TEMPLATE_COUNT && u.civ == CIV_GAIA && u.unit_type == UNIT_BOLT_SHOOTER &&
+			(u.flags & ROSTER_MAP_ONLY) && !u.trainers && u.hp == 300.0f && u.wood_cost == 300 && u.gold_cost == 150 &&
+			(u.tech_classes & TC_SIEGE), "the fire-raiser is a Gaia map-only bolt-shooter-class siege engine, 300 hp");
+		const CombatProfile &cp = combat_template_table()[fr < CIV_UNIT_TEMPLATE_COUNT ? fr : 0];
+		check(u.attack_damage == 100.0f && u.hack_damage == 0.0f && u.pierce_damage == 0.0f && u.crush_damage == 0.0f && cp.fire == 100.0f &&
+			u.attack_cooldown == 2.0f && cp.prepare == 2.0f && cp.proj_speed == 10.0f && cp.spread == 2.0f,
+			"its attack is 100 Fire every 2 s, a projectile at 10 m/s");
+		check(std::fabs(u.attack_range - 15.0f * COMBAT_DISTANCE_SCALE) < 1e-4f &&
+			std::fabs(u.attack_range * unit_min_range_ratio(UNIT_BOLT_SHOOTER, fr) - 10.0f * COMBAT_DISTANCE_SCALE) < 1e-4f,
+			"it fires from 10 to 15 m, scaled as ranged ranges are");
+
+		static Simulation sim;
+		sim.set_sim_seed(7);
+		sim.reset();
+		sim.set_map_half(64.0f);
+		sim.set_terrain_data(std::vector<float>(65 * 65, 2.0f), 65, 0.0f);
+		for (uint8_t p = 0; p < 2; ++p) sim.set_player_active(p, true, false);
+		sim.set_team_civ(0, CIV_ATHENIANS);
+		sim.set_team_civ(1, CIV_ROMANS);
+		sim.set_victory_condition(VICTORY_ENDLESS);
+		const uint32_t fire = sim.spawn_gaia_unit(0.0f, 0.0f, UNIT_BOLT_SHOOTER, "theb_siege_fireraiser");
+		int32_t i = sim.lookup_unit(fire);
+		check(i >= 0 && sim.units_.tmpl[i] == fr && sim.units_.team[i] == GAIA_PLAYER && sim.units_.unit_type[i] == UNIT_BOLT_SHOOTER &&
+			sim.units_.max_hp[i] == 300.0f, "spawn_gaia_unit fields the fire-raiser as Gaia");
+		if (i >= 0) {
+			float dmg[4];
+			sim.unit_tech_damage((size_t)i, dmg);
+			const Simulation::UnitDetails d = sim.unit_details((size_t)i);
+			std::printf("      fire-raiser: hack %.0f pierce %.0f crush %.0f fire %.0f, range %.1f-%.1f m\n",
+				dmg[0], dmg[1], dmg[2], dmg[3], d.min_range, d.max_range);
+			check(dmg[0] == 0.0f && dmg[1] == 0.0f && dmg[2] == 0.0f && dmg[3] == 100.0f && d.ranged &&
+				std::fabs(d.min_range - 10.0f) < 1e-3f && std::fabs(d.max_range - 15.0f) < 1e-3f,
+				"the Gaia fire-raiser's attack deals 100 Fire from 10 to 15 m");
+		}
+		const DeathDamageInfo *dd = Simulation::death_damage_info(Simulation::unit_death_damage_row(fr));
+		check(dd && dd->fire && dd->friendly_fire && dd->damage == 600.0f && dd->ship_building_mult == 1.0f &&
+			std::fabs(dd->range - 20.0f * AREA_DAMAGE_SCALE) < 1e-4f, "its DeathDamage is 600 Fire over 20 m, friendly fire on");
+		const uint16_t lit = civ_unit_template_by_id("brit/ship_fire_fire");
+		const DeathDamageInfo *ship = Simulation::death_damage_info(Simulation::unit_death_damage_row(lit));
+		check(Simulation::unit_death_damage_row(lit) == 1 && ship && !ship->fire && !ship->friendly_fire && ship->damage == 500.0f &&
+			ship->ship_building_mult == 3.0f && std::fabs(ship->range - 22.0f * AREA_DAMAGE_SCALE) < 1e-4f &&
+			Simulation::unit_death_damage_row(civ_unit_template_by_id("brit/ship_fire")) == 0 &&
+			Simulation::unit_death_damage_row(civ_unit_template_by_id("athen/siege_oxybeles_packed")) == 0,
+			"the ignited fire ship's DeathDamage is unchanged (row 1 as older saves store it: Crush 500 over 22 m, x3, enemies only)");
+
+		// Its blast: a Gaia Samnite, two players' units and a ram beside it, one unit out of reach.
+		const uint32_t gaia = sim.spawn_gaia_unit(2.0f, 0.0f, UNIT_SPEARMAN, "samnite_spearman");
+		const uint32_t own0 = sim.spawn_unit(0.0f, 3.0f, 0, UNIT_SPEARMAN);
+		const uint32_t foe1 = sim.spawn_unit(-3.0f, 0.0f, 1, UNIT_SWORDSMAN);
+		const uint32_t ram = sim.spawn_unit(0.0f, -10.0f, 1, UNIT_SIEGE_RAM);
+		const uint32_t far0 = sim.spawn_unit(16.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t all[5] = {gaia, own0, foe1, ram, far0};
+		sim.order_set_stance(all, 5, STANCE_PASSIVE);
+		auto hp = [&](uint32_t id) { const int32_t k = sim.lookup_unit(id); return k >= 0 && sim.units_.alive[k] ? sim.units_.hp[k] : 0.0f; };
+		const int32_t ri = sim.lookup_unit(ram);
+		const float ram0 = hp(ram), far_hp = hp(far0);
+		const float rd = 10.0f - unit_collision_radius(UNIT_SIEGE_RAM), r = 20.0f * AREA_DAMAGE_SCALE;
+		const float expect = 600.0f * (1.0f - rd * rd / (r * r)); // Fire: no resistance applies
+		float res[3] = {0, 0, 0};
+		if (ri >= 0) sim.unit_resistance((size_t)ri, res);
+		sim.cmd_delete(GAIA_PLAYER, &fire, 1);
+		for (int t = 0; t < 10; ++t) sim.tick(Simulation::FIXED_STEP);
+		std::printf("      fire-raiser blast: Gaia %.0f, player 0 %.0f, player 1 %.0f, ram %.0f -> %.0f (expected -%.0f, crush armour %.0f), far %.0f -> %.0f\n",
+			hp(gaia), hp(own0), hp(foe1), ram0, hp(ram), expect, res[2], far_hp, hp(far0));
+		check(hp(gaia) == 0.0f && hp(own0) == 0.0f && hp(foe1) == 0.0f,
+			"the fire-raiser's death burns every owner's units within 20 m, Gaia's own included");
+		check(ram0 > 0.0f && res[2] > 0.0f && std::fabs((ram0 - hp(ram)) - expect) < 0.5f,
+			"its 600 Fire falls off over 20 m and ignores crush resistance");
+		check(far_hp > 0.0f && hp(far0) == far_hp, "a unit 16 m away is out of its 20 m (x0.6) blast");
 	}
 
 	// No ported map's unit falls back to its owner's generic unit any more.
