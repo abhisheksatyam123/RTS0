@@ -5793,6 +5793,36 @@ static void test_corral_by_owner() {
 	CHECK(corrals() == 2, "a second corral in the town phase past 30 population");
 }
 
+// researchManager.js researchTradeBonus: the trade technology waits in minorTech until it is
+// paid for, holding back the other minor technologies, and a second call queues nothing new.
+static void test_trade_tech_waits_for_funds() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->petra_pid_ = 1;
+	s->complete_research(1, TECH_PHASE_TOWN);
+	float mx = 0.0f, mz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && is_civic_centre(b.type)) { mx = b.x + 14.0f; mz = b.z; }
+	s->spawn_building_world(mx, mz, BLD_MARKET, 1, 1.0f);
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_research_trade_bonus();
+	const uint8_t t = s->petra_queues_.special_tech;
+	std::printf("  trade tech queued while poor: %d (%s)\n", t, t ? tech_info(t).name : "-");
+	CHECK(t != 0, "with no resources the trade technology is queued, not dropped");
+	s->petra_research_trade_bonus();
+	CHECK(s->petra_queues_.special_tech == t, "a second call keeps the same queued technology");
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	fund_queues(*s);
+	bool started = false;
+	for (int k = 0; k < 40 && !started; ++k) {
+		s->petra_manage_research(1.6f);
+		for (const auto &b : s->buildings())
+			for (const auto &o : b.queue) started |= b.team == 1 && o.tech == t;
+		s->ticks_ += 32; // the next played turn
+	}
+	CHECK(started && s->petra_queues_.special_tech == 0, "once affordable it is researched first and the queue clears");
+}
 
 // common-api entity.js: Petra scores its templates with the player's technologies applied.
 // After Archery Tradition (+10 m range) a Kushite's best citizen infantry per cost, by
@@ -5843,6 +5873,7 @@ int main(int argc, char **argv) {
 	RUN(test_phase_up);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
+	RUN(test_trade_tech_waits_for_funds);
 	RUN(test_roster_army);
 	RUN(test_diplomacy);
 	RUN(test_ai_slots);
