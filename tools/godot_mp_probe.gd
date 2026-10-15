@@ -160,6 +160,7 @@ func _run() -> void:
 			if st.get("disconnected", false):
 				_say("connect_status=%s reason=%d" % [str(st.get("net_status", "")).replace("\n", " | "),
 						int(st.get("disconnect_reason", -1))])
+				_say("connect_box=%s buttons=%s" % [str(st.get("net_status_title", "")), str(st.get("net_status_buttons", ""))])
 				main._on_disconnected_exit_pressed()
 				await _wait(1.0)
 				_say("connect_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))

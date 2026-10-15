@@ -173,6 +173,7 @@ func _build() -> void:
 	_remember = CheckBox.new()
 	_remember.text = "Remember password"
 	_remember.button_pressed = cfg.get_bool("lobby.rememberpassword")
+	_remember.toggled.connect(_on_remember_toggled)
 	login.add_child(_remember)
 	_sign_btn = _button("Sign In", _on_sign_pressed)
 	login.add_child(_sign_btn)
@@ -647,6 +648,31 @@ func _on_disconnected() -> void:
 	_system_line("Disconnected.")
 	_update_signed_in()
 	_ask_reconnect()
+
+
+## credentials.js toggleRememberPassword: unticking a remembered password asks first;
+## No ticks it again.
+var _forget_dlg: ConfirmationDialog
+
+func _on_remember_toggled(on: bool) -> void:
+	var cfg := RtsoUserConfig.new()
+	if on or not cfg.get_bool("lobby.rememberpassword") or cfg.get_value("lobby.password") == "" or _forget_dlg != null:
+		return
+	_forget_dlg = ConfirmationDialog.new()
+	_forget_dlg.name = "ForgetPasswordDialog"
+	_forget_dlg.title = "Confirmation"
+	_forget_dlg.dialog_text = "Are you sure you want to delete the password after connecting?"
+	_forget_dlg.ok_button_text = "Yes"
+	_forget_dlg.cancel_button_text = "No"
+	add_child(_forget_dlg)
+	var done := func(keep: bool) -> void:
+		_forget_dlg.queue_free()
+		_forget_dlg = null
+		if keep:
+			_remember.set_pressed_no_signal(true)
+	_forget_dlg.confirmed.connect(func() -> void: done.call(false))
+	_forget_dlg.canceled.connect(func() -> void: done.call(true))
+	_forget_dlg.popup_centered()
 
 
 func _ask_reconnect() -> void:
