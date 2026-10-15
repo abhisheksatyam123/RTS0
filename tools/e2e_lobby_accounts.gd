@@ -47,8 +47,15 @@ func run() -> void:
 	check(LobbySessionScript.register_problem("", "x", "x") == "Please enter your username", "a name is needed")
 	check(LobbySessionScript.register_problem("bad name", "x", "x") == "Invalid username", "no spaces in a name")
 	check(LobbySessionScript.register_problem("alice", "", "") == "Please enter your password", "a password is needed")
-	check(LobbySessionScript.register_problem("alice", "a", "b") == "Passwords do not match", "the confirmation must match")
-	check(LobbySessionScript.register_problem("Alice.x_1-2", "a", "a") == "", "a good name and password pass")
+	check(LobbySessionScript.register_problem("al", "hunter22", "hunter22") == "Invalid username" and
+		LobbySessionScript.register_problem("1234", "hunter22", "hunter22") == "Invalid username",
+		"a name needs 3 characters and a letter")
+	check(LobbySessionScript.register_problem("alice", "hunter2", "hunter2") == "Please choose a longer password",
+		"a password needs 8 characters")
+	check(LobbySessionScript.register_problem("alice", "hunter22", "") == "Please enter your password again",
+		"the password is asked twice")
+	check(LobbySessionScript.register_problem("alice", "hunter22", "hunter23") == "Passwords do not match", "the confirmation must match")
+	check(LobbySessionScript.register_problem("Alice.x_1-2", "hunter22", "hunter22") == "", "a good name and password pass")
 
 	print("2. the lobby")
 	var accounts := OS.get_user_data_dir().path_join("e2e_accounts.json")
@@ -78,6 +85,7 @@ func run() -> void:
 	lobby._server.text = "127.0.0.1:%d" % PORT
 	lobby._name.text = "Alice"
 	lobby._password.text = "hunter22"
+	lobby._password2.text = "hunter22"
 	lobby._remember.button_pressed = true
 	lobby._on_register_pressed()
 	await until(func() -> bool: return ls.signed_in())
@@ -106,6 +114,7 @@ func run() -> void:
 	check(cfg.get_value("lobby.password") == ALICE_PASSWORD, "a refused sign-in keeps the remembered password")
 
 	lobby._password.text = "hunter22"
+	lobby._password2.text = "hunter22"
 	lobby._on_register_pressed()
 	await until(func() -> bool: return lobby._status.text.begins_with("Registration failed"))
 	check(lobby._status.text == "Registration failed: Username already taken", "a name registers once")

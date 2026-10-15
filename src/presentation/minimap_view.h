@@ -11,6 +11,7 @@
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 #include "../simulation/simulation.h"
 #include "fog_mirage.h"
@@ -51,6 +52,8 @@ class RtsoMiniMapView : public Control {
 	// the shroud mode (MiniMapTexture draws only entities the player can see).
 	rtso::FogMirages mirages_;
 	std::vector<MapPing> pings;
+	// MT_MinimapPing: entity id -> when its ping ends (ms, real time).
+	std::unordered_map<uint32_t, uint64_t> entity_pings_;
 
 	// Territory tint overlay — docs/REMAINING_GAPS.md:148 "upload territory_grid_
 	// as texture, minimap overlay matches sim". RGBA8 ImageTexture rasterised from
@@ -76,6 +79,11 @@ public:
 	void _draw() override;
 	void _gui_input(const Ref<InputEvent> &event) override;
 	void sync(const rtso::Simulation *s, Vector3 p_cam_pos);
+	// CCmpMinimap MT_MinimapPing: the entity's dot blinks white for
+	// gui.session.minimap.pingduration (50 s), blinkduration 1.7 s a cycle.
+	void ping_entity(uint32_t id);
+	bool entity_ping_lit(uint32_t id, uint64_t now_ms) const;
+	size_t entity_ping_count() const { return entity_pings_.size(); }
 	void add_ping(Vector2 world_pos, Color col = Color(1.0f, 0.85f, 0.2f));
 	void toggle_territory() { show_territory = !show_territory; queue_redraw(); }
 	void set_local_player(uint8_t p) { if (p != local_player) { local_player = p; queue_redraw(); } }

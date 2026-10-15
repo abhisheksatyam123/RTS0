@@ -75,5 +75,14 @@ func run() -> void:
 	var cam: Dictionary = main.debug_camera()
 	check(int(cam["follow"]) == 0 and (cam["target"] as Vector2).distance_to(pos + Vector2(40, 40)) < 1.0, "the camera moves to the attacked spot: " + str(cam))
 
+	print("3. AttackDetection: every hit entity pings the minimap, alerted or suppressed")
+	var before: int = main.debug_minimap_panel()["pings"]
+	main.debug_attacked(man, 1)
+	var other := int(main.debug_spawn_units("athen/infantry_spearman_b", 1)[0])
+	await frames(2)
+	main.debug_attacked(other, 1) # same spot, suppressed: no new line, still a ping
+	await frames(2)
+	check(int(main.debug_minimap_panel()["pings"]) >= before + 2, "both hit units ping the minimap: %d" % int(main.debug_minimap_panel()["pings"]))
+
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
