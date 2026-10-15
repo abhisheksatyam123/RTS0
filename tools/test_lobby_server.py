@@ -384,6 +384,16 @@ def test_accounts():
     strict = lobby_server.Lobby(accounts_path=path, accounts_only=True)
     check(strict.login("carol")[0] == 401, "with --accounts-only a name with no account is refused")
     check(strict.login("ALICE", pw)[0] == 200, "accounts load from the file")
+    tok = next(t for t, p in lb.players.items() if p["name"] == "Alice")  # signed in above
+    pw2 = lobby_server.encrypt_password("correct horse", "Alice")
+    check(lb.change_password("nobody", pw2)[0] == 401, "a password change needs a session")
+    check(lb.change_password(tok, "")[0] == 400, "and a new password")
+    guest = lb.login("guest2")[1]["token"]
+    check(lb.change_password(guest, pw2)[0] == 403, "a guest has no password to change")
+    check(lb.change_password(tok, pw2)[0] == 200, "the account's password changes")
+    lb.logout(tok)
+    check(lb.login("alice", pw)[0] == 401 and lb.login("alice", pw2)[0] == 200, "the old one no longer signs in, the new one does")
+    check(lobby_server.Lobby(accounts_path=path).login("alice", pw2)[0] == 200, "and it is saved")
 
 
 if __name__ == "__main__":

@@ -143,6 +143,8 @@ func _build() -> void:
 	header.add_child(title)
 	header.add_child(_button("Leaderboard", _on_leaderboard_pressed))
 	header.add_child(_button("Player Profile Lookup", _on_lookup_pressed))
+	# LobbyPage.xml: "Account settings" (AccountSettingsPage).
+	header.add_child(_button("Account settings", _on_account_pressed))
 	header.add_child(_button("Back" if dialog else "Main Menu", _on_back_pressed))
 
 	var login := HBoxContainer.new()
@@ -433,6 +435,72 @@ func _build_lookup() -> AcceptDialog:
 		_lookup_values[r[0]] = _label(NOT_AVAILABLE)
 		_lookup_grid.add_child(_lookup_values[r[0]])
 	return dlg
+
+
+## AccountSettingsPage.xml: the new password twice, the request's result, and
+## Close / Change password.
+func _on_account_pressed() -> void:
+	if not LobbySession.signed_in():
+		_say("Sign in to change your account settings.")
+		return
+	var dlg := AcceptDialog.new()
+	dlg.name = "AccountSettings"
+	dlg.title = "Account settings"
+	dlg.ok_button_text = "Close"
+	dlg.min_size = Vector2i(460, 280)
+	var box := VBoxContainer.new()
+	dlg.add_child(box)
+	box.add_child(_label("New password:"))
+	var pw := _line("", 0)
+	pw.name = "Password"
+	pw.secret = true
+	box.add_child(pw)
+	box.add_child(_label("Confirm new password:"))
+	var pw2 := _line("", 0)
+	pw2.name = "PasswordConfirm"
+	pw2.secret = true
+	box.add_child(pw2)
+	var result := _label("")
+	result.name = "RequestResult"
+	box.add_child(result)
+	var change := dlg.add_button("Change password", true, "change")
+	dlg.custom_action.connect(func(_a: StringName) -> void: _change_password(pw.text, pw2.text, result, change))
+	dlg.confirmed.connect(dlg.queue_free)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+	pw.grab_focus()
+
+
+## AccountSettingsPage._changePassword: check the length and the confirmation,
+## ask the lobby, then keep lobby.password only when it is remembered.
+func _change_password(new_pass: String, confirm: String, result: Label, button: Button) -> void:
+	var fail := func(text: String) -> void:
+		result.add_theme_color_override("font_color", Color.RED)
+		result.text = text
+	result.add_theme_color_override("font_color", Color.WHITE)
+	result.text = "Changing password…"
+	if new_pass.length() < LobbySession.MIN_PASSWORD_LENGTH:
+		fail.call("Please choose a longer password")
+		return
+	if confirm != new_pass:
+		fail.call("Passwords do not match")
+		return
+	var encrypted: String = LobbySession.encrypt_password(new_pass, LobbySession.player_name)
+	button.disabled = true
+	LobbySession.change_password(encrypted, func(code: int, obj) -> void:
+		if not is_instance_valid(result):
+			return
+		button.disabled = false
+		if code == 0:
+			fail.call("Request timed out.")
+		elif code != 200:
+			fail.call(str(obj.get("error", "Error")) if obj is Dictionary else "Error")
+		else:
+			result.text = "Password changed successfully."
+			var cfg := RtsoUserConfig.new()
+			cfg.set_value("lobby.password", encrypted if cfg.get_bool("lobby.rememberpassword") else "")
+			cfg.save())
 
 
 func _on_lookup_pressed() -> void:
