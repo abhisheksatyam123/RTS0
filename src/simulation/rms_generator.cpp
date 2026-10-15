@@ -11860,6 +11860,16 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	std::vector<std::pair<float, float>> fruit_trees;
 	uint8_t fruit_kind = FLORA_DEFAULT;
 	uint16_t fruit_food = 0;
+	// Islands: a player's woodline, 10-13 from its civic centre (forests and stragglers keep out).
+	std::vector<std::pair<float, float>> starts;
+	if (type == MAP_ISLANDS)
+		for (const auto &b : sim.buildings())
+			if (is_civic_centre(b.type) && b.team < MAX_PLAYERS) starts.emplace_back(b.x, b.z);
+	auto near_start = [&](float x, float z) {
+		for (const auto &[sx, sz] : starts)
+			if ((x - sx) * (x - sx) + (z - sz) * (z - sz) < 16.0f * 16.0f) return true;
+		return false;
+	};
 	// Trees per 2-tile cell, to tell forests from stragglers.
 	std::unordered_map<uint64_t, int> cells;
 	auto cell_key = [](int cx, int cz) { return (uint64_t)(uint32_t)cx << 32 | (uint32_t)cz; };
@@ -11890,6 +11900,11 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 			kind = (second ? t45 : t12)[h & 1u];
 			wood = (second ? w45 : w12)[h & 1u];
 			gatherers = (second ? g45 : g12)[h & 1u];
+		} else if (type == MAP_ISLANDS && near_start(rv.x[r], rv.z[r])) {
+			// islands.js placePlayerBases "Trees": the five home trees are all oTree1.
+			kind = t12[0];
+			wood = w12[0];
+			gatherers = g12[0];
 		} else if (type == MAP_LOWER_NUBIA && own) {
 			// lower_nubia.js's lone trees are its stragglers (acacia, dead tree, bush_badlands), not palms.
 			kind = f->tree3[h % (uint32_t)n3];
