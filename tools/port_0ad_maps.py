@@ -201,7 +201,7 @@ def gaia_entity(ltpl, wx, wz):
     if "gaia/fish/" in ltpl:
         return None
     if "merc_camp" in ltpl:  # structures/merc_camp_egyptian: a capturable Gaia mercenary camp
-        return "gaia_structures", {"type": "mercenary_camp", "x": wx, "z": wz}
+        return "gaia_structures", {"type": "mercenary_camp", "template": "structures/merc_camp_egyptian", "x": wx, "z": wz}
     for prefix, key in (("gaia/treasure/", "treasures"), ("gaia/ruins/", "ruins")):
         if prefix in ltpl:
             return key, {"type": ltpl.split(prefix, 1)[1], "x": wx, "z": wz}

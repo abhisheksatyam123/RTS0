@@ -22213,8 +22213,12 @@ void Simulation::petra_manage_buildings(float dt) {
 			                      building_required_phase(BLD_APARTMENT, petra_ps().civ) <= petra_ps().phase ? BLD_APARTMENT : BLD_HOUSE;
 			// When the population limit is tight (free slots against the accounted population,
 			// queued trainees included), houses go at twice their priority.
+			// Under 5 such slots with the house set unbuildable for want of room (its missing_room
+			// bit), a population technology instead (headquarters.js:1500-1508).
 			const int accounted_free = free_slots - (petra_accounted_population() - pop);
-			petra_queues_.priority[PETRA_Q_HOUSE] = accounted_free < 5 ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
+			const bool house_no_room = (petra_attack_mgr_.missing_room & 1u) != 0; // petra_room_bit(BLD_HOUSE)
+			petra_queues_.priority[PETRA_Q_HOUSE] =
+					accounted_free < 5 && !house_no_room ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
 			const int needed_at = saving || pop <= 30 ? 10 : pop > 55 ? 21 : 15;
 			// The 3 (5 above 80 pop) caps plans waiting in the house queue, which RTS0 pays as it
 			// places them (one at most waits), not foundations.
@@ -22222,9 +22226,8 @@ void Simulation::petra_manage_buildings(float dt) {
 				uint32_t bid = petra_place_generic(house, PETRA_Q_HOUSE);
 				// canBuild(apartment) fails while there is no room for one: a house instead.
 				if (!bid && petra_place_no_room_ && house == BLD_APARTMENT) bid = petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
-				if (!bid && petra_place_no_room_ && free_slots < 5)
-					petra_research_population_bonus();
 			}
+			if (accounted_free < 5 && (petra_attack_mgr_.missing_room & 1u)) petra_research_population_bonus();
 		}
 	}
 
