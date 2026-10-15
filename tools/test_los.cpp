@@ -5,6 +5,7 @@
 #include "simulation/simulation.h"
 #undef private
 #include "simulation/rms_generator.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <memory>
@@ -250,6 +251,16 @@ static void test_circular_map() {
 	s->tick(0.25f);
 	CHECK(s->fow_state_at(-62.0f, -62.0f, 0) == Simulation::FOW_UNEXPLORED && s->fow_state_at(30.0f, 30.0f, 0) == Simulation::FOW_VISIBLE,
 	      "Revealed map reveals only the circle (m_LosStateRevealed)");
+	// Observers, the defeated and winners see a revealed map: its corners stay black too.
+	const int res = s->fow_res();
+	auto cell_of = [&](float x, float z) {
+		const int cx = std::clamp((int)((x + 64.0f) / 128.0f * res), 0, res - 1), cz = std::clamp((int)((z + 64.0f) / 128.0f * res), 0, res - 1);
+		return (size_t)cz * res + cx;
+	};
+	const uint8_t *obs = s->fow_grid(OBSERVER_VIEW);
+	CHECK(obs[cell_of(-63.0f, -63.0f)] == Simulation::FOW_UNEXPLORED && obs[cell_of(0.0f, 0.0f)] == Simulation::FOW_VISIBLE,
+	      "an observer's revealed map keeps the corners black");
+	CHECK(b->fow_grid(OBSERVER_VIEW)[cell_of(-63.0f, 63.0f)] == Simulation::FOW_UNEXPLORED, "after a load too");
 
 	auto g = make_sim(64.0f);
 	g->generate_random_map(MAP_MAINLAND, 3, 2, 64.0f);

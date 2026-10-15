@@ -171,8 +171,9 @@ public:
 	// 0.28's scripts keep mines, fruit and forests off cliffs (avoidClasses(clHill, ...),
 	// validTilePassable): a mine or bush on a tile land units can't stand on, or a tree with no
 	// standable tile beside it, moves to the nearest standable spot nearby. Animals and
-	// resources in a circular map's impassable edge ring move in across it (MAP_BORDER_WIDTH).
-	static void keep_resources_passable(Simulation &sim);
+	// resources in a circular map's impassable edge ring move in across it (MAP_BORDER_WIDTH);
+	// mines, bushes and wild animals walled off from every base by cliffs move onto the bases' land.
+	static void keep_resources_passable(Simulation &sim, uint8_t type);
 
 private:
 	// Map-specific terrain synthesizers

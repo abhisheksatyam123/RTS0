@@ -19,6 +19,9 @@ constexpr uint8_t NET_FLAG_CONNECT_ACK = 0x04;
 constexpr uint8_t NET_FLAG_DISCONNECT  = 0x08;
 constexpr uint8_t NET_FLAG_RELIABLE    = 0x10;
 constexpr uint8_t NET_FLAG_HEARTBEAT   = 0x20;
+// A reliable message too long for one datagram goes as several; every part but
+// the last carries this flag (ENet's fragments, NetEnet.cpp: network.enetmtu).
+constexpr uint8_t NET_FLAG_FRAGMENT    = 0x40;
 
 #pragma pack(push, 1)
 struct NetWireHeader {
@@ -171,6 +174,12 @@ public:
 	// Host: the password joiners must give (empty = open game; 0 A.D. lobby
 	// password). Client: the password this client sends.
 	void setPassword(const std::string &password) { password_ = password; }
+	// 0 A.D. HashCryptographically(password, name): what travels instead of the
+	// typed password (CNetClient::SetGamePassword), and what the host checks
+	// against its own (CNetServerWorker::CheckPassword). Unset: the plain text.
+	void setPasswordHasher(std::function<std::string(const std::string &password, const std::string &name)> hasher) {
+		password_hasher_ = std::move(hasher);
+	}
 	// The engine version and mods this side sends in its handshake (0 A.D.
 	// engine version + enabled mods); a host refuses a client whose differs
 	// (NDR_INCORRECT_SOFTWARE_VERSION).
@@ -184,7 +193,8 @@ public:
 	// from then on. False if there is no such admitted client.
 	// Host: close a client's link once the answer just sent reaches it, with
 	// no kick notice (0 A.D. NetServer Disconnect(NDR_SERVER_FULL)).
-	void refusePeer(uint32_t peer_id);
+	// reason: the NDR_* the closing packet names (0.28 NetServer refusals).
+	void refusePeer(uint32_t peer_id, uint8_t reason = 0);
 	bool kickPeer(uint32_t peer_id, bool ban);
 	// Host: the admitted client with this name (0 if none).
 	uint32_t peerByName(const std::string &name) const;
@@ -254,6 +264,27 @@ private:
 	void send_raw_packet(const std::string &ip, uint16_t port, const uint8_t *data, size_t size);
 	void send_wire_packet(const std::string &ip, uint16_t port, uint32_t peer_id, uint8_t flags, uint8_t channel, const uint8_t *payload, size_t payload_len, bool reliable);
 	void handle_incoming_packet(const uint8_t *data, size_t size, const std::string &from_ip, uint16_t from_port);
+	// The part of a packet that follows the reliable-order check: disconnect,
+	// fragment reassembly and the message itself.
+	void deliver_packet(uint8_t flags, const uint8_t *payload, size_t payload_size, uint32_t sender_peer_id);
+	// Delivers the held reliable packets that are next in order; with skip, the
+	// first one even across a gap that outlived kHoldGapMs.
+	void release_held(NetPeer &p, bool skip);
+	void check_held(uint64_t now_ms);
+public:
+	// The largest message payload one datagram carries: 0.28's ENet MTU (1372)
+	// less its headers, so no datagram relies on IP fragmentation.
+	static constexpr size_t kFragmentPayload = 1200;
+	// A gap in a reliable stream is filled by a resend, within seconds even on a
+	// lossy link; one that lasts this long (the sender gave up) is skipped.
+	static constexpr uint64_t kHoldGapMs = 30000;
+	// Reliable packets from peer_id that arrived early and wait for a resend of
+	// an earlier one: the stream is still coming, only held back.
+	size_t held_count(uint32_t peer_id) const {
+		const NetPeer *p = getPeer(peer_id);
+		return p ? p->held_packets.size() : 0;
+	}
+private:
 	void send_ack(const std::string &ip, uint16_t port, uint32_t peer_id, uint32_t seq);
 	void send_heartbeats(uint64_t now_ms);
 	void check_retransmissions(uint64_t now_ms);
@@ -261,6 +292,7 @@ private:
 	void send_client_performance(uint64_t now_ms);
 	bool admitted(const NetPeer &p) const { return p.connected && p.is_authenticated && !p.kick_disconnect_ms; }
 	std::string password_;
+	std::function<std::string(const std::string &, const std::string &)> password_hasher_;
 	std::string software_version_ = NET_SOFTWARE_VERSION;
 	bool duplicate_names_ = false;
 	// Host: close a link with this reason, sent in the disconnect's channel byte.

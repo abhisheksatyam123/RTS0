@@ -210,6 +210,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoCinemaView cinema_view_;
+	bool campaign_win_noted_ = false; // summary_screen.gd mark_campaign_won ran for this match
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
@@ -242,6 +243,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// The Garrison and Repair buttons (unit_actions.js ACTION_GARRISON / ACTION_REPAIR): the
 	// next right-click garrisons or repairs, as holding session.garrison / session.repair does.
 	bool garrison_mode = false;
+	bool turret_mode = false; // "occupy-turret" armed (ACTION_OCCUPY_TURRET)
 	bool repair_mode = false;
 	uint8_t current_build_type = rtso::BLD_HOUSE;
 	uint32_t selected_building_id = 0;
@@ -500,10 +502,10 @@ public:
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
 	bool chat_network_command(const String &text) override;
-	bool chat_reaches(uint8_t from, uint8_t to, const std::string &tag) const;
+	bool chat_reaches(uint8_t from, uint8_t to, const std::string &tag, uint32_t to_client = UINT32_MAX) const;
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
-	std::vector<std::pair<int, String>> chat_private_targets() override;
+	std::vector<std::pair<String, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
@@ -518,7 +520,9 @@ public:
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
+	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
 	int ui_batch_size() const override { return user_opts_.batch_size; }
+	int ui_pending_batch(uint16_t tmpl) const override;
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
 	Dictionary get_trade_dialog_state() const;
 	void _on_trading_goods_requested(const PackedInt32Array &shares);
@@ -559,6 +563,8 @@ public:
 	void resign();
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
+	// messages.js g_FlareRateLimitLastTimes: when the last incoming flares were drawn (ms).
+	std::vector<uint64_t> flare_received_ms_;
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
 	int get_target_marker_actor_count() const { return range_overlays_.marker_actor_count(); } // tests
 	bool select_first_own(bool building); // tests
@@ -576,6 +582,28 @@ public:
 	void debug_set_carry(int64_t unit_id, int res, int amount);
 	void debug_set_resource(int res, float amount);
 	bool debug_placing() const;
+	PackedInt32Array debug_highlight() const { return highlight_ids_; }
+	bool debug_structure_outlined(int64_t id) const;
+	int64_t debug_building_queue(int64_t id) const {
+		if (sim)
+			for (const auto &b : sim->buildings())
+				if (b.id == (uint32_t)id) {
+					int64_t n = 0;
+					for (const auto &q : b.queue) n += q.count > 0 ? q.count : 1;
+					return n;
+				}
+		return -1;
+	}
+	PackedInt32Array debug_selected_structures() const {
+		PackedInt32Array out;
+		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);
+		return out;
+	}
+	int64_t debug_guard_target(int64_t uid) const { return sim ? (int64_t)sim->unit_guard_target((uint32_t)uid) : 0; }
+	Vector2 debug_ground_at(Vector2 screen) const {
+		const Vector3 g = get_ground_click_pos(screen);
+		return Vector2(g.x, g.z);
+	}
 	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
@@ -595,7 +623,31 @@ public:
 	void debug_set_observer_view(int player) { set_observer_view(player); } // tests: an observer follows a player (-1: none)
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
-	size_t own_unit_under_mouse(Vector2 mouse_pos) const;
+	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
+	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
+	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line
+	// drawn while the button is held.
+	struct RightLine {
+		bool active = false, drawing = false;
+		Vector2 start;
+		std::vector<Vector2> pts;
+	} right_line_;
+	bool replaying_right_ = false;
+	PackedVector2Array last_line_targets_; // tests: the last walk-custom positions
+	PackedInt32Array last_line_entities_;
+	void finish_right_line(const Ref<InputEventMouseButton> &release);
+	Dictionary debug_right_line() const {
+		Dictionary d;
+		d["active"] = right_line_.active;
+		d["drawing"] = right_line_.drawing;
+		d["points"] = (int64_t)right_line_.pts.size();
+		d["targets"] = last_line_targets_;
+		d["entities"] = last_line_entities_;
+		return d;
+	}
+	// input.js setHighlightList: the entity under the cursor, or what the band box would pick.
+	void update_highlight();
+	PackedInt32Array highlight_ids_;
 	struct BatchTraining {
 		bool active = false;
 		bool from_unit = false; // trained by a unit (Trainer on a unit), else a structure
@@ -661,9 +713,20 @@ private:
 	std::pair<int, int> mouse_cell(Vector2 mouse_pos) const;
 	void clear_selection();
 	bool selection_can_garrison(uint32_t building_id) const;
+	bool selection_can_occupy_turret(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
 	void prune_selection();
+	// selection.js: any number of the player's structures can be selected. selected_building_id
+	// is the first (the one the single-structure panels show), extra_structures_ the others.
+	std::vector<uint32_t> extra_structures_;
+	uint32_t extras_primary_ = 0; // the selected_building_id the extras belong to
+	std::vector<uint32_t> selected_structures() const;
+	void set_selected_structures(const std::vector<uint32_t> &ids);
+	void prune_structure_selection();
+	// getBuildingsWhichCanTrainEntity: the selected structures that train `tmpl` now.
+	std::vector<uint32_t> structure_trainers(uint16_t tmpl, uint32_t holder) const;
+	std::vector<uint32_t> band_box_structures(Vector2 a, Vector2 b) const;
 	uint32_t own_fauna_at(float x, float z) const;
 	void update_command_panel();
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
@@ -795,6 +858,7 @@ private:
 	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
 	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
 	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)
+	bool building_trains_units(uint32_t id) const;
 	Dictionary debug_selected_building() const;
 	Dictionary debug_queue_slot(int i);
 	Dictionary debug_minimap_panel() const;

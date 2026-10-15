@@ -229,6 +229,13 @@ class RtsoWorldView : public Node3D {
 	Ref<StandardMaterial3D> ring_sel_mat;
 	std::vector<MeshInstance3D *> fauna_rings_; // selection rings of the player's own selected livestock
 	Ref<StandardMaterial3D> ring_enemy_mat;
+	// selection.js setHighlightList: the hovered or band-boxed entities, ringed at g_HighlightedAlpha.
+	Ref<StandardMaterial3D> ring_hl_mat, ring_enemy_hl_mat;
+	std::unordered_set<int32_t> highlight_set_;
+	std::unordered_set<int32_t> sel_buildings_; // the selected structures (outlined)
+	Ref<BoxMesh> outline_mesh_;
+	std::vector<MeshInstance3D *> outline_bars_;
+	void draw_structure_outlines(const rtso::Simulation *sim);
 
 	Ref<BoxMesh> hp_bg_mesh;
 	Ref<BoxMesh> hp_fg_mesh;
@@ -322,6 +329,16 @@ public:
 
 	void _ready() override;
 	void sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids);
+	// The entities under the cursor or inside the band box (0 A.D. EntitySelection.setHighlightList).
+	void set_selected_buildings(const std::vector<uint32_t> &ids) {
+		sel_buildings_.clear();
+		for (uint32_t id : ids) sel_buildings_.insert((int32_t)id);
+	}
+	bool structure_outlined(uint32_t id) const { return sel_buildings_.count((int32_t)id) > 0; }
+	void set_highlight_ids(const PackedInt32Array &ids) {
+		highlight_set_.clear();
+		for (int i = 0; i < ids.size(); ++i) highlight_set_.insert(ids[i]);
+	}
 	void rebuild_terrain(const rtso::Simulation *sim);
 	// Player whose units draw as "own" (crowd bank 0, player colours).
 	void set_local_player(uint8_t p) { local_player_ = p; }
