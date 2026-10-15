@@ -542,12 +542,12 @@ layout_mode = 2
 [node name="SlotsLabel" type="Label" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
-text = "Players (2-8)"
+text = "Players (1-8)"
 
 [node name="SpinSlots" type="SpinBox" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-min_value = 2.0
+min_value = 1.0
 max_value = 8.0
 step = 1.0
 value = 2.0
