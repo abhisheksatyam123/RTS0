@@ -8933,8 +8933,8 @@ void Simulation::gain_xp(size_t idx, float amount) {
 // own entities deal to another player's (not Gaia's, not its own). The total feeds the
 // battle music; it is presentation state, so it is neither saved nor hashed.
 void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-		bool target_is_building, float damage, bool melee) {
-	if (!(damage > 0.0f)) return;
+		bool target_is_building, float damage, bool melee, bool capture) {
+	if (!(damage > 0.0f) && !capture) return;
 	// The Attacked message for the session's AttackDetection (presentation only), and the
 	// player's AttackDetection.AttackAlert for map triggers listening on OnAttackDetected
 	// (attacks by other players only).
@@ -13130,6 +13130,9 @@ void Simulation::tick_combat(float dt) {
 			// strength divided by 0.1 + 0.9 * hp / maxHp (up to x10).
 			const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
 			capture_attack_[bit->second][units_.team[i]] += capture_strength / (0.1f + 0.9f * health);
+			// Attack.js HandleAttackEffects: a capture is an attack too (MT_Attacked with
+			// "capture"), so AttackDetection pings, alerts and plays attacked_capture.
+			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, 0.0f, false, true);
 			if (b.team == 0 && units_.team[i] != 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
 			continue;
 		}

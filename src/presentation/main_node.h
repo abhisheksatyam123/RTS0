@@ -984,6 +984,8 @@ private:
 	Dictionary debug_selected_building() const;
 	Dictionary debug_queue_slot(int i);
 	Dictionary debug_minimap_panel() const;
+	// An Attacked message on `target` (a unit) from `attacker_owner`, through the session's AttackDetection.
+	void debug_attacked(int64_t target, int64_t attacker_owner);
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while
