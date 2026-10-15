@@ -740,7 +740,22 @@ int main() {
 			const uint8_t fam = flora_family(rv.flora[i]);
 			oak |= fam == FLORA_OAK; pine |= fam == FLORA_PINE; aleppo |= fam == FLORA_ALEPPO_PINE;
 		}
-		CHECK(oak && pine && aleppo, "temperate mixes oak (tree1/tree2) and pine and maritime pine (tree4/tree5) forests");
+		CHECK(oak && (pine || aleppo), "temperate mixes oak (tree1/tree2) and pine or maritime pine (tree4/tree5) forests");
+		// temperate.json's tree4/tree5 is pine + pine_maritime, pine + pine or pine_maritime + pine_maritime.
+		int pairs_seen = 0;
+		for (uint32_t seed = 1; seed <= 12 && pairs_seen != 7; ++seed) {
+			Simulation m;
+			m.set_biome_override(BIOME_TEMPERATE);
+			m.generate_random_map(MAP_MAINLAND, seed, 2, 128.0f);
+			const auto r = m.resources();
+			bool p = false, a = false;
+			for (size_t i = 0; i < r.count; ++i) {
+				p |= flora_family(r.flora[i]) == FLORA_PINE;
+				a |= flora_family(r.flora[i]) == FLORA_ALEPPO_PINE;
+			}
+			pairs_seen |= p && a ? 1 : p ? 2 : a ? 4 : 0;
+		}
+		CHECK(pairs_seen == 7, "temperate seeds give all three pine pairings (seen mask %d)", pairs_seen);
 		// createStragglerTrees' tree3 is gaia/fruit/apple: a 400-food fruit tree, not wood.
 		int apples = 0, apple_wood = 0;
 		for (size_t i = 0; i < rv.count; ++i) {
