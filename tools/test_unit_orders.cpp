@@ -2500,6 +2500,47 @@ static void test_defensive_walks_back() {
 	check(run_case(STANCE_AGGRESSIVE, false) > 8.0f, "an aggressive unit stays where the fight ended");
 }
 
+static void test_guard_stances() {
+	std::printf("72. guards answer their charge's attacker in any stance and keep after it while it can hit the charge (GuardedAttacked, ShouldAbandonChase isGuardOf)\n");
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+		uint32_t w = s.spawn_unit(-2, 0, 0, UNIT_FEMALE_CITIZEN);
+		check(s.units_.stance[idx_of(s, w)] == STANCE_PASSIVE, "a woman is passive");
+		s.order_guard(&w, 1, vip);
+		run(s, 1.0f);
+		uint32_t e = s.spawn_unit(4, 0, 1, UNIT_SPEARMAN, 5000.0f);
+		run(s, 0.5f);
+		s.order_attack(&e, 1, vip);
+		check(run_until(s, 15.0f, [&] { return target_of(s, w) == e && act_of(s, w) == ACTION_ATTACK; }),
+				"a passive guard fights the unit attacking her charge");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 5000.0f);
+		s.order_set_stance(&vip, 1, STANCE_STAND_GROUND); // it doesn't run the archer down itself
+		uint32_t g = s.spawn_unit(-2, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&g, 1, STANCE_DEFENSIVE);
+		s.order_guard(&g, 1, vip);
+		run(s, 1.0f);
+		uint32_t a = post(s, 12.0f, 0.0f, UNIT_ARCHER, 5000.0f);
+		run(s, 0.5f);
+		s.order_attack(&a, 1, vip);
+		check(run_until(s, 10.0f, [&] { return hp_of(s, vip) < 5000.0f; }), "an archer shoots the charge");
+		check(run_until(s, 5.0f, [&] { return target_of(s, g) == a; }), "the defensive guard answers");
+		s.units_.anchor_x[idx_of(s, g)] = -60.0f; // the archer is now far beyond its leash from the held position
+		bool kept = true;
+		const float hp0 = hp_of(s, a);
+		const bool hit = run_until(s, 20.0f, [&] {
+			kept = kept && target_of(s, g) == a;
+			return hp_of(s, a) < hp0;
+		});
+		check(hit && kept, "but keeps after it while it can hit the charge");
+	}
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2698,6 +2739,7 @@ int main(int argc, char **argv) {
 	test_passive_mid_fight();
 	test_stance_held_position();
 	test_defensive_walks_back();
+	test_guard_stances();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

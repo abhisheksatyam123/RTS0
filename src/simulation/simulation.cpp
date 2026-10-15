@@ -11895,6 +11895,14 @@ void Simulation::tick_combat(float dt) {
 			const float d2 = dx * dx + dz * dz;
 			const float minr = attack_reach(i) * unit_min_range_ratio(units_.unit_type[i]);
 			if (units_.alive[t] && can_attack(units_.team[i], units_.team[t]) && unit_can_target(i, (size_t)t) &&
+					guard_keeps_target(i, (size_t)t)) {
+				units_.has_order[i] = 1; // a guard chases while the target can hit its charge
+				units_.target_x[i] = units_.pos_x[t];
+				units_.target_z[i] = units_.pos_z[t];
+				target_idx[i] = t;
+				return;
+			}
+			if (units_.alive[t] && can_attack(units_.team[i], units_.team[t]) && unit_can_target(i, (size_t)t) &&
 					((in_parabolic_range(d2, unit_height(i), unit_height(t), attack_reach(i)) && d2 >= minr * minr) ||
 					 attack_under_way(i))) {
 				units_.has_order[i] = 0; // no chase
@@ -11948,6 +11956,7 @@ void Simulation::tick_combat(float dt) {
 		};
 
 		int32_t found = -1;
+		bool guard_keep = false; // ShouldAbandonChase / ShouldChaseTargetedEntity: isGuardOf
 		// A. Existing unit target
 		if (!guarding && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
@@ -11957,9 +11966,10 @@ void Simulation::tick_combat(float dt) {
 				return; // ... and attacking scenery (tick_scenery_attackers)
 			// Capturing a relic (tick_relics drives it).
 			if (is_relic_unit(tidx) && units_.order_kind[i] == ORDER_CAPTURE_RELIC) return;
+			guard_keep = tidx >= 0 && guard_keeps_target(i, (size_t)tidx);
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
 					unit_can_target(i, (size_t)tidx) &&
-					(explicit_target || within_stance(tidx) || attack_under_way(i))) { // Attack.js hits before its range check
+					(explicit_target || guard_keep || within_stance(tidx) || attack_under_way(i))) { // Attack.js hits before its range check
 				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
 				// A target it picked itself that came too close is dropped; a player's
 				// target stays and move_units backs away from it.
@@ -12093,7 +12103,7 @@ void Simulation::tick_combat(float dt) {
 				units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED; // go back to the order afterwards
 			units_.target_unit_id[i] = units_.id[found];
 			// Stand ground holds still, except for a player's attack (ShouldChaseTargetedEntity force).
-			const bool chase = stance != STANCE_STAND_GROUND || explicit_target;
+			const bool chase = stance != STANCE_STAND_GROUND || explicit_target || (guard_keep && found == lookup_unit(prev_unit));
 			units_.has_order[i] = chase;
 			if (chase) {
 				units_.target_x[i] = units_.pos_x[found];
@@ -15132,6 +15142,17 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 	}
 }
 
+// UnitAI ShouldAbandonChase / ShouldChaseTargetedEntity, isGuardOf: a guard keeps after its
+// target, in any stance, while that target can hit the unit it guards.
+bool Simulation::guard_keeps_target(size_t i, size_t t) const {
+	if (units_.order_kind[i] != ORDER_GUARD || !(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED)) return false;
+	if (!units_.alive[t] || units_.attack_damage[t] <= 0.0f || unit_walk_speed(i) <= 0.0f) return false; // AbleToMove
+	const int32_t g = lookup_unit(units_.order_target[i]);
+	if (g < 0 || !units_.alive[g]) return false;
+	const float dx = units_.pos_x[g] - units_.pos_x[t], dz = units_.pos_z[g] - units_.pos_z[t];
+	return in_parabolic_range(dx * dx + dz * dz, unit_height(t), unit_height((size_t)g), attack_reach(t));
+}
+
 // Back to the order an automatic fight or a flight interrupted.
 void Simulation::resume_order(size_t i) {
 	units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_INTERRUPTED;
@@ -15556,9 +15577,11 @@ void Simulation::tick_unit_ai(float dt) {
 				finish_order(i);
 				continue;
 			}
-			if (units_.attack_damage[i] > 0.0f && units_.stance[i] != STANCE_PASSIVE && (i + ticks_) % 4 == 0) {
+			if (units_.attack_damage[i] > 0.0f && (i + ticks_) % 4 == 0) {
 				const int32_t a = structure_attacker(units_.order_target[i], units_.team[i]);
 				if (a >= 0) {
+					units_.anchor_x[i] = units_.pos_x[i];
+					units_.anchor_z[i] = units_.pos_z[i];
 					units_.target_unit_id[i] = units_.id[a];
 					units_.action_state[i] = ACTION_ATTACK;
 					units_.has_order[i] = 1;
@@ -15606,10 +15629,13 @@ void Simulation::tick_unit_ai(float dt) {
 				tick_heal(i);
 				continue;
 			}
-			if (g >= 0 && units_.alive[g] && units_.attacked_by[g] != 0 && units_.attack_damage[i] > 0.0f &&
-					units_.stance[i] != STANCE_PASSIVE) {
+			// Any stance answers (a passive guard too): GuardedAttacked pushes an unforced Attack.
+			if (g >= 0 && units_.alive[g] && units_.attacked_by[g] != 0 && units_.attack_damage[i] > 0.0f) {
 				const int32_t a = lookup_unit(units_.attacked_by[g]);
 				if (a >= 0 && units_.alive[a] && can_attack(units_.team[i], units_.team[a])) {
+					// GUARDING enter: SetHeldPositionOnEntity(this.entity).
+					units_.anchor_x[i] = units_.pos_x[i];
+					units_.anchor_z[i] = units_.pos_z[i];
 					units_.target_unit_id[i] = units_.id[a];
 					units_.action_state[i] = ACTION_ATTACK;
 					units_.has_order[i] = 1;
