@@ -141,6 +141,10 @@ Dictionary RtsoMain::get_audio_state() const {
 	d["workers_at_work"] = session_audio_.workers_at_work();
 	d["workers_in_earshot"] = session_audio_.workers_in_earshot();
 	d["listener"] = session_audio_.listener();
+	d["combat_sounds"] = session_audio_.combat_sounds_played();
+	d["combat_culled"] = session_audio_.combat_sounds_culled();
+	d["voices"] = view ? view->spatial_voices_playing() : 0;
+	d["voices_dropped"] = view ? view->spatial_sounds_dropped() : 0;
 	return d;
 }
 
@@ -3648,6 +3652,22 @@ void RtsoMain::_on_chat_send_pressed() {
 void RtsoMain::_on_chat_text_submitted(const String &text) {
 	(void)text;
 	chat_window_.send_pressed();
+}
+
+void RtsoMain::_on_chat_input_gui(const Ref<InputEvent> &event) {
+	Ref<InputEventKey> k = event;
+	if (k.is_valid() && k->is_pressed() && k->get_keycode() == KEY_TAB) chat_window_.tab_complete();
+}
+
+std::vector<String> RtsoMain::chat_autocomplete_names() {
+	std::vector<String> out;
+	if (net_lockstep()) {
+		for (const auto &e : net_host_.playerAssignment())
+			if (!e.name.empty()) out.push_back(String::utf8(e.name.c_str()));
+	} else if (local_player() < rtso::MAX_PLAYERS) {
+		out.push_back(player_display_name(local_player()));
+	}
+	return out;
 }
 
 // 0 A.D. MatchSettingsDialog.toggle.
