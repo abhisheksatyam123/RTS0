@@ -951,7 +951,7 @@ public:
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
 	static bool is_dropsite_type(uint8_t type) {
-		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || is_food_dropsite(type) ||
 			civ_building_is_dropsite(type);
 	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max

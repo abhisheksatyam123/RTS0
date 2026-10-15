@@ -3617,6 +3617,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		status_sprites_built_ = true;
 	}
 	status_sprites_.begin_frame(get_viewport() ? get_viewport()->get_camera_3d() : nullptr);
+	status_rank_icons_.clear();
+	status_xp_bars_ = 0;
 	aura_icon_sources_.clear();
 	for (const rtso::AuraSource &as : sim->aura_manager().sources) {
 		if (!as.alive || as.aura < 0) continue;
@@ -4718,6 +4720,7 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 		status_sprites_.bar(type, at(h), width, h, amount);
 		y += h * 1.2f;
 	};
+	if (st.xp >= 0.0f) ++status_xp_bars_;
 	bar(RtsoStatusSprites::BAR_PACK, st.xp, height * 2.0f / 3.0f);
 	bar(RtsoStatusSprites::BAR_PACK, st.pack, height);
 	bar(RtsoStatusSprites::BAR_UPGRADE, st.upgrade, height);
@@ -4750,7 +4753,10 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 		for (int k = 0; k < st.n_icons; ++k, dx += icon * 1.2f) status_sprites_.icon(st.icons[k], c, dx, icon);
 		y += icon + height * 0.5f;
 	}
-	if (st.rank_icon >= 0) status_sprites_.icon(st.rank_icon, at(icon), 0.0f, icon);
+	if (st.rank_icon >= 0) {
+		status_sprites_.icon(st.rank_icon, at(icon), 0.0f, icon);
+		status_rank_icons_.push_back(status_sprites_.icon_path(st.rank_icon));
+	}
 }
 
 // Selectable.js overlay for structures: an outline round the footprint of each selected

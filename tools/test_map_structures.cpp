@@ -5,9 +5,12 @@
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_map_structures
 //       && /tmp/test_map_structures
 #include "simulation/entity_limits_data.h"
+#define private public // the mill test reads a gatherer's rate
 #include "simulation/simulation.h"
+#undef private
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 using namespace rtso;
 
@@ -152,6 +155,60 @@ int main() {
 		CHECK(u.trainers == bld_bit(BLD_TEMPLE_ISIS));
 	}
 	CHECK(ptol_heroes == 3);
+
+	// The Gaia mills (structures/mill_*, {brit,gaul}/rotarymill, mixins/rotary_mill.xml): a
+	// food dropsite captured but never damaged, whose farmstead_60 aura makes its owner's grain
+	// gatherers within 60 m gather x1.75.
+	CHECK(map_structure_template("structures/mill_greek").type == BLD_MILL);
+	CHECK(map_structure_template("structures/gaul/rotarymill").civ == CIV_GAULS);
+	CHECK(!structure_has_health(BLD_MILL) && Simulation::is_dropsite_type(BLD_MILL) && !civ_building_is_dropsite(BLD_MILL));
+	for (uint8_t c = 0; c < CIV_COUNT; ++c) CHECK(!civ_can_build(c, BLD_MILL));
+	CHECK(building_type_info(BLD_MILL).capture_max_points == 500.0f && building_type_info(BLD_MILL).capture_garrison_regen_rate == 3.0f);
+	auto grain_rate = [](float mill_dist, uint8_t mill_owner) {
+		static Simulation m;
+		m.set_sim_seed(5);
+		m.set_team_civ(0, CIV_ROMANS);
+		m.set_team_civ(1, CIV_GAULS);
+		m.reset();
+		m.spawn_building_world(-80.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		m.spawn_building_world(80.0f, 80.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		const uint32_t field = m.spawn_building_world(-60.0f, -20.0f, BLD_FIELD, 0, 1.0f);
+		if (mill_dist > 0.0f) m.spawn_building_world(-60.0f + mill_dist, -20.0f, BLD_MILL, mill_owner, 1.0f);
+		uint32_t w = m.spawn_unit(-56.0f, -24.0f, 0, UNIT_FEMALE_CITIZEN);
+		run(m, 0.1f);
+		m.order_build_or_repair(&w, 1, field); // a right-click on the finished field farms it
+		run(m, 4.0f);
+		const int32_t k = m.lookup_unit(w);
+		return k >= 0 && m.units_.action_state[k] == ACTION_GATHER ? m.units_.gather_rate[k] : 0.0f;
+	};
+	const float alone = grain_rate(0.0f, 0), by_mill = grain_rate(8.0f, 0);
+	std::printf("mill: grain %.4f alone, %.4f beside our mill\n", alone, by_mill);
+	CHECK(alone > 0.0f && std::fabs(by_mill - alone * 1.75f) < 1e-4f * alone);
+	CHECK(std::fabs(grain_rate(8.0f, 1) - alone) < 1e-6f);     // an enemy's mill helps nobody of ours
+	CHECK(std::fabs(grain_rate(8.0f, GAIA_PLAYER) - alone) < 1e-6f);
+	CHECK(std::fabs(grain_rate(30.0f, 0) - alone) < 1e-6f);    // 120 m away: out of its 60 m
+
+	// Swordsmen can't hurt a Gaia mill; they capture it.
+	{
+		static Simulation m;
+		m.set_sim_seed(6);
+		m.set_team_civ(0, CIV_ROMANS);
+		m.set_team_civ(1, CIV_GAULS);
+		m.reset();
+		m.spawn_building_world(-80.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		m.spawn_building_world(80.0f, 80.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		const uint32_t mill = m.spawn_building_world(-40.0f, 30.0f, BLD_MILL, GAIA_PLAYER, 1.0f);
+		const float hp0 = find_bld(m, mill)->hp;
+		std::vector<uint32_t> sw;
+		for (int i = 0; i < 8; ++i) sw.push_back(m.spawn_unit(-40.0f + (float)(i % 4) * 1.5f - 2.0f, 24.0f - (float)(i / 4) * 1.5f, 0, UNIT_SWORDSMAN));
+		m.order_attack_building(sw.data(), sw.size(), mill, false, false); // Ctrl: damage, which it has none to take
+		run(m, 10.0f);
+		CHECK(find_bld(m, mill) && find_bld(m, mill)->hp == hp0);
+		m.order_attack_building(sw.data(), sw.size(), mill, false, true);
+		run(m, 120.0f);
+		std::printf("mill: owner %d after the capture\n", find_bld(m, mill) ? find_bld(m, mill)->team : -1);
+		CHECK(find_bld(m, mill) && find_bld(m, mill)->team == 0);
+	}
 
 	if (failures) {
 		std::printf("test_map_structures: %d failure(s)\n", failures);
