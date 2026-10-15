@@ -3,7 +3,7 @@ extends SceneTree
 #   1. changes apply at once (sound busses, fog, shadows, GUI scale), Save
 #      writes user://config/user.cfg next to the hotkey bindings without
 #      dropping them, Revert and Reset work, and Close asks about unsaved
-#      changes;
+#      changes; GUI scale asks to keep the change for 5 seconds;
 #   2. a hotkey save or reset keeps the settings;
 #   3. Game Setup takes its default AI difficulty and behaviour from the page;
 #   4. in a match the pause menu opens the page over the game, and the sun
@@ -61,6 +61,20 @@ func run() -> void:
 	page._controls["gui.scale"][1].item_selected.emit(2)
 	await frames(2)
 	check(is_equal_approx(root.content_scale_factor, 1.25), "GUI scale applies at once")
+	# options.json "timeout": 5000; timedConfirmation, No (or the countdown) reverts.
+	check(page._confirm != null and page._confirm.name == "TimedConfirmation"
+		and page._confirm._text.text == "Changes will be reverted in 5 seconds. Do you want to keep changes?",
+		"GUI scale asks to keep the change, counting down from 5 seconds")
+	page._confirm.find_child("Button1", true, false).pressed.emit() # No
+	await frames(2)
+	check(page._confirm == null and is_equal_approx(root.content_scale_factor, 1.0)
+		and page._controls["gui.scale"][1].selected == 1, "No goes back to 100%")
+	page._controls["gui.scale"][1].select(2)
+	page._controls["gui.scale"][1].item_selected.emit(2)
+	await frames(2)
+	page._confirm.find_child("Button2", true, false).pressed.emit() # Yes
+	await frames(2)
+	check(page._confirm == null and is_equal_approx(root.content_scale_factor, 1.25), "Yes keeps 125%")
 	check(page.has_unsaved_changes(), "the page knows about unsaved changes")
 	page._on_close()
 	check(page._confirm != null and page._confirm.message.contains("unsaved changes"), "Close with unsaved changes asks first")
