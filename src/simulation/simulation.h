@@ -3446,6 +3446,19 @@ private:
 		o.ext = nav::footprint_extent(nav::Footprint{x, z, ux, uz, hu, hv});
 		return o;
 	}
+	// An open gate's Left and Right parts, which keep blocking (gate_door_fraction): f(x, z, hu) for
+	// each, along the gate's u axis either side of its Door.
+	template <class F>
+	static void for_each_gate_side(const Building &b, F &&f) {
+		const float door = b.hu * gate_door_fraction(b.type, b.civ), side = 0.5f * (b.hu - door);
+		if (side <= 0.0f) return;
+		for (const float sgn : {-1.0f, 1.0f})
+			f(b.x + b.ux * sgn * (door + side), b.z + b.uz * sgn * (door + side), side);
+	}
+	// A finished gate that is open now: only its door lets units through.
+	static bool gate_open_now(const Building &b) {
+		return is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_movement_now(b);
+	}
 	std::vector<SteerObstacle> steer_obstacles_;
 	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
 	// Each unit's last short path search among them (ShortPathSearchMemo), by unit index; not

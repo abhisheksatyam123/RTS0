@@ -128,7 +128,11 @@ constexpr TechClasses tc_bit(int i) { return i < 64 ? TechClasses(1ull << i, 0) 
 # 0 A.D. classes RTS0 has no bit for, spelled as classes it has. Exact for the
 # civs that research them: NavalRam (warship_ramming_speed) is a melee warship
 # for every civ in its civ list (the melee fire ships are brit, gaul and iber).
-CLASS_ALIASES = {"NavalRam": "Warship Melee"}
+# RTS0's TC_CIVILIAN is 0.28's Support (every support unit); 0.28's own Civilian class is only
+# on template_unit_support_civilian (and RTS0's villager): a Support Worker that is no
+# FemaleCitizen. CivilCentre is the VisibleClass that rides with CivCentre.
+CLASS_ALIASES = {"NavalRam": "Warship Melee", "Civilian": "Civilian Worker !FemaleCitizen",
+                 "CivilCentre": "CivCentre", "!CivilCentre": "!CivCentre"}
 
 # Civ-only technologies left out on purpose.
 CIV_TECH_SKIP = {
