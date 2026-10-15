@@ -1011,6 +1011,16 @@ ZIP_STRUCTURES = {
     "s_persians_alt_building_04":     ("art/actors/props/structures/persians/alt_building_04.xml", "scale", 0.21, None),
     "s_romans_rome_tent":             ("art/actors/props/structures/romans/rome_tent.xml",       "scale", 0.21, None),
     "s_germans_cult_statue":          ("art/actors/structures/germans/cult_statue.xml",          "scale", 0.21, None),
+    "s_persians_alt_building_01":     ("art/actors/props/structures/persians/alt_building_01.xml", "scale", 0.21, None),
+    # The scaffolds 0.28's "upgrading" variants prop on a structure while it upgrades
+    # (tools/extract_upgrade_scaffolds.py places them on each building GLB).
+    "scaffold_up_3x3_tower": ("art/actors/props/structures/construction/scaf_3x3_tower.xml", "scale", 0.21, None),
+    "scaffold_up_4x4": ("art/actors/props/structures/construction/scaf_4x4.xml", "scale", 0.21, None),
+    "scaffold_up_8x8": ("art/actors/props/structures/construction/scaf_8x8.xml", "scale", 0.21, None),
+    "scaffold_up_9x3_wall": ("art/actors/props/structures/construction/scaf_9x3_wall.xml", "scale", 0.21, None),
+    "scaffold_up_cart_defense_tower": ("art/actors/props/structures/construction/scaf_cart_defense_tower.xml", "scale", 0.21, None),
+    "scaffold_up_cart_wall_long": ("art/actors/props/structures/construction/scaf_cart_wall_long.xml", "scale", 0.21, None),
+    "scaffold_up_cart_wooden_tower": ("art/actors/props/structures/construction/scaf_cart_wooden_tower.xml", "scale", 0.21, None),
 }
 
 # Units only 0.28 has, drawn by RTS0's generic unit models of the same id

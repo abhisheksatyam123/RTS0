@@ -6015,6 +6015,14 @@
 1.0
 ]
 },
+"buildings/s_persians_alt_building_01_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_persians_alt_building_04_tex0": {
 "mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
 "tint": [
@@ -6728,6 +6736,38 @@
 ]
 },
 "buildings/scaffold_small_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/scaffold_up_4x4_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/scaffold_up_cart_defense_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/scaffold_up_cart_wall_long_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/scaffold_up_cart_wooden_tower_tex0": {
 "mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
 "tint": [
 1.0,
