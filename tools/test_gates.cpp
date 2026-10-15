@@ -290,6 +290,55 @@ int main() {
 		CHECK(s.nav_grid_.cells.at(scx, scz) == NAV_OBSTRUCTED && s.nav_grid_.cells.at(ccx, ccz) != NAV_OBSTRUCTED);
 	}
 
+	// 14. The gate's Left, Door and Right parts lie along its width (wall_gate.xml) however the
+	// gate is turned: a north-south wall's gate is turned a quarter turn, its footprint's u axis
+	// across the wall (Building::set_rot swaps hu and hv), and its door still lets the owner's
+	// units through. An Iberian starting wall's gates stand at every angle.
+	{
+		s.set_sim_seed(5);
+		s.reset();
+		for (uint8_t p = 0; p < 2; ++p) s.player(p).active = 1, s.player(p).is_ai = 0;
+		s.player(0).civ = CIV_IBERIANS;
+		s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		const float quarter = 1.5707963f, gate_len = 9.0f, seg_len = 9.0f, step = 8.5f;
+		const uint32_t gate = s.spawn_map_wall_piece(0, WALLSET_STONE, Simulation::MAP_WALL_GATE, 1.0f, 1.0f, quarter, gate_len);
+		for (float z = 1.0f + 0.5f * gate_len + 0.5f * step - 0.25f; z < s.map_half(); z += step)
+			s.spawn_map_wall_piece(0, WALLSET_STONE, Simulation::MAP_WALL_SEGMENT, 1.0f, z, quarter, seg_len);
+		for (float z = 1.0f - 0.5f * gate_len - 0.5f * step + 0.25f; z > -s.map_half(); z -= step)
+			s.spawn_map_wall_piece(0, WALLSET_STONE, Simulation::MAP_WALL_SEGMENT, 1.0f, z, quarter, seg_len);
+		for (const auto &b : s.buildings()) const_cast<Simulation::Building &>(b).territory_decay_rate = 0.0f;
+		const auto *g = find_bld(s, gate);
+		CHECK(g && g->type == BLD_GATE && g->hv > g->hu && std::fabs(g->hv - 0.5f * gate_len) < 1e-3f);
+		// A spearman beside the gate's end holds it open; another walks through from further off.
+		s.spawn_unit(g->x - g->hu - 0.3f, g->z - g->hv + 0.5f, 0, UNIT_SPEARMAN);
+		run(s, 1.0f);
+		g = find_bld(s, gate);
+		CHECK(g->gate_open);
+		const uint32_t u = s.spawn_unit(-12.0f, 1.0f, 0, UNIT_SPEARMAN);
+		s.cmd_move(&u, 1, 12.0f, 1.0f);
+		// While it is open, its two parts keep blocking either end of the gate, not its middle.
+		bool crossed = false, seen_open = false, along_width = true;
+		for (int k = 0; k < 80 && !crossed; ++k) {
+			run(s, 0.25f);
+			g = find_bld(s, gate);
+			if (g->gate_open) {
+				seen_open = true;
+				int parts = 0;
+				for (const auto &o : s.steer_obstacles_) if (o.id == gate) {
+					++parts;
+					along_width = along_width && std::fabs(o.x - g->x) < 1e-3f && std::fabs(o.z - g->z) > 0.5f * g->hv;
+				}
+				along_width = along_width && parts == 2;
+			}
+			crossed = unit_x(s, u) > 10.0f;
+		}
+		std::printf("  turned Iberian gate (hu %.2f, hv %.2f): spearman %s at x = %.2f, open parts %s\n", g->hu, g->hv,
+				crossed ? "through" : "held", unit_x(s, u), along_width ? "along its width" : "across it");
+		CHECK(crossed);
+		CHECK(seen_open && along_width);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
