@@ -136,6 +136,8 @@ const RMS_MAPS := [
 	["random_continent", "Continent (RMS)", "Random", 8, 128, "temperate", "All players starts on a continent surrounded by water. Supports 2-8 players."],
 	["random_foothills", "Foothills (RMS)", "Random", 8, 128, "temperate", "A land map with rolling hills and no obstructions. Supports 2-8 players."],
 	["random_coast_range", "Coast Range (RMS)", "Random", 8, 128, "temperate", "All players starts on a continent surrounded by water. This map is designed and balanced for 2 teams only. Supports 2-8 players."],
+	# wall_demo.json's "demo" keyword lists it only under the Demo Maps filter, as in 0.28.
+	["random_wall_demo", "Wall Demo (RMS)", "Random", 8, 128, "temperate", "A demonstration of wall placement methods/code in random maps. Giant map size is recommended!"],
 ]
 
 # 0 A.D. 0.28 Population Cap Type and its caps (simulation/data/settings/

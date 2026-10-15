@@ -2849,6 +2849,7 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float progress) {
 	const uint32_t bid = spawn_building_world(p.x, p.z, p.type, team, progress);
 	Building &b = buildings_[building_id_to_idx_[bid]];
+	if (p.civ < CIV_COUNT) b.civ = p.civ; // a map's Gaia piece of a civ's WallSet (wall_builder.h)
 	const Building fp = wall_piece_footprint(p);
 	b.rot = fp.rot;
 	b.set_extents(fp.half_size, building_half_depth(b.type, fp.half_size, b.civ)); // as a load sets it
@@ -3738,7 +3739,7 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	if (bit == building_id_to_idx_.end() || player_id >= MAX_PLAYERS) return UPGRADE_ERR_NONE;
 	const Building &b = buildings_[bit->second];
 	if (b.team != player_id) return UPGRADE_ERR_OWNER;
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
+	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
 	if (up.to >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) return UPGRADE_ERR_NONE;
 	// Of the WallSet segments only wall_long has an Upgrade (to the gate).
 	if (b.type == BLD_WALL_SEGMENT && is_wallset_piece(b.type, b.half_size) &&
@@ -3774,7 +3775,7 @@ uint32_t Simulation::unit_guard_target(uint32_t uid) const {
 bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice) {
 	if (upgrade_check(player_id, building_id, choice) != UPGRADE_OK) return false;
 	Building &b = buildings_[building_id_to_idx_[building_id]];
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
+	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
 	players_[player_id].pay((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_paid[RES_FOOD] = (float)up.food_cost;
@@ -6676,6 +6677,12 @@ float Simulation::unit_height(size_t i) const {
 	return std::max(ground, terrain_water_height_);
 }
 
+// Attack/Ranged/Origin/Y above the unit's position (the parabolic range's height): 10 m for
+// template_unit_siege_tower, none for other units.
+float Simulation::unit_attack_origin_y(size_t i) const {
+	return is_siege_tower_at(i) ? 10.0f * COMBAT_DISTANCE_SCALE : 0.0f;
+}
+
 bool Simulation::is_siege_tower_at(size_t i) const {
 	const uint16_t tmpl = units_.tmpl[i];
 	return tmpl != CIV_UNIT_TEMPLATE_NONE && tmpl < CIV_UNIT_TEMPLATE_COUNT
@@ -7512,42 +7519,31 @@ size_t Simulation::place_custom_fortress(uint8_t player, float x, float z, float
 		bool (*skip)(float x, float z, const void *ctx), const void *ctx) {
 	if (n == 0) return 0;
 	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
-	const float tl = ws.tower_length, overlap = ws.min_overlap * tl, quarter = 1.5707963f;
-	// getWallElement: WallPiece Length, Indent and Bend in tiles (RTS0 units). A cornerIn is a
-	// tower of no length turned 45 degrees and set a quarter of its size in; a structure
+	const float tl = ws.tower_length, overlap = ws.min_overlap * tl, quarter = kWallQuarter<float>;
+	// getWallElement of the generic stone set (the Athenian one, WALL_STYLE_ATHEN_STONE): a cornerIn
+	// is a tower of no length turned 45 degrees and set a quarter of its size in; a structure
 	// (structures/{civ}/<name>) has no length and stands 3.5 towers in.
-	struct El { float length, indent, bend; };
-	auto el = [&](const FortressPart &p) -> El {
-		switch (p.element) {
-			case FORT_LONG: case FORT_GATE: return {ws.lengths[0], 0.0f, 0.0f};
-			case FORT_CORNER_IN: return {0.0f, 0.25f * tl, quarter};
-			case FORT_BUILDING: return {0.0f, 3.5f * tl, 0.0f};
-			default: return {tl, 0.0f, 0.0f};
+	std::vector<WallElementT<float>> els(n);
+	for (size_t i = 0; i < n; ++i) {
+		WallElementName e;
+		switch (wall[i].element) {
+			case FORT_LONG: e.type = WALL_EL_LONG; break;
+			case FORT_GATE: e.type = WALL_EL_GATE; break;
+			case FORT_CORNER_IN: e.type = WALL_EL_CORNER_IN; break;
+			case FORT_BUILDING: e.type = WALL_EL_STRUCTURE; e.building = wall[i].building; break;
+			default: e.type = WALL_EL_TOWER; break;
 		}
-	};
-	// getWallAlignment with 0 A.D.'s Vector2D: rotate(a) turns clockwise, perpendicular() a
-	// quarter counter-clockwise; the wall runs along perpendicular(rotate((1, 0), -o)).
+		els[i] = wall_element<float>(WALL_STYLE_ATHEN_STONE, e);
+	}
+	// getWallAlignment (wall_builder.h), the wall running along perpendicular(rotate((1, 0), -o)).
 	struct V { float x, z; };
 	auto rot = [](V v, float a) { return V{v.x * std::cos(a) + v.z * std::sin(a), -v.x * std::sin(a) + v.z * std::cos(a)}; };
 	struct Align { V pos; float run; };
 	std::vector<Align> al(n);
-	V pos{0.0f, 0.0f};
-	float o = 0.0f;
+	const std::vector<WallAlignT<float>> lined = wall_alignment<float>(0.0f, 0.0f, els, overlap, 0.0f);
 	for (size_t i = 0; i < n; ++i) {
-		const El e = el(wall[i]);
-		const V in = rot({e.indent, 0.0f}, -o);
-		const V run = rot({1.0f, 0.0f}, -o);
-		al[i] = {{pos.x - in.x, pos.z - in.z}, std::atan2(run.x, -run.z)};
-		if (i + 1 == n) break;
-		o += e.bend;
-		float d = 0.5f * (e.length + el(wall[i + 1]).length) - overlap;
-		if (e.bend != 0.0f && e.indent != 0.0f) {
-			d += e.indent * std::sin(e.bend);
-			const V back = rot({e.indent, 0.0f}, -o);
-			pos = {pos.x + back.x, pos.z + back.z};
-		}
-		const V step = rot({d, 0.0f}, -o);
-		pos = {pos.x - step.z, pos.z + step.x};
+		const V run = rot({1.0f, 0.0f}, -lined[i].orientation);
+		al[i] = {{lined[i].x, lined[i].y}, std::atan2(run.x, -run.z)};
 	}
 	// getCenterToFirstElement: the outline's centre is the mean of its elements; then turn it so
 	// the first element lies towards `facing`.
@@ -7585,8 +7581,9 @@ size_t Simulation::place_custom_fortress(uint8_t player, float x, float z, float
 }
 
 size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
-		float irregularity, int gate_every, int max_tries) {
+		float irregularity, int gate_every, int max_tries, uint8_t style) {
 	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
+	const bool styled = style < WALL_STYLE_COUNT;
 	uint64_t state = (uint64_t)seed * 0x9E3779B97F4A7C15ull + 0x2545F4914F6CDD1Dull;
 	auto rnd = [&state]() { // splitmix64, [0, 1)
 		uint64_t v = (state += 0x9E3779B97F4A7C15ull);
@@ -7599,8 +7596,9 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 	auto polar = [](float r, float a) { return V{r * std::cos(a), r * std::sin(a)}; };
 	auto dist = [](V a, V b) { return std::hypot(a.x - b.x, a.z - b.z); };
 	// getWallLength(style, ["long", "tower"]): each element's length less the tower overlap.
-	const float overlap = ws.min_overlap * ws.tower_length;
-	const float pd = (ws.lengths[0] - overlap) + (ws.tower_length - overlap);
+	const float overlap = styled ? (float)wall_overlap<double>(style) : ws.min_overlap * ws.tower_length;
+	const float pd = styled ? (float)wall_length<double>(style, {WallElementName{WALL_EL_LONG}, WallElementName{}})
+	                        : (ws.lengths[0] - overlap) + (ws.tower_length - overlap);
 	// Walk round the centre a wall's length at a time, each corner pushed in or out at random,
 	// until the outline closes; keep the try whose last wall overlaps the first least. As in
 	// placeGenericFortress, a try starts where the previous one stopped.
@@ -7636,7 +7634,24 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 	size_t placed = 0;
 	auto place = [&](const WallPiece &p) { placed += place_map_wall_piece(p, player); };
 	const size_t n = best.size();
-	for (size_t i = 0; i < n; ++i) {
+	if (styled) {
+		const WallElement tower = wall_element<double>(style, WallElementName{});
+		const WallElement long_wall = wall_element<double>(style, WallElementName{WALL_EL_LONG});
+		const WallElement gate = wall_element<double>(style, WallElementName{WALL_EL_GATE});
+		for (size_t i = 0; i < n; ++i) {
+			// placeGenericFortress: the wall from this point to the next at their midpoint, every
+			// gate_every-th a gate; then the tower at this point, along the wall from the previous point.
+			const double ax = x + best[i].x, az = z + best[i].z;
+			const double bx = x + best[(i + 1) % n].x, bz = z + best[(i + 1) % n].z;
+			const double wa = std::atan2(bz - az, bx - ax), half_len = 0.5 * std::hypot(bx - ax, bz - az);
+			const WallElement &e = gate_every > 0 && (int)((i + 1) % (size_t)gate_every) == 0 ? gate : long_wall;
+			placed += place_wall_element(e, ax + half_len * std::cos(wa), az + half_len * std::sin(wa),
+					wa - kWallPi<double> / 2.0 + e.angle, player);
+			const double px = x + best[(i + n - 1) % n].x, pz = z + best[(i + n - 1) % n].z;
+			placed += place_wall_element(tower, ax, az, std::atan2(bz - pz, bx - px) - kWallPi<double> / 2.0 + tower.angle, player);
+		}
+	}
+	for (size_t i = 0; !styled && i < n; ++i) {
 		// The wall from this corner to the next: every gate_every-th a gate, else a long wall.
 		const V a{x + best[i].x, z + best[i].z}, b{x + best[(i + 1) % n].x, z + best[(i + 1) % n].z};
 		const float wa = std::atan2(b.z - a.z, b.x - a.x);
@@ -7646,6 +7661,282 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 		// The tower at this corner, turned along the wall from the previous corner to the next.
 		const V prev{x + best[(i + n - 1) % n].x, z + best[(i + n - 1) % n].z};
 		place({ws.tower, a.x, a.z, -std::atan2(b.z - prev.z, b.x - prev.x), ws.tower_half});
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+bool Simulation::wall_builder_passable(double x, double z) const {
+	// rmgen tile coordinates: the map's corner at the origin.
+	const double size = 2.0 * (double)map_half_, px = x + (double)map_half_, pz = z + (double)map_half_;
+	if (!(px >= 0.0 && pz >= 0.0 && px < size && pz < size)) return false; // inMapBounds
+	constexpr double kBorder = 3.0;                                          // MAP_BORDER_WIDTH
+	if (circular_map()) return std::round(std::hypot(x, z)) < 0.5 * size - kBorder - 1.0;
+	return px >= kBorder && pz >= kBorder && px < size - kBorder && pz < size - kBorder;
+}
+
+bool Simulation::place_wall_element(const WallElement &e, double x, double z, double angle, uint8_t player) {
+	if (!e.placed() || !wall_builder_passable(x, z)) return false;
+	// RandomMap.exportEntityList: the Position angle is pi/2 less the rmgen angle.
+	const float rot = (float)(kWallPi<double> / 2.0 - angle);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	if (e.piece == WALL_PIECE_STRUCTURE) {
+		set_building_civ(spawn_building_world((float)x, (float)z, e.building, player, 1.0f, rot), e.civ);
+	} else {
+		// A palisades_curve's 9 m obstruction lies across its Position angle (along its z axis).
+		const float u = e.piece == WALL_PIECE_CURVE ? rot + 1.5707963f : rot;
+		const uint32_t id = spawn_wall_piece({e.building, (float)x, (float)z, u, (float)e.half_w, e.civ}, player, 1.0f);
+		if (player == GAIA_PLAYER) set_structure_uncapturable(id); // walls have no Capturable
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk) rebuild_nav_grid();
+	return true;
+}
+
+namespace {
+struct WallVec { double x, y; };
+// 0.28's Vector2D.rotate (clockwise by a) and perpendicular (a quarter counter-clockwise).
+WallVec wall_rotate(WallVec v, double a) {
+	const double s = std::sin(a), c = std::cos(a);
+	return {v.x * c + v.y * s, -v.x * s + v.y * c};
+}
+WallVec wall_perpendicular(WallVec v) { return {-v.y, v.x}; }
+// validateStyle: a style that isn't one is the first (Gaia) or the player's civ's stone one.
+uint8_t valid_wall_style(uint8_t style, uint8_t player, uint8_t civ) {
+	if (style < WALL_STYLE_COUNT) return style;
+	return player < MAX_PLAYERS ? wall_style_of_civ(civ) : (uint8_t)WALL_STYLE_PALISADE;
+}
+WallVec operator+(WallVec a, WallVec b) { return {a.x + b.x, a.y + b.y}; }
+WallVec operator-(WallVec a, WallVec b) { return {a.x - b.x, a.y - b.y}; }
+// getAngle(x1, y1, x2, y2).
+double wall_angle(WallVec a, WallVec b) { return std::atan2(b.y - a.y, b.x - a.x); }
+} // namespace
+
+size_t Simulation::place_wall(double x, double z, const std::vector<WallElementName> &wall, uint8_t style, uint8_t player,
+		double orientation) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA); // validateStyle
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (const WallAlignT<double> &a : wall_alignment<double>(x, z, wall_elements<double>(style, wall),
+			wall_overlap<double>(style), orientation))
+		placed += place_wall_element(a.element, a.x, a.y, a.angle, player);
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+size_t Simulation::place_wall_fortress(double x, double z, const std::vector<WallElementName> &wall, uint8_t style,
+		uint8_t player, double orientation) {
+	if (wall.empty()) return 0;
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	// getCenterToFirstElement of the wall laid from the origin at orientation 0: the vector from
+	// the mean of its elements to the first one.
+	const std::vector<WallAlignT<double>> al = wall_alignment<double>(0.0, 0.0, wall_elements<double>(style, wall),
+			wall_overlap<double>(style), 0.0);
+	WallVec c{0.0, 0.0};
+	for (const WallAlignT<double> &a : al) c = c - WallVec{a.x / (double)al.size(), a.y / (double)al.size()};
+	const double o = orientation;
+	const WallVec start = WallVec{x, z} + wall_rotate({c.x, 0.0}, -o) + wall_rotate(wall_perpendicular({c.y, 0.0}), -o);
+	return place_wall(start.x, start.y, wall, style, player, orientation);
+}
+
+size_t Simulation::place_fortress(double x, double z, const char *type, uint8_t style, uint8_t player, double orientation) {
+	std::vector<WallElementName> wall = wall_fortress_type(type ? type : "medium");
+	if (wall.empty()) wall = wall_fortress_type("medium"); // g_FortressTypes[type] undefined: the default
+	return place_wall_fortress(x, z, wall, style, player, orientation);
+}
+
+size_t Simulation::place_linear_wall(double sx, double sz, double ex, double ez, const std::vector<WallElementName> &part,
+		uint8_t style, uint8_t player, bool end_with_first) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	const double total = std::hypot((double)ex - sx, (double)ez - sz);
+	const double part_length = wall_length<double>(style, part);
+	if (part.empty()) return 0; // 0.28 would loop for ever on an empty part
+	const WallElement first = wall_element<double>(style, part[0]);
+	const double parts = std::ceil((end_with_first ? total - first.length : total) / part_length);
+	if (!std::isfinite(parts)) return 0;
+	const double scale = end_with_first ? total / (parts * part_length + first.length) : total / (parts * part_length);
+	const double wall_a = wall_angle({sx, sz}, {ex, ez}), place_a = wall_a - kWallPi<double> / 2.0;
+	const double overlap = wall_overlap<double>(style);
+	const std::vector<WallElement> els = wall_elements<double>(style, part);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	WallVec pos{sx, sz};
+	for (long long k = 0; k < (long long)parts; ++k)
+		for (const WallElement &e : els) {
+			const WallVec d = wall_rotate({scale * (e.length - overlap) / 2.0, 0.0}, -wall_a);
+			pos = pos + d;                                                   // length correction
+			const WallVec at = pos + wall_rotate({0.0, e.indent}, -wall_a); // indent correction
+			placed += place_wall_element(e, at.x, at.y, place_a + e.angle, player);
+			pos = pos + d;
+		}
+	if (end_with_first) {
+		pos = pos + wall_rotate({scale * (first.length - overlap) / 2.0, 0.0}, -wall_a);
+		placed += place_wall_element(first, pos.x, pos.y, place_a + first.angle, player);
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+size_t Simulation::place_circular_wall(double cx, double cz, double radius, const std::vector<WallElementName> &part,
+		uint8_t style, uint8_t player, double orientation, double max_angle, int end_with_first) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	if (part.empty() || !(radius > 0.0f)) return 0;
+	const double r = radius, max_a = max_angle;
+	const bool ewf = end_with_first < 0 ? max_a < kWallPi<double> * 2.0 - 0.001 : end_with_first != 0;
+	const double total = max_a * r, part_length = wall_length<double>(style, part);
+	const WallElement first = wall_element<double>(style, part[0]);
+	const double parts = std::ceil((ewf ? total - first.length : total) / part_length);
+	if (!std::isfinite(parts)) return 0;
+	const double scale = ewf ? total / (parts * part_length + first.length) : total / (parts * part_length);
+	const double overlap = wall_overlap<double>(style);
+	const std::vector<WallElement> els = wall_elements<double>(style, part);
+	const WallVec c{cx, cz};
+	double actual = orientation;
+	WallVec pos = c + wall_rotate({r, 0.0}, -actual);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (long long k = 0; k < (long long)parts; ++k)
+		for (const WallElement &e : els) {
+			const double add = scale * (e.length - overlap) / r; // width correction
+			const WallVec target = c + wall_rotate({r, 0.0}, -actual - add);
+			const double place_a = actual + add / 2.0;
+			const WallVec at = WallVec{(pos.x + target.x) / 2.0, (pos.y + target.y) / 2.0} - wall_rotate({e.indent, 0.0}, -place_a);
+			placed += place_wall_element(e, at.x, at.y, place_a + e.angle, player);
+			actual += add;
+			pos = c + wall_rotate({r, 0.0}, -actual);
+		}
+	if (ewf) {
+		// The first element again, its whole length taken (0.28 leaves the overlap and indent out here).
+		const double add = scale * first.length / r;
+		const WallVec target = c + wall_rotate({r, 0.0}, -actual - add);
+		const double place_a = actual + add / 2.0;
+		placed += place_wall_element(first, (pos.x + target.x) / 2.0, (pos.y + target.y) / 2.0, place_a + first.angle, player);
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+size_t Simulation::place_polygonal_wall(double cx, double cz, double radius, const std::vector<WallElementName> &part,
+		const WallElementName &corner, uint8_t style, uint8_t player, double orientation, int num_corners,
+		bool skip_first_wall) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	if (num_corners <= 0) return 0;
+	const WallVec c{cx, cz};
+	const double add = kWallPi<double> * 2.0 / num_corners, start = orientation - add / 2.0;
+	std::vector<WallVec> corners((size_t)num_corners);
+	for (int i = 0; i < num_corners; ++i) corners[(size_t)i] = c + wall_rotate({radius, 0.0}, -start - i * add);
+	const WallElement corner_el = wall_element<double>(style, corner);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (int i = 0; i < num_corners; ++i) {
+		const WallVec &at = corners[(size_t)i];
+		const double to_corner = wall_angle(at, c);
+		placed += place_wall_element(corner_el, at.x, at.y, to_corner, player);
+		if (skip_first_wall && i == 0) continue;
+		// Each side from a corner's edge to the next one's (approximately).
+		const WallVec edge = wall_perpendicular(wall_rotate({corner_el.length / 2.0, 0.0}, -(to_corner + add / 2.0)));
+		const WallVec a = at - edge, b = corners[(size_t)((i + 1) % num_corners)] + edge;
+		placed += place_linear_wall(a.x, a.y, b.x, b.y, part, style, player, true);
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+size_t Simulation::place_irregular_polygonal_wall(double cx, double cz, double radius, const WallElementName &corner,
+		uint8_t style, uint8_t player, double orientation, int num_corners, double irregularity, bool skip_first_wall,
+		uint32_t seed) {
+	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
+	uint64_t state = (uint64_t)seed * 0x9E3779B97F4A7C15ull + 0x2545F4914F6CDD1Dull;
+	auto rnd = [&state]() { // splitmix64, [0, 1)
+		uint64_t v = (state += 0x9E3779B97F4A7C15ull);
+		v = (v ^ (v >> 30)) * 0xBF58476D1CE4E5B9ull;
+		v = (v ^ (v >> 27)) * 0x94D049BB133111EBull;
+		v ^= v >> 31;
+		return (double)(v >> 11) * (1.0 / 9007199254740992.0);
+	};
+	if (num_corners <= 0) num_corners = 5 + (int)(rnd() * 3.0); // randIntInclusive(5, 7)
+	// The default wallPartsAssortment: short, medium and long walls, a gate with a tower and a short
+	// wall, a gate alone, and the gate lengthened on alternate sides by tower-long and tower-medium
+	// pairs once for each tile of the radius.
+	using P = std::vector<WallElementName>;
+	const WallElementName gate{WALL_EL_GATE}, tower{WALL_EL_TOWER};
+	std::vector<P> assortment = {P{WallElementName{WALL_EL_SHORT}}, P{WallElementName{WALL_EL_MEDIUM}},
+			P{WallElementName{WALL_EL_LONG}}, P{gate, tower, WallElementName{WALL_EL_SHORT}}, P{gate}};
+	for (const P &ext : {P{tower, WallElementName{WALL_EL_LONG}}, P{tower, WallElementName{WALL_EL_MEDIUM}}}) {
+		P wall_part{gate};
+		for (int j = 0; (double)j < radius; ++j) {
+			if (j % 2 == 0) {
+				wall_part.insert(wall_part.end(), ext.begin(), ext.end());
+			} else {
+				P front(ext.rbegin(), ext.rend());
+				front.insert(front.end(), wall_part.begin(), wall_part.end());
+				wall_part = std::move(front);
+			}
+			assortment.push_back(wall_part);
+		}
+	}
+	// The angles each side covers, at random within the irregularity (less variety as they go).
+	double to_cover = kWallPi<double> * 2.0;
+	std::vector<double> adds;
+	for (int i = 0; i < num_corners; ++i) {
+		adds.push_back(to_cover / (num_corners - i) * (1.0 + (-irregularity + rnd() * 2.0 * irregularity)));
+		to_cover -= adds.back();
+	}
+	const WallVec c{cx, cz};
+	std::vector<WallVec> corners;
+	double actual = orientation - adds[0] / 2.0;
+	for (int i = 0; i < num_corners; ++i) {
+		corners.push_back(c + wall_rotate({radius, 0.0}, -actual));
+		if (i < num_corners - 1) actual += adds[(size_t)i + 1];
+	}
+	// Each side the part whose whole number of copies fits it shortest, past its length.
+	std::vector<double> lengths;
+	double max_length = 0.0;
+	for (const P &p : assortment) {
+		lengths.push_back(wall_length<double>(style, p));
+		max_length = std::max(max_length, lengths.back());
+	}
+	std::vector<const P *> parts;
+	for (int i = 0; i < num_corners; ++i) {
+		const P *best = nullptr;
+		double best_length = std::numeric_limits<double>::infinity();
+		const WallVec &a = corners[(size_t)i], &b = corners[(size_t)((i + 1) % num_corners)];
+		const double side = std::hypot(b.x - a.x, b.y - a.y), copies = std::ceil(side / max_length);
+		for (size_t k = 0; k < assortment.size(); ++k) {
+			const double l = copies * lengths[k];
+			if (l < best_length && l > side) {
+				best = &assortment[k];
+				best_length = l;
+			}
+		}
+		parts.push_back(best);
+	}
+	const WallElement corner_el = wall_element<double>(style, corner);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (int i = 0; i < num_corners; ++i) {
+		const WallVec &at = corners[(size_t)i];
+		const double to_corner = wall_angle(at, c);
+		placed += place_wall_element(corner_el, at.x, at.y, to_corner, player);
+		if (skip_first_wall && i == 0) continue;
+		const int next = (i + 1) % num_corners;
+		const double half_corner = corner_el.length / 2.0;
+		const double start_a = to_corner + adds[(size_t)i] / 2.0, target_a = to_corner + adds[(size_t)next] / 2.0;
+		const WallVec a = at - wall_rotate(wall_perpendicular({half_corner, 0.0}), -start_a);
+		const WallVec b = corners[(size_t)next] + wall_rotate({half_corner, 0.0}, -target_a - kWallPi<double> / 2.0);
+		if (parts[(size_t)i]) // none fits: 0.28 would lay an empty part, which never ends
+			placed += place_linear_wall(a.x, a.y, b.x, b.y, *parts[(size_t)i], style, player, false);
 	}
 	bulk_spawn_ = bulk;
 	if (!bulk && placed) rebuild_nav_grid();
@@ -9634,7 +9925,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 				float reach = capture ? CAPTURE_RANGE : attack_reach(i);
 				if (!capture && reach > 3.0f) { // Ranged: the elevation-adapted range, as for a unit target
-					const float h = get_terrain_height(b.x, b.z) - unit_height(i);
+					const float h = get_terrain_height(b.x, b.z) - unit_height(i) - unit_attack_origin_y(i);
 					const float eff = std::sqrt(std::max(0.0f, reach * reach - 2.0f * reach * h));
 					reach = eff > reach ? 0.5f * (reach + eff) : eff;
 				}
@@ -9676,7 +9967,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				if (units_.target_unit_id[i] != 0) {
 					const int32_t t = lookup_unit(units_.target_unit_id[i]);
 					if (t >= 0) {
-						const float h = unit_height((size_t)t) - unit_height(i);
+						const float h = unit_height((size_t)t) - unit_height(i) - unit_attack_origin_y(i);
 						const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
 						r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
 					}
@@ -12620,7 +12911,9 @@ void Simulation::tick_combat(float dt) {
 		const int volley = siege_tower_arrows(i);
 		if (volley <= 0) continue;
 		const uint8_t team = units_.team[i];
-		const float sx = units_.pos_x[i], sz = units_.pos_z[i], sy = unit_height(i);
+		// template_unit_siege_tower Attack/Ranged/Origin/Y: its range is measured from 10 m up.
+		const float ground_y = unit_height(i);
+		const float sx = units_.pos_x[i], sz = units_.pos_z[i], sy = ground_y + unit_attack_origin_y(i);
 		const float range = units_.attack_range[i];
 		const bool check_los = team < MAX_PLAYERS && los_.cells() != 0;
 		auto unit_ok = [&](int32_t t) {
@@ -12686,7 +12979,7 @@ void Simulation::tick_combat(float dt) {
 		if (!have) continue;
 		const float tech_spread = team < MAX_PLAYERS ? unit_tech_mods(team, units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
 		const float spread = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread;
-		const float launch_y = sy + 1.4f;
+		const float launch_y = ground_y + 1.4f;
 		const uint8_t splash = unit_splash(units_.tmpl[i], units_.unit_type[i]);
 		if (tf >= 0) {
 			for (int v = 0; v < volley; ++v) fire_at_fauna(i, (size_t)tf);
@@ -13697,11 +13990,15 @@ float Simulation::unit_damage_to_structure(size_t i, const Building &b) const {
 }
 
 // A structure's arrow (BuildingAI) against resistance `res`: its Attack/Ranged Damage,
-// pierce scaled by its owner's technologies.
+// pierce scaled by its owner's technologies, times the attack auras reaching structures
+// (Alexander's Undefeated: enemy Structures -10% attack damage).
 float Simulation::structure_arrow_damage(const Building &shooter, const float res[3]) const {
 	const BuildingAIInfo &ai = building_ai_info(shooter.type);
 	const float pierce = ai.pierce * (shooter.team < MAX_PLAYERS ? tech_mods(shooter.team).bld_attack[shooter.type] : 1.0f);
-	return ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
+	const float aura = aura_mgr_.query_modifier(shooter.x, shooter.z, shooter.team, AURA_ATTACK,
+		CIV_UNIT_TEMPLATE_NONE, nullptr, true);
+	const float dmg = ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
+	return aura > 0.0f ? dmg * aura : dmg; // 0 = none in range
 }
 
 // DelayedDamage.js Hit -> Attacking.HandleAttackEffects: the projectile's effects meet
@@ -31215,6 +31512,7 @@ void Simulation::register_map_triggers(MapType type) {
 		case MAP_ELEPHANTINE: register_trigger_script("elephantine_triggers"); break;
 		case MAP_DANUBIUS: register_trigger_script("danubius_triggers"); break;
 		case MAP_JEBEL_BARKAL: register_trigger_script("jebel_barkal_triggers"); break;
+		case MAP_WALL_DEMO: register_trigger_script("wall_demo_triggers"); break;
 		default: break;
 	}
 }
@@ -31239,6 +31537,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"unit_pushing_test", TRIGGER_ACTION_UNIT_PUSHING, TUTORIAL_NONE},
 		{"unit_motion_integration_test", TRIGGER_ACTION_UNIT_MOTION, TUTORIAL_NONE},
 		{"cinema_demo", TRIGGER_ACTION_CINEMA_DEMO, TUTORIAL_NONE},
+		{"wall_demo_triggers", TRIGGER_ACTION_WALL_DEMO_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -31496,6 +31795,10 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_CINEMA_DEMO:
 			trigger_cinema_demo((int)arg);
+			break;
+		case TRIGGER_ACTION_WALL_DEMO_INIT:
+			// wall_demo_triggers.js: RangeManager SetLosRevealAll(-1, true), the map revealed to everyone.
+			reveal_map_ = true;
 			break;
 		case TRIGGER_ACTION_TRIGGERS_DEMO_RANGE:
 			// RangeAction: warn(uneval(data)). vars 0-2 count what it saw (the demo keeps no state).

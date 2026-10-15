@@ -17,6 +17,7 @@
 #include "cinema.h"
 #include "tutorial_data.h"
 #include "turret_data.h"
+#include "wall_builder.h"
 #include <cstdint>
 #include <map>
 #include <vector>
@@ -1342,6 +1343,11 @@ public:
 		UPGRADE_ERR_LIMIT // the target's EntityLimits category is full
 	};
 	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
+	// The civ whose Upgrade choices a structure offers: its own template's (Upgrade.js reads
+	// the entity's template, so a captured Tachara keeps its four forms), else its owner's.
+	uint8_t structure_upgrade_civ(const Building &b) const {
+		return b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ : (uint8_t)civ_of(b.team);
+	}
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
@@ -2093,8 +2099,10 @@ public:
 	// `radius`, long walls between towers with every `gate_every`-th wall a gate, the outline's
 	// corners pushed in or out by up to `irregularity` of a wall's length (the best closing of
 	// `max_tries` tries). Pieces in water or off the map are left out.
+	// With a `style` (WallStyle) the pieces are that style's, laid as place_wall lays them; without
+	// one, the generic stone set's, as the Iberian starting walls have always had them.
 	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
-			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
+			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100, uint8_t style = WALL_STYLE_COUNT);
 	// wall_builder.js placeCustomFortress (getWallAlignment with the stone WallSet): `player`'s
 	// built closed wall of `n` elements laid one after the next round (x, z), each a long wall, a
 	// gate, a wall tower, a cornerIn (a tower turned 45 degrees where the wall turns a quarter
@@ -2108,6 +2116,41 @@ public:
 	};
 	size_t place_custom_fortress(uint8_t player, float x, float z, float facing, const FortressPart *wall, size_t n,
 			bool (*skip)(float x, float z, const void *ctx) = nullptr, const void *ctx = nullptr);
+	// The rest of wall_builder.js (wall_builder.h has g_WallStyles and getWallElement). Positions are
+	// RTS0 world coordinates (rmgen's tile coordinates less half the map's size), orientations and
+	// angles rmgen's (wall_builder.h). Like placeEntityPassable they leave out what stands outside
+	// the map's passable area (MAP_BORDER_WIDTH); each returns the number of entities placed.
+	// placeWall: the elements one after the next from (x, z), the first facing `orientation`.
+	size_t place_wall(double x, double z, const std::vector<WallElementName> &wall, uint8_t style, uint8_t player,
+			double orientation = 0.0);
+	// placeCustomFortress: a closed wall round (x, z), its first element (the main gate) facing
+	// `orientation` from the centre.
+	size_t place_wall_fortress(double x, double z, const std::vector<WallElementName> &wall, uint8_t style, uint8_t player,
+			double orientation = 0.0);
+	// placeFortress: one of createDefaultFortressTypes' (wall_fortress_type), "medium" if `type` is none.
+	size_t place_fortress(double x, double z, const char *type, uint8_t style, uint8_t player, double orientation = 0.0);
+	// placeLinearWall: `part` again and again from (sx, sz) to (ex, ez), stretched to fit, and the
+	// first element again at the end if `end_with_first`.
+	size_t place_linear_wall(double sx, double sz, double ex, double ez, const std::vector<WallElementName> &part, uint8_t style,
+			uint8_t player, bool end_with_first = true);
+	// placeCircularWall: `part` round (cx, cz) at `radius` over `max_angle` (a full circle, else an
+	// arc whose opening faces `orientation`); end_with_first -1 is 0.28's default (true for an arc).
+	size_t place_circular_wall(double cx, double cz, double radius, const std::vector<WallElementName> &part, uint8_t style,
+			uint8_t player, double orientation = 0.0, double max_angle = 2.0 * kWallPi<double>, int end_with_first = -1);
+	// placePolygonalWall: `corner` elements at the corners of a regular polygon round (cx, cz), linear
+	// walls of `part` between them, the first side left open if `skip_first_wall`.
+	size_t place_polygonal_wall(double cx, double cz, double radius, const std::vector<WallElementName> &part,
+			const WallElementName &corner, uint8_t style, uint8_t player, double orientation = 0.0, int num_corners = 8,
+			bool skip_first_wall = true);
+	// placeIrregularPolygonalWall with its default wallPartsAssortment: the corners `irregularity`
+	// apart at random (from `seed`), each side the assortment's part that fits it best.
+	size_t place_irregular_polygonal_wall(double cx, double cz, double radius, const WallElementName &corner, uint8_t style,
+			uint8_t player, double orientation, int num_corners, double irregularity, bool skip_first_wall, uint32_t seed);
+	// placeEntityPassable for a wall_builder element at (x, z), turned to the rmgen `angle`: false,
+	// placing nothing, where it has no template or stands outside the passable map.
+	bool place_wall_element(const WallElement &e, double x, double z, double angle, uint8_t player);
+	// rmgen's inMapBounds and validTilePassable (MAP_BORDER_WIDTH 3 tiles) at world (x, z).
+	bool wall_builder_passable(double x, double z) const;
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -3588,6 +3631,7 @@ private:
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
 	float unit_height(size_t i) const; // terrain, or the water surface under a ship
+	float unit_attack_origin_y(size_t i) const;
 	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);

@@ -588,8 +588,10 @@ public:
 	// 0 A.D. unit_actions "setup-trade-route": traders take a route in two right-clicks,
 	// the origin market, then the destination (lockstep command 35 sends both).
 	// Returns false when no selected trader trades at b; *tooltip gets the cursor text.
-	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
+	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip, const char **cursor = nullptr);
 	Dictionary debug_trade_route_clicks();
+	Dictionary debug_trade_tip(int64_t market);
+	Dictionary debug_tutorial_panel() const { return tutorial_panel_.debug_state(); }
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
@@ -747,6 +749,9 @@ private:
 	bool selection_can_garrison(uint32_t building_id) const;
 	bool selection_can_occupy_turret(uint32_t building_id) const;
 	uint32_t transport_under(float x, float z) const;
+	// unit_actions.js "set-rallypoint" target under the cursor: a resource, else a structure
+	// (not one of the selected).
+	void rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) const;
 	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();
