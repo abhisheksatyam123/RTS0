@@ -2,7 +2,8 @@ extends SceneTree
 # End-to-end check of the Tooltips layer (0 A.D. 0.28 gui/common/setup.xml
 # snToolTip: shown 500 ms after the cursor rests on a control, offset 16 32,
 # at most 400 px wide):
-#   1. hovering a main menu submenu button shows its tooltip after the delay, not before;
+#   1. a main menu submenu button shows its tooltip at once in the fixed
+#      top-right panel (pregame/menupanel.xml pgToolTip), hidden on leaving;
 #   2. moving off it hides the tooltip;
 #   3. a Game Setup control's tooltip shows the same way, kept on screen.
 #
@@ -58,6 +59,22 @@ func hover_check(c: Control, label: String) -> void:
 	await frames(3)
 	check(tips().shown_text() == "", label + ": hidden after the cursor leaves")
 
+## pgToolTip: no delay, white text in the TranslucentPanel at "100%-313 25 100% 200".
+func pg_check(c: Control, label: String) -> void:
+	var tip: String = c.tooltip_text
+	move_to(c.get_global_rect().get_center())
+	await frames(2)
+	check(tips().shown_text() == tip, label + ": shown at once (\"%s\")" % tip.left(40))
+	var panel: Control = tips().get_node("Tooltip")
+	var screen := root.get_visible_rect().size
+	check(panel.position.is_equal_approx(Vector2(screen.x - 313, 25)) and is_equal_approx(panel.size.x, 313.0),
+			label + ": in the fixed top-right panel (%s)" % panel.get_global_rect())
+	var bg: Color = (panel.get_theme_stylebox("panel") as StyleBoxFlat).bg_color
+	check(bg.a < 0.5 and tips()._label.get_theme_color("default_color") == Color.WHITE, label + ": white on the translucent panel")
+	move_to(Vector2(2, 2))
+	await frames(3)
+	check(tips().shown_text() == "", label + ": hidden after the cursor leaves")
+
 func run() -> void:
 	check(root.has_node("Tooltips"), "Tooltips autoload is registered")
 	change_scene_to_file("res://scenes/menu/main_menu.tscn")
@@ -67,7 +84,7 @@ func run() -> void:
 	var b := find_tipped(current_scene, "Start a new single-player game.")
 	check(b != null, "Single-player submenu has Matches with its tooltip")
 	if b:
-		await hover_check(b, "Matches")
+		await pg_check(b, "Matches")
 	change_scene_to_file("res://scenes/menu/gamesetup.tscn")
 	await frames(10)
 	var m := find_tipped(current_scene, "Select a map to play on.")

@@ -170,7 +170,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 87; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 88; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
 	static constexpr uint32_t SAVE_VERSION_PETRA_RALLY = 87; // each Petra plan's completing step, march waypoints and last position
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 85; // the rampart tower's turret units beside its garrison
@@ -3101,6 +3102,8 @@ private:
 	mutable Petra petra_fleets_; // per-sea warship registry (navalManager.seaWarShips)
 	float petra_timer_  = 0.0f;
 	PetraFailedGather petra_failed_gather_; // headquarters.js lastFailedGather, in petra_timer_ time
+	PetraKept petra_kept_; // decided once or only raised (configFirstBase, navalManager.js, targetNumTraders)
+	void petra_config_first_base(); // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
 	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
 	struct PetraHuntSearch { uint32_t id; float time; };
@@ -3343,7 +3346,8 @@ private:
 	// sea; for a land trader the best land route anywhere when its own land has none.
 	const PetraTradeRoute *petra_route_for(const PetraTradeRoutes &r, uint16_t access, bool ship) const;
 	int petra_trade_minimal_gain() const; // tradeManager.js minimalGain
-	int petra_target_traders() const;     // targetNumTraders as setTradingGoods sets it
+	int petra_target_traders() const;     // targetNumTraders: the config value until setTradingGoods sets it
+	int petra_compute_target_traders() const; // what setTradingGoods sets it to
 	bool petra_line_in_enemy_territory(float x1, float z1, float x2, float z2) const;
 	// headquarters.js findMarketLocation: 1 with a spot (out_x, out_z) and its expected gain,
 	// 0 when there are no markets to measure from (place it anywhere), -1 when nothing will do.
@@ -3445,7 +3449,8 @@ private:
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
-	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_)
+	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
+	X(petra_kept_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
