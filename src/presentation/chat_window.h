@@ -180,7 +180,11 @@ public:
 
 		// 0 A.D. gui/session/chat/ChatOverlay.js: while the chat window is closed,
 		// the last 20 chat and notification lines show over the map for 30 s.
-		overlay_ = memnew(RichTextLabel);
+		// ChatOverlay.js chatLines: one line each; a line with a callback is a button with a
+		// tooltip, the others are ghosts (clicks reach the map under them).
+		owner_ = owner;
+		overlay_ = memnew(VBoxContainer);
+		overlay_->add_theme_constant_override("separation", 0);
 		overlay_->set_anchor(SIDE_LEFT, 0.0f);
 		overlay_->set_anchor(SIDE_TOP, 0.0f);
 		overlay_->set_offset(SIDE_LEFT, 16.0f);
@@ -188,12 +192,7 @@ public:
 		// session.xml chatPanel starts below the hero and relic buttons (PanelEntities.xml).
 		overlay_->set_offset(SIDE_TOP, 114.0f);
 		overlay_->set_offset(SIDE_BOTTOM, 114.0f + 20 * 18.0f);
-		overlay_->set_use_bbcode(true);
-		overlay_->set_scroll_active(false);
 		overlay_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		overlay_->add_theme_font_size_override("normal_font_size", 13);
-		overlay_->add_theme_color_override("font_outline_color", Color(0, 0, 0, 1));
-		overlay_->add_theme_constant_override("outline_size", 4);
 		parent->add_child(overlay_);
 	}
 
@@ -312,7 +311,7 @@ public:
 			const String wire_tag = tag.is_empty() ? String() : tag + " ";
 			const String line = format_line(context, host_->chat_user(""), text);
 			add_log(stamp() + line + "\n");
-			post_overlay(stamp() + line);
+			post_overlay(line);
 			input_->clear();
 			// Network: 0 A.D. NMT_CHAT broadcast (NetHost::sendChat net_host.cpp:327).
 			// Channel travels as wire tag (0 A.D. gui/session/chat/ChatBounce.js:15-38 parity).
@@ -359,8 +358,9 @@ public:
 			}
 		}
 		if (!tag.is_empty() && host_ && !host_->chat_is_addressee(sender_guid, tag)) return false;
-		const String line = stamp() + format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
-		add_log(line + String("\n"));
+		// chat.timestamp stamps the history only (ChatHistory.js); the overlay shows the bare text.
+		const String line = format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
+		add_log(stamp() + line + String("\n"));
 		post_overlay(line);
 		return true;
 	}
@@ -375,11 +375,11 @@ public:
 		if (host_->net_lockstep()) host_->chat_send_wire(text.utf8().get_data());
 	}
 
-	// Raw bbcode line (Petra log, diplomacy/tribute feedback).
-	void append_line(const String &bbcode) {
-		const String line = bbcode.is_empty() ? bbcode : stamp() + bbcode;
-		if (log_) add_log(line);
-		post_overlay(line.strip_edges(false, true));
+	// Raw bbcode line (Petra log, diplomacy/tribute feedback). With an action, the overlay
+	// line is clickable (ChatOverlay.js onPress): the owner's _on_chat_line_input gets it.
+	void append_line(const String &bbcode, const String &action = String(), const String &tooltip = String()) {
+		if (log_) add_log(bbcode.is_empty() ? bbcode : stamp() + bbcode);
+		post_overlay(bbcode.strip_edges(false, true), action, tooltip);
 	}
 
 	// 0 A.D. clearChatMessages (/clear): empties the on-screen overlay; the history stays.
@@ -408,7 +408,7 @@ public:
 		if (!overlay_) return;
 		const uint64_t now = Time::get_singleton()->get_ticks_msec();
 		bool changed = false;
-		while (!overlay_lines_.empty() && now - overlay_lines_.front().second >= kOverlayTimeoutMs) {
+		while (!overlay_lines_.empty() && now - overlay_lines_.front().at >= kOverlayTimeoutMs) {
 			overlay_lines_.pop_front();
 			changed = true;
 		}
@@ -476,23 +476,70 @@ private:
 	static constexpr size_t kOverlayLines = 20; // ChatOverlay.js chatLinesNumber
 	static constexpr uint64_t kOverlayTimeoutMs = 30000; // ChatOverlay.js chatTimeout
 
-	void post_overlay(const String &bbcode) {
+	struct OverlayLine {
+		String bbcode;
+		uint64_t at;
+		String action, tooltip;
+	};
+	void post_overlay(const String &bbcode, const String &action = String(), const String &tooltip = String()) {
 		if (!overlay_ || bbcode.is_empty()) return;
-		overlay_lines_.emplace_back(bbcode, Time::get_singleton()->get_ticks_msec());
+		overlay_lines_.push_back({ bbcode, Time::get_singleton()->get_ticks_msec(), action, tooltip });
 		while (overlay_lines_.size() > kOverlayLines) overlay_lines_.pop_front();
 		rebuild_overlay();
 	}
 	void rebuild_overlay() {
-		String text;
-		for (const auto &l : overlay_lines_) text += l.first + String("\n");
-		overlay_->set_text(text);
+		while (overlay_->get_child_count() > 0) {
+			Node *c = overlay_->get_child(0);
+			overlay_->remove_child(c);
+			c->queue_free();
+		}
+		for (const auto &l : overlay_lines_) {
+			RichTextLabel *line = memnew(RichTextLabel);
+			line->set_use_bbcode(true);
+			line->set_fit_content(true);
+			line->set_scroll_active(false);
+			line->set_autowrap_mode(TextServer::AUTOWRAP_OFF);
+			line->add_theme_font_size_override("normal_font_size", 13);
+			line->add_theme_color_override("font_outline_color", Color(0, 0, 0, 1));
+			line->add_theme_constant_override("outline_size", 4);
+			line->set_text(l.bbcode);
+			line->set_h_size_flags(Control::SIZE_SHRINK_BEGIN);
+			if (l.action.is_empty() || !owner_) {
+				line->set_mouse_filter(Control::MOUSE_FILTER_IGNORE); // ghost
+			} else {
+				line->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+				line->set_default_cursor_shape(Control::CURSOR_POINTING_HAND);
+				line->set_tooltip_text(l.tooltip);
+				line->connect("gui_input", Callable(owner_, "_on_chat_line_input").bind(l.action));
+			}
+			overlay_->add_child(line);
+		}
 	}
+public:
+	// Tests: the overlay lines as plain text, with their action and tooltip.
+	Array overlay_state() const {
+		Array out;
+		if (!overlay_) return out;
+		for (int i = 0; i < overlay_->get_child_count(); ++i) {
+			RichTextLabel *line = Object::cast_to<RichTextLabel>(overlay_->get_child(i));
+			if (!line || line->is_queued_for_deletion()) continue;
+			Dictionary d;
+			d["text"] = line->get_parsed_text();
+			d["clickable"] = line->get_mouse_filter() == Control::MOUSE_FILTER_STOP;
+			d["tooltip"] = line->get_tooltip_text();
+			d["node"] = line;
+			out.push_back(d);
+		}
+		return out;
+	}
+private:
+	Object *owner_ = nullptr;
 
 	std::vector<String> tags_;  // the wire tag of each addressee entry
 	String last_private_;       // session.privatechat reopens it
 	std::map<String, String> names_; // each private tag's plain name, kept after they leave
-	RichTextLabel *overlay_ = nullptr;
-	std::deque<std::pair<String, uint64_t>> overlay_lines_;
+	VBoxContainer *overlay_ = nullptr;
+	std::deque<OverlayLine> overlay_lines_;
 	Panel *panel_ = nullptr;
 	RichTextLabel *log_ = nullptr;
 	String history_;

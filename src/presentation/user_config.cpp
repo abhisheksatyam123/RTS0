@@ -116,6 +116,7 @@ const Default kDefaults[] = {
 	{"showdetailedtooltips", "false"},
 	{"gui.gamesetup.enabletips", "true"},
 	{"gui.session.flarelifetime", "6"},
+	{"gui.session.camerajump.threshold", "40"},
 	{"gui.session.woundedunithotkeythreshold", "33"},
 	{"gui.session.attackrange", "true"},
 	{"gui.session.aurasrange", "true"},
@@ -132,6 +133,10 @@ const Default kDefaults[] = {
 	{"gui.session.diplomacycolors.enemy", "150 20 20"},
 	{"chat.timestamp", "true"},
 	{"gui.loadingscreen.progressdescription", "false"},
+	// gamesetup_mp.js: the last address and port joined directly, and the last port hosted on.
+	{"multiplayerserver", "127.0.0.1"},
+	{"multiplayerjoining.port", "20595"},
+	{"multiplayerhosting.port", "20595"},
 };
 constexpr int kDefaultCount = (int)(sizeof(kDefaults) / sizeof(kDefaults[0]));
 

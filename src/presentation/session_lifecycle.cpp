@@ -122,7 +122,10 @@ void RtsoMain::_ready() {
 				const std::string when = rtso::user_config::get("gui.session.notifications.flare");
 				const uint8_t from = chat_player_of(guid);
 				if (from < rtso::MAX_PLAYERS && (when == "always" || (when == "observer" && chat_local_observer())))
-					chat_window_.append_line(colored_player_name(from) + " has sent a flare.\n");
+					chat_window_.append_line(sprintf0(tr("%(icon)s%(player)s has sent a flare."),
+							{{"icon", "[img=16x16]res://assets/textures/ui/archive/icons/focus-flare.png[/img]"},
+									{"player", colored_player_name(from)}}) + "\n",
+							"flare:" + String::num(fx) + "," + String::num(fz), tr("Click to focus on the flare's location."));
 			}
 			return;
 		}
@@ -875,6 +878,8 @@ void RtsoMain::_process(double delta) {
 			const char *text = why == 6 ? "This game does not let observers join after it started."
 					: why == 7 ? "This game is full: it has as many observers as it allows."
 					: why == 3 || why == 4 || why == 5 ? "Could not load the host's game."
+					// gamesetup_mp.js handleAuthenticated: the host is sending its running game.
+					: turn_mgr_.rejoin_syncing() ? "Game has already started, rejoining..."
 					: nullptr;
 			if (text && lobby_status->get_text() != text) lobby_status->set_text(text);
 		}
@@ -939,7 +944,7 @@ void RtsoMain::_process(double delta) {
 		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_PROTOCOL_VERSION)
 			lobby_status->set_text(tr("Incorrect network protocol version."));
 		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_SOFTWARE_VERSION)
-			lobby_status->set_text(tr("Different game engine versions or different mods loaded."));
+			lobby_status->set_text(mismatch_detail());
 		const auto &kicks = net_host_.kicks();
 		for (; kicks_shown_ < kicks.size(); ++kicks_shown_) {
 			const auto &k = kicks[kicks_shown_];

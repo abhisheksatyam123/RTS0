@@ -196,7 +196,15 @@ func register(addr: String, name: String, password: String, cb: Callable) -> voi
 
 # encrypted is encrypt_password's (what lobby.password keeps when the password
 # is remembered); empty signs in as a guest, on a lobby that allows them.
+# A sign-in right after a sign-out waits for the /logout answer: arriving
+# first, it would find the name still in use (409).
+var _logout_pending := false
+var _after_logout: Array[Callable] = []
+
 func sign_in(addr: String, name: String, cb: Callable, encrypted: String = "") -> void:
+	if _logout_pending:
+		_after_logout.append(func() -> void: sign_in(addr, name, cb, encrypted))
+		return
 	address = addr
 	var body := {"name": name}
 	if encrypted != "":
@@ -210,7 +218,13 @@ func sign_in(addr: String, name: String, cb: Callable, encrypted: String = "") -
 
 func sign_out() -> void:
 	if token != "":
-		post_json("/logout", {"token": token})
+		_logout_pending = true
+		post_json("/logout", {"token": token}, func(_code: int, _obj) -> void:
+			_logout_pending = false
+			var queued := _after_logout.duplicate()
+			_after_logout.clear()
+			for f in queued:
+				f.call())
 	token = ""
 	room = {}
 	join_room = ""

@@ -50,6 +50,9 @@ public:
 		String name;
 	};
 
+	// selection_panels.js Selection.getMaxNumberOfItems: at most 16 groups show.
+	static constexpr size_t kMaxSelectionGroups = 16;
+
 	// A structure type of a civ (selection.js groups structures by template too).
 	static int structure_key(uint8_t civ, uint8_t type) { return 0x100000 | ((int)civ << 8) | (int)type; }
 	static bool is_structure_key(int key) { return (key & 0x100000) != 0; }
@@ -58,6 +61,9 @@ public:
 	static int group_key(uint8_t unit_type, uint16_t tmpl) {
 		return tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? (int)tmpl : (0x10000 | unit_type);
 	}
+
+	// A group of the player's own livestock (fauna, not units): its FaunaType.
+	static int fauna_key(uint8_t fauna_type) { return 0x20000 | fauna_type; }
 
 	// The garrison panel's groups (EntityGroups): template and owner.
 	static int owner_key(uint8_t unit_type, uint16_t tmpl, uint8_t player) {

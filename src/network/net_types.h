@@ -423,6 +423,9 @@ struct GameSetupParams {
 	// clients may not ask to change theirs.
 	uint8_t lock_players = 0;
 	uint8_t rated = 0; // 1 = 0 A.D. RatingEnabled: the lobby rates the result
+	// 0 A.D. -autostart-aiseed: the seed the AIs draw their personalities from, 0 = the
+	// match seed (as every match before it had).
+	uint32_t ai_seed = 0;
 };
 namespace detail {
 // Player names ride in the attribute string, so the separators are %-escaped; at most
@@ -517,6 +520,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	if (p.speed != 100) s += ";speed=" + std::to_string((unsigned)p.speed);
 	if (p.lock_players) s += ";lockplayers=1";
 	if (p.rated) s += ";rated=1";
+	if (p.ai_seed) s += ";aiseed=" + std::to_string(p.ai_seed);
 	{
 		std::string seats(8, '-');
 		bool any = false;
@@ -580,6 +584,15 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 				}
 				out.seed = val;
 				have_seed = true;
+			}
+			else if (k == "aiseed") {
+				uint64_t val = 0;
+				bool ok = !v.empty() && v.size() <= 10;
+				for (char c : v) {
+					ok = ok && c >= '0' && c <= '9';
+					val = val * 10u + (uint64_t)(c - '0');
+				}
+				if (ok && val <= 0xFFFFFFFFu) out.ai_seed = (uint32_t)val;
 			}
 			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 255, x) && (x <= 6 || x >= 0x80)) out.victory = x; }
 			else if (k == "waves") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.waves = x; }
