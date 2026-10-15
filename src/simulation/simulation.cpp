@@ -18937,7 +18937,7 @@ void Simulation::petra_manage_economy(float dt) {
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
 			for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD})
-				if (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE) drops[r].push_back({b.x, b.z});
+				if (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_DOCK) drops[r].push_back({b.x, b.z});
 		}
 		for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD}) {
 			bool any = false;
@@ -19057,10 +19057,12 @@ void Simulation::petra_manage_economy(float dt) {
 			uint8_t takes = 0;
 			if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type)) takes = 0xF;
 			else if (b.type == BLD_STOREHOUSE) takes = (1 << RES_WOOD) | (1 << RES_STONE) | (1 << RES_GOLD);
-			else if (b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) takes = 1 << RES_FOOD;
+			else if (b.type == BLD_DOCK) takes = 0xF; // template_structure_military_dock: food wood stone metal
+			else if (b.type == BLD_FARMSTEAD) takes = 1 << RES_FOOD;
 			if (!takes) continue;
+			// Out of every base's territory (a dock on a neutral shore): basesManager.js noBase, 0.
 			const int base = bmap.at(b.x, b.z, map_half_);
-			if (base > 0) drops.push_back({b.x, b.z, base, takes, petra_access_at(b.x, b.z)});
+			drops.push_back({b.x, b.z, base, takes, petra_access_at(b.x, b.z)});
 		}
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
@@ -19092,7 +19094,7 @@ void Simulation::petra_manage_economy(float dt) {
 			if (field) continue;
 			const uint8_t type = resources_.type[r];
 			const uint16_t rland = candidates.back().land;
-			for (size_t a = 1; a < supplies.size(); ++a) {
+			for (size_t a = 0; a < supplies.size(); ++a) {
 				float d2 = 1e30f;
 				for (const Drop &d : drops) // a dropsite's supplies are on its own land (accessIndex)
 					if (d.base == (int)a && (d.takes & (1 << type)) && d.land == rland)
@@ -19228,6 +19230,11 @@ void Simulation::petra_manage_economy(float dt) {
 		// One resource's tiers: our base nearby (then its fields), its medium; the other bases on
 		// our land nearby, their fields, their medium; then a dropsite foundation for it.
 		auto try_resource = [&](uint8_t rt) -> bool {
+			// A worker with no base on its land works from noBase's dropsites (supplies[0]).
+			if (my_base == 0) {
+				if (Candidate *c = find_supply(supplies[0].nearby[rt])) { gather(c); return true; }
+				if (Candidate *c = find_supply(supplies[0].medium[rt])) { gather(c); return true; }
+			}
 			if (my_base > 0) {
 				if (Candidate *c = find_supply(supplies[my_base].nearby[rt])) { gather(c); return true; }
 				if (rt == RES_FOOD) {
@@ -19254,7 +19261,7 @@ void Simulation::petra_manage_economy(float dt) {
 					if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress >= 1.0f) continue;
 					const bool takes = is_civic_centre(b.type) || civ_building_is_dropsite(b.type) ||
 					                   (b.type == BLD_STOREHOUSE && rt != RES_FOOD) ||
-					                   ((b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD);
+					                   b.type == BLD_DOCK || (b.type == BLD_FARMSTEAD && rt == RES_FOOD);
 					if (!takes || petra_access_at(b.x, b.z) != wland) continue;
 					order_build_or_repair(&uid, 1, b.id);
 					return true;
@@ -19292,7 +19299,7 @@ void Simulation::petra_manage_economy(float dt) {
 						if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress >= 1.0f) continue;
 						const bool takes = is_civic_centre(b.type) || civ_building_is_dropsite(b.type) ||
 						                   (b.type == BLD_STOREHOUSE && rt != RES_FOOD) ||
-						                   ((b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD);
+						                   b.type == BLD_DOCK || (b.type == BLD_FARMSTEAD && rt == RES_FOOD);
 						const uint16_t land = takes ? petra_access_at(b.x, b.z) : 0;
 						if (land && land != wland && ship_to(land, b.x, b.z)) return true;
 					}
@@ -19300,8 +19307,7 @@ void Simulation::petra_manage_economy(float dt) {
 			// Faraway supplies, ours then the other bases' on our land, then across the water;
 			// for food only when neither a field nor a corral can be built (allowDistantFood).
 			if (rt == RES_FOOD && !allow_distant_food) return false;
-			if (my_base > 0)
-				if (Candidate *c = find_supply(supplies[my_base].faraway[rt])) { gather(c); return true; }
+			if (Candidate *c = find_supply(supplies[my_base].faraway[rt])) { gather(c); return true; }
 			for (size_t a = 1; a < supplies.size(); ++a)
 				if ((int)a != my_base && bmap.anchors[a - 1].land == wland)
 					if (Candidate *c = find_supply(supplies[a].faraway[rt])) { gather(c); return true; }
@@ -19602,6 +19608,7 @@ void Simulation::petra_build_first_base() {
 			return; // hasPotentialBase
 	PetraHuntScan scan = petra_hunt_scan();
 	uint8_t goal = BLD_TOWN_CENTER;
+	bool queued = false;
 	auto affords = [&](uint8_t t, float f, float w, float g, float st) {
 		float cf, cw, cg, cs;
 		petra_structure_cost(t, cf, cw, cg, cs);
@@ -19621,33 +19628,48 @@ void Simulation::petra_build_first_base() {
 			}
 			if (affords(cc, ef, ew, eg, es)) return; // wait for the treasures
 		}
+		bool dock = false;
 		for (const auto &b : buildings_)
-			if (b.team == petra_pid_ && b.hp > 0.0f && b.type == BLD_DOCK) return;
-		if (!affords(BLD_DOCK, petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone()))
-			return;
-		goal = BLD_DOCK;
+			if (b.team == petra_pid_ && b.hp > 0.0f && b.type == BLD_DOCK) { dock = true; break; }
+		if (!dock) {
+			if (!affords(BLD_DOCK, petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone()))
+				return;
+			goal = BLD_DOCK;
+		} else {
+			queued = true; // with a dock, the civic centre goes in its queue and waits to be paid
+		}
 	}
 
-	// The starting point: where most workers stand (on one land, within 2500 m²).
-	struct Point { float x, z; uint16_t land; int weight; };
+	// The starting point: where most workers stand (on one land, or one sea for those aboard a
+	// ship, at its position: getHolder; within 2500 m²).
+	struct Point { float x, z; uint16_t land, sea; int weight; };
 	std::vector<Point> points;
 	std::vector<uint32_t> workers;
+	std::unordered_map<uint32_t, size_t> aboard; // passenger -> its ship's index
+	for (const auto &kv : transport_passengers_) {
+		const int32_t si = lookup_unit(kv.first);
+		if (si < 0 || !units_.alive[si] || units_.team[si] != petra_pid_) continue;
+		for (uint32_t uid : kv.second) aboard[uid] = (size_t)si;
+	}
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || carry_cap(i, RES_WOOD) <= 0) continue; // Worker
+		auto in_ship = units_.alive[i] ? aboard.end() : aboard.find(units_.id[i]);
+		if ((!units_.alive[i] && in_ship == aboard.end()) || units_.team[i] != petra_pid_ || carry_cap(i, RES_WOOD) <= 0) continue; // Worker
 		const uint8_t ut = units_.unit_type[i];
 		if (formation_unit_mounted(ut) || unit_is_ship(ut)) continue; // FastMoving
 		workers.push_back(units_.id[i]);
-		const float x = units_.pos_x[i], z = units_.pos_z[i];
+		const size_t at = in_ship != aboard.end() ? in_ship->second : i;
+		const float x = units_.pos_x[at], z = units_.pos_z[at];
 		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
-		const uint16_t land = nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
+		const uint16_t land = at != i ? 0 : nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
+		const uint16_t sea = at != i ? petra_ship_sea(at) : 0;
 		bool found = false;
 		for (auto &p : points) {
-			if (p.land != land || (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z) > 2500.0f / 16.0f) continue;
+			if (p.land != land || p.sea != sea || (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z) > 2500.0f / 16.0f) continue;
 			++p.weight;
 			found = true;
 			break;
 		}
-		if (!found) points.push_back({x, z, land, 1});
+		if (!found) points.push_back({x, z, land, sea, 1});
 	}
 	if (points.empty()) return;
 	size_t best = 0;
@@ -19657,6 +19679,25 @@ void Simulation::petra_build_first_base() {
 	// The civilCentre queue outranks every other (queueManager.js priority 950): pay
 	// from the stockpile at once, ahead of this tick's other spending.
 	if (petra_building_built()) return;
+	if (!points[best].land) {
+		// Aboard a ship: a dock (findDockPosition with proximity, on the ship's sea), and the
+		// ship takes its passengers there (createTransportIfNeeded). findEconomicCCLocation's
+		// proximity search, for a civic centre from the sea, isn't ported: wait for a dock.
+		if (goal != BLD_DOCK) return;
+		PetraDockSearch search;
+		search.proximity = true;
+		search.px = points[best].x;
+		search.pz = points[best].z;
+		int cx = 0, cz = 0;
+		if (!petra_find_dock_position(0, points[best].sea, cx, cz, &search)) return;
+		float cf, cw, cg, cs;
+		petra_structure_cost(goal, cf, cw, cg, cs);
+		const uint32_t bid = petra_spawn_foundation(cx, cz, goal);
+		if (!bid) return;
+		petra_ps().pay(cf, cw, cg, cs);
+		petra_transport_garrisons_to(bid);
+		return;
+	}
 	const BuildingTypeInfo &info = building_type_info(goal);
 	const int sx = (int)(points[best].x / GRID), sz = (int)(points[best].z / GRID);
 	const int max_r = goal == BLD_DOCK ? 24 : 12;
@@ -19667,12 +19708,48 @@ void Simulation::petra_build_first_base() {
 				if (!petra_can_place(sx + dx, sz + dz, info.footprint, goal)) continue;
 				float cf, cw, cg, cs;
 				petra_structure_cost(goal, cf, cw, cg, cs);
-				petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
+				if (queued) {
+					if (!petra_try_pay(PETRA_Q_CIVIL_CENTRE, cf, cw, cg, cs)) return; // the want is registered
+				} else {
+					petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
+				}
 				const uint32_t bid = petra_spawn_foundation(sx + dx, sz + dz, goal);
 				if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
 				return;
 			}
 		}
+	}
+}
+
+// navalManager.js createTransportIfNeeded: each of our ships holding units and in no plan
+// sails them to the land of the foundation `bid` (a TransportPlan from the sea, already loaded).
+void Simulation::petra_transport_garrisons_to(uint32_t bid) {
+	auto bit = building_id_to_idx_.find(bid);
+	if (bit == building_id_to_idx_.end()) return;
+	const Building &b = buildings_[bit->second];
+	uint16_t home_land = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home_land);
+	const uint16_t land = petra_building_land(b, &topo);
+	if (!land) return;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_ship(units_.unit_type[i])) continue;
+		const auto *passengers = get_transport_passengers(units_.id[i]);
+		if (!passengers || passengers->empty() || petra_ship_in_plan(units_.id[i])) continue;
+		PetraTransportPlan tp;
+		tp.owner = PETRA_TRANSPORT_BUILDERS;
+		tp.ship_id = units_.id[i];
+		tp.sea = petra_ship_sea(i);
+		tp.pickup_x = units_.pos_x[i];
+		tp.pickup_z = units_.pos_z[i];
+		if (!petra_boarding_pos(land, tp.sea, tp.pickup_x, tp.pickup_z, b.x, b.z, true, tp.drop_x, tp.drop_z) &&
+		    !petra_find_beach(b.x, b.z, tp.pickup_x, tp.pickup_z, tp.drop_x, tp.drop_z))
+			continue; // that land has no shore on this ship's sea
+		tp.passenger_ids = *passengers;
+		float x = tp.drop_x, z = tp.drop_z;
+		if (!nearest_water_for_ship(i, tp.drop_x, tp.drop_z, x, z)) { x = tp.drop_x; z = tp.drop_z; }
+		order_walk(&tp.ship_id, 1, x, z, false);
+		tp.state = PetraTransportPlan::SAILING;
+		petra_transports_.push_back(std::move(tp));
 	}
 }
 
@@ -20995,8 +21072,22 @@ void Simulation::petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, 
 // stone and metal within 80 m on shared.js resourceMaps (getResourcesAround, up to 10), 20 on
 // the map border and the open water ahead (checkDockPlacement, 4 per 15 m up to 16); the lowest
 // wins, out of danger. In the village phase a spot with less than 10 water waits for later.
-bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const {
-	if (nav_grid_.cells.blank() || !land || !sea) return false;
+// With a search, anywhere on the map and without the frontier term. Oversea (buildOverseaDock):
+// on one of its lands facing any sea; a spot whose nearest civic centre of ours is more than
+// twice as far (squared) as an enemy's is skipped, and 0.2 per metre the farthest dock of ours
+// on its sea falls short of the map's width is added, to stretch a trade route. Proximity
+// (buildFirstBase from a ship): on any land facing `sea`, the metres to (px, pz) instead of the
+// frontier term; the village-phase water rule is skipped, and a land under 4000 cells of 16 m²
+// fails the search.
+bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz,
+                                          const PetraDockSearch *search) const {
+	if (nav_grid_.cells.blank() || (!search && (!land || !sea))) return false;
+	const std::vector<uint8_t> *oversea = search ? search->lands : nullptr;
+	const bool proximity = search && search->proximity;
+	auto land_ok = [&](uint16_t l) {
+		return oversea ? l && l < oversea->size() && (*oversea)[l] : land ? l == land : l != 0;
+	};
+	auto sea_ok = [&](uint16_t s) { return sea ? s == sea : s != 0; };
 	constexpr float kCcTile = 2.0f; // the territory tile, 8 m
 	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
 	const BuildingTypeInfo &info = building_type_info(BLD_DOCK);
@@ -21010,12 +21101,13 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	};
 	// Only tiles within 96 m of our territory can score: the box around it.
 	int bx0 = w, bz0 = w, bx1 = -1, bz1 = -1;
-	for (int iz = 0; iz < w; ++iz)
+	for (int iz = 0; iz < w && !search; ++iz)
 		for (int ix = 0; ix < w; ++ix)
 			if (ours(((float)ix + 0.5f) * kCcTile - map_half_, ((float)iz + 0.5f) * kCcTile - map_half_)) {
 				bx0 = std::min(bx0, ix); bx1 = std::max(bx1, ix);
 				bz0 = std::min(bz0, iz); bz1 = std::max(bz1, iz);
 			}
+	if (search) { bx0 = bz0 = 0; bx1 = bz1 = w - 1; }
 	if (bx1 < 0) return false;
 	const int reach = (int)std::ceil(96.0f / 4.0f / kCcTile);
 	bx0 = std::max(0, bx0 - reach); bz0 = std::max(0, bz0 - reach);
@@ -21076,7 +21168,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			for (int k = 0; k < mw + 2 * sr; ++k) {
 				const int ix = bx0 - sr + k;
 				const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)(bz0 + iz) + 0.5f) * kCcTile - map_half_;
-				pre[(size_t)k + 1] = pre[(size_t)k] + (ix >= 0 && ix < w && sea_cell(x, z) == sea ? 1 : 0);
+				pre[(size_t)k + 1] = pre[(size_t)k] + (ix >= 0 && ix < w && sea_ok(sea_cell(x, z)) ? 1 : 0);
 			}
 			for (int ix = 0; ix < mw; ++ix) rows[(size_t)iz * mw + ix] = pre[(size_t)ix + 2 * sr + 1] - pre[(size_t)ix];
 		}
@@ -21089,7 +21181,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			for (int k = -sr; k <= sr; ++k) {
 				const int gx = bx0 + ix + k;
 				if (gx < 0 || gx >= w) continue;
-				n += sea_cell(((float)gx + 0.5f) * kCcTile - map_half_, ((float)gz + 0.5f) * kCcTile - map_half_) == sea;
+				n += sea_ok(sea_cell(((float)gx + 0.5f) * kCcTile - map_half_, ((float)gz + 0.5f) * kCcTile - map_half_));
 			}
 			return n;
 		};
@@ -21111,19 +21203,19 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			// isDockLocation: land or water here, our land within its depth on one side and
 			// the sea on the other.
 			const uint16_t here = land_cell(x, z);
-			if (here ? here != land : !sea_cell(x, z)) continue;
+			if (here ? !land_ok(here) : !sea_cell(x, z)) continue;
 			bool shore = false;
 			const float dim_land = half + 1.5f * kCcTile, dim_sea = half + 2.0f * kCcTile;
 			for (const auto &a : kAround) {
-				if (land_cell(x + dim_land * a[0], z + dim_land * a[1]) != land) continue;
-				if (sea_cell(x - dim_sea * a[0], z - dim_sea * a[1]) != sea) continue;
+				if (!land_ok(land_cell(x + dim_land * a[0], z + dim_land * a[1]))) continue;
+				if (!sea_ok(sea_cell(x - dim_sea * a[0], z - dim_sea * a[1]))) continue;
 				shore = true;
 				break;
 			}
 			if (!shore) continue;
 			// getFrontierProximity: 0 inside our territory, else the 24 m steps to it (up to 4).
 			int prox = 0;
-			if (!ours(x, z)) {
+			if (!search && !ours(x, z)) {
 				prox = 5;
 				for (const auto &a : kAround) {
 					for (int i = 1; i < 5 && i < prox; ++i) {
@@ -21136,6 +21228,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 				if (prox > 4) continue;
 			}
 			float score = 40.0f * (float)prox;
+			if (proximity) score = 4.0f * std::sqrt((x - search->px) * (x - search->px) + (z - search->pz) * (z - search->pz));
 			score += 20.0f * (10.0f - std::min(10.0f, resources_around(ix, iz)));
 			if (near_map_border(x, z, border)) score += 20.0f;
 			// checkDockPlacement water: open water of that sea ahead, in 15 m steps along three
@@ -21146,7 +21239,31 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			probe.z = z;
 			float sx = 0.0f, sz = 0.0f;
 			uint16_t near_sea = 0;
-			if (!nearest_ship_cell(probe, sx, sz, &near_sea) || near_sea != sea) continue;
+			if (!nearest_ship_cell(probe, sx, sz, &near_sea) || !sea_ok(near_sea)) continue;
+			if (oversea) {
+				// Not much farther to one of our civic centres than to an enemy's.
+				float own_d = -1.0f, enemy_d = -1.0f;
+				for (const Building &b : buildings_) {
+					if (!is_civic_centre(b.type) || b.hp <= 0.0f || b.wrecked) continue;
+					const bool own = b.team == petra_pid_, enemy = !own && is_hostile(petra_pid_, b.team);
+					if (!own && !enemy) continue;
+					const float d = (x - b.x) * (x - b.x) + (z - b.z) * (z - b.z);
+					float &best = own ? own_d : enemy_d;
+					if (best < 0.0f || d < best) best = d;
+				}
+				if (own_d > 0.0f && enemy_d > 0.0f && enemy_d < 0.5f * own_d) continue;
+				// And as far as can be from our docks on that sea, for trade.
+				float dock_d = 0.0f;
+				for (const Building &b : buildings_) {
+					if (b.team != petra_pid_ || (b.type != BLD_DOCK && b.type != BLD_SUPER_DOCK) || b.hp <= 0.0f || b.wrecked || dock_sea(b) != near_sea) continue;
+					dock_d = std::max(dock_d, (x - b.x) * (x - b.x) + (z - b.z) * (z - b.z));
+				}
+				if (dock_d > 0.0f) {
+					const float map_m = 2.0f * map_half_ * 4.0f, dock_m = std::sqrt(dock_d) * 4.0f;
+					if (dock_m > map_m) continue;
+					score += 0.2f * (map_m - dock_m);
+				}
+			}
 			float ux = sx - x, uz = sz - z;
 			const float len = std::sqrt(ux * ux + uz * uz);
 			if (len > 1e-3f) { ux /= len; uz /= len; }
@@ -21158,7 +21275,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 				for (int k = -1; k <= 1 && open; ++k) {
 					const float px = sx + (float)i * sp * ux - (float)k * (float)i * side * uz;
 					const float pz = sz + (float)i * sp * uz + (float)k * (float)i * side * ux;
-					open = sea_cell(px, pz) == sea;
+					open = sea_cell(px, pz) == near_sea;
 				}
 				if (!open) break;
 				water += 4;
@@ -21190,7 +21307,8 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 						p2.half_size = half;
 						p2.x = px;
 						p2.z = pz;
-						if (dock_sea(p2) != sea || petra_building_land(p2, &topo, land) != land) continue;
+						if (search ? !dock_sea(p2) || !sea_ok(dock_sea(p2)) || !land_ok(petra_building_land(p2, &topo))
+						           : dock_sea(p2) != sea || petra_building_land(p2, &topo, land) != land) continue;
 						fits = true;
 						cx = cx0 + dx;
 						cz = cz0 + dz;
@@ -21202,6 +21320,14 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			out_cx = cx;
 			out_cz = cz;
 		}
+	}
+	if (found && proximity) {
+		Building p;
+		p.half_size = half;
+		p.x = ((float)out_cx + 0.5f * (float)foot) * GRID;
+		p.z = ((float)out_cz + 0.5f * (float)foot) * GRID;
+		const uint16_t l = petra_building_land(p, &topo);
+		return l < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[l] >= 4000.0f * 16.0f;
 	}
 	// Still in the village phase with little water around: wait for the territory to grow.
 	if (found && best_water < 10 && petra_ps().phase == 1) return false;
@@ -22244,8 +22370,16 @@ bool Simulation::petra_build_new_base(int res) {
 
 	float x = 0.0f, z = 0.0f;
 	if (res >= 0 ? !petra_find_economic_cc_location(btype, (uint8_t)res, false, x, z)
-	             : !petra_find_strategic_cc_location(btype, x, z))
+	             : !petra_find_strategic_cc_location(btype, x, z)) {
+		// queueplanBuilding.js findGoodPosition: no spot for the civic centre, so a dock on an
+		// island that isn't the enemy's, if one can be built and paid for.
+		float f, wd, g, st;
+		petra_structure_cost(BLD_DOCK, f, wd, g, st);
+		if (can_build(BLD_DOCK) && petra_ps().food() >= f && petra_ps().wood() >= wd &&
+		    petra_ps().gold() >= g && petra_ps().stone() >= st)
+			petra_build_oversea_dock();
 		return false;
+	}
 	const BuildingTypeInfo &info = building_type_info(btype);
 	const int foot = info.footprint;
 	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
@@ -22258,6 +22392,58 @@ bool Simulation::petra_build_new_base(int res) {
 	auto idle = petra_idle_builders();
 	if (!idle.empty() && !overseas) petra_order_builders(idle, 4, bid);
 	return bid != 0;
+}
+
+// queueplanBuilding.js buildOverseaDock: once we have a dock, one more on a land of 3600 m² or
+// more with no dock of ours on it and no civic centre of ours or an enemy's, across a sea from
+// one of our civic centres (getSeaBetweenIndices). Ordered at once, paid from the stock as
+// builder.construct is; a spot outside our or an ally's territory fails as the command would.
+bool Simulation::petra_build_oversea_dock() {
+	uint16_t home_land = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home_land);
+	if (!topo.naval_map) return false;
+	const size_t nl = topo.land_size.size();
+	std::vector<uint8_t> has_dock(nl, 0), lands(nl, 0);
+	bool any_dock = false;
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || (b.type != BLD_DOCK && b.type != BLD_SUPER_DOCK) || b.hp <= 0.0f || b.wrecked) continue;
+		any_dock = true;
+		const uint16_t l = petra_building_land(b, &topo);
+		if (l < nl) has_dock[l] = 1;
+	}
+	if (!any_dock) return false;
+	bool found = false;
+	for (uint16_t i = 1; i < nl; ++i) {
+		if (!topo.land_size[i] || topo.cell_m2 * (float)topo.land_size[i] < 3600.0f || has_dock[i]) continue;
+		bool keep = true;
+		uint16_t sea = 0;
+		for (const Building &b : buildings_) {
+			if (!is_civic_centre(b.type) || b.hp <= 0.0f || b.wrecked) continue;
+			const uint16_t l = petra_building_land(b, &topo);
+			if (l != i) {
+				if (b.team == petra_pid_ && !sea) sea = topo.sea_between(l, i);
+				continue;
+			}
+			// Docks on a land with a civic centre of ours are built elsewhere.
+			if (b.team == petra_pid_ || is_hostile(petra_pid_, b.team)) { keep = false; break; }
+		}
+		if (!keep || !sea) continue;
+		lands[i] = 1;
+		found = true;
+	}
+	if (!found) return false;
+	int cx = 0, cz = 0;
+	PetraDockSearch search;
+	search.lands = &lands;
+	if (!petra_find_dock_position(0, 0, cx, cz, &search)) return false;
+	const int foot = building_type_info(BLD_DOCK).footprint;
+	if (!petra_can_place(cx, cz, foot, BLD_DOCK)) return false;
+	float f, w, g, st;
+	petra_structure_cost(BLD_DOCK, f, w, g, st);
+	const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
+	if (!bid) return false;
+	petra_ps().pay(f, w, g, st);
+	return true;
 }
 
 // The tile of 0 A.D.'s territory map (8 m, two world units) a civic centre search walks.
